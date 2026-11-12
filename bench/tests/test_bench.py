@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 
 from closet_bench import fills, tagging
 from closet_bench.bench import compare, summarize
-from closet_bench.illustrate import STYLES, Fill, Spec, render
+from closet_bench.illustrate import STYLES, Fill, Spec, layer, render
 from closet_bench.schema import Details, ItemTags, Silhouette, drawing_extras, drawing_for, silhouette_params
 from closet_bench.templates import PANTS_DEFAULTS, SNEAKER_DEFAULTS, TOP_DEFAULTS, build
 
@@ -520,3 +520,40 @@ def test_plan_route_without_claude_code_installed_is_reported_as_unavailable(mon
     monkeypatch.setattr(claude_cli, "find_claude", lambda: None)
     with pytest.raises(RouteUnavailable, match="not installed"):
         claude_cli.tag_item_cli("claude-haiku-5-5", [garment()])
+
+
+# ---- worn open
+
+OPENING_TOPS = [dict(neck="collar", front="buttons"), dict(neck="hood", front="zip"), dict(neck="v", front="buttons", cuffs="rib", hem="rib"),
+                dict(neck="collar", collar="notch", front="buttons"), dict(neck="collar", collar="peak", front="double", length="knee")]
+
+
+@pytest.mark.parametrize("params", OPENING_TOPS)
+def test_a_garment_that_opens_down_the_front_can_be_drawn_open(params):
+    closed, opened = build("top", params), build("top", {**params, "state": "open"})
+    assert closed.fronts is None and opened.fronts is not None
+    assert opened.outline == closed.outline and opened.anchors == closed.anchors   # the same garment, on the same wearer
+    for run in opened.fronts:   # each front's edge runs from the neck to below the hem
+        assert run[0][1] < opened.anchors["hem"][1] / 2 and run[-1][1] > opened.anchors["hem"][1]
+    a = render(Spec("top", params, Fill("solid", "#336699")), "line")
+    b = render(Spec("top", {**params, "state": "open"}, Fill("solid", "#336699")), "line")
+    assert a != b and "matrix(" in b and "matrix(" not in a
+
+
+def test_a_pullover_has_nothing_to_open():
+    for params in (dict(), dict(neck="collar", front="half"), dict(front="quarter-zip", neck="mock")):
+        assert build("top", {**params, "state": "open"}).fronts is None
+        spec = Spec("top", params, Fill("solid", "#336699"))
+        assert render(Spec("top", {**params, "state": "open"}, spec.fill), "line") == render(spec, "line")
+
+
+def test_an_open_garment_shows_the_one_underneath_between_its_fronts():
+    tee = Spec("top", dict(sleeve="short"), Fill("solid", "#f1eee6"))
+    jacket = dict(neck="collar", collar="notch", front="buttons")
+    over = layer(tee, Spec("top", {**jacket, "state": "open"}, Fill("solid", "#1f2a44")), "line")
+    assert "#f1eee6" in over and "#1f2a44" in over
+    # back of the jacket, then the tee (cut to the opening), then the jacket's fronts
+    assert over.index("#f1eee6") < over.rindex("matrix(") and over.index("#1f2a44") < over.index("#f1eee6")
+    assert over.count("<svg") == 1
+    closed = layer(tee, Spec("top", jacket, Fill("solid", "#1f2a44")), "line")   # a closed jacket just covers the tee
+    assert "matrix(" not in closed and closed.index("#f1eee6") < closed.index("#1f2a44")

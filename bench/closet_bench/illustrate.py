@@ -13,7 +13,7 @@ import numpy as np
 from PIL import Image
 
 from . import fills
-from .templates import H, W, Shape, build
+from .templates import H, W, Shape, _x_on, build
 
 STYLES = ("flat", "line", "soft", "traced")
 CX_ROT = (200, 120)  # patterns are turned about the middle of the chest
@@ -229,12 +229,36 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
         if cutout is None:
             raise ValueError("traced style needs the cutout")
         return _render_traced(spec, cutout, uid)
+    defs, body, _, _ = _draw(spec, style, uid)
+    return _svg(body, defs)
+
+
+def layer(under: Spec, over: Spec, style: str, uid: str = "a") -> str:
+    """A garment worn open over another: both placed by the same points on the wearer. From the back forward:
+    the inside of the outer garment's back, the garment underneath where it shows (between the outer one's
+    fronts and inside its neck), then the outer garment's two fronts."""
+    o_defs, o_body, dy, opening = _draw(over, style, uid + "o", layered=True)
+    u_defs, u_body, _, _ = _draw(under, style, uid + "u", dy=dy)
+    if not opening:   # the outer garment is closed: it simply covers the one underneath
+        return _svg(u_body + o_body, u_defs + o_defs)
+    paths, top, bottom = opening
+    o_back, o_body = o_body
+    gap = (f'<clipPath id="w{uid}">' + "".join(f'<path d="{d}" transform="translate(0 {dy:.1f})"/>' for d in paths) + "</clipPath>"
+           f'<clipPath id="v{uid}"><rect x="0" y="{top + dy:.1f}" width="{W}" height="{bottom - top:.1f}"/></clipPath>')
+    return _svg(o_back + f'<g clip-path="url(#v{uid})"><g clip-path="url(#w{uid})">{u_body}</g></g>' + o_body, u_defs + o_defs + gap)
+
+
+def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | None = None):
+    """The markup for one garment: (defs, body, the vertical shift it was placed with, and, when it is worn
+    open, where a garment underneath shows: the paths of the opening between its fronts and of its neck, and
+    the heights that bound them). With `layered`, an open garment's body comes back in two pieces, (the
+    inside of its back, its two fronts), so that another garment can be drawn between them."""
     params = spec.params if not spec.weight or "weight" in spec.params else {**spec.params, "weight": spec.weight}
     shape = build(spec.template, params)
     bx0, by0, bx1, by1 = shape.bbox
     gw, gh = bx1 - bx0, by1 - by0
-    # centre the garment vertically on the card
-    dy = (H - gh) / 2 - by0
+    # centre the garment vertically on the card (unless it is placed with another garment's shift)
+    dy = (H - gh) / 2 - by0 if dy is None else dy
     defs, paint = _defs_for_fill(spec.fill, shape, uid, gw, gh)
     base = spec.fill.color
     dark_item = luminance(base) < 0.3
@@ -324,6 +348,8 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
             c = sole_c
             return f'<path d="{d}" fill="{c}"/>' + (f'<path d="{d}" fill="#000" opacity=".06"/>' if style != "line" else "")
         if role == "hole":
+            if layered:   # the inside of the neck belongs to the back, which a garment underneath covers
+                return ""
             return f'<path d="{d}" fill="{paint}"/><path d="{d}" fill="#000" opacity=".22"/>'
         # a shirt cuff is the body's own cloth: no tint where a line already marks it
         op = {"trim": 0.10, "band": 0.12, "cuff": 0.0 if style == "line" else 0.06}.get(role, 0.1)
@@ -341,8 +367,9 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
     depth = DEPTH_PX[wt] if spec.template == "top" else 0
     # always a darker tone of the cloth (a lighter one reads as gloss); the darker the cloth, the more it takes to show
     d_col, d_op = "#000", (0.42 if dark_item else 0.22 if luminance(base) < 0.55 else 0.14)
-    for part in shape.behind:
-        g.append(overlay(part.d, part.role, part.color))
+    behind = "".join(overlay(part.d, part.role, part.color) for part in shape.behind)
+    if not shape.fronts:
+        g.append(behind)
     # the garment body; a same-paint stroke rounds the corners in the flat style
     round_stroke = f' stroke="{paint}" stroke-width="5" stroke-linejoin="round"' if style == "flat" and not patterned else ""
     g.append(f'<path d="{shape.outline}" fill="{paint}"{round_stroke}/>')
@@ -396,24 +423,27 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
     for d in shape.lines:
         g.append(thin(d))
     g.append("</g>")
+    pins = []   # buttons and press studs, each with where it sits (worn open, each goes with its own front)
     for x, y, r in shape.dots:
-        if patterned:
-            g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 1.3}" fill="#fff" opacity=".45"/>')
+        m = f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 1.3}" fill="#fff" opacity=".45"/>' if patterned else ""
         if style == "line":
             ring = shade(spec.button_color, 0.45) if spec.button_color and luminance(spec.button_color) < 0.08 and dark_item else INK
-            g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{spec.button_color or CARD}" stroke="{ring}" stroke-width="1.1"/>')
+            m += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{spec.button_color or CARD}" stroke="{ring}" stroke-width="1.1"/>'
         elif spec.button_color:
-            g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{spec.button_color}" stroke="{l_stroke}" stroke-width=".8"/>')
+            m += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{spec.button_color}" stroke="{l_stroke}" stroke-width=".8"/>'
         else:
-            g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{l_stroke}" opacity="{min(1, l_op + 0.25)}"/>')
+            m += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{l_stroke}" opacity="{min(1, l_op + 0.25)}"/>'
+        pins.append((x, y, m))
     for x, y, r in shape.snaps:   # a press stud: a metal ring round a cap
         cap = spec.button_color or "#ece6da"
         ring = "#8d8a84" if luminance(cap) > 0.35 else "#c9c5bd"
-        if patterned:
-            g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 1.5}" fill="#fff" opacity=".45"/>')
-        g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 0.9:.1f}" fill="{ring}" stroke="{INK if style == "line" else l_stroke}" stroke-width=".9"/>'
-                 f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r * 0.62:.1f}" fill="{cap}"/>'
-                 f'<circle cx="{x - r * 0.18:.1f}" cy="{y - r * 0.18:.1f}" r="{r * 0.2:.1f}" fill="#fff" opacity=".7"/>')
+        m = f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 1.5}" fill="#fff" opacity=".45"/>' if patterned else ""
+        m += (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 0.9:.1f}" fill="{ring}" stroke="{INK if style == "line" else l_stroke}" stroke-width=".9"/>'
+              f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r * 0.62:.1f}" fill="{cap}"/>'
+              f'<circle cx="{x - r * 0.18:.1f}" cy="{y - r * 0.18:.1f}" r="{r * 0.2:.1f}" fill="#fff" opacity=".7"/>')
+        pins.append((x, y, m))
+    if not shape.fronts:
+        g += [m for _, _, m in pins]
     if spec.halo:   # fuzz: fibres standing off the edge, then a slightly ragged outline
         defs += (f'<filter id="z{uid}" x="-5%" y="-5%" width="110%" height="110%">'
                  '<feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="1" seed="7"/>'
@@ -430,8 +460,55 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
         for part in shape.parts:
             if part.role == "sole":
                 g.append(f'<path d="{part.d}" fill="none" stroke="{o_stroke}" stroke-width="{o_w * 0.7:.1f}" stroke-linejoin="round"/>')
-    g.append("</g>")
-    return _svg("".join(g), defs)
+    if not shape.fronts:
+        g.append("</g>")
+        return defs, "".join(g), dy, None
+
+    # ---- worn open. The closed drawing is cut along the two fronts' edges and each front is swung away
+    # from the centre, a little at the shoulders and more toward the hem, as an unfastened garment hangs.
+    # Collar, lapels, pockets and buttons travel with their own front; between them the inside of the back shows.
+    left, right = shape.fronts
+    y0 = shape.anchors.get("shoulder_l", (0, 80.0))[1]
+    reach = max(40.0, by1 - y0)
+    k = min(1.0, max(0.3, (min(bx0, W - bx1) - 5) / 22.0))      # stay on the card: a wide coat opens less
+    d0, sl = 5.0 * k, 17.0 * k / reach
+    m_l = f"matrix(1 0 {-sl:.4f} 1 {-d0 + sl * y0:.2f} 0)"
+    m_r = f"matrix(1 0 {sl:.4f} 1 {d0 - sl * y0:.2f} 0)"
+
+    def run(pts, shift=0):   # a front's edge, carried up past the neck and down past the hem
+        full = [(pts[0][0], -60.0)] + list(pts) + [(pts[-1][0], H + 60.0)]
+        return [(x + shift * (d0 + sl * (y - y0)), y) for x, y in full]
+
+    def poly(pts):
+        return "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in pts) + " Z"
+
+    opening = poly(run(left, -1) + run(right, +1)[::-1])        # between the two fronts once they have parted
+    defs += (f'<g id="q{uid}">{"".join(g[1:])}</g>'
+             f'<clipPath id="kl{uid}"><path d="{poly(run(left) + [(-60, H + 60), (-60, -60)])}"/></clipPath>'
+             f'<clipPath id="kr{uid}"><path d="{poly(run(right) + [(W + 60, H + 60), (W + 60, -60)])}"/></clipPath>'
+             f'<clipPath id="ks{uid}"><path d="{poly(run(left) + run(right)[::-1])}"/></clipPath>'
+             f'<clipPath id="kb{uid}"><path d="{opening}"/></clipPath>')
+    # a garment underneath shows between the fronts and inside the neck, from just above the collar (a shirt
+    # collar stands a little above a jacket's) down to the hem
+    shows = [opening] + [part.d for part in shape.parts if part.role == "hole"]
+    defs += f'<clipPath id="kh{uid}">' + "".join(f'<path d="{d}"/>' for d in shows) + "</clipPath>"
+    # the inside of the back, seen between the fronts (and, layered, inside the neck); then whatever lay
+    # between the fronts when the garment was closed (a jacket's collar behind the neck)
+    back = (f'<g clip-path="url(#{"kh" if layered else "kb"}{uid})"><path d="{shape.outline}" fill="{paint}"/>'
+            f'<path d="{shape.outline}" fill="#000" opacity=".22"/>'
+            + (f'<path d="{shape.outline}" fill="none" stroke="{o_stroke}" stroke-width="{o_w:.2f}" stroke-linejoin="round"/>' if o_w else "")
+            + f'</g><g clip-path="url(#ks{uid})"><use href="#q{uid}"/></g>')
+    out = []
+    e_stroke, e_w = (o_stroke, o_w) if o_w else (l_stroke, l_w)
+    for pts, m, k_id, side in ((left, m_l, "kl", -1), (right, m_r, "kr", +1)):
+        mine = "".join(pm for x, y, pm in pins if (x >= _x_on(right, y)) == (side > 0))
+        edge = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+        out.append(f'<g transform="{m}"><g clip-path="url(#{k_id}{uid})"><use href="#q{uid}"/></g>{mine}'
+                   f'<g clip-path="url(#{clip})"><path d="{edge}" fill="none" stroke="{e_stroke}" stroke-width="{e_w:.2f}" '
+                   f'stroke-linejoin="round" stroke-linecap="round"/></g></g>')
+    back, fronts = g[0] + behind + back + "</g>", g[0] + "".join(out) + "</g>"
+    top = by0 - (14 if left[0] != right[0] else 0)
+    return defs, ((back, fronts) if layered else back + fronts), dy, (shows, top, shape.anchors.get("hem", (0, by1))[1])
 
 
 # ------------------------------------------------------------------ traced

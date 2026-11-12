@@ -1,0 +1,13 @@
+# Build-only dependencies (not bundled into the app). Install together with
+# backend/requirements.txt:
+#   pip install -r backend/requirements.txt -r packaging/requirements-build.txt
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.10   # onnxruntime / uvicorn / pydantic / pystray / Xlib hooks
+altgraph==0.17.5
+setuptools==84.2.1                   # PyInstaller needs it at build time; excluded from the bundle
+
+# Platform-only PyInstaller dependencies (same pins as the spike). Not
+# exercised on the Linux machine this build was verified on.
+pefile==2024.8.26 ; sys_platform == "win32"
+pywin32-ctypes==0.2.3 ; sys_platform == "win32"
+macholib==1.16.4 ; sys_platform == "darwin"

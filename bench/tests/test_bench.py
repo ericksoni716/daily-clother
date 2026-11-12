@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 from closet_bench import fills, tagging
 from closet_bench.bench import compare, summarize
 from closet_bench.illustrate import STYLES, Fill, Spec, render
-from closet_bench.schema import Details, ItemTags, Silhouette, drawing_extras, silhouette_params
+from closet_bench.schema import Details, ItemTags, Silhouette, drawing_extras, drawing_for, silhouette_params
 from closet_bench.templates import PANTS_DEFAULTS, SNEAKER_DEFAULTS, TOP_DEFAULTS, build
 
 
@@ -296,6 +296,19 @@ def test_details_the_tagger_saw_reach_the_drawing():
     cord, svg_cord = draw(details=Details.plain(sleeve_length="long", collar="point", placket="front_placket", placket_buttons=7,
                                                fabric="corduroy", trim_color="navy"))
     assert "<pattern id=\"ta\"" in svg_cord and 'fill="#27344f"' in svg_cord
+
+
+def test_weight_and_fibre_are_tagged_and_handed_to_the_drawing():
+    tags = make_tags(details=Details.plain(sleeve_length="long", collar="point", placket="snap", placket_buttons=6,
+                                          pockets="hip_flap_double", fabric="flannel", fiber="woolen_wool", weight="heavyweight"))
+    template, params, extras, notes = drawing_for(tags)
+    assert template == "top" and params["pockets"] == "low"         # hip pockets are not chest pockets
+    assert tags.details.weight == "heavyweight" and tags.details.fiber == "woolen_wool"
+    with pytest.raises(ValueError):
+        Details.plain(weight="thick")
+    cords = make_tags(category="trousers", silhouette=Silhouette.of(leg="straight"),
+                      details=Details.plain(fabric="corduroy", corduroy_wale="wide_wale", weight="heavyweight"))
+    assert drawing_for(cords)[2]["texture"] == "corduroy"
 
 
 def test_organic_swatch_wraps_without_a_seam():

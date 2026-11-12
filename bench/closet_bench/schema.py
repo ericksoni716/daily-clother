@@ -19,6 +19,7 @@ from typing import Literal, Optional, get_args
 
 from pydantic import BaseModel, Field
 
+from . import taxonomy
 from .taxonomy import AXES, top_drawing
 from .templates import SHOE_STYLES
 
@@ -54,10 +55,22 @@ Collar = _axis("collar")
 Placket = _axis("placket")
 Cuff = _axis("cuff")
 SleeveConstruction = _axis("sleeve_construction", "na")
-Pockets = _axis("pockets")
+# Lower patch pockets on a shirt, overshirt or jacket have no value in the taxonomy yet; these two are
+# an extension until the owner decides whether to add them there.
+EXTRA_POCKETS = ("hip_patch_double", "hip_flap_double")
+Pockets = Literal[AXES["pockets"] + EXTRA_POCKETS]
 Hem = _axis("hem", "na")
 Fabric = Literal[("unknown",) + tuple(dict.fromkeys(AXES["woven_structure"] + AXES["knit_structure"]))]
 ColorTexture = _axis("color_texture")
+# Weight and fibre decide how thick a garment reads and what it can be layered over or under.
+FIBERS = AXES.get("fiber") or ('cotton', 'linen', 'cotton_linen', 'hemp', 'merino', 'lambswool', 'shetland', 'cashmere', 'yak', 'camel', 'alpaca', 'mohair', 'worsted_wool', 'woolen_wool', 'silk', 'polyester', 'nylon', 'acrylic', 'viscose', 'lyocell', 'modal', 'leather', 'suede', 'shearling')
+WEIGHT_CLASSES = ("lightweight", "midweight", "heavyweight", "super_heavy")
+KNIT_GAUGES = ('extra_fine', 'fine', 'medium', 'chunky', 'super_chunky')
+CORDUROY_WALES = ('needlecord', 'standard', 'mid', 'wide_wale', 'jumbo')
+Fiber = Literal[("unknown",) + tuple(FIBERS)]
+Weight = Literal[("unknown",) + WEIGHT_CLASSES]
+KnitGauge = Literal[("na",) + KNIT_GAUGES]
+CorduroyWale = Literal[("na",) + CORDUROY_WALES]
 PatternName = _axis("pattern")
 PatternOrientation = _axis("pattern_orientation")
 Waist = Literal["na", "belt_loops", "drawstring", "elastic"]
@@ -68,7 +81,7 @@ Feature = Literal["v_insert", "pleats", "pressed_crease", "contrast_stitching", 
 
 FIELDS = ("category", "color", "pattern", "formality", "season")
 DETAIL_FIELDS = ("fit_detail", "sleeve_length", "neckline", "collar", "placket", "placket_buttons", "button_color", "cuff",
-                 "sleeve_construction", "pockets", "hem", "fabric", "color_texture", "pattern_name", "pattern_orientation",
+                 "sleeve_construction", "pockets", "hem", "fabric", "fiber", "weight", "knit_gauge", "corduroy_wale", "color_texture", "pattern_name", "pattern_orientation",
                  "trim_color", "waist", "pant_hem", "shoe_style", "sole_color", "lace_color")
 SILHOUETTE_FIELDS = ("sleeve", "neck", "top_length", "fit", "leg", "pant_length", "shoe_height")
 
@@ -102,6 +115,10 @@ class Details(BaseModel):
     pockets: Pockets = Field(description="Visible front pockets. patch = sewn on with no flap; five_pocket_jean for jeans; cargo for thigh pockets.")
     hem: Hem = Field(description="Bottom edge of a top; 'na' otherwise.")
     fabric: Fabric = Field(description="The cloth's structure where it is plain to see (corduroy, cable, pique, denim, flannel, oxford ...); 'unknown' when you cannot tell.")
+    fiber: Fiber = Field(description="What the cloth is made of. Read it from a care tag when one is legible; otherwise your best judgement from how it looks (fuzzy wool, crumpled linen, smooth cotton), or 'unknown'.")
+    weight: Weight = Field(description="How thick and substantial the cloth is, which decides how the garment sits and what it can be layered under. lightweight: linen, poplin, a thin tee, a thin nylon jacket. midweight: an oxford shirt, a standard tee, chinos. heavyweight: wool flannel, denim, a sweatshirt, a thick overshirt. super_heavy: fleece, sherpa, melton, a puffer, a chunky knit. 'unknown' only when you really cannot tell.")
+    knit_gauge: KnitGauge = Field(description="Sweaters and other knitwear: how fine the stitches are, from extra_fine (smooth, thin) to super_chunky; 'na' otherwise.")
+    corduroy_wale: CorduroyWale = Field(description="Corduroy only: how wide the ridges are, from needlecord (very fine) to jumbo; 'na' otherwise.")
     color_texture: ColorTexture = Field(description="How the colour sits in the cloth; solid when unremarkable.")
     pattern_name: PatternName = Field(description="The specific pattern; solid when there is none. Flannel is a fabric, never a pattern.")
     pattern_orientation: PatternOrientation = Field(description="Direction of stripes or pattern; all_over for solids and all-over patterns.")
@@ -119,6 +136,7 @@ class Details(BaseModel):
         """Nothing distinctive, plus whatever is known."""
         base = dict(fit_detail="regular", sleeve_length="na", neckline="na", collar="none", placket="none", placket_buttons=0,
                     button_color="same", cuff="none", sleeve_construction="na", pockets="none", hem="na", fabric="unknown",
+                    fiber="unknown", weight="unknown", knit_gauge="na", corduroy_wale="na",
                     color_texture="solid", pattern_name="solid", pattern_orientation="all_over", trim_color="same",
                     waist="na", pant_hem="na", shoe_style="na", sole_color="same", lace_color="same",
                     features=[], other_features=[])
@@ -166,6 +184,10 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
     s, d = tags.silhouette, tags.details
     extras = {"button_color": NAMED_HEX.get(d.button_color), "trim_color": NAMED_HEX.get(d.trim_color),
               "sole_color": NAMED_HEX.get(d.sole_color), "lace_color": NAMED_HEX.get(d.lace_color)}
+    cloth = {"fabric": d.fabric, "fiber": None if d.fiber == "unknown" else d.fiber,
+             "weight": None if d.weight == "unknown" else d.weight,
+             "knit_gauge": None if d.knit_gauge == "na" else d.knit_gauge,
+             "corduroy_wale": None if d.corduroy_wale == "na" else d.corduroy_wale}
     if tags.category in ("jeans", "trousers", "shorts"):
         jeans = tags.category == "jeans" or d.pockets == "five_pocket_jean"
         p = {"leg": s.leg or "straight", "length": "short" if tags.category == "shorts" else (s.pant_length or "full"),
@@ -182,7 +204,10 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
             p["hem"] = {"turn_up": "turnup", "ribbed": "rib"}[d.pant_hem]
         if "contrast_stitching" in d.features:
             p["stitch"] = "contrast"
-        extras["texture"] = "corduroy" if d.fabric == "corduroy" else None
+        if hasattr(taxonomy, "surface_extras"):
+            extras.update(taxonomy.surface_extras(cloth))
+        else:
+            extras["texture"] = "corduroy" if d.fabric == "corduroy" else None
         return "pants", p, extras, []
     if tags.category in ("sneakers", "boots", "dress_shoes", "sandals"):
         by_category = {"boots": "boot", "dress_shoes": "derby"}.get(tags.category) or ("high_top" if s.shoe_height == "high" else "low_sneaker")
@@ -206,10 +231,13 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
          "collar": d.collar if d.collar != "none" else ("point" if (coarse_neck == "collar" and d.neckline == "na") else "none"),
          "neckline": d.neckline if d.neckline != "na" else _COARSE_NECK.get(coarse_neck, "crew"),
          "placket": d.placket, "placket_buttons": d.placket_buttons if d.placket != "none" else None,
-         "cuff": d.cuff, "sleeve_construction": d.sleeve_construction, "pockets": d.pockets,
-         "hem": d.hem if d.hem != "na" else "straight", "fabric": d.fabric,
+         "cuff": d.cuff, "sleeve_construction": d.sleeve_construction,
+         "pockets": {"hip_patch_double": "split_hand", "hip_flap_double": "split_hand"}.get(d.pockets, d.pockets),
+         "hem": d.hem if d.hem != "na" else "straight", **cloth,
          "length": s.top_length or ("long" if tags.category == "coat" else "regular")}
     p, more, notes = top_drawing(g)
+    if d.pockets in EXTRA_POCKETS:
+        p["pockets"] = "low"
     if "v_insert" in d.features:
         p["neck_detail"] = "v-insert"
     return "top", p, {**extras, **more}, notes

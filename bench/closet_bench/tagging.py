@@ -29,6 +29,8 @@ Fill in the attributes. Guidance:
 - Judge the true colour of the cloth, allowing for shadows and warm indoor light.
 - Silhouette: fill in only the fields that apply to this kind of item and leave the rest null.
 - Details are what make the drawing this particular garment, so look closely and report what is there, not what is usual for the category: count the buttons you can see; say whether a long-sleeved knit top has a buttoned placket (a henley) or none (a plain tee); name the collar (button_down, spread, camp, band ...), the cuff, the pockets and the hem; name the cloth when its structure shows (corduroy, cable, pique, flannel, denim). Where a detail does not apply use "na", "none", "same", "unknown" or 0. details_confidence covers the details as a whole.
+- Weight and fibre matter as much as shape: a fleece shirt is far thicker than a linen one, and a wool flannel more substantial than a thin cotton one. Judge weight from how the cloth holds its shape, how thick its edges, cuffs and collar are, and how it folds.
+- Say what you see even when it is unusual for the category: a front that closes with snaps is placket "snap"; pockets at the hip are not chest pockets. When a features flag fits (a rubber toe bumper is toe_cap), set the flag; do not describe it in other_features as well.
 - other_features: distinctive things no field covers, in a few words each. Do not repeat what the fields already say.
 - Brand, size and material: only what you can actually read in a photo. Otherwise null.
 - needs_shot: leave null unless one more photo would settle something that matters for choosing outfits."""

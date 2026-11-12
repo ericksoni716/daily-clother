@@ -2,6 +2,9 @@
 
     python -m closet_bench.bench --photos private/photos --key private/key.csv
 
+By default it reaches Claude through the Claude plan (`claude -p`, nothing
+billed) and uses the API key only if the plan cannot be used; see `--route`.
+
 Reports, per field: accuracy, whether stated confidence matches reality,
 cost per item and time, for each model, with and without the optional extra
 shot. Photos and results stay in git-ignored folders; nothing printed to the
@@ -21,7 +24,8 @@ from . import cutout as C
 from . import fills
 from .illustrate import Fill, Spec, render
 from .schema import FIELDS, SILHOUETTE_FIELDS, ItemTags, silhouette_params
-from .tagging import CONFIG, TaggingError, TagResult, tag_item
+from .routes import ORDERS, Router
+from .tagging import CONFIG, TaggingError, TagResult
 
 ROOT = Path(__file__).resolve().parent.parent
 BINS = ((0.0, 0.6), (0.6, 0.8), (0.8, 0.9), (0.9, 1.01))
@@ -104,16 +108,14 @@ def recorded_tagger(folder: Path):
 
 
 def run(photos: Path, key_path: Path, models: list[str], out: Path, models_dir: Path, cutout_model: str,
-        client=None, recorded: Path | None = None) -> Path:
+        client=None, recorded: Path | None = None, route: str = "auto") -> Path:
     if recorded is not None:
         tagger = recorded_tagger(recorded)
     else:
-        if client is None:
-            import anthropic
-            client = anthropic.Anthropic()
+        router = Router(route, client=client)
 
         def tagger(model, name, images):
-            return tag_item(client, model, images)
+            return router.tag(model, images)
     key = load_key(key_path)
     out.mkdir(parents=True, exist_ok=True)
     results: dict = {"runs": {}, "items": {}}
@@ -126,7 +128,7 @@ def run(photos: Path, key_path: Path, models: list[str], out: Path, models_dir: 
         print(f"item {i}/{len(key)}: cutout ready, {len(extras)} extra shot(s)")
     for model in models:
         for variant in ("photo_only", "with_extra_shot"):
-            outcomes, cost, secs, failures, n = [], 0.0, 0.0, 0, 0
+            outcomes, cost, secs, failures, n, used = [], 0.0, 0.0, 0, 0, set()
             for name, truth in sorted(key.items()):
                 cut, extras = cuts[name]
                 if variant == "with_extra_shot" and not extras:
@@ -142,6 +144,7 @@ def run(photos: Path, key_path: Path, models: list[str], out: Path, models_dir: 
                 outcomes.append(cmp_)
                 cost += r.cost_usd
                 secs += r.seconds
+                used.add(r.route)
                 results["items"].setdefault(name, {})[f"{model}/{variant}"] = dict(
                     tags=r.tags.model_dump(), outcome=cmp_, cost_usd=r.cost_usd, seconds=r.seconds)
             if n == 0:
@@ -149,7 +152,7 @@ def run(photos: Path, key_path: Path, models: list[str], out: Path, models_dir: 
             done = max(1, n - failures)
             results["runs"][f"{model}/{variant}"] = dict(
                 items=n, failures=failures, cost_per_item_usd=cost / done, seconds_per_item=secs / done,
-                fields=summarize(outcomes))
+                routes=sorted(used), fields=summarize(outcomes))
             print(f"{model} / {variant}: {n} items, {failures} failed, ${cost / done:.5f} per item, {secs / done:.1f}s per item")
     (out / "results.json").write_text(json.dumps(results, indent=1))
     report = out / "report.html"
@@ -166,8 +169,14 @@ def _report(results: dict, cuts: dict, show_model: str, measured: bool = True) -
          ".card{border:1px solid #ccc;border-radius:10px;padding:8px}.pair{display:flex;gap:6px}.pair>*{width:50%;height:auto}"
          "img{background:#eee;border-radius:8px}</style><h1>Tagging bench</h1>"]
     for run_name, r in results["runs"].items():
-        spend = (f"${r['cost_per_item_usd']:.5f} per item · {r['seconds_per_item']:.1f}s per item" if measured
-                 else "recorded answers: cost and time not measured")
+        if not measured:
+            spend = "recorded answers: cost and time not measured"
+        elif r.get("routes") == ["plan"]:
+            spend = (f"through the Claude plan (nothing billed) · {r['seconds_per_item']:.1f}s per item · "
+                     f"would cost about ${r['cost_per_item_usd']:.4f} per item at API prices, including Claude Code's own overhead")
+        else:
+            spend = (f"${r['cost_per_item_usd']:.5f} per item · {r['seconds_per_item']:.1f}s per item"
+                     + (" · some calls went through the Claude plan" if "plan" in (r.get("routes") or []) else ""))
         h.append(f"<h2>{html.escape(run_name)}</h2><p>{r['items']} items · {r['failures']} failed · {spend}</p>")
         h.append("<table><tr><th>Field</th><th>Items</th><th>Accuracy</th><th>Calibration gap</th>"
                  + "".join(f"<th>conf {lo:.1f}–{min(hi, 1.0):.1f}</th>" for lo, hi in BINS) + "</tr>")
@@ -211,9 +220,11 @@ def main() -> None:
     ap.add_argument("--cutout-model", default="isnet-general-use", choices=list(C.MODELS))
     ap.add_argument("--out", type=Path, default=ROOT / "out" / "bench")
     ap.add_argument("--models-dir", type=Path, default=ROOT / "models")
-    ap.add_argument("--recorded", type=Path, help="score saved answers in this folder instead of calling the API")
+    ap.add_argument("--recorded", type=Path, help="score saved answers in this folder instead of calling Claude")
+    ap.add_argument("--route", default="auto", choices=list(ORDERS),
+                    help="how to reach Claude: auto = the Claude plan first, the API key only if the plan cannot be used")
     a = ap.parse_args()
-    print("report:", run(a.photos, a.key, a.models, a.out, a.models_dir, a.cutout_model, recorded=a.recorded))
+    print("report:", run(a.photos, a.key, a.models, a.out, a.models_dir, a.cutout_model, recorded=a.recorded, route=a.route))
 
 
 if __name__ == "__main__":

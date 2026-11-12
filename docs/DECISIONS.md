@@ -41,6 +41,27 @@ able to resume from this file, `BACKLOG.md` and the README.
 | ffmpeg is left out of the phase 1 program | Video arrives in phase 3. The spike proved it can be bundled, but it adds about 105 MB to a file that unpacks on every start; phase 3 will decide between bundling and download-on-first-use like the model. |
 | CI and release workflows are manual-only for now | The owner has not yet approved spending Actions minutes. Files travel between release jobs through a draft release, because artifact storage is exhausted. |
 
+## Reaching Claude: two routes
+
+Decided with the owner after phase 1: the app can reach Claude two ways, and
+uses whichever is available.
+
+| Decision | Why |
+|---|---|
+| Two routes: the owner's Claude plan through the Claude Code command-line tool (`claude -p`), and an API key | Either can run dry: the plan has usage limits, the API key has a credit balance. |
+| Default order is plan first, API key second; testing and the bench default to the plan | Plan calls bill nothing. The API key is only used when the plan cannot be. |
+| A route that is out of credit, not signed in or not installed is skipped for the rest of that run; a bad answer is retried on the same route and never moved to the paid one | Falling back must not turn a prompt problem into a bill. |
+| The plan route removes `ANTHROPIC_API_KEY` from the subprocess environment and never uses `--bare` | Claude Code prefers an API key when it sees one, which would bill the API silently; bare mode cannot read the plan login. |
+| Same prompt, same schema, same validation on both routes | The plan route passes the schema with `--json-schema` and reads `structured_output`; images are written to a temporary folder and opened with the Read tool, the only tool allowed. |
+| Cost shown for plan calls is labelled as an estimate at API prices | Claude Code reports `total_cost_usd` as a client-side estimate; nothing is charged per call on a plan. It includes Claude Code's own overhead, so it overstates what the API route would cost. |
+| The spend cap applies to the API route only | Plan usage is limited by the plan itself. |
+
+Facts checked in Anthropic's documentation on 2026-11-12:
+- Windows install needs no Node.js: `irm https://claude.ai/install.ps1 | iex` in PowerShell, or `winget install Anthropic.ClaudeCode`. The program lands in `%USERPROFILE%\.local\bin\claude.exe`; the app looks there as well as on PATH.
+- Signing in once with `claude` persists (stored in `%USERPROFILE%\.claude\.credentials.json`); later `claude -p` calls from another program use it. `claude auth status` exits 0 when signed in.
+- The support pages say `claude -p` under a plan login draws on the plan's limits. The legal page restricts third-party developers offering Claude login to their users, and says this does not prevent an end user signing in to the unmodified Claude Code program with their own plan. A personal program calling that program on the owner's own machine appears to be inside those terms, but the docs do not say so in as many words, and Anthropic reserves the right to change enforcement.
+- When a limit is hit the message reads "You've hit your session limit · resets …" (or weekly). The exit code for that case is not documented; the app matches on the message.
+
 ## Phase 0 findings
 
 See `docs/PHASE0.md` for the results and what is still open.

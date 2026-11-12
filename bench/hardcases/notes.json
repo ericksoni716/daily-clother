@@ -1,11 +1,11 @@
 {
-  "_summary": "<p>Four of the seven hard cases have been run on real photos: plaid shirt, graphic tee, white sneakers and jeans, plus a textured knit as an extra. <b>Striped sweater, floral and camouflage are not tested yet</b> because the photo source rate-limited the build environment.</p><p>Styles A, B and C draw the same parametric shape in three looks. Style D traces the photo's outline and is shown only to explain why it was rejected. Pick between A, B and C.</p><p>Nothing here has been through the app's real tagging call yet; the attributes were set by hand.</p>",
+  "_summary": "<p>Four of the seven hard cases have been run on real photos: plaid shirt, graphic tee, white sneakers and jeans, plus a textured knit as an extra. <b>Striped sweater, floral and camouflage are not tested yet</b> because the photo source rate-limited the build environment.</p><p>Styles A, B and C draw the same parametric shape in three looks. Style D traces the photo's outline and is shown only to explain why it was rejected. Pick between A, B and C. <b>Updated:</b> shirt collars are redrawn, seams and buttons now stay visible on patterned cloth, and patterns follow the sleeves.</p><p>Nothing here has been through the app's real tagging call yet; the attributes were set by hand.</p>",
   "plaid-flannel": {
     "verdict": "Works: the real plaid tiles cleanly inside the drawn shirt",
     "points": [
       "The repeat was found automatically and one repeat is used as the tile, so the scale is close to the photo's.",
       "Collar, buttons, curved hem and low pockets come from the attributes, not the photo.",
-      "The plaid runs straight down the sleeves instead of following their angle.",
+      "After feedback: the collar was redrawn as a proper point collar, seams are now drawn dark over a pale halo so they show on the pattern, and the plaid turns to follow the sleeves and collar.",
       "The cutout kept the dress form's neck and base; a hung or flat photo would not have that problem.",
       "Style D (traced) shows why tracing the photo was rejected: the outline depends on how the item happened to hang."
     ]

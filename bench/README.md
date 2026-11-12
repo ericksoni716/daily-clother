@@ -10,7 +10,10 @@ pip install -r requirements.txt
 python -m closet_bench.hardcases
 #    -> out/hardcases/report.html
 
-# 2. Tagging accuracy on your own photos (needs ANTHROPIC_API_KEY)
+# 2. Tagging accuracy on your own photos
+#    Uses your Claude plan through `claude -p` (Claude Code must be installed
+#    and signed in); falls back to ANTHROPIC_API_KEY only if the plan cannot be
+#    used. Force one with --route plan or --route api.
 python -m closet_bench.bench --photos private/photos --key private/key.csv
 #    -> out/bench/report.html and results.json
 ```
@@ -42,7 +45,9 @@ numbers only, never file names.
 | `closet_bench/templates.py` | Parametric garment shapes (tops, pants, sneakers so far) |
 | `closet_bench/illustrate.py` | The four styles; shape + fill = SVG |
 | `closet_bench/schema.py` | Attribute vocabulary and the shape of a tagging answer |
-| `closet_bench/tagging.py` | The Claude call: schema-constrained, validated, retried |
+| `closet_bench/tagging.py` | The prompt and the API-key route: schema-constrained, validated, retried |
+| `closet_bench/claude_cli.py` | The plan route: the same call through `claude -p` |
+| `closet_bench/routes.py` | Plan first, API key as fallback |
 | `closet_bench/models.json` | The one place model IDs and prices live |
 | `closet_bench/hardcases.py`, `bench.py` | The two commands above |
 | `tests/` | `python -m pytest tests` |

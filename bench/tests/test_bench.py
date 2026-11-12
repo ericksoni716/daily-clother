@@ -297,3 +297,110 @@ def test_the_tagging_request_and_answer_survive_a_real_http_round_trip():
     assert kinds == ["image", "text"] and body["messages"][0]["content"][0]["source"]["media_type"] == "image/jpeg"
     assert r.tags.category == "jeans" and r.tags.silhouette.leg == "straight"
     assert (r.input_tokens, r.output_tokens) == (1700, 310) and r.cost_usd == pytest.approx((1700 * 0.10 + 310 * 0.50) / 1e6)
+
+
+# ---- the two ways to reach Claude: the plan (claude -p) and the API key
+
+FAKE_CLAUDE = '''#!/usr/bin/env python3
+import json, os, sys
+mode = os.environ.get("FAKE_CLAUDE_MODE", "ok")
+record = {"argv": sys.argv[1:], "saw_api_key": "ANTHROPIC_API_KEY" in os.environ,
+          "photos": sorted(f for f in os.listdir(".") if f.endswith(".jpg"))}
+with open(os.environ["FAKE_CLAUDE_LOG"], "a") as f:
+    f.write(json.dumps(record) + "\\n")
+if mode == "limit":
+    print(json.dumps({"is_error": True, "result": "You've hit your session limit · resets 3:45pm"}))
+    sys.exit(1)
+if mode == "silent":
+    print(json.dumps({"is_error": False, "result": "I looked at the photo."}))
+    sys.exit(0)
+print(json.dumps({"is_error": False, "result": "", "structured_output": json.loads(os.environ["FAKE_CLAUDE_ANSWER"]),
+                  "usage": {"input_tokens": 4, "cache_creation_input_tokens": 5000, "cache_read_input_tokens": 4000, "output_tokens": 900},
+                  "total_cost_usd": 0.0017}))
+'''
+
+
+@pytest.fixture
+def fake_claude(tmp_path, monkeypatch):
+    import json
+    import stat
+    exe = tmp_path / "claude"
+    exe.write_text(FAKE_CLAUDE)
+    exe.chmod(exe.stat().st_mode | stat.S_IEXEC)
+    log = tmp_path / "calls.jsonl"
+    monkeypatch.setenv("FAKE_CLAUDE_LOG", str(log))
+    monkeypatch.setenv("FAKE_CLAUDE_ANSWER", make_tags(category="tee").model_dump_json())
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-should-never-reach-the-plan-route")
+    return str(exe), lambda: [json.loads(line) for line in log.read_text().splitlines()]
+
+
+def test_plan_route_tags_through_claude_code_without_ever_seeing_the_api_key(fake_claude):
+    from closet_bench import claude_cli
+    exe, calls = fake_claude
+    r = claude_cli.tag_item_cli("claude-haiku-5-5", [garment(), garment()], exe=exe)
+    assert r.route == "plan" and r.tags.category == "tee" and r.cost_usd == pytest.approx(0.0017)
+    assert (r.input_tokens, r.output_tokens) == (9004, 900)
+    call = calls()[0]
+    assert call["saw_api_key"] is False and call["photos"] == ["photo-1.jpg", "photo-2.jpg"]
+    argv = call["argv"]
+    assert argv[0] == "-p" and "photo-1.jpg, photo-2.jpg" in argv[1]
+    assert argv[argv.index("--model") + 1] == "claude-haiku-5-5" and argv[argv.index("--tools") + 1] == "Read"
+    assert "--bare" not in argv  # bare mode cannot use the plan login
+    import json
+    assert "category" in json.loads(argv[argv.index("--json-schema") + 1])["properties"]
+
+
+def test_when_the_plan_runs_out_the_api_key_takes_over_for_the_rest_of_the_run(fake_claude, monkeypatch):
+    from closet_bench.routes import Router
+    exe, calls = fake_claude
+    monkeypatch.setenv("FAKE_CLAUDE_MODE", "limit")
+    router = Router("auto", client=FakeClient([Reply(make_tags()), Reply(make_tags())]), claude_exe=exe)
+    first = router.tag("claude-haiku-5-5", [garment()])
+    second = router.tag("claude-haiku-5-5", [garment()])
+    assert first.route == "api" and second.route == "api"
+    assert len(calls()) == 1 and "usage limit" in router.skipped["plan"]  # the plan is not asked again this run
+
+
+def test_when_api_credits_run_out_the_plan_takes_over(fake_claude):
+    import anthropic
+    import httpx2 as httpx
+    from closet_bench.routes import Router
+    exe, _ = fake_claude
+
+    class Broke:
+        class messages:
+            @staticmethod
+            def parse(**kw):
+                resp = httpx.Response(400, request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"))
+                raise anthropic.BadRequestError("Your credit balance is too low to access the Anthropic API.", response=resp, body=None)
+
+    r = Router("api-first", client=Broke(), claude_exe=exe).tag("claude-haiku-5-5", [garment()])
+    assert r.route == "plan"
+
+
+def test_both_routes_dry_gives_one_clear_message(fake_claude, monkeypatch):
+    from closet_bench.routes import Router
+    from closet_bench.tagging import RouteUnavailable
+    exe, _ = fake_claude
+    monkeypatch.setenv("FAKE_CLAUDE_MODE", "limit")
+    monkeypatch.delenv("ANTHROPIC_API_KEY")
+    with pytest.raises(RouteUnavailable, match="plan: .*usage limit.*api: no API key"):
+        Router("auto", claude_exe=exe).tag("claude-haiku-5-5", [garment()])
+
+
+def test_a_plan_answer_with_no_structured_output_is_a_failure_not_a_fallback(fake_claude, monkeypatch):
+    from closet_bench.routes import Router
+    exe, calls = fake_claude
+    monkeypatch.setenv("FAKE_CLAUDE_MODE", "silent")
+    router = Router("auto", client=FakeClient([Reply(make_tags())]), claude_exe=exe)
+    with pytest.raises(tagging.TaggingError, match="no usable answer"):
+        router.tag("claude-haiku-5-5", [garment()])
+    assert len(calls()) == 2 and not router.skipped  # retried on the plan, never billed to the API
+
+
+def test_plan_route_without_claude_code_installed_is_reported_as_unavailable(monkeypatch):
+    from closet_bench import claude_cli
+    from closet_bench.tagging import RouteUnavailable
+    monkeypatch.setattr(claude_cli, "find_claude", lambda: None)
+    with pytest.raises(RouteUnavailable, match="not installed"):
+        claude_cli.tag_item_cli("claude-haiku-5-5", [garment()])

@@ -16,6 +16,7 @@ from . import fills
 from .templates import H, W, Shape, build
 
 STYLES = ("flat", "line", "soft", "traced")
+CX_ROT = (200, 120)  # patterns are turned about the middle of the chest
 CARD = "#f1eee8"
 INK = "#26231f"
 
@@ -128,6 +129,16 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
     tone = shade(base, 0.16 if dark_item else -0.16)
     clip = f"c{uid}"
     defs += f'<clipPath id="{clip}"><path d="{shape.outline}"/></clipPath>'
+    patterned = paint.startswith("url(")
+
+    def turned(name: str, degrees: float) -> str:
+        """The same cloth turned by an angle (sleeves hang at an angle; collar leaves are cut on a slant)."""
+        nonlocal defs
+        if not patterned:
+            return paint
+        defs += (f'<pattern id="p{uid}{name}" href="#p{uid}" '
+                 f'patternTransform="rotate({degrees:.1f} {CX_ROT[0]} {CX_ROT[1]})"/>')
+        return f"url(#p{uid}{name})"
 
     if style == "flat":
         o_stroke, o_w, l_stroke, l_w, l_op = "none", 0, ("#ffffff" if dark_item else "#000000"), 2.2, 0.22
@@ -143,7 +154,24 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
                  f'<filter id="s{uid}" x="-10%" y="-10%" width="120%" height="130%">'
                  '<feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#000" flood-opacity=".18"/></filter>')
 
+    # On a patterned cloth, seams drawn tone-on-tone disappear. There they are
+    # drawn darker over a pale halo, and the garment gets an edge in every style.
+    if patterned:
+        l_stroke, l_op = (INK if style == "line" else shade(base, -0.42)), (0.95 if style == "line" else 0.85)
+        l_w = max(l_w, 2.0)
+        if not o_w:
+            o_stroke, o_w = shade(base, -0.38), 2.2
+    halo = (lambda d, extra=2.2: f'<path d="{d}" fill="none" stroke="#fff" stroke-width="{l_w + extra}" stroke-linecap="round" '
+            f'stroke-linejoin="round" opacity=".32"/>') if patterned else (lambda d, extra=0: "")
+
     def overlay(d: str, role: str) -> str:
+        if role in ("collar_r", "collar_l"):
+            leaf_paint = turned(role[-1], -24 if role == "collar_r" else 24)
+            lift = f'<path d="{d}" fill="#fff" opacity=".16"/>' if patterned else \
+                f'<path d="{d}" fill="{"#fff" if dark_item else "#000"}" opacity=".08"/>'
+            edge = halo(d, 2.4) + (f'<path d="{d}" fill="none" stroke="{l_stroke}" stroke-width="{l_w}" stroke-linejoin="round" '
+                                   f'opacity="{l_op if (patterned or style != "flat") else 0.3}"/>')
+            return f'<path d="{d}" fill="{leaf_paint}"/>' + lift + edge
         if role == "sole":
             c = spec.sole_color or "#f4f1ea"
             return f'<path d="{d}" fill="{c}"/>' + (f'<path d="{d}" fill="#000" opacity=".06"/>' if style != "line" else "")
@@ -160,17 +188,26 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
     for part in shape.behind:
         g.append(overlay(part.d, part.role))
     # the garment body; a same-paint stroke rounds the corners in the flat style
-    round_stroke = f' stroke="{paint}" stroke-width="5" stroke-linejoin="round"' if style == "flat" else ""
+    round_stroke = f' stroke="{paint}" stroke-width="5" stroke-linejoin="round"' if style == "flat" and not patterned else ""
     g.append(f'<path d="{shape.outline}" fill="{paint}"{round_stroke}/>')
+    if patterned:
+        for n, (d, degrees) in enumerate(shape.sleeves):
+            g.append(f'<path d="{d}" fill="{turned(f"s{n}", degrees)}"/>')
     for part in shape.parts:
         g.append(overlay(part.d, part.role))
     g.append(_graphic_markup(spec.graphic, shape.bbox, clip))
     if style == "soft":
         g.append(f'<path d="{shape.outline}" fill="url(#g{uid})"/>')
+    g.append(f'<g clip-path="url(#{clip})">')  # seams never run past the edge of the garment
+    for d in shape.lines:
+        g.append(halo(d))
     for d in shape.lines:
         g.append(f'<path d="{d}" fill="none" stroke="{l_stroke}" stroke-width="{l_w}" stroke-linecap="round" '
                  f'stroke-linejoin="round" opacity="{l_op}"/>')
+    g.append("</g>")
     for x, y, r in shape.dots:
+        if patterned:
+            g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 1.3}" fill="#fff" opacity=".45"/>')
         if style == "line":
             g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{CARD}" stroke="{INK}" stroke-width="1.4"/>')
         else:

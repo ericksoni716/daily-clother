@@ -13,7 +13,8 @@
 - Illustration style: A (flat), B (outline) or C (soft shaded). The demo closet uses A until decided.
 - Three photos for the untested hard cases: something striped, something floral or patterned, something camouflage.
 - Go-ahead to run GitHub Actions: the Windows build and smoke test (about 16 billed minutes), and whether CI should run on every push.
-- 25–30 real photos with an answer key, then the API key last, once everything before it is proven.
+- 25–30 real photos with an answer key. The bench runs them through the Claude plan by default; an API key is optional.
+- Whether to drop the Google Drive hand-off for price checks now that the app can run them itself through the plan route while the PC is on.
 
 ## Phase 1 (built; waiting for its first real build)
 - [x] Backend: data model and migrations, login, one-photo capture, cutout queue, model download states, backups and restore, demo closet, launcher. 42 tests.
@@ -22,6 +23,10 @@
 - [ ] First packaged build in Actions on Windows (needs the owner's go-ahead: run the `release` workflow).
 - [ ] Try on a real Windows PC and iPhone. Never exercised so far: tray icon, start at login, the Tailscale address, camera capture, home-screen install, HEIC from the phone, the model download progress bar, dropping a folder of photos.
 - [ ] Pin the macOS-only tray dependencies after the first Mac build.
+
+## Phase 2 additions
+- Move the two-route layer (`bench/closet_bench/routes.py`, `claude_cli.py`, `tagging.py`) into the backend; Settings shows which routes are available and the order.
+- Install note in the README for Claude Code on Windows, and a check that it is signed in.
 
 ## Later phases
 2. Illustration pipeline in the app, correction by command, visual picker, version history.

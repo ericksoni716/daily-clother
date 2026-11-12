@@ -36,6 +36,13 @@ class TaggingError(RuntimeError):
     pass
 
 
+class RouteUnavailable(TaggingError):
+    """This way of reaching Claude cannot be used right now (no credits, no login, not installed).
+
+    The caller may try the other route; nothing was wrong with the photo or the prompt.
+    """
+
+
 @dataclass
 class TagResult:
     tags: ItemTags
@@ -43,8 +50,9 @@ class TagResult:
     seconds: float
     input_tokens: int
     output_tokens: int
-    cost_usd: float
+    cost_usd: float          # on the plan route: what the call would have cost at API prices; nothing is billed
     attempts: int
+    route: str = "api"       # "api" (API key, billed) or "plan" (Claude plan through `claude -p`)
 
 
 def cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
@@ -97,7 +105,10 @@ def tag_item(client, model: str, images: list[Image.Image], max_attempts: int = 
                 last = e
                 time.sleep(min(30, 2 ** attempt))
                 continue
-            raise TaggingError(f"{model} rejected the request ({e.status_code}): {e.message}") from e
+            message = str(getattr(e, "message", e))
+            if e.status_code in (401, 403) or "credit balance" in message.lower() or "billing" in message.lower():
+                raise RouteUnavailable(f"the API key cannot be used right now ({e.status_code}): {message}") from e
+            raise TaggingError(f"{model} rejected the request ({e.status_code}): {message}") from e
         tokens_in += resp.usage.input_tokens
         tokens_out += resp.usage.output_tokens
         if resp.stop_reason == "refusal":

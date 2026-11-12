@@ -31,6 +31,7 @@ class Shape:
     bbox: tuple[float, float, float, float] = (0, 0, W, H)
     anchors: dict[str, tuple[float, float]] = field(default_factory=dict)
     behind: list[Part] = field(default_factory=list)
+    sleeves: list[tuple[str, float]] = field(default_factory=list)  # (path, degrees the cloth is turned)
 
 
 def _f(v: float) -> str:
@@ -102,7 +103,7 @@ def top(**kw) -> Shape:
     else:
         Co, Ci, _ = cuff
         arm_l = f"L {_pt(Al)} L {_pt(_mirror(Ci))} L {_pt(_mirror(Co))} L {_pt(Sl)}"
-    back_neck_y = ny - (16 if p["neck"] == "collar" else 4)
+    back_neck_y = ny - (30 if p["neck"] == "collar" else 4)  # control point; a collar stands above the shoulders
     if p["hem"] == "curved":
         hem = (f"C {_pt((CX + hh - 26, hy + hem_dip))} {_pt((CX - hh + 26, hy + hem_dip))} {_pt(Hl)}")
     else:
@@ -114,7 +115,15 @@ def top(**kw) -> Shape:
     sh.anchors = {"neck": (CX, ny), "shoulder_l": Sl, "shoulder_r": S, "hem": (CX, hy)}
     sh.body_box = (CX - ha, sy, CX + ha, hy)
     xmax = max(S[0], A[0], Hc[0], cuff[0][0] if cuff else 0)
-    sh.bbox = (2 * CX - xmax, back_neck_y - {"hood": 70, "turtle": 30}.get(p["neck"], 0), xmax, hy + hem_dip)
+    top_y = {"hood": ny - 74, "turtle": ny - 34, "collar": ny - 18}.get(p["neck"], ny - 4)
+    sh.bbox = (2 * CX - xmax, top_y, xmax, hy + hem_dip)
+    if cuff:
+        Co, Ci, _ = cuff
+        deg = math.degrees(th)
+        right_sleeve = f"M {_pt(S)} L {_pt(Co)} L {_pt(Ci)} L {_pt(A)} Q {_pt((CX + hs - 14, (sy + ay) / 2))} {_pt(S)} Z"
+        left_sleeve = (f"M {_pt(Sl)} L {_pt(_mirror(Co))} L {_pt(_mirror(Ci))} L {_pt(Al)} "
+                       f"Q {_pt((CX - hs + 14, (sy + ay) / 2))} {_pt(Sl)} Z")
+        sh.sleeves = [(right_sleeve, -deg), (left_sleeve, deg)]
 
     # ---- neckline
     front_bottom = ny
@@ -130,12 +139,17 @@ def top(**kw) -> Shape:
             f"M {_pt(Nl)} Q {_pt((CX, back_neck_y))} {_pt(N)} L {_pt((CX, front_bottom))} Z", "hole"))
         sh.lines.append(f"M {_pt((Nl[0] - 6, ny + 3))} L {_pt((CX, front_bottom + 10))} L {_pt((N[0] + 6, ny + 3))}")
     elif p["neck"] == "collar":
-        front_bottom = ny + 30
+        # A point collar: the inside of the collar shows in the opening, and two
+        # leaves run from the side of the neck down to points beside the top button.
+        front_bottom = ny + 20
         sh.parts.append(Part(
             f"M {_pt(Nl)} Q {_pt((CX, back_neck_y))} {_pt(N)} L {_pt((CX, front_bottom))} Z", "hole"))
         for m in (lambda q: q, _mirror):
-            leaf = [m((CX + nw + 3, ny - 5)), m((CX + 40, ny + 44)), m((CX + 1, front_bottom + 2)), m((CX + nw - 9, ny - 14))]
-            sh.parts.append(Part("M " + " L ".join(_pt(q) for q in leaf) + " Z", "trim"))
+            top_pt, shoulder_pt = m((CX + nw - 4, ny - 15)), m((CX + nw + 10, ny + 5))
+            point, centre = m((CX + 33, ny + 49)), m((CX + 1.5, front_bottom))
+            leaf = (f"M {_pt(top_pt)} L {_pt(shoulder_pt)} L {_pt(point)} "
+                    f"L {_pt(centre)} Q {_pt(m((CX + 13, ny + 4)))} {_pt(top_pt)} Z")
+            sh.parts.append(Part(leaf, "collar_r" if m((1, 0))[0] == 1 else "collar_l"))
     elif p["neck"] == "turtle":
         front_bottom = ny + 6
         tube = (f"M {_pt((Nl[0] - 3, ny + 6))} L {_pt((Nl[0] + 3, ny - 30))} Q {_pt((CX, ny - 37))} {_pt((N[0] - 3, ny - 30))} "

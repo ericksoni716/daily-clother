@@ -88,6 +88,31 @@ PHOTOS = {
     "sneaker-held": ("White leather sneakers", "sneakers", "white", "solid", dict(shoe_height="low"), "casual", "all", {}),
 }
 
+# name -> days ago it was worn, days ago it was last washed (None: never), whether it is in the laundry now.
+# The demo closet turns these into dates when it is first opened, so the history is always recent.
+HISTORY = {
+    "Dark indigo jeans": ([1, 3, 5, 8, 10, 13], 14, False),
+    "White tee": ([1, 6, 12], 7, True),
+    "Blue oxford shirt": ([2, 9], 5, False),
+    "Breton striped tee": ([3, 11], 12, True),
+    "Grey hoodie": ([2, 7], 9, True),
+    "White canvas sneakers": ([1, 2, 5, 8, 9, 12], None, False),
+    "Navy polo": ([4], 6, False),
+    "Burgundy cable sweater": ([6, 13], 20, False),
+    "Brown boots": ([6, 13], None, False),
+    "Chambray shirt": ([7], 10, False),
+    "Black jeans": ([4, 11], 12, False),
+    "Plaid flannel shirt": ([9], 15, False),
+    "Light wash jeans": ([2], 3, False),
+}
+
+
+def add_history(items: list[dict]) -> None:
+    for it in items:
+        if it["name"] in HISTORY:
+            worn, washed, laundry = HISTORY[it["name"]]
+            it["history"] = dict(worn=worn, washed=washed, laundry=laundry)
+
 
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -120,6 +145,7 @@ def main() -> None:
                           rating_reason=extra.get("rating_reason"), brand=extra.get("brand"), size=extra.get("size"),
                           illustration_svg=render(Spec(template, params, fill, sole_color=extra.get("sole"), **extra.get("spec", {})), STYLE, uid=item_id[:8]),
                           photo=None))
+    add_history(items)
     # interleave so the grid mixes photographed and drawn items
     items.sort(key=lambda it: it["id"])
     (OUT / "items.json").write_text(json.dumps({"style": STYLE, "items": items}, ensure_ascii=False, indent=1), encoding="utf-8")

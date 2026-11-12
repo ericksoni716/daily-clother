@@ -12,6 +12,7 @@ from . import db, images, jobs, vocab
 TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "acquired_on", "notes", "rating_reason", "color_hex")
 ENUM_FIELDS = tuple(vocab.ENUM_FIELDS)
 PATCHABLE = set(TEXT_FIELDS) | set(ENUM_FIELDS) | {"silhouette", "price_cents", "status"}
+RECENT_WEARS = 10
 
 
 class ItemError(ValueError):
@@ -30,6 +31,7 @@ def _front(conn, item_id: str):
 
 def summary(conn, row) -> dict:
     photo = _front(conn, row["id"])
+    worn = conn.execute("SELECT max(worn_on), count(*) FROM wears WHERE item_id = ?", (row["id"],)).fetchone()
     thumb = None
     if photo is not None:
         thumb = photo["cutout_thumb_path"] or photo["thumb_path"]
@@ -40,6 +42,7 @@ def summary(conn, row) -> dict:
         "has_illustration": row["illustration_svg"] is not None, "has_photo": photo is not None,
         "illustration_url": (f"/api/items/{row['id']}/illustration.svg?v={zlib.crc32(row['illustration_svg'].encode()):08x}"
                              if row["illustration_svg"] is not None else None),
+        "last_worn": worn[0], "wear_count": worn[1], "wears_since_wash": row["wears_since_wash"], "laundry": row["laundry"],
         "created_at": row["created_at"], "updated_at": row["updated_at"],
     }
 
@@ -56,6 +59,8 @@ def detail(conn, row) -> dict:
         "cutout_url": _media(p["cutout_path"]), "cutout_thumb_url": _media(p["cutout_thumb_path"]),
         "width": p["width"], "height": p["height"],
     } for p in conn.execute("SELECT * FROM photos WHERE item_id = ? ORDER BY kind = 'front' DESC, created_at", (row["id"],))]
+    out["recent_wears"] = [r[0] for r in conn.execute(
+        "SELECT worn_on FROM wears WHERE item_id = ? ORDER BY worn_on DESC LIMIT ?", (row["id"], RECENT_WEARS))]
     return out
 
 
@@ -66,8 +71,12 @@ def get(conn, item_id: str):
     return row
 
 
-def list_items(conn, status: str = "active", category: str | None = None, q: str | None = None) -> list[dict]:
+def list_items(conn, status: str = "active", category: str | None = None, q: str | None = None,
+               laundry: str | None = None) -> list[dict]:
     sql, args = "SELECT * FROM items WHERE status = ?", [status]
+    if laundry:
+        sql += " AND laundry = ?"
+        args.append(laundry)
     if category:
         sql += " AND category = ?"
         args.append(category)
@@ -123,6 +132,8 @@ def update(conn, item_id: str, changes: dict) -> dict:
         if isinstance(value, str):
             value = value.strip() or None
         if field in ENUM_FIELDS:
+            if field == "location" and value == "laundry":
+                raise ItemError("The laundry is not where an item lives. Use “Put in the laundry” on the item instead.")
             if value is not None and value not in vocab.ENUM_FIELDS[field]:
                 raise ItemError(f"'{value}' is not a known {field}. Choose one of: {', '.join(vocab.ENUM_FIELDS[field])}.")
             if field in ("category", "color", "pattern", "formality", "season"):

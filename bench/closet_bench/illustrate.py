@@ -45,6 +45,7 @@ class Spec:
     weight: str | None = None         # lightweight | midweight | heavyweight | super_heavy: how heavy the edges are drawn
     halo: bool = False                # a fuzzy cloth (fleece, sherpa, mohair, brushed flannel): a soft, broken edge
     sheen: bool = False               # a shiny cloth (satin, nylon): a soft highlight across the body
+    texture_scale: float | None = None  # the texture's spacing: corduroy wale, knit gauge (None = standard)
     notes: list[str] = field(default_factory=list)
 
 
@@ -102,19 +103,20 @@ def _defs_for_fill(fill: Fill, shape: Shape, uid: str, garment_w: float, garment
     return "", fill.color
 
 
-# Textures drawn tone-on-tone. A name may carry a scale after a colon ("corduroy:2" = a wale twice
-# as wide, "cable_knit:1.4" = a chunkier knit); the scale changes the spacing, never the weight of the marks.
+# Textures drawn tone-on-tone. `Spec.texture_scale` stretches the spacing (2 = a corduroy wale twice as
+# wide, 1.4 = a chunkier knit); "name:scale" is accepted too.
 TEXTURES = ("corduroy", "rib_knit", "waffle", "cable_knit", "pique", "mesh", "seersucker", "herringbone", "twill",
             "denim", "fisherman_rib", "garter", "linen", "basket", "tweed", "ripstop", "sherpa", "fleece",
             "quilt_diamond", "quilt_box", "baffle")
 
 
-def _texture_defs(texture: str | None, uid: str, dark: bool) -> str:
+def _texture_defs(texture: str | None, uid: str, dark: bool, scale: float | None = None) -> str:
     """A tone-on-tone surface drawn over the cloth, so corduroy does not look like poplin."""
     lo, hi = ("#fff", "#000") if dark else ("#000", "#fff")
-    name, _, scale = (texture or "").partition(":")
+    name, _, s = (texture or "").partition(":")
+    scale = s or scale
     try:
-        sc = max(0.4, min(3.0, float(scale))) if scale else 1.0
+        sc = max(0.4, min(3.0, float(scale or 1.0)))
     except ValueError:
         sc = 1.0
     body = _texture_tile(name, sc, lo, hi)
@@ -221,7 +223,8 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
         if cutout is None:
             raise ValueError("traced style needs the cutout")
         return _render_traced(spec, cutout, uid)
-    shape = build(spec.template, spec.params)
+    params = spec.params if not spec.weight or "weight" in spec.params else {**spec.params, "weight": spec.weight}
+    shape = build(spec.template, params)
     bx0, by0, bx1, by1 = shape.bbox
     gw, gh = bx1 - bx0, by1 - by0
     # centre the garment vertically on the card
@@ -233,7 +236,7 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
     clip = f"c{uid}"
     defs += f'<clipPath id="{clip}"><path d="{shape.outline}"/></clipPath>'
     patterned = paint.startswith("url(")
-    tex_defs = _texture_defs(spec.texture, uid, dark_item)
+    tex_defs = _texture_defs(spec.texture, uid, dark_item, spec.texture_scale)
     defs += tex_defs
 
     def turned(name: str, degrees: float) -> str:

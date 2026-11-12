@@ -80,7 +80,7 @@ TOP_DEFAULTS = dict(
 #   weight    lightweight | midweight | heavyweight | super_heavy   how thick the cloth is: bulk, edge depth
 #   gauge     extra_fine | fine | medium | chunky | super_chunky     knit gauge: the depth of rib bands
 # Finer pocket values: chest-flap | chest-patch-two | pencil | western | welt | split | slash | chore |
-#   guayabera | bellows | utility | hip-patch | hip-flap
+#   chest-flap-two | guayabera | bellows | utility | hip-patch | hip-flap
 
 FITS = {   # half shoulder, half hem, shoulder y, underarm drop, cuff widths (long, short), short sleeve length and angle
     "slim": dict(hs=80, hh=72, sy=80, ad=84, cwl=31, cws=54, lns=88, ths=24),
@@ -160,6 +160,20 @@ def _clip_half(poly, a, b, keep):
             out.append(cur)
         elif inside(prev):
             out.append(_cross(prev, cur, a, b))
+    return out
+
+
+def _clip_run(run, a, b, keep):
+    """An open polyline cut to the side of the line a-b where `keep` lies (the first visible stretch)."""
+    side = lambda q: (b[0] - a[0]) * (q[1] - a[1]) - (b[1] - a[1]) * (q[0] - a[0])
+    sk = side(keep)
+    out = []
+    for i, cur in enumerate(run):
+        ins = side(cur) * sk >= 0
+        if i and ins != (side(run[i - 1]) * sk >= 0):
+            out.append(_cross(run[i - 1], cur, a, b))
+        if ins:
+            out.append(cur)
     return out
 
 
@@ -455,9 +469,6 @@ def top(**kw) -> Shape:
             v_bottom = ny + 62
             sh.parts.append(Part(_poly([(CX - 12, C0[1] - 2), (CX + 12, C0[1] - 2), (CX, v_bottom)]), "hole"))
             sh.parts.append(Part(f"M {_pt((CX - 12, C0[1] - 2))} L {_pt((CX, v_bottom))} L {_pt((CX + 12, C0[1] - 2))}", "edge"))
-        if cs == "tab":      # a strap across under the points, over the stand
-            ty = C0[1] + 11
-            sh.parts.append(Part(_poly([(CX - 16, ty - 3), (CX + 16, ty - 3), (CX + 16, ty + 3), (CX - 16, ty + 3)]), "cuff"))
 
         def leaf_edge(m):
             """The leaf's visible lower edge, from the shoulder point round the tip to where the leaves meet."""
@@ -489,9 +500,10 @@ def top(**kw) -> Shape:
             inward = _unit((cen[0] - tip[0], cen[1] - tip[1]))
             for m, _ in sides:
                 sh.dots.append((*m((tip[0] + inward[0] * 5.5, tip[1] + inward[1] * 5.5)), 2.1))
-        if cs == "pin":              # a collar bar through both leaves
-            py = C0[1] + 10
-            sh.parts.append(Part(_capsule_h(CX - 15, CX + 15, py, 2.6), "inlay", color="#b9b8b2"))
+        if cs == "pin":              # a collar bar through both leaves, halfway down the points
+            py = C0[1] + dy * 0.55
+            hw = dx * 0.55 + 6
+            sh.parts.append(Part(_capsule_h(CX - hw, CX + hw, py, 2.6), "inlay", color="#b9b8b2"))
         if woven:
             # the top button needs room between the leaves' front edges
             need = C0[1] + 4.6 * dy / dx
@@ -501,6 +513,12 @@ def top(**kw) -> Shape:
             sh.seams.append(f"M {_pt(Nl)} Q {_pt((CX - 22, stand_y))} {_pt((CX, stand_y))} Q {_pt((CX + 22, stand_y))} {_pt(N)}")
             front_bottom = stand_y
             stand_button = btn_y
+            if cs == "tab":   # a strap joins the points under the tie, buttoned over the top button
+                tw = 3.2
+                first_leaf = next(i for i, q in enumerate(sh.parts) if q.role == "collar_r")
+                sh.parts.insert(first_leaf, Part(_poly([(CX - 14, btn_y - tw), (CX + 14, btn_y - tw), (CX + 14, btn_y + tw),
+                                                               (CX - 14, btn_y + tw)]), "cuff"))
+                stand_button = None
     elif banded:
         # A stand with no leaves: its front rises from the neckline seam; above its top
         # edge the inside of the back of the band shows.
@@ -520,7 +538,7 @@ def top(**kw) -> Shape:
                 sh.parts.append(Part(_poly([m(v) for v in top_r + bot_r], close=True), "edge"))
         if cs == "wing":   # the stand's front tips are pressed out into small wings
             for m, side in sides:
-                w = [(CX + 1.2, y_ct), (CX + 17, y_ct + 3), (CX + 6.5, y_ct + 12.5)]
+                w = [(CX + 1.2, y_ct - 0.5), (CX + 15, y_ct - 4), (CX + 13, y_ct + 12)]
                 sh.parts.append(Part(_poly([m(v) for v in w]), f"collar_{side}"))
                 sh.parts.append(Part(_poly([m(v) for v in w]), "edge"))
         if front != "none":
@@ -785,7 +803,7 @@ def _lapels(sh, cs, ny, N, TR, TL, k, rise, front, bulk, hy):
     dbl = front == "double"
     knit = cs == "shawl_knit"
     if cs == "camp":
-        yb, ov = ny + 62, 7.0
+        yb, ov = ny + 66, 7.0
     elif knit:
         yb, ov = ny + (100 if front != "none" else 84), 6.0
     else:
@@ -804,10 +822,10 @@ def _lapels(sh, cs, ny, N, TR, TL, k, rise, front, bulk, hy):
     if cs in ("shawl", "shawl_knit"):
         wsh = (34.0 if not knit else 30.0) + bulk
         outer = [A0] + _bez(A0, (CX + wsh * 0.9, yb - (yb - ny) * 0.42), (N[0] + wsh * 0.42, ny + 34), N, 16)
-        pieces.append(outer + behind[1:] + [a])
+        pieces.append((outer + behind[1:] + [a], outer, False))
     else:
         if cs == "camp":
-            yn, wl, gd, clen, ang = ny + 38, 15.0, 9.0, 30.0, -34.0
+            yn, wl, gd, clen, ang = ny + 40, 19.0, 8.0, 33.0, -22.0
         else:
             yn, wl, gd, clen, ang = ny + 40, (38.0 if dbl else 31.0) + bulk * 0.6, 10.0, 15.0, -72.0
         Pn = (xr(yn) + wl, yn)
@@ -826,26 +844,28 @@ def _lapels(sh, cs, ny, N, TR, TL, k, rise, front, bulk, hy):
         nrm = nrm if nrm[0] > 0 else (-nrm[0], -nrm[1])
         front_edge = [A0] + _qbez(A0, (mid[0] + nrm[0] * 4, mid[1] + nrm[1] * 4), Pn, 12)
         lapel_pts = front_edge + [X, G]
-        out_c = (max(Cp[0], N[0]) + (9 if cs == "camp" else 5), (Cp[1] + N[1]) / 2)
-        collar_pts = [G, X, Cp] + _qbez(Cp, out_c, N, 8)[:-1] + behind + [a]
-        pieces.append(collar_pts)
-        pieces.append(lapel_pts)
+        mc = _lerp(Cp, N, 0.5)
+        out_c = (mc[0] + (3 if cs == "camp" else 5), mc[1])
+        run = [G, X, Cp] + _qbez(Cp, out_c, N, 8)
+        pieces.append((run[:-1] + behind + [a], run, False))
+        pieces.append((lapel_pts, lapel_pts, True))
     # the opening: between the two roll lines, above where they cross
     t = (CX - A0[0]) / (a[0] - A0[0]) if a[0] != A0[0] else 0.0
     Xc = _lerp(A0, a, t)
     hole = [Xc] + rim + _qbez(b, (CX, ny - 28.4 * k), _mirror(b), 8) + [_mirror(v) for v in rim[::-1]]
     sh.parts.append(Part(_poly(hole), "hole"))
-    role = lambda s: "band" if knit else f"collar_{s}"
-    for pts in pieces:   # the under (viewer's left) side first, cut where the top front crosses it
+    sh.parts.append(Part(_poly(hole), "edge"))
+    # each piece is stroked only along its visible edges, never across the back where the two sides meet
+    for pts, run, closed in pieces:   # the under (viewer's left) side first, cut where the top front crosses it
         lp = _clip_half([_mirror(v) for v in pts], A0, a, _mirror(a))
         if len(lp) >= 3:
-            sh.parts.append(Part(_poly(lp), role("l")))
-            if not knit:
-                sh.parts.append(Part(_poly(lp), "edge"))
-    for pts in pieces:
-        sh.parts.append(Part(_poly(pts), role("r")))
-        if not knit:
-            sh.parts.append(Part(_poly(pts), "edge"))
+            sh.parts.append(Part(_poly(lp), "collar_l"))
+            lr = _clip_half([_mirror(v) for v in run], A0, a, _mirror(a)) if closed else _clip_run([_mirror(v) for v in run], A0, a, _mirror(a))
+            if len(lr) >= 2:
+                sh.parts.append(Part(_poly(lr, close=closed), "edge"))
+    for pts, run, closed in pieces:
+        sh.parts.append(Part(_poly(pts), "collar_r"))
+        sh.parts.append(Part(_poly(run, close=closed), "edge"))
     return ("lapel", yb, ov)
 
 
@@ -880,6 +900,9 @@ def _pockets(sh, kind, sy, hy, hh, hs, hem, cuff, A, rib_h, lapel_front):
         patch(CX - 59, chest_y, 38, 44)
     elif kind == "chest-flap":
         flapped(CX + 21, chest_y - 4, 38, 46)
+    elif kind == "chest-flap-two":
+        flapped(CX + 21, chest_y - 4, 38, 46)
+        flapped(CX - 59, chest_y - 4, 38, 46)
     elif kind == "chest-patch-two":
         patch(CX + 21, chest_y, 38, 44, flap=False)
         patch(CX - 59, chest_y, 38, 44, flap=False)
@@ -1002,12 +1025,13 @@ def pants(**kw) -> Shape:
     coin = bool(p.get("coin", jeans))
     stitch = p.get("stitch", "tonal")
     leg, length = p["leg"], p["length"]
+    wt = WEIGHT_LEVEL.get(p.get("weight"), 1)   # a heavy cloth: a deeper waistband, a doubled hem
 
     wy = 28.0
     hw = 20.5 * k                                   # half waist
     hh = (25.0 if leg != "wide" else 26.5) * k      # half hip (a 50 cm flat hip; 52-53 for a wide cut)
     cy = wy + 27.0 * k                              # crotch
-    band = 4.0 * k if waist == "belt" else 4.6 * k
+    band = (4.0 * k if waist == "belt" else 4.6 * k) + max(0, wt - 1) * 2.5
     bb = wy + band                                  # bottom of the waistband
     hip_y = cy - 18                                 # the widest point, ~4/5 of the way down the rise
     # one leg: its width at the knee and the opening, and where its middle sits at the hem
@@ -1163,6 +1187,8 @@ def pants(**kw) -> Shape:
         if hem_kind == "stitched":
             sh.lines.append(f"M {_pt(mm((a[0] - 1, a[1] - 2.2 * k)))} L {_pt(mm((b[0] + 1, b[1] - 2.2 * k)))}")
             stitch_lines.append(f"M {_pt(mm((a[0], a[1] - 2.2 * k - 4)))} L {_pt(mm((b[0], b[1] - 2.2 * k - 4)))}")
+            if wt >= 2:
+                sh.lines.append(f"M {_pt(mm((a[0] - 1, a[1] - 2.2 * k - 5)))} L {_pt(mm((b[0] + 1, b[1] - 2.2 * k - 5)))}")
         elif hem_kind == "turnup":
             t = 4.0 * k
             cuff = [(a[0] - 2.5, a[1] - t), (b[0] + 2.5, b[1] - t), (b[0] + 1.5, b[1] + 1), (a[0] - 1.5, a[1] + 1)]

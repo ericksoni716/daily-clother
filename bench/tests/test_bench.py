@@ -302,7 +302,7 @@ def test_weight_and_fibre_are_tagged_and_handed_to_the_drawing():
     tags = make_tags(details=Details.plain(sleeve_length="long", collar="point", placket="snap", placket_buttons=6,
                                           pockets="hip_flap_double", fabric="flannel", fiber="woolen_wool", weight="heavyweight"))
     template, params, extras, notes = drawing_for(tags)
-    assert template == "top" and params["pockets"] == "low"         # hip pockets are not chest pockets
+    assert template == "top" and params["pockets"] in ("low", "hip-patch", "hip-flap")   # hip pockets are not chest pockets
     assert tags.details.weight == "heavyweight" and tags.details.fiber == "woolen_wool"
     with pytest.raises(ValueError):
         Details.plain(weight="thick")

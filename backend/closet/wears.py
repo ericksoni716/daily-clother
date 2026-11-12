@@ -41,9 +41,9 @@ def add(conn, item_id: str, worn_on: str | None = None) -> tuple[dict, bool]:
     day = _parse(worn_on) if worn_on else today()
     if day > today():
         raise items.ItemError("That date is in the future. Record a wear on the day, or afterwards.")
-    t = db.now()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        t = db.now()  # taken under the write lock, so it orders correctly against a wash
         created = conn.execute("INSERT OR IGNORE INTO wears (item_id, worn_on, created_at) VALUES (?, ?, ?)",
                                (item_id, day.isoformat(), t)).rowcount == 1
         if created:
@@ -57,10 +57,11 @@ def add(conn, item_id: str, worn_on: str | None = None) -> tuple[dict, bool]:
 
 
 def remove(conn, item_id: str, worn_on: str) -> dict:
-    row = items.get(conn, item_id)
+    items.get(conn, item_id)
     day = _parse(worn_on).isoformat()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        row = items.get(conn, item_id)  # read again under the write lock: a wash may have just been recorded
         wear = conn.execute("SELECT created_at FROM wears WHERE item_id = ? AND worn_on = ?", (item_id, day)).fetchone()
         if wear is None:
             raise items.ItemError("There is no wear on that day to remove.", 404)
@@ -78,13 +79,20 @@ def remove(conn, item_id: str, worn_on: str) -> dict:
 
 def set_laundry(conn, item_id: str, state: str) -> dict:
     """Put an item in the laundry, or mark it clean (which starts its count of wears since the wash again)."""
-    row = items.get(conn, item_id)
+    items.get(conn, item_id)
     if state not in LAUNDRY:
         raise items.ItemError("The laundry state must be clean or laundry.")
-    t = db.now()
-    if state == "clean":
-        conn.execute("UPDATE items SET laundry = 'clean', wears_since_wash = 0, washed_at = ?, updated_at = ? WHERE id = ?",
-                     (t, t, item_id))
-    elif row["laundry"] != "laundry":
-        conn.execute("UPDATE items SET laundry = 'laundry', updated_at = ? WHERE id = ?", (t, item_id))
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        t = db.now()
+        if state == "clean":
+            conn.execute("UPDATE items SET laundry = 'clean', wears_since_wash = 0, washed_at = ?, updated_at = ? WHERE id = ?",
+                         (t, t, item_id))
+        else:
+            conn.execute("UPDATE items SET laundry = 'laundry', updated_at = ? WHERE id = ? AND laundry != 'laundry'", (t, item_id))
+        conn.execute("COMMIT")
+    except Exception:
+        if conn.in_transaction:
+            conn.execute("ROLLBACK")
+        raise
     return items.detail(conn, items.get(conn, item_id))

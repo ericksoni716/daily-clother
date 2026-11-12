@@ -235,8 +235,9 @@ interface WearPanelProps {
 function WearPanel({ item, disabled, onWear, onUnwear, onLaundry }: WearPanelProps) {
   const today = localDay();
   // "today" is the computer's date on the server; remember the day it answered so undo works even if this device's date differs
-  const [loggedOn, setLoggedOn] = useState<string | null>(null);
-  const wornToday = !!item.last_worn && (item.last_worn === today || item.last_worn === loggedOn);
+  // (kept only for the local day it was pressed on, so it does not stick past midnight)
+  const [logged, setLogged] = useState<{ server: string; local: string } | null>(null);
+  const wornToday = !!item.last_worn && (item.last_worn === today || (logged?.local === today && item.last_worn === logged.server));
   const inLaundry = item.laundry === 'laundry';
   const title = disabled ? OFFLINE_TITLE : undefined;
   const recent = item.recent_wears ?? [];
@@ -256,7 +257,7 @@ function WearPanel({ item, disabled, onWear, onUnwear, onLaundry }: WearPanelPro
         ) : (
           <button className="btn btn-primary btn-small" disabled={disabled} title={title} onClick={async () => {
             const saved = await onWear();
-            if (saved?.last_worn) setLoggedOn(saved.last_worn);
+            if (saved?.last_worn) setLogged({ server: saved.last_worn, local: localDay() });
           }}>Wore it today</button>
         )}
         {inLaundry ? (

@@ -36,13 +36,13 @@ export function ClosetScreen({ status, selectedId, wide }: Props) {
     const q = query.trim().toLowerCase();
     return (list ?? []).filter((it) => {
       if (activeCategory && it.category !== activeCategory) return false;
-      if (laundry && (it.laundry ?? 'clean') !== laundry) return false;
+      if (laundry && status === 'active' && (it.laundry ?? 'clean') !== laundry) return false;
       if (!q) return true;
       const hay = [it.name, label('category', it.category), label('color', it.color), label('pattern', it.pattern), it.category, it.color]
         .filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
-  }, [list, activeCategory, laundry, query]);
+  }, [list, activeCategory, laundry, status, query]);
 
   const empty = list !== null && list.length === 0;
   const title = status === 'archived' ? 'Archived' : profile === 'demo' ? 'Demo closet' : 'Your closet';

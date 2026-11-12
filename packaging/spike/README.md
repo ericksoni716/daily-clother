@@ -1,5 +1,9 @@
 # Packaging spike
 
+> Superseded for the app itself by `packaging/closet.spec` (see
+> `packaging/README.md`). Kept because its ffmpeg proof is needed when
+> ffmpeg returns in a later phase.
+
 Throwaway program that answers one question before the real app exists:
 **do the heavy native dependencies survive a PyInstaller one-file build?**
 

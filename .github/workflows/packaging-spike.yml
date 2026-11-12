@@ -1,4 +1,8 @@
-name: packaging-spike
+name: packaging-spike (throwaway proof)
+
+# The packaging SPIKE, kept for its ffmpeg proof (needed in a later phase).
+# It does not build Closet: the real build is packaging/closet.spec, released
+# by release.yml. See packaging/README.md.
 
 # Manual runs only. Deliberately no push / pull_request triggers: the Actions
 # quota is tight. Windows always builds; macOS (Apple Silicon) only on request.

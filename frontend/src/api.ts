@@ -27,13 +27,13 @@ export const connection = {
   get offline() {
     return offline;
   },
-  subscribe(l: Listener) {
+  subscribe(l: Listener): () => void {
     offlineListeners.add(l);
-    return () => offlineListeners.delete(l);
+    return () => void offlineListeners.delete(l);
   },
-  onUnauthorized(l: () => void) {
+  onUnauthorized(l: () => void): () => void {
     unauthorizedListeners.add(l);
-    return () => unauthorizedListeners.delete(l);
+    return () => void unauthorizedListeners.delete(l);
   },
   /** Exposed for tests and for code that learns about the network another way. */
   set: setOffline,

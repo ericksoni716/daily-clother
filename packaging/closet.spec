@@ -131,7 +131,7 @@ closet_modules = sorted(
 # platform backend is listed here too so a hook change cannot drop it. The
 # program runs without a tray if the backend cannot load (closet/tray.py).
 if IS_WIN:
-    tray_imports = ["pystray._win32"]
+    tray_imports = ["pystray._win32", "pystray._util.win32", "six.moves.queue", "queue"]
 elif IS_MAC:
     tray_imports = ["pystray._darwin", "AppKit", "Foundation", "objc", "PyObjCTools", "PyObjCTools.MachSignals"]
 else:

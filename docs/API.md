@@ -16,22 +16,27 @@ HttpOnly, SameSite=Strict); without it the answer is 401.
 | `POST /api/logout` | 204 |
 
 ## Items
-`ItemSummary`: `id, name, category, color, color_hex, pattern, location, rating, status, cutout_state, thumb_url, has_illustration, illustration_url, has_photo, created_at, updated_at`.
+`ItemSummary`: `id, name, category, color, color_hex, pattern, location, rating, status, cutout_state, thumb_url, has_illustration, illustration_url, has_photo, last_worn, wear_count, wears_since_wash, laundry, created_at, updated_at`.
+`last_worn` is the date of the latest wear (`YYYY-MM-DD`) or null; `wear_count` counts every wear; `wears_since_wash` counts wears recorded since the item was last marked clean; `laundry` is `clean` or `laundry`. `location` says where the item lives when it is clean (`closet`, `drawer` or `storage`); being in the wash is `laundry`, not a location.
 `illustration_url` (or null) is an SVG image address that changes whenever the drawing changes, so it can be used in an `<img>` and cached forever.
 `cutout_state` is `none` (no photo), `pending`, `processing`, `ready` or `failed`. `thumb_url` is the cutout thumbnail once ready, the photo thumbnail before that, or null.
 
-`Item` is the summary plus `formality, season, brand, size, material, fit_notes, condition, price_cents, acquired_on, notes, rating_reason, illustration_svg, cutout_error, silhouette{}, confidence{}, source{}, photos[]`.
+`Item` is the summary plus `formality, season, brand, size, material, fit_notes, condition, price_cents, acquired_on, notes, rating_reason, illustration_svg, cutout_error, silhouette{}, confidence{}, source{}, photos[], recent_wears[]` (the 10 latest wear dates, newest first).
 Each photo: `id, kind, url, thumb_url, cutout_url, cutout_thumb_url, width, height` (`cutout_*` are null until ready).
 
 | Call | Result |
 |---|---|
 | `GET /api/vocab` | Allowed values: `category, color, pattern, formality, season, location, condition, rating` (lists) and `silhouette` (object of lists). |
-| `GET /api/items?status=active\|archived&category=&q=` | `{items: [ItemSummary]}`, newest first. |
+| `GET /api/items?status=active\|archived&category=&q=&laundry=clean\|laundry` | `{items: [ItemSummary]}`, newest first. |
 | `POST /api/items` multipart: `photo` (file), `client_key`, optional `name` | 201 `Item` with `cutout_state: "pending"`. Sending the same `client_key` again returns the first item with 200, so retries never duplicate. 400 if the file is not a readable photo. |
 | `GET /api/items/{id}` | `Item` |
-| `PATCH /api/items/{id}` JSON of fields to change | `Item`. Changeable: `name, category, color, color_hex, pattern, formality, season, location, condition, rating, rating_reason, brand, size, material, fit_notes, acquired_on, notes, price_cents, status, silhouette` (silhouette is merged; a null value removes a key). 422 with a readable message for a value outside the vocabulary. |
+| `PATCH /api/items/{id}` JSON of fields to change | `Item`. Changeable: `name, category, color, color_hex, pattern, formality, season, location, condition, rating, rating_reason, brand, size, material, fit_notes, acquired_on, notes, price_cents, status, silhouette` (silhouette is merged; a null value removes a key). 422 with a readable message for a value outside the vocabulary (including `location: "laundry"`; use the laundry call instead). |
 | `DELETE /api/items/{id}` | 204; the item and its images are removed. |
 | `POST /api/items/{id}/retry-cutout` | 202 `Item` |
+| `GET /api/items/{id}/wears` | `{wears: [{worn_on, created_at}]}`, newest first. |
+| `POST /api/items/{id}/wears {worn_on?}` | Records a wear. `worn_on` is `YYYY-MM-DD` and defaults to today in the computer's local date. 201 `Item`; 200 `Item` if that day was already recorded (one wear per item per day). 422 for a date in the future or not in that form. |
+| `DELETE /api/items/{id}/wears/{YYYY-MM-DD}` | 200 `Item`. 404 if there is no wear on that day. |
+| `POST /api/items/{id}/laundry {state: "laundry"\|"clean"}` | 200 `Item`. Marking an item clean sets `wears_since_wash` to 0 (also when it was already clean: it has just been washed). |
 | `GET /api/items/{id}/illustration.svg` | The item's illustration as `image/svg+xml`; 404 if it has none. |
 | `GET /media/{path}` | A WebP image; cacheable forever (paths never change content). |
 

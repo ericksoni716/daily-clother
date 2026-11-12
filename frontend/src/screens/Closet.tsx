@@ -4,7 +4,7 @@ import { ModelBanner } from '../components/ModelBanner';
 import { categoryPlural, label, tileCaption } from '../labels';
 import { itemPath, Link, navigate } from '../router';
 import { useCloset } from '../store';
-import type { ItemSummary, ModelInfo } from '../types';
+import type { ItemSummary, Laundry, ModelInfo } from '../types';
 import { ItemDetail } from './ItemDetail';
 
 interface Props {
@@ -18,6 +18,7 @@ export function ClosetScreen({ status, selectedId, wide }: Props) {
   const list = items[status];
   const [category, setCategory] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [laundry, setLaundry] = useState<Laundry | null>(null);
 
   useEffect(() => {
     void loadItems(status);
@@ -35,12 +36,13 @@ export function ClosetScreen({ status, selectedId, wide }: Props) {
     const q = query.trim().toLowerCase();
     return (list ?? []).filter((it) => {
       if (activeCategory && it.category !== activeCategory) return false;
+      if (laundry && (it.laundry ?? 'clean') !== laundry) return false;
       if (!q) return true;
       const hay = [it.name, label('category', it.category), label('color', it.color), label('pattern', it.pattern), it.category, it.color]
         .filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
-  }, [list, activeCategory, query]);
+  }, [list, activeCategory, laundry, query]);
 
   const empty = list !== null && list.length === 0;
   const title = status === 'archived' ? 'Archived' : profile === 'demo' ? 'Demo closet' : 'Your closet';
@@ -92,6 +94,14 @@ export function ClosetScreen({ status, selectedId, wide }: Props) {
                 ))}
               </div>
             )}
+            {status === 'active' && (
+              <div className="chips" role="group" aria-label="Filter by laundry">
+                {([['clean', 'Clean'], ['laundry', 'In the laundry']] as const).map(([value, text]) => (
+                  <button key={value} className={`chip${laundry === value ? ' is-on' : ''}`} aria-pressed={laundry === value}
+                    onClick={() => setLaundry(laundry === value ? null : value)}>{text}</button>
+                ))}
+              </div>
+            )}
           </div>
           {shown.length === 0 ? (
             <div className="empty"><p className="muted">Nothing matches. Try another word or category.</p></div>
@@ -140,6 +150,7 @@ function Tile({ item, status, selected, model }: { item: ItemSummary; status: 'a
         <TilePicture item={item} />
         {busy && <span className="badge badge-busy"><span className="spinner" aria-hidden="true" />{busyLabel(model)}</span>}
         {item.cutout_state === 'failed' && <span className="badge badge-warn"><WarnIcon />Background not removed</span>}
+        {item.laundry === 'laundry' && <span className="tile-mark" data-testid="laundry-mark">In the laundry</span>}
       </div>
       <span className="tile-name">{name}</span>
       <span className="tile-caption">{caption || ' '}</span>

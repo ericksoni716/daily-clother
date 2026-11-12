@@ -75,6 +75,16 @@ the owner once it was clear the recognition work does not depend on the app.
 |---|---|
 | The storage view adds up known folders on every request, nothing is stored | Sizes are always current and there is nothing to keep in step. It reads only the closet's images, its database (with SQLite's `-wal` and `-shm` files), and the shared `models`, `logs` and local `backups` folders, without following links, so nothing outside the data folder is touched; a backup folder the owner chose elsewhere is not counted. The total is the sum of those parts (small files such as `settings.json` are left out). The item count includes archived items, since they take space too. Sizes are shown with 1 KB = 1000 bytes, as the model download already does and as macOS does; Windows Explorer counts 1024, so its numbers come out a few percent lower. |
 
+## Stop C
+
+| Decision | Why |
+|---|---|
+| Being in the laundry is its own state on an item (`clean` or `laundry`), not a value of `location`; `location` says where the item lives when it is clean | The two would otherwise contradict each other (an item "in the drawer" and "in the laundry" at once), and taking an item out of the wash would lose where it goes back to. Migration 0004 moves every item whose location was `laundry` into the laundry state and leaves its location unset, since where it lived before was never recorded. `laundry` is no longer offered as a location, and the server refuses it with a message pointing to "Put in the laundry". |
+| A wear is one item on one calendar day, the computer's local date; a day can be given but not one in the future | "Wore it today" is the everyday case and should not need a date; counting the same shirt twice in a day would mislead the outfit builder. Undo removes that day's wear. |
+| Each item keeps a count of wears since it was last marked clean, and the time it was marked clean; removing a wear only lowers the count if it was recorded after that time | The count stays right when a wear logged before the wash is removed afterwards. Marking an item clean always resets it, even if it was not in the laundry: it has just been washed. A wear can be recorded while an item is in the laundry (it may have been worn again before the wash). |
+| The demo closet's wear history is stored as "days ago" and turned into dates when the demo closet is first opened | So it always looks recent. It does not move after that: a demo closet opened a month ago shows wears a month and a half old. |
+| The closet grid filters clean or laundry items on the page, not by asking the server | The list the page already holds has the laundry state, and it keeps working offline. The server's `laundry` filter is there for the outfit builder. |
+
 ## Reaching Claude: two routes
 
 Decided with the owner after phase 1: the app can reach Claude two ways, and

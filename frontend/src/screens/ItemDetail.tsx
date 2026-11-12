@@ -7,6 +7,7 @@ import { Link, navigate } from '../router';
 import { silhouetteGroups } from '../silhouette';
 import { useCloset } from '../store';
 import type { Item, ItemPatch } from '../types';
+import { localDay, sinceWash, wearDay, wearSummary } from '../wears';
 import { busyLabel } from './Closet';
 
 type View = 'illustration' | 'cutout' | 'photo';
@@ -87,6 +88,23 @@ export function ItemDetail({ id, status, inPanel }: Props) {
     }
   }, [item, id, upsert, toast, load]);
 
+  // Wears and the laundry are changed through their own calls, each answering with the whole item.
+  const act = useCallback(async (call: () => Promise<Item>, saidAs: string): Promise<Item | undefined> => {
+    inflight.current++;
+    try {
+      const saved = await call();
+      inflight.current--;
+      setItem(saved);
+      upsert(saved);
+      toast(saidAs);
+      return saved;
+    } catch (e) {
+      inflight.current--;
+      toast((e as ApiError).message, 'error');
+      if (!inflight.current) void load();
+    }
+  }, [upsert, toast, load]);
+
   if (error && !item) {
     const summary = items.active?.find((x) => x.id === id) ?? items.archived?.find((x) => x.id === id);
     if (offline && summary) {
@@ -148,6 +166,11 @@ export function ItemDetail({ id, status, inPanel }: Props) {
         </div>
       )}
 
+      <WearPanel item={item} disabled={locked}
+        onWear={() => act(() => api.wear(id), 'Noted: worn today')}
+        onUnwear={(day, said) => act(() => api.unwear(id, day), said)}
+        onLaundry={(state) => act(() => api.setLaundry(id, state), state === 'laundry' ? 'In the laundry' : 'Marked clean')} />
+
       <div className="attr-groups">
         <ChipGroup field="category" options={vocab.category} value={item.category} disabled={locked}
           onChange={(v) => save({ category: v })} />
@@ -196,6 +219,67 @@ export function ItemDetail({ id, status, inPanel }: Props) {
         }
       }} />
     </article>
+  );
+}
+
+const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
+
+interface WearPanelProps {
+  item: Item;
+  disabled: boolean;
+  onWear(): Promise<Item | undefined>;
+  onUnwear(day: string, saidAs: string): Promise<Item | undefined>;
+  onLaundry(state: 'clean' | 'laundry'): Promise<Item | undefined>;
+}
+
+function WearPanel({ item, disabled, onWear, onUnwear, onLaundry }: WearPanelProps) {
+  const today = localDay();
+  // "today" is the computer's date on the server; remember the day it answered so undo works even if this device's date differs
+  const [loggedOn, setLoggedOn] = useState<string | null>(null);
+  const wornToday = !!item.last_worn && (item.last_worn === today || item.last_worn === loggedOn);
+  const inLaundry = item.laundry === 'laundry';
+  const title = disabled ? OFFLINE_TITLE : undefined;
+  const recent = item.recent_wears ?? [];
+  return (
+    <section className="wear" aria-label="Wearing and washing">
+      <p className="wear-summary" data-testid="wear-summary">{wearSummary(item.wear_count, item.last_worn, today)}</p>
+      <p className="muted" data-testid="laundry-state">
+        {inLaundry ? 'In the laundry' : 'Clean'}{item.wear_count ? ` · ${sinceWash(item.wears_since_wash)}` : ''}
+      </p>
+      <div className="row">
+        {wornToday ? (
+          <>
+            <span className="wear-done">Worn today</span>
+            <button className="btn btn-small" disabled={disabled} title={title}
+              onClick={() => onUnwear(item.last_worn!, 'Wear undone')}>Undo</button>
+          </>
+        ) : (
+          <button className="btn btn-primary btn-small" disabled={disabled} title={title} onClick={async () => {
+            const saved = await onWear();
+            if (saved?.last_worn) setLoggedOn(saved.last_worn);
+          }}>Wore it today</button>
+        )}
+        {inLaundry ? (
+          <button className="btn btn-small" disabled={disabled} title={title} onClick={() => onLaundry('clean')}>It's clean</button>
+        ) : (
+          <button className="btn btn-small" disabled={disabled} title={title} onClick={() => onLaundry('laundry')}>Put in the laundry</button>
+        )}
+      </div>
+      {recent.length > 0 && (
+        <div className="wear-recent">
+          <p className="chip-group-title" id={`recent-${item.id}`}>Recent wears</p>
+          <ul aria-labelledby={`recent-${item.id}`}>
+            {recent.map((day) => (
+              <li key={day}>
+                <span>{wearDay(day, today)}</span>
+                <button className="btn btn-link" disabled={disabled} title={title} aria-label={`Remove the wear: ${wearDay(day, today)}`}
+                  onClick={() => onUnwear(day, 'Wear removed')}>Remove</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
   );
 }
 

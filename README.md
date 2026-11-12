@@ -36,6 +36,13 @@ Your browser then opens the app:
 To stop the program use **Quit Closet** in the icon's menu or in Settings.
 Double-clicking the program while it is already running just opens the app.
 
+Every day: open an item and tap **Wore it today** (tap **Undo** if that was a
+mistake). The item shows how often it has been worn and when last, and lists
+the recent days, each of which can be removed. **Put in the laundry** and
+**It's clean** keep track of the wash; in the closet, items in the laundry
+carry a small mark, and the **Clean** and **In the laundry** buttons show only
+those.
+
 ## Use it from your iPhone
 
 The phone reaches your computer privately over Tailscale; the app is never on

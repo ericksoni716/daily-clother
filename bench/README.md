@@ -33,6 +33,14 @@ using `answer_key.template.csv` as the pattern. Leave a cell blank if a field
 does not apply or you are unsure; blank cells are not scored. `extra_shots` is
 an optional `;`-separated list of tag or detail photos for that item.
 
+The columns from `fit_detail` onward are the detail fields. Their allowed values
+are the ones in `docs/menswear-taxonomy.json` (collar, placket, cuff, pockets,
+hem, fabric, fiber and so on); `weight` is lightweight, midweight, heavyweight or
+super_heavy. Fill in only the ones you care about scoring. The most useful
+photos for testing details are the items that differ from the usual: a polo with
+one or three buttons, a henley, corduroy, a fleece or heavy wool shirt beside a
+light cotton one, a sweatshirt with a V-insert.
+
 `private/`, `out/` and `models/` are git-ignored, and the bench prints item
 numbers only, never file names.
 

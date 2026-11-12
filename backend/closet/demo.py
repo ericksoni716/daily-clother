@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import json
 import shutil
+from datetime import timedelta
 
 from PIL import Image
 
-from . import db, images
+from . import db, images, wears
 from .config import Config, bundle_dir
 
 FIELDS = ("name", "category", "color", "color_hex", "pattern", "formality", "season", "brand", "size", "material",
@@ -57,6 +58,7 @@ def ensure(cfg: Config) -> int:
                     "VALUES (?, ?, 'front', ?, ?, ?, ?, ?, ?, ?, ?)",
                     (pid, it["id"], f"{it['id']}/{pid}.webp", f"{it['id']}/{pid}.t.webp", f"{it['id']}/{pid}.cut.webp",
                      f"{it['id']}/{pid}.cut.t.webp", w, h, (folder / f"{pid}.webp").stat().st_size, created))
+            _history(conn, it)
             added += 1
         conn.execute("COMMIT")
         return added
@@ -66,3 +68,18 @@ def ensure(cfg: Config) -> int:
         raise
     finally:
         conn.close()
+
+
+def _history(conn, it: dict) -> None:
+    """Wears and laundry state, given in days before today so the demo history is always recent."""
+    h = it.get("history")
+    if not h:
+        return
+    today = wears.today()
+    day = lambda n: (today - timedelta(days=n)).isoformat()  # noqa: E731
+    for n in h["worn"]:
+        conn.execute("INSERT INTO wears (item_id, worn_on, created_at) VALUES (?, ?, ?)", (it["id"], day(n), f"{day(n)}T20:00:00.000000Z"))
+    washed = h.get("washed")
+    since = sum(1 for n in h["worn"] if washed is None or n <= washed)
+    conn.execute("UPDATE items SET laundry = ?, wears_since_wash = ?, washed_at = ? WHERE id = ?",
+                 ("laundry" if h.get("laundry") else "clean", since, f"{day(washed)}T08:00:00.000000Z" if washed is not None else None, it["id"]))

@@ -1,4 +1,4 @@
-import type { Item, ItemPatch, ItemSummary, ModelInfo, Session, Settings, Storage, TaggingStatus, Vocab, Profile, BackupRecord } from './types';
+import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingStatus, Vocab, Profile, BackupRecord } from './types';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
 export class ApiError extends Error {
@@ -114,6 +114,11 @@ export const api = {
   patch: (id: string, changes: ItemPatch) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes }),
   remove: (id: string) => request<void>(`/api/items/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  wear: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/wears`, { method: 'POST' }),
+  unwear: (id: string, day: string) =>
+    request<Item>(`/api/items/${encodeURIComponent(id)}/wears/${encodeURIComponent(day)}`, { method: 'DELETE' }),
+  setLaundry: (id: string, state: Laundry) =>
+    request<Item>(`/api/items/${encodeURIComponent(id)}/laundry`, { method: 'POST', body: { state } }),
   retryCutout: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/retry-cutout`, { method: 'POST' }),
   upload: (photo: Blob, filename: string, clientKey: string, signal?: AbortSignal) => {
     const form = new FormData();

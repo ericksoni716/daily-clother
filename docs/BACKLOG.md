@@ -11,7 +11,10 @@ owner; see `DECISIONS.md`, "How the work is organised").
 
 ## Waiting on the owner
 - **Garment review**: marks and notes in the review gallery (a private Claude artifact; rebuilt each round with `tools/make_review_gallery.py`).
-- **The Windows build** for stop A has still not been made or tried; Mac 0.1.0 worked apart from the model download, fixed in 0.1.1.
+- **Mac 0.1.1**: confirm the background-removal model now downloads on the owner's Mac.
+- **The Windows build** for stop A has still not been made or tried.
+- **A token for the `start agent` workflow** (`COPILOT_AGENT_TOKEN` in an `agents` environment limited to `main`) and the exact model ids, so agents can be started with a chosen model.
+- **Whether sleeves starting at the body's edge** is what "arms in line with the width of the shirt" meant (round 2 in the review gallery).
 - **The app's top UI complaints**, as the brief for UI tasks. A full interface-design pass comes after more features exist.
 - **25–30 photos of the owner's own clothes** with an answer key (`bench/answer_key.template.csv`). Most useful: items that differ from the usual (a polo with one or three buttons, a henley, corduroy, fleece or heavy wool beside light cotton, a sweatshirt with a V-insert). The bench runs them through the Claude plan by default; an API key is optional.
 - Three photos for the untested hard cases: something striped, something floral or patterned, something camouflage.

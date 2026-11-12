@@ -961,9 +961,9 @@ def _tailored(p, block) -> Shape:
     wt = WEIGHT_LEVEL.get(p.get("weight"), 1)
     ease = (0.98, 1.0, 1.04, 1.08)[wt]             # a heavier cloth stands away from the body
     bulk = (-1.0, 0.0, 3.0, 6.0)[wt]
-    chest = (B["chest"] + dch) / 2 * k_ * ease
-    waist_w = (B["waist"] + dwa) / 2 * k_ * ease
-    hh = (B["hem"] + dhe) / 2 * k_ * ease
+    chest = (B["chest"] + dch) / 2 * k_ * ease * BODY_W   # the same share of the flat width as every top
+    waist_w = (B["waist"] + dwa) / 2 * k_ * ease * BODY_W
+    hh = (B["hem"] + dhe) / 2 * k_ * ease * BODY_W
     # the same rule as every top: the shoulder point just outside the chest's width, the armhole down its edge
     hs = chest + 5 + (0.6, 0, 1.2, 2.4)[wt] / 2 * k_
     length = B["length"] + dle

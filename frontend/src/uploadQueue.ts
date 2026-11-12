@@ -4,7 +4,8 @@
  *
  * The list (names, keys and what happened to each) can be saved, so an import
  * cut short by a closed tab or a restart can be carried on: the files have to be
- * chosen again, and the ones that already went in are recognised and skipped.
+ * chosen again; each keeps its first key, so the ones that already went in are
+ * answered at once by the server and never added twice.
  *
  * Pure apart from the injected dependencies, so it can be tested without a browser.
  */
@@ -59,7 +60,7 @@ export interface AddResult<F> {
   /** Rows that were queued (new, or an earlier row given its file again), in the order of `files`. */
   ids: string[];
   files: F[];
-  /** Files left out because they are already in the list. */
+  /** Files left out because they are already waiting or uploading. */
   skipped: number;
 }
 
@@ -141,13 +142,15 @@ export class UploadQueue<F> {
     for (const file of files) {
       const fileKey = this.deps.keyOf ? this.deps.keyOf(file) : this.deps.nameOf(file);
       const known = this.entries.find((e) => e.fileKey === fileKey);
-      if (known && known.status !== 'missing' && known.status !== 'failed') {
+      if (known && IN_PROGRESS.includes(known.status)) {
         result.skipped++;
         continue;
       }
       let id: string;
       if (known) {
-        // an earlier row gets its file back and keeps its key, so it cannot go in twice
+        // An earlier row gets its file back and keeps its key, so it cannot go in twice. Rows that already
+        // went in are sent again too: the server recognises the key without processing the photo again, and if that item has been
+        // deleted since (or this is the other closet), the photo is added as it should be.
         id = known.id;
         this.prepared.delete(id);
         this.entries = this.entries.map((e) => (e.id === id ? { ...e, status: 'waiting', attempts: 0, error: null } : e));

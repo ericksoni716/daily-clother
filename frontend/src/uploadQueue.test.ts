@@ -162,15 +162,19 @@ describe('UploadQueue', () => {
     expect(hashes.sort()).toEqual(['h-a', null].sort());
   });
 
-  it('leaves out a file already in the list', async () => {
-    const { q } = makeQueue(async () => ({ id: 'i' }));
+  it('leaves out a file already waiting, and sends a finished one again with its first key', async () => {
+    const keys: string[] = [];
+    const { q } = makeQueue(async (_b, filename, key) => {
+      keys.push(`${filename}:${key}`);
+      return { id: `item-${filename}` };
+    });
     expect(q.add([{ name: 'a' }, { name: 'a' }]).skipped).toBe(1);
     await q.idle();
     const again = q.add([{ name: 'a' }, { name: 'b' }]);
-    expect(again.skipped).toBe(1);
-    expect(again.files).toEqual([{ name: 'b' }]);
+    expect(again.skipped).toBe(0);
     await q.idle();
-    expect(q.snapshot.map((e) => e.name)).toEqual(['a', 'b']);
+    expect(q.snapshot.map((e) => [e.name, e.status])).toEqual([['a', 'done'], ['b', 'done']]);
+    expect(keys).toEqual(['a:key-1', 'a:key-1', 'b:key-2']);
   });
 
   it('pause stops new uploads starting; carrying on finishes the rest', async () => {
@@ -291,13 +295,14 @@ describe('carrying on after the tab was closed', () => {
     expect(second.q.snapshot.map((e) => e.status)).toEqual(['done', 'done', 'missing', 'missing']);
     expect(countEntries(second.q.snapshot).missing).toBe(2);
 
-    // choosing the same four again: the two that went in are skipped, the others keep their keys
-    const again = second.q.add([{ name: 'a' }, { name: 'b' }, { name: 'c' }, { name: 'd' }]);
-    expect(again.skipped).toBe(2);
+    // choosing the same four again: every row keeps its first key, so the server can tell
+    // the two that went in already and none of them is added twice
+    const keysBefore = box.saved!.map((e) => e.clientKey);
+    second.q.add([{ name: 'a' }, { name: 'b' }, { name: 'c' }, { name: 'd' }]);
     await second.q.idle();
     expect(second.q.snapshot.map((e) => e.status)).toEqual(['done', 'done', 'done', 'done']);
+    expect(second.q.snapshot.map((e) => e.clientKey)).toEqual(keysBefore);
     expect(sent).toContain(`c:${keyOfC}`);
-    expect(sent.filter((s) => s.startsWith('a:') || s.startsWith('b:')).length).toBe(2); // only the first time
     expect(sent.some((s) => s.endsWith('fresh-key'))).toBe(false);
   });
 

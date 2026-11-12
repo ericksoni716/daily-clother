@@ -58,7 +58,8 @@ your closet**. A photo of an item you deleted can be added again.
 
 If the page is closed or the computer restarts during an import, open **Add**
 again: it says how many photos were not added yet. Choose the same photos or
-folder again and it carries on; the ones that already went in are skipped.
+folder again and it carries on; the ones that already went in are not added
+twice.
 
 ## Use it from your iPhone
 

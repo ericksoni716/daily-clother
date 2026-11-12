@@ -22,7 +22,7 @@ const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? o
 function describeAdded(queued: number, alreadyListed: number, skipped: File[]): string {
   const parts: string[] = [];
   if (queued) parts.push(`${plural(queued, 'photo')} added to the import.`);
-  if (alreadyListed) parts.push(`${plural(alreadyListed, 'photo was', 'photos were')} already in this list, so ${alreadyListed === 1 ? 'it was' : 'they were'} left out.`);
+  if (alreadyListed) parts.push(`${plural(alreadyListed, 'photo was', 'photos were')} already waiting to go in, so ${alreadyListed === 1 ? 'it was' : 'they were'} left out.`);
   if (skipped.length) {
     const names = skipped.slice(0, 3).map((f) => f.name).join(', ');
     const more = skipped.length > 3 ? ` and ${skipped.length - 3} more` : '';
@@ -146,7 +146,7 @@ export function AddScreen() {
               <WarnIcon />
               <div>
                 <p>Your last import stopped before it finished: {plural(counts.missing, 'photo was', 'photos were')} not added yet.
-                  To carry on, choose the same photos{desktop ? ' or folder' : ''} again. Anything that already went in is skipped.</p>
+                  To carry on, choose the same photos{desktop ? ' or folder' : ''} again. Nothing that already went in is added twice.</p>
                 <div className="row">
                   <button className="btn btn-primary btn-small" onClick={() => library.current?.click()}>Choose photos</button>
                   {desktop && <button className="btn btn-small" onClick={() => folder.current?.click()}>Choose a folder</button>}

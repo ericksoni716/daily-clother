@@ -67,10 +67,11 @@ test('an import cut short by closing the page is carried on without adding anyth
   await expect(resume).toContainText('1 photo was not added yet');
   await expect(rows.filter({ hasText: 'sneaker-held' }).getByTestId('queue-status')).toHaveText('Not added yet');
 
-  // choosing both again: the one that went in is left out, the other goes in
+  // choosing both again: each row keeps its first upload key, so the one that went in is not added twice
   await page.getByTestId('library-input').setInputFiles(pair);
-  await expect(page.getByTestId('import-note')).toContainText('1 photo was already in this list');
-  await expect(rows.filter({ hasText: 'sneaker-held' }).getByTestId('queue-status')).toHaveText('Done', { timeout: 30_000 });
+  for (const name of ['graphic-tee', 'sneaker-held']) {
+    await expect(rows.filter({ hasText: name }).getByTestId('queue-status')).toHaveText('Done', { timeout: 30_000 });
+  }
   await expect(resume).toHaveCount(0);
   await expect(page.getByTestId('queue-summary')).toHaveText('2 added');
   expect(await itemCount(page)).toBe(before + 2);

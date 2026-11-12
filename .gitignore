@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+node_modules/
+dist/
+build/
+.venv/
+# the built web page is copied into the backend at build time
+backend/closet/web/
+backend/closet/_build_version.py
+# never commit real photos, data or secrets
+private/
+*.env
+.env*

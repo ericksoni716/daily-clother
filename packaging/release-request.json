@@ -1,6 +1,0 @@
-{
-  "version": "0.1.0",
-  "windows": false,
-  "macos": true,
-  "note": "Owner asked for a Mac build to try on an Apple Silicon Mac."
-}

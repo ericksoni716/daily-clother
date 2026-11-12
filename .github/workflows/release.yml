@@ -1,10 +1,7 @@
 name: release
 
 # Builds, smoke-tests and publishes a release of Closet. Started by hand only:
-# either Actions tab -> release -> Run workflow on the commit to be released
-# (possible once this file is on the default branch), or by changing
-# packaging/release-request.json (see release-on-request.yml), which calls
-# this workflow with the same inputs.
+# Actions tab -> release -> Run workflow, on the commit to be released.
 #
 #   prepare  validate the version, create a DRAFT release v<version>
 #   windows  (unless build_windows is unticked) build Closet.exe, smoke-test

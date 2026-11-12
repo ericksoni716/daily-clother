@@ -10,7 +10,9 @@ owner; see `DECISIONS.md`, "How the work is organised").
   program at each stop (A, B, C, D, then smaller ones).
 
 ## Waiting on the owner
-- **Go-ahead to run GitHub Actions** for stop A: the `release` workflow, version 0.1.0, Mac unticked (an estimated 16 billed minutes), and whether CI should run on every push.
+- **Garment review**: marks and notes in the review gallery (a private Claude artifact; rebuilt each round with `tools/make_review_gallery.py`).
+- **The Windows build** for stop A has still not been made or tried; Mac 0.1.0 worked apart from the model download, fixed in 0.1.1.
+- **The app's top UI complaints**, as the brief for UI tasks. A full interface-design pass comes after more features exist.
 - **25–30 photos of the owner's own clothes** with an answer key (`bench/answer_key.template.csv`). Most useful: items that differ from the usual (a polo with one or three buttons, a henley, corduroy, fleece or heavy wool beside light cotton, a sweatshirt with a V-insert). The bench runs them through the Claude plan by default; an API key is optional.
 - Three photos for the untested hard cases: something striped, something floral or patterned, something camouflage.
 - Whether to drop the Google Drive hand-off for price checks now that the app can run them itself through the plan route while the PC is on (recommended: drop it).
@@ -58,8 +60,9 @@ Original phase 1.
 - [x] Backend: data model and migrations, login, one-photo capture, cutout queue, model download states, backups and restore, demo closet, launcher. 42 tests.
 - [x] Frontend: closet grid, item detail, capture, settings, phone and wide layouts, offline read-only cache. 22 unit tests, 15 browser tests (one runs a real cutout).
 - [x] Packaged build, smoke test (plus a real-cutout mode), CI and release workflows. Passes on Linux, including a browser run against the packaged program.
-- [ ] First packaged build in Actions on Windows (needs the owner's go-ahead).
-- [ ] Owner tries it on a real Windows PC and iPhone. Never exercised so far: tray icon, start at login, the Tailscale address, camera capture, home-screen install, HEIC from the phone, the model download progress bar, dropping a folder of photos.
+- [x] First packaged build on macOS (0.1.0). The owner tried it: passphrase, browser, demo closet and uploads (including AVIF) work; the model download failed and is fixed in 0.1.1.
+- [ ] First packaged build on Windows.
+- [ ] Owner tries it on a real Windows PC and iPhone. Not yet exercised: tray icon, start at login, the Tailscale address, camera capture, home-screen install, HEIC from the phone, the model download progress bar, dropping a folder of photos.
 - [ ] Pin the macOS-only tray dependencies after the first Mac build.
 
 ### Stop B: the owner's real wardrobe in

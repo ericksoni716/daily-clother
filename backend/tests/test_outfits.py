@@ -131,6 +131,16 @@ def test_unknown_tags_and_hex_only_colours():
     assert any("missing" in r for r in result["outfits"][0]["reasons"])
 
 
+@pytest.mark.parametrize("colour,hex_colour", [("red", "#ff0000"), ("green", "#00ff00"), ("blue", "#0000ff")])
+def test_hex_and_named_colours_share_tonal_families(colour, hex_colour):
+    clothes = [item("top", "tee", color=colour),
+               item("pants", "shorts", color=None, color_hex=hex_colour),
+               item("shoes", "sneakers")]
+    result = outfits.suggest(clothes, context(28), 1)
+    assert result["outfits"]
+    assert any("tonal" in r for r in result["outfits"][0]["reasons"])
+
+
 def test_no_compatible_combination_is_not_an_error():
     clothes = [item("top", "tee", pattern="graphic"), item("pants", "shorts", pattern="camo"),
                item("shoes", "sneakers")]

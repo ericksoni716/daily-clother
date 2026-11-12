@@ -46,7 +46,8 @@ MIN_DIFFERENT_PIECES = 2  # Swapping a jacket for a hoodie is only one garment c
 HEX_CHANNEL_MAX = 255  # Scale stored RGB bytes to colour-space fractions.
 NEUTRAL_SATURATION = 0.18  # Nearly grey hex-only colours count as neutral.
 NEUTRAL_DARKNESS = 0.18  # Very dark hex-only colours count as neutral.
-HUE_FAMILIES = 12  # Hex-only strong colours use narrow hue families for tonal matching.
+HUE_FAMILIES = ("red", "orange", "yellow", "green", "green", "green",
+                "blue", "blue", "blue", "purple", "purple", "red")  # Hue sectors share the named-colour families.
 
 PLACES = ("base_top", "mid_layer", "outer_layer", "bottom", "shoes", "accessories")
 CATEGORIES = {
@@ -137,7 +138,7 @@ def _colour(item: dict) -> str | None:
     hue, saturation, value = colorsys.rgb_to_hsv(*rgb)
     if saturation <= NEUTRAL_SATURATION or value <= NEUTRAL_DARKNESS:
         return None
-    return f"hue-{round(hue * HUE_FAMILIES) % HUE_FAMILIES}"
+    return HUE_FAMILIES[round(hue * len(HUE_FAMILIES)) % len(HUE_FAMILIES)]
 
 
 @dataclass(frozen=True)

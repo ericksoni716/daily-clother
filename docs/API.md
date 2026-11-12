@@ -47,6 +47,7 @@ Each photo: `id, kind, url, thumb_url, cutout_url, cutout_thumb_url, width, heig
 |---|---|
 | `GET /api/settings` | `{version, profile, data_dir, port, backup_folder, last_backup{at, ok, error, folder, kind}, last_good_backup, pending_cutouts, phone{tailscale_installed, running, address, command}, autostart (true/false, or null when unavailable), heic_supported}` |
 | `PUT /api/settings {backup_folder?, autostart?}` | Same shape. 422 if the folder does not exist. |
+| `GET /api/storage` | Disk space used by the open closet, worked out by walking its folders on each call: `{items, photos_bytes, cutouts_bytes, thumbnails_bytes, database_bytes, backups_bytes, model_bytes, logs_bytes, total_bytes, data_dir, free_bytes}`. Photos, cutouts, thumbnails, the database and `items` (archived included) are the open closet's own; the background-removal model, the logs and the backups kept inside the data folder are shared by the real and demo closets. `total_bytes` is the sum of the seven `_bytes` parts; `free_bytes` is the free space on the disk holding the data folder (null if it cannot be read). A missing folder counts as 0; no file names are returned. |
 | `POST /api/backup` | The backup record; 409 with the record (and its `error`) if it failed. |
 | `POST /api/profile {profile: "main"\|"demo"}` | Switches between the real closet and the demo closet. |
 | `POST /api/quit` | 202; the program exits shortly after. |

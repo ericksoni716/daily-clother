@@ -105,3 +105,18 @@ export interface Settings {
   autostart: boolean | null;
   heic_supported: boolean;
 }
+
+/** Disk space used by the open closet (its own pictures and database; the shared model, logs and backups). */
+export interface Storage {
+  items: number;
+  photos_bytes: number;
+  cutouts_bytes: number;
+  thumbnails_bytes: number;
+  database_bytes: number;
+  backups_bytes: number;
+  model_bytes: number;
+  logs_bytes: number;
+  total_bytes: number;
+  data_dir: string;
+  free_bytes: number | null;
+}

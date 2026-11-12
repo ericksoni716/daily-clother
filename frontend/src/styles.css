@@ -428,6 +428,11 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .facts dt { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
 .facts dd { margin: 4px 0 12px; }
 .settings-section .btn + .btn { margin-left: 0; }
+.storage-total strong { font-size: 1.25rem; }
+.storage-list { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.storage-list div { display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.storage-list div:last-child { border-bottom: 0; }
+.storage-list dd { margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .toggle { display: flex; align-items: center; gap: 14px; cursor: pointer; position: relative; min-height: var(--tap); }
 .toggle-text { flex: 1; display: flex; flex-direction: column; }

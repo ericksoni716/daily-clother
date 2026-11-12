@@ -69,13 +69,14 @@ Original phase 1.
 
 ### Stop B: the owner's real wardrobe in
 Original phase 2 and the single-photo parts of phase 3.
+- [x] Storage view in Settings: total, photos, cutouts, thumbnails, backups, the model, items and free space (`GET /api/storage`).
 - Tagging in the app through the two routes (move `bench/closet_bench/routes.py`, `claude_cli.py`, `tagging.py` into the backend); Settings shows which routes are available and their order.
 - Store the tagger's full answer (coarse fields, details, schema version) and the cutout with each item, so better drawings need no data change and a taxonomy edit only means re-tagging.
 - The drawing in the app, with "seen but not drawn" beside it.
 - Correction by command, including details ("it has three buttons", "the collar is white"); visual picker; version history.
 - Review queue showing only uncertain fields.
 - Bulk import of single-item photos, with dedupe and resume.
-- Cost estimate and spend cap (API route only), storage view, item rating chip.
+- Cost estimate and spend cap (API route only), item rating chip.
 - The app's stored vocabulary (`backend/closet/vocab.py`, the frontend labels) moves to the taxonomy.
 - README: installing Claude Code on Windows and checking it is signed in.
 - The bench as a `bench` command in the packaged program, so the owner's photos never leave the PC.

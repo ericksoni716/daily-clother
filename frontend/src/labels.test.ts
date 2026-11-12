@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categoryPlural, formatPrice, humanize, label, parsePrice, ratingLabel, tileCaption } from './labels';
+import { categoryPlural, formatPrice, formatSize, humanize, label, parsePrice, ratingLabel, tileCaption } from './labels';
 import { messageFrom } from './api';
 import { fitWithin } from './resize';
 import { silhouetteGroups } from './silhouette';
@@ -78,5 +78,24 @@ describe('resizing', () => {
     expect(fitWithin(4032, 3024)).toEqual({ width: 2400, height: 1800 });
     expect(fitWithin(3024, 4032)).toEqual({ width: 1800, height: 2400 });
     expect(fitWithin(1200, 800)).toEqual({ width: 1200, height: 800 });
+  });
+});
+
+describe('formatSize', () => {
+  it('shows sizes in plain units', () => {
+    expect(formatSize(0)).toBe('0 KB');
+    expect(formatSize(null)).toBe('0 KB');
+    expect(formatSize(512)).toBe('512 bytes');
+    expect(formatSize(1000)).toBe('1 KB');
+    expect(formatSize(4_200)).toBe('4.2 KB');
+    expect(formatSize(38_400_000)).toBe('38 MB');
+    expect(formatSize(1_500_000_000)).toBe('1.5 GB');
+    expect(formatSize(2_000_000_000_000)).toBe('2 TB');
+  });
+
+  it('moves to the next unit instead of showing 1000', () => {
+    expect(formatSize(999_999)).toBe('1 MB');
+    expect(formatSize(999_499)).toBe('999 KB');
+    expect(formatSize(9_960)).toBe('10 KB');
   });
 });

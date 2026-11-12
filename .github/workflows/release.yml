@@ -1,10 +1,14 @@
 name: release
 
-# Builds, smoke-tests and publishes a release of Closet. Started by hand only
-# (Actions tab -> release -> Run workflow) on the commit to be released.
+# Builds, smoke-tests and publishes a release of Closet. Started by hand only:
+# either Actions tab -> release -> Run workflow on the commit to be released
+# (possible once this file is on the default branch), or by changing
+# packaging/release-request.json (see release-on-request.yml), which calls
+# this workflow with the same inputs.
 #
 #   prepare  validate the version, create a DRAFT release v<version>
-#   windows  build Closet.exe, smoke-test it, upload it to the draft
+#   windows  (unless build_windows is unticked) build Closet.exe, smoke-test
+#            it, upload it to the draft
 #   macos    (only when build_macos is ticked) build Closet.app, zip it,
 #            smoke-test the unzipped copy, upload the zip to the draft
 #   publish  all builds passed -> publish the draft, which creates the tag
@@ -25,8 +29,23 @@ on:
         description: "Version to release, without the v (e.g. 0.1.0)"
         required: true
         type: string
+      build_windows:
+        description: "Build the Windows program"
+        type: boolean
+        default: true
       build_macos:
         description: "Also build the macOS (Apple Silicon) app"
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      build_windows:
+        type: boolean
+        default: true
+      build_macos:
         type: boolean
         default: false
 
@@ -57,7 +76,13 @@ jobs:
         id: validate
         env:
           VERSION: ${{ inputs.version }}
+          BUILD_WINDOWS: ${{ inputs.build_windows }}
+          BUILD_MACOS: ${{ inputs.build_macos }}
         run: |
+          if [ "$BUILD_WINDOWS" != true ] && [ "$BUILD_MACOS" != true ]; then
+            echo "::error::nothing to build: neither Windows nor macOS was asked for"
+            exit 1
+          fi
           if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$ ]]; then
             echo "::error::version '$VERSION' is not like 1.2.3 or 1.2.3-beta.1 (no leading v)"
             exit 1
@@ -96,6 +121,7 @@ jobs:
   windows:
     name: Windows (Closet.exe)
     needs: prepare
+    if: ${{ inputs.build_windows }}
     runs-on: windows-latest
     timeout-minutes: 45
     permissions:
@@ -280,12 +306,17 @@ jobs:
       TAG: ${{ needs.prepare.outputs.tag }}
       WINDOWS_RESULT: ${{ needs.windows.result }}
       MACOS_RESULT: ${{ needs.macos.result }}
+      BUILD_WINDOWS: ${{ inputs.build_windows }}
       BUILD_MACOS: ${{ inputs.build_macos }}
     steps:
       - name: Check the build results
         run: |
-          echo "windows: $WINDOWS_RESULT   macos: $MACOS_RESULT (build_macos=$BUILD_MACOS)"
-          test "$WINDOWS_RESULT" = success
+          echo "windows: $WINDOWS_RESULT (build_windows=$BUILD_WINDOWS)   macos: $MACOS_RESULT (build_macos=$BUILD_MACOS)"
+          if [ "$BUILD_WINDOWS" = true ]; then
+            test "$WINDOWS_RESULT" = success
+          else
+            test "$WINDOWS_RESULT" = skipped
+          fi
           if [ "$BUILD_MACOS" = true ]; then
             test "$MACOS_RESULT" = success
           else
@@ -297,7 +328,8 @@ jobs:
           {
             echo "Closet $VERSION, built from $GITHUB_SHA."
             echo
-            cat <<'NOTES'
+            if [ "$BUILD_WINDOWS" = true ]; then
+              cat <<'NOTES'
           ## First run on Windows
 
           1. Download **Closet.exe** below and keep it somewhere permanent (for example your Documents folder).
@@ -306,6 +338,10 @@ jobs:
           4. Your closet is kept in the **Closet** folder in your user folder, never next to the program.
 
           NOTES
+            else
+              echo "No Windows build in this release."
+              echo
+            fi
             if [ "$BUILD_MACOS" = true ]; then
               cat <<'NOTES'
           ## First run on a Mac (Apple Silicon, macOS 14 or later)

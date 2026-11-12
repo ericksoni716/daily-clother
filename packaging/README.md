@@ -105,3 +105,11 @@ On failure it prints the reason, the program's output and the tail of
 - **Excludes.** `setuptools`, `pkg_resources`, `distutils`, `onnx`,
   `onnxruntime.tools/quantization/transformers`, `numpy.f2py`, `tkinter` and
   test frameworks are excluded. Verified on Linux only.
+
+## Starting a release before the workflows are on the default branch
+
+GitHub's "Run workflow" button only appears for workflows on the default
+branch. Until then, edit `packaging/release-request.json` (version, and which
+of Windows and macOS to build) and push: `release-on-request.yml` calls the
+release workflow with those values. The version must not have been released
+before.

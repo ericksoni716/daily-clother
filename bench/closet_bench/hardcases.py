@@ -88,7 +88,7 @@ def _report(rows, note: str, notes: dict, model: str) -> str:
     css = """
     :root{color-scheme:light dark;--bg:#fbfaf7;--fg:#22201c;--mut:#6d675d;--card:#fff;--line:#e3ded4}
     @media(prefers-color-scheme:dark){:root{--bg:#191816;--fg:#ece8df;--mut:#a39c8e;--card:#23211e;--line:#3a3732}}
-    body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,sans-serif}
+    body{margin:0;padding:16px;background:var(--bg);color:var(--fg);font:15px/1.45 system-ui,sans-serif;overflow-wrap:anywhere}
     h1{font-size:22px;margin:4px 0 6px}h2{font-size:17px;margin:0 0 8px}
     p{margin:6px 0;max-width:75ch}.mut{color:var(--mut);font-size:13px}
     section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:16px 0}

@@ -37,8 +37,14 @@ def garment(size=(400, 500), color=(200, 60, 60)):
                  pockets=["none", "chest", "chest-two", "low", "chest-low", "kangaroo"],
                  hem=["straight", "curved", "rib"], cuffs=["plain", "rib", "button"], buttons=[None, 0, 1, 3, 12],
                  neck_detail=["none", "v-insert"], shoulder=["set-in", "raglan"])),
-    ("pants", dict(leg=["tapered", "straight", "wide"], length=["short", "ankle", "full"], jeans=[False, True])),
-    ("sneaker", dict(height=["low", "high"], sole=["thin", "regular", "chunky"])),
+    ("pants", dict(leg=["tapered", "straight", "wide"], length=["short", "ankle", "full"], jeans=[False, True],
+                   waist=["belt", "elastic", "drawstring"], pockets=["scoop", "slant", "side", "none"], cargo=[False, True],
+                   pleats=[0, 1, 2], crease=[False, True], hem=["stitched", "plain", "turnup", "rib"], coin=[False, True],
+                   stitch=["tonal", "contrast"])),
+    ("sneaker", dict(height=["low", "high"], sole=["thin", "regular", "chunky"],
+                     style=["low_sneaker", "high_top", "runner", "slip_on", "loafer", "derby", "oxford", "boot", "chelsea_boot"],
+                     toe_cap=["none", "stitched", "rubber"], stripe=["none", "side"], heel_tab=["none", "contrast"],
+                     foxing=[False, True], laces=[False, True])),
 ])
 def test_every_parameter_value_draws_valid_svg(template, options):
     for name, values in options.items():
@@ -231,6 +237,30 @@ def test_tags_map_to_template_parameters():
     t, p = silhouette_params(make_tags(category="jeans", silhouette=Silhouette.of(leg="tapered")))
     assert (t, p["leg"], p["jeans"]) == ("pants", "tapered", True)
     assert silhouette_params(make_tags(category="sneakers", silhouette=Silhouette.of()))[0] == "sneaker"
+
+
+def test_pants_and_shoe_details_reach_the_drawing():
+    t, p = silhouette_params(make_tags(category="trousers", silhouette=Silhouette.of(leg="wide"), details=Details.plain(
+        waist="drawstring", pockets="cargo", hem="ribbed", texture="corduroy", features=["pleats"])))
+    assert (p["waist"], p["cargo"], p["hem"], p["pleats"]) == ("drawstring", True, "rib", 1)
+    jeans = silhouette_params(make_tags(category="jeans", silhouette=Silhouette.of(), details=Details.plain(features=["contrast_stitching"])))[1]
+    assert jeans["stitch"] == "contrast" and "waist" not in jeans      # belt loops and a fly unless the tagger saw otherwise
+    shoe = lambda category, **d: silhouette_params(make_tags(category=category, silhouette=Silhouette.of(), details=Details.plain(**d)))[1]
+    assert shoe("boots")["style"] == "boot" and shoe("dress_shoes")["style"] == "derby"
+    assert shoe("boots", shoe_style="chelsea_boot")["style"] == "chelsea_boot"
+    assert shoe("sneakers", shoe_style="runner", features=["side_stripe", "chunky_sole"]) == dict(height="low", style="runner", sole="chunky", stripe="side")
+    assert shoe("sneakers", texture="canvas", features=["toe_cap"])["toe_cap"] == "rubber"
+    assert shoe("dress_shoes", shoe_style="oxford", features=["toe_cap"])["toe_cap"] == "stitched"
+    extras = drawing_extras(make_tags(category="sneakers", details=Details.plain(sole_color="white", lace_color="red", trim_color="navy")))
+    assert (extras["sole_color"], extras["lace_color"], extras["trim_color"]) == ("#f6f5f2", "#b8332e", "#27344f")
+    # every shoe style and every length of leg stays on the canvas
+    import re
+    for template, key, values in (("sneaker", "style", ["low_sneaker", "high_top", "runner", "slip_on", "loafer", "derby", "oxford", "boot", "chelsea_boot"]),
+                                  ("pants", "leg", ["tapered", "straight", "wide"])):
+        for v in values:
+            for extra in ({}, {"sole": "chunky"} if template == "sneaker" else {"length": "short"}):
+                pts = re.findall(r"(-?[\d.]+),(-?[\d.]+)", build(template, {key: v, **extra}).outline)
+                assert all(2 < float(x) < 398 and 2 < float(y) < 458 for x, y in pts), (v, extra)
 
 
 def test_details_the_tagger_saw_reach_the_drawing():

@@ -18,7 +18,9 @@ CX = 200.0
 @dataclass
 class Part:
     d: str
-    role: str  # trim | hole | sole | band | cuff | collar_r | collar_l | edge (a stroke with no fill)
+    role: str  # trim | hole | sole | band | cuff | collar_r | collar_l | edge (a stroke with no fill) | inlay | stitch
+    color: str | None = None   # inlay/stitch: "trim" | "lace" | "sole" | "sole_line" | a hex; None = the body's cloth
+    clip: bool = False         # drawn inside the outline only (an inlay may be drawn oversize and cut by the edge)
 
 
 @dataclass
@@ -33,6 +35,7 @@ class Shape:
     behind: list[Part] = field(default_factory=list)
     sleeves: list[tuple[str, float]] = field(default_factory=list)  # (path, degrees the cloth is turned)
     seams: list[str] = field(default_factory=list)  # thin lines on the body that parts (a collar) lie over
+    sole_default: str | None = None  # the sole's colour when the photo gives none (leather shoes: dark brown)
 
 
 def _f(v: float) -> str:
@@ -338,90 +341,537 @@ def top(**kw) -> Shape:
 # -------------------------------------------------------------------- pants
 
 PANTS_DEFAULTS = dict(leg="straight", length="full", jeans=False)
+# Optional details, each read off a photo (defaults follow `jeans`):
+#   waist   belt | elastic | drawstring      how it fastens; elastic/drawstring have no fly
+#   pockets scoop | slant | none             front pocket opening (scoop = jeans' curved one)
+#   cargo   False | True                     bellows pockets on the outer thighs
+#   pleats  0 | 1 | 2                        per side; pleated trousers also get a crease
+#   crease  False | True                     pressed front crease (dress trousers)
+#   hem     stitched | plain | turnup | rib  visible topstitch, blind hem, turn-up cuff, knit cuff (joggers)
+#   coin    True | False                     jeans' watch pocket and rivets
+#   stitch  tonal | contrast                 jeans' topstitch drawn in gold thread as well
+
+PX_CM = 3.92   # canvas px per cm: a 105 cm outseam fills 412 px
+
+
+def _cubic_y_free(x, bb, mouth_x, sm):
+    """Height of the left scoop-pocket curve at x (the curve the jeans' watch pocket must clear)."""
+    p0, p1, p2, p3 = (mouth_x, bb), (mouth_x - 4, bb + 26), (sm[0] + 20, sm[1] + 1), sm
+    lo, hi = 0.0, 1.0
+    for _ in range(40):
+        t = (lo + hi) / 2
+        xx = (1 - t) ** 3 * p0[0] + 3 * (1 - t) ** 2 * t * p1[0] + 3 * (1 - t) * t * t * p2[0] + t ** 3 * p3[0]
+        lo, hi = (t, hi) if xx > x else (lo, t)
+    t = (lo + hi) / 2
+    return (1 - t) ** 3 * p0[1] + 3 * (1 - t) ** 2 * t * p1[1] + 3 * (1 - t) * t * t * p2[1] + t ** 3 * p3[1]
+
+
+def _lerp(a, b, t):
+    return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
 
 
 def pants(**kw) -> Shape:
+    """Trousers, front view, as a fashion flat. Measured from a men's 32x32 straight jean laid flat
+    (waist 41, hip 52, front rise 27, knee 21.5, opening 19.5, inseam 81, outseam 105 cm)."""
     p = {**PANTS_DEFAULTS, **kw}
-    wy, hw, hip_y, hip = 34.0, 74.0, 112.0, 86.0
-    cy = 182.0
-    hy = {"short": 252.0, "ankle": 408.0, "full": 438.0}[p["length"]]
-    hem_w = {"tapered": 42.0, "straight": 58.0, "wide": 84.0}[p["leg"]]
-    inset = {"tapered": 8.0, "straight": 0.0, "wide": -10.0}[p["leg"]]
-    if p["length"] == "short":
-        hem_w, inset = 78.0, -4.0
-    xo = CX - hip + inset
-    xi = xo + hem_w
-    if xi > CX - 4:
-        xi = CX - 4
-    Wl, Hl = (CX - hw, wy), (CX - hip, hip_y)
-    outline = (
-        f"M {_pt(Wl)} Q {_pt((CX - hip - 1, wy + 36))} {_pt(Hl)} L {_pt((xo, hy))} L {_pt((xi, hy + 3))} "
-        f"L {_pt((CX, cy))} L {_pt(_mirror((xi, hy + 3)))} L {_pt(_mirror((xo, hy)))} L {_pt(_mirror(Hl))} "
-        f"Q {_pt((CX + hip + 1, wy + 36))} {_pt(_mirror(Wl))} Q {_pt((CX, wy + 6))} {_pt(Wl)} Z")
+    k = PX_CM
+    jeans = bool(p["jeans"])
+    waist = p.get("waist", "belt")
+    pocket = p.get("pockets", "scoop" if jeans else "slant")
+    hem_kind = p.get("hem", "stitched" if (jeans or not p.get("crease")) else "plain")
+    pleats = int(p.get("pleats", 0))
+    crease = bool(p.get("crease", pleats > 0))
+    cargo = bool(p.get("cargo", False))
+    coin = bool(p.get("coin", jeans))
+    stitch = p.get("stitch", "tonal")
+    leg, length = p["leg"], p["length"]
+
+    wy = 28.0
+    hw = 20.5 * k                                   # half waist
+    hh = (25.0 if leg != "wide" else 26.5) * k      # half hip (a 50 cm flat hip; 52-53 for a wide cut)
+    cy = wy + 27.0 * k                              # crotch
+    band = 4.0 * k if waist == "belt" else 4.6 * k
+    bb = wy + band                                  # bottom of the waistband
+    hip_y = cy - 18                                 # the widest point, ~4/5 of the way down the rise
+    # one leg: its width at the knee and the opening, and where its middle sits at the hem
+    kn, op = {"tapered": (19.5, 16.5), "straight": (21.5, 19.5), "wide": (25.5, 25.0)}[leg]
+    kn, op = kn * k, op * k
+    inseam = {"full": 81.0, "ankle": 71.0, "short": 22.0}[length]
+    hy = cy + inseam * k
+    knee_y = cy + 33.0 * k
+    c0 = CX - hh / 2                                # middle of the leg at the crotch
+    if length == "short":
+        op = 27.5 * k                               # a shorts leg opening is wider than its thigh: it flares
+        hc = CX - 6 - op / 2
+        Ho, Hi = (hc - op / 2, hy), (hc + op / 2, hy + 2)
+        Ko = Ki = None
+    else:
+        hc = c0 - max(0.0, op - 19.5 * k) * 0.35    # wide legs move their middle out a little
+        Ho, Hi = (hc - op / 2, hy), (hc + op / 2, hy)
+        kc = c0 + (hc - c0) * (knee_y - cy) / (hy - cy)
+        Ko, Ki = (kc - kn / 2, knee_y), (kc + kn / 2, knee_y)
+    rib = hem_kind == "rib" and length != "short"
+    if rib:                                         # joggers: the leg gathers into a knitted cuff
+        Ho, Hi = (hc - op / 2 + 3, hy), (hc + op / 2 - 3, hy)
+
+    W0 = (CX - hw, wy)
+    Hp = (CX - hh, hip_y)
+    # outer seam: waist corner, a smooth hip curve, then nearly straight to the hem
+    # outer seam: waist corner, out over the hip, then straight on down the leg with no bulge:
+    # the hip curve leaves Hp in the direction the leg runs
+    nxt = Ko if Ko else Ho
+    dl = math.hypot(nxt[0] - Hp[0], nxt[1] - Hp[1])
+    dvec = ((nxt[0] - Hp[0]) / dl, (nxt[1] - Hp[1]) / dl)
+    hip_c1 = (CX - hw - 7, wy + 30)
+    tang = dvec if Ko else (0.0, 1.0)               # shorts: the hip is a corner, the leg flares from it
+    hip_c2 = (Hp[0] - tang[0] * 40, Hp[1] - tang[1] * 40)
+    if Ko:
+        dk = math.hypot(Ho[0] - Ko[0], Ho[1] - Ko[1])
+        kvec = ((Ho[0] - Ko[0]) / dk, (Ho[1] - Ko[1]) / dk)
+        kc1 = (Hp[0] + dvec[0] * 50, Hp[1] + dvec[1] * 50)
+        kc2 = (Ko[0] - kvec[0] * 50, Ko[1] - kvec[1] * 50)
+        out_leg = f"C {_pt(kc1)} {_pt(kc2)} {_pt(Ko)} L {_pt(Ho)}"
+        in_leg = f"L {_pt(Ki)} L {_pt((CX, cy))}"
+    else:
+        out_leg = f"L {_pt(Ho)}"
+        in_leg = f"L {_pt((CX, cy))}"
+    m = _mirror
+
+    left = f"M {_pt(W0)} C {_pt(hip_c1)} {_pt(hip_c2)} {_pt(Hp)} {out_leg} L {_pt(Hi)} {in_leg}"
+    # the right half, walked back up: crotch -> inner hem -> outer hem -> hip -> waist
+    if Ko:
+        right = (f"L {_pt(m(Ki))} L {_pt(m(Hi))} L {_pt(m(Ho))} "
+                 f"L {_pt(m(Ko))} C {_pt(m(kc2))} {_pt(m(kc1))} {_pt(m(Hp))} "
+                 f"C {_pt(m(hip_c2))} {_pt(m(hip_c1))} {_pt(m(W0))}")
+    else:
+        right = (f"L {_pt(m(Hi))} L {_pt(m(Ho))} L {_pt(m(Hp))} "
+                 f"C {_pt(m(hip_c2))} {_pt(m(hip_c1))} {_pt(m(W0))}")
+    outline = f"{left} {right} Z"
     sh = Shape(outline=outline)
-    sh.bbox = (min(xo, CX - hip) - 1, wy, 2 * CX - min(xo, CX - hip) + 1, hy + 3)
-    sh.body_box = (CX - hip, wy, CX + hip, hy)
-    sh.anchors = {"waist": (CX, wy), "hem": (CX, hy)}
-    band = 19
-    sh.parts.append(Part(
-        f"M {_pt(Wl)} Q {_pt((CX, wy + 6))} {_pt(_mirror(Wl))} L {_pt((CX + hw + 3, wy + band))} "
-        f"Q {_pt((CX, wy + band + 6))} {_pt((CX - hw - 3, wy + band))} Z", "band"))
-    # fly, pockets, hems
-    sh.lines.append(f"M {_pt((CX, wy + band + 4))} L {_pt((CX, cy - 4))}")
-    sh.lines.append(f"M {_pt((CX + 13, wy + band + 5))} L {_pt((CX + 13, cy - 46))} Q {_pt((CX + 12, cy - 26))} {_pt((CX, cy - 20))}")
-    for m in (lambda q: q, _mirror):
-        sh.lines.append(f"M {_pt(m((CX - 34, wy + band + 4)))} Q {_pt(m((CX - 40, wy + band + 34)))} {_pt(m((CX - hip + 1, hip_y - 14)))}")
-        sh.lines.append(f"M {_pt(m((xo + 1, hy - 10)))} L {_pt(m((xi - 1, hy - 7)))}")
-        for bx in (CX - 50, CX - 16):
-            sh.lines.append(f"M {_pt(m((bx, wy + 3)))} L {_pt(m((bx, wy + band + 1)))}")
-    sh.dots.append((CX + 6, wy + band / 2 + 3, 3.0))
-    if p["jeans"]:
-        for m in (lambda q: q, _mirror):
-            sh.dots.append((*m((CX - 37, wy + band + 9)), 1.8))
-        sh.lines.append(f"M {_pt((CX + 46, wy + band + 12))} Q {_pt((CX + 50, wy + band + 32))} {_pt((CX + 64, wy + band + 30))}")
+    xmin = min(Ho[0], Hp[0]) - 2
+    sh.bbox = (xmin, wy - 3, 2 * CX - xmin, hy + 4)
+    sh.body_box = (CX - hh, wy, CX + hh, hy)
+    sh.anchors = {"waist": (CX, wy), "crotch": (CX, cy), "hem": (CX, hy)}
+
+    def side_x(y):
+        """x of the left outer seam at height y (above the hip)."""
+        return _cubic_x_at_y(W0, hip_c1, hip_c2, Hp, y)
+
+    # ---- waistband: straight across, its ends on the side seams
+    xb = side_x(bb)
+    sh.parts.append(Part(f"M {_pt(W0)} L {_pt(m(W0))} L {_pt(m((xb, bb)))} L {_pt((xb, bb))} Z", "band"))
+
+    # ---- fly or drawstring
+    fly = waist == "belt"
+    fly_end = cy - 7.0 * k
+    if fly:
+        sh.lines.append(f"M {_pt((CX, bb))} L {_pt((CX, cy - 3))}")
+        fw = 3.6 * k   # the J-stitch on the wearer's left (viewer's right)
+        sh.lines.append(f"M {_pt((CX + fw, bb))} L {_pt((CX + fw, fly_end - 14))} Q {_pt((CX + fw, fly_end))} {_pt((CX, fly_end + 2))}")
+        sh.dots.append((CX, wy + band / 2, 3.4))
+        # belt loops: two in front over the pocket mouths, one on each side seam
+        for x in (CX - 0.45 * hw, CX - hw + 8):
+            for mm in (lambda q: q, m):
+                a, b = mm((x - 3.2, wy - 2.5)), mm((x + 3.2, bb + 3.5))
+                x0, x1 = min(a[0], b[0]), max(a[0], b[0])
+                sh.parts.append(Part(f"M {_pt((x0, a[1]))} L {_pt((x1, a[1]))} L {_pt((x1, b[1]))} L {_pt((x0, b[1]))} Z", "trim"))
+    else:
+        sh.lines.append(f"M {_pt((CX, bb))} L {_pt((CX, cy - 3))}")
+        # the gathers of the elastic
+        n = 15
+        for i in range(n):
+            x = CX - hw + 9 + (2 * hw - 18) * i / (n - 1)
+            if abs(x - CX) < 14 and waist == "drawstring":
+                continue
+            sh.lines.append(f"M {_pt((x, wy + 4))} L {_pt((x + 1, bb - 4))}")
+        if waist == "drawstring":
+            for s in (-1, 1):
+                sh.dots.append((CX + s * 9, wy + band / 2, 2.3))
+                tip = (CX + s * 15, bb + 46)
+                sh.parts.append(Part(f"M {_pt((CX + s * 9, wy + band / 2))} C {_pt((CX + s * 10, bb + 10))} "
+                                     f"{_pt((CX + s * 17, bb + 22))} {_pt(tip)}", "edge"))
+                sh.parts.append(Part(f"M {_pt((tip[0] - 2, tip[1] - 1))} L {_pt((tip[0] - 2.4, tip[1] + 8))} "
+                                     f"L {_pt((tip[0] + 2.4, tip[1] + 8))} L {_pt((tip[0] + 2, tip[1] - 1))} Z", "trim"))
+
+    # ---- front pockets
+    stitch_lines = []
+    side_mouth_y = bb + (9.0 if pocket == "scoop" else 15.0) * k
+    sm = (side_x(side_mouth_y) + 0.5, side_mouth_y)
+    mouth_x = CX - (0.48 if pocket == "scoop" else 0.56) * hw
+    for mm in (lambda q: q, m):
+        if pocket == "scoop":
+            d = f"M {_pt(mm((mouth_x, bb)))} C {_pt(mm((mouth_x - 4, bb + 26)))} {_pt(mm((sm[0] + 20, sm[1] + 1)))} {_pt(mm(sm))}"
+            sh.lines.append(d)
+            stitch_lines.append(f"M {_pt(mm((mouth_x - 4, bb)))} C {_pt(mm((mouth_x - 8, bb + 22)))} {_pt(mm((sm[0] + 18, sm[1] - 3)))} {_pt(mm((sm[0], sm[1] - 4)))}")
+            if coin:
+                sh.dots.append((*mm((mouth_x - 1, bb + 3)), 1.9))
+                sh.dots.append((*mm((sm[0] + 4, sm[1] - 2)), 1.9))
+        elif pocket == "slant":
+            sh.lines.append(f"M {_pt(mm((mouth_x, bb)))} L {_pt(mm(sm))}")
+        elif pocket == "side":
+            sh.lines.append(f"M {_pt(mm((sm[0] + 4, bb + 4)))} L {_pt(mm((sm[0] + 2, sm[1] + 20)))}")
+    if pocket == "scoop" and coin:
+        # the watch pocket sits on the wearer's right (viewer's left), inside the scoop
+        cx0, cx1 = side_x(bb) + 7, mouth_x - 9
+        depth = min(6.5 * k, _cubic_y_free(cx1, bb, mouth_x, sm) - bb - 5)
+        sh.lines.append(f"M {_pt((cx0, bb))} L {_pt((cx0 + 1.5, bb + depth))} L {_pt((cx1 - 1.5, bb + depth))} L {_pt((cx1, bb))}")
+        stitch_lines.append(f"M {_pt((cx0, bb + 4))} L {_pt((cx1, bb + 4))}")
+
+    # ---- pleats and crease
+    for mm in (lambda q: q, m):
+        if pleats:
+            for i in range(pleats):
+                x = CX - 0.30 * hw - i * 12
+                sh.lines.append(f"M {_pt(mm((x, bb)))} L {_pt(mm((x - 1.5, bb + (34 if i == 0 else 24))))}")
+        if crease and Ko:
+            top = (c0 + 2, bb + (34 if pleats else 60))
+            sh.lines.append(f"M {_pt(mm(top))} L {_pt(mm(((Ko[0] + Ki[0]) / 2, knee_y)))} L {_pt(mm((hc, hy - 4)))}")
+
+    # ---- cargo pockets: on the side of the thigh, so only the front half shows
+    if cargo:
+        top_y = cy + 6
+        ph, pw = 21.0 * k, 11.0 * k
+        for mm in (lambda q: q, m):
+            xo = Hp[0] - 6
+            xi = Hp[0] + pw
+            sh.lines.append(f"M {_pt(mm((xo, top_y + 16)))} L {_pt(mm((xi, top_y + 16)))} L {_pt(mm((xi + 1, top_y + ph - 6)))} "
+                            f"Q {_pt(mm((xi + 1, top_y + ph)))} {_pt(mm((xi - 5, top_y + ph)))} L {_pt(mm((xo, top_y + ph)))}")
+            sh.parts.append(Part(f"M {_pt(mm((xo, top_y)))} L {_pt(mm((xi + 2, top_y)))} L {_pt(mm((xi + 2, top_y + 18)))} "
+                                 f"Q {_pt(mm((xi + 2, top_y + 21)))} {_pt(mm((xi - 2, top_y + 21)))} L {_pt(mm((xo, top_y + 21)))} Z", "trim", clip=True))
+            sh.dots.append((*mm((xi - 7, top_y + 14)), 2.2))
+
+    # ---- hems
+    for mm in (lambda q: q, m):
+        a, b = Ho, Hi
+        if hem_kind == "stitched":
+            sh.lines.append(f"M {_pt(mm((a[0] - 1, a[1] - 2.2 * k)))} L {_pt(mm((b[0] + 1, b[1] - 2.2 * k)))}")
+            stitch_lines.append(f"M {_pt(mm((a[0], a[1] - 2.2 * k - 4)))} L {_pt(mm((b[0], b[1] - 2.2 * k - 4)))}")
+        elif hem_kind == "turnup":
+            t = 4.0 * k
+            cuff = [(a[0] - 2.5, a[1] - t), (b[0] + 2.5, b[1] - t), (b[0] + 1.5, b[1] + 1), (a[0] - 1.5, a[1] + 1)]
+            sh.parts.append(Part("M " + " L ".join(_pt(mm(v)) for v in cuff) + " Z", "cuff"))
+        elif hem_kind == "rib":
+            t = 5.5 * k if length != "short" else 3 * k
+            cuff = [(a[0] - 0.5, a[1] - t), (b[0] + 0.5, b[1] - t), (b[0], b[1]), (a[0], a[1])]
+            sh.parts.append(Part("M " + " L ".join(_pt(mm(v)) for v in cuff) + " Z", "band"))
+    if stitch == "contrast":
+        for d in stitch_lines:
+            sh.parts.append(Part(d, "stitch"))
     return sh
 
 
-# ----------------------------------------------------------------- sneakers
+# -------------------------------------------------------------------- shoes
 
 SNEAKER_DEFAULTS = dict(height="low", sole="regular")
+# Optional details, each read off a photo:
+#   style    low_sneaker | high_top | runner | slip_on | loafer | derby | oxford | boot | chelsea_boot
+#            (default from `height`: low -> low_sneaker, high -> high_top)
+#   toe_cap  none | stitched | rubber      a seam across the toe, or a rubber bumper in the sole colour
+#   stripe   none | side                  a contrast panel on the side (trim colour)
+#   heel_tab none | contrast              the heel tab / pull loop in the trim colour
+#   foxing   True | False                 the stripe round a vulcanised sole (default for high_top, slip_on)
+#   laces    True | False                 default by style
+
+SHOE_STYLES = ("low_sneaker", "high_top", "runner", "slip_on", "loafer", "derby", "oxford", "boot", "chelsea_boot")
+SHOE_X0, SHOE_L, SHOE_G = 40.0, 320.0, 330.0   # toe tip x, length toe to heel, ground y
+
+
+def _sp(u, v):
+    """Shoe coordinates: u runs from the toe (0) to the heel (1), v is height above the ground; both in shoe lengths."""
+    return (SHOE_X0 + u * SHOE_L, SHOE_G - v * SHOE_L)
+
+
+def _spline(pts, start=True) -> str:
+    """A smooth curve through the points (Catmull-Rom as cubic beziers), ends clamped."""
+    P = [_sp(*q) for q in pts]
+    out = [f"M {_pt(P[0])}"] if start else []
+    n = len(P)
+    for i in range(n - 1):
+        p0, p1, p2, p3 = P[max(i - 1, 0)], P[i], P[i + 1], P[min(i + 2, n - 1)]
+        c1 = (p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6)
+        c2 = (p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6)
+        out.append(f"C {_pt(c1)} {_pt(c2)} {_pt(p2)}")
+    return " ".join(out)
+
+
+def _chain(groups) -> str:
+    """Several smooth runs joined at corners; each run starts where the last ended."""
+    return " ".join(_spline(g, start=(i == 0)) for i, g in enumerate(groups))
+
+
+def _poly_v(pts, u):
+    """Height of a polyline (u ascending or descending) at u."""
+    q = sorted(pts)
+    for (u0, v0), (u1, v1) in zip(q, q[1:]):
+        if u0 <= u <= u1:
+            return v0 + (v1 - v0) * (u - u0) / (u1 - u0 or 1)
+    return q[0][1] if u < q[0][0] else q[-1][1]
+
+
+def _capsule(a, b, w) -> str:
+    """A rounded bar from a to b (canvas points), w wide: a lace seen from the side."""
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    ln = math.hypot(dx, dy) or 1
+    nx, ny = -dy / ln * w / 2, dx / ln * w / 2
+    r = w / 2
+    return (f"M {_pt((a[0] + nx, a[1] + ny))} L {_pt((b[0] + nx, b[1] + ny))} "
+            f"A {_f(r)} {_f(r)} 0 0 0 {_pt((b[0] - nx, b[1] - ny))} L {_pt((a[0] - nx, a[1] - ny))} "
+            f"A {_f(r)} {_f(r)} 0 0 0 {_pt((a[0] + nx, a[1] + ny))} Z")
 
 
 def sneaker(**kw) -> Shape:
+    """A shoe, outer side, toe to the left. Proportions in shoe lengths, from side views of real shoes:
+    a low sneaker is ~2.8x as long as it is tall at the collar, a high-top's collar is ~0.53 of its length up."""
     p = {**SNEAKER_DEFAULTS, **kw}
-    base = 322.0
-    t = {"thin": 20.0, "regular": 28.0, "chunky": 42.0}[p["sole"]]
-    ys = base - t
-    hi = p["height"] == "high"
-    heel_top = (338.0, ys - (150 if hi else 88))
-    tongue = (236.0, ys - (172 if hi else 112))
-    throat_end = (146.0, ys - 50)
-    sole = (f"M {_pt((44, ys + 3))} Q {_pt((40, base))} {_pt((66, base))} L {_pt((332, base))} "
-            f"Q {_pt((356, base))} {_pt((356, ys + 6))} L {_pt((354, ys))} L {_pt((46, ys))} Z")
-    upper = (f"M {_pt((350, ys))} Q {_pt((360, ys - 48))} {_pt(heel_top)} "
-             f"Q {_pt((300, ys - (138 if hi else 62)))} {_pt((262, ys - (160 if hi else 98)))} "
-             f"L {_pt(tongue)} L {_pt(throat_end)} Q {_pt((84, ys - 46))} {_pt((48, ys - 4))} L {_pt((46, ys))} Z")
-    outline = (f"M {_pt((44, ys + 3))} Q {_pt((40, base))} {_pt((66, base))} L {_pt((332, base))} "
-               f"Q {_pt((356, base))} {_pt((356, ys + 6))} L {_pt((350, ys))} Q {_pt((360, ys - 48))} {_pt(heel_top)} "
-               f"Q {_pt((300, ys - (138 if hi else 62)))} {_pt((262, ys - (160 if hi else 98)))} "
-               f"L {_pt(tongue)} L {_pt(throat_end)} Q {_pt((84, ys - 46))} {_pt((48, ys - 4))} Z")
+    style = p.get("style") or ("high_top" if p["height"] == "high" else "low_sneaker")
+    if style not in SHOE_STYLES:
+        style = "low_sneaker"
+    f = {"thin": 0.75, "regular": 1.0, "chunky": 1.6}[p["sole"]]
+    heeled = style in ("loafer", "derby", "oxford", "boot", "chelsea_boot")
+    laced = p.get("laces", style not in ("slip_on", "loafer", "chelsea_boot"))
+    foxing = p.get("foxing", style in ("high_top", "slip_on"))
+    toe_cap = p.get("toe_cap", "rubber" if style == "high_top" else "none")
+
+    # ---- the sole: where the upper sits on it (sole top, toe -> heel) and its underside
+    def sole(f):
+        if heeled:
+            ts = {"boot": 0.05, "chelsea_boot": 0.035}.get(style, 0.03) * (1 if f <= 1 else 1.4)
+            hb = {"boot": 0.06, "chelsea_boot": 0.065}.get(style, 0.07) * (0.8 if f < 1 else 1.0)
+            spring = 0.025
+            breast = 0.77                                          # front face of the heel
+            top = [(0.012, spring + ts * 0.9), (0.08, spring * 0.45 + ts), (0.25, ts + 0.002), (0.48, ts + 0.006),
+                   (0.62, ts + hb * 0.55), (0.76, ts + hb * 0.95), (0.993, ts + hb)]
+            under = (f"Q {_pt(_sp(-0.006, spring + ts * 0.5))} {_pt(_sp(0.008, spring))} "
+                     f"C {_pt(_sp(0.04, spring * 0.4))} {_pt(_sp(0.12, 0))} {_pt(_sp(0.25, 0))} L {_pt(_sp(0.5, 0))} "
+                     f"C {_pt(_sp(0.58, 0.004))} {_pt(_sp(0.66, hb * 0.75))} {_pt(_sp(breast - 0.01, hb))} "
+                     f"L {_pt(_sp(breast, 0))} L {_pt(_sp(0.985, 0))} Q {_pt(_sp(0.997, 0))} {_pt(_sp(0.997, 0.004))} "
+                     f"L {_pt(_sp(1.0, ts + hb - 0.008))} L {_pt(_sp(*top[-1]))}")
+            heel_line = f"M {_pt(_sp(breast - 0.012, hb))} L {_pt(_sp(1.0, hb))}"
+        else:
+            th = {"runner": 0.15, "high_top": 0.105, "slip_on": 0.09}.get(style, 0.12) * f
+            tf = {"runner": 0.085, "high_top": 0.085, "slip_on": 0.075}.get(style, 0.09) * (1 + (f - 1) * 0.8)
+            spring = 0.06 if style == "runner" else 0.03
+            rock = 0.36 if style == "runner" else 0.26                  # where the toe starts to lift
+            bev = 0.02 if style == "runner" else 0.006                  # heel bevel
+            top = [(0.012, spring + tf * 0.85), (0.07, spring * 0.55 + tf), (0.25, tf + 0.003),
+                   (0.5, tf + (th - tf) * 0.35), (0.75, th - 0.004), (0.993, th)]
+            if style == "runner":   # a sculpted midsole: rises at the heel, dips under the arch
+                top = [(0.012, spring + tf * 0.85), (0.07, spring * 0.5 + tf), (0.25, tf), (0.45, tf + 0.006),
+                       (0.62, th * 0.8), (0.8, th * 0.95), (0.993, th)]
+            under = (f"Q {_pt(_sp(-0.008, spring + tf * 0.45))} {_pt(_sp(0.01, spring))} "
+                     f"C {_pt(_sp(0.06, spring * 0.3))} {_pt(_sp(rock * 0.45, 0))} {_pt(_sp(rock, 0))} L {_pt(_sp(0.95, 0))} "
+                     f"C {_pt(_sp(1.0, bev))} {_pt(_sp(1.008, bev + 0.03))} {_pt(_sp(1.003, th - 0.01))} L {_pt(_sp(*top[-1]))}")
+            heel_line = ""
+        return top, under, heel_line
+
+    top, under, heel_line = sole(f)
+    top_reg = sole(1.0)[0]
+    sole_top_heel = top[-1]
+
+    # ---- the upper: heel back -> collar -> (tongue) -> lacing / vamp -> toe, ending on the sole
+    st = top[-1][1]
+    T0 = top[0]
+    U = {
+        "low_sneaker": [[(0.993, st), (1.0, st + 0.09), (0.99, 0.25), (0.965, 0.335)],
+                        [(0.965, 0.335), (0.93, 0.33), (0.86, 0.29), (0.79, 0.277), (0.72, 0.298), (0.67, 0.33)],
+                        [(0.67, 0.33), (0.665, 0.362), (0.635, 0.375), (0.605, 0.36)],
+                        [(0.605, 0.36), (0.47, 0.3), (0.35, 0.25), (0.25, 0.228), (0.15, 0.21), (0.07, 0.188), (0.025, 0.155), T0]],
+        "high_top": [[(0.993, st), (1.0, 0.2), (0.985, 0.38), (0.958, 0.535)],
+                     [(0.958, 0.535), (0.86, 0.548), (0.76, 0.556), (0.705, 0.562)],
+                     [(0.705, 0.562), (0.697, 0.592), (0.668, 0.6), (0.648, 0.582)],
+                     [(0.648, 0.582), (0.5, 0.45), (0.36, 0.322), (0.25, 0.238), (0.15, 0.208), (0.07, 0.186), (0.025, 0.152), T0]],
+        "runner": [[(0.99, st), (0.998, 0.25), (0.985, 0.35), (0.99, 0.405)],
+                   [(0.99, 0.405), (0.965, 0.405), (0.93, 0.375), (0.85, 0.315), (0.77, 0.305), (0.7, 0.34), (0.668, 0.375)],
+                   [(0.668, 0.375), (0.66, 0.405), (0.63, 0.418), (0.605, 0.4)],
+                   [(0.605, 0.4), (0.48, 0.33), (0.36, 0.268), (0.25, 0.235), (0.15, 0.212), (0.07, 0.188), (0.025, 0.16), T0]],
+        "slip_on": [[(0.993, st), (1.0, st + 0.08), (0.987, 0.26), (0.965, 0.3)],
+                    [(0.965, 0.3), (0.9, 0.29), (0.8, 0.268), (0.7, 0.252), (0.625, 0.248)],
+                    [(0.625, 0.248), (0.6, 0.262), (0.58, 0.268)],
+                    [(0.58, 0.268), (0.47, 0.252), (0.36, 0.23), (0.25, 0.208), (0.14, 0.185), (0.06, 0.158), (0.02, 0.13), T0]],
+        "loafer": [[(0.993, st), (1.0, 0.16), (0.99, 0.25), (0.975, 0.285)],
+                   [(0.975, 0.285), (0.92, 0.28), (0.83, 0.255), (0.72, 0.235), (0.63, 0.226)],
+                   [(0.63, 0.232), (0.605, 0.246), (0.585, 0.25)],
+                   [(0.585, 0.25), (0.48, 0.242), (0.37, 0.223), (0.26, 0.198), (0.15, 0.168), (0.07, 0.138), (0.025, 0.105), T0]],
+        "derby": [[(0.993, st), (1.0, 0.16), (0.99, 0.255), (0.975, 0.3)],
+                  [(0.975, 0.3), (0.92, 0.292), (0.84, 0.262), (0.76, 0.257), (0.69, 0.28), (0.648, 0.302)],
+                  [(0.648, 0.302), (0.64, 0.327), (0.617, 0.33), (0.6, 0.312)],
+                  [(0.6, 0.312), (0.53, 0.272), (0.46, 0.238), (0.38, 0.214), (0.27, 0.188), (0.16, 0.158), (0.08, 0.128), (0.03, 0.098), T0]],
+        "boot": [[(0.993, st), (1.003, 0.2), (0.99, 0.33), (0.975, 0.45), (0.982, 0.56)],
+                 [(0.982, 0.56), (0.86, 0.566), (0.74, 0.562), (0.7, 0.566)],
+                 [(0.7, 0.566), (0.694, 0.596), (0.664, 0.602), (0.645, 0.585)],
+                 [(0.645, 0.585), (0.626, 0.47), (0.592, 0.375), (0.535, 0.305), (0.44, 0.27), (0.34, 0.253), (0.22, 0.232),
+                  (0.12, 0.205), (0.05, 0.172), (0.018, 0.135), T0]],
+        "chelsea_boot": [[(0.993, st), (1.003, 0.2), (0.99, 0.33), (0.975, 0.45), (0.978, 0.55)],
+                         [(0.978, 0.55), (0.86, 0.535), (0.74, 0.537), (0.68, 0.552)],
+                         [(0.68, 0.552), (0.655, 0.47), (0.615, 0.37), (0.545, 0.285), (0.445, 0.245), (0.33, 0.224), (0.21, 0.196),
+                          (0.11, 0.16), (0.05, 0.128), (0.02, 0.1), T0]],
+    }
+    U["oxford"] = U["derby"]
+    # the tables are drawn on a regular sole; a thicker or thinner one lifts or lowers the upper with it
+    s_toe, s_heel = T0[1] - top_reg[0][1], st - top_reg[-1][1]
+    groups = [[q if q in (T0, (0.993, st), (0.99, st)) else (q[0], q[1] + s_toe + (s_heel - s_toe) * q[0]) for q in g]
+              for g in U[style]]
+    upper_d = _chain(groups)
+    outline = f"{upper_d} {under} Z"
     sh = Shape(outline=outline)
-    sh.parts.append(Part(sole, "sole"))
-    sh.bbox = (40, tongue[1], 360, base)
-    sh.body_box = (46, tongue[1], 356, ys)
-    sh.anchors = {"ground": (CX, base)}
-    # toe cap, foxing stripe, heel counter, collar, laces
-    sh.lines.append(f"M {_pt((122, ys - 50))} Q {_pt((100, ys - 30))} {_pt((104, ys))}")
-    sh.lines.append(f"M {_pt((48, ys + t * 0.5))} L {_pt((354, ys + t * 0.5))}")
-    sh.lines.append(f"M {_pt((316, ys))} Q {_pt((304, ys - 44))} {_pt((heel_top[0] - 8, heel_top[1] + 14))}")
-    sh.lines.append(f"M {_pt((throat_end[0] + 18, throat_end[1] + 20))} Q {_pt((230, ys - 30))} {_pt((262, ys - (160 if hi else 98) + 14))}")
-    n = 7 if hi else 5
-    for i in range(n):
-        f = (i + 0.6) / (n + 0.2)
-        x = throat_end[0] + (tongue[0] - throat_end[0]) * f
-        y = throat_end[1] + (tongue[1] - throat_end[1]) * f
-        sh.lines.append(f"M {_pt((x + 1, y + 2))} L {_pt((x + 15, y + 19))}")
-        sh.dots.append((x + 16, y + 21, 2.2))
+    sole_part = f"M {_pt(_sp(*T0))} {under} " + _spline(list(reversed(top)), start=False) + " Z"
+    sh.parts.append(Part(sole_part, "sole"))
+    if heel_line:
+        sh.parts.append(Part(heel_line, "edge", color="sole_line"))
+    ys = [v for g in groups for _, v in g]
+    top_y = SHOE_G - max(ys) * SHOE_L
+    sh.bbox = (SHOE_X0 - 4, top_y - 14, SHOE_X0 + SHOE_L + 4, SHOE_G + 1)
+    sh.body_box = (SHOE_X0, top_y, SHOE_X0 + SHOE_L, SHOE_G)
+    sh.anchors = {"ground": (CX, SHOE_G), "toe": (SHOE_X0, SHOE_G), "heel": (SHOE_X0 + SHOE_L, SHOE_G)}
+    sh.sole_default = "#3b2b21" if heeled else None
+
+    front = groups[-1]
+    vtop = lambda u: _poly_v(front, u)     # height of the top edge over the vamp / lacing
+    tf_at = lambda u: _poly_v(top, u)      # height of the sole top
+
+    # ---- foxing stripe on a vulcanised sole, a welt stitch on a leather one
+    if foxing:
+        sh.parts.append(Part(_spline([(0.004, tf_at(0.01) * 0.6), (0.3, tf_at(0.3) * 0.5), (0.996, sole_top_heel[1] * 0.5)]),
+                             "edge", color="sole_line"))
+    if heeled:
+        sh.parts.append(Part(_spline([(0.03, tf_at(0.03) - 0.012), (0.3, tf_at(0.3) - 0.012), (0.6, tf_at(0.6) - 0.012),
+                                      (0.985, sole_top_heel[1] - 0.012)]), "stitch", color="sole_line"))
+
+    # ---- lacing: eyelets just under the top edge, laces crossing over it
+    lace_span = {"low_sneaker": (0.35, 0.585), "high_top": (0.27, 0.62), "runner": (0.37, 0.585), "derby": (0.43, 0.585),
+                 "oxford": (0.44, 0.58), "boot": (0.5, 0.64)}.get(style)
+    if laced and lace_span:
+        a, b = lace_span
+        n = {"high_top": 8, "boot": 7, "derby": 5, "oxford": 5, "runner": 6}.get(style, 6)
+        drop = 0.036 if not heeled else 0.026
+        if style == "boot":
+            pts = [(a + (b - a) * i / (n - 1)) for i in range(n)]
+        else:
+            pts = [a + (b - a) * i / (n - 1) for i in range(n)]
+        eyelets = []
+        for u in pts:
+            uu = u
+            if style == "boot":   # the boot's lacing runs up its front, which turns steep: walk along the curve
+                pass
+            v = vtop(uu) - drop
+            eyelets.append((uu, v))
+        if style == "boot":
+            # place eyelets evenly along the front curve between heights 0.26 and 0.55
+            curve = groups[-1][:5]
+            seg = []
+            for (u0, v0), (u1, v1) in zip(curve, curve[1:]):
+                seg.append(((u0, v0), (u1, v1), math.hypot(u1 - u0, v1 - v0)))
+            total = sum(s[2] for s in seg)
+            eyelets = []
+            for i in range(n):
+                d = total * (0.06 + 0.86 * i / (n - 1))
+                for (p0, p1, ln) in seg:
+                    if d <= ln:
+                        t = d / ln
+                        u, v = p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t
+                        # step inward, perpendicular to the edge
+                        du, dv = p1[0] - p0[0], p1[1] - p0[1]
+                        L = math.hypot(du, dv)
+                        eyelets.append((u - dv / L * 0.03, v + du / L * 0.03))
+                        break
+                    d -= ln
+            eyelets = [(u, v) for u, v in eyelets]
+        # the eyelet stay: a seam under the eyelets, curving back into the collar
+        e0, e1 = eyelets[-1], eyelets[0]
+        if style in ("low_sneaker", "high_top", "runner"):
+            sh.lines.append(_spline([(e1[0] - 0.03, e1[1] - 0.028), (e0[0] + 0.015, e0[1] - 0.045), (e0[0] + 0.06, e0[1] - 0.03)]))
+        lw = 5.2 if not heeled else 3.6
+        for (u, v) in eyelets:
+            ex, ey = _sp(u, v)
+            tip = _sp(u - 0.035, vtop(u - 0.035) + 0.03)
+            if style == "boot":
+                tip = _sp(u - 0.034, v + 0.045)
+            sh.parts.append(Part(_capsule((ex, ey), tip, lw), "inlay", color="lace", clip=True))
+            sh.dots.append((ex, ey, 2.4 if not heeled else 2.0))
+
+    # ---- per-style construction lines
+    lift = lambda u: s_toe + (s_heel - s_toe) * u   # how far a thick sole has raised the upper here
+    if style in ("low_sneaker", "runner"):
+        # heel counter
+        sh.lines.append(_spline([(0.8, sole_top_heel[1] - 0.01), (0.83, 0.2 + lift(0.83)), (0.89, 0.27 + lift(0.89)),
+                                 (0.915, groups[1][1][1] - 0.01)]))
+    if style == "runner":
+        # a sweeping overlay from the midfoot to the heel, and a toe overlay
+        sh.lines.append(_spline([(0.3, tf_at(0.3) + 0.002), (0.38, 0.2), (0.47, 0.235), (0.56, 0.27)]))
+        sh.lines.append(_spline([(0.12, tf_at(0.12)), (0.14, 0.15), (0.17, 0.19), (0.19, 0.24)]))
+        sh.lines.append(_spline([(0.02, tf_at(0.02) * 0.5), (0.3, 0.025), (0.7, 0.02), (0.99, 0.035)]))   # outsole
+    if style == "slip_on":
+        gore = _spline([(0.632, 0.27), (0.617, 0.215), (0.607, 0.192), (0.597, 0.215), (0.585, 0.275)])
+        sh.parts.append(Part(gore + " Z", "band", clip=True))
+    if style == "loafer":
+        # the moccasin seam round the vamp, and the saddle strap across it
+        sh.seams.append(_spline([(0.6, 0.205), (0.48, 0.2), (0.34, 0.178), (0.2, 0.148), (0.1, 0.12), (0.04, 0.09)]))
+        strap = (_spline([(0.592, 0.27), (0.588, 0.2), (0.575, 0.158)]) + " " +
+                 _spline([(0.575, 0.158), (0.53, 0.146), (0.48, 0.148)], start=False) + " " +
+                 _spline([(0.48, 0.148), (0.478, 0.2), (0.482, 0.26)], start=False) + " Z")
+        sh.parts.append(Part(strap, "trim", clip=True))
+        sh.lines.append(_spline([(0.565, 0.205), (0.535, 0.203), (0.5, 0.198)]))
+    if style in ("derby", "oxford"):
+        e_lo = (0.465, vtop(0.465))
+        if style == "derby":   # quarters stitched on top of the vamp: their front edge runs down and back
+            sh.lines.append(_spline([(e_lo[0] - 0.005, e_lo[1] - 0.005), (0.468, 0.17), (0.52, 0.12), (0.58, tf_at(0.58) + 0.01)]))
+            sh.lines.append(_spline([(0.47, vtop(0.47) - 0.05), (0.6, vtop(0.6) - 0.055), (0.66, 0.255)]))
+        else:                  # closed lacing: the vamp lies over the quarters, its seam sweeps back to the heel
+            sh.lines.append(_spline([(e_lo[0] - 0.005, e_lo[1] - 0.005), (0.49, 0.185), (0.56, 0.16), (0.66, 0.15),
+                                     (0.72, 0.14), (0.75, tf_at(0.75) + 0.005)]))
+        sh.lines.append(_spline([(0.86, tf_at(0.86)), (0.885, 0.17), (0.93, 0.24), (0.945, 0.29)]))
+    if style == "boot":
+        sh.lines.append(_spline([(0.52, 0.29), (0.53, 0.2), (0.56, 0.14), (0.62, tf_at(0.62) + 0.008)]))
+        sh.lines.append(_spline([(0.82, tf_at(0.82)), (0.85, 0.2), (0.9, 0.25), (0.99, 0.27)]))
+    if style == "chelsea_boot":
+        g = (_spline([(0.735, 0.6), (0.745, 0.47), (0.77, 0.36), (0.8, 0.29)]) + " " +
+             _spline([(0.8, 0.29), (0.83, 0.36), (0.855, 0.47), (0.865, 0.6)], start=False) + " Z")
+        sh.parts.append(Part(g, "band", clip=True))
+        for i in range(1, 6):
+            x = 0.745 + i * 0.02
+            sh.lines.append(_spline([(x, 0.56), (x + (0.8 - x) * 0.25, 0.42)]))
+        sh.lines.append(_spline([(0.86, tf_at(0.86)), (0.885, 0.17), (0.93, 0.24), (0.99, 0.26)]))
+
+    # ---- pull loops: at the back of boots and runners, at the front of a chelsea
+    tab = p.get("heel_tab", "none")
+    tab_role = dict(color="trim") if tab == "contrast" else {}
+    if style in ("boot", "chelsea_boot", "high_top"):
+        hx = groups[1][0]
+        lu = hx[0] - 0.035
+        loop = (f"M {_pt(_sp(lu, hx[1] - 0.04))} L {_pt(_sp(lu + 0.002, hx[1] + 0.045))} "
+                f"Q {_pt(_sp(lu + 0.02, hx[1] + 0.06))} {_pt(_sp(lu + 0.038, hx[1] + 0.045))} L {_pt(_sp(lu + 0.04, hx[1] - 0.04))} Z")
+        if style != "high_top":
+            sh.behind.append(Part(loop, "trim"))
+            sh.bbox = (sh.bbox[0], min(sh.bbox[1], SHOE_G - (hx[1] + 0.065) * SHOE_L), sh.bbox[2], sh.bbox[3])
+    if style == "chelsea_boot":
+        fx = groups[2][0]
+        loop = (f"M {_pt(_sp(fx[0] - 0.005, fx[1] - 0.04))} L {_pt(_sp(fx[0] - 0.01, fx[1] + 0.04))} "
+                f"Q {_pt(_sp(fx[0] + 0.008, fx[1] + 0.058))} {_pt(_sp(fx[0] + 0.028, fx[1] + 0.035))} L {_pt(_sp(fx[0] + 0.03, fx[1] - 0.04))} Z")
+        sh.behind.append(Part(loop, "trim"))
+    if style in ("low_sneaker", "runner", "high_top") and tab == "contrast" or style == "runner":
+        hx = groups[1][0]
+        d = (f"M {_pt(_sp(hx[0] - 0.05, hx[1] + 0.02))} L {_pt(_sp(hx[0] - 0.045, hx[1] - 0.12))} "
+             f"L {_pt(_sp(1.02, hx[1] - 0.13))} L {_pt(_sp(1.02, hx[1] + 0.02))} Z")
+        sh.parts.append(Part(d, "inlay", clip=True, **tab_role))
+
+    # ---- toe cap: a seam, or a rubber bumper in the sole colour
+    if toe_cap == "stitched":
+        u0 = 0.21 if heeled else 0.24
+        sh.lines.append(_spline([(u0, tf_at(u0) - 0.005), (u0 - 0.008, tf_at(u0) + 0.05), (u0 - 0.03, vtop(u0 - 0.03) + 0.01)]))
+        if heeled:
+            sh.lines.append(_spline([(u0 + 0.012, tf_at(u0) - 0.005), (u0 + 0.004, tf_at(u0) + 0.05), (u0 - 0.018, vtop(u0 - 0.018) + 0.01)]))
+    elif toe_cap == "rubber":
+        d = (f"M {_pt(_sp(-0.05, 0.0))} L {_pt(_sp(0.17, tf_at(0.17) - 0.01))} "
+             + _spline([(0.17, tf_at(0.17) - 0.01), (0.165, 0.15), (0.13, 0.2), (0.11, 0.3)], start=False)
+             + f" L {_pt(_sp(-0.05, 0.3))} Z")
+        sh.parts.insert(0, Part(d, "inlay", color="sole", clip=True))
+
+    # ---- a contrast side panel
+    if p.get("stripe", "none") == "side":
+        d = (_spline([(0.42, tf_at(0.42) - 0.01), (0.52, 0.16), (0.6, 0.235), (0.66, 0.285)]) + " "
+             + _spline([(0.66, 0.285), (0.7, 0.26), (0.72, 0.22)], start=False) + " "
+             + _spline([(0.72, 0.22), (0.66, 0.17), (0.58, tf_at(0.58) - 0.01)], start=False) + " Z")
+        sh.parts.append(Part(d, "inlay", color="trim", clip=True))
     return sh
 
 

@@ -40,6 +40,7 @@ class Spec:
     button_color: str | None = None   # buttons and eyelets; None = pale, like the card
     trim_color: str | None = None     # a contrast collar, cuffs and ribbing; None = the garment's own cloth
     texture: str | None = None        # corduroy | rib_knit | cable_knit | waffle: drawn tone-on-tone over the fill
+    lace_color: str | None = None     # shoes: None = laces in the upper's colour
     notes: list[str] = field(default_factory=list)
 
 
@@ -146,7 +147,7 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
     dy = (H - gh) / 2 - by0
     defs, paint = _defs_for_fill(spec.fill, shape, uid, gw, gh)
     base = spec.fill.color
-    dark_item = luminance(base) < 0.22
+    dark_item = luminance(base) < 0.3
     tone = shade(base, 0.16 if dark_item else -0.16)
     clip = f"c{uid}"
     defs += f'<clipPath id="{clip}"><path d="{shape.outline}"/></clipPath>'
@@ -193,8 +194,16 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
         return (f'<path d="{d}" fill="none" stroke="{l_stroke}" stroke-width="{l_w}" stroke-linecap="round" '
                 f'stroke-linejoin="round" opacity="{l_op}"/>')
 
-    def overlay(d: str, role: str) -> str:
+    sole_c = spec.sole_color or shape.sole_default or "#f4f1ea"
+
+    def part_color(key):
+        return {"trim": spec.trim_color, "lace": spec.lace_color, "sole": sole_c, "sole_line": None}.get(key, key)
+
+    def overlay(d: str, role: str, color: str | None = None) -> str:
         if role == "edge":   # a line with no fill, e.g. the visible edges of a collar
+            if color == "sole_line":   # a line on the sole (foxing stripe, heel lift): a darker tone of the sole, not the upper's
+                c = shade(sole_c, -0.3 if luminance(sole_c) > 0.25 else 0.22)
+                return f'<path d="{d}" fill="none" stroke="{c}" stroke-width="{l_w}" stroke-linecap="round"/>'
             return halo(d, 2.4) + thin(d)
         if role in ("collar_r", "collar_l"):
             # the same cloth as the body (turned, when patterned); its edges are a separate "edge" part
@@ -203,8 +212,18 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
             return f'<path d="{d}" fill="{turned(role[-1], -24 if role == "collar_r" else 24)}"/>'
         if role == "neckrib":   # the rib of a crew neck: only painted when it is a contrast colour
             return f'<path d="{d}" fill="{spec.trim_color}"/>' if spec.trim_color else ""
+        if role == "stitch":   # topstitching in its own thread colour: dashed, never ink
+            c = part_color(color) or "#c9973f"
+            if color == "sole_line":
+                c = shade(sole_c, -0.25 if luminance(sole_c) > 0.25 else 0.22)
+            return f'<path d="{d}" fill="none" stroke="{c}" stroke-width="1.3" stroke-dasharray="3.2 2.4" stroke-linecap="round"/>'
+        if role == "inlay":    # a piece in its own colour (lace, rubber toe, contrast panel); body cloth when none is given
+            c = part_color(color)
+            body = f'<path d="{d}" fill="{c}"/>' if c else (f'<path d="{d}" fill="{paint}"/>'
+                                                           f'<path d="{d}" fill="{"#fff" if dark_item else "#000"}" opacity=".08"/>')
+            return body + f'<path d="{d}" fill="none" stroke="{l_stroke if style != "flat" else shade(c or base, -0.3)}" stroke-width="{l_w}" stroke-linejoin="round" opacity="{l_op}"/>'
         if role == "sole":
-            c = spec.sole_color or "#f4f1ea"
+            c = sole_c
             return f'<path d="{d}" fill="{c}"/>' + (f'<path d="{d}" fill="#000" opacity=".06"/>' if style != "line" else "")
         if role == "hole":
             return f'<path d="{d}" fill="{paint}"/><path d="{d}" fill="#000" opacity=".22"/>'
@@ -221,7 +240,7 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
 
     g = [f'<g transform="translate(0 {dy:.1f})"' + (f' filter="url(#s{uid})"' if style == "soft" else "") + ">"]
     for part in shape.behind:
-        g.append(overlay(part.d, part.role))
+        g.append(overlay(part.d, part.role, part.color))
     # the garment body; a same-paint stroke rounds the corners in the flat style
     round_stroke = f' stroke="{paint}" stroke-width="5" stroke-linejoin="round"' if style == "flat" and not patterned else ""
     g.append(f'<path d="{shape.outline}" fill="{paint}"{round_stroke}/>')
@@ -242,8 +261,9 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
     for d in shape.seams:
         g.append(thin(d))
     g.append("</g>")
-    for part in shape.parts:
-        g.append(overlay(part.d, part.role))
+    for part in shape.parts:   # parts marked clip are cut by the garment's edge (laces, a rubber toe)
+        piece = overlay(part.d, part.role, part.color)
+        g.append(f'<g clip-path="url(#{clip})">{piece}</g>' if part.clip else piece)
     g.append(_graphic_markup(spec.graphic, shape.bbox, clip))
     if style == "soft":
         g.append(f'<path d="{shape.outline}" fill="url(#g{uid})"/>')

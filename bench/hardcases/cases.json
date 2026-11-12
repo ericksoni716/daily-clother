@@ -65,7 +65,8 @@
       "params": {
         "leg": "straight",
         "length": "full",
-        "jeans": true
+        "jeans": true,
+        "stitch": "contrast"
       },
       "fill": "solid"
     },
@@ -76,7 +77,9 @@
       "template": "sneaker",
       "params": {
         "height": "low",
-        "sole": "regular"
+        "sole": "regular",
+        "toe_cap": "rubber",
+        "foxing": true
       },
       "fill": "solid",
       "color_name": "white"
@@ -88,7 +91,8 @@
       "template": "sneaker",
       "params": {
         "height": "low",
-        "sole": "chunky"
+        "sole": "chunky",
+        "stripe": "none"
       },
       "fill": "solid",
       "color_name": "white"

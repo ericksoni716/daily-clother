@@ -19,6 +19,8 @@ from typing import Literal, Optional, get_args
 
 from pydantic import BaseModel, Field
 
+from .templates import SHOE_STYLES
+
 Category = Literal["tee", "shirt", "polo", "sweater", "hoodie", "jacket", "coat", "jeans", "trousers", "shorts",
                    "sneakers", "boots", "dress_shoes", "sandals", "bag", "belt", "hat", "scarf", "other"]
 Color = Literal["black", "white", "grey", "navy", "blue", "light_blue", "green", "olive", "tan", "brown", "cream",
@@ -44,8 +46,9 @@ Hem = Literal["plain", "curved", "ribbed", "turn_up"]
 Cuffs = Literal["na", "plain", "ribbed", "buttoned"]
 Texture = Literal["smooth", "corduroy", "rib_knit", "cable_knit", "waffle", "fleece", "denim", "suede", "leather", "canvas", "other"]
 Waist = Literal["na", "belt_loops", "drawstring", "elastic"]
-ShoeStyle = Literal["na", "low_sneaker", "high_top", "runner", "boot", "chelsea_boot", "loafer", "derby", "sandal"]
-Feature = Literal["v_insert", "raglan_sleeves", "pleats", "toe_cap", "side_stripe"]
+ShoeStyle = Literal["na", "low_sneaker", "high_top", "runner", "slip_on", "boot", "chelsea_boot", "loafer", "derby", "oxford", "sandal"]
+Feature = Literal["v_insert", "raglan_sleeves", "pleats", "pressed_crease", "contrast_stitching", "toe_cap", "side_stripe",
+                  "contrast_heel_tab", "chunky_sole"]
 
 FIELDS = ("category", "color", "pattern", "formality", "season")
 DETAIL_FIELDS = ("closure", "button_count", "button_color", "pockets", "hem", "cuffs", "texture", "trim_color",
@@ -79,10 +82,10 @@ class Details(BaseModel):
     texture: Texture = Field(description="The surface of the cloth where it is plain to see; smooth when unremarkable.")
     trim_color: ColorOrSame = Field(description="Colour of a contrasting collar, cuffs or ribbing; 'same' when they match the body.")
     waist: Waist = Field(description="Trousers and shorts only; 'na' otherwise.")
-    shoe_style: ShoeStyle = Field(description="Shoes only; 'na' otherwise.")
+    shoe_style: ShoeStyle = Field(description="Shoes only; 'na' otherwise. derby = open lacing, oxford = closed lacing, slip_on = a laceless canvas shoe.")
     sole_color: ColorOrSame = Field(description="Shoes: colour of the sole; 'same' otherwise.")
     lace_color: ColorOrSame = Field(description="Shoes: colour of the laces; 'same' when they match the upper, there are none, or it is not a shoe.")
-    features: list[Feature] = Field(description="Any of these that are present; empty if none. v_insert = the stitched triangle under a sweatshirt's neck.")
+    features: list[Feature] = Field(description="Any of these that are present; empty if none. v_insert = the stitched triangle under a sweatshirt's neck; contrast_stitching = topstitching in a thread colour that stands out, as on most blue jeans; side_stripe = a contrast panel or stripe on the side of a shoe.")
     other_features: list[str] = Field(description="Up to four distinctive details nothing above covers, a few words each, e.g. 'embroidered chest logo', 'elbow patches'. Empty if none.")
 
     @classmethod
@@ -132,11 +135,35 @@ def silhouette_params(tags: ItemTags) -> tuple[str, dict]:
     """Map tags to an illustration template and its parameters."""
     s, d = tags.silhouette, tags.details
     if tags.category in ("jeans", "trousers", "shorts"):
-        return "pants", {"leg": s.leg or "straight",
-                         "length": "short" if tags.category == "shorts" else (s.pant_length or "full"),
-                         "jeans": tags.category == "jeans"}
+        jeans = tags.category == "jeans"
+        p = {"leg": s.leg or "straight", "length": "short" if tags.category == "shorts" else (s.pant_length or "full"),
+             "jeans": jeans}
+        if d.waist in ("drawstring", "elastic"):
+            p["waist"] = d.waist
+        if d.pockets == "cargo":
+            p["cargo"] = True
+        if "pleats" in d.features:
+            p["pleats"] = 1
+        if "pressed_crease" in d.features:
+            p["crease"] = True
+        if d.hem in ("turn_up", "ribbed"):
+            p["hem"] = {"turn_up": "turnup", "ribbed": "rib"}[d.hem]
+        if "contrast_stitching" in d.features:
+            p["stitch"] = "contrast"
+        return "pants", p
     if tags.category in ("sneakers", "boots", "dress_shoes", "sandals"):
-        return "sneaker", {"height": s.shoe_height or ("high" if tags.category == "boots" else "low")}
+        by_category = {"boots": "boot", "dress_shoes": "derby"}.get(tags.category) or ("high_top" if s.shoe_height == "high" else "low_sneaker")
+        style = d.shoe_style if d.shoe_style in SHOE_STYLES else by_category   # no sandal shape yet: drawn as a low shoe
+        p = {"height": "high" if style in ("high_top", "boot", "chelsea_boot") else "low", "style": style}
+        if "chunky_sole" in d.features:
+            p["sole"] = "chunky"
+        if "toe_cap" in d.features:
+            p["toe_cap"] = "rubber" if (style in ("high_top", "slip_on") or d.texture == "canvas") else "stitched"
+        if "side_stripe" in d.features:
+            p["stripe"] = "side"
+        if "contrast_heel_tab" in d.features:
+            p["heel_tab"] = "contrast"
+        return "sneaker", p
     p = {"sleeve": s.sleeve or ("short" if tags.category in ("tee", "polo") else "long"),
          "neck": s.neck or {"shirt": "collar", "polo": "collar", "hoodie": "hood", "jacket": "collar", "coat": "collar"}.get(tags.category, "crew"),
          "length": s.top_length or ("long" if tags.category == "coat" else "regular"),
@@ -162,4 +189,4 @@ def drawing_extras(tags: ItemTags) -> dict:
     d = tags.details
     return {"button_color": NAMED_HEX.get(d.button_color), "trim_color": NAMED_HEX.get(d.trim_color),
             "texture": d.texture if d.texture in DRAWN_TEXTURES else None,
-            "sole_color": NAMED_HEX.get(d.sole_color)}
+            "sole_color": NAMED_HEX.get(d.sole_color), "lace_color": NAMED_HEX.get(d.lace_color)}

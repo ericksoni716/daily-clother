@@ -55,10 +55,8 @@ Collar = _axis("collar")
 Placket = _axis("placket")
 Cuff = _axis("cuff")
 SleeveConstruction = _axis("sleeve_construction", "na")
-# Lower patch pockets on a shirt, overshirt or jacket have no value in the taxonomy yet; these two are
-# an extension until the owner decides whether to add them there.
-EXTRA_POCKETS = ("hip_patch_double", "hip_flap_double")
-Pockets = Literal[AXES["pockets"] + EXTRA_POCKETS]
+HIP_POCKETS = ("hip_patch_double", "hip_flap_double")   # in the taxonomy since the owner added them
+Pockets = Literal[tuple(dict.fromkeys(AXES["pockets"] + HIP_POCKETS))]
 Hem = _axis("hem", "na")
 Fabric = Literal[("unknown",) + tuple(dict.fromkeys(AXES["woven_structure"] + AXES["knit_structure"]))]
 ColorTexture = _axis("color_texture")
@@ -232,11 +230,11 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
          "neckline": d.neckline if d.neckline != "na" else _COARSE_NECK.get(coarse_neck, "crew"),
          "placket": d.placket, "placket_buttons": d.placket_buttons if d.placket != "none" else None,
          "cuff": d.cuff, "sleeve_construction": d.sleeve_construction,
-         "pockets": {"hip_patch_double": "split_hand", "hip_flap_double": "split_hand"}.get(d.pockets, d.pockets),
+         "pockets": d.pockets,
          "hem": d.hem if d.hem != "na" else "straight", **cloth,
          "length": s.top_length or ("long" if tags.category == "coat" else "regular")}
     p, more, notes = top_drawing(g)
-    if d.pockets in EXTRA_POCKETS:
+    if d.pockets in HIP_POCKETS and p.get("pockets") in (None, "none"):
         p["pockets"] = "low"
     if "v_insert" in d.features:
         p["neck_detail"] = "v-insert"

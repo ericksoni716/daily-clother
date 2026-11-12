@@ -572,6 +572,7 @@ Ties (silk, knit — square end, wool, grenadine, repp stripe, foulard, paisley)
 | **Coin/watch pocket** | Small pocket inside right front jeans pocket |
 | **Ticket pocket** | Small extra flap above right hip pocket on a jacket |
 | **Double chest pockets** | Work, western, chambray, safari |
+| **Hip patch pockets** (pair) | Two patch pockets low on the front, at hip level: overshirts, shackets, chore and field jackets, some flannels. Plain patch (`hip_patch_double`) or with buttoned or snapped flaps (`hip_flap_double`). May be worn alongside chest pockets |
 | **Chest pocket shapes** | Square, pointed (chevron) bottom, rounded, mitred corners |
 
 ### 5.5 Buttons & closures

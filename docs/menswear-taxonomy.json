@@ -106,6 +106,8 @@
    "utility_sleeve",
    "four_patch_guayabera",
    "three_patch_chore",
+   "hip_patch_double",
+   "hip_flap_double",
    "five_pocket_jean",
    "cargo"
   ],
@@ -1028,7 +1030,9 @@
    ],
    "pockets": [
     "chest_flap_double",
-    "chest_patch_double"
+    "chest_patch_double",
+    "hip_patch_double",
+    "hip_flap_double"
    ],
    "closure_material": [
     "horn",

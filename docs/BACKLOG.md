@@ -11,7 +11,10 @@ owner; see `DECISIONS.md`, "How the work is organised").
 
 ## Waiting on the owner
 - **Garment review**: marks and notes in the review gallery (a private Claude artifact; rebuilt each round with `tools/make_review_gallery.py`).
-- **The Windows build** for stop A has still not been made or tried; Mac 0.1.0 worked apart from the model download, fixed in 0.1.1.
+- **Mac 0.1.1**: confirm the background-removal model now downloads on the owner's Mac.
+- **The Windows build** for stop A has still not been made or tried.
+- **A token for the `start agent` workflow** (`COPILOT_AGENT_TOKEN` in an `agents` environment limited to `main`) and the exact model ids, so agents can be started with a chosen model.
+- **Whether sleeves starting at the body's edge** is what "arms in line with the width of the shirt" meant (round 2 in the review gallery).
 - **The app's top UI complaints**, as the brief for UI tasks. A full interface-design pass comes after more features exist.
 - **25–30 photos of the owner's own clothes** with an answer key (`bench/answer_key.template.csv`). Most useful: items that differ from the usual (a polo with one or three buttons, a henley, corduroy, fleece or heavy wool beside light cotton, a sweatshirt with a V-insert). The bench runs them through the Claude plan by default; an API key is optional.
 - Three photos for the untested hard cases: something striped, something floral or patterned, something camouflage.
@@ -99,6 +102,7 @@ Original phase 5.
 Tests pass, the packaged build is green in CI, demo mode works, docs are updated, and the owner is told exactly what to try from the downloaded program and what is uncertain.
 
 ## Parked
+- A change made a moment before the page is reloaded or closed can be lost, because the save is still on its way. Sending saves so that they outlive the page (a keep-alive request) would close that gap. Found when a browser test raced it.
 - Batches API as an opt-in "economy" mode for very large imports.
 - Server-side refusal fallback for the stronger model (beta); tagging currently fails clearly on a refusal.
 - Sneaker side logos and other prints on shoes are not carried onto the illustration.

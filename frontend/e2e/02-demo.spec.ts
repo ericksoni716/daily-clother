@@ -49,15 +49,26 @@ test('item detail: switch pictures, change a chip, it persists', async ({ page }
   await expect(panel.getByRole('group', { name: 'Sleeves' })).toBeVisible();
   await expect(panel.getByRole('group', { name: 'Leg' })).toHaveCount(0);
 
+  // Each change is its own save. Wait for the server's answer to each one: the "Saved" message
+  // from an earlier change stays on screen for a while, so seeing it does not mean the latest
+  // change has been stored, and reloading too soon would cancel a save still on its way.
+  const stored = () => page.waitForResponse((r) => r.request().method() === 'PATCH' && r.url().includes('/api/items/') && r.ok());
+
   const formality = panel.getByRole('group', { name: 'Formality' });
   const target = (await formality.getByRole('button', { name: 'Smart casual' }).getAttribute('aria-pressed')) === 'true' ? 'Business' : 'Smart casual';
+  let answer = stored();
   await formality.getByRole('button', { name: target }).click();
+  await answer;
   await expect(formality.getByRole('button', { name: target })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('status').filter({ hasText: 'Saved' })).toBeVisible();
 
+  answer = stored();
   await page.getByRole('group', { name: 'How you feel about it' }).getByRole('button', { name: 'Love' }).click();
+  await answer;
+  answer = stored();
   await page.getByLabel('Why? (optional)').fill('Warmest shirt I own');
   await page.getByLabel('Why? (optional)').press('Enter');
+  await answer;
   await expect(page.getByRole('status').filter({ hasText: 'Saved' })).toBeVisible();
 
   // shown as words, never raw values

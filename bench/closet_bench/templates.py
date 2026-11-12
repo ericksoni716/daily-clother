@@ -342,6 +342,7 @@ def top(**kw) -> Shape:
         {"scoop": 36.0, "boat": 52.0}.get(neck, 30.0), 58.0 + (2 if neck == "boat" else 0))
     seam_y = ny if collar else 56.0                   # where the back length is measured from
     hy = seam_y + length * k_
+    hy = min(hy, H - 30.0)                            # a knee-length coat is drawn a little short of true scale to stay on the card
     wy = seam_y + B.get("waist_at", 45) * k_
     ay = sy + B["depth"] * k_ + bulk * 0.5            # the underarm, under the sleeve
 

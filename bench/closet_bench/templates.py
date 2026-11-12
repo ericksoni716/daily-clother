@@ -53,7 +53,7 @@ TOP_DEFAULTS = dict(
     neck="crew",        # crew | v | collar | hood | turtle
     length="regular",   # cropped | regular | long
     fit="regular",      # slim | regular | oversized
-    front="none",       # none | buttons | zip
+    front="none",       # none | buttons | half | zip
     pockets="none",     # none | chest | low | chest-low
     hem="straight",     # straight | curved | rib
     cuffs="plain",      # plain | rib | button
@@ -70,6 +70,9 @@ def top(**kw) -> Shape:
     nw, ny, sy = 30.0, 58.0, 80.0
     if p["fit"] == "oversized":
         sy = 84.0
+    collar = p["neck"] == "collar"
+    if collar:  # a collar is wider than a bare neckline and meets the shoulder a little lower
+        nw, ny = 36.0, 60.0
 
     N = (CX + nw, ny)
     S = (CX + hs, sy)
@@ -108,14 +111,22 @@ def top(**kw) -> Shape:
         hem = (f"C {_pt((CX + hh - 26, hy + hem_dip))} {_pt((CX - hh + 26, hy + hem_dip))} {_pt(Hl)}")
     else:
         hem = f"Q {_pt((CX, hy + hem_dip))} {_pt(Hl)}"
-    outline = (f"M {_pt(N)} L {_pt(S)} {arm} L {_pt(Hc)} {hem} {arm_l} L {_pt(Nl)} "
-               f"Q {_pt((CX, back_neck_y))} {_pt(N)} Z")
+    if collar:
+        # The collar is part of the silhouette: up its outer edge, across the fold at the
+        # back of the neck, and down the other side. Nothing of the body shows behind it.
+        ct = ny - 26                                   # top of the collar
+        TR, TL = (CX + 33, ct + 2), (CX - 33, ct + 2)  # its top corners
+        neck = (f"Q {_pt((CX - 39, ny - 12))} {_pt(TL)} Q {_pt((CX, ct - 5))} {_pt(TR)} "
+                f"Q {_pt((CX + 39, ny - 12))} {_pt(N)}")
+    else:
+        neck = f"Q {_pt((CX, back_neck_y))} {_pt(N)}"
+    outline = f"M {_pt(N)} L {_pt(S)} {arm} L {_pt(Hc)} {hem} {arm_l} L {_pt(Nl)} {neck} Z"
 
     sh = Shape(outline=outline)
-    sh.anchors = {"neck": (CX, ny), "shoulder_l": Sl, "shoulder_r": S, "hem": (CX, hy)}
+    sh.anchors = {"neck": (CX, 58.0), "shoulder_l": Sl, "shoulder_r": S, "hem": (CX, hy)}  # the same for every neckline
     sh.body_box = (CX - ha, sy, CX + ha, hy)
     xmax = max(S[0], A[0], Hc[0], cuff[0][0] if cuff else 0)
-    top_y = {"hood": ny - 74, "turtle": ny - 34, "collar": ny - 18}.get(p["neck"], ny - 4)
+    top_y = {"hood": ny - 74, "turtle": ny - 34, "collar": ny - 30}.get(p["neck"], ny - 4)
     sh.bbox = (2 * CX - xmax, top_y, xmax, hy + hem_dip)
     if cuff:
         Co, Ci, _ = cuff
@@ -139,17 +150,23 @@ def top(**kw) -> Shape:
             f"M {_pt(Nl)} Q {_pt((CX, back_neck_y))} {_pt(N)} L {_pt((CX, front_bottom))} Z", "hole"))
         sh.lines.append(f"M {_pt((Nl[0] - 6, ny + 3))} L {_pt((CX, front_bottom + 10))} L {_pt((N[0] + 6, ny + 3))}")
     elif p["neck"] == "collar":
-        # A point collar: the inside of the collar shows in the opening, and two
-        # leaves run from the side of the neck down to points beside the top button.
+        # Built the way a shirt collar is: the inside of the collar shows at the back of
+        # the neck, and two leaves fold down from the top corners to points either side
+        # of the top button, meeting at the centre front.
         front_bottom = ny + 20
-        sh.parts.append(Part(
-            f"M {_pt(Nl)} Q {_pt((CX, back_neck_y))} {_pt(N)} L {_pt((CX, front_bottom))} Z", "hole"))
-        for m in (lambda q: q, _mirror):
-            top_pt, shoulder_pt = m((CX + nw - 4, ny - 15)), m((CX + nw + 10, ny + 5))
-            point, centre = m((CX + 33, ny + 49)), m((CX + 1.5, front_bottom))
-            leaf = (f"M {_pt(top_pt)} L {_pt(shoulder_pt)} L {_pt(point)} "
-                    f"L {_pt(centre)} Q {_pt(m((CX + 13, ny + 4)))} {_pt(top_pt)} Z")
-            sh.parts.append(Part(leaf, "collar_r" if m((1, 0))[0] == 1 else "collar_l"))
+        centre = (CX, front_bottom)
+        IR, IL = (CX + 24, ct + 3), (CX - 24, ct + 3)   # where each leaf's inner edge meets the fold
+        # the opening between the leaves: the inside of the shirt's back
+        sh.parts.append(Part(f"M {_pt(IL)} Q {_pt((CX, ct - 3))} {_pt(IR)} L {_pt(centre)} Z", "hole"))
+        # the inside of the collar band, curving round the back of the neck
+        sh.parts.append(Part(f"M {_pt(IL)} Q {_pt((CX, ct - 3))} {_pt(IR)} Q {_pt((CX, ct + 34))} {_pt(IL)} Z", "inner"))
+        for side, m in (("r", lambda q: q), ("l", _mirror)):
+            leaf = (f"M {_pt(m(TR))} Q {_pt(m((CX + 39, ny - 12)))} {_pt(m(N))} L {_pt(m((CX + 23, ny + 43)))} "
+                    f"L {_pt(centre)} L {_pt(m(IR))} Q {_pt(m((CX + 29, ct + 1)))} {_pt(m(TR))} Z")
+            sh.parts.append(Part(leaf, f"collar_{side}"))
+        if p["front"] == "buttons":  # yoke seams, just below the shoulder line
+            for m in (lambda q: q, _mirror):
+                sh.lines.append(f"M {_pt(m((CX + 37, ny + 9)))} L {_pt(m((CX + hs - 5, sy + 15)))}")
     elif p["neck"] == "turtle":
         front_bottom = ny + 6
         tube = (f"M {_pt((Nl[0] - 3, ny + 6))} L {_pt((Nl[0] + 3, ny - 30))} Q {_pt((CX, ny - 37))} {_pt((N[0] - 3, ny - 30))} "
@@ -205,6 +222,11 @@ def top(**kw) -> Shape:
         y0, y1 = front_bottom + 16, hy - 26
         for i in range(n):
             sh.dots.append((CX, y0 + (y1 - y0) * i / (n - 1), 3.0))
+    elif p["front"] == "half":
+        end = front_bottom + 66
+        sh.lines.append(f"M {_pt((CX - 8, front_bottom + 2))} L {_pt((CX - 8, end))} L {_pt((CX + 8, end))} L {_pt((CX + 8, front_bottom + 2))}")
+        for i in range(2):
+            sh.dots.append((CX, front_bottom + 16 + 28 * i, 3.0))
     elif p["front"] == "zip":
         sh.lines.append(f"M {_pt((CX, front_bottom))} L {_pt((CX, bottom))}")
         sh.lines.append(f"M {_pt((CX - 4, front_bottom + 6))} L {_pt((CX - 4, front_bottom + 20))} "

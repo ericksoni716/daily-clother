@@ -49,7 +49,7 @@ DRAWN = [
      dict(sleeve="long", neck="collar", fit="slim"), "business", "all", {}),
     ("Chambray shirt", "shirt", "blue", "#6f8fb5", "top", dict(neck="collar", front="buttons", hem="curved", cuffs="button", pockets="chest-low"),
      dict(sleeve="long", neck="collar"), "casual", "all", {}),
-    ("Navy polo", "polo", "navy", "#27344f", "top", dict(sleeve="short", neck="collar"), dict(sleeve="short", neck="collar"), "smart_casual", "warm", {}),
+    ("Navy polo", "polo", "navy", "#27344f", "top", dict(sleeve="short", neck="collar", front="half"), dict(sleeve="short", neck="collar"), "smart_casual", "warm", {}),
     ("Burgundy crew sweater", "sweater", "burgundy", "#7a2f36", "top", dict(hem="rib", cuffs="rib"), dict(sleeve="long", neck="crew"), "smart_casual", "cool", dict(rating="like")),
     ("Striped sweater", "sweater", "navy", stripes("#26324d", "#e9e3d5", 0.07, 0.035), "top", dict(hem="rib", cuffs="rib"), dict(sleeve="long", neck="crew"), "casual", "cool",
      dict(pattern="stripe")),

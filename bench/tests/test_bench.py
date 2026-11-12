@@ -32,7 +32,7 @@ def garment(size=(400, 500), color=(200, 60, 60)):
 
 @pytest.mark.parametrize("template,options", [
     ("top", dict(sleeve=["none", "short", "long"], neck=["crew", "v", "collar", "hood", "turtle"], length=["cropped", "regular", "long"],
-                 fit=["slim", "regular", "oversized"], front=["none", "buttons", "zip"], pockets=["none", "chest", "low", "chest-low"],
+                 fit=["slim", "regular", "oversized"], front=["none", "buttons", "half", "zip"], pockets=["none", "chest", "low", "chest-low"],
                  hem=["straight", "curved", "rib"], cuffs=["plain", "rib", "button"])),
     ("pants", dict(leg=["tapered", "straight", "wide"], length=["short", "ankle", "full"], jeans=[False, True])),
     ("sneaker", dict(height=["low", "high"], sole=["thin", "regular", "chunky"])),

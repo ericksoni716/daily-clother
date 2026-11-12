@@ -87,6 +87,8 @@ def silhouette_params(tags: ItemTags) -> tuple[str, dict]:
          "neck": s.neck or {"shirt": "collar", "polo": "collar", "hoodie": "hood", "jacket": "collar", "coat": "collar"}.get(tags.category, "crew"),
          "length": s.top_length or ("long" if tags.category == "coat" else "regular"),
          "fit": s.fit or "regular"}
+    if tags.category == "polo":
+        p.update(front="half")
     if tags.category == "shirt":
         p.update(front="buttons", hem="curved", cuffs="button" if p["sleeve"] == "long" else "plain")
     elif tags.category in ("sweater", "hoodie"):

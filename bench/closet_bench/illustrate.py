@@ -177,7 +177,7 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
             return f'<path d="{d}" fill="{c}"/>' + (f'<path d="{d}" fill="#000" opacity=".06"/>' if style != "line" else "")
         if role == "hole":
             return f'<path d="{d}" fill="{paint}"/><path d="{d}" fill="#000" opacity=".32"/>'
-        op = {"trim": 0.10, "band": 0.12}.get(role, 0.1)
+        op = {"trim": 0.10, "band": 0.12, "inner": 0.14}.get(role, 0.1)
         col = "#fff" if dark_item else "#000"
         out = f'<path d="{d}" fill="{paint}"/><path d="{d}" fill="{col}" opacity="{op}"/>'
         if style in ("line", "soft"):

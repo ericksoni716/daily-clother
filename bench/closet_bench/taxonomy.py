@@ -486,9 +486,9 @@ _WOVEN_NOTES = {
     "whipcord": (A_, "drawn as a twill"),
     "flannel": (A_, "no texture of its own: heavy weight and a fuzzy edge (halo); wool fibre makes it heavier"),
     "satin": (A_, "no texture: drawn with a sheen highlight; light"), "sateen": (A_, "sheen highlight; light"),
-    "waxed_cotton": (A_, "sheen highlight and heavy weight"), "melton": (A_, "no texture: super-heavy edges"),
-    "moleskin": (A_, "no texture: heavy edges"), "canvas": (A_, "no texture: heavy edges"),
-    "velvet": (N_, "pile and its sheen are not drawn yet; midweight edges only"),
+    "waxed_cotton": (A_, "sheen highlight and heavy weight"), "melton": (A_, "no texture: drawn with the depth of a super-heavy cloth"),
+    "moleskin": (A_, "no texture: the depth of a heavy cloth"), "canvas": (A_, "no texture: the depth of a heavy cloth"),
+    "velvet": (N_, "pile and its sheen are not drawn yet; drawn as a plain midweight cloth"),
 }
 _KNIT_NOTES = {
     "pique": (D, "fine honeycomb dots"), "waffle_thermal": (D, "waffle grid"), "rib_1x1": (D, "fine vertical rib"),
@@ -499,7 +499,7 @@ _KNIT_NOTES = {
     "shaker": (A_, "drawn as a rib; heavy"), "moss": (A_, "drawn as the pique dot"), "pointelle": (A_, "drawn as open mesh holes"),
     "terry_towelling": (A_, "loops drawn as the pique dot"), "slub_jersey": (A_, "slubs drawn as linen streaks"),
     "guernsey": (A_, "drawn as garter ridges; heavy"), "velour": (A_, "no texture: soft edge (halo)"),
-    "french_terry": (A_, "smooth face: heavy edges only"),
+    "french_terry": (A_, "smooth face: the depth of a heavy cloth only"),
 }
 COVERAGE["woven_structure"] = {
     v: _WOVEN_NOTES.get(v, (N_, "fabric/colour/pattern carry it: no visible surface at this size" if v not in ("dobby", "jacquard", "madras", "chambray")
@@ -521,7 +521,7 @@ COVERAGE["fiber"] = {
         "silk": (D, "lighter and a sheen highlight"), "polyester": (D, "one step lighter than the fabric alone"),
         "nylon": (D, "lighter and a sheen highlight"), "acrylic": (A_, "drawn like wool of the same knit"),
         "viscose": (D, "lighter: fine edges"), "lyocell": (D, "lighter: fine edges"), "modal": (D, "lighter: fine edges"),
-        "leather": (A_, "heavy edges; no leather surface or sheen"), "suede": (A_, "heavy edges; no nap"),
+        "leather": (A_, "the depth of a heavy cloth; no leather surface or sheen"), "suede": (A_, "the depth of a heavy cloth; no nap"),
         "shearling": (D, "super heavy, sherpa curl and fuzzy edge"),
     }[v] for v in AXES["fiber"]}
 COVERAGE["weight"] = {

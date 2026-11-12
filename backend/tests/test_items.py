@@ -32,7 +32,7 @@ def test_retried_upload_with_the_same_key_makes_no_duplicate(client):
     assert first.status_code == 201 and again.status_code == 200
     assert first.json()["id"] == again.json()["id"]
     assert len(client.get("/api/items").json()["items"]) == 1
-    assert upload(client, key="other").status_code == 201
+    assert upload(client, photo_bytes(color=(20, 90, 160)), key="other").status_code == 201
 
 
 def test_a_file_that_is_not_a_photo_is_refused_clearly(client, cfg):
@@ -71,7 +71,7 @@ def test_editing_checks_the_vocabulary_and_records_who_set_a_field(client):
 
 def test_filtering_search_archive_and_delete(client, cfg):
     a = upload(client, key="a", name="Blue oxford").json()
-    b = upload(client, key="b", name="Old jeans").json()
+    b = upload(client, photo_bytes(color=(20, 40, 90)), key="b", name="Old jeans").json()
     client.patch(f"/api/items/{a['id']}", json={"category": "shirt"})
     client.patch(f"/api/items/{b['id']}", json={"category": "jeans"})
     names = lambda **p: [i["name"] for i in client.get("/api/items", params=p).json()["items"]]  # noqa: E731
@@ -138,7 +138,7 @@ def test_database_is_migrated_and_a_newer_one_is_refused(cfg, tmp_path):
     import pytest
     path = tmp_path / "x" / "closet.db"
     first = db.migrate(path, tmp_path / "bk")
-    assert first["applied"] == [1] and first["backup"] is None
+    assert first["applied"] == [v for v, _ in db.migration_files()] and first["applied"][0] == 1 and first["backup"] is None
     assert db.migrate(path, tmp_path / "bk")["applied"] == []
     conn = db.connect(path)
     conn.execute("PRAGMA user_version = 999")
@@ -150,24 +150,26 @@ def test_database_is_migrated_and_a_newer_one_is_refused(cfg, tmp_path):
 def test_a_backup_copy_is_taken_before_an_existing_database_is_migrated(tmp_path, monkeypatch):
     path = tmp_path / "closet.db"
     db.migrate(path, tmp_path / "bk")
+    n = db.latest_version()
     extra = tmp_path / "migs"
     extra.mkdir()
     real = db.migration_files()
-    (extra / "0002_more.sql").write_text("CREATE TABLE more (id INTEGER PRIMARY KEY);")
-    monkeypatch.setattr(db, "migration_files", lambda: real + [(2, extra / "0002_more.sql")])
+    more, bad = extra / f"{n + 1:04d}_more.sql", extra / f"{n + 2:04d}_bad.sql"
+    more.write_text("CREATE TABLE more (id INTEGER PRIMARY KEY);")
+    monkeypatch.setattr(db, "migration_files", lambda: real + [(n + 1, more)])
     result = db.migrate(path, tmp_path / "bk")
-    assert result["applied"] == [2] and result["backup"] and (tmp_path / "bk").glob("pre-migration-v1-*.sqlite")
+    assert result["applied"] == [n + 1] and result["backup"] and (tmp_path / "bk").glob(f"pre-migration-v{n}-*.sqlite")
     from pathlib import Path
     assert Path(result["backup"]).exists()
     # a failing migration leaves the database at its old version
-    (extra / "0003_bad.sql").write_text("CREATE TABLE ok3 (id INTEGER); THIS IS NOT SQL;")
-    monkeypatch.setattr(db, "migration_files", lambda: real + [(2, extra / "0002_more.sql"), (3, extra / "0003_bad.sql")])
+    bad.write_text("CREATE TABLE ok3 (id INTEGER); THIS IS NOT SQL;")
+    monkeypatch.setattr(db, "migration_files", lambda: real + [(n + 1, more), (n + 2, bad)])
     import sqlite3
 
     import pytest
     with pytest.raises(sqlite3.Error):
         db.migrate(path, tmp_path / "bk")
     conn = db.connect(path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == n + 1
     assert conn.execute("SELECT name FROM sqlite_master WHERE name = 'ok3'").fetchone() is None
     conn.close()

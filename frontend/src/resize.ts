@@ -48,11 +48,19 @@ export async function preparePhoto(file: File): Promise<{ blob: Blob; filename: 
 
 const IMAGE_EXT = /\.(jpe?g|png|webp|heic|heif|gif|bmp|tiff?|avif)$/i;
 
-export function looksLikePhoto(file: File): boolean {
+export function looksLikePhoto(file: { name: string; type: string }): boolean {
   return file.type.startsWith('image/') || IMAGE_EXT.test(file.name);
 }
 
-/** Files from a drop, walking into dropped folders. */
+/** Splits chosen or dropped files into photos and the rest (hidden files, notes, videos…). */
+export function splitPhotos<T extends { name: string; type: string }>(files: T[]): { photos: T[]; skipped: T[] } {
+  const photos: T[] = [];
+  const skipped: T[] = [];
+  for (const f of files) (looksLikePhoto(f) && !f.name.startsWith('.') ? photos : skipped).push(f);
+  return { photos, skipped };
+}
+
+/** Files from a drop, walking into dropped folders and the folders inside them. Nothing is filtered out here. */
 export async function filesFromDrop(dt: DataTransfer): Promise<File[]> {
   const entries: FileSystemEntry[] = [];
   for (const item of Array.from(dt.items ?? [])) {
@@ -61,20 +69,19 @@ export async function filesFromDrop(dt: DataTransfer): Promise<File[]> {
   }
   if (!entries.length) return Array.from(dt.files ?? []);
   const out: File[] = [];
-  const walk = async (entry: FileSystemEntry, inFolder: boolean): Promise<void> => {
+  const walk = async (entry: FileSystemEntry): Promise<void> => {
     if (entry.isFile) {
       const file = await new Promise<File | null>((res) => (entry as FileSystemFileEntry).file(res, () => res(null)));
-      // inside a dropped folder, skip things that are clearly not photos (.DS_Store, notes…)
-      if (file && (!inFolder || looksLikePhoto(file))) out.push(file);
+      if (file) out.push(file);
     } else if (entry.isDirectory) {
       const reader = (entry as FileSystemDirectoryEntry).createReader();
       for (;;) {
         const batch = await new Promise<FileSystemEntry[]>((res) => reader.readEntries(res, () => res([])));
         if (!batch.length) break;
-        for (const child of batch) await walk(child, true);
+        for (const child of batch) await walk(child);
       }
     }
   };
-  for (const e of entries) await walk(e, false);
+  for (const e of entries) await walk(e);
   return out;
 }

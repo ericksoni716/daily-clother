@@ -1,7 +1,9 @@
 """Reading and changing items."""
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 import shutil
 import uuid
 import zlib
@@ -80,27 +82,58 @@ def list_items(conn, status: str = "active", category: str | None = None, q: str
     return [summary(conn, r) for r in conn.execute(sql, args)]
 
 
-def create_from_photo(conn, images_dir: Path, data: bytes, client_key: str | None, name: str | None = None) -> tuple[dict, bool]:
+def _same_photo(conn, source_sha256: str):
+    """The item, archived or not, that already has a photo made from this file."""
+    return conn.execute("SELECT items.* FROM photos JOIN items ON items.id = photos.item_id WHERE photos.source_sha256 = ? "
+                        "ORDER BY items.created_at LIMIT 1", (source_sha256,)).fetchone()
+
+
+def _duplicate(conn, row) -> dict:
+    return {**detail(conn, row), "duplicate": True}
+
+
+def create_from_photo(conn, images_dir: Path, data: bytes, client_key: str | None, name: str | None = None,
+                      source_sha256: str | None = None) -> tuple[dict, bool]:
     """Add an item from one front photo. Returns (item, created).
 
     A repeated `client_key` returns the item made the first time, so an upload
     retried after a dropped connection never creates a duplicate.
+
+    A photo already in the closet is not added again: `source_sha256` is the
+    hash of the file the owner picked (the browser sends it, since it shrinks
+    the photo before sending); without it, the hash of the bytes received is
+    used. The existing item comes back with `duplicate: true`.
     """
     if client_key:
         existing = conn.execute("SELECT * FROM items WHERE client_key = ?", (client_key,)).fetchone()
         if existing is not None:
-            return detail(conn, existing), False
+            return {**detail(conn, existing), "duplicate": False}, False
+    if source_sha256 is not None:
+        source_sha256 = source_sha256.strip().lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", source_sha256):
+            raise ItemError("photo_sha256 must be the file's SHA-256 as 64 hexadecimal characters.")
+    else:
+        source_sha256 = hashlib.sha256(data).hexdigest()
+    same = _same_photo(conn, source_sha256)
+    if same is not None:
+        return _duplicate(conn, same), False
     item_id, photo_id = uuid.uuid4().hex, uuid.uuid4().hex
     stored = images.store_upload(data, images_dir, item_id, photo_id)
     t = db.now()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        # checked again now that the database is locked, in case the same photo arrived meanwhile
+        same = _same_photo(conn, source_sha256)
+        if same is not None:
+            conn.execute("ROLLBACK")
+            shutil.rmtree(images_dir / item_id, ignore_errors=True)
+            return _duplicate(conn, same), False
         conn.execute("INSERT INTO items (id, client_key, name, location, created_at, updated_at) VALUES (?, ?, ?, 'closet', ?, ?)",
                      (item_id, client_key or None, (name or "").strip() or None, t, t))
-        conn.execute("INSERT INTO photos (id, item_id, kind, original_path, thumb_path, width, height, bytes, sha256, created_at) "
-                     "VALUES (?, ?, 'front', ?, ?, ?, ?, ?, ?, ?)",
+        conn.execute("INSERT INTO photos (id, item_id, kind, original_path, thumb_path, width, height, bytes, sha256, "
+                     "source_sha256, created_at) VALUES (?, ?, 'front', ?, ?, ?, ?, ?, ?, ?, ?)",
                      (photo_id, item_id, stored.original_path, stored.thumb_path, stored.width, stored.height,
-                      stored.bytes, stored.sha256, t))
+                      stored.bytes, stored.sha256, source_sha256, t))
         jobs.enqueue_cutout(conn, item_id, photo_id)
         conn.execute("COMMIT")
     except Exception:
@@ -108,7 +141,7 @@ def create_from_photo(conn, images_dir: Path, data: bytes, client_key: str | Non
             conn.execute("ROLLBACK")
         shutil.rmtree(images_dir / item_id, ignore_errors=True)
         raise
-    return detail(conn, get(conn, item_id)), True
+    return {**detail(conn, get(conn, item_id)), "duplicate": False}, True
 
 
 def update(conn, item_id: str, changes: dict) -> dict:

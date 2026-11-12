@@ -96,6 +96,22 @@ export function formatDateTime(iso: string | null | undefined): string {
   return d.toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+const SIZE_UNITS = ['KB', 'MB', 'GB', 'TB'];
+
+/** A size in words: "512 bytes", "4.2 KB", "38 MB", "1.5 GB" (1 KB = 1000 bytes). */
+export function formatSize(n: number | null | undefined): string {
+  if (n === null || n === undefined || !Number.isFinite(n) || n <= 0) return '0 KB';
+  if (n < 1000) return `${Math.round(n)} bytes`;
+  const shown = (v: number) => (v < 9.95 ? v.toFixed(1) : v.toFixed(0)).replace(/\.0$/, '');
+  let value = n / 1000;
+  let unit = 0;
+  while (unit < SIZE_UNITS.length - 1 && Number(shown(value)) >= 1000) {
+    value /= 1000;
+    unit += 1;
+  }
+  return `${shown(value)} ${SIZE_UNITS[unit]}`;
+}
+
 /** "12.3 MB" */
 export function formatBytes(n: number | null | undefined): string {
   if (!n) return '0 MB';

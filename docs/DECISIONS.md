@@ -66,6 +66,12 @@ the owner once it was clear the recognition work does not depend on the app.
 | Outbound HTTPS uses the computer's own trusted certificates (`truststore`), with a bundled certificate file as fallback | The first Mac build could not download its model. The likely cause, not yet confirmed on the owner's Mac: a packaged Python has no certificate store on macOS, so the HTTPS connection fails and was reported as no connection. The system store also works on a work computer whose network adds its own certificate. The release build now checks an HTTPS connection from the packaged program, and a certificate failure has its own message. |
 | A release is started with the `release` workflow's Run button (or the same call from the orchestrating session) | For one day, before the workflows were on `main`, a release was started by editing a request file; that trigger is removed now that the normal route works. Windows and macOS can be built separately. |
 
+## Stop B
+
+| Decision | Why |
+|---|---|
+| The storage view adds up known folders on every request, nothing is stored | Sizes are always current and there is nothing to keep in step. It reads only the closet's images, its database (with SQLite's `-wal` and `-shm` files), and the shared `models`, `logs` and local `backups` folders, without following links, so nothing outside the data folder is touched; a backup folder the owner chose elsewhere is not counted. The total is the sum of those parts (small files such as `settings.json` are left out). The item count includes archived items, since they take space too. Sizes are shown with 1 KB = 1000 bytes, as the model download already does and as macOS does; Windows Explorer counts 1024, so its numbers come out a few percent lower. |
+
 ## Reaching Claude: two routes
 
 Decided with the owner after phase 1: the app can reach Claude two ways, and

@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { api, ApiError } from '../api';
 import { ModelProgress, modelStateText } from '../components/ModelBanner';
 import { PhoneAccess } from '../components/PhoneAccess';
-import { formatDateTime } from '../labels';
+import { formatDateTime, formatSize } from '../labels';
 import { useCloset } from '../store';
-import type { ModelInfo, Settings } from '../types';
+import type { ModelInfo, Profile, Settings, Storage } from '../types';
 
 function Section({ title, children, id }: { title: string; children: ReactNode; id: string }) {
   return (
@@ -44,6 +44,7 @@ export function SettingsScreen({ version }: { version: string }) {
         <div className="settings-col">
           {model && <ModelSection model={model} refresh={refreshModel} toast={toast} disabled={offline} />}
           {settings && <BackupSection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
+          <StorageSection offline={offline} profile={profile} />
         </div>
         <div className="settings-col">
           {settings && (
@@ -203,6 +204,72 @@ function BackupSection({ settings, onChange, toast, disabled }: { settings: Sett
         {busy ? 'Backing up…' : 'Back up now'}
       </button>
       {!settings.backup_folder && <p className="hint">Choose a backup folder first.</p>}
+    </Section>
+  );
+}
+
+function StorageSection({ offline, profile }: { offline: boolean; profile: Profile }) {
+  const [storage, setStorage] = useState<Storage | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    if (offline) return;
+    let current = true;
+    setStorage(null);
+    setError(null);
+    api.storage().then(
+      (s) => current && setStorage(s),
+      (e) => current && setError((e as Error).message),
+    );
+    return () => {
+      current = false;
+    };
+  }, [offline, profile, attempt]);
+
+  let body: ReactNode;
+  if (offline) body = <p className="hint">Storage details aren't available while you're offline.</p>;
+  else if (error) {
+    body = (
+      <>
+        <p className="form-error" role="alert">Couldn't work out how much space Closet uses: {error}</p>
+        <button className="btn" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
+      </>
+    );
+  } else if (!storage) body = <p className="hint">Adding up how much space Closet uses…</p>;
+  else {
+    const shown = storage.photos_bytes + storage.cutouts_bytes + storage.thumbnails_bytes + storage.backups_bytes + storage.model_bytes;
+    const rows: [string, number][] = [
+      ['Photos', storage.photos_bytes],
+      ['Cutouts', storage.cutouts_bytes],
+      ['Thumbnails', storage.thumbnails_bytes],
+      ['Backups on this computer', storage.backups_bytes],
+      ['Background-removal model', storage.model_bytes],
+      ['Everything else', Math.max(0, storage.total_bytes - shown)],
+    ];
+    body = (
+      <>
+        <p className="storage-total">
+          <strong data-testid="storage-total">{formatSize(storage.total_bytes)}</strong> used by{' '}
+          {storage.items === 1 ? '1 item' : `${storage.items} items`}
+        </p>
+        <dl className="storage-list">
+          {rows.map(([name, bytes]) => (
+            <div key={name}>
+              <dt>{name}</dt>
+              <dd>{formatSize(bytes)}</dd>
+            </div>
+          ))}
+        </dl>
+        {storage.free_bytes !== null && <p className="hint">{formatSize(storage.free_bytes)} free on this disk.</p>}
+        {profile === 'demo' && <p className="hint">These are the demo closet's own pictures and list of clothes. The model, backups and the program's logs are shared with your own closet.</p>}
+      </>
+    );
+  }
+
+  return (
+    <Section title="Storage" id="s-storage">
+      {body}
     </Section>
   );
 }

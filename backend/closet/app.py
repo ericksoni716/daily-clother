@@ -9,11 +9,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from PIL import Image
 from pydantic import BaseModel
 
-from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, phone, vocab
+from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, phone, storage, vocab
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
 from .modelstore import MODEL, ModelStore
@@ -292,6 +293,11 @@ def create_app(sv: Services) -> FastAPI:
             except Exception as e:
                 raise HTTPException(409, str(e))
         return settings_payload(conn)
+
+    @app.get("/api/storage", dependencies=protected)
+    async def get_storage():
+        # walking a big closet takes a while; do it in a worker thread so other requests keep being answered
+        return await run_in_threadpool(storage.usage, cfg, state.get("profile"))
 
     @app.post("/api/backup", dependencies=protected)
     def backup_now():

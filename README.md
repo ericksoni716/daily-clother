@@ -69,6 +69,10 @@ not touched. If an update changes the database, a copy is saved in
 `Closet\backups` first. An older program refuses to open a closet written by a
 newer one instead of damaging it.
 
+**Settings → Storage** shows how much space this folder takes: photos,
+cutouts, thumbnails, backups kept on this computer and the background-removal
+model, plus how much free space the disk has left.
+
 ### Backups
 
 In **Settings → Backups**, choose a folder (a cloud-synced folder is ideal).

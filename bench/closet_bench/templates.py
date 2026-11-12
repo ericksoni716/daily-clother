@@ -83,6 +83,9 @@ TOP_DEFAULTS = dict(
 # Finer pocket values: chest-flap | chest-patch-two | pencil | western | welt | split | slash | chore |
 #   chest-flap-two | guayabera | bellows | utility | hip-patch | hip-flap
 
+# A garment laid flat is wider than it looks worn: the cloth that wraps round the body lies out to the
+# sides. Drawn at its full flat width a top reads as too wide, so the body is drawn at this share of it.
+BODY_W = 0.84
 K_PX = 3.3   # canvas px per cm: a 56 cm chest is 185 px, and long sleeves hanging beside it still fit the card
 # Flat measurements of real garments, men's M / 40R, regular fit, in cm: shoulder seam to seam, chest
 # pit to pit, waist, hem, back length from the collar seam, sleeve from the shoulder seam, bicep and
@@ -308,13 +311,13 @@ def top(**kw) -> Shape:
     bs = GAUGE_BAND.get(p.get("gauge"), 1.0) * (0.85, 1.0, 1.25, 1.5)[wt]   # depth of rib bands and cuffs
     k_ = K_PX
     jacket = block in ("jacket", "coat")
-    chest = (B["chest"] + dch) / 2 * k_ * ease
+    chest = (B["chest"] + dch) / 2 * k_ * ease * BODY_W
     # The sleeves hang from the edge of the body: the shoulder point sits just outside the chest's width,
     # so the armhole runs down the body's edge and no sleeve lies over the body. (A real shoulder seam is
     # narrower than the chest; drawn that way, the arms start inside the shirt's width, which reads wrong.)
     hs = chest + 5 + (0.6, 0, 1.2, 2.4)[wt] / 2 * k_
-    waist_w = (B["waist"] + dwa) / 2 * k_ * ease
-    hh = (B["hem"] + dhe) / 2 * k_ * ease
+    waist_w = (B["waist"] + dwa) / 2 * k_ * ease * BODY_W
+    hh = (B["hem"] + dhe) / 2 * k_ * ease * BODY_W
     if p["hem"] == "rib" and block in ("knit", "bomber"):
         hh = min(hh, waist_w)                          # the rib draws the hem in
     length = B["length"] + dle

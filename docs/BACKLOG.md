@@ -13,7 +13,7 @@ owner; see `DECISIONS.md`, "How the work is organised").
 - **Garment review**: marks and notes in the review gallery (a private Claude artifact; rebuilt each round with `tools/make_review_gallery.py`).
 - **Mac 0.1.1**: confirm the background-removal model now downloads on the owner's Mac.
 - **The Windows build** for stop A has still not been made or tried.
-- **Whether sleeves starting at the body's edge** is what "arms in line with the width of the shirt" meant (round 2 in the review gallery).
+- **Whether 84% body width** looks right (round 3 in the review gallery; the sleeves at the body's edge were confirmed).
 - **The app's top UI complaints**, as the brief for UI tasks. A full interface-design pass comes after more features exist.
 - **25–30 photos of the owner's own clothes** with an answer key (`bench/answer_key.template.csv`). Most useful: items that differ from the usual (a polo with one or three buttons, a henley, corduroy, fleece or heavy wool beside light cotton, a sweatshirt with a V-insert). The bench runs them through the Claude plan by default; an API key is optional.
 - Three photos for the untested hard cases: something striped, something floral or patterned, something camouflage.

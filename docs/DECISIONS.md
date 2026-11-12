@@ -16,6 +16,9 @@ the owner once it was clear the recognition work does not depend on the app.
 | Multi-item photos and video sweeps move behind the outfit builder | They are capture conveniences; the outfit builder and shopping are the two features the owner said matter most. Open for the owner to reverse. |
 | The app stores the tagger's full answer, its schema version and the cutout for every item | This is what keeps the tracks independent: better drawings need no data change, and a taxonomy edit only means re-tagging, which is free on the Claude plan. |
 | Template anchor points are fixed; category, formality, season and weight class are settled before stop C | The mannequin view relies on the anchors, and outfit and gap logic read those four vocabularies. Finer details can keep growing after stop C. |
+| The repository is public | The owner made it public so that Actions minutes are free and unlimited for tests, builds and agent sessions. Commit metadata and tracked files were checked for personal details first. Going public cannot be recalled once copies exist, so the rule that photos and keys never get committed now protects against something irreversible. |
+| App work can be done by Copilot cloud agents, orchestrated from a Claude session | The owner has a large monthly allowance of Copilot AI credits and wants to spare the Claude plan's weekly budget. Agents work from issues, open pull requests against `main`, and `ci` is the gate. `AGENTS.md` holds their rules; `copilot-setup-steps.yml` prepares their environment. Taste-driven drawing work stays in the Claude session with the owner. |
+| CI runs on every pull request and push to `main` | It was manual-only while minutes cost money. |
 | "Phase" in older entries below means the original numbering | Phase 1 is stop A, phases 2 and 3 are mostly stop B, phase 4 is stop C, phase 5 is stop D. |
 
 ## Before phase 0 (agreed with the owner)

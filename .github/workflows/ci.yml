@@ -3,16 +3,13 @@ name: ci
 # Tests and lint. Separate from releases (release.yml) and never builds the
 # packaged program.
 #
-# Manual runs only for now: the owner has not yet approved spending Actions
-# minutes on every push. To run on every push / pull request later, replace
-# the `on:` block below with the commented one.
-#
-# on:
-#   push:
-#     branches: [main]
-#   pull_request:
-#   workflow_dispatch:
+# Runs on every pull request and on pushes to main: the repository is public,
+# so standard runners are free, and this is the gate for work done by agents.
+# Pull requests from forks get a read-only token and no secrets.
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:

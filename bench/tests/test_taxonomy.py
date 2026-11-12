@@ -1,6 +1,8 @@
 """The taxonomy as the drawing sees it: the frozen axes match the JSON, every value has an honest
 coverage entry, and every value draws a valid picture (a distinct one where it says "drawn")."""
+import hashlib
 import json
+import math
 import re
 import xml.dom.minidom
 from pathlib import Path
@@ -177,3 +179,130 @@ def test_surface_extras_suit_trousers():
     heavy = render(Spec("pants", {}, Fill("solid", "#6b4a2f"), weight="heavyweight"), "line")
     assert light != heavy
     valid(render(Spec("sneaker", {}, Fill("solid", "#ffffff"), weight="heavyweight", halo=True), "line"))
+
+
+# ---- tailored jackets: their own construction, not a shirt with lapels
+
+JACKETS = ("blazer", "sport_coat", "suit_jacket", "overcoat", "peacoat")
+# SVG digests of garments that are not tailored jackets, recorded before the jackets were rebuilt:
+# rebuilding them must not change one byte of any other drawing.
+UNCHANGED = {
+    "t_shirt": "cf8fcb9a0d0cd10f",
+    "henley": "1f117465d9d78dec",
+    "polo": "7f3b18c435912c44",
+    "rugby_shirt": "08c464da3db57379",
+    "dress_shirt": "38fde8b21e03fd03",
+    "ocbd": "a48f840724be61a3",
+    "flannel_shirt": "e8c81e0d86296e05",
+    "work_shirt": "44aa18726aa06d3a",
+    "western_shirt": "9b9631c7047c036c",
+    "camp_collar_shirt": "20d4d58aeddd44d4",
+    "popover_shirt": "f35afd6741eb2819",
+    "band_collar_shirt": "5e34f52b3ea364e8",
+    "guayabera": "946deb9833dcd227",
+    "overshirt": "333bdd5fab238009",
+    "tuxedo_shirt": "6688bb70d32ef43c",
+    "crewneck_sweatshirt": "135b8fa30d087e6c",
+    "hoodie": "8d83ce2b3191c5c9",
+    "zip_hoodie": "946ba1d3c9073622",
+    "pullover_sweater": "b8e63778f5beca68",
+    "cardigan": "3560985581193842",
+    "shawl_cardigan": "25567d597792439d",
+    "sweater_vest": "677213a59b5add9a",
+    "quarter_zip": "74b1120c16ab6e75",
+    "chore_coat": "849f9a4b88f92e7d",
+    "trucker_jacket": "5c2e8ccf5e44db2a",
+    "bomber": "11b0962b019a436d",
+    "harrington": "d75804170ab2f015",
+    "field_jacket": "dbdc09b998cfd42e",
+    "puffer": "9d04f9d61fb06a87",
+    "quilted_jacket": "dc1776f8f3e6d4cf",
+    "fleece_jacket": "f3b144372f636075",
+    "barn_jacket": "069e857217ef9ed7",
+    "pants.jeans": "b09a649969597eec",
+    "pants.dress": "567a1b5f294a79cc",
+    "shoe.derby": "37b558bd4608ec33",
+    "shoe.low_sneaker": "f104192ad8e6afc6",
+}
+
+
+def _digest(svg):
+    return hashlib.sha256(svg.encode()).hexdigest()[:16]
+
+
+def _unchanged_svg(name):
+    if name in GARMENT_DRAWINGS:
+        p, extras, _ = top_drawing(GARMENT_DRAWINGS[name])
+        return render(Spec("top", p, Fill("solid", "#336699"), **extras), "line")
+    return render({
+        "pants.jeans": Spec("pants", dict(jeans=True), Fill("solid", "#5b7fb5")),
+        "pants.dress": Spec("pants", dict(crease=True, pleats=1), Fill("solid", "#2c3140")),
+        "shoe.derby": Spec("sneaker", dict(style="derby"), Fill("solid", "#1d1e22")),
+        "shoe.low_sneaker": Spec("sneaker", {}, Fill("solid", "#f2f2f0")),
+    }[name], "line")
+
+
+def test_every_garment_drawing_but_the_jackets_is_recorded():
+    assert set(UNCHANGED) >= set(GARMENT_DRAWINGS) - set(JACKETS)
+
+
+@pytest.mark.parametrize("name", sorted(UNCHANGED))
+def test_non_jacket_drawings_are_unchanged(name):
+    assert _digest(_unchanged_svg(name)) == UNCHANGED[name]
+
+
+def _jacket(name, **kw):
+    p, extras, _ = top_drawing({**GARMENT_DRAWINGS[name], **kw})
+    if extras.get("weight"):
+        p = {**p, "weight": extras["weight"]}
+    return p, build("top", p)
+
+
+@pytest.mark.parametrize("name", JACKETS)
+def test_jackets_are_not_a_shirt_with_lapels(name):
+    p, jacket = _jacket(name)
+    assert p["block"] in ("jacket", "coat")
+    shirt = build("top", {**p, "block": "shirt"})
+    assert jacket.outline != shirt.outline
+    assert {part.role for part in jacket.parts} >= {"lapel_r", "lapel_l", "hole", "edge"}
+    assert not {part.role for part in shirt.parts} & {"lapel_r", "lapel_l"}
+    assert jacket.anchors["neck"] == shirt.anchors["neck"]
+    assert jacket.anchors["shoulder_l"] == shirt.anchors["shoulder_l"]
+    assert jacket.anchors["shoulder_r"] == shirt.anchors["shoulder_r"]
+
+
+def test_single_and_double_breasted_differ():
+    _, single = _jacket("blazer", collar="peak_lapel")
+    _, double = _jacket("blazer", collar="peak_lapel", placket="double_breasted", placket_buttons=6)
+    front = lambda sh: sorted((x, y) for x, y, r in sh.dots if r > 3)
+    assert len(front(single)) == 2 and len({x for x, _ in front(single)}) == 1
+    assert len(front(double)) == 6 and len({x for x, _ in front(double)}) == 4   # the top row is set wider
+    assert single.outline != double.outline or [p.d for p in single.parts] != [p.d for p in double.parts]
+    assert draw({**GARMENT_DRAWINGS["blazer"], "collar": "peak_lapel"}) != draw(
+        {**GARMENT_DRAWINGS["blazer"], "collar": "peak_lapel", "placket": "double_breasted", "placket_buttons": 6})
+
+
+def test_blazer_sport_coat_and_suit_jacket_differ():
+    shapes = {n: _jacket(n)[1] for n in ("blazer", "sport_coat", "suit_jacket")}
+    key = lambda sh: (sh.outline, tuple(p.d for p in sh.parts), tuple(sh.lines))
+    assert len({key(sh) for sh in shapes.values()}) == 3
+    # and with the cloth left out, they still differ in their construction (pockets, lapels, buttons)
+    bare = {n: _jacket(n, fabric=None, fiber=None, weight="midweight")[1] for n in shapes}
+    assert len({key(sh) for sh in bare.values()}) == 3
+    assert len({draw(GARMENT_DRAWINGS[n]) for n in shapes}) == 3
+
+
+@pytest.mark.parametrize("name", JACKETS)
+def test_jackets_stay_on_the_canvas_and_their_sleeves_off_the_body(name):
+    for fit in ("slim", "tailored", "regular", "relaxed", "boxy", "oversized"):
+        for weight in WEIGHT_CLASSES:
+            _, sh = _jacket(name, fit=fit, weight=weight)
+            pts = [(float(x), float(y)) for x, y in re.findall(r"(-?[\d.]+),(-?[\d.]+)", sh.outline)]
+            assert all(0 < x < W and 0 < y < H for x, y in pts), (fit, weight)
+            sleeve = [(float(x), float(y)) for x, y in re.findall(r"(-?[\d.]+),(-?[\d.]+)", sh.sleeves[0][0])]
+            assert min(x for x, _ in sleeve) >= sh.body_box[2] - 0.5, (fit, weight)   # sleeves start at the body's edge
+            # S, K, P1, cuff outer, cuff inner, underarm: the sleeve tapers from the armhole to the cuff
+            K, Co, Ci, A = sleeve[1], sleeve[3], sleeve[4], sleeve[5]
+            d = ((Co[0] - K[0]) / math.dist(K, Co), (Co[1] - K[1]) / math.dist(K, Co))
+            top_w = abs((A[0] - K[0]) * d[1] - (A[1] - K[1]) * d[0])
+            assert math.dist(Co, Ci) < top_w, (fit, weight)

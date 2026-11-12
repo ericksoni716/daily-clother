@@ -32,9 +32,9 @@ Done:
 - [x] The top template draws the taxonomy's fit, sleeve, neckline, collar, placket, cuff, pocket and hem values, and shows weight, fuzzy cloth, knit gauge and corduroy wale.
 
 In progress (owner's corrections to the first taxonomy sheets):
-- [ ] Fits recalibrated from real garment measurements: everything was drawn slim.
+- [x] Fits recalibrated from real garment measurements: everything was drawn slim.
 - [ ] Tailored jackets (blazer, sport coat, suit jacket, coats with lapels) rebuilt as their own construction.
-- [ ] Weight shown much more strongly, as thickness and bulk and not only a heavier line.
+- [ ] Weight shown much more strongly, as thickness and bulk and not only a heavier line. Partly done: heavier cloth has more room and deeper bands; the visible cloth edge and puffed outlines are not.
 - [ ] A worn-open state for jackets, cardigans, overshirts and zip hoodies, with a proof that an open layer lines up over a shirt.
 
 To do:

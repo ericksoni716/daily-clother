@@ -103,9 +103,9 @@ test('archive and unarchive, delete with confirmation', async ({ page }) => {
   await expect(page.locator('.detail-panel').getByRole('button', { name: 'Archive', exact: true })).toBeVisible();
 
   await page.goto('/');
-  await page.getByTestId('tile').filter({ hasText: 'Grey tee' }).click();
+  await page.getByTestId('tile').filter({ hasText: 'White tee' }).click();
   await page.locator('.detail-panel').getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByText('Delete this item for good?')).toBeVisible();
   await page.getByRole('button', { name: 'Keep it' }).click();
-  await expect(page.getByTestId('tile').filter({ hasText: 'Grey tee' })).toHaveCount(1);
+  await expect(page.getByTestId('tile').filter({ hasText: 'White tee' })).toHaveCount(1);
 });

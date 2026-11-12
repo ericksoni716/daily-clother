@@ -427,6 +427,10 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .facts { margin: 0; }
 .facts dt { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
 .facts dd { margin: 4px 0 12px; }
+.storage-list { margin: 0; display: flex; flex-direction: column; }
+.storage-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 0; border-top: 1px solid var(--line); font-size: 0.92rem; }
+.storage-row dt { color: var(--muted); }
+.storage-row dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .settings-section .btn + .btn { margin-left: 0; }
 
 .toggle { display: flex; align-items: center; gap: 14px; cursor: pointer; position: relative; min-height: var(--tap); }

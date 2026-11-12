@@ -96,8 +96,10 @@ export function formatDateTime(iso: string | null | undefined): string {
   return d.toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-/** "12.3 MB" */
+/** Human-readable disk size in KB, MB or GB. */
 export function formatBytes(n: number | null | undefined): string {
-  if (!n) return '0 MB';
-  return `${(n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0)} MB`;
+  if (!n || n <= 0) return '0 KB';
+  if (n < 999_500) return `${Math.max(1, Math.round(n / 1_000))} KB`;
+  if (n < 999_500_000) return `${(n / 1_000_000).toFixed(n < 9_950_000 ? 1 : 0)} MB`;
+  return `${(n / 1_000_000_000).toFixed(n < 9_950_000_000 ? 1 : 0)} GB`;
 }

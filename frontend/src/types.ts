@@ -105,3 +105,17 @@ export interface Settings {
   autostart: boolean | null;
   heic_supported: boolean;
 }
+
+export interface StorageInfo {
+  items: number;
+  photos_bytes: number;
+  cutouts_bytes: number;
+  thumbnails_bytes: number;
+  database_bytes: number;
+  backups_bytes: number;
+  model_bytes: number;
+  logs_bytes: number;
+  total_bytes: number;
+  data_dir: string;
+  free_bytes: number;
+}

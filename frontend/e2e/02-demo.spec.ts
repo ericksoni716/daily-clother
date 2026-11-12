@@ -120,3 +120,19 @@ test('archive and unarchive, delete with confirmation', async ({ page }) => {
   await page.getByRole('button', { name: 'Keep it' }).click();
   await expect(page.getByTestId('tile').filter({ hasText: 'White tee' })).toHaveCount(1);
 });
+
+test('storage section in settings shows a non-zero total in the demo closet', async ({ page }) => {
+  await login(page);
+  await useProfile(page, 'demo');
+  await page.goto('/settings');
+
+  const storage = page.getByRole('region', { name: 'Storage' });
+  await expect(storage).toBeVisible();
+  const total = storage.getByTestId('storage-total');
+  await expect(total).toHaveText(/^[1-9]\d*(\.\d+)? (KB|MB|GB)$/);
+  await expect(storage).toContainText('30 items');
+  await expect(storage).toContainText('free');
+  for (const label of ['Photos', 'Cutouts', 'Thumbnails', 'Backups', 'Background-removal model', 'Everything else']) {
+    await expect(storage.getByText(label, { exact: true })).toBeVisible();
+  }
+});

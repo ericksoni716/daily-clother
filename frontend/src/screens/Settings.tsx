@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { api, ApiError } from '../api';
 import { ModelProgress, modelStateText } from '../components/ModelBanner';
 import { PhoneAccess } from '../components/PhoneAccess';
-import { formatDateTime } from '../labels';
+import { formatBytes, formatDateTime } from '../labels';
 import { useCloset } from '../store';
-import type { ModelInfo, Settings } from '../types';
+import type { ModelInfo, Profile, Settings, StorageInfo } from '../types';
 
 function Section({ title, children, id }: { title: string; children: ReactNode; id: string }) {
   return (
@@ -32,7 +32,7 @@ export function SettingsScreen({ version }: { version: string }) {
   useEffect(() => {
     void load();
     void refreshModel();
-  }, [load, refreshModel]);
+  }, [load, refreshModel, profile]);
 
   return (
     <div className="settings">
@@ -44,6 +44,7 @@ export function SettingsScreen({ version }: { version: string }) {
         <div className="settings-col">
           {model && <ModelSection model={model} refresh={refreshModel} toast={toast} disabled={offline} />}
           {settings && <BackupSection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
+          <StorageSection profile={profile} offline={offline} refreshKey={model?.state} />
         </div>
         <div className="settings-col">
           {settings && (
@@ -203,6 +204,60 @@ function BackupSection({ settings, onChange, toast, disabled }: { settings: Sett
         {busy ? 'Backing up…' : 'Back up now'}
       </button>
       {!settings.backup_folder && <p className="hint">Choose a backup folder first.</p>}
+    </Section>
+  );
+}
+
+function StorageSection({ profile, offline, refreshKey }: { profile: Profile; offline: boolean; refreshKey?: string }) {
+  const [loaded, setLoaded] = useState<{ profile: Profile; data: StorageInfo | null; error: string | null } | null>(null);
+
+  useEffect(() => {
+    if (offline) return;
+    let cancelled = false;
+    api.storage()
+      .then((data) => {
+        if (!cancelled) setLoaded({ profile, data, error: null });
+      })
+      .catch((e) => {
+        if (!cancelled) setLoaded({ profile, data: null, error: (e as Error).message });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [profile, offline, refreshKey]);
+
+  const current = loaded && loaded.profile === profile ? loaded : null;
+  const s = current?.data ?? null;
+  const otherBytes = s ? s.database_bytes + s.logs_bytes : 0;
+
+  return (
+    <Section title="Storage" id="s-storage">
+      {offline ? (
+        <p className="muted" data-testid="storage-offline">Storage details are unavailable while you're offline.</p>
+      ) : !current ? (
+        <p className="muted" data-testid="storage-loading">Checking storage…</p>
+      ) : current.error ? (
+        <p className="form-error" role="alert">{current.error}</p>
+      ) : s ? (
+        <>
+          <p className="state-line" data-testid="storage-summary">
+            <span>
+              <strong data-testid="storage-total">{formatBytes(s.total_bytes)}</strong> used across{' '}
+              <strong>{s.items === 1 ? '1 item' : `${s.items} items`}</strong>
+              {' · '}
+              <span className="muted">{formatBytes(s.free_bytes)} free</span>
+            </span>
+          </p>
+          <dl className="storage-list">
+            <div className="storage-row"><dt>Photos</dt><dd>{formatBytes(s.photos_bytes)}</dd></div>
+            <div className="storage-row"><dt>Cutouts</dt><dd>{formatBytes(s.cutouts_bytes)}</dd></div>
+            <div className="storage-row"><dt>Thumbnails</dt><dd>{formatBytes(s.thumbnails_bytes)}</dd></div>
+            <div className="storage-row"><dt>Backups</dt><dd>{formatBytes(s.backups_bytes)}</dd></div>
+            <div className="storage-row"><dt>Background-removal model</dt><dd>{formatBytes(s.model_bytes)}</dd></div>
+            <div className="storage-row"><dt>Everything else</dt><dd>{formatBytes(otherBytes)}</dd></div>
+          </dl>
+        </>
+      ) : null}
     </Section>
   );
 }

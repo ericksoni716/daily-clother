@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categoryPlural, formatPrice, humanize, label, parsePrice, ratingLabel, tileCaption } from './labels';
+import { categoryPlural, formatBytes, formatPrice, humanize, label, parsePrice, ratingLabel, tileCaption } from './labels';
 import { messageFrom } from './api';
 import { fitWithin } from './resize';
 import { silhouetteGroups } from './silhouette';
@@ -53,6 +53,18 @@ describe('labels', () => {
     expect(messageFrom({ detail: 'That passphrase is not right.' }, 'x')).toBe('That passphrase is not right.');
     expect(messageFrom({ detail: [{ msg: 'Field required' }] }, 'x')).toBe('Field required');
     expect(messageFrom(null, 'fallback')).toBe('fallback');
+  });
+
+  it('formats byte sizes as KB, MB or GB', () => {
+    expect(formatBytes(0)).toBe('0 KB');
+    expect(formatBytes(null)).toBe('0 KB');
+    expect(formatBytes(undefined)).toBe('0 KB');
+    expect(formatBytes(350)).toBe('1 KB');
+    expect(formatBytes(84_200)).toBe('84 KB');
+    expect(formatBytes(1_420_000)).toBe('1.4 MB');
+    expect(formatBytes(176_000_000)).toBe('176 MB');
+    expect(formatBytes(2_350_000_000)).toBe('2.4 GB');
+    expect(formatBytes(48_000_000_000)).toBe('48 GB');
   });
 });
 

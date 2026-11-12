@@ -25,6 +25,22 @@ able to resume from this file, `BACKLOG.md` and the README.
 | Development may use Claude subagents (Haiku, Sonnet, Opus) as a stand-in for API calls | Owner's go-ahead. Stand-in answers are scored by the same bench, labelled as such, and never reported as cost or timing figures. |
 | Packaged build runs on demand and at each phase sign-off, Windows by default | Private repo with limited Actions minutes; nothing runs in Actions until the owner says go. Releases hold the downloads; no stored build artifacts or caches. |
 
+## Phase 1
+
+| Decision | Why |
+|---|---|
+| Phase 1 started before phase 0 was fully closed, at the owner's request | The paid API key is deliberately the last step. Phase 1 makes no Claude calls, so it needs no key. |
+| SQLite through Python's built-in driver, with numbered `.sql` migrations and `PRAGMA user_version` | No ORM or migration library to package. A copy is taken before any migration; a database from a newer program is refused; a failed migration rolls back. |
+| Program-wide settings live in `settings.json`, not the database | Passphrase hash, sessions, backup folder and model address are not part of a closet, so a restored or demo closet does not change who can log in. |
+| The demo closet is a second closet under `demo/`, switched from Settings | Trying things never touches real data, the owner does not need command-line flags, and backups ignore it. Seven demo items are real open-licence photos with pre-made cutouts; the rest are drawn from templates. |
+| Passphrase stored as a scrypt hash; session cookie is HttpOnly and SameSite=Strict; five wrong guesses lock login for five minutes | Standard library only. The server listens on 127.0.0.1; Tailscale serve is the only way in from outside. |
+| Uploads carry a client-made key | A retry after a dropped connection returns the first item instead of creating a duplicate. |
+| The cutout queue is rows in the database, processed by one worker thread | Nothing is lost on quit; interrupted jobs resume; jobs wait while the model is missing instead of failing; three attempts before an item is marked failed. |
+| The uploaded full-size file is never written to disk | Only the 1600px photo, its cutout and thumbnails are stored, all WebP. |
+| Backups are dated database snapshots plus an add-only copy of the images, 14 snapshots kept | Snapshots use SQLite's own backup so they are consistent while the app runs. Restore moves the current closet aside instead of deleting it. |
+| ffmpeg is left out of the phase 1 program | Video arrives in phase 3. The spike proved it can be bundled, but it adds about 105 MB to a file that unpacks on every start; phase 3 will decide between bundling and download-on-first-use like the model. |
+| CI and release workflows are manual-only for now | The owner has not yet approved spending Actions minutes. Files travel between release jobs through a draft release, because artifact storage is exhausted. |
+
 ## Phase 0 findings
 
 See `docs/PHASE0.md` for the results and what is still open.

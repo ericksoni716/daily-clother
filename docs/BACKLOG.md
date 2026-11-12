@@ -9,12 +9,18 @@
 - [ ] Owner picks an illustration style (A flat, B outline, C soft).
 - [ ] First Actions run of the packaging spike on Windows (waiting for the owner's go-ahead on Actions usage).
 
-## Phase 1
-- Project skeleton (`backend/`, `frontend/`), data model and migrations, demo mode with about 30 sample items.
-- Closet grid, item detail, one-photo capture, cutout job queue, model download states.
-- Passphrase login, `tailscale serve` instructions, PWA shell with read-only offline cache (thumbnails).
-- Packaged build and release workflow; tray icon, single instance, start at login.
-- Backup before migration, nightly backup with catch-up, one-command restore.
+## Waiting on the owner
+- Illustration style: A (flat), B (outline) or C (soft shaded). The demo closet uses A until decided.
+- Three photos for the untested hard cases: something striped, something floral or patterned, something camouflage.
+- Go-ahead to run GitHub Actions: the Windows build and smoke test (about 16 billed minutes), and whether CI should run on every push.
+- 25–30 real photos with an answer key, then the API key last, once everything before it is proven.
+
+## Phase 1 (in progress)
+- [x] Backend: data model and migrations, login, one-photo capture, cutout queue, model download states, backups and restore, demo closet, launcher.
+- [ ] Frontend: closet grid, item detail, capture, settings, phone and wide layouts, offline read-only cache.
+- [ ] Packaged build, smoke test, CI and release workflows.
+- [ ] First green packaged build in Actions (needs the owner's go-ahead).
+- [ ] Try on a real Windows PC and iPhone: tray icon, start at login, Tailscale address, camera capture, home-screen install.
 
 ## Later phases
 2. Illustration pipeline in the app, correction by command, visual picker, version history.

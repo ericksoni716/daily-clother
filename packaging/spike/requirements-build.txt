@@ -1,0 +1,12 @@
+# Build-only dependencies (not bundled into the app).
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.10   # provides the onnxruntime / imageio_ffmpeg / uvicorn / pydantic hooks
+altgraph==0.17.5
+setuptools==84.2.1
+
+# Platform-only PyInstaller dependencies. NOT installed or exercised on the
+# Linux machine this spike was verified on; pinned to the latest PyPI release
+# at the time of writing so CI builds stay reproducible.
+pefile==2024.8.26 ; sys_platform == "win32"
+pywin32-ctypes==0.2.3 ; sys_platform == "win32"
+macholib==1.16.4 ; sys_platform == "darwin"

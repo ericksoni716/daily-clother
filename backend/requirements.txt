@@ -1,0 +1,35 @@
+# Runtime dependencies, pinned (direct and transitive) to the versions the
+# packaged build was made and smoke-tested with.
+
+# direct
+fastapi==0.162.5
+uvicorn==0.54.0          # plain uvicorn: no [standard] extras
+python-multipart==0.0.22
+onnxruntime==1.31.1
+numpy==2.5.4
+pillow==13.0.0
+pillow-heif==1.8.1
+pystray==0.19.5          # tray icon; optional at runtime
+truststore==0.10.5       # HTTPS with the computer's own trusted certificates (a packaged Python has none on macOS)
+certifi==2026.10.23      # fallback certificate bundle
+
+# transitive
+annotated-doc==0.0.6
+annotated-types==0.8.0
+anyio==4.16.0
+click==8.5.1
+flatbuffers==25.12.19
+h11==0.16.0
+idna==3.20
+opentelemetry-api==1.45.2
+packaging==26.3
+protobuf==7.36.2
+pydantic==2.14.3
+pydantic-core==2.50.4
+six==1.17.0
+starlette==1.10.0
+typing-extensions==4.16.0
+typing-inspection==0.4.5
+python-xlib==0.33 ; sys_platform == "linux"   # pystray on Linux
+# pystray on macOS also installs pyobjc packages; pin them to the versions
+# the first macOS release run installs (shown in its pip log).

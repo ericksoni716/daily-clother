@@ -1,0 +1,101 @@
+{
+  "_note": "Attributes below were chosen by Claude while developing (looking at each photo), not by the app's tagging call. They stand in for the tagging step until an API key is available.",
+  "cases": [
+    {
+      "id": "plaid-flannel",
+      "label": "Plaid shirt (flannel)",
+      "photo": "plaid-flannel.jpg",
+      "template": "top",
+      "params": {
+        "neck": "collar",
+        "front": "buttons",
+        "hem": "curved",
+        "cuffs": "button",
+        "pockets": "low"
+      },
+      "fill": "swatch",
+      "pattern": "plaid"
+    },
+    {
+      "id": "plaid-madras",
+      "label": "Plaid shirt (madras, small photo)",
+      "photo": "plaid-madras.jpg",
+      "template": "top",
+      "params": {
+        "neck": "collar",
+        "front": "buttons",
+        "hem": "curved",
+        "cuffs": "button",
+        "pockets": "chest"
+      },
+      "fill": "swatch",
+      "pattern": "plaid"
+    },
+    {
+      "id": "marl-sweater",
+      "label": "Textured knit sweater (marl)",
+      "photo": "marl-sweater.jpg",
+      "template": "top",
+      "params": {
+        "neck": "turtle",
+        "hem": "rib",
+        "cuffs": "rib"
+      },
+      "fill": "swatch",
+      "pattern": "texture"
+    },
+    {
+      "id": "graphic-tee",
+      "label": "Graphic tee",
+      "photo": "graphic-tee.jpg",
+      "template": "top",
+      "params": {
+        "sleeve": "short",
+        "neck": "crew"
+      },
+      "fill": "solid",
+      "graphic": true,
+      "color_name": "white"
+    },
+    {
+      "id": "jeans",
+      "label": "Jeans",
+      "photo": "jeans.jpg",
+      "template": "pants",
+      "params": {
+        "leg": "straight",
+        "length": "full",
+        "jeans": true,
+        "stitch": "contrast"
+      },
+      "fill": "solid"
+    },
+    {
+      "id": "sneakers-pair",
+      "label": "White sneakers (pair)",
+      "photo": "sneakers-pair.jpg",
+      "template": "sneaker",
+      "params": {
+        "height": "low",
+        "sole": "regular",
+        "toe_cap": "rubber",
+        "foxing": true
+      },
+      "fill": "solid",
+      "color_name": "white"
+    },
+    {
+      "id": "sneaker-held",
+      "label": "White sneaker (held in hand)",
+      "photo": "sneaker-held.jpg",
+      "template": "sneaker",
+      "params": {
+        "height": "low",
+        "sole": "chunky",
+        "stripe": "none"
+      },
+      "fill": "solid",
+      "color_name": "white"
+    }
+  ]
+}

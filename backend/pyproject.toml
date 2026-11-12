@@ -1,0 +1,17 @@
+[project]
+name = "closet"
+version = "0.1.0"
+description = "A private, single-user wardrobe app"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501", "B008", "B904", "UP007"]

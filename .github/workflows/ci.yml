@@ -1,0 +1,111 @@
+name: ci
+
+# Tests and lint. Separate from releases (release.yml) and never builds the
+# packaged program.
+#
+# Runs on every pull request and on pushes to main: the repository is public,
+# so standard runners are free, and this is the gate for work done by agents.
+# Pull requests from forks get a read-only token and no secrets.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUTF8: "1"
+  FORCE_COLOR: "1"
+
+# No artifact uploads and no caches of any kind (pip, npm, Playwright): the
+# owner's Actions storage quota is exhausted.
+
+jobs:
+  test:
+    name: Lint and tests (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          package-manager-cache: false  # newer setup-node caches automatically otherwise
+
+      # ---------------------------------------------------------- backend
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements-dev.txt
+
+      - name: Backend lint (ruff)
+        working-directory: backend
+        run: ruff check .
+
+      - name: Backend tests (pytest)
+        working-directory: backend
+        run: python -m pytest -q
+
+      # ---------------------------------------------------------- bench
+      - name: Install bench dependencies
+        run: python -m pip install -r bench/requirements.txt
+
+      - name: Bench tests (pytest)
+        working-directory: bench  # tests import closet_bench from this folder
+        run: python -m pytest -q tests
+
+      # ---------------------------------------------------------- frontend
+      # frontend/ is still being written; these steps are skipped until
+      # frontend/package.json exists, and then run its npm scripts.
+      - name: Note when the frontend is missing
+        if: hashFiles('frontend/package.json') == ''
+        run: echo "::notice::frontend/package.json not found; frontend steps skipped"
+
+      - name: Install frontend dependencies
+        if: hashFiles('frontend/package.json') != ''
+        working-directory: frontend
+        run: npm ci
+
+      - name: Frontend lint
+        if: hashFiles('frontend/package.json') != ''
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Frontend typecheck
+        if: hashFiles('frontend/package.json') != ''
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Frontend unit tests
+        if: hashFiles('frontend/package.json') != ''
+        working-directory: frontend
+        run: npm test
+
+      - name: Frontend build (into backend/closet/web)
+        if: hashFiles('frontend/package.json') != ''
+        working-directory: frontend
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        if: hashFiles('frontend/package.json') != ''
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser tests (Playwright, against the real backend)
+        if: hashFiles('frontend/package.json') != ''
+        working-directory: frontend
+        env:
+          CLOSET_PYTHON: python  # the setup-python interpreter with backend deps installed
+        run: npm run e2e

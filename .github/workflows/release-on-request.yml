@@ -1,0 +1,56 @@
+name: release on request
+
+# Starts the release workflow when packaging/release-request.json changes in a
+# push. GitHub only lets a workflow be started by hand (workflow_dispatch) once
+# it is on the default branch; until then, editing the request file is the
+# hand-start. Nothing else in a push starts a build.
+#
+# The request file:  {"version": "0.1.0", "windows": true, "macos": false}
+
+on:
+  push:
+    paths:
+      - packaging/release-request.json
+
+permissions: {}
+
+jobs:
+  read:
+    name: Read the request
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.request.outputs.version }}
+      windows: ${{ steps.request.outputs.windows }}
+      macos: ${{ steps.request.outputs.macos }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Read packaging/release-request.json
+        id: request
+        run: |
+          f=packaging/release-request.json
+          cat "$f"
+          version=$(jq -er '.version | strings' "$f")
+          windows=$(jq -r '.windows == true' "$f")
+          macos=$(jq -r '.macos == true' "$f")
+          {
+            echo "version=$version"
+            echo "windows=$windows"
+            echo "macos=$macos"
+          } >> "$GITHUB_OUTPUT"
+
+  release:
+    name: Release
+    needs: read
+    permissions:
+      contents: write  # the release workflow creates, fills and publishes the release
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.read.outputs.version }}
+      build_windows: ${{ needs.read.outputs.windows == 'true' }}
+      build_macos: ${{ needs.read.outputs.macos == 'true' }}

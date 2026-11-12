@@ -1,0 +1,78 @@
+name: start agent
+
+# Assigns an issue to the Copilot cloud agent WITH a chosen model.
+#
+# Assigning from the GitHub tools the orchestrating session has cannot name a
+# model, and GitHub then picks one itself ("auto"). This workflow makes the
+# same assignment through the REST API, where the request can carry `model`.
+# Started by hand only (Actions tab -> start agent -> Run workflow, or the same
+# call from the orchestrating session).
+#
+# It needs one secret, COPILOT_AGENT_TOKEN: a fine-grained personal access
+# token of the repository owner for this repository only. The built-in
+# GITHUB_TOKEN is not allowed to assign Copilot. Keep the secret in the
+# `agents` environment with its deployment branches limited to `main`, so only
+# this workflow as it exists on main can read it.
+#
+# Inputs reach the script only through `env:`, never by interpolation.
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: "Issue number to assign to Copilot"
+        required: true
+        type: string
+      model:
+        description: "Model id for the agent (exactly as GitHub's API names it)"
+        required: true
+        type: string
+      base_branch:
+        description: "Branch the agent starts from"
+        type: string
+        default: main
+      custom_instructions:
+        description: "Extra instructions for this run (optional)"
+        type: string
+        default: ""
+
+permissions: {}
+
+jobs:
+  assign:
+    name: Assign the issue to Copilot
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: agents
+    steps:
+      - name: Assign with the chosen model
+        env:
+          AGENT_TOKEN: ${{ secrets.COPILOT_AGENT_TOKEN }}
+          ISSUE: ${{ inputs.issue }}
+          MODEL: ${{ inputs.model }}
+          BASE_BRANCH: ${{ inputs.base_branch }}
+          CUSTOM_INSTRUCTIONS: ${{ inputs.custom_instructions }}
+        run: |
+          if [ -z "$AGENT_TOKEN" ]; then
+            echo "::error::the COPILOT_AGENT_TOKEN secret is not set in the 'agents' environment"
+            exit 1
+          fi
+          if [[ ! "$ISSUE" =~ ^[0-9]+$ ]]; then
+            echo "::error::issue must be a number"
+            exit 1
+          fi
+          body=$(jq -n --arg repo "$GITHUB_REPOSITORY" --arg base "$BASE_BRANCH" --arg model "$MODEL" \
+                       --arg extra "$CUSTOM_INSTRUCTIONS" \
+            '{assignees: ["copilot-swe-agent[bot]"],
+              agent_assignment: ({target_repo: $repo, base_branch: $base, model: $model}
+                                 + (if $extra == "" then {} else {custom_instructions: $extra} end))}')
+          echo "Assigning issue #$ISSUE to Copilot with model '$MODEL' from '$BASE_BRANCH'"
+          status=$(curl -sS -o response.json -w '%{http_code}' -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $AGENT_TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$ISSUE/assignees" \
+            -d "$body")
+          echo "HTTP $status"
+          jq '{number, title, assignees: [.assignees[]?.login], message, errors}' response.json || cat response.json
+          case "$status" in 2*) ;; *) echo "::error::GitHub refused the assignment (HTTP $status)"; exit 1 ;; esac

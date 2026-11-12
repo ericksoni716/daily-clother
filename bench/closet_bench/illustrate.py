@@ -304,6 +304,10 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
             if spec.collar_color or spec.trim_color:
                 return f'<path d="{d}" fill="{spec.collar_color or spec.trim_color}"/>'
             return f'<path d="{d}" fill="{turned(role[-1], -24 if role == "collar_r" else 24)}"/>'
+        if role in ("lapel_r", "lapel_l"):
+            # a tailored jacket's collar and lapels: cut from the body's cloth, so they carry its surface too
+            fill = spec.collar_color or spec.trim_color or turned(role[-1], -24 if role == "lapel_r" else 24)
+            return f'<path d="{d}" fill="{fill}"/>' + (f'<path d="{d}" fill="url(#t{uid})"/>' if tex_defs else "")
         if role == "neckrib":   # the rib of a crew neck: only painted when it is a contrast colour
             return f'<path d="{d}" fill="{spec.trim_color}"/>' if spec.trim_color else ""
         if role == "stitch":   # topstitching in its own thread colour: dashed, never ink

@@ -107,6 +107,21 @@ FIT_DELTA = {
     "relaxed": (1.5, 4, 5, 4, 1.5, 0), "boxy": (3, 6, 8, 7, 2, -6), "oversized": (8, 8, 10, 9, 3, 3),
 }
 FITS = tuple(FIT_DELTA)
+# A tailored jacket is cut close already: "tailored" is the measured 40R jacket itself and the other fits
+# are eased from it, cm added to (chest, waist, hem, bicep, length) of the jacket or coat block.
+JACKET_FIT = {
+    "slim": (-2, -2.5, -2, -1, -1), "tailored": (0, 0, 0, 0, 0), "regular": (1.5, 2.5, 1.5, 0.5, 0),
+    "relaxed": (4, 6, 4, 1.5, 0), "boxy": (6, 10, 7, 2, -4), "oversized": (8, 12, 9, 3, 3),
+}
+# Where a tailored front is built, in cm below the collar seam at the high shoulder point: the gorge,
+# the fastening button and the space between buttons, the hip pockets, the lapel's widest point
+# (single, double-breasted) and the breast pocket.
+TAILORING = {
+    "jacket": dict(gorge=9.5, stance=47, spacing=10.5, db_stance=44, db_spacing=11, pocket=57.5, lapel=8.25, db_lapel=10,
+                   breast=23),
+    "coat": dict(gorge=10.5, stance=40, spacing=13, db_stance=40, db_spacing=12, pocket=70, lapel=9.5, db_lapel=12,
+                 breast=24),
+}
 WEIGHT_LEVEL = {"lightweight": 0, "midweight": 1, "heavyweight": 2, "super_heavy": 3}
 GAUGE_BAND = {"extra_fine": 0.8, "fine": 0.9, "medium": 1.0, "chunky": 1.25, "super_chunky": 1.5}
 
@@ -303,6 +318,8 @@ def top(**kw) -> Shape:
     p = {**TOP_DEFAULTS, **kw}
     fit = p["fit"] if p["fit"] in FIT_DELTA else "regular"
     block = _block_for(p)
+    if block in TAILORING:   # a tailored jacket or coat is not a shirt with lapels: it has its own construction
+        return _tailored(p, block)
     B = BLOCKS[block]
     dsh, dch, dwa, dhe, dbi, dle = FIT_DELTA[fit]
     wt = WEIGHT_LEVEL.get(p.get("weight"), 1)
@@ -926,6 +943,292 @@ def top(**kw) -> Shape:
             sh.lines.append(f"M {_pt((CX - 5, end))} L {_pt((CX + 5, end))}")
 
     _pockets(sh, p["pockets"], sy, hy, hh, hs, p["hem"], cuff, A, rib_h, lapel_front)
+    return sh
+
+
+def _tailored(p, block) -> Shape:
+    """A tailored jacket or coat, front view, built as one rather than as a shirt with lapels: drawn from
+    the flat measurements of a real 40R two-button jacket (BLOCKS["jacket"]) or overcoat (BLOCKS["coat"]).
+    A structured, nearly square shoulder with the sleeve hung from the body's edge; a suppressed waist; the
+    collar wrapping the back of the neck and meeting the lapel at the gorge; the lapels rolling to the top
+    button, the V between them showing the inside of the jacket; front edges curving away below the bottom
+    button; a breast welt, two hip pockets, front darts and four buttons at each cuff."""
+    B, T = BLOCKS[block], TAILORING[block]
+    k_ = K_PX
+    coat = block == "coat"
+    fit = p["fit"] if p["fit"] in JACKET_FIT else "regular"
+    dch, dwa, dhe, dbi, dle = JACKET_FIT[fit]
+    wt = WEIGHT_LEVEL.get(p.get("weight"), 1)
+    ease = (0.98, 1.0, 1.04, 1.08)[wt]             # a heavier cloth stands away from the body
+    bulk = (-1.0, 0.0, 3.0, 6.0)[wt]
+    chest = (B["chest"] + dch) / 2 * k_ * ease * BODY_W   # the same share of the flat width as every top
+    waist_w = (B["waist"] + dwa) / 2 * k_ * ease * BODY_W
+    hh = (B["hem"] + dhe) / 2 * k_ * ease * BODY_W
+    # the same rule as every top: the shoulder point just outside the chest's width, the armhole down its edge
+    hs = chest + 5 + (0.6, 0, 1.2, 2.4)[wt] / 2 * k_
+    length = B["length"] + dle
+    length = {"cropped": length * 0.84, "long": length + 9, "knee": max(length + 30, 105)}.get(p["length"], length)
+    sy = 80.0
+    ny = sy - 10.0                                  # the high shoulder point: the shoulder is padded nearly square
+    hy = min(ny + length * k_, H - 30.0)
+    wy = ny + B.get("waist_at", 46) * k_
+    ay = min(sy + B["depth"] * 1.45 * k_ + bulk * 0.5, wy - 18)
+    nw = 36.0 + bulk * 0.4
+    N, S = (CX + nw, ny), (CX + hs, sy)
+    A = (CX + chest, ay)
+    side = _side_points(A, (CX + waist_w, max(wy, ay + 20)), (CX + hh, hy))
+    u = _unit((S[0] - N[0], S[1] - N[1]))
+    sh = Shape(outline="")
+    ml = _mirror
+
+    # ---- sleeves
+    sleeve = p["sleeve"] if p["sleeve"] in ("none", "short", "elbow", "three-quarter", "long") else "long"
+    if sleeve == "none":   # a waistcoat's narrower shoulder and a cut-away armhole
+        S = (N[0] + u[0] * (hs - nw) * 0.8, N[1] + u[1] * (hs - nw) * 0.8)
+        A = (CX + chest - 2, ay)
+        c1, c2 = (S[0] - 4, S[1] + 50), (A[0] - 20, A[1] - 6)
+        side = _side_points(A, (CX + waist_w, max(wy, ay + 20)), (CX + hh, hy))
+        arm = f"C {_pt(c1)} {_pt(c2)} {_pt(A)}"
+        arm_l = f"C {_pt(ml(c2))} {_pt(ml(c1))} {_pt(ml(S))}"
+    else:
+        r = 4.0 + bulk * 0.8                         # a crisp corner where the sleeve head meets the padded shoulder
+        K = (S[0] + u[0] * r, S[1] + u[1] * r)
+        frac = {"long": 1.0, "three-quarter": 0.74, "elbow": 0.5, "short": 0.36}[sleeve]
+        ln = (B["sleeve"] + (2 if fit == "oversized" else 0)) * k_ * frac
+        w_want = (B["bicep"] + dbi) * k_ * ease * 0.78
+        cw0 = (B["cuff"] * 0.9 if sleeve == "long" else B["cuff"] + (B["bicep"] - B["cuff"]) * (1 - frac)) * k_ * ease
+
+        def build(th):
+            t = math.radians(th)
+            d, q = (math.sin(t), math.cos(t)), (-math.cos(t), math.sin(t))   # down the sleeve; across it, toward the body
+            Co = (K[0] + d[0] * ln, K[1] + d[1] * ln)
+            w_top = abs((A[0] - K[0]) * d[1] - (A[1] - K[1]) * d[0])         # the sleeve's width where it leaves the body
+            cw = min(cw0, 0.86 * w_top)                                        # always narrower at the cuff
+            return d, q, Co, (Co[0] + q[0] * cw, Co[1] + q[1] * cw), w_top
+
+        # the sleeve swings out until it is as wide as the arm and clear of the body, or reaches the card's edge
+        th = 12.0
+        while th < 40 and build(th + 0.5)[2][0] <= W - 8:
+            d, q, Co, Ci, w_top = build(th)
+            if w_top >= w_want and Ci[0] > _x_on(side, Ci[1]) + 5:
+                break
+            th += 0.5
+        while th > 0 and build(th)[2][0] > W - 8:
+            th -= 0.5
+        d, q, Co, Ci, w_top = build(th)
+        P1 = (K[0] + d[0] * r, K[1] + d[1] * r)
+        arm = f"Q {_pt(K)} {_pt(P1)} L {_pt(Co)} L {_pt(Ci)} L {_pt(A)}"
+        arm_l = f"L {_pt(ml(Ci))} L {_pt(ml(Co))} L {_pt(ml(P1))} Q {_pt(ml(K))} {_pt(ml(S))}"
+        s1, s2 = (S[0] - 3, S[1] + (A[1] - S[1]) * 0.35), (A[0] + 4, A[1] - (A[1] - S[1]) * 0.3)
+        right_sleeve = (f"M {_pt(S)} Q {_pt(K)} {_pt(P1)} L {_pt(Co)} L {_pt(Ci)} L {_pt(A)} "
+                        f"C {_pt(s2)} {_pt(s1)} {_pt(S)} Z")
+        sh.sleeves = [(right_sleeve, -th), (_mirror_path(right_sleeve), th)]
+        c1, c2 = s1, s2
+        if sleeve == "long":   # four small buttons along the vent at each cuff
+            br = 1.9 + bulk * 0.1
+            for i in range(4):
+                b = (Co[0] + q[0] * 5.5 - d[0] * (8 + 5.2 * i), Co[1] + q[1] * 5.5 - d[1] * (8 + 5.2 * i))
+                sh.dots += [(b[0], b[1], br), (ml(b)[0], ml(b)[1], br)]
+    for m in (lambda v: v, ml):   # the armhole seam runs down the edge of the body
+        sh.seams.append(f"M {_pt(m(S))} C {_pt(m(c1))} {_pt(m(c2))} {_pt(m(A))}")
+
+    # ---- the stance: where the front buttons, and where the lapels roll from
+    dbl = p["front"] == "double"
+    n_b = p.get("buttons")
+    if p["front"] not in ("buttons", "double", "half", "popover", "french", "hidden"):
+        n_b = 0
+    elif n_b is None:
+        n_b = 6 if dbl else (3 if coat else 2)
+    n_b = max(0, int(n_b))
+    roll3 = None                                    # three-roll-two: the top buttonhole shows on the lapel
+    if dbl:   # 6x2: rows of two; the fastening row, one below it, the rest above the break for show
+        rows = max(1, min(4, n_b // 2 or 3))
+        sp = T["db_spacing"] * k_
+        yf = ny + T["db_stance"] * k_
+        above = rows - 2 if rows >= 3 else 0
+        ys = [yf + (i - above) * sp for i in range(rows)]
+        y_break, ov = yf - 4, 32.0 + bulk
+    else:
+        sp = T["spacing"] * k_
+        yb = ny + T["stance"] * k_
+        if coat:
+            ys = [y for y in (yb + i * sp for i in range(max(n_b, 1))) if y <= hy - 45]
+        elif n_b <= 1:
+            ys = [yb]
+        elif n_b <= 3:
+            ys = [yb, yb + sp]
+            roll3 = yb - sp if n_b == 3 else None
+        else:
+            n = min(n_b, 6)
+            top = max(ny + 70, yb + sp - (n - 1) * sp)
+            ys = [top + (yb + sp - top) * i / (n - 1) for i in range(n)]
+        y_break, ov = ys[0] - 4, 6.6
+        ys = ys if n_b else []
+    Bk = (CX - ov, y_break)
+    Rt = (CX + 22.0 + bulk * 0.4, ny)
+    roll_x = lambda y: Bk[0] + (Rt[0] - Bk[0]) * (Bk[1] - y) / (Bk[1] - Rt[1])
+    Tt = (roll_x(ny - 10 - bulk * 0.3), ny - 10 - bulk * 0.3)   # the collar's fold, where it turns behind the neck
+    top_c = ny - 17 - bulk * 0.5
+    ur = _unit((Rt[0] - Bk[0], Rt[1] - Bk[1]))
+    nr = (-ur[1], ur[0])                            # square to the roll line, out toward the shoulder
+
+    # ---- collar and lapels (right side: the wearer's left, which lies on top)
+    cs = p.get("collar") if p.get("collar") in ("notch", "peak", "shawl") else "notch"
+    nt = _qbez(N, (N[0], Tt[1] + 2), Tt, 6)          # the collar's edge from the shoulder up behind the neck
+    if cs == "shawl":   # one smooth roll from the top button round the neck, no notch
+        wsh = 9 * k_ + bulk * 0.6
+        y1 = Bk[1] - (Bk[1] - ny) * 0.45
+        outer = [Bk] + _bez(Bk, (roll_x(y1) + wsh * 1.05, y1), (N[0] + wsh * 0.4, ny + 30), N, 16)
+        pieces = [(outer + nt + [Rt], [Tt, Rt] + outer)]
+        edge_pts = outer
+    else:
+        lw = (T["db_lapel"] if dbl else T["lapel"] + (1.25 if cs == "peak" else 0)) * k_ + bulk * 0.5
+        y_g = ny + T["gorge"] * k_
+        Ry = y_g - nr[1] * lw
+        P = (roll_x(Ry) + nr[0] * lw, y_g)          # the lapel's widest point, at the height of the gorge
+        a = math.radians(22)
+        g = (-math.cos(a), -math.sin(a))            # the gorge rises gently toward the neck
+        G = _cross(P, (P[0] + g[0], P[1] + g[1]), Bk, Rt)
+        pg = math.hypot(G[0] - P[0], G[1] - P[1])
+        belly = 3.0
+        if cs == "peak":   # the point turns up toward the shoulder; the collar tucks in under it
+            X = (P[0] + g[0] * min(15, 0.55 * pg), P[1] + g[1] * min(15, 0.55 * pg))
+            Tp = (P[0] + 0.22 * lw, P[1] - 0.52 * lw)
+            sl_y = ny + (sy - ny) * (Tp[0] - N[0]) / (S[0] - N[0])
+            Tp = (Tp[0], max(Tp[1], sl_y + 6))
+            v = _unit((Tp[0] - X[0], Tp[1] - X[1]))
+            cl = min(11, 0.7 * math.hypot(Tp[0] - X[0], Tp[1] - X[1]))
+            Cp = (X[0] + _rot(v, -20)[0] * cl, X[1] + _rot(v, -20)[1] * cl)
+            tip = [Tp]
+            belly = 5.0
+        else:              # a notch: the collar's end and the lapel part at about 80 degrees
+            X = (P[0] + g[0] * min(13, 0.48 * pg), P[1] + g[1] * min(13, 0.48 * pg))
+            v = _rot((-g[0], -g[1]), -80)
+            Cp = (X[0] + v[0] * 11.5, X[1] + v[1] * 11.5)
+            tip = []
+        mid = _lerp(Bk, P, 0.5)
+        vb = _unit((P[0] - Bk[0], P[1] - Bk[1]))
+        edge_pts = [Bk] + _qbez(Bk, (mid[0] - vb[1] * belly, mid[1] + vb[0] * belly), P, 12)
+        mc = _lerp(Cp, N, 0.5)
+        outer_c = [Cp] + _qbez(Cp, (mc[0] + 3, mc[1]), N, 6)
+        leaf = [G, X] + outer_c + nt + [Rt]
+        lapel = edge_pts + tip + [X, G]
+        pieces = [(leaf, [Tt, Rt, G, X] + outer_c), (lapel, [G] + edge_pts + tip + [X])]
+    # the opening between the roll lines shows the inside; above it, the collar's band behind the neck
+    t = (CX - Bk[0]) / (Rt[0] - Bk[0]) if Rt[0] != Bk[0] else 0.0
+    Xc = _lerp(Bk, Rt, t)
+    rim = f"M {_pt(ml(Rt))} Q {_pt((CX, ny - 3))} {_pt(Rt)}"
+    sh.parts.append(Part(f"M {_pt(Xc)} L {_pt(Rt)} Q {_pt((CX, ny - 3))} {_pt(ml(Rt))} Z", "hole"))
+    sh.parts.append(Part(f"M {_pt(Tt)} Q {_pt((CX, top_c))} {_pt(ml(Tt))} L {_pt(ml(Rt))} "
+                         f"Q {_pt((CX, ny - 3))} {_pt(Rt)} Z", "lapel_l"))
+    sh.parts.append(Part(rim, "edge"))
+
+    # ---- front edges: straight to the bottom button, then the quarters curve away into a rounded hem
+    if dbl or coat:
+        rc = 8.0
+        front_run = [Bk, (CX - ov, hy - rc)] + _qbez((CX - ov, hy - rc), (CX - ov, hy), (CX - ov + rc, hy), 4)
+    else:
+        y_q = (ys[-1] if ys else Bk[1] + 4) + (10 if len(ys) <= 1 else 5)
+        y_q = min(y_q, hy - 24)
+        Qs, Qe = (CX - ov, y_q), (CX + 0.42 * hh, hy)
+        curve = [Qs] + _bez(Qs, (CX - ov, y_q + (hy - y_q) * 0.55), (Qe[0] - (Qe[0] - Qs[0]) * 0.5, hy), Qe, 16)
+        front_run = [Bk] + curve
+        i = next(i for i, v in enumerate(curve) if v[0] >= CX)
+        C = _lerp(curve[i - 1], curve[i], (CX - curve[i - 1][0]) / (curve[i][0] - curve[i - 1][0]))
+        after = [C] + curve[i:]
+        # below where the two fronts part, the inside of the back shows between them
+        sh.parts.append(Part(_poly(after + [ml(v) for v in after[::-1]]), "hole"))
+        sh.parts.append(Part(_poly([ml(v) for v in after], close=False), "edge"))
+    keep = (10.0, Bk[1])
+    for pts, run in pieces:   # the under (viewer's left) side first, cut where the top front's roll line crosses it
+        lp = _clip_half([ml(v) for v in pts], Bk, Rt, keep)
+        if len(lp) >= 3:
+            sh.parts.append(Part(_poly(lp), "lapel_l"))
+            lr = _clip_run([ml(v) for v in run], Bk, Rt, keep)
+            if len(lr) >= 2:
+                sh.parts.append(Part(_poly(lr, close=False), "edge"))
+    for pts, run in pieces:
+        sh.parts.append(Part(_poly(pts), "lapel_r"))
+        sh.parts.append(Part(_poly(run, close=False), "edge"))
+    sh.parts.append(Part(_poly(front_run, close=False), "edge"))
+    edge_x = lambda y: _x_on(edge_pts, y)          # the top lapel's outer edge
+
+    # ---- buttons and buttonholes
+    rb = 3.6 + bulk * 0.15
+    for y in ys:
+        if not dbl:
+            sh.dots.append((CX, y, rb))
+            continue
+        if y < y_break:   # rows above the break are set wider, for show
+            xl, xr = min(CX - 26 - bulk, roll_x(y) - 7), max(CX + 26 + bulk, edge_x(y) + 7)
+        else:
+            xl, xr = CX - 19 - bulk, CX + 19 + bulk
+        sh.dots += [(xl, y, rb), (xr, y, rb)]
+    if roll3 and edge_x(roll3) - roll_x(roll3) > 10:
+        x0 = roll_x(roll3) + 2
+        sh.lines.append(f"M {_pt((x0, roll3))} L {_pt((x0 + 6, roll3 - 1))}")
+    if cs != "shawl":   # the lapel buttonhole, just below the notch
+        yh = y_g + 14
+        c = (roll_x(yh) + (edge_x(yh) - roll_x(yh)) * 0.5, yh)
+        sh.lines.append(f"M {_pt((c[0] - 3.7, c[1] - 1.5))} L {_pt((c[0] + 3.7, c[1] + 1.5))}")
+
+    # ---- pockets and darts
+    kind = p["pockets"]
+    if kind.startswith("chest") or kind in ("pencil", "western", "none"):
+        lower = "none"
+    else:
+        lower = {"hip-patch": "patch", "chore": "patch", "low": "patch", "welt": "jetted",
+                 "slash": "slash", "split": "slash", "kangaroo": "slash"}.get(kind, "flap")
+    pw = 15.5 * k_
+    yp = min(ny + T["pocket"] * k_, hy - 30)
+    p_bot = {"flap": yp + 18, "patch": min(yp + 52, hy - 9), "jetted": yp + 4}.get(lower, yp)
+    x0 = CX + 0.3 * hh
+    x0 = max(x0, _x_on(front_run, p_bot) + 7, _x_on(front_run, yp) + 7)
+    x1 = min(x0 + pw, _x_on(side, p_bot) - 8, _x_on(side, yp) - 8)
+    pocket = []
+    if lower == "flap":
+        fh = 18.0
+        pocket = [f"M {_pt((x0 - 1, yp))} L {_pt((x1 + 1, yp))}",
+                  f"M {_pt((x0, yp))} L {_pt((x0, yp + fh - 3))} Q {_pt((x0, yp + fh))} {_pt((x0 + 3, yp + fh))} "
+                  f"L {_pt((x1 - 3, yp + fh))} Q {_pt((x1, yp + fh))} {_pt((x1, yp + fh - 3))} L {_pt((x1, yp))}"]
+    elif lower == "jetted":
+        pocket = [f"M {_pt((x0, yp))} L {_pt((x1, yp))} L {_pt((x1, yp + 3.2))} L {_pt((x0, yp + 3.2))} Z"]
+    elif lower == "patch":
+        yt, rp = yp - 4, 7.0
+        pocket = [f"M {_pt((x0, yt))} L {_pt((x0, p_bot - rp))} Q {_pt((x0, p_bot))} {_pt((x0 + rp, p_bot))} "
+                  f"L {_pt((x1 - rp, p_bot))} Q {_pt((x1, p_bot))} {_pt((x1, p_bot - rp))} L {_pt((x1, yt))} Z",
+                  f"M {_pt((x0, yt + 6))} L {_pt((x1, yt + 6))}"]
+    elif lower == "slash":   # a coat's hand-warmers: slanted welts at the waist, the top toward the front
+        xs_ = CX + 0.58 * hh
+        xb_ = min(xs_ + 12, _x_on(side, wy + 46) - 16)
+        pocket = [_poly([(xs_, wy - 8), (xs_ + 6, wy - 8), (xb_ + 6, wy + 46), (xb_, wy + 46)])]
+    for d_ in pocket:
+        sh.lines += [d_, _mirror_path(d_)]
+    if kind != "none" and lower != "slash":   # the breast welt, on the wearer's left only, rising to the outside
+        yc = ny + T["breast"] * k_
+        b0 = max(CX + 0.36 * chest, edge_x(yc + 8) + 7)
+        b1 = min(b0 + 10 * k_, CX + chest - 10)
+        sh.lines.append(_poly([(b0, yc), (b1, yc - 4), (b1, yc + 4), (b0, yc + 8)]))
+    if not coat and lower != "slash":   # front darts, from below the chest into the hip pocket
+        xd = x0 + pw * 0.42 if lower != "none" else CX + 0.55 * chest
+        yd0 = ny + T["breast"] * k_ + 26
+        yd1 = (yp - 4 if lower == "patch" else yp) - 1
+        dart = f"M {_pt((xd + 1, yd0))} Q {_pt((xd - 2.5, wy))} {_pt((xd, yd1))}"
+        sh.seams += [dart, _mirror_path(dart)]
+
+    # ---- outline, clockwise from the right neck point
+    side_r = " ".join(f"L {_pt(v)}" for v in side[1:])
+    side_l = " ".join(f"L {_pt(ml(v))}" for v in side[::-1][1:])
+    neck_path = (f"Q {_pt((ml(N)[0], Tt[1] + 2))} {_pt(ml(Tt))} Q {_pt((CX, top_c))} {_pt(Tt)} "
+                 f"Q {_pt((N[0], Tt[1] + 2))} {_pt(N)}")
+    sh.outline = " ".join(f"M {_pt(N)} L {_pt(S)} {arm} {side_r} L {_pt(ml(side[-1]))} {side_l} {arm_l} "
+                          f"L {_pt(ml(N))} {neck_path} Z".split())
+    sh.anchors = {"neck": (CX, 58.0), "shoulder_l": (CX - 23 * K_PX, 80.0), "shoulder_r": (CX + 23 * K_PX, 80.0),
+                  "hem": (CX, hy), "neck_point_l": ml(N), "neck_point_r": N}
+    sh.body_box = (CX - chest, sy, CX + chest, hy)
+    xs = [float(x) for x, _ in re.findall(r"(-?[\d.]+),(-?[\d.]+)", sh.outline)]
+    xmax = max(max(xs), 2 * CX - min(xs))
+    sh.bbox = (2 * CX - xmax, (Tt[1] + top_c) / 2 - 2, xmax, hy + 2)
     return sh
 
 

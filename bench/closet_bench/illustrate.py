@@ -6,6 +6,7 @@ the fourth traces the real outline from the cutout instead.
 from __future__ import annotations
 
 import colorsys
+import re
 from dataclasses import dataclass, field
 
 import cv2
@@ -235,24 +236,21 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
 
 def layer(under: Spec, over: Spec, style: str, uid: str = "a") -> str:
     """A garment worn open over another: both placed by the same points on the wearer. From the back forward:
-    the inside of the outer garment's back, the garment underneath where it shows (between the outer one's
-    fronts and inside its neck), then the outer garment's two fronts."""
+    the inside of the outer garment's back, the whole garment underneath, then the outer garment's two fronts
+    and sleeves. The one underneath is hidden where the outer garment's sleeves would cover it."""
     o_defs, o_body, dy, opening = _draw(over, style, uid + "o", layered=True)
     u_defs, u_body, _, _ = _draw(under, style, uid + "u", dy=dy)
     if not opening:   # the outer garment is closed: it simply covers the one underneath
         return _svg(u_body + o_body, u_defs + o_defs)
-    paths, top, bottom = opening
-    o_back, o_body = o_body
-    gap = (f'<clipPath id="w{uid}">' + "".join(f'<path d="{d}" transform="translate(0 {dy:.1f})"/>' for d in paths) + "</clipPath>"
-           f'<clipPath id="v{uid}"><rect x="0" y="{top + dy:.1f}" width="{W}" height="{bottom - top:.1f}"/></clipPath>')
-    return _svg(o_back + f'<g clip-path="url(#v{uid})"><g clip-path="url(#w{uid})">{u_body}</g></g>' + o_body, u_defs + o_defs + gap)
+    o_back, o_fronts = o_body
+    seen = f'<clipPath id="w{uid}">' + "".join(f'<path d="{d}" transform="translate(0 {dy:.1f})"/>' for d in opening) + "</clipPath>"
+    return _svg(o_back + f'<g clip-path="url(#w{uid})">{u_body}</g>' + o_fronts, u_defs + o_defs + seen)
 
 
 def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | None = None):
     """The markup for one garment: (defs, body, the vertical shift it was placed with, and, when it is worn
-    open, where a garment underneath shows: the paths of the opening between its fronts and of its neck, and
-    the heights that bound them). With `layered`, an open garment's body comes back in two pieces, (the
-    inside of its back, its two fronts), so that another garment can be drawn between them."""
+    open, the paths within which a garment underneath can show). With `layered`, an open garment's body comes
+    back in two pieces, (the inside of its back, its two fronts), so another garment can be drawn between."""
     params = spec.params if not spec.weight or "weight" in spec.params else {**spec.params, "weight": spec.weight}
     shape = build(spec.template, params)
     bx0, by0, bx1, by1 = shape.bbox
@@ -348,8 +346,6 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             c = sole_c
             return f'<path d="{d}" fill="{c}"/>' + (f'<path d="{d}" fill="#000" opacity=".06"/>' if style != "line" else "")
         if role == "hole":
-            if layered:   # the inside of the neck belongs to the back, which a garment underneath covers
-                return ""
             return f'<path d="{d}" fill="{paint}"/><path d="{d}" fill="#000" opacity=".22"/>'
         # a shirt cuff is the body's own cloth: no tint where a line already marks it
         op = {"trim": 0.10, "band": 0.12, "cuff": 0.0 if style == "line" else 0.06}.get(role, 0.1)
@@ -406,12 +402,25 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     for d in shape.seams:
         g.append(thin(d))
     g.append("</g>")
+    top_side, behind_neck = [], []   # worn open: the top front's collar and lapel; pieces behind the neck
     for part in shape.parts:   # parts marked clip are cut by the garment's edge (laces, a rubber toe)
         piece = overlay(part.d, part.role, part.color)
         if depth and part.role in ("collar_r", "collar_l", "trim"):   # a thick piece stands proud of the body
             piece = (f'<g clip-path="url(#{clip})"><path d="{part.d}" transform="translate({depth * 0.35:.1f} {depth * 0.8:.1f})" '
                      f'fill="{d_col}" opacity="{d_op + 0.05:.2f}"/></g>') + piece
-        g.append(f'<g clip-path="url(#{clip})">{piece}</g>' if part.clip else piece)
+        piece = f'<g clip-path="url(#{clip})">{piece}</g>' if part.clip else piece
+        if shape.fronts and part.role == "hole":   # the inside of the neck is part of the back, drawn with it
+            continue
+        if shape.fronts and part.role in ("collar_r", "collar_l", "lapel_r", "lapel_l", "edge"):
+            # A collar or lapel belongs to one front; the other front's is its mirror image (the closed drawing
+            # shows that one partly covered). What lies across the centre sits behind the neck, on the back.
+            xs = [float(v) for v in re.findall(r"(-?\d+(?:\.\d+)?),-?\d", part.d)]
+            reach = (shape.body_box[2] - shape.body_box[0]) / 2
+            if part.role != "edge" or max(abs(x - W / 2) for x in xs) < reach:   # an edge out on a sleeve stays there
+                lean = (min(xs) + max(xs)) / 2 - W / 2
+                (behind_neck if abs(lean) < 1.5 else top_side if lean > 0 else []).append(piece)
+                continue
+        g.append(piece)
     g.append(_graphic_markup(spec.graphic, shape.bbox, clip))
     if style == "soft":
         g.append(f'<path d="{shape.outline}" fill="url(#g{uid})"/>')
@@ -423,27 +432,26 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     for d in shape.lines:
         g.append(thin(d))
     g.append("</g>")
-    pins = []   # buttons and press studs, each with where it sits (worn open, each goes with its own front)
-    for x, y, r in shape.dots:
+    def button(x, y, r):
         m = f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 1.3}" fill="#fff" opacity=".45"/>' if patterned else ""
         if style == "line":
             ring = shade(spec.button_color, 0.45) if spec.button_color and luminance(spec.button_color) < 0.08 and dark_item else INK
-            m += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{spec.button_color or CARD}" stroke="{ring}" stroke-width="1.1"/>'
-        elif spec.button_color:
-            m += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{spec.button_color}" stroke="{l_stroke}" stroke-width=".8"/>'
-        else:
-            m += f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{l_stroke}" opacity="{min(1, l_op + 0.25)}"/>'
-        pins.append((x, y, m))
-    for x, y, r in shape.snaps:   # a press stud: a metal ring round a cap
+            return m + f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{spec.button_color or CARD}" stroke="{ring}" stroke-width="1.1"/>'
+        if spec.button_color:
+            return m + f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{spec.button_color}" stroke="{l_stroke}" stroke-width=".8"/>'
+        return m + f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{l_stroke}" opacity="{min(1, l_op + 0.25)}"/>'
+
+    def stud(x, y, r):   # a press stud: a metal ring round a cap
         cap = spec.button_color or "#ece6da"
         ring = "#8d8a84" if luminance(cap) > 0.35 else "#c9c5bd"
         m = f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 1.5}" fill="#fff" opacity=".45"/>' if patterned else ""
-        m += (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 0.9:.1f}" fill="{ring}" stroke="{INK if style == "line" else l_stroke}" stroke-width=".9"/>'
-              f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r * 0.62:.1f}" fill="{cap}"/>'
-              f'<circle cx="{x - r * 0.18:.1f}" cy="{y - r * 0.18:.1f}" r="{r * 0.2:.1f}" fill="#fff" opacity=".7"/>')
-        pins.append((x, y, m))
+        return m + (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 0.9:.1f}" fill="{ring}" stroke="{INK if style == "line" else l_stroke}" stroke-width=".9"/>'
+                    f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r * 0.62:.1f}" fill="{cap}"/>'
+                    f'<circle cx="{x - r * 0.18:.1f}" cy="{y - r * 0.18:.1f}" r="{r * 0.2:.1f}" fill="#fff" opacity=".7"/>')
+
+    pins = [(x, y, r, button) for x, y, r in shape.dots] + [(x, y, r, stud) for x, y, r in shape.snaps]
     if not shape.fronts:
-        g += [m for _, _, m in pins]
+        g += [draw(x, y, r) for x, y, r, draw in pins]
     if spec.halo:   # fuzz: fibres standing off the edge, then a slightly ragged outline
         defs += (f'<filter id="z{uid}" x="-5%" y="-5%" width="110%" height="110%">'
                  '<feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="1" seed="7"/>'
@@ -464,51 +472,95 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
         g.append("</g>")
         return defs, "".join(g), dy, None
 
-    # ---- worn open. The closed drawing is cut along the two fronts' edges and each front is swung away
-    # from the centre, a little at the shoulders and more toward the hem, as an unfastened garment hangs.
-    # Collar, lapels, pockets and buttons travel with their own front; between them the inside of the back shows.
-    left, right = shape.fronts
-    y0 = shape.anchors.get("shoulder_l", (0, 80.0))[1]
-    reach = max(40.0, by1 - y0)
-    k = min(1.0, max(0.3, (min(bx0, W - bx1) - 5) / 22.0))      # stay on the card: a wide coat opens less
-    d0, sl = 5.0 * k, 17.0 * k / reach
-    m_l = f"matrix(1 0 {-sl:.4f} 1 {-d0 + sl * y0:.2f} 0)"
-    m_r = f"matrix(1 0 {sl:.4f} 1 {d0 - sl * y0:.2f} 0)"
+    # ---- worn open. The garment is taken as the layers it is made of: the back, the two fronts and what is
+    # sewn to them. Both fronts are the same size: each reaches past the centre by the overlap, so the under
+    # front is whole (the part the closed drawing hides is the mirror image of the top front's). The front that
+    # lies on top carries the buttonholes; the one underneath carries the buttons. Each front swings open about
+    # its side seam like a door, so it is drawn narrower, as a panel turned away from the viewer looks, while
+    # sleeves and sides stay put. The inside of the back shows between the fronts and inside the neck.
+    edge, slit = shape.fronts
+    cx = W / 2
+    half = (shape.body_box[2] - shape.body_box[0]) / 2
+    run = [(edge[0][0], -60.0)] + list(edge) + [(edge[-1][0], H + 60.0)]
+    full = []                                   # the same edge, with a point wherever it crosses the centre line
+    for a, b in zip(run, run[1:]):
+        full.append(a)
+        if (a[0] - cx) * (b[0] - cx) < 0:
+            t = (cx - a[0]) / (b[0] - a[0])
+            full.append((cx, a[1] + (b[1] - a[1]) * t))
+    full.append(run[-1])
+    past = max(0.0, cx - min(x for x, _ in edge))             # how far a front reaches past the centre
+    turn = max(0.5, (half - 0.21 * half) / (half + past))     # the fronts end up about a fifth of the chest apart
+    hinge = {+1: cx + half, -1: cx - half}
+    mat = {side: f"matrix({turn:.4f} 0 0 1 {hinge[side] * (1 - turn):.2f} 0)" for side in (+1, -1)}
+    flip = f"matrix(-1 0 0 1 {2 * cx:.1f} 0)"
 
-    def run(pts, shift=0):   # a front's edge, carried up past the neck and down past the hem
-        full = [(pts[0][0], -60.0)] + list(pts) + [(pts[-1][0], H + 60.0)]
-        return [(x + shift * (d0 + sl * (y - y0)), y) for x, y in full]
+    def poly(pts, close=True):
+        return "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in pts) + (" Z" if close else "")
 
-    def poly(pts):
-        return "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in pts) + " Z"
+    def placed(side, x, y):   # where a point on a front lands once the front has swung
+        return (hinge[side] + (x - hinge[side]) * turn if abs(x - cx) < half else x), y
 
-    opening = poly(run(left, -1) + run(right, +1)[::-1])        # between the two fronts once they have parted
+    def fastened(side, x, y):   # a button or its hole keeps its distance from the front's edge
+        ex = _x_on(run, y) if side > 0 else 2 * cx - _x_on(run, y)
+        return placed(side, ex, y)[0] + (x - ex), y
+
+    box = (-60.0, -60.0, W + 60.0, H + 60.0)
+    top_front = full + [(hinge[+1], box[3]), (hinge[+1], box[1])]
+    seen_under = [(cx - abs(x - cx), y) for x, y in full]     # the under front where the top one never covered it
+    under_front = seen_under + [(hinge[-1], box[3]), (hinge[-1], box[1])]
+    overlap = [(min(x, cx), y) for x, y in full] + [(max(2 * cx - x, cx), y) for x, y in full][::-1]
+    holes = "".join(f'<path d="{part.d}" fill="#000"/>' for part in shape.parts if part.role == "hole")
     defs += (f'<g id="q{uid}">{"".join(g[1:])}</g>'
-             f'<clipPath id="kl{uid}"><path d="{poly(run(left) + [(-60, H + 60), (-60, -60)])}"/></clipPath>'
-             f'<clipPath id="kr{uid}"><path d="{poly(run(right) + [(W + 60, H + 60), (W + 60, -60)])}"/></clipPath>'
-             f'<clipPath id="ks{uid}"><path d="{poly(run(left) + run(right)[::-1])}"/></clipPath>'
-             f'<clipPath id="kb{uid}"><path d="{opening}"/></clipPath>')
-    # a garment underneath shows between the fronts and inside the neck, from just above the collar (a shirt
-    # collar stands a little above a jacket's) down to the hem
-    shows = [opening] + [part.d for part in shape.parts if part.role == "hole"]
-    defs += f'<clipPath id="kh{uid}">' + "".join(f'<path d="{d}"/>' for d in shows) + "</clipPath>"
-    # the inside of the back, seen between the fronts (and, layered, inside the neck); then whatever lay
-    # between the fronts when the garment was closed (a jacket's collar behind the neck)
-    back = (f'<g clip-path="url(#{"kh" if layered else "kb"}{uid})"><path d="{shape.outline}" fill="{paint}"/>'
-            f'<path d="{shape.outline}" fill="#000" opacity=".22"/>'
-            + (f'<path d="{shape.outline}" fill="none" stroke="{o_stroke}" stroke-width="{o_w:.2f}" stroke-linejoin="round"/>' if o_w else "")
-            + f'</g><g clip-path="url(#ks{uid})"><use href="#q{uid}"/></g>')
-    out = []
+             f'<clipPath id="kr{uid}"><path d="{poly(top_front)}"/></clipPath>'
+             f'<clipPath id="kl{uid}"><path d="{poly(under_front)}"/></clipPath>'
+             f'<clipPath id="ko{uid}"><path d="{poly(overlap)}"/></clipPath>'
+             f'<clipPath id="ks{uid}"><rect x="{hinge[+1] - 1:.1f}" y="{box[1]}" width="{box[2] - hinge[+1] + 1:.1f}" height="{box[3] - box[1]}"/>'   # a hair under the fronts: no seam shows
+             f'<rect x="{box[0]}" y="{box[1]}" width="{hinge[-1] - box[0] + 1:.1f}" height="{box[3] - box[1]}"/></clipPath>'
+             f'<mask id="mh{uid}" maskUnits="userSpaceOnUse" x="{box[0]}" y="{box[1]}" width="{box[2] - box[0]}" height="{box[3] - box[1]}">'
+             f'<rect x="{box[0]}" y="{box[1]}" width="{box[2] - box[0]}" height="{box[3] - box[1]}" fill="#fff"/>{holes}</mask>')
+    # the fronts are clear where the neck is: the inside of the back shows there, or a garment worn underneath
+    cloth = f'<use href="#q{uid}" mask="url(#mh{uid})"/>'
+    inside = "".join(f'<path d="{part.d}" fill="{paint}"/><path d="{part.d}" fill="#000" opacity=".22"/>'
+                     for part in shape.parts if part.role == "hole")
     e_stroke, e_w = (o_stroke, o_w) if o_w else (l_stroke, l_w)
-    for pts, m, k_id, side in ((left, m_l, "kl", -1), (right, m_r, "kr", +1)):
-        mine = "".join(pm for x, y, pm in pins if (x >= _x_on(right, y)) == (side > 0))
-        edge = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
-        out.append(f'<g transform="{m}"><g clip-path="url(#{k_id}{uid})"><use href="#q{uid}"/></g>{mine}'
-                   f'<g clip-path="url(#{clip})"><path d="{edge}" fill="none" stroke="{e_stroke}" stroke-width="{e_w:.2f}" '
-                   f'stroke-linejoin="round" stroke-linecap="round"/></g></g>')
-    back, fronts = g[0] + behind + back + "</g>", g[0] + "".join(out) + "</g>"
-    top = by0 - (14 if left[0] != right[0] else 0)
-    return defs, ((back, fronts) if layered else back + fronts), dy, (shows, top, shape.anchors.get("hem", (0, by1))[1])
+    front_edge = (f'<g clip-path="url(#{clip})"><path d="{poly(edge, close=False)}" fill="none" stroke="{e_stroke}" '
+                  f'stroke-width="{e_w / turn:.2f}" stroke-linejoin="round" stroke-linecap="round"/></g>')
+    collar = "".join(top_side)
+
+    def buttonhole(x, y, r):
+        dx, dy_ = (0, r + 0.8) if slit == "vertical" else (r + 0.8, 0)
+        return (f'<path d="M {x - dx:.1f},{y - dy_:.1f} L {x + dx:.1f},{y + dy_:.1f}" fill="none" stroke="{l_stroke}" '
+                f'stroke-width="1.7" stroke-linecap="round" opacity="{l_op}"/>')
+
+    fastenings = []
+    for x, y, r, draw in pins:
+        ex = _x_on(run, y)
+        if ex - 0.5 <= x <= 2 * cx - ex + 0.5 and x <= cx + 1:   # where the two fronts fasten to each other
+            fastenings.append(draw(*fastened(-1, 2 * cx - x, y), r))                              # the button, underneath
+            fastenings.append((buttonhole if draw is button else draw)(*fastened(+1, x, y), r))   # its hole, on top
+        else:   # a button for show, on a pocket or on a cuff: it stays on its own piece
+            fastenings.append(draw(*placed(+1 if x >= cx else -1, x, y), r))
+
+    back = (f'<path d="{shape.outline}" fill="{paint}"/><path d="{shape.outline}" fill="#000" opacity=".22"/>'
+            + (f'<path d="{shape.outline}" fill="none" stroke="{o_stroke}" stroke-width="{o_w:.2f}" stroke-linejoin="round"/>' if o_w else "")
+            + "".join(behind_neck)
+            # the inside of the neck follows the collar as each front swings
+            + f'<g transform="{mat[-1]}"><g clip-path="url(#kl{uid})">{inside}</g></g>'
+            + f'<g transform="{mat[+1]}"><g clip-path="url(#kr{uid})">{inside}</g></g>')
+    fronts = (f'<g clip-path="url(#ks{uid})">{cloth}</g>'                                   # sleeves and sides
+              f'<g transform="{mat[-1]}"><g clip-path="url(#kl{uid})">{cloth}</g>'            # the under front ...
+              f'<g clip-path="url(#ko{uid})"><g transform="{flip}">{cloth}</g></g>'           # ... with its hidden strip
+              f'<g transform="{flip}">{collar}{front_edge}</g></g>'
+              f'<g transform="{mat[+1]}"><g clip-path="url(#kr{uid})">{cloth}</g>{collar}{front_edge}</g>'   # the top front
+              + "".join(fastenings))
+    back, fronts = g[0] + behind + back + "</g>", g[0] + fronts + "</g>"
+    # a garment underneath can show anywhere inside this one's outline (the fronts and sleeves then cover most
+    # of it), below its hem as wide as the body, and above its collar as wide as the neck
+    hem_y, sh_y = shape.body_box[3], shape.anchors.get("shoulder_l", (0, 80.0))[1]
+    shows = [shape.outline, poly([(cx - half, hem_y - 2), (cx + half, hem_y - 2), (cx + half, box[3]), (cx - half, box[3])]),
+             poly([(cx - 48, box[1]), (cx + 48, box[1]), (cx + 48, sh_y + 12), (cx - 48, sh_y + 12)])]
+    return defs, ((back, fronts) if layered else back + fronts), dy, shows
 
 
 # ------------------------------------------------------------------ traced

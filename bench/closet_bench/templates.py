@@ -38,9 +38,10 @@ class Shape:
     seams: list[str] = field(default_factory=list)  # thin lines on the body that parts (a collar) lie over
     sole_default: str | None = None  # the sole's colour when the photo gives none (leather shoes: dark brown)
     snaps: list[tuple[float, float, float]] = field(default_factory=list)  # press studs: a ring round a cap, not a button
-    # worn open: the visible edge of the viewer's-left front and of the viewer's-right front, each a run of
-    # points from the neck to the hem. The renderer cuts the drawing along them and swings the fronts apart.
-    fronts: tuple[list, list] | None = None
+    # worn open: (the edge of the front that lies on top, the viewer's right one, as a run of points from the
+    # neck to below the hem; how its buttonholes are cut, "vertical" or "horizontal"). The other front is its
+    # mirror image. The renderer builds the two fronts from this and swings them open.
+    fronts: tuple[list, str] | None = None
 
 
 def _f(v: float) -> str:
@@ -948,18 +949,15 @@ def top(**kw) -> Shape:
             sh.lines.append(f"M {_pt((CX - 5, end))} L {_pt((CX + 5, end))}")
 
     _pockets(sh, p["pockets"], sy, hy, hh, hs, p["hem"], cuff, A, rib_h, lapel_front)
-    if state == "open" and front != "none":   # where the two fronts part when the garment is worn open
+    if state == "open" and front != "none":   # the edge of the front that lies on top, for the renderer to open
         if lapel_front and lapel_front[0] == "cardigan":
             apex = (CX - lapel_front[2] / 2, lapel_front[1])      # the V's point; the button band runs down from it
-            run = [apex, (apex[0], hy + 20)]
-            sh.fronts = ([Nl] + run, [N] + run)
+            sh.fronts = ([N, apex, (apex[0], hy + 20)], "vertical")
         elif lapel_front:                                       # revers or a shawl: the V runs to the break
-            run = [(CX - lapel_front[2], lapel_front[1]), (CX - lapel_front[2], hy + 20)]
-            sh.fronts = ([Nl] + run, [N] + run)
+            sh.fronts = ([N, (CX - lapel_front[2], lapel_front[1]), (CX - lapel_front[2], hy + 20)], "horizontal")
         elif front in ("buttons", "french", "hidden", "double", "zip"):
-            x = {"zip": CX, "double": CX - 30}.get(front, CX - 7)   # the edge of the front that lies on top
-            run = [(CX, front_bottom), (x, front_bottom + (6 if x != CX else 0)), (x, hy + 20)]
-            sh.fronts = (run, list(run))
+            x = CX - {"zip": 0, "double": 30}.get(front, 7)     # how far the top front reaches past the centre
+            sh.fronts = ([(x, front_bottom), (x, hy + 20)], "horizontal" if front == "double" else "vertical")
     return sh
 
 
@@ -1144,7 +1142,6 @@ def _tailored(p, block) -> Shape:
     if dbl or coat:
         rc = 8.0
         front_run = [Bk, (CX - ov, hy - rc)] + _qbez((CX - ov, hy - rc), (CX - ov, hy), (CX - ov + rc, hy), 4)
-        open_l = [ml(Rt), Xc] + front_run + [(front_run[-1][0], hy + 20)]
     else:
         y_q = (ys[-1] if ys else Bk[1] + 4) + (10 if len(ys) <= 1 else 5)
         y_q = min(y_q, hy - 24)
@@ -1157,9 +1154,6 @@ def _tailored(p, block) -> Shape:
         # below where the two fronts part, the inside of the back shows between them
         sh.parts.append(Part(_poly(after + [ml(v) for v in after[::-1]]), "hole"))
         sh.parts.append(Part(_poly([ml(v) for v in after], close=False), "edge"))
-        # the under front shows only where the top one does not cover it: down the top front's edge to
-        # where the quarters part, then along its own quarter
-        open_l = [ml(Rt), Xc, Bk] + curve[:i] + [C] + [ml(v) for v in after[1:]] + [(ml(after[-1])[0], hy + 20)]
     keep = (10.0, Bk[1])
     for pts, run in pieces:   # the under (viewer's left) side first, cut where the top front's roll line crosses it
         lp = _clip_half([ml(v) for v in pts], Bk, Rt, keep)
@@ -1250,8 +1244,8 @@ def _tailored(p, block) -> Shape:
     xs = [float(x) for x, _ in re.findall(r"(-?[\d.]+),(-?[\d.]+)", sh.outline)]
     xmax = max(max(xs), 2 * CX - min(xs))
     sh.bbox = (2 * CX - xmax, (Tt[1] + top_c) / 2 - 2, xmax, hy + 2)
-    if p.get("state") == "open" and p["front"] != "none":   # the two fronts' edges, for the renderer to part
-        sh.fronts = (open_l, [Rt] + front_run + [(front_run[-1][0], hy + 20)])
+    if p.get("state") == "open" and p["front"] != "none":   # the top front's edge: the roll line, then the front
+        sh.fronts = ([Rt] + front_run + [(front_run[-1][0], hy + 20)], "horizontal")
     return sh
 
 

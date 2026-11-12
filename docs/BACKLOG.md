@@ -6,11 +6,12 @@
 - [ ] Repeat that through the real API call for cost and timing.
 - [ ] Striped, floral and camouflage hard cases (photos still needed).
 - [ ] Take the colour word for patterned items from the measured palette instead of the model.
-- [ ] Owner picks an illustration style (A flat, B outline, C soft).
+- [x] Owner picked illustration style B (bold outline, thin inner lines).
+- [ ] Check the pants and shoe templates against reference drawings the same way the top was (see `DECISIONS.md`, "Illustration").
 - [ ] First Actions run of the packaging spike on Windows (waiting for the owner's go-ahead on Actions usage).
 
 ## Waiting on the owner
-- Illustration style: A (flat), B (outline) or C (soft shaded). The demo closet uses A until decided.
+- Whether the reworked shirt (collar, placket, sleeves) now looks right.
 - Three photos for the untested hard cases: something striped, something floral or patterned, something camouflage.
 - Go-ahead to run GitHub Actions: the Windows build and smoke test (about 16 billed minutes), and whether CI should run on every push.
 - 25–30 real photos with an answer key. The bench runs them through the Claude plan by default; an API key is optional.

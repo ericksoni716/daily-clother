@@ -65,6 +65,36 @@ def test_tops_share_anchor_points_across_parameters():
     assert a["neck"] == b["neck"] and a["shoulder_l"] == b["shoulder_l"]
 
 
+def test_a_shirt_collar_lies_over_the_placket_and_has_room_for_a_neck():
+    import re
+    params = dict(neck="collar", front="buttons", hem="curved", cuffs="button")
+    shirt = build("top", params)
+    roles = [part.role for part in shirt.parts]
+    assert roles.count("collar_r") == roles.count("collar_l") == 1 and "hole" in roles and "edge" in roles
+    # the placket is a seam (drawn under the collar), not a line drawn over it
+    placket = [d for d in shirt.seams if re.fullmatch(r"M [\d.]+,[\d.]+ L [\d.]+,[\d.]+", d) and d.split()[1].split(",")[0] in ("193", "207")]
+    assert len(placket) == 2 and not any(" 193," in d or " 207," in d for d in shirt.lines)
+    hole = next(part.d for part in shirt.parts if part.role == "hole")
+    xs = [float(x) for x, _ in re.findall(r"([\d.]+),([\d.]+)", hole)]
+    ys = [float(y) for _, y in re.findall(r"([\d.]+),([\d.]+)", hole)]
+    shoulder = shirt.anchors["shoulder_r"][0] - shirt.anchors["shoulder_l"][0]
+    assert (max(xs) - min(xs)) / shoulder > 0.3            # a neck fits through the opening
+    meet = max(ys)                                          # where the leaves meet at the centre front
+    assert min(float(d.split()[1].split(",")[1]) for d in placket) > meet   # the placket starts below that
+    svg = render(Spec("top", params, Fill("solid", "#ffffff")), "line")
+    assert svg.index(placket[0]) < svg.index(hole)          # painted before the collar, so the collar covers it
+
+
+@pytest.mark.parametrize("fit", ["slim", "regular", "oversized"])
+@pytest.mark.parametrize("sleeve", ["short", "long"])
+def test_sleeves_end_outside_the_body_and_inside_the_canvas(fit, sleeve):
+    import re
+    shape = build("top", dict(fit=fit, sleeve=sleeve))
+    pts = [(float(x), float(y)) for x, y in re.findall(r"(-?[\d.]+),(-?[\d.]+)", shape.outline)]
+    assert all(4 < x < 396 and 4 < y < 456 for x, y in pts)
+    assert shape.sleeves and shape.bbox[2] <= 396
+
+
 def test_traced_style_follows_the_cutout():
     svg = render(Spec("top", {}, Fill("solid", "#336699")), "traced", cutout=garment())
     xml.dom.minidom.parseString(svg)

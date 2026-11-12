@@ -62,6 +62,17 @@ Facts checked in Anthropic's documentation on 2026-11-12:
 - The support pages say `claude -p` under a plan login draws on the plan's limits. The legal page restricts third-party developers offering Claude login to their users, and says this does not prevent an end user signing in to the unmodified Claude Code program with their own plan. A personal program calling that program on the owner's own machine appears to be inside those terms, but the docs do not say so in as many words, and Anthropic reserves the right to change enforcement.
 - When a limit is hit the message reads "You've hit your session limit · resets …" (or weekly). The exit code for that case is not documented; the app matches on the message.
 
+## Illustration
+
+| Decision | Why |
+|---|---|
+| Style B: bold outer outline, inner lines about a third of its weight, garment-coloured fill | Owner's choice. The demo closet is drawn in it. Styles A and C stay in the bench for comparison only. |
+| Template proportions are measured from reference drawings, not drawn from memory | The first shirt had a collar made of two separate shapes, a neck opening too narrow for a neck and a placket drawn over the collar. The owner supplied a flat drawing of a shirt; an independent review measured it (normalised to shoulder width) and the top template was rebuilt from those numbers. |
+| A collar is one folded band that is part of the garment's outline | Seen from the front: a U-shaped opening with the band line across it, two leaves meeting in an X, and on button-front shirts the collar stand with the top button below the meeting point. Polo and zip collars get shorter leaves and no stand. |
+| Seams are a separate layer under folded parts | The placket, yoke and armhole seams lie on the body, so the collar covers their tops. Details that sit on top (pockets, sleeve hems) stay in the upper layer. |
+| Collars and shirt cuffs are the body's colour | Tinting them made a white shirt look as if it had a grey collar. Rib cuffs and hems keep a slight tint. |
+| Reference drawings may be downloaded from Wikimedia Commons, Openclipart and SVG Repo | Added to the `daily-clother` environment at the owner's prompting. They are looked at and measured, never copied into the repo. Commons rate-limits hard: one request, then wait. |
+
 ## Phase 0 findings
 
 See `docs/PHASE0.md` for the results and what is still open.

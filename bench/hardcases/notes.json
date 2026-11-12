@@ -1,11 +1,11 @@
 {
-  "_summary": "<p>Four of the seven hard cases have been run on real photos: plaid shirt, graphic tee, white sneakers and jeans, plus a textured knit as an extra. <b>Striped sweater, floral and camouflage are not tested yet</b> because the photo source rate-limited the build environment.</p><p>Styles A, B and C draw the same parametric shape in three looks. Style D traces the photo's outline and is shown only to explain why it was rejected. Pick between A, B and C. <b>Updated:</b> shirt collars are rebuilt as part of the outline with a proper band and leaves, seams and buttons stay visible on patterned cloth, and patterns follow the sleeves.</p><p>Nothing here has been through the app's real tagging call yet; the attributes were set by hand.</p>",
+  "_summary": "<p>Four of the seven hard cases have been run on real photos: plaid shirt, graphic tee, white sneakers and jeans, plus a textured knit as an extra. <b>Striped sweater, floral and camouflage are not tested yet</b> because the photo source rate-limited the build environment.</p><p>Styles A, B and C draw the same parametric shape in three looks. Style D traces the photo's outline and is shown only to explain why it was rejected. <b>The owner chose style B.</b> The top template has since been rebuilt from measurements of a reference shirt drawing: one folded collar with a wide opening, the placket starting under the collar stand, lower armholes and tapered sleeves.</p><p>Nothing here has been through the app's real tagging call yet; the attributes were set by hand.</p>",
   "plaid-flannel": {
     "verdict": "Works: the real plaid tiles cleanly inside the drawn shirt",
     "points": [
       "The repeat was found automatically and one repeat is used as the tile, so the scale is close to the photo's.",
       "Collar, buttons, curved hem and low pockets come from the attributes, not the photo.",
-      "After feedback: the collar is now built like a real one (part of the shirt's outline, with the inside of the band showing at the back of the neck and two leaves folding to points beside the top button), seams are drawn dark over a pale halo so they show on the pattern, and the plaid turns to follow the sleeves and collar.",
+      "After two rounds of feedback the shirt was rebuilt from measurements of a reference drawing: the collar is one folded band with a wide opening and two leaves meeting in an X, the placket starts under the collar stand with the top button on it, and the plaid turns to follow the sleeves and collar.",
       "The cutout kept the dress form's neck and base; a hung or flat photo would not have that problem.",
       "Style D (traced) shows why tracing the photo was rejected: the outline depends on how the item happened to hang."
     ]

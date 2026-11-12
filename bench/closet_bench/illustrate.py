@@ -145,7 +145,9 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
         if luminance(base) > 0.72:  # pale items need an edge to stand off the card
             o_stroke, o_w = shade(base, -0.2), 1.6
     elif style == "line":
-        o_stroke, o_w, l_stroke, l_w, l_op = INK, 4.2, INK, 2.2, 0.9
+        # a bold edge and inner lines about a third of its weight, as in a fashion flat;
+        # on a dark cloth the inner lines are a lighter tone of it, since ink would vanish
+        o_stroke, o_w, l_stroke, l_w, l_op = INK, 3.8, (shade(base, 0.42) if dark_item else INK), 1.5, 0.95
     else:  # soft
         o_stroke, o_w, l_stroke, l_w, l_op = shade(base, 0.2 if dark_item else -0.28), 2.4, shade(base, 0.2 if dark_item else -0.28), 1.8, 0.7
         defs += (f'<linearGradient id="g{uid}" x1="0" y1="0" x2="1" y2="1">'
@@ -158,28 +160,31 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
     # drawn darker over a pale halo, and the garment gets an edge in every style.
     if patterned:
         l_stroke, l_op = (INK if style == "line" else shade(base, -0.42)), (0.95 if style == "line" else 0.85)
-        l_w = max(l_w, 2.0)
+        l_w = max(l_w, 1.8)
         if not o_w:
             o_stroke, o_w = shade(base, -0.38), 2.2
     halo = (lambda d, extra=2.2: f'<path d="{d}" fill="none" stroke="#fff" stroke-width="{l_w + extra}" stroke-linecap="round" '
             f'stroke-linejoin="round" opacity=".32"/>') if patterned else (lambda d, extra=0: "")
 
+    def thin(d: str) -> str:
+        return (f'<path d="{d}" fill="none" stroke="{l_stroke}" stroke-width="{l_w}" stroke-linecap="round" '
+                f'stroke-linejoin="round" opacity="{l_op}"/>')
+
     def overlay(d: str, role: str) -> str:
+        if role == "edge":   # a line with no fill, e.g. the visible edges of a collar
+            return halo(d, 2.4) + thin(d)
         if role in ("collar_r", "collar_l"):
-            leaf_paint = turned(role[-1], -24 if role == "collar_r" else 24)
-            lift = f'<path d="{d}" fill="#fff" opacity=".16"/>' if patterned else \
-                f'<path d="{d}" fill="{"#fff" if dark_item else "#000"}" opacity=".08"/>'
-            edge = halo(d, 2.4) + (f'<path d="{d}" fill="none" stroke="{l_stroke}" stroke-width="{l_w}" stroke-linejoin="round" '
-                                   f'opacity="{l_op if (patterned or style != "flat") else 0.3}"/>')
-            return f'<path d="{d}" fill="{leaf_paint}"/>' + lift + edge
+            # the same cloth as the body (turned, when patterned); its edges are a separate "edge" part
+            return f'<path d="{d}" fill="{turned(role[-1], -24 if role == "collar_r" else 24)}"/>'
         if role == "sole":
             c = spec.sole_color or "#f4f1ea"
             return f'<path d="{d}" fill="{c}"/>' + (f'<path d="{d}" fill="#000" opacity=".06"/>' if style != "line" else "")
         if role == "hole":
-            return f'<path d="{d}" fill="{paint}"/><path d="{d}" fill="#000" opacity=".32"/>'
-        op = {"trim": 0.10, "band": 0.12, "inner": 0.14}.get(role, 0.1)
+            return f'<path d="{d}" fill="{paint}"/><path d="{d}" fill="#000" opacity=".22"/>'
+        # a shirt cuff is the body's own cloth: no tint where a line already marks it
+        op = {"trim": 0.10, "band": 0.12, "cuff": 0.0 if style == "line" else 0.06}.get(role, 0.1)
         col = "#fff" if dark_item else "#000"
-        out = f'<path d="{d}" fill="{paint}"/><path d="{d}" fill="{col}" opacity="{op}"/>'
+        out = f'<path d="{d}" fill="{paint}"/>' + (f'<path d="{d}" fill="{col}" opacity="{op}"/>' if op else "")
         if style in ("line", "soft"):
             out += f'<path d="{d}" fill="none" stroke="{l_stroke}" stroke-width="{l_w}" stroke-linejoin="round" opacity="{l_op}"/>'
         return out
@@ -193,6 +198,13 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
     if patterned:
         for n, (d, degrees) in enumerate(shape.sleeves):
             g.append(f'<path d="{d}" fill="{turned(f"s{n}", degrees)}"/>')
+    # seams lie on the body, under anything folded over it (a collar covers the top of the placket)
+    g.append(f'<g clip-path="url(#{clip})">')
+    for d in shape.seams:
+        g.append(halo(d))
+    for d in shape.seams:
+        g.append(thin(d))
+    g.append("</g>")
     for part in shape.parts:
         g.append(overlay(part.d, part.role))
     g.append(_graphic_markup(spec.graphic, shape.bbox, clip))
@@ -202,14 +214,13 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
     for d in shape.lines:
         g.append(halo(d))
     for d in shape.lines:
-        g.append(f'<path d="{d}" fill="none" stroke="{l_stroke}" stroke-width="{l_w}" stroke-linecap="round" '
-                 f'stroke-linejoin="round" opacity="{l_op}"/>')
+        g.append(thin(d))
     g.append("</g>")
     for x, y, r in shape.dots:
         if patterned:
             g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 1.3}" fill="#fff" opacity=".45"/>')
         if style == "line":
-            g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{CARD}" stroke="{INK}" stroke-width="1.4"/>')
+            g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{CARD}" stroke="{INK}" stroke-width="1.1"/>')
         else:
             g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{l_stroke}" opacity="{min(1, l_op + 0.25)}"/>')
     if o_w:

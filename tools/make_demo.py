@@ -24,7 +24,7 @@ from closet_bench.hardcases import build_spec  # noqa: E402
 from closet_bench.illustrate import Fill, Spec, render  # noqa: E402
 
 OUT = ROOT / "backend" / "closet" / "demo_data"
-STYLE = "flat"
+STYLE = "line"   # the owner chose style B: bold outline, thin inner lines
 NS = uuid.UUID("6f1d3c1e-7b1a-4c58-9d55-000000c105e7")
 
 

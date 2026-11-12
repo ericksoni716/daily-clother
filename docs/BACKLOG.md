@@ -31,6 +31,12 @@ Done:
 - [x] Hip patch pockets added to the taxonomy.
 - [x] The top template draws the taxonomy's fit, sleeve, neckline, collar, placket, cuff, pocket and hem values, and shows weight, fuzzy cloth, knit gauge and corduroy wale.
 
+In progress (owner's corrections to the first taxonomy sheets):
+- [ ] Fits recalibrated from real garment measurements: everything was drawn slim.
+- [ ] Tailored jackets (blazer, sport coat, suit jacket, coats with lapels) rebuilt as their own construction.
+- [ ] Weight shown much more strongly, as thickness and bulk and not only a heavier line.
+- [ ] A worn-open state for jackets, cardigans, overshirts and zip hoodies, with a proof that an open layer lines up over a shirt.
+
 To do:
 - [ ] Drawing faults its own author listed: the tab and wing collars barely read, lapels on black and plaid read only by their edges, the puffer has channels but no puffed outline, the trucker jacket has a rib band where a waistband belongs, the vest's armhole rib thins at the underarm, linen texture is busy at full size.
 - [ ] Accessories (bag, belt, hat, scarf) have categories but no drawing; today they would be drawn as a crew-neck top. They need simple shapes of their own or a neutral placeholder.

@@ -116,6 +116,9 @@ _POCKETS = {"none": "none", "chest_patch_single": "chest", "chest_patch_double":
             "split_hand": "split", "slash": "slash", "utility_sleeve": "utility", "four_patch_guayabera": "guayabera",
             "three_patch_chore": "chore", "hip_patch_double": "hip-patch", "hip_flap_double": "hip-flap",
             "five_pocket_jean": "none", "cargo": "bellows"}
+# the colour of a tailored jacket's buttons, by what they are made of (others: pale, like the card)
+_BUTTON_COLOR = {"metal_shank": "#b8995a", "horn": "#4a3426", "corozo": "#6e5b45", "wood": "#7a5a3a",
+                 "leather_knot": "#5a3b26", "coconut": "#5e4630"}
 _HEM = {"curved_shirt_tail": "curved", "straight_with_vents": "vents", "straight": "straight", "tennis_tail": "tennis",
         "ribbed_band": "rib", "raw": "raw"}
 _SHIRT_COLLARS = ("point", "semi_spread", "spread", "cutaway", "button_down", "hidden_button_down", "club", "tab", "pin",
@@ -238,6 +241,19 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
         p["length"] = "cropped"
     elif fit == "longline":
         p["length"] = "long"
+    if p.get("collar") in ("notch", "peak", "shawl"):
+        # tailoring has its own construction: a jacket, or at knee length a coat
+        p["block"] = "coat" if p["length"] == "knee" else "jacket"
+        if g.get("pockets") is None:
+            p["pockets"] = "hip-flap"     # every tailored jacket has pockets: a breast welt and two flaps
+        if _BUTTON_COLOR.get(g.get("closure_material")):
+            extras["button_color"] = _BUTTON_COLOR[g["closure_material"]]
+        if g.get("hem") not in (None, "straight"):
+            notes.append(f"{g['hem']} hem on a tailored jacket drawn as its straight hem with rounded quarters")
+        if g.get("cuff") is not None:
+            notes.append(f"{g['cuff']} cuff on a tailored jacket drawn as its sleeve with four cuff buttons")
+        if g.get("sleeve_construction") not in (None, "set_in"):
+            notes.append(f"{g['sleeve_construction']} sleeve on a tailored jacket drawn set-in at a structured shoulder")
     if neckline in ("henley", "polo_collar") and p["front"] == "none" and placket is None:
         p["front"] = "half"
     if neckline == "quarter_zip" and p["front"] == "none":
@@ -352,7 +368,7 @@ GARMENT_DRAWINGS: dict[str, dict] = {
     "peacoat": dict(collar="peak_lapel", placket="double_breasted", placket_buttons=6, pockets="slash", hem="straight",
                     fabric="melton", length="long"),
     "overcoat": dict(collar="notch_lapel", placket="front_placket", placket_buttons=3, pockets="hip_flap_double",
-                     hem="straight", fabric="melton", length="knee"),
+                     hem="straight", fabric="melton", length="knee", closure_material="horn"),
     "puffer": dict(collar="stand", placket="zip_full", cuff="rib_knit", hem="straight", fit="relaxed", fiber="nylon",
                    quilting="baffle", fabric="ripstop"),
     "quilted_jacket": dict(collar="band", placket="snap", pockets="hip_patch_double", hem="straight", cuff="open_hem",
@@ -362,11 +378,11 @@ GARMENT_DRAWINGS: dict[str, dict] = {
     "barn_jacket": dict(collar="point", placket="front_placket", pockets="hip_flap_double", hem="straight", fabric="canvas",
                         weight="heavyweight", fit="relaxed"),
     "blazer": dict(collar="notch_lapel", placket="front_placket", placket_buttons=2, pockets="hip_flap_double",
-                   hem="straight", fit="tailored", fabric="hopsack", fiber="worsted_wool", length="long"),
+                   hem="straight", fit="tailored", fabric="hopsack", fiber="worsted_wool", closure_material="metal_shank"),
     "sport_coat": dict(collar="notch_lapel", placket="front_placket", placket_buttons=2, pockets="hip_patch_double",
-                       hem="straight", fit="tailored", fabric="tweed", length="long"),
+                       hem="straight", fit="tailored", fabric="tweed", closure_material="horn"),
     "suit_jacket": dict(collar="peak_lapel", placket="front_placket", placket_buttons=1, pockets="welt", hem="straight",
-                        fit="tailored", fabric="plain", fiber="worsted_wool", length="long"),
+                        fit="tailored", fabric="plain", fiber="worsted_wool", closure_material="corozo"),
 }
 
 
@@ -417,10 +433,11 @@ COVERAGE: dict[str, dict[str, tuple[str, str]]] = {
         ("johnny", (D, "knit spread collar over an open V with no buttons")),
         ("flat_knit", (D, "the polo's soft knit collar")),
         ("woven_twill_rugby", (D, "firmer collar, drawn in white (collar_color)")),
-        ("shawl", (D, "one continuous rolled collar and lapel, no notch")),
+        ("shawl", (D, "one continuous rolled collar and lapel, no notch; on a jacket, the tailored construction")),
         ("stand", (D, "taller stand collar for jackets, the zip runs to its top")),
-        ("notch_lapel", (D, "collar and lapel meeting at the gorge with a notch; V to the top button")),
-        ("peak_lapel", (D, "lapel points rising toward the shoulder")),
+        ("notch_lapel", (D, "a tailored jacket of its own: square shoulder, collar meeting the lapel at the gorge "
+                            "with a notch, lapels rolling to the top button, quarters curving away; a coat at knee length")),
+        ("peak_lapel", (D, "the tailored jacket with lapel points rising toward the shoulder")),
         ("none", (D, "the neckline decides")),
     ),
     "placket": _c(
@@ -431,7 +448,8 @@ COVERAGE: dict[str, dict[str, tuple[str, str]]] = {
         ("henley", (D, "short placket under a round neck")), ("polo", (D, "short placket under a knit collar")),
         ("snap", (D, "press studs drawn as a metal ring round a cap")),
         ("zip_quarter", (D, "short zip")), ("zip_half", (D, "zip to mid-chest")), ("zip_full", (D, "")),
-        ("double_breasted", (D, "front edge well past centre, two columns of buttons")),
+        ("double_breasted", (D, "front edge well past centre, two columns of buttons; on a jacket 6x2, "
+                                "the top row set wider")),
         ("none", (D, "")),
     ),
     "cuff": _c(

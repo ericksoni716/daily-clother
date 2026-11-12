@@ -1,4 +1,5 @@
 import io
+import re
 import xml.dom.minidom
 
 import numpy as np
@@ -7,7 +8,7 @@ from PIL import Image, ImageDraw
 
 from closet_bench import fills, tagging
 from closet_bench.bench import compare, summarize
-from closet_bench.illustrate import STYLES, Fill, Spec, render
+from closet_bench.illustrate import STYLES, Fill, Spec, layer, render
 from closet_bench.schema import Details, ItemTags, Silhouette, drawing_extras, drawing_for, silhouette_params
 from closet_bench.templates import PANTS_DEFAULTS, SNEAKER_DEFAULTS, TOP_DEFAULTS, build
 
@@ -520,3 +521,68 @@ def test_plan_route_without_claude_code_installed_is_reported_as_unavailable(mon
     monkeypatch.setattr(claude_cli, "find_claude", lambda: None)
     with pytest.raises(RouteUnavailable, match="not installed"):
         claude_cli.tag_item_cli("claude-haiku-5-5", [garment()])
+
+
+# ---- worn open
+
+OPENING_TOPS = [dict(neck="collar", front="buttons"), dict(neck="hood", front="zip"), dict(neck="v", front="buttons", cuffs="rib", hem="rib"),
+                dict(neck="collar", collar="notch", front="buttons"), dict(neck="collar", collar="peak", front="double", length="knee")]
+
+
+def _open(params, color="#336699"):
+    return Spec("top", {**params, "state": "open"}, Fill("solid", color))
+
+
+@pytest.mark.parametrize("params", OPENING_TOPS)
+def test_a_garment_that_opens_down_the_front_can_be_drawn_open(params):
+    closed, opened = build("top", params), build("top", {**params, "state": "open"})
+    assert closed.fronts is None and opened.fronts is not None
+    assert opened.outline == closed.outline and opened.anchors == closed.anchors   # the same garment, on the same wearer
+    edge, slit = opened.fronts
+    hem = opened.body_box[3]
+    assert edge[0][1] < hem / 2 and edge[-1][1] > hem      # the top front's edge runs from the neck to below the hem
+    assert min(x for x, _ in edge) <= 200                  # and reaches the centre line or past it
+    assert slit in ("vertical", "horizontal")
+    a, b = render(Spec("top", params, Fill("solid", "#336699")), "line"), render(_open(params), "line")
+    assert a != b and "matrix(" in b and "matrix(" not in a
+    xml.dom.minidom.parseString(b)
+
+
+def test_open_fronts_are_one_with_buttons_and_one_with_buttonholes():
+    params = dict(neck="collar", front="buttons", buttons=6)
+    closed = render(Spec("top", params, Fill("solid", "#336699")), "line")
+    opened = render(_open(params), "line")
+    slits = opened.count('stroke-width="1.7"')
+    assert slits == 6 and 'stroke-width="1.7"' not in closed          # six buttonholes on the front that lies on top
+    assert opened.count("<circle") == closed.count("<circle")         # and the same six buttons, now on the other front
+    xs = [float(v) for v in re.findall(r'<circle cx="([\d.]+)"', opened)]
+    assert sum(x < 200 for x in xs) == 6 and not any(x > 200 for x in xs)
+    holes = [float(v) for v in re.findall(r'<path d="M ([\d.]+),[\d.]+ L [\d.]+,[\d.]+" fill="none" stroke="[^"]+" stroke-width="1.7"', opened)]
+    assert len(holes) == 6 and all(x > 200 for x in holes)
+    # the two fronts are the same size: each button sits as far from the centre as its buttonhole
+    assert sorted(round(200 - x, 1) for x in xs) == sorted(round(x - 200, 1) for x in holes)
+    assert 'stroke-width="1.7"' not in render(_open(dict(neck="hood", front="zip")), "line")   # a zip has neither
+
+
+def test_a_garment_worn_open_keeps_its_width():
+    for params in OPENING_TOPS:   # the fronts swing about the side seams: sleeves and sides stay where they were
+        assert build("top", {**params, "state": "open"}).bbox == build("top", params).bbox
+
+
+def test_a_pullover_has_nothing_to_open():
+    for params in (dict(), dict(neck="collar", front="half"), dict(front="quarter-zip", neck="mock")):
+        assert build("top", {**params, "state": "open"}).fronts is None
+        spec = Spec("top", params, Fill("solid", "#336699"))
+        assert render(_open(params), "line") == render(spec, "line")
+
+
+def test_an_open_garment_is_layered_over_the_one_underneath():
+    tee = Spec("top", dict(sleeve="short", length="long"), Fill("solid", "#f1eee6"))
+    jacket = dict(neck="collar", collar="notch", front="buttons")
+    over = layer(tee, _open(jacket, "#1f2a44"), "line")
+    xml.dom.minidom.parseString(over)
+    assert over.count("<svg") == 1
+    # from the back forward: the inside of the jacket's back, the whole tee, the jacket's fronts
+    assert over.index("#1f2a44") < over.index("#f1eee6") < over.rindex("<use")
+    closed = layer(tee, Spec("top", jacket, Fill("solid", "#1f2a44")), "line")   # a closed jacket just covers the tee
+    assert "matrix(" not in closed and closed.index("#f1eee6") < closed.index("#1f2a44")

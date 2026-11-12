@@ -21,7 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "bench"))
 
-from closet_bench.illustrate import Fill, Spec, render
+from closet_bench.illustrate import Fill, Spec, layer, render
 from closet_bench.taxonomy import (
     AXES,
     COVERAGE,
@@ -66,6 +66,18 @@ def other_card(card_id: str, label: str, template: str, params: dict, color: str
     return dict(id=card_id, label=label, svg=svg, note="")
 
 
+def open_cards(name: str, color: str, under: str, under_color: str) -> list[dict]:
+    """A garment worn open: by itself, and over a shirt or tee to show that the two line up."""
+    def spec(garment, col, **params):
+        p, extras, _ = top_drawing(GARMENT_DRAWINGS[garment])
+        return Spec("top", {**p, **params}, Fill("solid", col), **extras)
+    over = spec(name, color, state="open")
+    uid = f"open_{name}"
+    return [dict(id=f"open.{name}", label=f"{words(name)}, worn open", svg=render(over, STYLE, uid=uid), note=""),
+            dict(id=f"open.{name}_over", label=f"{words(name)} over a {words(under)}",
+                 svg=layer(spec(under, under_color), over, STYLE, uid=uid + "_over"), note="")]
+
+
 def sections() -> list[dict]:
     out = []
     out.append(dict(id="garments", title="Garments", blurb="Each named garment in the taxonomy, drawn from its own axis values.",
@@ -93,6 +105,15 @@ def sections() -> list[dict]:
                for w in ("lightweight", "midweight", "heavyweight", "super_heavy")]
     out.append(dict(id="weight", title="Weight and cloth", blurb="The same garments in light and heavy cloth. A stranger should be able to rank each row by thickness.",
                     cards=[top_card(*c) for c in ladder]))
+
+    worn = [("cardigan", "#6b3f3a", "t_shirt"), ("shawl_cardigan", "#c9b79c", "t_shirt"), ("overshirt", "#7a8b6a", "t_shirt"),
+            ("flannel_shirt", "#9a4a3c", "t_shirt"), ("zip_hoodie", "#8d9299", "t_shirt"), ("bomber", "#4b5a3c", "t_shirt"),
+            ("trucker_jacket", "#5b7fb5", "t_shirt"), ("chore_coat", "#3d5a80", "ocbd"), ("blazer", "#1f2a44", "ocbd"),
+            ("sport_coat", "#8a6e4b", "ocbd"), ("suit_jacket", "#8b9098", "dress_shirt"), ("peacoat", "#2a3350", "ocbd"),
+            ("overcoat", "#b08d57", "dress_shirt")]
+    out.append(dict(id="open", title="Worn open", blurb="Garments that open down the front, unfastened: alone, and over a shirt or tee. "
+                    "The two fronts should hang apart naturally and the garment underneath should sit where a body would put it.",
+                    cards=[c for name, color, under in worn for c in open_cards(name, color, under, "#f4f3ee")]))
 
     for axis in TOP_AXES:
         cards = []

@@ -38,6 +38,10 @@ class Shape:
     seams: list[str] = field(default_factory=list)  # thin lines on the body that parts (a collar) lie over
     sole_default: str | None = None  # the sole's colour when the photo gives none (leather shoes: dark brown)
     snaps: list[tuple[float, float, float]] = field(default_factory=list)  # press studs: a ring round a cap, not a button
+    # worn open: (the edge of the front that lies on top, the viewer's right one, as a run of points from the
+    # neck to below the hem; how its buttonholes are cut, "vertical" or "horizontal"). The other front is its
+    # mirror image. The renderer builds the two fronts from this and swings them open.
+    fronts: tuple[list, str] | None = None
 
 
 def _f(v: float) -> str:
@@ -68,6 +72,8 @@ TOP_DEFAULTS = dict(
     shoulder="set-in",  # set-in | raglan | drop | saddle | dolman
 )
 # Optional details, each read off a photo or the taxonomy (absent = the plain shape above):
+#   state     closed | open   worn unfastened, the two fronts hanging apart (only garments that open all the
+#             way down the front: buttons, zip, double-breasted, cardigans, jackets)
 #   collar    with neck="collar", the kind of collar:
 #             point | semi_spread | spread | cutaway | button_down | hidden_button_down | club | tab | pin | western
 #             (a woven shirt collar on a stand; default semi_spread on a button front)
@@ -943,6 +949,15 @@ def top(**kw) -> Shape:
             sh.lines.append(f"M {_pt((CX - 5, end))} L {_pt((CX + 5, end))}")
 
     _pockets(sh, p["pockets"], sy, hy, hh, hs, p["hem"], cuff, A, rib_h, lapel_front)
+    if state == "open" and front != "none":   # the edge of the front that lies on top, for the renderer to open
+        if lapel_front and lapel_front[0] == "cardigan":
+            apex = (CX - lapel_front[2] / 2, lapel_front[1])      # the V's point; the button band runs down from it
+            sh.fronts = ([N, apex, (apex[0], hy + 20)], "vertical")
+        elif lapel_front:                                       # revers or a shawl: the V runs to the break
+            sh.fronts = ([N, (CX - lapel_front[2], lapel_front[1]), (CX - lapel_front[2], hy + 20)], "horizontal")
+        elif front in ("buttons", "french", "hidden", "double", "zip"):
+            x = CX - {"zip": 0, "double": 30}.get(front, 7)     # how far the top front reaches past the centre
+            sh.fronts = ([(x, front_bottom), (x, hy + 20)], "horizontal" if front == "double" else "vertical")
     return sh
 
 
@@ -1229,6 +1244,8 @@ def _tailored(p, block) -> Shape:
     xs = [float(x) for x, _ in re.findall(r"(-?[\d.]+),(-?[\d.]+)", sh.outline)]
     xmax = max(max(xs), 2 * CX - min(xs))
     sh.bbox = (2 * CX - xmax, (Tt[1] + top_c) / 2 - 2, xmax, hy + 2)
+    if p.get("state") == "open" and p["front"] != "none":   # the top front's edge: the roll line, then the front
+        sh.fronts = ([Rt] + front_run + [(front_run[-1][0], hy + 20)], "horizontal")
     return sh
 
 

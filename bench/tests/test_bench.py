@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 from closet_bench import fills, tagging
 from closet_bench.bench import compare, summarize
 from closet_bench.illustrate import STYLES, Fill, Spec, render
-from closet_bench.schema import ItemTags, Silhouette, silhouette_params
+from closet_bench.schema import Details, ItemTags, Silhouette, drawing_extras, silhouette_params
 from closet_bench.templates import PANTS_DEFAULTS, SNEAKER_DEFAULTS, TOP_DEFAULTS, build
 
 
@@ -17,6 +17,7 @@ def make_tags(**kw):
                 pattern_confidence=0.95, formality="casual", formality_confidence=0.6, season="cool",
                 season_confidence=0.5, silhouette=Silhouette.of(sleeve="long", neck="collar"), silhouette_confidence=0.7)
     base.update(secondary_colors=[], brand=None, size=None, material=None, needs_shot=None)
+    base.update(details=Details.plain(closure="full_buttons", button_count=7, cuffs="buttoned", hem="curved"), details_confidence=0.8)
     base.update(kw)
     return ItemTags(**base)
 
@@ -32,15 +33,17 @@ def garment(size=(400, 500), color=(200, 60, 60)):
 
 @pytest.mark.parametrize("template,options", [
     ("top", dict(sleeve=["none", "short", "long"], neck=["crew", "v", "collar", "hood", "turtle"], length=["cropped", "regular", "long"],
-                 fit=["slim", "regular", "oversized"], front=["none", "buttons", "half", "zip"], pockets=["none", "chest", "low", "chest-low"],
-                 hem=["straight", "curved", "rib"], cuffs=["plain", "rib", "button"])),
+                 fit=["slim", "regular", "oversized"], front=["none", "buttons", "half", "zip", "quarter-zip"],
+                 pockets=["none", "chest", "chest-two", "low", "chest-low", "kangaroo"],
+                 hem=["straight", "curved", "rib"], cuffs=["plain", "rib", "button"], buttons=[None, 0, 1, 3, 12],
+                 neck_detail=["none", "v-insert"], shoulder=["set-in", "raglan"])),
     ("pants", dict(leg=["tapered", "straight", "wide"], length=["short", "ankle", "full"], jeans=[False, True])),
     ("sneaker", dict(height=["low", "high"], sole=["thin", "regular", "chunky"])),
 ])
 def test_every_parameter_value_draws_valid_svg(template, options):
     for name, values in options.items():
         for v in values:
-            spec = Spec(template, {name: v}, Fill("solid", "#336699"))
+            spec = Spec(template, {name: v}, Fill("solid", "#336699"), texture="corduroy", trim_color="#ffffff", button_color="#111111")
             for style in ("flat", "line", "soft"):
                 svg = render(spec, style)
                 xml.dom.minidom.parseString(svg)
@@ -48,7 +51,8 @@ def test_every_parameter_value_draws_valid_svg(template, options):
 
 
 def test_defaults_cover_the_documented_vocabulary():
-    assert set(TOP_DEFAULTS) == {"sleeve", "neck", "length", "fit", "front", "pockets", "hem", "cuffs"}
+    assert set(TOP_DEFAULTS) == {"sleeve", "neck", "length", "fit", "front", "pockets", "hem", "cuffs", "buttons",
+                                 "neck_detail", "shoulder"}
     assert set(PANTS_DEFAULTS) == {"leg", "length", "jeans"}
     assert set(SNEAKER_DEFAULTS) == {"height", "sole"}
 
@@ -229,6 +233,35 @@ def test_tags_map_to_template_parameters():
     assert silhouette_params(make_tags(category="sneakers", silhouette=Silhouette.of()))[0] == "sneaker"
 
 
+def test_details_the_tagger_saw_reach_the_drawing():
+    """A polo with one dark button, a henley, a sweatshirt with a V-insert and a corduroy shirt each draw differently."""
+    def draw(**kw):
+        tags = make_tags(**kw)
+        template, params = silhouette_params(tags)
+        return params, render(Spec(template, params, Fill("solid", "#8a5a33"), **drawing_extras(tags)), "line")
+
+    polo = dict(category="polo", silhouette=Silhouette.of(sleeve="short", neck="collar"))
+    one, svg_one = draw(**polo, details=Details.plain(closure="half_placket", button_count=1, button_color="black"))
+    three, svg_three = draw(**polo, details=Details.plain(closure="half_placket", button_count=3, button_color="white"))
+    none_, svg_none = draw(**polo, details=Details.plain(closure="half_placket", button_count=0))
+    assert (one["front"], one["buttons"], three["buttons"], none_["buttons"]) == ("half", 1, 3, 0)
+    assert (svg_one.count("<circle"), svg_three.count("<circle"), svg_none.count("<circle")) == (1, 3, 0)
+    assert 'fill="#1f1f22"' in svg_one and 'fill="#f6f5f2"' in svg_three
+
+    tee = dict(category="tee", silhouette=Silhouette.of(sleeve="long", neck="crew"))
+    plain, svg_plain = draw(**tee, details=Details.plain())
+    henley, svg_henley = draw(**tee, details=Details.plain(closure="half_placket", button_count=3))
+    assert plain["front"] == "none" and henley["front"] == "half" and svg_plain != svg_henley
+
+    sweat = dict(category="sweater", silhouette=Silhouette.of(sleeve="long", neck="crew"))
+    base, svg_base = draw(**sweat, details=Details.plain(hem="ribbed", cuffs="ribbed"))
+    vee, svg_vee = draw(**sweat, details=Details.plain(hem="ribbed", cuffs="ribbed", features=["v_insert"]))
+    assert (base["hem"], base["cuffs"]) == ("rib", "rib") and vee["neck_detail"] == "v-insert" and svg_base != svg_vee
+
+    cord, svg_cord = draw(details=Details.plain(closure="full_buttons", button_count=7, texture="corduroy", trim_color="navy"))
+    assert "<pattern id=\"ta\"" in svg_cord and 'fill="#27344f"' in svg_cord
+
+
 def test_organic_swatch_wraps_without_a_seam():
     rng = np.random.default_rng(1)
     noise = cv2_blur(rng.integers(0, 255, (500, 400, 3)).astype(np.uint8))
@@ -281,7 +314,11 @@ def test_the_schema_sent_to_the_api_stays_within_its_documented_limits():
             for v in node:
                 walk(v)
     walk(schema)
-    assert set(schema["$defs"]) == {"Silhouette", "ShotRequest"}  # two flat helper objects, no recursion
+    assert set(schema["$defs"]) == {"Silhouette", "ShotRequest", "Details"}  # three flat helper objects, no recursion
+    # the API allows only a limited number of nullable properties in one schema; details must not add any
+    details = schema["$defs"]["Details"]
+    assert all("anyOf" not in v and v.get("type") != ["string", "null"] for v in details["properties"].values())
+    assert text.count('"anyOf"') <= 16
 
 
 def test_the_tagging_request_and_answer_survive_a_real_http_round_trip():

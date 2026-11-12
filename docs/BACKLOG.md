@@ -7,7 +7,9 @@
 - [ ] Striped, floral and camouflage hard cases (photos still needed).
 - [ ] Take the colour word for patterned items from the measured palette instead of the model.
 - [x] Owner picked illustration style B (bold outline, thin inner lines).
-- [ ] Check the pants and shoe templates against reference drawings the same way the top was (see `DECISIONS.md`, "Illustration").
+- [x] Pants and shoe templates checked against reference drawings and real garment measurements, the same way the top was.
+- [x] Detail fields added to the tagging schema and drawn (button count and colour, placket, pockets, corduroy and knit surfaces, contrast trim, V-insert, raglan).
+- [ ] Score the detail fields on the owner's real photos (the test photos have no polo, henley or corduroy).
 - [ ] First Actions run of the packaging spike on Windows (waiting for the owner's go-ahead on Actions usage).
 
 ## Waiting on the owner
@@ -26,6 +28,9 @@
 - [ ] Pin the macOS-only tray dependencies after the first Mac build.
 
 ## Phase 2 additions
+- Store the tagger's `details` block with each item (a migration), draw from it, and show `other_features` beside the drawing as "seen but not drawn".
+- Corrections by command edit details too ("it has three buttons", "the collar is white").
+- Grow the detail options from the owner's real clothes: each `other_features` entry that recurs becomes an option the template can draw.
 - Move the two-route layer (`bench/closet_bench/routes.py`, `claude_cli.py`, `tagging.py`) into the backend; Settings shows which routes are available and the order.
 - Install note in the README for Claude Code on Windows, and a check that it is signed in.
 

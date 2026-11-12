@@ -23,7 +23,7 @@ from pathlib import Path
 from . import cutout as C
 from . import fills
 from .illustrate import Fill, Spec, render
-from .schema import FIELDS, SILHOUETTE_FIELDS, ItemTags, silhouette_params
+from .schema import DETAIL_FIELDS, FIELDS, SILHOUETTE_FIELDS, Details, ItemTags, drawing_extras, silhouette_params
 from .routes import ORDERS, Router
 from .tagging import CONFIG, TaggingError, TagResult
 
@@ -54,6 +54,11 @@ def compare(tags: ItemTags, truth: dict) -> dict[str, dict]:
         if want:
             got = getattr(tags.silhouette, f)
             out[f] = dict(correct=got == want, confidence=tags.silhouette_confidence, got=got, want=want)
+    for f in DETAIL_FIELDS:
+        want = truth.get(f)
+        if want:
+            got = str(getattr(tags.details, f))
+            out[f] = dict(correct=got == want, confidence=tags.details_confidence, got=got, want=want)
     return out
 
 
@@ -98,6 +103,9 @@ def recorded_tagger(folder: Path):
                 if isinstance(raw.get("silhouette"), dict):
                     for k in SILHOUETTE_FIELDS:
                         raw["silhouette"].setdefault(k, None)
+                # answers recorded before the details existed
+                raw["details"] = {**Details.plain().model_dump(), **(raw.get("details") or {})}
+                raw.setdefault("details_confidence", 0.0)
             tags = ItemTags.model_validate(raw)
         except OSError as e:
             raise TaggingError("no recorded answer for this item") from e
@@ -204,10 +212,19 @@ def _report(results: dict, cuts: dict, show_model: str, measured: bool = True) -
             st = fills.measure_stripes(cut)
             fill = Fill("stripes", st.bands[0][0], stripes=st)
         graphic = fills.extract_graphic(cut) if tags.pattern == "graphic" else None
-        svg = render(Spec(template, params, fill, graphic), "flat", uid=f"b{i}")
+        extras = drawing_extras(tags)
+        if fill.kind == "swatch":   # the photo's own cloth already carries its surface
+            extras["texture"] = None
+        svg = render(Spec(template, params, fill, graphic, **extras), "line", uid=f"b{i}")
         wrong = [f"{f}: said {o['got']}, key says {o['want']}" for f, o in r["outcome"].items() if not o["correct"]]
+        d = tags.details
+        seen = [f"{d.closure.replace('_', ' ')}" + (f", {d.button_count} buttons ({d.button_color})" if d.button_count else ""),
+                f"pockets {d.pockets.replace('_', ' ')}", f"hem {d.hem}", f"cuffs {d.cuffs}", f"texture {d.texture.replace('_', ' ')}"]
+        seen += [f.replace("_", " ") for f in d.features]
+        not_drawn = ("<br><b>Seen but not drawn:</b> " + html.escape("; ".join(d.other_features))) if d.other_features else ""
         h.append(f"<div class='card{' bad' if wrong else ''}'><div class='pair'><img src='{fills.data_uri(cut, 300, 'WEBP')}'>{svg}</div>"
-                 f"<p>{html.escape(name)}<br>{html.escape('; '.join(wrong) or 'all keyed fields right')}</p></div>")
+                 f"<p>{html.escape(name)}<br>{html.escape('; '.join(wrong) or 'all keyed fields right')}"
+                 f"<br><b>Details:</b> {html.escape('; '.join(seen))}{not_drawn}</p></div>")
     h.append("</div>")
     return "".join(h)
 

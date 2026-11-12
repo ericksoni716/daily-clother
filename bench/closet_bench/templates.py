@@ -54,10 +54,13 @@ TOP_DEFAULTS = dict(
     neck="crew",        # crew | v | collar | hood | turtle
     length="regular",   # cropped | regular | long
     fit="regular",      # slim | regular | oversized
-    front="none",       # none | buttons | half | zip
-    pockets="none",     # none | chest | low | chest-low
+    front="none",       # none | buttons | half | zip | quarter-zip
+    pockets="none",     # none | chest | chest-two | low | chest-low | kangaroo
     hem="straight",     # straight | curved | rib
     cuffs="plain",      # plain | rib | button
+    buttons=None,       # how many buttons show on the front; None = the usual number for this front
+    neck_detail="none",  # none | v-insert (the stitched triangle under a sweatshirt's collar)
+    shoulder="set-in",  # set-in | raglan (seams run from the neck to the underarm)
 )
 
 
@@ -176,7 +179,13 @@ def top(**kw) -> Shape:
         front_bottom = ny + dip
         sh.parts.append(Part(
             f"M {_pt(Nl)} Q {_pt((CX, back_neck_y))} {_pt(N)} Q {_pt((CX, ny + dip * 2))} {_pt(Nl)} Z", "hole"))
-        sh.lines.append(f"M {_pt((Nl[0] - 5, ny + 4))} Q {_pt((CX, ny + dip * 2 + 16))} {_pt((N[0] + 5, ny + 4))}")
+        rib = f"M {_pt((Nl[0] - 5, ny + 4))} Q {_pt((CX, ny + dip * 2 + 16))} {_pt((N[0] + 5, ny + 4))}"
+        sh.parts.append(Part(f"{rib} L {_pt(N)} Q {_pt((CX, ny + dip * 2))} {_pt(Nl)} Z", "neckrib"))
+        sh.lines.append(rib)
+        if p["neck_detail"] == "v-insert" and p["front"] == "none":
+            ry = ny + 4 + (dip * 2 + 12) * 0.451   # the rib's lower edge, 11 either side of centre
+            sh.parts.append(Part(f"M {_pt((CX - 11, ry))} Q {_pt((CX, ry + 4.5))} {_pt((CX + 11, ry))} "
+                                 f"L {_pt((CX, ry + 21))} Z", "trim"))
     elif p["neck"] == "v":
         front_bottom = ny + 58
         sh.parts.append(Part(
@@ -228,7 +237,10 @@ def top(**kw) -> Shape:
         sh.lines.append(f"M {_pt((CX + 9, front_bottom + 4))} L {_pt((CX + 11, front_bottom + 52))}")
 
     # ---- armhole seams: from the shoulder, curving in, then straight down into the side seam
-    if seam:
+    if seam and p["shoulder"] == "raglan" and not collar:
+        for m in (lambda v: v, _mirror):
+            sh.seams.append(f"M {_pt(m((N[0] + 4, ny + 2)))} Q {_pt(m(((N[0] + A[0]) / 2 + 9, (ny + ay) / 2 - 8)))} {_pt(m(A))}")
+    elif seam:
         s0, s1, s2, s3 = seam
         for m in (lambda v: v, _mirror):
             sh.seams.append(f"M {_pt(m(s0))} C {_pt(m(s1))} {_pt(m(s2))} {_pt(m(s3))} L {_pt(m(A))}")
@@ -263,27 +275,38 @@ def top(**kw) -> Shape:
 
     # ---- front opening. These are seams: the collar lies over the top of them.
     bottom = hem_bottom + 2
+    count = p["buttons"] if p["buttons"] is None else max(0, int(p["buttons"]))
     if p["front"] == "buttons":
         top_y = front_bottom + (1.3 if collar else 2)   # just under the curve of the stand seam
         sh.seams.append(f"M {_pt((CX - 7, top_y))} L {_pt((CX - 7, bottom))}")
         sh.seams.append(f"M {_pt((CX + 7, top_y))} L {_pt((CX + 7, bottom))}")
-        if collar:
-            sh.dots.append((CX, front_bottom - 5.2, 3.4))   # the top button, on the collar stand
         first = front_bottom + (36 if collar else 16)
         last = hy - (42 if curved else 30)
-        n = max(2, round((last - first) / 44) + 1)
-        for i in range(n):
-            sh.dots.append((CX, first + (last - first) * i / (n - 1), 3.4))
+        if count is None:
+            n = max(2, round((last - first) / 44) + 1)
+        else:   # the count the tagger saw, including the one on the collar stand
+            n = max(1, min(10, count - (1 if collar else 0)))
+        if collar and count != 0:
+            sh.dots.append((CX, front_bottom - 5.2, 3.4))   # the top button, on the collar stand
+        if count != 0:
+            for i in range(n):
+                sh.dots.append((CX, first + (last - first) * (i / (n - 1) if n > 1 else 0.5), 3.4))
     elif p["front"] == "half":
+        # a polo or henley placket: as long as its buttons need
+        n = 2 if count is None else min(5, count)
         top_y = front_bottom if collar else front_bottom + 2
-        end = top_y + 60
+        first, step = top_y + (17 if collar else 13), 22
+        end = first + step * max(n - 1, 0) + (14 if n else 26)
         sh.seams.append(f"M {_pt((CX - 7, top_y))} L {_pt((CX - 7, end))} L {_pt((CX + 7, end))} L {_pt((CX + 7, top_y))}")
-        for i in range(2):
-            sh.dots.append((CX, top_y + 17 + 24 * i, 3.0))
-    elif p["front"] == "zip":
-        sh.seams.append(f"M {_pt((CX, front_bottom))} L {_pt((CX, bottom))}")
+        for i in range(n):
+            sh.dots.append((CX, first + step * i, 3.0))
+    elif p["front"] in ("zip", "quarter-zip"):
+        end = bottom if p["front"] == "zip" else front_bottom + 78
+        sh.seams.append(f"M {_pt((CX, front_bottom))} L {_pt((CX, end))}")
         sh.lines.append(f"M {_pt((CX - 4, front_bottom + 6))} L {_pt((CX - 4, front_bottom + 20))} "
                         f"L {_pt((CX + 4, front_bottom + 20))} L {_pt((CX + 4, front_bottom + 6))}")
+        if p["front"] == "quarter-zip":
+            sh.lines.append(f"M {_pt((CX - 5, end))} L {_pt((CX + 5, end))}")
 
     # ---- pockets
     def patch(x, y, w, h, flap=True):
@@ -297,9 +320,14 @@ def top(**kw) -> Shape:
     chest_y = sy + 72
     if p["pockets"] == "chest":
         patch(CX + 21, chest_y, 38, 44, flap=False)
-    elif p["pockets"] == "chest-low":
+    elif p["pockets"] in ("chest-low", "chest-two"):
         patch(CX + 21, chest_y, 38, 44)
         patch(CX - 59, chest_y, 38, 44)
+    if p["pockets"] == "kangaroo":   # a hoodie's pouch: slanted openings either side
+        y1 = hy - (18 if p["hem"] == "rib" else 8)
+        y0, wt, wb = y1 - 76, 36.0, min(54.0, hh - 22)
+        sh.lines.append(f"M {_pt((CX - wt, y0))} L {_pt((CX + wt, y0))} L {_pt((CX + wb, y0 + 40))} L {_pt((CX + wb, y1))} "
+                        f"M {_pt((CX - wt, y0))} L {_pt((CX - wb, y0 + 40))} L {_pt((CX - wb, y1))}")
     if p["pockets"] in ("low", "chest-low"):   # sized from the body so they clear the side seam and the placket
         w = min(50, hh - 24)
         patch(CX + hh - 14 - w, hy - 86, w, 52)

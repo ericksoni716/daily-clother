@@ -37,6 +37,9 @@ class Spec:
     fill: Fill
     graphic: fills.Graphic | None = None
     sole_color: str | None = None
+    button_color: str | None = None   # buttons and eyelets; None = pale, like the card
+    trim_color: str | None = None     # a contrast collar, cuffs and ribbing; None = the garment's own cloth
+    texture: str | None = None        # corduroy | rib_knit | cable_knit | waffle: drawn tone-on-tone over the fill
     notes: list[str] = field(default_factory=list)
 
 
@@ -94,6 +97,24 @@ def _defs_for_fill(fill: Fill, shape: Shape, uid: str, garment_w: float, garment
     return "", fill.color
 
 
+def _texture_defs(texture: str | None, uid: str, dark: bool) -> str:
+    """A tone-on-tone surface drawn over the cloth, so corduroy does not look like poplin."""
+    lo, hi = ("#fff", "#000") if dark else ("#000", "#fff")
+    body = {
+        "corduroy": (6, 12, f'<path d="M1.5,0V12" stroke="{lo}" stroke-width="1.2" opacity=".24"/>'
+                            f'<path d="M4.3,0V12" stroke="{hi}" stroke-width="1" opacity=".12"/>'),
+        "rib_knit": (9, 12, f'<path d="M2,0V12" stroke="{lo}" stroke-width="1.3" opacity=".17"/>'),
+        "waffle": (7, 7, f'<path d="M0,.6H7M.6,0V7" stroke="{lo}" stroke-width="1.1" opacity=".15" fill="none"/>'),
+        "cable_knit": (34, 24, f'<g stroke="{lo}" stroke-width="1.3" opacity=".2" fill="none">'
+                               '<path d="M4,0V24M30,0V24"/><path d="M11,0C11,8 23,4 23,12C23,20 11,16 11,24"/>'
+                               '<path d="M23,0C23,8 11,4 11,12C11,20 23,16 23,24"/></g>'),
+    }.get(texture or "")
+    if not body:
+        return ""
+    w, h, marks = body
+    return f'<pattern id="t{uid}" patternUnits="userSpaceOnUse" x="{CX_ROT[0]}" y="0" width="{w}" height="{h}">{marks}</pattern>'
+
+
 def _graphic_markup(g: fills.Graphic | None, box: tuple[float, float, float, float], clip: str) -> str:
     if not g:
         return ""
@@ -130,6 +151,8 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
     clip = f"c{uid}"
     defs += f'<clipPath id="{clip}"><path d="{shape.outline}"/></clipPath>'
     patterned = paint.startswith("url(")
+    tex_defs = _texture_defs(spec.texture, uid, dark_item)
+    defs += tex_defs
 
     def turned(name: str, degrees: float) -> str:
         """The same cloth turned by an angle (sleeves hang at an angle; collar leaves are cut on a slant)."""
@@ -175,7 +198,11 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
             return halo(d, 2.4) + thin(d)
         if role in ("collar_r", "collar_l"):
             # the same cloth as the body (turned, when patterned); its edges are a separate "edge" part
+            if spec.trim_color:
+                return f'<path d="{d}" fill="{spec.trim_color}"/>'
             return f'<path d="{d}" fill="{turned(role[-1], -24 if role == "collar_r" else 24)}"/>'
+        if role == "neckrib":   # the rib of a crew neck: only painted when it is a contrast colour
+            return f'<path d="{d}" fill="{spec.trim_color}"/>' if spec.trim_color else ""
         if role == "sole":
             c = spec.sole_color or "#f4f1ea"
             return f'<path d="{d}" fill="{c}"/>' + (f'<path d="{d}" fill="#000" opacity=".06"/>' if style != "line" else "")
@@ -184,7 +211,10 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
         # a shirt cuff is the body's own cloth: no tint where a line already marks it
         op = {"trim": 0.10, "band": 0.12, "cuff": 0.0 if style == "line" else 0.06}.get(role, 0.1)
         col = "#fff" if dark_item else "#000"
-        out = f'<path d="{d}" fill="{paint}"/>' + (f'<path d="{d}" fill="{col}" opacity="{op}"/>' if op else "")
+        if spec.trim_color and role in ("band", "cuff"):
+            out = f'<path d="{d}" fill="{spec.trim_color}"/>'
+        else:
+            out = f'<path d="{d}" fill="{paint}"/>' + (f'<path d="{d}" fill="{col}" opacity="{op}"/>' if op else "")
         if style in ("line", "soft"):
             out += f'<path d="{d}" fill="none" stroke="{l_stroke}" stroke-width="{l_w}" stroke-linejoin="round" opacity="{l_op}"/>'
         return out
@@ -198,6 +228,13 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
     if patterned:
         for n, (d, degrees) in enumerate(shape.sleeves):
             g.append(f'<path d="{d}" fill="{turned(f"s{n}", degrees)}"/>')
+    if tex_defs:   # the surface runs down the body and along each sleeve
+        g.append(f'<path d="{shape.outline}" fill="url(#t{uid})"/>')
+        for n, (d, degrees) in enumerate(shape.sleeves):
+            defs += (f'<pattern id="t{uid}s{n}" href="#t{uid}" '
+                     f'patternTransform="rotate({degrees:.1f} {CX_ROT[0]} {CX_ROT[1]})"/>')
+            g.append(f'<path d="{d}" fill="{paint if not patterned else turned(f"s{n}", degrees)}"/>'
+                     f'<path d="{d}" fill="url(#t{uid}s{n})"/>')
     # seams lie on the body, under anything folded over it (a collar covers the top of the placket)
     g.append(f'<g clip-path="url(#{clip})">')
     for d in shape.seams:
@@ -220,7 +257,10 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
         if patterned:
             g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 1.3}" fill="#fff" opacity=".45"/>')
         if style == "line":
-            g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{CARD}" stroke="{INK}" stroke-width="1.1"/>')
+            ring = shade(spec.button_color, 0.45) if spec.button_color and luminance(spec.button_color) < 0.08 and dark_item else INK
+            g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{spec.button_color or CARD}" stroke="{ring}" stroke-width="1.1"/>')
+        elif spec.button_color:
+            g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{spec.button_color}" stroke="{l_stroke}" stroke-width=".8"/>')
         else:
             g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{l_stroke}" opacity="{min(1, l_op + 0.25)}"/>')
     if o_w:

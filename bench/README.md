@@ -46,6 +46,7 @@ numbers only, never file names.
 | `closet_bench/illustrate.py` | The four styles; shape + fill = SVG |
 | `closet_bench/schema.py` | Attribute vocabulary and the shape of a tagging answer |
 | `closet_bench/tagging.py` | The prompt and the API-key route: schema-constrained, validated, retried |
+| `closet_bench/taxonomy.py` | The owner's menswear taxonomy as the drawing sees it: axes, mapping to the templates, coverage of every value |
 | `closet_bench/claude_cli.py` | The plan route: the same call through `claude -p` |
 | `closet_bench/routes.py` | Plan first, API key as fallback |
 | `closet_bench/models.json` | The one place model IDs and prices live |

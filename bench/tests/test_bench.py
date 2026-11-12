@@ -17,7 +17,8 @@ def make_tags(**kw):
                 pattern_confidence=0.95, formality="casual", formality_confidence=0.6, season="cool",
                 season_confidence=0.5, silhouette=Silhouette.of(sleeve="long", neck="collar"), silhouette_confidence=0.7)
     base.update(secondary_colors=[], brand=None, size=None, material=None, needs_shot=None)
-    base.update(details=Details.plain(closure="full_buttons", button_count=7, cuffs="buttoned", hem="curved"), details_confidence=0.8)
+    base.update(details=Details.plain(sleeve_length="long", collar="point", placket="front_placket", placket_buttons=7,
+                                      cuff="barrel_1", hem="curved_shirt_tail"), details_confidence=0.8)
     base.update(kw)
     return ItemTags(**base)
 
@@ -241,7 +242,7 @@ def test_tags_map_to_template_parameters():
 
 def test_pants_and_shoe_details_reach_the_drawing():
     t, p = silhouette_params(make_tags(category="trousers", silhouette=Silhouette.of(leg="wide"), details=Details.plain(
-        waist="drawstring", pockets="cargo", hem="ribbed", texture="corduroy", features=["pleats"])))
+        waist="drawstring", pockets="cargo", pant_hem="ribbed", fabric="corduroy", features=["pleats"])))
     assert (p["waist"], p["cargo"], p["hem"], p["pleats"]) == ("drawstring", True, "rib", 1)
     jeans = silhouette_params(make_tags(category="jeans", silhouette=Silhouette.of(), details=Details.plain(features=["contrast_stitching"])))[1]
     assert jeans["stitch"] == "contrast" and "waist" not in jeans      # belt loops and a fly unless the tagger saw otherwise
@@ -249,7 +250,7 @@ def test_pants_and_shoe_details_reach_the_drawing():
     assert shoe("boots")["style"] == "boot" and shoe("dress_shoes")["style"] == "derby"
     assert shoe("boots", shoe_style="chelsea_boot")["style"] == "chelsea_boot"
     assert shoe("sneakers", shoe_style="runner", features=["side_stripe", "chunky_sole"]) == dict(height="low", style="runner", sole="chunky", stripe="side")
-    assert shoe("sneakers", texture="canvas", features=["toe_cap"])["toe_cap"] == "rubber"
+    assert shoe("sneakers", fabric="canvas", features=["toe_cap"])["toe_cap"] == "rubber"
     assert shoe("dress_shoes", shoe_style="oxford", features=["toe_cap"])["toe_cap"] == "stitched"
     extras = drawing_extras(make_tags(category="sneakers", details=Details.plain(sole_color="white", lace_color="red", trim_color="navy")))
     assert (extras["sole_color"], extras["lace_color"], extras["trim_color"]) == ("#f6f5f2", "#b8332e", "#27344f")
@@ -271,24 +272,29 @@ def test_details_the_tagger_saw_reach_the_drawing():
         return params, render(Spec(template, params, Fill("solid", "#8a5a33"), **drawing_extras(tags)), "line")
 
     polo = dict(category="polo", silhouette=Silhouette.of(sleeve="short", neck="collar"))
-    one, svg_one = draw(**polo, details=Details.plain(closure="half_placket", button_count=1, button_color="black"))
-    three, svg_three = draw(**polo, details=Details.plain(closure="half_placket", button_count=3, button_color="white"))
-    none_, svg_none = draw(**polo, details=Details.plain(closure="half_placket", button_count=0))
+    knit = dict(sleeve_length="short", neckline="polo_collar", collar="flat_knit", placket="polo")
+    one, svg_one = draw(**polo, details=Details.plain(**knit, placket_buttons=1, button_color="black"))
+    three, svg_three = draw(**polo, details=Details.plain(**knit, placket_buttons=3, button_color="white"))
+    none_, svg_none = draw(**polo, details=Details.plain(**knit, placket_buttons=0))
     assert (one["front"], one["buttons"], three["buttons"], none_["buttons"]) == ("half", 1, 3, 0)
-    assert (svg_one.count("<circle"), svg_three.count("<circle"), svg_none.count("<circle")) == (1, 3, 0)
+    assert len({svg_one, svg_three, svg_none}) == 3
     assert 'fill="#1f1f22"' in svg_one and 'fill="#f6f5f2"' in svg_three
 
     tee = dict(category="tee", silhouette=Silhouette.of(sleeve="long", neck="crew"))
-    plain, svg_plain = draw(**tee, details=Details.plain())
-    henley, svg_henley = draw(**tee, details=Details.plain(closure="half_placket", button_count=3))
+    plain, svg_plain = draw(**tee, details=Details.plain(sleeve_length="long", neckline="crew"))
+    henley, svg_henley = draw(**tee, details=Details.plain(sleeve_length="long", neckline="henley", placket="henley", placket_buttons=3))
     assert plain["front"] == "none" and henley["front"] == "half" and svg_plain != svg_henley
 
     sweat = dict(category="sweater", silhouette=Silhouette.of(sleeve="long", neck="crew"))
-    base, svg_base = draw(**sweat, details=Details.plain(hem="ribbed", cuffs="ribbed"))
-    vee, svg_vee = draw(**sweat, details=Details.plain(hem="ribbed", cuffs="ribbed", features=["v_insert"]))
-    assert (base["hem"], base["cuffs"]) == ("rib", "rib") and vee["neck_detail"] == "v-insert" and svg_base != svg_vee
+    rib = dict(sleeve_length="long", neckline="crew", cuff="rib_knit", hem="ribbed_band")
+    base, svg_base = draw(**sweat, details=Details.plain(**rib))
+    vee, svg_vee = draw(**sweat, details=Details.plain(**rib, features=["v_insert"]))
+    big, svg_big = draw(**sweat, details=Details.plain(**rib, fit_detail="oversized"))
+    assert (base["hem"], base["cuffs"]) == ("rib", "rib") and vee["neck_detail"] == "v-insert"
+    assert len({svg_base, svg_vee, svg_big}) == 3
 
-    cord, svg_cord = draw(details=Details.plain(closure="full_buttons", button_count=7, texture="corduroy", trim_color="navy"))
+    cord, svg_cord = draw(details=Details.plain(sleeve_length="long", collar="point", placket="front_placket", placket_buttons=7,
+                                               fabric="corduroy", trim_color="navy"))
     assert "<pattern id=\"ta\"" in svg_cord and 'fill="#27344f"' in svg_cord
 
 

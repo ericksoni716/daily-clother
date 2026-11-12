@@ -9,6 +9,9 @@
 - [x] Owner picked illustration style B (bold outline, thin inner lines).
 - [x] Pants and shoe templates checked against reference drawings and real garment measurements, the same way the top was.
 - [x] Detail fields added to the tagging schema and drawn (button count and colour, placket, pockets, corduroy and knit surfaces, contrast trim, V-insert, raglan).
+- [x] Detail fields switched to the owner's taxonomy axes; coverage of every value tracked in `bench/closet_bench/taxonomy.py`.
+- [ ] Work down the coverage table: values marked approximate or not drawn, most common garments first.
+- [ ] The app's stored vocabulary (`backend/closet/vocab.py`, the frontend labels) still uses the coarse fields; align it with the taxonomy when tagging moves into the app (phase 2).
 - [ ] Score the detail fields on the owner's real photos (the test photos have no polo, henley or corduroy).
 - [ ] First Actions run of the packaging spike on Windows (waiting for the owner's go-ahead on Actions usage).
 

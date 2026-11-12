@@ -23,7 +23,7 @@ from pathlib import Path
 from . import cutout as C
 from . import fills
 from .illustrate import Fill, Spec, render
-from .schema import DETAIL_FIELDS, FIELDS, SILHOUETTE_FIELDS, Details, ItemTags, drawing_extras, silhouette_params
+from .schema import DETAIL_FIELDS, FIELDS, SILHOUETTE_FIELDS, Details, ItemTags, drawing_for, silhouette_params
 from .routes import ORDERS, Router
 from .tagging import CONFIG, TaggingError, TagResult
 
@@ -209,19 +209,19 @@ def _report(results: dict, cuts: dict, show_model: str, measured: bool = True) -
             except ValueError:
                 pass
         elif tags.pattern == "stripe":
-            st = fills.measure_stripes(cut)
+            st = fills.measure_stripes(cut, "vertical" if tags.details.pattern_orientation == "vertical" else "horizontal")
             fill = Fill("stripes", st.bands[0][0], stripes=st)
         graphic = fills.extract_graphic(cut) if tags.pattern == "graphic" else None
-        extras = drawing_extras(tags)
+        _, _, extras, approximated = drawing_for(tags)
         if fill.kind == "swatch":   # the photo's own cloth already carries its surface
             extras["texture"] = None
         svg = render(Spec(template, params, fill, graphic, **extras), "line", uid=f"b{i}")
         wrong = [f"{f}: said {o['got']}, key says {o['want']}" for f, o in r["outcome"].items() if not o["correct"]]
         d = tags.details
-        seen = [f"{d.closure.replace('_', ' ')}" + (f", {d.button_count} buttons ({d.button_color})" if d.button_count else ""),
-                f"pockets {d.pockets.replace('_', ' ')}", f"hem {d.hem}", f"cuffs {d.cuffs}", f"texture {d.texture.replace('_', ' ')}"]
+        seen = [f"{k.replace('_', ' ')} {str(getattr(d, k)).replace('_', ' ')}" for k in DETAIL_FIELDS
+                if getattr(d, k) not in ("na", "none", "same", "unknown", "solid", "all_over", "regular", 0)]
         seen += [f.replace("_", " ") for f in d.features]
-        not_drawn = ("<br><b>Seen but not drawn:</b> " + html.escape("; ".join(d.other_features))) if d.other_features else ""
+        not_drawn = ("<br><b>Seen but not drawn:</b> " + html.escape("; ".join(d.other_features + approximated))) if (d.other_features or approximated) else ""
         h.append(f"<div class='card{' bad' if wrong else ''}'><div class='pair'><img src='{fills.data_uri(cut, 300, 'WEBP')}'>{svg}</div>"
                  f"<p>{html.escape(name)}<br>{html.escape('; '.join(wrong) or 'all keyed fields right')}"
                  f"<br><b>Details:</b> {html.escape('; '.join(seen))}{not_drawn}</p></div>")

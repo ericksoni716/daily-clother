@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import shutil
 import uuid
+import zlib
 from pathlib import Path
 
 from . import db, images, jobs, vocab
@@ -37,6 +38,8 @@ def summary(conn, row) -> dict:
         "color_hex": row["color_hex"], "pattern": row["pattern"], "location": row["location"], "rating": row["rating"],
         "status": row["status"], "cutout_state": row["cutout_state"], "thumb_url": _media(thumb),
         "has_illustration": row["illustration_svg"] is not None, "has_photo": photo is not None,
+        "illustration_url": (f"/api/items/{row['id']}/illustration.svg?v={zlib.crc32(row['illustration_svg'].encode()):08x}"
+                             if row["illustration_svg"] is not None else None),
         "created_at": row["created_at"], "updated_at": row["updated_at"],
     }
 

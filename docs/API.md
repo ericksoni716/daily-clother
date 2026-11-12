@@ -16,7 +16,8 @@ HttpOnly, SameSite=Strict); without it the answer is 401.
 | `POST /api/logout` | 204 |
 
 ## Items
-`ItemSummary`: `id, name, category, color, color_hex, pattern, location, rating, status, cutout_state, thumb_url, has_illustration, has_photo, created_at, updated_at`.
+`ItemSummary`: `id, name, category, color, color_hex, pattern, location, rating, status, cutout_state, thumb_url, has_illustration, illustration_url, has_photo, created_at, updated_at`.
+`illustration_url` (or null) is an SVG image address that changes whenever the drawing changes, so it can be used in an `<img>` and cached forever.
 `cutout_state` is `none` (no photo), `pending`, `processing`, `ready` or `failed`. `thumb_url` is the cutout thumbnail once ready, the photo thumbnail before that, or null.
 
 `Item` is the summary plus `formality, season, brand, size, material, fit_notes, condition, price_cents, acquired_on, notes, rating_reason, illustration_svg, cutout_error, silhouette{}, confidence{}, source{}, photos[]`.
@@ -31,6 +32,7 @@ Each photo: `id, kind, url, thumb_url, cutout_url, cutout_thumb_url, width, heig
 | `PATCH /api/items/{id}` JSON of fields to change | `Item`. Changeable: `name, category, color, color_hex, pattern, formality, season, location, condition, rating, rating_reason, brand, size, material, fit_notes, acquired_on, notes, price_cents, status, silhouette` (silhouette is merged; a null value removes a key). 422 with a readable message for a value outside the vocabulary. |
 | `DELETE /api/items/{id}` | 204; the item and its images are removed. |
 | `POST /api/items/{id}/retry-cutout` | 202 `Item` |
+| `GET /api/items/{id}/illustration.svg` | The item's illustration as `image/svg+xml`; 404 if it has none. |
 | `GET /media/{path}` | A WebP image; cacheable forever (paths never change content). |
 
 ## Background-removal model

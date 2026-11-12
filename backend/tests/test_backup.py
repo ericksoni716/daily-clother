@@ -86,6 +86,8 @@ def test_demo_closet_has_about_thirty_items_and_leaves_the_real_one_alone(client
     assert all(i["has_illustration"] for i in listed)
     one = client.get(f"/api/items/{with_photo[0]['id']}").json()
     assert one["illustration_svg"].startswith("<svg") and client.get(one["photos"][0]["cutout_url"]).status_code == 200
+    drawn = client.get(listed[0]["illustration_url"])
+    assert drawn.status_code == 200 and drawn.headers["content-type"].startswith("image/svg+xml") and drawn.text.startswith("<svg")
     assert demo.ensure(cfg) == 0  # seeding twice adds nothing
     assert client.get("/api/session").json()["profile"] == "demo"
     client.post("/api/profile", json={"profile": "main"})

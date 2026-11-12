@@ -194,6 +194,15 @@ def create_app(sv: Services) -> FastAPI:
     def get_item(item_id: str, conn=Depends(conn_dep)):
         return items.detail(conn, items.get(conn, item_id))
 
+    @app.get("/api/items/{item_id}/illustration.svg", dependencies=protected)
+    def get_illustration(item_id: str, conn=Depends(conn_dep)):
+        svg = items.get(conn, item_id)["illustration_svg"]
+        if svg is None:
+            raise HTTPException(404, "This item has no illustration yet.")
+        # the address carries a version, so the drawing can be cached until it changes
+        return Response(svg, media_type="image/svg+xml", headers={
+            "Cache-Control": "private, max-age=31536000, immutable", "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
+
     @app.patch("/api/items/{item_id}", dependencies=protected)
     async def patch_item(item_id: str, request: Request, conn=Depends(conn_dep)):
         try:

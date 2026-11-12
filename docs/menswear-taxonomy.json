@@ -1,0 +1,1545 @@
+{
+ "version": 1,
+ "description": "Menswear taxonomy for rendering. Axes are independent; 'garments' lists plausible values per axis; 'rules' rejects implausible permutations. See menswear-reference.md for visual descriptions.",
+ "axes": {
+  "fit": [
+   "slim",
+   "regular",
+   "relaxed",
+   "boxy",
+   "oversized",
+   "cropped",
+   "longline",
+   "tailored"
+  ],
+  "sleeve_length": [
+   "sleeveless",
+   "short",
+   "elbow",
+   "three_quarter",
+   "long"
+  ],
+  "neckline": [
+   "crew",
+   "v_neck",
+   "scoop",
+   "boat",
+   "mock",
+   "turtleneck",
+   "rollneck",
+   "shawl",
+   "henley",
+   "polo_collar",
+   "quarter_zip",
+   "hood"
+  ],
+  "collar": [
+   "point",
+   "semi_spread",
+   "spread",
+   "cutaway",
+   "button_down",
+   "hidden_button_down",
+   "club",
+   "tab",
+   "pin",
+   "band",
+   "camp",
+   "wing",
+   "western",
+   "johnny",
+   "flat_knit",
+   "woven_twill_rugby",
+   "shawl",
+   "stand",
+   "notch_lapel",
+   "peak_lapel",
+   "none"
+  ],
+  "placket": [
+   "front_placket",
+   "french_front",
+   "hidden_fly",
+   "half_placket_popover",
+   "henley",
+   "polo",
+   "snap",
+   "zip_quarter",
+   "zip_half",
+   "zip_full",
+   "double_breasted",
+   "none"
+  ],
+  "cuff": [
+   "barrel_1",
+   "barrel_2",
+   "french",
+   "convertible",
+   "mitred",
+   "snap_3",
+   "rib_knit",
+   "open_hem",
+   "rolled",
+   "roll_tab",
+   "none"
+  ],
+  "sleeve_construction": [
+   "set_in",
+   "raglan",
+   "drop_shoulder",
+   "saddle_shoulder",
+   "dolman"
+  ],
+  "pockets": [
+   "none",
+   "chest_patch_single",
+   "chest_patch_double",
+   "chest_flap_single",
+   "chest_flap_double",
+   "pencil_slot",
+   "western_smile",
+   "bellows",
+   "welt",
+   "kangaroo",
+   "split_hand",
+   "slash",
+   "utility_sleeve",
+   "four_patch_guayabera",
+   "three_patch_chore",
+   "five_pocket_jean",
+   "cargo"
+  ],
+  "closure_material": [
+   "plastic",
+   "mother_of_pearl",
+   "trocas",
+   "horn",
+   "corozo",
+   "metal_shank",
+   "pearl_snap",
+   "metal_snap",
+   "rubber",
+   "coconut",
+   "wood",
+   "leather_knot",
+   "toggle",
+   "cufflink",
+   "zip_metal",
+   "zip_plastic",
+   "none"
+  ],
+  "back_detail": [
+   "plain",
+   "box_pleat",
+   "side_pleats",
+   "locker_loop",
+   "box_pleat_locker_loop",
+   "split_yoke",
+   "darts",
+   "western_yoke",
+   "umbrella_yoke"
+  ],
+  "hem": [
+   "curved_shirt_tail",
+   "straight_with_vents",
+   "straight",
+   "tennis_tail",
+   "ribbed_band",
+   "raw"
+  ],
+  "fiber": [
+   "cotton",
+   "linen",
+   "cotton_linen",
+   "hemp",
+   "merino",
+   "lambswool",
+   "shetland",
+   "cashmere",
+   "yak",
+   "camel",
+   "alpaca",
+   "mohair",
+   "worsted_wool",
+   "woolen_wool",
+   "silk",
+   "polyester",
+   "nylon",
+   "acrylic",
+   "viscose",
+   "lyocell",
+   "modal",
+   "leather",
+   "suede",
+   "shearling"
+  ],
+  "woven_structure": [
+   "plain",
+   "linen",
+   "poplin",
+   "broadcloth",
+   "twill",
+   "herringbone",
+   "oxford",
+   "pinpoint_oxford",
+   "royal_oxford",
+   "end_on_end",
+   "chambray",
+   "denim",
+   "dobby",
+   "jacquard",
+   "satin",
+   "sateen",
+   "seersucker",
+   "madras",
+   "voile",
+   "flannel",
+   "brushed_twill",
+   "corduroy",
+   "moleskin",
+   "canvas",
+   "ripstop",
+   "gabardine",
+   "tweed",
+   "hopsack",
+   "fresco",
+   "cavalry_twill",
+   "whipcord",
+   "velvet",
+   "melton",
+   "waffle_weave",
+   "challis",
+   "waxed_cotton",
+   "crepe"
+  ],
+  "knit_structure": [
+   "jersey",
+   "slub_jersey",
+   "interlock",
+   "pique",
+   "waffle_thermal",
+   "rib_1x1",
+   "rib_2x2",
+   "french_terry",
+   "fleece_back",
+   "mesh",
+   "terry_towelling",
+   "velour",
+   "flat_knit",
+   "fisherman_rib",
+   "shaker",
+   "cable",
+   "aran",
+   "moss",
+   "garter",
+   "pointelle",
+   "fair_isle",
+   "nordic",
+   "argyle",
+   "intarsia",
+   "jacquard_knit",
+   "guernsey",
+   "cowichan",
+   "polar_fleece",
+   "sherpa"
+  ],
+  "finish": [
+   "none",
+   "brushed",
+   "mercerised",
+   "garment_dyed",
+   "pigment_dyed",
+   "enzyme_washed",
+   "stone_washed",
+   "acid_wash",
+   "sun_faded",
+   "overdyed",
+   "waxed",
+   "raw",
+   "rinse_washed",
+   "distressed"
+  ],
+  "color_texture": [
+   "solid",
+   "heathered",
+   "marled",
+   "slub",
+   "two_tone",
+   "shot",
+   "garment_dyed",
+   "pigment_dyed",
+   "faded",
+   "ombre",
+   "space_dyed"
+  ],
+  "pattern": [
+   "solid",
+   "hairline_stripe",
+   "pencil_stripe",
+   "pinstripe",
+   "chalk_stripe",
+   "bengal_stripe",
+   "candy_stripe",
+   "university_stripe",
+   "butcher_stripe",
+   "awning_stripe",
+   "multi_stripe",
+   "breton_stripe",
+   "rugby_hoops",
+   "shadow_stripe",
+   "bowling_panels",
+   "gingham",
+   "micro_check",
+   "graph_check",
+   "windowpane",
+   "tattersall",
+   "shepherds_check",
+   "houndstooth",
+   "glen_check",
+   "buffalo_check",
+   "tartan",
+   "madras_plaid",
+   "overcheck",
+   "gun_club_check",
+   "argyle",
+   "polka_dot",
+   "pin_dot",
+   "paisley",
+   "foulard",
+   "floral_ditsy",
+   "floral_large",
+   "aloha",
+   "camo_woodland",
+   "camo_desert",
+   "camo_tiger",
+   "camo_digital",
+   "geometric",
+   "novelty",
+   "ikat",
+   "batik",
+   "shibori",
+   "tie_dye",
+   "animal",
+   "fair_isle",
+   "nordic"
+  ],
+  "pattern_scale": [
+   "micro",
+   "small",
+   "medium",
+   "large",
+   "bold"
+  ],
+  "pattern_orientation": [
+   "vertical",
+   "horizontal",
+   "bias",
+   "all_over",
+   "placed"
+  ],
+  "graphic_technique": [
+   "none",
+   "plastisol_screenprint",
+   "water_based_screenprint",
+   "discharge",
+   "halftone",
+   "puff_print",
+   "flock",
+   "dtg",
+   "heat_transfer",
+   "sublimation",
+   "satin_embroidery",
+   "chain_stitch",
+   "appliqué",
+   "chenille_patch",
+   "woven_label",
+   "leather_patch",
+   "tackle_twill",
+   "rhinestones",
+   "cracked_print"
+  ],
+  "graphic_placement": [
+   "left_chest",
+   "center_chest",
+   "full_front",
+   "full_back",
+   "yoke",
+   "sleeve",
+   "hem",
+   "nape",
+   "pocket"
+  ],
+  "wear_state": [
+   "tucked",
+   "untucked",
+   "french_tuck",
+   "sleeves_rolled",
+   "collar_popped",
+   "top_button_undone",
+   "open_layer",
+   "worn_under_sweater"
+  ],
+  "condition": [
+   "crisp_new",
+   "worn_in",
+   "faded",
+   "distressed",
+   "wrinkled",
+   "pressed"
+  ]
+ },
+ "weights": {
+  "jersey_gsm": {
+   "lightweight": [
+    120,
+    160
+   ],
+   "midweight": [
+    160,
+    200
+   ],
+   "heavyweight": [
+    200,
+    260
+   ],
+   "super_heavy": [
+    260,
+    330
+   ]
+  },
+  "shirting_gsm": {
+   "voile": [
+    60,
+    90
+   ],
+   "poplin": [
+    90,
+    120
+   ],
+   "oxford": [
+    120,
+    160
+   ],
+   "light_flannel": [
+    130,
+    170
+   ],
+   "heavy_flannel": [
+    200,
+    280
+   ],
+   "linen": [
+    100,
+    180
+   ]
+  },
+  "denim_oz": {
+   "shirt": [
+    4,
+    8
+   ],
+   "light_jean": [
+    10,
+    12
+   ],
+   "mid_jean": [
+    12,
+    14
+   ],
+   "heavy_jean": [
+    14,
+    21
+   ]
+  },
+  "corduroy_wales_per_inch": {
+   "needlecord": [
+    16,
+    21
+   ],
+   "standard": [
+    11,
+    15
+   ],
+   "mid": [
+    8,
+    10
+   ],
+   "wide_wale": [
+    6,
+    8
+   ],
+   "jumbo": [
+    1.5,
+    5
+   ]
+  },
+  "knit_gauge": {
+   "extra_fine": [
+    14,
+    18
+   ],
+   "fine": [
+    12,
+    12
+   ],
+   "medium": [
+    7,
+    9
+   ],
+   "chunky": [
+    5,
+    5
+   ],
+   "super_chunky": [
+    1.5,
+    3
+   ]
+  }
+ },
+ "fiber_gauge_plausible": {
+  "merino": [
+   7,
+   18
+  ],
+  "cashmere": [
+   7,
+   16
+  ],
+  "lambswool": [
+   7,
+   12
+  ],
+  "shetland": [
+   5,
+   9
+  ],
+  "cotton": [
+   7,
+   14
+  ],
+  "yak": [
+   3,
+   9
+  ],
+  "alpaca": [
+   3,
+   7
+  ],
+  "mohair": [
+   3,
+   7
+  ],
+  "woolen_wool": [
+   1.5,
+   7
+  ]
+ },
+ "garments": {
+  "t_shirt": {
+   "category": "knit_top",
+   "knit": [
+    "jersey",
+    "slub_jersey",
+    "interlock",
+    "rib_1x1",
+    "waffle_thermal"
+   ],
+   "neckline": [
+    "crew",
+    "v_neck",
+    "scoop",
+    "boat",
+    "mock"
+   ],
+   "sleeve_length": [
+    "sleeveless",
+    "short",
+    "three_quarter",
+    "long"
+   ],
+   "pockets": [
+    "none",
+    "chest_patch_single"
+   ],
+   "variants": [
+    "pocket_tee",
+    "ringer",
+    "raglan_baseball",
+    "breton",
+    "graphic",
+    "thermal",
+    "tank"
+   ],
+   "signature": "Collarless, rib neckband, no placket."
+  },
+  "henley": {
+   "category": "knit_top",
+   "knit": [
+    "jersey",
+    "slub_jersey",
+    "waffle_thermal",
+    "rib_1x1",
+    "flat_knit"
+   ],
+   "neckline": [
+    "henley"
+   ],
+   "placket": [
+    "henley"
+   ],
+   "placket_buttons": [
+    2,
+    5
+   ],
+   "sleeve_length": [
+    "short",
+    "long"
+   ],
+   "signature": "Collarless neck with a short 2–5 button placket."
+  },
+  "polo": {
+   "category": "knit_top",
+   "knit": [
+    "pique",
+    "jersey",
+    "flat_knit",
+    "terry_towelling",
+    "mesh",
+    "interlock"
+   ],
+   "collar": [
+    "flat_knit",
+    "johnny",
+    "camp"
+   ],
+   "placket": [
+    "polo",
+    "zip_quarter",
+    "none"
+   ],
+   "placket_buttons": [
+    0,
+    3
+   ],
+   "cuff": [
+    "rib_knit",
+    "open_hem"
+   ],
+   "hem": [
+    "tennis_tail",
+    "straight_with_vents",
+    "ribbed_band"
+   ],
+   "sleeve_length": [
+    "short",
+    "long"
+   ],
+   "variants": [
+    "pique",
+    "jersey",
+    "knit_polo",
+    "johnny_collar",
+    "open_knit",
+    "zip_polo",
+    "terry"
+   ],
+   "signature": "Knit body, soft knit collar, short button placket, ribbed sleeve bands."
+  },
+  "rugby_shirt": {
+   "category": "knit_top",
+   "knit": [
+    "jersey"
+   ],
+   "collar": [
+    "woven_twill_rugby"
+   ],
+   "placket": [
+    "polo"
+   ],
+   "closure_material": [
+    "rubber",
+    "plastic"
+   ],
+   "sleeve_length": [
+    "long"
+   ],
+   "pattern": [
+    "solid",
+    "rugby_hoops",
+    "multi_stripe"
+   ],
+   "signature": "Heavy jersey, contrast white woven collar, rubber buttons, bold hoops."
+  },
+  "dress_shirt": {
+   "category": "woven_shirt",
+   "weave": [
+    "poplin",
+    "broadcloth",
+    "twill",
+    "herringbone",
+    "pinpoint_oxford",
+    "royal_oxford",
+    "end_on_end",
+    "dobby"
+   ],
+   "collar": [
+    "point",
+    "semi_spread",
+    "spread",
+    "cutaway",
+    "hidden_button_down",
+    "club",
+    "tab",
+    "pin",
+    "wing"
+   ],
+   "placket": [
+    "front_placket",
+    "french_front",
+    "hidden_fly"
+   ],
+   "cuff": [
+    "barrel_1",
+    "barrel_2",
+    "french",
+    "convertible",
+    "mitred"
+   ],
+   "hem": [
+    "curved_shirt_tail"
+   ],
+   "closure_material": [
+    "plastic",
+    "mother_of_pearl",
+    "trocas"
+   ],
+   "pattern": [
+    "solid",
+    "hairline_stripe",
+    "pencil_stripe",
+    "bengal_stripe",
+    "candy_stripe",
+    "micro_check",
+    "gingham",
+    "tattersall",
+    "graph_check",
+    "windowpane",
+    "shadow_stripe"
+   ],
+   "sleeve_length": [
+    "long"
+   ],
+   "signature": "Crisp fine fabric, sharp collar with stays, tucked."
+  },
+  "ocbd": {
+   "category": "woven_shirt",
+   "weave": [
+    "oxford"
+   ],
+   "collar": [
+    "button_down"
+   ],
+   "placket": [
+    "front_placket"
+   ],
+   "cuff": [
+    "barrel_1",
+    "barrel_2"
+   ],
+   "pockets": [
+    "chest_patch_single",
+    "none"
+   ],
+   "back_detail": [
+    "box_pleat_locker_loop",
+    "box_pleat",
+    "plain"
+   ],
+   "hem": [
+    "curved_shirt_tail"
+   ],
+   "pattern": [
+    "solid",
+    "university_stripe",
+    "candy_stripe",
+    "bengal_stripe",
+    "gingham"
+   ],
+   "sleeve_length": [
+    "long",
+    "short"
+   ],
+   "signature": "Oxford cloth + button-down collar with soft collar roll."
+  },
+  "casual_button_up": {
+   "category": "woven_shirt",
+   "weave": [
+    "oxford",
+    "chambray",
+    "denim",
+    "linen",
+    "flannel",
+    "brushed_twill",
+    "corduroy",
+    "poplin",
+    "twill",
+    "seersucker",
+    "madras",
+    "voile",
+    "dobby"
+   ],
+   "collar": [
+    "point",
+    "button_down",
+    "spread",
+    "band",
+    "club"
+   ],
+   "placket": [
+    "front_placket",
+    "french_front"
+   ],
+   "cuff": [
+    "barrel_1",
+    "rolled",
+    "roll_tab",
+    "open_hem"
+   ],
+   "hem": [
+    "straight_with_vents",
+    "curved_shirt_tail"
+   ],
+   "sleeve_length": [
+    "short",
+    "long"
+   ],
+   "signature": "Untucked-length casual shirt."
+  },
+  "flannel_shirt": {
+   "category": "woven_shirt",
+   "weave": [
+    "flannel"
+   ],
+   "fiber": [
+    "cotton",
+    "woolen_wool",
+    "merino"
+   ],
+   "collar": [
+    "point",
+    "button_down"
+   ],
+   "pockets": [
+    "chest_flap_single",
+    "chest_flap_double",
+    "chest_patch_double"
+   ],
+   "cuff": [
+    "barrel_1",
+    "barrel_2"
+   ],
+   "pattern": [
+    "buffalo_check",
+    "tartan",
+    "solid",
+    "gingham",
+    "windowpane",
+    "overcheck"
+   ],
+   "color_texture": [
+    "solid",
+    "heathered"
+   ],
+   "sleeve_length": [
+    "long"
+   ],
+   "signature": "Brushed fuzzy matte fabric; flannel is the fabric, plaid is optional."
+  },
+  "work_shirt": {
+   "category": "woven_shirt",
+   "weave": [
+    "chambray",
+    "denim",
+    "twill",
+    "canvas"
+   ],
+   "collar": [
+    "point",
+    "button_down"
+   ],
+   "pockets": [
+    "chest_flap_double",
+    "chest_patch_double",
+    "pencil_slot"
+   ],
+   "closure_material": [
+    "plastic",
+    "corozo",
+    "metal_snap"
+   ],
+   "sleeve_length": [
+    "short",
+    "long"
+   ],
+   "signature": "Two chest pockets, triple stitching."
+  },
+  "western_shirt": {
+   "category": "woven_shirt",
+   "weave": [
+    "denim",
+    "chambray",
+    "poplin",
+    "twill",
+    "satin",
+    "flannel"
+   ],
+   "collar": [
+    "western",
+    "point"
+   ],
+   "placket": [
+    "snap"
+   ],
+   "closure_material": [
+    "pearl_snap"
+   ],
+   "pockets": [
+    "western_smile",
+    "chest_flap_double"
+   ],
+   "cuff": [
+    "snap_3"
+   ],
+   "back_detail": [
+    "western_yoke"
+   ],
+   "sleeve_length": [
+    "long",
+    "short"
+   ],
+   "signature": "Pointed yokes, pearl snaps, smile pockets, 3-snap cuffs."
+  },
+  "camp_collar_shirt": {
+   "category": "woven_shirt",
+   "weave": [
+    "challis",
+    "linen",
+    "poplin",
+    "seersucker",
+    "crepe",
+    "satin",
+    "voile"
+   ],
+   "fiber": [
+    "viscose",
+    "lyocell",
+    "linen",
+    "cotton",
+    "silk"
+   ],
+   "collar": [
+    "camp"
+   ],
+   "hem": [
+    "straight",
+    "straight_with_vents"
+   ],
+   "closure_material": [
+    "plastic",
+    "coconut",
+    "wood",
+    "mother_of_pearl"
+   ],
+   "fit": [
+    "relaxed",
+    "boxy",
+    "regular"
+   ],
+   "sleeve_length": [
+    "short",
+    "long"
+   ],
+   "variants": [
+    "aloha",
+    "bowling",
+    "resort"
+   ],
+   "signature": "Flat one-piece collar without stand, straight hem, boxy."
+  },
+  "popover_shirt": {
+   "category": "woven_shirt",
+   "weave": [
+    "oxford",
+    "linen",
+    "chambray",
+    "poplin"
+   ],
+   "placket": [
+    "half_placket_popover"
+   ],
+   "collar": [
+    "button_down",
+    "band",
+    "point"
+   ],
+   "signature": "Pullover with a half placket."
+  },
+  "band_collar_shirt": {
+   "category": "woven_shirt",
+   "weave": [
+    "linen",
+    "poplin",
+    "oxford",
+    "chambray"
+   ],
+   "collar": [
+    "band"
+   ],
+   "signature": "Collar stand only, no leaf."
+  },
+  "guayabera": {
+   "category": "woven_shirt",
+   "weave": [
+    "linen",
+    "poplin"
+   ],
+   "pockets": [
+    "four_patch_guayabera"
+   ],
+   "hem": [
+    "straight_with_vents"
+   ],
+   "collar": [
+    "camp",
+    "point"
+   ],
+   "signature": "Four patch pockets and vertical pleat rows front and back."
+  },
+  "overshirt": {
+   "category": "woven_shirt",
+   "weave": [
+    "flannel",
+    "melton",
+    "corduroy",
+    "moleskin",
+    "canvas",
+    "denim",
+    "tweed"
+   ],
+   "pockets": [
+    "chest_flap_double",
+    "chest_patch_double"
+   ],
+   "closure_material": [
+    "horn",
+    "corozo",
+    "metal_shank",
+    "metal_snap"
+   ],
+   "hem": [
+    "straight"
+   ],
+   "variants": [
+    "cpo",
+    "shacket",
+    "quilted"
+   ],
+   "signature": "Heavier shirt-jacket worn as a layer."
+  },
+  "tuxedo_shirt": {
+   "category": "woven_shirt",
+   "weave": [
+    "poplin",
+    "pinpoint_oxford"
+   ],
+   "collar": [
+    "wing",
+    "spread"
+   ],
+   "cuff": [
+    "french"
+   ],
+   "closure_material": [
+    "cufflink"
+   ],
+   "signature": "Pleated or piqué bib, studs, French cuffs."
+  },
+  "crewneck_sweatshirt": {
+   "category": "sweatshirt",
+   "knit": [
+    "french_terry",
+    "fleece_back"
+   ],
+   "neckline": [
+    "crew"
+   ],
+   "sleeve_construction": [
+    "raglan",
+    "set_in"
+   ],
+   "cuff": [
+    "rib_knit"
+   ],
+   "hem": [
+    "ribbed_band"
+   ],
+   "details": [
+    "v_insert",
+    "side_gussets",
+    "flatlock_seams"
+   ],
+   "signature": "Ribbed neck/cuffs/hem, soft thick fleece."
+  },
+  "hoodie": {
+   "category": "sweatshirt",
+   "knit": [
+    "french_terry",
+    "fleece_back"
+   ],
+   "neckline": [
+    "hood"
+   ],
+   "placket": [
+    "none",
+    "zip_full"
+   ],
+   "pockets": [
+    "kangaroo",
+    "split_hand"
+   ],
+   "signature": "Hood with drawcords; kangaroo pocket on pullovers."
+  },
+  "pullover_sweater": {
+   "category": "knitwear",
+   "knit": [
+    "flat_knit",
+    "rib_2x2",
+    "fisherman_rib",
+    "shaker",
+    "cable",
+    "aran",
+    "moss",
+    "fair_isle",
+    "nordic",
+    "argyle",
+    "intarsia",
+    "jacquard_knit",
+    "guernsey",
+    "waffle_thermal"
+   ],
+   "neckline": [
+    "crew",
+    "v_neck",
+    "turtleneck",
+    "rollneck",
+    "mock",
+    "shawl",
+    "boat",
+    "quarter_zip",
+    "henley",
+    "polo_collar"
+   ],
+   "fiber": [
+    "merino",
+    "lambswool",
+    "shetland",
+    "cashmere",
+    "yak",
+    "alpaca",
+    "mohair",
+    "cotton",
+    "woolen_wool",
+    "camel",
+    "acrylic"
+   ],
+   "sleeve_construction": [
+    "set_in",
+    "raglan",
+    "saddle_shoulder"
+   ],
+   "signature": "Knit pullover; gauge + fiber decide the look."
+  },
+  "cardigan": {
+   "category": "knitwear",
+   "knit": [
+    "flat_knit",
+    "rib_2x2",
+    "fisherman_rib",
+    "shaker",
+    "cable",
+    "cowichan",
+    "fair_isle",
+    "intarsia"
+   ],
+   "neckline": [
+    "v_neck",
+    "shawl",
+    "crew"
+   ],
+   "placket": [
+    "front_placket",
+    "zip_full"
+   ],
+   "closure_material": [
+    "horn",
+    "corozo",
+    "leather_knot",
+    "toggle",
+    "zip_metal",
+    "plastic"
+   ],
+   "pockets": [
+    "none",
+    "welt",
+    "chest_patch_double"
+   ],
+   "fiber": [
+    "merino",
+    "lambswool",
+    "shetland",
+    "cashmere",
+    "yak",
+    "alpaca",
+    "mohair",
+    "cotton",
+    "woolen_wool"
+   ],
+   "signature": "Knit that opens down the front."
+  },
+  "sweater_vest": {
+   "category": "knitwear",
+   "knit": [
+    "flat_knit",
+    "cable",
+    "argyle",
+    "fair_isle",
+    "rib_2x2"
+   ],
+   "neckline": [
+    "v_neck",
+    "crew"
+   ],
+   "sleeve_length": [
+    "sleeveless"
+   ],
+   "signature": "Sleeveless knit, ribbed armholes."
+  },
+  "chore_coat": {
+   "category": "outerwear",
+   "signature": "Three patch pockets, boxy, canvas/moleskin/twill"
+  },
+  "trucker_jacket": {
+   "category": "outerwear",
+   "signature": "Denim jacket, Type I/II/III"
+  },
+  "bomber": {
+   "category": "outerwear",
+   "signature": "Ribbed collar/cuffs/hem, nylon, sleeve pocket"
+  },
+  "varsity_jacket": {
+   "category": "outerwear",
+   "signature": "Melton body, leather sleeves, chenille letters"
+  },
+  "harrington": {
+   "category": "outerwear",
+   "signature": "Short zip jacket, check lining, umbrella yoke"
+  },
+  "field_jacket": {
+   "category": "outerwear",
+   "signature": "Four pockets, stand collar, sateen"
+  },
+  "waxed_jacket": {
+   "category": "outerwear",
+   "signature": "Waxed cotton, cord collar, bellows pockets"
+  },
+  "peacoat": {
+   "category": "outerwear",
+   "signature": "Navy melton, double-breasted"
+  },
+  "overcoat": {
+   "category": "outerwear",
+   "signature": "Knee-length wool coat"
+  },
+  "trench_coat": {
+   "category": "outerwear",
+   "signature": "Gabardine, double-breasted, belted"
+  },
+  "parka": {
+   "category": "outerwear",
+   "signature": "Long hooded"
+  },
+  "puffer": {
+   "category": "outerwear",
+   "signature": "Baffled down"
+  },
+  "quilted_jacket": {
+   "category": "outerwear",
+   "signature": "Diamond or box quilting"
+  },
+  "fleece_jacket": {
+   "category": "outerwear",
+   "signature": "Polar or sherpa fleece"
+  },
+  "leather_jacket": {
+   "category": "outerwear",
+   "signature": "Café racer, double rider, A-2"
+  },
+  "barn_jacket": {
+   "category": "outerwear",
+   "signature": "Canvas, corduroy collar"
+  },
+  "blazer": {
+   "category": "tailoring",
+   "signature": "Odd jacket, solid"
+  },
+  "sport_coat": {
+   "category": "tailoring",
+   "signature": "Odd jacket, textured"
+  },
+  "suit_jacket": {
+   "category": "tailoring",
+   "signature": "Matching trousers"
+  },
+  "chinos": {
+   "category": "bottoms",
+   "signature": "Cotton twill trousers"
+  },
+  "dress_trousers": {
+   "category": "bottoms",
+   "signature": "Wool, creased"
+  },
+  "jeans": {
+   "category": "bottoms",
+   "signature": "Five-pocket denim"
+  },
+  "corduroys": {
+   "category": "bottoms",
+   "signature": "Corduroy trousers"
+  },
+  "fatigues": {
+   "category": "bottoms",
+   "signature": "Back sateen/ripstop"
+  },
+  "cargo_pants": {
+   "category": "bottoms",
+   "signature": "Thigh bellows pockets"
+  },
+  "work_pants": {
+   "category": "bottoms",
+   "signature": "Canvas, double knee"
+  },
+  "sweatpants": {
+   "category": "bottoms",
+   "signature": "Fleece/terry"
+  },
+  "shorts": {
+   "category": "bottoms",
+   "signature": "Chino/denim/cargo/swim/linen"
+  }
+ },
+ "rules": [
+  {
+   "id": "knit_garments_need_knit_fabric",
+   "if": {
+    "category": [
+     "knit_top",
+     "sweatshirt",
+     "knitwear"
+    ]
+   },
+   "then": "fabric must come from knit_structure, not woven_structure"
+  },
+  {
+   "id": "woven_shirts_need_woven_fabric",
+   "if": {
+    "category": [
+     "woven_shirt"
+    ]
+   },
+   "then": "fabric must come from woven_structure"
+  },
+  {
+   "id": "ocbd_requires_oxford_and_button_down",
+   "if": {
+    "garment": "ocbd"
+   },
+   "then": "weave=oxford AND collar=button_down"
+  },
+  {
+   "id": "flannel_is_not_a_pattern",
+   "then": "'flannel' is only a woven_structure/finish; never a pattern value"
+  },
+  {
+   "id": "camp_collar_hem",
+   "if": {
+    "collar": "camp"
+   },
+   "then": "hem in [straight, straight_with_vents]; usually untucked"
+  },
+  {
+   "id": "french_cuff_collar",
+   "if": {
+    "cuff": "french"
+   },
+   "then": "collar not in [button_down, camp, band, western]"
+  },
+  {
+   "id": "pearl_snap_context",
+   "if": {
+    "closure_material": "pearl_snap"
+   },
+   "then": "garment in [western_shirt, work_shirt, overshirt]"
+  },
+  {
+   "id": "henley_has_no_collar",
+   "if": {
+    "garment": "henley"
+   },
+   "then": "collar=none"
+  },
+  {
+   "id": "fiber_gauge",
+   "then": "knit gauge must fall within fiber_gauge_plausible[fiber]"
+  },
+  {
+   "id": "corduroy_needs_wale",
+   "if": {
+    "weave": "corduroy"
+   },
+   "then": "specify corduroy_wales_per_inch; shirts usually needlecord/standard"
+  },
+  {
+   "id": "dress_shirt_no_casual_fabrics",
+   "if": {
+    "garment": "dress_shirt"
+   },
+   "then": "weave not in [flannel, corduroy, canvas, denim, madras, seersucker]"
+  },
+  {
+   "id": "pattern_needs_scale",
+   "if": {
+    "pattern_not": "solid"
+   },
+   "then": "pattern_scale and pattern_orientation required"
+  },
+  {
+   "id": "breton_horizontal",
+   "if": {
+    "pattern": "breton_stripe"
+   },
+   "then": "pattern_orientation=horizontal"
+  },
+  {
+   "id": "kangaroo_pullover",
+   "if": {
+    "pockets": "kangaroo"
+   },
+   "then": "placket=none"
+  }
+ ],
+ "visual_signatures": {
+  "linen": {
+   "drape": "medium-crisp",
+   "sheen": "dry low",
+   "texture": "slubby",
+   "halo": "none",
+   "wrinkle": "heavy crumple",
+   "opacity": "semi in light weights"
+  },
+  "oxford": {
+   "drape": "medium",
+   "sheen": "matte",
+   "texture": "pebbly basket, two-tone",
+   "wrinkle": "soft rumple"
+  },
+  "poplin": {
+   "drape": "crisp",
+   "sheen": "slight",
+   "texture": "none visible",
+   "wrinkle": "sharp"
+  },
+  "flannel": {
+   "drape": "heavy soft",
+   "sheen": "none",
+   "texture": "fuzzy brushed, blurred pattern edges",
+   "wrinkle": "rounded soft folds"
+  },
+  "chambray": {
+   "drape": "medium",
+   "sheen": "low",
+   "texture": "flat mottled two-tone"
+  },
+  "denim": {
+   "drape": "stiff to medium",
+   "sheen": "low (raw: slight)",
+   "texture": "diagonal twill, lighter inside",
+   "wear": "fades at seams, whiskers, honeycombs"
+  },
+  "corduroy": {
+   "drape": "medium-stiff",
+   "sheen": "pile highlights on crests",
+   "texture": "vertical ridges sized by wale"
+  },
+  "moleskin": {
+   "drape": "heavy",
+   "sheen": "dead matte",
+   "texture": "sueded peach"
+  },
+  "seersucker": {
+   "texture": "alternating puckered and flat stripes",
+   "wrinkle": "never crisp"
+  },
+  "challis": {
+   "drape": "fluid",
+   "sheen": "soft",
+   "texture": "smooth",
+   "notes": "vivid prints"
+  },
+  "merino": {
+   "drape": "close, soft",
+   "sheen": "faint",
+   "texture": "fine clean stitches",
+   "halo": "none"
+  },
+  "shetland": {
+   "sheen": "none",
+   "texture": "hairy heathered",
+   "halo": "light, stray fibers"
+  },
+  "cashmere": {
+   "drape": "soft",
+   "sheen": "slight",
+   "halo": "fine downy"
+  },
+  "yak": {
+   "sheen": "matte warm",
+   "halo": "soft",
+   "colors": "natural brown/taupe/grey"
+  },
+  "mohair": {
+   "sheen": "glowing",
+   "halo": "long shiny hairs"
+  },
+  "alpaca": {
+   "halo": "strong, brushed = very fuzzy"
+  },
+  "jersey": {
+   "drape": "soft, clings in light weights",
+   "texture": "fine V columns",
+   "edge": "neckband thickness scales with gsm"
+  },
+  "pique": {
+   "texture": "honeycomb dot",
+   "sheen": "matte"
+  },
+  "tweed": {
+   "drape": "stiff",
+   "texture": "rough flecked heathered",
+   "halo": "slightly hairy"
+  },
+  "waxed_cotton": {
+   "sheen": "oily mottled",
+   "wrinkle": "crinkly, lighter at folds"
+  }
+ }
+}

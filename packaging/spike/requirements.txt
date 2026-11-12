@@ -1,0 +1,30 @@
+# Runtime dependencies of the packaging spike, pinned to the exact versions
+# that were installed and smoke-tested (Linux x86_64, CPython 3.13 and 3.12).
+# Wheels for these exact versions exist for CPython 3.12 on win_amd64 and
+# macOS arm64 (checked with `pip install --dry-run --platform ...`).
+
+# --- direct ---
+fastapi==0.162.5
+uvicorn==0.54.0          # plain uvicorn on purpose: no [standard] extras (uvloop/httptools/watchfiles)
+onnxruntime==1.31.1
+numpy==2.5.4
+pillow==13.0.0
+pillow-heif==1.8.1
+imageio-ffmpeg==0.8.1    # ships the ffmpeg executable inside the wheel
+
+# --- transitive (pinned for reproducible builds) ---
+annotated-doc==0.0.6
+annotated-types==0.8.0
+anyio==4.16.0
+click==8.5.1
+flatbuffers==25.12.19
+h11==0.16.0
+idna==3.20
+opentelemetry-api==1.45.2
+packaging==26.3
+protobuf==7.36.2
+pydantic==2.14.3
+pydantic-core==2.50.4
+starlette==1.10.0
+typing-extensions==4.16.0
+typing-inspection==0.4.5

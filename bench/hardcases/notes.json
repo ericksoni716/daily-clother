@@ -1,0 +1,58 @@
+{
+  "_summary": "<p>Four of the seven hard cases have been run on real photos: plaid shirt, graphic tee, white sneakers and jeans, plus a textured knit as an extra. <b>Striped sweater, floral and camouflage are not tested yet</b> because the photo source rate-limited the build environment.</p><p>Styles A, B and C draw the same parametric shape in three looks. Style D traces the photo's outline and is shown only to explain why it was rejected. Pick between A, B and C.</p><p>Nothing here has been through the app's real tagging call yet; the attributes were set by hand.</p>",
+  "plaid-flannel": {
+    "verdict": "Works: the real plaid tiles cleanly inside the drawn shirt",
+    "points": [
+      "The repeat was found automatically and one repeat is used as the tile, so the scale matches the photo (about three repeats across the body).",
+      "Collar, buttons, curved hem and low pockets come from the attributes, not the photo.",
+      "The plaid runs straight down the sleeves instead of following their angle.",
+      "The cutout kept the dress form's neck and base; a hung or flat photo would not have that problem.",
+      "Style D (traced) shows why tracing the photo was rejected: the outline depends on how the item happened to hang."
+    ]
+  },
+  "plaid-madras": {
+    "verdict": "Partly: reads as a blue madras, but duller than the shirt and missing its yellow and green bands",
+    "points": [
+      "The photo is only 600px and shot at an angle, so the cleanest patch of cloth is small and from the shaded side.",
+      "No reliable repeat was found, so the tile is mirrored; the mirroring leaves faint symmetrical marks.",
+      "Expect better from a straight-on phone photo. This is the case to re-check with real photos."
+    ]
+  },
+  "marl-sweater": {
+    "verdict": "Works: the knit texture carries over and the shape is right",
+    "points": [
+      "The turtleneck needed a new neck option, which took a few lines. Expect the shape vocabulary to grow like this as real items show up.",
+      "A plain colour would also have been acceptable here; the texture tile is a bonus."
+    ]
+  },
+  "graphic-tee": {
+    "verdict": "Works: the real print is lifted off the photo and placed on the drawing",
+    "points": [
+      "The print keeps its position and size relative to the shirt. Nothing is redrawn, so the text stays legible.",
+      "The photo's warm light made the shirt measure pink-cream; the attribute word 'white' pulls it back. Without that word it would be drawn cream.",
+      "A soft shadow by the sleeve was first mistaken for part of the print; prints are now told from shadows by their crisp edges."
+    ]
+  },
+  "jeans": {
+    "verdict": "Works: right shape and a believable denim blue",
+    "points": [
+      "The colour is the lit part of the denim, not the average including creases.",
+      "Fading and whiskering are not shown. That is deliberate for a flat illustration; the real photo is one tap away."
+    ]
+  },
+  "sneakers-pair": {
+    "verdict": "Partly: clearly a white low sneaker, but a generic one",
+    "points": [
+      "Measured from the photo alone the shoes came out mid-grey because most of the surface is in shadow. The attribute word 'white' corrects it.",
+      "The drawing is a single side-on shoe whatever the photo's angle, so a pair shot at three-quarters is not a problem.",
+      "Model-specific details (the black toe stripe here) are not shown. Shoes are the weakest template and need the most work."
+    ]
+  },
+  "sneaker-held": {
+    "verdict": "Partly: white low sneaker with a thick sole, but the orange side logo is lost",
+    "points": [
+      "Prints on shoes are not carried over yet; the photo's angle does not match the side-on drawing.",
+      "The cutout left a faint ghost of the hand. It does not affect the drawing, but the stored cutout would look odd."
+    ]
+  }
+}

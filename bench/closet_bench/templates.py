@@ -277,11 +277,11 @@ def sneaker(**kw) -> Shape:
     sole = (f"M {_pt((44, ys + 3))} Q {_pt((40, base))} {_pt((66, base))} L {_pt((332, base))} "
             f"Q {_pt((356, base))} {_pt((356, ys + 6))} L {_pt((354, ys))} L {_pt((46, ys))} Z")
     upper = (f"M {_pt((350, ys))} Q {_pt((360, ys - 48))} {_pt(heel_top)} "
-             f"Q {_pt((300, ys - (104 if hi else 62)))} {_pt((262, ys - (150 if hi else 98)))} "
+             f"Q {_pt((300, ys - (138 if hi else 62)))} {_pt((262, ys - (160 if hi else 98)))} "
              f"L {_pt(tongue)} L {_pt(throat_end)} Q {_pt((84, ys - 46))} {_pt((48, ys - 4))} L {_pt((46, ys))} Z")
     outline = (f"M {_pt((44, ys + 3))} Q {_pt((40, base))} {_pt((66, base))} L {_pt((332, base))} "
                f"Q {_pt((356, base))} {_pt((356, ys + 6))} L {_pt((350, ys))} Q {_pt((360, ys - 48))} {_pt(heel_top)} "
-               f"Q {_pt((300, ys - (104 if hi else 62)))} {_pt((262, ys - (150 if hi else 98)))} "
+               f"Q {_pt((300, ys - (138 if hi else 62)))} {_pt((262, ys - (160 if hi else 98)))} "
                f"L {_pt(tongue)} L {_pt(throat_end)} Q {_pt((84, ys - 46))} {_pt((48, ys - 4))} Z")
     sh = Shape(outline=outline)
     sh.parts.append(Part(sole, "sole"))
@@ -292,7 +292,7 @@ def sneaker(**kw) -> Shape:
     sh.lines.append(f"M {_pt((122, ys - 50))} Q {_pt((100, ys - 30))} {_pt((104, ys))}")
     sh.lines.append(f"M {_pt((48, ys + t * 0.5))} L {_pt((354, ys + t * 0.5))}")
     sh.lines.append(f"M {_pt((316, ys))} Q {_pt((304, ys - 44))} {_pt((heel_top[0] - 8, heel_top[1] + 14))}")
-    sh.lines.append(f"M {_pt((throat_end[0] + 18, throat_end[1] + 20))} Q {_pt((230, ys - 30))} {_pt((262, ys - (150 if hi else 98) + 14))}")
+    sh.lines.append(f"M {_pt((throat_end[0] + 18, throat_end[1] + 20))} Q {_pt((230, ys - 30))} {_pt((262, ys - (160 if hi else 98) + 14))}")
     n = 7 if hi else 5
     for i in range(n):
         f = (i + 0.6) / (n + 0.2)

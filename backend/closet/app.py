@@ -53,8 +53,12 @@ class Services:
         return info
 
 
-def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path | None = None) -> Services:
-    """Open the settings, bring the closet database up to date and wire the background workers."""
+def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path | str | None = "bundled") -> Services:
+    """Open the settings, bring the closet database up to date and wire the background workers.
+
+    `web_dir` is the built page to serve: "bundled" looks for the one shipped
+    with the program, None serves no page (tests), or give a folder.
+    """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
     db.migrate(cfg.db_path("main"), cfg.local_backups_dir)
@@ -73,7 +77,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
 
     worker = jobs.Worker(cfg, state, lambda: model.ready, cutter or real_cutter)
     holder["worker"] = worker
-    if web_dir is None:
+    if web_dir == "bundled":
         candidate = bundle_dir() / "web"
         web_dir = candidate if (candidate / "index.html").exists() else None
     return Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir)

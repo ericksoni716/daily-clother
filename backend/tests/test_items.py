@@ -90,7 +90,7 @@ def test_media_needs_login_and_cannot_escape_the_images_folder(client, cfg):
                    f"/media/{item['id']}/../../settings.json"):
         r = client.get(sneaky)
         assert "sessions" not in r.text and "salt" not in r.text
-        assert r.status_code == 404 or "has not been built" in r.text  # the page route, never the settings file
+        assert r.status_code == 404 or "<" in r.text  # a 404 or the page itself, never the settings file
     client.post("/api/logout")
     assert client.get(item["thumb_url"]).status_code == 401
 

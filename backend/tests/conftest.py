@@ -32,7 +32,7 @@ def cfg(tmp_path):
 
 @pytest.fixture
 def services(cfg):
-    sv = app_module.build_services(cfg, cutter=fake_cutter)
+    sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None)  # independent of whether the page is built
     yield sv
     sv.stop()
 

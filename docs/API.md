@@ -35,6 +35,77 @@ Each photo: `id, kind, url, thumb_url, cutout_url, cutout_thumb_url, width, heig
 | `GET /api/items/{id}/illustration.svg` | The item's illustration as `image/svg+xml`; 404 if it has none. |
 | `GET /media/{path}` | A WebP image; cacheable forever (paths never change content). |
 
+## Outfit suggestions
+
+`POST /api/outfits/suggest` needs the login cookie and uses only the open
+closet. It does not look up weather, save an outfit or record a wear.
+Database loading and selection run off the server's event loop.
+
+Send a JSON object:
+
+```json
+{
+  "low_c": 12,
+  "high_c": 19,
+  "rain": false,
+  "occasion": "casual",
+  "mood": "usual",
+  "count": 3,
+  "build_around": null,
+  "exclude": [],
+  "days_since_worn": {}
+}
+```
+
+- Required: `low_c` and `high_c` are finite numbers in °C, between -60 and
+  60, with low no higher than high; `rain` is a boolean; `occasion` is
+  `athletic`, `casual`, `smart_casual`, `business` or `formal`.
+- Optional: `mood` is `usual` (default), `sharp` or `relaxed`; `count` is a
+  whole number from 1 to 10 (default 3).
+- `build_around` is an item id or null. Every returned outfit contains it.
+  `exclude` lists item ids to leave out. `days_since_worn` maps item ids to
+  non-negative whole days ago, for example `{"item-id": 1}`. Omitted maps
+  and lists are empty; unknown wear/exclusion ids have no effect.
+- Unknown fields and invalid values return 422 with `{"detail": "..."}` in
+  plain words. Malformed JSON returns 400.
+
+200 response (ids below are illustrative):
+
+```json
+{
+  "outfits": [{
+    "places": {
+      "base_top": "shirt-id",
+      "mid_layer": null,
+      "outer_layer": "jacket-id",
+      "bottom": "trousers-id",
+      "shoes": "shoes-id",
+      "accessories": []
+    },
+    "score": 90,
+    "reasons": ["The pieces match a casual occasion."]
+  }],
+  "messages": []
+}
+```
+
+Scores are integers from 0 to 100, highest first; equal rule totals use item
+ids before scores are rounded and limited to that range.
+`base_top`, `bottom` and `shoes` always contain one id each; middle and outer
+layers are nullable; `accessories` is a list (currently at most one item).
+Reasons explain matches and compromises, including uncertain cloth weight
+or rain protection. Scores are rule-based comparisons, not a guarantee of
+comfort or suitability for a dress code.
+
+An empty or incomplete closet, an unavailable build-around item, or mutually
+incompatible choices returns 200 with `outfits: []` and a readable explanation
+in `messages`, not an error. Fewer than `count` outfits can be returned. When
+there are not enough choices differing by two garments, `messages` explains
+the reduced variety. Archived, disliked, excluded and laundry items are never
+used. The engine honours optional `weight_class` and `laundry_state` fields
+when supplied; until they are stored, it estimates weights from category and
+material and excludes items whose existing `location` is `laundry`.
+
 ## Background-removal model
 | Call | Result |
 |---|---|

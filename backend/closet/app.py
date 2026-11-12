@@ -1,6 +1,7 @@
 """The web API and the page it serves."""
 from __future__ import annotations
 
+import json
 import logging
 import threading
 import time
@@ -14,7 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from PIL import Image
 from pydantic import BaseModel
 
-from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, phone, storage, vocab
+from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, outfits, phone, storage, vocab
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
 from .modelstore import MODEL, ModelStore
@@ -179,6 +180,30 @@ def create_app(sv: Services) -> FastAPI:
     @app.get("/api/vocab", dependencies=protected)
     def get_vocab():
         return vocab.as_dict()
+
+    @app.post("/api/outfits/suggest", dependencies=protected)
+    async def suggest_outfits(request: Request, conn=Depends(conn_dep)):
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        if not isinstance(body, dict):
+            raise HTTPException(422, "Send an object describing the day's weather and occasion.")
+        count = body.pop("count", outfits.DEFAULT_COUNT)
+        try:
+            context = outfits.validate_context(body, count)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+
+        def choose():
+            rows = []
+            for row in conn.execute("SELECT * FROM items WHERE status = 'active' ORDER BY id"):
+                item = dict(row)
+                item["silhouette"] = json.loads(item["silhouette"] or "{}")
+                rows.append(item)
+            return outfits.suggest(rows, context, count)
+
+        return await run_in_threadpool(choose)
 
     @app.get("/api/items", dependencies=protected)
     def list_items(status: str = "active", category: str | None = None, q: str | None = None, conn=Depends(conn_dep)):

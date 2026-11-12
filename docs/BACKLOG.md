@@ -13,7 +13,7 @@ owner; see `DECISIONS.md`, "How the work is organised").
 - **Garment review**: marks and notes in the review gallery (a private Claude artifact; rebuilt each round with `tools/make_review_gallery.py`).
 - **Mac 0.1.1**: confirm the background-removal model now downloads on the owner's Mac.
 - **The Windows build** for stop A has still not been made or tried.
-- **Whether 84% body width** looks right (round 3 in the review gallery; the sleeves at the body's edge were confirmed).
+- **Whether thick cloth now looks thick** (round 4 in the review gallery, section "Weight and cloth").
 - **The app's top UI complaints**, as the brief for UI tasks. A full interface-design pass comes after more features exist.
 - **25–30 photos of the owner's own clothes** with an answer key (`bench/answer_key.template.csv`). Most useful: items that differ from the usual (a polo with one or three buttons, a henley, corduroy, fleece or heavy wool beside light cotton, a sweatshirt with a V-insert). The bench runs them through the Claude plan by default; an API key is optional.
 - Three photos for the untested hard cases: something striped, something floral or patterned, something camouflage.
@@ -38,7 +38,7 @@ Done:
 In progress (owner's corrections to the first taxonomy sheets):
 - [x] Fits recalibrated from real garment measurements: everything was drawn slim.
 - [ ] Tailored jackets (blazer, sport coat, suit jacket, coats with lapels) rebuilt as their own construction.
-- [ ] Weight shown much more strongly, as thickness and bulk and not only a heavier line. Partly done: heavier cloth has more room and deeper bands; the visible cloth edge and puffed outlines are not.
+- [ ] Weight shown much more strongly, as thickness and bulk and not only a heavier line. Done, waiting for the owner's verdict in the gallery (round 4): a heavy cloth is drawn with depth (shade inside its edges, sunken seams, a collar and pockets that stand proud). Still to do: a sign of its own for light cloth (drape wrinkles), and more depth on plain knits, which have few seams to show it.
 - [ ] A worn-open state for jackets, cardigans, overshirts and zip hoodies, with a proof that an open layer lines up over a shirt.
 
 To do:

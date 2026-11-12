@@ -42,7 +42,7 @@ class Spec:
     texture: str | None = None        # corduroy | rib_knit | cable_knit | waffle: drawn tone-on-tone over the fill
     lace_color: str | None = None     # shoes: None = laces in the upper's colour
     collar_color: str | None = None   # a collar in its own colour (a rugby shirt's white twill); None = trim colour or the cloth
-    weight: str | None = None         # lightweight | midweight | heavyweight | super_heavy: how heavy the edges are drawn
+    weight: str | None = None         # lightweight | midweight | heavyweight | super_heavy: how much depth the cloth is drawn with
     halo: bool = False                # a fuzzy cloth (fleece, sherpa, mohair, brushed flannel): a soft, broken edge
     sheen: bool = False               # a shiny cloth (satin, nylon): a soft highlight across the body
     texture_scale: float | None = None  # the texture's spacing: corduroy wale, knit gauge (None = standard)
@@ -212,6 +212,12 @@ def _graphic_markup(g: fills.Graphic | None, box: tuple[float, float, float, flo
             f'clip-path="url(#{clip})" preserveAspectRatio="xMidYMid meet"/>')
 
 
+# How far a cloth stands off what lies under it, in px, by weight (lightweight, midweight,
+# heavyweight, super heavy). A thick cloth is drawn with depth: shade inside its lower and
+# right edges, seams that sink into it, and a collar and pockets that stand proud of the body.
+DEPTH_PX = (0, 0, 5, 9)
+
+
 def _svg(body: str, defs: str, card: bool = True) -> str:
     bg = f'<rect width="{W}" height="{H}" rx="18" fill="{CARD}"/>' if card else ""
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">'
@@ -264,9 +270,9 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
                  f'<filter id="s{uid}" x="-10%" y="-10%" width="120%" height="130%">'
                  '<feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#000" flood-opacity=".18"/></filter>')
 
-    # The weight of the cloth shows in the weight of its edges: a voile is drawn with a fine
-    # line, a melton or a fleece with a heavier one.
-    ow_k, lw_k = {"lightweight": (0.76, 0.86), "heavyweight": (1.22, 1.1), "super_heavy": (1.45, 1.2)}.get(spec.weight or "", (1.0, 1.0))
+    # A fine cloth is drawn with a finer line. A heavy one is only a little bolder: its
+    # thickness is shown as depth (see DEPTH_PX), which reads as cloth where a bold line does not.
+    ow_k, lw_k = {"lightweight": (0.8, 0.88), "heavyweight": (1.07, 1.03), "super_heavy": (1.14, 1.06)}.get(spec.weight or "", (1.0, 1.0))
     o_w, l_w = o_w * ow_k, l_w * lw_k
     # On a patterned cloth, seams drawn tone-on-tone disappear. There they are
     # drawn darker over a pale halo, and the garment gets an edge in every style.
@@ -327,6 +333,10 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
         return out
 
     g = [f'<g transform="translate(0 {dy:.1f})"' + (f' filter="url(#s{uid})"' if style == "soft" else "") + ">"]
+    wt = {"lightweight": 0, "midweight": 1, "heavyweight": 2, "super_heavy": 3}.get(params.get("weight"), 1)
+    depth = DEPTH_PX[wt] if spec.template == "top" else 0
+    # always a darker tone of the cloth (a lighter one reads as gloss); the darker the cloth, the more it takes to show
+    d_col, d_op = "#000", (0.42 if dark_item else 0.22 if luminance(base) < 0.55 else 0.14)
     for part in shape.behind:
         g.append(overlay(part.d, part.role, part.color))
     # the garment body; a same-paint stroke rounds the corners in the flat style
@@ -347,8 +357,19 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
                  '<stop offset=".2" stop-color="#fff" stop-opacity="0"/><stop offset=".34" stop-color="#fff" stop-opacity=".16"/>'
                  '<stop offset=".48" stop-color="#fff" stop-opacity="0"/></linearGradient>')
         g.append(f'<path d="{shape.outline}" fill="url(#h{uid})"/>')
+    if depth:   # a thick cloth has volume: a band of shade inside its lower and right edges
+        a, b = depth * 0.9, depth * 1.5
+        defs += (f'<mask id="m{uid}" maskUnits="userSpaceOnUse" x="0" y="0" width="{W}" height="{H}"><rect width="{W}" height="{H}" fill="#fff"/>'
+                 f'<path d="{shape.outline}" transform="translate({-a:.1f} {-b:.1f})" fill="#000"/></mask>')
+        g.append(f'<path d="{shape.outline}" fill="{d_col}" opacity="{d_op + 0.03:.2f}" mask="url(#m{uid})"/>')
     # seams lie on the body, under anything folded over it (a collar covers the top of the placket)
     g.append(f'<g clip-path="url(#{clip})">')
+    # a seam sinks into a thick cloth: a soft band of shade beside it
+    sunk = (lambda d: f'<path d="{d}" transform="translate({depth * 0.3:.1f} {depth * 0.55:.1f})" fill="none" '
+            f'stroke="{d_col}" stroke-width="{depth * 1.1:.1f}" stroke-linecap="round" stroke-linejoin="round" '
+            f'opacity="{d_op - 0.02:.2f}"/>') if depth else (lambda d: "")
+    for d in shape.seams:
+        g.append(sunk(d))
     for d in shape.seams:
         g.append(halo(d))
     for d in shape.seams:
@@ -356,11 +377,16 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
     g.append("</g>")
     for part in shape.parts:   # parts marked clip are cut by the garment's edge (laces, a rubber toe)
         piece = overlay(part.d, part.role, part.color)
+        if depth and part.role in ("collar_r", "collar_l", "trim"):   # a thick piece stands proud of the body
+            piece = (f'<g clip-path="url(#{clip})"><path d="{part.d}" transform="translate({depth * 0.35:.1f} {depth * 0.8:.1f})" '
+                     f'fill="{d_col}" opacity="{d_op + 0.05:.2f}"/></g>') + piece
         g.append(f'<g clip-path="url(#{clip})">{piece}</g>' if part.clip else piece)
     g.append(_graphic_markup(spec.graphic, shape.bbox, clip))
     if style == "soft":
         g.append(f'<path d="{shape.outline}" fill="url(#g{uid})"/>')
     g.append(f'<g clip-path="url(#{clip})">')  # seams never run past the edge of the garment
+    for d in shape.lines:
+        g.append(sunk(d))
     for d in shape.lines:
         g.append(halo(d))
     for d in shape.lines:

@@ -41,6 +41,10 @@ class Spec:
     trim_color: str | None = None     # a contrast collar, cuffs and ribbing; None = the garment's own cloth
     texture: str | None = None        # corduroy | rib_knit | cable_knit | waffle: drawn tone-on-tone over the fill
     lace_color: str | None = None     # shoes: None = laces in the upper's colour
+    collar_color: str | None = None   # a collar in its own colour (a rugby shirt's white twill); None = trim colour or the cloth
+    weight: str | None = None         # lightweight | midweight | heavyweight | super_heavy: how heavy the edges are drawn
+    halo: bool = False                # a fuzzy cloth (fleece, sherpa, mohair, brushed flannel): a soft, broken edge
+    sheen: bool = False               # a shiny cloth (satin, nylon): a soft highlight across the body
     notes: list[str] = field(default_factory=list)
 
 
@@ -98,22 +102,99 @@ def _defs_for_fill(fill: Fill, shape: Shape, uid: str, garment_w: float, garment
     return "", fill.color
 
 
+# Textures drawn tone-on-tone. A name may carry a scale after a colon ("corduroy:2" = a wale twice
+# as wide, "cable_knit:1.4" = a chunkier knit); the scale changes the spacing, never the weight of the marks.
+TEXTURES = ("corduroy", "rib_knit", "waffle", "cable_knit", "pique", "mesh", "seersucker", "herringbone", "twill",
+            "denim", "fisherman_rib", "garter", "linen", "basket", "tweed", "ripstop", "sherpa", "fleece",
+            "quilt_diamond", "quilt_box", "baffle")
+
+
 def _texture_defs(texture: str | None, uid: str, dark: bool) -> str:
     """A tone-on-tone surface drawn over the cloth, so corduroy does not look like poplin."""
     lo, hi = ("#fff", "#000") if dark else ("#000", "#fff")
-    body = {
-        "corduroy": (6, 12, f'<path d="M1.5,0V12" stroke="{lo}" stroke-width="1.2" opacity=".24"/>'
-                            f'<path d="M4.3,0V12" stroke="{hi}" stroke-width="1" opacity=".12"/>'),
-        "rib_knit": (9, 12, f'<path d="M2,0V12" stroke="{lo}" stroke-width="1.3" opacity=".17"/>'),
-        "waffle": (7, 7, f'<path d="M0,.6H7M.6,0V7" stroke="{lo}" stroke-width="1.1" opacity=".15" fill="none"/>'),
-        "cable_knit": (34, 24, f'<g stroke="{lo}" stroke-width="1.3" opacity=".2" fill="none">'
-                               '<path d="M4,0V24M30,0V24"/><path d="M11,0C11,8 23,4 23,12C23,20 11,16 11,24"/>'
-                               '<path d="M23,0C23,8 11,4 11,12C11,20 23,16 23,24"/></g>'),
-    }.get(texture or "")
+    name, _, scale = (texture or "").partition(":")
+    try:
+        sc = max(0.4, min(3.0, float(scale))) if scale else 1.0
+    except ValueError:
+        sc = 1.0
+    body = _texture_tile(name, sc, lo, hi)
     if not body:
         return ""
     w, h, marks = body
-    return f'<pattern id="t{uid}" patternUnits="userSpaceOnUse" x="{CX_ROT[0]}" y="0" width="{w}" height="{h}">{marks}</pattern>'
+    return (f'<pattern id="t{uid}" patternUnits="userSpaceOnUse" x="{CX_ROT[0]}" y="0" width="{w:.2f}" height="{h:.2f}">'
+            f'{marks}</pattern>')
+
+
+def _texture_tile(name: str, sc: float, lo: str, hi: str):
+    """(width, height, marks) of one tile of a surface; sc stretches the spacing (wale, gauge)."""
+    if name == "corduroy":
+        w = 6 * sc
+        return (w, 12, f'<path d="M{w * .25:.2f},0V12" stroke="{lo}" stroke-width="{min(1.2 * sc, 2.6):.2f}" opacity=".24"/>'
+                       f'<path d="M{w * .72:.2f},0V12" stroke="{hi}" stroke-width="{min(1.0 * sc, 2.2):.2f}" opacity=".12"/>')
+    if name == "rib_knit":
+        w = 9 * sc
+        return (w, 12, f'<path d="M2,0V12" stroke="{lo}" stroke-width="{1.3 * min(sc, 1.6):.2f}" opacity=".17"/>')
+    if name == "waffle":
+        w = 7 * sc
+        return (w, w, f'<path d="M0,.6H{w:.2f}M.6,0V{w:.2f}" stroke="{lo}" stroke-width="1.1" opacity=".15" fill="none"/>')
+    if name == "cable_knit":
+        return (34 * sc, 24 * sc, f'<g stroke="{lo}" stroke-width="{1.3 * min(sc, 1.5):.2f}" opacity=".2" fill="none" '
+                                  f'transform="scale({sc:.3f})">'
+                                  '<path d="M4,0V24M30,0V24"/><path d="M11,0C11,8 23,4 23,12C23,20 11,16 11,24"/>'
+                                  '<path d="M23,0C23,8 11,4 11,12C11,20 23,16 23,24"/></g>')
+    if name == "pique":      # a fine honeycomb of dimples
+        return (4, 4, f'<g fill="{lo}" opacity=".2"><circle cx="1" cy="1" r=".75"/><circle cx="3" cy="3" r=".75"/></g>')
+    if name == "mesh":       # open holes
+        return (5, 5, f'<circle cx="2.5" cy="2.5" r="1.1" fill="none" stroke="{lo}" stroke-width=".8" opacity=".3"/>')
+    if name == "seersucker":  # puckered stripes between flat ones
+        return (12, 6, f'<path d="M0,1.5q1.5,-1.4 3,0t3,0M0,4.5q1.5,-1.4 3,0t3,0" stroke="{lo}" stroke-width=".8" '
+                       f'fill="none" opacity=".24"/><path d="M6.4,0V6" stroke="{hi}" stroke-width="5" opacity=".1"/>')
+    if name == "herringbone":
+        w = 5 * sc
+        return (2 * w, w, f'<path d="M0,{w:.2f}L{w:.2f},0M{w:.2f},0L{2 * w:.2f},{w:.2f}" stroke="{lo}" stroke-width=".85" '
+                          f'opacity=".2" fill="none"/>')
+    if name == "twill":
+        return (5, 5, f'<path d="M-1,1L1,-1M0,5L5,0M4,6L6,4" stroke="{lo}" stroke-width=".8" opacity=".15"/>')
+    if name == "denim":      # a steep twill with pale weft showing between the lines
+        return (4, 4, f'<path d="M-1,1L1,-1M0,4L4,0M3,5L5,3" stroke="{hi}" stroke-width=".9" opacity=".16"/>'
+                      f'<path d="M1,4L4,1" stroke="{lo}" stroke-width=".6" opacity=".12"/>')
+    if name == "fisherman_rib":   # plump ribs with a knotted stitch
+        w = 10 * sc
+        return (w, 6 * sc, f'<path d="M.8,0V{6 * sc:.2f}" stroke="{lo}" stroke-width="{1.6 * min(sc, 1.6):.2f}" opacity=".2"/>'
+                           f'<path d="M{w * .25:.2f},{sc:.2f}L{w * .55:.2f},{4 * sc:.2f}L{w * .85:.2f},{sc:.2f}" stroke="{lo}" '
+                           f'stroke-width=".9" fill="none" opacity=".14"/>')
+    if name == "garter":     # ridged rows
+        h = 5 * sc
+        return (8 * sc, h, f'<path d="M0,{h * .3:.2f}q{2 * sc:.2f},{1.6 * sc:.2f} {4 * sc:.2f},0t{4 * sc:.2f},0" stroke="{lo}" '
+                           f'stroke-width="{0.9 * min(sc, 1.6):.2f}" fill="none" opacity=".2"/>')
+    if name == "linen":      # slubs: short, uneven streaks
+        return (40, 9, f'<path d="M2,2H13M21,2.5H25M8,6.5H15M27,6H38M31,8.2H34" stroke="{lo}" stroke-width=".9" opacity=".12"/>')
+    if name == "basket":     # hopsack, oxford: pairs of threads over pairs
+        return (6, 6, f'<path d="M.5,1.3H2.5M.5,2.3H2.5M4,3.5V5.5M5,3.5V5.5" stroke="{lo}" stroke-width=".6" opacity=".2"/>')
+    if name == "tweed":      # flecks of other colours
+        return (14, 13, f'<g opacity=".28"><circle cx="2" cy="3" r=".7" fill="{lo}"/><circle cx="9" cy="1.5" r=".6" fill="{hi}"/>'
+                        f'<circle cx="6" cy="8" r=".7" fill="{lo}"/><circle cx="12" cy="10" r=".6" fill="{hi}"/>'
+                        f'<path d="M3,11L5,11.6M10,5L11.5,6.2" stroke="{lo}" stroke-width=".6"/></g>')
+    if name == "ripstop":    # a grid of heavier threads
+        return (8, 8, f'<path d="M0,.5H8M.5,0V8" stroke="{lo}" stroke-width=".7" opacity=".16"/>')
+    if name == "sherpa":     # a curly pile
+        return (9, 8, f'<g stroke="{lo}" stroke-width=".9" fill="none" opacity=".26"><path d="M1,3q1.5,-2.4 3,0"/>'
+                      f'<path d="M5.5,7q1.5,-2.4 3,0"/><path d="M6,2.6q.8,-1.6 2,-.4"/><path d="M.6,7.4q.8,-1.6 2,-.4"/></g>')
+    if name == "fleece":     # a soft nap: faint scattered specks
+        return (7, 7, f'<g fill="{lo}" opacity=".12"><circle cx="1.5" cy="2" r=".9"/><circle cx="5" cy="5.5" r=".8"/></g>'
+                      f'<circle cx="4.6" cy="1.4" r=".7" fill="{hi}" opacity=".14"/>')
+    if name == "quilt_diamond":   # stitched diamonds
+        s = 24 * sc
+        return (s, s, f'<path d="M0,{s / 2:.2f}L{s / 2:.2f},0L{s:.2f},{s / 2:.2f}L{s / 2:.2f},{s:.2f}Z" stroke="{lo}" '
+                      f'stroke-width="1" fill="none" opacity=".34"/>')
+    if name == "quilt_box":
+        s = 26 * sc
+        return (s, s, f'<path d="M0,.5H{s:.2f}M.5,0V{s:.2f}" stroke="{lo}" stroke-width="1" opacity=".32"/>')
+    if name == "baffle":     # a puffer's channels: a stitched line, the fill swelling between
+        h = 32 * sc
+        return (10, h, f'<path d="M0,{h * .5:.2f}H10" stroke="{hi}" stroke-width="{h * .45:.2f}" opacity=".07"/>'
+                       f'<path d="M0,.8H10" stroke="{lo}" stroke-width="1.5" opacity=".42"/>')
+    return None
 
 
 def _graphic_markup(g: fills.Graphic | None, box: tuple[float, float, float, float], clip: str) -> str:
@@ -180,6 +261,10 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
                  f'<filter id="s{uid}" x="-10%" y="-10%" width="120%" height="130%">'
                  '<feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#000" flood-opacity=".18"/></filter>')
 
+    # The weight of the cloth shows in the weight of its edges: a voile is drawn with a fine
+    # line, a melton or a fleece with a heavier one.
+    ow_k, lw_k = {"lightweight": (0.76, 0.86), "heavyweight": (1.22, 1.1), "super_heavy": (1.45, 1.2)}.get(spec.weight or "", (1.0, 1.0))
+    o_w, l_w = o_w * ow_k, l_w * lw_k
     # On a patterned cloth, seams drawn tone-on-tone disappear. There they are
     # drawn darker over a pale halo, and the garment gets an edge in every style.
     if patterned:
@@ -207,8 +292,8 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
             return halo(d, 2.4) + thin(d)
         if role in ("collar_r", "collar_l"):
             # the same cloth as the body (turned, when patterned); its edges are a separate "edge" part
-            if spec.trim_color:
-                return f'<path d="{d}" fill="{spec.trim_color}"/>'
+            if spec.collar_color or spec.trim_color:
+                return f'<path d="{d}" fill="{spec.collar_color or spec.trim_color}"/>'
             return f'<path d="{d}" fill="{turned(role[-1], -24 if role == "collar_r" else 24)}"/>'
         if role == "neckrib":   # the rib of a crew neck: only painted when it is a contrast colour
             return f'<path d="{d}" fill="{spec.trim_color}"/>' if spec.trim_color else ""
@@ -254,6 +339,12 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
                      f'patternTransform="rotate({degrees:.1f} {CX_ROT[0]} {CX_ROT[1]})"/>')
             g.append(f'<path d="{d}" fill="{paint if not patterned else turned(f"s{n}", degrees)}"/>'
                      f'<path d="{d}" fill="url(#t{uid}s{n})"/>')
+    if spec.sheen:   # a soft highlight running across the body
+        defs += (f'<linearGradient id="h{uid}" x1="0" y1="0" x2="1" y2="1">'
+                 '<stop offset=".18" stop-color="#fff" stop-opacity="0"/><stop offset=".36" stop-color="#fff" stop-opacity=".2"/>'
+                 '<stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset=".7" stop-color="#fff" stop-opacity=".1"/>'
+                 '<stop offset=".82" stop-color="#fff" stop-opacity="0"/></linearGradient>')
+        g.append(f'<path d="{shape.outline}" fill="url(#h{uid})"/>')
     # seams lie on the body, under anything folded over it (a collar covers the top of the placket)
     g.append(f'<g clip-path="url(#{clip})">')
     for d in shape.seams:
@@ -283,8 +374,21 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
             g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{spec.button_color}" stroke="{l_stroke}" stroke-width=".8"/>')
         else:
             g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{l_stroke}" opacity="{min(1, l_op + 0.25)}"/>')
+    for x, y, r in shape.snaps:   # a press stud: a metal ring round a cap
+        cap = spec.button_color or "#ece6da"
+        ring = "#8d8a84" if luminance(cap) > 0.35 else "#c9c5bd"
+        if patterned:
+            g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 1.5}" fill="#fff" opacity=".45"/>')
+        g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 0.9:.1f}" fill="{ring}" stroke="{INK if style == "line" else l_stroke}" stroke-width=".9"/>'
+                 f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r * 0.62:.1f}" fill="{cap}"/>'
+                 f'<circle cx="{x - r * 0.18:.1f}" cy="{y - r * 0.18:.1f}" r="{r * 0.2:.1f}" fill="#fff" opacity=".7"/>')
+    if spec.halo:   # fuzz: a broken fringe of the cloth's own colour standing off the edge
+        fz = shade(base, 0.1 if dark_item else -0.08)
+        g.append(f'<path d="{shape.outline}" fill="none" stroke="{fz}" stroke-width="{max(o_w, 2) + 5.5:.1f}" '
+                 f'stroke-dasharray=".1 3.1" stroke-linecap="round" stroke-linejoin="round"/>')
     if o_w:
-        g.append(f'<path d="{shape.outline}" fill="none" stroke="{o_stroke}" stroke-width="{o_w}" stroke-linejoin="round"/>')
+        dash = ' stroke-dasharray="9 1.6"' if spec.halo else ""
+        g.append(f'<path d="{shape.outline}" fill="none" stroke="{o_stroke}" stroke-width="{o_w:.2f}" stroke-linejoin="round"{dash}/>')
         for part in shape.parts:
             if part.role == "sole":
                 g.append(f'<path d="{part.d}" fill="none" stroke="{o_stroke}" stroke-width="{o_w * 0.7:.1f}" stroke-linejoin="round"/>')

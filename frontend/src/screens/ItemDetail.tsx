@@ -32,7 +32,7 @@ function applyPatch(item: Item, changes: ItemPatch): Item {
 }
 
 export function ItemDetail({ id, status, inPanel }: Props) {
-  const { vocab, upsert, drop, toast, offline, model } = useCloset();
+  const { vocab, upsert, drop, toast, offline, model, items } = useCloset();
   const [item, setItem] = useState<Item | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inflight = useRef(0);
@@ -68,7 +68,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
     return () => window.clearInterval(t);
   }, [busy, offline, id]);
 
-  const save = useCallback(async (changes: ItemPatch) => {
+  const save = useCallback(async (changes: ItemPatch, saidAs = 'Saved') => {
     if (!item) return;
     const before = item;
     setItem((cur) => (cur ? applyPatch(cur, changes) : cur));
@@ -78,7 +78,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       inflight.current--;
       if (!inflight.current) setItem(saved);
       upsert(saved);
-      toast('Saved');
+      toast(saidAs);
     } catch (e) {
       inflight.current--;
       setItem(before);
@@ -88,6 +88,20 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   }, [item, id, upsert, toast, load]);
 
   if (error && !item) {
+    const summary = items.active?.find((x) => x.id === id) ?? items.archived?.find((x) => x.id === id);
+    if (offline && summary) {
+      // Not saved for offline use yet: show what the closet list knows.
+      const asItem = { ...summary, photos: [], silhouette: {}, illustration_svg: null } as unknown as Item;
+      return (
+        <article className="detail" aria-label={summary.name || 'Item'}>
+          <DetailTop inPanel={inPanel} backTo={backTo} />
+          <Picture item={asItem} busyText={busyLabel(model)} fallbackThumb={summary.thumb_url} />
+          <p className="notice">You're offline, so this item can't be changed right now. Its full details show once Closet can be reached again.</p>
+          <h2 className="detail-name">{summary.name || label('category', summary.category) || 'Item'}</h2>
+          <p className="muted">{[label('category', summary.category), label('color', summary.color), label('pattern', summary.pattern), label('location', summary.location)].filter(Boolean).join(' · ')}</p>
+        </article>
+      );
+    }
     return (
       <div className="detail">
         <DetailTop inPanel={inPanel} backTo={backTo} />
@@ -170,8 +184,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       </details>
 
       <Actions item={item} disabled={locked} onArchive={async (archived) => {
-        await save({ status: archived ? 'archived' : 'active' });
-        toast(archived ? 'Archived' : 'Back in your closet');
+        await save({ status: archived ? 'archived' : 'active' }, archived ? 'Archived' : 'Back in your closet');
       }} onDelete={async () => {
         try {
           await api.remove(id);
@@ -195,7 +208,7 @@ function DetailTop({ inPanel, backTo }: { inPanel?: boolean; backTo: string }) {
   );
 }
 
-function Picture({ item, busyText }: { item: Item; busyText: string }) {
+function Picture({ item, busyText, fallbackThumb }: { item: Item; busyText: string; fallbackThumb?: string | null }) {
   const photo = item.photos[0];
   const views: { key: View; label: string }[] = [];
   if (item.illustration_url || item.has_illustration) views.push({ key: 'illustration', label: 'Illustration' });
@@ -214,7 +227,8 @@ function Picture({ item, busyText }: { item: Item; busyText: string }) {
     pic = item.illustration_url
       ? <img className="pic-illustration" src={item.illustration_url} alt={`${alt}, illustration`} />
       : <div className="pic-illustration" role="img" aria-label={`${alt}, illustration`} dangerouslySetInnerHTML={{ __html: item.illustration_svg ?? '' }} />;
-  } else pic = <div className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></div>;
+  } else if (fallbackThumb) pic = <img className={item.cutout_state === 'ready' ? 'pic-cutout' : 'pic-photo'} src={fallbackThumb} alt={alt} />;
+  else pic = <div className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></div>;
 
   return (
     <div className="detail-picture-wrap">

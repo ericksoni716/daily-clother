@@ -106,15 +106,18 @@ export function ClosetProvider({ profile, onProfile, onLogout, onQuit, toast, ch
   }, [offline, loadAll]);
 
   // Poll while cutouts are being made.
+  // Every 2 s while the model can work on them; slower while it is missing or failed,
+  // since nothing changes until it is downloaded (the model state is still followed).
   const anyBusy = (items.active ?? []).some(busy) || (items.archived ?? []).some(busy);
+  const modelStuck = model?.state === 'missing' || model?.state === 'failed';
   useEffect(() => {
     if (!anyBusy || offline) return;
     const t = window.setInterval(() => {
       void loadItems('active');
       void refreshModel();
-    }, 2000);
+    }, modelStuck ? 10_000 : 2000);
     return () => window.clearInterval(t);
-  }, [anyBusy, offline, loadItems, refreshModel]);
+  }, [anyBusy, offline, modelStuck, loadItems, refreshModel]);
 
   // Poll the model while it downloads.
   useEffect(() => {

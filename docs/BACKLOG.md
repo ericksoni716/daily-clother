@@ -15,12 +15,13 @@
 - Go-ahead to run GitHub Actions: the Windows build and smoke test (about 16 billed minutes), and whether CI should run on every push.
 - 25–30 real photos with an answer key, then the API key last, once everything before it is proven.
 
-## Phase 1 (in progress)
-- [x] Backend: data model and migrations, login, one-photo capture, cutout queue, model download states, backups and restore, demo closet, launcher.
-- [ ] Frontend: closet grid, item detail, capture, settings, phone and wide layouts, offline read-only cache.
-- [ ] Packaged build, smoke test, CI and release workflows.
-- [ ] First green packaged build in Actions (needs the owner's go-ahead).
-- [ ] Try on a real Windows PC and iPhone: tray icon, start at login, Tailscale address, camera capture, home-screen install.
+## Phase 1 (built; waiting for its first real build)
+- [x] Backend: data model and migrations, login, one-photo capture, cutout queue, model download states, backups and restore, demo closet, launcher. 42 tests.
+- [x] Frontend: closet grid, item detail, capture, settings, phone and wide layouts, offline read-only cache. 22 unit tests, 15 browser tests (one runs a real cutout).
+- [x] Packaged build, smoke test (plus a real-cutout mode), CI and release workflows. Passes on Linux, including a browser run against the packaged program.
+- [ ] First packaged build in Actions on Windows (needs the owner's go-ahead: run the `release` workflow).
+- [ ] Try on a real Windows PC and iPhone. Never exercised so far: tray icon, start at login, the Tailscale address, camera capture, home-screen install, HEIC from the phone, the model download progress bar, dropping a folder of photos.
+- [ ] Pin the macOS-only tray dependencies after the first Mac build.
 
 ## Later phases
 2. Illustration pipeline in the app, correction by command, visual picker, version history.

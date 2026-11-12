@@ -34,7 +34,6 @@ class Services:
     _phone_cache: tuple[float, dict] | None = field(default=None, repr=False)
 
     def start(self) -> None:
-        self.model.refresh()
         if not self.model.ready and self.cfg.auto_download_model:
             self.model.start_download()
         self.worker.start()
@@ -77,6 +76,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
 
     worker = jobs.Worker(cfg, state, lambda: model.ready, cutter or real_cutter)
     holder["worker"] = worker
+    model.refresh()  # know the model's real state before the first request is answered
     if web_dir == "bundled":
         candidate = bundle_dir() / "web"
         web_dir = candidate if (candidate / "index.html").exists() else None

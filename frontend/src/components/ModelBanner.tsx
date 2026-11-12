@@ -50,14 +50,14 @@ export function ModelBanner() {
       <div className="model-banner-text">
         <strong>Background removal: </strong>
         {model.state === 'downloading' && <span>getting the model ready.</span>}
-        {model.state === 'missing' && <span>the model isn't downloaded yet, so new photos keep their background for now.</span>}
+        {model.state === 'missing' && <span>not set up yet. New photos keep their background for now.</span>}
         {model.state === 'failed' && <span>the model download didn't work.{model.error ? ` ${model.error}` : ''}</span>}
         {model.state === 'downloading' && <ModelProgress model={model} />}
       </div>
       <div className="model-banner-actions">
         {model.state === 'failed' && <button className="btn btn-small btn-primary" disabled={busy} onClick={start}>Try again</button>}
         {model.state === 'missing' && <button className="btn btn-small" disabled={busy} onClick={start}>Download</button>}
-        <Link to="/settings" className="btn btn-small btn-link">Settings</Link>
+        <Link to="/settings" className="btn btn-small btn-link" aria-label="Background removal settings">Settings</Link>
       </div>
     </div>
   );

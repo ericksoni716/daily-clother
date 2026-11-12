@@ -44,13 +44,13 @@ export function SettingsScreen({ version }: { version: string }) {
         <div className="settings-col">
           {model && <ModelSection model={model} refresh={refreshModel} toast={toast} disabled={offline} />}
           {settings && <BackupSection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
+        </div>
+        <div className="settings-col">
           {settings && (
             <Section title="Phone access" id="s-phone">
               <PhoneAccess phone={settings.phone} />
             </Section>
           )}
-        </div>
-        <div className="settings-col">
           <Section title="Demo closet" id="s-demo">
             <Toggle
               label="Show the demo closet"
@@ -187,7 +187,7 @@ function BackupSection({ settings, onChange, toast, disabled }: { settings: Sett
   return (
     <Section title="Backups" id="s-backup">
       <p className="hint">Closet copies your clothes and photos to a folder you choose, such as a USB drive or a synced folder (OneDrive, iCloud Drive, Dropbox). The demo closet is never backed up.</p>
-      <form className="field-row" onSubmit={saveFolder}>
+      <form className="field-row field-row-inline" onSubmit={saveFolder}>
         <label className="field">
           <span>Backup folder</span>
           <input value={folder} disabled={disabled} placeholder="e.g. D:\Closet backups" onChange={(e) => setFolder(e.target.value)} spellCheck={false} />
@@ -202,6 +202,7 @@ function BackupSection({ settings, onChange, toast, disabled }: { settings: Sett
       <button className="btn btn-primary" disabled={busy || disabled || !settings.backup_folder} onClick={backupNow}>
         {busy ? 'Backing up…' : 'Back up now'}
       </button>
+      {!settings.backup_folder && <p className="hint">Choose a backup folder first.</p>}
     </Section>
   );
 }

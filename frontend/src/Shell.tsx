@@ -50,7 +50,7 @@ function TopBanners() {
       )}
       {profile === 'demo' && (
         <div className="ribbon" role="note">
-          <span><strong>Demo closet.</strong> Sample clothes to look around with; your own closet is safe.</span>
+          <span><strong>Demo closet</strong><span className="ribbon-more"> · sample clothes to look around with. Your own closet is safe.</span></span>
           <button className="btn btn-small btn-on-accent" disabled={busy || offline} onClick={async () => {
             setBusy(true);
             try {

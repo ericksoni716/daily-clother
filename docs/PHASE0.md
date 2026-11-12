@@ -2,9 +2,10 @@
 
 Status: **partly done.** The illustration approach has been tested on open-licence
 photos. The tagging bench has scored a first, small stand-in run (Claude
-subagents answering the app's exact prompt on seven photos), but it has not
-made a single real API call, because no API key is available in the build
-environment yet, and the owner's own photos have not been provided yet.
+subagents answering the app's exact prompt on seven photos) and then a real
+run of the same photos through the Claude plan (`claude -p`). It has not made
+a call with an API key, and the owner's own photos have not been provided
+yet.
 
 ## What was tested
 
@@ -89,6 +90,25 @@ What this does not show: seven items is far too few to rank the models; the
 subagents are not the API call (different surrounding instructions, and one
 agent saw all seven items in a row); the key is the developer's opinion; and
 there are no cost or timing figures.
+
+## Tagging: real run through the Claude plan (`claude -p`)
+
+The same seven photos were then tagged for real through the plan route, one
+`claude -p` call per photo, with the app's prompt and schema. Nothing was
+billed. All 21 calls returned a valid answer on the first attempt.
+
+| | Haiku 5.5 | Sonnet 5.5 | Opus 5.5 |
+|---|---|---|---|
+| Time per item | 5.5 s | 5.8 s | 7.7 s |
+| Estimated cost per item at API prices (includes Claude Code's own overhead) | $0.0008 | $0.016 | $0.032 |
+| Scored fields wrong (of 39) | 3 | 3 | 1 |
+| Wrong answers given confidence under 0.8 | 2 of 3 | 3 of 3 | 1 of 1 |
+| Fields under 0.8 (what a review queue would show) | 18% | 28% | 26% |
+
+- Category, pattern and every silhouette field were again right for all three models.
+- The mistakes are the same arguable ones: cream vs white for the tee under warm light, tan vs grey for the marl knit, one formality and two season calls.
+- One Haiku mistake (cream vs white) came with confidence exactly 0.8, so a review threshold of 0.8 would have let it through. A threshold just above 0.8, or always showing colour for review on pale items, would catch it; the owner's own photos will decide.
+- Seven items against the developer's key is still far too few to rank the models. On this evidence Haiku is good enough for tagging and costs a twentieth of Sonnet.
 
 ## Confidence in the API call before spending anything
 

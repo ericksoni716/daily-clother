@@ -214,3 +214,16 @@ def test_organic_swatch_wraps_without_a_seam():
 def cv2_blur(a):
     import cv2
     return cv2.GaussianBlur(a, (0, 0), 6)
+
+
+def test_recorded_answers_are_validated_like_live_ones(tmp_path):
+    from closet_bench.bench import recorded_tagger
+    (tmp_path / "m").mkdir()
+    (tmp_path / "m" / "a.json").write_text(make_tags().model_dump_json())
+    (tmp_path / "m" / "b.json").write_text('{"category": "spaceship"}')
+    tag = recorded_tagger(tmp_path)
+    assert tag("m", "a.jpg", []).tags.pattern == "plaid"
+    with pytest.raises(tagging.TaggingError, match="does not fit the schema"):
+        tag("m", "b.jpg", [])
+    with pytest.raises(tagging.TaggingError, match="no recorded answer"):
+        tag("m", "c.jpg", [])

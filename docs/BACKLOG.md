@@ -2,7 +2,10 @@
 
 ## Phase 0 (in progress)
 - [ ] Run the tagging bench on the owner's 25–30 real photos with an answer key (needs an API key in the `daily-clother` environment and the photos).
-- [ ] Run the hard cases through the app's real tagging call instead of hand-set attributes.
+- [x] Stand-in tagging run with Haiku, Sonnet and Opus subagents on the seven test photos (see `PHASE0.md`).
+- [ ] Repeat that through the real API call for cost and timing.
+- [ ] Striped, floral and camouflage hard cases (photos still needed).
+- [ ] Take the colour word for patterned items from the measured palette instead of the model.
 - [ ] Owner picks an illustration style (A flat, B outline, C soft).
 - [ ] First Actions run of the packaging spike on Windows (waiting for the owner's go-ahead on Actions usage).
 

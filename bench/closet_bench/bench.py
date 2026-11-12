@@ -21,7 +21,7 @@ from . import cutout as C
 from . import fills
 from .illustrate import Fill, Spec, render
 from .schema import FIELDS, SILHOUETTE_FIELDS, ItemTags, silhouette_params
-from .tagging import CONFIG, TaggingError, tag_item
+from .tagging import CONFIG, TaggingError, TagResult, tag_item
 
 ROOT = Path(__file__).resolve().parent.parent
 BINS = ((0.0, 0.6), (0.6, 0.8), (0.8, 0.9), (0.9, 1.01))
@@ -77,10 +77,34 @@ def summarize(outcomes: list[dict[str, dict]]) -> dict:
     return summary
 
 
-def run(photos: Path, key_path: Path, models: list[str], out: Path, models_dir: Path, cutout_model: str, client=None) -> Path:
-    if client is None:
-        import anthropic
-        client = anthropic.Anthropic()
+def recorded_tagger(folder: Path):
+    """Score answers saved earlier as `<folder>/<model>/<photo name>.json` instead of calling the API.
+
+    Used to try the prompt and schema with answers produced some other way
+    (for example by Claude subagents). Cost and time are not measured.
+    """
+    def tag(model: str, name: str, images: list) -> TagResult:
+        try:
+            tags = ItemTags.model_validate_json((folder / model / (Path(name).stem + ".json")).read_text())
+        except OSError as e:
+            raise TaggingError("no recorded answer for this item") from e
+        except ValueError as e:
+            raise TaggingError(f"recorded answer does not fit the schema: {e}") from e
+        return TagResult(tags, model, 0.0, 0, 0, 0.0, 1)
+    return tag
+
+
+def run(photos: Path, key_path: Path, models: list[str], out: Path, models_dir: Path, cutout_model: str,
+        client=None, recorded: Path | None = None) -> Path:
+    if recorded is not None:
+        tagger = recorded_tagger(recorded)
+    else:
+        if client is None:
+            import anthropic
+            client = anthropic.Anthropic()
+
+        def tagger(model, name, images):
+            return tag_item(client, model, images)
     key = load_key(key_path)
     out.mkdir(parents=True, exist_ok=True)
     results: dict = {"runs": {}, "items": {}}
@@ -100,7 +124,7 @@ def run(photos: Path, key_path: Path, models: list[str], out: Path, models_dir: 
                     continue
                 n += 1
                 try:
-                    r = tag_item(client, model, [cut] + (extras if variant == "with_extra_shot" else []))
+                    r = tagger(model, name, [cut] + (extras if variant == "with_extra_shot" else []))
                 except TaggingError as e:
                     failures += 1
                     results["items"].setdefault(name, {})[f"{model}/{variant}"] = {"error": str(e)}
@@ -120,11 +144,12 @@ def run(photos: Path, key_path: Path, models: list[str], out: Path, models_dir: 
             print(f"{model} / {variant}: {n} items, {failures} failed, ${cost / done:.5f} per item, {secs / done:.1f}s per item")
     (out / "results.json").write_text(json.dumps(results, indent=1))
     report = out / "report.html"
-    report.write_text(_report(results, cuts, CONFIG["roles"]["tagging"]))
+    show = CONFIG["roles"]["tagging"] if CONFIG["roles"]["tagging"] in models else models[0]
+    report.write_text(_report(results, cuts, show, measured=recorded is None))
     return report
 
 
-def _report(results: dict, cuts: dict, show_model: str) -> str:
+def _report(results: dict, cuts: dict, show_model: str, measured: bool = True) -> str:
     h = ["<!doctype html><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"
          "<title>Closet tagging bench</title><style>body{font:15px/1.45 system-ui,sans-serif;margin:16px;max-width:1200px}"
          "table{border-collapse:collapse;margin:8px 0 20px}td,th{border:1px solid #ccc;padding:4px 8px;text-align:right}"
@@ -132,8 +157,9 @@ def _report(results: dict, cuts: dict, show_model: str) -> str:
          ".card{border:1px solid #ccc;border-radius:10px;padding:8px}.pair{display:flex;gap:6px}.pair>*{width:50%;height:auto}"
          "img{background:#eee;border-radius:8px}</style><h1>Tagging bench</h1>"]
     for run_name, r in results["runs"].items():
-        h.append(f"<h2>{html.escape(run_name)}</h2><p>{r['items']} items · {r['failures']} failed · "
-                 f"${r['cost_per_item_usd']:.5f} per item · {r['seconds_per_item']:.1f}s per item</p>")
+        spend = (f"${r['cost_per_item_usd']:.5f} per item · {r['seconds_per_item']:.1f}s per item" if measured
+                 else "recorded answers: cost and time not measured")
+        h.append(f"<h2>{html.escape(run_name)}</h2><p>{r['items']} items · {r['failures']} failed · {spend}</p>")
         h.append("<table><tr><th>Field</th><th>Items</th><th>Accuracy</th><th>Calibration gap</th>"
                  + "".join(f"<th>conf {lo:.1f}–{min(hi, 1.0):.1f}</th>" for lo, hi in BINS) + "</tr>")
         for f, s in r["fields"].items():
@@ -176,8 +202,9 @@ def main() -> None:
     ap.add_argument("--cutout-model", default="isnet-general-use", choices=list(C.MODELS))
     ap.add_argument("--out", type=Path, default=ROOT / "out" / "bench")
     ap.add_argument("--models-dir", type=Path, default=ROOT / "models")
+    ap.add_argument("--recorded", type=Path, help="score saved answers in this folder instead of calling the API")
     a = ap.parse_args()
-    print("report:", run(a.photos, a.key, a.models, a.out, a.models_dir, a.cutout_model))
+    print("report:", run(a.photos, a.key, a.models, a.out, a.models_dir, a.cutout_model, recorded=a.recorded))
 
 
 if __name__ == "__main__":

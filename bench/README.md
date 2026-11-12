@@ -15,6 +15,11 @@ python -m closet_bench.bench --photos private/photos --key private/key.csv
 #    -> out/bench/report.html and results.json
 ```
 
+To score answers produced some other way (for example by Claude subagents),
+save them as `<folder>/<model name>/<photo name>.json` and add
+`--recorded <folder> --models <model name> ...`. Cost and time are then not
+measured. `hardcases/key.csv` is a developer-written key for the test photos.
+
 The background-removal model (about 170 MB) downloads into `models/` on first
 use and is checked against a pinned checksum.
 

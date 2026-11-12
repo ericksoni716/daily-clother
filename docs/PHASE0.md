@@ -1,9 +1,10 @@
 # Phase 0 results
 
 Status: **partly done.** The illustration approach has been tested on open-licence
-photos. The tagging accuracy bench is built and unit-tested but has not made a
-single real API call, because no API key is available in the build environment
-yet, and the owner's own photos have not been provided yet.
+photos. The tagging bench has scored a first, small stand-in run (Claude
+subagents answering the app's exact prompt on seven photos), but it has not
+made a single real API call, because no API key is available in the build
+environment yet, and the owner's own photos have not been provided yet.
 
 ## What was tested
 
@@ -62,6 +63,32 @@ the build environment before those photos could be downloaded.
    pillow-heif and ffmpeg builds into one file with PyInstaller and passes its
    smoke test on Linux (about 117 MB, of which ffmpeg is about 65 MB). It has
    not been built on Windows or macOS; the workflow exists but has never run.
+
+## Tagging: stand-in run with subagents (not the API)
+
+Haiku, Sonnet and Opus subagents each tagged the seven test cutouts blind
+(neutral file names, no access to the repo) using the app's prompt and schema.
+The answers were validated and scored by the same bench code
+(`--recorded`), against a key written by the developer, not the owner.
+
+| | Haiku | Sonnet | Opus |
+|---|---|---|---|
+| Answers that fit the schema | 7 of 7 | 7 of 7 | 7 of 7 |
+| Scored fields wrong (of 39) | 4 | 2 | 1 |
+| Wrong answers given confidence under 0.8 | 4 of 4 | 2 of 2 | 1 of 1 |
+| Fields under 0.8 (what a review queue would show) | 31% | 36% | 31% |
+
+- Category, pattern and every silhouette field were right for all three models on all items.
+- All seven mistakes were in colour, formality or season, and at least three are arguable (cream vs white tee under warm light, tan vs grey marl, smart-casual vs casual).
+- Every mistake came with a confidence of 0.7 or less, and every answer at 0.8 or above was right. That supports showing only low-confidence fields for review, with 0.8 as a first threshold.
+- The models are under-confident rather than over-confident: about a third of fields would be shown for review although most of those were right.
+- For the two plaid shirts the models disagreed on the main colour (multi, green, navy). The colour word for patterned items is better taken from the colours measured in the photo than asked of the model.
+- With these tags, not hand-set ones, the illustrations still came out right (see `bench/out/standin/report.html` after running the command in `bench/README.md`).
+
+What this does not show: seven items is far too few to rank the models; the
+subagents are not the API call (different surrounding instructions, and one
+agent saw all seven items in a row); the key is the developer's opinion; and
+there are no cost or timing figures.
 
 ## Still open
 

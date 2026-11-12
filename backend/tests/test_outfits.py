@@ -171,13 +171,19 @@ def test_nothing_is_worn_over_something_heavier_or_bulkier():
         for o in outfits.suggest(items, day(t), 10)["outfits"]:
             p = o["pieces"]
             assert not (p["mid"] in ("flannel1", "hoodie1") and p["outer"] == "bomber1"), (t, p)
+    # an oversized base top does not go under a thinner jacket either
+    baggy = [item("tee2", "tee", "white", "casual", weight_class="lightweight", silhouette={"fit": "oversized"}),
+             item("bomber1", "jacket", "navy", "casual", weight_class="lightweight"),
+             item("jeans1", "jeans", "blue", "casual"), item("sneakers1", "sneakers", "white", "casual")]
+    for o in outfits.suggest(baggy, day(12, 14), 10)["outfits"]:
+        assert o["pieces"]["outer"] is None
     # and the general rule on the demo closet, with weights the engine works out from category, material and name
     pieces = {i["id"]: outfits._piece(i) for i in demo_items()}
     for ctx in DAYS:
         for o in outfits.suggest(demo_items(), ctx, 5)["outfits"]:
             stack = [pieces[o["pieces"][k]] for k in ("base", "mid", "outer") if o["pieces"][k]]
             for inner, outer in itertools.pairwise(stack):
-                if inner is stack[0] and inner.bulk <= outfits.BASE_UNDER_ANYTHING_MAX:
+                if inner is stack[0] and inner.weight <= outfits.BASE_UNDER_ANYTHING_MAX and inner.bulk == inner.weight:
                     continue  # a thin, close-fitting base top goes under anything
                 assert inner.weight <= outer.weight and inner.bulk <= outer.bulk
 
@@ -257,6 +263,22 @@ def test_cold_day_with_only_a_light_jacket_says_so():
     o = outfits.suggest(items, day(2), 1)["outfits"][0]
     assert o["pieces"]["outer"] == "jacket1"
     assert "No coat warm enough for 2°C; the navy jacket jacket1 is the warmest you have." in o["warnings"]
+
+
+def test_cold_day_uses_the_only_outer_layer_even_when_it_breaks_a_rule():
+    base = [item("tee1", "tee", "white", "casual"), item("jeans1", "jeans", "blue", "casual"),
+            item("sneakers1", "sneakers", "white", "casual")]
+    for outer in (item("jacket1", "jacket", "navy", "casual", "warm"), item("coat1", "coat", "black", "formal")):
+        result = outfits.suggest(base + [outer], day(2), 3)["outfits"]
+        assert result and all(o["pieces"]["outer"] == outer["id"] for o in result), outer
+        assert all(o["warnings"] for o in result)
+
+
+def test_odd_item_data_never_crashes():
+    odd = [item("x1", ["tee"]), item("x2", {"a": 1}), item("x3", "tee", rating=["love"]), item("x4", "tee", color_hex=5),
+           item(7, "tee", silhouette="slim", weight_class=["heavy"], formality={"x": 1}), {"category": "tee"}, {"id": "x5"}]
+    result = outfits.suggest(basic_closet() + odd, day(15), 3)
+    assert result["outfits"]
 
 
 def test_rain_keeps_sandals_and_canvas_away_when_there_is_a_choice():

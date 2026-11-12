@@ -81,7 +81,7 @@ WEIGHT_WORDS = (
     ("wool", 2), ("cotton", 1),
 )
 OVERSIZED_BULK = 1           # an oversized fit counts as this many classes bulkier when layering
-BASE_UNDER_ANYTHING_MAX = 1  # a base top this light and close-fitting (bulk 0-1: midweight, not oversized) goes under anything
+BASE_UNDER_ANYTHING_MAX = 1  # a base top this light (weight 0-1: midweight or lighter) and not oversized goes under anything
 
 # ------------------------------------------------------------------ places
 PLACES = ("base", "mid", "outer", "bottom", "shoes")
@@ -284,7 +284,7 @@ def _in_laundry(item: dict) -> bool:
 
 def _piece(item: dict) -> Piece | None:
     category = item.get("category")
-    if not item.get("id") or category not in CATEGORY_FORMALITY:
+    if not item.get("id") or not isinstance(category, str) or category not in CATEGORY_FORMALITY:
         return None
     sil = item.get("silhouette") or {}
     if not isinstance(sil, dict):
@@ -300,7 +300,7 @@ def _piece(item: dict) -> Piece | None:
         pattern=item.get("pattern") if item.get("pattern") in vocab.PATTERN else "solid",
         formality=FORMALITY.index(formality), season=item.get("season") if item.get("season") in vocab.SEASON else "all",
         weight=weight, bulk=weight + (OVERSIZED_BULK if sil.get("fit") == "oversized" else 0), long_sleeve=long_sleeve,
-        rating=item.get("rating"), in_storage=item.get("location") == "storage", words=mat + name)
+        rating=item.get("rating") if item.get("rating") in vocab.RATING else None, in_storage=item.get("location") == "storage", words=mat + name)
 
 
 # ====================================================================== words
@@ -425,7 +425,7 @@ def _layers_ok(base: Piece, mid: Piece | None, outer: Piece | None) -> bool:
             return False
     stack = [p for p in (base, mid, outer) if p is not None]
     return all(a.weight <= b.weight and a.bulk <= b.bulk for a, b in itertools.pairwise(stack)
-               if not (a is base and base.bulk <= BASE_UNDER_ANYTHING_MAX))
+               if not (a is base and base.weight <= BASE_UNDER_ANYTHING_MAX and base.bulk == base.weight))
 
 
 def _neutral(p: Piece) -> bool:
@@ -544,8 +544,8 @@ def _search(pool: list[Piece], ctx: Context, t: float, forced: tuple[Piece, str]
     outers: list[_Option | None] = list(opts["outer"])
     if not (forced and forced[1] == "mid"):
         mids.append(None)
-    cold_needs_outer = t <= COLD_C and bool(outers)
-    if not (forced and forced[1] == "outer") and not (strict and cold_needs_outer):
+    cold_needs_outer = t <= COLD_C and any(p.category in PLACE_CATEGORIES["outer"] for p in pool)
+    if not (forced and forced[1] == "outer") and not (cold_needs_outer and (strict or outers)):
         outers.append(None)
     found = []
     for base, mid, outer in itertools.product(opts["base"], mids, outers):

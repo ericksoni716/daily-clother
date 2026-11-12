@@ -9,6 +9,7 @@ free and deterministic, and every item of a category shares anchor points
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 
 W, H = 400, 460
@@ -82,15 +83,27 @@ TOP_DEFAULTS = dict(
 # Finer pocket values: chest-flap | chest-patch-two | pencil | western | welt | split | slash | chore |
 #   chest-flap-two | guayabera | bellows | utility | hip-patch | hip-flap
 
-FITS = {   # half shoulder, half hem, shoulder y, underarm drop, cuff widths (long, short), short sleeve length and angle
-    "slim": dict(hs=80, hh=72, sy=80, ad=84, cwl=31, cws=54, lns=88, ths=24),
-    "tailored": dict(hs=80, hh=73, sy=80, ad=84, cwl=30, cws=53, lns=87, ths=24, waist=6),
-    "regular": dict(hs=88, hh=82, sy=80, ad=89, cwl=35, cws=60, lns=93, ths=24),
-    "relaxed": dict(hs=95, hh=90, sy=82, ad=93, cwl=37, cws=63, lns=98, ths=26),
-    "boxy": dict(hs=99, hh=90, sy=83, ad=93, cwl=38, cws=66, lns=96, ths=27, shorter=22),
-    "oversized": dict(hs=102, hh=98, sy=84, ad=96, cwl=38, cws=66, lns=102, ths=28),
+K_PX = 3.5   # canvas px per cm: a 46 cm shoulder is 161 px, a 108 cm overcoat still fits the card
+# Flat measurements of real garments, men's M / 40R, regular fit, in cm: shoulder seam to seam, chest
+# pit to pit, waist, hem, back length from the collar seam, sleeve from the shoulder seam, bicep and
+# cuff (flat), short sleeve length and opening, and how far the underarm sits below the shoulder.
+BLOCKS = {
+    "shirt": dict(sh=46, chest=56, waist=53, hem=55, length=76, sleeve=65, bicep=20, cuff=11.5, short=25, short_open=17, depth=22),
+    "tee": dict(sh=46, chest=53, waist=52, hem=53, length=71, sleeve=64, bicep=18, cuff=10, short=21, short_open=18, depth=21),
+    "polo": dict(sh=46, chest=54, waist=53, hem=54, length=72, sleeve=63, bicep=19, cuff=10, short=22, short_open=16.5, depth=21),
+    "knit": dict(sh=47, chest=55, waist=53, hem=53, length=68, sleeve=64, bicep=19, cuff=10, short=21, short_open=17, depth=22),
+    "outer": dict(sh=47, chest=58, waist=57, hem=58, length=74, sleeve=65, bicep=21, cuff=13, short=25, short_open=19, depth=23),
+    "bomber": dict(sh=47, chest=60, waist=58, hem=55, length=66, sleeve=65, bicep=21, cuff=11, short=25, short_open=19, depth=24),
+    "jacket": dict(sh=46.5, chest=54.5, waist=50, hem=55, length=75, sleeve=64, bicep=19, cuff=13.5, short=25, short_open=19,
+                   depth=22, waist_at=44),
+    "coat": dict(sh=48, chest=60, waist=57, hem=62, length=82, sleeve=66, bicep=21, cuff=15, short=25, short_open=20, depth=24),
 }
-TOP_LENGTHS = {"cropped": 296, "regular": 344, "long": 388, "knee": 430}
+# cm added to (shoulder, chest, waist, hem, bicep, length) by the fit; from the same garments in other cuts
+FIT_DELTA = {
+    "slim": (-1, -4, -5, -3, -1.5, 0), "tailored": (-0.5, -3, -6, -2, -1.5, 0), "regular": (0, 0, 0, 0, 0, 0),
+    "relaxed": (1.5, 4, 5, 4, 1.5, 0), "boxy": (3, 6, 8, 7, 2, -6), "oversized": (8, 8, 10, 9, 3, 3),
+}
+FITS = tuple(FIT_DELTA)
 WEIGHT_LEVEL = {"lightweight": 0, "midweight": 1, "heavyweight": 2, "super_heavy": 3}
 GAUGE_BAND = {"extra_fine": 0.8, "fine": 0.9, "medium": 1.0, "chunky": 1.25, "super_chunky": 1.5}
 
@@ -203,18 +216,107 @@ def _offset_line(pts, dist):
     return out
 
 
+def _mirror_path(d: str) -> str:
+    """The same path mirrored about the centre line (every coordinate pair is written x,y)."""
+    return re.sub(r"(-?[\d.]+),(-?[\d.]+)", lambda m: f"{_f(2 * CX - float(m.group(1)))},{m.group(2)}", d)
+
+
+def _scallop(pts, spacing, amp, outward=1):
+    """A near-vertical edge swelling between stitched channels every `spacing` px (a puffer's baffles)."""
+    out = []
+    for a, b in zip(pts, pts[1:]):
+        n = max(1, int(math.hypot(b[0] - a[0], b[1] - a[1]) / 2))
+        for i in range(n):
+            x = a[0] + (b[0] - a[0]) * i / n
+            y = a[1] + (b[1] - a[1]) * i / n
+            f = ((y - 0.8) % spacing) / spacing
+            out.append((x + outward * amp * math.sin(math.pi * f), y))
+    out.append(pts[-1])
+    return out
+
+
+def _x_on(pts, y):
+    """x of a mostly vertical polyline at height y."""
+    for a, b in zip(pts, pts[1:]):
+        if min(a[1], b[1]) <= y <= max(a[1], b[1]) and a[1] != b[1]:
+            return a[0] + (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1])
+    return pts[0][0] if y < pts[0][1] else pts[-1][0]
+
+
+def _block_for(p) -> str:
+    """Which measured block a top is drawn from, when the caller did not say."""
+    if p.get("block") in BLOCKS:
+        return p["block"]
+    cs = p.get("collar")
+    if p["neck"] == "collar" and cs in ("notch", "peak", "shawl"):
+        return "coat" if p["length"] == "knee" else "jacket"
+    if p["neck"] == "collar" and cs in ("stand", "rib"):
+        return "bomber" if p["hem"] == "rib" else "outer"
+    if p["neck"] == "collar" and (cs in ("knit", "johnny", "rugby") or (cs is None and p["front"] not in
+                                                                            ("buttons", "french", "hidden", "popover", "double"))):
+        return "polo"
+    if p["neck"] == "collar":
+        return "shirt"
+    if p["neck"] in ("turtle", "mock", "roll", "shawl", "hood") or p["hem"] == "rib":
+        return "knit"
+    return "tee"
+
+
+def _side_points(A, W, Hc, n=10):
+    """The side seam from the underarm through the waist to the hem corner, as points."""
+    up = _bez(A, (A[0] + (W[0] - A[0]) * 0.5, A[1] + (W[1] - A[1]) * 0.45), (W[0], W[1] - (W[1] - A[1]) * 0.4), W, n)
+    down = _bez(W, (W[0], W[1] + (Hc[1] - W[1]) * 0.4), (Hc[0] + (W[0] - Hc[0]) * 0.3, Hc[1] - (Hc[1] - W[1]) * 0.3), Hc, n)
+    return [A] + up + down
+
+
+def _seg_cross(p, q, a, b):
+    """Where segment p-q meets segment a-b, or None."""
+    d1 = (q[0] - p[0], q[1] - p[1])
+    d2 = (b[0] - a[0], b[1] - a[1])
+    den = d1[0] * d2[1] - d1[1] * d2[0]
+    if abs(den) < 1e-9:
+        return None
+    t = ((a[0] - p[0]) * d2[1] - (a[1] - p[1]) * d2[0]) / den
+    s = ((a[0] - p[0]) * d1[1] - (a[1] - p[1]) * d1[0]) / den
+    if 0 <= t <= 1 and 0 <= s <= 1:
+        return (p[0] + d1[0] * t, p[1] + d1[1] * t), t
+    return None
+
+
+def _first_cross(path, poly):
+    """The first point where the polyline `path` crosses the polyline `poly`: (point, index into path, index into poly)."""
+    for i in range(len(path) - 1):
+        for j in range(len(poly) - 1):
+            hit = _seg_cross(path[i], path[i + 1], poly[j], poly[j + 1])
+            if hit:
+                return hit[0], i, j
+    return None
+
+
 def top(**kw) -> Shape:
-    """A top, front view. Proportions are measured from flat reference drawings of real
-    shirts (see docs/DECISIONS.md), normalised to the shoulder width."""
+    """A top, front view, as a fashion flat drawn from the flat measurements of real garments
+    (BLOCKS, men's M / 40R, in cm), with the sleeves hanging over the sides of the body as they
+    do on a garment laid out with its arms down."""
     p = {**TOP_DEFAULTS, **kw}
-    fit = p["fit"] if p["fit"] in FITS else "regular"
-    F = FITS[fit]
+    fit = p["fit"] if p["fit"] in FIT_DELTA else "regular"
+    block = _block_for(p)
+    B = BLOCKS[block]
+    dsh, dch, dwa, dhe, dbi, dle = FIT_DELTA[fit]
     wt = WEIGHT_LEVEL.get(p.get("weight"), 1)
-    bulk = (-1.0, 0.0, 3.0, 6.0)[wt]                  # a heavier cloth stands away from the body
-    bs = GAUGE_BAND.get(p.get("gauge"), 1.0) * (1 + 0.16 * (wt - 1))   # depth of rib bands and cuffs
-    hs, hh = F["hs"] + bulk, F["hh"] + bulk
-    hy = TOP_LENGTHS.get(p["length"], 344) - F.get("shorter", 0)
-    sy = float(F["sy"])
+    ease = (0.97, 1.0, 1.06, 1.12)[wt]               # a heavier cloth stands away from the body
+    bulk = (-1.0, 0.0, 3.0, 6.0)[wt]
+    bs = GAUGE_BAND.get(p.get("gauge"), 1.0) * (0.85, 1.0, 1.25, 1.5)[wt]   # depth of rib bands and cuffs
+    k_ = K_PX
+    jacket = block in ("jacket", "coat")
+    hs = (B["sh"] + dsh + (0.6, 0, 1.2, 2.4)[wt]) / 2 * k_
+    chest = (B["chest"] + dch) / 2 * k_ * ease
+    waist_w = (B["waist"] + dwa) / 2 * k_ * ease
+    hh = (B["hem"] + dhe) / 2 * k_ * ease
+    if p["hem"] == "rib" and block in ("knit", "bomber"):
+        hh = min(hh, waist_w)                          # the rib draws the hem in
+    length = B["length"] + dle
+    length = {"cropped": length * 0.84, "long": length + 9, "knee": max(length + 30, 105)}.get(p["length"], length)
+    sy = 77.0 if jacket else 80.0
     sleeve = p["sleeve"] if p["sleeve"] in ("none", "short", "elbow", "three-quarter", "long") else "long"
     cuffs = p["cuffs"]
     if cuffs in ("rolled", "roll-tab") and sleeve not in ("long", "three-quarter"):
@@ -222,18 +324,8 @@ def top(**kw) -> Shape:
     sleeved = sleeve != "none"
     shoulder = p["shoulder"]
     front = p["front"]
+    state = p.get("state", "closed")
     vest = not sleeved and p.get("armhole") == "vest"
-    if sleeved:
-        # The underarm sits about half a shoulder width below the shoulder and well inside
-        # it, so sleeves taper to the wrist and the body widens slightly to the hem.
-        ha = hs - 13.0
-        ay = sy + F["ad"] + bulk
-        if shoulder == "drop":
-            ha, ay = ha + 6, ay + 10
-        elif shoulder == "dolman":   # the sleeve is cut in one with the body: a deep, wide armhole
-            ha, ay = hh - 3, sy + (150 if sleeve in ("long", "three-quarter") else 104)
-    else:
-        ha, ay = hs - 4.0, sy + 74.0
     collar = p["neck"] == "collar" or p["neck"] == "shawl"
     shirt_front = front in ("buttons", "french", "hidden", "popover", "double")
     cs = None
@@ -246,107 +338,147 @@ def top(**kw) -> Shape:
     leafy, banded, lapel = cs in LEAVES, cs in BAND_COLLARS, cs in LAPEL_COLLARS or cs == "shawl_knit"
     woven = (leafy and cs not in ("knit", "johnny", "rugby")) or cs in ("band", "wing", "camp")
     neck = p["neck"]
-    nw, ny = (40.0, sy - 15.0) if collar else ({"scoop": 36.0, "boat": 52.0}.get(neck, 30.0), 58.0 + (2 if neck == "boat" else 0))
+    nw, ny = (40.0, sy - (12.0 if jacket else 15.0)) if collar else (
+        {"scoop": 36.0, "boat": 52.0}.get(neck, 30.0), 58.0 + (2 if neck == "boat" else 0))
+    seam_y = ny if collar else 56.0                   # where the back length is measured from
+    hy = seam_y + length * k_
+    wy = seam_y + B.get("waist_at", 45) * k_
+    ay = sy + B["depth"] * k_ + bulk * 0.5            # the underarm, under the sleeve
 
     N = (CX + nw, ny)
     S = (CX + hs, sy)
-    A = (CX + ha, ay)
     curved = p["hem"] == "curved"
     side_y = hy - (20 if curved else 0)
     Hc = (CX + hh, side_y)
     ul = math.hypot(S[0] - N[0], S[1] - N[1])
     u = ((S[0] - N[0]) / ul, (S[1] - N[1]) / ul)
     if sleeved and shoulder == "drop":   # the shoulder seam falls onto the arm
-        S = (S[0] + u[0] * 13, S[1] + u[1] * 13)
-    Sl, Al, Hl, Nl = _mirror(S), _mirror(A), _mirror(Hc), _mirror(N)
+        S = (S[0] + u[0] * 14, S[1] + u[1] * 14)
+    if not sleeved:
+        chest = min(chest, hs + 6)
+    Ab = (CX + chest, ay)                             # the body's real underarm: wider than the shoulder
+    if shoulder == "dolman" and sleeved:
+        ay = sy + (150 if sleeve in ("long", "three-quarter") else 104)
+        Ab = (CX + max(chest, waist_w), ay)
+    side = _side_points(Ab, (CX + waist_w, max(wy, ay + 20)), Hc)
 
     # ---- sleeves
     cuff = None
-    seam = None   # the armhole seam: shoulder point, two control points, where it turns vertical
+    seam = None   # the armhole seam: shoulder point, two control points, the visible underarm
+    U = None      # where the sleeve's inner edge (or its hem) leaves the body's side
+    A = Ab
     if not sleeved:
         if vest:   # a sweater vest: a wider shoulder and a ribbed armhole
             S = (CX + hs - 14, sy + 2)
-            A = (CX + hs - 6, sy + 92)
+            A = (CX + chest - 2, sy + 92)
             c1, c2 = (S[0] - 6, S[1] + 52), (A[0] - 26, A[1] - 4)
         else:      # a tank: narrow straps and a deep scooped armhole, not a tee with the sleeves cut off
             S = (N[0] + 26, ny + 9)
-            A = (CX + hs - 8, sy + 84)
+            A = (CX + chest - 4, sy + 84)
             c1, c2 = (S[0] + 2, S[1] + 52), (A[0] - 24, A[1] - 6)
-        Sl, Al = _mirror(S), _mirror(A)
+        side = _side_points(A, (CX + waist_w, max(wy, A[1] + 20)), Hc)
         arm = f"C {_pt(c1)} {_pt(c2)} {_pt(A)}"
-        arm_l = f"L {_pt(Al)} C {_pt(_mirror(c2))} {_pt(_mirror(c1))} {_pt(Sl)}"
         armhole = (S, c1, c2, A)
+        arm_pts_r = [S] + _bez(S, c1, c2, A, 12)
+        side_from = side
     else:
         kind = "rolled" if cuffs in ("rolled", "roll-tab") else sleeve
+        bicep = (B["bicep"] + dbi) * k_ * ease
         if kind == "long":
-            th, ln, cw = 18.0, 252.0, float(F["cwl"])
+            th, ln, cw = (10.0 if jacket else 14.0), (B["sleeve"] + (2 if fit == "oversized" else 0)) * k_, B["cuff"] * k_ * ease
         elif kind == "three-quarter":
-            th, ln, cw = 19.0, 192.0, F["cwl"] + 7.0
+            th, ln, cw = 17.0, B["sleeve"] * 0.74 * k_, (B["cuff"] + 3) * k_ * ease
         elif kind in ("elbow", "rolled"):
-            th, ln, cw = F["ths"] - 4.0, F["lns"] * (1.52 if kind == "elbow" else 1.62), F["cws"] * 0.84
+            th, ln, cw = 24.0, B["sleeve"] * (0.5 if kind == "elbow" else 0.56) * k_, B["short_open"] * 0.92 * k_ * ease
         else:
-            th, ln, cw = float(F["ths"]), float(F["lns"]), float(F["cws"])
-        cw += bulk * 0.7
+            th, ln, cw = (44.0 if block in ("tee", "knit") else 38.0), B["short"] * k_, B["short_open"] * k_ * ease
+        th += {"oversized": 3, "boxy": 2, "relaxed": 1}.get(fit, 0) + 2.0 * (wt - 1)
         if shoulder == "drop":
-            ln -= 13
-        if shoulder == "dolman":
-            cw += 6
-        th = math.radians(th)
-        r = (12 if sleeve == "short" else 9) + bulk   # the shoulder corner is rounded off, more so in a thick cloth
+            ln -= 14
+        r = (12 if sleeve == "short" else 9) * (0.6 if jacket else 1) + bulk * 1.2   # rounder in a thick cloth
         K = (S[0] + u[0] * r, S[1] + u[1] * r)
-        if K[0] + math.sin(th) * ln > 391:      # a wide body or a dropped shoulder: hang the sleeve steeper
-            th = math.asin((391 - K[0]) / ln)
-        d = (math.sin(th), math.cos(th))          # down the sleeve
-        q = (-math.cos(th), math.sin(th))         # across it, toward the body
+        w_top = bicep * (0.62 if kind == "long" else 0.7)
+        for _ in range(40):
+            thr = math.radians(th)
+            d = (math.sin(thr), math.cos(thr))        # down the sleeve
+            q = (-math.cos(thr), math.sin(thr))       # across it, toward the body
+            Co = (K[0] + d[0] * ln, K[1] + d[1] * ln)
+            Ci = (Co[0] + q[0] * cw, Co[1] + q[1] * cw)
+            # a short sleeve's hem must end outside the body; a long sleeve may lie over it
+            j = min(range(len(side)), key=lambda i: abs(side[i][1] - Ci[1]))
+            ok = kind == "long" or Ci[0] > side[j][0] + 5
+            if Co[0] > 392:
+                th = math.degrees(math.asin(max(0.0, min(1.0, (392 - K[0]) / ln))))
+                thr = math.radians(th)
+                d = (math.sin(thr), math.cos(thr))
+                q = (-math.cos(thr), math.sin(thr))
+                Co = (K[0] + d[0] * ln, K[1] + d[1] * ln)
+                Ci = (Co[0] + q[0] * cw, Co[1] + q[1] * cw)
+                break
+            if ok:
+                break
+            th += 1.5
+        th = thr
         P1 = (K[0] + d[0] * r, K[1] + d[1] * r)
-        Co = (K[0] + d[0] * ln, K[1] + d[1] * ln)
-        if kind != "long":                        # the sleeve hem must end outside the body
-            cw = min(cw, (Co[0] - A[0] - 9) / math.cos(th))
-        Ci = (Co[0] + q[0] * cw, Co[1] + q[1] * cw)
+        # the visible underarm: on the armhole, so the sleeve is w_top wide where it leaves the body
+        outer_at = K[0] + math.tan(th) * (ay - K[1])
+        A = (min(outer_at - w_top / math.cos(th), S[0] - 6), ay - 6)
+        if shoulder == "dolman":
+            A = Ab
         cuff = (Co, Ci, d)
         corner = [Co]
         if cuffs == "mitred" and kind in ("long", "three-quarter"):   # the cuff's open corner is cut on the slant
             dep = 22 + bulk
             corner = [(Co[0] - d[0] * dep * 0.3, Co[1] - d[1] * dep * 0.3), (Co[0] + q[0] * 6, Co[1] + q[1] * 6)]
-        cstr = " L ".join(_pt(v) for v in corner)
-        cstr_l = " L ".join(_pt(_mirror(v)) for v in reversed(corner))
-        arm = f"Q {_pt(K)} {_pt(P1)} L {cstr} L {_pt(Ci)} L {_pt(A)}"
-        arm_l = (f"L {_pt(Al)} L {_pt(_mirror(Ci))} L {cstr_l} L {_pt(_mirror(P1))} "
-                 f"Q {_pt(_mirror(K))} {_pt(Sl)}")
-        seam = (S, (S[0] - 4.5, sy + 17), (A[0], sy + 30), (A[0], sy + 50))
-        if shoulder == "drop":
-            seam = (S, (S[0] - 1, S[1] + 22), (A[0] + 1, A[1] - 42), (A[0], A[1] - 22))
+        seam = (S, (S[0] - 3, S[1] + (A[1] - S[1]) * 0.35), (A[0] + 4, A[1] - (A[1] - S[1]) * 0.3), A)
+        # where the sleeve leaves the body: along its inner edge, or along its hem if the cuff lies over the body
+        under = [A, Ci] + corner[::-1]
+        hit = _first_cross(under, side) if shoulder != "dolman" else None
+        if hit:
+            U, i_u, j_u = hit
+            sleeve_run = under[i_u + 1:][::-1] if i_u else []
+            # silhouette: ... corner -> (Ci if the crossing is on the hem) -> U -> down the side
+            sil = [v for v in corner] + ([Ci] if i_u == 0 else []) + [U]
+            side_from = [U] + side[j_u + 1:]
+            over = under[:i_u + 1] + [U]          # the part of the sleeve's edge lying over the body
+            sh_over = over
+        else:
+            sil = corner + [Ci, A]
+            side_from = side
+            sh_over = None
+        arm = f"Q {_pt(K)} {_pt(P1)} L " + " L ".join(_pt(v) for v in sil)
+        arm_pts_r = None
 
     # ---- outline, clockwise from the right neck point
     hem_dip = 5
     vents = p["hem"] in ("vents", "tennis")
+    side_pts = list(side_from)
     if curved:
-        hem = f"C {_pt((CX + hh - 48, side_y + 27))} {_pt((CX - hh + 48, side_y + 27))} {_pt(Hl)}"
+        hem = f"C {_pt((CX + hh - 48, side_y + 27))} {_pt((CX - hh + 48, side_y + 27))} {_pt(_mirror(Hc))}"
         hem_bottom = side_y + 20.25
-        side_r, side_l = f"L {_pt(Hc)}", ""
     elif vents:
         # side vents: the front's corner turns in a little where the side seam opens
         Vt, Vb = (CX + hh, hy - 20), (CX + hh - 4, hy)
+        side_pts = [v for v in side_pts if v[1] < hy - 20] + [Vt, Vb]
         hem = f"Q {_pt((CX, hy + hem_dip))} {_pt(_mirror(Vb))}"
         hem_bottom = hy + hem_dip / 2
-        side_r, side_l = f"L {_pt(Vt)} L {_pt(Vb)}", f"L {_pt(_mirror(Vt))}"
     else:
-        hem = f"Q {_pt((CX, hy + hem_dip))} {_pt(Hl)}"
+        hem = f"Q {_pt((CX, hy + hem_dip))} {_pt(_mirror(Hc))}"
         hem_bottom = hy + hem_dip / 2
-        side_r, side_l = f"L {_pt(Hc)}", ""
-    if F.get("waist") and not curved:
-        # a tailored body: the side seam draws in at the waist
-        w = F["waist"]
-        side_r = f"C {_pt((A[0] - w, A[1] + 60))} {_pt((CX + hh - w, hy - 90))} " + (side_r[2:] if side_r.startswith("L ") else side_r)
-        side_l_tail = f"C {_pt((CX - hh + w, hy - 90))} {_pt((Al[0] + w, Al[1] + 60))} {_pt(Al)}"
-    elif F.get("waist"):
-        side_r = f"C {_pt((A[0] - F['waist'], A[1] + 60))} {_pt((Hc[0] - F['waist'], Hc[1] - 80))} {_pt(Hc)}"
-        side_l_tail = f"C {_pt((Hl[0] + F['waist'], Hl[1] - 80))} {_pt((Al[0] + F['waist'], Al[1] + 60))} {_pt(Al)}"
+    if p.get("quilting") == "baffle":   # a puffer: the cloth swells between the stitched channels
+        side_pts = _scallop(side_pts, 32.0, 3.2 + bulk * 0.3, outward=+1)
+    side_r = "L " + " L ".join(_pt(v) for v in side_pts[1:]) if len(side_pts) > 1 else ""
+    left_side_pts = [_mirror(v) for v in side_pts[::-1]]
+    if sleeved:
+        sil_l = [_mirror(v) for v in sil[::-1]]
+        arm_l = (" ".join(f"L {_pt(v)}" for v in left_side_pts[1:]) + " L " + " L ".join(_pt(v) for v in sil_l[1:])
+                 + f" L {_pt(_mirror(P1))} Q {_pt(_mirror(K))} {_pt(_mirror(S))}")
     else:
-        side_l_tail = None
+        arm_l = (" ".join(f"L {_pt(v)}" for v in left_side_pts[1:])
+                 + f" C {_pt(_mirror(c2))} {_pt(_mirror(c1))} {_pt(_mirror(S))}")
     back_neck_y = ny - 4
     rise = {"stand": 31.0, "rib": 29.0, "notch": 21.0, "peak": 21.0, "shawl": 21.0, "shawl_knit": 19.0, "camp": 15.0}.get(cs, 24.5)
-    rise += bulk * 0.5 if collar else 0
+    rise += (bulk * 0.6 + (-1.5 if wt == 0 else 0)) if collar else 0   # a thick collar stands taller
     k = rise / 24.5                                  # the back of the collar, scaled to how high it stands
     TR, TL = (CX + 32.5, ny - rise), (CX - 32.5, ny - rise)
     if collar:
@@ -355,20 +487,19 @@ def top(**kw) -> Shape:
         neck_path = f"L {_pt(TL)} Q {_pt((CX, ny - rise - 12.5))} {_pt(TR)} L {_pt(N)}"
     else:
         neck_path = f"Q {_pt((CX, back_neck_y))} {_pt(N)}"
-    if side_l_tail:
-        # replace the plain run back up the left side with the waisted one
-        arm_l = arm_l.replace(f"L {_pt(Al)}", side_l_tail, 1)
-        left_side = side_l
+    if sleeved:
+        outline = f"M {_pt(N)} L {_pt(S)} {arm} {side_r} {hem} {arm_l} L {_pt(_mirror(N))} {neck_path} Z"
     else:
-        left_side = side_l
-    outline = f"M {_pt(N)} L {_pt(S)} {arm} {side_r} {hem} {left_side} {arm_l} L {_pt(Nl)} {neck_path} Z"
+        outline = f"M {_pt(N)} L {_pt(S)} {arm} {side_r} {hem} {arm_l} L {_pt(_mirror(N))} {neck_path} Z"
     outline = " ".join(outline.split())
+    Sl, Al, Hl, Nl = _mirror(S), _mirror(A), _mirror(Hc), _mirror(N)
 
     sh = Shape(outline=outline)
-    # the same for every neckline and sleeve, so the mannequin view can line items up
-    sh.anchors = {"neck": (CX, 58.0), "shoulder_l": (CX - F["hs"] - bulk, sy), "shoulder_r": (CX + F["hs"] + bulk, sy), "hem": (CX, hy)}
-    sh.body_box = (CX - ha, sy, CX + ha, hy)
-    xmax = max(S[0], A[0], Hc[0], cuff[0][0] if cuff else 0)
+    sh.anchors = {"neck": (CX, 58.0), "shoulder_l": (CX - hs, sy), "shoulder_r": (CX + hs, sy), "hem": (CX, hy),
+                  "neck_point_l": Nl, "neck_point_r": N}
+    sh.body_box = (CX - chest, sy, CX + chest, hy)
+    xs = [float(x) for x, _ in re.findall(r"(-?[\d.]+),(-?[\d.]+)", outline)]
+    xmax = max(max(xs), 2 * CX - min(xs))
     top_y = {"hood": ny - 74, "turtle": ny - 34, "roll": ny - 34, "mock": ny - 20}.get(neck, ny - 4)
     if collar:
         top_y = ny - rise - 9
@@ -376,11 +507,13 @@ def top(**kw) -> Shape:
     if cuff:
         deg = math.degrees(th)
         s0, s1, s2, s3 = seam
-        right_sleeve = (f"M {_pt(S)} Q {_pt(K)} {_pt(P1)} L {cstr} L {_pt(Ci)} L {_pt(A)} L {_pt(s3)} "
+        right_sleeve = (f"M {_pt(S)} Q {_pt(K)} {_pt(P1)} L " + " L ".join(_pt(v) for v in corner) + f" L {_pt(Ci)} L {_pt(A)} "
                         f"C {_pt(s2)} {_pt(s1)} {_pt(s0)} Z")
-        left_sleeve = (f"M {_pt(Sl)} Q {_pt(_mirror(K))} {_pt(_mirror(P1))} L {cstr_l} L {_pt(_mirror(Ci))} "
-                       f"L {_pt(Al)} L {_pt(_mirror(s3))} C {_pt(_mirror(s2))} {_pt(_mirror(s1))} {_pt(_mirror(s0))} Z")
-        sh.sleeves = [(right_sleeve, -deg), (left_sleeve, deg)]
+        sh.sleeves = [(right_sleeve, -deg), (_mirror_path(right_sleeve), deg)]
+        if sh_over:   # the sleeve's inner edge where it lies over the body
+            for m in (lambda v: v, _mirror):
+                sh.seams.append(_poly([m(v) for v in sh_over], close=False))
+        cstr = " L ".join(_pt(v) for v in corner)
 
     snap = p.get("fastener") == "snap"
 
@@ -599,6 +732,7 @@ def top(**kw) -> Shape:
     # ---- cuffs
     if cuff:
         Co, Ci, d = cuff
+        din = _unit((A[0] - Ci[0], A[1] - Ci[1]))   # up the sleeve's inner edge
         long_cuff = sleeve in ("long", "three-quarter") and cuffs not in ("rolled", "roll-tab")
         depth = {"rib": 17 * bs, "button": 22, "button2": 22, "mitred": 22, "french": 28, "snap3": 31}.get(cuffs)
         if cuffs == "rib" and not long_cuff:
@@ -606,7 +740,7 @@ def top(**kw) -> Shape:
         if depth and (long_cuff or cuffs == "rib") and cuffs in ("rib", "button", "button2", "mitred", "french", "snap3"):
             depth += bulk if cuffs != "rib" else 0
             Bo = (Co[0] - d[0] * depth, Co[1] - d[1] * depth)
-            Bi = (Ci[0] - d[0] * depth, Ci[1] - d[1] * depth)
+            Bi = (Ci[0] + din[0] * depth, Ci[1] + din[1] * depth)
             at = lambda f, g: (Co[0] + (Ci[0] - Co[0]) * f - d[0] * depth * g, Co[1] + (Ci[1] - Co[1]) * f - d[1] * depth * g)
             for m in (lambda v: v, _mirror):
                 band = [m(v) for v in (corner + [Ci, Bi, Bo])]
@@ -628,7 +762,7 @@ def top(**kw) -> Shape:
         elif cuffs in ("rolled", "roll-tab"):
             depth = 19 + bulk
             Bo = (Co[0] - d[0] * depth, Co[1] - d[1] * depth)
-            Bi = (Ci[0] - d[0] * depth, Ci[1] - d[1] * depth)
+            Bi = (Ci[0] + din[0] * depth, Ci[1] + din[1] * depth)
             # the roll is bulkier than the sleeve: it stands a little proud of both edges
             o = lambda v, s: (v[0] + q[0] * s, v[1] + q[1] * s)
             roll = [Co, Ci, Bi, Bo]
@@ -646,19 +780,20 @@ def top(**kw) -> Shape:
         elif sleeve != "long" or cuffs == "open":
             hem_d = 10.5 + bulk * 0.6
             Bo = (Co[0] - d[0] * hem_d, Co[1] - d[1] * hem_d)
-            Bi = (Ci[0] - d[0] * hem_d, Ci[1] - d[1] * hem_d)
+            Bi = (Ci[0] + din[0] * hem_d, Ci[1] + din[1] * hem_d)
             for m in (lambda v: v, _mirror):
                 sh.lines.append(f"M {_pt(m(Bo))} L {_pt(m(Bi))}")
                 if wt >= 2:   # a heavy cloth's hem is turned twice: two rows of stitching
                     sh.lines.append(f"M {_pt(m((Bo[0] - d[0] * 4, Bo[1] - d[1] * 4)))} L {_pt(m((Bi[0] - d[0] * 4, Bi[1] - d[1] * 4)))}")
 
     # ---- hem
-    rib_h = 18 * bs
+    rib_h = (7.0 if block in ("knit", "bomber") else 5.5) * K_PX * bs
     if p["hem"] == "rib":
         b = rib_h
+        xb = _x_on(side_from, hy - b)
         sh.parts.append(Part(
-            f"M {_pt((CX + hh, hy - b))} L {_pt(Hc)} Q {_pt((CX, hy + hem_dip))} {_pt(Hl)} "
-            f"L {_pt((CX - hh, hy - b))} Q {_pt((CX, hy - b + hem_dip))} {_pt((CX + hh, hy - b))} Z", "band"))
+            f"M {_pt((xb, hy - b))} L {_pt(Hc)} Q {_pt((CX, hy + hem_dip))} {_pt(Hl)} "
+            f"L {_pt((2 * CX - xb, hy - b))} Q {_pt((CX, hy - b + hem_dip))} {_pt((xb, hy - b))} Z", "band"))
     elif p["hem"] in ("straight", "vents", "tennis"):
         inset = 4 if vents else 1
         hem_l = 9 + bulk * 0.6

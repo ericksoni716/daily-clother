@@ -95,16 +95,11 @@ def test_media_needs_login_and_cannot_escape_the_images_folder(client, cfg):
     assert client.get(item["thumb_url"]).status_code == 401
 
 
-def test_vocabulary_is_served_and_matches_the_bench(client):
+def test_vocabulary_is_served_and_matches_the_tagger(client):
     assert client.get("/api/vocab").json()["category"] == vocab.CATEGORY
-    import sys
-    from pathlib import Path
     from typing import get_args
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "bench"))
-    try:
-        from closet_bench import schema
-    except ImportError:
-        return
+
+    from closet.tagger import schema  # the bench's closet_bench.schema is this same module
     assert list(get_args(schema.Category)) == vocab.CATEGORY
     assert list(get_args(schema.Color)) == vocab.COLOR
     assert list(get_args(schema.Pattern)) == vocab.PATTERN

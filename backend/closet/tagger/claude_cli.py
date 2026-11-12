@@ -44,8 +44,8 @@ def plan_status(exe: str | None = None, timeout: float | None = None) -> tuple[b
     """Whether the plan route can be used now, and if not, why, in a sentence the owner can read.
 
     Runs `claude auth status`, which exits 0 when signed in and asks Claude nothing,
-    so it costs nothing. Its output names the account and folders, so it is never
-    returned or logged. The API key is removed from its environment, as for a real
+    so it costs nothing. Its output names the account and folders, so it is not even
+    read (only the exit code is). The API key is removed from its environment, as for a real
     call, so a key cannot make the plan look signed in.
     """
     exe = exe or find_claude()
@@ -53,9 +53,9 @@ def plan_status(exe: str | None = None, timeout: float | None = None) -> tuple[b
         return False, "Claude Code is not installed on this computer."
     env = {k: v for k, v in os.environ.items() if k not in _SCRUB}
     kwargs = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
-    try:
-        proc = subprocess.run([exe, "auth", "status"], env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                              timeout=STATUS_TIMEOUT if timeout is None else timeout, **kwargs)
+    try:   # the output is never read, so no pipes: a grandchild left holding one can't outlast the timeout (Windows)
+        proc = subprocess.run([exe, "auth", "status"], env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL, timeout=STATUS_TIMEOUT if timeout is None else timeout, **kwargs)
     except subprocess.TimeoutExpired:
         return False, "Claude Code did not answer in time. Try again in a moment."
     except OSError:

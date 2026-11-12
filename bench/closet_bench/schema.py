@@ -2,7 +2,9 @@
 
 Deliberately small and coarse: these are the fields that drive outfits and
 gaps. Every field carries the model's confidence so the review queue can show
-only what is uncertain.
+only what is uncertain. Every property is required (nullable where it may not
+apply): the API's schema-constrained output is at its most dependable with no
+optional properties, and the answer then never silently omits a field.
 """
 from __future__ import annotations
 
@@ -32,14 +34,19 @@ SILHOUETTE_FIELDS = ("sleeve", "neck", "top_length", "fit", "leg", "pant_length"
 
 
 class Silhouette(BaseModel):
-    """Only the fields that apply to the item's category are filled in."""
-    sleeve: Optional[Sleeve] = None
-    neck: Optional[Neck] = None
-    top_length: Optional[TopLength] = None
-    fit: Optional[Fit] = None
-    leg: Optional[Leg] = None
-    pant_length: Optional[PantLength] = None
-    shoe_height: Optional[ShoeHeight] = None
+    """Every field is always present; the ones that do not apply to the item's category are null."""
+    sleeve: Optional[Sleeve]
+    neck: Optional[Neck]
+    top_length: Optional[TopLength]
+    fit: Optional[Fit]
+    leg: Optional[Leg]
+    pant_length: Optional[PantLength]
+    shoe_height: Optional[ShoeHeight]
+
+    @classmethod
+    def of(cls, **known) -> "Silhouette":
+        """Build one from just the fields that apply."""
+        return cls(**{**dict.fromkeys(SILHOUETTE_FIELDS), **known})
 
 
 class ShotRequest(BaseModel):
@@ -52,7 +59,7 @@ class ItemTags(BaseModel):
     category_confidence: float = Field(ge=0, le=1)
     color: Color = Field(description="Main colour. Use 'multi' only when no single colour dominates.")
     color_confidence: float = Field(ge=0, le=1)
-    secondary_colors: list[Color] = Field(default_factory=list, max_length=3)
+    secondary_colors: list[Color] = Field(description="Up to three other colours; empty for a single-colour item.")
     pattern: Pattern
     pattern_confidence: float = Field(ge=0, le=1)
     formality: Formality
@@ -61,10 +68,10 @@ class ItemTags(BaseModel):
     season_confidence: float = Field(ge=0, le=1)
     silhouette: Silhouette
     silhouette_confidence: float = Field(ge=0, le=1)
-    brand: Optional[str] = Field(default=None, description="Only if legible in a photo; never guessed.")
-    size: Optional[str] = Field(default=None, description="Only if legible on a tag.")
-    material: Optional[str] = Field(default=None, description="Only if legible on a tag.")
-    needs_shot: Optional[ShotRequest] = Field(default=None, description="Ask for one more photo only when something that matters cannot be told from these.")
+    brand: Optional[str] = Field(description="Only if legible in a photo; never guessed. Otherwise null.")
+    size: Optional[str] = Field(description="Only if legible on a tag. Otherwise null.")
+    material: Optional[str] = Field(description="Only if legible on a tag. Otherwise null.")
+    needs_shot: Optional[ShotRequest] = Field(description="Null unless one more photo would settle something that matters and cannot be told from these.")
 
 
 def silhouette_params(tags: ItemTags) -> tuple[str, dict]:

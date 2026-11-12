@@ -85,7 +85,16 @@ def recorded_tagger(folder: Path):
     """
     def tag(model: str, name: str, images: list) -> TagResult:
         try:
-            tags = ItemTags.model_validate_json((folder / model / (Path(name).stem + ".json")).read_text())
+            raw = json.loads((folder / model / (Path(name).stem + ".json")).read_text())
+            # answers written by hand or by a subagent may leave out null fields; the API never does
+            if isinstance(raw, dict):
+                for k in ("brand", "size", "material", "needs_shot"):
+                    raw.setdefault(k, None)
+                raw.setdefault("secondary_colors", [])
+                if isinstance(raw.get("silhouette"), dict):
+                    for k in SILHOUETTE_FIELDS:
+                        raw["silhouette"].setdefault(k, None)
+            tags = ItemTags.model_validate(raw)
         except OSError as e:
             raise TaggingError("no recorded answer for this item") from e
         except ValueError as e:

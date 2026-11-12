@@ -15,7 +15,8 @@ from closet_bench.templates import PANTS_DEFAULTS, SNEAKER_DEFAULTS, TOP_DEFAULT
 def make_tags(**kw):
     base = dict(category="shirt", category_confidence=0.9, color="blue", color_confidence=0.8, pattern="plaid",
                 pattern_confidence=0.95, formality="casual", formality_confidence=0.6, season="cool",
-                season_confidence=0.5, silhouette=Silhouette(sleeve="long", neck="collar"), silhouette_confidence=0.7)
+                season_confidence=0.5, silhouette=Silhouette.of(sleeve="long", neck="collar"), silhouette_confidence=0.7)
+    base.update(secondary_colors=[], brand=None, size=None, material=None, needs_shot=None)
     base.update(kw)
     return ItemTags(**base)
 
@@ -193,9 +194,9 @@ def test_summary_reports_accuracy_and_calibration():
 
 def test_tags_map_to_template_parameters():
     assert silhouette_params(make_tags())[0] == "top"
-    t, p = silhouette_params(make_tags(category="jeans", silhouette=Silhouette(leg="tapered")))
+    t, p = silhouette_params(make_tags(category="jeans", silhouette=Silhouette.of(leg="tapered")))
     assert (t, p["leg"], p["jeans"]) == ("pants", "tapered", True)
-    assert silhouette_params(make_tags(category="sneakers", silhouette=Silhouette()))[0] == "sneaker"
+    assert silhouette_params(make_tags(category="sneakers", silhouette=Silhouette.of()))[0] == "sneaker"
 
 
 def test_organic_swatch_wraps_without_a_seam():
@@ -227,3 +228,72 @@ def test_recorded_answers_are_validated_like_live_ones(tmp_path):
         tag("m", "b.jpg", [])
     with pytest.raises(tagging.TaggingError, match="no recorded answer"):
         tag("m", "c.jpg", [])
+
+
+def test_the_schema_sent_to_the_api_stays_within_its_documented_limits():
+    """No optional properties, no numeric or length constraints, every object closed, nothing recursive."""
+    import json
+
+    from anthropic.lib._parse._transform import transform_schema
+    schema = transform_schema(ItemTags)
+    text = json.dumps(schema)
+    for banned in ("minimum", "maximum", "multipleOf", "minLength", "maxLength", "minItems", "maxItems"):
+        assert f'"{banned}"' not in text
+
+    def walk(node):
+        if isinstance(node, dict):
+            if node.get("type") == "object":
+                assert node.get("additionalProperties") is False
+                assert set(node.get("required", [])) == set(node.get("properties", {}))
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+    walk(schema)
+    assert set(schema["$defs"]) == {"Silhouette", "ShotRequest"}  # two flat helper objects, no recursion
+
+
+def test_the_tagging_request_and_answer_survive_a_real_http_round_trip():
+    """Run the real SDK against a local stand-in server: checks what is sent and that the answer parses."""
+    import http.server
+    import json
+    import threading
+
+    import anthropic
+    seen = {}
+    answer = make_tags(category="jeans", silhouette=Silhouette.of(leg="straight", pant_length="full")).model_dump_json()
+
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            seen["path"] = self.path
+            seen["body"] = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            seen["auth"] = self.headers.get("authorization") or self.headers.get("x-api-key")
+            body = json.dumps({"id": "msg_test", "type": "message", "role": "assistant", "model": seen["body"]["model"],
+                               "content": [{"type": "text", "text": answer}], "stop_reason": "end_turn", "stop_sequence": None,
+                               "usage": {"input_tokens": 1700, "output_tokens": 310}}).encode()
+            self.send_response(200)
+            self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+
+    srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        client = anthropic.Anthropic(api_key="test-key", base_url=f"http://127.0.0.1:{srv.server_address[1]}", max_retries=0)
+        r = tagging.tag_item(client, "claude-haiku-5-5", [garment()])
+    finally:
+        srv.shutdown()
+    body = seen["body"]
+    assert seen["path"].endswith("/v1/messages") and seen["auth"].endswith("test-key")
+    assert body["model"] == "claude-haiku-5-5" and body["output_config"]["effort"] == "low"
+    assert body["output_config"]["format"]["type"] == "json_schema" and "category" in body["output_config"]["format"]["schema"]["properties"]
+    assert "temperature" not in body and "thinking" not in body and "tool_choice" not in body
+    kinds = [b["type"] for b in body["messages"][0]["content"]]
+    assert kinds == ["image", "text"] and body["messages"][0]["content"][0]["source"]["media_type"] == "image/jpeg"
+    assert r.tags.category == "jeans" and r.tags.silhouette.leg == "straight"
+    assert (r.input_tokens, r.output_tokens) == (1700, 310) and r.cost_usd == pytest.approx((1700 * 0.10 + 310 * 0.50) / 1e6)

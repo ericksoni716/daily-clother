@@ -1,6 +1,7 @@
 """The web API and the page it serves."""
 from __future__ import annotations
 
+import json
 import logging
 import threading
 import time
@@ -14,7 +15,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from PIL import Image
 from pydantic import BaseModel
 
-from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, phone, storage, vocab
+from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, outfits, phone, storage, vocab
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
 from .modelstore import MODEL, ModelStore
@@ -237,6 +238,33 @@ def create_app(sv: Services) -> FastAPI:
             raise HTTPException(404, "No such image.")
         return FileResponse(target, media_type="image/webp",
                             headers={"Cache-Control": "private, max-age=31536000, immutable"})
+
+    # -------------------------------------------------------------- outfits
+    @app.post("/api/outfits/suggest", dependencies=protected)
+    async def suggest_outfits(request: Request):
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        try:
+            ctx, count = outfits.parse_request(body)
+        except outfits.ContextError as e:
+            raise HTTPException(422, str(e))
+        path = cfg.db_path(state.get("profile"))
+
+        def work() -> dict:
+            conn = db.connect(path)
+            try:
+                rows = [{**{k: r[k] for k in r.keys() if k not in ("illustration_svg", "confidence", "source")},
+                         "silhouette": json.loads(r["silhouette"] or "{}")} for r in conn.execute("SELECT * FROM items")]
+            finally:
+                conn.close()
+            if ctx.build_around and not any(r["id"] == ctx.build_around for r in rows):
+                raise HTTPException(422, "The item to build around is not in this closet.")
+            return outfits.suggest(rows, ctx, count)
+
+        # comparing thousands of combinations takes a moment; do it in a worker thread so other requests keep being answered
+        return await run_in_threadpool(work)
 
     # ---------------------------------------------------------------- model
     @app.get("/api/model", dependencies=protected)

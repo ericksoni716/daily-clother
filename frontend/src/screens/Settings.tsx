@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { api, ApiError } from '../api';
 import { ModelProgress, modelStateText } from '../components/ModelBanner';
 import { PhoneAccess } from '../components/PhoneAccess';
-import { formatDateTime } from '../labels';
+import { formatBytes, formatDateTime } from '../labels';
 import { useCloset } from '../store';
-import type { ModelInfo, Settings } from '../types';
+import type { ModelInfo, Profile, Settings, Storage } from '../types';
 
 function Section({ title, children, id }: { title: string; children: ReactNode; id: string }) {
   return (
@@ -44,6 +44,7 @@ export function SettingsScreen({ version }: { version: string }) {
         <div className="settings-col">
           {model && <ModelSection model={model} refresh={refreshModel} toast={toast} disabled={offline} />}
           {settings && <BackupSection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
+          <StorageSection key={`${profile}-${offline}`} profile={profile} offline={offline} />
         </div>
         <div className="settings-col">
           {settings && (
@@ -94,6 +95,51 @@ export function SettingsScreen({ version }: { version: string }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function StorageSection({ profile, offline }: { profile: Profile; offline: boolean }) {
+  const [storage, setStorage] = useState<Storage | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    if (offline) return;
+    const controller = new AbortController();
+    void api.storage(controller.signal).then((value) => {
+      if (!controller.signal.aborted) setStorage(value);
+    }).catch((e: Error) => {
+      if (!controller.signal.aborted) setError(e.message);
+    });
+    return () => controller.abort();
+  }, [offline, attempt]);
+
+  return (
+    <Section title="Storage" id="s-storage">
+      {offline ? <p className="hint">Storage is unavailable while you're offline.</p> : error ? (
+        <>
+          <p className="form-error" role="alert">Storage is unavailable. {error}</p>
+          <button className="btn" onClick={() => { setError(null); setAttempt((n) => n + 1); }}>Try again</button>
+        </>
+      ) : !storage ? <p role="status">Measuring storage…</p> : (
+        <>
+          <p><strong data-testid="storage-total">{formatBytes(storage.total_bytes)}</strong> used · {storage.items} {storage.items === 1 ? 'item' : 'items'}</p>
+          <dl className="facts">
+            <dt>Photos</dt><dd>{formatBytes(storage.photos_bytes)}</dd>
+            <dt>Cutouts</dt><dd>{formatBytes(storage.cutouts_bytes)}</dd>
+            <dt>Thumbnails</dt><dd>{formatBytes(storage.thumbnails_bytes)}</dd>
+            <dt>Backups</dt><dd>{formatBytes(storage.backups_bytes)}</dd>
+            <dt>Background-removal model</dt><dd>{formatBytes(storage.model_bytes)}</dd>
+            <dt>Everything else</dt><dd>{formatBytes(storage.database_bytes + storage.logs_bytes)}</dd>
+          </dl>
+          <p>{formatBytes(storage.free_bytes)} free on the disk that holds your closet.</p>
+          <p className="hint">
+            {profile === 'demo' ? 'Demo images and items only; backups, the model and logs are shared with your own closet. ' : ''}
+            Includes local backups in the Closet folder, not backups saved elsewhere.
+          </p>
+        </>
+      )}
+    </Section>
   );
 }
 

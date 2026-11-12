@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { categoryPlural, formatPrice, humanize, label, parsePrice, ratingLabel, tileCaption } from './labels';
+import { categoryPlural, formatBytes, formatPrice, humanize, label, parsePrice, ratingLabel, tileCaption } from './labels';
 import { messageFrom } from './api';
 import { fitWithin } from './resize';
 import { silhouetteGroups } from './silhouette';
 
 describe('labels', () => {
+  it.each([
+    [null, '0 B'], [undefined, '0 B'], [0, '0 B'], [1, '1 B'], [999, '999 B'],
+    [1000, '1 KB'], [1500, '1.5 KB'], [1_000_000, '1 MB'], [12_345_678, '12.3 MB'],
+    [1_000_000_000, '1 GB'], [1_500_000_000, '1.5 GB'], [1_000_000_000_000, '1 TB'],
+  ])('formats %s bytes as %s', (bytes, expected) => {
+    expect(formatBytes(bytes)).toBe(expected);
+  });
+
   it('turns vocabulary values into plain words', () => {
     expect(label('formality', 'smart_casual')).toBe('Smart casual');
     expect(label('color', 'light_blue')).toBe('Light blue');

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 import threading
 import time
 from collections.abc import Callable
@@ -13,7 +14,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from PIL import Image
 from pydantic import BaseModel
 
-from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, phone, vocab
+from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, phone, storage, vocab
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
 from .modelstore import MODEL, ModelStore
@@ -273,6 +274,14 @@ def create_app(sv: Services) -> FastAPI:
     @app.get("/api/settings", dependencies=protected)
     def get_settings(conn=Depends(conn_dep)):
         return settings_payload(conn)
+
+    @app.get("/api/storage", dependencies=protected)
+    def get_storage():
+        # A synchronous route runs the filesystem walk in FastAPI's thread pool.
+        try:
+            return storage.measure(cfg, state.get("profile"))
+        except (OSError, sqlite3.Error):
+            raise HTTPException(503, "Storage could not be measured. Check that the closet folder is available and try again.")
 
     @app.put("/api/settings", dependencies=protected)
     def put_settings(body: SettingsPatch, conn=Depends(conn_dep)):

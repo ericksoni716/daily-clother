@@ -1,4 +1,4 @@
-import type { Item, ItemPatch, ItemSummary, ModelInfo, Session, Settings, Vocab, Profile, BackupRecord } from './types';
+import type { Item, ItemPatch, ItemSummary, ModelInfo, Session, Settings, Storage, Vocab, Profile, BackupRecord } from './types';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
 export class ApiError extends Error {
@@ -125,6 +125,7 @@ export const api = {
   downloadModel: () => request<ModelInfo>('/api/model/download', { method: 'POST' }),
   setModelUrl: (url: string) => request<ModelInfo>('/api/model/url', { method: 'PUT', body: { url } }),
   settings: () => request<Settings>('/api/settings'),
+  storage: (signal?: AbortSignal) => request<Storage>('/api/storage', { signal }),
   putSettings: (changes: { backup_folder?: string | null; autostart?: boolean }) =>
     request<Settings>('/api/settings', { method: 'PUT', body: changes }),
   backup: () => request<BackupRecord>('/api/backup', { method: 'POST' }),

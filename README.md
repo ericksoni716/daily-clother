@@ -69,6 +69,12 @@ not touched. If an update changes the database, a copy is saved in
 `Closet\backups` first. An older program refuses to open a closet written by a
 newer one instead of damaging it.
 
+**Settings → Storage** shows how much space your closet's photos, cutouts,
+thumbnails, database, local backups, model and logs use, along with the item
+count and free disk space. In the demo closet, its own images and database are
+shown; the model, logs and local backups are shared. Backups saved outside the
+Closet folder are not included. Storage information is unavailable offline.
+
 ### Backups
 
 In **Settings → Backups**, choose a folder (a cloud-synced folder is ideal).

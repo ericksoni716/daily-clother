@@ -98,6 +98,12 @@ export function formatDateTime(iso: string | null | undefined): string {
 
 /** "12.3 MB" */
 export function formatBytes(n: number | null | undefined): string {
-  if (!n) return '0 MB';
-  return `${(n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0)} MB`;
+  if (!n || n < 0 || !Number.isFinite(n)) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let unit = 0;
+  while (n >= 1000 && unit < units.length - 1) {
+    n /= 1000;
+    unit++;
+  }
+  return `${Number(n.toFixed(1))} ${units[unit]}`;
 }

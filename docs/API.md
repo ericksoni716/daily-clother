@@ -46,7 +46,36 @@ Each photo: `id, kind, url, thumb_url, cutout_url, cutout_thumb_url, width, heig
 | Call | Result |
 |---|---|
 | `GET /api/settings` | `{version, profile, data_dir, port, backup_folder, last_backup{at, ok, error, folder, kind}, last_good_backup, pending_cutouts, phone{tailscale_installed, running, address, command}, autostart (true/false, or null when unavailable), heic_supported}` |
+| `GET /api/storage` | `{items, photos_bytes, cutouts_bytes, thumbnails_bytes, database_bytes, backups_bytes, model_bytes, logs_bytes, total_bytes, data_dir, free_bytes}` (see below). |
 | `PUT /api/settings {backup_folder?, autostart?}` | Same shape. 422 if the folder does not exist. |
 | `POST /api/backup` | The backup record; 409 with the record (and its `error`) if it failed. |
 | `POST /api/profile {profile: "main"\|"demo"}` | Switches between the real closet and the demo closet. |
 | `POST /api/quit` | 202; the program exits shortly after. |
+
+### Storage
+
+`GET /api/storage` requires login. It measures files afresh in a worker thread,
+without blocking the server's event loop. Sizes are integer bytes, not saved
+estimates; missing folders count as zero. The response has no file names.
+
+- `items`: all items in the selected closet, including archived items.
+- `photos_bytes`: stored original WebP photos; `cutouts_bytes`: full-size cutouts.
+- `thumbnails_bytes`: both photo and cutout thumbnails.
+- `database_bytes`: the selected closet's database and its SQLite companion
+  files (including the write-ahead log and shared-memory file).
+- `backups_bytes`, `model_bytes`, `logs_bytes`: all files in the local
+  `backups/`, `models/` and `logs/` folders, including model downloads in progress.
+  These folders are shared by the real and demo closets. A configured backup
+  destination elsewhere is not scanned.
+- `total_bytes`: the sum of those seven size fields. Settings groups the
+  database and logs as “Everything else”. Other files such as program settings
+  and unfinished image writes are not included.
+- `data_dir`: the program's data folder, also in demo mode.
+- `free_bytes`: free space on the disk holding that folder, not space allocated
+  to the closet.
+
+The demo profile measures only its own images and database, never the main
+closet's. Walks ignore symbolic links and Windows directory junctions; they
+never follow them outside the data folder. Figures can change during uploads
+or background work and are not an atomic snapshot. If the folder cannot be
+read, the endpoint returns 503 with a readable message.

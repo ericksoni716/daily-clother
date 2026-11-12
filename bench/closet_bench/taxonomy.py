@@ -155,6 +155,7 @@ _FIBER_WEIGHT = {"linen": 0, "silk": 0, "viscose": 0, "lyocell": 0, "modal": 0, 
                  "shearling": 3}
 _FIBER_SHIFT = {"woolen_wool": 1, "shetland": 1, "yak": 1, "camel": 1, "alpaca": 1, "shearling": 1,
                 "polyester": -1, "nylon": -1, "viscose": -1, "silk": -1, "linen": -1, "lyocell": -1, "modal": -1}
+_SYNTHETIC_FABRICS = {"polar_fleece", "sherpa", "fleece_back", "ripstop", "mesh"}
 _HALO_FABRICS = {"fleece_back", "polar_fleece", "sherpa", "flannel", "brushed_twill", "tweed", "velour"}
 _HALO_FIBERS = {"mohair", "alpaca", "shetland", "yak", "cashmere", "shearling"}
 _SHEEN_FABRICS = {"satin", "sateen", "waxed_cotton"}
@@ -197,8 +198,8 @@ def surface_extras(g: dict) -> dict:
         lvl = _FABRIC_WEIGHT.get(fabric or "")
         if lvl is None:
             lvl = _FIBER_WEIGHT.get(fiber or "")
-        elif fiber:
-            lvl += _FIBER_SHIFT.get(fiber, 0)
+        elif fiber and not (fabric in _SYNTHETIC_FABRICS and _FIBER_SHIFT.get(fiber, 0) < 0):
+            lvl += _FIBER_SHIFT.get(fiber, 0)   # wool flannel is heavier than cotton flannel; fleece is always synthetic
         if gauge in ("chunky", "super_chunky"):
             lvl = max(lvl if lvl is not None else 0, 2 if gauge == "chunky" else 3)
         elif gauge == "extra_fine":
@@ -408,7 +409,7 @@ COVERAGE: dict[str, dict[str, tuple[str, str]]] = {
         ("cutaway", (D, "points swept nearly horizontal; a wide stand shows between them")),
         ("button_down", (D, "soft roll and a small button at each point")),
         ("hidden_button_down", (A_, "drawn as a soft-roll point collar: its buttons are hidden under the points")),
-        ("club", (D, "rounded points")), ("tab", (D, "point collar with a strap across under the points")),
+        ("club", (D, "rounded points")), ("tab", (A_, "drawn as a point collar with a strap over the top button; under a tie it would hide")),
         ("pin", (D, "point collar with a collar bar across")), ("band", (D, "stand only, no leaves; button on the band")),
         ("camp", (D, "flat collar with no stand, open notch and small revers down to the first button")),
         ("wing", (D, "stand with small pressed-out wing tips")),
@@ -487,6 +488,7 @@ _WOVEN_NOTES = {
     "satin": (A_, "no texture: drawn with a sheen highlight; light"), "sateen": (A_, "sheen highlight; light"),
     "waxed_cotton": (A_, "sheen highlight and heavy weight"), "melton": (A_, "no texture: super-heavy edges"),
     "moleskin": (A_, "no texture: heavy edges"), "canvas": (A_, "no texture: heavy edges"),
+    "velvet": (N_, "pile and its sheen are not drawn yet; midweight edges only"),
 }
 _KNIT_NOTES = {
     "pique": (D, "fine honeycomb dots"), "waffle_thermal": (D, "waffle grid"), "rib_1x1": (D, "fine vertical rib"),
@@ -500,7 +502,7 @@ _KNIT_NOTES = {
     "french_terry": (A_, "smooth face: heavy edges only"),
 }
 COVERAGE["woven_structure"] = {
-    v: _WOVEN_NOTES.get(v, (N_, "fabric/colour/pattern carry it: no visible surface at this size" if v not in ("velvet", "dobby", "jacquard", "madras", "chambray")
+    v: _WOVEN_NOTES.get(v, (N_, "fabric/colour/pattern carry it: no visible surface at this size" if v not in ("dobby", "jacquard", "madras", "chambray")
                             else "its look is a pattern or colour effect, carried by the photo's fill"))
     for v in AXES["woven_structure"]}
 COVERAGE["knit_structure"] = {

@@ -4,10 +4,11 @@ A private, single-user wardrobe app. It runs as a small program on your own
 computer; you use it in a browser there and as a home-screen app on your
 iPhone. Your closet never leaves your computer.
 
-**Status: phase 1.** You can capture items with one photo each, get the
-background removed, browse the closet on phone and desktop, try a 30-item demo
-closet, and back up and restore. Tagging by AI, illustrations for your own
-items, outfits and shopping come in later phases. No API key is needed yet.
+**Status: stop A (the first of the app's try-it stops; see `docs/BACKLOG.md`).**
+You can capture items with one photo each, get the background removed, browse
+the closet on phone and desktop, try a 30-item demo closet, and back up and
+restore. Tagging by AI, illustrations for your own items, outfits and shopping
+come at later stops. No API key is needed yet.
 
 ## Install and first run
 

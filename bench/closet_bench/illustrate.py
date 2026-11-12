@@ -342,11 +342,10 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
                      f'patternTransform="rotate({degrees:.1f} {CX_ROT[0]} {CX_ROT[1]})"/>')
             g.append(f'<path d="{d}" fill="{paint if not patterned else turned(f"s{n}", degrees)}"/>'
                      f'<path d="{d}" fill="url(#t{uid}s{n})"/>')
-    if spec.sheen:   # a soft highlight running across the body
+    if spec.sheen and not patterned:   # one soft highlight across the chest
         defs += (f'<linearGradient id="h{uid}" x1="0" y1="0" x2="1" y2="1">'
-                 '<stop offset=".18" stop-color="#fff" stop-opacity="0"/><stop offset=".36" stop-color="#fff" stop-opacity=".2"/>'
-                 '<stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset=".7" stop-color="#fff" stop-opacity=".1"/>'
-                 '<stop offset=".82" stop-color="#fff" stop-opacity="0"/></linearGradient>')
+                 '<stop offset=".2" stop-color="#fff" stop-opacity="0"/><stop offset=".34" stop-color="#fff" stop-opacity=".16"/>'
+                 '<stop offset=".48" stop-color="#fff" stop-opacity="0"/></linearGradient>')
         g.append(f'<path d="{shape.outline}" fill="url(#h{uid})"/>')
     # seams lie on the body, under anything folded over it (a collar covers the top of the placket)
     g.append(f'<g clip-path="url(#{clip})">')
@@ -385,13 +384,19 @@ def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str =
         g.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 0.9:.1f}" fill="{ring}" stroke="{INK if style == "line" else l_stroke}" stroke-width=".9"/>'
                  f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r * 0.62:.1f}" fill="{cap}"/>'
                  f'<circle cx="{x - r * 0.18:.1f}" cy="{y - r * 0.18:.1f}" r="{r * 0.2:.1f}" fill="#fff" opacity=".7"/>')
-    if spec.halo:   # fuzz: a broken fringe of the cloth's own colour standing off the edge
-        fz = shade(base, 0.1 if dark_item else -0.08)
-        g.append(f'<path d="{shape.outline}" fill="none" stroke="{fz}" stroke-width="{max(o_w, 2) + 5.5:.1f}" '
-                 f'stroke-dasharray=".1 3.1" stroke-linecap="round" stroke-linejoin="round"/>')
+    if spec.halo:   # fuzz: fibres standing off the edge, then a slightly ragged outline
+        defs += (f'<filter id="z{uid}" x="-5%" y="-5%" width="110%" height="110%">'
+                 '<feTurbulence type="fractalNoise" baseFrequency="1.1" numOctaves="1" seed="7"/>'
+                 '<feDisplacementMap in="SourceGraphic" scale="5" xChannelSelector="R" yChannelSelector="G"/></filter>'
+                 f'<filter id="y{uid}" x="-5%" y="-5%" width="110%" height="110%">'
+                 '<feTurbulence type="fractalNoise" baseFrequency="1.4" numOctaves="1" seed="3"/>'
+                 '<feDisplacementMap in="SourceGraphic" scale="2.2" xChannelSelector="R" yChannelSelector="G"/></filter>')
+        fz = shade(base, 0.08 if dark_item else (-0.13 if luminance(base) > 0.8 else -0.06))
+        g.append(f'<path d="{shape.outline}" fill="none" stroke="{fz}" stroke-width="{max(o_w, 2) + 3.5:.1f}" '
+                 f'stroke-linejoin="round" filter="url(#z{uid})"/>')
     if o_w:
-        dash = ' stroke-dasharray="9 1.6"' if spec.halo else ""
-        g.append(f'<path d="{shape.outline}" fill="none" stroke="{o_stroke}" stroke-width="{o_w:.2f}" stroke-linejoin="round"{dash}/>')
+        rag = f' filter="url(#y{uid})"' if spec.halo else ""
+        g.append(f'<path d="{shape.outline}" fill="none" stroke="{o_stroke}" stroke-width="{o_w:.2f}" stroke-linejoin="round"{rag}/>')
         for part in shape.parts:
             if part.role == "sole":
                 g.append(f'<path d="{part.d}" fill="none" stroke="{o_stroke}" stroke-width="{o_w * 0.7:.1f}" stroke-linejoin="round"/>')

@@ -3,6 +3,21 @@
 What was decided and why, newest phase last. A fresh conversation should be
 able to resume from this file, `BACKLOG.md` and the README.
 
+## How the work is organised
+
+The brief asked for eight phases with a stop after each. That was changed with
+the owner once it was clear the recognition work does not depend on the app.
+
+| Decision | Why |
+|---|---|
+| Two tracks: recognition and drawing, and the app | What the tagger reports and what the drawing shows is judged from render sheets and tagging reports, not from the installed program, and it will keep growing with the taxonomy. Gating the app on it stalled the app. |
+| Track 1 (recognition and drawing) is reviewed continuously, with two checkpoints and no stops | The checkpoints are coverage of the taxonomy's visible values and accuracy on the owner's own photos. It needs no packaged build. Original phase 0 and the drawing half of phase 2 live here. |
+| Track 2 (the app) has four main stops, then smaller ones | A stop is worth it only where something can only be checked on the owner's machine, where direction could change, or where money is spent. A: the program on the PC and iPhone (phase 1). B: the real wardrobe in (phase 2 and single-photo import, review queue and cost cap from phase 3). C: today's outfit (phase 4 with ratings from phase 6). D: gaps and shopping (phase 5). |
+| Multi-item photos and video sweeps move behind the outfit builder | They are capture conveniences; the outfit builder and shopping are the two features the owner said matter most. Open for the owner to reverse. |
+| The app stores the tagger's full answer, its schema version and the cutout for every item | This is what keeps the tracks independent: better drawings need no data change, and a taxonomy edit only means re-tagging, which is free on the Claude plan. |
+| Template anchor points are fixed; category, formality, season and weight class are settled before stop C | The mannequin view relies on the anchors, and outfit and gap logic read those four vocabularies. Finer details can keep growing after stop C. |
+| "Phase" in older entries below means the original numbering | Phase 1 is stop A, phases 2 and 3 are mostly stop B, phase 4 is stop C, phase 5 is stop D. |
+
 ## Before phase 0 (agreed with the owner)
 
 | Decision | Why |

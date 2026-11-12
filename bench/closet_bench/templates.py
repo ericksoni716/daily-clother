@@ -592,7 +592,7 @@ def top(**kw) -> Shape:
     if vest:   # the ribbed band round a sweater vest's armhole
         S_, c1_, c2_, A_ = armhole
         pts = [S_] + _bez(S_, c1_, c2_, A_, 14)
-        inner = _offset_line(pts, 9 * bs)
+        inner = _offset_line(pts, -9 * bs)
         for m, _ in sides:
             sh.parts.append(Part(_poly([m(v) for v in pts + inner[::-1]]), "band", clip=True))
 
@@ -620,9 +620,9 @@ def top(**kw) -> Shape:
                     for g in (0.2, 0.5, 0.8):
                         sh.snaps.append((*m(at(0.3, g)), 2.4))
                 elif cuffs == "french":             # folded back on itself, the ends held by a link
-                    sh.parts.append(Part(_poly([m(at(0.0, 0.52)), m(at(0.42, 0.52))], close=False), "edge"))
-                    lc = m(at(0.16, 0.26))
-                    sh.parts.append(Part(_capsule_h(lc[0] - 4.2, lc[0] + 4.2, lc[1], 4.4), "inlay", color="#c9b27a"))
+                    sh.parts.append(Part(_poly([m(at(0.0, 0.8)), m(at(1.0, 0.8))], close=False), "edge"))   # the turned-back layer
+                    lc = m(at(0.2, 0.42))
+                    sh.parts.append(Part(_capsule_h(lc[0] - 4, lc[0] + 4, lc[1], 4.2), "inlay", color="#c9b27a"))
                 if wt >= 2 and cuffs != "rib":      # a thick cloth: a topstitch near the cuff's edge
                     sh.parts.append(Part(_poly([m(at(0.0, 0.84)), m(at(1.0, 0.84))], close=False), "edge"))
         elif cuffs in ("rolled", "roll-tab"):
@@ -631,7 +631,7 @@ def top(**kw) -> Shape:
             Bi = (Ci[0] - d[0] * depth, Ci[1] - d[1] * depth)
             # the roll is bulkier than the sleeve: it stands a little proud of both edges
             o = lambda v, s: (v[0] + q[0] * s, v[1] + q[1] * s)
-            roll = [o(Co, -2.5), o(Ci, 2), o(Bi, 2), o(Bo, -2.5)]
+            roll = [Co, Ci, Bi, Bo]
             mid_o, mid_i = _lerp(roll[0], roll[3], 0.5), _lerp(roll[1], roll[2], 0.5)
             for m in (lambda v: v, _mirror):
                 sh.parts.append(Part(_poly([m(v) for v in roll]), "cuff"))
@@ -669,10 +669,10 @@ def top(**kw) -> Shape:
             for m in (lambda v: v, _mirror):   # a bar tack at the top of each vent
                 sh.lines.append(f"M {_pt(m((CX + hh - 6, hy - 20)))} L {_pt(m((CX + hh + 1, hy - 20)))}")
         if p["hem"] == "tennis":   # the back hangs longer than the front: a band of it shows below
-            back = (f"M {_pt((CX + hh - 1, hy - 24))} L {_pt((CX + hh - 1.5, hy + 9))} Q {_pt((CX, hy + 18))} "
-                    f"{_pt((CX - hh + 1.5, hy + 9))} L {_pt((CX - hh + 1, hy - 24))} Z")
+            back = (f"M {_pt((CX + hh - 1, hy - 24))} L {_pt((CX + hh - 1.5, hy + 11))} Q {_pt((CX, hy + 22))} "
+                    f"{_pt((CX - hh + 1.5, hy + 11))} L {_pt((CX - hh + 1, hy - 24))} Z")
             sh.behind.append(Part(back, "cuff"))
-            sh.bbox = (sh.bbox[0], sh.bbox[1], sh.bbox[2], hy + 15)
+            sh.bbox = (sh.bbox[0], sh.bbox[1], sh.bbox[2], hy + 18)
     elif p["hem"] == "raw":   # a cut edge: no stitching, a few loose threads
         x = CX - hh + 6
         i = 0
@@ -866,6 +866,8 @@ def _lapels(sh, cs, ny, N, TR, TL, k, rise, front, bulk, hy):
     for pts, run, closed in pieces:
         sh.parts.append(Part(_poly(pts), "collar_r"))
         sh.parts.append(Part(_poly(run, close=closed), "edge"))
+    if cs in ("shawl", "shawl_knit") and Xc[1] < yb - 0.5:   # the top shawl's fold, below where the V closes
+        sh.parts.append(Part(_poly([Xc, A0], close=False), "edge"))
     return ("lapel", yb, ov)
 
 
@@ -922,8 +924,8 @@ def _pockets(sh, kind, sy, hy, hh, hs, hem, cuff, A, rib_h, lapel_front):
         patch(CX - hh + 12, lo_y - 6, w, 58, flap=False)
     elif kind == "guayabera":   # four patch pockets with buttoned points, and the rows of pleats
         for m in (lambda v: v, _mirror):
-            for x in (CX + 30, CX + 35):
-                sh.lines.append(f"M {_pt(m((x, sy + 22)))} L {_pt(m((x, hy - 14)))}")
+            for x in (CX + 30, CX + 35):   # seams: the pocket flaps lie over them
+                sh.seams.append(f"M {_pt(m((x, sy + 22)))} L {_pt(m((x, hy - 14)))}")
         flapped(CX + 21, chest_y - 2, 36, 40, point=True)
         flapped(CX - 57, chest_y - 2, 36, 40, point=True)
         w = min(46, hh - 26)
@@ -953,7 +955,7 @@ def _pockets(sh, kind, sy, hy, hh, hs, hem, cuff, A, rib_h, lapel_front):
         Co, Ci, d = cuff
         qv = _unit((Ci[0] - Co[0], Ci[1] - Co[1]))
         base = (A[0] + 12, A[1] + 8)   # just past the underarm, on the sleeve
-        c = (base[0] + d[0] * 6 - qv[0] * 4, base[1] + d[1] * 6 - qv[1] * 4)
+        c = (base[0] + d[0] * 26 - qv[0] * 6, base[1] + d[1] * 26 - qv[1] * 6)
         w, h = 20.0, 30.0
         corners = [(c[0] + qv[0] * sx * w / 2 + d[0] * sy_ * h / 2, c[1] + qv[1] * sx * w / 2 + d[1] * sy_ * h / 2)
                    for sx, sy_ in ((-1, -1), (1, -1), (1, 1), (-1, 1))]

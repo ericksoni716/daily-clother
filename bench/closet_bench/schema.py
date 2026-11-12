@@ -20,7 +20,7 @@ from typing import Literal, Optional, get_args
 from pydantic import BaseModel, Field
 
 from . import taxonomy
-from .taxonomy import AXES, top_drawing
+from .taxonomy import AXES, CORDUROY_WALES, KNIT_GAUGES, WEIGHT_CLASSES, top_drawing
 from .templates import SHOE_STYLES
 
 Category = Literal["tee", "shirt", "polo", "sweater", "hoodie", "jacket", "coat", "jeans", "trousers", "shorts",
@@ -55,17 +55,12 @@ Collar = _axis("collar")
 Placket = _axis("placket")
 Cuff = _axis("cuff")
 SleeveConstruction = _axis("sleeve_construction", "na")
-HIP_POCKETS = ("hip_patch_double", "hip_flap_double")   # in the taxonomy since the owner added them
-Pockets = Literal[tuple(dict.fromkeys(AXES["pockets"] + HIP_POCKETS))]
+Pockets = _axis("pockets")
 Hem = _axis("hem", "na")
 Fabric = Literal[("unknown",) + tuple(dict.fromkeys(AXES["woven_structure"] + AXES["knit_structure"]))]
 ColorTexture = _axis("color_texture")
 # Weight and fibre decide how thick a garment reads and what it can be layered over or under.
-FIBERS = AXES.get("fiber") or ('cotton', 'linen', 'cotton_linen', 'hemp', 'merino', 'lambswool', 'shetland', 'cashmere', 'yak', 'camel', 'alpaca', 'mohair', 'worsted_wool', 'woolen_wool', 'silk', 'polyester', 'nylon', 'acrylic', 'viscose', 'lyocell', 'modal', 'leather', 'suede', 'shearling')
-WEIGHT_CLASSES = ("lightweight", "midweight", "heavyweight", "super_heavy")
-KNIT_GAUGES = ('extra_fine', 'fine', 'medium', 'chunky', 'super_chunky')
-CORDUROY_WALES = ('needlecord', 'standard', 'mid', 'wide_wale', 'jumbo')
-Fiber = Literal[("unknown",) + tuple(FIBERS)]
+Fiber = _axis("fiber", "unknown")
 Weight = Literal[("unknown",) + WEIGHT_CLASSES]
 KnitGauge = Literal[("na",) + KNIT_GAUGES]
 CorduroyWale = Literal[("na",) + CORDUROY_WALES]
@@ -202,10 +197,7 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
             p["hem"] = {"turn_up": "turnup", "ribbed": "rib"}[d.pant_hem]
         if "contrast_stitching" in d.features:
             p["stitch"] = "contrast"
-        if hasattr(taxonomy, "surface_extras"):
-            extras.update(taxonomy.surface_extras(cloth))
-        else:
-            extras["texture"] = "corduroy" if d.fabric == "corduroy" else None
+        extras.update(taxonomy.surface_extras(cloth))
         return "pants", p, extras, []
     if tags.category in ("sneakers", "boots", "dress_shoes", "sandals"):
         by_category = {"boots": "boot", "dress_shoes": "derby"}.get(tags.category) or ("high_top" if s.shoe_height == "high" else "low_sneaker")
@@ -234,8 +226,6 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
          "hem": d.hem if d.hem != "na" else "straight", **cloth,
          "length": s.top_length or ("long" if tags.category == "coat" else "regular")}
     p, more, notes = top_drawing(g)
-    if d.pockets in HIP_POCKETS and p.get("pockets") in (None, "none"):
-        p["pockets"] = "low"
     if "v_insert" in d.features:
         p["neck_detail"] = "v-insert"
     return "top", p, {**extras, **more}, notes

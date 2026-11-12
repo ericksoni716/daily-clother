@@ -83,7 +83,7 @@ TOP_DEFAULTS = dict(
 # Finer pocket values: chest-flap | chest-patch-two | pencil | western | welt | split | slash | chore |
 #   chest-flap-two | guayabera | bellows | utility | hip-patch | hip-flap
 
-K_PX = 3.5   # canvas px per cm: a 46 cm shoulder is 161 px, a 108 cm overcoat still fits the card
+K_PX = 3.3   # canvas px per cm: a 56 cm chest is 185 px, and long sleeves hanging beside it still fit the card
 # Flat measurements of real garments, men's M / 40R, regular fit, in cm: shoulder seam to seam, chest
 # pit to pit, waist, hem, back length from the collar seam, sleeve from the shoulder seam, bicep and
 # cuff (flat), short sleeve length and opening, and how far the underarm sits below the shoulder.
@@ -308,8 +308,11 @@ def top(**kw) -> Shape:
     bs = GAUGE_BAND.get(p.get("gauge"), 1.0) * (0.85, 1.0, 1.25, 1.5)[wt]   # depth of rib bands and cuffs
     k_ = K_PX
     jacket = block in ("jacket", "coat")
-    hs = (B["sh"] + dsh + (0.6, 0, 1.2, 2.4)[wt]) / 2 * k_
     chest = (B["chest"] + dch) / 2 * k_ * ease
+    # The sleeves hang from the edge of the body: the shoulder point sits just outside the chest's width,
+    # so the armhole runs down the body's edge and no sleeve lies over the body. (A real shoulder seam is
+    # narrower than the chest; drawn that way, the arms start inside the shirt's width, which reads wrong.)
+    hs = chest + 5 + (0.6, 0, 1.2, 2.4)[wt] / 2 * k_
     waist_w = (B["waist"] + dwa) / 2 * k_ * ease
     hh = (B["hem"] + dhe) / 2 * k_ * ease
     if p["hem"] == "rib" and block in ("knit", "bomber"):
@@ -344,7 +347,7 @@ def top(**kw) -> Shape:
     hy = seam_y + length * k_
     hy = min(hy, H - 30.0)                            # a knee-length coat is drawn a little short of true scale to stay on the card
     wy = seam_y + B.get("waist_at", 45) * k_
-    ay = sy + B["depth"] * k_ + bulk * 0.5            # the underarm, under the sleeve
+    ay = sy + B["depth"] * 1.3 * k_ + bulk * 0.5      # the underarm; drawn deeper than life so the sleeve has its width
 
     N = (CX + nw, ny)
     S = (CX + hs, sy)
@@ -386,7 +389,7 @@ def top(**kw) -> Shape:
         kind = "rolled" if cuffs in ("rolled", "roll-tab") else sleeve
         bicep = (B["bicep"] + dbi) * k_ * ease
         if kind == "long":
-            th, ln, cw = (10.0 if jacket else 14.0), (B["sleeve"] + (2 if fit == "oversized" else 0)) * k_, B["cuff"] * k_ * ease
+            th, ln, cw = (16.0 if jacket else 20.0), (B["sleeve"] + (2 if fit == "oversized" else 0)) * k_, B["cuff"] * 0.9 * k_ * ease
         elif kind == "three-quarter":
             th, ln, cw = 17.0, B["sleeve"] * 0.74 * k_, (B["cuff"] + 3) * k_ * ease
         elif kind in ("elbow", "rolled"):
@@ -405,9 +408,9 @@ def top(**kw) -> Shape:
             q = (-math.cos(thr), math.sin(thr))       # across it, toward the body
             Co = (K[0] + d[0] * ln, K[1] + d[1] * ln)
             Ci = (Co[0] + q[0] * cw, Co[1] + q[1] * cw)
-            # a short sleeve's hem must end outside the body; a long sleeve may lie over it
+            # every sleeve ends outside the body: none lies over it
             j = min(range(len(side)), key=lambda i: abs(side[i][1] - Ci[1]))
-            ok = kind == "long" or Ci[0] > side[j][0] + 5
+            ok = Ci[0] > side[j][0] + 5
             if Co[0] > 392:
                 th = math.degrees(math.asin(max(0.0, min(1.0, (392 - K[0]) / ln))))
                 thr = math.radians(th)
@@ -422,10 +425,7 @@ def top(**kw) -> Shape:
         th = thr
         P1 = (K[0] + d[0] * r, K[1] + d[1] * r)
         # the visible underarm: on the armhole, so the sleeve is w_top wide where it leaves the body
-        outer_at = K[0] + math.tan(th) * (ay - K[1])
-        A = (min(outer_at - w_top / math.cos(th), S[0] - 6), ay - 6)
-        if shoulder == "dolman":
-            A = Ab
+        A = Ab   # the sleeve leaves the body at the body's own underarm
         cuff = (Co, Ci, d)
         corner = [Co]
         if cuffs == "mitred" and kind in ("long", "three-quarter"):   # the cuff's open corner is cut on the slant
@@ -496,8 +496,10 @@ def top(**kw) -> Shape:
     Sl, Al, Hl, Nl = _mirror(S), _mirror(A), _mirror(Hc), _mirror(N)
 
     sh = Shape(outline=outline)
-    sh.anchors = {"neck": (CX, 58.0), "shoulder_l": (CX - hs, sy), "shoulder_r": (CX + hs, sy), "hem": (CX, hy),
-                  "neck_point_l": Nl, "neck_point_r": N}
+    # Anchors are points on the wearer, the same for every top, so the mannequin view can line garments up:
+    # the base of the neck and the shoulders of a 46 cm frame. How far the cloth extends beyond them is the fit.
+    sh.anchors = {"neck": (CX, 58.0), "shoulder_l": (CX - 23 * K_PX, 80.0), "shoulder_r": (CX + 23 * K_PX, 80.0),
+                  "hem": (CX, hy), "neck_point_l": Nl, "neck_point_r": N}
     sh.body_box = (CX - chest, sy, CX + chest, hy)
     xs = [float(x) for x, _ in re.findall(r"(-?[\d.]+),(-?[\d.]+)", outline)]
     xmax = max(max(xs), 2 * CX - min(xs))

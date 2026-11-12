@@ -1,4 +1,4 @@
-import type { Item, ItemPatch, ItemSummary, ModelInfo, Session, Settings, Storage, Vocab, Profile, BackupRecord } from './types';
+import type { Item, ItemPatch, ItemSummary, ModelInfo, Session, Settings, Storage, TaggingStatus, Vocab, Profile, BackupRecord } from './types';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
 export class ApiError extends Error {
@@ -128,6 +128,7 @@ export const api = {
   putSettings: (changes: { backup_folder?: string | null; autostart?: boolean }) =>
     request<Settings>('/api/settings', { method: 'PUT', body: changes }),
   storage: () => request<Storage>('/api/storage'),
+  tagging: () => request<TaggingStatus>('/api/tagging'),
   backup: () => request<BackupRecord>('/api/backup', { method: 'POST' }),
   setProfile: (profile: Profile) => request<{ profile: Profile }>('/api/profile', { method: 'POST', body: { profile } }),
   quit: () => request<void>('/api/quit', { method: 'POST' }),

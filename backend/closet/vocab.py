@@ -1,7 +1,7 @@
 """The small, coarse vocabulary items are described with.
 
 Kept short on purpose: these are the words that drive outfits and gaps. The
-tagging bench uses the same lists (a test keeps the two in step).
+tagger (`closet/tagger/schema.py`) uses the same lists (a test keeps the two in step).
 """
 from __future__ import annotations
 

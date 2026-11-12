@@ -92,6 +92,11 @@ for required in ("web/index.html", "demo_data/items.json", "demo_data/tiny.heic"
         hint = " Build the frontend first: `npm ci && npm run build` in frontend/." if required.startswith("web/") else ""
         fail(f"backend/closet/{required} is missing.{hint}")
 
+# the tagger reads its model list next to its own code: <_MEIPASS>/closet/tagger/models.json
+TAGGER = os.path.join(PKG, "tagger")
+if not os.path.isfile(os.path.join(TAGGER, "models.json")):
+    fail("backend/closet/tagger/models.json is missing")
+
 migrations = tree(os.path.join(PKG, "migrations"), os.path.join("closet", "migrations"), suffixes=(".sql",))
 if not migrations:
     fail("no backend/closet/migrations/*.sql files found")
@@ -100,6 +105,7 @@ datas = (
     migrations
     + tree(os.path.join(PKG, "demo_data"), os.path.join("closet", "demo_data"))
     + tree(os.path.join(PKG, "web"), os.path.join("closet", "web"))
+    + [(os.path.join(TAGGER, "models.json"), os.path.join("closet", "tagger"))]
 )
 
 # --- native libraries -----------------------------------------------------
@@ -119,11 +125,15 @@ for src, dest in binaries:
 print(f"closet.spec: {len(datas)} data files ({sum(os.path.getsize(s) for s, _ in datas):,} bytes) under closet/")
 
 # --- imports PyInstaller cannot see ---------------------------------------
-# Every closet module, so a lazily imported one is never missed.
+# Every closet module (and the tagger package's), so a lazily imported one is never missed.
 closet_modules = sorted(
     "closet." + name[:-3]
     for name in os.listdir(PKG)
     if name.endswith(".py") and name not in ("__init__.py", "__main__.py")
+) + ["closet.tagger"] + sorted(
+    "closet.tagger." + name[:-3]
+    for name in os.listdir(TAGGER)
+    if name.endswith(".py") and name != "__init__.py"
 )
 
 # pystray picks its backend at import time with relative imports inside

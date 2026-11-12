@@ -120,3 +120,17 @@ export interface Storage {
   data_dir: string;
   free_bytes: number | null;
 }
+
+/** One way of reaching Claude: the owner's Claude plan through Claude Code, or an API key. */
+export interface TaggingRoute {
+  id: 'plan' | 'api';
+  available: boolean;
+  /** Why it can't be used right now, in plain words; empty when it can. */
+  detail: string;
+}
+
+/** Which routes to Claude can be used right now, and the order they are tried in. */
+export interface TaggingStatus {
+  order: TaggingRoute['id'][];
+  routes: TaggingRoute[];
+}

@@ -16,6 +16,7 @@ Default mode:
      the startup timeout with app == "closet", model_state == "missing",
      setup_required == true; GET / is the built page (id="root");
      POST /api/setup -> 204 + session cookie; GET /api/items -> 200;
+     GET /api/tagging -> 200 with the plan route then the API route;
      POST /api/profile demo -> GET /api/items has 30 items;
      POST /api/quit -> the process exits with code 0 within 30 s; the data
      folder then has closet.db and no closet.lock.
@@ -276,6 +277,13 @@ def _drive_server(proc: subprocess.Popen, base: str, data_dir: Path, startup_tim
 
     _, body = expect("GET", base + "/api/items", 200, cookie=cookie)
     log(f"  GET /api/items -> 200, {len(as_json('GET', '/api/items', body).get('items', []))} items in the main closet")
+
+    _, body = expect("GET", base + "/api/tagging", 200, cookie=cookie, timeout=30)
+    tagging = as_json("GET", "/api/tagging", body)
+    if tagging.get("order") != ["plan", "api"] or [r.get("id") for r in tagging.get("routes") or []] != ["plan", "api"]:
+        raise SmokeFailure(f"/api/tagging has order {tagging.get('order')!r}, expected the plan then the API key")
+    log("  GET /api/tagging -> 200, routes " + ", ".join(f"{r['id']}={'available' if r.get('available') else 'unavailable'}"
+                                                         for r in tagging["routes"]))
 
     expect("POST", base + "/api/profile", 200, body={"profile": "demo"}, cookie=cookie, timeout=120)
     _, body = expect("GET", base + "/api/items", 200, cookie=cookie)

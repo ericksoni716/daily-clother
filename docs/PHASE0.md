@@ -90,6 +90,30 @@ subagents are not the API call (different surrounding instructions, and one
 agent saw all seven items in a row); the key is the developer's opinion; and
 there are no cost or timing figures.
 
+## Confidence in the API call before spending anything
+
+The paid API key is deliberately the last step. What is already checked
+without it:
+
+- The request reaches the real API and is rejected only for the missing key
+  (401), so the endpoint, headers and transport are right.
+- The real SDK was run against a local stand-in server: the request carries
+  the model, low effort, the JSON schema and a JPEG image block, sends no
+  parameters the current models reject, and the answer parses into validated
+  tags with cost computed from the reported token counts.
+- The schema the SDK sends is tested against the API's documented limits: no
+  optional properties, no numeric or length constraints, every object closed,
+  nothing recursive.
+- Failure paths are tested: an incomplete answer is retried, a refusal and
+  repeated invalid answers fail with a clear message.
+- The prompt and schema themselves produced valid, mostly correct answers from
+  three Claude models in the stand-in run above.
+
+What only a real key can show: that the live API accepts this exact schema,
+real token counts and cost per item, and response time. The plan for that day
+is one single-item call first (a fraction of a cent on Haiku), then the bench
+with a spend ceiling printed before it starts.
+
 ## Still open
 
 - Tagging accuracy, confidence calibration, cost per item and time, per model,

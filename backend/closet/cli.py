@@ -174,7 +174,7 @@ def cmd_reset(args, cfg: config.Config) -> int:
     return 0
 
 
-def selfcheck(with_cutout: bool, cfg: config.Config) -> dict:
+def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -> dict:
     """Exercise the libraries that are hard to package. Returns {name: {ok, detail}}."""
     out: dict = {}
 
@@ -239,6 +239,18 @@ def selfcheck(with_cutout: bool, cfg: config.Config) -> dict:
             raise RuntimeError(f"cutout looks wrong: {covered:.0%} of the crop is foreground")
         return f"cutout {cut.width}x{cut.height}, {covered:.0%} foreground"
 
+    def https():
+        import urllib.request
+        from urllib.parse import urlsplit
+
+        from . import net
+        from .cutout import MODELS
+        from .modelstore import MODEL, USER_AGENT
+        url = MODELS[MODEL].url
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Range": "bytes=0-0"})
+        with urllib.request.urlopen(req, timeout=30, context=net.ssl_context()) as r:
+            return f"HTTP {r.status} from {urlsplit(r.url).hostname} using {net.trust_source()}"
+
     check("webp", webp)
     check("heic", heic)
     check("onnxruntime", onnx)
@@ -247,11 +259,13 @@ def selfcheck(with_cutout: bool, cfg: config.Config) -> dict:
     check("model_state", model)
     if with_cutout:
         check("cutout", cutout)
+    if with_https:  # the same connection the model download makes; needs the internet
+        check("https", https)
     return out
 
 
 def cmd_selfcheck(args, cfg: config.Config) -> int:
-    result = selfcheck(args.cutout, cfg)
+    result = selfcheck(args.cutout, cfg, args.https)
     text = json.dumps({"version": __version__, "checks": result}, indent=1)
     if args.out:  # the windowed program has no console to print to
         Path(args.out).write_text(text, encoding="utf-8")
@@ -275,6 +289,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("reset-passphrase", help="forget the passphrase")
     s = sub.add_parser("selfcheck", help="check the bundled libraries")
     s.add_argument("--cutout", action="store_true", help="also run a real background removal (needs the model)")
+    s.add_argument("--https", action="store_true", help="also check that the model's download server can be reached securely")
     s.add_argument("--out", help="write the result to this file instead of printing it")
     args = ap.parse_args(argv)
     cfg = config.load()

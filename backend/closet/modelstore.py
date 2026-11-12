@@ -7,14 +7,18 @@ into the models folder by hand is checked the same way.
 """
 from __future__ import annotations
 
+import logging
 import threading
 import urllib.error
 import urllib.request
 from collections.abc import Callable
 from pathlib import Path
 
+from . import net
 from .cutout import MODELS, sha256_of
 from .state import State
+
+log = logging.getLogger("closet.model")
 
 MODEL = "isnet-general-use"
 USER_AGENT = "Closet/1 (model download)"
@@ -119,7 +123,7 @@ class ModelStore:
         if have:
             req.add_header("Range", f"bytes={have}-")
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=30, context=net.ssl_context()) as resp:
                 if have and resp.status != 206:  # server ignored the range: start over
                     have = 0
                 length = resp.headers.get("Content-Length")
@@ -144,7 +148,13 @@ class ModelStore:
                 self._fail(f"The download server answered with an error ({e.code}). Check the download address in "
                            "Settings, or place the model file by hand (see the README).")
                 return
-        except (urllib.error.URLError, OSError, TimeoutError):
+        except (urllib.error.URLError, OSError, TimeoutError) as e:
+            log.warning("model download failed: %s: %s", type(e).__name__, e)
+            if net.is_certificate_error(e):
+                self._fail("The download server's security certificate could not be checked on this computer, so "
+                           "nothing was downloaded. If this is a work computer or network, try another network, "
+                           "or place the model file by hand (see the README).")
+                return
             self._fail("Could not reach the download server. Check the internet connection and try again; "
                        "the download continues from where it stopped. Photos you add meanwhile are kept and "
                        "will be processed once the model is here.")

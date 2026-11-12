@@ -133,7 +133,9 @@ def run_selfcheck(program: Path, data_dir: Path, work: Path, cutout: bool, timeo
                   expect_version: str | None) -> dict:
     out_file = work / ("selfcheck-cutout.json" if cutout else "selfcheck.json")
     output = work / ("selfcheck-cutout.log" if cutout else "selfcheck.log")
-    cmd = [str(program), "selfcheck"] + (["--cutout"] if cutout else []) + ["--out", str(out_file)]
+    # the cutout mode also checks HTTPS to the model's download server, the connection the
+    # program makes on first run (it failed on macOS when the program shipped without certificates)
+    cmd = [str(program), "selfcheck"] + (["--cutout", "--https"] if cutout else []) + ["--out", str(out_file)]
     log(f"$ {program.name} {' '.join(cmd[1:])}")
     started = time.monotonic()
     proc = start(cmd, program_env(data_dir), output)
@@ -147,7 +149,7 @@ def run_selfcheck(program: Path, data_dir: Path, work: Path, cutout: bool, timeo
             report = json.loads(out_file.read_text(encoding="utf-8"))
         except (OSError, ValueError) as exc:
             raise SmokeFailure(f"selfcheck exited {code} and did not write a JSON report to {out_file}: {exc}") from exc
-        expected = BASE_CHECKS + (("cutout",) if cutout else ())
+        expected = BASE_CHECKS + (("cutout", "https") if cutout else ())
         checks = report.get("checks") or {}
         log(f"  Closet version {report.get('version')!r}")
         problems = []

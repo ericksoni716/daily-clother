@@ -10,6 +10,8 @@ numpy==2.5.4
 pillow==13.0.0
 pillow-heif==1.8.1
 pystray==0.19.5          # tray icon; optional at runtime
+truststore==0.10.5       # HTTPS with the computer's own trusted certificates (a packaged Python has none on macOS)
+certifi==2026.10.23      # fallback certificate bundle
 
 # transitive
 annotated-doc==0.0.6

@@ -20,7 +20,7 @@ import os
 import sys
 from importlib.metadata import files as dist_files
 
-from PyInstaller.utils.hooks import collect_dynamic_libs
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
 
 HERE = SPECPATH  # packaging/
 REPO = os.path.dirname(HERE)
@@ -137,7 +137,7 @@ elif IS_MAC:
 else:
     tray_imports = ["pystray._xorg", "pystray._appindicator", "pystray._gtk"]
 
-hiddenimports = closet_modules + ["_pillow_heif", "pystray", "pystray._dummy"] + tray_imports
+hiddenimports = closet_modules + ["_pillow_heif", "pystray", "pystray._dummy", "truststore", "certifi"] + tray_imports
 
 excludes = [
     "tkinter",
@@ -189,7 +189,7 @@ a = Analysis(
     [os.path.join(PKG, "__main__.py")],
     pathex=[BACKEND],
     binaries=binaries,
-    datas=datas,
+    datas=datas + collect_data_files("certifi"),   # the fallback certificate bundle (closet/net.py)
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},

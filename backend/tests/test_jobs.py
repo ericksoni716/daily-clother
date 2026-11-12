@@ -182,3 +182,47 @@ def test_worker_thread_picks_up_jobs_when_woken(client, services):
     while time.time() < deadline and client.get(f"/api/items/{item['id']}").json()["cutout_state"] != "ready":
         time.sleep(0.05)
     assert client.get(f"/api/items/{item['id']}").json()["cutout_state"] == "ready"
+
+
+# ---- outbound HTTPS (the model download)
+
+def test_https_uses_a_verifying_context_with_trusted_certificates():
+    import ssl
+
+    from closet import net
+    ctx = net.ssl_context()
+    assert isinstance(ctx, ssl.SSLContext)
+    assert ctx.verify_mode == ssl.CERT_REQUIRED and ctx.check_hostname
+    assert net.trust_source() == "system certificates"   # truststore is a pinned requirement
+
+
+def test_a_certificate_failure_is_told_apart_from_no_connection():
+    import ssl
+    import urllib.error
+
+    from closet import net
+    cert = urllib.error.URLError(ssl.SSLCertVerificationError(1, "certificate verify failed"))
+    assert net.is_certificate_error(cert)
+    assert not net.is_certificate_error(urllib.error.URLError(OSError("Network is unreachable")))
+    assert not net.is_certificate_error(TimeoutError())
+
+
+def test_the_model_download_passes_the_trusted_context(tmp_path, monkeypatch):
+    import ssl
+    import urllib.error
+    import urllib.request
+
+    from closet.modelstore import ModelStore
+    from closet.state import State
+    seen = {}
+
+    def fake_urlopen(req, timeout=None, context=None):
+        seen["context"] = context
+        raise urllib.error.URLError(ssl.SSLCertVerificationError(1, "certificate verify failed"))
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    store = ModelStore(tmp_path / "models", State(tmp_path / "settings.json"))
+    store._download()
+    assert isinstance(seen["context"], ssl.SSLContext)
+    info = store.info()
+    assert info["state"] == "failed" and "certificate" in info["error"]

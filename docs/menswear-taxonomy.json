@@ -1306,39 +1306,1239 @@
   },
   "chinos": {
    "category": "bottoms",
-   "signature": "Cotton twill trousers"
+   "signature": "Cotton twill trousers",
+   "waistband": [
+    "belt_loops"
+   ],
+   "front": [
+    "flat",
+    "single_pleat",
+    "double_pleat"
+   ],
+   "leg": [
+    "slim",
+    "tapered",
+    "straight",
+    "wide"
+   ],
+   "pockets": [
+    "slant",
+    "back_welt_single",
+    "back_welt_double"
+   ],
+   "app_category": "trousers"
   },
   "dress_trousers": {
    "category": "bottoms",
-   "signature": "Wool, creased"
+   "signature": "Wool, creased",
+   "waistband": [
+    "belt_loops",
+    "side_adjusters",
+    "extended_tab",
+    "gurkha",
+    "brace_buttons"
+   ],
+   "front": [
+    "flat",
+    "single_pleat",
+    "double_pleat"
+   ],
+   "hem_finish": [
+    "plain",
+    "turn_up"
+   ],
+   "crease": [
+    "pressed"
+   ],
+   "pockets": [
+    "slant",
+    "vertical_on_seam",
+    "back_welt_double"
+   ],
+   "app_category": "trousers"
   },
   "jeans": {
    "category": "bottoms",
-   "signature": "Five-pocket denim"
+   "signature": "Five-pocket denim",
+   "waistband": [
+    "belt_loops"
+   ],
+   "fly": [
+    "zip",
+    "button"
+   ],
+   "leg": [
+    "skinny",
+    "slim",
+    "tapered",
+    "straight",
+    "relaxed",
+    "wide",
+    "bootcut",
+    "flare",
+    "barrel"
+   ],
+   "pockets": [
+    "scoop",
+    "coin",
+    "back_patch"
+   ],
+   "back_details": [
+    "back_yoke",
+    "rivets",
+    "back_patch_label"
+   ],
+   "washes": [
+    "raw",
+    "rinse",
+    "dark",
+    "mid",
+    "light",
+    "bleached",
+    "stone",
+    "acid",
+    "black",
+    "washed_black",
+    "grey",
+    "ecru",
+    "white",
+    "overdyed"
+   ],
+   "hem_finish": [
+    "plain",
+    "rolled_cuff",
+    "chain_stitched",
+    "raw"
+   ],
+   "app_category": "jeans"
   },
   "corduroys": {
    "category": "bottoms",
-   "signature": "Corduroy trousers"
+   "signature": "Corduroy trousers",
+   "waistband": [
+    "belt_loops"
+   ],
+   "pockets": [
+    "slant",
+    "scoop",
+    "coin",
+    "back_welt_single",
+    "back_patch"
+   ],
+   "app_category": "trousers"
   },
   "fatigues": {
    "category": "bottoms",
-   "signature": "Back sateen/ripstop"
+   "signature": "Back sateen/ripstop",
+   "waistband": [
+    "belt_loops"
+   ],
+   "fly": [
+    "button",
+    "zip"
+   ],
+   "pockets": [
+    "slant",
+    "back_flap"
+   ],
+   "app_category": "trousers"
   },
   "cargo_pants": {
    "category": "bottoms",
-   "signature": "Thigh bellows pockets"
+   "signature": "Thigh bellows pockets",
+   "pockets": [
+    "slant",
+    "cargo",
+    "back_flap"
+   ],
+   "app_category": "trousers"
   },
   "work_pants": {
    "category": "bottoms",
-   "signature": "Canvas, double knee"
+   "signature": "Canvas, double knee",
+   "pockets": [
+    "scoop",
+    "hammer_loop",
+    "rule_pocket",
+    "back_patch"
+   ],
+   "back_details": [
+    "double_knee",
+    "gusseted_crotch"
+   ],
+   "app_category": "trousers"
   },
   "sweatpants": {
    "category": "bottoms",
-   "signature": "Fleece/terry"
+   "signature": "Fleece/terry",
+   "waistband": [
+    "elastic_drawcord"
+   ],
+   "hem_finish": [
+    "ribbed_cuff",
+    "plain"
+   ],
+   "app_category": "trousers"
   },
   "shorts": {
    "category": "bottoms",
-   "signature": "Chino/denim/cargo/swim/linen"
+   "signature": "Chino/denim/cargo/swim/linen",
+   "inseam_in": {
+    "running": [
+     3,
+     5
+    ],
+    "short_chino": [
+     5,
+     7
+    ],
+    "chino": [
+     7,
+     9
+    ],
+    "denim": [
+     7,
+     10
+    ],
+    "cargo": [
+     9,
+     11
+    ],
+    "basketball": [
+     9,
+     11
+    ],
+    "boardshorts": [
+     7,
+     20
+    ],
+    "swim_trunks": [
+     3,
+     7
+    ],
+    "linen_pull_on": [
+     6,
+     8
+    ],
+    "tailored": [
+     6,
+     8
+    ],
+    "sweat": [
+     6,
+     9
+    ]
+   },
+   "app_category": "shorts"
+  },
+  "performance_tee": {
+   "category": "activewear",
+   "fabric": [
+    "performance_jersey",
+    "cotton_poly_jersey",
+    "merino_performance_jersey"
+   ],
+   "neckline": [
+    "crew",
+    "v_neck"
+   ],
+   "sleeve_construction": [
+    "set_in",
+    "raglan"
+   ],
+   "details": [
+    "mesh_vent_panels",
+    "flatlock_seams"
+   ],
+   "app_category": "tee",
+   "signature": "Smooth synthetic tee, mesh panels, flatlock seams."
+  },
+  "running_long_sleeve": {
+   "category": "activewear",
+   "fabric": [
+    "performance_jersey",
+    "brushed_back_performance",
+    "grid_fleece",
+    "merino_performance_jersey"
+   ],
+   "neckline": [
+    "crew",
+    "quarter_zip"
+   ],
+   "details": [
+    "thumbholes",
+    "reflective_trims",
+    "drop_tail"
+   ],
+   "app_category": "tee",
+   "signature": "Long-sleeve running top with thumbholes and reflective trims."
+  },
+  "running_singlet": {
+   "category": "activewear",
+   "fabric": [
+    "performance_jersey",
+    "birdseye_mesh"
+   ],
+   "sleeve_length": [
+    "sleeveless"
+   ],
+   "app_category": "tee",
+   "signature": "Very light sleeveless running top."
+  },
+  "compression_top": {
+   "category": "activewear",
+   "fabric": [
+    "compression_knit"
+   ],
+   "fit": [
+    "slim"
+   ],
+   "neckline": [
+    "crew",
+    "mock"
+   ],
+   "app_category": "tee",
+   "signature": "Skin-tight, panel seams, no folds."
+  },
+  "base_layer": {
+   "category": "activewear",
+   "fabric": [
+    "merino_performance_jersey",
+    "performance_jersey"
+   ],
+   "neckline": [
+    "crew",
+    "quarter_zip"
+   ],
+   "details": [
+    "flatlock_seams"
+   ],
+   "app_category": "tee",
+   "signature": "Slim long-sleeve thermal layer."
+  },
+  "athletic_half_zip": {
+   "category": "activewear",
+   "fabric": [
+    "grid_fleece",
+    "brushed_back_performance",
+    "performance_jersey"
+   ],
+   "neckline": [
+    "quarter_zip"
+   ],
+   "details": [
+    "chin_guard",
+    "thumbholes"
+   ],
+   "app_category": "sweater",
+   "signature": "Stand collar with short zip and chin guard."
+  },
+  "track_jacket": {
+   "category": "activewear",
+   "fabric": [
+    "double_knit_poly",
+    "tricot",
+    "nylon_taffeta"
+   ],
+   "collar": [
+    "stand"
+   ],
+   "placket": [
+    "zip_full"
+   ],
+   "cuff": [
+    "rib_knit"
+   ],
+   "hem": [
+    "ribbed_band"
+   ],
+   "details": [
+    "side_stripes",
+    "piping"
+   ],
+   "pockets": [
+    "split_hand"
+   ],
+   "app_category": "jacket",
+   "signature": "Full zip, stand collar, side stripes or color-blocked panels."
+  },
+  "windbreaker": {
+   "category": "activewear",
+   "fabric": [
+    "nylon_taffeta"
+   ],
+   "placket": [
+    "zip_full",
+    "zip_half"
+   ],
+   "details": [
+    "reflective_trims"
+   ],
+   "app_category": "jacket",
+   "signature": "Light packable nylon jacket, elastic cuffs."
+  },
+  "softshell_jacket": {
+   "category": "activewear",
+   "fabric": [
+    "softshell"
+   ],
+   "collar": [
+    "stand"
+   ],
+   "placket": [
+    "zip_full"
+   ],
+   "app_category": "jacket",
+   "signature": "Fitted stretch jacket, chest zip pocket."
+  },
+  "rain_shell": {
+   "category": "activewear",
+   "fabric": [
+    "waterproof_shell"
+   ],
+   "neckline": [
+    "hood"
+   ],
+   "placket": [
+    "zip_full"
+   ],
+   "details": [
+    "brimmed_hood",
+    "storm_flap",
+    "pit_zips",
+    "drop_tail"
+   ],
+   "app_category": "jacket",
+   "signature": "Waterproof hooded shell, taped seams."
+  },
+  "fleece_pullover": {
+   "category": "activewear",
+   "knit": [
+    "polar_fleece",
+    "sherpa"
+   ],
+   "placket": [
+    "zip_quarter",
+    "zip_half",
+    "zip_full"
+   ],
+   "collar": [
+    "stand"
+   ],
+   "app_category": "sweater",
+   "signature": "Fleece with stand collar and contrast nylon pocket."
+  },
+  "soccer_jersey": {
+   "category": "activewear",
+   "fabric": [
+    "performance_jersey",
+    "birdseye_mesh"
+   ],
+   "neckline": [
+    "v_neck",
+    "crew"
+   ],
+   "app_category": "tee",
+   "signature": "Sublimated pattern, crest on chest, number on back."
+  },
+  "basketball_jersey": {
+   "category": "activewear",
+   "fabric": [
+    "birdseye_mesh"
+   ],
+   "sleeve_length": [
+    "sleeveless"
+   ],
+   "app_category": "tee",
+   "signature": "Sleeveless mesh, deep armholes, numbers."
+  },
+  "hockey_jersey": {
+   "category": "activewear",
+   "fabric": [
+    "double_knit_poly",
+    "birdseye_mesh"
+   ],
+   "fit": [
+    "oversized"
+   ],
+   "app_category": "tee",
+   "signature": "Very loose, laced V-neck, striped arms and hem."
+  },
+  "baseball_jersey": {
+   "category": "activewear",
+   "fabric": [
+    "double_knit_poly"
+   ],
+   "placket": [
+    "front_placket"
+   ],
+   "app_category": "shirt",
+   "signature": "Button front with piping, script across chest."
+  },
+  "cycling_jersey": {
+   "category": "activewear",
+   "fabric": [
+    "performance_jersey"
+   ],
+   "fit": [
+    "slim"
+   ],
+   "placket": [
+    "zip_full",
+    "zip_half"
+   ],
+   "details": [
+    "rear_jersey_pockets",
+    "hem_gripper"
+   ],
+   "app_category": "tee",
+   "signature": "Slim zip jersey with three rear pockets."
+  },
+  "running_shorts": {
+   "category": "activewear",
+   "fabric": [
+    "four_way_stretch_woven",
+    "nylon_taffeta"
+   ],
+   "inseam_in": [
+    3,
+    7
+   ],
+   "details": [
+    "split_hem",
+    "notched_hem",
+    "built_in_liner",
+    "back_zip_pocket",
+    "elastic_drawcord_waist"
+   ],
+   "app_category": "shorts",
+   "signature": "Short inseam, split hem, liner."
+  },
+  "two_in_one_shorts": {
+   "category": "activewear",
+   "fabric": [
+    "four_way_stretch_woven",
+    "compression_knit"
+   ],
+   "details": [
+    "built_in_liner"
+   ],
+   "app_category": "shorts",
+   "signature": "Short outer over a longer visible compression liner."
+  },
+  "training_shorts": {
+   "category": "activewear",
+   "fabric": [
+    "four_way_stretch_woven",
+    "cotton_poly_jersey"
+   ],
+   "inseam_in": [
+    7,
+    9
+   ],
+   "app_category": "shorts",
+   "signature": "Mid inseam, side and zip pockets."
+  },
+  "basketball_shorts": {
+   "category": "activewear",
+   "fabric": [
+    "birdseye_mesh",
+    "double_knit_poly"
+   ],
+   "inseam_in": [
+    9,
+    11
+   ],
+   "details": [
+    "side_stripes",
+    "elastic_drawcord_waist"
+   ],
+   "app_category": "shorts",
+   "signature": "Long loose mesh shorts."
+  },
+  "compression_tights": {
+   "category": "activewear",
+   "fabric": [
+    "compression_knit"
+   ],
+   "app_category": "trousers",
+   "signature": "Skin-tight to ankle or mid-thigh."
+  },
+  "track_pants": {
+   "category": "activewear",
+   "fabric": [
+    "double_knit_poly",
+    "tricot",
+    "nylon_taffeta"
+   ],
+   "details": [
+    "side_stripes",
+    "ankle_zips",
+    "tearaway_snaps",
+    "elastic_drawcord_waist"
+   ],
+   "app_category": "trousers",
+   "signature": "Side stripes, ankle zips, elastic waist."
+  },
+  "tech_pants": {
+   "category": "activewear",
+   "fabric": [
+    "four_way_stretch_woven"
+   ],
+   "details": [
+    "hip_zip_pocket",
+    "thigh_zip_pocket"
+   ],
+   "app_category": "trousers",
+   "signature": "Slim tapered stretch woven, zip pockets."
+  },
+  "joggers": {
+   "category": "activewear",
+   "knit": [
+    "french_terry",
+    "fleece_back"
+   ],
+   "fabric": [
+    "four_way_stretch_woven"
+   ],
+   "details": [
+    "ribbed_ankle_cuffs",
+    "elastic_drawcord_waist"
+   ],
+   "app_category": "trousers",
+   "signature": "Tapered, ribbed ankle cuffs."
+  },
+  "open_hem_sweatpants": {
+   "category": "activewear",
+   "knit": [
+    "french_terry",
+    "fleece_back"
+   ],
+   "details": [
+    "elastic_drawcord_waist"
+   ],
+   "app_category": "trousers",
+   "signature": "Straight leg, no ankle cuff."
+  },
+  "pajama_set_woven": {
+   "category": "loungewear",
+   "weave": [
+    "poplin",
+    "flannel",
+    "seersucker",
+    "satin",
+    "linen"
+   ],
+   "fiber": [
+    "cotton",
+    "silk",
+    "linen",
+    "modal"
+   ],
+   "collar": [
+    "notch_lapel",
+    "camp"
+   ],
+   "placket": [
+    "front_placket"
+   ],
+   "pockets": [
+    "chest_patch_single"
+   ],
+   "details": [
+    "contrast_piping",
+    "matching_bottoms"
+   ],
+   "signature": "Notched-lapel button top with piping, matching drawstring trousers."
+  },
+  "pajama_set_knit": {
+   "category": "loungewear",
+   "knit": [
+    "jersey",
+    "waffle_thermal"
+   ],
+   "neckline": [
+    "crew",
+    "henley"
+   ],
+   "details": [
+    "matching_bottoms"
+   ],
+   "signature": "Knit top with matching pants or shorts."
+  },
+  "sleep_shorts": {
+   "category": "loungewear",
+   "weave": [
+    "poplin",
+    "flannel"
+   ],
+   "knit": [
+    "jersey"
+   ],
+   "details": [
+    "elastic_waist"
+   ],
+   "app_category": "shorts",
+   "signature": "Boxer-like, elastic waist."
+  },
+  "lounge_pants": {
+   "category": "loungewear",
+   "weave": [
+    "flannel"
+   ],
+   "knit": [
+    "jersey",
+    "waffle_thermal"
+   ],
+   "fiber": [
+    "cotton",
+    "cashmere"
+   ],
+   "details": [
+    "elastic_drawcord_waist"
+   ],
+   "app_category": "trousers",
+   "signature": "Relaxed straight leg, elastic waist; often plaid flannel."
+  },
+  "lounge_knit_set": {
+   "category": "loungewear",
+   "knit": [
+    "flat_knit"
+   ],
+   "fiber": [
+    "cashmere",
+    "merino",
+    "cotton"
+   ],
+   "details": [
+    "matching_bottoms"
+   ],
+   "signature": "Relaxed crew sweater with matching knit jogger."
+  },
+  "lounge_sweatsuit": {
+   "category": "loungewear",
+   "knit": [
+    "french_terry",
+    "fleece_back"
+   ],
+   "details": [
+    "matching_bottoms"
+   ],
+   "signature": "Matching sweatshirt or hoodie and sweatpants."
+  },
+  "robe": {
+   "category": "loungewear",
+   "weave": [
+    "waffle_weave",
+    "flannel",
+    "satin"
+   ],
+   "knit": [
+    "terry_towelling",
+    "velour",
+    "polar_fleece"
+   ],
+   "collar": [
+    "shawl"
+   ],
+   "details": [
+    "sash_belt",
+    "hip_patch_pockets",
+    "turned_back_cuffs"
+   ],
+   "signature": "Wrap front with belt, shawl collar, knee to ankle length."
+  },
+  "kimono_robe": {
+   "category": "loungewear",
+   "weave": [
+    "plain",
+    "linen",
+    "satin"
+   ],
+   "fiber": [
+    "cotton",
+    "linen",
+    "silk"
+   ],
+   "details": [
+    "collar_band",
+    "sash_belt",
+    "wide_sleeves"
+   ],
+   "signature": "Straight collar band down the front, wide sleeves, sash."
+  },
+  "smoking_jacket": {
+   "category": "loungewear",
+   "weave": [
+    "velvet",
+    "satin"
+   ],
+   "collar": [
+    "shawl"
+   ],
+   "details": [
+    "quilted_collar",
+    "frog_closures"
+   ],
+   "signature": "Short velvet jacket with quilted or satin shawl collar."
+  },
+  "patent_oxford": {
+   "category": "footwear",
+   "app_style": "oxford",
+   "signature": "Mirror-gloss black, closed lacing; black tie",
+   "upper": [
+    "patent"
+   ],
+   "lacing": [
+    "closed_oxford"
+   ]
+  },
+  "plain_toe_oxford": {
+   "category": "footwear",
+   "app_style": "oxford",
+   "signature": "Closed lacing, no cap",
+   "lacing": [
+    "closed_oxford"
+   ],
+   "toe_treatment": [
+    "plain"
+   ]
+  },
+  "cap_toe_oxford": {
+   "category": "footwear",
+   "app_style": "oxford",
+   "signature": "Closed lacing, straight toe cap",
+   "lacing": [
+    "closed_oxford"
+   ],
+   "toe_treatment": [
+    "cap_toe"
+   ]
+  },
+  "wholecut": {
+   "category": "footwear",
+   "app_style": "oxford",
+   "signature": "One piece of leather, no seams but the heel",
+   "lacing": [
+    "closed_oxford"
+   ]
+  },
+  "brogue": {
+   "category": "footwear",
+   "app_style": "oxford",
+   "signature": "Punched edges; semi (cap + medallion) or full wingtip",
+   "toe_treatment": [
+    "medallion",
+    "wingtip"
+   ],
+   "lacing": [
+    "closed_oxford",
+    "open_derby"
+   ]
+  },
+  "derby": {
+   "category": "footwear",
+   "app_style": "derby",
+   "signature": "Open lacing, plain or cap toe",
+   "lacing": [
+    "open_derby"
+   ]
+  },
+  "monk_strap": {
+   "category": "footwear",
+   "app_style": "derby",
+   "signature": "One or two buckled straps instead of laces",
+   "lacing": [
+    "monk_single",
+    "monk_double"
+   ]
+  },
+  "penny_loafer": {
+   "category": "footwear",
+   "app_style": "loafer",
+   "signature": "Strap with a slot across the vamp",
+   "lacing": [
+    "slip_on"
+   ]
+  },
+  "tassel_loafer": {
+   "category": "footwear",
+   "app_style": "loafer",
+   "signature": "Tassels at the front",
+   "lacing": [
+    "slip_on"
+   ]
+  },
+  "horsebit_loafer": {
+   "category": "footwear",
+   "app_style": "loafer",
+   "signature": "Metal snaffle across the vamp",
+   "lacing": [
+    "slip_on"
+   ]
+  },
+  "driving_moc": {
+   "category": "footwear",
+   "app_style": "loafer",
+   "signature": "Soft slip-on with rubber nubs on sole and heel",
+   "lacing": [
+    "slip_on"
+   ],
+   "construction": [
+    "moccasin"
+   ]
+  },
+  "chelsea_boot": {
+   "category": "footwear",
+   "app_style": "chelsea_boot",
+   "signature": "Elastic side gussets, pull tabs",
+   "lacing": [
+    "elastic_gussets"
+   ]
+  },
+  "jodhpur_boot": {
+   "category": "footwear",
+   "app_style": "boot",
+   "signature": "Strap wrapping the ankle"
+  },
+  "chukka": {
+   "category": "footwear",
+   "app_style": "boot",
+   "signature": "Ankle height, 2-3 eyelets, open lacing",
+   "lacing": [
+    "open_derby"
+   ]
+  },
+  "desert_boot": {
+   "category": "footwear",
+   "app_style": "boot",
+   "signature": "Chukka with crepe sole, unlined suede",
+   "sole": [
+    "crepe"
+   ],
+   "upper": [
+    "suede"
+   ]
+  },
+  "service_boot": {
+   "category": "footwear",
+   "app_style": "boot",
+   "signature": "6 in, plain or cap toe, welted",
+   "construction": [
+    "goodyear_welt"
+   ]
+  },
+  "moc_toe_boot": {
+   "category": "footwear",
+   "app_style": "boot",
+   "signature": "6 in moc toe, white wedge sole, oiled leather",
+   "toe_shape": [
+    "moc_toe"
+   ],
+   "sole": [
+    "wedge"
+   ]
+  },
+  "engineer_boot": {
+   "category": "footwear",
+   "app_style": "boot",
+   "signature": "Pull-on with buckled straps"
+  },
+  "logger_boot": {
+   "category": "footwear",
+   "app_style": "boot",
+   "signature": "Tall, raised heel, lug sole",
+   "sole": [
+    "lug_commando"
+   ]
+  },
+  "hiking_boot": {
+   "category": "footwear",
+   "app_style": "boot",
+   "signature": "Mid height, padded collar, speed hooks, lug sole",
+   "lacing": [
+    "speed_hooks"
+   ],
+   "sole": [
+    "lug_commando"
+   ]
+  },
+  "duck_boot": {
+   "category": "footwear",
+   "app_style": "boot",
+   "signature": "Rubber lower, leather or nylon upper, chain tread"
+  },
+  "rain_boot": {
+   "category": "footwear",
+   "app_style": "boot",
+   "signature": "Knee-high rubber, pull-on",
+   "upper": [
+    "rubber"
+   ]
+  },
+  "western_boot": {
+   "category": "footwear",
+   "app_style": "boot",
+   "signature": "Pointed or square toe, Cuban heel, stitched shaft",
+   "heel": [
+    "cuban"
+   ]
+  },
+  "combat_boot": {
+   "category": "footwear",
+   "app_style": "boot",
+   "signature": "8-10 in, lug sole, speed hooks",
+   "sole": [
+    "lug_commando"
+   ],
+   "lacing": [
+    "speed_hooks"
+   ]
+  },
+  "snow_boot": {
+   "category": "footwear",
+   "app_style": "boot",
+   "signature": "Insulated, padded, chunky rubber shell"
+  },
+  "leather_court_sneaker": {
+   "category": "footwear",
+   "app_style": "low_sneaker",
+   "signature": "Clean leather, cupsole, few seams",
+   "sole": [
+    "cupsole"
+   ]
+  },
+  "canvas_low_top": {
+   "category": "footwear",
+   "app_style": "low_sneaker",
+   "signature": "Canvas, vulcanized sole with foxing stripe, toe cap",
+   "sole": [
+    "vulcanized"
+   ],
+   "upper": [
+    "canvas"
+   ]
+  },
+  "canvas_high_top": {
+   "category": "footwear",
+   "app_style": "high_top",
+   "signature": "Canvas high-top, vulcanized sole, ankle patch",
+   "sole": [
+    "vulcanized"
+   ],
+   "upper": [
+    "canvas"
+   ]
+  },
+  "retro_court_shoe": {
+   "category": "footwear",
+   "app_style": "low_sneaker",
+   "signature": "Leather, perforated toe, side stripes, cupsole",
+   "sole": [
+    "cupsole"
+   ]
+  },
+  "basketball_shoe": {
+   "category": "footwear",
+   "app_style": "high_top",
+   "signature": "Padded collar, chunky cupsole",
+   "sole": [
+    "cupsole"
+   ]
+  },
+  "skate_shoe": {
+   "category": "footwear",
+   "app_style": "low_sneaker",
+   "signature": "Suede or canvas, padded tongue and collar"
+  },
+  "retro_runner": {
+   "category": "footwear",
+   "app_style": "runner",
+   "signature": "Suede and nylon panels, EVA wedge midsole",
+   "sole": [
+    "eva_foam_midsole"
+   ]
+  },
+  "running_shoe": {
+   "category": "footwear",
+   "app_style": "runner",
+   "signature": "Knit mesh upper, thick sculpted foam midsole",
+   "sole": [
+    "eva_foam_midsole"
+   ],
+   "upper": [
+    "knit_mesh"
+   ]
+  },
+  "trail_runner": {
+   "category": "footwear",
+   "app_style": "runner",
+   "signature": "Lug outsole, toe bumper, toggle laces",
+   "sole": [
+    "lug_commando"
+   ],
+   "lacing": [
+    "toggle_speed_lace"
+   ]
+  },
+  "trainer": {
+   "category": "footwear",
+   "app_style": "runner",
+   "signature": "Flat stable sole, mesh with overlays"
+  },
+  "canvas_slip_on": {
+   "category": "footwear",
+   "app_style": "slip_on",
+   "signature": "Elastic gussets, vulcanized sole",
+   "lacing": [
+    "elastic_gussets"
+   ],
+   "sole": [
+    "vulcanized"
+   ]
+  },
+  "cleats": {
+   "category": "footwear",
+   "app_style": "low_sneaker",
+   "signature": "Molded studs",
+   "sole": [
+    "cleats"
+   ]
+  },
+  "chunky_sneaker": {
+   "category": "footwear",
+   "app_style": "runner",
+   "signature": "Very thick layered midsole, many overlays"
+  },
+  "boat_shoe": {
+   "category": "footwear",
+   "app_style": "loafer",
+   "signature": "Moccasin apron, rawhide laces around the collar, siped sole",
+   "lacing": [
+    "rawhide_around_collar"
+   ],
+   "sole": [
+    "siped_deck"
+   ]
+  },
+  "camp_moc": {
+   "category": "footwear",
+   "app_style": "loafer",
+   "signature": "Boat-shoe style, 2 eyelets, lug sole",
+   "sole": [
+    "lug_commando"
+   ]
+  },
+  "espadrille": {
+   "category": "footwear",
+   "app_style": "slip_on",
+   "signature": "Canvas upper, braided jute sole",
+   "sole": [
+    "jute_rope"
+   ]
+  },
+  "sandal": {
+   "category": "footwear",
+   "app_style": "sandals",
+   "signature": "Fisherman, two-strap cork footbed, sport or huarache"
+  },
+  "slide": {
+   "category": "footwear",
+   "app_style": "sandals",
+   "signature": "Single wide strap, molded sole",
+   "sole": [
+    "molded_slide",
+    "cork_footbed"
+   ]
+  },
+  "flip_flop": {
+   "category": "footwear",
+   "app_style": "sandals",
+   "signature": "Thong between the toes"
+  },
+  "moccasin_slipper": {
+   "category": "footwear",
+   "app_style": "slip_on",
+   "signature": "Soft suede, apron toe, shearling lining",
+   "construction": [
+    "moccasin"
+   ]
+  },
+  "velvet_slipper": {
+   "category": "footwear",
+   "app_style": "loafer",
+   "signature": "Velvet upper, quilted lining, embroidered vamp",
+   "upper": [
+    "velvet"
+   ]
+  },
+  "felt_clog": {
+   "category": "footwear",
+   "app_style": "slip_on",
+   "signature": "Boiled wool upper, cork or rubber sole",
+   "upper": [
+    "felt_wool"
+   ]
+  },
+  "cap": {
+   "category": "accessory",
+   "app_category": "hat",
+   "signature": "Baseball, dad, five-panel or trucker cap"
+  },
+  "beanie": {
+   "category": "accessory",
+   "app_category": "hat",
+   "signature": "Ribbed knit, cuffed"
+  },
+  "brimmed_hat": {
+   "category": "accessory",
+   "app_category": "hat",
+   "signature": "Fedora, trilby, panama, boater, bucket, flat cap"
+  },
+  "belt": {
+   "category": "accessory",
+   "app_category": "belt",
+   "signature": "Dress, casual, braided, web, western"
+  },
+  "tie": {
+   "category": "accessory",
+   "app_category": "other",
+   "signature": "Silk, knit, wool, grenadine or bow tie"
+  },
+  "pocket_square": {
+   "category": "accessory",
+   "app_category": "other",
+   "signature": "Silk, linen or cotton; flat, point, puff or crown fold"
+  },
+  "scarf": {
+   "category": "accessory",
+   "app_category": "scarf",
+   "signature": "Knit, woven wool, cashmere, silk, bandana"
+  },
+  "gloves": {
+   "category": "accessory",
+   "app_category": "other",
+   "signature": "Leather, knit, mittens"
+  },
+  "bag": {
+   "category": "accessory",
+   "app_category": "bag",
+   "signature": "Tote, backpack, messenger, briefcase, duffel, sling"
+  },
+  "eyewear": {
+   "category": "accessory",
+   "app_category": "other",
+   "signature": "Wayfarer, aviator, round, browline"
+  },
+  "watch": {
+   "category": "accessory",
+   "app_category": "other",
+   "signature": "Dress, dive, field, chronograph, digital"
+  },
+  "socks": {
+   "category": "accessory",
+   "app_category": "other",
+   "signature": "Dress, crew, athletic, no-show, boot"
   }
  },
  "rules": [
@@ -1439,6 +2639,153 @@
     "pockets": "kangaroo"
    },
    "then": "placket=none"
+  },
+  {
+   "id": "performance_fabric_context",
+   "then": "compression and performance garments are never linen, wool flannel, tweed, corduroy or raw denim"
+  },
+  {
+   "id": "track_jacket_collar",
+   "if": {
+    "garment": "track_jacket"
+   },
+   "then": "collar=stand AND placket=zip_full"
+  },
+  {
+   "id": "robe_closure",
+   "if": {
+    "garment": [
+     "robe",
+     "kimono_robe"
+    ]
+   },
+   "then": "closes with a sash belt; no zip or full button front"
+  },
+  {
+   "id": "joggers_cuffed",
+   "if": {
+    "garment": "joggers"
+   },
+   "then": "hem_finish=ribbed_cuff"
+  },
+  {
+   "id": "synthetic_only_effects",
+   "then": "neon colors, sublimated all-over prints and reflective trims only on synthetic fabrics"
+  },
+  {
+   "id": "crepe_sole_context",
+   "if": {
+    "footwear.sole": "crepe"
+   },
+   "then": "suede chukkas, desert boots, some Chelseas; never patent or business Oxfords"
+  },
+  {
+   "id": "leather_sole_context",
+   "if": {
+    "footwear.sole": "leather"
+   },
+   "then": "dress shoes and dress boots only"
+  },
+  {
+   "id": "speed_hooks_context",
+   "if": {
+    "footwear.lacing": "speed_hooks"
+   },
+   "then": "boots only"
+  },
+  {
+   "id": "patent_context",
+   "if": {
+    "footwear.upper_material": "patent"
+   },
+   "then": "black tie only"
+  },
+  {
+   "id": "oxford_vs_derby_drawing",
+   "then": "closed_oxford: eyelet tabs under the vamp; open_derby: eyelet tabs on top of the vamp"
+  },
+  {
+   "id": "side_adjusters_no_loops",
+   "if": {
+    "bottoms.waistband": "side_adjusters"
+   },
+   "then": "no belt loops, no belt"
+  },
+  {
+   "id": "pleats_rise",
+   "if": {
+    "bottoms.front_not": "flat"
+   },
+   "then": "rise in [mid, high] AND leg in [straight, tapered, wide, relaxed]"
+  },
+  {
+   "id": "turn_up_legs",
+   "if": {
+    "bottoms.hem_finish": "turn_up"
+   },
+   "then": "leg in [straight, tapered, wide]; not on joggers"
+  },
+  {
+   "id": "elastic_no_belt",
+   "if": {
+    "bottoms.waistband": [
+     "elastic_drawcord",
+     "half_elastic",
+     "drawstring"
+    ]
+   },
+   "then": "no belt"
+  },
+  {
+   "id": "washes_denim_only",
+   "then": "bottoms.denim_washes and denim_fades apply to denim (and some canvas/duck) only"
+  },
+  {
+   "id": "tie_needs_collar",
+   "if": {
+    "accessory": "tie"
+   },
+   "then": "base has collar in [point, semi_spread, spread, cutaway, button_down, hidden_button_down, club, tab, pin, wing]"
+  },
+  {
+   "id": "belt_matches_shoes",
+   "if": {
+    "formality": [
+     "smart_casual",
+     "business",
+     "formal"
+    ]
+   },
+   "then": "belt leather color and finish match the shoes"
+  },
+  {
+   "id": "one_bright",
+   "then": "at most one color from colors.families.bright per outfit outside athletic"
+  },
+  {
+   "id": "pattern_mixing",
+   "then": "two patterns need different scale or type plus a shared color; never same type and similar scale adjacent"
+  },
+  {
+   "id": "collar_over_crewneck",
+   "if": {
+    "mid.neckline": [
+     "crew",
+     "v_neck"
+    ],
+    "base.collar_not": "none"
+   },
+   "then": "draw the base collar outside the mid neckline"
+  },
+  {
+   "id": "nothing_collared_under_turtleneck",
+   "if": {
+    "base.neckline": [
+     "turtleneck",
+     "rollneck"
+    ]
+   },
+   "then": "no collared shirt beneath"
   }
  ],
  "visual_signatures": {
@@ -1545,5 +2892,1242 @@
    "sheen": "oily mottled",
    "wrinkle": "crinkly, lighter at folds"
   }
+ },
+ "performance_fabrics": {
+  "performance_jersey": {
+   "base": "knit",
+   "fibers": [
+    "polyester",
+    "nylon",
+    "elastane"
+   ],
+   "look": "smooth, uniform, faint even sheen, thin, clings, small sharp creases"
+  },
+  "cotton_poly_jersey": {
+   "base": "knit",
+   "fibers": [
+    "cotton",
+    "polyester"
+   ],
+   "look": "matte-soft, slight heather"
+  },
+  "birdseye_mesh": {
+   "base": "knit",
+   "fibers": [
+    "polyester"
+   ],
+   "look": "small holes in a regular pattern, often as side or back panels"
+  },
+  "double_knit_poly": {
+   "base": "knit",
+   "fibers": [
+    "polyester"
+   ],
+   "look": "thick, smooth both sides, holds shape, soft sheen; track suits"
+  },
+  "tricot": {
+   "base": "knit",
+   "fibers": [
+    "polyester",
+    "nylon"
+   ],
+   "look": "smooth shiny face, slight crinkle; retro track tops"
+  },
+  "grid_fleece": {
+   "base": "knit",
+   "fibers": [
+    "polyester"
+   ],
+   "look": "smooth face, raised grid of squares on the back"
+  },
+  "brushed_back_performance": {
+   "base": "knit",
+   "fibers": [
+    "polyester",
+    "elastane"
+   ],
+   "look": "smooth face, fuzzy back, thin"
+  },
+  "scuba_spacer": {
+   "base": "knit",
+   "fibers": [
+    "polyester"
+   ],
+   "look": "thick, springy, smooth, crisp shape"
+  },
+  "compression_knit": {
+   "base": "knit",
+   "fibers": [
+    "nylon",
+    "elastane"
+   ],
+   "look": "skin-tight, slight sheen, no folds, visible panel seams"
+  },
+  "four_way_stretch_woven": {
+   "base": "woven",
+   "fibers": [
+    "nylon",
+    "polyester",
+    "elastane"
+   ],
+   "look": "matte to soft sheen, smooth, technical, few wrinkles"
+  },
+  "nylon_taffeta": {
+   "base": "woven",
+   "fibers": [
+    "nylon"
+   ],
+   "look": "thin, crinkly, crisp creases, slight sheen"
+  },
+  "softshell": {
+   "base": "woven",
+   "fibers": [
+    "polyester",
+    "elastane"
+   ],
+   "look": "stretchy matte face, brushed back"
+  },
+  "waterproof_shell": {
+   "base": "woven",
+   "fibers": [
+    "nylon",
+    "polyester"
+   ],
+   "look": "smooth, slightly stiff, crisp angular folds, taped seams inside"
+  },
+  "merino_performance_jersey": {
+   "base": "knit",
+   "fibers": [
+    "merino"
+   ],
+   "look": "matte, fine, soft, drapes close"
+  },
+  "swim_fabric": {
+   "base": "woven",
+   "fibers": [
+    "polyester",
+    "nylon",
+    "elastane"
+   ],
+   "look": "smooth, quick-dry, slight sheen; darker and clinging when wet"
+  }
+ },
+ "activewear_details": [
+  "flatlock_seams",
+  "bonded_hem",
+  "laser_cut_hem",
+  "raglan_sleeves",
+  "mesh_vent_panels",
+  "thumbholes",
+  "back_zip_pocket",
+  "hip_zip_pocket",
+  "thigh_zip_pocket",
+  "waistband_stash_pocket",
+  "reflective_trims",
+  "drop_tail",
+  "side_stripes",
+  "piping",
+  "elastic_drawcord_waist",
+  "built_in_liner",
+  "split_hem",
+  "notched_hem",
+  "ankle_zips",
+  "tearaway_snaps",
+  "ribbed_ankle_cuffs",
+  "brimmed_hood",
+  "pit_zips",
+  "storm_flap",
+  "chin_guard",
+  "two_way_zip",
+  "rear_jersey_pockets",
+  "hem_gripper"
+ ],
+ "footwear": {
+  "toe_shape": [
+   "round",
+   "almond",
+   "chisel",
+   "pointed",
+   "moc_toe"
+  ],
+  "toe_treatment": [
+   "plain",
+   "cap_toe",
+   "wingtip",
+   "medallion",
+   "apron",
+   "split_toe",
+   "rubber_toe_cap"
+  ],
+  "lacing": [
+   "closed_oxford",
+   "open_derby",
+   "speed_hooks",
+   "d_rings",
+   "ghillie",
+   "slip_on",
+   "elastic_gussets",
+   "monk_single",
+   "monk_double",
+   "hook_and_loop",
+   "toggle_speed_lace",
+   "rawhide_around_collar"
+  ],
+  "eyelets_typical": {
+   "dress": [
+    4,
+    6
+   ],
+   "sneaker": [
+    6,
+    8
+   ],
+   "ankle_boot": [
+    5,
+    7
+   ],
+   "work_boot": [
+    6,
+    10
+   ]
+  },
+  "laces": [
+   "flat_waxed",
+   "round_waxed",
+   "flat_cotton",
+   "round_rope",
+   "rawhide"
+  ],
+  "sole": [
+   "leather",
+   "rubber_city",
+   "studded_rubber",
+   "lug_commando",
+   "crepe",
+   "wedge",
+   "cupsole",
+   "vulcanized",
+   "eva_foam_midsole",
+   "siped_deck",
+   "cleats",
+   "jute_rope",
+   "cork_footbed",
+   "molded_slide"
+  ],
+  "construction": [
+   "goodyear_welt",
+   "storm_welt",
+   "blake",
+   "stitchdown",
+   "cemented",
+   "vulcanized",
+   "moccasin"
+  ],
+  "height": [
+   "no_show",
+   "low",
+   "mid",
+   "high",
+   "ankle_boot",
+   "boot_6in",
+   "boot_8in_plus",
+   "knee"
+  ],
+  "heel": [
+   "flat",
+   "low_stacked",
+   "block",
+   "cuban"
+  ],
+  "upper_material": [
+   "smooth_calf",
+   "pebble_grain",
+   "suede",
+   "roughout",
+   "nubuck",
+   "shell_cordovan",
+   "patent",
+   "oiled_pull_up",
+   "canvas",
+   "knit_mesh",
+   "synthetic_leather",
+   "waxed_canvas",
+   "rubber",
+   "velvet",
+   "felt_wool",
+   "woven_leather"
+  ],
+  "leather_colorways": [
+   "black",
+   "dark_brown",
+   "mid_brown",
+   "tan",
+   "cognac",
+   "oxblood",
+   "walnut",
+   "snuff_suede",
+   "sand_suede",
+   "navy_suede",
+   "grey_suede"
+  ],
+  "sneaker_colorways": [
+   "white",
+   "off_white",
+   "black",
+   "grey",
+   "navy",
+   "cream_gum_sole",
+   "multi"
+  ],
+  "formality_order": [
+   "patent_oxford",
+   "plain_toe_oxford",
+   "cap_toe_oxford",
+   "wholecut",
+   "semi_brogue",
+   "full_brogue",
+   "derby",
+   "monk_strap",
+   "loafer",
+   "dress_boot",
+   "casual_boot",
+   "leather_sneaker",
+   "canvas_sneaker",
+   "runner",
+   "sandal",
+   "slide"
+  ],
+  "visual_signatures": {
+   "smooth_calf": "bright specular highlight on the toe, creases across the vamp",
+   "suede": "no highlight, matte nap, color shifts with direction",
+   "patent": "mirror highlight",
+   "shell_cordovan": "deep gloss, rolling creases",
+   "gum_sole": "translucent caramel rubber",
+   "crepe": "honey colored, wavy surface",
+   "wedge": "flat white block, no heel",
+   "white_sneaker_wear": "yellowing at sole edge, creases across the toe"
+  }
+ },
+ "colors": {
+  "shades": [
+   {
+    "name": "black",
+    "hex": "#1a1a1a",
+    "app_color": "black",
+    "uses": "everything"
+   },
+   {
+    "name": "faded_black",
+    "hex": "#2b2b2b",
+    "app_color": "black",
+    "uses": "washed tees, jeans"
+   },
+   {
+    "name": "charcoal",
+    "hex": "#36393d",
+    "app_color": "grey",
+    "uses": "suits, trousers, knits, overcoats"
+   },
+   {
+    "name": "slate",
+    "hex": "#5a6470",
+    "app_color": "grey",
+    "uses": "knits, outerwear"
+   },
+   {
+    "name": "mid_grey",
+    "hex": "#8a8d91",
+    "app_color": "grey",
+    "uses": "flannel trousers, sweatshirts"
+   },
+   {
+    "name": "heather_grey",
+    "hex": "#a3a6a8",
+    "app_color": "grey",
+    "uses": "sweatshirts, tees"
+   },
+   {
+    "name": "light_grey",
+    "hex": "#c9cacc",
+    "app_color": "grey",
+    "uses": "knits, suits"
+   },
+   {
+    "name": "stone",
+    "hex": "#c9bfae",
+    "app_color": "tan",
+    "uses": "chinos, outerwear"
+   },
+   {
+    "name": "khaki",
+    "hex": "#c3b091",
+    "app_color": "tan",
+    "uses": "chinos, field jackets"
+   },
+   {
+    "name": "sand",
+    "hex": "#d6c4a2",
+    "app_color": "tan",
+    "uses": "suede, linen, chinos"
+   },
+   {
+    "name": "camel",
+    "hex": "#b5875a",
+    "app_color": "tan",
+    "uses": "overcoats, knits"
+   },
+   {
+    "name": "natural_flax",
+    "hex": "#cbbd9f",
+    "app_color": "tan",
+    "uses": "undyed linen"
+   },
+   {
+    "name": "tobacco",
+    "hex": "#7a5230",
+    "app_color": "brown",
+    "uses": "suede, cord, knits"
+   },
+   {
+    "name": "chocolate",
+    "hex": "#4a3121",
+    "app_color": "brown",
+    "uses": "leather, cord, knits"
+   },
+   {
+    "name": "mid_brown",
+    "hex": "#7b5536",
+    "app_color": "brown",
+    "uses": "leather shoes, belts"
+   },
+   {
+    "name": "cognac",
+    "hex": "#9a5a2c",
+    "app_color": "brown",
+    "uses": "leather shoes, belts, bags"
+   },
+   {
+    "name": "rust",
+    "hex": "#a4492a",
+    "app_color": "orange",
+    "uses": "cord, knits, flannels"
+   },
+   {
+    "name": "coral",
+    "hex": "#e5735c",
+    "app_color": "orange",
+    "uses": "summer shirts, shorts"
+   },
+   {
+    "name": "oxblood",
+    "hex": "#4e1a1d",
+    "app_color": "burgundy",
+    "uses": "leather shoes, knits"
+   },
+   {
+    "name": "burgundy",
+    "hex": "#6d1f2a",
+    "app_color": "burgundy",
+    "uses": "knits, ties, cord"
+   },
+   {
+    "name": "brick",
+    "hex": "#9c3d2e",
+    "app_color": "red",
+    "uses": "knits, cord"
+   },
+   {
+    "name": "red",
+    "hex": "#b22a2a",
+    "app_color": "red",
+    "uses": "flannels, knits, accents"
+   },
+   {
+    "name": "mustard",
+    "hex": "#c9a227",
+    "app_color": "yellow",
+    "uses": "knits, cord"
+   },
+   {
+    "name": "butter",
+    "hex": "#f0e3a1",
+    "app_color": "yellow",
+    "uses": "shirts, knits"
+   },
+   {
+    "name": "olive",
+    "hex": "#5f6b3a",
+    "app_color": "olive",
+    "uses": "chinos, field jackets, knits"
+   },
+   {
+    "name": "army_green",
+    "hex": "#4b5320",
+    "app_color": "olive",
+    "uses": "military outerwear, fatigues"
+   },
+   {
+    "name": "sage",
+    "hex": "#a3ad8f",
+    "app_color": "green",
+    "uses": "linen, knits"
+   },
+   {
+    "name": "forest_green",
+    "hex": "#22422c",
+    "app_color": "green",
+    "uses": "knits, cord, flannel"
+   },
+   {
+    "name": "hunter_green",
+    "hex": "#355e3b",
+    "app_color": "green",
+    "uses": "outerwear, knits"
+   },
+   {
+    "name": "teal",
+    "hex": "#2a6f74",
+    "app_color": "green",
+    "uses": "knits, accents"
+   },
+   {
+    "name": "navy",
+    "hex": "#1f2a44",
+    "app_color": "navy",
+    "uses": "blazers, knits, chinos, suits"
+   },
+   {
+    "name": "midnight",
+    "hex": "#191d2e",
+    "app_color": "navy",
+    "uses": "formalwear, outerwear"
+   },
+   {
+    "name": "raw_indigo",
+    "hex": "#23304a",
+    "app_color": "navy",
+    "uses": "raw and dark denim"
+   },
+   {
+    "name": "royal_blue",
+    "hex": "#2a4ea0",
+    "app_color": "blue",
+    "uses": "knits, sportswear"
+   },
+   {
+    "name": "cobalt",
+    "hex": "#1e4fb8",
+    "app_color": "blue",
+    "uses": "accents"
+   },
+   {
+    "name": "mid_wash_denim",
+    "hex": "#5b7aa3",
+    "app_color": "blue",
+    "uses": "jeans"
+   },
+   {
+    "name": "chambray_blue",
+    "hex": "#8ca5c7",
+    "app_color": "light_blue",
+    "uses": "shirts"
+   },
+   {
+    "name": "oxford_blue",
+    "hex": "#a9c4e0",
+    "app_color": "light_blue",
+    "uses": "OCBDs, dress shirts"
+   },
+   {
+    "name": "sky_blue",
+    "hex": "#bcd4ea",
+    "app_color": "light_blue",
+    "uses": "shirts, knits"
+   },
+   {
+    "name": "light_wash_denim",
+    "hex": "#9bb2cf",
+    "app_color": "light_blue",
+    "uses": "jeans"
+   },
+   {
+    "name": "shirting_pink",
+    "hex": "#f1c8cf",
+    "app_color": "pink",
+    "uses": "dress shirts, OCBDs"
+   },
+   {
+    "name": "dusty_rose",
+    "hex": "#c99a9a",
+    "app_color": "pink",
+    "uses": "knits, linen"
+   },
+   {
+    "name": "lavender",
+    "hex": "#c8bfe0",
+    "app_color": "purple",
+    "uses": "dress shirts"
+   },
+   {
+    "name": "plum",
+    "hex": "#4b2a45",
+    "app_color": "purple",
+    "uses": "knits, ties"
+   },
+   {
+    "name": "optic_white",
+    "hex": "#f7f7f5",
+    "app_color": "white",
+    "uses": "dress shirts, sneakers"
+   },
+   {
+    "name": "off_white",
+    "hex": "#f1eee6",
+    "app_color": "cream",
+    "uses": "knits, tees"
+   },
+   {
+    "name": "ecru",
+    "hex": "#e8e0cc",
+    "app_color": "cream",
+    "uses": "undyed cotton, denim, knits"
+   },
+   {
+    "name": "cream",
+    "hex": "#efe6d2",
+    "app_color": "cream",
+    "uses": "knits, Aran, trousers"
+   },
+   {
+    "name": "oatmeal",
+    "hex": "#d9ccb4",
+    "app_color": "cream",
+    "uses": "heathered knits, linen"
+   },
+   {
+    "name": "bone",
+    "hex": "#e3dccb",
+    "app_color": "cream",
+    "uses": "chinos, sneakers"
+   }
+  ],
+  "fabric_effects": {
+   "denim": "near-navy when raw; fades toward mid and light blue; whiskers, honeycombs, paler seams; white-ish inside",
+   "black_cotton": "fades to charcoal-brown or charcoal-grey",
+   "linen": "chalky and slightly lighter; whites look creamy",
+   "brushed": "deeper and softer, no highlights, patterns blur",
+   "corduroy_velvet": "light crest, dark groove; richer and darker in folds",
+   "suede": "shifts with nap direction; brushed areas lighter",
+   "worsted_wool": "clean true color, slight sheen",
+   "heathered_marled": "lighter, softer, flecked version of the base",
+   "garment_pigment_dyed": "muted, uneven, darker at seams, lighter at edges",
+   "mercerised_silk_satin": "richer, more saturated, bright highlights",
+   "synthetic_performance": "cleaner, brighter, more saturated; neons possible",
+   "leather": "smooth has highlights; pull-up lightens where flexed; tan darkens with age",
+   "sun_fade": "shoulders, collar and upper back lighter"
+  },
+  "families": {
+   "neutral": [
+    "black",
+    "white",
+    "grey",
+    "navy",
+    "tan",
+    "cream",
+    "brown",
+    "olive"
+   ],
+   "earth": [
+    "olive",
+    "orange",
+    "brown",
+    "yellow",
+    "green",
+    "burgundy",
+    "cream"
+   ],
+   "cool": [
+    "blue",
+    "light_blue",
+    "grey",
+    "purple",
+    "green"
+   ],
+   "warm": [
+    "red",
+    "orange",
+    "yellow",
+    "pink",
+    "burgundy"
+   ],
+   "bright": [
+    "blue",
+    "red",
+    "orange",
+    "yellow",
+    "pink",
+    "purple"
+   ]
+  },
+  "notes": "app_color is a value of COLOR in backend/closet/vocab.py; earth and bright list app colors, so 'bright blue' means royal_blue or cobalt, not navy"
+ },
+ "bottoms": {
+  "waistband": [
+   "belt_loops",
+   "side_adjusters",
+   "extended_tab",
+   "gurkha",
+   "elastic_drawcord",
+   "half_elastic",
+   "drawstring",
+   "brace_buttons"
+  ],
+  "fly": [
+   "zip",
+   "button",
+   "none"
+  ],
+  "front": [
+   "flat",
+   "single_pleat",
+   "double_pleat",
+   "reverse_pleat",
+   "forward_pleat"
+  ],
+  "rise": [
+   "low",
+   "mid",
+   "high"
+  ],
+  "leg": [
+   "skinny",
+   "slim",
+   "tapered",
+   "straight",
+   "relaxed",
+   "wide",
+   "bootcut",
+   "flare",
+   "barrel"
+  ],
+  "leg_opening_in_size32": {
+   "skinny": [
+    12,
+    13
+   ],
+   "slim": [
+    14,
+    15
+   ],
+   "straight": [
+    15.5,
+    17
+   ],
+   "wide": [
+    18,
+    22
+   ]
+  },
+  "break": [
+   "no_break",
+   "slight",
+   "full",
+   "cropped",
+   "stacked"
+  ],
+  "hem_finish": [
+   "plain",
+   "turn_up",
+   "rolled_cuff",
+   "ribbed_cuff",
+   "raw",
+   "chain_stitched",
+   "split",
+   "notched"
+  ],
+  "crease": [
+   "pressed",
+   "none"
+  ],
+  "pockets": [
+   "slant",
+   "vertical_on_seam",
+   "scoop",
+   "frog_mouth",
+   "coin",
+   "back_welt_single",
+   "back_welt_double",
+   "back_patch",
+   "back_flap",
+   "cargo",
+   "hammer_loop",
+   "rule_pocket",
+   "zip_pocket"
+  ],
+  "back_details": [
+   "double_knee",
+   "gusseted_crotch",
+   "back_yoke",
+   "rivets",
+   "back_patch_label",
+   "darts",
+   "centre_back_v_loop"
+  ],
+  "app_silhouette": {
+   "leg": {
+    "skinny": "tapered",
+    "slim": "tapered",
+    "tapered": "tapered",
+    "straight": "straight",
+    "relaxed": "straight",
+    "bootcut": "straight",
+    "wide": "wide",
+    "flare": "wide",
+    "barrel": "wide"
+   },
+   "pant_length": {
+    "no_break": "full",
+    "slight": "full",
+    "full": "full",
+    "stacked": "full",
+    "cropped": "ankle"
+   }
+  },
+  "denim_washes": [
+   "raw",
+   "rinse",
+   "dark",
+   "mid",
+   "light",
+   "bleached",
+   "stone",
+   "acid",
+   "black",
+   "washed_black",
+   "grey",
+   "ecru",
+   "white",
+   "overdyed"
+  ],
+  "denim_fades": [
+   "whiskers",
+   "honeycombs",
+   "stacks",
+   "train_tracks",
+   "roping",
+   "pocket_fade",
+   "knee_fade"
+  ],
+  "distressing": [
+   "knee_rip",
+   "frayed_hem",
+   "abrasion",
+   "patched",
+   "sashiko_repair"
+  ],
+  "shorts_inseam_in": {
+   "running": [
+    3,
+    5
+   ],
+   "short_chino": [
+    5,
+    7
+   ],
+   "chino": [
+    7,
+    9
+   ],
+   "denim": [
+    7,
+    10
+   ],
+   "cargo": [
+    9,
+    11
+   ],
+   "basketball": [
+    9,
+    11
+   ],
+   "boardshorts": [
+    7,
+    20
+   ],
+   "swim_trunks": [
+    3,
+    7
+   ],
+   "linen_pull_on": [
+    6,
+    8
+   ],
+   "tailored": [
+    6,
+    8
+   ],
+   "sweat": [
+    6,
+    9
+   ]
+  },
+  "formality_order": [
+   "worsted_dress_trousers",
+   "flannel_trousers",
+   "pressed_chinos",
+   "cords_moleskins",
+   "dark_jeans",
+   "washed_chinos",
+   "light_jeans",
+   "cargo_work_pants",
+   "joggers_track_pants",
+   "shorts",
+   "athletic_shorts"
+  ]
+ },
+ "accessories": {
+  "hats": [
+   "baseball_cap_structured",
+   "dad_cap",
+   "five_panel",
+   "trucker_cap",
+   "beanie",
+   "fisherman_beanie",
+   "flat_cap",
+   "newsboy",
+   "bucket_hat",
+   "fedora",
+   "trilby",
+   "panama",
+   "boater",
+   "wide_brim",
+   "cowboy_hat",
+   "beret",
+   "trapper"
+  ],
+  "belts": [
+   "dress_belt",
+   "casual_leather",
+   "braided_leather",
+   "canvas_web",
+   "woven_elastic",
+   "western",
+   "reversible"
+  ],
+  "buckle_finish": [
+   "brass",
+   "nickel",
+   "gunmetal",
+   "matte_black"
+  ],
+  "ties": [
+   "silk_woven",
+   "silk_printed",
+   "knit",
+   "wool",
+   "grenadine",
+   "bow_tie"
+  ],
+  "tie_patterns": [
+   "solid",
+   "repp_stripe",
+   "foulard",
+   "paisley",
+   "dots",
+   "club_motif"
+  ],
+  "pocket_square_folds": [
+   "flat",
+   "one_point",
+   "puff",
+   "crown"
+  ],
+  "scarves": [
+   "long_knit",
+   "woven_wool",
+   "cashmere",
+   "silk",
+   "bandana",
+   "neck_gaiter"
+  ],
+  "gloves": [
+   "leather_dress",
+   "knit",
+   "mittens",
+   "fingerless",
+   "work",
+   "touchscreen"
+  ],
+  "bags": [
+   "tote",
+   "daypack",
+   "rucksack",
+   "roll_top",
+   "messenger",
+   "briefcase",
+   "duffel",
+   "crossbody_sling",
+   "belt_bag",
+   "dopp_kit"
+  ],
+  "eyewear_frames": [
+   "wayfarer",
+   "aviator",
+   "round",
+   "browline",
+   "rectangular",
+   "sport_wrap"
+  ],
+  "eyewear_lenses": [
+   "grey",
+   "green",
+   "brown",
+   "mirrored",
+   "gradient",
+   "clear"
+  ],
+  "watches": [
+   "dress",
+   "dive",
+   "field",
+   "chronograph",
+   "digital_sport"
+  ],
+  "watch_straps": [
+   "leather",
+   "steel_bracelet",
+   "nato",
+   "rubber",
+   "canvas"
+  ],
+  "socks": [
+   "dress_otc",
+   "dress_mid_calf",
+   "casual_crew",
+   "athletic_crew",
+   "no_show",
+   "boot_ragg"
+  ],
+  "jewelry": [
+   "signet_ring",
+   "band",
+   "chain",
+   "beaded_bracelet",
+   "cuff_bracelet",
+   "cufflinks",
+   "tie_bar",
+   "lapel_pin"
+  ],
+  "other": [
+   "suspenders_button",
+   "suspenders_clip",
+   "umbrella_stick",
+   "umbrella_compact"
+  ],
+  "app_category": {
+   "hats": "hat",
+   "belts": "belt",
+   "scarves": "scarf",
+   "bags": "bag",
+   "ties": "other",
+   "gloves": "other",
+   "eyewear_frames": "other",
+   "watches": "other",
+   "socks": "other",
+   "jewelry": "other",
+   "other": "other"
+  }
+ },
+ "outfit": {
+  "places": {
+   "base": [
+    "tee",
+    "polo",
+    "shirt",
+    "henley",
+    "tank",
+    "long_sleeve_tee",
+    "fine_turtleneck",
+    "base_layer"
+   ],
+   "mid": [
+    "sweater",
+    "cardigan",
+    "sweatshirt",
+    "hoodie",
+    "sweater_vest",
+    "overshirt",
+    "shirt_over_tee",
+    "fleece",
+    "light_jacket_under_coat"
+   ],
+   "outer": [
+    "jacket",
+    "coat",
+    "blazer",
+    "sport_coat",
+    "overshirt",
+    "shell",
+    "puffer"
+   ],
+   "bottom": [
+    "trousers",
+    "jeans",
+    "chinos",
+    "cords",
+    "shorts",
+    "joggers"
+   ],
+   "shoes": [
+    "one_pair"
+   ],
+   "accessories": [
+    "belt",
+    "hat",
+    "scarf",
+    "bag",
+    "watch",
+    "eyewear",
+    "gloves"
+   ]
+  },
+  "layering_rules": [
+   "each layer fits over the one beneath: thin and fitted inside, thick and roomy outside",
+   "a shirt collar sits outside a crewneck or V-neck; nothing collared under a turtleneck",
+   "an untucked shirt may show 1-2 in below a sweater; never far below a jacket hem",
+   "a hoodie under a jacket puts the hood outside the jacket collar; hoodie under a blazer is streetwear",
+   "tucked shirt with belt loops means a belt",
+   "dress shirts and long-tail shirts tuck; camp-collar, straight-hem shirts, polos, tees and knitwear usually do not",
+   "a turtleneck can replace a shirt and tie under a blazer or overcoat",
+   "a sweater vest goes over a shirt, never over a hoodie",
+   "base + mid + outer is the useful maximum; a fourth thin layer only in cold weather"
+  ],
+  "temperature_bands_c": [
+   {
+    "high_min": 27,
+    "outfit": "base only; shorts or light trousers; sneakers, loafers, sandals"
+   },
+   {
+    "high_min": 21,
+    "outfit": "base; optional light overshirt or unlined jacket"
+   },
+   {
+    "high_min": 16,
+    "outfit": "base + light mid or light outer"
+   },
+   {
+    "high_min": 10,
+    "outfit": "base + mid + light outer, or base + medium outer"
+   },
+   {
+    "high_min": 4,
+    "outfit": "base + mid + warm outer; heavier fabrics"
+   },
+   {
+    "high_min": -99,
+    "outfit": "warm base + warm mid + insulated outer; hat, scarf, gloves; boots"
+   }
+  ],
+  "rain": "outer must be water-resistant (shell, waxed, trench, mac); avoid suede shoes",
+  "formality_levels": [
+   "lounge",
+   "athletic",
+   "casual",
+   "smart_casual",
+   "business",
+   "formal"
+  ],
+  "formality_notes": "app FORMALITY has no 'lounge'; lounge pieces map to the app's athletic until the app adds it",
+  "formality_rules": [
+   "every piece within one level of the target",
+   "shoes and outer layer set the impression most strongly",
+   "one dressier piece is fine (blazer over tee and jeans = smart_casual)",
+   "dressing down only in shoes, and only in casual and smart_casual",
+   "athletic mixes only with casual, never with business",
+   "smooth fine fabrics are dressier; rough textured fabrics more casual"
+  ],
+  "color_pairings": [
+   [
+    "navy",
+    "grey"
+   ],
+   [
+    "navy",
+    "tan"
+   ],
+   [
+    "navy",
+    "white"
+   ],
+   [
+    "olive",
+    "navy"
+   ],
+   [
+    "olive",
+    "cream"
+   ],
+   [
+    "brown",
+    "blue"
+   ],
+   [
+    "brown",
+    "olive"
+   ],
+   [
+    "grey",
+    "burgundy"
+   ],
+   [
+    "grey",
+    "light_blue"
+   ],
+   [
+    "black",
+    "white"
+   ],
+   [
+    "black",
+    "grey"
+   ],
+   [
+    "cream",
+    "brown"
+   ],
+   [
+    "orange",
+    "navy"
+   ],
+   [
+    "green",
+    "tan"
+   ]
+  ],
+  "color_rules": [
+   "build on two neutrals plus at most one accent",
+   "tonal outfits need texture contrast",
+   "light top with dark bottom is the default contrast",
+   "avoid near-identical but different shades in adjacent pieces",
+   "at most one bright color outside sportswear",
+   "denim is a neutral blue; double denim needs clearly different washes",
+   "brown shoes with everything except black trousers; black shoes with grey, black, navy",
+   "belt matches shoes in smart and business outfits"
+  ],
+  "pattern_rules": [
+   "one pattern per outfit is always safe",
+   "two patterns need different scales or types and a shared color",
+   "three patterns only in tailoring, three scales, one shared color",
+   "never two patterns of the same type and similar scale side by side",
+   "textured solids count as half a pattern",
+   "loud prints are the focus: everything else solid and neutral"
+  ],
+  "proportion_rules": [
+   "slim top with slim or straight bottom; roomy top with straight or wide bottom",
+   "boxy cropped tops with higher-rise straighter trousers",
+   "short jackets end near the waistband",
+   "chunky shoes balance wider legs; sleek shoes suit slim legs and short breaks",
+   "no break with loafers and sneakers, slight break with dress shoes, stacked jeans with boots"
+  ]
  }
 }

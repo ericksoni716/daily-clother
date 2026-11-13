@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LookFor, Wish } from './gaps';
 import {
-  type Check, checkKinds, isDone, noteFor, pieceFromLook, pieceToSend, stillToChoose, verdictTone, waitingWords, WEIGHTS, weightLabel, wishById,
+  type Check, checkKinds, fillWords, isDone, noteFor, pieceFromLook, pieceToSend, stillToChoose, verdictTone, waitingWords, WEIGHTS, weightLabel, wishById,
   wishFrom, wornWords,
 } from './wouldwork';
 
@@ -85,5 +85,13 @@ describe("the answer in a wish's note", () => {
     expect(once).toBe('Size 40\n\nTan coat.');
     expect(noteFor({ note: once }, 'Tan coat.')).toBe(once);
     expect(noteFor({ note: 'x'.repeat(990) }, 'Tan coat, smart casual.').length).toBe(1000);
+  });
+});
+
+describe('how much of a gap it fills', () => {
+  it('only says "no longer missing" when the gap goes', () => {
+    expect(fillWords({ gone: true, filled: true })).toBe('no longer missing');
+    expect(fillWords({ gone: false, filled: true })).toBe('mostly filled');
+    expect(fillWords({ gone: false, filled: false })).toBe('a little less of a gap');
   });
 });

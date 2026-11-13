@@ -168,3 +168,9 @@ export function wishById(wishes: Wish[] | null, id: string | null): Wish | null 
   if (!id || !wishes) return null;
   return wishes.find((w) => w.id === id) ?? null;
 }
+
+/** How much of a gap the piece would fill, in the answer's list. */
+export function fillWords(fill: { gone: boolean; filled: boolean }): string {
+  if (fill.gone) return 'no longer missing';
+  return fill.filled ? 'mostly filled' : 'a little less of a gap';
+}

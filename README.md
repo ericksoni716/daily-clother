@@ -99,8 +99,10 @@ have**, with the reasons: the gap it would fill, the pieces of yours it goes
 with (tap one to open it) and example outfits, the pieces you already have that
 do the same job and how often you wear them, and what would make it hard to
 wear. From the answer, **Put it on my wishlist** keeps it with its description
-in the note, and **I bought it** opens Add. The photo is not added to your
-closet: it is deleted as soon as the answer is ready, and a photo is described
+in the note (from a wish, **Add it to the wish's note** writes the answer into
+that wish instead), and **I bought it** opens Add. The photo is not added to
+your closet and is never saved on your computer: it is let go as soon as the
+answer is ready, and a photo is described
 the same way as a new item (your Claude plan first, the API key only when you
 have switched it on, within its monthly limit). In the demo closet only
 **describe it by hand** works, since the demo closet never sends anything to

@@ -180,7 +180,10 @@ for (const [label, viewport] of [['computer', { width: 1280, height: 800 }], ['p
     await checkCoat(page);
     await expect.poll(() => page.locator('main img').evaluateAll((imgs) => imgs.every((i) => (i as HTMLImageElement).complete))).toBe(true);
     if (label === 'computer') await page.getByTestId('would-work').evaluate((el) => el.closest('aside')?.scrollTo(0, 0));
-    else await page.getByTestId('would-work-answer').scrollIntoViewIfNeeded();
+    else await page.evaluate(() => window.scrollTo(0, 0));
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
+    const answer = page.getByTestId('would-work-answer');
+    expect(await answer.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
     const path = testInfo.outputPath(`would-this-work-${label}.png`);
     await page.screenshot({ path });
     await testInfo.attach(`Would this work? on a ${label}`, { path, contentType: 'image/png' });

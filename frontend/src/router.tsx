@@ -23,10 +23,14 @@ export function usePath(): string {
 
 export type Route =
   | { name: 'closet'; status: 'active' | 'archived'; itemId: string | null }
+  | { name: 'today'; itemId: string | null }
   | { name: 'add' }
   | { name: 'settings' };
 
 export function parseRoute(path: string): Route {
+  if (path === '/today' || path.startsWith('/today/item/')) {
+    return { name: 'today', itemId: path.startsWith('/today/item/') ? decodeURIComponent(path.slice('/today/item/'.length)) : null };
+  }
   if (path === '/add') return { name: 'add' };
   if (path === '/settings') return { name: 'settings' };
   const archived = path.startsWith('/archived');

@@ -260,6 +260,24 @@ def create_app(sv: Services) -> FastAPI:
     def remove_wear(item_id: str, worn_on: str, conn=Depends(conn_dep)):
         return wears.remove(conn, item_id, worn_on)
 
+    @app.post("/api/wears", dependencies=protected)
+    async def add_wears(request: Request, response: Response, conn=Depends(conn_dep)):
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        result = await run_in_threadpool(wears.batch, conn, body)
+        response.status_code = 201 if result["created_ids"] else 200
+        return result
+
+    @app.delete("/api/wears", dependencies=protected)
+    async def remove_wears(request: Request, conn=Depends(conn_dep)):
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        return await run_in_threadpool(wears.batch, conn, body, removing=True)
+
     @app.post("/api/items/{item_id}/laundry", dependencies=protected)
     def set_laundry(item_id: str, body: LaundryState, conn=Depends(conn_dep)):
         return wears.set_laundry(conn, item_id, body.state)

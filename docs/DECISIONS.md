@@ -132,6 +132,17 @@ The rules live in `backend/closet/outfits.py`; every number is a named constant 
 | Any of the low, high and rain given in the request wins over the forecast, field by field; with both temperatures and rain given the weather is not looked up | So the screen can let the owner correct a forecast ("it's warmer than that") without losing the rest. With temperatures given and no forecast, rain is taken as no. |
 | Days since an item was last worn are counted from the computer's local date, the same date wears are recorded on | A forecast for a place in another time zone may be for a different calendar day; the wear log's own date keeps "worn yesterday" meaning yesterday. |
 
+### The Today screen
+
+| Decision | Why |
+|---|---|
+| Today opens after login or opening the app at `/` when there is a clean, active, non-disliked base top, bottom and shoes; the closet grid remains available separately | This is enough to start asking the engine, not a promise that every occasion can be dressed for. An empty closet still opens on capture and browsing; the engine's exact missing sentences explain a day it cannot dress for. |
+| The outfit is a flat lay in wearing order, with reasons and warnings beside it on a computer and below on a phone | No new mannequin or drawing rules. Existing cutouts come first, then illustrations, then photos. Four-piece outfits use two columns; other outfits use three. Arrows and option buttons work alongside horizontal swipes, without turning a vertical scroll into an outfit change. |
+| Occasion and mood are one-tap choices remembered on this device; temperatures and piece constraints last only for the day | The daily routine should not require filling a form. Temperatures are explicitly labelled °C. With no usable forecast, the owner can supply temperatures and rain here, or go straight to Where you are in Settings. Forecast problems keep the server's wording. |
+| The latest successful Today answer, its choices, pictures' addresses and selected outfit are saved locally, separately for each closet and calendar day | Returning from a piece must not silently replace the chosen outfit. Reopening shows the saved answer labelled as saved earlier; Refresh asks again, and reconnecting also refreshes. The app's existing image cache keeps viewed pieces available offline. There is no offline write queue. Logout clears these saved outfits and wear receipts, but keeps the harmless occasion/mood preference. |
+| Recording an outfit is one atomic wear request, with no migration; Undo sends only the IDs newly recorded by that request, on the returned computer-local date | Avoids half-recorded outfits and preserves wears recorded earlier through an item. The confirmation and undo receipt stay on this device for the day. Undo is retryable; if a recording response is lost, the UI asks the owner to check the item wear logs, because retrying cannot recover the original undo receipt. |
+| Piece adjustments live behind a labelled three-dot button, with a separate picker for any clean item | Keeps the flat lay readable and lets tapping the picture always open details. The trade-off is that these adjustments are less obvious than permanently visible buttons. |
+
 ## Reaching Claude: two routes
 
 Decided with the owner after phase 1: the app can reach Claude two ways, and

@@ -7,8 +7,9 @@ iPhone. Your closet never leaves your computer.
 **Status: stop A (the first of the app's try-it stops; see `docs/BACKLOG.md`).**
 You can capture items with one photo each, get the background removed, browse
 the closet on phone and desktop, try a 30-item demo closet, and back up and
-restore. Tagging by AI, illustrations for your own items, outfits and shopping
-come at later stops. No API key is needed yet.
+restore. **Today** suggests outfits from your clothes and the weather, and
+records what you wear. Tagging by AI, illustrations for your own items and
+shopping come at later stops. No API key is needed yet.
 
 ## Install and first run
 
@@ -36,12 +37,30 @@ Your browser then opens the app:
 To stop the program use **Quit Closet** in the icon's menu or in Settings.
 Double-clicking the program while it is already running just opens the app.
 
-Every day: open an item and tap **Wore it today** (tap **Undo** if that was a
-mistake). The item shows how often it has been worn and when last, and lists
-the recent days, each of which can be removed. **Put in the laundry** and
-**It's clean** keep track of the wash; in the closet, items in the laundry
-carry a small mark, and the **Clean** and **In the laundry** buttons show only
-those.
+Every day: start in **Today**. Once your closet has a clean top, bottoms and
+shoes, this is the first screen when you open Closet or log in. Choose the
+kind of day and your mood; your last choices are remembered on this device.
+Save your place in **Settings → Where you are** for the weather, or enter
+today's low and high in °C right on Today.
+
+Swipe through the outfits on your phone, or use the arrows or option buttons.
+The reasons and any warnings are right beside or below the clothes. Tap a
+piece for its details; **Back to today's outfit** returns to the same choice.
+The **•••** button on a piece offers **Not this piece** and **Start from this
+piece**; both can be cleared. **Have a piece in mind?** lets you start from
+another item in your closet.
+
+Tap **I'm wearing this** to record every piece together. **Undo** removes only
+the wears that button just added, not anything you recorded earlier. The
+confirmation stays here for the day on this device. Offline, the last outfits
+fetched today remain visible, marked **Saved earlier today**, but choosing new
+outfits and recording wears wait until the computer can be reached.
+
+You can still open an individual item and tap **Wore it today**. The item shows
+how often it has been worn and when last, and lists recent days, each of which
+can be removed. **Put in the laundry** and **It's clean** keep track of the
+wash; in the closet, items in the laundry carry a small mark, and the **Clean**
+and **In the laundry** buttons show only those.
 
 ## Use it from your iPhone
 

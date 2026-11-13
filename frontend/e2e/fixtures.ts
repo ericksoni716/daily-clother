@@ -22,7 +22,7 @@ export async function ensureSetUp(page: Page) {
 /** Logs in through the page and waits for the closet. */
 export async function login(page: Page) {
   await ensureSetUp(page);
-  await page.goto('/');
+  await page.goto('/closet');
   const field = page.getByLabel('Passphrase');
   const title = page.locator('#closet-title');
   await expect(field.or(title)).toBeVisible();
@@ -37,7 +37,7 @@ export async function login(page: Page) {
 export async function useProfile(page: Page, profile: 'main' | 'demo') {
   const r = await page.request.post('/api/profile', { data: { profile } });
   expect(r.ok()).toBeTruthy();
-  await page.goto('/');
+  await page.goto('/closet');
   await expect(page.locator('#closet-title')).toBeVisible();
 }
 

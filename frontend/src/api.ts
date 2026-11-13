@@ -1,4 +1,5 @@
 import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup } from './types';
+import { clearTodayData, type TodayChoices, type TodayResult } from './today';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
 export class ApiError extends Error {
@@ -136,6 +137,12 @@ export const api = {
   tagging: () => request<TaggingStatus>('/api/tagging'),
   places: (q: string) => request<{ places: Place[] }>(`/api/places?q=${encodeURIComponent(q)}`).then((r) => r.places),
   weather: () => request<WeatherLookup>('/api/weather'),
+  today: (choices: TodayChoices, signal?: AbortSignal) =>
+    request<TodayResult>('/api/outfits/today', { method: 'POST', body: choices, signal }),
+  wearOutfit: (item_ids: string[]) =>
+    request<{ items: Item[]; worn_on: string; created_ids: string[] }>('/api/wears', { method: 'POST', body: { item_ids } }),
+  undoOutfit: (item_ids: string[], worn_on: string) =>
+    request<{ items: Item[] }>('/api/wears', { method: 'DELETE', body: { item_ids, worn_on } }),
   backup: () => request<BackupRecord>('/api/backup', { method: 'POST' }),
   setProfile: (profile: Profile) => request<{ profile: Profile }>('/api/profile', { method: 'POST', body: { profile } }),
   quit: () => request<void>('/api/quit', { method: 'POST' }),
@@ -143,6 +150,7 @@ export const api = {
 
 /** Removes the saved copies of closet data (kept: the app's own files). */
 export async function clearSavedData(): Promise<void> {
+  clearTodayData();
   if (!('caches' in window)) return;
   const names = await caches.keys();
   await Promise.all(names.filter((n) => n.startsWith('closet-data') || n.startsWith('closet-media')).map((n) => caches.delete(n)));

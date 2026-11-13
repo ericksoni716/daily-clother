@@ -12,6 +12,7 @@ from datetime import date
 from . import db, items
 
 LAUNDRY = ("clean", "laundry")
+MAX_BATCH_ITEMS = 50
 _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
@@ -35,6 +36,75 @@ def list_wears(conn, item_id: str) -> list[dict]:
             for r in conn.execute("SELECT worn_on, created_at FROM wears WHERE item_id = ? ORDER BY worn_on DESC", (item_id,))]
 
 
+def parse_batch(body: object, *, removing: bool = False) -> tuple[list[str], str | None]:
+    """Validate a batch before opening its transaction."""
+    if not isinstance(body, dict):
+        raise items.ItemError("Send an object with the items to record or undo.")
+    allowed = {"item_ids", "worn_on"} if removing else {"item_ids"}
+    if body.keys() - allowed:
+        raise items.ItemError("Only item_ids and worn_on are accepted." if removing else "Only item_ids is accepted; wears are recorded for today.")
+    ids = body.get("item_ids")
+    minimum = 0 if removing else 1
+    if not isinstance(ids, list) or not minimum <= len(ids) <= MAX_BATCH_ITEMS:
+        raise items.ItemError(f"Choose between {minimum} and {MAX_BATCH_ITEMS} items.")
+    if any(not isinstance(item_id, str) or not item_id.strip() or len(item_id) > 128 for item_id in ids):
+        raise items.ItemError("Each item must have a non-empty text ID of at most 128 characters.")
+    if len(set(ids)) != len(ids):
+        raise items.ItemError("Choose each item only once.")
+    day = body.get("worn_on")
+    if removing:
+        if not isinstance(day, str):
+            raise items.ItemError("Give the date as YYYY-MM-DD, for example 2026-11-12.")
+        day = _parse(day).isoformat()
+    return ids, day
+
+
+def _add(conn, item_id: str, day: str, recorded_at: str) -> bool:
+    created = conn.execute("INSERT OR IGNORE INTO wears (item_id, worn_on, created_at) VALUES (?, ?, ?)",
+                           (item_id, day, recorded_at)).rowcount == 1
+    if created:
+        conn.execute("UPDATE items SET wears_since_wash = wears_since_wash + 1, updated_at = ? WHERE id = ?",
+                     (recorded_at, item_id))
+    return created
+
+
+def _remove(conn, row, day: str, *, missing_ok: bool = False) -> None:
+    wear = conn.execute("SELECT created_at FROM wears WHERE item_id = ? AND worn_on = ?", (row["id"], day)).fetchone()
+    if wear is None:
+        if missing_ok:
+            return
+        raise items.ItemError("There is no wear on that day to remove.", 404)
+    conn.execute("DELETE FROM wears WHERE item_id = ? AND worn_on = ?", (row["id"], day))
+    counted = row["washed_at"] is None or wear["created_at"] > row["washed_at"]
+    conn.execute("UPDATE items SET wears_since_wash = max(0, wears_since_wash - ?), updated_at = ? WHERE id = ?",
+                 (1 if counted else 0, db.now(), row["id"]))
+
+
+def batch(conn, body: object, *, removing: bool = False) -> dict:
+    """Record today's outfit or undo selected wears, all or none under one write lock."""
+    ids, day = parse_batch(body, removing=removing)
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        rows = [items.get(conn, item_id) for item_id in ids]
+        created_ids = []
+        if removing:
+            for row in rows:
+                _remove(conn, row, day, missing_ok=True)
+        else:
+            day = today().isoformat()
+            recorded_at = db.now()
+            created_ids = [item_id for item_id in ids if _add(conn, item_id, day, recorded_at)]
+        result = {"items": [items.detail(conn, items.get(conn, item_id)) for item_id in ids], "worn_on": day}
+        if not removing:
+            result["created_ids"] = created_ids
+        conn.execute("COMMIT")
+    except Exception:
+        if conn.in_transaction:
+            conn.execute("ROLLBACK")
+        raise
+    return result
+
+
 def add(conn, item_id: str, worn_on: str | None = None) -> tuple[dict, bool]:
     """Record a wear. Returns (item, created); a second wear on the same day changes nothing."""
     items.get(conn, item_id)
@@ -44,10 +114,7 @@ def add(conn, item_id: str, worn_on: str | None = None) -> tuple[dict, bool]:
     try:
         conn.execute("BEGIN IMMEDIATE")
         t = db.now()  # taken under the write lock, so it orders correctly against a wash
-        created = conn.execute("INSERT OR IGNORE INTO wears (item_id, worn_on, created_at) VALUES (?, ?, ?)",
-                               (item_id, day.isoformat(), t)).rowcount == 1
-        if created:
-            conn.execute("UPDATE items SET wears_since_wash = wears_since_wash + 1, updated_at = ? WHERE id = ?", (t, item_id))
+        created = _add(conn, item_id, day.isoformat(), t)
         conn.execute("COMMIT")
     except Exception:
         if conn.in_transaction:
@@ -62,13 +129,7 @@ def remove(conn, item_id: str, worn_on: str) -> dict:
     try:
         conn.execute("BEGIN IMMEDIATE")
         row = items.get(conn, item_id)  # read again under the write lock: a wash may have just been recorded
-        wear = conn.execute("SELECT created_at FROM wears WHERE item_id = ? AND worn_on = ?", (item_id, day)).fetchone()
-        if wear is None:
-            raise items.ItemError("There is no wear on that day to remove.", 404)
-        conn.execute("DELETE FROM wears WHERE item_id = ? AND worn_on = ?", (item_id, day))
-        counted = row["washed_at"] is None or wear["created_at"] > row["washed_at"]
-        conn.execute("UPDATE items SET wears_since_wash = max(0, wears_since_wash - ?), updated_at = ? WHERE id = ?",
-                     (1 if counted else 0, db.now(), item_id))
+        _remove(conn, row, day)
         conn.execute("COMMIT")
     except Exception:
         if conn.in_transaction:

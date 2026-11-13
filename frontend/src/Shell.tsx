@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArchiveIcon, CloudOffIcon, GearIcon, HangerIcon, PlusIcon } from './components/Icons';
 import { Link, parseRoute, usePath, useMediaQuery, WIDE } from './router';
 import { useCloset } from './store';
@@ -6,15 +6,27 @@ import { ClosetScreen } from './screens/Closet';
 import { AddScreen } from './screens/Add';
 import { SettingsScreen } from './screens/Settings';
 import { ItemDetail } from './screens/ItemDetail';
+import { TodayScreen } from './screens/Today';
+
+function TodayIcon() {
+  return <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" />
+  </svg>;
+}
 
 export function Shell({ version }: { version: string }) {
   const path = usePath();
   const route = parseRoute(path);
   const wide = useMediaQuery(WIDE);
   const { offline } = useCloset();
+  const [visitedToday, setVisitedToday] = useState(route.name === 'today');
+  useEffect(() => {
+    if (route.name === 'today') setVisitedToday(true);
+  }, [route.name]);
 
   let content;
-  if (route.name === 'add') content = <AddScreen />;
+  if (route.name === 'today') content = null;
+  else if (route.name === 'add') content = <AddScreen />;
   else if (route.name === 'settings') content = <SettingsScreen version={version} />;
   else if (route.itemId && !wide) content = <ItemDetail key={route.itemId} id={route.itemId} status={route.status} />;
   else content = <ClosetScreen status={route.status} selectedId={route.itemId} wide={wide} />;
@@ -27,7 +39,12 @@ export function Shell({ version }: { version: string }) {
       <Sidebar section={section} offline={offline} />
       <div className="shell-main">
         <TopBanners />
-        <main id="main" className="shell-content" tabIndex={-1}>{content}</main>
+        <main id="main" className="shell-content" tabIndex={-1}>
+          {visitedToday && <div hidden={route.name !== 'today'}>
+            <TodayScreen itemId={route.name === 'today' ? route.itemId : null} />
+          </div>}
+          {content}
+        </main>
       </div>
       <TabBar section={section} offline={offline} />
     </div>
@@ -67,6 +84,7 @@ function TopBanners() {
 }
 
 const NAV = [
+  { key: 'today', to: '/today', label: 'Today', Icon: TodayIcon },
   { key: 'closet', to: '/', label: 'Closet', Icon: HangerIcon },
   { key: 'archived', to: '/archived', label: 'Archived', Icon: ArchiveIcon },
   { key: 'add', to: '/add', label: 'Add', Icon: PlusIcon },

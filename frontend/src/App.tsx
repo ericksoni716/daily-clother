@@ -7,6 +7,7 @@ import { navigate } from './router';
 import { SetupScreen, ReadyScreen } from './screens/Setup';
 import { LoginScreen } from './screens/Login';
 import { ClosedScreen, UnreachableScreen, LoadingScreen } from './screens/Static';
+import { canDress } from './today';
 
 type Toast = { id: number; message: string; kind: 'ok' | 'error' };
 
@@ -21,6 +22,10 @@ export function App() {
   const loadSession = useCallback(async () => {
     try {
       const s = await api.session();
+      if (s.authenticated && window.location.pathname === '/') {
+        const items = await api.items().catch(() => []);
+        if (canDress(items)) navigate('/today', { replace: true });
+      }
       setSession(s);
       setUnreachable(false);
     } catch {

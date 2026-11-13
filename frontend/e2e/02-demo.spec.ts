@@ -113,7 +113,7 @@ test('archive and unarchive, delete with confirmation', async ({ page }) => {
   await page.locator('.detail-panel').getByRole('button', { name: 'Unarchive' }).click();
   await expect(page.locator('.detail-panel').getByRole('button', { name: 'Archive', exact: true })).toBeVisible();
 
-  await page.goto('/');
+  await page.goto('/closet');
   await page.getByTestId('tile').filter({ hasText: 'White tee' }).click();
   await page.locator('.detail-panel').getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByText('Delete this item for good?')).toBeVisible();

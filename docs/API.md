@@ -40,6 +40,25 @@ Each photo: `id, kind, url, thumb_url, cutout_url, cutout_thumb_url, width, heig
 | `GET /api/items/{id}/illustration.svg` | The item's illustration as `image/svg+xml`; 404 if it has none. |
 | `GET /media/{path}` | A WebP image; cacheable forever (paths never change content). |
 
+### Recording an outfit
+
+| Call | Result |
+|---|---|
+| `POST /api/wears {item_ids: string[]}` | Records all selected items on the computer's local date in one transaction. `{items: Item[], worn_on: "YYYY-MM-DD", created_ids: string[]}`; items and IDs follow request order. 201 if any wear was added, otherwise 200. One wear per item per day: existing wears and their counters are unchanged. `created_ids` contains only item IDs whose wear was added by this request, not items already worn today. |
+| `DELETE /api/wears {item_ids: string[], worn_on: "YYYY-MM-DD"}` | Removes the selected wears in one transaction; 200 `{items: Item[], worn_on: "YYYY-MM-DD"}` in request order. For Undo, send only the preceding response's `created_ids` and `worn_on`, so earlier wears are preserved even across midnight. A missing wear is a no-op, making a retry safe; an empty list also succeeds. The wears-since-wash count only falls for wears recorded after the last wash. |
+
+Both require login. POST accepts 1–50 unique item IDs; DELETE accepts 0–50.
+IDs must be non-empty strings of at most 128 characters. Unknown fields, wrong
+types, duplicate IDs and invalid dates return 422 with a readable sentence;
+invalid JSON returns 400. An item missing from the open closet returns 404 on
+either call. Every item is checked before any wear changes, and any failure
+rolls the whole operation back. No laundry state changes.
+
+A repeated POST does not duplicate wears, but its `created_ids` describes only
+that request: if the first response is lost, a retry cannot recover the earlier
+Undo list. Keep the successful response's IDs rather than assuming every
+selected item was newly worn.
+
 ## Outfits
 | Call | Result |
 |---|---|

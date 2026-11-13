@@ -43,6 +43,9 @@ Wave 4:
 
 Next (not started; the owner asked for a pause after this wave and a release): shop searches for a wish with each find checked against the closet, price checks, "Would this work?" taking how the owner lives into account, kinds of clothing for sportswear and loungewear.
 
+Design (from the design review; each builds on the first):
+- [x] #127 Design 1, a design system: one set of tokens in `frontend/src/styles.css` (four text levels, surfaces, see-through borders, a 1.25 type scale from 16px, 4px spacing, four radii, one depth for cards), no colour outside them, a Light / Dark / Same as this device choice in Settings → Look, and shared pieces in `frontend/src/components/ui/` used where the swap was mechanical. Layouts unchanged; `src/design.test.ts` keeps CSS on the scale. Known: the spacing tokens are not yet used by existing paddings, the model banner is still its own component, and a forced choice is applied once the script runs.
+
 Fixes after 0.2.0:
 - [x] A newer program that finds an older copy running says so and offers to close it and use the new one (it used to open the old one without a word). The owner's first test of 0.2.0 found it.
 - [x] The owner's first item in 0.2.0 failed to be described after three tries. The cause: Claude Code on the owner's Mac was still signed in to a work account that had been turned off, so Anthropic refused its key ("Not a valid API key for this workspace"), and Closet took that for a bad answer. Now a refused sign-in keeps items waiting with a note saying what to do, and they go ahead by themselves once Claude Code is signed in with the plan.

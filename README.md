@@ -371,6 +371,14 @@ weather on What's missing. That lookup sends only the coordinates and keeps
 the result for six months. Your life answers and style words stay on your
 computer, in its settings; they are not in closet backups.
 
+### Light or dark
+
+Closet follows your computer's or phone's light or dark setting. To choose
+one yourself, go to **Settings → Look** and pick **Light** or **Dark**; pick
+**Same as this device** to follow the device again. The choice is remembered
+on each device separately. Clothing pictures stay on a light background in
+dark mode, so their colours look right.
+
 ## Demo closet
 
 **Settings → Demo closet** opens a sample closet of 30 items so you can try

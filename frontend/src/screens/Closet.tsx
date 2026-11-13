@@ -58,9 +58,12 @@ export function ClosetScreen({ status, selectedId, wide }: Props) {
             </span>
           )}
         </div>
-        <div className="segmented segmented-small" role="group" aria-label="Which clothes">
-          <Link to="/" className={status === 'active' ? 'is-on' : ''} aria-current={status === 'active' ? 'page' : undefined}>In use</Link>
-          <Link to="/archived" className={status === 'archived' ? 'is-on' : ''} aria-current={status === 'archived' ? 'page' : undefined}>Archived</Link>
+        <div className="row">
+          {status === 'active' && list && !empty && <Link to="/insights" className="btn btn-small">Insights</Link>}
+          <div className="segmented segmented-small" role="group" aria-label="Which clothes">
+            <Link to="/" className={status === 'active' ? 'is-on' : ''} aria-current={status === 'active' ? 'page' : undefined}>In use</Link>
+            <Link to="/archived" className={status === 'archived' ? 'is-on' : ''} aria-current={status === 'archived' ? 'page' : undefined}>Archived</Link>
+          </div>
         </div>
       </header>
 

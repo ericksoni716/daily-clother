@@ -2,10 +2,12 @@
 import { humanize } from './labels';
 import type { TagState } from './types';
 
-/** What the item page says about describing the item, or null when there is nothing to say. */
-export function tagNotice(state: TagState | undefined, route: string | null): string | null {
+/** What the item page says about describing the item, or null when there is nothing to say.
+ *  `error`, while it waits, is why it can't go yet (the API key's monthly limit was reached). */
+export function tagNotice(state: TagState | undefined, route: string | null, error: string | null = null): string | null {
   switch (state) {
     case 'waiting':
+      if (error) return `Waiting to be described by Claude. ${error}`;
       return 'Waiting to be described by Claude. It starts by itself once Claude can be reached.';
     case 'working':
       return 'Claude is describing this item…';

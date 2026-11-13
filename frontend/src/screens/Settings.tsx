@@ -3,9 +3,10 @@ import { api, ApiError } from '../api';
 import { ModelProgress, modelStateText } from '../components/ModelBanner';
 import { PhoneAccess } from '../components/PhoneAccess';
 import { WhereYouAre } from '../components/WhereYouAre';
-import { formatDateTime, formatSize } from '../labels';
+import { formatDateTime, formatSize, parsePrice } from '../labels';
+import { dayName, formatUsd, monthName, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
 import { useCloset } from '../store';
-import type { ModelInfo, Profile, Settings, Storage, TaggingRoute, TaggingStatus } from '../types';
+import type { ModelInfo, Profile, Settings, Storage, TaggingRoute, TaggingSpend, TaggingStatus } from '../types';
 
 function Section({ title, children, id }: { title: string; children: ReactNode; id: string }) {
   return (
@@ -283,7 +284,7 @@ const README_CLAUDE_CODE = 'https://github.com/ericksoni716/daily-clother#instal
 
 const ROUTE_TEXT: Record<TaggingRoute['id'], { name: string; hint: string }> = {
   plan: { name: 'Your Claude plan, through Claude Code', hint: 'Costs nothing extra; counts against your plan’s usage limits.' },
-  api: { name: 'An API key', hint: 'Billed per photo; only used when your plan can’t be, and only if you allow it below.' },
+  api: { name: 'An API key', hint: 'Billed per photo; only used when your plan can’t be, only if you allow it below, and never past your monthly limit.' },
 };
 
 interface TaggingProps {
@@ -373,20 +374,124 @@ function TaggingSection({ offline, settings, onChange, reload, toast }: TaggingP
             {waiting === 0 ? 'No items are waiting to be described.'
               : `${waiting} ${waiting === 1 ? 'item is' : 'items are'} waiting to be described.`}
           </p>
-          <Toggle label="Allow the API key"
-            hint="Lets Closet use your API key when your plan can't be used. Each photo is billed to your account, and there is no spending limit yet, so this is off until you turn it on."
-            checked={apiAllowed} disabled={offline}
-            onChange={async (on) => {
-              try {
-                onChange(await api.putSettings({ tagging_api_enabled: on }));
-                toast(on ? 'The API key may be used' : 'The API key will not be used');
-              } catch (e) {
-                toast((e as Error).message, 'error');
-              }
-            }} />
+          <ApiKeySpend offline={offline} settings={settings} onChange={onChange} toast={toast} />
         </>
       )}
     </Section>
+  );
+}
+
+function ApiKeySpend({ offline, settings, onChange, toast }: { offline: boolean; settings: Settings; onChange(s: Settings): void; toast(m: string, k?: 'ok' | 'error'): void }) {
+  const [spend, setSpend] = useState<TaggingSpend | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [cap, setCap] = useState(settings.tagging_api_cap_usd !== null ? String(settings.tagging_api_cap_usd) : '');
+  const [capError, setCapError] = useState<string | null>(null);
+  const saved = settings.tagging_api_cap_usd;
+
+  useEffect(() => {
+    if (offline) return;
+    let current = true;
+    api.tagSpend().then(
+      (s) => { if (current) { setSpend(s); setLoadError(null); } },
+      (e) => current && setLoadError((e as Error).message),
+    );
+    return () => {
+      current = false;
+    };
+  }, [offline, settings]);
+  useEffect(() => setCap(saved !== null ? String(saved) : ''), [saved]);
+
+  /** The limit typed, in dollars, or null after saying what is wrong. */
+  function typedCap(): number | null {
+    const cents = parsePrice(cap);
+    if (cents === null || cents === undefined || cents <= 0) {
+      setCapError('Type a monthly limit in dollars, such as 5 or 2.50.');
+      return null;
+    }
+    setCapError(null);
+    return cents / 100;
+  }
+
+  async function save(changes: { tagging_api_enabled?: boolean; tagging_api_cap_usd?: number }, said: string) {
+    try {
+      onChange(await api.putSettings(changes));
+      setCapError(null);
+      toast(said);
+    } catch (e) {
+      setCapError((e as Error).message);
+    }
+  }
+
+  const placeholder = spend ? String(spend.suggested_cap_usd) : '';
+  return (
+    <div className="api-spend" data-testid="api-spend">
+      {settings.tagging_api_off && <p className="form-error" role="alert">{turnedOffLine(settings.tagging_api_off)}</p>}
+      <Toggle label="Allow the API key"
+        hint="Lets Closet use your API key when your plan can't be used. Each photo is billed to your Anthropic account, and Closet stops before this month's spending would pass the limit below."
+        checked={settings.tagging_api_enabled} disabled={offline}
+        onChange={(on) => {
+          if (!on) return void save({ tagging_api_enabled: false }, 'The API key will not be used');
+          const limit = typedCap();
+          if (limit !== null) void save({ tagging_api_enabled: true, tagging_api_cap_usd: limit }, `The API key may be used, up to ${formatUsd(limit)} a month`);
+        }} />
+      <form className="field-row field-row-inline" onSubmit={(e) => {
+        e.preventDefault();
+        const limit = typedCap();
+        if (limit !== null) void save({ tagging_api_cap_usd: limit }, 'Saved');
+      }}>
+        <label className="field">
+          <span>Monthly limit for the API key (US dollars)</span>
+          <input inputMode="decimal" value={cap} placeholder={placeholder} disabled={offline}
+            onChange={(e) => setCap(e.target.value)} />
+        </label>
+        <button className="btn" type="submit" disabled={offline || cap.trim() === '' || parsePrice(cap) === Math.round((saved ?? -1) * 100)}>Save limit</button>
+      </form>
+      {capError && <p className="form-error" role="alert">{capError}</p>}
+      {loadError && <p className="form-error">Couldn't work out what the API key has cost: {loadError}</p>}
+      {spend && (
+        <>
+          {saved === null && <p className="hint">{suggestionLine(spend.suggested_cap_usd, spend.per_photo_usd, spend.prices_checked)}</p>}
+          <p className="state-line" data-testid="spend-month"><span><strong>{monthName(spend.month)}:</strong> {spentLine(spend)}</span></p>
+          {spend.allowed && spend.reached && (
+            <p className="notice" role="status">
+              This month's limit is reached, so the API key won't be used again until next month or until you raise the limit. Your plan is still used whenever it can be.
+            </p>
+          )}
+          {waitingLine(spend.waiting) && <p className="hint" data-testid="spend-waiting">{waitingLine(spend.waiting)}</p>}
+          {spend.history.length > 0 && (
+            <dl className="storage-list" aria-label="Spent with the API key, by month" data-testid="spend-history">
+              {spend.history.map((m) => (
+                <div key={m.month}>
+                  <dt>{monthName(m.month)}</dt>
+                  <dd>{formatUsd(m.spent_usd)}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          <p className="hint">
+            Costs are worked out from Anthropic's prices as written down on {dayName(spend.prices_checked)}. Prices change, so check them on Anthropic's pricing page before relying on these figures; your Anthropic account shows what was really charged.
+          </p>
+          <details className="more">
+            <summary>Details</summary>
+            <div className="tag-body">
+              <dl className="storage-list">
+                <div><dt>Model</dt><dd>{spend.model}</dd></div>
+                <div><dt>Sent this month (tokens)</dt><dd>{spend.input_tokens.toLocaleString('en-US')}</dd></div>
+                <div><dt>Received this month (tokens)</dt><dd>{spend.output_tokens.toLocaleString('en-US')}</dd></div>
+                <div><dt>Most one photo should cost</dt><dd>${spend.per_photo_usd.toFixed(4)}</dd></div>
+                {spend.left_usd !== null && <div><dt>Left this month</dt><dd>{formatUsd(spend.left_usd)}</dd></div>}
+                {spend.history.map((m) => (
+                  <div key={m.month}>
+                    <dt>{monthName(m.month)}</dt>
+                    <dd>{`${m.api_calls} with the key (${m.input_tokens.toLocaleString('en-US')} in, ${m.output_tokens.toLocaleString('en-US')} out), ${m.plan_calls} with your plan`}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          </details>
+        </>
+      )}
+    </div>
   );
 }
 

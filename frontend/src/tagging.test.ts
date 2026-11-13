@@ -4,6 +4,8 @@ import { describedBy, detailLines, tagNotice } from './tagging';
 describe('tagging wording', () => {
   it('says what is happening to the description', () => {
     expect(tagNotice('waiting', null)).toMatch(/^Waiting to be described by Claude/);
+    expect(tagNotice('waiting', null, "This month's spending limit for the API key has been reached."))
+      .toBe("Waiting to be described by Claude. This month's spending limit for the API key has been reached.");
     expect(tagNotice('working', null)).toBe('Claude is describing this item…');
     expect(tagNotice('done', 'plan')).toBe("Suggested by Claude; change anything that's wrong.");
     expect(tagNotice('done', 'demo')).toMatch(/in advance for the demo/);

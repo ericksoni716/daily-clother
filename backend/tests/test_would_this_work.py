@@ -1,15 +1,19 @@
-"""Would this work? The two routes, the checks held in memory, and a photo described and then deleted.
+"""Would this work? The two routes, the checks held in memory, and a photo described and then let go.
 
 Claude is never reached: `FakeClaude` (conftest) stands in for both routes, and for the spending record the API is
 `FakeApi` behind the real routes and monthly limit, as in test_spend.py.
 """
+import gc
+import re
+import threading
 import time
+import weakref
 
 import pytest
 from fastapi.testclient import TestClient
 
 from closet import app as app_module
-from closet import db, spend, wouldjobs
+from closet import db, images, spend, wouldjobs
 from closet.tagger import routes as tagger_routes
 from closet.tagger.tagging import RouteUnavailable
 
@@ -33,9 +37,38 @@ def send_photo(client, data=None):
     return client.post("/api/would-this-work", files={"photo": ("p.jpg", data or photo_bytes(), "image/jpeg")})
 
 
-def folder(cfg):
-    path = cfg.data_dir / wouldjobs.FOLDER
-    return sorted(path.iterdir()) if path.exists() else []
+def files(cfg):
+    """Files in the data folder other than the databases: a photo written to disk would be one."""
+    return {p for p in cfg.data_dir.rglob("*") if p.is_file() and not re.search(r"\.db(-wal|-shm|-journal)?$", p.name)}
+
+
+@pytest.fixture
+def disk(cfg):
+    """What the data folder holds when a test starts; `written()` lists what was added since."""
+    seen = files(cfg)
+
+    def written():
+        return sorted(files(cfg) - seen)
+    return written
+
+
+@pytest.fixture
+def photos(monkeypatch):
+    """Weak references to every photo a check decodes: dead once nothing holds the photo any more."""
+    refs = []
+    decode = images.decode
+
+    def watched(data):
+        img = decode(data)
+        refs.append(weakref.ref(img))
+        return img
+    monkeypatch.setattr(images, "decode", watched)
+    return refs
+
+
+def let_go(refs):
+    gc.collect()
+    return refs and all(r() is None for r in refs)
 
 
 def test_would_this_work_needs_login(anon):
@@ -84,15 +117,54 @@ def test_wrong_input_is_refused_in_the_owners_words(client):
     assert r.status_code == 422 and "Choose a photo" in r.json()["detail"]
 
 
-def test_only_the_newest_checks_are_kept(client):
+def test_only_the_newest_finished_checks_are_kept(client):
     first = client.post("/api/would-this-work", json={"piece": COAT}).json()["id"]
-    later = [client.post("/api/would-this-work", json={"piece": COAT}).json()["id"] for _ in range(wouldjobs.MAX_CHECKS)]
+    assert wait(client, first)["state"] == "ready"
+    later = []
+    for _ in range(wouldjobs.MAX_CHECKS):
+        later.append(client.post("/api/would-this-work", json={"piece": COAT}).json()["id"])
+        assert wait(client, later[-1])["state"] == "ready"
     assert client.get(f"/api/would-this-work/{first}").status_code == 404
     for check_id in later:
-        assert wait(client, check_id)["state"] == "ready"
+        assert client.get(f"/api/would-this-work/{check_id}").status_code == 200
 
 
-def test_a_photo_is_described_then_deleted(client, claude, cfg):
+class Profile:
+    def get(self, key):
+        return "main"
+
+
+def blocked_checks(cfg, gate, tagger=None, routes=("plan",)):
+    def closet(profile):
+        gate.wait(10)
+        return [], [], {"gaps": []}
+    return wouldjobs.Checks(cfg, Profile(), closet, lambda: routes, tagger or (lambda imgs, r: None),
+                            fake_cutter, lambda: False)
+
+
+def test_a_running_check_is_never_dropped_and_too_many_are_refused(cfg):
+    gate = threading.Event()
+    checks = blocked_checks(cfg, gate)
+    running = [checks.start_by_hand(COAT)["id"] for _ in range(wouldjobs.MAX_CHECKS)]
+    with pytest.raises(wouldjobs.Refused, match="already checking"):
+        checks.start_by_hand(COAT)
+    assert all(checks.get(i) is not None for i in running)
+    gate.set()
+    end = time.monotonic() + 30
+    while any(checks.get(i)["finished_at"] is None for i in running) and time.monotonic() < end:
+        time.sleep(0.02)
+    newest = checks.start_by_hand(COAT)["id"]   # now the oldest finished one makes room
+    assert checks.get(running[0]) is None and checks.get(newest) is not None
+
+
+def test_too_many_running_is_refused_in_the_owners_words(client, monkeypatch):
+    monkeypatch.setattr(wouldjobs.Checks, "_new", lambda self, *a: (_ for _ in ()).throw(
+        wouldjobs.Refused(wouldjobs.BUSY)))
+    r = client.post("/api/would-this-work", json={"piece": COAT})
+    assert r.status_code == 409 and "Wait for one of them to finish" in r.json()["detail"]
+
+
+def test_a_photo_is_described_then_let_go(client, claude, cfg, photos, disk):
     claude.mode = "answers"
     r = send_photo(client)
     assert r.status_code == 202, r.text
@@ -102,38 +174,53 @@ def test_a_photo_is_described_then_deleted(client, claude, cfg):
     assert body["piece"]["category"] == "polo" and body["piece"]["color"] == "navy"
     assert body["piece"]["weight_class"] == "midweight" and body["piece"]["name"] == "Navy polo"
     assert claude.calls == [("plan",)]
-    assert folder(cfg) == []
+    assert disk() == [] and let_go(photos)
     assert client.get("/api/items").json()["items"] == []
 
 
-def test_a_photo_is_deleted_when_describing_fails(client, claude, cfg):
+def test_a_photo_is_let_go_when_describing_fails(client, claude, cfg, photos, disk):
     claude.mode = "fails"
     body = wait(client, send_photo(client).json()["id"])
     assert body["state"] == "failed" and body["by_hand"] is True and "describe it by hand" in body["message"]
     assert body["answer"] is None
-    assert folder(cfg) == []
+    assert disk() == [] and let_go(photos)
 
 
-def test_a_photo_left_by_an_earlier_run_is_cleared_at_start(services, cfg):
-    (cfg.data_dir / wouldjobs.FOLDER).mkdir(parents=True)
-    (cfg.data_dir / wouldjobs.FOLDER / "old.photo").write_bytes(b"x")
-    TestClient(app_module.create_app(services))
-    assert folder(cfg) == []
+def test_an_unexpected_fault_in_the_check_fails_it_and_lets_the_photo_go(cfg, photos, disk):
+    def broken(imgs, routes):
+        raise RuntimeError("something nobody expected")
+    checks = blocked_checks(cfg, threading.Event(), tagger=broken)
+    check_id = checks.start_photo(photo_bytes())["id"]
+    end = time.monotonic() + 30
+    while checks.get(check_id)["state"] not in ("ready", "failed") and time.monotonic() < end:
+        time.sleep(0.02)
+    body = checks.get(check_id)
+    assert body["state"] == "failed" and body["message"] == wouldjobs.FAILED and body["finished_at"]
+    assert disk() == [] and let_go(photos)
 
 
-def test_no_route_says_so_at_once_and_offers_by_hand(client, claude, cfg):
+def test_a_photo_over_the_size_limit_is_refused(client, claude, cfg, monkeypatch, disk):
+    claude.mode = "answers"
+    monkeypatch.setattr(images, "MAX_UPLOAD_BYTES", 1000)
+    r = send_photo(client)
+    assert r.status_code == 400 and "larger than" in r.json()["detail"]
+    assert claude.calls == [] and disk() == []
+
+
+def test_no_route_says_so_at_once_and_offers_by_hand(client, claude, cfg, disk):
     claude.mode = "unavailable"
     r = send_photo(client)
     assert r.status_code == 409 and r.json()["detail"].endswith(wouldjobs.BY_HAND)
-    assert claude.calls == [] and folder(cfg) == []
+    assert claude.calls == [] and disk() == []
 
 
 def test_the_demo_closet_sends_nothing(client, claude, cfg):
     claude.mode = "answers"
     client.post("/api/profile", json={"profile": "demo"})
+    seen = files(cfg)
     r = send_photo(client)
     assert r.status_code == 409 and "demo closet" in r.json()["detail"] and wouldjobs.BY_HAND in r.json()["detail"]
-    assert claude.calls == [] and folder(cfg) == []
+    assert claude.calls == [] and files(cfg) == seen
 
 
 def test_a_photo_that_is_not_one_is_refused(client, claude):
@@ -176,15 +263,15 @@ def calls(cfg):
         conn.close()
 
 
-def test_the_call_is_recorded_with_its_own_purpose(metered, api, cfg):
+def test_the_call_is_recorded_with_its_own_purpose(metered, api, cfg, disk):
     assert metered.put("/api/settings", json={"tagging_api_enabled": True, "tagging_api_cap_usd": 5}).status_code == 200
     body = wait(metered, send_photo(metered).json()["id"])
     assert body["state"] == "ready", body
     assert api.calls == 1 and calls(cfg) == [{"purpose": wouldjobs.PURPOSE, "route": "api"}]
-    assert folder(cfg) == []
+    assert disk() == []
 
 
-def test_the_monthly_limit_stops_the_call_and_says_describe_it_by_hand(metered, api, cfg):
+def test_the_monthly_limit_stops_the_call_and_says_describe_it_by_hand(metered, api, cfg, disk):
     assert metered.put("/api/settings", json={"tagging_api_enabled": True, "tagging_api_cap_usd": 0.01}).status_code == 200
     conn = db.connect(cfg.db_path("main"))
     conn.execute("INSERT INTO claude_calls (at, month, purpose, route, model, cost_usd) VALUES (?, ?, 'tag_item', 'api', "
@@ -193,7 +280,7 @@ def test_the_monthly_limit_stops_the_call_and_says_describe_it_by_hand(metered, 
     body = wait(metered, send_photo(metered).json()["id"])
     assert body["state"] == "failed" and body["by_hand"] is True
     assert body["message"] == f"{spend.LIMIT_REACHED} {wouldjobs.BY_HAND}"
-    assert api.calls == 0 and folder(cfg) == []
+    assert api.calls == 0 and disk() == []
 
 
 def test_with_the_api_key_off_no_route_can_be_used(metered, api):

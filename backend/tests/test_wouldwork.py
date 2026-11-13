@@ -72,6 +72,93 @@ def test_a_new_kind_of_piece_works_and_adds_something(closet):
     assert a["reasons"][-1] == "Nothing you own does quite the same job."
 
 
+def without(items, *categories):
+    return [i for i in items if i["category"] not in categories]
+
+
+def gap_in(answer, gap_id):
+    return next((f for f in answer["fills"] if f["gap_id"] == gap_id), None)
+
+
+def test_the_very_trousers_a_gap_asks_for_fill_it():
+    # without its trousers the demo closet asks for "Smart trousers"; with grey business ones the gap analysis would
+    # call them a thin place resting on the new trousers themselves, which is what having bought them looks like
+    items, wears = demo()
+    a = wouldwork.check(without(items, "trousers"), wears, {"category": "trousers", "color": "grey", "formality": "business"})
+    assert a["verdict"] == "fills_gap"
+    assert gap_in(a, "trousers-business")["filled"] and "Smart trousers" in a["reasons"][0]
+
+
+def test_the_very_coat_a_gap_asks_for_fills_it():
+    items, wears = demo()
+    a = wouldwork.check(without(items, "coat"), wears, {"category": "coat", "color": "navy", "weight_class": "heavyweight"})
+    assert a["verdict"] == "fills_gap"
+    assert gap_in(a, "outer-warm")["gone"] and "A warm winter coat" in a["reasons"][0]
+
+
+def test_another_pair_of_smart_trousers_raises_no_gap_of_its_own(closet):
+    items, wears, before = closet
+    a = check(closet, {"category": "trousers", "color": "navy", "formality": "business"})
+    row = wouldwork.candidate_row(wouldwork.parse_piece({"category": "trousers", "color": "navy", "formality": "business"}))
+    after = {g["name"]: g for g in wouldwork._after(gaps._closet(items + [row], wears))}
+    was = {g["name"]: g["score"] for g in before["gaps"]}
+    light = "Light smart trousers for hot days"
+    assert light not in after or after[light]["score"] <= was.get(light, 0)
+    assert all(wouldwork.CANDIDATE_ID not in g["evidence"]["items"] or "thin_place" not in g["found_by"]
+               or len(g["found_by"]) > 1 for g in after.values())
+    assert a["verdict"] in ("fills_gap", "have_it", "adds")
+
+
+def test_a_closet_short_of_warm_layers_is_not_blamed_on_the_piece():
+    items, wears = demo()
+    bare = without(items, "sweater", "hoodie", "jacket", "coat")
+    assert len(bare) == 22
+    a = wouldwork.check(bare, wears, {"category": "polo", "color": "white", "weight_class": "lightweight"})
+    assert a["verdict"] != "hard_to_wear"
+    assert not any("heavier or bulkier than every layer" in h for h in a["holds_back"])
+    short = [h for h in a["holds_back"] if h.endswith("that is what the closet lacks, not this piece.")]
+    assert short and "short of warm" in short[0]
+
+
+def test_hard_to_wear_names_the_rule_it_was_judged_on(closet):
+    a = check(closet, {"category": "trousers", "color": "purple", "formality": "formal", "pattern": "plaid"})
+    assert a["verdict"] == "hard_to_wear"
+    assert "your other bottoms makes one" in a["reasons"][0]
+    assert a["reasons"][1].startswith("On ") and "breaks a rule" in a["reasons"][1]
+
+
+def test_what_partners_lack_is_said_of_as_many_as_it_is_true_of(closet):
+    a = check(closet, {"category": "trousers", "color": "purple", "formality": "formal", "pattern": "plaid"})
+    tops = next(h for h in a["holds_back"] if "tops go" in h)
+    # several reasons, each counted: never "they are all ..." of the commonest reason alone
+    assert "they are all" not in tops and "three have a strong colour" in tops
+
+
+def test_the_days_it_would_cover_are_days_it_makes_a_good_outfit_on(closet):
+    items, wears, _ = closet
+    for piece in ({"category": "coat", "color": "tan", "formality": "smart_casual", "rain_proof": True},
+                  {"category": "trousers", "color": "navy", "formality": "business"},
+                  {"category": "dress_shoes", "color": "brown", "formality": "business"}):
+        a = check(closet, piece)
+        row = wouldwork.candidate_row(wouldwork.parse_piece(piece))
+        c = gaps._closet(items + [row], wears)
+        good = {wouldwork._day_key(r["day"].as_dict()) for r in wouldwork._try_days(c, c.by_id[wouldwork.CANDIDATE_ID])
+                if r["good"]}
+        for f in a["fills"]:
+            assert {wouldwork._day_key(d) for d in f["days"]} <= good
+
+
+def test_a_disliked_piece_doing_the_same_job_is_named(closet):
+    items, wears, _ = closet
+    orange = dict(next(i for i in items if i["category"] == "shirt"), id="dislikedorange", color="orange",
+                  pattern="floral", formality="casual", rating="dislike", name="Orange floral shirt")
+    a = wouldwork.check(items + [orange], wears, {"category": "shirt", "color": "orange", "pattern": "floral",
+                                                  "formality": "casual"})
+    assert a["verdict"] == "adds" and a["repeats"]["disliked"] == ["dislikedorange"]
+    assert "Nothing you own does quite the same job." not in a["reasons"]
+    assert any("your orange floral shirt" in r.lower() and "dislike" in r for r in a["reasons"])
+
+
 def test_the_same_input_gives_the_same_answer(closet):
     piece = {"category": "dress_shoes", "color": "brown", "formality": "business"}
     first = check(closet, piece)

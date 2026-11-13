@@ -38,13 +38,16 @@ VERDICTS = {
     "too_small": "Not enough in the closet to say",
 }
 ALL_GAPS = 100               # gaps asked of the analysis before and after: every one, so none is cut off the end
-FILL_MIN_DROP = 10           # a gap counts as filled when it goes, or its score (0 to 100) falls by at least this
+FILL_MIN_SHARE = 0.5         # a gap counts as filled when it goes, or the piece makes a good outfit on at least this
+                             # share of the kinds of day it fails on now (days, not scores: see _after)
 GOOD_MIN_DAYS = 2            # a good outfit on fewer kinds of day than this and the piece is hard to wear...
 GOOD_MIN_SHARE = 0.25        # ...or on less than this share of the kinds of day that suit the piece itself
 REPEAT_MIN = 1               # this many owned pieces doing the same job and it is "you have it already"
 HARDLY_WORN_MAX = 1          # worn at most this many times in the log is "hardly worn"...
                              # ...said only when the log has at least gaps.WEAR_MIN_LOG wears, as the gap analysis does
 FEW_PARTNERS_SHARE = 1 / 3   # fewer than this share of the pieces it is worn with go with it, and the answer says so
+COMPARE_MAX = 6              # owned pieces of its kind (most worn first) tried on a day it fails, to tell whether the
+                             # piece or the closet falls short there
 PAIRS_MAX = 6                # the owner's pieces it pairs with best, at most this many
 EXAMPLES_MAX = 3             # example outfits, one per kind of day
 REASONS_MAX = 2              # sentences under the verdict
@@ -231,19 +234,37 @@ def _problems(outfit: dict, cand: outfits.Piece, by_id: Mapping[str, outfits.Pie
     return out
 
 
+def _try_day(engine_items: list[dict], by_id: Mapping[str, outfits.Piece], p: outfits.Piece, d: gaps.Day) -> dict:
+    """The engine, built around one piece, on one kind of day of the gap analysis."""
+    ctx = outfits.Context(d.low_c, d.high_c, d.rain, d.occasion, build_around=p.id)
+    t = outfits._design_temp(ctx)
+    found = outfits.suggest(engine_items, ctx, 1)["outfits"]
+    best = found[0] if found else None
+    problems = _problems(best, p, by_id, ctx, t) if best else ["nothing goes with it."]
+    suits = _suits(p, ctx, t)
+    return {"day": d, "suits": suits, "outfit": best, "good": best is not None and not problems and suits,
+            "problems": problems, "closet": False}
+
+
 def _try_days(c: gaps._Closet, cand: outfits.Piece) -> list[dict]:
     """The engine, built around the piece, on every kind of day of the gap analysis."""
-    out = []
-    for d in gaps.grid():
-        ctx = outfits.Context(d.low_c, d.high_c, d.rain, d.occasion, build_around=CANDIDATE_ID)
-        t = outfits._design_temp(ctx)
-        found = outfits.suggest(c.engine_items, ctx, 1)["outfits"]
-        best = found[0] if found else None
-        problems = _problems(best, cand, c.by_id, ctx, t) if best else ["nothing goes with it."]
-        suits = _suits(cand, ctx, t)
-        out.append({"day": d, "suits": suits, "outfit": best, "good": best is not None and not problems and suits,
-                    "problems": problems})
-    return out
+    return [_try_day(c.engine_items, c.by_id, cand, d) for d in gaps.grid()]
+
+
+def _peers(c: gaps._Closet, cand: outfits.Piece) -> list[outfits.Piece]:
+    """The owned pieces it is judged against: the same kind, else ones worn in the same place, most worn first."""
+    owned = [p for p in c.pieces if p.id != CANDIDATE_ID]
+    same = [p for p in owned if p.category == cand.category] or [p for p in owned if _place(p) == _place(cand)]
+    return sorted(same, key=lambda p: (-c.wear_counts.get(p.id, 0), p.id))
+
+
+def _mark_closet_days(c: gaps._Closet, tried: list[dict], peers: list[outfits.Piece]) -> None:
+    """On each day that suits the piece but has no good outfit with it, mark it the closet's doing ("closet") when
+    none of the owned pieces it is judged against makes a good outfit there either (tried without the piece)."""
+    engine = [e for e in c.engine_items if e.get("id") != CANDIDATE_ID]
+    for r in tried:
+        if r["suits"] and not r["good"] and peers:
+            r["closet"] = not any(_try_day(engine, c.by_id, q, r["day"])["good"] for q in peers[:COMPARE_MAX])
 
 
 def _partners(tried: list[dict]) -> list[str]:
@@ -281,21 +302,51 @@ def _as_day(d: Mapping) -> gaps.Day:
     return gaps.Day(d["temperature"], d["low_c"], d["high_c"], d["rain"], d["occasion"])
 
 
-def _fills(before: Mapping, after: Mapping) -> list[dict]:
-    """Gaps that go away or get smaller with the piece, most helped first."""
-    after_by_id = {g["id"]: g for g in after.get("gaps", [])}
-    after_by_name = {(g["look_for"]["category"], g["name"]): g for g in after.get("gaps", [])}
+DAY_WAYS = ("days", "thin_place")  # the gap analysis's ways that rest on kinds of day; the others rest on the pieces
+
+
+def _after(c: gaps._Closet) -> list[dict]:
+    """The gap analysis with the piece in the closet (`c`), as `gaps.find_gaps` makes it, except that a thin place
+    resting on the piece itself is not a finding: "every outfit for these days rests on it" is what buying the piece
+    the gap asked for looks like, not a gap it leaves open. So the very piece a gap asks for fills it."""
+    failures, thin, used = gaps._run_grid(c)
+    thin = [x for x in thin if x[0].id != CANDIDATE_ID]
+    wear_found, _notes = gaps._wear_findings(c)
+    findings = (gaps._day_findings(failures) + gaps._thin_findings(thin) + gaps._orphan_findings(c, used) + wear_found
+                + gaps._basic_findings(c))
+    return gaps._merge(findings, c)
+
+
+def _fills(before: Mapping, after: list[dict], good: set[tuple], closet: set[tuple]) -> list[dict]:
+    """Gaps the piece fills or helps with, most helped first.
+
+    Kinds of day, not scores: the days a gap fails on now are compared with the days it fails on with the piece
+    (`after`). The gap's other findings (a basic, an orphan, the wear log) are settled when they are gone. `filled`
+    is the verdict's test: at least FILL_MIN_SHARE of its days fail no longer and on each of them the piece makes a
+    good outfit, or nothing of its kind does (`closet`: the closet falls short there, not the piece); a gap with no
+    days is filled when nothing of it is left. The days named (`days`) are only those that fail no longer and on which the piece itself makes a good outfit, so
+    "covering ... that nothing covers now" is never said of a day its outfit breaks a rule on.
+    """
+    after_by_id = {g["id"]: g for g in after}
+    after_by_name = {(g["look_for"]["category"], g["name"]): g for g in after}
     out = []
     for g in before.get("gaps", []):
         a = after_by_id.get(g["id"]) or after_by_name.get((g["look_for"]["category"], g["name"]))
-        score_after = a["score"] if a else 0
-        if g["score"] - score_after < FILL_MIN_DROP:
+        days = g["evidence"]["days"] if set(g.get("found_by", [])) & set(DAY_WAYS) else []
+        still = {_day_key(d) for d in a["evidence"]["days"]} if a and set(a["found_by"]) & set(DAY_WAYS) else set()
+        freed = [d for d in days if _day_key(d) not in still]
+        covered = [d for d in freed if _day_key(d) in good]
+        settled = [w for w in g.get("found_by", []) if w not in DAY_WAYS and (a is None or w not in a["found_by"])]
+        if not freed and not settled:
             continue
-        still = {_day_key(d) for d in (a["evidence"]["days"] if a else [])}
-        covered = [d for d in g["evidence"]["days"] if _day_key(d) not in still]
-        out.append({"gap_id": g["id"], "name": g["name"], "score_before": g["score"], "score_after": score_after,
-                    "gone": a is None, "days": covered, "found_by": list(g.get("found_by", []))})
-    out.sort(key=lambda f: (-(f["score_before"] - f["score_after"]), f["name"]))
+        open_ways = [w for w in g.get("found_by", []) if w not in DAY_WAYS and w not in settled]
+        gone = len(freed) == len(days) and not open_ways
+        credited = [d for d in freed if _day_key(d) in good or _day_key(d) in closet]
+        filled = len(credited) >= FILL_MIN_SHARE * len(days) if days else gone
+        out.append({"gap_id": g["id"], "name": g["name"], "score_before": g["score"],
+                    "score_after": 0 if gone or a is None else a["score"], "gone": gone, "filled": filled,
+                    "days": covered, "of_days": len(days), "found_by": list(g.get("found_by", []))})
+    out.sort(key=lambda f: (not f["filled"], -len(f["days"]), -(f["score_before"] - f["score_after"]), f["name"]))
     return out
 
 
@@ -312,11 +363,21 @@ def _names(ps: list[outfits.Piece]) -> str:
 def _repeats(c: gaps._Closet, cand: outfits.Piece) -> dict:
     same = [p for p in c.pieces if p.id != CANDIDATE_ID and _same_job(p, cand)]
     same.sort(key=lambda p: (-c.wear_counts.get(p.id, 0), p.id))
+    disliked = sorted((p for p in c.disliked if _same_job(p, cand)), key=lambda p: p.id)
     log = c.wear_total >= gaps.WEAR_MIN_LOG
     items = [{"id": p.id, "worn": c.wear_counts.get(p.id, 0),
               "hardly_worn": log and c.wear_counts.get(p.id, 0) <= HARDLY_WORN_MAX} for p in same]
+    out = {"items": items, "disliked": [p.id for p in disliked], "text": None, "disliked_text": None}
+    if disliked:
+        one = len(disliked) == 1
+        out["disliked_text"] = (f"{'It does' if one else 'They do'} the same job as {_names(disliked)}, "
+                                f"but you rated {'it' if one and not gaps._plural(disliked[0]) else 'them'} dislike.")
+        if not same:
+            out["disliked_text"] = (f"The only {'piece' if one else 'pieces'} you own doing the same job "
+                                    f"{'is' if one else 'are'} {_names(disliked)}, and you rated "
+                                    f"{'it' if one and not gaps._plural(disliked[0]) else 'them'} dislike.")
     if not same:
-        return {"items": [], "text": None}
+        return out
     n = len(same)
     hardly = sum(1 for i in items if i["hardly_worn"])
     text = f"You have {_count(n)} like it ({_names(same)})"
@@ -330,11 +391,47 @@ def _repeats(c: gaps._Closet, cand: outfits.Piece) -> dict:
         text += f", and {_count(hardly)} of them {'is' if hardly == 1 else 'are'} hardly worn."
     else:
         text += ", and all of them are worn."
-    return {"items": items, "text": text}
+    out["text"] = text
+    return out
 
 
-def _holds_back(c: gaps._Closet, cand: outfits.Piece, tried: list[dict], fills: list[dict], before: Mapping) -> list[str]:
-    """The engine's own rules where the piece rarely fits."""
+PAIR_REASONS = {  # why a piece it would be worn with does not go with it, as the engine's rules say
+    "formality": ("is too far from it in formality", "are too far from it in formality"),
+    "colour": ("has a strong colour that competes with it", "have a strong colour that competes with it"),
+    "pattern": ("is patterned, and the two patterns fight", "are patterned, and the two patterns fight"),
+    "layers": ("is heavier or bulkier than it, so it cannot go under it",
+               "are heavier or bulkier than it, so they cannot go under it"),
+}
+
+
+def _pair_reason(s: str) -> str:
+    return "layers" if s == "layers" else "formality" if "dressier" in s else "colour" if "colour" in s else "pattern"
+
+
+def _most_common(rows: list[dict]) -> tuple[str, list[gaps.Day]]:
+    counts: dict[str, list[gaps.Day]] = {}
+    for r in rows:
+        counts.setdefault(r["problems"][0], []).append(r["day"])
+    return max(counts.items(), key=lambda x: (len(x[1]), x[0]))
+
+
+def _lower(text: str) -> str:
+    return text[:1].lower() + text[1:]
+
+
+def _others(cand: outfits.Piece, peers: list[outfits.Piece]) -> tuple[str, bool]:
+    """The pieces it is judged against, in words, and whether they read as plural."""
+    noun = gaps.PLACE_NOUN.get(_place(cand), ("accessory", "accessories"))[1]
+    if len(peers) > COMPARE_MAX:
+        return f"your {_count(COMPARE_MAX)} most worn other {noun}", True
+    if len(peers) > 1:
+        return f"your other {noun}", True
+    return gaps._your(peers[0]), gaps._plural(peers[0])
+
+
+def _holds_back(c: gaps._Closet, cand: outfits.Piece, tried: list[dict], fills: list[dict], before: Mapping,
+                peers: list[outfits.Piece]) -> list[str]:
+    """The engine's own rules where the piece rarely fits. Each sentence is true of every piece or day it names."""
     out = []
     place = _place(cand)
     owned = [p for p in c.pieces if p.id != CANDIDATE_ID]
@@ -344,7 +441,7 @@ def _holds_back(c: gaps._Closet, cand: outfits.Piece, tried: list[dict], fills: 
         if not partners:
             out.append(f"You have no {noun} to wear it with.")
             continue
-        reasons = {"formality": 0, "colour": 0, "pattern": 0, "layers": 0}
+        why: dict[str, int] = {}
         fits = 0
         for q in partners:
             problems = gaps._pair_problems(cand, place, q, need) if place != "accessory" else \
@@ -352,20 +449,31 @@ def _holds_back(c: gaps._Closet, cand: outfits.Piece, tried: list[dict], fills: 
             if need == "base" and place in ("mid", "outer") and not outfits._layers_ok(
                     q, cand if place == "mid" else None, cand if place == "outer" else None):
                 problems = problems + ["layers"]
-            for s in problems:
-                key = "layers" if s == "layers" else "formality" if "dressier" in s else "colour" if "colour" in s else "pattern"
-                reasons[key] += 1
+            for key in sorted({_pair_reason(s) for s in problems}):
+                why[key] = why.get(key, 0) + 1
             fits += not problems
         if fits < FEW_PARTNERS_SHARE * len(partners):
-            reason = max(reasons, key=lambda r: (reasons[r], r))
-            words = {"formality": "too far from it in formality", "colour": "a strong colour that competes with it",
-                     "pattern": "patterned, and the two patterns fight",
-                     "layers": "heavier or bulkier than it, so they cannot go under it"}[reason]
+            failing = len(partners) - fits
+            parts = []
+            for key in sorted(why, key=lambda k: (-why[k], k)):
+                n = why[key]
+                if n == failing:
+                    verb, rest = PAIR_REASONS[key][1].split(" ", 1)
+                    parts.append(f"they {verb} all {rest}" if fits == 0 else f"the rest {verb} {rest}")
+                else:
+                    parts.append(f"{_count(n)} {PAIR_REASONS[key][0 if n == 1 else 1]}")
             only = f"Only {_count(fits)}" if fits else "None"
             out.append(f"{only} of your {_count(len(partners))} {noun} go{'es' if fits == 1 else ''} with it: "
-                       f"{'most are' if fits else 'they are all'} {words}.")
+                       f"{gaps._join(parts)}.")
     over = {"base": ("mid", "outer"), "mid": ("outer",)}.get(place, ())
-    layers = [(q, pl) for q in owned for pl in over if gaps._fills(q, pl)]
+
+    def shape_allows(q: outfits.Piece, pl: str) -> bool:
+        # the engine's rules about which kinds go over which, which are not about weight
+        if pl == "mid" and q.category == "shirt" and cand.category != "tee":
+            return False
+        return not (pl == "mid" and q.category == "jacket")
+
+    layers = [(q, pl) for q in owned for pl in over if gaps._fills(q, pl) and shape_allows(q, pl)]
 
     def goes_over(q: outfits.Piece, pl: str) -> bool:
         if place == "mid":
@@ -377,7 +485,7 @@ def _holds_back(c: gaps._Closet, cand: outfits.Piece, tried: list[dict], fills: 
     suits = [r for r in tried if r["suits"]]
     if not suits:
         out.append("It does not suit any of the kinds of day the closet is tried on.")
-    elif not fills:
+    elif not any(f["filled"] for f in fills):
         short = {d["temperature"] for g in before.get("gaps", []) if "days" in g.get("found_by", [])
                  for d in g["evidence"]["days"]}
         own = {r["day"].band for r in suits}
@@ -385,13 +493,16 @@ def _holds_back(c: gaps._Closet, cand: outfits.Piece, tried: list[dict], fills: 
             bands = [b for b, _, _ in gaps.TEMP_BANDS]
             out.append(f"Your closet is short on {gaps._join(sorted(short, key=bands.index))} days, and this suits "
                        f"{gaps._join(sorted(own, key=bands.index))} ones.")
-    bad = [r for r in suits if not r["good"]]
-    if bad and len(bad) * 2 >= len(suits):
-        counts: dict[str, list[gaps.Day]] = {}
-        for r in bad:
-            counts.setdefault(r["problems"][0], []).append(r["day"])
-        text, days = max(counts.items(), key=lambda x: (len(x[1]), x[0]))
-        out.append(f"On {gaps._days_words(days)} the best outfit with it breaks a rule: {text[:1].lower()}{text[1:]}")
+    mine = [r for r in suits if not r["good"] and not r["closet"]]
+    if mine and len(mine) * 2 >= len(suits):
+        text, days = _most_common(mine)
+        out.append(f"On {gaps._days_words(days)} the best outfit with it breaks a rule: {_lower(text)}")
+    closet = [r for r in suits if r["closet"]]
+    if closet and len(closet) * 2 >= len(suits):
+        text, days = _most_common(closet)
+        who, many = _others(cand, peers)
+        out.append(f"On {gaps._days_words(days)} the best outfit with it breaks a rule ({_lower(text).rstrip('.')}), "
+                   f"and {who} {'do' if many else 'does'} no better there: that is what the closet lacks, not this piece.")
     return out
 
 
@@ -434,11 +545,14 @@ def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, befo
 
     if before is None:
         before = gaps.find_gaps(items, wears, {"max_gaps": ALL_GAPS})
-    after = gaps.find_gaps(items + [row], wears, {"max_gaps": ALL_GAPS})
-    fills = _fills(before, after)
     tried = _try_days(c, cand)
+    peers = _peers(c, cand)
+    _mark_closet_days(c, tried, peers)
     good = [r for r in tried if r["good"]]
     suits = [r for r in tried if r["suits"]]
+    mine = [r for r in suits if not r["good"] and not r["closet"]]
+    fills = _fills(before, _after(c), {_day_key(r["day"].as_dict()) for r in good},
+                   {_day_key(r["day"].as_dict()) for r in tried if r["closet"]})
     partners = _partners(tried)[:PAIRS_MAX]
     goes_text = None
     if good:
@@ -448,11 +562,14 @@ def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, befo
     answer["goes_with"].update(days=len(good), suits=len(suits), items=partners, examples=_examples(tried), text=goes_text)
     answer["fills"] = fills
     answer["checked"]["days"] = len(tried)
-    holds = _holds_back(c, cand, tried, fills, before)
+    holds = _holds_back(c, cand, tried, fills, before, peers)
     answer["holds_back"] = holds
 
-    hard = len(good) < GOOD_MIN_DAYS or len(good) < GOOD_MIN_SHARE * len(suits)
-    real = [f for f in fills if set(f["found_by"]) - WEAR_ONLY]
+    # Judged only on the days that suit it, and only where it does worse than the owned pieces of its kind: a day
+    # nothing of its kind dresses well is the closet's shortfall, said as such, not the piece's.
+    fair = len(good) + len(mine)
+    hard = not suits or bool(mine) and (len(good) < GOOD_MIN_DAYS or len(good) < GOOD_MIN_SHARE * fair)
+    real = [f for f in fills if f["filled"] and set(f["found_by"]) - WEAR_ONLY]
     if real and not hard:
         verdict = "fills_gap"
     elif hard:
@@ -470,18 +587,31 @@ def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, befo
         if top["days"]:
             fill_text += f", covering {gaps._days_words(_as_day(d) for d in top['days'])} that nothing covers now"
         fill_text += f", and {_count(more)} more gap{'' if more == 1 else 's'}." if more else "."
+    closet_text = next((h for h in holds if h.endswith("not this piece.")), None)
     if verdict == "fills_gap":
-        reasons = [fill_text, goes_text]
+        reasons = [fill_text, goes_text or closet_text]
     elif verdict == "hard_to_wear":
-        if not good:
-            first = "Nothing you own makes a good outfit with it on any kind of day the closet is tried on."
+        if not suits:
+            reasons = ["It does not suit any of the kinds of day the closet is tried on."]
         else:
-            first = (f"It makes a good outfit on only {_count(len(good))} of the {_count(len(suits))} kinds of day "
-                     f"that suit it.")
-        reasons = [first, holds[0] if holds else fill_text]
+            who, many = _others(cand, peers) if peers else ("", False)
+            if not good:
+                first = f"Nothing you own makes a good outfit with it on any of the {_count(fair)} kinds of day that suit it"
+            else:
+                first = f"It makes a good outfit on only {_count(len(good))} of the {_count(fair)} kinds of day that suit it"
+            if peers:
+                # many: "at least one of your other tops makes one"; one piece: "your grey trousers make one"
+                subject = f"at least one of {who}" if many else who
+                verb = "make" if not many and gaps._plural(peers[0]) else "makes"
+                first += (f"; on the other {_count(len(mine))}, {subject} {verb} one." if good else
+                          f", though {subject} {verb} one on each of them.")
+            else:
+                first += "."
+            text, days = _most_common(mine)
+            reasons = [first, f"On {gaps._days_words(days)} the best outfit with it breaks a rule: {_lower(text)}"]
     elif verdict == "have_it":
-        reasons = [repeats["text"], goes_text]
+        reasons = [repeats["text"], goes_text or closet_text]
     else:
-        reasons = [goes_text, "Nothing you own does quite the same job."]
+        reasons = [goes_text or closet_text, repeats["disliked_text"] or "Nothing you own does quite the same job."]
     answer.update(verdict=verdict, verdict_words=VERDICTS[verdict], reasons=[r for r in reasons if r][:REASONS_MAX])
     return answer

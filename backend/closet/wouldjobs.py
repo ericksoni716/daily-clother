@@ -4,22 +4,22 @@ A check is started with a description typed by hand or with a photo. A photo
 is described by the tagger through the same routes as an item (the Claude
 plan first, the API key only when it is switched on and under its monthly
 limit, each call recorded with the purpose PURPOSE). The photo is never added
-to the closet: it waits in a folder of its own (not part of any backup) only
-until its check is answered or fails, then it is deleted, and it is never
-logged. The demo closet is never sent to Claude.
+to the closet and never written to disk: it is held in memory, made no larger
+than the closet keeps a photo, only until its check is answered or fails, and
+it is never logged. The demo closet is never sent to Claude.
 
-Checks live in this process's memory (at most MAX_CHECKS, the oldest
-dropped) and are gone when the program stops.
+Checks live in this process's memory and are gone when the program stops. At
+most MAX_CHECKS are kept: a new one drops the oldest finished one, never one
+that is still running; while MAX_CHECKS are running a new one is refused.
 """
 from __future__ import annotations
 
 import logging
-import shutil
 import threading
+import traceback
 import uuid
 from collections import OrderedDict
 from collections.abc import Callable
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
@@ -33,8 +33,7 @@ from .tagger.tagging import CapReached, RouteUnavailable, TaggingError
 log = logging.getLogger("closet.wouldjobs")
 
 PURPOSE = "would_this_work"   # how the spending record names a photo described for a check
-MAX_CHECKS = 5                # checks kept; a new one beyond this drops the oldest
-FOLDER = "checking"           # under the data folder: photos waiting to be described, nothing else
+MAX_CHECKS = 5                # checks kept, and the most running at once (each runs on a thread of its own)
 
 BY_HAND = "Describe it by hand instead."
 DEMO = ("The demo closet never sends anything to Claude, so a photo cannot be described here. " + BY_HAND)
@@ -43,6 +42,7 @@ NO_ROUTE = ("Claude cannot be reached right now: your Claude plan is not signed 
 NOT_UNDERSTOOD = "Claude could not describe the piece in this photo. Try a clearer photo, or describe it by hand."
 UNKNOWN_KIND = "Claude could not tell what kind of piece this is. " + BY_HAND
 FAILED = "Something went wrong while checking this piece. Try again."
+BUSY = (f"Closet is already checking {MAX_CHECKS} pieces. Wait for one of them to finish, then try again.")
 FORGOTTEN = "This check is not known. Checks are forgotten when Closet is closed; start a new one."
 
 # the closet to check against, for a profile: (item rows, wear log, gaps.find_gaps of it with ALL_GAPS)
@@ -50,7 +50,7 @@ Closet = Callable[[str], tuple[list[dict], list[dict], dict]]
 
 
 class Refused(Exception):
-    """A photo check that cannot start, with the sentence to show."""
+    """A check that cannot start, with the sentence to show."""
 
 
 def piece_from_tags(tags) -> dict:
@@ -78,14 +78,11 @@ class Checks:
         self.routes, self.tagger, self.cutter, self.cutter_ready = routes, tagger, cutter, cutter_ready
         self._checks: OrderedDict[str, dict] = OrderedDict()
         self._lock = threading.Lock()
-        self.folder = cfg.data_dir / FOLDER
-        # a photo left by a check the program did not finish (it was closed or crashed) is not kept either
-        shutil.rmtree(self.folder, ignore_errors=True)
 
     # ------------------------------------------------------------- starting
     def start_by_hand(self, data: object) -> dict:
         piece = wouldwork.parse_piece(data)   # PieceError: the caller answers 422
-        check = self._new("by_hand", "checking", piece)
+        check = self._new("by_hand", "checking", piece)   # Refused: the caller answers 409
         self._run(check["id"], lambda: piece, self.state.get("profile"))
         return self.get(check["id"])
 
@@ -93,14 +90,18 @@ class Checks:
         profile = self.state.get("profile")
         if profile == "demo":
             raise Refused(DEMO)
-        images.decode(data)   # ImageError: the caller answers 400
+        img = images.decode(data)   # ImageError: the caller answers 400
+        del data
+        img.thumbnail((images.MAX_EDGE, images.MAX_EDGE))   # no larger than the closet keeps a photo
         if not self.routes():
             raise Refused(NO_ROUTE)
         check = self._new("photo", "describing", None)
-        self.folder.mkdir(parents=True, exist_ok=True)
-        path = self.folder / f"{check['id']}.photo"
-        path.write_bytes(data)
-        self._run(check["id"], lambda: self._describe(check["id"], path), profile, path)
+        held = [img]   # the photo, held only until the check finishes; emptied on every way out
+
+        def describe() -> dict:
+            return self._describe(held[0])
+
+        self._run(check["id"], describe, profile, held)
         return self.get(check["id"])
 
     def get(self, check_id: str) -> dict | None:
@@ -114,9 +115,14 @@ class Checks:
                  "piece_words": wouldwork.describe(piece) if piece else None, "answer": None, "message": None,
                  "by_hand": False, "started_at": db.now(), "finished_at": None}
         with self._lock:
+            if sum(1 for c in self._checks.values() if c["finished_at"] is None) >= MAX_CHECKS:
+                raise Refused(BUSY)
             self._checks[check["id"]] = check
             while len(self._checks) > MAX_CHECKS:
-                self._checks.popitem(last=False)
+                oldest = next((k for k, c in self._checks.items() if c["finished_at"] is not None), None)
+                if oldest is None:   # cannot happen: fewer than MAX_CHECKS are running
+                    break
+                del self._checks[oldest]
         return check
 
     def _set(self, check_id: str, **changes) -> None:
@@ -124,7 +130,7 @@ class Checks:
             if check_id in self._checks:
                 self._checks[check_id].update(changes)
 
-    def _run(self, check_id: str, piece: Callable[[], dict], profile: str, photo: Path | None = None) -> None:
+    def _run(self, check_id: str, piece: Callable[[], dict], profile: str, photo: list | None = None) -> None:
         def work() -> None:
             try:
                 p = piece()
@@ -141,18 +147,23 @@ class Checks:
                 self._set(check_id, state="failed", message=str(e), by_hand=True, finished_at=db.now())
             except (TaggingError, images.ImageError):
                 self._set(check_id, state="failed", message=NOT_UNDERSTOOD, by_hand=True, finished_at=db.now())
-            except Exception:   # never the photo or the description in the log: only that a check failed
-                log.exception("a would-this-work check failed")
+            except Exception:   # never the photo or the description in the log: only that a check failed, and where
+                # the trace as text, so the log keeps no reference to the frames that held the photo
+                log.error("a would-this-work check failed\n%s", traceback.format_exc())
                 self._set(check_id, state="failed", message=FAILED, finished_at=db.now())
             finally:
                 if photo is not None:
-                    photo.unlink(missing_ok=True)
+                    photo.clear()
 
-        threading.Thread(target=work, name="would-this-work", daemon=True).start()
+        try:
+            threading.Thread(target=work, name="would-this-work", daemon=True).start()
+        except Exception:
+            if photo is not None:
+                photo.clear()
+            log.exception("a would-this-work check could not start")
+            self._set(check_id, state="failed", message=FAILED, finished_at=db.now())
 
-    def _describe(self, check_id: str, path: Path) -> dict:
-        img = images.decode(path.read_bytes())
-        img.thumbnail((images.MAX_EDGE, images.MAX_EDGE))
+    def _describe(self, img: Image.Image) -> dict:
         front = None
         if self.cutter_ready():
             try:
@@ -196,6 +207,8 @@ def router(checks: Checks, protected: list) -> APIRouter:
             return checks.start_by_hand(body["piece"])
         except wouldwork.PieceError as e:
             raise HTTPException(422, str(e)) from None
+        except Refused as e:
+            raise HTTPException(409, str(e)) from None
 
     @r.get("/api/would-this-work/{check_id}")
     def get(check_id: str):

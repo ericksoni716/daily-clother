@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type SVGProps } from 'react';
 import { api, ApiError } from '../api';
-import { ChipGroup } from '../components/Chips';
+import { ChipGroup } from '../components/ui/Chips';
 import { CloudOffIcon, HangerIcon } from '../components/Icons';
 import { FIELD_TITLES, label } from '../labels';
 import { notReadyText, progressText, reviewChanges, reviewRows, skippedText, sureText, type ReviewRow } from '../review';

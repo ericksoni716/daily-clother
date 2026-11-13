@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { api, ApiError } from '../api';
-import { ChipGroup } from '../components/Chips';
+import { ChipGroup } from '../components/ui/Chips';
 import { CameraIcon, CheckIcon, HangerIcon, ImagesIcon, PlusIcon, WarnIcon } from '../components/Icons';
 import { itemName, Pic, Pieces } from '../components/ItemPic';
 import type { Wish } from '../gaps';

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
-import { ChipGroup } from '../components/Chips';
+import { ChipGroup } from '../components/ui/Chips';
 import { FixDetails, ItemHistory } from '../components/FixDetails';
 import { BackIcon, HangerIcon, WarnIcon } from '../components/Icons';
 import { formatPrice, label, parsePrice, ratingLabel, SWATCH } from '../labels';

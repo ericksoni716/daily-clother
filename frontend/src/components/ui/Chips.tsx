@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { label as labelFor, FIELD_TITLES, SWATCH } from '../labels';
+import { label as labelFor, FIELD_TITLES, SWATCH } from '../../labels';
 
 interface Props {
   field: string;

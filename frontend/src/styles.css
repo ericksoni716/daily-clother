@@ -332,6 +332,33 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .notice-warn { background: var(--warn-soft); }
 .notice-warn > svg { color: var(--warn); }
 
+.notice-error { background: var(--danger-soft); }
+.notice-error > svg { color: var(--danger); }
+.notice.has-action { align-items: center; flex-wrap: wrap; }
+.notice-text { flex: 1 1 14rem; min-width: 0; }
+.notice-action { flex: none; display: flex; gap: 8px; }
+
+/* ---------------------------------------------------------------- shared components (components/ui) */
+/* :where() keeps these at no weight, so a screen's own class can still set size and padding. */
+:where(.card) {
+  min-width: 0; padding: 16px; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+}
+:where(.section) { display: flex; flex-direction: column; gap: 12px; }
+.section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.section-title { min-width: 0; }
+.section-head h2 { margin: 0; }
+.section-hint { margin: 4px 0 0; }
+:where(.item-thumb) {
+  position: relative; display: block; flex: none; border-radius: var(--radius-small); background: var(--card); overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--card-edge);
+}
+:where(.item-thumb) > :where(img, .pic-placeholder) { position: absolute; inset: 0; width: 100%; height: 100%; }
+.page-heading { min-width: 0; }
+.page-back { margin-left: -8px; gap: 4px; }
+.page-back svg { width: 20px; height: 20px; }
+.page-subtitle { margin: 4px 0 0; }
+
 /* ---------------------------------------------------------------- master / detail */
 @media (min-width: 1000px) {
   .master-detail { display: grid; grid-template-columns: minmax(0, 1fr) clamp(380px, 34vw, 500px); gap: 32px; align-items: start; }

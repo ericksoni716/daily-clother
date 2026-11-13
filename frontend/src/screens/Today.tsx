@@ -79,8 +79,8 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
 
   const loadRecent = useCallback(() => {
     // the same first page as the Worn screen, so both read (and refresh) one saved copy for offline
-    void refreshSaved().then((p) => p && setRecent(p.outfits));
-  }, []);
+    void refreshSaved(profile).then((p) => setRecent(p ? p.outfits : null));
+  }, [profile]);
   useEffect(() => {
     loadRecent();
   }, [loadRecent, profile]);
@@ -325,7 +325,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
           <RateOutfit outfit={question} offline={offline} compact onRated={(o) => {
             setRated(o);
             setRecent((l) => (l ?? []).map((x) => (x.id === o.id ? o : x)));
-            void refreshSaved();
+            void refreshSaved(profile);
           }} />
           {rated && (
             <div className="row">

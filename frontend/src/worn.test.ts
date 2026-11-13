@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { dismiss, loadDismissed, pendingQuestion, pieceName, questionFor, ratingLabel, ratingSummary, reasonLabel, REASONS, wornIds, type WornOutfit } from './worn';
+import { forgetSaved, keptFor, type WornToday } from './today';
+import {
+  dismiss, loadDismissed, loadSavedWorn, pendingQuestion, pieceName, questionFor, ratingLabel, ratingSummary, reasonLabel, REASONS,
+  saveWorn, wornIds, type WornOutfit,
+} from './worn';
 
 const worn = (id: string, worn_on: string, over: Partial<WornOutfit> = {}): WornOutfit => ({
   id, worn_on, recorded_by: 'today', context: null, score: null, reasons: [], warnings: [], rating: null, rating_reasons: [],
@@ -9,6 +13,9 @@ const worn = (id: string, worn_on: string, over: Partial<WornOutfit> = {}): Worn
 
 class Mem {
   data = new Map<string, string>();
+  get length() { return this.data.size; }
+  key(i: number) { return [...this.data.keys()][i] ?? null; }
+  removeItem(k: string) { this.data.delete(k); }
   getItem(k: string) { return this.data.get(k) ?? null; }
   setItem(k: string, v: string) { this.data.set(k, v); }
 }
@@ -51,5 +58,38 @@ describe('worn outfits in plain words', () => {
     dismiss('demo', 'a', kv);
     expect(loadDismissed('demo', kv)).toEqual(['a']);
     expect(loadDismissed('main', kv)).toEqual([]);
+  });
+});
+
+describe('the worn list saved for offline', () => {
+  it('keeps one copy per closet, and logout forgets it', () => {
+    const kv = new Mem();
+    saveWorn('demo', { outfits: [worn('d1', '2026-11-12')], next: null }, kv, new Date('2026-11-13T08:00:00Z'));
+    expect(loadSavedWorn('demo', kv)?.page.outfits.map((o) => o.id)).toEqual(['d1']);
+    expect(loadSavedWorn('demo', kv)?.saved_at).toBe('2026-11-13T08:00:00.000Z');
+    expect(loadSavedWorn('main', kv)).toBeNull();
+    saveWorn('main', { outfits: [], next: null }, kv);
+    expect(loadSavedWorn('main', kv)?.page.outfits).toEqual([]);
+    expect(loadSavedWorn('demo', kv)?.page.outfits.map((o) => o.id)).toEqual(['d1']);
+    forgetSaved(kv);
+    expect(loadSavedWorn('demo', kv)).toBeNull();
+    expect(loadSavedWorn('main', kv)).toBeNull();
+  });
+
+  it('does not overwrite what Today keeps as worn today', () => {
+    const kv = new Mem();
+    const today = { day: '2026-11-13', worn_on: '2026-11-13', ids: ['t'], recorded: ['t'] } as unknown as WornToday;
+    keptFor('main', kv).setWorn(today);
+    saveWorn('main', { outfits: [worn('w1', '2026-11-13')], next: null }, kv);
+    expect(keptFor('main', kv).worn('2026-11-13')).toEqual(today);
+    expect(loadSavedWorn('main', kv)?.page.outfits.map((o) => o.id)).toEqual(['w1']);
+  });
+
+  it('ignores a damaged copy', () => {
+    const kv = new Mem();
+    kv.setItem('closet-today-saved:worn-list:main', '{not json');
+    expect(loadSavedWorn('main', kv)).toBeNull();
+    kv.setItem('closet-today-saved:worn-list:main', JSON.stringify({ saved_at: 'x', page: {} }));
+    expect(loadSavedWorn('main', kv)).toBeNull();
   });
 });

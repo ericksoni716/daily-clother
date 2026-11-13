@@ -111,6 +111,33 @@ test('worn: offline the saved list is shown as last changed, and rating says why
   await expect(cards(page).first().getByRole('button', { name: 'Wear this again' })).toBeDisabled();
 });
 
+test('worn: the list saved offline belongs to its closet', async ({ page, context }) => {
+  await login(page);
+  await useProfile(page, 'demo');
+  await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 15_000 });
+  await page.goto('/today/worn');
+  await expect(cards(page).first()).toBeVisible();
+  await page.waitForLoadState('networkidle');
+
+  // switch to the owner's closet without opening Worn there, then lose the connection
+  await useProfile(page, 'main');
+  await context.setOffline(true);
+  await page.goto('/today/worn');
+  await expect(page.getByRole('heading', { name: 'Worn', exact: true })).toBeVisible();
+  await expect(cards(page)).toHaveCount(0);
+  await expect(page.getByText("You're offline, and the worn outfits were not saved on this device yet.")).toBeVisible();
+  await page.goto('/today');
+  await expect(page.locator('#today-title')).toBeVisible();
+  await expect(question(page)).toHaveCount(0);
+
+  // the demo closet's own copy is still there for it
+  await context.setOffline(false);
+  await useProfile(page, 'demo');
+  await context.setOffline(true);
+  await page.goto('/today/worn');
+  await expect(cards(page).first()).toBeVisible();
+});
+
 test('worn: the list fits a phone', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await fakeWeather(page);

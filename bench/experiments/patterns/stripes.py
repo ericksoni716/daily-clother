@@ -924,3 +924,68 @@ def compose_placed(cut, body, ground, log=print, step=0.25):
             out.append([h, step])
     log(f"  {int(plain.mean() * 100)}% of the length is plain ground; {len(out)} bands")
     return [(h, n / span) for h, n in out]
+
+
+def sleeves_carry_bands(cut, band_lab, ground_lab, regions, near=14.0, log=print, ratio=0.6):
+    """Whether placed bands continue onto the sleeves: the share of sleeve pixels nearer a band colour than any
+    ground colour, against the same share on the body; they continue when the sleeves carry at least `ratio` of
+    the body's share (a band edge leaking into a slightly misplaced sleeve region stays well under). `regions`
+    is (body, sleeves) from regions_from_landmarks; None (landmarks not trusted) gives None: not known."""
+    if regions is None:
+        return None
+    body, sleeves = regions
+    if sleeves.sum() < 200 or body.sum() < 200:
+        return None
+    lab = cv2.cvtColor(np.asarray(cut.convert("RGB")), cv2.COLOR_RGB2LAB).astype(np.float32)
+    w = np.array([0.6, 1, 1])
+    def share(sel):
+        px = lab[sel]
+        db = np.min(np.linalg.norm((px[:, None] - band_lab[None]) * w, axis=2), 1)
+        dg = np.min(np.linalg.norm((px[:, None] - ground_lab[None]) * w, axis=2), 1)
+        return float(((db < dg) & (db < near)).mean())
+    sb, ss = share(body), share(sleeves)
+    log(f"  band colours: {sb:.1%} of the body, {ss:.1%} of the sleeves")
+    return ss >= ratio * sb
+
+
+def band_colours(body_yarns_hex, ground_hex, min_d=18.0):
+    """The placed bands' own colours: the body's colours that no ground colour is close to."""
+    tolab = lambda hs: cv2.cvtColor(np.array([[[int(h[i:i + 2], 16) for i in (1, 3, 5)] for h in hs]], np.uint8),
+                                    cv2.COLOR_RGB2LAB)[0].astype(np.float32)
+    b, g = tolab(body_yarns_hex), tolab(ground_hex)
+    chroma = lambda c: float(np.hypot(c[..., 1] - 128, c[..., 2] - 128))
+    g_chroma = max(chroma(c) for c in g)
+    # a placed band is a colour of its own: far from every ground colour and clearly more colourful than the
+    # ground (the body's palette also holds the greys of the ground's fine stripes, which are not bands)
+    keep = [c for c in b if np.min(np.linalg.norm((g - c) * np.array([0.6, 1, 1]), axis=1)) > min_d
+            and chroma(c) > g_chroma + 10]
+    return (np.array(keep, np.float32) if keep else None), g
+
+
+def regions_from_landmarks(cut, lm, scale=1.0, edge_frac=0.06):
+    """Body and sleeves from Claude's shoulder and underarm points: a sleeve is the garment beyond the line from
+    its shoulder point to its underarm point. Each underarm point must sit at the garment's outline (within
+    edge_frac of its width of the background, at that height), or the answer is not trusted: None."""
+    m = mask_of(cut, thresh=128)
+    H, W = m.shape
+    gw = np.ptp(np.where(m.any(0))[0])
+    P = lambda k: (lm[k]["x"] * scale, lm[k]["y"] * scale)
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    mu = m.astype(np.uint8)
+    edge_dist = np.minimum(cv2.distanceTransform(mu, cv2.DIST_L2, 3), cv2.distanceTransform(1 - mu, cv2.DIST_L2, 3))
+    body = m.copy()
+    sleeves = np.zeros_like(m)
+    for side in ("left", "right"):
+        sx, sy = P(f"shoulder_{side}"); ux, uy = P(f"underarm_{side}")
+        outward = -1 if side == "left" else 1
+        iy, ix = int(min(H - 1, max(0, uy))), int(min(W - 1, max(0, ux)))
+        if edge_dist[iy, ix] > edge_frac * gw:   # an underarm point lies on the outline, not inside the cloth
+            return None
+        # the sleeve: beyond the line from the shoulder point to the underarm point (between their heights),
+        # and beyond the underarm point's side line below it (a long sleeve hanging beside the body)
+        t = np.clip((yy - sy) / max(1e-6, uy - sy), 0, 1)
+        x_line = np.where(yy < uy, sx + t * (ux - sx), ux)
+        sel = m & (yy >= sy) & (outward * (xx - x_line) > 0)
+        sleeves |= sel
+    body &= ~sleeves
+    return body, sleeves

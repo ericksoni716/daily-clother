@@ -17,3 +17,14 @@ on a button.
 
 Image-only ways to find the button line were tried and dropped: the column where the flattened plaid is most
 interrupted (finds pocket edges), and round shapes in a row (patterned cloth is full of them).
+
+## Sleeves
+
+A second question asks for the underarm points (where each sleeve's lower seam meets the side seam) and the
+shoulder points. A sleeve is the garment beyond the line from shoulder to underarm, and beyond the side line
+below the underarm. An underarm point must lie on the outline (within 6% of the garment's width of the
+edge) or the answer is not used. On a 250 px polo photo the tagging model put the underarms on the chest;
+the larger model got them right; both were right on a 1000 px photo. Whether placed bands continue onto the
+sleeves (`stripes.sleeves_carry_bands`): the sleeves must carry at least 60% of the body's share of band
+colours. Real polo: 4.9% against 18.7% on the body (plain sleeves, correct; 8.1% with the tagging model's
+rougher points, still correct); the same polo with its band copied across the sleeves: 30% (continues, correct).

@@ -330,4 +330,6 @@ See `docs/PHASE0.md` for the results and what is still open.
 - **The planner** dresses the hardest days first, preferring pieces already packed, then fewest new pieces, then the engine's score. It calls the outfit engine's own helpers; `outfits.py` itself is unchanged.
 - **Where Trips sits.** In the sidebar on the computer. The phone's bottom bar is full, so there is no tab: a "Trips" link sits on Today's header and in Settings under "Where you are".
 - **Migration number.** `0012_trips.sql`: migrations `0010` and `0011` are assigned to branches merging before trips; a migration must be above the closet's current version to run.
+- **A replan keeps the saved weather for days a refresh cannot answer.** It says the weather could not be refreshed and does not lose a usable plan just because the weather service is down.
+- **Usual-weather answers are keyed by the exact days requested, and use only past calendar matches.** If the target day is more than a year ahead, the nearest matching date can still be in the future; the archive only has dates already passed. February 29 uses February 28 in years without a leap day.
 - A saved trip keeps the weather its plan was made for; opening it checks the forecast again and only offers "Plan again" when it changed.

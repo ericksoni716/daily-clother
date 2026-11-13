@@ -321,6 +321,7 @@ class _Planner:
                      "warning": d.warning}
             if d.outfit is not None:
                 score, reasons, warnings = outfits._explain(d.outfit, d.ctx, d.t, None, self.outers)
+                entry["warning"] = d.warning or (warnings[0] if warnings else None)
                 pieces = {place: (getattr(d.outfit, place).piece.id if getattr(d.outfit, place) else None)
                           for place in outfits.PLACES}
                 pieces["accessories"] = [x.piece.id for x in d.outfit.accessories]

@@ -107,6 +107,7 @@
 .trip-more {
   flex: none; width: var(--tap); height: 64px; border: none; background: none; color: var(--muted); cursor: pointer; display: grid; place-items: center;
 }
+.trip-line-replan { margin: 0 12px 8px; }
 .trip-more[aria-expanded='true'] { color: var(--accent); }
 .trip-menu { flex: 0 0 100%; margin: 0 8px 8px; }
 .trip-take { margin: 2px 0 16px; }

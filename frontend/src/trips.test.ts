@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { forgetSaved } from './today';
 import {
   addDays, checkDates, dateRange, dayCount, dayRain, dayTemps, groupPacked, progress, shortDay, sourceLabel, sourceRuns,
-  tripDays, tripTitle, upcomingFirst, wornWords, type TripDay, type TripSummary,
+  loadSavedTrips, saveTrips, tripDays, tripTitle, upcomingFirst, wornWords, type TripDay, type TripSummary,
 } from './trips';
 
 const day = (date: string, source: TripDay['source'], extra: Partial<TripDay> = {}): TripDay => ({
@@ -9,6 +10,27 @@ const day = (date: string, source: TripDay['source'], extra: Partial<TripDay> = 
 });
 
 describe('trips', () => {
+  it('keeps offline trip copies separately for each closet', () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value); },
+      removeItem: (key: string) => { values.delete(key); },
+      clear: () => { values.clear(); },
+      key: (index: number) => [...values.keys()][index] ?? null,
+      get length() { return values.size; },
+    } as Storage;
+    const demoTrip = { id: 'demo-trip' } as TripSummary;
+
+    saveTrips('demo', { list: [demoTrip] }, storage);
+    saveTrips('main', { list: [] }, storage);
+
+    expect(loadSavedTrips('demo', storage)?.list).toEqual([demoTrip]);
+    expect(loadSavedTrips('main', storage)?.list).toEqual([]);
+    forgetSaved(storage);
+    expect(values.size).toBe(0);
+  });
+
   it('counts what is packed out of the lines still in the plan', () => {
     expect(progress(['item:a', 'item:b', 'basic:socks'], ['item:a']).words).toBe('1 of 3 packed');
     expect(progress(['item:a'], ['item:a', 'item:gone']).words).toBe('All 1 packed');

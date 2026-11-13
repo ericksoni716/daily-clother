@@ -1,4 +1,4 @@
-import { longDate, shortPlace, temps, type Outfit } from './today';
+import { longDate, SAVED_PREFIX, shortPlace, temps, type Outfit } from './today';
 import type { Place } from './types';
 
 /** Where a day's weather comes from: the forecast, what the dates are usually like, typed in, or not known. */
@@ -30,8 +30,10 @@ export interface PlanDay {
   occasion: string;
   weather: TripDay;
   outfit: Outfit | null;
-  /** Why the day is not covered (or not covered well), in plain words. */
+  /** Why there is no outfit for the day, in plain words. */
   problem: string | null;
+  /** Why an outfit has something to watch out for, in plain words. */
+  warning: string | null;
 }
 
 export interface Basic {
@@ -45,6 +47,7 @@ export interface Plan {
   days: PlanDay[];
   basics: Basic[];
   uncovered: { date: string; reason: string }[];
+  warnings: { date: string; reason: string }[];
   notes: string[];
 }
 
@@ -87,11 +90,13 @@ export interface TripSummary {
   lines: number;
   packed: number;
   uncovered: number;
+  warnings: number;
   past: boolean;
 }
 
 export type TripRequest = Partial<Omit<TripChoices, 'place' | 'first_day' | 'last_day'>> &
-  Pick<TripChoices, 'place' | 'first_day' | 'last_day'>;
+  Pick<TripChoices, 'place' | 'first_day' | 'last_day'> &
+  { weather?: Pick<TripDay, 'date' | 'low_c' | 'high_c' | 'rain'>[] };
 
 export interface TripPatch {
   ticks?: Record<string, boolean>;
@@ -108,6 +113,44 @@ export interface WeatherCheck {
   changed: boolean;
   days: TripDay[] | null;
   message: string | null;
+}
+
+export interface SavedTrips {
+  saved_at: string;
+  list: TripSummary[] | null;
+  details: Record<string, Trip>;
+}
+
+type KV = Pick<Storage, 'getItem' | 'setItem'>;
+
+function local(): KV | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+const savedKey = (profile: string) => `${SAVED_PREFIX}:trips:${profile}`;
+
+export function loadSavedTrips(profile: string, kv: KV | null = local()): SavedTrips | null {
+  try {
+    const raw = kv?.getItem(savedKey(profile));
+    const saved = raw ? JSON.parse(raw) as SavedTrips : null;
+    return saved && typeof saved.saved_at === 'string' ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveTrips(profile: string, part: Partial<Omit<SavedTrips, 'saved_at'>>, kv: KV | null = local(), now = new Date()) {
+  const before = loadSavedTrips(profile, kv);
+  const saved: SavedTrips = { saved_at: now.toISOString(), list: before?.list ?? null, details: before?.details ?? {}, ...part };
+  try {
+    kv?.setItem(savedKey(profile), JSON.stringify(saved));
+  } catch {
+    /* private mode or full: not kept, nothing else breaks */
+  }
 }
 
 export const MAX_TRIP_DAYS = 30;

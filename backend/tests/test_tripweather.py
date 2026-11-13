@@ -124,8 +124,11 @@ def test_usual_weather_handles_leap_day_and_dates_across_new_year(fake, state):
 def test_usual_weather_cache_key_contains_the_exact_days_asked_for(fake, state, monkeypatch):
     first = TODAY + timedelta(days=14)
     days = [iso(first + timedelta(days=i)) for i in range(5)]
-    source = lambda day: {"date": day, "low_c": 10, "high_c": 16, "rain": False, "rain_chance": 10,
-                          "summary": "clear", "source": "forecast"}
+
+    def source(day):
+        return {"date": day, "low_c": 10, "high_c": 16, "rain": False, "rain_chance": 10,
+                "summary": "clear", "source": "forecast"}
+
     forecasts = iter([{days[0]: source(days[0]), days[4]: source(days[4])},
                       {days[0]: source(days[0]), days[2]: source(days[2]), days[4]: source(days[4])}])
     monkeypatch.setattr(tripweather, "_forecast", lambda place: next(forecasts))

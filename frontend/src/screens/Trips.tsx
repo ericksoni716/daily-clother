@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { api, ApiError } from '../api';
+import { api, ApiError, connection } from '../api';
 import { ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
 import { loadGridView, type GridView } from '../drawing';
 import { label } from '../labels';
@@ -8,7 +8,8 @@ import { useCloset } from '../store';
 import { longDate, occasionLabel, OCCASIONS, placeLabel, shortPlace, wornOrder, type Outfit } from '../today';
 import {
   addDays, basicLine, checkDates, dateRange, dayRain, dayTemps, groupPacked, itemLine, progress, shortDay, sourceRuns, tripDays,
-  tripTitle, upcomingFirst, wornWords, type PlannedTrip, type Trip, type TripDay, type TripPatch, type TripRequest, type TripSummary,
+  loadSavedTrips, saveTrips, tripTitle, upcomingFirst, wornWords, type PlannedTrip, type Trip, type TripDay, type TripPatch,
+  type TripRequest, type TripSummary,
 } from '../trips';
 import type { ItemSummary, Place } from '../types';
 import { localDay } from '../wears';
@@ -33,9 +34,39 @@ function useItems() {
   return useMemo(() => new Map((items.active ?? []).map((i) => [i.id, i])), [items.active]);
 }
 
+function useTripItems() {
+  const { items, loadItems } = useCloset();
+  useEffect(() => {
+    if (items.archived === null) void loadItems('archived');
+  }, [items.archived, loadItems]);
+  return useMemo(() => new Map([...(items.active ?? []), ...(items.archived ?? [])].map((i) => [i.id, i])),
+    [items.active, items.archived]);
+}
+
 function itemName(item: ItemSummary | undefined): string {
-  if (!item) return 'An item';
+  if (!item) return 'no longer in your closet';
   return item.name || label('category', item.category) || 'An item';
+}
+
+function keepTrip(profile: string, trip: Trip) {
+  const saved = loadSavedTrips(profile);
+  const summary: TripSummary = {
+    id: trip.id, place: trip.place, first_day: trip.first_day, last_day: trip.last_day, occasion: trip.occasion,
+    can_wash: trip.can_wash, lines: trip.lines.length, packed: trip.packed.length,
+    uncovered: trip.plan.uncovered.length, warnings: trip.plan.warnings?.length ?? 0, past: trip.last_day < localDay(),
+  };
+  const list = saved?.list?.some((t) => t.id === trip.id)
+    ? saved.list.map((t) => t.id === trip.id ? { ...t, ...summary } : t)
+    : [...(saved?.list ?? []), summary];
+  saveTrips(profile, { list, details: { ...(saved?.details ?? {}), [trip.id]: trip } });
+}
+
+function forgetTrip(profile: string, id: string) {
+  const saved = loadSavedTrips(profile);
+  if (!saved) return;
+  const details = { ...saved.details };
+  delete details[id];
+  saveTrips(profile, { list: saved.list?.filter((t) => t.id !== id) ?? null, details });
 }
 
 function BackToTrips() {
@@ -49,22 +80,35 @@ function BackToTrips() {
 // ------------------------------------------------------------------ the list
 
 function TripList() {
-  const { offline } = useCloset();
-  const [trips, setTrips] = useState<TripSummary[] | null>(null);
+  const { offline, profile } = useCloset();
+  const [trips, setTrips] = useState<TripSummary[] | null>(() => loadSavedTrips(profile)?.list ?? null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let current = true;
     api.trips().then(
-      (t) => current && setTrips(t),
-      (e) => current && setError((e as ApiError).status === 0
-        ? "You're offline, and the list of trips was not saved on this device. It shows here once Closet on your computer can be reached."
-        : (e as Error).message),
+      (t) => {
+        if (!current) return;
+        setTrips(t);
+        setError(null);
+        if (!connection.offline) saveTrips(profile, { list: t });
+      },
+      (e) => {
+        if (!current) return;
+        const saved = loadSavedTrips(profile)?.list;
+        if ((e as ApiError).status === 0 && saved) {
+          setTrips(saved);
+          setError(null);
+        }
+        else setError((e as ApiError).status === 0
+          ? "You're offline, and the list of trips was not saved on this device. It shows here once Closet on your computer can be reached."
+          : (e as Error).message);
+      },
     );
     return () => {
       current = false;
     };
-  }, [offline]);
+  }, [offline, profile]);
 
   const planButton = offline
     ? <span className="btn btn-primary is-disabled" aria-disabled="true" title={OFFLINE_TITLE}>Plan a trip</span>
@@ -109,7 +153,8 @@ function TripCards({ title, trips }: { title: string; trips: TripSummary[] }) {
                   <strong>{tripTitle(t)}</strong>
                   <span className="muted">
                     {occasionLabel(t.occasion)} · {done ? `All ${t.lines} packed` : `${t.packed} of ${t.lines} packed`}
-                    {t.uncovered > 0 && <> · <span className="trip-card-warn">{t.uncovered === 1 ? '1 day not covered' : `${t.uncovered} days not covered`}</span></>}
+                    {t.uncovered > 0 && <> · <span className="trip-card-warn">{t.uncovered === 1 ? '1 day without an outfit' : `${t.uncovered} days without an outfit`}</span></>}
+                    {t.warnings > 0 && <> · <span className="trip-card-warn">{t.warnings === 1 ? '1 day dressed with a warning' : `${t.warnings} days dressed with warnings`}</span></>}
                   </span>
                 </span>
               </Link>
@@ -353,9 +398,9 @@ function PlacePicker({ place, locked, onChoose }: { place: Place | null; locked:
 // ------------------------------------------------------------------ a saved trip
 
 function SavedTrip({ id }: { id: string }) {
-  const { offline, toast } = useCloset();
-  const byId = useItems();
-  const [trip, setTrip] = useState<Trip | null>(null);
+  const { offline, profile, toast } = useCloset();
+  const byId = useTripItems();
+  const [trip, setTrip] = useState<Trip | null>(() => loadSavedTrips(profile)?.details[id] ?? null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [newWeather, setNewWeather] = useState(false);
@@ -368,11 +413,14 @@ function SavedTrip({ id }: { id: string }) {
       (t) => {
         if (!current) return;
         setTrip(t);
+        if (!connection.offline) keepTrip(profile, t);
       },
       (e) => {
         if (!current) return;
         const err = e as ApiError;
-        setError(err.status === 0
+        const saved = loadSavedTrips(profile)?.details[id];
+        if (err.status === 0 && saved) setTrip(saved);
+        else setError(err.status === 0
           ? "You're offline, and this trip was not saved on this device. It shows here once Closet on your computer can be reached."
           : err.message);
       },
@@ -380,7 +428,7 @@ function SavedTrip({ id }: { id: string }) {
     return () => {
       current = false;
     };
-  }, [id, offline]);
+  }, [id, offline, profile]);
 
   // Its days may have come into the forecast since it was planned: say so, but never change the plan by itself.
   useEffect(() => {
@@ -404,7 +452,8 @@ function SavedTrip({ id }: { id: string }) {
         pending.current -= 1;
         if (pending.current === 0) {
           setTrip(t);
-          void api.trip(id).catch(() => undefined); // refresh the copy kept on this device
+          keepTrip(profile, t);
+          void api.trip(id).then((fresh) => keepTrip(profile, fresh)).catch(() => undefined);
         }
       },
       (e) => {
@@ -418,7 +467,9 @@ function SavedTrip({ id }: { id: string }) {
   async function change(patch: TripPatch, done?: string) {
     setBusy(true);
     try {
-      setTrip(await api.patchTrip(id, patch));
+      const updated = await api.patchTrip(id, patch);
+      setTrip(updated);
+      keepTrip(profile, updated);
       if (patch.replan) setNewWeather(false);
       if (done) toast(done);
       void api.trip(id).catch(() => undefined);
@@ -434,6 +485,7 @@ function SavedTrip({ id }: { id: string }) {
     setBusy(true);
     try {
       await api.removeTrip(id);
+      forgetTrip(profile, id);
       toast('Trip deleted');
       navigate('/trips', { replace: true });
     } catch (e) {
@@ -456,6 +508,7 @@ function SavedTrip({ id }: { id: string }) {
   const changes: Changes = {
     locked: locked || busy,
     leaveOut: trip.leave_out, pin: trip.pin,
+    planAgain: () => void change({ replan: true }, 'Planned again'),
     swap: (x) => void change({ leave_out: [...trip.leave_out.filter((y) => y !== x), x], pin: trip.pin.filter((y) => y !== x) }),
     unswap: (x) => void change({ leave_out: trip.leave_out.filter((y) => y !== x) }),
     pinIn: (x) => void change({ pin: [...trip.pin.filter((y) => y !== x), x], leave_out: trip.leave_out.filter((y) => y !== x) }),
@@ -534,6 +587,7 @@ interface Changes {
   locked: boolean;
   leaveOut: string[];
   pin: string[];
+  planAgain?(): void;
   swap(id: string): void;
   unswap(id: string): void;
   pinIn(id: string): void;
@@ -568,6 +622,15 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
           </ul>
         </div>
       )}
+      {plan.warnings.length > 0 && (
+        <div className="notice notice-warn trip-uncovered" role="note" aria-label="Days dressed with warnings">
+          <WarnIcon />
+          <div>
+            <strong>These days have an outfit with something to watch out for:</strong>
+            <ul>{plan.warnings.map((w) => <li key={w.date}><strong>{longDate(w.date)}:</strong> {w.reason}</li>)}</ul>
+          </div>
+        </div>
+      )}
 
       {(changes.leaveOut.length > 0 || changes.pin.length > 0) && (
         <div className="chips today-changes" role="group" aria-label="Your changes">
@@ -593,6 +656,7 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
                 {g.pieces.map((piece) => {
                   const item = byId.get(piece.id);
                   const name = itemName(item);
+                  const unavailable = !item || item.status === 'archived';
                   const line = itemLine(piece.id);
                   return (
                     <li key={piece.id} className={`trip-line${ticks?.packed.has(line) ? ' is-ticked' : ''}`} data-testid="pack-line">
@@ -600,7 +664,10 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
                         <span className="trip-thumb">{item ? <TilePicture item={item} view={view} /> : <span className="pic-placeholder"><HangerIcon /></span>}</span>
                         <span className="trip-line-text">
                           <span className="trip-line-name">{name}</span>
-                          <span className="trip-line-sub">{wornWords(piece.days)}{piece.pinned ? ' · You chose this' : ''}</span>
+                          <span className="trip-line-sub">
+                            {wornWords(piece.days)}{piece.pinned ? ' · You chose this' : ''}
+                            {item?.status === 'archived' ? ' · Archived' : !item ? ' · No longer in your closet' : ''}
+                          </span>
                         </span>
                       </Line>
                       <button className="trip-more" aria-label={`Choices for ${name}`} aria-expanded={menuFor === piece.id}
@@ -614,6 +681,10 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
                             <button className="btn btn-small btn-ghost" onClick={() => setMenuFor(null)}>Close</button>
                           </div>
                         </div>
+                      )}
+                      {unavailable && changes.planAgain && (
+                        <button className="btn btn-small trip-line-replan" disabled={changes.locked} title={title}
+                          onClick={changes.planAgain}>Plan again</button>
                       )}
                     </li>
                   );
@@ -720,13 +791,14 @@ function DayCard({ day, tripOccasion, byId, view }: {
 }) {
   const o: Outfit | null = day.outfit;
   return (
-    <li className={`trip-day${day.problem ? ' has-problem' : ''}`} data-testid="trip-day">
+    <li className={`trip-day${day.problem || day.warning ? ' has-problem' : ''}`} data-testid="trip-day">
       <div className="trip-day-head">
         <strong>{longDate(day.date)}</strong>
         <span className="muted">{dayTemps(day.weather)}{day.weather.rain ? ' · Rain' : ''}</span>
         {day.occasion !== tripOccasion && <span className="trip-day-occasion">{occasionLabel(day.occasion)}</span>}
       </div>
       {day.problem && <p className="trip-day-problem"><WarnIcon className="inline-icon" /> {day.problem}</p>}
+      {day.warning && !o?.warnings.includes(day.warning) && <p className="trip-day-problem"><WarnIcon className="inline-icon" /> {day.warning}</p>}
       {o && (
         <>
           <ul className="trip-day-pieces" aria-label={`What to wear on ${longDate(day.date)}`}>
@@ -735,7 +807,9 @@ function DayCard({ day, tripOccasion, byId, view }: {
               return (
                 <li key={p.id} title={`${placeLabel(p.place)}: ${itemName(item)}`}>
                   <span className="trip-day-pic">{item ? <TilePicture item={item} view={view} /> : <span className="pic-placeholder"><HangerIcon /></span>}</span>
-                  <span className="trip-day-name">{itemName(item)}</span>
+                  <span className="trip-day-name">
+                    {itemName(item)}{item?.status === 'archived' ? ' · Archived' : !item ? ' · No longer in your closet' : ''}
+                  </span>
                 </li>
               );
             })}

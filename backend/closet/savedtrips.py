@@ -156,6 +156,7 @@ def list_all(conn) -> list[dict]:
         t = _row(r)
         out.append({k: t[k] for k in ("id", "place", "first_day", "last_day", "occasion", "can_wash")}
                    | {"lines": len(t["lines"]), "packed": len(t["packed"]), "uncovered": len(t["plan"].get("uncovered", [])),
+                      "warnings": len(t["plan"].get("warnings", [])),
                       "past": t["last_day"] < today})
     upcoming = sorted((t for t in out if not t["past"]), key=lambda t: (t["first_day"], t["last_day"], t["id"]))
     past = sorted((t for t in out if t["past"]), key=lambda t: (t["first_day"], t["last_day"], t["id"]), reverse=True)

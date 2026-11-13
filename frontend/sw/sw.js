@@ -32,7 +32,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-const DATA_PATHS = [/^\/api\/items$/, /^\/api\/items\/[^/]+$/, /^\/api\/vocab$/, /^\/api\/session$/, /^\/api\/trips$/, /^\/api\/trips\/[^/]+$/];
+const DATA_PATHS = [/^\/api\/items$/, /^\/api\/items\/[^/]+$/, /^\/api\/vocab$/, /^\/api\/session$/];
 const IMMUTABLE_PATHS = [/^\/media\//, /^\/api\/items\/[^/]+\/illustration\.svg$/];
 
 function markFromCache(response) {

@@ -104,10 +104,10 @@ Hidden gaps and the wishlist are kept in the open closet's database, so the demo
 
 All behind the login, kept per closet (demo and real closet apart).
 
-- `POST /api/trips/plan` — body `{place, first_day, last_day, occasion?, day_occasions?, can_wash?, leave_out?, pin?}`; works out the weather and packing plan, saves nothing. A trip is at most 30 days and starts today or later.
+- `POST /api/trips/plan` — body `{place, first_day, last_day, occasion?, day_occasions?, can_wash?, leave_out?, pin?, weather?}`; works out the weather and packing plan, saves nothing. A trip is at most 30 days and starts today or later. Optional `weather` supplies every trip day as `[{date, low_c, high_c, rain}]`; it is intended for deterministic tests and browser checks, and those days return with `source: "given"`.
 - `POST /api/trips` — same body; plans and saves. 201 with the trip.
-- `GET /api/trips` — `{trips: [...]}`, upcoming first, then past.
-- `GET /api/trips/{id}` — the trip: choices, `weather` (each day with `source`: `forecast`, `usual` or `unknown`), `plan` (`packed`, `days`, `basics`, `uncovered`, `notes`), `lines` and `packed` (ticked lines).
+- `GET /api/trips` — `{trips: [...]}`, upcoming first, then past; each summary's `uncovered` counts only days with no outfit, and `warnings` counts days with an outfit that has a warning.
+- `GET /api/trips/{id}` — the trip: choices, `weather` (each day with `source`: `forecast`, `usual`, `given` or `unknown`), `plan` (`packed`, `days`, `basics`, `uncovered`, `warnings`, `notes`), `lines` and `packed` (ticked lines). `uncovered` lists only dates with no outfit; `warnings` lists dates that have an outfit with a warning. A day's `problem` explains why there is no outfit; `warning` explains what to watch out for when there is one.
 - `GET /api/trips/{id}/weather` — looks the weather up again; `{checked, changed, days, message}`; changes nothing.
 - `PATCH /api/trips/{id}` — `{ticks?: {line: bool}, occasion?, day_occasions?, can_wash?, leave_out?, pin?, replan?}`.
 - `DELETE /api/trips/{id}` — 204.

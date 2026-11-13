@@ -244,7 +244,7 @@ def test_planning_saves_nothing_and_saving_keeps_the_trip(client, clock):
     listed = client.get("/api/trips").json()["trips"]
     assert listed == [{"id": trip["id"], "place": NYC, "first_day": trip["first_day"], "last_day": trip["last_day"],
                        "occasion": "smart_casual", "can_wash": True, "lines": len(trip["lines"]), "packed": 0,
-                       "uncovered": len(trip["plan"]["uncovered"]), "past": False}]
+                       "uncovered": len(trip["plan"]["uncovered"]), "warnings": len(trip["plan"]["warnings"]), "past": False}]
 
 
 def test_ticks_are_saved_and_survive_a_replan(client, clock):

@@ -40,6 +40,11 @@ Each photo: `id, kind, url, thumb_url, cutout_url, cutout_thumb_url, width, heig
 | `GET /api/items/{id}/illustration.svg` | The item's illustration as `image/svg+xml`; 404 if it has none. |
 | `GET /media/{path}` | A WebP image; cacheable forever (paths never change content). |
 
+## Outfits
+| Call | Result |
+|---|---|
+| `POST /api/outfits/suggest {low_c, high_c, rain?, occasion?, mood?, build_around?, leave_out?, worn_days_ago?, count?}` | Today's outfits from the open closet, chosen by rule (`backend/closet/outfits.py`). `low_c` and `high_c` are the day's low and high in °C; `rain` true or false (default false); `occasion` one of the formality values (default `casual`); `mood` `usual`, `sharp` or `relaxed` (default `usual`); `build_around` an item id that must be in every outfit; `leave_out` a list of item ids; `worn_days_ago` an object of item id to days since last worn (0 is today); `count` 1 to 10 (default 3). Answer: `{outfits: [{pieces: {base, mid, outer, bottom, shoes, accessories[]}, score, reasons[], warnings[]}], missing[]}`. `pieces` holds item ids (`mid` and `outer` may be null); `score` is 0 to 100, best first; `reasons` say why the pieces go together and `warnings` what to be aware of, both as sentences. When no outfit can be made `outfits` is empty and `missing` says why ("There are no shoes in this closet yet."). Archived items, items in the laundry and items rated dislike are never used. 422 with a sentence for a bad value or a `build_around` item that is not in the open closet; 400 for a body that is not JSON. |
+
 ## Background-removal model
 | Call | Result |
 |---|---|

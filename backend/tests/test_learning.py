@@ -98,7 +98,32 @@ def test_only_a_not_again_outfit_left_says_so():
     items = [item("t", "tee", "white", "casual"), item("j", "jeans", "blue", "casual"), item("s", "sneakers", "white", "casual")]
     history = [rated("2026-11-02", "not_again", base="t", bottom="j", shoes="s")]
     result = suggest(items, day(22), history)
-    assert result == {"outfits": [], "missing": ["The only outfit the closet can make today is one you said not again to on 2 November."]}
+    assert result == {"outfits": [], "missing": [NOT_AGAIN_ONLY.format("2 November")]}
+
+
+NOT_AGAIN_ONLY = ("The only outfit that suits today is one you said not again to on {}. "
+                  "Change its rating on the Worn screen to have it offered again.")
+
+
+def test_a_not_again_outfit_is_never_the_reason_a_rule_breaking_outfit_is_offered():
+    # at 8°C only the tee, jeans and sneakers suit the day; shorts break a rule
+    items = [item("t", "tee", "white", "casual"), item("j", "jeans", "blue", "casual"),
+             item("sh", "shorts", "tan", "casual", "warm"), item("s", "sneakers", "white", "casual")]
+    assert [o["pieces"]["bottom"] for o in outfits.suggest(items, day(8), 5)["outfits"]] == ["j"]
+    history = [rated("2026-11-02", "not_again", base="t", bottom="j", shoes="s")]
+    result = suggest(items, day(8), history)
+    assert result == {"outfits": [], "missing": [NOT_AGAIN_ONLY.format("2 November")]}
+
+
+def test_an_outfit_with_a_piece_no_longer_in_the_closet_teaches_nothing():
+    # the sweater was deleted after tee, sweater, jeans and sneakers were rated "not again" (or loved):
+    # what is left is an outfit that was never worn, so the rating must not move onto it
+    items, ctx = closet(), day(22)
+    for rating in ("not_again", "loved"):
+        history = [rated("2026-11-02", rating, ["too_cold"], low=20, high=24,
+                         base="tee1", mid="gone-sweater", bottom="jeans1", shoes="sneakers1")]
+        assert outfits.feedback_from(history, items, ctx) == outfits.Feedback()
+        assert suggest(items, ctx, history) == outfits.suggest(items, ctx, 5)
 
 
 def test_too_cold_on_similar_days_dresses_warmer_within_its_bound():

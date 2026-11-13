@@ -431,7 +431,6 @@
    "history": {
     "worn": [
      4,
-     9,
      11
     ],
     "washed": 12,
@@ -861,7 +860,8 @@
    "photo": null,
    "history": {
     "worn": [
-     6
+     6,
+     9
     ],
     "washed": 10,
     "laundry": false
@@ -2593,7 +2593,7 @@
     "base": "1d954f87caf458cd90250bf81fc18b05",
     "mid": null,
     "outer": null,
-    "bottom": "1987307fd9bb554a80a86eefe0cc0d17",
+    "bottom": "23fc719965b3589ebe4dee0ad4a72c7d",
     "shoes": "4e249ac7f39151ae94db50cf16288994",
     "accessories": []
    },

@@ -12,9 +12,9 @@ import {
 import type { ItemSummary } from '../types';
 import { localDay } from '../wears';
 import { localDay as dayNow } from '../wears';
-import { dismiss, loadDismissed, pendingQuestion, questionFor, wornDay, type WornOutfit } from '../worn';
+import { dismiss, loadDismissed, pendingQuestion, pieceName, questionFor, wornDay, type WornOutfit } from '../worn';
 import { ItemDetail } from './ItemDetail';
-import { OutfitPics, RateOutfit } from './Worn';
+import { OutfitPics, RateOutfit, refreshSaved, useAllItems } from './Worn';
 import './Today.css';
 
 const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
@@ -78,7 +78,8 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   }, []);
 
   const loadRecent = useCallback(() => {
-    api.wornOutfits(null, 5).then((p) => setRecent(p.outfits), () => undefined);
+    // the same first page as the Worn screen, so both read (and refresh) one saved copy for offline
+    void refreshSaved().then((p) => p && setRecent(p.outfits));
   }, []);
   useEffect(() => {
     loadRecent();
@@ -170,7 +171,8 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   };
 
   const byId = useMemo(() => new Map((items.active ?? []).map((i) => [i.id, i])), [items.active]);
-  const nameOf = (id: string) => itemName(byId.get(id));
+  const allById = useAllItems();
+  const nameOf = (id: string) => pieceName(allById.get(id), false, (c) => label('category', c));
   const locked = offline || (phase.kind === 'ready' && phase.savedAt !== null);
 
   async function wear(o: Outfit) {
@@ -319,10 +321,11 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
           <h2>{questionFor(question, dayNow())}</h2>
           <button className="btn btn-icon btn-ghost worn-question-close" aria-label="Not now"
             onClick={() => { setDismissed(dismiss(profile, question.id)); setRated(null); }}>×</button>
-          <OutfitPics outfit={question} byId={byId} />
+          <OutfitPics outfit={question} byId={allById} />
           <RateOutfit outfit={question} offline={offline} compact onRated={(o) => {
             setRated(o);
             setRecent((l) => (l ?? []).map((x) => (x.id === o.id ? o : x)));
+            void refreshSaved();
           }} />
           {rated && (
             <div className="row">

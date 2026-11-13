@@ -8,8 +8,8 @@ import { occasionLabel } from '../today';
 import type { ItemSummary } from '../types';
 import { localDay } from '../wears';
 import {
-  contextWords, RATINGS, ratingLabel, ratingSummary, reasonLabel, reasonsFor, wornDay, wornIds, type Rating, type Reason,
-  type WornOutfit,
+  contextWords, RATINGS, ratingLabel, ratingSummary, reasonLabel, reasonsFor, pieceName, wornDay, wornIds, type Rating, type Reason,
+  type WornOutfit, type WornPage,
 } from '../worn';
 import './Worn.css';
 
@@ -85,15 +85,39 @@ export function OutfitPics({ outfit, byId }: { outfit: WornOutfit; byId: Map<str
   const ids = wornIds(outfit.pieces);
   return (
     <ul className="worn-pics" aria-label="Pieces">
-      {ids.map((id) => (
-        <li key={id}>
-          <Link to={`/today/item/${encodeURIComponent(id)}`} className="worn-pic" title={nameOf(byId.get(id))}>
-            <Pic item={byId.get(id)} />
-          </Link>
-        </li>
-      ))}
+      {ids.map((id) => {
+        const deleted = (outfit.gone ?? []).includes(id);
+        const item = byId.get(id);
+        const name = nameOf(item, deleted);
+        return (
+          <li key={id}>
+            {deleted ? (
+              <span className="worn-pic is-gone" title={name}><Pic item={undefined} alt={name} /></span>
+            ) : (
+              <Link to={item?.status === 'archived' ? `/archived/item/${encodeURIComponent(id)}` : `/today/item/${encodeURIComponent(id)}`}
+                className={`worn-pic${item?.status === 'archived' ? ' is-archived' : ''}`} title={name}>
+                <Pic item={item} alt={name} />
+              </Link>
+            )}
+          </li>
+        );
+      })}
     </ul>
   );
+}
+
+/** Every item in the closet by id, archived ones too: a worn outfit may hold a piece archived since. */
+export function useAllItems(): Map<string, ItemSummary> {
+  const { items, loadItems } = useCloset();
+  useEffect(() => {
+    if (items.archived === null) void loadItems('archived');
+  }, [items.archived, loadItems]);
+  return useMemo(() => new Map([...(items.archived ?? []), ...(items.active ?? [])].map((i) => [i.id, i])), [items.active, items.archived]);
+}
+
+/** Fetch the first page of worn outfits again, so the copy saved for offline matches what changed. */
+export function refreshSaved(): Promise<WornPage | null> {
+  return api.wornOutfits().catch(() => null);
 }
 
 export function WornScreen() {
@@ -139,8 +163,11 @@ export function WornScreen() {
     }
   }
 
-  const byId = useMemo(() => new Map((items.active ?? []).map((i) => [i.id, i])), [items.active]);
-  const replace = (o: WornOutfit) => setList((l) => (l ?? []).map((x) => (x.id === o.id ? o : x)));
+  const byId = useAllItems();
+  const replace = (o: WornOutfit) => {
+    setList((l) => (l ?? []).map((x) => (x.id === o.id ? o : x)));
+    void refreshSaved();
+  };
 
   return (
     <div className="worn">
@@ -166,6 +193,7 @@ export function WornScreen() {
             setAdding(false);
             setList((l) => [o, ...(l ?? [])].sort((a, b) => (a.worn_on === b.worn_on ? 0 : a.worn_on < b.worn_on ? 1 : -1)));
             void loadItems('active');
+            void refreshSaved();
             toast('Outfit recorded');
           }} />
       )}
@@ -187,6 +215,7 @@ export function WornScreen() {
                 onRemoved={() => {
                   setList((l) => (l ?? []).filter((x) => x.id !== o.id));
                   void loadItems('active');
+                  void refreshSaved();
                 }} />
             </li>
           ))}
@@ -209,7 +238,7 @@ function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
   const [busy, setBusy] = useState(false);
   const [rating, setRating] = useState(false);
   const title = offline ? OFFLINE_TITLE : undefined;
-  const names = wornIds(outfit.pieces).map((id) => nameOf(byId.get(id)));
+  const names = wornIds(outfit.pieces).map((id) => nameOf(byId.get(id), (outfit.gone ?? []).includes(id)));
   const day = contextWords(outfit.context, occasionLabel);
 
   async function remove() {
@@ -297,7 +326,7 @@ function RecordByHand({ items, onCancel, onDone }: { items: ItemSummary[]; onCan
             <button key={i.id} type="button" className={`worn-record-item${on ? ' is-on' : ''}`} aria-pressed={on}
               onClick={() => setChosen((c) => (on ? c.filter((x) => x !== i.id) : [...c, i.id]))}>
               <Pic item={i} />
-              <span>{nameOf(i)}</span>
+              <span>{nameOf(i, false)}</span>
             </button>
           );
         })}
@@ -313,8 +342,7 @@ function RecordByHand({ items, onCancel, onDone }: { items: ItemSummary[]; onCan
   );
 }
 
-function Pic({ item }: { item: ItemSummary | undefined }): ReactNode {
-  const alt = nameOf(item);
+function Pic({ item, alt = nameOf(item, false) }: { item: ItemSummary | undefined; alt?: string }): ReactNode {
   if (!item) return <span className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></span>;
   if (item.cutout_state === 'ready' && item.thumb_url) return <img className="pic-cutout" src={item.thumb_url} alt={alt} />;
   if (item.illustration_url) return <img className="pic-illustration" src={item.illustration_url} alt={alt} />;
@@ -322,7 +350,6 @@ function Pic({ item }: { item: ItemSummary | undefined }): ReactNode {
   return <span className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></span>;
 }
 
-function nameOf(item: ItemSummary | undefined): string {
-  if (!item) return 'A piece not in your closet now';
-  return item.name || label('category', item.category) || 'An item';
+function nameOf(item: ItemSummary | undefined, deleted: boolean): string {
+  return pieceName(item, deleted, (c) => label('category', c));
 }

@@ -3,7 +3,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from closet import db, wears, weather
+from closet import db, outfits, today, wears, weather, worn
 
 from .conftest import photo_bytes, upload
 
@@ -71,16 +71,91 @@ def test_an_outfit_is_remembered_with_its_wears_and_undone_with_them(client):
     assert client.get(f"/api/items/{ids['tee']}").json()["wear_count"] == 0
 
     # an outfit whose wears were all there already is still remembered, and undone with no items
+    client.post(f"/api/items/{ids['tee']}/wears")
     r = client.post("/api/wears", json={"item_ids": [ids["shoes"], ids["tee"]],
                                         "outfit": {"pieces": {"base": ids["tee"], "shoes": ids["shoes"]}}})
-    first = r.json()["outfit"]
-    again = client.post("/api/wears", json={"item_ids": [ids["shoes"], ids["tee"]],
-                                            "outfit": {"pieces": {"base": ids["tee"], "shoes": ids["shoes"]}}})
-    assert again.status_code == 201 and again.json()["recorded"] == []
-    gone = client.post("/api/wears/remove", json={"item_ids": [], "worn_on": TODAY.isoformat(), "outfit_id": again.json()["outfit"]["id"]})
-    assert gone.status_code == 200 and gone.json()["outfit_removed"] is True
-    assert [x["id"] for x in client.get("/api/outfits/worn").json()["outfits"]] == [first["id"]]
-    assert client.get(f"/api/items/{ids['tee']}").json()["wear_count"] == 1
+    assert r.status_code == 201 and r.json()["recorded"] == []
+    gone = client.post("/api/wears/remove", json={"item_ids": [], "worn_on": TODAY.isoformat(), "outfit_id": r.json()["outfit"]["id"]})
+    assert gone.status_code == 200 and gone.json()["outfit_removed"] is True and gone.json()["removed"] == []
+    assert client.get("/api/outfits/worn").json()["outfits"] == []
+    assert client.get(f"/api/items/{ids['tee']}").json()["wear_count"] == 1   # its own wear stays
+
+
+def test_the_same_outfit_recorded_twice_on_a_day_is_one_outfit(client):
+    # "I'm wearing this" on the computer, then again on the phone: the second gives back the first
+    ids = small(client)
+    first = client.post("/api/wears", json={"item_ids": all_ids(ids), "outfit": offered(ids)}).json()
+    second = client.post("/api/wears", json={"item_ids": list(reversed(all_ids(ids))), "outfit": offered(ids)})
+    assert second.status_code == 201 and second.json()["recorded"] == []
+    assert second.json()["outfit"]["id"] == first["outfit"]["id"]
+    by_hand = client.post("/api/outfits/worn", json={"item_ids": all_ids(ids)}).json()
+    assert by_hand["id"] == first["outfit"]["id"]
+    assert [o["id"] for o in client.get("/api/outfits/worn").json()["outfits"]] == [first["outfit"]["id"]]
+    # undone from the phone, which recorded no wear of its own: the outfit's wears go with it
+    gone = client.post("/api/wears/remove", json={"item_ids": second.json()["recorded"], "worn_on": TODAY.isoformat(),
+                                                  "outfit_id": second.json()["outfit"]["id"]}).json()
+    assert gone["outfit_removed"] is True and sorted(gone["removed"]) == sorted(all_ids(ids))
+    assert all(client.get(f"/api/items/{i}").json()["wear_count"] == 0 for i in all_ids(ids))
+    # on another day the same pieces are another outfit
+    a = client.post("/api/outfits/worn", json={"item_ids": all_ids(ids), "worn_on": days_ago(1)}).json()
+    b = client.post("/api/outfits/worn", json={"item_ids": all_ids(ids), "worn_on": days_ago(2)}).json()
+    assert a["id"] != b["id"]
+
+
+@pytest.mark.parametrize("order", ["first_then_second", "second_then_first"])
+def test_removing_outfits_that_share_pieces_leaves_the_wear_log_right_in_any_order(client, order):
+    ids = small(client)
+    a = client.post("/api/wears", json={"item_ids": [ids["tee"], ids["jeans"], ids["shoes"]],
+                                        "outfit": {"pieces": {"base": ids["tee"], "bottom": ids["jeans"], "shoes": ids["shoes"]}}}).json()
+    b = client.post("/api/outfits/worn", json={"item_ids": [ids["jacket"], ids["jeans"], ids["shoes"]]}).json()
+    first, second = (a["outfit"]["id"], b["id"]) if order == "first_then_second" else (b["id"], a["outfit"]["id"])
+    assert client.delete(f"/api/outfits/worn/{first}").status_code == 204
+    left = [ids["jacket"], ids["jeans"], ids["shoes"]] if first == a["outfit"]["id"] else [ids["tee"], ids["jeans"], ids["shoes"]]
+    assert all(client.get(f"/api/items/{i}").json()["wear_count"] == 1 for i in left)
+    assert client.delete(f"/api/outfits/worn/{second}").status_code == 204
+    assert all(client.get(f"/api/items/{i}").json()["wear_count"] == 0 for i in all_ids(ids))
+
+
+def test_long_sentences_are_shortened_not_refused(client):
+    ids = small(client)
+    long = "The " + "very " * 400 + "long-named jacket keeps you warm."
+    r = client.post("/api/wears", json={"item_ids": all_ids(ids),
+                                        "outfit": {**offered(ids), "reasons": [long] * 40, "warnings": [long]}})
+    assert r.status_code == 201, r.text
+    o = r.json()["outfit"]
+    assert len(o["reasons"]) == worn.MAX_REASONS_TEXT and len(o["warnings"]) == 1
+    assert all(len(x) <= worn.MAX_SENTENCE and x.endswith("…") and x.startswith("The very") for x in o["reasons"] + o["warnings"])
+
+
+def test_deleting_a_piece_keeps_the_outfit_as_it_was_and_it_stops_teaching(client, cfg):
+    ids = small(client)
+    sweater = item_in(client, "w", "sweater", (130, 140, 150))
+    o = client.post("/api/outfits/worn", json={"item_ids": [ids["tee"], sweater, ids["jeans"], ids["shoes"]]}).json()
+    client.put(f"/api/outfits/worn/{o['id']}/rating", json={"rating": "not_again"})
+    conn = db.connect(cfg.db_path("main"))
+    ctx = outfits.parse_request(DAY)[0]
+
+    def feedback():
+        return outfits.feedback_from(worn.rated(conn), today.closet_rows(conn), ctx)
+
+    assert (ids["tee"], sweater, "", ids["jeans"], ids["shoes"]) in feedback().not_again
+    assert client.delete(f"/api/items/{sweater}").status_code == 204
+    listed = client.get("/api/outfits/worn").json()["outfits"]
+    assert listed[0]["pieces"]["mid"] == sweater and listed[0]["gone"] == [sweater]   # still the outfit that was worn
+    assert feedback() == outfits.Feedback()   # and it no longer teaches: tee, jeans and sneakers were never rated
+    # an archived piece is still in the closet: the outfit still teaches, and is not "gone"
+    other = client.post("/api/outfits/worn", json={"item_ids": [ids["jacket"], ids["jeans"]], "worn_on": days_ago(1)}).json()
+    client.put(f"/api/outfits/worn/{other['id']}/rating", json={"rating": "loved"})
+    client.patch(f"/api/items/{ids['jacket']}", json={"status": "archived"})
+    listed = {x["id"]: x for x in client.get("/api/outfits/worn").json()["outfits"]}
+    assert listed[other["id"]]["gone"] == [] and feedback().liked
+    # an outfit with no piece left in the closet goes from the list with its last piece
+    for i in (ids["tee"], ids["jeans"], ids["shoes"]):
+        client.delete(f"/api/items/{i}")
+    assert [x["id"] for x in client.get("/api/outfits/worn").json()["outfits"]] == [other["id"]]
+    # and one with a piece gone can still be removed
+    assert client.delete(f"/api/outfits/worn/{other['id']}").status_code == 204
+    conn.close()
 
 
 def test_what_is_sent_with_an_outfit_is_checked_and_nothing_is_kept_on_a_mistake(client):
@@ -175,8 +250,8 @@ def test_rating_an_outfit_and_changing_it(client):
 def test_the_list_is_newest_first_and_comes_in_pages(client):
     ids = small(client)
     made = []
-    for n in (5, 1, 3, 1, 8):
-        made.append((days_ago(n), client.post("/api/outfits/worn", json={"item_ids": [ids["tee"], ids["jeans"]],
+    for n, legs in ((5, "jeans"), (1, "jeans"), (3, "jeans"), (1, "shoes"), (8, "jeans")):   # two outfits on one day
+        made.append((days_ago(n), client.post("/api/outfits/worn", json={"item_ids": [ids["tee"], ids[legs]],
                                                                           "worn_on": days_ago(n)}).json()["id"]))
     page = client.get("/api/outfits/worn", params={"limit": 2}).json()
     seen = [o["id"] for o in page["outfits"]]

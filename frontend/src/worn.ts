@@ -8,7 +8,7 @@ export type Rating = (typeof RATINGS)[number];
 export const REASONS = ['too_warm', 'too_cold', 'too_dressy', 'too_casual', 'colours_clashed', 'uncomfortable', 'compliments', 'other'] as const;
 export type Reason = (typeof REASONS)[number];
 
-/** The pieces of a worn outfit; a piece deleted from the closet since is null. */
+/** The pieces of a worn outfit by place, as they were worn (a piece deleted since keeps its id: see `gone`). */
 export interface WornPieces extends Omit<OutfitPieces, 'base' | 'bottom' | 'shoes'> {
   base: string | null;
   bottom: string | null;
@@ -37,6 +37,8 @@ export interface WornOutfit {
   rating_note: string | null;
   rated_at: string | null;
   created_at: string;
+  /** Pieces deleted from the closet since. The outfit no longer teaches Today anything. */
+  gone: string[];
 }
 
 export interface WornPage {
@@ -81,7 +83,18 @@ export function ratingSummary(o: Pick<WornOutfit, 'rating' | 'rating_reasons' | 
   return reasons.length ? `${ratingLabel(o.rating)} · ${reasons.join(', ')}` : ratingLabel(o.rating);
 }
 
-/** Every item id of a worn outfit in the order they are put on (pieces since deleted are left out). */
+/** What a piece of a worn outfit is called: an archived piece as itself, marked archived; one deleted since, as that. */
+export function pieceName(
+  item: { name: string | null; category: string | null; status: string } | undefined, deleted: boolean,
+  categoryLabel: (c: string) => string,
+): string {
+  if (deleted) return 'A piece since deleted';
+  if (!item) return 'A piece of your closet';
+  const name = item.name || (item.category ? categoryLabel(item.category) : '') || 'An item';
+  return item.status === 'archived' ? `${name} (archived)` : name;
+}
+
+/** Every item id of a worn outfit in the order they are put on. */
 export function wornIds(p: WornPieces): string[] {
   const out: string[] = [];
   for (const place of ['outer', 'mid', 'base', 'bottom', 'shoes'] as const) {

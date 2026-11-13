@@ -836,9 +836,12 @@ def _problem_pairs(ids: frozenset[str], reasons: set[str], known: Mapping[str, P
 def feedback_from(rated: list[dict], items: list[dict], context: Context) -> Feedback:
     """Turn rated outfits (as `GET /api/outfits/worn` gives them) into what the engine needs for this day.
 
-    Pure: the same outfits, items and day always give the same Feedback. Unrated outfits teach nothing.
+    Pure: the same outfits, items and day always give the same Feedback. Unrated outfits teach nothing, and
+    neither does one with a piece that is no longer among `items` (deleted since): a rating is about the outfit
+    as it was worn, and what is left of it was never worn as an outfit.
     """
     known = {p.id: p for p in (_piece(i) for i in items if isinstance(i, dict) and i.get("id")) if p is not None}
+    present = {str(i["id"]) for i in items if isinstance(i, dict) and i.get("id")}
     t = _design_temp(context)
     liked: list[Remembered] = []
     avoided: list[Remembered] = []
@@ -853,6 +856,9 @@ def feedback_from(rated: list[dict], items: list[dict], context: Context) -> Fee
         placed = o.get("pieces") if isinstance(o.get("pieces"), dict) else {}
         core = {pl: str(placed[pl]) for pl in PLACES if placed.get(pl)}
         ids = frozenset(core.values())
+        extras = placed.get("accessories") if isinstance(placed.get("accessories"), list) else []
+        if not ids <= present or not {str(a) for a in extras} <= present:
+            continue
         if rating == "loved" or ("compliments" in reasons and rating != "not_again"):
             if len(ids) >= 2:
                 liked.append(Remembered(day, "loved" if rating == "loved" else "compliments", ids, _pairs(ids)))
@@ -940,6 +946,11 @@ def _missing_place(place: str, everything: list[tuple[Piece, dict]], pool: list[
     return f"None of your {words} can be worn today: {_join(parts)}."
 
 
+def _only_not_again(days: list[str]) -> str:
+    return (f"The only outfit that suits today is one you said not again to on {_date_words(max(days))}. "
+            "Change its rating on the Worn screen to have it offered again.")
+
+
 def suggest(items: list[dict], context: Context | dict, count: int = DEFAULT_COUNT, feedback: Feedback | None = None) -> dict:
     """Ranked outfits for the day.
 
@@ -1007,11 +1018,14 @@ def suggest(items: list[dict], context: Context | dict, count: int = DEFAULT_COU
                 out.append((o, forced))
         return out
 
-    found = run(strict=True) or run(strict=False)
+    found = run(strict=True)
+    if not found and refused:
+        # the outfits that keep the rules were all refused: say so, rather than offer ones that break the rules
+        return {"outfits": [], "missing": [_only_not_again(refused)]}
+    found = found or run(strict=False)
     if not found:
         if refused:
-            return {"outfits": [], "missing": [
-                f"The only outfit the closet can make today is one you said not again to on {_date_words(max(refused))}."]}
+            return {"outfits": [], "missing": [_only_not_again(refused)]}
         if ctx.keep:
             return {"outfits": [], "missing": ["The pieces kept from that outfit do not make an outfit for today."]}
         what = f"goes with {_the(forced_piece)}" if forced_piece else "works together today"

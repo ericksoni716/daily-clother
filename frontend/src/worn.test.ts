@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { dismiss, loadDismissed, pendingQuestion, questionFor, ratingLabel, ratingSummary, reasonLabel, REASONS, wornIds, type WornOutfit } from './worn';
+import { dismiss, loadDismissed, pendingQuestion, pieceName, questionFor, ratingLabel, ratingSummary, reasonLabel, REASONS, wornIds, type WornOutfit } from './worn';
 
 const worn = (id: string, worn_on: string, over: Partial<WornOutfit> = {}): WornOutfit => ({
   id, worn_on, recorded_by: 'today', context: null, score: null, reasons: [], warnings: [], rating: null, rating_reasons: [],
-  rating_note: null, rated_at: null, created_at: '',
+  rating_note: null, rated_at: null, created_at: '', gone: [],
   pieces: { base: 't', mid: null, outer: 'j', bottom: 'b', shoes: 's', accessories: ['belt'] }, ...over,
 });
 
@@ -14,6 +14,15 @@ class Mem {
 }
 
 describe('worn outfits in plain words', () => {
+  it('names a piece archived since as itself, marked archived, and one deleted since as gone', () => {
+    const cat = (c: string) => (c === 'jacket' ? 'Jacket' : c);
+    expect(pieceName({ name: 'Navy jacket', category: 'jacket', status: 'active' }, false, cat)).toBe('Navy jacket');
+    expect(pieceName({ name: 'Navy jacket', category: 'jacket', status: 'archived' }, false, cat)).toBe('Navy jacket (archived)');
+    expect(pieceName({ name: null, category: 'jacket', status: 'archived' }, false, cat)).toBe('Jacket (archived)');
+    expect(pieceName(undefined, true, cat)).toBe('A piece since deleted');
+    expect(pieceName(undefined, false, cat)).toBe('A piece of your closet');
+  });
+
   it('names the answers and reasons', () => {
     expect(['loved', 'fine', 'not_again'].map(ratingLabel)).toEqual(['Loved it', 'Fine', 'Not again']);
     expect(REASONS.map(reasonLabel)).toEqual(['Too warm', 'Too cold', 'Too dressed up', 'Too casual', 'Colours clashed',

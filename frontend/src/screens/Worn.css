@@ -60,3 +60,8 @@
 .worn-question-close { position: absolute; top: 6px; right: 6px; }
 .worn-question .row { margin-top: 10px; }
 .today-worn-link { margin-left: auto; }
+
+.worn-pic.is-archived,
+.worn-pic.is-gone {
+  opacity: 0.55;
+}

@@ -32,7 +32,7 @@ def test_retried_upload_with_the_same_key_makes_no_duplicate(client):
     assert first.status_code == 201 and again.status_code == 200
     assert first.json()["id"] == again.json()["id"]
     assert len(client.get("/api/items").json()["items"]) == 1
-    assert upload(client, key="other").status_code == 201
+    assert upload(client, photo_bytes(color=(20, 90, 160)), key="other").status_code == 201
 
 
 def test_a_file_that_is_not_a_photo_is_refused_clearly(client, cfg):
@@ -71,7 +71,7 @@ def test_editing_checks_the_vocabulary_and_records_who_set_a_field(client):
 
 def test_filtering_search_archive_and_delete(client, cfg):
     a = upload(client, key="a", name="Blue oxford").json()
-    b = upload(client, key="b", name="Old jeans").json()
+    b = upload(client, photo_bytes(color=(20, 40, 90)), key="b", name="Old jeans").json()
     client.patch(f"/api/items/{a['id']}", json={"category": "shirt"})
     client.patch(f"/api/items/{b['id']}", json={"category": "jeans"})
     names = lambda **p: [i["name"] for i in client.get("/api/items", params=p).json()["items"]]  # noqa: E731
@@ -133,7 +133,7 @@ def test_database_is_migrated_and_a_newer_one_is_refused(cfg, tmp_path):
     import pytest
     path = tmp_path / "x" / "closet.db"
     first = db.migrate(path, tmp_path / "bk")
-    assert first["applied"] == [v for v, _ in db.migration_files()] and first["backup"] is None
+    assert first["applied"] == [v for v, _ in db.migration_files()] and first["applied"][0] == 1 and first["backup"] is None
     assert db.migrate(path, tmp_path / "bk")["applied"] == []
     conn = db.connect(path)
     conn.execute("PRAGMA user_version = 999")

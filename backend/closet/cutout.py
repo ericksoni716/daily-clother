@@ -6,6 +6,7 @@ data folder by `modelstore`, never bundled with the program.
 from __future__ import annotations
 
 import hashlib
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -36,6 +37,7 @@ MODELS = {
 }
 
 _sessions: dict[str, object] = {}
+_sessions_lock = threading.Lock()  # the cutout worker and a "Would this work?" check both make cutouts
 
 
 def sha256_of(path: Path) -> str:
@@ -48,12 +50,14 @@ def sha256_of(path: Path) -> str:
 
 def _session(name: str, model_path: Path):
     key = f"{name}:{model_path}"
-    if key not in _sessions:
-        import onnxruntime as ort
-        opts = ort.SessionOptions()
-        opts.intra_op_num_threads = 2  # leave the machine usable while a queue of photos is processed
-        _sessions[key] = ort.InferenceSession(str(model_path), sess_options=opts, providers=["CPUExecutionProvider"])
-    return _sessions[key]
+    with _sessions_lock:   # one session per model, made once; running it from two threads is safe in onnxruntime
+        if key not in _sessions:
+            import onnxruntime as ort
+            opts = ort.SessionOptions()
+            opts.intra_op_num_threads = 2  # leave the machine usable while a queue of photos is processed
+            _sessions[key] = ort.InferenceSession(str(model_path), sess_options=opts,
+                                                  providers=["CPUExecutionProvider"])
+        return _sessions[key]
 
 
 def predict_mask(img: Image.Image, model: str, model_path: Path) -> Image.Image:

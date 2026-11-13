@@ -1,18 +1,21 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode, type SVGProps } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type SVGProps } from 'react';
 import { api, ApiError } from '../api';
 import { CheckIcon, ChevronLeftIcon, HangerIcon, PlusIcon, WarnIcon } from '../components/Icons';
 import { LifeQuestions } from '../components/LifeQuestions';
+import { Pieces } from '../components/ItemPic';
 import {
   colorWords, type Gap, type GapsAnswer, HELP_LEVELS, helpOf, HIDE_REASONS, type HideReason, loadSavedGaps, lookForLines,
   type LookFor, otherFindings, reasonLabel, saveGaps, type Wish,
 } from '../gaps';
-import { label, SWATCH } from '../labels';
+import { SWATCH } from '../labels';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
 import { timeOf } from '../today';
+import { wishById } from '../wouldwork';
 import type { ItemSummary } from '../types';
 import { activeSituations, lifeSummary, situationLabel, type SituationId } from '../life';
 import { ItemDetail } from './ItemDetail';
+import { WouldWork } from './WouldWork';
 import './Missing.css';
 
 const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
@@ -35,7 +38,7 @@ let memory: { profile: string; phase: Phase; tab: Tab } | null = null;
 
 type Tab = 'gaps' | 'wishlist';
 
-export function MissingScreen({ itemId, wide }: { itemId: string | null; wide: boolean }) {
+export function MissingScreen({ itemId, check, wishId, wide }: { itemId: string | null; check: boolean; wishId: string | null; wide: boolean }) {
   const { profile, items, loadItems, offline, toast } = useCloset();
   const remembered = memory && memory.profile === profile ? memory : null;
   const [phase, setPhase] = useState<Phase>(remembered?.phase ?? { kind: 'loading' });
@@ -98,6 +101,13 @@ export function MissingScreen({ itemId, wide }: { itemId: string | null; wide: b
     memory = { profile, phase, tab };
   }, [profile, phase, tab]);
 
+  // back from a check (which may have put something on the wishlist or marked a wish bought): ask for the lists again
+  const wasChecking = useRef(check);
+  useEffect(() => {
+    if (wasChecking.current && !check) setAttempt((n) => n + 1);
+    wasChecking.current = check;
+  }, [check]);
+
   const byId = useMemo(() => new Map((items.active ?? []).map((i) => [i.id, i])), [items.active]);
   const locked = offline || (phase.kind === 'ready' && phase.savedAt !== null);
 
@@ -135,6 +145,25 @@ export function MissingScreen({ itemId, wide }: { itemId: string | null; wide: b
     remove: (w) => change(w.id, () => api.removeWish(w.id), 'Removed from the list'),
   };
 
+  const wishes = phase.kind === 'ready' ? phase.wishes : null;
+  const wouldWork = check && (
+    <WouldWork key={`${profile}-${wishId ?? ''}`} wish={wishById(wishes, wishId)} wishId={wishId} byId={byId} locked={locked}
+      busy={busy === 'new-wish' || (wishId !== null && busy === wishId)}
+      onWish={(name, note) => actions.addByHand(name, note)} onNote={(w, note) => actions.saveNote(w, note)}
+      onBought={(w) => actions.bought(w)} />
+  );
+
+  if (check && !wide) {
+    return (
+      <div className="missing-item">
+        <div className="detail-top">
+          <Link to="/missing" className="btn btn-ghost back-link"><ChevronLeftIcon /> What's missing</Link>
+        </div>
+        {wouldWork}
+      </div>
+    );
+  }
+
   if (itemId && !wide) {
     return (
       <div className="missing-item">
@@ -146,7 +175,6 @@ export function MissingScreen({ itemId, wide }: { itemId: string | null; wide: b
     );
   }
 
-  const wishes = phase.kind === 'ready' ? phase.wishes : null;
   const wishlist = <Wishlist wishes={wishes} actions={actions} failed={phase.kind === 'error'} />;
 
   const main = (
@@ -159,6 +187,9 @@ export function MissingScreen({ itemId, wide }: { itemId: string | null; wide: b
           )}
         </div>
         {asking && phase.kind === 'ready' && <span className="missing-asking muted"><span className="spinner" aria-hidden="true" /> Looking again…</span>}
+        {locked
+          ? <span className="btn is-disabled" aria-disabled="true" title={OFFLINE_TITLE}>Would this work?</span>
+          : <Link to="/missing/check" className="btn" data-testid="would-work-open">Would this work?</Link>}
       </header>
       {!wide && (
         <div className="segmented missing-tabs" role="group" aria-label="Show">
@@ -192,8 +223,15 @@ export function MissingScreen({ itemId, wide }: { itemId: string | null; wide: b
   return (
     <div className="master-detail missing">
       {main}
-      <aside className="detail-panel missing-side" aria-label={itemId ? 'Item details' : 'Your wishlist'}>
-        {itemId ? (
+      <aside className="detail-panel missing-side" aria-label={itemId ? 'Item details' : check ? 'Would this work?' : 'Your wishlist'}>
+        {check ? (
+          <>
+            <div className="missing-panel-top">
+              <Link to="/missing" className="btn btn-ghost btn-small back-link"><ChevronLeftIcon /> Back to the wishlist</Link>
+            </div>
+            {wouldWork}
+          </>
+        ) : itemId ? (
           <>
             <div className="missing-panel-top">
               <Link to="/missing" className="btn btn-ghost btn-small back-link"><ChevronLeftIcon /> Back to the wishlist</Link>
@@ -543,26 +581,6 @@ function LookForBox({ look }: { look: LookFor | null }) {
   );
 }
 
-function Pieces({ ids, byId, max, label: groupLabel }: { ids: string[]; byId: Map<string, ItemSummary>; max: number; label: string }) {
-  const shown = ids.slice(0, max);
-  const more = ids.length - shown.length;
-  return (
-    <ul className="gap-thumbs" aria-label={groupLabel}>
-      {shown.map((id) => {
-        const item = byId.get(id);
-        return (
-          <li key={id}>
-            <Link to={`/missing/item/${encodeURIComponent(id)}`} className="gap-thumb" title={itemName(item)} data-testid="gap-piece">
-              <Pic item={item} />
-            </Link>
-          </li>
-        );
-      })}
-      {more > 0 && <li className="gap-thumb-more muted">and {more} more</li>}
-    </ul>
-  );
-}
-
 // ------------------------------------------------------------------ the wishlist
 
 function Wishlist({ wishes, actions, failed }: { wishes: Wish[] | null; actions: Actions; failed: boolean }) {
@@ -654,26 +672,12 @@ function WishCard({ wish, actions }: { wish: Wish; actions: Actions }) {
         )}
       </div>
       <div className="row wish-actions">
+        <button className="btn btn-small" disabled={busy || actions.locked} title={title}
+          onClick={() => navigate(`/missing/check/wish/${encodeURIComponent(wish.id)}`)}>I found one: would it work?</button>
         <button className="btn btn-small btn-primary" disabled={busy || actions.locked} title={title ?? 'Takes it off the list and opens Add, to photograph it'}
           onClick={() => void actions.bought(wish)}>I bought it</button>
         <button className="btn btn-small btn-ghost" disabled={busy || actions.locked} title={title} onClick={() => void actions.remove(wish)}>Remove</button>
       </div>
     </article>
   );
-}
-
-// ------------------------------------------------------------------ pictures
-
-function Pic({ item }: { item: ItemSummary | undefined }): ReactNode {
-  const alt = itemName(item);
-  if (!item) return <span className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></span>;
-  if (item.cutout_state === 'ready' && item.thumb_url) return <img className="pic-cutout" src={item.thumb_url} alt={alt} />;
-  if (item.illustration_url) return <img className="pic-illustration" src={item.illustration_url} alt={alt} />;
-  if (item.thumb_url) return <img className="pic-photo" src={item.thumb_url} alt={alt} />;
-  return <span className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></span>;
-}
-
-function itemName(item: ItemSummary | undefined): string {
-  if (!item) return 'An item';
-  return item.name || label('category', item.category) || 'An item';
 }

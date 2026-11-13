@@ -46,6 +46,7 @@ from . import (
     wears,
     wishlist,
     worn,
+    wouldjobs,
 )
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
@@ -73,6 +74,7 @@ class Services:
     web_dir: Path | None = None
     tag_worker: tagjobs.Worker | None = None
     corrector: corrections.Corrector = correcting.correct
+    check_tagger: tagjobs.Tagger | None = None   # describes a photo for "Would this work?", recorded as its own purpose
     on_quit: Callable[[], None] = lambda: None
     _phone_cache: tuple[float, dict] | None = field(default=None, repr=False)
 
@@ -141,6 +143,11 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     def real_corrector(sentence: str, description: dict, allowed: dict, images: list, usable: tuple[str, ...]):
         return correcting.correct(sentence, description, allowed, images, usable, client=api_client, meter=reading)
 
+    check_meter = spend.Meter(cfg, state, wouldjobs.PURPOSE)
+
+    def check_tagger(images: list[Image.Image], usable: tuple[str, ...]):
+        return tagjobs.claude_tagger(images, usable, meter=check_meter, client=api_client)
+
     tag_worker = tagjobs.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)), tagger or real_tagger)
     worker = jobs.Worker(cfg, state, lambda: model.ready, cutter or real_cutter, on_done=tag_worker.wake)
     holder["worker"] = worker
@@ -149,7 +156,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
         candidate = bundle_dir() / "web"
         web_dir = candidate if (candidate / "index.html").exists() else None
     return Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker,
-                    corrector=corrector or real_corrector)
+                    corrector=corrector or real_corrector,
+                    check_tagger=tagger or check_tagger)
 
 
 class Passphrase(BaseModel):
@@ -599,9 +607,8 @@ def create_app(sv: Services) -> FastAPI:
     # ----------------------------------------------------------------- gaps
     gaps_cache: dict[str, tuple[str, dict]] = {}  # profile -> (what the closet and wear log were, the answer)
 
-    def gap_analysis(profile: str | None = None) -> dict:
-        """The open closet's gaps, all of them (cut to the list's length when marked); slow the first time."""
-        profile = profile or state.get("profile")
+    def gap_inputs(profile: str) -> tuple[list[dict], list[dict]]:
+        """A closet's item rows and wear log, as the gap analysis reads them."""
         conn = db.connect(cfg.db_path(profile))
         try:
             rows = closet_rows(conn)
@@ -609,6 +616,12 @@ def create_app(sv: Services) -> FastAPI:
                     for r in conn.execute("SELECT item_id, worn_on FROM wears ORDER BY item_id, worn_on")]
         finally:
             conn.close()
+        return rows, worn
+
+    def gap_analysis(profile: str | None = None, inputs: tuple[list[dict], list[dict]] | None = None) -> dict:
+        """The open closet's gaps, all of them (cut to the list's length when marked); slow the first time."""
+        profile = profile or state.get("profile")
+        rows, worn = inputs or gap_inputs(profile)
         if profile == "demo":
             answers, home = life.example()
             dismissed = True
@@ -660,6 +673,18 @@ def create_app(sv: Services) -> FastAPI:
         worn = conn.execute("SELECT item_id, worn_on FROM wears").fetchall()
         return find_insights(rows, worn, wears.today())
     app.include_router(wishlist.router(conn_dep, gap_analysis, protected, state))
+
+    def closet_for_check(profile: str) -> tuple[list[dict], list[dict], dict | None]:
+        # The check compares the plain analysis with and without the piece, and works both out itself. The answer
+        # kept for the list is weighed by how the owner lives, which the check does not know yet: put beside an
+        # unweighed "after", every gap that only that weighing finds would look filled.
+        rows, worn = gap_inputs(profile)
+        return rows, worn, None
+
+    assert sv.tag_worker and sv.check_tagger, "build_services wires both"
+    checks = wouldjobs.Checks(cfg, state, closet_for_check, sv.tag_worker.routes, sv.check_tagger,
+                              sv.worker.cutter, sv.worker.is_ready)
+    app.include_router(wouldjobs.router(checks, protected))
 
     # ---------------------------------------------------------------- weather
     @app.get("/api/places", dependencies=protected)

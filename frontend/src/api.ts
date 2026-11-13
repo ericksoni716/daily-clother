@@ -6,6 +6,7 @@ import type { Insights } from './insights';
 import type { OutfitSent, Rating, Reason, WornOutfit, WornPage } from './worn';
 import type { GapsAnswer, HideReason, Wish } from './gaps';
 import type { Life } from './life';
+import type { Check, WouldPiece } from './wouldwork';
 import type { FigurePieces } from './figure';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
@@ -208,6 +209,14 @@ export const api = {
     request<Wish>(`/api/wishlist/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes }),
   wishBought: (id: string) => request<Wish>(`/api/wishlist/${encodeURIComponent(id)}/bought`, { method: 'POST' }),
   removeWish: (id: string) => request<void>(`/api/wishlist/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  // Would this work?: a check starts and answers later; the photo is not kept
+  checkByHand: (piece: Partial<WouldPiece>) => request<Check>('/api/would-this-work', { method: 'POST', body: { piece } }),
+  checkPhoto: (photo: Blob, filename: string) => {
+    const form = new FormData();
+    form.append('photo', photo, filename);
+    return request<Check>('/api/would-this-work', { method: 'POST', form });
+  },
+  check: (id: string, signal?: AbortSignal) => request<Check>(`/api/would-this-work/${encodeURIComponent(id)}`, { signal }),
   outfitFigure: (pieces: FigurePieces, signal?: AbortSignal) =>
     request<string>('/api/outfits/figure', { method: 'POST', body: pieces, signal, text: true }),
   backup: () => request<BackupRecord>('/api/backup', { method: 'POST' }),

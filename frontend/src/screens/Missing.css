@@ -3,6 +3,12 @@
 .missing { max-width: 84rem; min-width: 0; }
 .missing-main { min-width: 0; max-width: 56rem; }
 .missing-header { margin-bottom: 10px; }
+/* On a phone the title and "Would this work?" share one row, so the first suggestion starts higher up:
+   the count of pieces and wears is left out there and the button is a size smaller. */
+@media (max-width: 699px) {
+  .missing-header .count { display: none; }
+  .missing-header .btn { min-height: 40px; padding: 0 12px; font-size: 0.9rem; white-space: nowrap; }
+}
 .missing-asking { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; }
 .missing-tabs { margin-bottom: 14px; }
 .missing-saved { align-items: center; }

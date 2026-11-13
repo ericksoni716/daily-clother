@@ -67,6 +67,24 @@ def has_work(conn) -> bool:
     return conn.execute("SELECT 1 FROM jobs WHERE kind = ? AND state = 'queued' LIMIT 1", (KIND,)).fetchone() is not None
 
 
+def recover(conn) -> int:
+    """Put back jobs left 'running' by a round that stopped half-way (a crash, a locked database, or a quit
+    while another closet was open). Only this worker runs tagging jobs, so between rounds none is really running.
+    A job that has already used its three attempts is failed instead, so a job that keeps crashing ends."""
+    t = db.now()
+    conn.execute("BEGIN IMMEDIATE")
+    stale = conn.execute("SELECT id, item_id, attempts FROM jobs WHERE kind = ? AND state = 'running'", (KIND,)).fetchall()
+    for job in stale:
+        if job["attempts"] >= MAX_ATTEMPTS:
+            conn.execute("UPDATE jobs SET state = 'failed', updated_at = ? WHERE id = ?", (t, job["id"]))
+            conn.execute("UPDATE items SET tag_state = 'failed', tag_error = ?, updated_at = ? WHERE id = ?", (FAILED, t, job["item_id"]))
+        else:
+            conn.execute("UPDATE jobs SET state = 'queued', updated_at = ? WHERE id = ?", (t, job["id"]))
+            conn.execute("UPDATE items SET tag_state = 'waiting', updated_at = ? WHERE id = ?", (t, job["item_id"]))
+    conn.execute("COMMIT")
+    return len(stale)
+
+
 def _photos(conn, images_dir: Path, item_id: str) -> list[Image.Image]:
     """The front photo's cutout first (what the prompt expects), then any other photos of the item."""
     out = []
@@ -251,12 +269,12 @@ class Worker:
             return done
         conn = db.connect(path)
         try:
-            if not has_work(conn):
-                return done
-            routes = self.routes()   # checked once per round, so a route that appears is picked up on the next one
-            if not routes:
-                return done
-            while not self._stop.is_set() and run_one(conn, self.cfg.images_dir(profile), routes, self.tagger) == "done":
+            recover(conn)
+            while not self._stop.is_set() and has_work(conn):
+                # asked again before each item, so turning the API key off (or a plan limit) takes effect at once
+                routes = self.routes()
+                if not routes or run_one(conn, self.cfg.images_dir(profile), routes, self.tagger) != "done":
+                    break
                 done += 1
         finally:
             conn.close()

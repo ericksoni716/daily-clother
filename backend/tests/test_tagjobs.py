@@ -15,7 +15,7 @@ from closet.tagger import routes as tagger_routes
 from closet.tagger.schema import SCHEMA_VERSION, ItemTags
 from closet.tagger.tagging import RouteUnavailable
 
-from .conftest import ANSWER, upload
+from .conftest import ANSWER, photo_bytes, upload
 
 
 def cut(services):
@@ -295,3 +295,38 @@ def test_the_migration_runs_on_a_closet_made_by_the_previous_version(cfg):
     r = dict(conn.execute("SELECT * FROM items WHERE id = 'a'").fetchone())
     conn.close()
     assert r["name"] == "Old shirt" and r["tag_state"] == "none" and r["tag_answer"] is None
+
+
+def test_turning_the_api_key_off_takes_effect_before_the_next_item(client, services, claude, cfg, both_routes):
+    both_routes["plan"] = False
+    client.put("/api/settings", json={"tagging_api_enabled": True})
+    upload(client, key="a")
+    upload(client, data=photo_bytes(color=(20, 30, 90)), key="b")
+    cut(services)
+    services.tag_worker.routes = lambda: tagjobs.usable_routes(services.state)
+    claude.mode = "answers"
+    real = services.tag_worker.tagger
+
+    def then_switch_off(images, routes):
+        services.state.update(tagging_api_enabled=False)   # the owner turns it off while the first item is described
+        return real(images, routes)
+    services.tag_worker.tagger = then_switch_off
+    assert tag(services) == 1 and claude.calls == [("api",)]
+    states = sorted(i["tag_state"] for i in client.get("/api/items").json()["items"])
+    assert states == ["done", "waiting"]
+
+
+def test_a_job_left_running_is_put_back_and_one_that_keeps_crashing_ends(client, services, claude, cfg):
+    item = upload(client).json()
+    cut(services)
+    conn = db.connect(cfg.db_path("main"))
+    conn.execute("UPDATE jobs SET state = 'running', attempts = 1 WHERE kind = 'tag'")
+    conn.execute("UPDATE items SET tag_state = 'working'")
+    conn.close()
+    assert tag(services) == 0   # no route: it is put back to wait, not left 'working'
+    assert row(cfg, item["id"])["tag_state"] == "waiting"
+    conn = db.connect(cfg.db_path("main"))
+    conn.execute("UPDATE jobs SET state = 'running', attempts = 3 WHERE kind = 'tag'")
+    conn.close()
+    tag(services)
+    assert row(cfg, item["id"])["tag_state"] == "failed" and tag_jobs(cfg, item["id"])[0]["state"] == "failed"

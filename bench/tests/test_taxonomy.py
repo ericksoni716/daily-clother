@@ -218,7 +218,7 @@ UNCHANGED = {
     "bomber": "b489e7d70c3f37ac",
     "harrington": "85c603c5ff653c7a",
     "field_jacket": "1eab41a1382a9c74",
-    "puffer": "3a630aaefdc28a76",
+    "puffer": "a19007ce4fc78a9c",   # #110: outline swells between channels
     "quilted_jacket": "9daae90d264d9d8d",
     "fleece_jacket": "d1ff07dded0b7647",
     "barn_jacket": "4a3332cae9f90e8b",
@@ -344,3 +344,17 @@ def test_lapels_on_black_and_on_plaid_get_a_shade():
     lapel = next(q.d for q in build("top", {**p, "weight": extras.get("weight")}).parts if q.role == "lapel_r")
     count = lambda color: render(Spec("top", p, Fill("solid", color), **extras), "line").count(f'd="{lapel}"')
     assert count("#1a1a1c") > count("#336699")
+
+
+def test_a_puffer_swells_between_its_channels():
+    g = GARMENT_DRAWINGS["puffer"]
+    sh = _shape(g)
+    flat = _shape(g, quilting=None, weight=surface_extras(g)["weight"])
+    assert sh.outline != flat.outline
+    sleeve, flat_sleeve = _pts(sh.sleeves[0][0]), _pts(flat.sleeves[0][0])
+    # the flat sleeve's outer edge runs straight from P1 to the cuff; the puffer's swells off that line and back
+    P1, Co = flat_sleeve[2], flat_sleeve[3]
+    u = ((Co[0] - P1[0]) / math.dist(P1, Co), (Co[1] - P1[1]) / math.dist(P1, Co))
+    off = [abs((v[0] - P1[0]) * u[1] - (v[1] - P1[1]) * u[0]) for v in sleeve[3:40]]
+    assert max(off) > 2.5 and min(off) < 0.5
+    assert len(sleeve) > len(flat_sleeve) + 40          # both edges of the sleeve swell

@@ -13,10 +13,9 @@ import numpy as np
 from PIL import Image
 
 from . import fills
-from .templates import H, Shape, W, _x_on, build
+from .templates import CX_ROT, H, Shape, W, _x_on, build
 
 STYLES = ("flat", "line", "soft", "traced")
-CX_ROT = (200, 120)  # patterns are turned about the middle of the chest
 PLACE_AT = 0.35      # where along the centre line, from neck to hem, a placed pattern is lined up
 CARD = "#f1eee8"
 INK = "#26231f"

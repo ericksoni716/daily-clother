@@ -309,8 +309,8 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
         p["weight"] = surf["weight"]
     if g.get("knit_gauge") in KNIT_GAUGES:
         p["gauge"] = g["knit_gauge"]
-    if g.get("quilting") == "baffle":
-        notes.append("puffer baffles drawn as stitched channels; the puffed silhouette is not drawn")
+    if g.get("quilting") == "baffle":   # a puffer: the outline swells between the stitched channels
+        p["quilting"] = "baffle"
     return p, extras, notes
 
 

@@ -16,6 +16,7 @@ from ..tagger.taxonomy import SHOE_STYLES  # shared with the tagger
 
 W, H = 400, 460
 CX = 200.0
+CX_ROT = (200, 120)  # patterns and a sleeve's cloth are turned about the middle of the chest
 
 
 @dataclass
@@ -256,8 +257,25 @@ def _scallop(pts, spacing, amp, outward=1):
             x = a[0] + (b[0] - a[0]) * i / n
             y = a[1] + (b[1] - a[1]) * i / n
             f = ((y - 0.8) % spacing) / spacing
-            out.append((x + outward * amp * math.sin(math.pi * f), y))
+            ease = min(1.0, (y - pts[0][1]) / 14)   # grows in from the underarm, so no sliver opens beside the sleeve
+            out.append((x + outward * amp * ease * math.sin(math.pi * f), y))
     out.append(pts[-1])
+    return out
+
+
+def _scallop_run(a, b, spacing, amp, deg, outward):
+    """Points from a to b (both excluded) swelling out by up to amp between the channels of a puffer's
+    sleeve. The channels are the body's, turned by deg about CX_ROT with the sleeve's cloth, so the
+    pinches fall on the stitched lines; outward is the unit direction the edge swells to."""
+    r = math.radians(deg)
+    n = max(2, int(math.dist(a, b) / 2))
+    out = []
+    for i in range(1, n):
+        x, y = a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n
+        py = math.sin(r) * (x - CX_ROT[0]) + math.cos(r) * (y - CX_ROT[1]) + CX_ROT[1]
+        f = ((py - 0.8) % spacing) / spacing
+        s = amp * math.sin(math.pi * f) * min(1.0, i / n * 8, (n - i) / n * 8)   # eased in at both ends
+        out.append((x + outward[0] * s, y + outward[1] * s))
     return out
 
 
@@ -475,7 +493,21 @@ def top(**kw) -> Shape:
             sil = corner + [Ci, A]
             side_from = side
             sh_over = None
-        arm = f"Q {_pt(K)} {_pt(P1)} L " + " L ".join(_pt(v) for v in sil)
+        puff, puff_in = [], []   # a puffer's sleeve swells between its channels on both edges, down to the cuff
+        if p.get("quilting") == "baffle":
+            amp = 3.2 + bulk * 0.3
+            cuff_d = {"rib": 17 * bs, "button": 22 + bulk, "button2": 22 + bulk, "mitred": 22 + bulk, "french": 28 + bulk,
+                      "snap3": 31 + bulk}.get(cuffs, 0) if kind in ("long", "three-quarter") else 0
+            end = (Co[0] - d[0] * cuff_d, Co[1] - d[1] * cuff_d)
+            puff = _scallop_run(P1, end, 32.0, amp, math.degrees(thr), (d[1], -d[0])) + [end]
+            if Ci in sil:   # the inner edge, from the top of the cuff up to where it meets the body
+                Bi_ = _lerp(Ci, A, min(0.9, cuff_d / max(1.0, math.dist(Ci, A))))
+                puff_in = [Bi_] + _scallop_run(Bi_, A, 32.0, amp, math.degrees(thr), (-d[1], d[0]))
+                i_c = sil.index(Ci) + 1
+                nxt = sil[i_c] if i_c < len(sil) else A
+                puff_in = [v for v in puff_in if math.dist(Ci, v) < math.dist(Ci, nxt) - 10]
+                sil = sil[:i_c] + puff_in + sil[i_c:]
+        arm = f"Q {_pt(K)} {_pt(P1)} L " + " L ".join(_pt(v) for v in puff + sil)
         arm_pts_r = None
 
     # ---- outline, clockwise from the right neck point
@@ -501,6 +533,7 @@ def top(**kw) -> Shape:
     if sleeved:
         sil_l = [_mirror(v) for v in sil[::-1]]
         arm_l = (" ".join(f"L {_pt(v)}" for v in left_side_pts[1:]) + " L " + " L ".join(_pt(v) for v in sil_l[1:])
+                 + "".join(f" L {_pt(_mirror(v))}" for v in puff[::-1])
                  + f" L {_pt(_mirror(P1))} Q {_pt(_mirror(K))} {_pt(_mirror(S))}")
     else:
         arm_l = (" ".join(f"L {_pt(v)}" for v in left_side_pts[1:])
@@ -538,7 +571,8 @@ def top(**kw) -> Shape:
     if cuff:
         deg = math.degrees(th)
         s0, s1, s2, s3 = seam
-        right_sleeve = (f"M {_pt(S)} Q {_pt(K)} {_pt(P1)} L " + " L ".join(_pt(v) for v in corner) + f" L {_pt(Ci)} L {_pt(A)} "
+        right_sleeve = (f"M {_pt(S)} Q {_pt(K)} {_pt(P1)} L " + " L ".join(_pt(v) for v in puff + corner) + f" L {_pt(Ci)} "
+                        + "".join(f"L {_pt(v)} " for v in puff_in) + f"L {_pt(A)} "
                         f"C {_pt(s2)} {_pt(s1)} {_pt(s0)} Z")
         sh.sleeves = [(right_sleeve, -deg), (_mirror_path(right_sleeve), deg)]
         if sh_over:   # the sleeve's inner edge where it lies over the body

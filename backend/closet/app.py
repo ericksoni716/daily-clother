@@ -1,7 +1,6 @@
 """The web API and the page it serves."""
 from __future__ import annotations
 
-import json
 import logging
 import threading
 import time
@@ -21,6 +20,9 @@ from .cutout import make_cutout, predict_mask
 from .modelstore import MODEL, ModelStore
 from .state import State
 from .tagger import routes as tagger_routes
+from .today import closet_rows
+from .today import suggest as suggest_today
+from .weather import WeatherError, check_place, lookup, search_places
 
 log = logging.getLogger("closet.app")
 
@@ -110,6 +112,7 @@ class LaundryState(BaseModel):
 class SettingsPatch(BaseModel):
     backup_folder: str | None = None
     autostart: bool | None = None
+    place: dict | None = None
     model_config = {"extra": "forbid"}
 
 
@@ -286,8 +289,7 @@ def create_app(sv: Services) -> FastAPI:
         def work() -> dict:
             conn = db.connect(path)
             try:
-                rows = [{**{k: r[k] for k in r.keys() if k not in ("illustration_svg", "confidence", "source")},
-                         "silhouette": json.loads(r["silhouette"] or "{}")} for r in conn.execute("SELECT * FROM items")]
+                rows = closet_rows(conn)
             finally:
                 conn.close()
             if ctx.build_around and not any(r["id"] == ctx.build_around for r in rows):
@@ -296,6 +298,39 @@ def create_app(sv: Services) -> FastAPI:
 
         # comparing thousands of combinations takes a moment; do it in a worker thread so other requests keep being answered
         return await run_in_threadpool(work)
+
+    @app.post("/api/outfits/today", dependencies=protected)
+    async def outfits_today(request: Request):
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        path = cfg.db_path(state.get("profile"))
+
+        def work() -> dict:
+            conn = db.connect(path)
+            try:
+                return suggest_today(conn, state, body)
+            except outfits.ContextError as e:
+                raise HTTPException(422, str(e))
+            finally:
+                conn.close()
+
+        # asks Open-Meteo (a few seconds at most) and compares many outfits, so keep it off the event loop
+        return await run_in_threadpool(work)
+
+    # ---------------------------------------------------------------- weather
+    @app.get("/api/places", dependencies=protected)
+    async def find_places(q: str = ""):
+        try:
+            return {"places": await run_in_threadpool(search_places, q)}
+        except WeatherError as e:
+            raise HTTPException(502, str(e))
+
+    @app.get("/api/weather", dependencies=protected)
+    async def get_weather():
+        found = await run_in_threadpool(lookup, state)
+        return {k: found[k] for k in ("place", "weather", "old", "is_today", "message")}
 
     # ---------------------------------------------------------------- model
     @app.get("/api/model", dependencies=protected)
@@ -327,7 +362,7 @@ def create_app(sv: Services) -> FastAPI:
             "version": __version__, "profile": state.get("profile"), "data_dir": str(cfg.data_dir), "port": cfg.port,
             "backup_folder": state.get("backup_folder"), "last_backup": state.get("last_backup"),
             "last_good_backup": backup.last_good(state), "pending_cutouts": jobs.pending_count(conn),
-            "phone": sv.phone_info(), "autostart": auto, "heic_supported": images.HEIC,
+            "phone": sv.phone_info(), "autostart": auto, "heic_supported": images.HEIC, "place": state.get("place"),
         }
 
     @app.get("/api/settings", dependencies=protected)
@@ -346,6 +381,13 @@ def create_app(sv: Services) -> FastAPI:
                 state.update(backup_folder=str(path))
             else:
                 state.update(backup_folder=None)
+        if "place" in sent:
+            try:
+                place = check_place(body.place) if body.place is not None else None
+            except ValueError as e:
+                raise HTTPException(422, str(e))
+            if place != state.get("place"):
+                state.update(place=place, weather=None)
         if "autostart" in sent and body.autostart is not None:
             try:
                 autostart.set_enabled(body.autostart)

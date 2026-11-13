@@ -339,6 +339,8 @@ def undo(conn, item_id: str, change_id: int) -> dict:
                     confidence.pop("details", None)
                 else:
                     confidence["details"] = was["details_confidence"]
+        if "tag_answer" in sets:   # an answer put back: what the undone one gave to other fields since goes with it
+            fields = list(history.DESCRIBED)
         _given_back(row, sets, source, confidence, fields)
         sets.update(source=json.dumps(source), confidence=json.dumps(confidence), own_details=details.dump(owner),
                     updated_at=db.now())

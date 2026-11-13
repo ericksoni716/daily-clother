@@ -404,6 +404,22 @@ def test_undoing_the_owners_change_after_a_new_description_follows_the_current_a
     assert svg(client, client.get(f"/api/items/{item['id']}").json()) == drawn   # the drawing already matched the answer
 
 
+def test_undoing_the_answer_afterwards_takes_back_what_it_gave_to_other_fields(client, services, claude):
+    item = described(client, services, claude)
+    client.patch(f"/api/items/{item['id']}", json={"color": "green", "color_hex": "#3f7d4f"})
+    redescribe(client, services, item["id"], ItemTags.model_validate(demo_answer("Oatmeal henley")))
+    owners = next(e for e in history(client, item["id"]) if e["kind"] == "field")
+    assert undo(client, item["id"], owners["id"]).json()["item"]["color"] == "cream"
+    answer = next(e for e in history(client, item["id"]) if e["kind"] == "answer")
+    assert answer["can_undo"]
+    back = undo(client, item["id"], answer["id"]).json()["item"]
+    # the colour came from the henley's answer, so it goes back with it to what the polo's answer says
+    for field in ("category", "color", "color_hex"):
+        assert back[field] == item[field], field
+    assert back["source"]["color"] == "ai" and back["confidence"]["color"] == item["confidence"]["color"]
+    assert svg(client, back) == svg(client, item)
+
+
 def test_the_demo_drawing_made_in_advance_comes_back_whenever_the_item_is_as_it_was(client, services, cfg):
     assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
     polo = next(i for i in client.get("/api/items").json()["items"] if i["name"] == "Navy polo")

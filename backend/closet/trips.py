@@ -147,6 +147,7 @@ class _Day:
     t: float = 0.0
     outfit: outfits._Outfit | None = None
     problem: str | None = None
+    warning: str | None = None
 
 
 @dataclass
@@ -275,7 +276,7 @@ class _Planner:
                          "Choose \u201cI can wash there\u201d or take more pieces.")
             return
         d.outfit = best
-        d.problem = ref.problem
+        d.warning = ref.problem
         for p in _core(best):
             self.packed.setdefault(p.id, p)
             self.used[p.id] = self.used.get(p.id, 0) + 1
@@ -316,7 +317,8 @@ class _Planner:
     def answer(self, order: list[_Day]) -> dict:
         days = []
         for d in self.days:
-            entry = {"date": d.date, "occasion": d.occasion, "weather": d.weather, "outfit": None, "problem": d.problem}
+            entry = {"date": d.date, "occasion": d.occasion, "weather": d.weather, "outfit": None, "problem": d.problem,
+                     "warning": d.warning}
             if d.outfit is not None:
                 score, reasons, warnings = outfits._explain(d.outfit, d.ctx, d.t, None, self.outers)
                 pieces = {place: (getattr(d.outfit, place).piece.id if getattr(d.outfit, place) else None)
@@ -336,7 +338,8 @@ class _Planner:
             "packed": packed,
             "days": days,
             "basics": self.basics(order),
-            "uncovered": [{"date": d["date"], "reason": d["problem"]} for d in days if d["problem"]],
+            "uncovered": [{"date": d["date"], "reason": d["problem"]} for d in days if d["outfit"] is None],
+            "warnings": [{"date": d["date"], "reason": d["warning"]} for d in days if d["warning"]],
             "notes": self.notes,
         }
 
@@ -364,7 +367,8 @@ def plan(items: Iterable[object], days: list[Mapping], options: Options | Mappin
 
     `days` are the trip's days in order, each {date, low_c, high_c, rain, source, ...} (source `unknown` when the
     weather could not be had). Returns {"packed": [{id, group, days, pinned}], "days": [{date, occasion, weather,
-    outfit, problem}], "basics": [{key, name, count}], "uncovered": [{date, reason}], "notes": [sentences]}.
+    outfit, problem, warning}], "basics": [{key, name, count}], "uncovered": [{date, reason}], "warnings": [{date, reason}],
+    "notes": [sentences]}.
     """
     dates = [str(d.get("date")) for d in days]
     opts = options if isinstance(options, Options) else parse_options(options or {}, dates)

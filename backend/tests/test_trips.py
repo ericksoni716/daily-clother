@@ -5,7 +5,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from closet import outfits, trips, wears, weather
+from closet import db, outfits, trips, tripweather, wears, weather
 
 from .test_outfits import basic_closet, demo_items, item
 
@@ -121,15 +121,17 @@ def test_a_day_that_cannot_be_covered_says_why():
     assert result["packed"] == []
 
 
-def test_a_rainy_day_with_nothing_rain_proof_for_the_feet_says_so():
+def test_a_rainy_day_with_an_outfit_warning_is_not_counted_as_uncovered():
     items = [i for i in basic_closet() if i["category"] not in ("sneakers", "dress_shoes")]
     items.append(item("canvas1", "sneakers", "white", "casual", material="canvas"))
     result = trips.plan(items, days(3, rain_every=2))
     rainy = [d for d in result["days"] if d["weather"]["rain"]]
     dry = [d for d in result["days"] if not d["weather"]["rain"]]
-    assert all("Nothing rain-proof" in d["problem"] and d["outfit"] for d in rainy)
-    assert all(d["problem"] is None for d in dry)
-    assert [u["date"] for u in result["uncovered"]] == [d["date"] for d in rainy]
+    assert all(d["warning"] and "Nothing rain-proof" in d["warning"] and d["outfit"] for d in rainy)
+    assert all(d["problem"] is None and d["warning"] is None for d in dry)
+    # A warning means the day has an outfit to wear; only a day with no outfit is uncovered.
+    assert result["uncovered"] == []
+    assert [w["date"] for w in result["warnings"]] == [d["date"] for d in rainy]
 
 
 def test_a_day_without_weather_is_reported_and_the_rest_are_planned():
@@ -321,6 +323,51 @@ def test_the_demo_closet_and_the_real_closet_keep_their_trips_apart(client, cloc
     assert real["plan"]["packed"] == [] and real["plan"]["uncovered"]  # nothing in the real closet yet
     client.post("/api/profile", json={"profile": "demo"})
     assert [t["id"] for t in client.get("/api/trips").json()["trips"]] == [demo_trip["id"]]
+
+
+def test_migration_0012_adds_trips_to_a_closet_at_version_11(tmp_path):
+    path = tmp_path / "closet.db"
+    conn = db.connect(path)
+    for version, migration in db.migration_files():
+        if version < 12 and not migration.name.endswith("_trips.sql"):
+            conn.executescript(migration.read_text(encoding="utf-8"))
+            conn.execute(f"PRAGMA user_version = {version}")
+    conn.execute("PRAGMA user_version = 11")
+    conn.close()
+
+    result = db.migrate(path, tmp_path / "backups")
+    conn = db.connect(path)
+    assert result["applied"] == [12]
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
+    assert conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='trips'").fetchone()
+    conn.close()
+
+
+def test_replan_keeps_saved_weather_and_ticks_when_the_archive_fails(client, clock, monkeypatch):
+    from .test_tripweather import FakeOpenMeteo
+
+    client.post("/api/profile", json={"profile": "demo"})
+    fake = FakeOpenMeteo()
+    monkeypatch.setattr(weather, "fetch", fake)
+    now = [1_794_500_000.0]
+    monkeypatch.setattr(weather, "_now", lambda: now[0])
+    first = TODAY + timedelta(days=20)
+    trip = client.post("/api/trips", json={
+        "place": NYC, "first_day": first.isoformat(), "last_day": (first + timedelta(days=4)).isoformat(),
+    }).json()
+    assert [d["source"] for d in trip["weather"]] == ["usual"] * 5
+    item_tick = f"item:{trip['plan']['packed'][0]['id']}"
+    ticks = [item_tick, "basic:socks"]
+    assert client.patch(f"/api/trips/{trip['id']}", json={"ticks": dict.fromkeys(ticks, True)}).status_code == 200
+
+    fake.archive_down = True
+    now[0] += tripweather.KEEP_USUAL_S + 1
+    again = client.patch(f"/api/trips/{trip['id']}", json={"replan": True}).json()
+
+    assert again["weather"] == trip["weather"]
+    assert "weather could not be refreshed" in again["weather_message"]
+    assert again["plan"] == trip["plan"]
+    assert all(line in again["packed"] for line in ticks)
 
 
 def test_a_saved_trip_notices_when_the_forecast_changes_but_keeps_its_plan(client, monkeypatch):

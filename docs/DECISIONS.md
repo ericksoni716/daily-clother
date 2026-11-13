@@ -329,5 +329,5 @@ See `docs/PHASE0.md` for the results and what is still open.
 - **Basics** are counts, not closet items: underwear and socks one per day plus one spare (fewer when washing), sleepwear, and an umbrella when a rainy day has no rain-friendly coat.
 - **The planner** dresses the hardest days first, preferring pieces already packed, then fewest new pieces, then the engine's score. It calls the outfit engine's own helpers; `outfits.py` itself is unchanged.
 - **Where Trips sits.** In the sidebar on the computer. The phone's bottom bar is full, so there is no tab: a "Trips" link sits on Today's header and in Settings under "Where you are".
-- **Migration number.** `0008_trips.sql`: the next free number on `main` (the issue suggested `0012` unless that left a gap).
+- **Migration number.** `0012_trips.sql`: migrations `0010` and `0011` are assigned to branches merging before trips; a migration must be above the closet's current version to run.
 - A saved trip keeps the weather its plan was made for; opening it checks the forecast again and only offers "Plan again" when it changed.

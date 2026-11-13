@@ -1,5 +1,5 @@
 -- Trip packing: a trip, its weather, the packing plan chosen for it and what has been packed.
--- Numbered 0008, the next free number after 0007: a migration numbered below a closet's current version would never run.
+-- Numbered 0012 because migrations 0010 and 0011 land before trips.
 
 CREATE TABLE trips (
   id            TEXT PRIMARY KEY,

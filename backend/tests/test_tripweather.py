@@ -97,6 +97,48 @@ def test_days_beyond_the_forecast_are_what_the_dates_are_usually_like(fake, stat
     assert tripweather.lookup(state, LISBON, first, first, TODAY)["days"][0]["rain"] is False
 
 
+def test_usual_weather_uses_only_past_dates_for_a_trip_ending_over_a_year_ahead(fake, state):
+    first = TODAY + timedelta(days=366)
+    last = first + timedelta(days=29)
+    assert tripweather.check_dates(iso(first), iso(last), TODAY) == (first, last)
+
+    found = tripweather.lookup(state, LISBON, first, last, TODAY)
+
+    assert all(d["source"] == "usual" for d in found["days"])
+    (_, params), = [c for c in fake.calls if c[0].startswith("archive")]
+    assert date.fromisoformat(params["start_date"]) <= date.fromisoformat(params["end_date"]) <= TODAY
+
+
+def test_usual_weather_handles_leap_day_and_dates_across_new_year(fake, state):
+    leap = date(2028, 2, 29)
+    leap_day = tripweather.lookup(state, LISBON, leap, leap, TODAY)["days"][0]
+    new_year = tripweather.lookup(state, LISBON, date(2027, 12, 31), date(2028, 1, 2), TODAY)["days"]
+
+    assert leap_day["date"] == "2028-02-29" and leap_day["low_c"] is not None
+    assert [d["date"] for d in new_year] == ["2027-12-31", "2028-01-01", "2028-01-02"]
+    assert all(d["source"] == "usual" and d["low_c"] is not None for d in new_year)
+    archive = [params for where, params in fake.calls if where.startswith("archive")]
+    assert all(date.fromisoformat(p["end_date"]) <= TODAY for p in archive)
+
+
+def test_usual_weather_cache_key_contains_the_exact_days_asked_for(fake, state, monkeypatch):
+    first = TODAY + timedelta(days=14)
+    days = [iso(first + timedelta(days=i)) for i in range(5)]
+    source = lambda day: {"date": day, "low_c": 10, "high_c": 16, "rain": False, "rain_chance": 10,
+                          "summary": "clear", "source": "forecast"}
+    forecasts = iter([{days[0]: source(days[0]), days[4]: source(days[4])},
+                      {days[0]: source(days[0]), days[2]: source(days[2]), days[4]: source(days[4])}])
+    monkeypatch.setattr(tripweather, "_forecast", lambda place: next(forecasts))
+    now = [NOON]
+    monkeypatch.setattr(weather, "_now", lambda: now[0])
+
+    tripweather.lookup(state, LISBON, first, first + timedelta(days=4), TODAY)
+    now[0] += tripweather.KEEP_FORECAST_S + 1
+    tripweather.lookup(state, LISBON, first, first + timedelta(days=4), TODAY)
+
+    assert fake.count("archive-api.open-meteo.com/v1/archive") == 2
+
+
 def test_only_the_coordinates_time_zone_and_dates_are_sent(fake, state):
     tripweather.lookup(state, LISBON, TODAY + timedelta(days=14), TODAY + timedelta(days=18), TODAY)
     for _, params in fake.calls:

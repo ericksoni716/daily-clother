@@ -64,6 +64,23 @@ def _all_given(days: list[dict]) -> bool:
     return bool(days) and all(d.get("source") == "given" for d in days)
 
 
+def _retain_weather(previous: list[dict], refreshed: dict) -> tuple[list[dict], str | None]:
+    old = {d["date"]: d for d in previous}
+    days = []
+    kept = False
+    for day in refreshed["days"]:
+        before = old.get(day["date"])
+        if day.get("source") == "unknown" and before and before.get("source") != "unknown":
+            days.append(before)
+            kept = True
+        else:
+            days.append(day)
+    message = refreshed["message"]
+    if kept:
+        message = "The weather could not be refreshed for some days. The weather from the last plan was kept for those days."
+    return days, message
+
+
 def work_out(conn, state: State, body: object) -> dict:
     """A plan for the trip asked for, not saved: the trip as it would be saved, without id or ticks."""
     body = _object(body)
@@ -195,7 +212,7 @@ def patch(conn, state: State, trip_id: str, body: object) -> dict:
         if changes or replan:
             dates = [d["date"] for d in trip["weather"]]
             opts = _options({**_choices_of(trip), **changes}, dates)
-            days, message = (fresh["days"], fresh["message"]) if fresh else (trip["weather"], trip["weather_message"])
+            days, message = _retain_weather(trip["weather"], fresh) if fresh else (trip["weather"], trip["weather_message"])
             plan = _plan(conn, days, opts)
             lines = trips.lines(plan)
             packed = [x for x in packed if x in lines]

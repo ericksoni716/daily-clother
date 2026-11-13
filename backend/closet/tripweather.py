@@ -78,6 +78,18 @@ def _years_back(day: date, years: int) -> date:
         return day.replace(year=day.year - years, day=28)
 
 
+def _past_years(day: date, today: date) -> list[date]:
+    """The most recent USUAL_YEARS calendar matches that are already in the archive."""
+    out = []
+    years = 1
+    while len(out) < USUAL_YEARS:
+        candidate = _years_back(day, years)
+        if candidate < today:
+            out.append(candidate)
+        years += 1
+    return out
+
+
 # ---------------------------------------------------------------------- what is kept
 def _kept(state: State, kind: str, key: str, max_age: float, on: str | None = None) -> dict | None:
     kept = state.get("trip_weather") or {}
@@ -140,11 +152,12 @@ def _forecast(place: dict) -> dict:
 
 
 # ---------------------------------------------------------------------- what the dates are usually like
-def _usual(place: dict, days: list[str]) -> dict:
+def _usual(place: dict, days: list[str], today: date) -> dict:
     """{date: day} for each of `days` from the same dates in each of the last USUAL_YEARS years."""
     wanted = [date.fromisoformat(d) for d in days]
-    start = _years_back(min(wanted), USUAL_YEARS)
-    end = _years_back(max(wanted), 1)
+    history = {d: _past_years(d, today) for d in wanted}
+    past_dates = [sample for samples in history.values() for sample in samples]
+    start, end = min(past_dates), max(past_dates)
     data = weather._get(ARCHIVE_URL, {
         "latitude": place["latitude"], "longitude": place["longitude"], "timezone": place["timezone"],
         "start_date": start.isoformat(), "end_date": end.isoformat(),
@@ -162,8 +175,8 @@ def _usual(place: dict, days: list[str]) -> dict:
     out = {}
     for d in wanted:
         temps, rained, years = [], 0, 0
-        for n in range(1, USUAL_YEARS + 1):
-            low, high, rain = past.get(_years_back(d, n).isoformat(), (None, None, None))
+        for sample in history[d]:
+            low, high, rain = past.get(sample.isoformat(), (None, None, None))
             if low is not None and high is not None:
                 temps.append((min(low, high), max(low, high)))
             if rain is not None:
@@ -202,11 +215,11 @@ def lookup(state: State, place: dict, first: date, last: date, today: date) -> d
         found.update({d: forecast[d] for d in days if d in forecast})
     rest = [d for d in days if d not in found]
     if rest:
-        usual_key = f"{key}|{rest[0]}|{rest[-1]}"
+        usual_key = f"{key}|{','.join(rest)}"
         usual = _kept(state, "usual", usual_key, KEEP_USUAL_S)
         if usual is None:
             try:
-                usual = _usual(place, rest)
+                usual = _usual(place, rest, today)
                 _keep(state, "usual", usual_key, usual)
             except weather.WeatherError as e:
                 usual = {}

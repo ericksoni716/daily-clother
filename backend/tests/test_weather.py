@@ -45,7 +45,7 @@ class FakeOpenMeteo:
             "precipitation_probability_max": [f["chance"]], "weather_code": [f["code"]]}}).encode()
 
     def forecasts(self) -> int:
-        return sum(1 for where, _ in self.calls if where.startswith("api.open-meteo.com"))
+        return sum(1 for where, _ in self.calls if where == "api.open-meteo.com/v1/forecast")
 
 
 @pytest.fixture(autouse=True)

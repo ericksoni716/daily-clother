@@ -8,7 +8,8 @@ iPhone. Your closet never leaves your computer.
 You can capture items with one photo each, get the background removed, browse
 the closet on phone and desktop, try a 30-item demo closet, and back up and
 restore. New items are described by Claude through your Claude plan.
-Illustrations for your own items, outfits and shopping come at later stops. No
+Every item gets a drawing, which you can show instead of photos in the
+closet. Outfits and shopping come at later stops. No
 API key is needed.
 
 ## Install and first run
@@ -39,6 +40,12 @@ describe the item (see "Installing Claude Code" below). The name, category,
 colour, pattern, formality, season, shape and material fill in by themselves a
 little later; the item page says "Suggested by Claude" and you can change
 anything that's wrong. Claude never changes something you set yourself.
+Once it is described the item gets its drawing: switch between **Drawing**,
+**Cutout** and **Photo** above the item. Beside the drawing, **Not in the
+drawing** lists what it can't show yet (for example a logo, or stripes drawn as
+plain colour). The drawing follows your changes: pick another colour or sleeve
+length and it is drawn again. **Photos | Drawings** above the closet shows the
+whole closet either way; this device remembers your choice.
 **What Claude saw**, at the bottom of the item page, lists the details it
 noticed, including those the drawing can't show yet. If Claude can't be
 reached, items wait and are described as soon as it can; if describing fails,
@@ -62,6 +69,21 @@ piece at once (**Undo** takes it back). The **⋯** on a piece leaves it out
 piece**); tap a piece to open it. With no place saved, type today's low and
 high temperatures there instead. Offline, Today shows the outfits it last
 found that day.
+
+**What's missing** (**Missing** in the bar at the bottom of a phone) looks at
+your closet and what you wear and suggests what to buy, the most helpful
+first. Each suggestion says why, in sentences about your own clothes, what to
+look for (the kind of piece, the season, the colours that go with what you
+have) and shows the pieces it is based on; tap one to open it. Tap **I'll look
+for this** to put it on your **Wishlist**, or **Not for me** to hide it (you can
+say why, but you don't have to; **Hidden** at the bottom brings it back). On
+the wishlist, keep a note (size, shop, budget), add something by hand with
+**Add by hand**, and when you have it tap **I bought it**: it leaves the list
+and **Add** opens so you can photograph it. Your decisions are kept when the
+suggestions are worked out again, and the demo closet keeps its own. Offline,
+the screen shows what it last found, and nothing can be changed until Closet on
+your computer can be reached again. A closet with fewer than 8 pieces is too
+small to judge yet.
 
 To record a single item: open it and tap **Wore it today** (tap **Undo** if
 that was a mistake). The item shows how often it has been worn and when last, and lists
@@ -105,6 +127,11 @@ If the page is closed or the computer restarts during an import, open **Add**
 again: it says how many photos were not added yet. Choose the same photos or
 folder again and it carries on; the ones that already went in are not added
 twice.
+
+After an import, open **Review**: it shows, one item at a time, only what
+Claude was unsure about. Tap another value if its guess is wrong, then
+**That's right**, or **Skip for now**. The number on **Review** says how many
+items are left.
 
 ## Use it from your iPhone
 

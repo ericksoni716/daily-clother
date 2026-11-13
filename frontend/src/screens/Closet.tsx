@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { HangerIcon, SearchIcon, WarnIcon } from '../components/Icons';
 import { ModelBanner } from '../components/ModelBanner';
+import { loadGridView, saveGridView, type GridView } from '../drawing';
 import { categoryPlural, label, tileCaption } from '../labels';
 import { itemPath, Link, navigate } from '../router';
 import { useCloset } from '../store';
@@ -19,6 +20,7 @@ export function ClosetScreen({ status, selectedId, wide }: Props) {
   const [category, setCategory] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [laundry, setLaundry] = useState<Laundry | null>(null);
+  const [gridView, setGridView] = useState<GridView>(loadGridView);
 
   useEffect(() => {
     void loadItems(status);
@@ -97,21 +99,29 @@ export function ClosetScreen({ status, selectedId, wide }: Props) {
                 ))}
               </div>
             )}
-            {status === 'active' && (
-              <div className="chips" role="group" aria-label="Filter by laundry">
-                {([['clean', 'Clean'], ['laundry', 'In the laundry']] as const).map(([value, text]) => (
-                  <button key={value} className={`chip${laundry === value ? ' is-on' : ''}`} aria-pressed={laundry === value}
-                    onClick={() => setLaundry(laundry === value ? null : value)}>{text}</button>
+            <div className="filters-row">
+              {status === 'active' && (
+                <div className="chips" role="group" aria-label="Filter by laundry">
+                  {([['clean', 'Clean'], ['laundry', 'In the laundry']] as const).map(([value, text]) => (
+                    <button key={value} className={`chip${laundry === value ? ' is-on' : ''}`} aria-pressed={laundry === value}
+                      onClick={() => setLaundry(laundry === value ? null : value)}>{text}</button>
+                  ))}
+                </div>
+              )}
+              <div className="segmented segmented-small grid-view" role="group" aria-label="Show">
+                {([['photos', 'Photos'], ['drawings', 'Drawings']] as const).map(([value, text]) => (
+                  <button key={value} type="button" className={gridView === value ? 'is-on' : ''} aria-pressed={gridView === value}
+                    onClick={() => { setGridView(value); saveGridView(value); }}>{text}</button>
                 ))}
               </div>
-            )}
+            </div>
           </div>
           {shown.length === 0 ? (
             <div className="empty"><p className="muted">Nothing matches. Try another word or category.</p></div>
           ) : (
             <ul className="grid" aria-label="Clothes">
               {shown.map((it) => (
-                <li key={it.id}><Tile item={it} status={status} selected={it.id === selectedId} model={model} /></li>
+                <li key={it.id}><Tile item={it} status={status} selected={it.id === selectedId} model={model} view={gridView} /></li>
               ))}
             </ul>
           )}
@@ -142,7 +152,7 @@ export function busyLabel(model: ModelInfo | null): string {
   return model && model.state !== 'ready' ? 'Waiting for the model' : 'Removing background…';
 }
 
-function Tile({ item, status, selected, model }: { item: ItemSummary; status: 'active' | 'archived'; selected: boolean; model: ModelInfo | null }) {
+function Tile({ item, status, selected, model, view }: { item: ItemSummary; status: 'active' | 'archived'; selected: boolean; model: ModelInfo | null; view: GridView }) {
   const name = item.name || label('category', item.category) || 'New item';
   const caption = tileCaption(item.category, item.color);
   const busy = item.cutout_state === 'pending' || item.cutout_state === 'processing';
@@ -150,7 +160,7 @@ function Tile({ item, status, selected, model }: { item: ItemSummary; status: 'a
     <Link to={itemPath(item.id, status)} className={`tile${selected ? ' is-selected' : ''}`} aria-current={selected ? 'true' : undefined}
       data-testid="tile">
       <div className="tile-card">
-        <TilePicture item={item} />
+        <TilePicture item={item} view={view} />
         {busy && <span className="badge badge-busy"><span className="spinner" aria-hidden="true" />{busyLabel(model)}</span>}
         {item.cutout_state === 'failed' && <span className="badge badge-warn"><WarnIcon />Background not removed</span>}
         {item.laundry === 'laundry' && <span className="tile-mark" data-testid="laundry-mark">In the laundry</span>}
@@ -161,11 +171,12 @@ function Tile({ item, status, selected, model }: { item: ItemSummary; status: 'a
   );
 }
 
-function TilePicture({ item }: { item: ItemSummary }) {
+function TilePicture({ item, view }: { item: ItemSummary; view: GridView }) {
   const alt = item.name || label('category', item.category) || 'Item';
+  if (view === 'drawings' && item.illustration_url) return <img className="pic-illustration" src={item.illustration_url} alt={`${alt}, drawing`} loading="lazy" />;
   if (item.cutout_state === 'ready' && item.thumb_url) return <img className="pic-cutout" src={item.thumb_url} alt={alt} loading="lazy" />;
-  if (item.illustration_url) return <img className="pic-illustration" src={item.illustration_url} alt={alt} loading="lazy" />;
   if (item.thumb_url) return <img className="pic-photo" src={item.thumb_url} alt={alt} loading="lazy" />;
+  if (item.illustration_url) return <img className="pic-illustration" src={item.illustration_url} alt={alt} loading="lazy" />;
   return <div className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></div>;
 }
 

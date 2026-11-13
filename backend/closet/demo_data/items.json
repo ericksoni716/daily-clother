@@ -1,6 +1,7 @@
 {
  "style": "line",
  "schema_version": 1,
+ "drawing_version": 1,
  "items": [
   {
    "id": "05cb8b7edd6a5ac983080bc0521b5248",
@@ -189,14 +190,14 @@
    },
    "answer": {
     "category": "sneakers",
-    "category_confidence": 1.0,
+    "category_confidence": 0.6,
     "color": "white",
     "color_confidence": 1.0,
     "secondary_colors": [],
     "pattern": "solid",
     "pattern_confidence": 1.0,
     "formality": "casual",
-    "formality_confidence": 1.0,
+    "formality_confidence": 0.6,
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -946,14 +947,14 @@
     "category": "shirt",
     "category_confidence": 1.0,
     "color": "multi",
-    "color_confidence": 1.0,
+    "color_confidence": 0.5,
     "secondary_colors": [],
     "pattern": "plaid",
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
     "season": "warm",
-    "season_confidence": 1.0,
+    "season_confidence": 0.65,
     "silhouette": {
      "sleeve": "long",
      "neck": "collar",
@@ -2021,7 +2022,7 @@
    "photo": null,
    "answer": {
     "category": "jacket",
-    "category_confidence": 1.0,
+    "category_confidence": 0.65,
     "color": "tan",
     "color_confidence": 1.0,
     "secondary_colors": [],
@@ -2183,7 +2184,7 @@
     "category": "sweater",
     "category_confidence": 1.0,
     "color": "grey",
-    "color_confidence": 1.0,
+    "color_confidence": 0.55,
     "secondary_colors": [],
     "pattern": "solid",
     "pattern_confidence": 1.0,
@@ -2200,7 +2201,7 @@
      "pant_length": null,
      "shoe_height": null
     },
-    "silhouette_confidence": 1.0,
+    "silhouette_confidence": 0.6,
     "details": {
      "fit_detail": "regular",
      "sleeve_length": "long",
@@ -2432,7 +2433,7 @@
     "pattern": "solid",
     "pattern_confidence": 1.0,
     "formality": "business",
-    "formality_confidence": 1.0,
+    "formality_confidence": 0.75,
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {

@@ -1,0 +1,86 @@
+name: package-check
+
+# Builds the packaged program on Linux the way the release builds it (same
+# spec, same pinned requirements, the frontend built into it) and runs the
+# smoke test against it, so a change that breaks the packaged program is
+# seen before the owner asks for a release. Windows and macOS are still only
+# built by the release workflow.
+#
+# It never creates a release or a tag and uploads nothing. No caches either:
+# the owner's Actions storage quota is exhausted (see ci.yml), and the whole
+# run takes a few minutes without them.
+#
+# The background-removal check (`--cutout`) is left to the release: it needs
+# the 170 MB model from the internet.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "packaging/**"
+      - "backend/requirements*.txt"
+      - "backend/closet/**/__init__.py"
+      # what closet.spec reads or bundles, and the selfcheck the smoke test runs
+      - "backend/closet/__main__.py"
+      - "backend/closet/cli.py"
+      - "backend/closet/config.py"
+      - "backend/closet/tray.py"
+      - "backend/closet/migrations/**"
+      - "backend/closet/demo_data/**"
+      - "backend/closet/tagger/models.json"
+      - "frontend/package.json"
+      - "frontend/package-lock.json"
+      - "frontend/vite.config.ts"
+      - ".github/workflows/package-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-check-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUTF8: "1"
+
+jobs:
+  linux:
+    name: Build and smoke-test the program (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          package-manager-cache: false  # newer setup-node caches automatically otherwise
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Build the frontend (into backend/closet/web)
+        working-directory: frontend
+        run: npm ci && npm run build
+
+      - name: Install Python requirements
+        run: python -m pip install -r backend/requirements.txt -r packaging/requirements-build.txt
+
+      # As the release does, so the smoke test also checks the version reaches the program.
+      - name: Write the build version
+        run: printf 'VERSION = "%s"\n' "0.0.0-check.$GITHUB_RUN_NUMBER" > backend/closet/_build_version.py
+
+      - name: Build the program with PyInstaller
+        run: python -m PyInstaller --noconfirm --clean packaging/closet.spec --distpath dist --workpath build/pyinstaller
+
+      - name: Print the file size
+        run: |
+          python -c "import os, sys; n = os.path.getsize(sys.argv[1]); print(f'{sys.argv[1]}: {n:,} bytes ({n / 1048576:.1f} MiB)')" dist/closet
+
+      - name: Smoke test
+        run: python packaging/smoke_test.py dist/closet --expect-version "0.0.0-check.$GITHUB_RUN_NUMBER"

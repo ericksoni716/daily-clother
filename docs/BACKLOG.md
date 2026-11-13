@@ -25,10 +25,21 @@ Wave 2 (landed):
 Wave 3:
 - [x] #45 and #46 The Today screen: the day, the occasion and mood, the outfits with why and warnings, "I'm wearing this", leave a piece out or start from one. Given to two models and compared from screenshots; the Opus 5.5 result was merged.
 - [x] #41 and #42 What's missing: the gap analysis by rule (`GET /api/gaps`), no screen yet. Given to two models; the Opus 5.5 result was merged.
-- [ ] #50 The drawing in the app, part 2: every item gets its drawing, kept up to date.
-- [ ] #51 Review queue: confirm or fix only what the tagger was unsure about.
+- [x] #50 The drawing in the app, part 2: every item gets its drawing (migration 0007), redrawn when it is described, when a field it shows changes, or when the drawing code is newer; a Photos / Drawings switch on the closet grid.
+- [x] #51 Review queue: a Review screen with a badge shows only the fields the tagger was unsure of; confirm, change or skip.
+- [x] #56 and #57 The "What's missing" screen and the wishlist (migration 0008): the gaps best first with the reasons and what to look for, "I'll look for this", "Not for me" with a reason, wishes added by hand, "I bought it". Given to two models and compared from screenshots; the Opus 5.5 result was merged.
+- [ ] #60 Outfits remembered and rated, and the engine learning from the ratings.
+- [x] #62 The packaged program is built and smoke-tested on Linux on every change to `main` and on pull requests that touch what goes into it (`package-check` workflow). It makes no release, tag or download. Windows and macOS are still built only by the release.
+- [ ] #63 A spend cap and a cost estimate for the API-key route.
+- [ ] #64 Insights: cost per wear, never worn, worn most.
 
-Next: the drawing shown on the item and corrections by command, the review queue, mannequin layering and outfit rating, the gap screen and shopping.
+Wave 4:
+- [ ] #70 Correct an item by picking (choices shown as small drawings) or by saying it, with a history that can be undone.
+- [ ] #71 and #72 The outfit drawn as worn: the layered figure, given to two models.
+- [ ] #77 The outfit engine and the gap analysis use what the tagger saw: weight, sleeve length, knit gauge.
+- [ ] #78 and #79 Trip packing: what to take for the weather there, given to two models.
+
+Next: shopping searches, "would this work?" and price checks from the wishlist.
 
 ## Waiting on the owner
 - **Garment review**: the owner called the drawings good enough for now (after round 7). Marks and notes in the review gallery are still read when they appear; drawing work is parked until asked for.

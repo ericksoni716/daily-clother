@@ -11,7 +11,8 @@ is needed when ffmpeg returns in a later phase. Its manual-only workflow,
 | `requirements-build.txt` | PyInstaller and its hooks, exact pins. Install with `backend/requirements.txt`. |
 | `smoke_test.py` | Drives a built program end to end. Standard library only. |
 | `../.github/workflows/release.yml` | Manual release: build, test, publish. |
-| `../.github/workflows/ci.yml` | Manual lint and tests (never builds the program). |
+| `../.github/workflows/ci.yml` | Lint and tests from source on every pull request (never builds the program). |
+| `../.github/workflows/package-check.yml` | Builds the Linux program and runs the smoke test (see below). |
 
 What the build produces:
 
@@ -53,6 +54,8 @@ On Windows use `Scripts\python.exe` and `Closet.exe`; on macOS pass
 
 Each run gets a fresh temporary data folder (`CLOSET_DATA_DIR`) and
 `CLOSET_NO_AUTO_DOWNLOAD=1`, so nothing is downloaded or touched.
+`ANTHROPIC_API_KEY` is removed from the program's environment, so it never
+calls Claude with a key.
 
 - `selfcheck --out FILE` exits 0 and every check is ok (webp, heic,
   onnxruntime, database, web_page, drawing, model_state, tagger), with `model_state`
@@ -60,12 +63,19 @@ Each run gets a fresh temporary data folder (`CLOSET_DATA_DIR`) and
   bundled `closet.drawing` package.
 - `--no-browser --no-tray --port N`: `/api/health` answers within 120 s with
   `app: closet`, `model_state: missing`, `setup_required: true`; `GET /` is
-  the built page (`id="root"`); `POST /api/setup` gives 204 and a session
+  the built page (`id="root"`), and every script and style sheet it links
+  to under `/assets/` is served with a JavaScript or CSS type (a wrong type
+  would leave a blank page); `POST /api/setup` gives 204 and a session
   cookie; `GET /api/items` is 200; `GET /api/tagging` is 200 and lists the
   plan route then the API route (which proves the tagger package and its
   `models.json` were bundled); after switching to the demo profile there
-  are 30 items; `POST /api/quit` makes the program exit with code 0 within
-  30 s; the data folder has `closet.db` and no `closet.lock`.
+  are 30 items and a demo item's drawing is served as SVG;
+  `POST /api/quit` makes the program exit with code 0 within 30 s; the data
+  folder has `closet.db` and no `closet.lock`.
+- Migrations: the selfcheck counts as many bundled migrations as
+  `backend/closet/migrations/` has (another folder with `--migrations DIR`),
+  and the new main closet and the demo closet are both at the latest one
+  (`PRAGMA user_version`).
 - `--cutout --model FILE` copies the model into the data folder and requires
   `selfcheck --cutout` to pass, including a real background removal.
 - `--expect-version X` also requires that version in the report and in
@@ -73,6 +83,24 @@ Each run gets a fresh temporary data folder (`CLOSET_DATA_DIR`) and
 
 On failure it prints the reason, the program's output and the tail of
 `closet.log`, and kills the whole process tree (bootloader and app).
+
+## Automatic check (`package-check` workflow)
+
+Builds `dist/closet` on Linux exactly as the release builds its programs
+(same spec, `backend/requirements.txt` + `requirements-build.txt`, Python
+3.12, the frontend built into it, a version stamped as `0.0.0-check.<run>`)
+and runs the default smoke test with `--expect-version`. About 4 minutes.
+
+- Runs on every push to `main`, on pull requests that change `packaging/`,
+  `backend/requirements*.txt`, any `backend/closet/**/__init__.py`, what the
+  spec reads (`__main__.py`, `cli.py`, `config.py`, `tray.py`, migrations,
+  demo data, the tagger's `models.json`, the frontend's package files and
+  Vite config) or the workflow itself, and by hand (Actions > package-check
+  > Run workflow).
+- Not checked there: Windows and macOS (only the release builds them), the
+  background-removal check (`--cutout`, needs the model from the internet)
+  and the tray. It creates no release or tag, uploads nothing and uses no
+  cache.
 
 ## Release procedure
 

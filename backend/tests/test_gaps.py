@@ -1,7 +1,7 @@
 import json
 import random
 
-from closet import gaps
+from closet import climate, gaps, life
 from closet.config import bundle_dir
 
 from .conftest import upload
@@ -232,13 +232,18 @@ def test_gaps_answers_for_the_open_closet(client):
     r = client.get("/api/gaps")
     assert r.status_code == 200
     body = r.json()
-    assert set(body) == {"enough", "message", "gaps", "notes", "checked"}
+    assert set(body) == {"enough", "message", "gaps", "notes", "checked", "told", "asking"}
     assert body["enough"] is True and body["gaps"] and body["checked"]["items"] == len(demo_ids)
-    assert body["checked"]["wears"] > 0 and body["checked"]["days"] == len(gaps.grid())
+    # the demo closet is told its built-in example of how one lives
+    example = gaps._life(life.DEMO_ANSWERS, climate.DEMO_CLIMATE)
+    assert body["checked"]["wears"] > 0 and body["checked"]["days"] == len(example.days)
+    assert body["told"]["example"] is True and body["asking"] is False
     for g in body["gaps"]:
-        assert set(g) == {"id", "name", "look_for", "why", "score", "found_by", "evidence", "state", "hidden_reason", "wish_id"}
+        assert set(g) == {"id", "name", "look_for", "why", "score", "found_by", "evidence", "state", "hidden_reason", "wish_id",
+                          "situations", "held_by"}
         assert set(g["evidence"]) == {"days", "items"} and set(g["evidence"]["items"]) <= demo_ids
-        assert set(g["found_by"]) <= {"days", "thin_place", "orphan", "worn_most", "basic"}
+        assert set(g["found_by"]) <= set(gaps.WAYS)
+        assert g["situations"] and {s["key"] for s in g["situations"]} <= set(life.SITUATION_KEYS)
         assert g["look_for"]["category"]
     # a second call gives the same answer, and so does one after a wash
     assert client.get("/api/gaps").json() == body

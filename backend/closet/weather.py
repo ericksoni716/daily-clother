@@ -45,10 +45,10 @@ class WeatherError(Exception):
     """Open-Meteo could not be asked or gave an answer that cannot be used, in words the owner can read."""
 
 
-def fetch(url: str) -> bytes:
+def fetch(url: str, timeout: float = TIMEOUT_S) -> bytes:
     """One GET to Open-Meteo through the computer's certificates. Tests replace this."""
     req = urllib.request.Request(url, headers={"User-Agent": f"Closet/{__version__}", "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=TIMEOUT_S, context=net.ssl_context()) as r:
+    with urllib.request.urlopen(req, timeout=timeout, context=net.ssl_context()) as r:
         return r.read(MAX_BYTES)
 
 
@@ -57,9 +57,10 @@ def _now() -> float:
     return time.time()
 
 
-def _get(url: str, params: dict) -> dict:
+def _get(url: str, params: dict, timeout: float | None = None) -> dict:
+    full = f"{url}?{urlencode(params)}"
     try:
-        data = json.loads(fetch(f"{url}?{urlencode(params)}"))
+        data = json.loads(fetch(full) if timeout is None else fetch(full, timeout))
     except urllib.error.HTTPError as e:
         log.warning("weather service answered %s", e.code)
         raise WeatherError(f"The weather service answered with an error ({e.code}).") from None

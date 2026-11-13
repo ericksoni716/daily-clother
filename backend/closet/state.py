@@ -2,7 +2,8 @@
 
 Holds what is not part of a closet: the passphrase hash, login sessions, the
 backup folder, the model download URL, which closet (real or demo) is
-open, and where the owner is (with the last forecast for it). Never holds the
+open, where the owner is (with the last forecast and the climate for it) and
+how he lives (the answers to the What's missing questions). Never holds the
 Anthropic API key.
 """
 from __future__ import annotations
@@ -26,6 +27,8 @@ DEFAULTS: dict[str, Any] = {
     "tagging_api_off": None,       # {"at", "reason": "credit" | "key"} when Anthropic refused the key and it was switched off
     "place": None,            # {"name", "latitude", "longitude", "timezone"}, chosen in Settings
     "weather": None,          # the last forecast for the place: {"key", "fetched", "offset", "answer"}
+    "life": {},               # how the owner lives, per closet: {profile: {"answers", "not_now"}} (closet/life.py)
+    "climate": None,          # the weather over a year at the place: {"key", "fetched", "answer", "failed_at", "message"}
 }
 
 

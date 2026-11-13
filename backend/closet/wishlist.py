@@ -17,8 +17,9 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
 from . import db
-from .gaps import MAX_GAPS
+from .gaps import HOME_PLACE, MAX_GAPS
 from .items import ItemError
+from .vocab import FORMALITY
 
 # Why a gap is "not for me": I have one that is not in the closet yet, I never dress like that, too expensive, other.
 REASONS = ("have_one", "never_wear", "too_expensive", "other")
@@ -27,28 +28,73 @@ NOTE_MAX = 1000
 
 
 # ------------------------------------------------------------------ marking the analysis
-def mark(conn: sqlite3.Connection, answer: dict, offered: int = MAX_GAPS) -> dict:
-    """The analysis with each gap marked `state` "open", "hidden" or "wished" (with `hidden_reason` and `wish_id`).
+def _kind(gap_id: str, gap: dict | None) -> tuple[str, str | None]:
+    """Where a suggested piece goes (top, bottom, shoes...; a coat or jacket is "outer") and its formality."""
+    if gap is not None:
+        look = gap.get("look_for") or {}
+        category = look.get("category") or ""
+        place = "outer" if gap_id.startswith("outer") else HOME_PLACE.get(category, category)
+        return place, look.get("formality")
+    parts = gap_id.split("-")
+    place = "outer" if parts[0] == "outer" else HOME_PLACE.get(parts[0], parts[0])
+    return place, parts[1] if len(parts) > 1 and parts[1] in FORMALITY else None
 
-    Up to `offered` open gaps are kept, best first; every hidden or wished gap the analysis found is kept too, in
-    its place, so a gap the owner has decided about never pushes a new one off the list. The answer is not changed.
+
+def _keys(gap: dict | None) -> set[str] | None:
+    if gap is None or not gap.get("situations"):
+        return None
+    return {s["key"] for s in gap["situations"]}
+
+
+def held_by(gaps: list[dict], never: list[str]) -> dict[str, str]:
+    """Gaps held back by one hidden as "I never dress like that": the same kind of piece (where it goes and how formal)
+    for the same situations. Coats and jackets are never held back: a rain layer and a warm coat are different needs."""
+    by_id = {g["id"]: g for g in gaps}
+    out: dict[str, str] = {}
+    for hid in never:
+        place, formality = _kind(hid, by_id.get(hid))
+        if place == "outer" or formality is None:
+            continue
+        theirs = _keys(by_id.get(hid))
+        for g in gaps:
+            if g["id"] == hid or g["id"] in out or g["id"] in never or _kind(g["id"], g) != (place, formality):
+                continue
+            mine = _keys(g)
+            if theirs is None or (mine is not None and mine <= theirs):
+                out[g["id"]] = hid
+    return out
+
+
+def mark(conn: sqlite3.Connection, answer: dict, offered: int = MAX_GAPS, hold: bool = False) -> dict:
+    """The analysis with each gap marked `state` "open", "hidden", "wished" or "held" (with `hidden_reason`,
+    `wish_id` and `held_by`).
+
+    Up to `offered` open gaps are kept, best first; every hidden, wished or held gap the analysis found is kept too, in
+    its place, so a gap the owner has decided about never pushes a new one off the list. With `hold` (the owner has
+    said how he lives), a gap like one he hid as "I never dress like that" is held back, not offered: unhiding that
+    one offers it again. The answer is not changed.
     """
     hidden = {r["gap_id"]: r["reason"] for r in conn.execute("SELECT gap_id, reason FROM hidden_gaps")}
     wished = {r["gap_id"]: r["id"] for r in conn.execute(
         "SELECT gap_id, id FROM wishes WHERE gap_id IS NOT NULL AND bought_at IS NULL")}
+    found = answer.get("gaps", [])
+    held = held_by([g for g in found if g["id"] not in wished],
+                   sorted(k for k, v in hidden.items() if v == "never_wear")) if hold else {}
     gaps, open_count = [], 0
-    for g in answer.get("gaps", []):
+    for g in found:
         if g["id"] in wished:
             state = "wished"
         elif g["id"] in hidden:
             state = "hidden"
+        elif g["id"] in held:
+            state = "held"
         else:
             if open_count >= offered:
                 continue
             open_count += 1
             state = "open"
         gaps.append({**g, "state": state, "hidden_reason": hidden.get(g["id"]) if state == "hidden" else None,
-                     "wish_id": wished.get(g["id"])})
+                     "wish_id": wished.get(g["id"]), "held_by": held.get(g["id"]) if state == "held" else None})
     return {**answer, "gaps": gaps}
 
 

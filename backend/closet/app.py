@@ -22,12 +22,14 @@ from . import (
     auth,
     autostart,
     backup,
+    climate,
     db,
     demo,
     illustrations,
     images,
     items,
     jobs,
+    life,
     outfits,
     phone,
     review,
@@ -432,11 +434,25 @@ def create_app(sv: Services) -> FastAPI:
                   "illustration_version", "illustration_notes")   # a redrawn picture changes no outfit
         seen = hashlib.sha256(json.dumps([[{k: v for k, v in r.items() if k not in ignore} for r in rows], worn],
                                          sort_keys=True, default=str).encode()).hexdigest()
+        # how the owner lives, and the weather where he lives (asked only once he has answered); the demo closet
+        # is told its built-in example, so the owner's answers and place never change its results
+        answers, example = life.answers_for(state, profile)
+        if answers is None:
+            where = {"place": None, "climate": None, "message": None}
+        elif profile == "demo":
+            where = {"place": {"name": "an example town"}, "climate": climate.DEMO_CLIMATE, "message": None}
+        else:
+            where = climate.lookup(state)
+        seen = hashlib.sha256(json.dumps([seen, answers, where["climate"]], sort_keys=True, default=str).encode()).hexdigest()
         cached = gaps_cache.get(profile)
         if cached and cached[0] == seen:
             return cached[1]
         # every gap, not only the first few: one the owner hid or wished for must not push a new one off the list
-        answer = find_gaps(rows, worn, {"max_gaps": GAPS_ALL})
+        answer = find_gaps(rows, worn, {"max_gaps": GAPS_ALL, "life": answers, "climate": where["climate"]})
+        place = where["place"]
+        answer["told"] = {**answer["told"], "answered": answers is not None, "example": example,
+                          "place": (place or {}).get("name") if answers is not None else None,
+                          "climate_message": where["message"]}
         gaps_cache[profile] = (seen, answer)
         return answer
 
@@ -448,7 +464,8 @@ def create_app(sv: Services) -> FastAPI:
             answer = gap_analysis(profile)
             conn = db.connect(cfg.db_path(profile))
             try:
-                return wishlist.mark(conn, answer)
+                return {**wishlist.mark(conn, answer, hold=answer["told"]["answered"]),
+                        "asking": life.asking(state, profile)}
             finally:
                 conn.close()
 
@@ -456,6 +473,7 @@ def create_app(sv: Services) -> FastAPI:
         return await run_in_threadpool(work)
 
     app.include_router(wishlist.router(conn_dep, gap_analysis, protected))
+    app.include_router(life.router(state, lambda: state.get("profile"), protected))
 
     # ---------------------------------------------------------------- weather
     @app.get("/api/places", dependencies=protected)
@@ -527,7 +545,7 @@ def create_app(sv: Services) -> FastAPI:
             except ValueError as e:
                 raise HTTPException(422, str(e))
             if place != state.get("place"):
-                state.update(place=place, weather=None)
+                state.update(place=place, weather=None, climate=None)
         if "autostart" in sent and body.autostart is not None:
             try:
                 autostart.set_enabled(body.autostart)

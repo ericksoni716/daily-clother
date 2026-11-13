@@ -9,7 +9,7 @@ import uuid
 import zlib
 from pathlib import Path
 
-from . import db, images, jobs, tagjobs, vocab
+from . import db, illustrations, images, jobs, tagjobs, vocab
 
 TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "acquired_on", "notes", "rating_reason", "color_hex")
 ENUM_FIELDS = tuple(vocab.ENUM_FIELDS)
@@ -32,6 +32,7 @@ def _front(conn, item_id: str):
 
 
 def summary(conn, row) -> dict:
+    row = illustrations.current(conn, row)   # an item never drawn, or drawn by older drawing code, is drawn now
     photo = _front(conn, row["id"])
     worn = conn.execute("SELECT max(worn_on), count(*) FROM wears WHERE item_id = ?", (row["id"],)).fetchone()
     thumb = None
@@ -50,6 +51,7 @@ def summary(conn, row) -> dict:
 
 
 def detail(conn, row) -> dict:
+    row = illustrations.current(conn, row)
     out = summary(conn, row)
     for f in ("formality", "season", "brand", "size", "material", "fit_notes", "condition", "price_cents",
               "acquired_on", "notes", "rating_reason", "illustration_svg", "cutout_error"):
@@ -62,6 +64,7 @@ def detail(conn, row) -> dict:
     details = dict((json.loads(row["tag_answer"]) if row["tag_answer"] else {}).get("details") or {})
     out["seen_not_drawn"] = details.pop("other_features", None) or []
     out["details"] = details or None
+    out["drawing_notes"] = illustrations.notes(row)
     out["photos"] = [{
         "id": p["id"], "kind": p["kind"], "url": _media(p["original_path"]), "thumb_url": _media(p["thumb_path"]),
         "cutout_url": _media(p["cutout_path"]), "cutout_thumb_url": _media(p["cutout_thumb_path"]),
@@ -210,6 +213,8 @@ def update(conn, item_id: str, changes: dict) -> dict:
         sets += ["source = ?", "confidence = ?", "updated_at = ?"]
         args += [json.dumps(source), json.dumps(confidence), db.now(), item_id]
         conn.execute(f"UPDATE items SET {', '.join(sets)} WHERE id = ?", args)
+        if illustrations.SHOWN & changes.keys():
+            illustrations.redraw(conn, item_id)
     return detail(conn, get(conn, item_id))
 
 

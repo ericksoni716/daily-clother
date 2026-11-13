@@ -24,6 +24,7 @@ from . import (
     backup,
     db,
     demo,
+    illustrations,
     images,
     items,
     jobs,
@@ -271,7 +272,7 @@ def create_app(sv: Services) -> FastAPI:
 
     @app.get("/api/items/{item_id}/illustration.svg", dependencies=protected)
     def get_illustration(item_id: str, conn=Depends(conn_dep)):
-        svg = items.get(conn, item_id)["illustration_svg"]
+        svg = illustrations.current(conn, items.get(conn, item_id))["illustration_svg"]
         if svg is None:
             raise HTTPException(404, "This item has no illustration yet.")
         # the address carries a version, so the drawing can be cached until it changes

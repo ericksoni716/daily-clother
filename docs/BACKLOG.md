@@ -25,7 +25,7 @@ Wave 2 (landed):
 Wave 3:
 - [x] #45 and #46 The Today screen: the day, the occasion and mood, the outfits with why and warnings, "I'm wearing this", leave a piece out or start from one. Given to two models and compared from screenshots; the Opus 5.5 result was merged.
 - [x] #41 and #42 What's missing: the gap analysis by rule (`GET /api/gaps`), no screen yet. Given to two models; the Opus 5.5 result was merged.
-- [ ] #50 The drawing in the app, part 2: every item gets its drawing, kept up to date.
+- [x] #50 The drawing in the app, part 2: every item gets its drawing (migration 0007), redrawn when it is described, when a field it shows changes, or when the drawing code is newer; a Photos / Drawings switch on the closet grid.
 - [x] #51 Review queue: a Review screen with a badge shows only the fields the tagger was unsure of; confirm, change or skip.
 - [ ] #56 and #57 The "What's missing" screen and the wishlist, given to two models.
 - [ ] #60 Outfits remembered and rated, and the engine learning from the ratings.

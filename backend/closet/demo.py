@@ -5,7 +5,9 @@ never backed up, and can be opened and closed from Settings. Its photos are
 open-licence pictures (credits in `demo_data/CREDITS.md`) whose cutouts were
 made in advance, so the demo works before the model has been downloaded.
 It is never sent to Claude: each item comes with a stored tagging answer made
-by `tools/make_demo.py` from what it knows about the item.
+by `tools/make_demo.py` from what it knows about the item. Its drawings were
+made in advance by the same tool (with fills taken from the photos) and are
+kept as they are while the drawing code's version is the one they were made with.
 """
 from __future__ import annotations
 
@@ -63,6 +65,8 @@ def ensure(cfg: Config) -> int:
                      f"{it['id']}/{pid}.cut.t.webp", w, h, (folder / f"{pid}.webp").stat().st_size, created))
             _history(conn, it)
             added += 1
+        # the drawings were made in advance with the drawing code of this version; kept until it is raised
+        conn.execute("UPDATE items SET illustration_version = ? WHERE illustration_svg IS NOT NULL", (data.get("drawing_version"),))
         conn.execute("COMMIT")
         _answers(conn, data)
         return added

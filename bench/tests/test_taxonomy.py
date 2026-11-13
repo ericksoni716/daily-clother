@@ -337,3 +337,10 @@ def test_wing_tips_are_wide_enough_to_read():
     sh = _shape(GARMENT_DRAWINGS["tuxedo_shirt"])
     tips = [q for q in sh.parts if q.role == "collar_r" and len(_pts(q.d)) == 4]
     assert tips and max(x for x, _ in _pts(tips[-1].d)) - 200 >= 25
+
+
+def test_lapels_on_black_and_on_plaid_get_a_shade():
+    p, extras, _ = top_drawing(GARMENT_DRAWINGS["blazer"])
+    lapel = next(q.d for q in build("top", {**p, "weight": extras.get("weight")}).parts if q.role == "lapel_r")
+    count = lambda color: render(Spec("top", p, Fill("solid", color), **extras), "line").count(f'd="{lapel}"')
+    assert count("#1a1a1c") > count("#336699")

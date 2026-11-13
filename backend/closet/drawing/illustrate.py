@@ -387,7 +387,12 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
         if role in ("lapel_r", "lapel_l"):
             # a tailored jacket's collar and lapels: cut from the body's cloth, so they carry its surface too
             fill = spec.collar_color or spec.trim_color or turned(role[-1], -24 if role == "lapel_r" else 24)
-            return f'<path d="{d}" fill="{fill}"/>' + (f'<path d="{d}" fill="url(#t{uid})"/>' if tex_defs else "")
+            # the lapel is the facing turned back: on a dark or patterned cloth its edges alone are lost, so a
+            # shade sets it off the body (lighter on a dark plain cloth, darker on a pattern)
+            facing = (f'<path d="{d}" fill="{"#fff" if dark_item and not patterned else "#000"}" '
+                      f'opacity="{0.09 if dark_item and not patterned else 0.26}"/>') if (dark_item or patterned) else ""
+            return (f'<path d="{d}" fill="{fill}"/>' + (f'<path d="{d}" fill="url(#t{uid})"/>' if tex_defs else "")
+                    + facing)
         if role == "neckrib":   # the rib of a crew neck: only painted when it is a contrast colour
             return f'<path d="{d}" fill="{spec.trim_color}"/>' if spec.trim_color else ""
         if role == "stitch":   # topstitching in its own thread colour: dashed, never ink

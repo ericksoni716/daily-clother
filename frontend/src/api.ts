@@ -186,6 +186,9 @@ export const api = {
   tagging: () => request<TaggingStatus>('/api/tagging'),
   tagSpend: () => request<TaggingSpend>('/api/tagging/spend'),
   places: (q: string) => request<{ places: Place[] }>(`/api/places?q=${encodeURIComponent(q)}`).then((r) => r.places),
+  /** The town at a position from the browser ("Use my location"); not saved until put in the settings. */
+  placeNear: (latitude: number, longitude: number) =>
+    request<{ place: Place }>(`/api/places/near?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}`).then((r) => r.place),
   weather: () => request<WeatherLookup>('/api/weather'),
   today: (choices: TodayRequest, signal?: AbortSignal) =>
     request<TodayAnswer>('/api/outfits/today', { method: 'POST', body: choices, signal }),

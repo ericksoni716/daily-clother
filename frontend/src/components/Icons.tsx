@@ -52,3 +52,6 @@ export const MoreIcon = (p: P) => (
 export const SuitcaseIcon = (p: P) => (
   <svg {...base} {...p}><rect x="3.5" y="7" width="17" height="12.5" rx="2" /><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M8 7v12.5M16 7v12.5" /></svg>
 );
+export const HistoryIcon = (p: P) => (
+  <svg {...base} {...p}><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1M3.5 4.5v4h4M12 7.5V12l3 2" /></svg>
+);

@@ -64,10 +64,14 @@ describe('the pieces of an outfit', () => {
 });
 
 describe('the day at a glance', () => {
-  it('gives the place, the temperatures and the rain', () => {
-    expect(dayParts(day())).toEqual(['Brooklyn', '3°C to 10°C', 'Rain likely (70%)']);
+  it('gives the temperatures, the rain and where the day came from, in one short line', () => {
+    expect(dayParts(day())).toEqual(['3–10°C', 'rain likely (70%)', 'Brooklyn']);
     expect(dayParts(day({ place: null, source: 'given', rain: false, rain_chance: null })))
-      .toEqual(['Your temperatures', '3°C to 10°C', 'No rain expected']);
+      .toEqual(['3–10°C', 'no rain', 'your temperatures']);
+    expect(dayParts(day({ low_c: 21.6, high_c: 22.4, rain: false, rain_chance: 10 }))).toEqual(['About 22°C', 'no rain', 'Brooklyn']);
+    // no forecast could be had: a mild day, whatever place is saved
+    expect(dayParts(day({ place: null, source: 'mild', low_c: 14, high_c: 20, rain: false, rain_chance: null })))
+      .toEqual(['14–20°C', 'no rain', 'a mild day']);
   });
 
   it('says "about" when low and high round to the same degree', () => {

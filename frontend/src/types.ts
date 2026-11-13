@@ -148,8 +148,10 @@ export interface Settings {
   phone: { tailscale_installed: boolean; running: boolean; address: string | null; command: string };
   autostart: boolean | null;
   heic_supported: boolean;
-  /** Where the owner is, for the weather; null until chosen. */
+  /** Where the owner is, for the weather: New York (`home_place`) until another place is chosen. */
   place: Place | null;
+  /** The place used until one is chosen, and again when the chosen one is removed. */
+  home_place?: Place;
   life: Life | null;
   life_prompt_dismissed: boolean;
 }

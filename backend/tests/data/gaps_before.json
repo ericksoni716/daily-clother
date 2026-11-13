@@ -1,0 +1,1473 @@
+{
+ "demo": {
+  "checked": {
+   "days": 40,
+   "items": 30,
+   "wears": 0
+  },
+  "enough": true,
+  "gaps": [
+   {
+    "evidence": {
+     "days": [
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "athletic",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy sport day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "casual",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy casual day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "smart_casual",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy smart casual day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "business",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy business day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy formal occasion"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "athletic",
+       "rain": true,
+       "temperature": "cool",
+       "words": "a cool, rainy sport day"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "casual",
+       "rain": true,
+       "temperature": "cool",
+       "words": "a cool, rainy casual day"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "smart_casual",
+       "rain": true,
+       "temperature": "cool",
+       "words": "a cool, rainy smart casual day"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "business",
+       "rain": true,
+       "temperature": "cool",
+       "words": "a cool, rainy business day"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "cool",
+       "words": "a cool, rainy formal occasion"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "athletic",
+       "rain": true,
+       "temperature": "mild",
+       "words": "a mild, rainy sport day"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "casual",
+       "rain": true,
+       "temperature": "mild",
+       "words": "a mild, rainy casual day"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "smart_casual",
+       "rain": true,
+       "temperature": "mild",
+       "words": "a mild, rainy smart casual day"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "business",
+       "rain": true,
+       "temperature": "mild",
+       "words": "a mild, rainy business day"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "mild",
+       "words": "a mild, rainy formal occasion"
+      }
+     ],
+     "items": [
+      "1f53c7c08cae5d9088343f898691390a",
+      "1d954f87caf458cd90250bf81fc18b05",
+      "96dd2211e18456d2bec84bcf45798f77",
+      "3cb2a63775825a949c5767938ba80336",
+      "0d259eaac19c5487926df36b88fa161b",
+      "12a1bc4c2086523ead1ed8d43676e451",
+      "a858161b55495f29a3a1f93699feec5d",
+      "23fc719965b3589ebe4dee0ad4a72c7d"
+     ]
+    },
+    "found_by": [
+     "days",
+     "basic"
+    ],
+    "id": "outer-rain",
+    "look_for": {
+     "category": "coat",
+     "colors": [
+      "navy",
+      "grey",
+      "tan"
+     ],
+     "formality": "smart_casual",
+     "material": "waterproof (a mac, trench, waxed cotton or shell)",
+     "pattern": null,
+     "season": "all",
+     "weight_class": "midweight"
+    },
+    "name": "A rain-proof outer layer",
+    "score": 71,
+    "why": [
+     "Nothing you own keeps the rain off; on cold, cool or mild rainy days the engine can only say 'take an umbrella'.",
+     "A mac, trench or waxed jacket keeps the rain off without an umbrella. You have none."
+    ]
+   },
+   {
+    "evidence": {
+     "days": [
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "business",
+       "rain": false,
+       "temperature": "cold",
+       "words": "a cold business day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "cold",
+       "words": "a cold formal occasion"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "business",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy business day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy formal occasion"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "business",
+       "rain": false,
+       "temperature": "cool",
+       "words": "a cool business day"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "cool",
+       "words": "a cool formal occasion"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "business",
+       "rain": true,
+       "temperature": "cool",
+       "words": "a cool, rainy business day"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "cool",
+       "words": "a cool, rainy formal occasion"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "business",
+       "rain": false,
+       "temperature": "mild",
+       "words": "a mild business day"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "mild",
+       "words": "a mild formal occasion"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "business",
+       "rain": true,
+       "temperature": "mild",
+       "words": "a mild, rainy business day"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "mild",
+       "words": "a mild, rainy formal occasion"
+      },
+      {
+       "high_c": 31.0,
+       "low_c": 25.0,
+       "occasion": "business",
+       "rain": false,
+       "temperature": "hot",
+       "words": "a hot business day"
+      },
+      {
+       "high_c": 31.0,
+       "low_c": 25.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "hot",
+       "words": "a hot formal occasion"
+      },
+      {
+       "high_c": 31.0,
+       "low_c": 25.0,
+       "occasion": "business",
+       "rain": true,
+       "temperature": "hot",
+       "words": "a hot, rainy business day"
+      },
+      {
+       "high_c": 31.0,
+       "low_c": 25.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "hot",
+       "words": "a hot, rainy formal occasion"
+      }
+     ],
+     "items": [
+      "7a5bd749c80e5f22bdd010e9debf20f0",
+      "91947883944b53e99378fa623d8eab65",
+      "bc4077a3708158729cd2c22638fab7ba",
+      "ed4c0700a2eb5db0ad921688eb79a544",
+      "4e249ac7f39151ae94db50cf16288994",
+      "05cb8b7edd6a5ac983080bc0521b5248",
+      "96dd2211e18456d2bec84bcf45798f77",
+      "d35fd000aeb5556f90f6acc3ac546b75"
+     ]
+    },
+    "found_by": [
+     "days",
+     "thin_place",
+     "basic"
+    ],
+    "id": "dress_shoes-business",
+    "look_for": {
+     "category": "dress_shoes",
+     "colors": [
+      "brown",
+      "black"
+     ],
+     "formality": "business",
+     "material": null,
+     "pattern": null,
+     "season": null,
+     "weight_class": null
+    },
+    "name": "A pair of smart leather shoes",
+    "score": 65,
+    "why": [
+     "Every outfit for cold, cool or mild business days rests on your brown boots: they are the only shoes that suit. If they are in the wash or being mended, there is nothing to change to.",
+     "Smart leather shoes (oxfords, derbies or loafers) are what business and formal days need. You have none.",
+     "On cold, cool or mild formal days and hot rainy formal days the closet has nothing better than your brown boots, which are too casual.",
+     "On hot dry business and formal days the closet has nothing better than your white canvas sneakers, which are too casual."
+    ]
+   },
+   {
+    "evidence": {
+     "days": [
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "business",
+       "rain": false,
+       "temperature": "cold",
+       "words": "a cold business day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "cold",
+       "words": "a cold formal occasion"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "business",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy business day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy formal occasion"
+      }
+     ],
+     "items": [
+      "bc4077a3708158729cd2c22638fab7ba",
+      "12a1bc4c2086523ead1ed8d43676e451",
+      "1f53c7c08cae5d9088343f898691390a",
+      "96dd2211e18456d2bec84bcf45798f77",
+      "1987307fd9bb554a80a86eefe0cc0d17",
+      "4e249ac7f39151ae94db50cf16288994",
+      "0d259eaac19c5487926df36b88fa161b"
+     ]
+    },
+    "found_by": [
+     "thin_place"
+    ],
+    "id": "outer-warm",
+    "look_for": {
+     "category": "coat",
+     "colors": [
+      "black",
+      "navy",
+      "grey"
+     ],
+     "formality": "smart_casual",
+     "material": null,
+     "pattern": null,
+     "season": "cool",
+     "weight_class": "heavyweight"
+    },
+    "name": "A warm winter coat",
+    "score": 35,
+    "why": [
+     "Every outfit for cold business and formal days rests on your black overcoat: it is the only coat or jacket that suits. If it is in the wash or being mended, there is nothing to change to."
+    ]
+   },
+   {
+    "evidence": {
+     "days": [
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "cold",
+       "words": "a cold formal occasion"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy formal occasion"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "cool",
+       "words": "a cool formal occasion"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "cool",
+       "words": "a cool, rainy formal occasion"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "mild",
+       "words": "a mild formal occasion"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "mild",
+       "words": "a mild, rainy formal occasion"
+      }
+     ],
+     "items": [
+      "ed4c0700a2eb5db0ad921688eb79a544",
+      "12a1bc4c2086523ead1ed8d43676e451",
+      "05cb8b7edd6a5ac983080bc0521b5248",
+      "7a5bd749c80e5f22bdd010e9debf20f0"
+     ]
+    },
+    "found_by": [
+     "thin_place"
+    ],
+    "id": "trousers-business",
+    "look_for": {
+     "category": "trousers",
+     "colors": [
+      "grey",
+      "navy",
+      "tan"
+     ],
+     "formality": "business",
+     "material": null,
+     "pattern": null,
+     "season": null,
+     "weight_class": null
+    },
+    "name": "Smart trousers",
+    "score": 34,
+    "why": [
+     "Every outfit for cold, cool or mild formal days rests on your grey wool trousers: they are the only bottoms that suit. If they are in the wash or being mended, there is nothing to change to."
+    ]
+   },
+   {
+    "evidence": {
+     "days": [
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "cool",
+       "words": "a cool formal occasion"
+      }
+     ],
+     "items": [
+      "91947883944b53e99378fa623d8eab65",
+      "23fc719965b3589ebe4dee0ad4a72c7d",
+      "ed4c0700a2eb5db0ad921688eb79a544",
+      "7a5bd749c80e5f22bdd010e9debf20f0"
+     ]
+    },
+    "found_by": [
+     "thin_place"
+    ],
+    "id": "shirt-business",
+    "look_for": {
+     "category": "shirt",
+     "colors": [
+      "white",
+      "navy",
+      "light_blue"
+     ],
+     "formality": "business",
+     "material": null,
+     "pattern": null,
+     "season": null,
+     "weight_class": null
+    },
+    "name": "A plain dress shirt",
+    "score": 26,
+    "why": [
+     "Every outfit for a cool formal occasion rests on your white dress shirt: it is the only top that suits. If it is in the wash or being mended, there is nothing to change to."
+    ]
+   },
+   {
+    "evidence": {
+     "days": [],
+     "items": [
+      "96dd2211e18456d2bec84bcf45798f77",
+      "1987307fd9bb554a80a86eefe0cc0d17",
+      "4e249ac7f39151ae94db50cf16288994",
+      "0d259eaac19c5487926df36b88fa161b"
+     ]
+    },
+    "found_by": [
+     "basic"
+    ],
+    "id": "belt-smart_casual",
+    "look_for": {
+     "category": "belt",
+     "colors": [
+      "brown",
+      "black"
+     ],
+     "formality": "smart_casual",
+     "material": null,
+     "pattern": null,
+     "season": null,
+     "weight_class": null
+    },
+    "name": "A leather belt",
+    "score": 20,
+    "why": [
+     "A leather belt finishes trousers and jeans; the engine adds one to every outfit that has them. You have none."
+    ]
+   },
+   {
+    "evidence": {
+     "days": [
+      {
+       "high_c": 31.0,
+       "low_c": 25.0,
+       "occasion": "business",
+       "rain": false,
+       "temperature": "hot",
+       "words": "a hot business day"
+      },
+      {
+       "high_c": 31.0,
+       "low_c": 25.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "hot",
+       "words": "a hot formal occasion"
+      },
+      {
+       "high_c": 31.0,
+       "low_c": 25.0,
+       "occasion": "business",
+       "rain": true,
+       "temperature": "hot",
+       "words": "a hot, rainy business day"
+      },
+      {
+       "high_c": 31.0,
+       "low_c": 25.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "hot",
+       "words": "a hot, rainy formal occasion"
+      }
+     ],
+     "items": [
+      "96dd2211e18456d2bec84bcf45798f77",
+      "05cb8b7edd6a5ac983080bc0521b5248",
+      "4e249ac7f39151ae94db50cf16288994",
+      "d35fd000aeb5556f90f6acc3ac546b75",
+      "91947883944b53e99378fa623d8eab65",
+      "0d259eaac19c5487926df36b88fa161b",
+      "ed4c0700a2eb5db0ad921688eb79a544",
+      "7a5bd749c80e5f22bdd010e9debf20f0"
+     ]
+    },
+    "found_by": [
+     "days"
+    ],
+    "id": "trousers-business-light",
+    "look_for": {
+     "category": "trousers",
+     "colors": [
+      "navy",
+      "tan",
+      "grey"
+     ],
+     "formality": "business",
+     "material": null,
+     "pattern": null,
+     "season": "warm",
+     "weight_class": "lightweight"
+    },
+    "name": "Light smart trousers for hot days",
+    "score": 16,
+    "why": [
+     "On hot business days the closet has nothing better than your dark indigo jeans, which are too casual.",
+     "On a hot formal occasion the closet has nothing better than your olive shorts, which are too casual."
+    ]
+   },
+   {
+    "evidence": {
+     "days": [
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "cold",
+       "words": "a cold formal occasion"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy formal occasion"
+      }
+     ],
+     "items": [
+      "bc4077a3708158729cd2c22638fab7ba",
+      "91947883944b53e99378fa623d8eab65",
+      "ed4c0700a2eb5db0ad921688eb79a544",
+      "7a5bd749c80e5f22bdd010e9debf20f0"
+     ]
+    },
+    "found_by": [
+     "days"
+    ],
+    "id": "sweater-business-warm",
+    "look_for": {
+     "category": "sweater",
+     "colors": [
+      "brown",
+      "navy",
+      "grey"
+     ],
+     "formality": "business",
+     "material": null,
+     "pattern": null,
+     "season": "cool",
+     "weight_class": "heavyweight"
+    },
+    "name": "A heavy sweater",
+    "score": 5,
+    "why": [
+     "On cold formal days the outfit is well short of warm even with your black overcoat: no middle layer you own suits those days to wear under it."
+    ]
+   }
+  ],
+  "message": null,
+  "notes": []
+ },
+ "sparse": {
+  "checked": {
+   "days": 40,
+   "items": 22,
+   "wears": 11
+  },
+  "enough": true,
+  "gaps": [
+   {
+    "evidence": {
+     "days": [
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "athletic",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy sport day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "casual",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy casual day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "smart_casual",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy smart casual day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "business",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy business day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy formal occasion"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "athletic",
+       "rain": true,
+       "temperature": "cool",
+       "words": "a cool, rainy sport day"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "casual",
+       "rain": true,
+       "temperature": "cool",
+       "words": "a cool, rainy casual day"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "smart_casual",
+       "rain": true,
+       "temperature": "cool",
+       "words": "a cool, rainy smart casual day"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "business",
+       "rain": true,
+       "temperature": "cool",
+       "words": "a cool, rainy business day"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "cool",
+       "words": "a cool, rainy formal occasion"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "athletic",
+       "rain": true,
+       "temperature": "mild",
+       "words": "a mild, rainy sport day"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "casual",
+       "rain": true,
+       "temperature": "mild",
+       "words": "a mild, rainy casual day"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "smart_casual",
+       "rain": true,
+       "temperature": "mild",
+       "words": "a mild, rainy smart casual day"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "business",
+       "rain": true,
+       "temperature": "mild",
+       "words": "a mild, rainy business day"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "mild",
+       "words": "a mild, rainy formal occasion"
+      }
+     ],
+     "items": [
+      "tee_white",
+      "jeans_black",
+      "sneakers_grey",
+      "jacket_navy",
+      "ocbd_blue",
+      "chinos_navy",
+      "boots_black",
+      "dress_white"
+     ]
+    },
+    "found_by": [
+     "days",
+     "basic"
+    ],
+    "id": "outer-rain",
+    "look_for": {
+     "category": "coat",
+     "colors": [
+      "grey",
+      "tan",
+      "black"
+     ],
+     "formality": "smart_casual",
+     "material": "waterproof (a mac, trench, waxed cotton or shell)",
+     "pattern": null,
+     "season": "all",
+     "weight_class": "midweight"
+    },
+    "name": "A rain-proof outer layer",
+    "score": 71,
+    "why": [
+     "Nothing you own keeps the rain off; on cold, cool or mild rainy days the engine can only say 'take an umbrella'.",
+     "A mac, trench or waxed jacket keeps the rain off without an umbrella. You have none."
+    ]
+   },
+   {
+    "evidence": {
+     "days": [
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "athletic",
+       "rain": false,
+       "temperature": "cold",
+       "words": "a cold sport day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "casual",
+       "rain": false,
+       "temperature": "cold",
+       "words": "a cold casual day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "smart_casual",
+       "rain": false,
+       "temperature": "cold",
+       "words": "a cold smart casual day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "business",
+       "rain": false,
+       "temperature": "cold",
+       "words": "a cold business day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "athletic",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy sport day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "casual",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy casual day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "smart_casual",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy smart casual day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "business",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy business day"
+      }
+     ],
+     "items": [
+      "coat_navy",
+      "tee_white",
+      "dress_white",
+      "jeans_dark",
+      "jeans_black",
+      "boots_black",
+      "boots_brown"
+     ]
+    },
+    "found_by": [
+     "thin_place"
+    ],
+    "id": "outer-warm",
+    "look_for": {
+     "category": "coat",
+     "colors": [
+      "navy",
+      "grey",
+      "tan"
+     ],
+     "formality": "smart_casual",
+     "material": null,
+     "pattern": null,
+     "season": "cool",
+     "weight_class": "heavyweight"
+    },
+    "name": "A warm winter coat",
+    "score": 55,
+    "why": [
+     "Every outfit for cold sport, casual, smart casual and business days rests on your navy peacoat: it is the only coat or jacket that suits. If it is in the wash or being mended, there is nothing to change to."
+    ]
+   },
+   {
+    "evidence": {
+     "days": [],
+     "items": [
+      "jeans_dark",
+      "tee_white",
+      "ocbd_blue",
+      "boots_black",
+      "boots_brown"
+     ]
+    },
+    "found_by": [
+     "worn_most"
+    ],
+    "id": "jeans-casual",
+    "look_for": {
+     "category": "jeans",
+     "colors": [
+      "navy",
+      "blue",
+      "black"
+     ],
+     "formality": "casual",
+     "material": null,
+     "pattern": null,
+     "season": null,
+     "weight_class": null
+    },
+    "name": "Another pair of jeans like your dark jeans",
+    "score": 48,
+    "why": [
+     "You wore your dark jeans 8 times between 2026-10-01 and 2026-10-11, against 1.0 on average for your other jeans. A second one like them would spread the wear."
+    ]
+   },
+   {
+    "evidence": {
+     "days": [
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "cold",
+       "words": "a cold formal occasion"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy formal occasion"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "cool",
+       "words": "a cool formal occasion"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "cool",
+       "words": "a cool, rainy formal occasion"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "mild",
+       "words": "a mild formal occasion"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "mild",
+       "words": "a mild, rainy formal occasion"
+      },
+      {
+       "high_c": 31.0,
+       "low_c": 25.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "hot",
+       "words": "a hot formal occasion"
+      },
+      {
+       "high_c": 31.0,
+       "low_c": 25.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "hot",
+       "words": "a hot, rainy formal occasion"
+      }
+     ],
+     "items": [
+      "shoes_brown",
+      "dress_white",
+      "ocbd_blue",
+      "chinos_navy",
+      "chinos_tan"
+     ]
+    },
+    "found_by": [
+     "thin_place"
+    ],
+    "id": "dress_shoes-business",
+    "look_for": {
+     "category": "dress_shoes",
+     "colors": [
+      "brown",
+      "black"
+     ],
+     "formality": "business",
+     "material": null,
+     "pattern": null,
+     "season": null,
+     "weight_class": null
+    },
+    "name": "A pair of smart leather shoes",
+    "score": 37,
+    "why": [
+     "Every outfit for formal days rests on your brown derbies: they are the only shoes that suit. If they are in the wash or being mended, there is nothing to change to."
+    ]
+   },
+   {
+    "evidence": {
+     "days": [
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "cold",
+       "words": "a cold formal occasion"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy formal occasion"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "cool",
+       "words": "a cool formal occasion"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "cool",
+       "words": "a cool, rainy formal occasion"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "mild",
+       "words": "a mild formal occasion"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "mild",
+       "words": "a mild, rainy formal occasion"
+      }
+     ],
+     "items": [
+      "dress_white",
+      "sweater_grey",
+      "coat_navy",
+      "trousers_grey",
+      "shoes_brown"
+     ]
+    },
+    "found_by": [
+     "days",
+     "thin_place"
+    ],
+    "id": "shirt-business",
+    "look_for": {
+     "category": "shirt",
+     "colors": [
+      "white",
+      "navy",
+      "light_blue"
+     ],
+     "formality": "business",
+     "material": null,
+     "pattern": null,
+     "season": null,
+     "weight_class": null
+    },
+    "name": "A plain dress shirt",
+    "score": 36,
+    "why": [
+     "Every outfit for cold, cool or mild formal days rests on your white dress shirt: it is the only top that suits. If it is in the wash or being mended, there is nothing to change to.",
+     "On cold, cool or mild formal days the closet can make only two outfits that differ: your white dress shirt is the only top that suit."
+    ]
+   },
+   {
+    "evidence": {
+     "days": [
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "cold",
+       "words": "a cold formal occasion"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy formal occasion"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "cool",
+       "words": "a cool formal occasion"
+      },
+      {
+       "high_c": 14.0,
+       "low_c": 8.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "cool",
+       "words": "a cool, rainy formal occasion"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "mild",
+       "words": "a mild formal occasion"
+      },
+      {
+       "high_c": 21.0,
+       "low_c": 15.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "mild",
+       "words": "a mild, rainy formal occasion"
+      }
+     ],
+     "items": [
+      "trousers_grey",
+      "dress_white",
+      "ocbd_blue",
+      "boots_black",
+      "boots_brown"
+     ]
+    },
+    "found_by": [
+     "thin_place"
+    ],
+    "id": "trousers-business",
+    "look_for": {
+     "category": "trousers",
+     "colors": [
+      "grey",
+      "navy",
+      "tan"
+     ],
+     "formality": "business",
+     "material": null,
+     "pattern": null,
+     "season": null,
+     "weight_class": null
+    },
+    "name": "Smart trousers",
+    "score": 34,
+    "why": [
+     "Every outfit for cold, cool or mild formal days rests on your grey trousers: they are the only bottoms that suit. If they are in the wash or being mended, there is nothing to change to."
+    ]
+   },
+   {
+    "evidence": {
+     "days": [
+      {
+       "high_c": 31.0,
+       "low_c": 25.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "hot",
+       "words": "a hot formal occasion"
+      },
+      {
+       "high_c": 31.0,
+       "low_c": 25.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "hot",
+       "words": "a hot, rainy formal occasion"
+      }
+     ],
+     "items": [
+      "dress_white",
+      "trousers_grey",
+      "shoes_brown"
+     ]
+    },
+    "found_by": [
+     "days",
+     "thin_place"
+    ],
+    "id": "shirt-business-light",
+    "look_for": {
+     "category": "shirt",
+     "colors": [
+      "white",
+      "navy",
+      "light_blue"
+     ],
+     "formality": "business",
+     "material": null,
+     "pattern": null,
+     "season": "warm",
+     "weight_class": "lightweight"
+    },
+    "name": "A light dress shirt for hot days",
+    "score": 29,
+    "why": [
+     "Every outfit for hot formal days rests on your white dress shirt: it is the only top that suits. If it is in the wash or being mended, there is nothing to change to.",
+     "On hot formal days the closet can make only one outfit that differ: your white dress shirt is the only top that suit."
+    ]
+   },
+   {
+    "evidence": {
+     "days": [
+      {
+       "high_c": 31.0,
+       "low_c": 25.0,
+       "occasion": "formal",
+       "rain": false,
+       "temperature": "hot",
+       "words": "a hot formal occasion"
+      },
+      {
+       "high_c": 31.0,
+       "low_c": 25.0,
+       "occasion": "formal",
+       "rain": true,
+       "temperature": "hot",
+       "words": "a hot, rainy formal occasion"
+      }
+     ],
+     "items": [
+      "trousers_grey",
+      "dress_white",
+      "ocbd_blue",
+      "boots_black",
+      "boots_brown"
+     ]
+    },
+    "found_by": [
+     "thin_place"
+    ],
+    "id": "trousers-business-light",
+    "look_for": {
+     "category": "trousers",
+     "colors": [
+      "grey",
+      "navy",
+      "tan"
+     ],
+     "formality": "business",
+     "material": null,
+     "pattern": null,
+     "season": "warm",
+     "weight_class": "lightweight"
+    },
+    "name": "Light smart trousers for hot days",
+    "score": 28,
+    "why": [
+     "Every outfit for hot formal days rests on your grey trousers: they are the only bottoms that suit. If they are in the wash or being mended, there is nothing to change to."
+    ]
+   },
+   {
+    "evidence": {
+     "days": [],
+     "items": [
+      "jeans_dark",
+      "jeans_black",
+      "boots_black",
+      "boots_brown"
+     ]
+    },
+    "found_by": [
+     "basic"
+    ],
+    "id": "belt-smart_casual",
+    "look_for": {
+     "category": "belt",
+     "colors": [
+      "brown",
+      "black"
+     ],
+     "formality": "smart_casual",
+     "material": null,
+     "pattern": null,
+     "season": null,
+     "weight_class": null
+    },
+    "name": "A leather belt",
+    "score": 20,
+    "why": [
+     "A leather belt finishes trousers and jeans; the engine adds one to every outfit that has them. You have none."
+    ]
+   },
+   {
+    "evidence": {
+     "days": [
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "athletic",
+       "rain": false,
+       "temperature": "cold",
+       "words": "a cold sport day"
+      },
+      {
+       "high_c": 6.0,
+       "low_c": 0.0,
+       "occasion": "athletic",
+       "rain": true,
+       "temperature": "cold",
+       "words": "a cold, rainy sport day"
+      }
+     ],
+     "items": [
+      "coat_navy",
+      "tee_white",
+      "jeans_black",
+      "sneakers_grey"
+     ]
+    },
+    "found_by": [
+     "days"
+    ],
+    "id": "sweater-casual-warm",
+    "look_for": {
+     "category": "sweater",
+     "colors": [
+      "cream",
+      "brown",
+      "navy"
+     ],
+     "formality": "casual",
+     "material": null,
+     "pattern": null,
+     "season": "cool",
+     "weight_class": "heavyweight"
+    },
+    "name": "A heavy sweater",
+    "score": 5,
+    "why": [
+     "On cold sport days the outfit is well short of warm even with your navy peacoat: no middle layer you own suits those days to wear under it."
+    ]
+   }
+  ],
+  "message": null,
+  "notes": [
+   {
+    "items": [
+     "boots_black",
+     "boots_brown",
+     "chinos_navy",
+     "chinos_tan",
+     "coat_navy",
+     "dress_white",
+     "jacket_navy",
+     "ocbd_blue",
+     "ocbd_white",
+     "polo_navy",
+     "shoes_brown",
+     "shorts_navy",
+     "shorts_tan",
+     "sneakers_grey",
+     "sneakers_white",
+     "sweater_grey",
+     "sweater_navy",
+     "tee_navy",
+     "trousers_grey"
+    ],
+    "kind": "never_worn",
+    "text": "Not worn since the log began (2026-10-01): your black boots, your brown boots, your navy chinos, your tan chinos and 15 more. They are not gaps, but worth a look before buying more."
+   }
+  ]
+ }
+}

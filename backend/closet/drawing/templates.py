@@ -44,6 +44,7 @@ class Shape:
     # neck to below the hem; how its buttonholes are cut, "vertical" or "horizontal"). The other front is its
     # mirror image. The renderer builds the two fronts from this and swings them open.
     fronts: tuple[list, str] | None = None
+    tailored: bool = False   # a tailored jacket or coat: its buttons and inside are drawn to stand out on any cloth
 
 
 def _f(v: float) -> str:
@@ -1010,7 +1011,7 @@ def _tailored(p, block) -> Shape:
     A = (CX + chest, ay)
     side = _side_points(A, (CX + waist_w, max(wy, ay + 20)), (CX + hh, hy))
     u = _unit((S[0] - N[0], S[1] - N[1]))
-    sh = Shape(outline="")
+    sh = Shape(outline="", tailored=True)
     ml = _mirror
 
     # ---- sleeves

@@ -10,7 +10,9 @@ With CLOSET_E2E_ROUTES=api the plan route cannot be used and the API route is
 the real one (its spend recorded and kept under the owner's limit) talking to
 `conftest.FakeApi` instead of Anthropic: each request reports 20,000 tokens in
 and 12,000 out, $0.008 at the prices written down, so a $0.01 limit allows
-exactly one.
+exactly one. Corrections by sentence
+are read by the same stand-in the backend tests use (or, with CLOSET_E2E_ROUTES=api, by the
+real API route talking to `conftest.FakeApi`).
 """
 import os
 import sys
@@ -20,7 +22,7 @@ from closet import app, cli
 from closet.tagger import routes as tagger_routes
 from closet.tagger.tagging import TagResult
 
-from .conftest import ANSWER, FakeApi, fake_cutter
+from .conftest import ANSWER, FakeApi, FakeClaude, fake_cutter
 
 _real_build = app.build_services
 
@@ -41,7 +43,10 @@ def build_services(cfg, **kwargs):
         tagger_routes.status = api_only_status
         sv = _real_build(cfg, cutter=fake_cutter, api_client=FakeApi(input_tokens=20_000, output_tokens=12_000), **kwargs)
     else:
-        sv = _real_build(cfg, cutter=fake_cutter, tagger=fake_claude, routes=lambda: ("plan",), **kwargs)
+        reader = FakeClaude()
+        reader.mode = "answers"
+        sv = _real_build(cfg, cutter=fake_cutter, tagger=fake_claude, routes=lambda: ("plan",), corrector=reader.correct,
+                         **kwargs)
     sv.worker.is_ready = lambda: True
     return sv
 

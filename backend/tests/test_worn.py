@@ -334,7 +334,7 @@ def test_the_migration_runs_on_a_closet_made_by_the_previous_version(tmp_path, m
 
     monkeypatch.setattr(db, "migration_files", lambda: real)
     result = db.migrate(path, backups)
-    assert result["applied"][-1] == 10 and result["backup"]
+    assert result["applied"][0] == 10 and result["backup"]   # and any later ones
     conn = db.connect(path)
     assert conn.execute("SELECT COUNT(*) FROM wears").fetchone()[0] == 1
     assert conn.execute("SELECT COUNT(*) FROM worn_outfits").fetchone()[0] == 0

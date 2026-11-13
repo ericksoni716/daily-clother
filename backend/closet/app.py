@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import threading
 import time
 from collections.abc import Callable
@@ -12,6 +13,8 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from PIL import Image
 from pydantic import BaseModel
@@ -22,8 +25,10 @@ from . import (
     auth,
     autostart,
     backup,
+    corrections,
     db,
     demo,
+    history,
     illustrations,
     images,
     items,
@@ -45,6 +50,7 @@ from .gaps import find_gaps
 from .insights import find_insights
 from .modelstore import MODEL, ModelStore
 from .state import State
+from .tagger import correcting
 from .tagger import routes as tagger_routes
 from .today import closet_rows
 from .today import suggest as suggest_today
@@ -64,6 +70,7 @@ class Services:
     scheduler: backup.Scheduler
     web_dir: Path | None = None
     tag_worker: tagjobs.Worker | None = None
+    corrector: corrections.Corrector = correcting.correct
     on_quit: Callable[[], None] = lambda: None
     _phone_cache: tuple[float, dict] | None = field(default=None, repr=False)
 
@@ -97,13 +104,14 @@ class Services:
 
 
 def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path | str | None = "bundled",
-                   tagger: tagjobs.Tagger | None = None, routes: tagjobs.Routes | None = None, api_client=None) -> Services:
+                   tagger: tagjobs.Tagger | None = None, routes: tagjobs.Routes | None = None, api_client=None,
+                   corrector: corrections.Corrector | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
-    with the program, None serves no page (tests), or give a folder. `tagger`
-    and `routes` stand in for Claude in tests; by default the real routes are used, each call recorded and the
-    API key kept under its monthly limit. `api_client` stands in for the API alone (tests), behind that same limit.
+    with the program, None serves no page (tests), or give a folder. `tagger`,
+    `routes` and `corrector` stand in for Claude in tests; by default the real routes are used, each call recorded and
+    the API key kept under its monthly limit. `api_client` stands in for the API alone (tests), behind that same limit.
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
@@ -126,6 +134,11 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     def real_tagger(images: list[Image.Image], usable: tuple[str, ...]):
         return tagjobs.claude_tagger(images, usable, meter=meter, client=api_client)
 
+    reading = spend.Meter(cfg, state, spend.PURPOSE_CORRECT, spend.estimate_correction)
+
+    def real_corrector(sentence: str, description: dict, allowed: dict, images: list, usable: tuple[str, ...]):
+        return correcting.correct(sentence, description, allowed, images, usable, client=api_client, meter=reading)
+
     tag_worker = tagjobs.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)), tagger or real_tagger)
     worker = jobs.Worker(cfg, state, lambda: model.ready, cutter or real_cutter, on_done=tag_worker.wake)
     holder["worker"] = worker
@@ -133,7 +146,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     if web_dir == "bundled":
         candidate = bundle_dir() / "web"
         web_dir = candidate if (candidate / "index.html").exists() else None
-    return Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker)
+    return Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker,
+                    corrector=corrector or real_corrector)
 
 
 class Passphrase(BaseModel):
@@ -146,6 +160,39 @@ class ProfileChoice(BaseModel):
 
 class ModelUrl(BaseModel):
     url: str | None = None
+
+
+# the routes that correct an item answer wrong input with a sentence, not pydantic's list of errors
+CORRECTING = re.compile(r"^/api/items/[^/]+/(details|correct|correct/confirm|history/[^/]+/undo)$")
+PLAIN_INPUT = {
+    "sentence": "Write the correction as words.",
+    "changes": "Send the changes to confirm as a list, each with a name and a value.",
+    "details": "Send the details to change as names, each with its new value.",
+    "change_id": "That is not a change in this item's history.",
+}
+
+
+def plain_input(e: RequestValidationError) -> str:
+    for err in e.errors():
+        for part in err.get("loc", ()):
+            if part in PLAIN_INPUT:
+                return PLAIN_INPUT[part]
+    if any(err.get("type") == "json_invalid" for err in e.errors()):
+        return "The request could not be read: it is not valid JSON."
+    return "The request is not in the form this needs."
+
+
+class DetailsBody(BaseModel):
+    details: dict
+
+
+class Sentence(BaseModel):
+    sentence: str
+
+
+class Confirmed(BaseModel):
+    sentence: str
+    changes: list
 
 
 class WearDay(BaseModel):
@@ -233,6 +280,12 @@ def create_app(sv: Services) -> FastAPI:
     @app.exception_handler(items.ItemError)
     async def item_error(_: Request, e: items.ItemError):
         return JSONResponse({"detail": e.message}, status_code=e.status)
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_input(request: Request, e: RequestValidationError):
+        if CORRECTING.match(request.url.path):
+            return JSONResponse({"detail": plain_input(e)}, status_code=422)
+        return await request_validation_exception_handler(request, e)
 
     @app.exception_handler(images.ImageError)
     async def image_error(_: Request, e: images.ImageError):
@@ -336,6 +389,70 @@ def create_app(sv: Services) -> FastAPI:
         item = items.retag(conn, item_id)
         sv.wake()
         return item
+
+    # ---------------------------------------------- correcting an item, and its history
+    def not_in_demo(profile: str, conn, item_id: str) -> None:
+        """Refuse to send a demo item to Claude. `profile` is read once by the route, and the same reading chooses
+        the closet the item is read from, so a switch of closet meanwhile cannot let a demo item through."""
+        if profile == "demo":
+            items.get(conn, item_id)
+            raise HTTPException(409, "The demo closet is never sent to Claude, so it can't read sentences here. "
+                                     "Pick the details instead.")
+
+    @app.get("/api/items/{item_id}/details", dependencies=protected)
+    def detail_options(item_id: str, conn=Depends(conn_dep)):
+        return corrections.options(items.get(conn, item_id))
+
+    @app.get("/api/items/{item_id}/details/{name}", dependencies=protected)
+    async def detail_choices(item_id: str, name: str):
+        path = cfg.db_path(state.get("profile"))
+
+        def work() -> dict:
+            conn = db.connect(path)
+            try:
+                return corrections.choices(items.get(conn, item_id), name)
+            finally:
+                conn.close()
+        return await run_in_threadpool(work)
+
+    @app.put("/api/items/{item_id}/details", dependencies=protected)
+    def set_details(item_id: str, body: DetailsBody, conn=Depends(conn_dep)):
+        return corrections.apply(conn, item_id, body.details)
+
+    @app.post("/api/items/{item_id}/correct", dependencies=protected)
+    async def correct_item(item_id: str, body: Sentence):
+        profile = state.get("profile")
+        path, folder = cfg.db_path(profile), cfg.images_dir(profile)
+
+        def work() -> dict:
+            conn = db.connect(path)
+            try:
+                not_in_demo(profile, conn, item_id)
+                routes = sv.tag_worker.routes() if sv.tag_worker else ()
+                return corrections.understand(conn, folder, item_id, body.sentence, routes, sv.corrector)
+            finally:
+                conn.close()
+        # asking Claude takes a while; other requests keep being answered meanwhile
+        return await run_in_threadpool(work)
+
+    @app.post("/api/items/{item_id}/correct/confirm", dependencies=protected)
+    def confirm_correction(item_id: str, body: Confirmed):
+        profile = state.get("profile")
+        conn = db.connect(cfg.db_path(profile))
+        try:
+            not_in_demo(profile, conn, item_id)
+            return corrections.confirm(conn, item_id, body.sentence, body.changes)
+        finally:
+            conn.close()
+
+    @app.get("/api/items/{item_id}/history", dependencies=protected)
+    def item_history(item_id: str, conn=Depends(conn_dep)):
+        items.get(conn, item_id)
+        return history.listing(conn, item_id)
+
+    @app.post("/api/items/{item_id}/history/{change_id}/undo", dependencies=protected)
+    def undo_change(item_id: str, change_id: int, conn=Depends(conn_dep)):
+        return corrections.undo(conn, item_id, change_id)
 
     @app.get("/api/items/{item_id}/wears", dependencies=protected)
     def list_wears(item_id: str, conn=Depends(conn_dep)):

@@ -8,6 +8,7 @@ from PIL import Image, ImageDraw
 
 from closet import app as app_module
 from closet.config import Config
+from closet.tagger.correcting import Change, CorrectionAnswer, CorrectionResult
 from closet.tagger.schema import Details, ItemTags, Silhouette
 from closet.tagger.tagging import RouteUnavailable, TaggingError, TagResult
 
@@ -42,6 +43,19 @@ ANSWER = ItemTags(
     details_confidence=0.8, brand=None, size=None, material="100% cotton", needs_shot=None)
 
 
+# what the stand-in understands in a correction by sentence: sentence -> (changes, not understood, needs the photo)
+SENTENCES = {
+    "it has three buttons": ([("placket_buttons", "3")], "", False),
+    "it has two buttons": ([("placket_buttons", "2")], "", False),
+    "the collar is white": ([("trim_color", "white")], "", False),
+    "it's a henley, not a tee": ([("neckline", "henley"), ("placket", "henley")], "", False),
+    "it's actually green": ([("color", "green")], "", False),
+    "it is teal": ([("color", "teal")], "", False),
+    "the colour is wrong": ([], "", True),
+    "make it look nicer": ([], "I could not tell what to change from “make it look nicer”.", False),
+}
+
+
 class FakeClaude:
     """Stands in for both routes to Claude; no test ever reaches the real one.
 
@@ -52,6 +66,7 @@ class FakeClaude:
     def __init__(self):
         self.mode = "unavailable"
         self.calls: list[tuple[str, ...]] = []
+        self.corrections: list[tuple] = []
 
     def routes(self) -> tuple[str, ...]:
         return () if self.mode == "unavailable" else ("plan",)
@@ -65,25 +80,45 @@ class FakeClaude:
             raise TaggingError("the answer was outside the schema")
         return TagResult(ANSWER, "claude-haiku-5-5", 0.1, 100, 50, 0.0, 1, route=routes[0])
 
+    def correct(self, sentence, description, allowed, images, routes):
+        """A correction by sentence, as Claude would read it (the sentences above; anything else is not understood)."""
+        self.corrections.append((sentence, description, allowed, len(images), routes))
+        if self.mode == "unavailable" or not routes:
+            raise RouteUnavailable("Claude Code is not signed in")
+        if self.mode == "fails":
+            raise TaggingError("the answer was outside the schema")
+        if sentence == "the colour is wrong" and images:
+            return CorrectionResult(CorrectionAnswer(changes=[Change(name="color", value="burgundy")], not_understood="",
+                                                     needs_photo=False), routes[0], "fake")
+        changes, unclear, photo = SENTENCES.get(sentence, ([], f"I could not understand “{sentence}”.", False))
+        return CorrectionResult(CorrectionAnswer(changes=[Change(name=n, value=v) for n, v in changes], not_understood=unclear,
+                                                 needs_photo=photo), routes[0], "fake")
+
 
 class FakeApi:
     """Stands in for the Anthropic API behind the API-key route (its `messages.parse`); no test reaches the real one.
 
-    Answers ANSWER and reports token counts as the real API does; `error` makes the next calls raise it instead.
+    Answers ANSWER (or, asked to read a correction, `correction`: two buttons) and reports token counts as the real
+    API does; `error` makes the next calls raise it instead. `requests` keeps what each call was sent.
     """
 
     def __init__(self, input_tokens: int = 2000, output_tokens: int = 400):
         self.input_tokens, self.output_tokens = input_tokens, output_tokens
         self.error: Exception | None = None
         self.calls = 0
+        self.requests: list[dict] = []
         self.messages = self
+        self.correction = CorrectionAnswer(changes=[Change(name="placket_buttons", value="2")], not_understood="",
+                                           needs_photo=False)
 
     def parse(self, **kw):
         self.calls += 1
+        self.requests.append(kw)
         if self.error:
             raise self.error
         usage = SimpleNamespace(input_tokens=self.input_tokens, output_tokens=self.output_tokens)
-        return SimpleNamespace(parsed_output=ANSWER, stop_reason="end_turn", usage=usage)
+        answer = self.correction if kw.get("output_format") is CorrectionAnswer else ANSWER
+        return SimpleNamespace(parsed_output=answer, stop_reason="end_turn", usage=usage)
 
 
 @pytest.fixture
@@ -99,7 +134,7 @@ def claude():
 @pytest.fixture
 def services(cfg, claude):
     sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None,   # independent of whether the page is built
-                                   tagger=claude, routes=lambda: claude.routes())
+                                   tagger=claude, routes=lambda: claude.routes(), corrector=claude.correct)
     yield sv
     sv.stop()
 

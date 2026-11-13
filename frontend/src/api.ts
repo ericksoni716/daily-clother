@@ -1,5 +1,6 @@
 import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue } from './types';
 import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
+import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { Insights } from './insights';
 import type { OutfitSent, Rating, Reason, WornOutfit, WornPage } from './worn';
 import type { GapsAnswer, HideReason, Wish } from './gaps';
@@ -143,6 +144,20 @@ export const api = {
   setLaundry: (id: string, state: Laundry) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}/laundry`, { method: 'POST', body: { state } }),
   retag: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/retag`, { method: 'POST' }),
+  /** The details that can be fixed for this kind of garment, and the choices for one of them. */
+  detailOptions: (id: string) => request<DetailOptions>(`/api/items/${encodeURIComponent(id)}/details`),
+  detailChoices: (id: string, name: string) =>
+    request<DetailChoices>(`/api/items/${encodeURIComponent(id)}/details/${encodeURIComponent(name)}`),
+  /** Sets details; null gives one back to Claude's description. */
+  setDetails: (id: string, details: Record<string, unknown>) =>
+    request<Item>(`/api/items/${encodeURIComponent(id)}/details`, { method: 'PUT', body: { details } }),
+  correct: (id: string, sentence: string) =>
+    request<CorrectionAnswer>(`/api/items/${encodeURIComponent(id)}/correct`, { method: 'POST', body: { sentence } }),
+  confirmCorrection: (id: string, sentence: string, changes: { name: string; value: unknown; before?: unknown }[]) =>
+    request<Item>(`/api/items/${encodeURIComponent(id)}/correct/confirm`, { method: 'POST', body: { sentence, changes } }),
+  history: (id: string) => request<HistoryEntry[]>(`/api/items/${encodeURIComponent(id)}/history`),
+  undo: (id: string, changeId: number) =>
+    request<{ item: Item; history: HistoryEntry[] }>(`/api/items/${encodeURIComponent(id)}/history/${changeId}/undo`, { method: 'POST' }),
   review: () => request<ReviewQueue>('/api/review'),
   /** Marks fields as the owner's without changing them. */
   confirm: (id: string, fields: ReviewField['field'][]) =>

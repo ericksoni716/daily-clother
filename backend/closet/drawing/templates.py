@@ -135,8 +135,8 @@ WEIGHT_LEVEL = {"lightweight": 0, "midweight": 1, "heavyweight": 2, "super_heavy
 # A tailored sleeve hangs close to the body: at most SLEEVE_HANG degrees from the vertical, its cuff at
 # least SLEEVE_GAP px clear of the side; the underarm is rounded over UNDERARM px so the sleeve's and the
 # body's outlines part cleanly instead of running into a dark wedge. Cuff buttons: CUFF_BUTTON px radius.
-SLEEVE_HANG, SLEEVE_GAP, UNDERARM, CUFF_BUTTON = 19.0, 14.0, 16.0, 2.7
-LAPEL_GROW = 0.3                                    # cm of lapel width for each cm of chest a fuller fit adds
+SLEEVE_HANG, SLEEVE_GAP, UNDERARM, CUFF_BUTTON = 19.0, 14.0, 18.0, 2.7
+LAPEL_GROW = 0.4                                    # cm of lapel width for each cm of chest a fuller fit adds
 GAUGE_BAND = {"extra_fine": 0.8, "fine": 0.9, "medium": 1.0, "chunky": 1.25, "super_chunky": 1.5}
 
 # Shirt collar leaves: where the point lies from the place the leaves meet (dx, dy), and how the point is finished.
@@ -1090,10 +1090,9 @@ def _tailored(p, block) -> Shape:
         sp = T["db_spacing"] * k_
         yf = ny + T["db_stance"] * k_
         above = rows - 2 if rows >= 3 else 0
-        if n_b == 1:   # 6x1: the lapels roll down to the bottom row, the only one that fastens
-            above = rows - 1
         ys = [yf + (i - above) * sp for i in range(rows)]
-        y_break, ov = yf - 4, 32.0 + bulk
+        # 6x1: the lapels roll down to the bottom row, the only one that fastens
+        y_break, ov = (ys[-1] if n_b == 1 else yf) - 4, 32.0 + bulk
     else:
         sp = T["spacing"] * k_
         yb = ny + T["stance"] * k_

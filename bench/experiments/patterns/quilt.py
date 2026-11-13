@@ -87,3 +87,37 @@ def quilt(cut: Image.Image, out_w, out_h, block_frac=0.16, overlap=1 / 5, tol=0.
                                                                                    candidates=len(blocks),
                                                                                    distinct=used_spots,
                                                                                    placed=int(used.sum()))
+
+
+def even_light(cut: Image.Image, sigma_frac=0.08) -> Image.Image:
+    """Divide out slow brightness changes inside the garment (folds, shadows, uneven light), keeping colour."""
+    import cv2
+    rgb = np.asarray(cut.convert("RGB")).astype(np.float32)
+    a = np.asarray(cut)[..., 3]
+    m = (a > 200).astype(np.float32)
+    lab = cv2.cvtColor(rgb.astype(np.uint8), cv2.COLOR_RGB2LAB).astype(np.float32)
+    L = lab[..., 0]
+    s = max(cut.size) * sigma_frac
+    local = cv2.GaussianBlur(L * m, (0, 0), s) / np.maximum(cv2.GaussianBlur(m, (0, 0), s), 1e-3)
+    lab[..., 0] = np.clip(L - local + np.median(L[m > 0]), 0, 255)
+    return Image.fromarray(np.dstack([cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_LAB2RGB), a]), "RGBA")
+
+
+def lean(cut: Image.Image) -> float:
+    """How far the garment leans from upright, in degrees, from its centre line between shoulders and hem."""
+    a = np.asarray(cut)[..., 3] > 200
+    ys = np.where(a.any(1))[0]
+    top, bot = ys.min() + int(0.3 * (ys.max() - ys.min())), ys.max() - int(0.1 * (ys.max() - ys.min()))
+    rows = np.arange(top, bot, 2)
+    mids = [np.where(a[y])[0][[0, -1]].mean() for y in rows]
+    return float(np.degrees(np.arctan(np.polyfit(rows, mids, 1)[0])))
+
+
+def quilt_garment(cut: Image.Image, block_frac=0.3, overlap=1 / 4):
+    """The floral recipe that worked on the owner's shirts: turn the garment upright, even out the light, then
+    quilt a fill the size of the garment from big squares (as big as the cloth allows)."""
+    up = cut.rotate(-lean(cut), Image.BICUBIC, expand=True)
+    a = np.asarray(up)[..., 3]
+    xs, ys = np.where((a > 200).any(0))[0], np.where((a > 200).any(1))[0]
+    return quilt(even_light(up), int((xs.max() - xs.min()) * 1.1), int((ys.max() - ys.min()) * 1.1),
+                 block_frac=block_frac, overlap=overlap)

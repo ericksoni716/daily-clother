@@ -202,7 +202,7 @@ def accumulate(lab, m, ox, oy, P, Q, up=2):
     return tile, counts.reshape(Q * up, P * up)
 
 
-def rectify(cut, P, Q, ref_lab=None, iters=3, center_gap=0.06, log=print, thresh=40, stride=0.2, deg=4):
+def rectify(cut, P, Q, ref_lab=None, iters=3, center_gap=0.06, log=print, thresh=40, stride=0.2, deg=4, cover=0.75, up=1):
     rgb = np.asarray(cut.convert("RGB"))
     lab = to_lab(rgb)
     m = garment_mask(cut, thresh=thresh)   # faint garment too: areas that are really background fail to match
@@ -226,8 +226,9 @@ def rectify(cut, P, Q, ref_lab=None, iters=3, center_gap=0.06, log=print, thresh
     for it in range(iters):
         ref_sig = signal(ref_lab) if ref_lab.shape[:2] == (Q, P) else cv2.resize(signal(ref_lab), (P, Q), interpolation=cv2.INTER_AREA)
         import match
-        off, conf, centres = match.local_offsets_match(sig, mm, ref_sig, P, Q, stride_frac=stride)
-        un = unwrap(off, conf, P, Q, min_conf=0.5)
+        ref_sig = cv2.GaussianBlur(ref_sig, (0, 0), 0.7)   # grain must not steer the matching
+        off, conf, centres = match.local_offsets_match(sig, mm, ref_sig, P, Q, stride_frac=stride, cover=cover)
+        un = unwrap_ls(off, conf, P, Q, min_conf=0.5)
         n_ok = int((~np.isnan(un[..., 0])).sum())
         if n_ok < 3:
             log(f"  pass {it + 1}: only {n_ok} areas could be measured")
@@ -235,7 +236,7 @@ def rectify(cut, P, Q, ref_lab=None, iters=3, center_gap=0.06, log=print, thresh
         field = smooth_fill(un, deg=deg)
         ox, oy = full_field(field, centres, m.shape)
         use = mm & measured_mask(un, centres, m.shape, (Q // 2, P // 2))
-        tile, counts = accumulate(lab, use, ox, oy, P, Q)
+        tile, counts = accumulate(lab, use, ox, oy, P, Q, up=up)
         spread = (np.nanmax(un[..., 0]) - np.nanmin(un[..., 0]), np.nanmax(un[..., 1]) - np.nanmin(un[..., 1]))
         log(f"  pass {it + 1}: {n_ok} areas measured (median match {np.median(conf[conf > 0]):.2f}); the cloth drifts "
             f"{spread[0]:.0f} px across and {spread[1]:.0f} px down; {np.median(counts):.0f} pixels per spot")
@@ -246,3 +247,94 @@ def rectify(cut, P, Q, ref_lab=None, iters=3, center_gap=0.06, log=print, thresh
 
 def lab_to_rgb(tile_lab):
     return cv2.cvtColor(np.clip(tile_lab, 0, 255).astype(np.uint8), cv2.COLOR_LAB2RGB)
+
+
+def unwrap_ls(off, conf, P, Q, min_conf=0.5, min_patch=10, deg=2):
+    """Join all windows at once: the field that best agrees, in the least-squares sense, with every
+    neighbour-to-neighbour difference (each taken as the shortest way round the repeat, weighted by how sure
+    both matches are). One bad pair cannot throw a whole region off by a repeat, as growing one window at a
+    time can. Each window then keeps its own precise measurement, moved by the whole number of repeats the
+    solution says. Separate patches are solved on their own and joined to the largest by a smooth surface."""
+    n, mcols = conf.shape
+    good = (conf >= min_conf) & ~np.isnan(off[..., 0])
+    idx = -np.ones((n, mcols), int)
+    cells = list(zip(*np.where(good)))
+    for k, (i, j) in enumerate(cells):
+        idx[i, j] = k
+    out = np.full_like(off, np.nan)
+    if len(cells) < min_patch:
+        return out
+    # connected patches
+    comp = -np.ones(len(cells), int)
+    c = 0
+    for s in range(len(cells)):
+        if comp[s] >= 0:
+            continue
+        stack = [s]
+        comp[s] = c
+        while stack:
+            k = stack.pop()
+            i, j = cells[k]
+            for di, dj in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                a, b = i + di, j + dj
+                if 0 <= a < n and 0 <= b < mcols and idx[a, b] >= 0 and comp[idx[a, b]] < 0:
+                    comp[idx[a, b]] = c
+                    stack.append(idx[a, b])
+        c += 1
+    sizes = np.bincount(comp)
+    order = np.argsort(-sizes)
+    gi, gj = np.mgrid[0:n, 0:mcols].astype(np.float64)
+    gi, gj = gi / max(1, n - 1) - 0.5, gj / max(1, mcols - 1) - 0.5
+    A_s = np.stack([(gi ** a * gj ** b).ravel() for a in range(deg + 1) for b in range(deg + 1 - a)], 1)
+    for rank, cid in enumerate(order):
+        if sizes[cid] < min_patch:
+            break
+        members = [k for k in range(len(cells)) if comp[k] == cid]
+        local = {k: t for t, k in enumerate(members)}
+        rows, rhs_x, rhs_y, wts = [], [], [], []
+        for k in members:
+            i, j = cells[k]
+            for di, dj in ((1, 0), (0, 1)):
+                a, b = i + di, j + dj
+                if a < n and b < mcols and idx[a, b] >= 0 and idx[a, b] in local:
+                    k2 = idx[a, b]
+                    w = min(conf[i, j], conf[a, b])
+                    dx = (off[a, b, 0] - off[i, j, 0] + P / 2) % P - P / 2
+                    dy = (off[a, b, 1] - off[i, j, 1] + Q / 2) % Q - Q / 2
+                    rows.append((local[k], local[k2])); rhs_x.append(dx); rhs_y.append(dy); wts.append(w)
+        m = len(members)
+        M = np.zeros((len(rows) + 1, m))
+        for r, (p, q) in enumerate(rows):
+            M[r, p], M[r, q] = -wts[r], wts[r]
+        M[-1, 0] = 1.0                                   # fix the first window
+        k0 = members[0]
+        sols = []
+        for rhs, c_ in ((rhs_x, 0), (rhs_y, 1)):
+            bvec = np.r_[np.array(rhs) * np.array(wts), off[cells[k0]][c_]]
+            sol, *_ = np.linalg.lstsq(M, bvec, rcond=None)
+            sols.append(sol)
+        vals = np.zeros((m, 2))
+        for t, k in enumerate(members):
+            i, j = cells[k]
+            for c_, per in ((0, P), (1, Q)):
+                kk = np.round((sols[c_][t] - off[i, j, c_]) / per)
+                vals[t, c_] = off[i, j, c_] + kk * per
+        if rank == 0:
+            for t, k in enumerate(members):
+                out[cells[k]] = vals[t]
+            continue
+        have = ~np.isnan(out[..., 0])
+        flat = [cells[k][0] * mcols + cells[k][1] for k in members]
+        ok = True
+        shifted = vals.copy()
+        for c_, per in ((0, P), (1, Q)):
+            coef, *_ = np.linalg.lstsq(A_s[have.ravel()], out[..., c_].ravel()[have.ravel()], rcond=None)
+            fit = (A_s @ coef)[flat]
+            kk = np.round(np.median(fit - vals[:, c_]) / per)
+            shifted[:, c_] = vals[:, c_] + kk * per
+            if np.median(np.abs(shifted[:, c_] - fit)) > max(3.0, 0.08 * per):   # must sit on the same cloth
+                ok = False
+        if ok:
+            for t, k in enumerate(members):
+                out[cells[k]] = shifted[t]
+    return out

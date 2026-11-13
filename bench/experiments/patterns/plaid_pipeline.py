@@ -65,15 +65,20 @@ def run(path, log=print):
     return dict(P=P, Q=Q, flat=flat, tile=tile, info=info, width_frac=P / cut.width, cut=cut)
 
 
-def band_edges(profile, rel=0.12, min_gap=2):
-    """Band edges where the colour changes sharply along a straightened profile (cyclic)."""
+def band_edges(profile, min_gap=2, k_noise=3.0):
+    """Band edges where the colour changes sharply along a straightened profile (cyclic). The profile is
+    smoothed a little first, and an edge must stand clearly above the grain: k_noise times the typical change
+    between neighbouring spots."""
     n = len(profile)
+    sm = np.stack([np.convolve(np.r_[profile[-2:, c], profile[:, c], profile[:2, c]], [0.25, 0.5, 0.25], "same")[2:-2]
+                   for c in range(3)], 1)
     w = np.array([1.0, 2.5, 2.5])            # a change of colour (navy to burgundy) counts as much as of lightness
-    d = np.linalg.norm((np.roll(profile, -1, 0) - np.roll(profile, 1, 0)) * w, axis=1)   # change across each spot
-    peaks = [i for i in range(n) if d[i] >= d[i - 1] and d[i] > d[(i + 1) % n] and d[i] > rel * d.max()]
+    d = np.linalg.norm((np.roll(sm, -1, 0) - np.roll(sm, 1, 0)) * w, axis=1)
+    floor = k_noise * np.percentile(d, 20)        # grain: the change at the quietest spots
+    peaks = [i for i in range(n) if d[i] >= d[i - 1] and d[i] > d[(i + 1) % n] and d[i] > floor]
     peaks.sort(key=lambda i: -d[i])
     kept = []
-    for i in peaks:                           # strongest first, none closer than min_gap
+    for i in peaks:
         if all(min((i - k) % n, (k - i) % n) >= min_gap for k in kept):
             kept.append(i)
     return sorted(kept)

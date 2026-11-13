@@ -13,16 +13,19 @@ and 12,000 out, $0.008 at the prices written down, so a $0.01 limit allows
 exactly one. Corrections by sentence
 are read by the same stand-in the backend tests use (or, with CLOSET_E2E_ROUTES=api, by the
 real API route talking to `conftest.FakeApi`).
+
+The API key box keeps keys in a stand-in keychain (never the computer's), and the check with Anthropic is a
+stand-in too: a key ending in "refused" is turned down, any other well-formed key is accepted.
 """
 import os
 import sys
 import time
 
-from closet import app, cli
+from closet import apikey, app, cli
 from closet.tagger import routes as tagger_routes
 from closet.tagger.tagging import TagResult
 
-from .conftest import ANSWER, FakeApi, FakeClaude, fake_cutter
+from .conftest import ANSWER, FakeApi, FakeClaude, MemoryKeychain, fake_cutter
 
 _real_build = app.build_services
 
@@ -39,6 +42,8 @@ def api_only_status(order="auto", claude_exe=None):
 
 
 def build_services(cfg, **kwargs):
+    apikey.use_store(MemoryKeychain())
+    apikey.check = lambda key: "refused" if key.endswith("refused") else None
     if os.environ.get("CLOSET_E2E_ROUTES") == "api":
         tagger_routes.status = api_only_status
         sv = _real_build(cfg, cutter=fake_cutter, api_client=FakeApi(input_tokens=20_000, output_tokens=12_000), **kwargs)

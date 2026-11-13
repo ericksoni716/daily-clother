@@ -256,6 +256,15 @@ Anthropic, is only used when the plan can't be, and only if you turn on
 **Settings → Tagging** shows which of the two Closet can use right now and how
 many items are waiting to be described.
 
+**Adding an API key.** Make a key in your Anthropic account (console.anthropic.com,
+**API keys**), copy it, and paste it into **Paste your API key** in **Settings →
+Tagging**, then **Save key**. Closet asks Anthropic whether it accepts the key
+(this costs nothing) and keeps it in your computer's own keychain (the Mac's
+keychain, or Windows Credential Manager), never in a file. It is never shown
+again; **Replace key** and **Remove key** are there when you need them. Then turn
+on **Allow the API key** and set a monthly limit. A key saved here is used instead
+of one set as `ANTHROPIC_API_KEY`.
+
 **What the API key costs.** At the prices Closet knows (written down on
 3 November 2026 — prices change, so check Anthropic's pricing page), one photo
 costs well under 1¢, about $0.003 at most. To allow the API key you set a

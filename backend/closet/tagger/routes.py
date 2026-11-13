@@ -7,10 +7,9 @@ used. A photo or prompt problem is never retried on the other route.
 """
 from __future__ import annotations
 
-import os
-
 from PIL import Image
 
+from .. import apikey
 from . import claude_cli
 from .tagging import ApiRefused, CapReached, Meter, PlanSignIn, RouteUnavailable, TagResult, tag_item
 
@@ -31,10 +30,9 @@ class Router:
 
     def _api_client(self):
         if self._client is None:
-            if not os.environ.get("ANTHROPIC_API_KEY"):
-                raise RouteUnavailable("no API key is set (ANTHROPIC_API_KEY)")
-            import anthropic
-            self._client = anthropic.Anthropic()
+            if not apikey.get():
+                raise RouteUnavailable("no API key is set")
+            self._client = apikey.client()
         return self._client
 
     def tag(self, model: str, images: list[Image.Image]) -> TagResult:
@@ -60,8 +58,9 @@ class Router:
 
 
 def api_status() -> tuple[bool, str]:
-    """Whether an API key is set. Only its presence is looked at; it is never read out, sent or logged."""
-    if (os.environ.get("ANTHROPIC_API_KEY") or "").strip():
+    """Whether an API key is set (saved in the keychain, or in `ANTHROPIC_API_KEY`). Only its presence is
+    looked at; it is never read out, sent or logged."""
+    if apikey.get():
         return True, ""
     return False, "No API key is set."
 

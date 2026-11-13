@@ -22,6 +22,7 @@ from pydantic import BaseModel
 from . import (
     APP_NAME,
     __version__,
+    apikey,
     auth,
     autostart,
     backup,
@@ -244,6 +245,11 @@ class LaundryState(BaseModel):
 
 class Confirm(BaseModel):
     fields: list[str]
+    model_config = {"extra": "forbid"}
+
+
+class ApiKeyBody(BaseModel):
+    key: str
     model_config = {"extra": "forbid"}
 
 
@@ -788,6 +794,7 @@ def create_app(sv: Services) -> FastAPI:
             "last_good_backup": backup.last_good(state), "pending_cutouts": jobs.pending_count(conn),
             "pending_tags": tagjobs.waiting_count(conn), "tagging_api_enabled": spend.api_allowed(state),
             "tagging_api_cap_usd": spend.cap(state), "tagging_api_off": state.get("tagging_api_off"),
+            "api_key": apikey.info(),
             "phone": sv.phone_info(), "autostart": auto, "heic_supported": images.HEIC, "place": state.get("place"),
             "life": life.example()[0] if state.get("profile") == "demo" else state.get("life"),
             "life_prompt_dismissed": True if state.get("profile") == "demo" else state.get("life_prompt_dismissed"),
@@ -849,6 +856,39 @@ def create_app(sv: Services) -> FastAPI:
                 changes["tagging_api_off"] = None   # the owner has looked at why it was switched off
             state.update(**changes)
             sv.wake()   # items waiting for a route (or for the limit) may be able to go now
+        return settings_payload(conn)
+
+    @app.put("/api/settings/api-key", dependencies=protected)
+    def put_api_key(body: ApiKeyBody, conn=Depends(conn_dep)):
+        """Check the key with Anthropic (free), then keep it in the computer's keychain. The key is never
+        sent back, logged or written anywhere else."""
+        try:
+            key = apikey.clean(body.key)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        verdict = apikey.check(key)
+        if verdict == "refused":
+            raise HTTPException(422, "Anthropic did not accept that key. Check you copied all of it, and that it "
+                                     "belongs to an account that is still active, then try again.")
+        try:
+            apikey.store().set(key)
+        except (apikey.KeychainError, ValueError) as e:
+            raise HTTPException(409, str(e))
+        log.info("an API key was saved in the keychain")
+        if (state.get("tagging_api_off") or {}).get("reason") == "key":
+            state.update(tagging_api_off=None)   # that note was about the key this one replaces
+        sv.wake()
+        out = settings_payload(conn)
+        out["api_key"]["checked"] = verdict is None
+        return out
+
+    @app.delete("/api/settings/api-key", dependencies=protected)
+    def delete_api_key(conn=Depends(conn_dep)):
+        try:
+            apikey.store().delete()
+        except apikey.KeychainError as e:
+            raise HTTPException(409, str(e))
+        log.info("the API key was removed from the keychain")
         return settings_payload(conn)
 
     @app.get("/api/storage", dependencies=protected)

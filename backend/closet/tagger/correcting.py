@@ -23,6 +23,7 @@ from pathlib import Path
 from PIL import Image
 from pydantic import BaseModel, Field
 
+from .. import apikey
 from . import claude_cli
 from .tagging import CONFIG, ApiRefused, CapReached, Meter, PlanSignIn, RouteUnavailable, TaggingError, encode_image
 
@@ -182,10 +183,9 @@ def correct(sentence: str, description: dict, allowed: dict[str, list], images: 
                 return result
             if route == "api":
                 if client is None:
-                    if not os.environ.get("ANTHROPIC_API_KEY"):
+                    if not apikey.get():
                         raise RouteUnavailable("no API key is set")
-                    import anthropic
-                    client = anthropic.Anthropic()
+                    client = apikey.client()
                 return correct_api(client, MODEL, text, images, meter=meter)
         except RouteUnavailable as e:
             skipped.append(f"{route}: {e}")

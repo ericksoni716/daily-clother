@@ -84,3 +84,67 @@ Both ask Open-Meteo (no key needed) in a worker thread, through the computer's c
 | `POST /api/backup` | The backup record; 409 with the record (and its `error`) if it failed. |
 | `POST /api/profile {profile: "main"\|"demo"}` | Switches between the real closet and the demo closet. |
 | `POST /api/quit` | 202; the program exits shortly after. |
+
+## Trip packing
+
+All trip routes require the usual login and use the currently open closet.
+Demo and real trips are separate. Temperatures are degrees Celsius.
+
+`POST /api/trips/plan` previews a plan without saving. `POST /api/trips`
+uses the same body, works out the plan and saves it (201):
+
+```json
+{
+  "place": {"name": "Lisbon, Portugal", "latitude": 38.7223, "longitude": -9.1393, "timezone": "Europe/Lisbon"},
+  "first_day": "2027-06-01",
+  "last_day": "2027-06-05",
+  "occasion": "casual",
+  "overrides": [{"date": "2027-06-03", "occasion": "business"}],
+  "can_wash": false,
+  "leave_out": [],
+  "pins": []
+}
+```
+
+Choose `place` from `GET /api/places?q=…`. Dates are inclusive, 1–30 days;
+new trips cannot start before today at the destination. Occasions are the
+engine's `athletic`, `casual`, `smart_casual`, `business`, `formal`.
+All fields after the dates are optional, with the defaults above (no day
+exceptions). Each exception must be a different date within the trip.
+Unknown fields and invalid values return 422 with an owner-readable `detail`;
+invalid JSON returns 400.
+
+The preview returns `{choices, plan}`. The plan contains:
+
+- `packing`: groups `tops`, `layers`, `bottoms`, `shoes`, `outer`, `accessories`,
+  each a list of `{id, name, days_worn, pinned}`.
+- `basics`: `{id, name, count}` lines, not closet items.
+- `days`: `{date, occasion, weather, outfit, missing}`. The outfit is the
+  engine's `{pieces, score, reasons, warnings}`, or null for an uncovered day.
+- `uncovered`: `{date, reasons}` entries; `piece_count`; and explanatory `notes`.
+
+Weather is `{date, source, low_c, high_c, rain, message}`. `source` is
+`forecast` or `usual`; unknown readings have null temperatures/rain and a
+plain-language message. Usual means five complete historical calendar years,
+not a forecast. A weather-service failure still returns the usable days.
+
+| Route | Result |
+|---|---|
+| `GET /api/trips` | `{trips: [...]}`, upcoming/current trips first, then past trips, ordered by first day |
+| `GET /api/trips/{id}` | Saved trip plus `weather_changed` and `latest_weather`; refreshes the weather cache, never the saved plan or ticks |
+| `PATCH /api/trips/{id}` | Updated saved trip; any changed trip choice or `{"replan": true}` recalculates the plan |
+| `DELETE /api/trips/{id}` | 204; removes the trip and its ticks |
+
+A saved trip has `{id, choices, plan, checked, revision, created_at}`.
+Missing ids (including another closet's trips) return 404. `checked` maps
+`item:<item id>` or `basic:<basic id>` to booleans. Patch only the lines that
+changed, for example `{"checked":{"basic:socks":true},"revision":3}`.
+Ticks for retained lines survive re-planning; removed lines are forgotten.
+Ticking alone never fetches weather or re-plans.
+
+Send the last read `revision` when patching. A concurrent change returns 409
+with a message to reopen the trip. The screen does this for every change.
+Clients omitting revision still have a server-side compare-and-update guard.
+`GET` compares newly available weather and source against the saved weather;
+the owner must explicitly re-plan to adopt it. Ended trips are readable
+without looking up past forecasts.

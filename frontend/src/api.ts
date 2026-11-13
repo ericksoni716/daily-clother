@@ -66,10 +66,11 @@ interface Options {
   /** Do not treat a 401 as "logged out" (used by login itself). */
   quiet401?: boolean;
   signal?: AbortSignal;
+  keepalive?: boolean;
 }
 
 async function request<T>(path: string, opts: Options = {}): Promise<T> {
-  const init: RequestInit = { method: opts.method ?? 'GET', credentials: 'same-origin', signal: opts.signal };
+  const init: RequestInit = { method: opts.method ?? 'GET', credentials: 'same-origin', signal: opts.signal, keepalive: opts.keepalive };
   if (opts.form) init.body = opts.form;
   else if (opts.body !== undefined) {
     init.body = JSON.stringify(opts.body);
@@ -155,7 +156,7 @@ export const api = {
   trip: (id: string) => request<Trip>(`/api/trips/${encodeURIComponent(id)}`),
   planTrip: (body: TripChoices) => request<TripPreview>('/api/trips/plan', { method: 'POST', body }),
   saveTrip: (body: TripChoices) => request<Trip>('/api/trips', { method: 'POST', body }),
-  patchTrip: (id: string, body: TripPatch) => request<Trip>(`/api/trips/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
+  patchTrip: (id: string, body: TripPatch) => request<Trip>(`/api/trips/${encodeURIComponent(id)}`, { method: 'PATCH', body, keepalive: true }),
   deleteTrip: (id: string) => request<void>(`/api/trips/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   backup: () => request<BackupRecord>('/api/backup', { method: 'POST' }),
   setProfile: (profile: Profile) => request<{ profile: Profile }>('/api/profile', { method: 'POST', body: { profile } }),

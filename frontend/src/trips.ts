@@ -45,7 +45,10 @@ const PREFIX = 'closet-trips:';
 
 /** Successful server answers only; kept per closet and cleared on logout. */
 export function readTrips(profile: Profile): Trip[] {
-  try { return JSON.parse(localStorage.getItem(PREFIX + profile) || '[]') as Trip[]; }
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(PREFIX + profile) || '[]');
+    return Array.isArray(saved) ? saved as Trip[] : [];
+  }
   catch { return []; }
 }
 export function keepTrips(profile: Profile, trips: Trip[]) {
@@ -55,6 +58,10 @@ export function keepTrips(profile: Profile, trips: Trip[]) {
 export function forgetTrips() {
   try { for (const p of ['main', 'demo']) localStorage.removeItem(PREFIX + p); }
   catch { /* no saved copy */ }
+}
+export function sortTrips(trips: Trip[], today: string): Trip[] {
+  return [...trips].sort((a, b) => Number(a.choices.last_day < today) - Number(b.choices.last_day < today)
+    || a.choices.first_day.localeCompare(b.choices.first_day) || a.id.localeCompare(b.id));
 }
 export function packingProgress(trip: TripPreview & { checked?: Record<string, boolean> }) {
   const keys = [...Object.values(trip.plan.packing).flat().map((p) => `item:${p.id}`),

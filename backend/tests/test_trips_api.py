@@ -87,3 +87,31 @@ def test_wrong_ticks_and_json(client):
     assert client.patch(url, json={"checked": {"invented": True}}).status_code == 422
     assert client.patch(url, json={"checked": {"basic:socks": "yes"}}).status_code == 422
     assert client.post("/api/trips/plan", content="bad json").status_code == 400
+
+
+def test_tick_does_not_fetch_or_plan_and_replan_keeps_only_retained_lines(client, monkeypatch):
+    client.post("/api/profile", json={"profile": "demo"})
+    trip = client.post("/api/trips", json=SPEC).json()
+    url = f"/api/trips/{trip['id']}"
+    piece = next(p for g in trip["plan"]["packing"].values() for p in g)
+    with monkeypatch.context() as patch:
+        patch.setattr(trip_weather, "lookup", lambda *args: pytest.fail("Ticking must not fetch weather"))
+        r = client.patch(url, json={"checked": {"basic:socks": True, f"item:{piece['id']}": True}})
+        assert r.status_code == 200 and r.json()["plan"] == trip["plan"]
+    r = client.patch(url, json={"leave_out": [piece["id"]]})
+    assert r.status_code == 200
+    assert r.json()["checked"] == {"basic:socks": True}
+
+
+def test_usual_days_become_forecast_without_changing_saved_plan(client, monkeypatch):
+    from datetime import UTC, datetime
+
+    from closet import weather
+
+    trip = client.post("/api/trips", json={**SPEC, "first_day": "2026-11-29", "last_day": "2026-11-30"}).json()
+    assert trip["plan"]["days"][0]["weather"]["source"] == "usual"
+    monkeypatch.setattr(weather, "_now", lambda: datetime(2026, 11, 15, tzinfo=UTC).timestamp())
+    opened = client.get(f"/api/trips/{trip['id']}").json()
+    assert opened["weather_changed"]
+    assert opened["latest_weather"][0]["source"] == "forecast"
+    assert opened["plan"] == trip["plan"]

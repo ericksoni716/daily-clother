@@ -78,3 +78,31 @@ def test_ten_days_300_items_stays_fast():
     elapsed = time.perf_counter() - start
     assert not answer["uncovered"]
     assert elapsed < 20, f"10 days, 300 items took {elapsed:.2f}s"
+
+
+def test_minimum_for_uniform_days_and_limits():
+    rows = closet(60)
+    answer = trips.plan(rows, days())
+    # Five shirts worn twice, two bottoms worn five times, one pair of shoes.
+    assert answer["piece_count"] == 8
+    assert len(answer["packing"]["shoes"]) <= trips.MAX_SHOES
+    assert len(answer["packing"]["outer"]) <= trips.MAX_OUTERS
+    assert trips.plan(rows, days(), can_wash=True)["piece_count"] == 3
+
+
+def test_thirty_days_refills_engine_shortlist():
+    answer = trips.plan(closet(120), days(30))
+    assert not answer["uncovered"]
+    assert len(answer["days"]) == 30
+
+
+def test_rainproof_outfit_is_covered_and_unsuitable_pin_is_explicit():
+    rows = closet(12)
+    rows[5].update(name="Rain coat", material="waterproof nylon")
+    answer = trips.plan(rows, days(1, low=10, high=16, rain=True))
+    assert not answer["uncovered"]
+    assert "piece-005" in trips.ids(answer["days"][0]["outfit"])
+    hot = trips.plan(rows, days(1, low=25, high=30), pins=["piece-005"])
+    assert "piece-005" in packed(hot)
+    assert next(p for p in hot["packing"]["outer"] if p["id"] == "piece-005")["days_worn"] == 0
+    assert any("0 days" in n for n in hot["notes"])

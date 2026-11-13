@@ -77,6 +77,34 @@ the recent days, each of which can be removed. **Put in the laundry** and
 carry a small mark, and the **Clean** and **In the laundry** buttons show only
 those.
 
+## Packing for a trip
+
+Open **Trips** in the computer's sidebar, or **Trips · plan what to pack** on
+**Today** on your phone. Choose **Plan a trip**, search for your destination,
+and choose the first and last day (up to 30 days). Pick the occasion, add any
+days that are different, and turn on **I can wash there** if clothes can be
+washed and dried between wears.
+
+**Work out what to pack** shows a small packing list and the outfits it makes.
+Each day says **Forecast** or **Usually, on these dates**: further-away days
+use the same dates over five past years, not a long-range forecast. Unknown
+weather and days without suitable clothes are called out, not silently filled.
+Clothes in the laundry or archived are left out. Mark clothes clean before
+planning if you intend to wash them before leaving.
+
+Choose **Save trip**, then tick each piece and the count-only basics as you
+pack. Ticks save immediately and can be opened on your phone. **Not this one**
+swaps a piece out; **Take a particular piece, or undo a swap** lets you pin a
+piece to take or allow one back in. Re-planning keeps ticks for lines that are
+still in the list. A pinned piece that does not suit any day is shown with
+zero days worn.
+
+When you reopen a trip, Closet checks the weather again. If it has changed,
+you can choose **Use the new forecast**; your saved plan never changes by
+itself. Offline, trips already opened on that device are readable, but ticking
+and other changes wait until your computer is reachable. The demo and your
+own closet keep separate trips.
+
 ## Adding your clothes
 
 Open **Add**. One piece of clothing per photo works best.

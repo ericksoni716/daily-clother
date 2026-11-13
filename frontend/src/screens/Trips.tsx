@@ -5,7 +5,7 @@ import { loadGridView } from '../drawing';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
 import { longDate, occasionLabel, OCCASIONS, shortPlace, temps, wornOrder } from '../today';
-import { keepTrips, packingProgress, readTrips, type Trip, type TripChoices, type TripPatch, type TripPreview } from '../trips';
+import { keepTrips, packingProgress, readTrips, sortTrips, type Trip, type TripChoices, type TripPatch, type TripPreview } from '../trips';
 import type { ItemSummary, Place } from '../types';
 import { localDay } from '../wears';
 import './Trips.css';
@@ -48,7 +48,7 @@ export function TripsScreen({ tripId }: { tripId: string | null }) {
   }, [profile, tripId, offline]);
 
   function remember(trip: Trip) {
-    const next = [trip, ...list.filter((t) => t.id !== trip.id)];
+    const next = sortTrips([trip, ...list.filter((t) => t.id !== trip.id)], localDay());
     setList(next);
     keepTrips(profile, next);
   }
@@ -62,10 +62,16 @@ export function TripsScreen({ tripId }: { tripId: string | null }) {
   }
 
   async function change(changes: TripPatch) {
-    if (!selected) return;
+    if (!selected || disabled) return;
+    if (saved && changes.checked) setList(list.map((t) => t.id === saved.id ? { ...t, checked: { ...t.checked, ...changes.checked } } : t));
     await act(async () => {
-      if (saved) remember(await api.patchTrip(saved.id, { ...changes, revision: saved.revision }));
-      else setPreview(await api.planTrip({ ...selected.choices, ...changes }));
+      try {
+        if (saved) remember(await api.patchTrip(saved.id, { ...changes, revision: saved.revision }));
+        else setPreview(await api.planTrip({ ...selected.choices, ...changes }));
+      } catch (e) {
+        if (saved && changes.checked) setList(list);
+        throw e;
+      }
     });
   }
 
@@ -214,7 +220,7 @@ function TripImage({ item }: { item: ItemSummary | undefined }) {
 
 function TripForm({ disabled, initial, onPlan }: { disabled: boolean; initial?: TripChoices; onPlan(c: TripChoices): Promise<void> }) {
   const [query, setQuery] = useState('');
-  const [places, setPlaces] = useState<Place[]>([]);
+  const [places, setPlaces] = useState<Place[] | null>(null);
   const [place, setPlace] = useState<Place | null>(initial?.place ?? null);
   const [first, setFirst] = useState(initial?.first_day ?? localDay());
   const [last, setLast] = useState(initial?.last_day ?? localDay());
@@ -237,8 +243,9 @@ function TripForm({ disabled, initial, onPlan }: { disabled: boolean; initial?: 
       <button className="btn" disabled={disabled || searching || query.trim().length < 2}>{searching ? 'Searching…' : 'Search'}</button>
     </form>
     {error && <p role="alert" className="form-error">{error}</p>}
-    {places.length > 0 && <ul className="route-list" aria-label="Places found">{places.map((p) => <li key={`${p.latitude}:${p.longitude}`}>
-      <button className="btn btn-block" disabled={disabled} onClick={() => { setPlace(p); setPlaces([]); }}>{p.name}</button>
+    {places?.length === 0 && <p className="hint">No places found. Try the name of a nearby town or city.</p>}
+    {!!places?.length && <ul className="route-list" aria-label="Places found">{places.map((p) => <li key={`${p.latitude}:${p.longitude}`}>
+      <button className="btn btn-block" disabled={disabled} onClick={() => { setPlace(p); setPlaces(null); }}>{p.name}</button>
     </li>)}</ul>}
     {place && <p className="state-line">Going to <strong>{place.name}</strong></p>}
     <form onSubmit={(e) => { e.preventDefault(); if (place) void onPlan({

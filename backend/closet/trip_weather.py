@@ -24,7 +24,9 @@ def today(place: dict) -> date:
     try:
         zone = ZoneInfo(place["timezone"]) if place["timezone"] != "auto" else UTC
     except ZoneInfoNotFoundError:
-        raise ValueError("Choose a place with a time zone Closet knows.") from None
+        # Windows Python need not ship an IANA database. Open-Meteo still
+        # receives the destination's zone; UTC is only the local horizon clock.
+        zone = UTC
     return datetime.fromtimestamp(weather._now(), zone).date()
 
 

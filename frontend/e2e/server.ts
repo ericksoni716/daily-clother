@@ -29,7 +29,7 @@ export interface Backend {
  * Starts the Closet backend on a free port with a fresh, empty data folder.
  * `fakes`: stand-ins for the model and for Claude (backend/tests/e2e_backend.py), so an item is cut out and described.
  */
-export async function startBackend(opts: { model?: string; fakes?: boolean } = {}): Promise<Backend> {
+export async function startBackend(opts: { model?: string; fakes?: boolean; weather?: boolean } = {}): Promise<Backend> {
   const port = await freePort();
   const dataDir = mkdtempSync(join(process.env.CLOSET_E2E_TMP || tmpdir(), 'closet-e2e-'));
   if (opts.model) {
@@ -37,10 +37,11 @@ export async function startBackend(opts: { model?: string; fakes?: boolean } = {
     copyFileSync(opts.model, join(dataDir, 'models', 'isnet-general-use.onnx'));
   }
   const python = process.env.CLOSET_PYTHON || 'python';
-  const module = opts.fakes ? 'tests.e2e_backend' : 'closet';
+  const module = opts.fakes || opts.weather ? 'tests.e2e_backend' : 'closet';
   const child: ChildProcess = spawn(python, ['-m', module, '--no-browser', '--no-tray', '--port', String(port)], {
     cwd: BACKEND_DIR,
-    env: { ...process.env, CLOSET_DATA_DIR: dataDir, CLOSET_PORT: String(port), CLOSET_NO_AUTO_DOWNLOAD: '1' },
+    env: { ...process.env, CLOSET_DATA_DIR: dataDir, CLOSET_PORT: String(port), CLOSET_NO_AUTO_DOWNLOAD: '1',
+      CLOSET_E2E_WEATHER: opts.weather ? '1' : '0' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';

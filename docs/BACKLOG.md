@@ -92,7 +92,8 @@ In progress (owner's corrections to the first taxonomy sheets):
 
 To do:
 - [ ] Drawing faults its own author listed: the tab and wing collars barely read, lapels on black and plaid read only by their edges, the puffer has channels but no puffed outline, the trucker jacket has a rib band where a waistband belongs, the vest's armhole rib thins at the underarm, linen texture is busy at full size.
-- [ ] Accessories (bag, belt, hat, scarf) have categories but no drawing; today they would be drawn as a crew-neck top. They need simple shapes of their own or a neutral placeholder.
+- [x] Accessories drawn from the taxonomy's accessory ids and kinds: bags, belts, caps, beanies, brimmed hats and scarves have shapes of their own; ties, pocket squares, gloves, glasses, watches and socks a plain tag. The outfit figure wears a belt, scarf, hat and bag. Sheet: `docs/screenshots/accessories.png` (`tools/make_accessory_sheet.py`). Waiting for the owner's verdict.
+- [ ] Shapes of their own for ties, pocket squares, gloves, glasses, watches and socks (a plain tag stands in for them today), and accessories in the demo closet.
 - [ ] Shoes: the loafer strap, lacing on dress shoes, a sandal shape.
 - [ ] Trousers: the taxonomy's bottoms are a signature line each; rise, fit names and jeans washes are not tagged yet.
 - [ ] Re-run the tagging test with the tightened prompt (snaps, hip pockets and feature flags were wrong in the first run).

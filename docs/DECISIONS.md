@@ -461,7 +461,7 @@ Facts checked in Anthropic's documentation on 2026-11-12:
 
 ### The outfit as worn
 
-`backend/closet/drawing/figure.py` (`figure`, `plan`), served by `POST /api/outfits/figure`. It only places and stacks the existing item drawings; no template, option or single-garment drawing changed.
+`backend/closet/drawing/figure.py` (`figure`, `plan`), served by `POST /api/outfits/figure`. It only places and stacks the existing item drawings.
 
 | Decision | Why |
 |---|---|
@@ -479,6 +479,15 @@ Facts checked in Anthropic's documentation on 2026-11-12:
 | The figure has its own canvas: everything drawn, plus 18 px on every side | A knee-length coat, shorts or boots each change the outline, so no fixed card fits all. The Today screen scales it to fit. |
 | It never fails: a missing place is not drawn; an item in the wrong place (shoes as the bottom) is skipped; a piece that cannot be drawn from its description is drawn as the plainest of its category; if nothing can be drawn, an empty card | An outfit with one odd item should still be shown. |
 | A sheet of figures from the demo closet is kept at `docs/screenshots/outfit-figures.png` (and `.svg`), written by `tools/make_figure_sheet.py` | So a change to the figure can be judged by looking, as the issue asked. |
+| Accessories are placed by the point their template is drawn about: a belt round the trousers' waistband, the first top then tucked in under it (and under any layer worn over it); a scarf at the neck point, over every top; a hat above the neck point, where a forehead would be; a bag beside the figure on the viewer's right, its handle at the height of a hand. One of each is drawn, the first given; ties, gloves, socks and the other accessories are not drawn on the figure | A belt over an untucked top would hide it; a belt is worn to be seen. With no body drawn, a hat floats where the head would be. The sizes and heights were chosen by eye from the sheet `docs/screenshots/accessories.png` (written by `tools/make_accessory_sheet.py`), and someone could reasonably choose them differently. |
+
+### Accessories
+
+| Decision | Why |
+|---|---|
+| The tagger names an accessory by the taxonomy's accessory garment id (`accessory`: cap, beanie, brimmed_hat, belt, scarf, bag, tie, pocket_square, gloves, eyewear, watch, socks) and its kind from the taxonomy's `accessories` section (`accessory_kind`); this raised the tagging schema to version 2. Answers kept from version 1 still load, with both fields "na" | The owner asked for templates chosen from the taxonomy's ids, not free words. The issue said "no schema change", but without these fields the drawing had nothing reliable to choose from. |
+| Bags, belts, caps, beanies, brimmed hats and scarves each have a template, and their kind picks its style (a fedora, a trucker cap, a rucksack, a web belt...). The other accessories are drawn as a plain tag in their colour, never as a top | The issue's four, with the hat split as the taxonomy splits it. A tag says "an accessory" without pretending to a shape. Every id and kind is listed in `COVERAGE`. |
+| A bag, belt, hat or scarf whose kind is not said is drawn as the plainest of its kind (a tote, a plain leather belt, a cap or, when knitted, a beanie, a woven scarf), with a note saying so | Better than no drawing; the note tells the owner why it may not look like theirs. |
 
 
 ## Patterns drawn from the photo

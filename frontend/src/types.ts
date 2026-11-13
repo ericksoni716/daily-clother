@@ -73,6 +73,8 @@ export interface Item extends ItemSummary {
   tagged_at: string | null;
   /** The construction details from the stored answer (taxonomy values; null when there is none). */
   details: Record<string, unknown> | null;
+  /** The details the owner set, laid over Claude's when drawn ("yes"/"no" for a feature). */
+  own_details?: Record<string, unknown>;
   /** Features Claude saw that the drawing does not show yet. */
   seen_not_drawn: string[];
   /** What the drawing could not show, in plain words (e.g. a pattern drawn as its colour only). */

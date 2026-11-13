@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { ChipGroup } from '../components/Chips';
+import { FixDetails, ItemHistory } from '../components/FixDetails';
 import { BackIcon, HangerIcon, WarnIcon } from '../components/Icons';
 import { formatPrice, label, parsePrice, ratingLabel, SWATCH } from '../labels';
 import { Link, navigate } from '../router';
@@ -164,11 +165,18 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   const seen = item.seen_not_drawn ?? [];
   const canRetag = profile !== 'demo' && item.cutout_state === 'ready' && item.has_photo &&
     (item.tag_state === 'done' || item.tag_state === 'none');
+  const fixed = (saved: Item, saidAs: string) => {
+    setItem(saved);
+    upsert(saved);
+    toast(saidAs);
+  };
+  const failed = (message: string) => toast(message, 'error');
 
   return (
     <article className="detail" aria-label={item.name || 'Item'}>
       <DetailTop inPanel={inPanel} backTo={backTo} />
       <Picture item={item} busyText={busyLabel(model)} />
+      <FixDetails item={item} disabled={locked} onSaved={fixed} onError={failed} />
 
       {locked && <p className="notice">You're offline, so this item can't be changed right now.</p>}
 
@@ -267,6 +275,8 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           </div>
         </details>
       )}
+
+      <ItemHistory item={item} disabled={locked} onSaved={fixed} onError={failed} />
 
       {canRetag && (
         <div className="row tag-again">

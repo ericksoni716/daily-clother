@@ -131,6 +131,11 @@ TAILORING = {
                  breast=24),
 }
 WEIGHT_LEVEL = {"lightweight": 0, "midweight": 1, "heavyweight": 2, "super_heavy": 3}
+# A tailored sleeve hangs close to the body: at most SLEEVE_HANG degrees from the vertical, its cuff at
+# least SLEEVE_GAP px clear of the side; the underarm is rounded over UNDERARM px so the sleeve's and the
+# body's outlines part cleanly instead of running into a dark wedge. Cuff buttons: CUFF_BUTTON px radius.
+SLEEVE_HANG, SLEEVE_GAP, UNDERARM, CUFF_BUTTON = 19.0, 14.0, 16.0, 2.7
+LAPEL_GROW = 0.3                                    # cm of lapel width for each cm of chest a fuller fit adds
 GAUGE_BAND = {"extra_fine": 0.8, "fine": 0.9, "medium": 1.0, "chunky": 1.25, "super_chunky": 1.5}
 
 # Shirt collar leaves: where the point lies from the place the leaves meet (dx, dy), and how the point is finished.
@@ -259,6 +264,16 @@ def _scallop(pts, spacing, amp, outward=1):
             out.append((x + outward * amp * math.sin(math.pi * f), y))
     out.append(pts[-1])
     return out
+
+
+def _along(pts, dist):
+    """The point dist px along a polyline from its first point, and the index of the next vertex after it."""
+    for i in range(1, len(pts)):
+        seg = math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
+        if seg >= dist and i < len(pts) - 1:
+            return _lerp(pts[i - 1], pts[i], dist / seg), i
+        dist -= seg
+    return pts[-2], len(pts) - 1
 
 
 def _x_on(pts, y):
@@ -1012,7 +1027,7 @@ def _tailored(p, block) -> Shape:
         K = (S[0] + u[0] * r, S[1] + u[1] * r)
         frac = {"long": 1.0, "three-quarter": 0.74, "elbow": 0.5, "short": 0.36}[sleeve]
         ln = (B["sleeve"] + (2 if fit == "oversized" else 0)) * k_ * frac
-        w_want = (B["bicep"] + dbi) * k_ * ease * 0.78
+        w_want = (B["bicep"] + dbi) * k_ * ease * 0.72
         cw0 = (B["cuff"] * 0.9 if sleeve == "long" else B["cuff"] + (B["bicep"] - B["cuff"]) * (1 - frac)) * k_ * ease
 
         def build(th):
@@ -1023,28 +1038,37 @@ def _tailored(p, block) -> Shape:
             cw = min(cw0, 0.86 * w_top)                                        # always narrower at the cuff
             return d, q, Co, (Co[0] + q[0] * cw, Co[1] + q[1] * cw), w_top
 
-        # the sleeve swings out until it is as wide as the arm and clear of the body, or reaches the card's edge
-        th = 12.0
+        # the sleeve swings out until it is as wide as the arm (or hangs as far out as a sleeve does) and its
+        # cuff is clear of the body, or it reaches the card's edge
+        th = 10.0
         while th < 40 and build(th + 0.5)[2][0] <= W - 8:
             d, q, Co, Ci, w_top = build(th)
-            if w_top >= w_want and Ci[0] > _x_on(side, Ci[1]) + 5:
+            if (w_top >= w_want or th >= SLEEVE_HANG) and Ci[0] > _x_on(side, Ci[1]) + SLEEVE_GAP:
                 break
             th += 0.5
         while th > 0 and build(th)[2][0] > W - 8:
             th -= 0.5
         d, q, Co, Ci, w_top = build(th)
         P1 = (K[0] + d[0] * r, K[1] + d[1] * r)
-        arm = f"Q {_pt(K)} {_pt(P1)} L {_pt(Co)} L {_pt(Ci)} L {_pt(A)}"
-        arm_l = f"L {_pt(ml(Ci))} L {_pt(ml(Co))} L {_pt(ml(P1))} Q {_pt(ml(K))} {_pt(ml(S))}"
+        # a rounded underarm: the outline leaves the sleeve's inner edge and joins the side a little below A
+        fl = UNDERARM + bulk
+        e = _unit((Ci[0] - A[0], Ci[1] - A[1]))
+        E1 = (A[0] + e[0] * fl, A[1] + e[1] * fl)
+        E2, cut = _along(side, fl)
+        side = [E2] + side[cut:]
+        arm = f"Q {_pt(K)} {_pt(P1)} L {_pt(Co)} L {_pt(Ci)} L {_pt(E1)} Q {_pt(A)} {_pt(E2)}"
+        arm_l = (f"Q {_pt(ml(A))} {_pt(ml(E1))} L {_pt(ml(Ci))} L {_pt(ml(Co))} L {_pt(ml(P1))} "
+                 f"Q {_pt(ml(K))} {_pt(ml(S))}")
         s1, s2 = (S[0] - 3, S[1] + (A[1] - S[1]) * 0.35), (A[0] + 4, A[1] - (A[1] - S[1]) * 0.3)
         right_sleeve = (f"M {_pt(S)} Q {_pt(K)} {_pt(P1)} L {_pt(Co)} L {_pt(Ci)} L {_pt(A)} "
                         f"C {_pt(s2)} {_pt(s1)} {_pt(S)} Z")
         sh.sleeves = [(right_sleeve, -th), (_mirror_path(right_sleeve), th)]
         c1, c2 = s1, s2
-        if sleeve == "long":   # four small buttons along the vent at each cuff
-            br = 1.9 + bulk * 0.1
+        if sleeve == "long":   # four buttons along the vent at each cuff, side by side, just apart
+            br = CUFF_BUTTON + bulk * 0.1
             for i in range(4):
-                b = (Co[0] + q[0] * 5.5 - d[0] * (8 + 5.2 * i), Co[1] + q[1] * 5.5 - d[1] * (8 + 5.2 * i))
+                a_ = 9 + (2 * br + 1.2) * i
+                b = (Co[0] + q[0] * 6.5 - d[0] * a_, Co[1] + q[1] * 6.5 - d[1] * a_)
                 sh.dots += [(b[0], b[1], br), (ml(b)[0], ml(b)[1], br)]
     for m in (lambda v: v, ml):   # the armhole seam runs down the edge of the body
         sh.seams.append(f"M {_pt(m(S))} C {_pt(m(c1))} {_pt(m(c2))} {_pt(m(A))}")

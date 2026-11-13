@@ -1,4 +1,5 @@
 import io
+import zlib
 
 import pytest
 from fastapi.testclient import TestClient
@@ -93,8 +94,15 @@ def client(anon):
     return anon
 
 
+def photo_for(key: str) -> bytes:
+    """A photo of its own for each upload key: the closet refuses a photo it already has, so tests that
+    need several items must send several photos. The same key gives the same photo, as a retry would."""
+    h = zlib.crc32(key.encode())
+    return photo_bytes(color=(40 + h % 180, 40 + (h >> 8) % 180, 40 + (h >> 16) % 180))
+
+
 def upload(client, data=None, key="k1", name=None):
     fields = {"client_key": key}
     if name:
         fields["name"] = name
-    return client.post("/api/items", files={"photo": ("p.jpg", data or photo_bytes(), "image/jpeg")}, data=fields)
+    return client.post("/api/items", files={"photo": ("p.jpg", data or photo_for(key), "image/jpeg")}, data=fields)

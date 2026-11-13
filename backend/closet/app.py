@@ -14,12 +14,15 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from PIL import Image
 from pydantic import BaseModel
 
-from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, phone, storage, tagjobs, vocab, wears
+from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, outfits, phone, storage, tagjobs, vocab, wears
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
 from .modelstore import MODEL, ModelStore
 from .state import State
 from .tagger import routes as tagger_routes
+from .today import closet_rows
+from .today import suggest as suggest_today
+from .weather import WeatherError, check_place, lookup, search_places
 
 log = logging.getLogger("closet.app")
 
@@ -124,6 +127,7 @@ class SettingsPatch(BaseModel):
     backup_folder: str | None = None
     autostart: bool | None = None
     tagging_api_enabled: bool | None = None
+    place: dict | None = None
     model_config = {"extra": "forbid"}
 
 
@@ -216,9 +220,9 @@ def create_app(sv: Services) -> FastAPI:
 
     @app.post("/api/items", dependencies=protected)
     async def create_item(response: Response, photo: UploadFile = File(...), client_key: str | None = Form(None),
-                          name: str | None = Form(None), conn=Depends(conn_dep)):
+                          name: str | None = Form(None), photo_sha256: str | None = Form(None), conn=Depends(conn_dep)):
         data = await photo.read(images.MAX_UPLOAD_BYTES + 1)
-        item, created = items.create_from_photo(conn, images_dir(), data, client_key, name)
+        item, created = items.create_from_photo(conn, images_dir(), data, client_key, name, photo_sha256 or None)
         response.status_code = 201 if created else 200
         sv.worker.wake()
         return item
@@ -293,6 +297,65 @@ def create_app(sv: Services) -> FastAPI:
         return FileResponse(target, media_type="image/webp",
                             headers={"Cache-Control": "private, max-age=31536000, immutable"})
 
+    # -------------------------------------------------------------- outfits
+    @app.post("/api/outfits/suggest", dependencies=protected)
+    async def suggest_outfits(request: Request):
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        try:
+            ctx, count = outfits.parse_request(body)
+        except outfits.ContextError as e:
+            raise HTTPException(422, str(e))
+        path = cfg.db_path(state.get("profile"))
+
+        def work() -> dict:
+            conn = db.connect(path)
+            try:
+                rows = closet_rows(conn)
+            finally:
+                conn.close()
+            if ctx.build_around and not any(r["id"] == ctx.build_around for r in rows):
+                raise HTTPException(422, "The item to build around is not in this closet.")
+            return outfits.suggest(rows, ctx, count)
+
+        # comparing thousands of combinations takes a moment; do it in a worker thread so other requests keep being answered
+        return await run_in_threadpool(work)
+
+    @app.post("/api/outfits/today", dependencies=protected)
+    async def outfits_today(request: Request):
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        path = cfg.db_path(state.get("profile"))
+
+        def work() -> dict:
+            conn = db.connect(path)
+            try:
+                return suggest_today(conn, state, body)
+            except outfits.ContextError as e:
+                raise HTTPException(422, str(e))
+            finally:
+                conn.close()
+
+        # asks Open-Meteo (a few seconds at most) and compares many outfits, so keep it off the event loop
+        return await run_in_threadpool(work)
+
+    # ---------------------------------------------------------------- weather
+    @app.get("/api/places", dependencies=protected)
+    async def find_places(q: str = ""):
+        try:
+            return {"places": await run_in_threadpool(search_places, q)}
+        except WeatherError as e:
+            raise HTTPException(502, str(e))
+
+    @app.get("/api/weather", dependencies=protected)
+    async def get_weather():
+        found = await run_in_threadpool(lookup, state)
+        return {k: found[k] for k in ("place", "weather", "old", "is_today", "message")}
+
     # ---------------------------------------------------------------- model
     @app.get("/api/model", dependencies=protected)
     def model_info():
@@ -324,7 +387,7 @@ def create_app(sv: Services) -> FastAPI:
             "backup_folder": state.get("backup_folder"), "last_backup": state.get("last_backup"),
             "last_good_backup": backup.last_good(state), "pending_cutouts": jobs.pending_count(conn),
             "pending_tags": tagjobs.waiting_count(conn), "tagging_api_enabled": bool(state.get("tagging_api_enabled")),
-            "phone": sv.phone_info(), "autostart": auto, "heic_supported": images.HEIC,
+            "phone": sv.phone_info(), "autostart": auto, "heic_supported": images.HEIC, "place": state.get("place"),
         }
 
     @app.get("/api/settings", dependencies=protected)
@@ -343,6 +406,13 @@ def create_app(sv: Services) -> FastAPI:
                 state.update(backup_folder=str(path))
             else:
                 state.update(backup_folder=None)
+        if "place" in sent:
+            try:
+                place = check_place(body.place) if body.place is not None else None
+            except ValueError as e:
+                raise HTTPException(422, str(e))
+            if place != state.get("place"):
+                state.update(place=place, weather=None)
         if "autostart" in sent and body.autostart is not None:
             try:
                 autostart.set_enabled(body.autostart)

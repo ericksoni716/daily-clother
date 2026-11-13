@@ -125,16 +125,19 @@ for src, dest in binaries:
 print(f"closet.spec: {len(datas)} data files ({sum(os.path.getsize(s) for s, _ in datas):,} bytes) under closet/")
 
 # --- imports PyInstaller cannot see ---------------------------------------
-# Every closet module (and the tagger package's), so a lazily imported one is never missed.
+# Every closet module (and the tagger's and the drawing's packages'), so a lazily imported one is never missed.
+DRAWING = os.path.join(PKG, "drawing")
 closet_modules = sorted(
     "closet." + name[:-3]
     for name in os.listdir(PKG)
     if name.endswith(".py") and name not in ("__init__.py", "__main__.py")
-) + ["closet.tagger"] + sorted(
-    "closet.tagger." + name[:-3]
-    for name in os.listdir(TAGGER)
-    if name.endswith(".py") and name != "__init__.py"
 )
+for package, folder in (("tagger", TAGGER), ("drawing", DRAWING)):
+    closet_modules += [f"closet.{package}"] + sorted(
+        f"closet.{package}." + name[:-3]
+        for name in os.listdir(folder)
+        if name.endswith(".py") and name != "__init__.py"
+    )
 
 # pystray picks its backend at import time with relative imports inside
 # functions. The contrib hook already collects all pystray submodules; the
@@ -167,6 +170,9 @@ excludes = [
     "IPython",
     "matplotlib",
     "tests",
+    # OpenCV is only for the bench: the drawing code imports it inside the functions that read a
+    # photo (the traced style, fills measured from a cutout), which the app does not call.
+    "cv2",
 ]
 
 # --- icon -----------------------------------------------------------------

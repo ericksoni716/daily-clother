@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { api, ApiError } from '../api';
 import { ModelProgress, modelStateText } from '../components/ModelBanner';
 import { PhoneAccess } from '../components/PhoneAccess';
+import { WhereYouAre } from '../components/WhereYouAre';
 import { formatDateTime, formatSize } from '../labels';
 import { useCloset } from '../store';
 import type { ModelInfo, Profile, Settings, Storage, TaggingRoute, TaggingStatus } from '../types';
@@ -48,6 +49,9 @@ export function SettingsScreen({ version }: { version: string }) {
           <TaggingSection offline={offline} settings={settings} onChange={setSettings} reload={load} toast={toast} />
         </div>
         <div className="settings-col">
+          <Section title="Where you are" id="s-place">
+            <WhereYouAre place={settings ? settings.place : undefined} offline={offline} onChange={setSettings} toast={toast} />
+          </Section>
           {settings && (
             <Section title="Phone access" id="s-phone">
               <PhoneAccess phone={settings.phone} />

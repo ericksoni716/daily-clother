@@ -1,8 +1,9 @@
 """Program-wide settings kept in one small JSON file in the data folder.
 
 Holds what is not part of a closet: the passphrase hash, login sessions, the
-backup folder, the model download URL and which closet (real or demo) is
-open. Never holds the Anthropic API key.
+backup folder, the model download URL, which closet (real or demo) is
+open, and where the owner is (with the last forecast for it). Never holds the
+Anthropic API key.
 """
 from __future__ import annotations
 
@@ -21,6 +22,8 @@ DEFAULTS: dict[str, Any] = {
     "model_url": None,        # override for the model download address
     "profile": "main",
     "tagging_api_enabled": False,  # may tagging use the API key (billed)? Off until the owner turns it on in Settings
+    "place": None,            # {"name", "latitude", "longitude", "timezone"}, chosen in Settings
+    "weather": None,          # the last forecast for the place: {"key", "fetched", "offset", "answer"}
 }
 
 

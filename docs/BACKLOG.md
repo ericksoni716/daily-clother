@@ -11,13 +11,18 @@ owner; see `DECISIONS.md`, "How the work is organised").
 
 ## In progress (Copilot agents)
 
-Wave 1, started together because none depends on another:
-- #20 Tagging in the app, part 1: the tagger and its two routes move into the backend; Settings shows which routes are available.
-- #21 Bulk import of single-item photos, with duplicates caught and resume (migration 0003 if one is needed).
-- #22 Wear log and laundry state (migration 0004).
-- #23 and #24 Outfit engine: the rules that choose today's outfits, with an API and no screen. The same task given to two models; the better result is merged.
+Wave 1 (landed):
+- [x] #20 Tagging in the app, part 1: the tagger and its two routes are in the backend; Settings shows which routes are available.
+- [x] #22 Wear log and laundry state (migration 0004).
+- [x] #23 Outfit engine: the rules that choose today's outfits, with an API and no screen. The same task went to two models (#23, #24); the Opus 5.5 result was merged.
+- [x] #21 Bulk import of single-item photos, with duplicates caught and resume (migration 0005).
 
-Next, as these land: tagging part 2 (tag each item after its cutout and store the full answer, migration 0002), the drawing in the app, corrections and the review queue; the weather lookup, the outfit screen, mannequin layering and outfit rating; then gap analysis and shopping.
+Wave 2:
+- [ ] #33 Tagging in the app, part 2: tag each item after its cutout and keep the full answer (migration 0006).
+- [ ] #34 Today's outfits by themselves: the weather lookup, and the wear log and laundry feeding the engine.
+- [x] #35 The drawing in the app, part 1: the drawing code is in the backend (`closet/drawing/`); all 203 gallery drawings came out identical.
+
+Next: the outfit screen (two models, since it is judged by looking), the drawing shown on the item and corrections, the review queue, mannequin layering and outfit rating; then gap analysis and shopping.
 
 ## Waiting on the owner
 - **Garment review**: the owner called the drawings good enough for now (after round 7). Marks and notes in the review gallery are still read when they appear; drawing work is parked until asked for.

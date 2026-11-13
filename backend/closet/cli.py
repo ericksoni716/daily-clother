@@ -216,6 +216,13 @@ def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -
             raise FileNotFoundError("the built web page is not bundled")
         return f"web page bundled ({index.stat().st_size} bytes)"
 
+    def drawing():
+        from .drawing.item import svg_from_fields
+        svg = svg_from_fields("shirt", "#a9c3e0", "solid", {"sleeve": "long", "neck": "collar"})
+        if not svg or not svg.startswith("<svg"):
+            raise RuntimeError("no shirt was drawn (the reason is in closet.log)")
+        return f"drew a shirt from its tags ({len(svg):,} bytes of SVG)"
+
     def model():
         from .modelstore import ModelStore
         m = ModelStore(cfg.models_dir, State(cfg.state_path))
@@ -263,6 +270,7 @@ def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -
     check("onnxruntime", onnx)
     check("database", database)
     check("web_page", page)
+    check("drawing", drawing)
     check("model_state", model)
     check("tagger", tagger)
     if with_cutout:

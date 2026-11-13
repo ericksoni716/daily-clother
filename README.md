@@ -57,6 +57,31 @@ the recent days, each of which can be removed. **Put in the laundry** and
 carry a small mark, and the **Clean** and **In the laundry** buttons show only
 those.
 
+## Adding your clothes
+
+Open **Add**. One piece of clothing per photo works best.
+
+- **On the computer:** click **Choose photos** and pick as many as you like,
+  click **Choose a folder**, or drag photos or whole folders onto the page.
+  Folders inside folders are included. Files that are not photos are skipped,
+  and the page says which.
+- **On the iPhone:** **Take photo**, or **Choose from library** and pick many
+  at once.
+
+The list underneath shows how many are waiting, uploading, added, already in
+your closet, or did not work. Two photos go up at a time. **Pause** stops new
+ones starting; **Cancel the rest** drops the ones not started yet. A photo that
+did not work says why and has a **Retry** button.
+
+A photo that is already in your closet (the same file, even under another name,
+even if that item is archived) is not added again; its row says **Already in
+your closet**. A photo of an item you deleted can be added again.
+
+If the page is closed or the computer restarts during an import, open **Add**
+again: it says how many photos were not added yet. Choose the same photos or
+folder again and it carries on; the ones that already went in are not added
+twice.
+
 ## Use it from your iPhone
 
 The phone reaches your computer privately over Tailscale; the app is never on
@@ -164,6 +189,13 @@ If the computer cannot download the model, download
 `isnet-general-use.onnx` on another machine from the address shown in
 **Settings → Background removal**, and put it in `Closet\models`. Closet
 checks the file and starts using it. The address can be changed in Settings.
+
+### Where you are
+
+In **Settings → Where you are**, search for your town or city and choose it
+from the list, so Closet can look up today's weather when it suggests outfits.
+Only the name you search for and the chosen place's location are sent, to the
+free weather service Open-Meteo; nothing about your clothes is.
 
 ## Demo closet
 

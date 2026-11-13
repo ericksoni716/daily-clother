@@ -55,8 +55,9 @@ Each run gets a fresh temporary data folder (`CLOSET_DATA_DIR`) and
 `CLOSET_NO_AUTO_DOWNLOAD=1`, so nothing is downloaded or touched.
 
 - `selfcheck --out FILE` exits 0 and every check is ok (webp, heic,
-  onnxruntime, database, web_page, model_state, tagger), with `model_state` =
-  `missing`.
+  onnxruntime, database, web_page, drawing, model_state, tagger), with `model_state`
+  = `missing`. The drawing check draws a shirt from its tags with the
+  bundled `closet.drawing` package.
 - `--no-browser --no-tray --port N`: `/api/health` answers within 120 s with
   `app: closet`, `model_state: missing`, `setup_required: true`; `GET /` is
   the built page (`id="root"`); `POST /api/setup` gives 204 and a session

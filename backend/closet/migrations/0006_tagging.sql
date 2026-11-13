@@ -1,5 +1,5 @@
 -- Stop B: what the tagger said about each item, and where its tagging stands.
--- Numbered 0005 on purpose: a migration numbered below a closet's current version would never run.
+-- Numbered 0006 because bulk import took 0005: a migration numbered below a closet's current version would never run.
 
 ALTER TABLE items ADD COLUMN tag_state TEXT NOT NULL DEFAULT 'none'
   CHECK (tag_state IN ('none', 'waiting', 'working', 'done', 'failed'));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { backoff, isTransient, UploadQueue, type QueueDeps, type UploadStatus } from './uploadQueue';
+import { backoff, countEntries, isTransient, UploadQueue, type QueueDeps, type SavedEntry, type UploadStatus } from './uploadQueue';
 
 type F = { name: string };
 
@@ -22,24 +22,24 @@ function makeQueue(upload: QueueDeps<F>['upload'], extra: Partial<QueueDeps<F>> 
 const err = (status: number, message: string) => Object.assign(new Error(message), { status });
 
 describe('UploadQueue', () => {
-  it('uploads files one at a time, in order', async () => {
-    const order: string[] = [];
+  it('uploads at most two files at a time, starting them in order', async () => {
+    const started: string[] = [];
     let active = 0;
     let maxActive = 0;
     const { q } = makeQueue(async (_b, filename) => {
+      started.push(filename);
       active++;
       maxActive = Math.max(maxActive, active);
       await new Promise((r) => setTimeout(r, 2));
-      order.push(filename);
       active--;
       return { id: `item-${filename}` };
     });
-    q.add([{ name: 'a.jpg' }, { name: 'b.jpg' }, { name: 'c.jpg' }]);
+    q.add(['a.jpg', 'b.jpg', 'c.jpg', 'd.jpg', 'e.jpg'].map((name) => ({ name })));
     await q.idle();
-    expect(order).toEqual(['a.jpg', 'b.jpg', 'c.jpg']);
-    expect(maxActive).toBe(1);
-    expect(q.snapshot.map((e) => e.status)).toEqual(['done', 'done', 'done']);
-    expect(q.snapshot.map((e) => e.itemId)).toEqual(['item-a.jpg', 'item-b.jpg', 'item-c.jpg']);
+    expect(started).toEqual(['a.jpg', 'b.jpg', 'c.jpg', 'd.jpg', 'e.jpg']);
+    expect(maxActive).toBe(2);
+    expect(q.snapshot.map((e) => e.status)).toEqual(['done', 'done', 'done', 'done', 'done']);
+    expect(q.snapshot.map((e) => e.itemId)).toEqual(['item-a.jpg', 'item-b.jpg', 'item-c.jpg', 'item-d.jpg', 'item-e.jpg']);
   });
 
   it('gives every file its own key', async () => {
@@ -105,7 +105,7 @@ describe('UploadQueue', () => {
         return { blob: new Blob([f.name]), filename: f.name };
       },
     });
-    const [id] = q.add([{ name: 'a.jpg' }]);
+    const [id] = q.add([{ name: 'a.jpg' }]).ids;
     await q.idle();
     expect(q.snapshot[0].status).toBe('failed');
     fail = false;
@@ -140,6 +140,187 @@ describe('UploadQueue', () => {
     q.add([{ name: 'a' }]);
     await q.idle();
     q.clearFinished();
+    expect(q.snapshot).toEqual([]);
+  });
+  it('marks a photo the server already had as already in the closet', async () => {
+    const { q } = makeQueue(async (_b, filename) => ({ id: 'old-item', duplicate: filename === 'b.jpg' }));
+    q.add([{ name: 'a.jpg' }, { name: 'b.jpg' }]);
+    await q.idle();
+    expect(q.snapshot.map((e) => e.status)).toEqual(['done', 'duplicate']);
+    expect(q.snapshot[1].itemId).toBe('old-item');
+    expect(countEntries(q.snapshot)).toMatchObject({ done: 1, duplicate: 1, failed: 0, waiting: 0, uploading: 0 });
+  });
+
+  it('sends the hash of the file as chosen', async () => {
+    const hashes: (string | null)[] = [];
+    const { q } = makeQueue(async (_b, _f, _k, sha) => {
+      hashes.push(sha);
+      return { id: 'i' };
+    }, { hash: async (f) => (f.name === 'a' ? 'h-a' : Promise.reject(new Error('cannot read'))) });
+    q.add([{ name: 'a' }, { name: 'b' }]);
+    await q.idle();
+    expect(hashes.sort()).toEqual(['h-a', null].sort());
+  });
+
+  it('leaves out a file already waiting, and sends a finished one again with its first key', async () => {
+    const keys: string[] = [];
+    const { q } = makeQueue(async (_b, filename, key) => {
+      keys.push(`${filename}:${key}`);
+      return { id: `item-${filename}` };
+    });
+    expect(q.add([{ name: 'a' }, { name: 'a' }]).skipped).toBe(1);
+    await q.idle();
+    const again = q.add([{ name: 'a' }, { name: 'b' }]);
+    expect(again.skipped).toBe(0);
+    await q.idle();
+    expect(q.snapshot.map((e) => [e.name, e.status])).toEqual([['a', 'done'], ['b', 'done']]);
+    expect(keys).toEqual(['a:key-1', 'a:key-1', 'b:key-2']);
+  });
+
+  it('pause stops new uploads starting; carrying on finishes the rest', async () => {
+    const started: string[] = [];
+    const { q } = makeQueue(async (_b, filename) => {
+      started.push(filename);
+      await new Promise((r) => setTimeout(r, 2));
+      return { id: filename };
+    });
+    q.pause();
+    q.add([{ name: 'a' }, { name: 'b' }, { name: 'c' }]);
+    await q.idle();
+    expect(started).toEqual([]);
+    expect(q.isPaused).toBe(true);
+    expect(countEntries(q.snapshot).waiting).toBe(3);
+    q.resume();
+    // pausing again while two are going lets those two finish and holds the third
+    q.pause();
+    await q.idle();
+    expect(started).toEqual(['a', 'b']);
+    expect(q.snapshot.map((e) => e.status)).toEqual(['done', 'done', 'waiting']);
+    q.resume();
+    await q.idle();
+    expect(q.snapshot.map((e) => e.status)).toEqual(['done', 'done', 'done']);
+  });
+
+  it('cancel drops what has not started and lets the uploads already going finish', async () => {
+    const { q } = makeQueue(async (_b, filename) => {
+      await new Promise((r) => setTimeout(r, 2));
+      return { id: filename };
+    });
+    q.add([{ name: 'a' }, { name: 'b' }, { name: 'c' }, { name: 'd' }]);
+    q.cancel();
+    await q.idle();
+    expect(q.snapshot.map((e) => [e.name, e.status])).toEqual([['a', 'done'], ['b', 'done']]);
+  });
+
+  it('retries every failed upload at once', async () => {
+    let fail = true;
+    const { q } = makeQueue(async (_b, filename) => {
+      if (fail) throw err(400, 'Nope.');
+      return { id: filename };
+    });
+    q.add([{ name: 'a' }, { name: 'b' }]);
+    await q.idle();
+    expect(countEntries(q.snapshot).failed).toBe(2);
+    fail = false;
+    q.retryFailed();
+    await q.idle();
+    expect(q.snapshot.map((e) => e.status)).toEqual(['done', 'done']);
+  });
+
+  it('while offline nothing starts; back online the queue carries on', async () => {
+    let calls = 0;
+    const { q } = makeQueue(async () => {
+      calls++;
+      return { id: 'i' };
+    });
+    q.setOnline(false);
+    q.add([{ name: 'a' }]);
+    await q.idle();
+    expect(calls).toBe(0);
+    expect(q.snapshot[0].status).toBe('waiting');
+    q.setOnline(true);
+    await q.idle();
+    expect(calls).toBe(1);
+    expect(q.snapshot[0].status).toBe('done');
+  });
+
+  it('an upload that fails because the page went offline goes back to waiting', async () => {
+    const box: { q?: UploadQueue<F> } = {};
+    let reachable = false;
+    const { q, sleeps } = makeQueue(async () => {
+      if (!reachable) {
+        box.q!.setOnline(false);
+        throw err(0, "Can't reach Closet.");
+      }
+      return { id: 'i' };
+    });
+    box.q = q;
+    q.add([{ name: 'a' }]);
+    await q.idle();
+    expect(q.snapshot[0]).toMatchObject({ status: 'waiting', error: null });
+    expect(sleeps).toEqual([]);
+    reachable = true;
+    q.setOnline(true);
+    await q.idle();
+    expect(q.snapshot[0]).toMatchObject({ status: 'done', itemId: 'i' });
+  });
+});
+
+describe('carrying on after the tab was closed', () => {
+  function memoryStore(initial: SavedEntry[] | null = null) {
+    const box = { saved: initial };
+    return { box, store: { load: () => box.saved, save: (e: SavedEntry[]) => void (box.saved = e) } };
+  }
+
+  it('saves the list, then offers what was left once the files are chosen again', async () => {
+    const { box, store } = memoryStore();
+    const sent: string[] = [];
+    let block = true;
+    const first = makeQueue(async (_b, filename, key) => {
+      if (block && filename === 'c') await new Promise(() => undefined); // the tab closes during this upload
+      sent.push(`${filename}:${key}`);
+      return { id: `item-${filename}` };
+    }, { store, concurrency: 1 });
+    first.q.add([{ name: 'a' }, { name: 'b' }, { name: 'c' }, { name: 'd' }]);
+    await new Promise((r) => setTimeout(r, 5));
+    expect(box.saved!.map((e) => e.status)).toEqual(['done', 'done', 'uploading', 'waiting']);
+    const keyOfC = box.saved![2].clientKey;
+
+    // a new page: the list comes back, but the files are gone
+    block = false;
+    const second = makeQueue(async (_b, filename, key) => {
+      sent.push(`${filename}:${key}`);
+      return { id: `item-${filename}` };
+    }, { store, newKey: () => 'fresh-key' });
+    expect(second.q.snapshot.map((e) => e.status)).toEqual(['done', 'done', 'missing', 'missing']);
+    expect(countEntries(second.q.snapshot).missing).toBe(2);
+
+    // choosing the same four again: every row keeps its first key, so the server can tell
+    // the two that went in already and none of them is added twice
+    const keysBefore = box.saved!.map((e) => e.clientKey);
+    second.q.add([{ name: 'a' }, { name: 'b' }, { name: 'c' }, { name: 'd' }]);
+    await second.q.idle();
+    expect(second.q.snapshot.map((e) => e.status)).toEqual(['done', 'done', 'done', 'done']);
+    expect(second.q.snapshot.map((e) => e.clientKey)).toEqual(keysBefore);
+    expect(sent).toContain(`c:${keyOfC}`);
+    expect(sent.some((s) => s.endsWith('fresh-key'))).toBe(false);
+  });
+
+  it('forgetting what was left clears it, and an empty list is not kept', async () => {
+    const { box, store } = memoryStore([
+      { name: 'a', fileKey: 'a', clientKey: 'k1', status: 'uploading', error: null, itemId: null },
+    ]);
+    const { q } = makeQueue(async () => ({ id: 'i' }), { store });
+    expect(q.snapshot[0].status).toBe('missing');
+    q.retry(q.snapshot[0].id); // no file to retry with
+    expect(q.snapshot[0].status).toBe('missing');
+    q.cancel();
+    expect(q.snapshot).toEqual([]);
+    expect(box.saved).toEqual([]);
+  });
+
+  it('a broken saved list is ignored', () => {
+    const { q } = makeQueue(async () => ({ id: 'i' }), { store: { load: () => { throw new Error('bad json'); }, save: () => undefined } });
     expect(q.snapshot).toEqual([]);
   });
 });

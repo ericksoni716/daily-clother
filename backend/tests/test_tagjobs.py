@@ -283,14 +283,14 @@ def test_the_migration_runs_on_a_closet_made_by_the_previous_version(cfg):
     path.parent.mkdir(parents=True, exist_ok=True)
     old = sqlite3.connect(path)
     for version, file in db.migration_files():
-        if version < 5:
+        if version <= 5:   # a closet made by the previous version (with bulk import's 0005)
             old.executescript(file.read_text(encoding="utf-8") + f"\nPRAGMA user_version = {version};")
     old.execute("INSERT INTO items (id, name, category, cutout_state, created_at, updated_at) "
                 "VALUES ('a', 'Old shirt', 'shirt', 'ready', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')")
     old.commit()
     old.close()
     result = db.migrate(path, cfg.local_backups_dir)
-    assert 5 in result["applied"] and result["backup"]
+    assert result["from"] == 5 and result["applied"] == [6] and result["backup"]
     conn = db.connect(path)
     r = dict(conn.execute("SELECT * FROM items WHERE id = 'a'").fetchone())
     conn.close()

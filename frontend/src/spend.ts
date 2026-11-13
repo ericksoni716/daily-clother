@@ -1,5 +1,5 @@
 /** Plain words for what the API key costs: amounts, months, the limit and the estimates. */
-import type { TaggingSpend } from './types';
+import type { ApiKeyInfo, TaggingSpend } from './types';
 
 /** "$1.20", "$1,000.00"; "$0.00" for nothing, and "under 1¢" for a sum too small to show in cents. */
 export function formatUsd(amount: number | null | undefined): string {
@@ -68,4 +68,19 @@ export function turnedOffLine(off: TaggingSpend['turned_off']): string {
   return off.reason === 'credit'
     ? `Closet stopped using the API key on ${when} because Anthropic said your account has no credit left. Add credit in your Anthropic account, then turn the key on again.`
     : `Closet stopped using the API key on ${when} because Anthropic didn't accept the key. Check the key, then turn it on again.`;
+}
+
+/** Where the API key comes from, in a sentence; never the key itself. */
+export function apiKeyLine(info: ApiKeyInfo): string {
+  if (info.source === 'keychain') return `Your API key is saved in ${info.where ?? 'this computer\'s keychain'}.`;
+  if (info.source === 'environment') return 'Your API key comes from ANTHROPIC_API_KEY, set on this computer.';
+  return 'No API key yet.';
+}
+
+/** What to say after a key was saved. */
+export function apiKeySavedLine(info: ApiKeyInfo, allowed: boolean): string {
+  const checked = info.checked === false
+    ? 'Key saved. Closet couldn\'t reach Anthropic to check it, so it will find out the first time the key is used.'
+    : 'Key saved. Anthropic accepted it.';
+  return allowed ? checked : `${checked} Turn on Allow the API key below to use it.`;
 }

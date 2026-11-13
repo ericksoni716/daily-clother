@@ -72,6 +72,11 @@ demo closet you can pick and undo, but sentences are not sent to Claude.
 
 To stop the program use **Quit Closet** in the icon's menu or in Settings.
 Double-clicking the program while it is already running just opens the app.
+If the copy that is running is an older version (you downloaded an update but
+the old one was still open), Closet says so and asks whether to close the old
+one and use the new one; your closet is the same either way. On Windows the
+window has **Yes** (use the new one) and **No** (keep the old one). If start at
+login was on, it now starts the new program.
 
 Every day starts on **Today**, which the app opens on once your closet has at
 least a top, something for your legs and a pair of shoes. It shows today's
@@ -251,6 +256,15 @@ Anthropic, is only used when the plan can't be, and only if you turn on
 **Settings → Tagging** shows which of the two Closet can use right now and how
 many items are waiting to be described.
 
+**Adding an API key.** Make a key in your Anthropic account (console.anthropic.com,
+**API keys**), copy it, and paste it into **Paste your API key** in **Settings →
+Tagging**, then **Save key**. Closet asks Anthropic whether it accepts the key
+(this costs nothing) and keeps it in your computer's own keychain (the Mac's
+keychain, or Windows Credential Manager), never in a file. It is never shown
+again; **Replace key** and **Remove key** are there when you need them. Then turn
+on **Allow the API key** and set a monthly limit. A key saved here is used instead
+of one set as `ANTHROPIC_API_KEY`.
+
 **What the API key costs.** At the prices Closet knows (written down on
 3 November 2026 — prices change, so check Anthropic's pricing page), one photo
 costs well under 1¢, about $0.003 at most. To allow the API key you set a
@@ -292,6 +306,14 @@ in (and which account) when everything is ready. Then open **Settings →
 Tagging** in Closet and press **Check again**: "Your Claude plan, through
 Claude Code" should say **ready**. If it says Claude Code is not installed,
 quit Closet and start it again so it sees the new program.
+
+**If an item says Anthropic turned down the account Claude Code is signed in
+to:** Claude Code on your computer is signed in to an account that no longer
+works, for example a work account that has been turned off, instead of your
+own Claude plan. In Terminal (or PowerShell) type `claude`, then `/logout`,
+then `/login`, sign in with your own Claude subscription, then `/exit`. Your items are described by
+themselves within a minute or two; an item that already says Claude couldn't
+describe it needs **Try again**.
 
 ## Your data
 

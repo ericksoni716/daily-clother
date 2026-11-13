@@ -23,8 +23,9 @@ from pathlib import Path
 from PIL import Image
 from pydantic import BaseModel, Field
 
+from .. import apikey
 from . import claude_cli
-from .tagging import CONFIG, ApiRefused, CapReached, Meter, RouteUnavailable, TaggingError, encode_image
+from .tagging import CONFIG, ApiRefused, CapReached, Meter, PlanSignIn, RouteUnavailable, TaggingError, encode_image
 
 MODEL = CONFIG["roles"]["tagging"]
 MAX_TOKENS = 2000    # the longest answer asked for: a few changes and a sentence (`spend.CORRECT_MAX_TOKENS`)
@@ -148,8 +149,9 @@ def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | Non
             said = f"{out.get('result') or ''} {proc.stderr or ''} {proc.stdout if not out else ''}".lower()
             if any(w in said for w in claude_cli._LIMIT_WORDS):
                 raise RouteUnavailable("the Claude plan's usage limit has been reached")
-            if (proc.returncode != 0 or out.get("is_error")) and any(w in said for w in claude_cli._LOGIN_WORDS):
-                raise RouteUnavailable("Claude Code is not signed in on this computer")
+            problem = claude_cli.sign_in_problem(said) if (proc.returncode != 0 or out.get("is_error")) else None
+            if problem:
+                raise PlanSignIn(problem)
             answer = out.get("structured_output")
             if proc.returncode != 0 or out.get("is_error") or answer is None:
                 last = TaggingError(f"{model} through Claude Code gave no usable answer (exit {proc.returncode})")
@@ -181,10 +183,9 @@ def correct(sentence: str, description: dict, allowed: dict[str, list], images: 
                 return result
             if route == "api":
                 if client is None:
-                    if not os.environ.get("ANTHROPIC_API_KEY"):
+                    if not apikey.get():
                         raise RouteUnavailable("no API key is set")
-                    import anthropic
-                    client = anthropic.Anthropic()
+                    client = apikey.client()
                 return correct_api(client, MODEL, text, images, meter=meter)
         except RouteUnavailable as e:
             skipped.append(f"{route}: {e}")

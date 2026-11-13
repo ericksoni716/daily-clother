@@ -22,6 +22,7 @@ from pydantic import BaseModel
 from . import (
     APP_NAME,
     __version__,
+    apikey,
     auth,
     autostart,
     backup,
@@ -32,6 +33,7 @@ from . import (
     history,
     illustrations,
     images,
+    instance,
     items,
     jobs,
     life,
@@ -243,6 +245,11 @@ class LaundryState(BaseModel):
 
 class Confirm(BaseModel):
     fields: list[str]
+    model_config = {"extra": "forbid"}
+
+
+class ApiKeyBody(BaseModel):
+    key: str
     model_config = {"extra": "forbid"}
 
 
@@ -787,6 +794,7 @@ def create_app(sv: Services) -> FastAPI:
             "last_good_backup": backup.last_good(state), "pending_cutouts": jobs.pending_count(conn),
             "pending_tags": tagjobs.waiting_count(conn), "tagging_api_enabled": spend.api_allowed(state),
             "tagging_api_cap_usd": spend.cap(state), "tagging_api_off": state.get("tagging_api_off"),
+            "api_key": apikey.info(),
             "phone": sv.phone_info(), "autostart": auto, "heic_supported": images.HEIC, "place": state.get("place"),
             "life": life.example()[0] if state.get("profile") == "demo" else state.get("life"),
             "life_prompt_dismissed": True if state.get("profile") == "demo" else state.get("life_prompt_dismissed"),
@@ -850,6 +858,39 @@ def create_app(sv: Services) -> FastAPI:
             sv.wake()   # items waiting for a route (or for the limit) may be able to go now
         return settings_payload(conn)
 
+    @app.put("/api/settings/api-key", dependencies=protected)
+    def put_api_key(body: ApiKeyBody, conn=Depends(conn_dep)):
+        """Check the key with Anthropic (free), then keep it in the computer's keychain. The key is never
+        sent back, logged or written anywhere else."""
+        try:
+            key = apikey.clean(body.key)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        verdict = apikey.check(key)
+        if verdict == "refused":
+            raise HTTPException(422, "Anthropic did not accept that key. Check you copied all of it, and that it "
+                                     "belongs to an account that is still active, then try again.")
+        try:
+            apikey.store().set(key)
+        except (apikey.KeychainError, ValueError) as e:
+            raise HTTPException(409, str(e))
+        log.info("an API key was saved in the keychain")
+        if (state.get("tagging_api_off") or {}).get("reason") == "key":
+            state.update(tagging_api_off=None)   # that note was about the key this one replaces
+        sv.wake()
+        out = settings_payload(conn)
+        out["api_key"]["checked"] = verdict is None
+        return out
+
+    @app.delete("/api/settings/api-key", dependencies=protected)
+    def delete_api_key(conn=Depends(conn_dep)):
+        try:
+            apikey.store().delete()
+        except apikey.KeychainError as e:
+            raise HTTPException(409, str(e))
+        log.info("the API key was removed from the keychain")
+        return settings_payload(conn)
+
     @app.get("/api/storage", dependencies=protected)
     async def get_storage():
         # walking a big closet takes a while; do it in a worker thread so other requests keep being answered
@@ -885,6 +926,16 @@ def create_app(sv: Services) -> FastAPI:
 
     @app.post("/api/quit", status_code=202, dependencies=protected)
     def quit_program():
+        threading.Timer(0.3, sv.on_quit).start()
+        return {"status": "shutting-down"}
+
+    @app.post("/api/instance/quit", status_code=202, include_in_schema=False)
+    def quit_for_newer_copy(request: Request):
+        """A newer copy of the program, started on the same computer, asks this one to make way. It proves it
+        can read this copy's data folder by sending the token from the lock file; nothing else is accepted."""
+        if not instance.quit_token_matches(cfg, request.headers.get(instance.QUIT_HEADER)):
+            raise HTTPException(403, "Not allowed.")
+        log.info("a newer copy of the program asked this one to quit")
         threading.Timer(0.3, sv.on_quit).start()
         return {"status": "shutting-down"}
 

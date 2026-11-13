@@ -121,6 +121,32 @@ class FakeApi:
         return SimpleNamespace(parsed_output=answer, stop_reason="end_turn", usage=usage)
 
 
+class MemoryKeychain:
+    """Stands in for the computer's keychain in every test, so no test reads or writes a real one."""
+    where = "this Mac's keychain"
+
+    def __init__(self):
+        self.key = None
+
+    def get(self):
+        return self.key
+
+    def set(self, key):
+        self.key = key
+
+    def delete(self):
+        self.key = None
+
+
+@pytest.fixture(autouse=True)
+def keychain():
+    from closet import apikey
+    store = MemoryKeychain()
+    apikey.use_store(store)
+    yield store
+    apikey.use_store(None)
+
+
 @pytest.fixture
 def cfg(tmp_path):
     return Config(data_dir=tmp_path / "Closet", auto_download_model=False)

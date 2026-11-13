@@ -29,7 +29,7 @@ from .config import Config
 from .state import State
 from .tagger import routes as tagger_routes
 from .tagger.schema import NAMED_HEX, SCHEMA_VERSION, ItemTags
-from .tagger.tagging import CONFIG, CapReached, Meter, RouteUnavailable, TagResult
+from .tagger.tagging import CONFIG, CapReached, Meter, PlanSignIn, RouteUnavailable, TagResult
 
 log = logging.getLogger("closet.tagjobs")
 KIND = "tag"
@@ -47,6 +47,10 @@ _CONFIDENCE = {"category": "category_confidence", "color": "color_confidence", "
 FAILED = ("Claude could not describe this item after three tries. You can try again, or retake the photo "
           "against a plainer background.")
 NO_PHOTO = "This item has no photo for Claude to look at."
+SIGN_IN = ("Claude Code on this computer can't use your Claude plan: Anthropic turned down the account it is "
+           "signed in to (for example a work account that has been turned off). Open Terminal, type claude, then "
+           "/logout, then /login with your own Claude subscription. It will be described by itself once that works.")
+_WAIT_NOTES = (spend.LIMIT_REACHED, SIGN_IN)   # why waiting items wait, when Closet knows
 
 
 # ------------------------------------------------------------------ the queue
@@ -87,13 +91,16 @@ def recover(conn) -> int:
     return len(stale)
 
 
-def note_limit(conn, reached: bool) -> None:
-    """Tell the waiting items that the API key's monthly limit is what holds them up, or stop saying so."""
-    if reached:
-        conn.execute("UPDATE items SET tag_error = ? WHERE tag_state = 'waiting' AND tag_error IS NOT ?",
-                     (spend.LIMIT_REACHED, spend.LIMIT_REACHED))
+def note_waiting(conn, why: str | None) -> None:
+    """Tell the waiting items what holds them up (the API key's monthly limit, or Claude Code's sign-in),
+    or stop saying so when `why` is None."""
+    marks = ",".join("?" * len(_WAIT_NOTES))
+    if why:
+        conn.execute(f"UPDATE items SET tag_error = ? WHERE tag_state = 'waiting' "
+                     f"AND (tag_error IS NULL OR tag_error IN ({marks})) AND tag_error IS NOT ?", (why, *_WAIT_NOTES, why))
     else:
-        conn.execute("UPDATE items SET tag_error = NULL WHERE tag_state = 'waiting' AND tag_error = ?", (spend.LIMIT_REACHED,))
+        conn.execute(f"UPDATE items SET tag_error = NULL WHERE tag_state = 'waiting' AND tag_error IN ({marks})",
+                     _WAIT_NOTES)
 
 
 def _photos(conn, images_dir: Path, item_id: str) -> list[Image.Image]:
@@ -133,7 +140,8 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], tagger: Tagger) -> 
         conn.execute("UPDATE jobs SET state = 'queued', attempts = attempts - 1, updated_at = ? WHERE id = ?", (t, job["id"]))
         conn.execute("UPDATE items SET tag_state = 'waiting', updated_at = ? WHERE id = ?", (t, job["item_id"]))
         # every waiting item waits for the same reason; say so when it is the monthly limit
-        note_limit(conn, isinstance(e, CapReached))
+        note_waiting(conn, spend.LIMIT_REACHED if isinstance(e, CapReached)
+                     else SIGN_IN if isinstance(e, PlanSignIn) else None)
         return "blocked"
     except Exception as e:  # any failure is recorded against the job, never lost; only its kind is logged
         log.warning("tagging job %s failed (attempt %s): %s", job["id"], attempts, type(e).__name__)
@@ -150,7 +158,7 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], tagger: Tagger) -> 
     conn.execute("BEGIN IMMEDIATE")
     try:
         apply_answer(conn, job["item_id"], result.tags, route=result.route, model=result.model)
-        note_limit(conn, False)   # Claude could be reached: the others are no longer held up by the limit
+        note_waiting(conn, None)   # Claude could be reached: the others are no longer held up
         conn.execute("UPDATE jobs SET state = 'done', error = NULL, updated_at = ? WHERE id = ?", (db.now(), job["id"]))
         conn.execute("COMMIT")
     except Exception:
@@ -309,7 +317,7 @@ class Worker:
                 # asked again before each item, so turning the API key off (or a plan limit) takes effect at once
                 routes = self.routes()
                 if not routes:
-                    note_limit(conn, False)   # nothing can be tried at all: the limit is not what they wait for
+                    note_waiting(conn, None)   # nothing can be tried at all: neither note is what they wait for
                     break
                 if run_one(conn, self.cfg.images_dir(profile), routes, self.tagger) != "done":
                     break

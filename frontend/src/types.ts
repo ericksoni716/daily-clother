@@ -140,6 +140,8 @@ export interface Settings {
   tagging_api_cap_usd: number | null;
   /** Set when Anthropic refused the key and Closet switched it off. */
   tagging_api_off: ApiTurnedOff | null;
+  /** Whether an API key is set and where it comes from; never the key itself. */
+  api_key: ApiKeyInfo;
   phone: { tailscale_installed: boolean; running: boolean; address: string | null; command: string };
   autostart: boolean | null;
   heic_supported: boolean;
@@ -203,6 +205,18 @@ export interface TaggingRoute {
 }
 
 /** Why Closet switched the API key off by itself: no credit left, or the key was not accepted. */
+export interface ApiKeyInfo {
+  set: boolean;
+  /** "keychain": saved from Settings; "environment": ANTHROPIC_API_KEY on the computer. */
+  source: 'keychain' | 'environment' | null;
+  /** Whether this computer has a keychain Closet can keep a key in. */
+  can_save: boolean;
+  /** Where a saved key is kept, in plain words ("this Mac's keychain"), or null. */
+  where: string | null;
+  /** Only on the answer to saving a key: false when Anthropic couldn't be reached to check it. */
+  checked?: boolean;
+}
+
 export interface ApiTurnedOff {
   at: string;
   reason: 'credit' | 'key';

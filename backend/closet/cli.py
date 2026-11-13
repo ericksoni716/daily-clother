@@ -48,21 +48,95 @@ def _say(message: str) -> None:
             pass
 
 
+def _ask(question: str, yes: str, no: str, headless: bool = False) -> bool | None:
+    """Ask the owner a yes-or-no question, in a window when there is no console.
+    None when nobody can be asked (started at login without a tray, or no way to show a window)."""
+    if headless:
+        return None
+    if sys.stdin is not None and sys.stdout is not None and sys.stdin.isatty():
+        try:
+            answer = input(f"{question}\n[y] {yes}   [n] {no}: ").strip().lower()
+        except EOFError:
+            return None
+        return answer in ("y", "yes")
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            # MB_YESNO | MB_ICONQUESTION | MB_SETFOREGROUND | MB_TOPMOST; Windows only offers Yes and No
+            flags = 0x4 | 0x20 | 0x10000 | 0x40000
+            text = f"{question}\n\nYes: {yes}\nNo: {no}"
+            return ctypes.windll.user32.MessageBoxW(None, text, APP_NAME, flags) == 6  # IDYES
+        except Exception:
+            return None
+    if sys.platform == "darwin":
+        import subprocess
+
+        def quoted(s: str) -> str:
+            return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+        script = (f"button returned of (display dialog {quoted(question)} with title {quoted(APP_NAME)} "
+                  f"buttons {{{quoted(no)}, {quoted(yes)}}} default button {quoted(yes)} "
+                  f"cancel button {quoted(no)} with icon note)")
+        try:
+            proc = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=600)
+        except Exception:
+            return None
+        if proc.returncode == 0:
+            return proc.stdout.strip() == yes
+        return False if "-128" in (proc.stderr or "") else None  # -128: the owner chose the cancel button
+    return None
+
+
+def _follow_start_at_login() -> None:
+    """After replacing an older copy, start at login opens this program, not the old one."""
+    try:
+        if autostart.program() and autostart.is_enabled():
+            autostart.set_enabled(True)
+            log.info("start at login now opens %s", autostart.program())
+    except Exception:
+        log.warning("could not point start at login to this program", exc_info=True)
+
+
 def serve(args, cfg: config.Config) -> int:
     import uvicorn
 
     from .app import build_services, create_app
 
-    already = instance.running_instance(cfg)
+    replaced_older = False
+    already = instance.running_info(cfg)
     if already:
-        url = f"http://127.0.0.1:{already}/"
-        if not args.no_browser:
-            webbrowser.open(url)
-        if sys.stdout is not None:
-            print(f"{APP_NAME} is already running at {url}", flush=True)
-        return 0
+        url = f"http://127.0.0.1:{already['port']}/"
+        theirs = already["version"] or "an older version"
+        if instance.is_newer(__version__, already["version"]):
+            replace = True if args.replace else _ask(
+                f"An older {APP_NAME} ({theirs}) is already running. This is {APP_NAME} {__version__}.\n\n"
+                f"Close the old one and use {__version__} instead? Your closet is kept either way.",
+                yes=f"Use {__version__}", no=f"Keep {theirs}", headless=args.no_tray)
+            if replace:
+                if instance.stop_running(cfg, already):
+                    replaced_older = True
+                else:
+                    _say(f"The older {APP_NAME} ({theirs}) did not close. Quit it from its icon "
+                         f"(near the clock, or in the menu bar), then open {APP_NAME} {__version__} again.")
+                    return 4
+            else:
+                if replace is None:
+                    _say(f"An older {APP_NAME} ({theirs}) is already running at {url}. Quit it from its icon or "
+                         f"from Settings, then open {APP_NAME} {__version__} again to use the new version.")
+                if not args.no_browser:
+                    webbrowser.open(url)
+                return 0
+        if not replaced_older:
+            if not args.no_browser:
+                webbrowser.open(url)
+            if sys.stdout is not None:
+                print(f"{APP_NAME} {theirs} is already running at {url}", flush=True)
+            return 0
 
     _setup_logging(cfg)
+    if replaced_older:
+        log.info("replaced an older copy (%s) with %s", already["version"], __version__)
+        _follow_start_at_login()
+        instance.wait_for_port(cfg.host, args.port or cfg.port)
     try:
         wanted = args.port or cfg.port
         port = args.port or instance.pick_port(cfg.host, cfg.port)
@@ -296,6 +370,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-browser", action="store_true", help="do not open the browser on start")
     ap.add_argument("--no-tray", action="store_true", help="do not show the tray icon")
     ap.add_argument("--port", type=int, help="listen on this port instead of the default")
+    ap.add_argument("--replace", action="store_true",
+                    help="if an older version is already running, close it without asking and start this one")
     sub = ap.add_subparsers(dest="command")
     r = sub.add_parser("restore", help="replace the closet with a backup")
     r.add_argument("folder", help="the backup folder you chose in Settings")

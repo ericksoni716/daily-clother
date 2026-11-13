@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aboutUsd, dayName, formatUsd, importLine, monthName, spentLine, suggestionLine, turnedOffLine, waitingLine } from './spend';
+import { aboutUsd, apiKeyLine, apiKeySavedLine, dayName, formatUsd, importLine, monthName, spentLine, suggestionLine, turnedOffLine, waitingLine } from './spend';
 
 describe('money wording', () => {
   it('shows dollars and cents, and never a fraction of a cent', () => {
@@ -41,5 +41,22 @@ describe('money wording', () => {
     expect(turnedOffLine(null)).toBe('');
     expect(turnedOffLine({ at: '2026-11-12T10:00:00Z', reason: 'credit' })).toMatch(/on 12 Nov 2026 because Anthropic said your account has no credit left/);
     expect(turnedOffLine({ at: '2026-11-12T10:00:00Z', reason: 'key' })).toMatch(/didn't accept the key/);
+  });
+});
+
+describe('the API key box', () => {
+  const none = { set: false, source: null, can_save: true, where: "this Mac's keychain" } as const;
+  it('says where the key comes from, never the key', () => {
+    expect(apiKeyLine(none)).toBe('No API key yet.');
+    expect(apiKeyLine({ ...none, set: true, source: 'keychain' })).toBe("Your API key is saved in this Mac's keychain.");
+    expect(apiKeyLine({ ...none, set: true, source: 'keychain', where: 'Windows Credential Manager' }))
+      .toBe('Your API key is saved in Windows Credential Manager.');
+    expect(apiKeyLine({ ...none, set: true, source: 'environment' })).toBe('Your API key comes from ANTHROPIC_API_KEY, set on this computer.');
+  });
+  it('says whether Anthropic checked it, and what to do next', () => {
+    const saved = { ...none, set: true, source: 'keychain' as const };
+    expect(apiKeySavedLine({ ...saved, checked: true }, false)).toBe('Key saved. Anthropic accepted it. Turn on Allow the API key below to use it.');
+    expect(apiKeySavedLine({ ...saved, checked: true }, true)).toBe('Key saved. Anthropic accepted it.');
+    expect(apiKeySavedLine({ ...saved, checked: false }, true)).toMatch(/^Key saved\. Closet couldn't reach Anthropic/);
   });
 });

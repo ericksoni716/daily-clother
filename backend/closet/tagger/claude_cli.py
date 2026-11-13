@@ -19,14 +19,30 @@ from pathlib import Path
 from PIL import Image
 
 from .schema import ItemTags
-from .tagging import CONFIG, PROMPT, RouteUnavailable, TaggingError, TagResult
+from .tagging import CONFIG, PROMPT, PlanSignIn, RouteUnavailable, TaggingError, TagResult
 
 SYSTEM = ("You tag photos of clothes for a private wardrobe app. Look at the image file or files named in the "
           "request with the Read tool, then answer in the required JSON format. Do nothing else.")
 # never let a plan call fall through to a paid API key by accident
 _SCRUB = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
 _LIMIT_WORDS = ("hit your", "usage limit", "limit reached", "out of extra usage")
-_LOGIN_WORDS = ("not logged in", "please run /login", "invalid api key", "authentication")
+_LOGIN_WORDS = ("not logged in", "please run /login", "authentication")
+# Claude Code using an API key (a Console login, or a key in its own settings) that Anthropic refuses, e.g.
+# "API Error: 400 Not a valid API key for this workspace" or "Invalid API key · Fix external API key"
+_KEY_WORDS = ("not a valid api key", "invalid api key", "invalid x-api-key", "external api key", "api error: 401")
+NOT_SIGNED_IN = "Claude Code is not signed in on this computer (run `claude` once and log in)"
+KEY_REFUSED = ("Claude Code on this computer is signed in to an account Anthropic no longer accepts (for example "
+               "a work account that has been turned off), not to your Claude plan (run `claude`, type /logout, "
+               "then /login with your own Claude subscription)")
+
+
+def sign_in_problem(text: str) -> str | None:
+    """Why Claude Code's sign-in does not work, from what a failed call said (lower case), or None."""
+    if any(w in text for w in _KEY_WORDS):
+        return KEY_REFUSED
+    if any(w in text for w in _LOGIN_WORDS):
+        return NOT_SIGNED_IN
+    return None
 
 
 def find_claude() -> str | None:
@@ -120,8 +136,9 @@ def tag_item_cli(model: str, images: list[Image.Image], exe: str | None = None, 
             if any(w in text for w in _LIMIT_WORDS):
                 raise RouteUnavailable("the Claude plan's usage limit has been reached: "
                                        + (out.get("result") or proc.stderr or "").strip()[:200])
-            if (proc.returncode != 0 or out.get("is_error")) and any(w in text for w in _LOGIN_WORDS):
-                raise RouteUnavailable("Claude Code is not signed in on this computer (run `claude` once and log in)")
+            problem = sign_in_problem(text) if (proc.returncode != 0 or out.get("is_error")) else None
+            if problem:
+                raise PlanSignIn(problem)
             answer = out.get("structured_output")
             if proc.returncode != 0 or out.get("is_error") or answer is None:
                 detail = (out.get("result") or proc.stderr or "no output").strip()[:200]

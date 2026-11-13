@@ -181,6 +181,8 @@ export const api = {
   putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean; tagging_api_cap_usd?: number | null; life?: Life | null; life_prompt_dismissed?: boolean }) =>
     request<Settings>('/api/settings', { method: 'PUT', body: changes }),
   storage: () => request<Storage>('/api/storage'),
+  saveApiKey: (key: string) => request<Settings>('/api/settings/api-key', { method: 'PUT', body: { key } }),
+  removeApiKey: () => request<Settings>('/api/settings/api-key', { method: 'DELETE' }),
   tagging: () => request<TaggingStatus>('/api/tagging'),
   tagSpend: () => request<TaggingSpend>('/api/tagging/spend'),
   places: (q: string) => request<{ places: Place[] }>(`/api/places?q=${encodeURIComponent(q)}`).then((r) => r.places),

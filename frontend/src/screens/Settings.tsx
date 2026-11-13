@@ -6,7 +6,7 @@ import { WhereYouAre } from '../components/WhereYouAre';
 import { LifeQuestions } from '../components/LifeQuestions';
 import { formatDateTime, formatSize, parsePrice } from '../labels';
 import { Link } from '../router';
-import { dayName, formatUsd, monthName, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
+import { apiKeyLine, apiKeySavedLine, dayName, formatUsd, monthName, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
 import { useCloset } from '../store';
 import type { ModelInfo, Profile, Settings, Storage, TaggingRoute, TaggingSpend, TaggingStatus } from '../types';
 
@@ -312,6 +312,7 @@ function TaggingSection({ offline, settings, onChange, reload, toast }: TaggingP
   const [status, setStatus] = useState<TaggingStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const keySource = settings?.api_key?.source ?? null;   // a key saved or removed changes what is ready
 
   useEffect(() => {
     if (offline) return;
@@ -325,7 +326,7 @@ function TaggingSection({ offline, settings, onChange, reload, toast }: TaggingP
     return () => {
       current = false;
     };
-  }, [offline, attempt]);
+  }, [offline, attempt, keySource]);
 
   const checkAgain = <button className="btn" onClick={() => { setAttempt((n) => n + 1); void reload(); }}>Check again</button>;
   const apiAllowed = !!settings?.tagging_api_enabled;
@@ -394,6 +395,95 @@ function TaggingSection({ offline, settings, onChange, reload, toast }: TaggingP
   );
 }
 
+const ANTHROPIC_KEYS = 'https://console.anthropic.com/settings/keys';
+
+/** Paste an API key: Closet checks it with Anthropic and keeps it in the computer's keychain. The page never
+ * receives the key back, so once saved it is only ever described, never shown. */
+function ApiKeyBox({ offline, settings, onChange, toast }: { offline: boolean; settings: Settings; onChange(s: Settings): void; toast(m: string, k?: 'ok' | 'error'): void }) {
+  const info = settings.api_key;
+  const [key, setKey] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [replacing, setReplacing] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const askForKey = info.can_save && (info.source !== 'keychain' || replacing);
+
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const saved = await api.saveApiKey(key.trim());
+      setKey('');
+      setReplacing(false);
+      onChange(saved);
+      toast(apiKeySavedLine(saved.api_key, saved.tagging_api_enabled));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    setBusy(true);
+    setError(null);
+    try {
+      const after = await api.removeApiKey();
+      setRemoving(false);
+      onChange(after);
+      toast(after.api_key.set ? 'Key removed from the keychain. The one in ANTHROPIC_API_KEY is still used.' : 'Key removed');
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="api-key" data-testid="api-key">
+      <p className={`state-line ${info.set ? 'state-ready' : 'state-missing'}`}>
+        <span className="state-dot" aria-hidden="true" />
+        <span>{apiKeyLine(info)}</span>
+      </p>
+      {askForKey && (
+        <form className="field-row field-row-inline" onSubmit={(e) => void save(e)}>
+          <label className="field">
+            <span>{info.source === 'keychain' ? 'New API key' : 'Paste your API key'}</span>
+            <input type="password" autoComplete="off" spellCheck={false} placeholder="sk-ant-…" value={key}
+              disabled={offline || busy} onChange={(e) => setKey(e.target.value)} />
+          </label>
+          <button className="btn" type="submit" disabled={offline || busy || key.trim() === ''}>{busy ? 'Checking…' : 'Save key'}</button>
+          {replacing && <button className="btn" type="button" disabled={busy} onClick={() => { setReplacing(false); setKey(''); setError(null); }}>Cancel</button>}
+        </form>
+      )}
+      {askForKey && (
+        <p className="hint">
+          Make one in your <a href={ANTHROPIC_KEYS} target="_blank" rel="noreferrer">Anthropic account, under API keys</a>, and paste it here. Closet checks it with Anthropic (this costs nothing) and keeps it in {info.where}. It is never shown again, not even here.
+        </p>
+      )}
+      {!info.can_save && !info.set && (
+        <p className="hint">This computer has no keychain Closet can keep a key in. Set ANTHROPIC_API_KEY on the computer instead.</p>
+      )}
+      {info.source === 'keychain' && !replacing && (
+        removing ? (
+          <p className="field-row field-row-inline">
+            <span>Remove the key from {info.where}?</span>
+            <button className="btn btn-danger" type="button" disabled={offline || busy} onClick={() => void remove()}>Remove</button>
+            <button className="btn" type="button" disabled={busy} onClick={() => setRemoving(false)}>Keep it</button>
+          </p>
+        ) : (
+          <p className="field-row field-row-inline">
+            <button className="btn" type="button" disabled={offline} onClick={() => { setReplacing(true); setError(null); }}>Replace key</button>
+            <button className="btn" type="button" disabled={offline} onClick={() => setRemoving(true)}>Remove key</button>
+          </p>
+        )
+      )}
+      {error && <p className="form-error" role="alert">{error}</p>}
+    </div>
+  );
+}
+
 function ApiKeySpend({ offline, settings, onChange, toast }: { offline: boolean; settings: Settings; onChange(s: Settings): void; toast(m: string, k?: 'ok' | 'error'): void }) {
   const [spend, setSpend] = useState<TaggingSpend | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -439,6 +529,7 @@ function ApiKeySpend({ offline, settings, onChange, toast }: { offline: boolean;
   return (
     <div className="api-spend" data-testid="api-spend">
       {settings.tagging_api_off && <p className="form-error" role="alert">{turnedOffLine(settings.tagging_api_off)}</p>}
+      <ApiKeyBox offline={offline} settings={settings} onChange={onChange} toast={toast} />
       <Toggle label="Allow the API key"
         hint="Lets Closet use your API key when your plan can't be used. Each photo is billed to your Anthropic account, and Closet stops before this month's spending would pass the limit below."
         checked={settings.tagging_api_enabled} disabled={offline}

@@ -330,3 +330,82 @@ def test_a_job_left_running_is_put_back_and_one_that_keeps_crashing_ends(client,
     conn.close()
     tag(services)
     assert row(cfg, item["id"])["tag_state"] == "failed" and tag_jobs(cfg, item["id"])[0]["state"] == "failed"
+
+
+# ---- Claude Code signed in with an API key that Anthropic turns down (the owner's first item in 0.2.0)
+
+KEY_REFUSED_REPLY = {"is_error": True, "result": "API Error: 400 Not a valid API key for this workspace"}
+
+
+@pytest.mark.parametrize("reply,expected", [
+    (KEY_REFUSED_REPLY, "KEY_REFUSED"),
+    ({"is_error": True, "result": "Invalid API key · Fix external API key"}, "KEY_REFUSED"),   # as Claude Code says it
+    ({"is_error": True, "result": "Invalid API key · Please run /login"}, "KEY_REFUSED"),
+    ({"is_error": True, "result": "Not logged in · Please run /login"}, "NOT_SIGNED_IN"),
+])
+def test_a_sign_in_that_does_not_work_is_a_route_problem_not_the_items(monkeypatch, reply, expected):
+    from types import SimpleNamespace
+
+    from PIL import Image
+
+    from closet.tagger import claude_cli
+    from closet.tagger.tagging import PlanSignIn
+    calls = []
+
+    def run(cmd, **kw):
+        calls.append(cmd)
+        return SimpleNamespace(returncode=1, stdout=json.dumps(reply), stderr="")
+    monkeypatch.setattr(claude_cli.subprocess, "run", run)
+    with pytest.raises(PlanSignIn) as e:
+        claude_cli.tag_item_cli("claude-haiku-5-5", [Image.new("RGBA", (20, 20))], exe="claude")
+    assert str(e.value) == getattr(claude_cli, expected)
+    assert len(calls) == 1   # not retried: asking again cannot help
+    # the router says the same, so the queue knows why it waits
+    monkeypatch.setattr(tagger_routes.claude_cli, "tag_item_cli", lambda *a, **k: (_ for _ in ()).throw(PlanSignIn("x")))
+    with pytest.raises(PlanSignIn):
+        tagjobs.claude_tagger([], ("plan",))
+
+
+def test_a_refused_sign_in_keeps_the_item_waiting_and_says_why(client, services, claude, cfg):
+    from closet.tagger.tagging import PlanSignIn
+    item = upload(client).json()
+    cut(services)
+
+    def refused(images, routes):
+        claude.calls.append(routes)
+        raise PlanSignIn("Claude Code on this computer is signed in with an API key that Anthropic turns down")
+    real, services.tag_worker.tagger = services.tag_worker.tagger, refused
+    services.tag_worker.routes = lambda: ("plan",)   # `claude auth status` says signed in: the key looks fine to it
+    for _ in range(4):   # more than three rounds: never ends in "failed"
+        assert tag(services) == 0
+    got = client.get(f"/api/items/{item['id']}").json()
+    assert got["tag_state"] == "waiting" and got["tag_error"] == tagjobs.SIGN_IN
+    job = tag_jobs(cfg, item["id"])[0]
+    assert job["attempts"] == 0 and job["state"] == "queued"
+
+    # once the owner signs in again, it is described by itself and the note goes
+    claude.mode = "answers"
+    services.tag_worker.tagger = real
+    assert tag(services) == 1
+    got = client.get(f"/api/items/{item['id']}").json()
+    assert got["tag_state"] == "done" and got["tag_error"] is None
+
+
+def test_the_sign_in_note_and_the_limit_note_replace_each_other_but_not_other_reasons(client, services, cfg):
+    from closet import spend
+    item = upload(client).json()
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        conn.execute("UPDATE items SET tag_state = 'waiting', tag_error = NULL WHERE id = ?", (item["id"],))
+        tagjobs.note_waiting(conn, tagjobs.SIGN_IN)
+        assert row(cfg, item["id"])["tag_error"] == tagjobs.SIGN_IN
+        tagjobs.note_waiting(conn, spend.LIMIT_REACHED)
+        assert row(cfg, item["id"])["tag_error"] == spend.LIMIT_REACHED
+        tagjobs.note_waiting(conn, None)
+        assert row(cfg, item["id"])["tag_error"] is None
+        conn.execute("UPDATE items SET tag_error = 'something else' WHERE id = ?", (item["id"],))
+        tagjobs.note_waiting(conn, tagjobs.SIGN_IN)
+        tagjobs.note_waiting(conn, None)
+        assert row(cfg, item["id"])["tag_error"] == "something else"
+    finally:
+        conn.close()

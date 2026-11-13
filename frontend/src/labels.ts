@@ -63,6 +63,11 @@ export const SWATCH: Record<string, string> = {
   multi: 'conic-gradient(#b8322e, #e9c547, #3f7a4c, #3c69b0, #6d4c8f, #b8322e)',
 };
 
+/** The swatch colour for a garment colour, grey for one without a swatch. */
+export function swatchOf(color: string): string {
+  return SWATCH[color] ?? '#cccccc';
+}
+
 const RATING_WORDS: Record<string, string> = { love: 'Love', like: 'Like', meh: 'Meh', dislike: 'Dislike' };
 export function ratingLabel(value: string): string {
   return RATING_WORDS[value] ?? humanize(value);

@@ -7,7 +7,7 @@ import {
   colorWords, type Gap, type GapsAnswer, HELP_LEVELS, helpOf, HIDE_REASONS, type HideReason, loadSavedGaps, lookForLines,
   type LookFor, otherFindings, reasonLabel, saveGaps, type Wish,
 } from '../gaps';
-import { SWATCH } from '../labels';
+import { swatchOf } from '../labels';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
 import { timeOf } from '../today';
@@ -572,7 +572,7 @@ function LookForBox({ look }: { look: LookFor | null }) {
       {colors && (
         <p className="look-colors">
           <span className="look-swatches" aria-hidden="true">
-            {look.colors.map((c) => <span key={c} className="swatch" style={{ background: SWATCH[c] ?? '#ccc' }} />)}
+            {look.colors.map((c) => <span key={c} className="swatch" style={{ background: swatchOf(c) }} />)}
           </span>
           <span>{colors}: these go with what you have</span>
         </p>
@@ -655,7 +655,7 @@ function WishCard({ wish, actions }: { wish: Wish; actions: Actions }) {
         <p className="wish-look">
           {lines.join(' · ')}
           {colors && <><br /><span className="look-swatches" aria-hidden="true">
-            {wish.look_for!.colors.map((c) => <span key={c} className="swatch" style={{ background: SWATCH[c] ?? '#ccc' }} />)}
+            {wish.look_for!.colors.map((c) => <span key={c} className="swatch" style={{ background: swatchOf(c) }} />)}
           </span> {colors}</>}
         </p>
       )}

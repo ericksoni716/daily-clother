@@ -9,6 +9,9 @@ build/
 # the built web page is copied into the backend at build time
 backend/closet/web/
 backend/closet/_build_version.py
+# local browser-test scratch (never part of the app)
+frontend/.e2e-work/
+frontend/.t/
 # never commit real photos, data or secrets
 private/
 *.env

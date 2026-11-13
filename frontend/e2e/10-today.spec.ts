@@ -60,18 +60,22 @@ test('today: Pieces / As worn draws the real demo outfit, remembers the view, an
   await expect(image).toHaveAttribute('src', /^blob:/);
   await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
   await expect(current(page).getByTestId('piece')).toHaveCount(0);
-  for (const [label, viewport] of [['computer', { width: 1280, height: 800 }], ['phone', { width: 390, height: 844 }]] as const) {
+  for (const [label, viewport] of [
+    ['computer', { width: 1440, height: 900 }],
+    ['small-computer', { width: 1280, height: 800 }],
+    ['phone', { width: 390, height: 844 }],
+  ] as const) {
     await page.setViewportSize(viewport);
     await page.evaluate(() => window.scrollTo(0, 0));
     await expect(image).toBeVisible();
     await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
-    if (label === 'computer') await expect(current(page).getByRole('button', { name: "I'm wearing this" })).toBeInViewport();
+    if (label !== 'phone') await expect(current(page).getByRole('button', { name: "I'm wearing this" })).toBeInViewport();
     const box = await image.boundingBox();
     expect(box!.height).toBeGreaterThanOrEqual(400);
     expect(box!.width).toBeGreaterThan(240);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
     const path = testInfo.outputPath(`today-as-worn-${label}.png`);
-    await page.screenshot({ path, fullPage: true });
+    await page.screenshot({ path });
     await testInfo.attach(`As worn on ${label}`, { path, contentType: 'image/png' });
   }
   await page.reload();
@@ -161,7 +165,7 @@ test('today: correcting a piece replaces its figure with loading, never the old 
   await page.request.patch(`/api/items/${id}`, { data: { color: original.color, color_hex: original.color_hex } });
 });
 
-test('figure pixels: an open shirt reveals the tee, a closed sweater covers it', async ({ page }) => {
+test('figure pixels: open and closed tops layer correctly, and trousers cover an open coat back', async ({ page }) => {
   await login(page);
   await useProfile(page, 'demo');
   const { items } = await (await page.request.get('/api/items?status=active')).json() as {
@@ -170,19 +174,28 @@ test('figure pixels: an open shirt reveals the tee, a closed sweater covers it',
   const tee = items.find((item) => item.name === 'White tee')!;
   const shirt = items.find((item) => item.name === 'Chambray shirt')!;
   const sweater = items.find((item) => item.name === 'Cream v-neck sweater')!;
+  const coat = items.find((item) => item.name === 'Black overcoat')!;
+  const trousers = items.find((item) => item.name === 'Grey wool trousers')!;
   expect(tee).toBeDefined();
   expect(shirt).toBeDefined();
   expect(sweater).toBeDefined();
-  const drawings: string[] = [];
-  for (const mid of [shirt, sweater]) {
+  expect(coat).toBeDefined();
+  expect(trousers).toBeDefined();
+  const drawings: { svg: string; sampleX: number; sampleY: number }[] = [];
+  for (const { mid, outer, bottom, sampleX, sampleY } of [
+    { mid: shirt.id, outer: null, bottom: null, sampleX: 200, sampleY: 180 },
+    { mid: sweater.id, outer: null, bottom: null, sampleX: 200, sampleY: 180 },
+    // The exact centre is between the legs here; sample the thigh inside the coat opening.
+    { mid: null, outer: coat.id, bottom: trousers.id, sampleX: 212, sampleY: 335 },
+  ]) {
     const response = await page.request.post('/api/outfits/figure', {
-      data: { base: tee.id, mid: mid.id, outer: null, bottom: null, shoes: null },
+      data: { base: tee.id, mid, outer, bottom, shoes: null },
     });
     expect(response.ok()).toBe(true);
     expect(response.headers()['content-type']).toContain('image/svg+xml');
-    drawings.push(await response.text());
+    drawings.push({ svg: await response.text(), sampleX, sampleY });
   }
-  const pixels = await page.evaluate(async (svgs) => Promise.all(svgs.map(async (svg) => {
+  const pixels = await page.evaluate(async (svgs) => Promise.all(svgs.map(async ({ svg, sampleX, sampleY }) => {
     const document = new DOMParser().parseFromString(svg, 'image/svg+xml');
     const [x, y, width, height] = document.documentElement.getAttribute('viewBox')!.split(/\s+/).map(Number);
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
@@ -196,21 +209,24 @@ test('figure pixels: an open shirt reveals the tee, a closed sweater covers it',
       const context = canvas.getContext('2d')!;
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
       // Templates share their original frame; the SVG viewBox crops that frame.
-      return [...context.getImageData(Math.floor((200 - x) * canvas.width / width), Math.floor((180 - y) * canvas.height / height), 1, 1).data];
+      return [...context.getImageData(Math.floor((sampleX - x) * canvas.width / width), Math.floor((sampleY - y) * canvas.height / height), 1, 1).data];
     } finally {
       URL.revokeObjectURL(url);
     }
   })), drawings);
   const rgb = (hex: string) => [1, 3, 5].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
   const difference = (pixel: number[], hex: string) => Math.max(...rgb(hex).map((channel, i) => Math.abs(pixel[i] - channel)));
-  const [open, closed] = pixels;
+  const [open, closed, belowHem] = pixels;
   expect(open[3]).toBe(255);
   expect(closed[3]).toBe(255);
+  expect(belowHem[3]).toBe(255);
   // Cloth texture can shift a channel slightly; the exposed garment must still be the nearer colour.
   expect(difference(open, tee.color_hex)).toBeLessThanOrEqual(24);
   expect(difference(open, tee.color_hex)).toBeLessThan(difference(open, shirt.color_hex));
   expect(difference(closed, sweater.color_hex)).toBeLessThanOrEqual(24);
   expect(difference(closed, sweater.color_hex)).toBeLessThan(difference(closed, tee.color_hex));
+  expect(difference(belowHem, trousers.color_hex), JSON.stringify({ belowHem, trousers: trousers.color_hex, coat: coat.color_hex })).toBeLessThanOrEqual(24);
+  expect(difference(belowHem, trousers.color_hex)).toBeLessThan(difference(belowHem, coat.color_hex));
 });
 
 test('today: the day, an outfit with its reasons, and the occasion changes the outfits', async ({ page }) => {
@@ -394,6 +410,7 @@ test('the app opens on Today once the closet can dress the owner', async ({ page
   await expect(fresh.locator('#today-title')).toBeVisible();
   await expect(fresh).toHaveURL(/\/today$/);
   await expect(fresh.locator('nav.sidebar').getByRole('link', { name: 'Today' })).toHaveAttribute('aria-current', 'page');
+  await expect(current(fresh).getByTestId('piece').first()).toBeVisible();
 });
 
 for (const [label, viewport] of [['phone', { width: 390, height: 844 }], ['computer', { width: 1280, height: 800 }]] as const) {

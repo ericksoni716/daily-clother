@@ -41,3 +41,12 @@ was also far more accurate here.
 Found on the way: the app's default background-removal model (isnet-general-use) treats a plaid's dark
 squares as background, so a plaid item's cutout is see-through in the shape of its own pattern; u2net keeps
 it solid. To be fixed in the app (holes inside the garment's outline must never be removed).
+
+- `holes2.py`: background removal for patterned items. `see_through` measures how much of the garment's closed
+  outline the model left out; above 20% (a plaid's checks, bold stripes), the second model (u2net) is asked
+  as well and the two masks combined. On eight test shirts this turned a 22% solid plaid into 66% and a 28%
+  multi-stripe into 41%, and left the other six untouched. Filling holes by size was tried and dropped: a
+  plaid's checks join into one grid, and closing the mask filled the gaps between arms and body.
+- Placement (`placed_from_landmarks`, and `Swatch.phase` / `Swatch.length_frac` in the app's renderer): the
+  flattened repeat is lined up on the button line, PLACE_AT of the way from neck to hem, and sized against the
+  neck-to-hem length; the landmarks come from Claude (`landmarks_prompt.md`).

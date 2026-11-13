@@ -17,6 +17,7 @@ from .templates import H, Shape, W, _x_on, build
 
 STYLES = ("flat", "line", "soft", "traced")
 CX_ROT = (200, 120)  # patterns are turned about the middle of the chest
+PLACE_AT = 0.35      # where along the centre line, from neck to hem, a placed pattern is lined up
 CARD = "#f1eee8"
 INK = "#26231f"
 
@@ -100,7 +101,17 @@ def _defs_for_fill(fill: Fill, shape: Shape, uid: str, garment_w: float, garment
         tw = sw.width_frac * garment_w
         th = tw * sw.image.height / sw.image.width
         uri = fills.data_uri(sw.image, 360, "JPEG", 84)
-        return (f'<pattern id="p{uid}" patternUnits="userSpaceOnUse" x="{x0:.1f}" y="{y0:.1f}" width="{tw:.2f}" height="{th:.2f}">'
+        px, py = x0, y0
+        if sw.phase is not None and "neck" in shape.anchors and "hem" in shape.anchors:
+            # placed: the tile's point sw.phase lands on the centre line PLACE_AT of the way from neck to hem,
+            # and the tile is sized against the neck-to-hem length, as it was measured on the garment
+            (nx, ny), (hx, hy) = shape.anchors["neck"], shape.anchors["hem"]
+            if sw.length_frac:
+                tw = sw.length_frac * (hy - ny)
+                th = tw * sw.image.height / sw.image.width
+            ax, ay = nx + PLACE_AT * (hx - nx), ny + PLACE_AT * (hy - ny)
+            px, py = ax - sw.phase[0] * tw, ay - sw.phase[1] * th
+        return (f'<pattern id="p{uid}" patternUnits="userSpaceOnUse" x="{px:.1f}" y="{py:.1f}" width="{tw:.2f}" height="{th:.2f}">'
                 f'<image href="{uri}" width="{tw + 0.4:.2f}" height="{th + 0.4:.2f}" preserveAspectRatio="none"/></pattern>',
                 f"url(#p{uid})")
     return "", fill.color

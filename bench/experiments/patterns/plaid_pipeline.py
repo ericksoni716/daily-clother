@@ -176,3 +176,103 @@ def no_repeat(cut, log=print, lean_deg=None):
     tile = (warp[None, :, :] + weft[:, None, :]) / 2
     log(f"  turned upright by {-ang:.1f} degrees; {len(a)} px across x {len(d)} px down, measured whole")
     return dict(tile=dewarp.lab_to_rgb(tile.astype(np.float32)), width_frac=len(a) / up.width)
+
+
+CHEST = 0.3   # the same chest height the renderer lines the pattern up at
+
+
+def placed_phase(cut, info, P, Q):
+    """Where the garment's centre line at chest height falls within the flattened repeat (fractions), and the
+    repeat's size as a fraction of the garment's width, both measured on the garment itself."""
+    m = dewarp.garment_mask(cut, thresh=128)
+    ys, xs = np.where(m.any(1))[0], np.where(m.any(0))[0]
+    gx0, gx1, gy0, gy1 = xs.min(), xs.max(), ys.min(), ys.max()
+    xc, yc = int((gx0 + gx1) / 2), int(gy0 + CHEST * (gy1 - gy0))
+    ox, oy = info["ox"], info["oy"]
+    u = ((xc - ox[yc, xc]) % P) / P
+    v = ((yc - oy[yc, xc]) % Q) / Q
+    return (float(u), float(v)), P / (gx1 - gx0)
+
+
+def landmarks(cut, tile_lab, info, P, Q, search=0.25):
+    """The garment's button line, neck and hem in the photo. The button line is where the plaid is interrupted
+    from top to bottom (the two fronts do not line up across it, and the strip itself is sewn differently):
+    the column, near the middle, that disagrees most with the flattened repeat along its length."""
+    rgb = np.asarray(cut.convert("RGB")); lab = dewarp.to_lab(rgb)
+    m = dewarp.garment_mask(cut, thresh=128)
+    H, W = m.shape
+    ox, oy = info["ox"], info["oy"]
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    up = tile_lab.shape[1] // P
+    tu = np.minimum(((xx - ox) % P) * up, P * up - 1).astype(int)
+    tv = np.minimum(((yy - oy) % Q) * up, Q * up - 1).astype(int)
+    resid = np.where(m, np.linalg.norm(lab - tile_lab[tv, tu], axis=2), np.nan)
+    xs = np.where(m.any(0))[0]
+    gx0, gx1 = xs.min(), xs.max()
+    lo, hi = int(gx0 + (0.5 - search) * (gx1 - gx0)), int(gx0 + (0.5 + search) * (gx1 - gx0))
+    with np.errstate(all="ignore"):
+        col = np.nanmedian(resid[:, lo:hi], 0)
+    k = max(3, P // 6)
+    col_s = np.convolve(np.nan_to_num(col, nan=np.nanmedian(col)), np.ones(k) / k, "same")
+    bx = lo + int(np.argmax(col_s))
+    rows = np.where(m[:, bx])[0]
+    return dict(button_x=bx, neck_y=int(rows.min()), hem_y=int(rows.max()), score=float(col_s.max() / np.nanmedian(col_s)))
+
+
+def find_buttons(cut):
+    """The button line: round shapes (Hough circles) of a button's size, of which the largest group lying in one
+    near-vertical row at fairly even spacing is taken. Returns (x at each y as a line fit, the buttons) or None."""
+    rgb = np.asarray(cut.convert("RGB")); m = dewarp.garment_mask(cut, thresh=128)
+    xs, ys = np.where(m.any(0))[0], np.where(m.any(1))[0]
+    gw, gh = xs.max() - xs.min(), ys.max() - ys.min()
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
+    gray = cv2.GaussianBlur(gray, (0, 0), max(1.0, gw / 600))
+    rmin, rmax = max(2, int(gw * 0.006)), max(4, int(gw * 0.022))
+    circ = cv2.HoughCircles(gray, cv2.HOUGH_GRADIENT, dp=1.2, minDist=rmin * 4, param1=90, param2=14,
+                            minRadius=rmin, maxRadius=rmax)
+    if circ is None:
+        return None
+    pts = [(x, y, r) for x, y, r in circ[0] if m[int(min(y, m.shape[0] - 1)), int(min(x, m.shape[1] - 1))]]
+    best = None
+    for x0, y0, _ in pts:
+        for x1, y1, _ in pts:
+            if y1 <= y0 + gh * 0.05:
+                continue
+            slope = (x1 - x0) / (y1 - y0)
+            if abs(slope) > 0.15:
+                continue
+            row = [(x, y, r) for x, y, r in pts if abs(x - (x0 + slope * (y - y0))) < max(3, gw * 0.008)]
+            if len(row) < 3:
+                continue
+            yy = np.sort([y for _, y, _ in row]); gaps = np.diff(yy)
+            even = np.median(gaps) > 0 and np.std(gaps) / np.median(gaps) < 0.5
+            score = len(row) + (2 if even else 0)
+            if best is None or score > best[0]:
+                best = (score, x0, y0, slope, row)
+    if best is None:
+        return None
+    _, x0, y0, slope, row = best
+    return dict(x_at=lambda y: x0 + slope * (y - y0), buttons=row, slope=float(slope))
+
+
+PLACE_AT = 0.35   # where along the centre line, from neck to hem, the pattern is lined up
+
+
+def placed_from_landmarks(info, P, Q, lm, photo_scale=1.0):
+    """Where the repeat sits at the button line, PLACE_AT of the way from neck to hem, and the repeat's size as
+    a fraction of the neck-to-hem length. `lm` is in the coordinates of the image Claude saw; photo_scale turns
+    them into the cutout's."""
+    nx, ny = lm["neck_center"]["x"] * photo_scale, lm["neck_center"]["y"] * photo_scale
+    hx, hy = lm["hem_center"]["x"] * photo_scale, lm["hem_center"]["y"] * photo_scale
+    bl = [(b["x"] * photo_scale, b["y"] * photo_scale) for b in lm["button_line"]]
+    ay = ny + PLACE_AT * (hy - ny)
+    if len(bl) >= 2:   # the button line's x at that height
+        ys_, xs_ = np.array([b[1] for b in bl]), np.array([b[0] for b in bl])
+        ax = float(np.polyval(np.polyfit(ys_, xs_, 1), ay))
+    else:
+        ax = nx + PLACE_AT * (hx - nx)
+    ox, oy = info["ox"], info["oy"]
+    iy, ix = int(round(ay)), int(round(ax))
+    u = ((ax - ox[iy, ix]) % P) / P
+    v = ((ay - oy[iy, ix]) % Q) / Q
+    return (float(u), float(v)), P / (hy - ny), (ax, ay)

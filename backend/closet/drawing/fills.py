@@ -108,6 +108,12 @@ class Swatch:
     box: tuple[int, int, int, int]  # where it came from in the cutout
     method: str                 # "periodic" or "mirror"
     period: tuple[int, int] | None = None
+    # where the garment's centre line, PLACE_AT from neck to hem, falls within the tile (fractions of its width and
+    # height), so the pattern is drawn lined up with the buttons as it is on the garment; None = from the corner
+    phase: tuple[float, float] | None = None
+    # with a phase: the tile's width as a fraction of the garment's neck-to-hem length (sizes it against the body,
+    # not the outline, whose width depends on how the sleeves lie)
+    length_frac: float | None = None
 
 
 def _flatten_lighting(rgb: np.ndarray) -> np.ndarray:

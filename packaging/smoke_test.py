@@ -49,7 +49,7 @@ from pathlib import Path
 
 DEMO_ITEMS = 30
 PASSPHRASE = "smoke-test-passphrase"
-BASE_CHECKS = ("webp", "heic", "onnxruntime", "database", "web_page", "model_state")
+BASE_CHECKS = ("webp", "heic", "onnxruntime", "database", "web_page", "model_state", "tagger")
 
 # Never route loopback requests through a proxy from the environment.
 _opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))

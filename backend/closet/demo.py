@@ -4,6 +4,8 @@ It has its own database and images under `demo/` in the data folder, is
 never backed up, and can be opened and closed from Settings. Its photos are
 open-licence pictures (credits in `demo_data/CREDITS.md`) whose cutouts were
 made in advance, so the demo works before the model has been downloaded.
+It is never sent to Claude: each item comes with a stored tagging answer made
+by `tools/make_demo.py` from what it knows about the item.
 """
 from __future__ import annotations
 
@@ -26,10 +28,11 @@ def ensure(cfg: Config) -> int:
     db.migrate(path, cfg.local_backups_dir)
     conn = db.connect(path)
     try:
-        if conn.execute("SELECT COUNT(*) FROM items").fetchone()[0]:
-            return 0
         source = bundle_dir() / "demo_data"
         data = json.loads((source / "items.json").read_text(encoding="utf-8"))
+        if conn.execute("SELECT COUNT(*) FROM items").fetchone()[0]:
+            _answers(conn, data)   # a demo closet made before the answers existed gets them now
+            return 0
         dest = cfg.images_dir("demo")
         added = 0
         conn.execute("BEGIN")
@@ -61,6 +64,7 @@ def ensure(cfg: Config) -> int:
             _history(conn, it)
             added += 1
         conn.execute("COMMIT")
+        _answers(conn, data)
         return added
     except Exception:
         if conn.in_transaction:
@@ -68,6 +72,17 @@ def ensure(cfg: Config) -> int:
         raise
     finally:
         conn.close()
+
+
+def _answers(conn, data: dict) -> None:
+    """Store each demo item's answer, made in advance, as if Claude had given it (route "demo", no model)."""
+    conn.execute("BEGIN")
+    for it in data["items"]:
+        if it.get("answer"):
+            conn.execute("UPDATE items SET tag_state = 'done', tag_error = NULL, tag_answer = ?, tag_schema_version = ?, "
+                         "tag_route = 'demo', tag_model = NULL, tagged_at = created_at WHERE id = ? AND tag_answer IS NULL",
+                         (json.dumps(it["answer"]), data.get("schema_version"), it["id"]))
+    conn.execute("COMMIT")
 
 
 def _history(conn, it: dict) -> None:

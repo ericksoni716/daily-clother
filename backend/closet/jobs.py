@@ -3,6 +3,8 @@
 Jobs live in the database, so nothing is lost if the program is closed:
 unfinished work is picked up again on the next start. Uploads never wait for
 this queue, and jobs wait (without failing) until the model file is ready.
+Once a cutout is ready the item is queued for tagging (`tagjobs.py`), in the
+same table.
 """
 from __future__ import annotations
 
@@ -13,7 +15,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, images
+from . import db, images, tagjobs
 from .config import Config
 from .state import State
 
@@ -34,17 +36,21 @@ def requeue_interrupted(conn) -> int:
     """Jobs left 'running' by a previous run go back in the queue."""
     cur = conn.execute("UPDATE jobs SET state = 'queued', updated_at = ? WHERE state = 'running'", (db.now(),))
     conn.execute("UPDATE items SET cutout_state = 'pending' WHERE cutout_state = 'processing'")
+    conn.execute("UPDATE items SET tag_state = 'waiting' WHERE tag_state = 'working'")
     return cur.rowcount
 
 
 def pending_count(conn) -> int:
-    return conn.execute("SELECT COUNT(*) FROM jobs WHERE state IN ('queued', 'running')").fetchone()[0]
+    return conn.execute("SELECT COUNT(*) FROM jobs WHERE kind = 'cutout' AND state IN ('queued', 'running')").fetchone()[0]
 
 
-def run_one(conn, images_dir: Path, cutter: Cutter) -> bool:
-    """Process the oldest queued job. Returns False when the queue is empty."""
+def run_one(conn, images_dir: Path, cutter: Cutter, tag: bool = True) -> bool:
+    """Process the oldest queued cutout job. Returns False when there is none.
+
+    With `tag`, a finished cutout queues the item for tagging (not in the demo closet, which is never sent to Claude).
+    """
     conn.execute("BEGIN IMMEDIATE")
-    job = conn.execute("SELECT * FROM jobs WHERE state = 'queued' ORDER BY id LIMIT 1").fetchone()
+    job = conn.execute("SELECT * FROM jobs WHERE kind = 'cutout' AND state = 'queued' ORDER BY id LIMIT 1").fetchone()
     if job is None:
         conn.execute("COMMIT")
         return False
@@ -77,6 +83,8 @@ def run_one(conn, images_dir: Path, cutter: Cutter) -> bool:
     conn.execute("UPDATE photos SET cutout_path = ?, cutout_thumb_path = ? WHERE id = ?", (rel, rel_thumb, job["photo_id"]))
     conn.execute("UPDATE jobs SET state = 'done', error = NULL, updated_at = ? WHERE id = ?", (t, job["id"]))
     conn.execute("UPDATE items SET cutout_state = 'ready', cutout_error = NULL, updated_at = ? WHERE id = ?", (t, job["item_id"]))
+    if tag:
+        tagjobs.enqueue(conn, job["item_id"])
     conn.execute("COMMIT")
     return True
 
@@ -84,8 +92,9 @@ def run_one(conn, images_dir: Path, cutter: Cutter) -> bool:
 class Worker:
     """One thread that drains the active closet's queue whenever the model is ready."""
 
-    def __init__(self, cfg: Config, state: State, is_ready: Callable[[], bool], cutter: Cutter):
-        self.cfg, self.state, self.is_ready, self.cutter = cfg, state, is_ready, cutter
+    def __init__(self, cfg: Config, state: State, is_ready: Callable[[], bool], cutter: Cutter,
+                 on_done: Callable[[], None] = lambda: None):
+        self.cfg, self.state, self.is_ready, self.cutter, self.on_done = cfg, state, is_ready, cutter, on_done
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -123,8 +132,11 @@ class Worker:
             return done
         conn = db.connect(path)
         try:
-            while not self._stop.is_set() and self.is_ready() and run_one(conn, self.cfg.images_dir(profile), self.cutter):
+            while not self._stop.is_set() and self.is_ready() and run_one(conn, self.cfg.images_dir(profile), self.cutter,
+                                                                          tag=profile != "demo"):
                 done += 1
         finally:
             conn.close()
+        if done:
+            self.on_done()   # wake the tagging worker for the cutouts just made
         return done

@@ -147,7 +147,8 @@ elif IS_MAC:
 else:
     tray_imports = ["pystray._xorg", "pystray._appindicator", "pystray._gtk"]
 
-hiddenimports = closet_modules + ["_pillow_heif", "pystray", "pystray._dummy", "truststore", "certifi"] + tray_imports
+hiddenimports = closet_modules + ["_pillow_heif", "pystray", "pystray._dummy", "truststore", "certifi",
+                                   "anthropic", "anthropic.lib._parse._transform"] + tray_imports
 
 excludes = [
     "tkinter",

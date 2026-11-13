@@ -31,6 +31,7 @@ from . import (
     outfits,
     phone,
     review,
+    saved_trips,
     storage,
     tagjobs,
     vocab,
@@ -399,6 +400,54 @@ def create_app(sv: Services) -> FastAPI:
 
         # asks Open-Meteo (a few seconds at most) and compares many outfits, so keep it off the event loop
         return await run_in_threadpool(work)
+
+    # ----------------------------------------------------------------- trips
+    async def trip_body(request: Request):
+        try:
+            return await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+
+    async def trip_work(fn, *args):
+        path = cfg.db_path(state.get("profile"))
+
+        def work():
+            conn = db.connect(path)
+            try:
+                return fn(conn, *args)
+            except items.ItemError:
+                raise
+            except ValueError as e:
+                raise HTTPException(422, str(e)) from None
+            finally:
+                conn.close()
+
+        return await run_in_threadpool(work)
+
+    @app.post("/api/trips/plan", dependencies=protected)
+    async def preview_trip(request: Request):
+        return await trip_work(saved_trips.preview, state, await trip_body(request))
+
+    @app.post("/api/trips", status_code=201, dependencies=protected)
+    async def create_trip(request: Request):
+        return await trip_work(saved_trips.create, state, await trip_body(request))
+
+    @app.get("/api/trips", dependencies=protected)
+    async def list_trips():
+        return {"trips": await trip_work(saved_trips.list_trips)}
+
+    @app.get("/api/trips/{trip_id}", dependencies=protected)
+    async def open_trip(trip_id: str):
+        return await trip_work(saved_trips.open_trip, state, trip_id)
+
+    @app.patch("/api/trips/{trip_id}", dependencies=protected)
+    async def patch_trip(trip_id: str, request: Request):
+        return await trip_work(saved_trips.patch, state, trip_id, await trip_body(request))
+
+    @app.delete("/api/trips/{trip_id}", status_code=204, dependencies=protected)
+    async def delete_trip(trip_id: str):
+        await trip_work(saved_trips.delete, trip_id)
+        return Response(status_code=204)
 
     # ----------------------------------------------------------------- gaps
     gaps_cache: dict[str, tuple[str, dict]] = {}  # profile -> (what the closet and wear log were, the answer)

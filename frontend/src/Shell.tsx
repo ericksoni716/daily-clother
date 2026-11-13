@@ -8,6 +8,7 @@ import { AddScreen } from './screens/Add';
 import { SettingsScreen } from './screens/Settings';
 import { ItemDetail } from './screens/ItemDetail';
 import { TodayScreen } from './screens/Today';
+import { TripsScreen } from './screens/Trips';
 import { ReviewBadge, ReviewIcon, ReviewScreen, useReviewCount } from './screens/Review';
 
 export function Shell({ version }: { version: string }) {
@@ -23,6 +24,7 @@ export function Shell({ version }: { version: string }) {
   else if (route.name === 'add') content = <AddScreen />;
   else if (route.name === 'settings') content = <SettingsScreen version={version} />;
   else if (route.name === 'review') content = <ReviewScreen />;
+  else if (route.name === 'trips') content = <TripsScreen key={route.tripId} tripId={route.tripId} />;
   else if (route.itemId && !wide) content = <ItemDetail key={route.itemId} id={route.itemId} status={route.status} />;
   else content = <ClosetScreen status={route.status} selectedId={route.itemId} wide={wide} />;
 
@@ -75,6 +77,7 @@ function TopBanners() {
 
 const NAV = [
   { key: 'today', to: '/today', label: 'Today', Icon: SunIcon },
+  { key: 'trips', to: '/trips', label: 'Trips', Icon: ArchiveIcon },
   { key: 'closet', to: '/', label: 'Closet', Icon: HangerIcon },
   { key: 'archived', to: '/archived', label: 'Archived', Icon: ArchiveIcon },
   { key: 'review', to: '/review', label: 'Review', Icon: ReviewIcon },
@@ -106,7 +109,7 @@ function Sidebar({ section, offline, toReview }: { section: string; offline: boo
 }
 
 function TabBar({ section, offline, toReview }: { section: string; offline: boolean; toReview: number | null }) {
-  const tabs = NAV.filter((n) => n.key !== 'archived');
+  const tabs = NAV.filter((n) => n.key !== 'archived' && n.key !== 'trips');
   return (
     <nav className="tabbar" aria-label="Main">
       {tabs.map(({ key, to, label, Icon }) => {

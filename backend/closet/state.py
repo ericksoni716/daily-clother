@@ -24,6 +24,7 @@ DEFAULTS: dict[str, Any] = {
     "tagging_api_enabled": False,  # may tagging use the API key (billed)? Off until the owner turns it on in Settings
     "place": None,            # {"name", "latitude", "longitude", "timezone"}, chosen in Settings
     "weather": None,          # the last forecast for the place: {"key", "fetched", "offset", "answer"}
+    "trip_weather": {},       # bounded forecast/usual weather cache, never closet contents
 }
 
 

@@ -1,5 +1,6 @@
 import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue } from './types';
 import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
+import { forgetTrips, type Trip, type TripChoices, type TripPatch, type TripPreview } from './trips';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
 export class ApiError extends Error {
@@ -150,6 +151,12 @@ export const api = {
   weather: () => request<WeatherLookup>('/api/weather'),
   today: (choices: TodayRequest, signal?: AbortSignal) =>
     request<TodayAnswer>('/api/outfits/today', { method: 'POST', body: choices, signal }),
+  trips: () => request<{ trips: Trip[] }>('/api/trips').then((r) => r.trips),
+  trip: (id: string) => request<Trip>(`/api/trips/${encodeURIComponent(id)}`),
+  planTrip: (body: TripChoices) => request<TripPreview>('/api/trips/plan', { method: 'POST', body }),
+  saveTrip: (body: TripChoices) => request<Trip>('/api/trips', { method: 'POST', body }),
+  patchTrip: (id: string, body: TripPatch) => request<Trip>(`/api/trips/${encodeURIComponent(id)}`, { method: 'PATCH', body }),
+  deleteTrip: (id: string) => request<void>(`/api/trips/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   backup: () => request<BackupRecord>('/api/backup', { method: 'POST' }),
   setProfile: (profile: Profile) => request<{ profile: Profile }>('/api/profile', { method: 'POST', body: { profile } }),
   quit: () => request<void>('/api/quit', { method: 'POST' }),
@@ -158,6 +165,7 @@ export const api = {
 /** Removes the saved copies of closet data (kept: the app's own files). */
 export async function clearSavedData(): Promise<void> {
   forgetSaved();
+  forgetTrips();
   if (!('caches' in window)) return;
   const names = await caches.keys();
   await Promise.all(names.filter((n) => n.startsWith('closet-data') || n.startsWith('closet-media')).map((n) => caches.delete(n)));

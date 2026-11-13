@@ -220,6 +220,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
       <header className="page-header today-header">
         <div className="page-title-row">
           <h1 id="today-title">Today</h1>
+          <Link to="/trips" className="btn btn-ghost">Trips · plan what to pack</Link>
           <span className="count">{longDate(today)}</span>
         </div>
       </header>

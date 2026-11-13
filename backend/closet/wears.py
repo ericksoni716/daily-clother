@@ -7,6 +7,7 @@ again only lowers that count if it was recorded after the wash.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from datetime import date
 
 from . import db, items
@@ -90,11 +91,16 @@ def _ids(item_ids: object) -> list[str]:
     return unique
 
 
-def add_many(conn, item_ids: object, worn_on: str | None = None) -> dict:
+# Called inside the transaction with (day, item ids whose wear changed, time), to change more in the same go.
+Also = Callable[[str, list[str], str], None]
+
+
+def add_many(conn, item_ids: object, worn_on: str | None = None, also: Also | None = None) -> dict:
     """Record a wear for every item on one day, all or nothing (an outfit worn together).
 
     Returns {worn_on, recorded, items}: `recorded` lists the items whose wear is new (an item already
     recorded for that day is left as it is), `items` every item as `GET /api/items/{id}` gives it.
+    `also` is called before the wears are committed (the worn outfit is stored in the same go).
     """
     ids = _ids(item_ids)
     for item_id in ids:
@@ -111,6 +117,8 @@ def add_many(conn, item_ids: object, worn_on: str | None = None) -> dict:
                             (item_id, day.isoformat(), t)).rowcount == 1:
                 conn.execute("UPDATE items SET wears_since_wash = wears_since_wash + 1, updated_at = ? WHERE id = ?", (t, item_id))
                 recorded.append(item_id)
+        if also:
+            also(day.isoformat(), recorded, t)
         conn.execute("COMMIT")
     except Exception:
         if conn.in_transaction:
@@ -120,7 +128,7 @@ def add_many(conn, item_ids: object, worn_on: str | None = None) -> dict:
             "items": [items.detail(conn, items.get(conn, i)) for i in ids]}
 
 
-def remove_many(conn, item_ids: object, worn_on: object) -> dict:
+def remove_many(conn, item_ids: object, worn_on: object, also: Also | None = None) -> dict:
     """Remove the wear on one day from every item, all or nothing (undoing an outfit worn together).
 
     An item with no wear that day is left as it is. Returns {worn_on, removed, items}.
@@ -145,6 +153,8 @@ def remove_many(conn, item_ids: object, worn_on: object) -> dict:
             conn.execute("UPDATE items SET wears_since_wash = max(0, wears_since_wash - ?), updated_at = ? WHERE id = ?",
                          (1 if counted else 0, t, item_id))
             removed.append(item_id)
+        if also:
+            also(day, removed, t)
         conn.execute("COMMIT")
     except Exception:
         if conn.in_transaction:

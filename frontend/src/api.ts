@@ -1,6 +1,7 @@
 import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue } from './types';
 import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { Insights } from './insights';
+import type { OutfitSent, Rating, Reason, WornOutfit, WornPage } from './worn';
 import type { GapsAnswer, HideReason, Wish } from './gaps';
 import type { FigurePieces } from './figure';
 
@@ -125,9 +126,20 @@ export const api = {
   unwear: (id: string, day: string) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}/wears/${encodeURIComponent(day)}`, { method: 'DELETE' }),
   /** Records a wear for several items at once (an outfit), on one day. */
-  wearMany: (ids: string[]) => request<WearManyAnswer>('/api/wears', { method: 'POST', body: { item_ids: ids } }),
-  unwearMany: (ids: string[], day: string) =>
-    request<WearManyAnswer>('/api/wears/remove', { method: 'POST', body: { item_ids: ids, worn_on: day } }),
+  wearMany: (ids: string[], outfit?: OutfitSent) =>
+    request<WearManyAnswer>('/api/wears', { method: 'POST', body: outfit ? { item_ids: ids, outfit } : { item_ids: ids } }),
+  /** With `outfitId`, the outfit remembered with the wears is removed too (`ids` may then be empty). */
+  unwearMany: (ids: string[], day: string, outfitId?: string) =>
+    request<WearManyAnswer>('/api/wears/remove', {
+      method: 'POST', body: outfitId ? { item_ids: ids, worn_on: day, outfit_id: outfitId } : { item_ids: ids, worn_on: day },
+    }),
+  wornOutfits: (before?: string | null, limit = 20) =>
+    request<WornPage>(`/api/outfits/worn?limit=${limit}${before ? `&before=${encodeURIComponent(before)}` : ''}`),
+  recordOutfit: (ids: string[], day?: string) =>
+    request<WornOutfit>('/api/outfits/worn', { method: 'POST', body: day ? { item_ids: ids, worn_on: day } : { item_ids: ids } }),
+  rateOutfit: (id: string, rating: Rating | null, reasons: Reason[] = [], note?: string | null) =>
+    request<WornOutfit>(`/api/outfits/worn/${encodeURIComponent(id)}/rating`, { method: 'PUT', body: { rating, reasons, note: note || null } }),
+  removeOutfit: (id: string) => request<void>(`/api/outfits/worn/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   setLaundry: (id: string, state: Laundry) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}/laundry`, { method: 'POST', body: { state } }),
   retag: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/retag`, { method: 'POST' }),

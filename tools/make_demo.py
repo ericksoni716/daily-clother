@@ -122,6 +122,9 @@ HISTORY = {
     "Black jeans": ([4, 11], 12, False),
     "Plaid flannel shirt": ([9], 15, False),
     "Light wash jeans": ([2], 3, False),
+    "Brown corduroy trousers": ([6, 9], 10, False),
+    "Tan chore jacket": ([6, 13], None, False),
+    "Oatmeal henley": ([13], 14, False),
 }
 
 # name -> what was paid, in cents (US dollars), so Insights has a cost per wear to show; the rest have no price.
@@ -150,6 +153,28 @@ UNSURE = {
     "Tan chore jacket": dict(category=0.65),                       # a jacket or a short coat
     "Grey wool trousers": dict(formality=0.75),                    # business or smart casual
 }
+
+# Outfits worn on some of those days, by days ago: the pieces by place (names), the day they were offered for,
+# and how they went. Their pieces' wears are in HISTORY. The newest has no rating, so Today asks about it.
+OUTFITS = [
+    dict(days_ago=1, pieces=dict(base="White tee", bottom="Dark indigo jeans", shoes="White canvas sneakers"),
+         context=dict(low_c=9, high_c=16, rain=False, occasion="casual", mood=None), score=74,
+         reasons=["A casual outfit for a mild day."], rating=None, rating_reasons=[]),
+    dict(days_ago=2, pieces=dict(base="Blue oxford shirt", mid="Grey hoodie", bottom="Light wash jeans", shoes="White canvas sneakers"),
+         context=dict(low_c=12, high_c=18, rain=False, occasion="casual", mood=None), score=68,
+         reasons=["Two layers for a mild day."], rating="fine", rating_reasons=["too_warm"]),
+    dict(days_ago=6, pieces=dict(base="White tee", mid="Burgundy cable sweater", outer="Tan chore jacket",
+                                 bottom="Brown corduroy trousers", shoes="Brown boots"),
+         context=dict(low_c=4, high_c=10, rain=False, occasion="smart_casual", mood=None), score=81,
+         reasons=["Three layers for a cold day.", "Warm browns with a burgundy sweater."], rating="loved", rating_reasons=["compliments"]),
+    dict(days_ago=9, pieces=dict(base="Plaid flannel shirt", bottom="Brown corduroy trousers", shoes="White canvas sneakers"),
+         context=dict(low_c=8, high_c=13, rain=False, occasion="casual", mood=None), score=63,
+         reasons=["A flannel shirt for a cool day."], rating="not_again", rating_reasons=["too_cold"]),
+    dict(days_ago=13, pieces=dict(base="Oatmeal henley", mid="Burgundy cable sweater", outer="Tan chore jacket",
+                                  bottom="Dark indigo jeans", shoes="Brown boots"),
+         context=dict(low_c=2, high_c=9, rain=False, occasion="casual", mood=None), score=79,
+         reasons=["Three layers for a cold day."], rating="loved", rating_reasons=[]),
+]
 
 
 def _named(hex_color: str | None) -> str:
@@ -253,11 +278,25 @@ def add_prices(items: list[dict]) -> None:
                 it["answer"] = answer
 
 
+def worn_outfits() -> list[dict]:
+    """OUTFITS as items.json keeps them: pieces by item id, every place given."""
+    out = []
+    for o in OUTFITS:
+        for name in o["pieces"].values():
+            assert o["days_ago"] in HISTORY[name][0], f"{name} is not worn {o['days_ago']} days ago in HISTORY"
+        pieces = {pl: iid(o["pieces"][pl]) if o["pieces"].get(pl) else None for pl in ("base", "mid", "outer", "bottom", "shoes")}
+        out.append(dict(id=uuid.uuid5(NS, f"outfit/{o['days_ago']}").hex, days_ago=o["days_ago"], recorded_by="today",
+                        pieces={**pieces, "accessories": []}, context=o["context"], score=o["score"], reasons=o["reasons"],
+                        warnings=[], rating=o["rating"], rating_reasons=o["rating_reasons"], rating_note=None))
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--models-dir", type=Path, default=ROOT / "bench" / "models")
     ap.add_argument("--answers-only", action="store_true", help="only rewrite the stored tagging answers in items.json")
     ap.add_argument("--prices-only", action="store_true", help="only rewrite the prices in items.json")
+    ap.add_argument("--history-only", action="store_true", help="only rewrite the wear history and worn outfits in items.json")
     a = ap.parse_args()
     cases = {c["id"]: c for c in json.loads((ROOT / "bench" / "hardcases" / "cases.json").read_text())["cases"]}
     if a.prices_only:
@@ -268,15 +307,23 @@ def main() -> None:
         (OUT / "items.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"prices written for {sum('price_cents' in it for it in data['items'])} items")
         return
-    if a.answers_only:
+    if a.answers_only or a.history_only:
         data = json.loads((OUT / "items.json").read_text(encoding="utf-8"))
-        by_name = answers(cases)
-        for it in data["items"]:
-            it["answer"] = by_name[it["name"]]
+        if a.answers_only:
+            by_name = answers(cases)
+            for it in data["items"]:
+                it["answer"] = by_name[it["name"]]
+        if a.history_only:
+            for it in data["items"]:
+                it.pop("history", None)
+            add_history(data["items"])
+            for it in data["items"]:   # keep the key order a full run writes
+                it["answer"] = it.pop("answer")
         data = {"style": data["style"], "schema_version": SCHEMA_VERSION, "drawing_version": data.get("drawing_version", DRAWING_VERSION),
-                "items": data["items"]}   # as a full run writes it (the drawings are not touched)
+                "items": data["items"],   # as a full run writes it (the drawings are not touched)
+                "outfits": worn_outfits() if a.history_only else data.get("outfits", [])}
         (OUT / "items.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
-        print(f"answers written for {len(data['items'])} items (schema version {SCHEMA_VERSION})")
+        print(f"{'answers' if a.answers_only else 'history'} written for {len(data['items'])} items (schema version {SCHEMA_VERSION})")
         return
     if (OUT / "images").exists():
         shutil.rmtree(OUT / "images")
@@ -311,7 +358,8 @@ def main() -> None:
         it["answer"] = by_name[it["name"]]
     # interleave so the grid mixes photographed and drawn items
     items.sort(key=lambda it: it["id"])
-    (OUT / "items.json").write_text(json.dumps({"style": STYLE, "schema_version": SCHEMA_VERSION, "drawing_version": DRAWING_VERSION, "items": items},
+    (OUT / "items.json").write_text(json.dumps({"style": STYLE, "schema_version": SCHEMA_VERSION, "drawing_version": DRAWING_VERSION, "items": items,
+                                                "outfits": worn_outfits()},
                                                ensure_ascii=False, indent=1), encoding="utf-8")
     # files for `closet selfcheck`
     C.load_photo(ROOT / "bench" / "hardcases" / "photos" / "jeans.jpg", 640).save(OUT / "selfcheck.webp", "WEBP", quality=80)

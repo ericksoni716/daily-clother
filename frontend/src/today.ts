@@ -33,6 +33,8 @@ export interface DayContext {
   summary: string | null;
   /** Why the forecast is old, in the server's words; null when it is not. */
   message?: string | null;
+  /** When the outfits start from one worn before: which of its pieces came back and which could not. */
+  again?: { id: string; worn_on: string; kept: string[]; unavailable: string[] };
 }
 
 export interface TodayAnswer {
@@ -49,6 +51,8 @@ export interface TodayRequest {
   low_c?: number;
   high_c?: number;
   rain?: boolean;
+  /** A worn outfit's id: start from its pieces that are clean. */
+  again?: string;
 }
 
 export interface WearManyAnswer {
@@ -56,6 +60,9 @@ export interface WearManyAnswer {
   recorded?: string[];
   removed?: string[];
   items: ItemSummary[];
+  /** The outfit remembered with the wears (when one was sent). */
+  outfit?: { id: string };
+  outfit_removed?: boolean;
 }
 
 export const OCCASIONS = ['athletic', 'casual', 'smart_casual', 'business', 'formal'] as const;
@@ -262,6 +269,8 @@ export interface WornToday {
   /** The pieces whose wear was new (only these are removed on undo). */
   recorded: string[];
   outfit: Outfit;
+  /** The worn outfit remembered on the server, removed with the wears on undo. */
+  outfit_id?: string;
 }
 
 const keyFor = (what: string, profile: string) => `${SAVED_PREFIX}:${what}:${profile}`;

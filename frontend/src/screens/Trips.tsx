@@ -4,6 +4,7 @@ import { ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '.
 import { EmptyState, PageHeader } from '../components/ui';
 import { loadGridView, type GridView } from '../drawing';
 import { label } from '../labels';
+import { SaveLine, useWhenLeaving } from '../leave';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
 import { longDate, occasionLabel, OCCASIONS, placeLabel, shortPlace, wornOrder, type Outfit } from '../today';
@@ -402,7 +403,8 @@ function SavedTrip({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [newWeather, setNewWeather] = useState(false);
   const pending = useRef(0);
-  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const ticks = useRef(new SaveLine());
+  useWhenLeaving(() => ticks.current.flush());
 
   useEffect(() => {
     let current = true;
@@ -444,7 +446,7 @@ function SavedTrip({ id }: { id: string }) {
     setTrip((t) => t && { ...t, packed: on ? [...t.packed.filter((x) => x !== line), line] : t.packed.filter((x) => x !== line) });
     pending.current += 1;
     // one at a time, in the order they were tapped
-    queue.current = queue.current.then(() => api.patchTrip(id, { ticks: { [line]: on } })).then(
+    void ticks.current.add(() => api.patchTrip(id, { ticks: { [line]: on } })).then(
       (t) => {
         pending.current -= 1;
         if (pending.current === 0) {

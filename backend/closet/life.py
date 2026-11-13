@@ -226,7 +226,7 @@ def _explain(f: gaps._Finding, answers: dict, climate: dict) -> None:
     f.why = texts
 
 
-def _lounge(c: gaps._Closet, days: list[gaps.Day]) -> list[gaps._Finding]:
+def _lounge(c: gaps._Closet, days: list[gaps.Day], without: str | None = None) -> list[gaps._Finding]:
     if not days:
         return []
     rows = [r for r in c.engine_items if eligible(r, "lounging") and r.get("rating") != "dislike"]
@@ -236,7 +236,7 @@ def _lounge(c: gaps._Closet, days: list[gaps.Day]) -> list[gaps._Finding]:
         ("bottom", ("trousers", "shorts"), ("trousers", "casual", "lounge")),
     ):
         owned = [r for r in rows if r.get("category") in categories]
-        if len(owned) >= LOUNGE_CHOICES:
+        if len(owned) >= LOUNGE_CHOICES or without is not None and [r["id"] for r in owned] == [without]:
             continue
         score = (gaps.THIN_SCORE_BASE if owned else LOUNGE_MISSING_SCORE) * days[0].frequency / gaps.DAYS_PER_WEEK
         noun = "relaxed tee" if place == "base" else "pair of soft trousers or shorts"
@@ -247,8 +247,13 @@ def _lounge(c: gaps._Closet, days: list[gaps.Day]) -> list[gaps._Finding]:
     return findings
 
 
-def analyse(rows: list[dict], wears: list[dict], answers: dict | None, climate: dict, limit: int = 100) -> dict:
-    """Reuse the engine and gap rules; only the gap analysis learns about the owner's life."""
+def analyse(rows: list[dict], wears: list[dict], answers: dict | None, climate: dict, limit: int = 100,
+            without: str | None = None) -> dict:
+    """Reuse the engine and gap rules; only the gap analysis learns about the owner's life.
+
+    `without` is the id of a piece tried as if it were bought (Would this work?): a thin place resting on it alone
+    is not a finding, since relying on the very piece a gap asked for is what filling that gap looks like.
+    """
     if answers is None:
         result = gaps.find_gaps(rows, wears, {"max_gaps": limit})
         for g in result["gaps"]:
@@ -268,10 +273,11 @@ def analyse(rows: list[dict], wears: list[dict], answers: dict | None, climate: 
         if not subset:
             continue
         if key == "lounging":
-            findings += _lounge(c, subset)
+            findings += _lounge(c, subset, without)
             continue
         closet = gaps._closet([r for r in rows if eligible(r, key)], wears)
         failures, thin, counts = gaps._run_grid(closet, subset)
+        thin = [x for x in thin if without is None or x[0].id != without]
         for pid, count in counts.items():
             used[pid] = used.get(pid, 0) + count
         for failure in failures:
@@ -310,7 +316,7 @@ def analyse(rows: list[dict], wears: list[dict], answers: dict | None, climate: 
             g["look_for"].update(gaps.TAG_LOOK.get(tag, {}))
             material = g["look_for"].get("material")
             g["look_for"]["material"] = ((material + "; ") if material else "") + "cloth you can move in; check it suits your activity"
-    learned = taste.learn(rows, wears)
+    learned = taste.learn([r for r in rows if without is None or r.get("id") != without], wears)
     taste.apply(result_gaps, learned, c)
     return {"enough": True, "message": None, "gaps": result_gaps[:limit], "notes": notes,
             "checked": {"items": len(c.pieces) + len(c.disliked), "wears": c.wear_total, "days": len(days)},

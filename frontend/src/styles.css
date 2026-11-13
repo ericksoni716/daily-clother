@@ -448,6 +448,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .notice > svg { flex: none; width: 22px; height: 22px; }
 .notice-warn { background: var(--warn-soft); }
 .notice-warn > svg { color: var(--warn); }
+.failure-details { margin: 0 0 8px; }
+.failure-details summary { cursor: pointer; }
+.failure-details pre { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.85rem; }
 
 .notice-error { background: var(--danger-soft); }
 .notice-error > svg { color: var(--danger); }
@@ -624,6 +627,10 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .route-list .hint { margin: 2px 0 0 18px; }
 .api-key { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .api-key .field-row-inline, .api-key p { margin: 0; }
+.route-order { border: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.route-order legend { font-size: 0.875rem; font-weight: 600; color: var(--muted); padding: 0; margin-bottom: 4px; }
+.route-order-choice { display: flex; gap: 8px; align-items: baseline; }
+.route-order .hint { margin: 2px 0 0; }
 
 .toggle { display: flex; align-items: center; gap: 14px; cursor: pointer; position: relative; min-height: var(--tap); }
 .toggle-text { flex: 1; display: flex; flex-direction: column; }

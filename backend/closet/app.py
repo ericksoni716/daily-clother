@@ -33,6 +33,7 @@ from . import (
     tagjobs,
     vocab,
     wears,
+    worn,
 )
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
@@ -142,12 +143,27 @@ class WearDay(BaseModel):
 class WearMany(BaseModel):
     item_ids: list[str]
     worn_on: str | None = None
+    outfit: dict | None = None
     model_config = {"extra": "forbid"}
 
 
 class WearManyDay(BaseModel):
     item_ids: list[str]
     worn_on: str
+    outfit_id: str | None = None
+    model_config = {"extra": "forbid"}
+
+
+class OutfitByHand(BaseModel):
+    item_ids: list[str]
+    worn_on: str | None = None
+    model_config = {"extra": "forbid"}
+
+
+class OutfitRating(BaseModel):
+    rating: str | None = None
+    reasons: list[str] = []
+    note: str | None = None
     model_config = {"extra": "forbid"}
 
 
@@ -318,13 +334,35 @@ def create_app(sv: Services) -> FastAPI:
 
     @app.post("/api/wears", dependencies=protected)
     def add_wears(body: WearMany, response: Response, conn=Depends(conn_dep)):
-        result = wears.add_many(conn, body.item_ids, body.worn_on)
-        response.status_code = 201 if result["recorded"] else 200
+        if body.outfit is not None:
+            result = worn.wear(conn, body.item_ids, body.worn_on, body.outfit)
+        else:
+            result = wears.add_many(conn, body.item_ids, body.worn_on)
+        response.status_code = 201 if result["recorded"] or result.get("outfit") else 200
         return result
 
     @app.post("/api/wears/remove", dependencies=protected)
     def remove_wears(body: WearManyDay, conn=Depends(conn_dep)):
+        if body.outfit_id is not None:
+            return worn.undo(conn, body.item_ids, body.worn_on, body.outfit_id)
         return wears.remove_many(conn, body.item_ids, body.worn_on)
+
+    @app.get("/api/outfits/worn", dependencies=protected)
+    def list_worn(limit: int = worn.DEFAULT_PAGE, before: str | None = None, conn=Depends(conn_dep)):
+        return worn.list_outfits(conn, limit, before)
+
+    @app.post("/api/outfits/worn", dependencies=protected, status_code=201)
+    def record_worn(body: OutfitByHand, conn=Depends(conn_dep)):
+        return worn.record_by_hand(conn, body.item_ids, body.worn_on)
+
+    @app.put("/api/outfits/worn/{outfit_id}/rating", dependencies=protected)
+    def rate_worn(outfit_id: str, body: OutfitRating, conn=Depends(conn_dep)):
+        return worn.rate(conn, outfit_id, body.rating, body.reasons, body.note)
+
+    @app.delete("/api/outfits/worn/{outfit_id}", dependencies=protected, status_code=204)
+    def remove_worn(outfit_id: str, conn=Depends(conn_dep)):
+        worn.remove(conn, outfit_id)
+        return Response(status_code=204)
 
     @app.post("/api/items/{item_id}/laundry", dependencies=protected)
     def set_laundry(item_id: str, body: LaundryState, conn=Depends(conn_dep)):

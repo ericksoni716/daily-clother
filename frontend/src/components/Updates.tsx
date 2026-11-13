@@ -82,10 +82,14 @@ export function UpdatesSection({ offline, toast }: { offline: boolean; toast: To
   }
 
   async function choose(mode: UpdateMode) {
+    const before = status;
+    if (!before) return;
+    updates.set({ ...before, mode });
     try {
       updates.set(await api.setUpdateMode(mode));
       toast('Saved');
     } catch (e) {
+      updates.set(before);
       toast((e as Error).message, 'error');
     }
   }

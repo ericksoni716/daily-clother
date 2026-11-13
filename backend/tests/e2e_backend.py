@@ -2,6 +2,12 @@
 
     cd backend && python -m tests.e2e_backend --no-browser --no-tray --port N
 
+Every backend the browser tests start runs from here, so none of them reaches the
+weather service: Open-Meteo and Nominatim are always out of reach (the place is
+New York until one is chosen, so Today would otherwise ask the real one). The
+specs fake the answers they need in the browser. With CLOSET_E2E_FAKES empty
+nothing else is replaced: the model and Claude are the real code.
+
 The cutout is the middle of the photo and Claude always answers with the fixed
 answer in `conftest.ANSWER`, so the browser can follow an item from upload to
 described without the model file or any call to Claude.
@@ -20,8 +26,9 @@ stand-in too: a key ending in "refused" is turned down, any other well-formed ke
 import os
 import sys
 import time
+import urllib.error
 
-from closet import apikey, app, cli
+from closet import apikey, app, cli, weather
 from closet.tagger import routes as tagger_routes
 from closet.tagger.tagging import TagResult
 
@@ -41,7 +48,13 @@ def api_only_status(order="auto", claude_exe=None):
         {"id": "api", "available": True, "detail": ""}]}
 
 
+def no_weather_service(url):
+    raise urllib.error.URLError("the browser tests never reach the weather service")
+
+
 def build_services(cfg, **kwargs):
+    if not os.environ.get("CLOSET_E2E_FAKES"):
+        return _real_build(cfg, **kwargs)
     apikey.use_store(MemoryKeychain())
     apikey.check = lambda key: "refused" if key.endswith("refused") else None
     if os.environ.get("CLOSET_E2E_ROUTES") == "api":
@@ -57,5 +70,6 @@ def build_services(cfg, **kwargs):
 
 
 if __name__ == "__main__":
+    weather.fetch = no_weather_service
     app.build_services = build_services
     sys.exit(cli.main(sys.argv[1:]))

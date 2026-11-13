@@ -56,12 +56,12 @@ from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
 from .insights import find_insights
 from .modelstore import MODEL, SECOND_MODEL, ModelStore
-from .state import State
+from .state import HOME_PLACE, State
 from .tagger import correcting
 from .tagger import routes as tagger_routes
 from .today import closet_rows
 from .today import suggest as suggest_today
-from .weather import WeatherError, check_place, lookup, search_places
+from .weather import WeatherError, check_place, lookup, place_near, search_places
 
 log = logging.getLogger("closet.app")
 
@@ -742,6 +742,15 @@ def create_app(sv: Services) -> FastAPI:
         except WeatherError as e:
             raise HTTPException(502, str(e))
 
+    @app.get("/api/places/near", dependencies=protected)
+    async def find_place_near(latitude: float, longitude: float):
+        try:
+            return {"place": await run_in_threadpool(place_near, latitude, longitude)}
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        except WeatherError as e:
+            raise HTTPException(502, str(e))
+
     @app.get("/api/weather", dependencies=protected)
     async def get_weather():
         found = await run_in_threadpool(lookup, state)
@@ -837,6 +846,7 @@ def create_app(sv: Services) -> FastAPI:
             "tagging_api_cap_usd": spend.cap(state), "tagging_api_off": state.get("tagging_api_off"),
             "api_key": apikey.info(),
             "phone": sv.phone_info(), "autostart": auto, "heic_supported": images.HEIC, "place": state.get("place"),
+            "home_place": HOME_PLACE,
             "life": life.example()[0] if state.get("profile") == "demo" else state.get("life"),
             "life_prompt_dismissed": True if state.get("profile") == "demo" else state.get("life_prompt_dismissed"),
         }
@@ -873,7 +883,7 @@ def create_app(sv: Services) -> FastAPI:
                 state.update(backup_folder=None)
         if "place" in sent:
             try:
-                place = check_place(body.place) if body.place is not None else None
+                place = check_place(body.place) if body.place is not None else dict(HOME_PLACE)   # no place: back to New York
             except ValueError as e:
                 raise HTTPException(422, str(e))
             if place != state.get("place"):

@@ -8,7 +8,7 @@ from closet import db, outfits, today, wears, weather, worn
 from .conftest import photo_bytes, upload
 
 TODAY = date(2026, 11, 12)
-DAY = {"low_c": 9, "high_c": 16}
+DAY = {"low_c": 9, "high_c": 16, "rain": False}   # the whole day given: the weather is not looked up
 
 
 def days_ago(n: int) -> str:

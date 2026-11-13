@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
 import {
-  capitalise, changeLine, detailSummary, historyLine, historyWhen, svgSource,
+  capitalise, changeLine, confirmedChanges, detailSummary, historyLine, historyWhen, stillFor, svgSource,
   type CorrectionAnswer, type DetailChoices, type DetailOptions, type HistoryEntry,
 } from '../corrections';
 import type { Item } from '../types';
@@ -180,15 +180,20 @@ function SayIt({ item, onSaved }: { item: Item; onSaved: Props['onSaved'] }) {
   const field = useId();
   const [text, setText] = useState('');
   const [asking, setAsking] = useState(false);
-  const [answer, setAnswer] = useState<CorrectionAnswer | null>(null);
+  const [asked, setAsked] = useState<{ answer: CorrectionAnswer; stamp: string } | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const stamp = stampOf(item);
+  // what Claude understood is for the item as it was; once the item changes it is no longer offered
+  const answer = stillFor(asked?.answer ?? null, asked?.stamp ?? null, stamp);
+  const stale = asked !== null && answer === null;
 
   const ask = async () => {
     setAsking(true);
-    setAnswer(null);
+    setAsked(null);
     setProblem(null);
+    const at = stamp;
     try {
-      setAnswer(await api.correct(item.id, text.trim()));
+      setAsked({ answer: await api.correct(item.id, text.trim()), stamp: at });
     } catch (e) {
       setProblem((e as ApiError).message);
     } finally {
@@ -200,11 +205,12 @@ function SayIt({ item, onSaved }: { item: Item; onSaved: Props['onSaved'] }) {
     if (!answer) return;
     setAsking(true);
     try {
-      const saved = await api.confirmCorrection(item.id, answer.sentence, answer.changes.map((c) => ({ name: c.name, value: c.value })));
-      setAnswer(null);
+      const saved = await api.confirmCorrection(item.id, answer.sentence, confirmedChanges(answer.changes));
+      setAsked(null);
       setText('');
       onSaved(saved, 'Changed as you said');
     } catch (e) {
+      setAsked(null);
       setProblem((e as ApiError).message);
     } finally {
       setAsking(false);
@@ -234,9 +240,12 @@ function SayIt({ item, onSaved }: { item: Item; onSaved: Props['onSaved'] }) {
           {answer.sent && <p className="muted fix-note">{answer.sent}</p>}
           <div className="row">
             <button type="button" className="btn btn-primary btn-small" disabled={asking} onClick={() => void confirm()}>Make these changes</button>
-            <button type="button" className="btn btn-small" disabled={asking} onClick={() => setAnswer(null)}>Cancel</button>
+            <button type="button" className="btn btn-small" disabled={asking} onClick={() => setAsked(null)}>Cancel</button>
           </div>
         </div>
+      )}
+      {stale && asked?.answer.state === 'understood' && (
+        <p className="notice" role="status">The item changed after Claude read your sentence, so those changes were put aside. Ask again.</p>
       )}
       {answer && answer.state !== 'understood' && (
         <p className="notice" role="status">

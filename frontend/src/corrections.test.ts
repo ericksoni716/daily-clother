@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { changeLine, detailSummary, historyLine, partPhrase, shownParts, svgSource, type HistoryEntry, type HistoryPart } from './corrections';
+import { changeLine, confirmedChanges, detailSummary, historyLine, partPhrase, shownParts, stillFor, svgSource, type HistoryEntry, type HistoryPart } from './corrections';
 
 const entry = (over: Partial<HistoryEntry>): HistoryEntry => ({
   id: 1, at: '2026-11-13T09:41:00Z', by: 'owner', kind: 'detail', sentence: null, undoes: null, undone: false,
@@ -72,5 +72,27 @@ describe('history lines', () => {
     const category = part({ target: 'field', name: 'category', title: 'kind of garment', before: 'polo', after: 'tee', before_words: 'polo', after_words: 'tee' });
     expect(historyLine(entry({ kind: 'answer', by: 'claude', parts: [category, part({ target: 'answer', name: 'answer' })] })))
       .toBe('Claude described it again and changed the kind of garment from polo to tee');
+  });
+});
+
+describe('confirming what Claude understood', () => {
+  const change = { name: 'placket_buttons', title: 'number of buttons', value: 2, before: 3, before_words: '3', after_words: '2' };
+
+  it('is offered only while the item is as it was when Claude read the sentence', () => {
+    const answer = { state: 'understood' as const, changes: [change], sentence: 'it has two buttons' };
+    expect(stillFor(answer, 'a', 'a')).toBe(answer);
+    expect(stillFor(answer, 'a', 'b')).toBeNull();
+    expect(stillFor(null, 'a', 'a')).toBeNull();
+  });
+
+  it('sends each change with the value it replaces', () => {
+    expect(confirmedChanges([change])).toEqual([{ name: 'placket_buttons', value: 2, before: 3 }]);
+  });
+});
+
+describe('a field confirmed as the owner’s', () => {
+  it('says it was confirmed, not changed', () => {
+    const same = part({ target: 'field', name: 'color', title: 'colour', before: 'navy', after: 'navy', before_words: 'navy', after_words: 'navy', same: true });
+    expect(historyLine(entry({ kind: 'field', parts: [same] }))).toBe('You confirmed the colour as navy');
   });
 });

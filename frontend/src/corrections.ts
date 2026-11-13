@@ -46,6 +46,18 @@ export interface CorrectionAnswer {
   /** What was sent to Claude, in a sentence. */
   sent?: string;
   sentence: string;
+  /** Waiting because this month's spending limit for the API key was reached. */
+  limit?: boolean;
+}
+
+/** What Claude understood, but only while the item is as it was when Claude read the sentence. */
+export function stillFor<T>(answer: T | null, askedAt: string | null, stamp: string): T | null {
+  return answer && askedAt === stamp ? answer : null;
+}
+
+/** The changes to confirm, each with the value it replaces, so the server can refuse if the item changed since. */
+export function confirmedChanges(changes: CorrectionChange[]): { name: string; value: unknown; before: unknown }[] {
+  return changes.map((c) => ({ name: c.name, value: c.value, before: c.before }));
 }
 
 export interface HistoryPart {
@@ -56,6 +68,8 @@ export interface HistoryPart {
   after: unknown;
   before_words: string;
   after_words: string;
+  /** Only who set it (or how sure the tagger was) changed: the owner confirmed it, or gave the same value again. */
+  same?: boolean;
 }
 
 export interface HistoryEntry {
@@ -96,6 +110,7 @@ export function shownParts(parts: HistoryPart[]): HistoryPart[] {
 
 /** One change in words, without who made it: "the front from buttons to a half placket". */
 export function partPhrase(p: HistoryPart): string {
+  if (p.same) return `confirmed the ${p.title} as ${p.after_words}`;
   if (p.target === 'detail' && isFlag(p.before) && isFlag(p.after) && p.before !== p.after) {
     return `${p.after === 'yes' ? 'added' : 'removed'} the ${p.title}`;
   }

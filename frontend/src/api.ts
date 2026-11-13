@@ -137,7 +137,7 @@ export const api = {
     request<Item>(`/api/items/${encodeURIComponent(id)}/details`, { method: 'PUT', body: { details } }),
   correct: (id: string, sentence: string) =>
     request<CorrectionAnswer>(`/api/items/${encodeURIComponent(id)}/correct`, { method: 'POST', body: { sentence } }),
-  confirmCorrection: (id: string, sentence: string, changes: { name: string; value: unknown }[]) =>
+  confirmCorrection: (id: string, sentence: string, changes: { name: string; value: unknown; before?: unknown }[]) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}/correct/confirm`, { method: 'POST', body: { sentence, changes } }),
   history: (id: string) => request<HistoryEntry[]>(`/api/items/${encodeURIComponent(id)}/history`),
   undo: (id: string, changeId: number) =>

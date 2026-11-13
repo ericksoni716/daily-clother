@@ -62,8 +62,10 @@ and pick one: the drawing changes at once. Or type what's wrong in **Or say
 what's wrong** ("it has three buttons", "it's a henley, not a tee") and tap
 **Ask Claude**: it lists the changes it understood, and nothing changes until
 you tap **Make these changes**. Your sentence and the item's description are
-sent; the photo only if Claude can't understand the sentence without it, and it
-says so. What you fix stays when Claude describes the item again. **History**,
+sent; the photo (with its background removed) only if Claude can't understand
+the sentence without it, and it says so. Through the API key this counts towards
+your monthly spending limit like describing items; when the limit is reached,
+pick the details instead. What you fix stays when Claude describes the item again. **History**,
 lower on the item page, lists every change to the description, newest first;
 **Undo** puts one back, as long as nothing changed the same thing since. In the
 demo closet you can pick and undo, but sentences are not sent to Claude.

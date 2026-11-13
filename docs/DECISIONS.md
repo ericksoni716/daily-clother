@@ -118,7 +118,22 @@ The rules live in `backend/closet/outfits.py`; every number is a named constant 
 | Only the best six candidates for each place, plus the warmest and the lightest, are combined | Every combination of a few hundred items is millions; this takes well under a second and keeps a warm coat in reach on a cold day. |
 | Accessories are added after the outfit is chosen: a scarf at 8°C and below, a hat at 4°C and below, a belt with trousers or jeans (preferring the shoes' colour); a bag only when built around | They do not change which outfit is best, and shoe-matching leather is the one rule worth applying. |
 | Scores start at 80 for an outfit that breaks nothing; loved pieces, one accent colour and rain-ready pieces add, distance from the formality aimed for and warmth off target subtract | So that 100 is rare and a relaxed-pass outfit is visibly lower. |
-| The API answers 422 for a build-around id not in the open closet; the engine on its own answers with a `missing` sentence | A wrong id from the screen is a bug to show; the engine itself never raises for a closet's contents. `worn_days_ago` comes from the request until the wear log exists. |
+| The API answers 422 for a build-around id not in the open closet; the engine on its own answers with a `missing` sentence | A wrong id from the screen is a bug to show; the engine itself never raises for a closet's contents. `suggest` takes `worn_days_ago` from the request; `today` fills it from the wear log. |
+
+### Today's outfits by themselves
+
+`POST /api/outfits/today` fills the day for the engine: the weather (`backend/closet/weather.py`), the wear log and the laundry (`backend/closet/today.py`). The engine itself is unchanged; it already read the laundry state as the wear log stores it (`clean` or `laundry`).
+
+| Decision | Why |
+|---|---|
+| Where the owner is, is a place chosen by name in Settings and saved in the program's settings (`settings.json`), not in a closet; it is never guessed from the network address | A guess from the address is often a city away (or the internet provider's city), and the owner should know exactly what is used. Both closets share it, so the demo closet works like the real one. No migration. |
+| The weather comes from Open-Meteo (`api.open-meteo.com`, places from `geocoding-api.open-meteo.com`) | No key, no account, free for personal use, and a daily low, high, chance of rain and weather code is all the engine needs. |
+| Privacy: the only things sent to Open-Meteo are the words typed into the place search and the saved place's latitude, longitude and time zone. Nothing about the closet is sent, and the place is not written to the logs | Settings says so in one sentence next to the search. |
+| A forecast is kept for an hour (in `settings.json`) and reused; it is asked again sooner when the day has changed at the place | Today's forecast barely moves in an hour; this keeps the screen fast and the requests few. Keeping it in the settings file means it survives a restart. |
+| When Open-Meteo cannot be reached, the last forecast for the same place is given back marked as old; with none, the answer says so in plain words (not an error page) | The closet still works without the internet. Changing the place forgets the forecast. Today's outfits use an old forecast only when it is for today. |
+| A day is rainy when the highest chance of rain is 50% or more; when the forecast gives no chance, when its weather code is drizzle, rain, snow or storms | The engine's rain rules (no sandals, no suede, take an umbrella) are about wet ground and wet shoes, which snow shares. |
+| Any of the low, high and rain given in the request wins over the forecast, field by field; with both temperatures and rain given the weather is not looked up | So the screen can let the owner correct a forecast ("it's warmer than that") without losing the rest. With temperatures given and no forecast, rain is taken as no. |
+| Days since an item was last worn are counted from the computer's local date, the same date wears are recorded on | A forecast for a place in another time zone may be for a different calendar day; the wear log's own date keeps "worn yesterday" meaning yesterday. |
 
 ## Reaching Claude: two routes
 

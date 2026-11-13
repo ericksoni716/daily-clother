@@ -174,6 +174,13 @@ If the computer cannot download the model, download
 **Settings → Background removal**, and put it in `Closet\models`. Closet
 checks the file and starts using it. The address can be changed in Settings.
 
+### Where you are
+
+In **Settings → Where you are**, search for your town or city and choose it
+from the list, so Closet can look up today's weather when it suggests outfits.
+Only the name you search for and the chosen place's location are sent, to the
+free weather service Open-Meteo; nothing about your clothes is.
+
 ## Demo closet
 
 **Settings → Demo closet** opens a sample closet of 30 items so you can try

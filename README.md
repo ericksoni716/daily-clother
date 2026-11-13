@@ -148,6 +148,26 @@ but is not interpreted yet. Lounging is only a guess from relaxed tops and
 soft trousers, not a way to recognise sleepwear; exercise cannot yet tell
 running gear from gym clothes or judge sports performance.
 
+**Would this work?** at the top of What's missing (or **I found one: would it
+work?** on a wish) checks a piece before you buy it. Take or choose a photo of
+it (in a shop, or a picture saved from a shop's page) and Claude describes it,
+or describe it by hand: the kind, the colour, how dressy, the season, how heavy
+the cloth is and whether it keeps the rain off. Closet then tries it with your
+clothes and answers in a few words, **Fills a gap**, **Works, and adds
+something**, **Works, but you have it already** or **Hard to wear with what you
+have**, with the reasons: the gap it would fill, the pieces of yours it goes
+with (tap one to open it) and example outfits, the pieces you already have that
+do the same job and how often you wear them, and what would make it hard to
+wear. From the answer, **Put it on my wishlist** keeps it with its description
+in the note (from a wish, **Add it to the wish's note** writes the answer into
+that wish instead), and **I bought it** opens Add. The photo is not added to
+your closet and is never saved on your computer: it is let go as soon as the
+answer is ready, and a photo is described
+the same way as a new item (your Claude plan first, the API key only when you
+have switched it on, within its monthly limit). In the demo closet only
+**describe it by hand** works, since the demo closet never sends anything to
+Claude. Checks are kept only while Closet is running.
+
 To record a single item: open it and tap **Wore it today** (tap **Undo** if
 that was a mistake). The item shows how often it has been worn and when last, and lists
 the recent days, each of which can be removed. **Put in the laundry** and

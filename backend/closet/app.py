@@ -42,6 +42,7 @@ from . import (
 )
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
+from .insights import find_insights
 from .modelstore import MODEL, ModelStore
 from .state import State
 from .tagger import routes as tagger_routes
@@ -414,6 +415,31 @@ def create_app(sv: Services) -> FastAPI:
         # asks Open-Meteo (a few seconds at most) and compares many outfits, so keep it off the event loop
         return await run_in_threadpool(work)
 
+    @app.post("/api/outfits/figure", dependencies=protected)
+    async def outfit_figure(request: Request):
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        try:
+            ids = illustrations.figure_ids(body)
+        except illustrations.FigureError as e:
+            raise HTTPException(422, str(e))
+        path = cfg.db_path(state.get("profile"))
+
+        def work() -> str:
+            conn = db.connect(path)
+            try:
+                return illustrations.outfit_figure(conn, ids)
+            except illustrations.FigureError as e:
+                raise HTTPException(422, str(e))
+            finally:
+                conn.close()
+
+        # drawing a whole outfit takes a few milliseconds per piece: keep it off the event loop
+        svg = await run_in_threadpool(work)
+        return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "no-store"})
+
     # ----------------------------------------------------------------- gaps
     gaps_cache: dict[str, tuple[str, dict]] = {}  # profile -> (what the closet and wear log were, the answer)
 
@@ -471,6 +497,12 @@ def create_app(sv: Services) -> FastAPI:
         # the engine is run over 40 kinds of day, a few seconds on a big closet: keep it off the event loop
         return await run_in_threadpool(work)
 
+    # -------------------------------------------------------------- insights
+    @app.get("/api/insights", dependencies=protected)
+    def get_insights(conn=Depends(conn_dep)):
+        rows = conn.execute("SELECT id, name, category, color, formality, season, price_cents, status, created_at FROM items").fetchall()
+        worn = conn.execute("SELECT item_id, worn_on FROM wears").fetchall()
+        return find_insights(rows, worn, wears.today())
     app.include_router(wishlist.router(conn_dep, gap_analysis, protected))
 
     # ---------------------------------------------------------------- weather

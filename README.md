@@ -66,7 +66,10 @@ the others. Each outfit lists why it works and, set apart, anything to watch
 out for, such as rain. Tap **I'm wearing this** to record a wear for every
 piece at once (**Undo** takes it back). The **⋯** on a piece leaves it out
 (**Not this piece**) or builds every outfit around it (**Start from this
-piece**); tap a piece to open it. With no place saved, type today's low and
+piece**); tap a piece to open it. **As worn**, above the pieces, draws the
+outfit as it is worn instead (the shirt under the open jacket, the trousers
+below, the shoes at the bottom); **Pieces** goes back, and your choice is
+remembered on that device. With no place saved, type today's low and
 high temperatures there instead. Offline, Today shows the outfits it last
 found that day.
 
@@ -114,6 +117,17 @@ the recent days, each of which can be removed. **Put in the laundry** and
 **It's clean** keep track of the wash; in the closet, items in the laundry
 carry a small mark, and the **Clean** and **In the laundry** buttons show only
 those.
+
+**Insights** (the button at the top of your closet) turns what you have
+recorded as worn into a few plain sentences: what each piece with a price has
+cost per wear (type the price on the item, in dollars), what you have never
+worn, what has not been worn for a long time in its season, what you wear most
+over the last 30 and 90 days and all time, whether a few pieces do all the work
+in each kind of clothing, and what your closet is made of. Tap a picture to open
+the piece. A piece you never wear can be archived from there with one tap, or
+kept: **Keep** stops it being listed for 90 days, remembered on that device
+only. Until enough wears are recorded, each card says so instead of showing
+numbers.
 
 ## Adding your clothes
 

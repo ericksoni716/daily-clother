@@ -26,12 +26,14 @@ export type Route =
   | { name: 'today'; itemId: string | null }
   | { name: 'missing'; itemId: string | null }
   | { name: 'add' }
+  | { name: 'insights' }
   | { name: 'settings' }
   | { name: 'review' };
 
 export function parseRoute(path: string): Route {
   if (path === '/add') return { name: 'add' };
   if (path === '/settings') return { name: 'settings' };
+  if (path === '/insights') return { name: 'insights' };
   const today = path.match(/^\/today(?:\/item\/([^/]+))?\/?$/);
   if (today) return { name: 'today', itemId: today[1] ? decodeURIComponent(today[1]) : null };
   if (path === '/review') return { name: 'review' };

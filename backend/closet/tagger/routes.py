@@ -12,19 +12,21 @@ import os
 from PIL import Image
 
 from . import claude_cli
-from .tagging import RouteUnavailable, TagResult, tag_item
+from .tagging import ApiRefused, CapReached, Meter, RouteUnavailable, TagResult, tag_item
 
 ORDERS = {"auto": ("plan", "api"), "plan": ("plan",), "api": ("api",), "api-first": ("api", "plan")}
 
 
 class Router:
-    def __init__(self, order: str = "auto", client=None, claude_exe: str | None = None):
+    def __init__(self, order: str = "auto", client=None, claude_exe: str | None = None, meter: Meter | None = None):
         if order not in ORDERS:
             raise ValueError(f"unknown route order {order!r}; choose one of {', '.join(ORDERS)}")
         self.routes = ORDERS[order]
         self._client = client
         self._exe = claude_exe
+        self._meter = meter   # the app's spend cap and record of calls; the bench runs without one
         self.skipped: dict[str, str] = {}   # route -> why it was given up on, for the rest of this run
+        self.capped = False   # the API route was given up on because of the spend cap
 
     def _api_client(self):
         if self._client is None:
@@ -40,12 +42,18 @@ class Router:
                 continue
             try:
                 if route == "plan":
-                    return claude_cli.tag_item_cli(model, images, exe=self._exe)
-                return tag_item(self._api_client(), model, images)
+                    result = claude_cli.tag_item_cli(model, images, exe=self._exe)
+                    if self._meter:
+                        self._meter.record("plan", result.model, result.input_tokens, result.output_tokens)
+                    return result
+                return tag_item(self._api_client(), model, images, meter=self._meter)
             except RouteUnavailable as e:
                 self.skipped[route] = str(e)   # stop trying this route until the next run
+                self.capped = self.capped or isinstance(e, CapReached)
+                if isinstance(e, ApiRefused) and self._meter:
+                    self._meter.api_refused(e.reason)
         reasons = "; ".join(f"{r}: {why}" for r, why in self.skipped.items()) or "no route configured"
-        raise RouteUnavailable(f"Claude cannot be reached right now. {reasons}")
+        raise (CapReached if self.capped else RouteUnavailable)(f"Claude cannot be reached right now. {reasons}")
 
 
 def api_status() -> tuple[bool, str]:

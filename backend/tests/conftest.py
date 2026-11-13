@@ -1,5 +1,6 @@
 import io
 import zlib
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -92,6 +93,26 @@ class FakeClaude:
         changes, unclear, photo = SENTENCES.get(sentence, ([], f"I could not understand “{sentence}”.", False))
         return CorrectionResult(CorrectionAnswer(changes=[Change(name=n, value=v) for n, v in changes], not_understood=unclear,
                                                  needs_photo=photo), routes[0], "fake")
+
+
+class FakeApi:
+    """Stands in for the Anthropic API behind the API-key route (its `messages.parse`); no test reaches the real one.
+
+    Answers ANSWER and reports token counts as the real API does; `error` makes the next calls raise it instead.
+    """
+
+    def __init__(self, input_tokens: int = 2000, output_tokens: int = 400):
+        self.input_tokens, self.output_tokens = input_tokens, output_tokens
+        self.error: Exception | None = None
+        self.calls = 0
+        self.messages = self
+
+    def parse(self, **kw):
+        self.calls += 1
+        if self.error:
+            raise self.error
+        usage = SimpleNamespace(input_tokens=self.input_tokens, output_tokens=self.output_tokens)
+        return SimpleNamespace(parsed_output=ANSWER, stop_reason="end_turn", usage=usage)
 
 
 @pytest.fixture

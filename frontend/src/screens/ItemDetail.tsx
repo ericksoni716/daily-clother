@@ -160,7 +160,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
 
   const locked = offline;
   const groups = silhouetteGroups(item.category);
-  const tagText = tagNotice(item.tag_state, item.tag_route);
+  const tagText = tagNotice(item.tag_state, item.tag_route, item.tag_error);
   const lines = detailLines(item.details);
   const seen = item.seen_not_drawn ?? [];
   const canRetag = profile !== 'demo' && item.cutout_state === 'ready' && item.has_photo &&
@@ -211,7 +211,12 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       ) : item.tag_state === 'done' ? (
         tagText && <p className="muted tag-note">{tagText}</p>
       ) : (
-        tagText && <p className="notice" role="status">{tagText}</p>
+        tagText && (
+          <p className="notice" role="status">
+            {tagText}
+            {item.tag_state === 'waiting' && item.tag_error && <> <Link to="/settings">Open Settings</Link></>}
+          </p>
+        )
       )}
 
       <WearPanel item={item} disabled={locked}

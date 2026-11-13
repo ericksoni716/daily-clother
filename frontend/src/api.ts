@@ -1,6 +1,8 @@
-import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue } from './types';
+import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue } from './types';
 import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
+import type { Insights } from './insights';
+import type { GapsAnswer, HideReason, Wish } from './gaps';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
 export class ApiError extends Error {
@@ -157,14 +159,27 @@ export const api = {
   downloadModel: () => request<ModelInfo>('/api/model/download', { method: 'POST' }),
   setModelUrl: (url: string) => request<ModelInfo>('/api/model/url', { method: 'PUT', body: { url } }),
   settings: () => request<Settings>('/api/settings'),
-  putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean }) =>
+  putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean; tagging_api_cap_usd?: number | null }) =>
     request<Settings>('/api/settings', { method: 'PUT', body: changes }),
   storage: () => request<Storage>('/api/storage'),
   tagging: () => request<TaggingStatus>('/api/tagging'),
+  tagSpend: () => request<TaggingSpend>('/api/tagging/spend'),
   places: (q: string) => request<{ places: Place[] }>(`/api/places?q=${encodeURIComponent(q)}`).then((r) => r.places),
   weather: () => request<WeatherLookup>('/api/weather'),
   today: (choices: TodayRequest, signal?: AbortSignal) =>
     request<TodayAnswer>('/api/outfits/today', { method: 'POST', body: choices, signal }),
+  insights: () => request<Insights>('/api/insights'),
+  // What's missing and the wishlist
+  gaps: () => request<GapsAnswer>('/api/gaps'),
+  hideGap: (id: string, reason: HideReason | null) =>
+    request<unknown>(`/api/gaps/${encodeURIComponent(id)}/hide`, { method: 'POST', body: { reason } }),
+  unhideGap: (id: string) => request<void>(`/api/gaps/${encodeURIComponent(id)}/hide`, { method: 'DELETE' }),
+  wishlist: () => request<{ wishes: Wish[] }>('/api/wishlist').then((r) => r.wishes),
+  addWish: (wish: { gap_id: string } | { name: string; note?: string }) => request<Wish>('/api/wishlist', { method: 'POST', body: wish }),
+  changeWish: (id: string, changes: { name?: string; note?: string }) =>
+    request<Wish>(`/api/wishlist/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes }),
+  wishBought: (id: string) => request<Wish>(`/api/wishlist/${encodeURIComponent(id)}/bought`, { method: 'POST' }),
+  removeWish: (id: string) => request<void>(`/api/wishlist/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   backup: () => request<BackupRecord>('/api/backup', { method: 'POST' }),
   setProfile: (profile: Profile) => request<{ profile: Profile }>('/api/profile', { method: 'POST', body: { profile } }),
   quit: () => request<void>('/api/quit', { method: 'POST' }),

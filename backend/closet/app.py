@@ -33,14 +33,17 @@ from . import (
     outfits,
     phone,
     review,
+    spend,
     storage,
     tagjobs,
     vocab,
     wears,
+    wishlist,
 )
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
 from .gaps import find_gaps
+from .insights import find_insights
 from .modelstore import MODEL, ModelStore
 from .state import State
 from .tagger import correcting
@@ -50,6 +53,8 @@ from .today import suggest as suggest_today
 from .weather import WeatherError, check_place, lookup, search_places
 
 log = logging.getLogger("closet.app")
+
+GAPS_ALL = 100   # gaps asked of the analysis; the list shows at most gaps.MAX_GAPS not yet decided on
 
 
 @dataclass
@@ -95,13 +100,14 @@ class Services:
 
 
 def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path | str | None = "bundled",
-                   tagger: tagjobs.Tagger | None = None, routes: tagjobs.Routes | None = None,
+                   tagger: tagjobs.Tagger | None = None, routes: tagjobs.Routes | None = None, api_client=None,
                    corrector: corrections.Corrector | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
     with the program, None serves no page (tests), or give a folder. `tagger`,
-    `routes` and `corrector` stand in for Claude in tests; by default the real routes are used.
+    `routes` and `corrector` stand in for Claude in tests; by default the real routes are used, each call recorded and
+    the API key kept under its monthly limit. `api_client` stands in for the API alone (tests), behind that same limit.
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
@@ -119,7 +125,12 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     def real_cutter(img: Image.Image) -> Image.Image:
         return make_cutout(img, predict_mask(img, MODEL, model.path))[0]
 
-    tag_worker = tagjobs.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)), tagger or tagjobs.claude_tagger)
+    meter = spend.Meter(cfg, state)
+
+    def real_tagger(images: list[Image.Image], usable: tuple[str, ...]):
+        return tagjobs.claude_tagger(images, usable, meter=meter, client=api_client)
+
+    tag_worker = tagjobs.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)), tagger or real_tagger)
     worker = jobs.Worker(cfg, state, lambda: model.ready, cutter or real_cutter, on_done=tag_worker.wake)
     holder["worker"] = worker
     model.refresh()  # know the model's real state before the first request is answered
@@ -185,6 +196,7 @@ class SettingsPatch(BaseModel):
     backup_folder: str | None = None
     autostart: bool | None = None
     tagging_api_enabled: bool | None = None
+    tagging_api_cap_usd: float | None = None
     place: dict | None = None
     model_config = {"extra": "forbid"}
 
@@ -478,34 +490,54 @@ def create_app(sv: Services) -> FastAPI:
     # ----------------------------------------------------------------- gaps
     gaps_cache: dict[str, tuple[str, dict]] = {}  # profile -> (what the closet and wear log were, the answer)
 
+    def gap_analysis(profile: str | None = None) -> dict:
+        """The open closet's gaps, all of them (cut to the list's length when marked); slow the first time."""
+        profile = profile or state.get("profile")
+        conn = db.connect(cfg.db_path(profile))
+        try:
+            rows = closet_rows(conn)
+            worn = [{"item_id": r["item_id"], "worn_on": r["worn_on"]}
+                    for r in conn.execute("SELECT item_id, worn_on FROM wears ORDER BY item_id, worn_on")]
+        finally:
+            conn.close()
+        # the answer only depends on the items and the wear log; the laundry state and times are left out
+        # so a wash or a rename's timestamp does not throw away seconds of work; the stored answer counts through
+        # what the rows take from it (weight_class, the sleeve), so a new answer that changes the weight is seen
+        ignore = ("laundry", "wears_since_wash", "washed_at", "updated_at", "created_at", "cutout_state", "cutout_error",
+                  "tag_state", "tag_error", "tag_route", "tag_model", "tag_schema_version", "tagged_at",
+                  "illustration_version", "illustration_notes")   # a redrawn picture changes no outfit
+        seen = hashlib.sha256(json.dumps([[{k: v for k, v in r.items() if k not in ignore} for r in rows], worn],
+                                         sort_keys=True, default=str).encode()).hexdigest()
+        cached = gaps_cache.get(profile)
+        if cached and cached[0] == seen:
+            return cached[1]
+        # every gap, not only the first few: one the owner hid or wished for must not push a new one off the list
+        answer = find_gaps(rows, worn, {"max_gaps": GAPS_ALL})
+        gaps_cache[profile] = (seen, answer)
+        return answer
+
     @app.get("/api/gaps", dependencies=protected)
     async def get_gaps():
         profile = state.get("profile")
-        path = cfg.db_path(profile)
 
         def work() -> dict:
-            conn = db.connect(path)
+            answer = gap_analysis(profile)
+            conn = db.connect(cfg.db_path(profile))
             try:
-                rows = [{**{k: r[k] for k in r.keys() if k not in ("illustration_svg", "confidence", "source")},
-                         "silhouette": json.loads(r["silhouette"] or "{}")} for r in conn.execute("SELECT * FROM items ORDER BY id")]
-                worn = [{"item_id": r["item_id"], "worn_on": r["worn_on"]}
-                        for r in conn.execute("SELECT item_id, worn_on FROM wears ORDER BY item_id, worn_on")]
+                return wishlist.mark(conn, answer)
             finally:
                 conn.close()
-            # the answer only depends on the items and the wear log; the laundry state and times are left out
-            # so a wash or a rename's timestamp does not throw away seconds of work
-            ignore = ("laundry", "wears_since_wash", "washed_at", "updated_at", "created_at", "cutout_state", "cutout_error")
-            seen = hashlib.sha256(json.dumps([[{k: v for k, v in r.items() if k not in ignore} for r in rows], worn],
-                                             sort_keys=True, default=str).encode()).hexdigest()
-            cached = gaps_cache.get(profile)
-            if cached and cached[0] == seen:
-                return cached[1]
-            answer = find_gaps(rows, worn)
-            gaps_cache[profile] = (seen, answer)
-            return answer
 
         # the engine is run over 40 kinds of day, a few seconds on a big closet: keep it off the event loop
         return await run_in_threadpool(work)
+
+    # -------------------------------------------------------------- insights
+    @app.get("/api/insights", dependencies=protected)
+    def get_insights(conn=Depends(conn_dep)):
+        rows = conn.execute("SELECT id, name, category, color, formality, season, price_cents, status, created_at FROM items").fetchall()
+        worn = conn.execute("SELECT item_id, worn_on FROM wears").fetchall()
+        return find_insights(rows, worn, wears.today())
+    app.include_router(wishlist.router(conn_dep, gap_analysis, protected))
 
     # ---------------------------------------------------------------- weather
     @app.get("/api/places", dependencies=protected)
@@ -550,7 +582,8 @@ def create_app(sv: Services) -> FastAPI:
             "version": __version__, "profile": state.get("profile"), "data_dir": str(cfg.data_dir), "port": cfg.port,
             "backup_folder": state.get("backup_folder"), "last_backup": state.get("last_backup"),
             "last_good_backup": backup.last_good(state), "pending_cutouts": jobs.pending_count(conn),
-            "pending_tags": tagjobs.waiting_count(conn), "tagging_api_enabled": bool(state.get("tagging_api_enabled")),
+            "pending_tags": tagjobs.waiting_count(conn), "tagging_api_enabled": spend.api_allowed(state),
+            "tagging_api_cap_usd": spend.cap(state), "tagging_api_off": state.get("tagging_api_off"),
             "phone": sv.phone_info(), "autostart": auto, "heic_supported": images.HEIC, "place": state.get("place"),
         }
 
@@ -582,9 +615,19 @@ def create_app(sv: Services) -> FastAPI:
                 autostart.set_enabled(body.autostart)
             except Exception as e:
                 raise HTTPException(409, str(e))
-        if "tagging_api_enabled" in sent and body.tagging_api_enabled is not None:
-            state.update(tagging_api_enabled=body.tagging_api_enabled)
-            sv.wake()   # items waiting for a route may be able to go now
+        if "tagging_api_cap_usd" in sent or ("tagging_api_enabled" in sent and body.tagging_api_enabled is not None):
+            limit = body.tagging_api_cap_usd if "tagging_api_cap_usd" in sent else spend.cap(state)
+            on = body.tagging_api_enabled if body.tagging_api_enabled is not None else spend.api_allowed(state)
+            if limit is not None and not (0.01 <= limit <= spend.MAX_CAP_USD):
+                raise HTTPException(422, f"The monthly limit must be at least $0.01 and no more than ${spend.MAX_CAP_USD:,.0f}.")
+            if on and limit is None:
+                raise HTTPException(422, "Turn the API key off before removing its monthly limit." if body.tagging_api_enabled is None
+                                    else "Set a monthly limit before allowing the API key.")
+            changes: dict = {"tagging_api_cap_usd": round(limit, 2) if limit is not None else None, "tagging_api_enabled": on}
+            if on:
+                changes["tagging_api_off"] = None   # the owner has looked at why it was switched off
+            state.update(**changes)
+            sv.wake()   # items waiting for a route (or for the limit) may be able to go now
         return settings_payload(conn)
 
     @app.get("/api/storage", dependencies=protected)
@@ -598,6 +641,10 @@ def create_app(sv: Services) -> FastAPI:
         result = await run_in_threadpool(tagger_routes.status)
         sv.tag_worker.wake()   # the owner may just have signed in: waiting items need not wait for the next round
         return result
+
+    @app.get("/api/tagging/spend", dependencies=protected)
+    def get_tagging_spend(conn=Depends(conn_dep)):
+        return spend.summary(cfg, state, conn)
 
     @app.post("/api/backup", dependencies=protected)
     def backup_now():

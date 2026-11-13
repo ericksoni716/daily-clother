@@ -8,18 +8,26 @@ executable inside the bundle: dist/Closet.app/Contents/MacOS/Closet.
 
 Every run uses a fresh, empty data folder (CLOSET_DATA_DIR) and
 CLOSET_NO_AUTO_DOWNLOAD=1, so nothing on the machine is touched or downloaded.
+ANTHROPIC_API_KEY is removed from the program's environment, so it can never
+call Claude with a key.
 
 Default mode:
   1. `PROGRAM selfcheck --out FILE`: exit code 0, every check ok (the
      drawing check draws a garment), model_state == "missing".
   2. `PROGRAM --no-browser --no-tray --port N`: /api/health answers within
      the startup timeout with app == "closet", model_state == "missing",
-     setup_required == true; GET / is the built page (id="root");
+     setup_required == true; GET / is the built page (id="root") and the
+     scripts and styles it links to are served with the right types;
      POST /api/setup -> 204 + session cookie; GET /api/items -> 200;
      GET /api/tagging -> 200 with the plan route then the API route;
-     POST /api/profile demo -> GET /api/items has 30 items;
+     POST /api/profile demo -> GET /api/items has 30 items, and a demo
+     item's drawing is served;
      POST /api/quit -> the process exits with code 0 within 30 s; the data
      folder then has closet.db and no closet.lock.
+  3. Migrations: the selfcheck counts as many bundled migrations as the
+     repository has (backend/closet/migrations, or --migrations DIR), and
+     the new main closet and the demo closet are both at the latest one
+     (PRAGMA user_version).
 
 --cutout mode:
   Copies the model into <data folder>/models/ and runs
@@ -36,9 +44,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import signal
 import socket
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -49,6 +59,7 @@ from pathlib import Path
 
 DEMO_ITEMS = 30
 PASSPHRASE = "smoke-test-passphrase"
+MIGRATIONS = Path(__file__).resolve().parent.parent / "backend" / "closet" / "migrations"
 BASE_CHECKS = ("webp", "heic", "onnxruntime", "database", "web_page", "drawing", "model_state", "tagger")
 
 # Never route loopback requests through a proxy from the environment.
@@ -77,7 +88,7 @@ def free_port() -> int:
 
 def program_env(data_dir: Path) -> dict:
     env = dict(os.environ)
-    for key in ("CLOSET_HOST", "CLOSET_PORT"):
+    for key in ("CLOSET_HOST", "CLOSET_PORT", "ANTHROPIC_API_KEY"):
         env.pop(key, None)
     env["CLOSET_DATA_DIR"] = str(data_dir)
     env["CLOSET_NO_AUTO_DOWNLOAD"] = "1"
@@ -216,6 +227,55 @@ def as_json(method: str, url: str, body: bytes) -> dict:
         raise SmokeFailure(f"{method} {url} returned non-JSON: {body[:300]!r}") from exc
 
 
+# what a browser needs to start the page; a wrong type (a registry on Windows can map .js to
+# text/plain) leaves the owner with a blank page
+ASSET_TYPES = {".js": "javascript", ".css": "text/css"}
+
+
+def check_assets(base: str, page: str) -> None:
+    assets = sorted(set(re.findall(r'(?:src|href)="(/assets/[^"?#]+)"', page)))
+    if not any(a.endswith(".js") for a in assets):
+        raise SmokeFailure(f"GET / links to no script under /assets/: {page[:500]!r}")
+    for path in assets:
+        headers, body = expect("GET", base + path, 200)
+        kind = next((v for k, v in headers.items() if k.lower() == "content-type"), "")
+        wanted = ASSET_TYPES.get(os.path.splitext(path)[1])
+        if not body or (wanted and wanted not in kind):
+            raise SmokeFailure(f"GET {path} -> {len(body)} bytes of {kind!r}, expected some {wanted or 'content'}")
+        log(f"  GET {path} -> 200, {len(body):,} bytes of {kind}")
+
+
+def check_drawing(base: str, cookie: str, items: list) -> None:
+    item = items[0]
+    _, body = expect("GET", f"{base}/api/items/{item['id']}/illustration.svg", 200, cookie=cookie)
+    if not body.startswith(b"<svg"):
+        raise SmokeFailure(f"the drawing of demo item {item['id']} is not an SVG: {body[:200]!r}")
+    log(f"  GET /api/items/<demo item>/illustration.svg -> 200, {len(body):,} bytes of SVG")
+
+
+def check_migrations(data_dir: Path, migrations: Path, report: dict) -> None:
+    numbers = sorted(int(p.name.split("_", 1)[0]) for p in migrations.glob("*.sql"))
+    if not numbers:
+        raise SmokeFailure(f"no migrations found in {migrations} (pass --migrations DIR)")
+    detail = str((report.get("checks", {}).get("database") or {}).get("detail"))
+    found = re.search(r"(\d+) migration", detail)
+    if not found or int(found.group(1)) != len(numbers):
+        raise SmokeFailure(f"the program has {found.group(1) if found else 'no'} migration(s) bundled, "
+                           f"the repository has {len(numbers)} ({detail!r})")
+    latest = numbers[-1]
+    for name, path in (("main", data_dir / "closet.db"), ("demo", data_dir / "demo" / "closet.db")):
+        if not path.is_file():
+            raise SmokeFailure(f"no {name} closet database at {path}")
+        conn = sqlite3.connect(path)
+        try:
+            version = conn.execute("PRAGMA user_version").fetchone()[0]
+        finally:
+            conn.close()
+        if version != latest:
+            raise SmokeFailure(f"the {name} closet is at migration {version}, expected the latest, {latest}")
+    log(f"  migrations: {len(numbers)} bundled; main and demo closets at {latest}, the latest")
+
+
 def run_server(program: Path, data_dir: Path, work: Path, startup_timeout: float, quit_timeout: float,
                expect_version: str | None) -> None:
     port = free_port()
@@ -267,6 +327,7 @@ def _drive_server(proc: subprocess.Popen, base: str, data_dir: Path, startup_tim
     if 'id="root"' not in page:
         raise SmokeFailure(f'GET / is not the built page (no id="root"): {page[:300]!r}')
     log(f'  GET / -> 200, built page ({len(body)} bytes, has id="root")')
+    check_assets(base, page)
 
     headers, _ = expect("POST", base + "/api/setup", 204, body={"passphrase": PASSPHRASE})
     cookies = [c.split(";", 1)[0].strip() for c in headers["_set_cookie"]]
@@ -291,6 +352,7 @@ def _drive_server(proc: subprocess.Popen, base: str, data_dir: Path, startup_tim
     if count != DEMO_ITEMS:
         raise SmokeFailure(f"demo closet has {count} items, expected {DEMO_ITEMS}")
     log(f"  POST /api/profile demo -> GET /api/items: {count} items")
+    check_drawing(base, cookie, as_json("GET", "/api/items", body)["items"])
 
     expect("POST", base + "/api/quit", 202, cookie=cookie)
     log("  POST /api/quit -> 202")
@@ -317,6 +379,8 @@ def main() -> int:
     ap.add_argument("--cutout", action="store_true", help="run the background-removal check instead")
     ap.add_argument("--model", type=Path, help="isnet-general-use.onnx (required with --cutout)")
     ap.add_argument("--expect-version", help="require this version in the selfcheck report and /api/health")
+    ap.add_argument("--migrations", type=Path, default=MIGRATIONS,
+                    help="the repository's migrations folder (default: backend/closet/migrations next to this script)")
     ap.add_argument("--startup-timeout", type=float, default=120.0)
     ap.add_argument("--quit-timeout", type=float, default=30.0)
     ap.add_argument("--selfcheck-timeout", type=float, default=300.0)
@@ -344,8 +408,9 @@ def main() -> int:
             log(f"copied {args.model.name} ({args.model.stat().st_size:,} bytes) into the data folder")
             run_selfcheck(program, data_dir, work, True, args.selfcheck_timeout, args.expect_version)
         else:
-            run_selfcheck(program, data_dir, work, False, args.selfcheck_timeout, args.expect_version)
+            report = run_selfcheck(program, data_dir, work, False, args.selfcheck_timeout, args.expect_version)
             run_server(program, data_dir, work, args.startup_timeout, args.quit_timeout, args.expect_version)
+            check_migrations(data_dir, args.migrations, report)
     except SmokeFailure as failure:
         print(f"SMOKE TEST FAILED ({mode}): {failure}", flush=True)
         return 1

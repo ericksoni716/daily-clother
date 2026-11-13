@@ -24,16 +24,21 @@ export function usePath(): string {
 export type Route =
   | { name: 'closet'; status: 'active' | 'archived'; itemId: string | null }
   | { name: 'today'; itemId: string | null }
+  | { name: 'missing'; itemId: string | null }
   | { name: 'add' }
+  | { name: 'insights' }
   | { name: 'settings' }
   | { name: 'review' };
 
 export function parseRoute(path: string): Route {
   if (path === '/add') return { name: 'add' };
   if (path === '/settings') return { name: 'settings' };
+  if (path === '/insights') return { name: 'insights' };
   const today = path.match(/^\/today(?:\/item\/([^/]+))?\/?$/);
   if (today) return { name: 'today', itemId: today[1] ? decodeURIComponent(today[1]) : null };
   if (path === '/review') return { name: 'review' };
+  const missing = path.match(/^\/missing(?:\/item\/([^/]+))?\/?$/);
+  if (missing) return { name: 'missing', itemId: missing[1] ? decodeURIComponent(missing[1]) : null };
   const archived = path.startsWith('/archived');
   const m = path.match(/^\/(?:archived\/)?item\/([^/]+)$/);
   return { name: 'closet', status: archived ? 'archived' : 'active', itemId: m ? decodeURIComponent(m[1]) : null };

@@ -84,12 +84,38 @@ piece**); tap a piece to open it. With no place saved, type today's low and
 high temperatures there instead. Offline, Today shows the outfits it last
 found that day.
 
+**What's missing** (**Missing** in the bar at the bottom of a phone) looks at
+your closet and what you wear and suggests what to buy, the most helpful
+first. Each suggestion says why, in sentences about your own clothes, what to
+look for (the kind of piece, the season, the colours that go with what you
+have) and shows the pieces it is based on; tap one to open it. Tap **I'll look
+for this** to put it on your **Wishlist**, or **Not for me** to hide it (you can
+say why, but you don't have to; **Hidden** at the bottom brings it back). On
+the wishlist, keep a note (size, shop, budget), add something by hand with
+**Add by hand**, and when you have it tap **I bought it**: it leaves the list
+and **Add** opens so you can photograph it. Your decisions are kept when the
+suggestions are worked out again, and the demo closet keeps its own. Offline,
+the screen shows what it last found, and nothing can be changed until Closet on
+your computer can be reached again. A closet with fewer than 8 pieces is too
+small to judge yet.
+
 To record a single item: open it and tap **Wore it today** (tap **Undo** if
 that was a mistake). The item shows how often it has been worn and when last, and lists
 the recent days, each of which can be removed. **Put in the laundry** and
 **It's clean** keep track of the wash; in the closet, items in the laundry
 carry a small mark, and the **Clean** and **In the laundry** buttons show only
 those.
+
+**Insights** (the button at the top of your closet) turns what you have
+recorded as worn into a few plain sentences: what each piece with a price has
+cost per wear (type the price on the item, in dollars), what you have never
+worn, what has not been worn for a long time in its season, what you wear most
+over the last 30 and 90 days and all time, whether a few pieces do all the work
+in each kind of clothing, and what your closet is made of. Tap a picture to open
+the piece. A piece you never wear can be archived from there with one tap, or
+kept: **Keep** stops it being listed for 90 days, remembered on that device
+only. Until enough wears are recorded, each card says so instead of showing
+numbers.
 
 ## Adding your clothes
 
@@ -150,11 +176,25 @@ visit, read-only.
 Closet will ask Claude to describe your clothes (what kind of garment, colour,
 collar, buttons and so on). It does this through **Claude Code**, a free
 program from Anthropic that uses your Claude plan, so nothing extra is charged
-per photo. An API key can be used instead, but it is billed per photo, is only
-used when the plan can't be, and only if you turn on **Allow the API key** in
-**Settings → Tagging** (it is off, because there is no spending limit yet).
+per photo. An API key can be used instead, but it is billed per photo by
+Anthropic, is only used when the plan can't be, and only if you turn on
+**Allow the API key** in **Settings → Tagging**. It is off until you do.
 **Settings → Tagging** shows which of the two Closet can use right now and how
 many items are waiting to be described.
+
+**What the API key costs.** At the prices Closet knows (written down on
+3 November 2026 — prices change, so check Anthropic's pricing page), one photo
+costs well under 1¢, about $0.003 at most. To allow the API key you set a
+**monthly limit** in US dollars; $5 is suggested, enough for well over a
+thousand photos. Before every request Closet adds what this month has cost so
+far to the most that request could cost, and if that would pass the limit it
+does not ask: the item waits and says the monthly limit was reached. Your plan
+is still used whenever it can be. Settings shows what this month has cost, how
+many requests were made, what the waiting items would cost at most and the
+last few months. If Anthropic refuses the key or says the account is out of
+credit, Closet turns the API key off and says why in Settings. What Closet
+shows is worked out from its own price list; your Anthropic account shows what
+was really charged.
 
 You install Claude Code once and sign in once. You need to type two short
 commands; copy and paste them exactly.

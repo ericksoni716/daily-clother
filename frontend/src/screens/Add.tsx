@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type DragEvent } from 'react';
+import { api } from '../api';
 import { CameraIcon, CheckIcon, CloudOffIcon, ImagesIcon, WarnIcon } from '../components/Icons';
 import { filesFromDrop, splitPhotos } from '../resize';
 import { Link, useMediaQuery } from '../router';
+import { importLine } from '../spend';
 import { useCloset } from '../store';
 import { countEntries, type QueueEntry, type UploadStatus } from '../uploadQueue';
 import { addFiles, cancelImport, clearFinished, previewOf, uploads } from '../uploads';
@@ -90,6 +92,17 @@ export function AddScreen() {
   useEffect(() => {
     folder.current?.setAttribute('webkitdirectory', '');
   }, [offline, desktop]);
+
+  // what the photos could cost to describe with the API key, shown only when the owner allows the key
+  const [perPhotoUsd, setPerPhotoUsd] = useState<number | null>(null);
+  useEffect(() => {
+    if (offline || profile === 'demo') return;
+    let current = true;
+    api.tagSpend().then((s) => current && setPerPhotoUsd(s.allowed ? s.per_photo_usd : null), () => undefined);
+    return () => {
+      current = false;
+    };
+  }, [offline, profile]);
 
   const counts = countEntries(queue);
   const pending = counts.waiting + counts.uploading;
@@ -202,6 +215,9 @@ export function AddScreen() {
               {paused && pending ? 'Paused · ' : ''}{summaryText(counts)}
             </span>
           </div>
+          {pending > 1 && perPhotoUsd !== null && profile !== 'demo' && (
+            <p className="muted small" data-testid="import-cost">{importLine(pending, perPhotoUsd)}</p>
+          )}
           {pending > 0 && (
             <div className="row queue-controls">
               {paused

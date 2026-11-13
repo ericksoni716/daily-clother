@@ -130,8 +130,8 @@ vacation. Say how people dress at work, and roughly how many weeks you spend
 away and whether those places are warm or cold. Days can overlap: work and
 exercise can happen on the same day. **Not now** leaves the original suggestions
 unchanged. You can answer later or change your answers from **Based on…** on
-What's missing, or **Settings → How you live**. Tap **Based on…** to open the
-weather note, explanation and your style words. With every situation set to
+What's missing, or **Settings → How you live**. Tapping **Based on…** opens
+your answers, with the weather note, explanation and your style words under them. With every situation set to
 **Never**, choose some situations before asking what is missing.
 
 Once answered, common days matter more than rare ones. A saved place lets

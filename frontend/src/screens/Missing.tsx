@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type SVGProps } from 'react';
 import { api, ApiError } from '../api';
-import { CheckIcon, ChevronLeftIcon, HangerIcon, PlusIcon, WarnIcon } from '../components/Icons';
+import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, PlusIcon, WarnIcon } from '../components/Icons';
 import { LifeQuestions } from '../components/LifeQuestions';
 import { Pieces } from '../components/ItemPic';
 import {
-  colorWords, type Gap, type GapsAnswer, HELP_LEVELS, helpOf, HIDE_REASONS, type HideReason, loadSavedGaps, lookForLines,
+  colorWords, type Gap, type GapsAnswer, groupReasons, helpOf, HIDE_REASONS, type HideReason, loadSavedGaps, lookForLines,
   type LookFor, otherFindings, reasonLabel, saveGaps, type Wish,
 } from '../gaps';
-import { Card, Notice, PageHeader, SegmentedControl } from '../components/ui';
+import { Button, Card, Notice, PageHeader, SegmentedControl } from '../components/ui';
 import { swatchOf } from '../labels';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
@@ -151,19 +151,11 @@ export function MissingScreen({ itemId, check, wishId, wide }: { itemId: string 
     <WouldWork key={`${profile}-${wishId ?? ''}`} wish={wishById(wishes, wishId)} wishId={wishId} byId={byId} locked={locked}
       busy={busy === 'new-wish' || (wishId !== null && busy === wishId)}
       onWish={(name, note) => actions.addByHand(name, note)} onNote={(w, note) => actions.saveNote(w, note)}
-      onBought={(w) => actions.bought(w)} />
+      onBought={(w) => actions.bought(w)} wide={wide} />
   );
 
-  if (check && !wide) {
-    return (
-      <div className="missing-item">
-        <div className="detail-top">
-          <Link to="/missing" className="btn btn-ghost back-link"><ChevronLeftIcon /> What's missing</Link>
-        </div>
-        {wouldWork}
-      </div>
-    );
-  }
+  // its own page, on a phone and on a computer: what it is on the left, the answer on the right
+  if (check) return <div className="missing-check">{wouldWork}</div>;
 
   if (itemId && !wide) {
     return (
@@ -205,6 +197,7 @@ export function MissingScreen({ itemId, check, wishId, wide }: { itemId: string 
         {!lifeOpen && <LifeBasis context={phase.gaps.context} locked={locked} busy={busy !== null} onOpen={() => setLifeOpen(true)}
           onDismiss={() => void change('life-dismiss', () => api.putSettings({ life_prompt_dismissed: true }))} />}
         {lifeOpen && <LifeQuestions initial={phase.gaps.context?.life ?? null} locked={locked}
+          about={phase.gaps.context && <LifeAbout context={phase.gaps.context} />}
           demo={profile === 'demo'} onSaved={async () => { setSituation('all'); await load(); toast('Your answers are saved'); }}
           onClose={() => setLifeOpen(false)} />}
       </>}
@@ -219,15 +212,8 @@ export function MissingScreen({ itemId, check, wishId, wide }: { itemId: string 
   return (
     <div className="master-detail missing">
       {main}
-      <aside className="detail-panel missing-side" aria-label={itemId ? 'Item details' : check ? 'Would this work?' : 'Your wishlist'}>
-        {check ? (
-          <>
-            <div className="missing-panel-top">
-              <Link to="/missing" className="btn btn-ghost btn-small back-link"><ChevronLeftIcon /> Back to the wishlist</Link>
-            </div>
-            {wouldWork}
-          </>
-        ) : itemId ? (
+      <aside className="detail-panel missing-side" aria-label={itemId ? 'Item details' : 'Your wishlist'}>
+        {itemId ? (
           <>
             <div className="missing-panel-top">
               <Link to="/missing" className="btn btn-ghost btn-small back-link"><ChevronLeftIcon /> Back to the wishlist</Link>
@@ -240,50 +226,56 @@ export function MissingScreen({ itemId, check, wishId, wide }: { itemId: string 
   );
 }
 
+function basisWords(context: NonNullable<GapsAnswer['context']>): string {
+  const { life, climate, taste } = context;
+  const answers = lifeSummary(life);
+  return [...(answers.length ? answers : ['your closet']),
+    ...(climate.used ? [`weather${climate.place ? ` in ${climate.place}` : ' where you live'}`] : []),
+    ...(taste.used ? ['what you wear and rate'] : [])].join(' · ');
+}
+
+/** The "Based on" row: one tap opens How you live, where the whole of it can be read and changed. */
 function LifeBasis({ context, locked, busy, onOpen, onDismiss }: {
   context: GapsAnswer['context']; locked: boolean; busy: boolean; onOpen(): void; onDismiss(): void;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const detailsId = useId();
   if (!context) return null;
-  const { life, climate, taste, demo } = context;
-  const answers = lifeSummary(life);
-  const basis = [...(answers.length ? answers : ['your closet']),
-    ...(climate.used ? [`weather${climate.place ? ` in ${climate.place}` : ' where you live'}`] : []),
-    ...(taste.used ? ['what you wear and rate'] : [])];
+  const { life, demo } = context;
   return (
     <section className="life-basis" aria-label="What these suggestions are based on">
-      <div className="life-basis-line">
-        <button className="life-basis-summary" onClick={() => setExpanded(!expanded)}
-          aria-expanded={expanded} aria-controls={detailsId} aria-label="See the answers behind these suggestions">
-          Based on: {basis.join(' · ')}.
-        </button>
-      </div>
-      <div id={detailsId} hidden={!expanded}>
-        <p className="life-context-note">Based on: {basis.join(' · ')}.</p>
-        <button className="btn btn-ghost btn-small" onClick={onOpen}>
-          {demo ? 'Example answers' : locked ? 'Saved answers' : life ? 'Edit answers' : 'Your answers'}
-        </button>
-        {climate.message && <p className="life-context-note">{climate.message} <Link to="/settings">Where you are in Settings</Link></p>}
-        {!climate.used && !climate.message && <p className="life-context-note">Using a general mix of weather. <Link to="/settings">Set where you are in Settings</Link></p>}
-        {climate.used && climate.old && !climate.message && <p className="life-context-note">Using the last saved climate for this place.</p>}
-        <div className="life-context-note">
-          <p>How these suggestions work</p>
-          {taste.used && taste.summary && <p>{taste.summary}</p>}
-          <p>Lounging means relaxed clothes at home; Closet can't identify sleepwear. Exercise suggestions are general, not specific to a sport.</p>
-        </div>
-        {life?.style_words && <p className="life-style-echo">Your words: <q>{life.style_words}</q> <span>Kept as a note, not used to rank suggestions.</span></p>}
-      </div>
+      <button type="button" className="life-basis-row" data-testid="life-basis" onClick={onOpen}
+        aria-label={`How you live. Based on: ${basisWords(context)}.`}>
+        <span className="life-basis-text"><span className="life-basis-label">Based on</span> {basisWords(context)}.</span>
+        <span className="life-basis-open">{demo ? 'Example answers' : locked ? 'Saved answers' : life ? 'Edit' : 'Your answers'}<ChevronIcon /></span>
+      </button>
       {!life && !context.prompt_dismissed && !demo && !locked && (
         <div className="life-invitation">
           <div><h2>Tell it how you live <span>· 1 minute</span></h2>
             <p>More for your everyday. Less for days you never dress for.</p></div>
           <div className="row">
-            <button className="btn btn-primary btn-small" onClick={onOpen}>Answer a few questions</button>
-            <button className="btn btn-ghost btn-small" disabled={busy} onClick={onDismiss}>Not now</button>
+            <Button variant="primary" small onClick={onOpen}>Answer a few questions</Button>
+            <Button variant="ghost" small disabled={busy} onClick={onDismiss}>Not now</Button>
           </div>
         </div>
       )}
+    </section>
+  );
+}
+
+/** What the suggestions are based on, in full: shown inside How you live when it is opened from What's missing. */
+function LifeAbout({ context }: { context: NonNullable<GapsAnswer['context']> }) {
+  const { life, climate, taste } = context;
+  return (
+    <section className="life-about" aria-label="What the suggestions are based on" data-testid="life-about">
+      <p className="life-context-note">Based on: {basisWords(context)}.</p>
+      {climate.message && <p className="life-context-note">{climate.message} <Link to="/settings">Where you are in Settings</Link></p>}
+      {!climate.used && !climate.message && <p className="life-context-note">Using a general mix of weather. <Link to="/settings">Set where you are in Settings</Link></p>}
+      {climate.used && climate.old && !climate.message && <p className="life-context-note">Using the last saved climate for this place.</p>}
+      <div className="life-context-note">
+        <p>How these suggestions work</p>
+        {taste.used && taste.summary && <p>{taste.summary}</p>}
+        <p>Lounging means relaxed clothes at home; Closet can't identify sleepwear. Exercise suggestions are general, not specific to a sport.</p>
+      </div>
+      {life?.style_words && <p className="life-style-echo">Your words: <q>{life.style_words}</q> <span>Kept as a note, not used to rank suggestions.</span></p>}
     </section>
   );
 }
@@ -456,15 +448,38 @@ function Body({ phase, byId, actions, offline, onRetry, situation, onSituation, 
   );
 }
 
-function HelpMeter({ score }: { score: number }) {
+/** How much a gap would help, as a labelled pill: never a number to read. */
+function HelpPill({ score }: { score: number }) {
   const help = helpOf(score);
+  return <span className={`help-pill help-${help.level}`} data-testid="help" data-level={help.level}>{help.words}</span>;
+}
+
+/** One sentence for why, then every reason once with the kinds of day it was given for, behind a disclosure. */
+function GapWhy({ why }: { why: string[] }) {
+  const groups = groupReasons(why);
+  if (!groups.length) return null;
+  const more = groups.length > 1 || groups[0].days.length > 0;
   return (
-    <span className={`help help-${help.level}`} data-testid="help" data-level={help.level}>
-      <span className="help-bars" aria-hidden="true">
-        {Array.from({ length: HELP_LEVELS }, (_, i) => <span key={i} className={i < help.level ? 'is-on' : ''} />)}
-      </span>
-      <span className="help-words">{help.words}</span>
-    </span>
+    <div className="gap-why-box">
+      <p className="gap-summary" data-testid="gap-summary">{groups[0].text}</p>
+      {more && (
+        <details className="gap-days" data-testid="gap-why">
+          <summary>Why, day by day ({why.length})</summary>
+          <ul className="gap-why" aria-label="Why">
+            {groups.map((g) => (
+              <li key={g.text}>
+                <p>{g.text}</p>
+                {g.days.length > 0 && (
+                  <ul className="gap-when" aria-label="For">
+                    {g.days.map((d, i) => <li key={`${d.occasion}-${i}`}><strong>{d.occasion}</strong>: {d.when}</li>)}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
   );
 }
 
@@ -477,13 +492,11 @@ function GapCard({ gap, byId, actions }: { gap: Gap; byId: Map<string, ItemSumma
     <Card as="article" className="gap-card" data-testid="gap" data-gap={gap.id} aria-labelledby={titleId}>
       <header className="gap-head">
         <h3 id={titleId}>{gap.name}</h3>
-        <HelpMeter score={gap.score} />
+        <HelpPill score={gap.score} />
       </header>
       <SituationLabels gap={gap} />
       <div className="gap-body">
-        <ul className="gap-why" aria-label="Why">
-          {gap.why.map((w) => <li key={w}>{w}</li>)}
-        </ul>
+        <GapWhy why={gap.why} />
         <LookForBox look={gap.look_for} />
       </div>
       {gap.evidence.items.length > 0 && (
@@ -499,10 +512,10 @@ function GapCard({ gap, byId, actions }: { gap: Gap; byId: Map<string, ItemSumma
           }} />
       ) : (
         <div className="row gap-actions">
-          <button className="btn btn-primary" disabled={actions.locked || busy} title={title} onClick={() => void actions.wish(gap)}>
+          <Button variant="primary" disabled={actions.locked || busy} title={title} onClick={() => void actions.wish(gap)}>
             <CheckIcon /> I'll look for this
-          </button>
-          <button className="btn btn-ghost" disabled={actions.locked || busy} title={title} onClick={() => setAsking(true)}>Not for me</button>
+          </Button>
+          <Button variant="ghost" disabled={actions.locked || busy} title={title} onClick={() => setAsking(true)}>Not for me</Button>
         </div>
       )}
     </Card>
@@ -514,7 +527,7 @@ function WishedGap({ gap }: { gap: Gap }) {
     <Card as="article" className="gap-card is-wished" data-testid="gap" data-gap={gap.id} aria-label={gap.name}>
       <header className="gap-head">
         <h3>{gap.name}</h3>
-        <HelpMeter score={gap.score} />
+        <HelpPill score={gap.score} />
       </header>
       <p className="gap-wished"><CheckIcon /> On your wishlist</p>
       <SituationLabels gap={gap} />

@@ -1,12 +1,14 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api } from '../api';
 import { FREQUENCIES, frequencyWords, newLife, SITUATIONS, type Life } from '../life';
 import type { Settings } from '../types';
 import { useMediaQuery } from '../router';
 import './LifeQuestions.css';
 
-export function LifeQuestions({ initial, locked, demo, onSaved, onClose }: {
+export function LifeQuestions({ initial, locked, demo, about, onSaved, onClose }: {
   initial: Life | null; locked: boolean; demo: boolean;
+  /** Shown under the questions: what's missing passes what its suggestions are based on. */
+  about?: ReactNode;
   onSaved(settings: Settings): void | Promise<void>; onClose(): void;
 }) {
   const [life, setLife] = useState<Life>(() => initial ?? newLife());
@@ -104,6 +106,7 @@ export function LifeQuestions({ initial, locked, demo, onSaved, onClose }: {
         {!demo && <button className="btn btn-primary" type="submit" disabled={disabled}>{busy ? 'Saving…' : 'Save my answers'}</button>}
         <button className="btn btn-ghost" type="button" disabled={busy} onClick={onClose}>{locked || demo ? 'Close' : 'Cancel'}</button>
       </div>
+      {about}
     </form>
   );
 

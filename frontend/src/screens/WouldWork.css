@@ -1,9 +1,11 @@
 /* Would this work? Uses the tokens and shared classes in styles.css and Missing.css; only what is new is here. */
 
 .wouldwork { min-width: 0; }
-.wouldwork-head { margin-bottom: 14px; }
-.wouldwork-head h2 { margin: 0 0 4px; font-size: var(--text-lg); }
-.wouldwork-head p { margin: 0; line-height: 1.45; }
+.wouldwork-head p { line-height: 1.45; }
+/* On a computer, a page of its own: the piece on the left, the answer on the right, which stays in view. */
+.wouldwork-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.wouldwork-right { position: sticky; top: 16px; min-width: 0; }
+.wouldwork-empty { padding: 48px 24px; border: 1px dashed var(--line-strong); border-radius: var(--radius-md); }
 .wouldwork-small { font-size: var(--text-sm); line-height: 1.4; }
 
 .wouldwork-describe { display: grid; gap: 16px; }

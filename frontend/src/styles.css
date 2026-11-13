@@ -450,7 +450,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .notice-warn > svg { color: var(--warn); }
 .failure-details { margin: 0 0 8px; }
 .failure-details summary { cursor: pointer; }
-.failure-details pre { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.85rem; }
+.failure-details pre { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-xs); }
 
 .notice-error { background: var(--danger-soft); }
 .notice-error > svg { color: var(--danger); }
@@ -628,7 +628,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .api-key { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 16px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .api-key .field-row-inline, .api-key p { margin: 0; }
 .route-order { border: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.route-order legend { font-size: 0.875rem; font-weight: 600; color: var(--muted); padding: 0; margin-bottom: 4px; }
+.route-order legend { font-size: var(--text-sm); font-weight: var(--weight-label); color: var(--ink-3); padding: 0; margin-bottom: 4px; }
 .route-order-choice { display: flex; gap: 8px; align-items: baseline; }
 .route-order .hint { margin: 2px 0 0; }
 

@@ -9,11 +9,12 @@
 /* ---------------------------------------------------------------- the list */
 .trip-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 @media (min-width: 700px) { .trip-cards { grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr)); } }
+.trip-card-item { padding: 0; }
+.trip-card-item:hover { border-color: var(--ink-3); }
+.trip-card-item.is-past { opacity: 0.75; box-shadow: none; }
 .trip-card {
-  display: flex; align-items: center; gap: 14px; padding: 14px; min-height: 72px; text-decoration: none; color: var(--ink);
+  display: flex; align-items: center; gap: 14px; padding: 14px; min-height: 72px; text-decoration: none; color: var(--ink); border-radius: var(--radius-md);
 }
-.trip-card:hover { border-color: var(--ink-3); }
-.trip-card.is-past { opacity: 0.75; box-shadow: none; }
 .trip-card-icon { flex: none; width: 44px; height: 44px; border-radius: var(--radius-md); background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; }
 .trip-card-icon svg { width: 26px; height: 26px; }
 .trip-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -113,7 +114,7 @@
 
 /* ---------------------------------------------------------------- day by day */
 .trip-day-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.trip-day { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px 14px; }
+.trip-day { padding: 12px 14px; }
 .trip-day.has-problem { border-left: 5px solid var(--warn); }
 .trip-day-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 8px; }
 .trip-day-occasion { padding: 1px 8px; border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--accent); font-size: var(--text-sm); font-weight: var(--weight-heading); }

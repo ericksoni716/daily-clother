@@ -6,6 +6,7 @@ import type { Profile, Session } from './types';
 import { navigate } from './router';
 import { SetupScreen, ReadyScreen } from './screens/Setup';
 import { LoginScreen } from './screens/Login';
+import { forgetLanding } from './landing';
 import { ClosedScreen, UnreachableScreen, LoadingScreen } from './screens/Static';
 
 type Toast = { id: number; message: string; kind: 'ok' | 'error' };
@@ -79,7 +80,10 @@ export function App() {
       await loadSession();
     }} />;
   } else if (!session.authenticated) {
-    screen = <LoginScreen onDone={loadSession} />;
+    screen = <LoginScreen onDone={() => {
+      forgetLanding();
+      return loadSession();
+    }} />;
   } else if (justSetUp) {
     screen = <ReadyScreen onChoose={async (profile) => {
       if (profile === 'demo') await api.setProfile('demo');

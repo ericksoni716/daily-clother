@@ -40,3 +40,12 @@ export const CheckIcon = (p: P) => (
 export const ChevronIcon = (p: P) => (
   <svg {...base} {...p}><path d="m9 5 7 7-7 7" /></svg>
 );
+export const ChevronLeftIcon = (p: P) => (
+  <svg {...base} {...p}><path d="m15 5-7 7 7 7" /></svg>
+);
+export const SunIcon = (p: P) => (
+  <svg {...base} {...p}><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4" /></svg>
+);
+export const MoreIcon = (p: P) => (
+  <svg {...base} {...p}><circle cx="5.5" cy="12" r="1.3" fill="currentColor" /><circle cx="12" cy="12" r="1.3" fill="currentColor" /><circle cx="18.5" cy="12" r="1.3" fill="currentColor" /></svg>
+);

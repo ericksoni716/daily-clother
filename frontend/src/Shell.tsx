@@ -1,20 +1,24 @@
 import { useState } from 'react';
-import { ArchiveIcon, CloudOffIcon, GearIcon, HangerIcon, PlusIcon } from './components/Icons';
+import { ArchiveIcon, CloudOffIcon, GearIcon, HangerIcon, PlusIcon, SunIcon } from './components/Icons';
+import { useLanding } from './landing';
 import { Link, parseRoute, usePath, useMediaQuery, WIDE } from './router';
 import { useCloset } from './store';
 import { ClosetScreen } from './screens/Closet';
 import { AddScreen } from './screens/Add';
 import { SettingsScreen } from './screens/Settings';
 import { ItemDetail } from './screens/ItemDetail';
+import { TodayScreen } from './screens/Today';
 
 export function Shell({ version }: { version: string }) {
   const path = usePath();
   const route = parseRoute(path);
   const wide = useMediaQuery(WIDE);
-  const { offline } = useCloset();
+  const { offline, items } = useCloset();
+  useLanding(path, items.active);
 
   let content;
-  if (route.name === 'add') content = <AddScreen />;
+  if (route.name === 'today') content = <TodayScreen itemId={route.itemId} wide={wide} />;
+  else if (route.name === 'add') content = <AddScreen />;
   else if (route.name === 'settings') content = <SettingsScreen version={version} />;
   else if (route.itemId && !wide) content = <ItemDetail key={route.itemId} id={route.itemId} status={route.status} />;
   else content = <ClosetScreen status={route.status} selectedId={route.itemId} wide={wide} />;
@@ -67,6 +71,7 @@ function TopBanners() {
 }
 
 const NAV = [
+  { key: 'today', to: '/today', label: 'Today', Icon: SunIcon },
   { key: 'closet', to: '/', label: 'Closet', Icon: HangerIcon },
   { key: 'archived', to: '/archived', label: 'Archived', Icon: ArchiveIcon },
   { key: 'add', to: '/add', label: 'Add', Icon: PlusIcon },

@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { forgetSaved } from './today';
 import {
-  addDays, barWidth, costCaption, forgetKept, groupLabel, keepPiece, keptPieces, KEEP_DAYS, money, perWear, plural, shortDate,
+  addDays, loadSavedInsights, saveInsights, type Insights, barWidth, costCaption, forgetKept, groupLabel, keepPiece, keptPieces, KEEP_DAYS, money, perWear, plural, shortDate,
   unwornCaption, wears, windowLabel,
 } from './insights';
 
 class MemoryStorage {
   data = new Map<string, string>();
+  get length() { return this.data.size; }
+  key(i: number) { return [...this.data.keys()][i] ?? null; }
+  removeItem(k: string) { this.data.delete(k); }
   getItem(k: string) { return this.data.get(k) ?? null; }
   setItem(k: string, v: string) { this.data.set(k, v); }
 }
@@ -101,5 +105,36 @@ describe('keep', () => {
     expect(keptPieces('main', '2026-11-13', kv)).toEqual({});
     expect(keptPieces('main', '2026-11-13', null)).toEqual({});
     expect(keepPiece('main', 'a', '2026-11-13', null)).toBe('2027-02-11');
+  });
+});
+
+describe('the saved answer', () => {
+  const answer = (sentence: string) => ({ today: '2026-11-13', cost_per_wear: { sentence } }) as unknown as Insights;
+
+  it('is kept per closet, so one closet never shows the other\'s', () => {
+    const kv = new MemoryStorage();
+    saveInsights('demo', answer('demo'), kv, new Date('2026-11-13T08:00:00Z'));
+    expect(loadSavedInsights('main', kv)).toBeNull();
+    expect(loadSavedInsights('demo', kv)).toEqual({ saved_at: '2026-11-13T08:00:00.000Z', answer: answer('demo') });
+    saveInsights('main', answer('main'), kv);
+    expect(loadSavedInsights('main', kv)?.answer.cost_per_wear.sentence).toBe('main');
+    expect(loadSavedInsights('demo', kv)?.answer.cost_per_wear.sentence).toBe('demo');
+  });
+
+  it('is removed on logout with the other saved copies, but "keep" is not', () => {
+    const kv = new MemoryStorage();
+    saveInsights('main', answer('main'), kv);
+    keepPiece('main', 'a', '2026-11-13', kv);
+    forgetSaved(kv);
+    expect(loadSavedInsights('main', kv)).toBeNull();
+    expect(keptPieces('main', '2026-11-13', kv)).toEqual({ a: '2027-02-11' });
+  });
+
+  it('survives bad or missing storage', () => {
+    const kv = new MemoryStorage();
+    kv.setItem('closet-today-saved:insights:main', '{oops');
+    expect(loadSavedInsights('main', kv)).toBeNull();
+    expect(loadSavedInsights('main', null)).toBeNull();
+    saveInsights('main', answer('x'), null);
   });
 });

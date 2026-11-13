@@ -78,20 +78,13 @@ CATEGORY_PLURAL = {
     "other": "Other things",
 }
 CATEGORY_WORD = {"tee": "T-shirt", "dress_shoes": "dress shoes", "other": "item"}
-# A name whose first word is one of these reads naturally after "your" in lower case ("your grey wool trousers");
-# any other first word (a brand, "Breton") is kept as the owner wrote it.
-_PLAIN_FIRST = ({w.split("_")[0] for w in vocab.COLOR} | set(vocab.CATEGORY) | {
-    "dark", "light", "pale", "plain", "old", "new", "striped", "plaid", "checked", "wool", "cotton", "linen", "denim",
-    "leather", "suede", "canvas", "corduroy", "flannel", "oxford", "chambray", "khaki", "charcoal", "indigo", "marl",
-    "oatmeal", "cable", "paper", "madras", "heavy", "thin", "long", "short", "slim", "wide", "rain", "winter", "summer",
-})
 
 
 # ====================================================================== the closet as read here
 @dataclass
 class _Piece:
     id: str
-    name: str                 # as shown after "your": "grey wool trousers"
+    name: str                 # as shown after "your", as the owner wrote it: "Grey wool trousers", "New Balance 990"
     category: str | None
     color: str | None
     formality: str | None
@@ -134,11 +127,7 @@ def _get(row: object, key: str):
 def _display_name(row) -> str:
     name = _get(row, "name")
     if isinstance(name, str) and name.strip():
-        name = " ".join(name.split())
-        first = name.split(" ")[0]
-        if first.lower() in _PLAIN_FIRST and first[1:] == first[1:].lower():
-            name = name[0].lower() + name[1:]
-        return name
+        return " ".join(name.split())   # as the owner wrote it: brands and places keep their capitals
     color, category = _get(row, "color"), _get(row, "category")
     words = [str(color).replace("_", " ") if color in vocab.COLOR else "",
              CATEGORY_WORD.get(category, str(category).replace("_", " ")) if category in vocab.CATEGORY else "item"]
@@ -288,23 +277,39 @@ def _never_worn(pieces: list[_Piece], log: _Log, today: date) -> dict:
     if log.wears < NEVER_MIN_LOG_WEARS:
         return {**out, "sentence": f"Record what you wear for a while longer: pieces you never wear show here once "
                                    f"{NEVER_MIN_LOG_WEARS} wears are recorded ({log.wears} so far)."}
-    found = []
+    found, early = [], 0
     for p in pieces:
         if p.wears or (p.added is not None and (today - p.added).days < RECENT_DAYS):
             continue
         since = max(p.added, log.first) if p.added else log.first
         if season_days(since, today, p.season) < NEVER_MIN_SEASON_DAYS:
+            early += 1   # too early to say: not listed, and not counted as worn either
             continue
         sentence = (f"Not worn since you added it on {_day(since)}." if p.added and p.added > log.first else
                     f"Not worn since you began recording what you wear, on {_day(since)}.")
         found.append((since, p, sentence))
     found.sort(key=lambda x: (x[0], x[1].name.lower(), x[1].id))
     out["items"] = [{"id": p.id, "since": since.isoformat(), "sentence": s} for since, p, s in found]
-    if not found:
+    one = early == 1
+    if not found and not early:
         sentence = f"Everything you have had for more than {RECENT_DAYS} days has been worn at least once."
+    elif not found:
+        sentence = (f"{_n(early, 'piece')} {'has' if one else 'have'} not been worn yet, but it is too early to say: the wear log "
+                    f"goes back {_n(log.days, 'day')}, and {'it shows' if one else 'they show'} here once "
+                    f"{NEVER_MIN_SEASON_DAYS} days of {'its' if one else 'their'} season have passed.")
     else:
-        sentence = (f"{_n(len(found), 'piece')} {'has' if len(found) == 1 else 'have'} not been worn since you began recording "
-                    f"what you wear, {_ago(log.days)}. Archive what you no longer want, or keep it.")
+        # the headline claims only what is true of every piece it counts
+        has = "has" if len(found) == 1 else "have"
+        if all(since == log.first for since, _, _ in found):
+            said = f"not been worn since you began recording what you wear, {_ago(log.days)}"
+        elif len(found) == 1:
+            said = f"not been worn in the {_n((today - found[0][0]).days, 'day')} since you added it"
+        else:
+            said = f"not been worn for at least {_n(min((today - since).days for since, _, _ in found), 'day')} each"
+        sentence = f"{_n(len(found), 'piece')} {has} {said}. Archive what you no longer want, or keep it."
+        if early:
+            sentence += (f" {early} more {'is' if one else 'are'} left out until enough of {'its' if one else 'their'} "
+                         "season has passed.")
     return {**out, "enough": True, "sentence": sentence}
 
 
@@ -350,10 +355,13 @@ def _worn_most(pieces: list[_Piece], log: _Log, today: date) -> dict:
                                              f"{MOST_MIN_WEARS}."})
             continue
         ranked = sorted(((n, p) for n, p in counted if n), key=lambda x: (-x[0], -x[1].last.toordinal(), x[1].name.lower(), x[1].id))
-        ranked = ranked[:MOST_LIST]
         top = ranked[0][0]
+        level = sum(1 for n, _ in ranked if n == top)
+        ranked = ranked[:MOST_LIST]
         tied = [p for n, p in ranked if n == top]
-        sentence = f"Worn most {_window_words(days)}: {_your(tied)}, {_n(top, 'time')}{' each' if len(tied) > 1 else ''}."
+        sentence = f"Worn most {_window_words(days)}: {_your(tied)}, {_n(top, 'time')}{' each' if len(tied) > 1 else ''}"
+        more = level - len(tied)   # pieces worn as often that did not fit in the list
+        sentence += f", and {more} more worn as often." if more else "."
         if days and log.days < days - 1:
             sentence += f" The wear log goes back {_n(log.days, 'day')}."
         windows.append({**w, "enough": True, "sentence": sentence, "items": [{"id": p.id, "wears": n} for n, p in ranked]})

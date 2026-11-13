@@ -46,7 +46,7 @@ def test_cost_per_wear_names_the_item_and_rounds_to_the_cent():
     assert cpw["enough"] is True
     best = {e["id"]: e for e in cpw["best"] + cpw["worst"]}
     assert best["trousers"]["per_wear_cents"] == 240
-    assert best["trousers"]["sentence"] == "Your grey wool trousers cost $2.40 a wear over 25 wears."
+    assert best["trousers"]["sentence"] == "Your Grey wool trousers cost $2.40 a wear over 25 wears."
     assert best["tee"]["per_wear_cents"] == 833   # 2500 / 3, rounded
     assert [e["id"] for e in cpw["best"]][0] == "trousers" and [e["id"] for e in cpw["worst"]] == ["tee"]
     assert "cap" not in best   # no price, no cost per wear
@@ -60,7 +60,7 @@ def test_a_priced_item_never_worn_has_no_cost_per_wear_but_its_price():
     assert [e["id"] for e in cpw["best"] + cpw["worst"]] == ["tee"]
     [coat] = cpw["not_worn"]
     assert coat == {"id": "coat", "price_cents": 35000, "wears": 0, "per_wear_cents": None,
-                    "sentence": "Not worn yet: your black overcoat, $350."}
+                    "sentence": "Not worn yet: your Black overcoat, $350."}
     # the closet's number counts what was paid for the coat too
     assert cpw["closet"]["spent_cents"] == 37500 and cpw["closet"]["wears"] == 5
 
@@ -91,7 +91,7 @@ def test_never_worn_leaves_out_items_added_recently():
     first = (TODAY - timedelta(days=60)).isoformat()
     assert by_id["old"]["since"] == first and "began recording" in by_id["old"]["sentence"]
     assert by_id["later"]["since"] == older[:10] and "since you added it on" in by_id["later"]["sentence"]
-    assert never["sentence"].startswith("2 pieces have not been worn since you began recording")
+    assert never["sentence"].startswith(f"2 pieces have not been worn for at least {insights.RECENT_DAYS + 10} days each.")
 
 
 def test_never_worn_needs_enough_history():
@@ -113,6 +113,53 @@ def test_never_worn_takes_the_season_into_account():
     assert {e["id"] for e in find(items, wears, date(2026, 11, 20))["never_worn"]["items"]} == {"shirt", "coat"}
 
 
+def test_never_worn_says_everything_was_worn_only_when_it_was():
+    busy, wears = busy_log()
+    wears += worn("tee", 40)
+    never = find([busy, item("tee", "tee", "White tee")], wears)["never_worn"]
+    assert never["enough"] is True and never["items"] == []
+    assert never["sentence"] == f"Everything you have had for more than {insights.RECENT_DAYS} days has been worn at least once."
+
+
+def test_never_worn_does_not_claim_everything_was_worn_when_it_is_too_early_to_say():
+    # 12 wears in the first 3 days of the log, and 5 old pieces not worn yet
+    busy = item("busy", "jeans", "Busy jeans")
+    wears = [{"item_id": "busy", "worn_on": (TODAY - timedelta(days=n % 3)).isoformat()} for n in range(3)]
+    wears += [{"item_id": f"b{n}", "worn_on": (TODAY - timedelta(days=n % 3)).isoformat()} for n in range(9)]
+    items = [busy] + [item(f"b{n}", "tee", f"Worn tee {n}") for n in range(9)] + [item(f"old{n}", "sweater", f"Old sweater {n}") for n in range(5)]
+    never = find(items, wears)["never_worn"]
+    assert never["items"] == []
+    assert "has been worn at least once" not in never["sentence"]
+    assert never["sentence"] == (f"5 pieces have not been worn yet, but it is too early to say: the wear log goes back 2 days, "
+                                 f"and they show here once {insights.NEVER_MIN_SEASON_DAYS} days of their season have passed.")
+    # the only piece not worn is a winter coat, in August
+    today = date(2026, 8, 20)
+    busy = item("busy", "jeans", "Busy jeans")
+    wears = [{"item_id": "busy", "worn_on": (date(2026, 6, 10) + timedelta(days=5 * n)).isoformat()} for n in range(12)]
+    coat = find([busy, item("coat", "coat", "Winter coat", season="cool")], wears, today)["never_worn"]
+    assert coat["items"] == [] and "has been worn at least once" not in coat["sentence"]
+    assert coat["sentence"].startswith("1 piece has not been worn yet, but it is too early to say")
+    # some listed, some too early: the headline counts only the listed ones and says the rest are left out
+    mixed = find([busy, item("coat", "coat", "Winter coat", season="cool"), item("shirt", "shirt", "Linen shirt", season="warm")],
+                 wears, today)["never_worn"]
+    assert [e["id"] for e in mixed["items"]] == ["shirt"]
+    assert mixed["sentence"].startswith("1 piece has not been worn since you began recording what you wear, 71 days ago.")
+    assert "1 more is left out until enough of its season has passed" in mixed["sentence"]
+
+
+def test_never_worn_headline_claims_no_more_than_is_true_for_the_pieces():
+    busy, wears = busy_log()
+    wears += worn("busy", 300)   # the log began 300 days ago
+    added = (TODAY - timedelta(days=60)).isoformat() + "T09:00:00Z"
+    alone = find([busy, item("new", "shirt", "Linen shirt", created=added)], wears)["never_worn"]
+    assert alone["items"][0]["sentence"] == f"Not worn since you added it on {insights._day(TODAY - timedelta(days=60))}."
+    assert "300" not in alone["sentence"]
+    assert alone["sentence"].startswith("1 piece has not been worn in the 60 days since you added it.")
+    both = find([busy, item("new", "shirt", "Linen shirt", created=added), item("old", "sweater", "Cream sweater")], wears)["never_worn"]
+    assert "300" not in both["sentence"]
+    assert both["sentence"].startswith("2 pieces have not been worn for at least 60 days each.")
+
+
 # ---------------------------------------------------------------------------- not worn for a long time
 def test_a_winter_coat_not_worn_since_march_is_not_neglected_in_august():
     march = date(2026, 3, 10)
@@ -129,6 +176,14 @@ def test_a_winter_coat_not_worn_since_march_is_not_neglected_in_august():
     coat = next(e for e in december["items"] if e["id"] == "coat")
     assert coat["last_worn"] == "2026-03-10" and coat["season_days"] >= insights.NEGLECT_DAYS
     assert coat["sentence"].startswith("Last worn on 10 March 2026;")
+
+
+def test_not_worn_lately_says_when_nothing_was_left_long():
+    busy = item("busy", "jeans", "Busy jeans")
+    nothing = find([busy], worn("busy", 1, 100))["not_worn_lately"]
+    assert nothing["enough"] is True and nothing["items"] == []
+    assert nothing["sentence"] == (f"Everything you have worn has been worn again within {insights.NEGLECT_DAYS} days "
+                                   "of its season.")
 
 
 def test_season_days_counts_only_the_seasons_months():
@@ -153,11 +208,20 @@ def test_worn_most_over_each_window():
     windows = {w["days"]: w for w in find(items, wears)["worn_most"]["windows"]}
     assert [w["days"] for w in find(items, wears)["worn_most"]["windows"]] == [30, 90, None]
     assert windows[30]["items"] == [{"id": "jeans", "wears": 4}, {"id": "chinos", "wears": 1}]
-    assert windows[30]["sentence"] == "Worn most in the last 30 days: your dark jeans, 4 times."
+    assert windows[30]["sentence"] == "Worn most in the last 30 days: your Dark jeans, 4 times."
     assert windows[90]["items"][0] == {"id": "chinos", "wears": 7}
     # a tie goes to the piece worn more recently
     assert windows[None]["items"][:2] == [{"id": "chinos", "wears": 7}, {"id": "tee", "wears": 7}]
-    assert windows[None]["sentence"] == "Worn most since you began recording what you wear: your tan chinos and white tee, 7 times each."
+    assert windows[None]["sentence"] == "Worn most since you began recording what you wear: your Tan chinos and White tee, 7 times each."
+
+
+def test_worn_most_says_when_more_pieces_are_level_than_are_named():
+    items = [item(f"t{n}", "tee", f"Tee {n}") for n in range(8)]
+    wears = [w for n in range(8) for w in worn(f"t{n}", 1, 2, 3, 4, 5, 6)]
+    w30 = find(items, wears)["worn_most"]["windows"][0]
+    assert len(w30["items"]) == insights.MOST_LIST
+    assert w30["sentence"].startswith("Worn most in the last 30 days: your Tee 0, Tee 1, Tee 2, Tee 3 and Tee 4, 6 times each, "
+                                      "and 3 more worn as often.")
 
 
 def test_worn_most_says_when_a_window_has_too_few_wears():
@@ -176,7 +240,7 @@ def test_the_spread_tells_a_few_pieces_doing_the_work_from_even_wear():
     assert spread["enough"] is True
     cats = {c["category"]: c for c in spread["categories"]}
     assert cats["jeans"]["kind"] == "few" and cats["jeans"]["doing_most"] == 1 and cats["jeans"]["share"] == 90
-    assert cats["jeans"]["sentence"] == "Jeans: 1 of 3 gets 90% of the wears (your dark jeans)."
+    assert cats["jeans"]["sentence"] == "Jeans: 1 of 3 gets 90% of the wears (your Dark jeans)."
     assert [i["wears"] for i in cats["jeans"]["items"]] == [9, 1, 0]
     assert cats["tee"]["kind"] == "even" and cats["tee"]["doing_most"] == 2
     assert spread["categories"][0]["category"] == "jeans"   # the few-doing-the-work first
@@ -233,6 +297,24 @@ def test_archived_items_future_wears_and_odd_data_are_left_out():
     assert answer["cost_per_wear"]["enough"] is False and answer["cost_per_wear"]["best"] == []
     assert answer["makeup"]["pieces"] == 2
     assert all(i["id"] != "gone" for w in answer["worn_most"]["windows"] for i in w["items"])
+
+
+def test_a_name_keeps_the_owners_capitals():
+    items = [item("nb", "sneakers", "New Balance 990", price=18000), item("tee", "tee", "white tee", price=1000)]
+    cpw = find(items, worn("nb", *range(1, 10)) + worn("tee", 1))["cost_per_wear"]
+    sentences = {e["id"]: e["sentence"] for e in cpw["best"] + cpw["worst"]}
+    assert sentences["nb"] == "Your New Balance 990 cost $20.00 a wear over 9 wears."
+    assert sentences["tee"] == "Your white tee cost $10.00 a wear over 1 wear."
+
+
+def test_a_wear_dated_in_the_future_is_left_out():
+    busy, wears = busy_log()
+    future = [{"item_id": "busy", "worn_on": (TODAY + timedelta(days=1)).isoformat()},
+              {"item_id": "busy", "worn_on": "2099-01-01"}, {"item_id": "tee", "worn_on": "2099-01-01"}]
+    answer = find([busy, item("tee", "tee", "White tee", price=500)], wears + future)
+    assert answer["log"]["wears"] == 12
+    assert answer["worn_most"]["windows"][-1]["items"] == [{"id": "busy", "wears": 12}]
+    assert [e["id"] for e in answer["cost_per_wear"]["not_worn"]] == ["tee"]
 
 
 # ---------------------------------------------------------------------------- API

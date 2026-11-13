@@ -1,30 +1,35 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
-import { BackIcon, HangerIcon } from '../components/Icons';
+import { BackIcon, HangerIcon, WarnIcon } from '../components/Icons';
+import { loadGridView, type GridView } from '../drawing';
 import {
-  barWidth, costCaption, FIELD_WORDS, forgetKept, groupLabel, keepPiece, keptPieces, MAKEUP_FIELDS, plural, shortDate, unwornCaption,
-  windowLabel, type CostPiece, type Counted, type Insights, type MakeupField, type Unworn, type UnwornPiece,
+  barWidth, costCaption, FIELD_WORDS, forgetKept, groupLabel, keepPiece, keptPieces, loadSavedInsights, MAKEUP_FIELDS, plural,
+  saveInsights, shortDate, unwornCaption, windowLabel, type CostPiece, type Counted, type Insights, type MakeupField, type Unworn,
+  type UnwornPiece,
 } from '../insights';
 import { categoryPlural, label } from '../labels';
 import { itemPath, Link } from '../router';
 import { useCloset } from '../store';
+import { timeOf } from '../today';
 import type { ItemSummary } from '../types';
 import { localDay } from '../wears';
+import { TilePicture } from './Closet';
 import './Insights.css';
 
 const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
 
 type Phase =
   | { kind: 'loading' }
-  | { kind: 'ready'; answer: Insights }
+  | { kind: 'ready'; answer: Insights; savedAt: string | null }
   | { kind: 'error'; message: string; offline: boolean };
 
-/** The last answer while the app is open, so coming back from an item shows it at once (and it is fetched again). */
-let memory: { profile: string; answer: Insights } | null = null;
+/** What was shown while the app is open, so coming back from an item shows it at once (and it is fetched again). */
+let memory: { profile: string; phase: Phase } | null = null;
 
 export function InsightsScreen() {
   const { profile, items, loadItems, offline, upsert, toast } = useCloset();
-  const [phase, setPhase] = useState<Phase>(() => (memory && memory.profile === profile ? { kind: 'ready', answer: memory.answer } : { kind: 'loading' }));
+  const [phase, setPhase] = useState<Phase>(() => (memory && memory.profile === profile ? memory.phase : { kind: 'loading' }));
+  const shown = useRef(phase);
   const [attempt, setAttempt] = useState(0);
   const today = localDay();
   const [kept, setKept] = useState(() => keptPieces(profile, today));
@@ -36,37 +41,49 @@ export function InsightsScreen() {
   }, [items.active, loadItems]);
 
   useEffect(() => {
+    shown.current = phase;
+    memory = { profile, phase };
+  }, [profile, phase]);
+
+  useEffect(() => {
     let live = true;
     api.insights().then(
       (answer) => {
         if (!live) return;
-        memory = { profile, answer };
-        setPhase({ kind: 'ready', answer });
+        saveInsights(profile, answer);
+        setPhase({ kind: 'ready', answer, savedAt: null });
         setGone([]);
       },
       (e) => {
         if (!live) return;
         const err = e as ApiError;
-        // keep what is on screen if there is something; otherwise say why there is nothing
-        setPhase((p) => (p.kind === 'ready' ? p : {
-          kind: 'error', offline: err.status === 0,
-          message: err.status === 0
-            ? "You're offline, and Insights has not been opened on this device before. It shows here once Closet on your computer can be reached."
-            : err.message,
-        }));
+        if (err.status === 0) {
+          // offline: only this closet's own saved answer, never another closet's
+          const saved = loadSavedInsights(profile);
+          if (saved) setPhase({ kind: 'ready', answer: saved.answer, savedAt: saved.saved_at });
+          else setPhase({ kind: 'error', offline: true, message: "You're offline, and nothing was saved on this device yet. Insights shows here once Closet on your computer can be reached." });
+        } else if (shown.current.kind === 'ready' && shown.current.savedAt === null) {
+          toast(err.message, 'error');
+        } else {
+          setPhase({ kind: 'error', offline: false, message: err.message });
+        }
       },
     );
     return () => {
       live = false;
     };
-  }, [profile, attempt]);
+  }, [profile, attempt, toast]);
 
   // Back online: ask again.
-  const [wasOffline, setWasOffline] = useState(offline);
-  if (wasOffline !== offline) {
-    setWasOffline(offline);
-    if (!offline) setAttempt((n) => n + 1);
-  }
+  const wasOffline = useRef(offline);
+  useEffect(() => {
+    if (wasOffline.current && !offline) setAttempt((n) => n + 1);
+    wasOffline.current = offline;
+  }, [offline]);
+
+  // the same picture the closet grid shows: photos or drawings, as chosen there
+  const view = useMemo<GridView>(loadGridView, []);
+  const locked = offline || (phase.kind === 'ready' && phase.savedAt !== null);
 
   const byId = useMemo(() => new Map((items.active ?? []).map((i) => [i.id, i])), [items.active]);
 
@@ -115,17 +132,25 @@ export function InsightsScreen() {
           {!phase.offline && <button className="btn" onClick={() => setAttempt((n) => n + 1)}>Try again</button>}
         </div>
       )}
+      {phase.kind === 'ready' && phase.savedAt && (
+        <p className="notice notice-warn" role="status">
+          <WarnIcon />
+          <span>Saved earlier{savedWhen(phase.savedAt)}. You're offline, so nothing here can be changed until Closet on your computer can be reached.</span>
+        </p>
+      )}
       {phase.kind === 'ready' && (
-        <div className="insights-grid">
-          <CostCard answer={phase.answer} byId={byId} />
-          <UnwornCard finding={phase.answer.never_worn} testid="never-worn" byId={byId} kept={kept} gone={gone} offline={offline}
-            archiving={archiving} onArchive={archive} onKeep={keep} onShowKept={showKept} />
-          <UnwornCard finding={phase.answer.not_worn_lately} testid="not-worn-lately" byId={byId} kept={kept} gone={gone} offline={offline}
-            archiving={archiving} onArchive={archive} onKeep={keep} onShowKept={showKept} />
-          <WornMostCard answer={phase.answer} byId={byId} />
-          <SpreadCard answer={phase.answer} byId={byId} />
-          <MakeupCard answer={phase.answer} />
-        </div>
+        <ViewContext.Provider value={view}>
+          <div className="insights-grid">
+            <CostCard answer={phase.answer} byId={byId} />
+            <UnwornCard finding={phase.answer.never_worn} testid="never-worn" byId={byId} kept={kept} gone={gone} offline={locked}
+              archiving={archiving} onArchive={archive} onKeep={keep} onShowKept={showKept} />
+            <UnwornCard finding={phase.answer.not_worn_lately} testid="not-worn-lately" byId={byId} kept={kept} gone={gone} offline={locked}
+              archiving={archiving} onArchive={archive} onKeep={keep} onShowKept={showKept} />
+            <WornMostCard answer={phase.answer} byId={byId} />
+            <SpreadCard answer={phase.answer} byId={byId} />
+            <MakeupCard answer={phase.answer} />
+          </div>
+        </ViewContext.Provider>
       )}
     </section>
   );
@@ -148,12 +173,12 @@ function nameOf(item: ItemSummary | undefined): string {
   return item?.name || label('category', item?.category) || 'Item';
 }
 
+const ViewContext = createContext<GridView>('photos');
+
 function Picture({ item }: { item: ItemSummary | undefined }) {
-  const alt = nameOf(item);
-  if (item?.cutout_state === 'ready' && item.thumb_url) return <img className="pic-cutout" src={item.thumb_url} alt={alt} loading="lazy" />;
-  if (item?.illustration_url) return <img className="pic-illustration" src={item.illustration_url} alt={alt} loading="lazy" />;
-  if (item?.thumb_url) return <img className="pic-photo" src={item.thumb_url} alt={alt} loading="lazy" />;
-  return <div className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></div>;
+  const view = useContext(ViewContext);
+  if (!item) return <div className="pic-placeholder" role="img" aria-label={nameOf(item)}><HangerIcon /></div>;
+  return <TilePicture item={item} view={view} />;
 }
 
 /** A small picture that opens the item, with its name and a caption. */
@@ -330,4 +355,12 @@ function MakeupCard({ answer }: { answer: Insights }) {
       )}
     </Card>
   );
+}
+
+function savedWhen(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const time = timeOf(iso);
+  if (new Date().toDateString() === d.toDateString()) return time ? ` today, at ${time}` : ' today';
+  return `, on ${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`;
 }

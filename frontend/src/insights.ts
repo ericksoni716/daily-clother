@@ -1,5 +1,6 @@
 /** Insights: the shapes the server sends, plain words for them, and the pieces this device was told to keep. */
 import { categoryPlural, label } from './labels';
+import { SAVED_PREFIX } from './today';
 
 /** What every finding has: a title, whether there is enough history for its numbers, and the sentence read first. */
 export interface Finding {
@@ -204,4 +205,32 @@ export function keepPiece(profile: string, id: string, today: string, kv: KV | n
 /** Lists every kept piece again. */
 export function forgetKept(profile: string, kv: KV | null = local()) {
   writeKept(profile, {}, kv);
+}
+
+// --------------------------------------------------------------------- the last answer, saved per closet for offline
+
+/** The last answer fetched for a closet, kept on this device so Insights opens offline; removed on logout. */
+export interface SavedInsights {
+  saved_at: string;
+  answer: Insights;
+}
+
+const savedKey = (profile: string) => `${SAVED_PREFIX}:insights:${profile}`;
+
+export function loadSavedInsights(profile: string, kv: KV | null = local()): SavedInsights | null {
+  try {
+    const raw = kv?.getItem(savedKey(profile));
+    const value = raw ? (JSON.parse(raw) as SavedInsights) : null;
+    return value && typeof value.saved_at === 'string' && value.answer && typeof value.answer === 'object' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveInsights(profile: string, answer: Insights, kv: KV | null = local(), now = new Date()) {
+  try {
+    kv?.setItem(savedKey(profile), JSON.stringify({ saved_at: now.toISOString(), answer } satisfies SavedInsights));
+  } catch {
+    /* private mode or full: not saved, nothing else breaks */
+  }
 }

@@ -188,6 +188,7 @@ JACKETS = ("blazer", "sport_coat", "suit_jacket", "overcoat", "peacoat")
 # of any other drawing. First recorded before the jackets were rebuilt. Recorded again from main after the
 # 84% body width and the depth shading landed there (every one was checked equal between main and the
 # jackets branch). When a drawing is changed on purpose, record its digest again in the same change.
+# Recorded again for #110 (drawing faults) where a drawing changed on purpose: the cause is noted on each line.
 UNCHANGED = {
     "t_shirt": "7ec599596bc532fc",
     "henley": "4c2da65dd3332fd4",
@@ -203,7 +204,7 @@ UNCHANGED = {
     "band_collar_shirt": "20a9e0c807730277",
     "guayabera": "0b61b57064b7d0ad",
     "overshirt": "dd3a6290ec43cc3a",
-    "tuxedo_shirt": "c95f90cddad600d7",
+    "tuxedo_shirt": "ec5dd2150449a71d",   # #110: larger wing tips
     "crewneck_sweatshirt": "0edf19bc449d8b09",
     "hoodie": "0126877fc9782d00",
     "zip_hoodie": "e1c1a4e860a9dd83",
@@ -308,3 +309,31 @@ def test_jackets_stay_on_the_canvas_and_their_sleeves_off_the_body(name):
             d = ((Co[0] - K[0]) / math.dist(K, Co), (Co[1] - K[1]) / math.dist(K, Co))
             top_w = abs((A[0] - K[0]) * d[1] - (A[1] - K[1]) * d[0])
             assert math.dist(Co, Ci) < top_w, (fit, weight)
+
+
+def _shape(g, **kw):
+    p, extras, _ = top_drawing({**g, **kw})
+    return build("top", {**p, "weight": extras.get("weight") or p.get("weight")})
+
+
+def _pts(d):
+    return [(float(x), float(y)) for x, y in re.findall(r"(-?[\d.]+),(-?[\d.]+)", d)]
+
+
+def test_a_tab_collar_shows_its_buttoned_strap_and_closer_points():
+    point = _shape(CONTEXT["collar"], collar="point")
+    tab = _shape(CONTEXT["collar"], collar="tab")
+    strap = [q for q in tab.parts if q.role == "trim"]
+    assert len(strap) == 1 and not [q for q in point.parts if q.role == "trim"]
+    xs, ys = zip(*_pts(strap[0].d))
+    assert max(ys) - min(ys) >= 14                          # tall enough to read at item size
+    assert any(abs(x - 200) < 0.5 for x, _, _ in tab.dots)  # buttoned in the middle
+    tip = lambda sh: max((max(_pts(q.d), key=lambda v: v[1]) for q in sh.parts if q.role == "collar_r"),
+                         key=lambda v: v[1])[0]
+    assert tip(tab) < tip(point)                            # the strap pulls the points together
+
+
+def test_wing_tips_are_wide_enough_to_read():
+    sh = _shape(GARMENT_DRAWINGS["tuxedo_shirt"])
+    tips = [q for q in sh.parts if q.role == "collar_r" and len(_pts(q.d)) == 4]
+    assert tips and max(x for x, _ in _pts(tips[-1].d)) - 200 >= 25

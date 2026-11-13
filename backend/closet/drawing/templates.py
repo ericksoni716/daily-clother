@@ -137,7 +137,7 @@ GAUGE_BAND = {"extra_fine": 0.8, "fine": 0.9, "medium": 1.0, "chunky": 1.25, "su
 LEAVES = {
     "semi_spread": (25, 23, "sharp"), "point": (18, 30, "sharp"), "spread": (30, 16, "sharp"), "cutaway": (33, 8.5, "sharp"),
     "button_down": (21, 27, "roll"), "hidden_button_down": (21, 27, "roll"), "club": (24, 22, "club"),
-    "tab": (18, 30, "sharp"), "pin": (19, 29, "sharp"), "western": (23, 37, "sharp"),
+    "tab": (10, 29, "sharp"), "pin": (19, 29, "sharp"), "western": (23, 37, "sharp"),
     "knit": (27, 18.5, "sharp"), "johnny": (32, 15, "sharp"), "rugby": (25, 20, "sharp"),
 }
 BAND_COLLARS = ("band", "stand", "wing", "rib")
@@ -677,11 +677,12 @@ def top(**kw) -> Shape:
             sh.seams.append(f"M {_pt(Nl)} Q {_pt((CX - 22, stand_y))} {_pt((CX, stand_y))} Q {_pt((CX + 22, stand_y))} {_pt(N)}")
             front_bottom = stand_y
             stand_button = btn_y
-            if cs == "tab":   # a strap joins the points under the tie, buttoned over the top button
-                tw = 3.2
+            if cs == "tab":   # a rounded strap joins the close-set points under the tie, buttoned in the middle
+                ty, tw = C0[1] + dy * 0.62, 7.5
+                half = dx * (ty - C0[1]) / dy + 9       # its ends tuck under the leaves
                 first_leaf = next(i for i, q in enumerate(sh.parts) if q.role == "collar_r")
-                sh.parts.insert(first_leaf, Part(_poly([(CX - 14, btn_y - tw), (CX + 14, btn_y - tw), (CX + 14, btn_y + tw),
-                                                               (CX - 14, btn_y + tw)]), "cuff"))
+                sh.parts.insert(first_leaf, Part(_capsule_h(CX - half, CX + half, ty, 2 * tw), "trim"))
+                sh.dots.append((CX, ty, 3.0))
                 stand_button = None
     elif banded:
         # A stand with no leaves: its front rises from the neckline seam; above its top
@@ -700,9 +701,9 @@ def top(**kw) -> Shape:
             sh.parts.append(Part(_poly(band), role or f"collar_{side}"))
             if role is None:
                 sh.parts.append(Part(_poly([m(v) for v in top_r + bot_r], close=True), "edge"))
-        if cs == "wing":   # the stand's front tips are pressed out into small wings
+        if cs == "wing":   # the stand's front tips are pressed out into wings, wide enough to read at item size
             for m, side in sides:
-                w = [(CX + 1.2, y_ct - 0.5), (CX + 15, y_ct - 4), (CX + 13, y_ct + 12)]
+                w = [(CX + 1.2, y_ct - 0.5), (CX + 28, y_ct + 2), (CX + 19, y_ct + 12.5), (CX + 4.5, y_cb - 1)]
                 sh.parts.append(Part(_poly([m(v) for v in w]), f"collar_{side}"))
                 sh.parts.append(Part(_poly([m(v) for v in w]), "edge"))
         if front != "none":

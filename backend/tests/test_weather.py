@@ -238,7 +238,7 @@ def test_today_uses_the_weather_for_the_saved_place(client, fake):
     body = r.json()
     assert body["missing"] == [] and body["outfits"]
     assert body["context"] == {"date": "2026-11-12", "low_c": 3.2, "high_c": 9.8, "rain": True, "source": "forecast",
-                               "old": False, "place": NYC["name"], "rain_chance": 70, "summary": "rain"}
+                               "old": False, "place": NYC["name"], "rain_chance": 70, "summary": "rain", "message": None}
     # a cold day: the jacket goes over the tee
     assert all(o["pieces"]["outer"] == ids["jacket"] for o in body["outfits"])
 
@@ -268,12 +268,13 @@ def test_today_overrides_win_over_the_weather(client, fake):
     body = client.post("/api/outfits/today", json={"high_c": 12, "rain": False}).json()
     assert body["context"] == {"date": "2026-11-12", "low_c": 3.2, "high_c": 12, "rain": False,
                                     "source": "forecast and given", "old": False, "place": NYC["name"],
-                                    "rain_chance": None, "summary": "rain"}
+                                    "rain_chance": None, "summary": "rain", "message": None}
     calls = fake.forecasts()
     body = client.post("/api/outfits/today", json={"low_c": 25, "high_c": 30, "rain": False}).json()
     assert fake.forecasts() == calls  # nothing left to look up
     assert body["context"] == {"date": "2026-11-12", "low_c": 25, "high_c": 30, "rain": False, "source": "given",
-                               "old": False, "place": None, "rain_chance": None, "summary": None}
+                               "old": False, "place": None, "rain_chance": None, "summary": None,
+                               "message": None}
     assert all(o["pieces"]["outer"] is None for o in body["outfits"])
 
 
@@ -295,6 +296,8 @@ def test_today_uses_an_old_forecast_for_today_and_says_so(client, fake):
     fake.down = True
     ctx = client.post("/api/outfits/today", json={}).json()["context"]
     assert ctx["old"] is True and ctx["source"] == "forecast" and ctx["low_c"] == 3.2
+    # in the same words as the weather lookup, so the screen can say why
+    assert ctx["message"] and ctx["message"] == client.get("/api/weather").json()["message"]
 
 
 def test_today_checks_its_choices(client, fake):

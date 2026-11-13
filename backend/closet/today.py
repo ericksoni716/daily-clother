@@ -45,12 +45,13 @@ def suggest(conn, state: State, body: object) -> dict:
         raise outfits.ContextError(f"These are not part of today's choices: {', '.join(unknown)}.")
     given = {k: body[k] for k in WEATHER_FIELDS if body.get(k) is not None}
 
-    forecast, place, old = None, None, False
+    forecast, place, old, message = None, None, False, None
     if len(given) < len(WEATHER_FIELDS):
         found = weather.lookup(state)
         place = found["place"]
         if found["weather"] and found["is_today"]:
             forecast, old = found["weather"], found["old"]
+            message = found["message"] if old else None
         elif "low_c" not in given or "high_c" not in given:
             if not place:
                 raise outfits.ContextError(
@@ -72,5 +73,6 @@ def suggest(conn, state: State, body: object) -> dict:
         "place": place["name"] if place and forecast else None,
         "rain_chance": forecast["rain_chance"] if forecast and "rain" not in given else None,
         "summary": forecast["summary"] if forecast else None,
+        "message": message,
     }
     return {**outfits.suggest(rows, ctx, count), "context": context}

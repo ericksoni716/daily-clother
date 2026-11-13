@@ -103,6 +103,64 @@ def test_wears_need_login(anon):
     assert anon.post("/api/items/x/laundry", json={"state": "clean"}).status_code == 401
 
 
+def test_an_outfit_is_worn_and_undone_in_one_call(client):
+    a, b, c = (upload(client, key=k, data=photo_bytes(color=col)).json()["id"] for k, col in
+               (("a", (10, 20, 30)), ("b", (40, 50, 60)), ("c", (70, 80, 90))))
+    # c was already worn today on its own: wearing the outfit leaves it as it is, and undoing the outfit too
+    client.post(f"/api/items/{c}/wears")
+    r = client.post("/api/wears", json={"item_ids": [a, b, c, a]})
+    assert r.status_code == 201
+    body = r.json()
+    assert body["worn_on"] == TODAY.isoformat() and body["recorded"] == [a, b]
+    assert [i["id"] for i in body["items"]] == [a, b, c]
+    assert all((i["wear_count"], i["last_worn"], i["wears_since_wash"]) == (1, TODAY.isoformat(), 1) for i in body["items"])
+    again = client.post("/api/wears", json={"item_ids": [a, b]})
+    assert again.status_code == 200 and again.json()["recorded"] == []
+
+    undone = client.post("/api/wears/remove", json={"item_ids": body["recorded"], "worn_on": body["worn_on"]})
+    assert undone.status_code == 200
+    assert undone.json()["removed"] == [a, b]
+    assert [(i["wear_count"], i["last_worn"]) for i in undone.json()["items"]] == [(0, None), (0, None)]
+    assert client.get(f"/api/items/{c}").json()["wear_count"] == 1
+    # nothing left to remove that day is not an error
+    assert client.post("/api/wears/remove", json={"item_ids": [a], "worn_on": TODAY.isoformat()}).json()["removed"] == []
+
+    # another day can be given
+    worn = client.post("/api/wears", json={"item_ids": [a], "worn_on": days_ago(2)}).json()
+    assert worn["worn_on"] == days_ago(2) and worn["items"][0]["last_worn"] == days_ago(2)
+
+
+def test_an_outfit_wear_is_all_or_nothing_and_checks_what_it_is_given(client):
+    a = upload(client).json()["id"]
+    r = client.post("/api/wears", json={"item_ids": [a, "nope"]})
+    assert r.status_code == 404
+    assert client.get(f"/api/items/{a}").json()["wear_count"] == 0
+    for body, words in (({"item_ids": []}, "list of item ids"), ({"item_ids": [""]}, "list of item ids"),
+                        ({"item_ids": [a], "worn_on": (TODAY + timedelta(days=1)).isoformat()}, "future"),
+                        ({"item_ids": [a], "worn_on": "yesterday"}, "YYYY-MM-DD"),
+                        ({"item_ids": [f"x{n}" for n in range(21)]}, "at most 20")):
+        r = client.post("/api/wears", json=body)
+        assert r.status_code == 422 and words in r.json()["detail"], body
+    assert client.post("/api/wears", json={"item_ids": [a], "extra": 1}).status_code == 422
+    assert client.post("/api/wears/remove", json={"item_ids": [a]}).status_code == 422
+    assert client.post("/api/wears/remove", json={"item_ids": [a], "worn_on": "12/11/2026"}).status_code == 422
+    assert client.post("/api/wears/remove", json={"item_ids": [a, "nope"], "worn_on": TODAY.isoformat()}).status_code == 404
+    assert client.get(f"/api/items/{a}").json()["wear_count"] == 0
+
+
+def test_removing_an_outfit_wear_after_a_wash_keeps_the_count_right(client):
+    a = upload(client).json()["id"]
+    client.post("/api/wears", json={"item_ids": [a]})
+    client.post(f"/api/items/{a}/laundry", json={"state": "clean"})
+    after = client.post("/api/wears/remove", json={"item_ids": [a], "worn_on": TODAY.isoformat()}).json()["items"][0]
+    assert (after["wear_count"], after["wears_since_wash"]) == (0, 0)
+
+
+def test_outfit_wears_need_login(anon):
+    assert anon.post("/api/wears", json={"item_ids": ["x"]}).status_code == 401
+    assert anon.post("/api/wears/remove", json={"item_ids": ["x"], "worn_on": TODAY.isoformat()}).status_code == 401
+
+
 def test_demo_has_a_recent_history_and_is_separate_from_the_main_closet(client):
     mine = upload(client, name="Mine").json()
     client.post(f"/api/items/{mine['id']}/wears")

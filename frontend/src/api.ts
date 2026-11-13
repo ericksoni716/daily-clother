@@ -1,4 +1,5 @@
 import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup } from './types';
+import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
 export class ApiError extends Error {
@@ -117,6 +118,10 @@ export const api = {
   wear: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/wears`, { method: 'POST' }),
   unwear: (id: string, day: string) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}/wears/${encodeURIComponent(day)}`, { method: 'DELETE' }),
+  /** Records a wear for several items at once (an outfit), on one day. */
+  wearMany: (ids: string[]) => request<WearManyAnswer>('/api/wears', { method: 'POST', body: { item_ids: ids } }),
+  unwearMany: (ids: string[], day: string) =>
+    request<WearManyAnswer>('/api/wears/remove', { method: 'POST', body: { item_ids: ids, worn_on: day } }),
   setLaundry: (id: string, state: Laundry) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}/laundry`, { method: 'POST', body: { state } }),
   retryCutout: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/retry-cutout`, { method: 'POST' }),
@@ -136,6 +141,8 @@ export const api = {
   tagging: () => request<TaggingStatus>('/api/tagging'),
   places: (q: string) => request<{ places: Place[] }>(`/api/places?q=${encodeURIComponent(q)}`).then((r) => r.places),
   weather: () => request<WeatherLookup>('/api/weather'),
+  today: (choices: TodayRequest, signal?: AbortSignal) =>
+    request<TodayAnswer>('/api/outfits/today', { method: 'POST', body: choices, signal }),
   backup: () => request<BackupRecord>('/api/backup', { method: 'POST' }),
   setProfile: (profile: Profile) => request<{ profile: Profile }>('/api/profile', { method: 'POST', body: { profile } }),
   quit: () => request<void>('/api/quit', { method: 'POST' }),
@@ -143,6 +150,7 @@ export const api = {
 
 /** Removes the saved copies of closet data (kept: the app's own files). */
 export async function clearSavedData(): Promise<void> {
+  forgetSaved();
   if (!('caches' in window)) return;
   const names = await caches.keys();
   await Promise.all(names.filter((n) => n.startsWith('closet-data') || n.startsWith('closet-media')).map((n) => caches.delete(n)));

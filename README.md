@@ -36,8 +36,21 @@ Your browser then opens the app:
 To stop the program use **Quit Closet** in the icon's menu or in Settings.
 Double-clicking the program while it is already running just opens the app.
 
-Every day: open an item and tap **Wore it today** (tap **Undo** if that was a
-mistake). The item shows how often it has been worn and when last, and lists
+Every day starts on **Today**, which the app opens on once your closet has at
+least a top, something for your legs and a pair of shoes. It shows today's
+weather where you are, lets you say what kind of day it is (the occasion, such
+as **Casual** or **Business**, and the mood: **As usual**, **Sharp** or
+**Relaxed**) and suggests outfits, best first: swipe (or use the arrows) to see
+the others. Each outfit lists why it works and, set apart, anything to watch
+out for, such as rain. Tap **I'm wearing this** to record a wear for every
+piece at once (**Undo** takes it back). The **⋯** on a piece leaves it out
+(**Not this piece**) or builds every outfit around it (**Start from this
+piece**); tap a piece to open it. With no place saved, type today's low and
+high temperatures there instead. Offline, Today shows the outfits it last
+found that day.
+
+To record a single item: open it and tap **Wore it today** (tap **Undo** if
+that was a mistake). The item shows how often it has been worn and when last, and lists
 the recent days, each of which can be removed. **Put in the laundry** and
 **It's clean** keep track of the wash; in the closet, items in the laundry
 carry a small mark, and the **Clean** and **In the laundry** buttons show only

@@ -12,12 +12,14 @@ import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Protocol
 
 from PIL import Image
 
 from .schema import ItemTags
 
 CONFIG = json.loads((Path(__file__).parent / "models.json").read_text())
+MAX_TOKENS = 4000   # the longest answer asked for; also the most output a single call can be billed for
 
 PROMPT = """You are cataloguing one item from a man's wardrobe for a private closet app.
 
@@ -45,6 +47,34 @@ class RouteUnavailable(TaggingError):
 
     The caller may try the other route; nothing was wrong with the photo or the prompt.
     """
+
+
+class ApiRefused(RouteUnavailable):
+    """The API turned the key away: `reason` is "credit" (no credit left) or "key" (the key was not accepted)."""
+
+    def __init__(self, message: str, reason: str):
+        super().__init__(message)
+        self.reason = reason
+
+
+class CapReached(RouteUnavailable):
+    """The call was not made: it could take this month's API spending past the owner's limit."""
+
+
+class Meter(Protocol):
+    """Counts calls to Claude and may stop a billed one before it is made (the app's spend cap).
+
+    Given only token counts and model names: never a photo, the prompt or an answer.
+    """
+
+    def before_api_call(self, model: str, images: int) -> None:
+        """Raise `CapReached` if the API call about to be made could go over the limit."""
+
+    def record(self, route: str, model: str, input_tokens: int, output_tokens: int) -> None:
+        """One call was made (on the API route: one request, whatever came back)."""
+
+    def api_refused(self, reason: str) -> None:
+        """The API refused the key ("credit" or "key")."""
 
 
 @dataclass
@@ -78,8 +108,11 @@ def encode_image(img: Image.Image, max_edge: int = 1024) -> dict:
                                         "data": base64.standard_b64encode(buf.getvalue()).decode()}}
 
 
-def tag_item(client, model: str, images: list[Image.Image], max_attempts: int = 3) -> TagResult:
-    """Tag one item. `client` is an `anthropic.Anthropic` (or a stand-in with the same `messages.parse`)."""
+def tag_item(client, model: str, images: list[Image.Image], max_attempts: int = 3, meter: Meter | None = None) -> TagResult:
+    """Tag one item. `client` is an `anthropic.Anthropic` (or a stand-in with the same `messages.parse`).
+
+    With a `meter`, every request is checked against it before it is sent and counted once it comes back.
+    """
     import anthropic
 
     content = [encode_image(im) for im in images] + [{"type": "text", "text": PROMPT}]
@@ -88,10 +121,12 @@ def tag_item(client, model: str, images: list[Image.Image], max_attempts: int = 
     tokens_in = tokens_out = 0
     last: Exception | None = None
     for attempt in range(1, max_attempts + 1):
+        if meter:
+            meter.before_api_call(model, len(images))
         try:
             resp = client.messages.parse(
                 model=model,
-                max_tokens=4000,
+                max_tokens=MAX_TOKENS,
                 messages=[{"role": "user", "content": content}],
                 output_format=ItemTags,
                 output_config={"effort": effort},
@@ -111,10 +146,13 @@ def tag_item(client, model: str, images: list[Image.Image], max_attempts: int = 
                 continue
             message = str(getattr(e, "message", e))
             if e.status_code in (401, 403) or "credit balance" in message.lower() or "billing" in message.lower():
-                raise RouteUnavailable(f"the API key cannot be used right now ({e.status_code}): {message}") from e
+                reason = "key" if e.status_code in (401, 403) else "credit"
+                raise ApiRefused(f"the API key cannot be used right now ({e.status_code}): {message}", reason) from e
             raise TaggingError(f"{model} rejected the request ({e.status_code}): {message}") from e
         tokens_in += resp.usage.input_tokens
         tokens_out += resp.usage.output_tokens
+        if meter:
+            meter.record("api", model, resp.usage.input_tokens, resp.usage.output_tokens)
         if resp.stop_reason == "refusal":
             raise TaggingError(f"{model} declined to tag this photo")
         if resp.stop_reason == "max_tokens" or resp.parsed_output is None:

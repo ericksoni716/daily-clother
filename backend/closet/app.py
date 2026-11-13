@@ -29,6 +29,7 @@ from . import (
     jobs,
     outfits,
     phone,
+    spend,
     storage,
     tagjobs,
     vocab,
@@ -89,12 +90,13 @@ class Services:
 
 
 def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path | str | None = "bundled",
-                   tagger: tagjobs.Tagger | None = None, routes: tagjobs.Routes | None = None) -> Services:
+                   tagger: tagjobs.Tagger | None = None, routes: tagjobs.Routes | None = None, api_client=None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
     with the program, None serves no page (tests), or give a folder. `tagger`
-    and `routes` stand in for Claude in tests; by default the real routes are used.
+    and `routes` stand in for Claude in tests; by default the real routes are used, each call recorded and the
+    API key kept under its monthly limit. `api_client` stands in for the API alone (tests), behind that same limit.
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
@@ -112,7 +114,12 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     def real_cutter(img: Image.Image) -> Image.Image:
         return make_cutout(img, predict_mask(img, MODEL, model.path))[0]
 
-    tag_worker = tagjobs.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)), tagger or tagjobs.claude_tagger)
+    meter = spend.Meter(cfg, state)
+
+    def real_tagger(images: list[Image.Image], usable: tuple[str, ...]):
+        return tagjobs.claude_tagger(images, usable, meter=meter, client=api_client)
+
+    tag_worker = tagjobs.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)), tagger or real_tagger)
     worker = jobs.Worker(cfg, state, lambda: model.ready, cutter or real_cutter, on_done=tag_worker.wake)
     holder["worker"] = worker
     model.refresh()  # know the model's real state before the first request is answered
@@ -159,6 +166,7 @@ class SettingsPatch(BaseModel):
     backup_folder: str | None = None
     autostart: bool | None = None
     tagging_api_enabled: bool | None = None
+    tagging_api_cap_usd: float | None = None
     place: dict | None = None
     model_config = {"extra": "forbid"}
 
@@ -460,7 +468,8 @@ def create_app(sv: Services) -> FastAPI:
             "version": __version__, "profile": state.get("profile"), "data_dir": str(cfg.data_dir), "port": cfg.port,
             "backup_folder": state.get("backup_folder"), "last_backup": state.get("last_backup"),
             "last_good_backup": backup.last_good(state), "pending_cutouts": jobs.pending_count(conn),
-            "pending_tags": tagjobs.waiting_count(conn), "tagging_api_enabled": bool(state.get("tagging_api_enabled")),
+            "pending_tags": tagjobs.waiting_count(conn), "tagging_api_enabled": spend.api_allowed(state),
+            "tagging_api_cap_usd": spend.cap(state), "tagging_api_off": state.get("tagging_api_off"),
             "phone": sv.phone_info(), "autostart": auto, "heic_supported": images.HEIC, "place": state.get("place"),
         }
 
@@ -492,9 +501,19 @@ def create_app(sv: Services) -> FastAPI:
                 autostart.set_enabled(body.autostart)
             except Exception as e:
                 raise HTTPException(409, str(e))
-        if "tagging_api_enabled" in sent and body.tagging_api_enabled is not None:
-            state.update(tagging_api_enabled=body.tagging_api_enabled)
-            sv.wake()   # items waiting for a route may be able to go now
+        if "tagging_api_cap_usd" in sent or ("tagging_api_enabled" in sent and body.tagging_api_enabled is not None):
+            limit = body.tagging_api_cap_usd if "tagging_api_cap_usd" in sent else spend.cap(state)
+            on = body.tagging_api_enabled if body.tagging_api_enabled is not None else spend.api_allowed(state)
+            if limit is not None and not (0.01 <= limit <= spend.MAX_CAP_USD):
+                raise HTTPException(422, f"The monthly limit must be at least $0.01 and no more than ${spend.MAX_CAP_USD:,.0f}.")
+            if on and limit is None:
+                raise HTTPException(422, "Turn the API key off before removing its monthly limit." if body.tagging_api_enabled is None
+                                    else "Set a monthly limit before allowing the API key.")
+            changes: dict = {"tagging_api_cap_usd": round(limit, 2) if limit is not None else None, "tagging_api_enabled": on}
+            if on:
+                changes["tagging_api_off"] = None   # the owner has looked at why it was switched off
+            state.update(**changes)
+            sv.wake()   # items waiting for a route (or for the limit) may be able to go now
         return settings_payload(conn)
 
     @app.get("/api/storage", dependencies=protected)
@@ -508,6 +527,10 @@ def create_app(sv: Services) -> FastAPI:
         result = await run_in_threadpool(tagger_routes.status)
         sv.tag_worker.wake()   # the owner may just have signed in: waiting items need not wait for the next round
         return result
+
+    @app.get("/api/tagging/spend", dependencies=protected)
+    def get_tagging_spend(conn=Depends(conn_dep)):
+        return spend.summary(cfg, state, conn)
 
     @app.post("/api/backup", dependencies=protected)
     def backup_now():

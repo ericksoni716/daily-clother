@@ -489,7 +489,7 @@ COVERAGE: dict[str, dict[str, tuple[str, str]]] = {
     "hem": _c(
         ("curved_shirt_tail", (D, "")), ("straight_with_vents", (D, "small slits at the side seams with bar tacks")),
         ("straight", (D, "")), ("tennis_tail", (D, "vents, and the longer back showing below the front")),
-        ("ribbed_band", (D, "")), ("raw", (D, "no stitch line, a few loose threads")),
+        ("ribbed_band", (D, "a knit rib band; under a woven shirt collar (a trucker) a buttoned waistband with side adjusters")), ("raw", (D, "no stitch line, a few loose threads")),
     ),
 }
 

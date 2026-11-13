@@ -854,7 +854,22 @@ def top(**kw) -> Shape:
 
     # ---- hem
     rib_h = (7.0 if block in ("knit", "bomber") else 5.5) * K_PX * bs
-    if p["hem"] == "rib":
+    if p["hem"] == "rib" and leafy and woven:   # a woven jacket (a trucker): a buttoned waistband with side adjusters
+        b = min(rib_h, 5 * K_PX + bulk * 0.5)
+        xb = _x_on(side_from, hy - b)
+        sh.parts.append(Part(
+            f"M {_pt((xb, hy - b))} L {_pt(Hc)} Q {_pt((CX, hy + hem_dip))} {_pt(Hl)} "
+            f"L {_pt((2 * CX - xb, hy - b))} Q {_pt((CX, hy - b + hem_dip))} {_pt((xb, hy - b))} Z", "cuff"))
+        if front != "none":
+            sh.parts.append(Part(f"M {_pt((CX - 7, hy - b + hem_dip / 2))} L {_pt((CX - 7, hy + hem_dip / 2))}", "edge"))
+            fasten(CX, hy - b / 2 + hem_dip / 2, 3.4)
+        yt, yb_ = hy - b + 3.5, hy - 2
+        xe = _x_on(side_from, hy - b / 2) - 8
+        tab = [(xe, yt), (xe - 20, yt), (xe - 26, (yt + yb_) / 2), (xe - 20, yb_), (xe, yb_)]
+        for m in (lambda v: v, _mirror):
+            sh.parts.append(Part(_poly([m(v) for v in tab]), "cuff"))
+            fasten(*m((xe - 18, (yt + yb_) / 2)), 2.4)
+    elif p["hem"] == "rib":
         b = rib_h
         xb = _x_on(side_from, hy - b)
         sh.parts.append(Part(

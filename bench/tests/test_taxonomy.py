@@ -214,7 +214,7 @@ UNCHANGED = {
     "sweater_vest": "24bf8dfca26aaa93",
     "quarter_zip": "a6c19157293b4d69",
     "chore_coat": "55f95cedffe81d08",
-    "trucker_jacket": "b823063b55bbcecb",
+    "trucker_jacket": "1fd21e47f12d94f2",   # #110: buttoned waistband, not a rib
     "bomber": "b489e7d70c3f37ac",
     "harrington": "85c603c5ff653c7a",
     "field_jacket": "1eab41a1382a9c74",
@@ -358,3 +358,13 @@ def test_a_puffer_swells_between_its_channels():
     off = [abs((v[0] - P1[0]) * u[1] - (v[1] - P1[1]) * u[0]) for v in sleeve[3:40]]
     assert max(off) > 2.5 and min(off) < 0.5
     assert len(sleeve) > len(flat_sleeve) + 40          # both edges of the sleeve swell
+
+
+def test_a_trucker_has_a_buttoned_waistband_not_a_rib():
+    sh = _shape(GARMENT_DRAWINGS["trucker_jacket"])
+    hem_rib = lambda s: [q for q in s.parts if q.role == "band" and "Q" in q.d and q.d.count("L") == 2]
+    assert not hem_rib(sh)
+    hy = sh.anchors["hem"][1]
+    low = [d for d in sh.dots if hy - 25 < d[1] < hy and 100 < d[0] < 300]
+    assert len(low) >= 3 and any(abs(x - 200) < 0.5 for x, _, _ in low)   # the front button and an adjuster each side
+    assert hem_rib(_shape(GARMENT_DRAWINGS["crewneck_sweatshirt"]))          # a knit keeps its rib

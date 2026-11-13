@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { api, ApiError } from '../api';
 import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, SunIcon, WarnIcon } from '../components/Icons';
 import { label } from '../labels';
-import { Link } from '../router';
+import { Link, navigate } from '../router';
 import { useCloset } from '../store';
 import {
   dayParts, joinWords, longDate, keptFor, loadChoice, moodLabel, MOODS, occasionLabel, OCCASIONS, outfitIds, parseTemp, placeLabel,
@@ -11,7 +11,10 @@ import {
 } from '../today';
 import type { ItemSummary } from '../types';
 import { localDay } from '../wears';
+import { localDay as dayNow } from '../wears';
+import { dismiss, loadDismissed, pendingQuestion, questionFor, wornDay, type WornOutfit } from '../worn';
 import { ItemDetail } from './ItemDetail';
+import { OutfitPics, RateOutfit } from './Worn';
 import './Today.css';
 
 const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
@@ -39,8 +42,9 @@ function typedOf(r: TodayRequest): TypedDay | null {
   return r.low_c === undefined || r.high_c === undefined ? null : { day: '', low_c: r.low_c, high_c: r.high_c, rain: !!r.rain };
 }
 
-function requestFor(choice: Choice, buildAround: string | null, leaveOut: string[], typed: TypedDay | null): TodayRequest {
+function requestFor(choice: Choice, buildAround: string | null, leaveOut: string[], typed: TypedDay | null, again: string | null = null): TodayRequest {
   const r: TodayRequest = { occasion: choice.occasion, mood: choice.mood };
+  if (again) r.again = again;
   if (buildAround) r.build_around = buildAround;
   if (leaveOut.length) r.leave_out = leaveOut;
   if (typed) Object.assign(r, { low_c: typed.low_c, high_c: typed.high_c, rain: typed.rain });
@@ -64,8 +68,24 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const [busy, setBusy] = useState(false);
   const [editDay, setEditDay] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [again, setAgain] = useState<string | null>(() => new URLSearchParams(window.location.search).get('again'));
+  const [recent, setRecent] = useState<WornOutfit[] | null>(null);
+  const [dismissed, setDismissed] = useState<string[]>(() => loadDismissed(profile));
+  const [rated, setRated] = useState<WornOutfit | null>(null);
 
-  const request = useMemo(() => requestFor(choice, buildAround, leaveOut, typed), [choice, buildAround, leaveOut, typed]);
+  useEffect(() => {
+    if (window.location.search) navigate('/today', { replace: true });
+  }, []);
+
+  const loadRecent = useCallback(() => {
+    api.wornOutfits(null, 5).then((p) => setRecent(p.outfits), () => undefined);
+  }, []);
+  useEffect(() => {
+    loadRecent();
+  }, [loadRecent, profile]);
+  const question = rated ?? pendingQuestion(recent, dismissed, dayNow());
+
+  const request = useMemo(() => requestFor(choice, buildAround, leaveOut, typed, again), [choice, buildAround, leaveOut, typed, again]);
   const key = JSON.stringify(request);
   const requestRef = useRef(request);
   requestRef.current = request;
@@ -157,15 +177,20 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     const ids = outfitIds(o.pieces);
     setBusy(true);
     try {
-      if (worn && !sameOutfit(worn.ids, ids) && worn.recorded.length) {
-        const undone = await api.unwearMany(worn.recorded, worn.worn_on);
+      if (worn && !sameOutfit(worn.ids, ids) && (worn.recorded.length || worn.outfit_id)) {
+        const undone = await api.unwearMany(worn.recorded, worn.worn_on, worn.outfit_id);
         undone.items.forEach(upsert);
         kept.setWorn(null);
         setWorn(null);
       }
-      const r = await api.wearMany(ids);
+      const ctx = phase.kind === 'ready' ? phase.answer.context : null;
+      const r = await api.wearMany(ids, {
+        pieces: o.pieces, score: o.score, reasons: o.reasons, warnings: o.warnings,
+        context: { low_c: ctx?.low_c ?? null, high_c: ctx?.high_c ?? null, rain: ctx?.rain ?? null, occasion: choice.occasion, mood: choice.mood },
+      });
       r.items.forEach(upsert);
-      const record: WornToday = { day: localDay(), worn_on: r.worn_on, ids, recorded: r.recorded ?? [], outfit: o };
+      const record: WornToday = { day: localDay(), worn_on: r.worn_on, ids, recorded: r.recorded ?? [], outfit: o, outfit_id: r.outfit?.id };
+      loadRecent();
       kept.setWorn(record);
       setWorn(record);
       toast("Noted: you're wearing this today");
@@ -180,7 +205,8 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     if (!worn) return;
     setBusy(true);
     try {
-      if (worn.recorded.length) (await api.unwearMany(worn.recorded, worn.worn_on)).items.forEach(upsert);
+      if (worn.recorded.length || worn.outfit_id) (await api.unwearMany(worn.recorded, worn.worn_on, worn.outfit_id)).items.forEach(upsert);
+      loadRecent();
       kept.setWorn(null);
       setWorn(null);
       toast('Wear undone');
@@ -221,6 +247,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         <div className="page-title-row">
           <h1 id="today-title">Today</h1>
           <span className="count">{longDate(today)}</span>
+          <Link to="/today/worn" className="btn btn-small btn-ghost today-worn-link">Worn</Link>
         </div>
       </header>
 
@@ -239,6 +266,17 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         <ChoiceGroup title="Mood" options={MOODS} value={choice.mood} labelOf={moodLabel} locked={locked} scroll
           onChange={(mood) => choose({ ...choice, mood })} />
       </div>
+
+      {again && (
+        <div className="chips today-changes" role="group" aria-label="Wearing again">
+          <button className="chip chip-change" disabled={locked} title={locked ? OFFLINE_TITLE : undefined} onClick={() => setAgain(null)}>
+            Starting from an outfit you wore{phase.kind === 'ready' && phase.answer.context.again ? ` ${wornDay(phase.answer.context.again)}` : ''} <span aria-hidden="true">×</span>
+          </button>
+          {phase.kind === 'ready' && (phase.answer.context.again?.unavailable.length ?? 0) > 0 && (
+            <span className="muted">Not clean or not available today: {joinWords(phase.answer.context.again!.unavailable.map(nameOf))}.</span>
+          )}
+        </div>
+      )}
 
       {(buildAround || leaveOut.length > 0) && (
         <div className="chips today-changes" role="group" aria-label="Your changes">
@@ -275,6 +313,24 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         changed={!!buildAround || leaveOut.length > 0}
         onClear={() => { setBuildAround(null); setLeaveOut([]); }}
         onRetry={() => setAttempt((n) => n + 1)} />
+
+      {question && (
+        <section className="worn-question" aria-label={questionFor(question, dayNow())} data-testid="worn-question">
+          <h2>{questionFor(question, dayNow())}</h2>
+          <button className="btn btn-icon btn-ghost worn-question-close" aria-label="Not now"
+            onClick={() => { setDismissed(dismiss(profile, question.id)); setRated(null); }}>×</button>
+          <OutfitPics outfit={question} byId={byId} />
+          <RateOutfit outfit={question} offline={offline} compact onRated={(o) => {
+            setRated(o);
+            setRecent((l) => (l ?? []).map((x) => (x.id === o.id ? o : x)));
+          }} />
+          {rated && (
+            <div className="row">
+              <button className="btn btn-small" onClick={() => { setDismissed(dismiss(profile, rated.id)); setRated(null); }}>Done</button>
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 

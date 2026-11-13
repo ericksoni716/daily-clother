@@ -24,12 +24,14 @@ export function usePath(): string {
 export type Route =
   | { name: 'closet'; status: 'active' | 'archived'; itemId: string | null }
   | { name: 'today'; itemId: string | null }
+  | { name: 'worn' }
   | { name: 'add' }
   | { name: 'settings' };
 
 export function parseRoute(path: string): Route {
   if (path === '/add') return { name: 'add' };
   if (path === '/settings') return { name: 'settings' };
+  if (path === '/today/worn') return { name: 'worn' };
   const today = path.match(/^\/today(?:\/item\/([^/]+))?\/?$/);
   if (today) return { name: 'today', itemId: today[1] ? decodeURIComponent(today[1]) : null };
   const archived = path.startsWith('/archived');

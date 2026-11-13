@@ -1,0 +1,62 @@
+/* The Worn list and the rating control (also used by Today's question). Uses the tokens and shared classes in styles.css. */
+
+.worn { max-width: 48rem; min-width: 0; }
+.worn-intro { margin: -6px 0 16px; }
+.worn-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.worn-card {
+  padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0;
+}
+.worn-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.worn-card-head h2 { margin: 0; font-size: 1.05rem; }
+.worn-rating { font-size: 0.9rem; color: var(--muted); }
+.worn-rating.is-loved { color: var(--accent); font-weight: 600; }
+.worn-rating.is-not_again { color: var(--danger); font-weight: 600; }
+.worn-day { margin: 2px 0 0; font-size: 0.9rem; }
+.worn-names { margin: 6px 0 10px; font-size: 0.92rem; }
+.worn-actions { margin-top: 10px; }
+.worn-confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.92rem; }
+.worn-more { margin-top: 16px; }
+
+/* small pictures of an outfit's pieces */
+.worn-pics { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.worn-pic {
+  position: relative; display: block; width: 52px; height: 60px; border-radius: 8px; background: var(--card); overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--card-edge);
+}
+.worn-pic > img, .worn-pic > .pic-placeholder { position: absolute; inset: 0; width: 100%; height: 100%; }
+.worn-pic > .pic-cutout { padding: 4px; filter: none; }
+
+/* recording an outfit by hand */
+.worn-record { padding: 14px; margin-bottom: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.worn-record h2 { margin: 0 0 4px; font-size: 1.1rem; }
+.worn-record-day { max-width: 14rem; }
+.worn-record-items {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; margin-bottom: 12px;
+  max-height: 22rem; overflow-y: auto; padding: 2px;
+}
+.worn-record-item {
+  display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 4px; font: inherit; font-size: 0.8rem; color: inherit;
+  text-align: center; background: none; border: 1px solid var(--line); border-radius: var(--radius-small); cursor: pointer;
+}
+.worn-record-item > img, .worn-record-item > .pic-placeholder {
+  display: block; width: 100%; aspect-ratio: 7 / 8; height: auto; border-radius: 6px; background: var(--card); object-fit: contain;
+}
+.worn-record-item > .pic-photo { object-fit: cover; }
+.worn-record-item > .pic-cutout { padding: 6px; filter: none; }
+.worn-record-item.is-on { box-shadow: 0 0 0 2px var(--accent); border-color: transparent; }
+
+/* how it went */
+.rate { margin-top: 10px; }
+.rate-why { margin: 12px 0 6px; }
+.rate-note { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin-top: 10px; }
+.rate-note .field { flex: 1 1 14rem; margin: 0; }
+.rate-offline { margin: 8px 0 0; }
+
+/* Today's question about the last outfit worn */
+.worn-question {
+  position: relative; margin: 18px 0 0; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.worn-question h2 { margin: 0; font-size: 1.05rem; padding-right: var(--tap); }
+.worn-question-close { position: absolute; top: 6px; right: 6px; }
+.worn-question .row { margin-top: 10px; }
+.today-worn-link { margin-left: auto; }

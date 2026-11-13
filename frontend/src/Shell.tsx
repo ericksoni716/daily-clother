@@ -8,6 +8,7 @@ import { AddScreen } from './screens/Add';
 import { SettingsScreen } from './screens/Settings';
 import { ItemDetail } from './screens/ItemDetail';
 import { TodayScreen } from './screens/Today';
+import { WornScreen } from './screens/Worn';
 
 export function Shell({ version }: { version: string }) {
   const path = usePath();
@@ -18,12 +19,13 @@ export function Shell({ version }: { version: string }) {
 
   let content;
   if (route.name === 'today') content = <TodayScreen itemId={route.itemId} wide={wide} />;
+  else if (route.name === 'worn') content = <WornScreen />;
   else if (route.name === 'add') content = <AddScreen />;
   else if (route.name === 'settings') content = <SettingsScreen version={version} />;
   else if (route.itemId && !wide) content = <ItemDetail key={route.itemId} id={route.itemId} status={route.status} />;
   else content = <ClosetScreen status={route.status} selectedId={route.itemId} wide={wide} />;
 
-  const section = route.name === 'closet' ? (route.status === 'archived' ? 'archived' : 'closet') : route.name;
+  const section = route.name === 'closet' ? (route.status === 'archived' ? 'archived' : 'closet') : route.name === 'worn' ? 'today' : route.name;
 
   return (
     <div className="shell">

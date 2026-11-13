@@ -82,6 +82,11 @@ again: it says how many photos were not added yet. Choose the same photos or
 folder again and it carries on; the ones that already went in are not added
 twice.
 
+After an import, open **Review**: it shows, one item at a time, only what
+Claude was unsure about. Tap another value if its guess is wrong, then
+**That's right**, or **Skip for now**. The number on **Review** says how many
+items are left.
+
 ## Use it from your iPhone
 
 The phone reaches your computer privately over Tailscale; the app is never on

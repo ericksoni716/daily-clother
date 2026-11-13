@@ -6,16 +6,19 @@ import { ClosetScreen } from './screens/Closet';
 import { AddScreen } from './screens/Add';
 import { SettingsScreen } from './screens/Settings';
 import { ItemDetail } from './screens/ItemDetail';
+import { ReviewBadge, ReviewIcon, ReviewScreen, useReviewCount } from './screens/Review';
 
 export function Shell({ version }: { version: string }) {
   const path = usePath();
   const route = parseRoute(path);
   const wide = useMediaQuery(WIDE);
   const { offline } = useCloset();
+  const toReview = useReviewCount();
 
   let content;
   if (route.name === 'add') content = <AddScreen />;
   else if (route.name === 'settings') content = <SettingsScreen version={version} />;
+  else if (route.name === 'review') content = <ReviewScreen />;
   else if (route.itemId && !wide) content = <ItemDetail key={route.itemId} id={route.itemId} status={route.status} />;
   else content = <ClosetScreen status={route.status} selectedId={route.itemId} wide={wide} />;
 
@@ -24,12 +27,12 @@ export function Shell({ version }: { version: string }) {
   return (
     <div className="shell">
       <a className="skip-link" href="#main">Skip to content</a>
-      <Sidebar section={section} offline={offline} />
+      <Sidebar section={section} offline={offline} toReview={toReview} />
       <div className="shell-main">
         <TopBanners />
         <main id="main" className="shell-content" tabIndex={-1}>{content}</main>
       </div>
-      <TabBar section={section} offline={offline} />
+      <TabBar section={section} offline={offline} toReview={toReview} />
     </div>
   );
 }
@@ -69,11 +72,12 @@ function TopBanners() {
 const NAV = [
   { key: 'closet', to: '/', label: 'Closet', Icon: HangerIcon },
   { key: 'archived', to: '/archived', label: 'Archived', Icon: ArchiveIcon },
+  { key: 'review', to: '/review', label: 'Review', Icon: ReviewIcon },
   { key: 'add', to: '/add', label: 'Add', Icon: PlusIcon },
   { key: 'settings', to: '/settings', label: 'Settings', Icon: GearIcon },
 ] as const;
 
-function Sidebar({ section, offline }: { section: string; offline: boolean }) {
+function Sidebar({ section, offline, toReview }: { section: string; offline: boolean; toReview: number | null }) {
   return (
     <nav className="sidebar" aria-label="Main">
       <div className="sidebar-brand"><span className="brand-dot"><HangerIcon /></span> Closet</div>
@@ -86,7 +90,7 @@ function Sidebar({ section, offline }: { section: string; offline: boolean }) {
               </span>
             ) : (
               <Link to={to} className={`nav-link${section === key ? ' is-active' : ''}`} aria-current={section === key ? 'page' : undefined}>
-                <Icon /> {label}
+                <Icon /> {label}{key === 'review' && <ReviewBadge count={toReview} />}
               </Link>
             )}
           </li>
@@ -96,7 +100,7 @@ function Sidebar({ section, offline }: { section: string; offline: boolean }) {
   );
 }
 
-function TabBar({ section, offline }: { section: string; offline: boolean }) {
+function TabBar({ section, offline, toReview }: { section: string; offline: boolean; toReview: number | null }) {
   const tabs = NAV.filter((n) => n.key !== 'archived');
   return (
     <nav className="tabbar" aria-label="Main">
@@ -111,7 +115,7 @@ function TabBar({ section, offline }: { section: string; offline: boolean }) {
         }
         return (
           <Link key={key} to={to} className={`tab${active ? ' is-active' : ''}`} aria-current={active ? 'page' : undefined}>
-            <Icon /><span>{label}</span>
+            <Icon /><span>{label}</span>{key === 'review' && <ReviewBadge count={toReview} />}
           </Link>
         );
       })}

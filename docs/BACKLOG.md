@@ -45,8 +45,8 @@ Next (not started; the owner asked for a pause after this wave and a release): s
 
 ## Waiting on the owner
 - **Garment review**: the owner called the drawings good enough for now (after round 7). Marks and notes in the review gallery are still read when they appear; drawing work is parked until asked for.
-- **Mac 0.1.1**: confirm the background-removal model now downloads on the owner's Mac.
-- **The Windows build** for stop A has still not been made or tried.
+- **On the Mac**: confirm with 0.2.0 that the background-removal model downloads (it failed in 0.1.0 and was fixed in 0.1.1, never confirmed), and that the closet made by the older version opens: it is brought up to date by itself, with a backup made first.
+- **0.2.0 is released** (13 November, Windows and Mac, built from `main` at the owner's request after wave 4): https://github.com/ericksoni716/daily-clother/releases/tag/v0.2.0. Both programs passed the smoke test and the real background-removal check on GitHub's machines. This is the first Windows build; nobody has run it on a real Windows PC yet. No new tasks are started until the owner asks.
 - **The app's top UI complaints**, as the brief for UI tasks. A full interface-design pass comes after more features exist.
 - **25–30 photos of the owner's own clothes** with an answer key (`bench/answer_key.template.csv`). Most useful: items that differ from the usual (a polo with one or three buttons, a henley, corduroy, fleece or heavy wool beside light cotton, a sweatshirt with a V-insert). The bench runs them through the Claude plan by default; an API key is optional.
 - Three photos for the untested hard cases: something striped, something floral or patterned, something camouflage.

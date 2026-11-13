@@ -285,10 +285,11 @@ def restore(where: Layout) -> bool:
     return True
 
 
-def backup_all(cfg: Config, state: State, version: str) -> list[Path]:
+def backup_all(cfg: Config, state: State, version: str) -> dict[str, Path]:
     """A copy of every closet before the program is replaced, with the program's own backup code: SQLite's backup
-    into the local backups folder, and the owner's usual backup when a backup folder has been chosen."""
-    made = []
+    into the local backups folder, and the owner's usual backup when a backup folder has been chosen. Returns the
+    local copy of each closet, by profile."""
+    made: dict[str, Path] = {}
     stamp = time.strftime("%Y%m%d-%H%M%S")
     for profile in PROFILES:
         src = cfg.db_path(profile)
@@ -299,7 +300,7 @@ def backup_all(cfg: Config, state: State, version: str) -> list[Path]:
             db.snapshot(src, dest)
         except Exception as e:
             raise UpdateError(f"Your closet could not be backed up before updating ({e}), so nothing was installed.")
-        made.append(dest)
+        made[profile] = dest
         for old in sorted(cfg.local_backups_dir.glob(f"pre-update-{profile}-*.sqlite"),
                           key=lambda p: p.stat().st_mtime)[:-KEEP_SNAPSHOTS]:
             old.unlink(missing_ok=True)
@@ -377,6 +378,40 @@ def _write_outcome(cfg: Config, outcome: dict) -> None:
     os.replace(tmp, path)
 
 
+def _user_version(path: Path) -> int:
+    conn = db.connect(path)
+    try:
+        return conn.execute("PRAGMA user_version").fetchone()[0]
+    finally:
+        conn.close()
+
+
+def restore_closets(cfg: Config, snapshots: dict) -> list[str]:
+    """Run by the helper (the old program's code) after the new program was stopped: a closet the new program
+    already upgraded could no longer be opened by the old one, so it gets its copy from before the update back. The
+    upgraded closet is kept beside the backups. Returns the profiles put back."""
+    put_back = []
+    target = db.latest_version()
+    for profile, snap in (snapshots or {}).items():
+        if profile not in PROFILES:
+            continue
+        path, snap = cfg.db_path(profile), Path(snap)
+        try:
+            if not path.exists() or not snap.is_file() or _user_version(path) <= target:
+                continue
+            db.snapshot(path, cfg.local_backups_dir / f"upgraded-{profile}-{time.strftime('%Y%m%d-%H%M%S')}.sqlite")
+            for extra in (path.with_name(path.name + "-wal"), path.with_name(path.name + "-shm")):
+                extra.unlink(missing_ok=True)
+            part = path.with_name(path.name + ".part")
+            shutil.copyfile(snap, part)
+            part.replace(path)
+            put_back.append(profile)
+            log.info("put back the %s closet from before the update", profile)
+        except Exception:
+            log.exception("could not put back the %s closet from %s", profile, snap)
+    return put_back
+
+
 def watch(cfg: Config, plan: dict, start=None, timeout: float | None = None, poll: float = 0.5) -> bool:
     """Run by the helper: start the new program and wait for it. If it has not written its lock file and answered
     /api/health as the new version within `timeout` seconds, stop it, put the old program back, start that, and
@@ -425,6 +460,8 @@ def watch(cfg: Config, plan: dict, start=None, timeout: float | None = None, pol
     if still and still.get("pid") == plan.get("old_pid"):
         note += f"Closet {plan['from']} kept running and is still in place."
     else:
+        if restore_closets(cfg, plan.get("snapshots") or {}):
+            note += "Your closet was put back as it was just before the update. "
         try:
             start(where, [a for a in plan["args"] if a != "--replace"])
             note += f"Closet {plan['from']} was put back and started again."
@@ -643,13 +680,13 @@ class Updater:
         package = self.prepare(release)
         expected = (self.state.get("update_ready") or {}).get("sha256") or ""
         self.busy = "backing-up"
-        backup_all(self.cfg, self.state, self.version)
+        snapshots = backup_all(self.cfg, self.state, self.version)
         self.busy = "replacing"
         swap(where, package, expected, run=self.run)
         plan = {"from": self.version, "to": release["version"], "platform": where.platform,
                 "installed": str(where.installed), "old": str(where.old), "inner": str(where.inner),
                 "args": list(self.launch_args), "old_pid": os.getpid(), "data_dir": str(self.cfg.data_dir),
-                "timeout": START_WITHIN}
+                "timeout": START_WITHIN, "snapshots": {k: str(v) for k, v in snapshots.items()}}
         path = plan_path(self.cfg)
         path.write_text(json.dumps(plan, indent=1), encoding="utf-8")
         outcome_path(self.cfg).unlink(missing_ok=True)
@@ -698,7 +735,7 @@ class Updater:
         release = self.available()
         if release is None or not self.can_install:
             return
-        last = self.state.get("update_install") or {}
+        last = self.last_install() or {}   # also takes in the helper's verdict on an update that was undone
         if last.get("to") == release["version"] and last.get("ok") is False:
             return   # this version already failed to start here; the owner can still choose Install
         problem = self.state.get("update_problem") or {}
@@ -722,6 +759,7 @@ class Updater:
         """Run by the new program once it is up: wait for the helper's verdict, then remove the old program it kept
         and the download it came from."""
         where = self.where
+        self.last_install()
         if where is not None and self.frozen and where.old.exists():
             deadline = time.monotonic() + wait
             while not self._stop.is_set() and time.monotonic() < deadline:

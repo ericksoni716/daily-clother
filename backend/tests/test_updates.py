@@ -17,7 +17,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from closet import cli, instance, updates
+from closet import cli, db, instance, updates
 
 NEW_EXE = b"the new program, 0.3.0"
 OLD_EXE = b"the program running now, 0.2.1"
@@ -318,6 +318,7 @@ def test_install_backs_up_every_closet_first(updater, github, cfg, monkeypatch, 
     (helper, plan), = updater.spawned
     assert helper == Path(updater.executable).with_name("Closet.old.exe")   # the helper is the old program, kept aside
     assert plan["from"] == "0.2.1" and plan["to"] == "0.3.0" and plan["args"] == ["--no-browser", "--port", "8765"]
+    assert sorted(plan["snapshots"]) == ["demo", "main"] and all(Path(v).is_file() for v in plan["snapshots"].values())
     assert updater.busy == "restarting"
 
 
@@ -379,6 +380,16 @@ def test_install_by_themselves(updater, github):
     updater.set_mode("auto")
     updater.tick()
     assert Path(updater.executable).read_bytes() == NEW_EXE and len(updater.spawned) == 1
+
+
+def test_a_version_the_helper_undid_is_not_installed_again_by_itself(updater, github, cfg):
+    updater.set_mode("auto")
+    updates.outcome_path(cfg).parent.mkdir(parents=True, exist_ok=True)
+    updates.outcome_path(cfg).write_text(json.dumps(
+        {"at": "2026-11-13T09:00:00Z", "from": "0.2.1", "to": "0.3.0", "ok": False, "note": "it did not answer"}))
+    updater.tick()
+    assert not updater.spawned and Path(updater.executable).read_bytes() == OLD_EXE
+    assert updater.state.get("update_install")["ok"] is False
 
 
 def test_a_failed_download_is_not_retried_every_half_hour(updater, github):
@@ -500,6 +511,34 @@ def test_helper_puts_the_old_program_back_when_the_new_one_never_answers(cfg, se
     assert "0.3.0 was installed but did not start" in last["note"] and "0.2.1 was put back and started again" in last["note"]
     assert not updates.outcome_path(cfg).exists()   # taken into the settings
     assert u.state.get("update_install") == last
+
+
+def test_going_back_also_puts_back_a_closet_the_new_program_upgraded(cfg, tmp_path, program):
+    where, plan = swapped(tmp_path, program)
+    path = cfg.db_path("main")
+    db.migrate(path, cfg.local_backups_dir)
+    snap = cfg.local_backups_dir / "pre-update-main-0.2.1-x.sqlite"
+    db.snapshot(path, snap)
+    conn = db.connect(path)   # the new program upgraded the closet before it failed
+    conn.execute(f"PRAGMA user_version = {db.latest_version() + 1}")
+    conn.close()
+    plan["snapshots"] = {"main": str(snap), "elsewhere": str(snap)}
+    assert not updates.watch(cfg, plan, start=lambda w, a: None, timeout=0.3, poll=0.1)
+    db.migrate(path, cfg.local_backups_dir)   # the old program can open it again
+    conn = db.connect(path)
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == db.latest_version()
+    conn.close()
+    assert len(list(cfg.local_backups_dir.glob("upgraded-main-*.sqlite"))) == 1   # the upgraded one is kept
+    assert "put back as it was just before the update" in json.loads(updates.outcome_path(cfg).read_text())["note"]
+
+
+def test_a_closet_the_new_program_did_not_touch_is_left_as_it_is(cfg, tmp_path):
+    path = cfg.db_path("main")
+    db.migrate(path, cfg.local_backups_dir)
+    snap = tmp_path / "snap.sqlite"
+    db.snapshot(path, snap)
+    assert updates.restore_closets(cfg, {"main": str(snap)}) == []
+    assert not list(cfg.local_backups_dir.glob("upgraded-*"))
 
 
 def test_helper_goes_back_when_the_new_program_stops_by_itself(cfg, tmp_path, program):

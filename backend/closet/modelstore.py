@@ -21,13 +21,17 @@ from .state import State
 log = logging.getLogger("closet.model")
 
 MODEL = "isnet-general-use"
+# the second background model: asked as well when the first leaves a patterned item see-through (a plaid's dark
+# checks taken for background); downloaded after the first, about the same size
+SECOND_MODEL = "u2net"
 USER_AGENT = "Closet/1 (model download)"
 
 
 class ModelStore:
     def __init__(self, models_dir: Path, state: State, on_ready: Callable[[], None] | None = None,
-                 name: str = MODEL, sha256: str | None = None, default_url: str | None = None):
-        self.dir, self.state, self.name = models_dir, state, name
+                 name: str = MODEL, sha256: str | None = None, default_url: str | None = None,
+                 url_key: str = "model_url"):
+        self.dir, self.state, self.name, self.url_key = models_dir, state, name, url_key
         self.sha256 = sha256 or MODELS[name].sha256
         self.default_url = default_url or MODELS[name].url
         self.on_ready = on_ready
@@ -54,7 +58,7 @@ class ModelStore:
 
     @property
     def url(self) -> str:
-        return self.state.get("model_url") or self.default_url
+        return self.state.get(self.url_key) or self.default_url
 
     # ---- state
     def refresh(self) -> None:

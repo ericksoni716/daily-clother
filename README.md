@@ -43,7 +43,7 @@ anything that's wrong. Claude never changes something you set yourself.
 Once it is described the item gets its drawing: switch between **Drawing**,
 **Cutout** and **Photo** above the item. Beside the drawing, **Not in the
 drawing** lists what it can't show yet (for example a logo, or stripes drawn as
-plain colour). The drawing follows your changes: pick another colour or sleeve
+plain colour). For stripes, plaid and prints, Closet measures the pattern from the photo after Claude has described the item (it says **Measuring the plaid from the photo** meanwhile; it can take a minute or two) and the drawing shows it: a plaid straightened and lined up with the buttons, stripes where they really are, a print pieced from the cloth. Change the pattern on the item and it is measured again. The drawing follows your changes: pick another colour or sleeve
 length and it is drawn again. **Photos | Drawings** above the closet shows the
 whole closet either way; this device remembers your choice.
 **What Claude saw**, at the bottom of the item page, lists the details it

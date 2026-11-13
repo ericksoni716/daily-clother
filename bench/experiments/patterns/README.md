@@ -14,6 +14,11 @@ here: run them against cutouts in `bench/private/` (git-ignored).
   unwrapping); a patch is only joined if it sits on the same cloth (a shirt's two fronts are separate cloth).
 - `sett.py`: earlier ways of measuring the bands (averaged strips; colours from crossings).
 - `repeat2d.py`: the repeat over the whole garment (2-D autocorrelation) and the best-matching square.
+- `stripes.py`: stripes. Which way they run; regular stripes folded onto one sharp repeat by reading the
+  stripes' local position from the photo (complex demodulation at the stripe spacing, so nothing has to be
+  joined), the repeat length chosen by how sharply it folds; yarn colours without the blends at stripe edges.
+  Stripes with no repeat (a placed chest band) use the straightened sequence across the whole garment, laid
+  out as fractions of the garment so each stripe lands where it really is.
 - `quilt.py`: florals and other irregular prints, by image quilting from the whole garment; `quilt_garment`
   first turns the garment upright and evens out the light.
 - `cv2shim.py`: the numpy/Pillow stand-in for OpenCV used to compare the two (OpenCV is kept: the owner chose

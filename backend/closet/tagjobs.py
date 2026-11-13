@@ -22,7 +22,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db
+from . import db, illustrations
 from .config import Config
 from .state import State
 from .tagger import routes as tagger_routes
@@ -201,6 +201,7 @@ def apply_answer(conn, item_id: str, tags: ItemTags, route: str, model: str | No
                 tag_answer=json.dumps(tags.model_dump(mode="json")), tag_schema_version=SCHEMA_VERSION,
                 tag_route=route, tag_model=model, tagged_at=t, updated_at=t)
     conn.execute(f"UPDATE items SET {', '.join(f'{k} = ?' for k in sets)} WHERE id = ?", [*sets.values(), item_id])
+    illustrations.redraw(conn, item_id)   # the drawing follows the new answer (and the owner's own fields)
 
 
 # ------------------------------------------------------- reaching Claude

@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "bench"))
 sys.path.insert(0, str(ROOT / "backend"))
 
-from closet.drawing import fills  # noqa: E402
+from closet.drawing import DRAWING_VERSION, fills  # noqa: E402
 from closet.drawing.illustrate import Fill, Spec, render  # noqa: E402
 from closet.tagger.schema import NAMED_HEX, SCHEMA_VERSION, Details, ItemTags, Silhouette  # noqa: E402
 from closet_bench import cutout as C  # noqa: E402
@@ -221,7 +221,8 @@ def main() -> None:
         by_name = answers(cases)
         for it in data["items"]:
             it["answer"] = by_name[it["name"]]
-        data = {"style": data["style"], "schema_version": SCHEMA_VERSION, "items": data["items"]}   # as a full run writes it
+        data = {"style": data["style"], "schema_version": SCHEMA_VERSION, "drawing_version": data.get("drawing_version", DRAWING_VERSION),
+                "items": data["items"]}   # as a full run writes it (the drawings are not touched)
         (OUT / "items.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"answers written for {len(data['items'])} items (schema version {SCHEMA_VERSION})")
         return
@@ -257,7 +258,7 @@ def main() -> None:
         it["answer"] = by_name[it["name"]]
     # interleave so the grid mixes photographed and drawn items
     items.sort(key=lambda it: it["id"])
-    (OUT / "items.json").write_text(json.dumps({"style": STYLE, "schema_version": SCHEMA_VERSION, "items": items},
+    (OUT / "items.json").write_text(json.dumps({"style": STYLE, "schema_version": SCHEMA_VERSION, "drawing_version": DRAWING_VERSION, "items": items},
                                                ensure_ascii=False, indent=1), encoding="utf-8")
     # files for `closet selfcheck`
     C.load_photo(ROOT / "bench" / "hardcases" / "photos" / "jeans.jpg", 640).save(OUT / "selfcheck.webp", "WEBP", quality=80)

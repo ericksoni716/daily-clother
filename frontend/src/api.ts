@@ -66,7 +66,7 @@ function fallbackMessage(status: number): string {
   return 'That did not work. Try again.';
 }
 
-interface Options {
+export interface Options {
   method?: string;
   body?: unknown;
   form?: FormData;
@@ -77,12 +77,37 @@ interface Options {
   text?: boolean;
 }
 
+/**
+ * Browsers allow 64 KiB of bodies for all `keepalive` requests still on their way together, and
+ * refuse one that would go over. Closet keeps its own count and stays under it, with room to spare.
+ */
+export const KEEPALIVE_BUDGET = 48 * 1024;
+let keepaliveBytes = 0;
+
+/**
+ * Saves are sent with `keepalive` so that they reach Closet even if the page is closed or reloaded
+ * a moment later. Not for photos (too large), not for questions the app can call off (they have a
+ * signal), and not when earlier saves still on their way use up the browser's allowance.
+ * Returns the body's size when it is sent that way, null otherwise.
+ */
+export function keepaliveSize(method: string, body: string | undefined, opts: Options, inFlight: number): number | null {
+  if (method === 'GET' || opts.form || opts.signal) return null;
+  const size = new TextEncoder().encode(body ?? '').length;
+  return inFlight + size <= KEEPALIVE_BUDGET ? size : null;
+}
+
 async function request<T>(path: string, opts: Options = {}): Promise<T> {
-  const init: RequestInit = { method: opts.method ?? 'GET', credentials: 'same-origin', signal: opts.signal };
+  const method = opts.method ?? 'GET';
+  const init: RequestInit = { method, credentials: 'same-origin', signal: opts.signal };
   if (opts.form) init.body = opts.form;
   else if (opts.body !== undefined) {
     init.body = JSON.stringify(opts.body);
     init.headers = { 'Content-Type': 'application/json' };
+  }
+  const kept = keepaliveSize(method, init.body as string | undefined, opts, keepaliveBytes);
+  if (kept !== null) {
+    init.keepalive = true;
+    keepaliveBytes += kept;
   }
   let res: Response;
   try {
@@ -91,6 +116,8 @@ async function request<T>(path: string, opts: Options = {}): Promise<T> {
     if ((e as Error)?.name === 'AbortError') throw e;
     setOffline(true);
     throw new ApiError(0, UNREACHABLE);
+  } finally {
+    if (kept !== null) keepaliveBytes -= kept;
   }
   setOffline(res.headers.get(FROM_CACHE_HEADER) === '1');
   if (res.status === 204) return undefined as T;

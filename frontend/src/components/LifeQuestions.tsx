@@ -72,8 +72,17 @@ export function LifeQuestions({ initial, locked, demo, onSaved, onClose }: {
           {life.situations.vacation > 0 && <div className="life-vacation">
             <label className="field">
               <span>Vacation weeks per year</span>
-              <input type="number" min={0} max={52} step="any" required value={Number.isNaN(life.vacation_weeks) ? '' : life.vacation_weeks}
-                onChange={(e) => setLife({ ...life, vacation_weeks: e.target.value === '' ? NaN : Number(e.target.value) })} />
+              <input type="number" min={Number.MIN_VALUE} max={52} step="any" required
+                aria-describedby={`${id}-weeks-hint`} value={Number.isNaN(life.vacation_weeks) ? '' : life.vacation_weeks}
+                onInvalid={(e) => {
+                  if (e.currentTarget.validity.rangeUnderflow || e.currentTarget.validity.valueMissing) {
+                    e.currentTarget.setCustomValidity('Enter more than 0 weeks, or set Vacation to Never.');
+                  }
+                }}
+                onChange={(e) => {
+                  e.target.setCustomValidity('');
+                  setLife({ ...life, vacation_weeks: e.target.value === '' ? NaN : Number(e.target.value) });
+                }} />
             </label>
             <label className="field"><span>Vacation weather</span>
               <select value={life.vacation_climate} onChange={(e) => setLife({ ...life, vacation_climate: e.target.value as Life['vacation_climate'] })}>
@@ -81,6 +90,7 @@ export function LifeQuestions({ initial, locked, demo, onSaved, onClose }: {
               </select>
             </label>
           </div>}
+          {life.situations.vacation > 0 && <p className="hint" id={`${id}-weeks-hint`}>Enter more than 0 weeks, or set Vacation to Never.</p>}
           <label className="field life-style">
             <span>My style in a few words <span className="muted">(optional)</span></span>
             <input value={life.style_words} onChange={(e) => setLife({ ...life, style_words: e.target.value })}

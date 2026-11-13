@@ -16,7 +16,13 @@ export interface LookFor {
   avoid_fits?: string[];
 }
 
-export type GapState = 'open' | 'hidden' | 'wished';
+export type GapState = 'open' | 'hidden' | 'wished' | 'held_back';
+
+export interface GapHold {
+  gap_id: string;
+  name: string;
+  situations: string[];
+}
 
 export interface Gap {
   id: string;
@@ -30,6 +36,7 @@ export interface Gap {
   hidden_reason: HideReason | null;
   wish_id: string | null;
   situations?: { id: string; label: string; days_per_week: number; share: number; days_per_year: number }[];
+  held_back_by?: GapHold[];
 }
 
 export interface GapNote {
@@ -54,7 +61,7 @@ export interface GapsAnswer {
       years: number[]; old: boolean; message: string | null;
     };
     taste: { used: boolean; summary: string | null };
-    suppressed: { gap_id: string; name: string; situations: string[] }[];
+    suppressed: (GapHold & { needs_confirmation?: boolean })[];
   };
 }
 

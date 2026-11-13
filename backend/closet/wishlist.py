@@ -27,28 +27,33 @@ NOTE_MAX = 1000
 
 
 # ------------------------------------------------------------------ marking the analysis
-def mark(conn: sqlite3.Connection, answer: dict, offered: int = MAX_GAPS) -> dict:
+def mark(conn: sqlite3.Connection, answer: dict, offered: int = MAX_GAPS, consent: dict | None = None) -> dict:
     """The analysis with each gap marked `state` "open", "hidden" or "wished" (with `hidden_reason` and `wish_id`).
 
     Up to `offered` open gaps are kept, best first; every hidden or wished gap the analysis found is kept too, in
     its place, so a gap the owner has decided about never pushes a new one off the list. The answer is not changed.
     """
-    hidden_rows = [dict(r) for r in conn.execute("SELECT gap_id, name, reason FROM hidden_gaps ORDER BY gap_id")]
+    hidden_rows = [dict(r) for r in conn.execute("SELECT gap_id, name, reason, hidden_at FROM hidden_gaps ORDER BY gap_id")]
     hidden = {r["gap_id"]: r["reason"] for r in hidden_rows}
     wished = {r["gap_id"]: r["id"] for r in conn.execute(
         "SELECT gap_id, id FROM wishes WHERE gap_id IS NOT NULL AND bought_at IS NULL")}
-    answer = _hold_back(answer, hidden_rows, set(wished))
+    answer = _hold_back(answer, hidden_rows, set(wished), consent)
     gaps, open_count = [], 0
     for g in answer.get("gaps", []):
         if g["id"] in wished:
             state = "wished"
         elif g["id"] in hidden:
             state = "hidden"
+        elif g.get("state") == "held_back":
+            state = "held_back"
         else:
             if open_count >= offered:
-                continue
-            open_count += 1
-            state = "open"
+                if not g.get("held_back_by"):
+                    continue
+                state = "held_back"
+            else:
+                open_count += 1
+                state = "open"
         gaps.append({**g, "state": state, "hidden_reason": hidden.get(g["id"]) if state == "hidden" else None,
                      "wish_id": wished.get(g["id"])})
     return {**answer, "gaps": gaps}
@@ -56,13 +61,15 @@ def mark(conn: sqlite3.Connection, answer: dict, offered: int = MAX_GAPS) -> dic
 
 def _signature(gap_id: str) -> tuple[str, str, str]:
     parts = gap_id.split("-")
-    # Weather variants of the same piece are alike; home and exercise are distinct purchases.
+    # Outer layers solve different weather needs: no outer-layer hide suppresses another purchase.
+    if parts[0] == "outer":
+        return gap_id, "", ""
     kind = "active" if parts[-1].endswith("active") else "lounge" if parts[-1] == "lounge" else ""
     dress = next((p for p in parts[1:] if p in life.WORK_DRESS or p == "athletic"), "")
     return parts[0], dress, kind
 
 
-def _hold_back(answer: dict, hidden: list[dict], wished: set[str]) -> dict:
+def _hold_back(answer: dict, hidden: list[dict], wished: set[str], consent: dict | None = None) -> dict:
     context = answer.get("context")
     if not context or not context.get("life"):
         return answer
@@ -70,11 +77,15 @@ def _hold_back(answer: dict, hidden: list[dict], wished: set[str]) -> dict:
     by_id = {g["id"]: g for g in answer["gaps"]}
     policies = []
     for row in hidden:
-        if row["reason"] != "never_wear":
+        if row["reason"] != "never_wear" or row["gap_id"].split("-")[0] == "outer":
             continue
         signature = _signature(row["gap_id"])
         original = by_id.get(row["gap_id"])
-        if original:
+        approved = (consent or {}).get(row["gap_id"], {})
+        confirmed = bool(approved and approved.get("hidden_at") == row.get("hidden_at"))
+        if confirmed:
+            situations = [key for key in approved.get("situations", []) if key in life.SITUATIONS and life.frequency(key, answers)]
+        elif original:
             situations = [s["id"] for s in original.get("situations", [])]
         else:
             # The original may no longer be missing. Its ID still tells us the dress and kind;
@@ -84,30 +95,39 @@ def _hold_back(answer: dict, hidden: list[dict], wished: set[str]) -> dict:
                 key == "lounging" if kind == "lounge" else key == "exercise" if kind == "active" else
                 key not in ("lounging", "exercise") and (not dress or
                 life.gaps.PIECE_FORMALITY[life.occasion(key, answers)] == dress))]
-        policies.append({"gap_id": row["gap_id"], "name": row["name"], "situations": situations})
+        policies.append({"gap_id": row["gap_id"], "name": row["name"], "situations": situations,
+                         "needs_confirmation": not confirmed})
     held = []
     hidden_ids = {row["gap_id"] for row in hidden}
     for g in answer["gaps"]:
         if g["id"] in hidden_ids or g["id"] in wished:
             held.append(g)
             continue
-        removed = {s for policy in policies if _signature(policy["gap_id"]) == _signature(g["id"])
-                   for s in policy["situations"]}
         served = g.get("situations", [])
+        causes = [{"gap_id": policy["gap_id"], "name": policy["name"],
+                   "situations": [s["id"] for s in served if s["id"] in policy["situations"]]}
+                  for policy in policies if not policy["needs_confirmation"]
+                  and _signature(policy["gap_id"]) == _signature(g["id"])]
+        causes = [cause for cause in causes if cause["situations"]]
+        removed = {key for cause in causes for key in cause["situations"]}
         remaining = [s for s in served if s["id"] not in removed]
         if len(remaining) == len(served):
             held.append(g)
         elif remaining:
             before = sum(s["share"] for s in served)
             share = sum(s["share"] for s in remaining)
-            held.append({**g, "situations": remaining, "score": round(g["score"] * share / before) if before else 0,
+            score = round(g["score"] * share / before) if before else 0
+            held.append({**g, "situations": remaining, "score": score, "held_back_by": causes,
+                         "state": "open" if score > 0 else "held_back",
                          "why": [text for text in g["why"] if not any(
                              text.startswith(f"For {life.SITUATIONS[key].label.lower()},") for key in removed)],
                          "evidence": {**g["evidence"], "days": [
                              d for d in g["evidence"]["days"] if d.get("situation") not in removed]}})
+        else:
+            held.append({**g, "state": "held_back", "held_back_by": causes})
     held.sort(key=lambda g: (-g["score"], g["name"], g["id"]))
     taste = context["taste"]
-    if policies:
+    if any(not policy["needs_confirmation"] for policy in policies):
         taste = {**taste, "used": True}
     return {**answer, "gaps": held, "context": {**context, "suppressed": policies, "taste": taste}}
 
@@ -127,7 +147,8 @@ def hide(conn: sqlite3.Connection, gap: dict, reason: str | None) -> dict:
         raise ItemError("This is on your wishlist. Remove it from the list first.", 409)
     row = {"gap_id": gap["id"], "name": gap["name"], "reason": reason, "hidden_at": db.now()}
     conn.execute("INSERT INTO hidden_gaps (gap_id, name, reason, hidden_at) VALUES (:gap_id, :name, :reason, :hidden_at) "
-                 "ON CONFLICT (gap_id) DO UPDATE SET name = excluded.name, reason = excluded.reason", row)
+                 "ON CONFLICT (gap_id) DO UPDATE SET name = excluded.name, reason = excluded.reason, "
+                 "hidden_at = excluded.hidden_at", row)
     return dict(conn.execute("SELECT * FROM hidden_gaps WHERE gap_id = ?", (gap["id"],)).fetchone())
 
 
@@ -235,7 +256,7 @@ class WishChange(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-def router(conn_dep: Callable, gaps_now: Callable[[], dict], protected: list) -> APIRouter:
+def router(conn_dep: Callable, gaps_now: Callable[[], dict], protected: list, settings=None) -> APIRouter:
     """The routes for hiding gaps and for the wishlist. `gaps_now()` gives the open closet's analysis (it may take
     seconds the first time, so it is called in a worker thread)."""
     r = APIRouter(dependencies=protected)
@@ -245,11 +266,38 @@ def router(conn_dep: Callable, gaps_now: Callable[[], dict], protected: list) ->
 
     @r.post("/api/gaps/{gap_id}/hide")
     async def hide_gap(gap_id: str, body: HideBody | None = None, conn=Depends(conn_dep)):
-        return hide(conn, await gap(gap_id), body.reason if body else None)
+        profile = settings.get("profile") if settings else None
+        answer = await run_in_threadpool(gaps_now, profile) if settings else await run_in_threadpool(gaps_now)
+        existing = conn.execute("SELECT * FROM hidden_gaps WHERE gap_id = ?", (gap_id,)).fetchone()
+        try:
+            found = _find(answer.get("gaps", []), gap_id)
+        except ItemError:
+            if not existing:
+                raise
+            found = {"id": gap_id, "name": existing["name"]}
+        result = hide(conn, found, body.reason if body else None)
+        if settings:
+            # Only a new, explicit hide after answering can affect other purchases. Old database
+            # rows have no consent; restoring a backup cannot silently enable broader hiding.
+            marked = _hold_back(answer, [result], set())
+            policy = next(iter(marked.get("context", {}).get("suppressed", [])), None)
+            def remember(data):
+                data["life_gap_hides"] = dict(data["life_gap_hides"])
+                by_profile = dict(data["life_gap_hides"].get(profile, {}))
+                data["life_gap_hides"][profile] = by_profile
+                if policy and result["reason"] == "never_wear":
+                    by_profile[gap_id] = {"hidden_at": result["hidden_at"], "situations": policy["situations"]}
+                else:
+                    by_profile.pop(gap_id, None)
+            settings.mutate(remember)
+        return result
 
     @r.delete("/api/gaps/{gap_id}/hide", status_code=204)
     def unhide_gap(gap_id: str, conn=Depends(conn_dep)):
         unhide(conn, gap_id)
+        if settings:
+            profile = settings.get("profile")
+            settings.mutate(lambda data: data["life_gap_hides"].get(profile, {}).pop(gap_id, None))
         return Response(status_code=204)
 
     @r.get("/api/wishlist")

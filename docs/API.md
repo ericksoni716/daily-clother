@@ -88,7 +88,7 @@ Hidden gaps and the wishlist are kept in the open closet's database, so the demo
   demo: boolean,
   climate: {used, place, shares, years, old, message},
   taste: {used: boolean, summary: string | null},
-  suppressed: [{gap_id, name, situations: [situation_id]}]
+  suppressed: [{gap_id, name, situations: [situation_id], needs_confirmation: boolean}]
 }
 ```
 
@@ -117,8 +117,17 @@ original construction.
 The cache now also depends on answers, place/climate context and creation
 dates used for long-owned items. Updating answers or place discards the main
 cache; changed climate shares invalidate it too. Decisions are applied after
-the cached analysis: `never_wear` holds back the same category and dress/kind
-in the same situations, leaving unrelated situations and wishes alone.
+the cached analysis: confirmed `never_wear` holds back the same category and
+dress/kind in the agreed situations, leaving outerwear, unrelated situations
+and wishes alone. Held-back suggestions remain in `gaps` with
+`state:"held_back"` and `held_back_by:[{gap_id,name,situations}]`; partially
+affected open suggestions also have `held_back_by`. They do not consume the
+open-suggestion limit when fully held back.
+Old hides without consent remain direct hides only. Repeating
+`POST /api/gaps/{id}/hide` with `reason:"never_wear"` confirms the displayed
+situations, even if the original hidden suggestion is no longer missing.
+Consent is kept separately for each closet in settings, matched to the hide's
+timestamp, and removed on Undo. It is not in closet backups.
 `context.suppressed` keeps those decisions visible even if the original gap
 is gone; `DELETE /api/gaps/{gap_id}/hide` undoes one without re-analysing.
 

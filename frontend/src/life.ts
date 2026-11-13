@@ -46,7 +46,7 @@ export function situationLabel(id: string): string {
 /** Reflect the saved answers, not assumptions inferred from the closet. */
 export function lifeSummary(life: Life | null | undefined): string[] {
   if (!life) return [];
-  return activeSituations(life).map(({ id, label }) => {
+  const summary = activeSituations(life).map(({ id, label }) => {
     if (id === 'vacation') {
       const climate = life.vacation_climate === 'both' ? 'warm and cold' : life.vacation_climate;
       return `vacation ${life.vacation_weeks} ${life.vacation_weeks === 1 ? 'week' : 'weeks'} a year, ${climate}`;
@@ -56,4 +56,8 @@ export function lifeSummary(life: Life | null | undefined): string[] {
     const dress = id === 'work' ? `, ${life.work_dress.replaceAll('_', ' ')}` : '';
     return `${label.toLowerCase()} ${frequency}${dress}`;
   });
+  if (life.situations.vacation > 0 && life.vacation_weeks <= 0) {
+    summary.push('vacation needs weeks away — not included yet');
+  }
+  return summary.length ? summary : ['no situations chosen'];
 }

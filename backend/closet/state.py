@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,7 @@ DEFAULTS: dict[str, Any] = {
     "weather": None,          # the last forecast for the place: {"key", "fetched", "offset", "answer"}
     "life": None,             # the optional situations and style line for What's missing
     "life_prompt_dismissed": False,
+    "life_gap_hides": {},     # per-profile hide consent: id -> {hidden_at, situations}
     "climate": None,          # years of home weather, kept for months, not part of a closet
 }
 
@@ -36,7 +38,7 @@ class State:
     def __init__(self, path: Path):
         self.path = path
         self._lock = threading.RLock()
-        self._data = dict(DEFAULTS)
+        self._data = deepcopy(DEFAULTS)
         if path.exists():
             try:
                 loaded = json.loads(path.read_text(encoding="utf-8"))
@@ -58,11 +60,13 @@ class State:
             self._data.update(changes)
             self._save()
 
-    def mutate(self, fn) -> Any:
-        """Run `fn(data)` under the lock and save; returns fn's result."""
+    def mutate(self, fn, *, save_if_changed: bool = False) -> Any:
+        """Run `fn(data)` under the lock and save; optionally skip unchanged data."""
         with self._lock:
+            before = deepcopy(self._data) if save_if_changed else None
             result = fn(self._data)
-            self._save()
+            if not save_if_changed or self._data != before:
+                self._save()
             return result
 
     def _save(self) -> None:

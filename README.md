@@ -94,7 +94,9 @@ vacation. Say how people dress at work, and roughly how many weeks you spend
 away and whether those places are warm or cold. Days can overlap: work and
 exercise can happen on the same day. **Not now** leaves the original suggestions
 unchanged. You can answer later or change your answers from **Based on…** on
-What's missing, or **Settings → How you live**.
+What's missing, or **Settings → How you live**. Tap **Based on…** to open the
+weather note, explanation and your style words. With every situation set to
+**Never**, choose some situations before asking what is missing.
 
 Once answered, common days matter more than rare ones. A saved place lets
 Closet use the last four full years of weather there; with no place or no
@@ -103,9 +105,13 @@ uses your warm/cold answer, not the weather at home. The situation buttons
 show just the suggestions for that part of your life.
 
 With enough recorded wears or ratings, suggestions put your favourite colours
-first among those that go with your clothes, and avoid fits and patterns you
-consistently dislike. **I never dress like that** also holds back similar
-suggestions for those situations; the screen explains this and offers **Undo**.
+first among those that go with your clothes, separately for each kind of
+clothing, and avoid fits and patterns you consistently dislike. A winter coat
+is not treated as avoided just because your log covers summer.
+**I never dress like that** also holds back similar suggestions for those
+situations, but never other coats or jackets. The closed held-back section lists
+each affected suggestion, what holds it back and how to bring it back. Older
+hides only affect themselves until you agree to apply them more broadly.
 The optional **My style in a few words** line is kept and shown back to you,
 but is not interpreted yet. Lounging is only a guess from relaxed tops and
 soft trousers, not a way to recognise sleepwear; exercise cannot yet tell

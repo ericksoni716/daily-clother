@@ -36,7 +36,7 @@ SITUATIONS = {
 FREQUENCIES = (0, 0.25, 1, 4)  # never, now and then, about weekly, most days
 WORK_DRESS = ("casual", "smart_casual", "business", "formal")
 VACATION_BANDS = {"warm": ("mild", "hot"), "cold": ("cold", "cool"), "both": ALL_BANDS}
-SOFT_WORDS = ("jersey", "fleece", "sweat", "jogger", "knit", "stretch")
+SOFT_WORDS = ("jersey", "fleece", "sweat", "jogger", "tracksuit", "lounge", "knit", "stretch")
 RELAXED_FITS = ("regular", "relaxed", "oversized")
 ACTIVE_TAGS = {None: "active", "light": "light_active", "warm": "warm_active",
                "rain": "rain_active", "rainwarm": "rainwarm_active"}
@@ -119,7 +119,7 @@ def soft(row: dict) -> bool:
     silhouette = row.get("silhouette") or {}
     fit = silhouette.get("fit") if isinstance(silhouette, dict) else None
     words = outfits._words(row.get("name")) + outfits._words(row.get("material"))
-    return (fit is None or fit in RELAXED_FITS) and any(word in words for word in SOFT_WORDS)
+    return (fit is None or fit in RELAXED_FITS) and any(stem in word for stem in SOFT_WORDS for word in words)
 
 
 def eligible(row: dict, key: str) -> bool:
@@ -180,13 +180,26 @@ def _situation_shares(days: list[gaps.Day], answers: dict) -> list[dict]:
     return out
 
 
+def frequency_words(days: float) -> str:
+    if days == 0:
+        return "never"
+    if days < 1:
+        return "now and then"
+    if days < 2:
+        return "about once a week"
+    if days < 4:
+        return "a few days a week"
+    return "most days" if days < 7 else "every day"
+
+
 def _when(days: list[gaps.Day], answers: dict, climate: dict) -> str:
     key = days[0].situation
     assert key is not None
     label = SITUATIONS[key].label.lower()
-    frequency_words = f"{answers['situations'][key]:g} days a week"
+    how_often = frequency_words(answers["situations"][key])
     if key == "vacation":
-        frequency_words += f" during {answers['vacation_weeks']:g} weeks away a year"
+        weeks = answers["vacation_weeks"]
+        how_often += f" during about {max(1, round(weeks))} {'week' if round(weeks) <= 1 else 'weeks'} away a year"
     bands = [b for b in ALL_BANDS if any(d.band == b for d in days)]
     rains = {d.rain for d in days}
     weather = gaps._join(bands, "or") + (" wet" if rains == {True} else " dry" if rains == {False} else "")
@@ -196,10 +209,10 @@ def _when(days: list[gaps.Day], answers: dict, climate: dict) -> str:
     elif key == "vacation":
         where = f"on {weather} days away"
     elif climate.get("used"):
-        where = f"on {weather} days here (about {annual:.0f} a year)"
+        where = f"on the {weather} days here, about {annual:.0f} a year"
     else:
         where = f"on {weather} days (home weather not yet used)"
-    return f"For {label}, {frequency_words}: {where}"
+    return f"For {label}, {how_often}: {where}"
 
 
 def _explain(f: gaps._Finding, answers: dict, climate: dict) -> None:
@@ -209,24 +222,7 @@ def _explain(f: gaps._Finding, answers: dict, climate: dict) -> None:
         if not days:
             continue
         prefix = _when(days, answers, climate)
-        category, _, tag = f.want
-        tag = tag.removesuffix("_active") if tag else None
-        noun = gaps.PLACE_NOUN.get(f.place, ("piece", "pieces"))[0]
-        if f.way == "thin_place":
-            detail = f"you rely on just one {noun}; another gives you a change."
-        elif tag in ("rain", "rainwarm"):
-            detail = "you have no outer layer that keeps the rain off and suits those days."
-        elif tag == "warm":
-            detail = "the outfits you can make are short of warmth."
-        elif f.way == "basic":
-            detail = f"you have no suitable {category.replace('_', ' ')} from the short list of basics."
-        elif f.way == "worn_most":
-            detail = "another like the piece you wear most would spread the wear."
-        elif f.way == "orphan":
-            detail = "this would give a hard-to-pair piece something to go with."
-        else:
-            detail = f"you need more suitable {gaps.PLACE_NOUN.get(f.place, ('piece', 'pieces'))[1]} to make outfits without compromises."
-        texts.append(f"{prefix}, {detail}")
+        texts.extend(f"{prefix}. {reason}" for reason in f.why)
     f.why = texts
 
 
@@ -243,7 +239,10 @@ def _lounge(c: gaps._Closet, days: list[gaps.Day]) -> list[gaps._Finding]:
         if len(owned) >= LOUNGE_CHOICES:
             continue
         score = (gaps.THIN_SCORE_BASE if owned else LOUNGE_MISSING_SCORE) * days[0].frequency / gaps.DAYS_PER_WEEK
-        findings.append(gaps._Finding("thin_place" if owned else "days", want, place, [""], score, (1,),
+        noun = "relaxed tee" if place == "base" else "pair of soft trousers or shorts"
+        why = (f"You rely on your {owned[0]['name'] or noun}; another {noun} gives you a change."
+               if owned else f"You have no suitable {noun} for home.")
+        findings.append(gaps._Finding("thin_place" if owned else "days", want, place, [why], score, (1,),
                                      days, [r["id"] for r in owned]))
     return findings
 
@@ -292,20 +291,23 @@ def analyse(rows: list[dict], wears: list[dict], answers: dict | None, climate: 
         findings.append(f)
     for f in findings:
         _explain(f, answers, climate)
+        if f.want[2] == "lounge":
+            f.name = "A relaxed tee for home" if f.want[0] == "tee" else "Soft trousers for home"
+        elif f.want[2] in ACTIVE_TAGS.values():
+            tag = f.want[2].removesuffix("_active")
+            description = {"warm": "Warm", "light": "Light", "rain": "Waterproof",
+                           "rainwarm": "Warm, waterproof"}.get(tag, "Comfortable")
+            f.name = f"{description} {f.want[0].replace('_', ' ')} for exercise"
     # Merge exactly as before; the identity is still category/formality/kind, never a situation name.
-    result_gaps = gaps._merge(findings, c)
+    result_gaps = [g for g in gaps._merge(findings, c) if g["score"] > 0]
     for g in result_gaps:
         matching = [d for d in days if d.as_dict() in g["evidence"]["days"]]
         g["situations"] = _situation_shares(matching, answers)
         if g["id"].endswith("-lounge"):
-            g["name"] = "A relaxed tee for home" if g["look_for"]["category"] == "tee" else "Soft trousers for home"
             g["look_for"].update(material="soft jersey, fleece or knit; not denim or tailored cloth", fit="relaxed")
         elif g["id"].endswith("active"):
             tag = g["id"].split("-")[-1].removesuffix("_active")
             g["look_for"].update(gaps.TAG_LOOK.get(tag, {}))
-            description = {"warm": "Warm", "light": "Light", "rain": "Waterproof",
-                           "rainwarm": "Warm, waterproof"}.get(tag, "Comfortable")
-            g["name"] = f"{description} {g['look_for']['category'].replace('_', ' ')} for exercise"
             material = g["look_for"].get("material")
             g["look_for"]["material"] = ((material + "; ") if material else "") + "cloth you can move in; check it suits your activity"
     learned = taste.learn(rows, wears)

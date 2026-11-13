@@ -35,6 +35,12 @@ async function mockLife(page: Page, initial: Life | null = null, demo = false) {
     failSave: false,
     offline: false,
     legacy: false,
+    empty: false,
+    heldBack: false,
+    partial: false,
+    pending: false,
+    undone: [] as string[],
+    confirmed: [] as string[],
     writes: [] as Record<string, unknown>[],
     suppressed: [{ gap_id: 'formal-shoes', name: 'Formal leather shoes', situations: ['going_out'] }],
   };
@@ -55,8 +61,16 @@ async function mockLife(page: Page, initial: Life | null = null, demo = false) {
   });
   await page.route('**/api/gaps', async (route) => {
     if (state.offline) { await route.abort(); return; }
-    const gaps = [suggestion('trousers-smart_casual', 'Light trousers for work', 'work', 'Work'),
+    let gaps = [suggestion('trousers-smart_casual', 'Light trousers for work', 'work', 'Work'),
       suggestion('shirt-smart_casual', 'A shirt for days away', 'vacation', 'Vacation')];
+    if (state.empty) gaps = [];
+    if (state.heldBack) {
+      const causes = ['formal-shoes', 'smart-shoes'].filter((id) => !state.undone.includes(id))
+        .map((id) => ({ gap_id: id, name: id === 'formal-shoes' ? 'Formal leather shoes' : 'Smart leather shoes', situations: ['going_out'] }));
+      gaps.push(Object.assign(suggestion('light-shoes', 'Light shoes for evenings', 'going_out', 'Going out'),
+        { state: causes.length ? 'held_back' : 'open', held_back_by: causes }) as Gap);
+      if (state.partial) Object.assign(gaps[0], { held_back_by: causes });
+    }
     if (state.legacy) gaps.forEach((g) => { delete g.situations; });
     const answer: GapsAnswer = {
       enough: true, message: null, gaps, checked: { items: 28, wears: 42, days: 48 }, notes: [],
@@ -65,7 +79,7 @@ async function mockLife(page: Page, initial: Life | null = null, demo = false) {
         climate: { used: false, place: null, shares: null, years: [], old: false,
           message: 'No home climate yet. Using a general mix of weather.' },
         taste: { used: true, summary: 'Your liked clothes lean towards plain patterns and a regular fit.' },
-        suppressed: state.suppressed,
+        suppressed: state.suppressed.map((s) => ({ ...s, needs_confirmation: state.pending })),
       } } : {}),
     };
     await route.fulfill({ json: answer });
@@ -74,9 +88,17 @@ async function mockLife(page: Page, initial: Life | null = null, demo = false) {
     if (state.offline) await route.abort();
     else await route.fulfill({ json: { wishes: [] } });
   });
-  await page.route('**/api/gaps/formal-shoes/hide', async (route) => {
-    expect(route.request().method()).toBe('DELETE');
-    state.suppressed = [];
+  await page.route('**/api/gaps/*/hide', async (route) => {
+    const id = route.request().url().split('/').at(-2)!;
+    if (route.request().method() === 'POST') {
+      expect(route.request().postDataJSON()).toEqual({ reason: 'never_wear' });
+      state.confirmed.push(id);
+      state.pending = false;
+    } else {
+      expect(route.request().method()).toBe('DELETE');
+      state.undone.push(id);
+      state.suppressed = state.suppressed.filter((s) => s.gap_id !== id);
+    }
     await route.fulfill({ status: 204 });
   });
   return state;
@@ -91,8 +113,130 @@ async function open(page: Page, life: Life | null = null, demo = false) {
   return state;
 }
 
+async function expandBasis(page: Page) {
+  const basis = page.getByRole('button', { name: 'See the answers behind these suggestions' });
+  if (await basis.getAttribute('aria-expanded') !== 'true') await basis.click();
+  return basis;
+}
+
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
+});
+
+test('review 10: Based on expands details and leaves filters and first suggestion in the phone viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await open(page, example);
+  const basis = page.getByRole('button', { name: 'See the answers behind these suggestions' });
+  await expect(basis).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByText('Your words:', { exact: false })).not.toBeVisible();
+  await expect(page.getByRole('button', { name: 'Edit answers' })).not.toBeVisible();
+  expect(await basis.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('nowrap');
+  expect(await basis.evaluate((el) => getComputedStyle(el).textOverflow)).toBe('ellipsis');
+  const first = page.getByTestId('gap').first();
+  for (const target of [basis, page.getByRole('group', { name: 'Suggestions for' }),
+    first.getByRole('heading', { level: 3 }), first.getByRole('list', { name: 'Why' })]) {
+    const box = await target.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(780);
+  }
+  await basis.click();
+  await expect(basis).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByText('Your words:', { exact: false })).toContainText(example.style_words);
+  await expect(page.getByRole('link', { name: 'Where you are in Settings' })).toBeVisible();
+  await expect(page.getByText(/Closet can't identify sleepwear/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Edit answers' })).toBeVisible();
+  await basis.click();
+  await expect(page.getByRole('button', { name: 'Edit answers' })).not.toBeVisible();
+});
+
+test('review 5: all-never answers explain no situations chosen, not a complete closet', async ({ page }) => {
+  const life = structuredClone(example);
+  for (const id of Object.keys(life.situations) as SituationId[]) life.situations[id] = 0;
+  const state = await open(page, life);
+  state.empty = true;
+  await page.reload();
+  await expect(page.getByText('No situations chosen. Choose the days you dress for to get suggestions.', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Your closet covers every kind/)).toHaveCount(0);
+  await page.getByRole('button', { name: 'Choose my situations' }).click();
+  await expect(page.getByRole('form', { name: 'How you live' })).toBeVisible();
+});
+
+test('review 5: vacation needs positive weeks before saving and old zero-week answers are explained', async ({ page }) => {
+  const life = structuredClone(example);
+  life.vacation_weeks = 0;
+  const state = await open(page, life);
+  const basis = page.getByRole('button', { name: 'See the answers behind these suggestions' });
+  await expect(basis).toContainText('vacation needs weeks away');
+  await basis.click();
+  await page.getByRole('button', { name: 'Edit answers' }).click();
+  const form = page.getByRole('form', { name: 'How you live' });
+  await form.getByRole('button', { name: 'Save my answers' }).click();
+  await expect(form).toBeVisible();
+  expect(state.writes).toEqual([]);
+  await expect(form.getByText('Enter more than 0 weeks, or set Vacation to Never.')).toBeVisible();
+  await form.getByLabel('Vacation weeks per year', { exact: true }).fill('0.5');
+  await form.getByRole('button', { name: 'Save my answers' }).click();
+  await expect(form).toHaveCount(0);
+  expect(state.life?.vacation_weeks).toBe(.5);
+});
+
+test('review 1: held-back suggestions name every blocking hide and undo all of them', async ({ page }) => {
+  const state = await open(page, example);
+  state.heldBack = true;
+  state.partial = true;
+  await page.reload();
+  await expect(page.getByTestId('gap')).toHaveCount(2);
+  const held = page.getByTestId('held-back-gaps');
+  await expect(held).not.toHaveAttribute('open');
+  await held.locator('summary').click();
+  const entry = held.getByRole('listitem').filter({ hasText: 'Light shoes for evenings' });
+  await expect(entry).toContainText('Formal leather shoes');
+  await expect(entry).toContainText('Smart leather shoes');
+  await expect(entry).toContainText('Going out');
+  await expect(held.getByRole('listitem').filter({ hasText: 'Light trousers for work' })).toContainText('Going out');
+  await expect(page.getByTestId('gap').first()).toContainText('Light trousers for work');
+  await entry.getByRole('button', { name: 'Undo holds on Light shoes for evenings' }).click();
+  await expect(page.getByTestId('gap')).toHaveCount(3);
+  await expect(held).toHaveCount(0);
+  expect(state.undone.sort()).toEqual(['formal-shoes', 'smart-shoes']);
+});
+
+test('review 1: a pre-answer hide needs explicit confirmation before applying to similar suggestions', async ({ page }) => {
+  const state = await open(page, example);
+  state.pending = true;
+  await page.reload();
+  const decisions = page.getByTestId('suppressed-gaps');
+  await decisions.locator('summary').click();
+  await expect(decisions).toContainText('This was hidden before you answered. It is not holding back similar suggestions.');
+  await decisions.getByRole('button', { name: 'Apply to similar suggestions' }).click();
+  expect(state.confirmed).toEqual(['formal-shoes']);
+  await expect(decisions.getByRole('button', { name: 'Apply to similar suggestions' })).toHaveCount(0);
+  await expect(decisions.getByRole('button', { name: 'Undo decision about Formal leather shoes' })).toBeVisible();
+});
+
+test('held-back-only lists do not claim completeness, and offline decisions remain read-only', async ({ page }) => {
+  const state = await open(page, example);
+  state.empty = true;
+  state.heldBack = true;
+  state.pending = true;
+  await page.reload();
+  await expect(page.getByTestId('gap')).toHaveCount(0);
+  await expect(page.getByText('Your decisions are holding back suggestions. They are below if you change your mind.')).toBeVisible();
+  await expect(page.getByText(/Your closet covers every kind/)).toHaveCount(0);
+  state.offline = true;
+  await page.reload();
+  await expect(page.getByText(/^Saved earlier/)).toBeVisible();
+  const held = page.getByTestId('held-back-gaps');
+  await held.locator('summary').click();
+  await expect(held).toContainText('Light shoes for evenings');
+  await expect(held.getByRole('button', { name: 'Undo holds on Light shoes for evenings' })).toBeDisabled();
+  const decisions = page.getByTestId('suppressed-gaps');
+  await decisions.locator('summary').click();
+  await expect(decisions.getByRole('button', { name: 'Apply to similar suggestions' })).toBeDisabled();
+  await expect(decisions.getByRole('button', { name: 'Undo decision about Formal leather shoes' })).toBeDisabled();
+  expect(state.undone).toEqual([]);
+  expect(state.confirmed).toEqual([]);
 });
 
 for (const [layout, viewport] of [
@@ -101,6 +245,7 @@ for (const [layout, viewport] of [
   test(`life questions save, filters, Settings reuse and screenshots on ${layout}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     const state = await open(page);
+    state.heldBack = true;
     await expect(page.getByRole('heading', { name: /Tell it how you live/ })).toBeVisible();
     await page.getByRole('button', { name: 'Answer a few questions' }).click();
     const questions = page.getByRole('form', { name: 'How you live' });
@@ -144,10 +289,10 @@ for (const [layout, viewport] of [
     await expect(questions).toHaveCount(0);
     expect(state.life).toEqual(example);
     expect(state.writes).toEqual([{ life: example, life_prompt_dismissed: true }]);
+    const basis = await expandBasis(page);
     await expect(page.getByText('Your words:', { exact: false })).toContainText(example.style_words);
     await expect(page.getByText('Kept as a note, not used to rank suggestions.')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Where you are in Settings' })).toBeVisible();
-    const basis = page.getByRole('button', { name: 'See the answers behind these suggestions' });
     await expect(basis).toContainText('work 4 days a week, smart casual');
     await expect(basis).toContainText('everyday 4 days a week');
     await expect(basis).toContainText('vacation 3 weeks a year, warm');
@@ -157,6 +302,7 @@ for (const [layout, viewport] of [
     await expect(filters.getByRole('button')).toHaveText(['All', 'Work', 'Everyday', 'Going out', 'Vacation']);
     await expect(page.getByTestId('gap').first().getByRole('list', { name: 'Useful for' })).toHaveText('Work');
     await expect(page.getByText('Your answers are saved', { exact: true })).toHaveCount(0, { timeout: 10_000 });
+    await basis.click();
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: resolve(screenshots, `missing-life-list-${layout}.png`) });
     await filters.getByRole('button', { name: 'Vacation' }).click();
@@ -166,6 +312,7 @@ for (const [layout, viewport] of [
     await expect(page.getByText('Nothing to look for just for everyday right now.')).toBeVisible();
     await filters.getByRole('button', { name: 'All', exact: true }).click();
     await expect(page.getByTestId('gap')).toHaveCount(2);
+    await expandBasis(page);
     await page.getByRole('link', { name: 'Where you are in Settings' }).click();
     await page.getByRole('button', { name: 'Edit my answers' }).click();
     await expect(questions.getByLabel('Work frequency')).toHaveValue('4');
@@ -175,11 +322,11 @@ for (const [layout, viewport] of [
     await questions.getByRole('button', { name: 'Save my answers' }).click();
     await page.goto('/missing');
     await expect(filters.getByRole('button', { name: 'Work', exact: true })).toHaveCount(0);
-    await page.getByText('How these suggestions work', { exact: true }).click();
+    await expandBasis(page);
     await expect(page.getByText(/Closet can't identify sleepwear/)).toBeVisible();
     await expect(page.getByText(/not specific to a sport/)).toBeVisible();
     if (layout === 'phone') {
-      await basis.click();
+      await page.getByRole('button', { name: 'Edit answers' }).click();
       await expect(page.getByRole('dialog')).toBeVisible();
       await page.keyboard.press('Escape');
       await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -196,6 +343,7 @@ test('Not now is persisted; questions remain available, including after reload',
   expect(state.life).toBeNull();
   await page.reload();
   await expect(page.getByRole('button', { name: 'Not now' })).toHaveCount(0);
+  await expandBasis(page);
   await page.getByRole('button', { name: 'Your answers' }).click();
   await expect(page.getByRole('form', { name: 'How you live' })).toBeVisible();
 });
@@ -204,6 +352,7 @@ test('non-preset frequencies survive edits; failed saves retain answers and can 
   const life = structuredClone(example);
   life.situations.work = 3.5;
   const state = await open(page, life);
+  await expandBasis(page);
   await page.getByRole('button', { name: 'Edit answers' }).click();
   const form = page.getByRole('form', { name: 'How you live' });
   await expect(form.getByLabel('Work frequency')).toHaveValue('3.5');
@@ -218,9 +367,13 @@ test('non-preset frequencies survive edits; failed saves retain answers and can 
   expect(state.writes).toEqual([]);
   await form.getByLabel('Vacation weeks per year').fill('0');
   await form.getByRole('button', { name: 'Save my answers' }).click();
+  await expect(form).toBeVisible();
+  expect(state.writes).toEqual([]);
+  await form.getByLabel('Vacation weeks per year').fill('0.5');
+  await form.getByRole('button', { name: 'Save my answers' }).click();
   await expect(form).toHaveCount(0);
   expect(state.life?.situations.work).toBe(3.5);
-  expect(state.life?.vacation_weeks).toBe(0);
+  expect(state.life?.vacation_weeks).toBe(.5);
 });
 
 test('suppressed never-wear decisions remain visible and can be undone', async ({ page }) => {
@@ -236,6 +389,7 @@ test('suppressed never-wear decisions remain visible and can be undone', async (
 
 test('demo questions explain the fixed example and cannot edit either closet', async ({ page }) => {
   const state = await open(page, example, true);
+  await expandBasis(page);
   await page.getByRole('button', { name: 'Example answers' }).click();
   await expect(page.getByText(/The demo uses fixed example answers/)).toBeVisible();
   await expect(page.getByLabel('Work frequency')).toBeDisabled();
@@ -252,6 +406,7 @@ test('saved life answers are read-only offline; old saved answers still render',
   state.offline = true;
   await page.reload();
   await expect(page.getByText(/^Saved earlier/)).toBeVisible();
+  await expandBasis(page);
   await page.getByRole('button', { name: 'Saved answers' }).click();
   await expect(page.getByLabel('Work frequency')).toHaveValue('4');
   await expect(page.getByLabel('Work frequency')).toBeDisabled();
@@ -297,6 +452,7 @@ test('real settings and gaps endpoints keep the same answers across screens and 
     const gaps = await (await page.request.get('/api/gaps')).json();
     expect(gaps.context.life).toEqual(settings.life);
     await page.reload();
+    await expandBasis(page);
     await page.getByRole('button', { name: 'Edit answers' }).click();
     await expect(form.getByLabel('Vacation weeks per year')).toHaveValue('1.5');
     await page.goto('/settings');

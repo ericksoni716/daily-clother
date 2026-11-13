@@ -45,4 +45,12 @@ describe('life answers', () => {
     life.vacation_weeks = 0;
     expect(lifeSummary(life)).not.toContain('vacation 0 weeks a year, warm and cold');
   });
+
+  it('explains saved vacation answers with no weeks and all-never answers', () => {
+    const life = newLife();
+    life.situations.everyday = 0;
+    expect(lifeSummary(life)).toEqual(['no situations chosen']);
+    life.situations.vacation = 1;
+    expect(lifeSummary(life)).toContain('vacation needs weeks away — not included yet');
+  });
 });

@@ -490,7 +490,7 @@ def create_app(sv: Services) -> FastAPI:
             answer = gap_analysis(profile)
             conn = db.connect(cfg.db_path(profile))
             try:
-                return wishlist.mark(conn, answer)
+                return wishlist.mark(conn, answer, consent=state.get("life_gap_hides").get(profile, {}))
             finally:
                 conn.close()
 
@@ -503,7 +503,7 @@ def create_app(sv: Services) -> FastAPI:
         rows = conn.execute("SELECT id, name, category, color, formality, season, price_cents, status, created_at FROM items").fetchall()
         worn = conn.execute("SELECT item_id, worn_on FROM wears").fetchall()
         return find_insights(rows, worn, wears.today())
-    app.include_router(wishlist.router(conn_dep, gap_analysis, protected))
+    app.include_router(wishlist.router(conn_dep, gap_analysis, protected, state))
 
     # ---------------------------------------------------------------- weather
     @app.get("/api/places", dependencies=protected)

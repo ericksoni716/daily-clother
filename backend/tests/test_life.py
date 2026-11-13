@@ -66,7 +66,7 @@ def test_day_weights_and_situation_shares_count_frequency_times_weather():
     assert sum(d.frequency / 7 * d.weather_share * life.DAYS_PER_YEAR
                for d in life.days_for("vacation", chosen, climate())) == pytest.approx(8)
     explanation = life._when([wet], chosen, climate("cold", 0.2))
-    assert "For work, 4 days a week" in explanation and "cold wet days here (about 73 a year)" in explanation
+    assert "For work, most days" in explanation and "cold wet days here, about 73 a year" in explanation
     assert "business" not in explanation
 
 
@@ -128,17 +128,16 @@ def test_taste_favoured_compatible_colours_first_with_reasons_and_avoidances():
     rows = taste_rows()
     wears = wears_for({"n0": 4, "n1": 4, "g0": 2, "g1": 2})
     learned = taste.learn(rows, wears)
-    assert learned["favoured"]["color"][:2] == ["navy", "grey"]
-    assert learned["favoured"]["formality"] == ["casual"]
-    assert learned["avoided"]["pattern"] == ["plaid"]
-    assert learned["avoided"]["fit"] == ["slim"]
+    assert learned["by_category"]["tee"]["favoured"]["color"] == ["navy"]
+    assert learned["by_category"]["trousers"]["favoured"]["color"] == ["grey"]
+    assert learned["by_category"]["tee"]["favoured"]["formality"] == ["casual"]
+    assert learned["by_category"]["shirt"]["avoided"]["pattern"] == ["plaid"]
+    assert learned["by_category"]["shirt"]["avoided"]["fit"] == ["slim"]
     result = gaps.find_gaps(without("trench"), options={"max_gaps": 100})["gaps"]
+    before_coat = deepcopy(next(g for g in result if g["id"] == "outer-rain"))
     taste.apply(result, learned, gaps._closet(rows, wears))
     coat = next(g for g in result if g["id"] == "outer-rain")
-    assert coat["look_for"]["colors"][:2] == ["navy", "grey"]
-    assert any("navy and grey" in s and "you wear" in s for s in coat["why"])
-    assert coat["look_for"]["fit"] == "regular"
-    assert coat["look_for"]["avoid_fits"] == ["slim"]
+    assert coat == before_coat  # Tee/trouser preferences say nothing about coats.
     assert all(g["look_for"]["pattern"] != "plaid" for g in result)
 
 
@@ -153,10 +152,10 @@ def test_never_worn_only_counts_after_long_ownership_and_a_long_log():
     rows += [item(f"n{i}", "tee") for i in range(3)]
     wears = [{"item_id": f"n{i}", "worn_on": day} for i in range(3)
              for day in ("2026-01-01", "2026-02-01", "2026-03-01", "2026-07-01")]
-    assert taste.learn(rows, wears)["avoided"]["pattern"] == ["plaid"]
+    assert taste.learn(rows, wears)["by_category"]["shirt"]["avoided"]["pattern"] == ["plaid"]
     for row in rows[:2]:
         row["created_at"] = "2026-06-01"
-    assert taste.learn(rows, wears)["avoided"]["pattern"] == []
+    assert taste.learn(rows, wears)["by_category"]["shirt"]["avoided"]["pattern"] == []
 
 
 @pytest.mark.parametrize("field,value,message", [
@@ -244,12 +243,15 @@ def test_never_wear_holds_back_similar_suggestions_and_undo_restores(cfg, servic
         answer["context"] = {"life": chosen, "taste": answer.pop("taste"), "suppressed": []}
         trousers = next(g for g in answer["gaps"] if g["id"] == "trousers-business")
         similar = next(g for g in answer["gaps"] if g["id"] == "trousers-business-light")
-        wishlist.hide(conn, trousers, "never_wear")
-        marked = wishlist.mark(conn, answer, 100)
+        decision = wishlist.hide(conn, trousers, "never_wear")
+        consent = {trousers["id"]: {"hidden_at": decision["hidden_at"], "situations": ["work"]}}
+        marked = wishlist.mark(conn, answer, 100, consent)
         assert trousers["id"] in {g["id"] for g in marked["gaps"]}
-        assert similar["id"] not in {g["id"] for g in marked["gaps"]}
+        held = next(g for g in marked["gaps"] if g["id"] == similar["id"])
+        assert held["state"] == "held_back"
+        assert held["held_back_by"][0]["gap_id"] == trousers["id"]
         assert marked["context"]["suppressed"] == [
-            {"gap_id": trousers["id"], "name": trousers["name"], "situations": ["work"]}]
+            {"gap_id": trousers["id"], "name": trousers["name"], "situations": ["work"], "needs_confirmation": False}]
         assert answer["context"]["suppressed"] == []  # never mutate the cached analysis
         wishlist.unhide(conn, trousers["id"])
         restored = wishlist.mark(conn, answer, 100)
@@ -267,12 +269,13 @@ def test_never_wear_still_applies_to_formal_work_when_original_is_gone():
                "evidence": {"days": [], "items": []}}
     answer = {"gaps": [similar], "context": {"life": chosen, "taste": {"used": False}, "suppressed": []}}
     hidden = [{"gap_id": "trousers-business", "name": "Smart trousers", "reason": "never_wear"}]
-    result = wishlist._hold_back(answer, hidden, set())
-    assert result["gaps"] == []
+    consent = {"trousers-business": {"hidden_at": None, "situations": ["work"]}}
+    result = wishlist._hold_back(answer, hidden, set(), consent)
+    assert result["gaps"][0]["state"] == "held_back"
     assert result["context"]["suppressed"][0]["situations"] == ["work"]
 
 
-def test_never_wear_preserves_other_situations_and_existing_wishes():
+def test_never_wear_never_suppresses_other_outerwear():
     chosen = answers(work=4, vacation=4)
     original = {"id": "outer-warm", "name": "Warm coat", "score": 40,
                 "situations": [{"id": "work", "share": 0.1}], "why": [], "evidence": {"days": [], "items": []}}
@@ -282,11 +285,9 @@ def test_never_wear_preserves_other_situations_and_existing_wishes():
                "evidence": {"days": [{"situation": "work"}, {"situation": "vacation"}], "items": []}}
     answer = {"gaps": [original, similar], "context": {"life": chosen, "taste": {"used": False}, "suppressed": []}}
     hidden = [{"gap_id": "outer-warm", "name": "Warm coat", "reason": "never_wear"}]
-    result = wishlist._hold_back(answer, hidden, set())
+    consent = {"outer-warm": {"hidden_at": None, "situations": ["work"]}}
+    result = wishlist._hold_back(answer, hidden, set(), consent)
     remaining = next(g for g in result["gaps"] if g["id"] == "outer-rain")
-    assert remaining["situations"] == [{"id": "vacation", "share": 0.1}]
-    assert remaining["score"] == 30
-    assert remaining["why"] == ["For vacation, a wet day."]
-    assert remaining["evidence"]["days"] == [{"situation": "vacation"}]
-    wished = wishlist._hold_back(answer, hidden, {"outer-rain"})
+    assert remaining == similar
+    wished = wishlist._hold_back(answer, hidden, {"outer-rain"}, consent)
     assert next(g for g in wished["gaps"] if g["id"] == "outer-rain") == similar

@@ -13,6 +13,9 @@ from .state import State
 
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 YEARS = 4
+# Open-Meteo's archive can lag about five days. Allow seven complete UTC days
+# after New Year: the newly finished year is first requested on January 8.
+ARCHIVE_GRACE_DAYS = 7
 KEEP_S = 180 * 24 * 3600
 RETRY_S = 3600
 WET_MM = 1
@@ -24,7 +27,17 @@ BANDS = ("cold", "cool", "mild", "hot")
 NO_PLACE = "Home weather is not being used. Choose where you are in Settings."
 UNAVAILABLE = "Home weather is not being used. Check the internet connection or choose your place in Settings."
 OLD = "Using older home weather saved for this place. Check the internet connection; Closet will try again later."
+INCOMPLETE = "Home weather is not being used. The weather service has not provided complete daily weather yet. Closet will try again later."
+OLD_INCOMPLETE = "Using older home weather saved for this place. The weather service has not provided complete daily weather yet; Closet will try again later."
 INVALID = "The weather service did not give complete daily home weather."
+
+
+class IncompleteArchive(weather.WeatherError):
+    """The first missing day, separate from a connection or malformed-data error."""
+
+    def __init__(self, missing_from: date):
+        super().__init__(INVALID)
+        self.missing_from = missing_from
 
 
 def _finite(value: object) -> bool:
@@ -55,22 +68,30 @@ def archive(place: dict, start: date, end: date) -> list[dict]:
     daily = data.get("daily")
     fields = ("time", "temperature_2m_min", "temperature_2m_max", "precipitation_sum")
     count = (end - start).days + 1
-    if not isinstance(daily, dict) or any(
-        not isinstance(daily.get(field), list) or len(daily[field]) != count for field in fields
-    ):
+    if not isinstance(daily, dict) or any(not isinstance(daily.get(field), list) for field in fields):
+        raise weather.WeatherError(INVALID)
+    lengths = {len(daily[field]) for field in fields}
+    if max(lengths) > count:
         raise weather.WeatherError(INVALID)
     rows = []
-    for i, (day, low, high, rain) in enumerate(zip(*(daily[field] for field in fields), strict=True)):
-        if (day != (start + timedelta(days=i)).isoformat()
-                or not all(_finite(value) for value in (low, high, rain))
+    # Validate the complete prefix before identifying the first missing day.
+    for i, (day, low, high, rain) in enumerate(zip(*(daily[field] for field in fields), strict=False)):
+        expected = start + timedelta(days=i)
+        if day != expected.isoformat():
+            raise weather.WeatherError(INVALID)
+        if any(value is None for value in (low, high, rain)):
+            raise IncompleteArchive(expected)
+        if (not all(_finite(value) for value in (low, high, rain))
                 or not -100 <= low <= high <= 70 or not 0 <= rain <= 3000):
             raise weather.WeatherError(INVALID)
         rows.append({"date": day, "low_c": low, "high_c": high, "precipitation_mm": rain})
+    if len(rows) < count:
+        raise IncompleteArchive(start + timedelta(days=len(rows)))
     return rows
 
 
 def _years(now: float) -> list[int]:
-    year = datetime.fromtimestamp(now, UTC).year
+    year = (datetime.fromtimestamp(now, UTC) - timedelta(days=ARCHIVE_GRACE_DAYS)).year
     return list(range(year - YEARS, year))
 
 
@@ -121,11 +142,27 @@ def _result(place: dict | None, answer: dict | None = None, *, old: bool = False
             "old": old, "message": message}
 
 
+def _cached_result(place: dict, kept: dict | None, now: float, years: list[int]) -> dict:
+    answer = _answer(kept, now)
+    incomplete = bool(kept and type(kept.get("incomplete_year")) is int)
+    pending = bool(answer and incomplete and kept["incomplete_year"] == years[-1]
+                  and answer["years"] == [year - 1 for year in years])
+    old = bool(answer and not pending and (answer["years"] != years or now - kept["fetched"] >= KEEP_S))
+    message = None
+    if old:
+        message = OLD_INCOMPLETE if incomplete else OLD
+    elif not answer:
+        message = INCOMPLETE if incomplete else UNAVAILABLE
+    return _result(place, answer, old=old, message=message)
+
+
 def lookup(state: State) -> dict:
     """Home climate context; fractions are 0–1, wet_share is within its band.
 
     A zero-frequency band has wet_share 0 and contributes nothing. Failures
     preserve a valid same-place answer, clearly marked old, or give no shares.
+    When only the newest year is incomplete, the preceding four full years
+    remain usable without a warning; connection failures are not suppressed.
     Settings changes and retry reservations are checked under State's lock;
     no network call holds that lock.
     """
@@ -146,35 +183,35 @@ def lookup(state: State) -> dict:
             return kept, False
         if kept and _finite(kept.get("attempted")) and 0 <= now - kept["attempted"] < RETRY_S:
             return kept, False
-        kept = {**(kept or {}), "key": key, "attempted": now}
+        kept = {**(kept or {}), "key": key, "attempted": now, "incomplete_year": None}
         data["climate"] = kept
         return kept, True
 
-    kept, refresh = state.mutate(reserve)
-    answer = _answer(kept, now)
+    kept, refresh = state.mutate(reserve, save_if_changed=True)
     if not refresh:
         current = state.get("place")
         if current != place:
             return _result(current, message=UNAVAILABLE if current else NO_PLACE)
-        old = bool(answer and (answer["years"] != years or now - kept["fetched"] >= KEEP_S))
-        return _result(place, answer, old=old, message=OLD if old else None if answer else UNAVAILABLE)
+        return _cached_result(place, kept, now, years)
+
+    def store(data):
+        current = data.get("climate")
+        if (data.get("place") == place and isinstance(current, dict)
+                and current.get("key") == key and current.get("attempted") == now):
+            data["climate"] = kept
 
     try:
         rows = archive(place, date(years[0], 1, 1), date(years[-1], 12, 31))
         answer = _summarize(rows, years)
-    except weather.WeatherError:
-        old = answer is not None
-        result = _result(place, answer, old=old, message=OLD if old else UNAVAILABLE)
+    except weather.WeatherError as error:
+        if isinstance(error, IncompleteArchive):
+            kept = {**kept, "incomplete_year": error.missing_from.year}
+            state.mutate(store, save_if_changed=True)
+        result = _cached_result(place, kept, now, years)
     else:
         kept = {**kept, "fetched": weather._now(), "answer": answer, "attempted": None}
 
-        def store(data):
-            current = data.get("climate")
-            if (data.get("place") == place and isinstance(current, dict)
-                    and current.get("key") == key and current.get("attempted") == now):
-                data["climate"] = kept
-
-        state.mutate(store)
+        state.mutate(store, save_if_changed=True)
         result = _result(place, answer)
     current = state.get("place")
     if current != place:

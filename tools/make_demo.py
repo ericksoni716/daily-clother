@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "bench"))
 sys.path.insert(0, str(ROOT / "backend"))
 
-from closet.drawing import fills  # noqa: E402
+from closet.drawing import DRAWING_VERSION, fills  # noqa: E402
 from closet.drawing.illustrate import Fill, Spec, render  # noqa: E402
 from closet.tagger.schema import NAMED_HEX, SCHEMA_VERSION, Details, ItemTags, Silhouette  # noqa: E402
 from closet_bench import cutout as C  # noqa: E402
@@ -122,6 +122,16 @@ HISTORY = {
     "Oatmeal henley": ([13], 14, False),
 }
 
+# name -> the fields its made-in-advance answer is unsure of, and how sure (everything else is 1.0), so the
+# review queue has something to show in the demo closet. The values themselves are the right ones.
+UNSURE = {
+    "Madras plaid shirt": dict(color=0.5, season=0.65),            # multi or blue; light cloth but long sleeves
+    "Marl turtleneck": dict(color=0.55, silhouette=0.6),           # grey or tan marl; turtleneck or mock neck
+    "White leather sneakers": dict(category=0.6, formality=0.6),   # held in a hand: sneakers or dress shoes
+    "Tan chore jacket": dict(category=0.65),                       # a jacket or a short coat
+    "Grey wool trousers": dict(formality=0.75),                    # business or smart casual
+}
+
 # Outfits worn on some of those days, by days ago: the pieces by place (names), the day they were offered for,
 # and how they went. Their pieces' wears are in HISTORY. The newest has no rating, so Today asks about it.
 OUTFITS = [
@@ -209,9 +219,11 @@ def demo_answer(name: str, category: str, color: str, pattern: str, sil: dict, f
             d.update(fiber="leather")
     d.update(extra.get("tags", {}))
     d["other_features"] = list(extra.get("seen", []))
-    tags = ItemTags(category=category, category_confidence=1.0, color=color, color_confidence=1.0, secondary_colors=[],
-                    pattern=pattern, pattern_confidence=1.0, formality=formality, formality_confidence=1.0,
-                    season=season, season_confidence=1.0, silhouette=Silhouette.of(**sil), silhouette_confidence=1.0,
+    sure = lambda field: UNSURE.get(name, {}).get(field, 1.0)  # noqa: E731
+    tags = ItemTags(category=category, category_confidence=sure("category"), color=color, color_confidence=sure("color"),
+                    secondary_colors=[], pattern=pattern, pattern_confidence=sure("pattern"), formality=formality,
+                    formality_confidence=sure("formality"), season=season, season_confidence=sure("season"),
+                    silhouette=Silhouette.of(**sil), silhouette_confidence=sure("silhouette"),
                     details=Details.plain(**d), details_confidence=1.0, brand=extra.get("brand"), size=extra.get("size"),
                     material=None, needs_shot=None)
     return tags.model_dump(mode="json")
@@ -267,7 +279,8 @@ def main() -> None:
             add_history(data["items"])
             for it in data["items"]:   # keep the key order a full run writes
                 it["answer"] = it.pop("answer")
-        data = {"style": data["style"], "schema_version": SCHEMA_VERSION, "items": data["items"],   # as a full run writes it
+        data = {"style": data["style"], "schema_version": SCHEMA_VERSION, "drawing_version": data.get("drawing_version", DRAWING_VERSION),
+                "items": data["items"],   # as a full run writes it (the drawings are not touched)
                 "outfits": worn_outfits() if a.history_only else data.get("outfits", [])}
         (OUT / "items.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"{'answers' if a.answers_only else 'history'} written for {len(data['items'])} items (schema version {SCHEMA_VERSION})")
@@ -304,7 +317,8 @@ def main() -> None:
         it["answer"] = by_name[it["name"]]
     # interleave so the grid mixes photographed and drawn items
     items.sort(key=lambda it: it["id"])
-    (OUT / "items.json").write_text(json.dumps({"style": STYLE, "schema_version": SCHEMA_VERSION, "items": items, "outfits": worn_outfits()},
+    (OUT / "items.json").write_text(json.dumps({"style": STYLE, "schema_version": SCHEMA_VERSION, "drawing_version": DRAWING_VERSION, "items": items,
+                                                "outfits": worn_outfits()},
                                                ensure_ascii=False, indent=1), encoding="utf-8")
     # files for `closet selfcheck`
     C.load_photo(ROOT / "bench" / "hardcases" / "photos" / "jeans.jpg", 640).save(OUT / "selfcheck.webp", "WEBP", quality=80)

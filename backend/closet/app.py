@@ -24,15 +24,18 @@ from . import (
     backup,
     db,
     demo,
+    illustrations,
     images,
     items,
     jobs,
     outfits,
     phone,
+    review,
     storage,
     tagjobs,
     vocab,
     wears,
+    wishlist,
     worn,
 )
 from .config import PROFILES, Config, bundle_dir
@@ -46,6 +49,8 @@ from .today import suggest as suggest_today
 from .weather import WeatherError, check_place, lookup, search_places
 
 log = logging.getLogger("closet.app")
+
+GAPS_ALL = 100   # gaps asked of the analysis; the list shows at most gaps.MAX_GAPS not yet decided on
 
 
 @dataclass
@@ -171,6 +176,11 @@ class LaundryState(BaseModel):
     state: str
 
 
+class Confirm(BaseModel):
+    fields: list[str]
+    model_config = {"extra": "forbid"}
+
+
 class SettingsPatch(BaseModel):
     backup_folder: str | None = None
     autostart: bool | None = None
@@ -281,7 +291,7 @@ def create_app(sv: Services) -> FastAPI:
 
     @app.get("/api/items/{item_id}/illustration.svg", dependencies=protected)
     def get_illustration(item_id: str, conn=Depends(conn_dep)):
-        svg = items.get(conn, item_id)["illustration_svg"]
+        svg = illustrations.current(conn, items.get(conn, item_id))["illustration_svg"]
         if svg is None:
             raise HTTPException(404, "This item has no illustration yet.")
         # the address carries a version, so the drawing can be cached until it changes
@@ -368,6 +378,14 @@ def create_app(sv: Services) -> FastAPI:
     def set_laundry(item_id: str, body: LaundryState, conn=Depends(conn_dep)):
         return wears.set_laundry(conn, item_id, body.state)
 
+    @app.get("/api/review", dependencies=protected)
+    def review_queue(conn=Depends(conn_dep)):
+        return review.queue(conn, describes=state.get("profile") != "demo")
+
+    @app.post("/api/items/{item_id}/confirm", dependencies=protected)
+    def confirm_fields(item_id: str, body: Confirm, conn=Depends(conn_dep)):
+        return review.confirm(conn, item_id, body.fields)
+
     @app.get("/media/{rel:path}", dependencies=protected)
     def media(rel: str):
         root = images_dir().resolve()
@@ -426,34 +444,46 @@ def create_app(sv: Services) -> FastAPI:
     # ----------------------------------------------------------------- gaps
     gaps_cache: dict[str, tuple[str, dict]] = {}  # profile -> (what the closet and wear log were, the answer)
 
+    def gap_analysis(profile: str | None = None) -> dict:
+        """The open closet's gaps, all of them (cut to the list's length when marked); slow the first time."""
+        profile = profile or state.get("profile")
+        conn = db.connect(cfg.db_path(profile))
+        try:
+            rows = [{**{k: r[k] for k in r.keys() if k not in ("illustration_svg", "confidence", "source")},
+                     "silhouette": json.loads(r["silhouette"] or "{}")} for r in conn.execute("SELECT * FROM items ORDER BY id")]
+            worn = [{"item_id": r["item_id"], "worn_on": r["worn_on"]}
+                    for r in conn.execute("SELECT item_id, worn_on FROM wears ORDER BY item_id, worn_on")]
+        finally:
+            conn.close()
+        # the answer only depends on the items and the wear log; the laundry state and times are left out
+        # so a wash or a rename's timestamp does not throw away seconds of work
+        ignore = ("laundry", "wears_since_wash", "washed_at", "updated_at", "created_at", "cutout_state", "cutout_error")
+        seen = hashlib.sha256(json.dumps([[{k: v for k, v in r.items() if k not in ignore} for r in rows], worn],
+                                         sort_keys=True, default=str).encode()).hexdigest()
+        cached = gaps_cache.get(profile)
+        if cached and cached[0] == seen:
+            return cached[1]
+        # every gap, not only the first few: one the owner hid or wished for must not push a new one off the list
+        answer = find_gaps(rows, worn, {"max_gaps": GAPS_ALL})
+        gaps_cache[profile] = (seen, answer)
+        return answer
+
     @app.get("/api/gaps", dependencies=protected)
     async def get_gaps():
         profile = state.get("profile")
-        path = cfg.db_path(profile)
 
         def work() -> dict:
-            conn = db.connect(path)
+            answer = gap_analysis(profile)
+            conn = db.connect(cfg.db_path(profile))
             try:
-                rows = [{**{k: r[k] for k in r.keys() if k not in ("illustration_svg", "confidence", "source")},
-                         "silhouette": json.loads(r["silhouette"] or "{}")} for r in conn.execute("SELECT * FROM items ORDER BY id")]
-                worn = [{"item_id": r["item_id"], "worn_on": r["worn_on"]}
-                        for r in conn.execute("SELECT item_id, worn_on FROM wears ORDER BY item_id, worn_on")]
+                return wishlist.mark(conn, answer)
             finally:
                 conn.close()
-            # the answer only depends on the items and the wear log; the laundry state and times are left out
-            # so a wash or a rename's timestamp does not throw away seconds of work
-            ignore = ("laundry", "wears_since_wash", "washed_at", "updated_at", "created_at", "cutout_state", "cutout_error")
-            seen = hashlib.sha256(json.dumps([[{k: v for k, v in r.items() if k not in ignore} for r in rows], worn],
-                                             sort_keys=True, default=str).encode()).hexdigest()
-            cached = gaps_cache.get(profile)
-            if cached and cached[0] == seen:
-                return cached[1]
-            answer = find_gaps(rows, worn)
-            gaps_cache[profile] = (seen, answer)
-            return answer
 
         # the engine is run over 40 kinds of day, a few seconds on a big closet: keep it off the event loop
         return await run_in_threadpool(work)
+
+    app.include_router(wishlist.router(conn_dep, gap_analysis, protected))
 
     # ---------------------------------------------------------------- weather
     @app.get("/api/places", dependencies=protected)

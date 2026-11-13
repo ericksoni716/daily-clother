@@ -5,8 +5,10 @@ never backed up, and can be opened and closed from Settings. Its photos are
 open-licence pictures (credits in `demo_data/CREDITS.md`) whose cutouts were
 made in advance, so the demo works before the model has been downloaded.
 It is never sent to Claude: each item comes with a stored tagging answer made
-by `tools/make_demo.py` from what it knows about the item. A few outfits worn
-in the last two weeks, most of them rated, come with it too.
+by `tools/make_demo.py` from what it knows about the item. Its drawings were
+made in advance by the same tool (with fills taken from the photos) and are
+kept as they are while the drawing code's version is the one they were made with. A few
+outfits worn in the last two weeks, most of them rated, come with it too.
 """
 from __future__ import annotations
 
@@ -21,7 +23,7 @@ from .config import Config, bundle_dir
 
 FIELDS = ("name", "category", "color", "color_hex", "pattern", "formality", "season", "brand", "size", "material",
           "location", "rating", "rating_reason", "price_cents", "acquired_on", "notes", "illustration_svg")
-WORN_OUTFITS_MIGRATION = 7   # the migration that added worn outfits
+WORN_OUTFITS_MIGRATION = 10  # the migration that added worn outfits
 
 
 def ensure(cfg: Config) -> int:
@@ -67,6 +69,8 @@ def ensure(cfg: Config) -> int:
                      f"{it['id']}/{pid}.cut.t.webp", w, h, (folder / f"{pid}.webp").stat().st_size, created))
             _history(conn, it)
             added += 1
+        # the drawings were made in advance with the drawing code of this version; kept until it is raised
+        conn.execute("UPDATE items SET illustration_version = ? WHERE illustration_svg IS NOT NULL", (data.get("drawing_version"),))
         conn.execute("COMMIT")
         _answers(conn, data)
         _outfits(conn, data)
@@ -80,13 +84,26 @@ def ensure(cfg: Config) -> int:
 
 
 def _answers(conn, data: dict) -> None:
-    """Store each demo item's answer, made in advance, as if Claude had given it (route "demo", no model)."""
+    """Store each demo item's answer, made in advance, as if Claude had given it (route "demo", no model).
+
+    How sure each answer is goes onto the fields the demo still fills (not those the owner has set), so the
+    review queue shows the few the answers are unsure of; an older demo closet gets them too.
+    """
     conn.execute("BEGIN")
     for it in data["items"]:
-        if it.get("answer"):
-            conn.execute("UPDATE items SET tag_state = 'done', tag_error = NULL, tag_answer = ?, tag_schema_version = ?, "
-                         "tag_route = 'demo', tag_model = NULL, tagged_at = created_at WHERE id = ? AND tag_answer IS NULL",
-                         (json.dumps(it["answer"]), data.get("schema_version"), it["id"]))
+        answer = it.get("answer")
+        if not answer:
+            continue
+        conn.execute("UPDATE items SET tag_state = 'done', tag_error = NULL, tag_answer = ?, tag_schema_version = ?, "
+                     "tag_route = 'demo', tag_model = NULL, tagged_at = created_at WHERE id = ? AND tag_answer IS NULL",
+                     (json.dumps(answer), data.get("schema_version"), it["id"]))
+        row = conn.execute("SELECT source, confidence FROM items WHERE id = ?", (it["id"],)).fetchone()
+        if row is None:
+            continue
+        source, confidence = json.loads(row["source"] or "{}"), json.loads(row["confidence"] or "{}")
+        sure = {f: answer[f"{f}_confidence"] for f, by in source.items() if by == "demo" and f"{f}_confidence" in answer}
+        if any(confidence.get(f) != v for f, v in sure.items()):
+            conn.execute("UPDATE items SET confidence = ? WHERE id = ?", (json.dumps({**confidence, **sure}), it["id"]))
     conn.execute("COMMIT")
 
 

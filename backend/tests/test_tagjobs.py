@@ -290,7 +290,7 @@ def test_the_migration_runs_on_a_closet_made_by_the_previous_version(cfg):
     old.commit()
     old.close()
     result = db.migrate(path, cfg.local_backups_dir)
-    assert result["from"] == 5 and result["applied"][0] == 6 and result["backup"]
+    assert result["from"] == 5 and 6 in result["applied"] and result["backup"]
     conn = db.connect(path)
     r = dict(conn.execute("SELECT * FROM items WHERE id = 'a'").fetchone())
     conn.close()

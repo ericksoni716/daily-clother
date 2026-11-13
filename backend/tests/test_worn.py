@@ -248,7 +248,7 @@ def test_worn_outfits_need_login(anon):
 def test_the_migration_runs_on_a_closet_made_by_the_previous_version(tmp_path, monkeypatch):
     path, backups = tmp_path / "closet.db", tmp_path / "bk"
     real = db.migration_files()
-    monkeypatch.setattr(db, "migration_files", lambda: [(v, p) for v, p in real if v < 7])
+    monkeypatch.setattr(db, "migration_files", lambda: [(v, p) for v, p in real if v < 10])
     db.migrate(path, backups)
     conn = db.connect(path)
     t = db.now()
@@ -259,7 +259,7 @@ def test_the_migration_runs_on_a_closet_made_by_the_previous_version(tmp_path, m
 
     monkeypatch.setattr(db, "migration_files", lambda: real)
     result = db.migrate(path, backups)
-    assert result["applied"][0] == 7 and result["backup"]
+    assert result["applied"][-1] == 10 and result["backup"]
     conn = db.connect(path)
     assert conn.execute("SELECT COUNT(*) FROM wears").fetchone()[0] == 1
     assert conn.execute("SELECT COUNT(*) FROM worn_outfits").fetchone()[0] == 0

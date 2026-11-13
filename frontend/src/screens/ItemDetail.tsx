@@ -4,6 +4,7 @@ import { ChipGroup } from '../components/Chips';
 import { FixDetails, ItemHistory } from '../components/FixDetails';
 import { BackIcon, HangerIcon, WarnIcon } from '../components/Icons';
 import { formatPrice, label, parsePrice, ratingLabel, SWATCH } from '../labels';
+import { useWhenLeaving } from '../leave';
 import { Link, navigate } from '../router';
 import { silhouetteGroups } from '../silhouette';
 import { useCloset } from '../store';
@@ -449,6 +450,7 @@ function NameField({ value, placeholder, disabled, onSave }: { value: string | n
     const v = text.trim();
     if (v !== (value ?? '')) onSave(v || null);
   };
+  useWhenLeaving(commit);
   return (
     <label className="name-field">
       <span className="visually-hidden">Name</span>
@@ -479,6 +481,7 @@ function TextField({ label: text, value, disabled, placeholder, type = 'text', m
     const t = v.trim();
     if (t !== (value ?? '')) onSave(t || null);
   };
+  useWhenLeaving(commit);
   return (
     <label className="field">
       <span>{text}</span>
@@ -504,6 +507,10 @@ function PriceField({ cents, disabled, onSave, toastError }: { cents: number | n
     }
     if (parsed !== cents) onSave(parsed);
   };
+  useWhenLeaving(() => {
+    const parsed = parsePrice(v);
+    if (parsed !== undefined && parsed !== cents) onSave(parsed);
+  });
   return (
     <label className="field">
       <span>Price</span>

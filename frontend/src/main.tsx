@@ -1,7 +1,10 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { listenForLeaving } from './leave';
 import './styles.css';
+
+listenForLeaving(window, document);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

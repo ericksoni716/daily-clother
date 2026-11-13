@@ -49,6 +49,7 @@ Fixes after 0.2.0:
 - [x] A box in Settings to paste the API key, kept in the computer's keychain (Mac keychain, Windows Credential Manager) and checked with Anthropic first; replace and remove. Not yet run on a real Mac or Windows keychain.
 - [ ] A choice of "API key first" for owners who would rather pay per photo than use their plan (the route order exists in the code, `api-first`, but is not offered).
 - [ ] Other failures still keep their real reason only in the `jobs` table. Showing it on a failed item (and in the log) would make the next unknown failure diagnosable without a terminal.
+- [x] #114 A change made just before the page is reloaded or closed is no longer lost: saves are sent so that they outlive the page, and an edit still being typed (or trip ticks waiting their turn) is sent as the page goes away. It had been parked since a browser test raced it.
 
 Patterns from the photo (owner's request; it had fallen out of the app):
 - [x] Plaids flattened and placed per front, madras measured whole, stripes (regular and placed bands, sleeves checked), prints quilted; OpenCV and the second background model in the app; migration 0013.
@@ -150,7 +151,6 @@ Tests pass, the packaged build is green in CI, demo mode works, docs are updated
 
 ## Parked
 - Browser tests in `08-wears` timed out twice in local full runs (once each test in the file), both times while reviewers were also running on the machine: the demo closet's tiles were missing or kept being replaced for a minute. Not reproduced in five further runs, three of them under deliberate heavy load, and never on GitHub. Cause not found. If it comes back: run with `--trace retain-on-failure` and look at what keeps re-rendering the grid after a profile switch.
-- A change made a moment before the page is reloaded or closed can be lost, because the save is still on its way. Sending saves so that they outlive the page (a keep-alive request) would close that gap. Found when a browser test raced it.
 - Batches API as an opt-in "economy" mode for very large imports.
 - Server-side refusal fallback for the stronger model (beta); tagging currently fails clearly on a refusal.
 - Sneaker side logos and other prints on shoes are not carried onto the illustration.

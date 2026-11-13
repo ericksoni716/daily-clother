@@ -162,3 +162,19 @@
 .today-missing-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
 .today-missing-actions { justify-content: center; margin-top: 18px; }
 .btn.is-disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* The switch between the pieces laid out and the outfit drawn as worn. */
+.today-view { margin-bottom: 12px; }
+.today-pieces[hidden] { display: none; }
+.today-figure {
+  margin: 0; display: grid; place-items: center; border-radius: var(--radius); background: var(--card);
+  box-shadow: inset 0 0 0 1px var(--card-edge); min-height: 240px;
+}
+/* tall enough to read on a phone, short enough on a computer to leave the rest of the card on the first screen */
+.today-figure > img { display: block; width: 100%; height: auto; max-height: min(62vh, 560px); object-fit: contain; }
+.today-figure > .pic-placeholder { width: 100%; height: min(62vh, 560px); }
+.today-figure-note { margin: 0; padding: 24px 16px; text-align: center; }
+@container (min-width: 640px) {
+  .today-figure > img { max-height: min(52vh, 480px); }
+  .today-figure > .pic-placeholder { height: min(52vh, 480px); }
+}

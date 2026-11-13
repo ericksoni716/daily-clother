@@ -35,7 +35,7 @@ Wave 3:
 
 Wave 4:
 - [ ] #70 Correct an item by picking (choices shown as small drawings) or by saying it, with a history that can be undone.
-- [ ] #71 and #72 The outfit drawn as worn: the layered figure, given to two models.
+- [x] #71 and #72 The outfit drawn as worn: every piece in one scale, each layer over the one beneath, open layers drawn open. On Today each outfit can be switched between its pieces and the figure (`POST /api/outfits/figure`). Given to two models and compared from the drawings; the Opus 5.5 result was merged. Known: a coat is drawn at jacket length (the coat template, not the figure).
 - [x] #77 The outfit engine and the gap analysis use what the tagger saw: the cloth's weight, then the knit gauge, and the sleeve length. What the owner typed wins over the tagger; the tagger wins over a guess from the name.
 - [ ] #78 and #79 Trip packing: what to take for the weather there, given to two models.
 - [ ] #85 "Would this work?": check a piece against the closet before buying it, from a photo or a description.
@@ -136,6 +136,7 @@ Original phase 5.
 Tests pass, the packaged build is green in CI, demo mode works, docs are updated, and the owner is told exactly what to try from the downloaded program and what is uncertain.
 
 ## Parked
+- One browser test (`08-wears`, the offline wear buttons) timed out once in a local run while two reviewers were also running on the machine: the demo closet's tiles never appeared after a reload. It passed in four runs after that and on GitHub. Not explained; if it comes back, look at the profile switch followed at once by a reload.
 - A change made a moment before the page is reloaded or closed can be lost, because the save is still on its way. Sending saves so that they outlive the page (a keep-alive request) would close that gap. Found when a browser test raced it.
 - Batches API as an opt-in "economy" mode for very large imports.
 - Server-side refusal fallback for the stronger model (beta); tagging currently fails clearly on a refusal.

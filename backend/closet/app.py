@@ -412,6 +412,31 @@ def create_app(sv: Services) -> FastAPI:
         # asks Open-Meteo (a few seconds at most) and compares many outfits, so keep it off the event loop
         return await run_in_threadpool(work)
 
+    @app.post("/api/outfits/figure", dependencies=protected)
+    async def outfit_figure(request: Request):
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        try:
+            ids = illustrations.figure_ids(body)
+        except illustrations.FigureError as e:
+            raise HTTPException(422, str(e))
+        path = cfg.db_path(state.get("profile"))
+
+        def work() -> str:
+            conn = db.connect(path)
+            try:
+                return illustrations.outfit_figure(conn, ids)
+            except illustrations.FigureError as e:
+                raise HTTPException(422, str(e))
+            finally:
+                conn.close()
+
+        # drawing a whole outfit takes a few milliseconds per piece: keep it off the event loop
+        svg = await run_in_threadpool(work)
+        return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "no-store"})
+
     # ----------------------------------------------------------------- gaps
     gaps_cache: dict[str, tuple[str, dict]] = {}  # profile -> (what the closet and wear log were, the answer)
 

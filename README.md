@@ -66,7 +66,10 @@ the others. Each outfit lists why it works and, set apart, anything to watch
 out for, such as rain. Tap **I'm wearing this** to record a wear for every
 piece at once (**Undo** takes it back). The **⋯** on a piece leaves it out
 (**Not this piece**) or builds every outfit around it (**Start from this
-piece**); tap a piece to open it. With no place saved, type today's low and
+piece**); tap a piece to open it. **As worn**, above the pieces, draws the
+outfit as it is worn instead (the shirt under the open jacket, the trousers
+below, the shoes at the bottom); **Pieces** goes back, and your choice is
+remembered on that device. With no place saved, type today's low and
 high temperatures there instead. Offline, Today shows the outfits it last
 found that day.
 

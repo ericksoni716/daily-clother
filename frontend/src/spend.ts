@@ -1,5 +1,5 @@
 /** Plain words for what the API key costs: amounts, months, the limit and the estimates. */
-import type { ApiKeyInfo, TaggingSpend } from './types';
+import type { ApiKeyInfo, RouteOrder, TaggingRoute, TaggingSpend } from './types';
 
 /** "$1.20", "$1,000.00"; "$0.00" for nothing, and "under 1¢" for a sum too small to show in cents. */
 export function formatUsd(amount: number | null | undefined): string {
@@ -83,4 +83,22 @@ export function apiKeySavedLine(info: ApiKeyInfo, allowed: boolean): string {
     ? 'Key saved. Closet couldn\'t reach Anthropic to check it, so it will find out the first time the key is used.'
     : 'Key saved. Anthropic accepted it.';
   return allowed ? checked : `${checked} Turn on Allow the API key below to use it.`;
+}
+
+/** The orders the owner can choose in Settings, in plain words; `needsKey` ones put the API key first. */
+export const ROUTE_ORDERS: { value: RouteOrder; label: string; needsKey: boolean }[] = [
+  { value: 'auto', label: "Use my Claude plan first, the key only if the plan can't", needsKey: false },
+  { value: 'api-first', label: 'Use the API key first', needsKey: true },
+  { value: 'plan', label: 'Only my Claude plan', needsKey: false },
+  { value: 'api', label: 'Only the API key', needsKey: true },
+];
+
+/** Which route Closet will try first, in a sentence: the first in `order` that is ready (the key only once allowed).
+ *  Empty when none is. */
+export function firstRouteLine(order: TaggingRoute['id'][], routes: TaggingRoute[], apiAllowed: boolean): string {
+  const ready = new Set(routes.filter((r) => r.available && (r.id !== 'api' || apiAllowed)).map((r) => r.id));
+  const first = order.find((id) => ready.has(id));
+  if (first === 'plan') return 'Closet will try your Claude plan first.';
+  if (first === 'api') return 'Closet will try your API key first.';
+  return '';
 }

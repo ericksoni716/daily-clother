@@ -223,6 +223,24 @@ def test_the_figure_needs_no_opencv():
     assert out.stdout.strip() == "False"
 
 
+def test_a_print_lifted_from_the_photo_is_drawn_on_its_top_and_needs_no_opencv():
+    code = ("import sys\n"
+            "from dataclasses import replace\n"
+            "from PIL import Image\n"
+            "from closet.drawing import stored\n"
+            "from closet.drawing.figure import Piece, figure\n"
+            "kept = {'version': stored.VERSION, 'kind': 'plain',\n"
+            "        'graphic': stored.graphic_part(Image.new('RGBA', (20, 20), (200, 30, 40, 255)), (0.4, 0.2, 0.6, 0.35))}\n"
+            "g = stored.graphic_from(kept)\n"
+            "tee, jeans = Piece('tee', color_hex='#f4f2ee'), Piece('jeans', color_hex='#2c3a5a')\n"
+            "assert '<image' not in figure({'base': tee, 'bottom': jeans})\n"
+            "assert figure({'base': replace(tee, graphic=g), 'bottom': jeans}).count('<image') == 1\n"
+            "assert '<image' not in figure({'base': tee, 'bottom': replace(jeans, graphic=g)})\n"
+            "print('cv2' in sys.modules)")
+    out = subprocess.run([sys.executable, "-c", code], cwd=BACKEND, capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == "False"
+
+
 # ------------------------------------------------------------------ the route
 
 def test_the_figure_route_needs_login(anon):

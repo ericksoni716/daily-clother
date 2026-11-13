@@ -28,18 +28,19 @@ Wave 3:
 - [x] #50 The drawing in the app, part 2: every item gets its drawing (migration 0007), redrawn when it is described, when a field it shows changes, or when the drawing code is newer; a Photos / Drawings switch on the closet grid.
 - [x] #51 Review queue: a Review screen with a badge shows only the fields the tagger was unsure of; confirm, change or skip.
 - [x] #56 and #57 The "What's missing" screen and the wishlist (migration 0008): the gaps best first with the reasons and what to look for, "I'll look for this", "Not for me" with a reason, wishes added by hand, "I bought it". Given to two models and compared from screenshots; the Opus 5.5 result was merged.
-- [ ] #60 Outfits remembered and rated, and the engine learning from the ratings.
+- [ ] #60 Outfits remembered and rated, and the engine learning from the ratings. Built (#61); sent back with faults found in review.
 - [x] #62 The packaged program is built and smoke-tested on Linux on every change to `main` and on pull requests that touch what goes into it (`package-check` workflow). It makes no release, tag or download. Windows and macOS are still built only by the release.
 - [x] #63 A monthly spending limit for the API key (migration 0009): the key is only used once a limit is set, a request that could go past it is not made and the item waits and says why, every request is recorded with what it cost, and Settings shows the month, an estimate for what is waiting, and the history.
-- [ ] #64 Insights: cost per wear, never worn, worn most.
+- [ ] #64 Insights: cost per wear, never worn, worn most. Built (#67); sent back with faults found in review.
 
 Wave 4:
 - [ ] #70 Correct an item by picking (choices shown as small drawings) or by saying it, with a history that can be undone.
 - [ ] #71 and #72 The outfit drawn as worn: the layered figure, given to two models.
-- [ ] #77 The outfit engine and the gap analysis use what the tagger saw: weight, sleeve length, knit gauge.
+- [x] #77 The outfit engine and the gap analysis use what the tagger saw: the cloth's weight, then the knit gauge, and the sleeve length. What the owner typed wins over the tagger; the tagger wins over a guess from the name.
 - [ ] #78 and #79 Trip packing: what to take for the weather there, given to two models.
+- [ ] #85 "Would this work?": check a piece against the closet before buying it, from a photo or a description.
 
-Next: shopping searches, "would this work?" and price checks from the wishlist.
+Next: shop searches for a wish, with each find checked against the closet, then price checks.
 
 ## Waiting on the owner
 - **Garment review**: the owner called the drawings good enough for now (after round 7). Marks and notes in the review gallery are still read when they appear; drawing work is parked until asked for.

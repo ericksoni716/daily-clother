@@ -275,6 +275,27 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
                  f'patternTransform="rotate({degrees:.1f} {CX_ROT[0]} {CX_ROT[1]})"/>')
         return f"url(#p{uid}{name})"
 
+    def collar_turn(d: str, role: str) -> float:
+        """How far to turn the cloth on a collar leaf. A collar is cut with its cloth running round the neck,
+        so on each leaf the stripes run along the leaf, from where it leaves the neck to its point, whichever
+        way they run on the body."""
+        st = spec.fill.stripes if spec.fill.kind == "stripes" else None
+        nums = [float(v) for v in re.findall(r"-?\d+(?:\.\d+)?", d)]
+        pts = np.array(list(zip(nums[0::2], nums[1::2])))
+        if len(pts) < 3:
+            return -24 if role.endswith("_r") else 24
+        # the leaf's line: from its outer corner (where it leaves the side of the neck: the point furthest
+        # from the centre in the leaf's upper half) to its lowest corner (the collar point)
+        tip = pts[np.argmax(pts[:, 1])]
+        upper = pts[pts[:, 1] <= (pts[:, 1].min() + pts[:, 1].max()) / 2]
+        outer = upper[np.argmax(np.abs(upper[:, 0] - CX_ROT[0]))]
+        vx, vy = tip - outer
+        n_ = float(np.hypot(vx, vy)) or 1.0
+        vx, vy = vx / n_, vy / n_
+        if st is not None and st.orientation == "horizontal":
+            return float(np.degrees(np.arctan2(vy, vx)))     # turns (1, 0) onto the leaf
+        return float(np.degrees(np.arctan2(-vx, vy)))        # turns (0, 1) onto the leaf
+
     if style == "flat":
         o_stroke, o_w, l_stroke, l_w, l_op = "none", 0, ("#ffffff" if dark_item else "#000000"), 2.2, 0.22
         if luminance(base) > 0.72:  # pale items need an edge to stand off the card
@@ -324,7 +345,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             # the same cloth as the body (turned, when patterned); its edges are a separate "edge" part
             if spec.collar_color or spec.trim_color:
                 return f'<path d="{d}" fill="{spec.collar_color or spec.trim_color}"/>'
-            return f'<path d="{d}" fill="{turned(role[-1], -24 if role == "collar_r" else 24)}"/>'
+            return f'<path d="{d}" fill="{turned(role[-1] + "c", collar_turn(d, role))}"/>'
         if role in ("lapel_r", "lapel_l"):
             # a tailored jacket's collar and lapels: cut from the body's cloth, so they carry its surface too
             fill = spec.collar_color or spec.trim_color or turned(role[-1], -24 if role == "lapel_r" else 24)
@@ -345,7 +366,12 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             c = sole_c
             return f'<path d="{d}" fill="{c}"/>' + (f'<path d="{d}" fill="#000" opacity=".06"/>' if style != "line" else "")
         if role == "hole":
-            return f'<path d="{d}" fill="{paint}"/><path d="{d}" fill="#000" opacity=".22"/>'
+            # inside the neck of a top, what shows is mostly the collar band, whose cloth runs round the neck
+            inner = paint
+            if patterned and spec.template == "top":
+                st = spec.fill.stripes if spec.fill.kind == "stripes" else None
+                inner = turned("hn", 0 if (st is not None and st.orientation == "horizontal") else 90)
+            return f'<path d="{d}" fill="{inner}"/><path d="{d}" fill="#000" opacity=".22"/>'
         # a shirt cuff is the body's own cloth: no tint where a line already marks it
         op = {"trim": 0.10, "band": 0.12, "cuff": 0.0 if style == "line" else 0.06}.get(role, 0.1)
         col = "#fff" if dark_item else "#000"

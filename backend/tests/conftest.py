@@ -7,6 +7,8 @@ from PIL import Image, ImageDraw
 
 from closet import app as app_module
 from closet.config import Config
+from closet.tagger.schema import Details, ItemTags, Silhouette
+from closet.tagger.tagging import RouteUnavailable, TaggingError, TagResult
 
 PASSPHRASE = "correct horse battery"
 
@@ -26,14 +28,57 @@ def fake_cutter(img: Image.Image) -> Image.Image:
     return out
 
 
+# A fixed, valid answer, as Claude would give it for a navy polo.
+ANSWER = ItemTags(
+    category="polo", category_confidence=0.95, color="navy", color_confidence=0.9, secondary_colors=["white"],
+    pattern="solid", pattern_confidence=0.92, formality="smart_casual", formality_confidence=0.7,
+    season="warm", season_confidence=0.8, silhouette=Silhouette.of(sleeve="short", neck="collar", fit="regular"),
+    silhouette_confidence=0.85,
+    details=Details.plain(fit_detail="regular", sleeve_length="short", neckline="polo_collar", collar="flat_knit",
+                          placket="polo", placket_buttons=3, button_color="white", cuff="rib_knit", sleeve_construction="set_in",
+                          hem="tennis_tail", fabric="pique", fiber="cotton", weight="midweight",
+                          other_features=["embroidered chest logo"]),
+    details_confidence=0.8, brand=None, size=None, material="100% cotton", needs_shot=None)
+
+
+class FakeClaude:
+    """Stands in for both routes to Claude; no test ever reaches the real one.
+
+    mode "answers": a route is available and returns ANSWER; "fails": a route is available but every call fails;
+    "unavailable": no route can be used (the default, so tests that are not about tagging never tag).
+    """
+
+    def __init__(self):
+        self.mode = "unavailable"
+        self.calls: list[tuple[str, ...]] = []
+
+    def routes(self) -> tuple[str, ...]:
+        return () if self.mode == "unavailable" else ("plan",)
+
+    def __call__(self, images, routes):
+        self.calls.append(routes)
+        assert images and images[0].mode == "RGBA"   # the cutout comes first
+        if self.mode == "unavailable":
+            raise RouteUnavailable("Claude Code is not signed in")
+        if self.mode == "fails":
+            raise TaggingError("the answer was outside the schema")
+        return TagResult(ANSWER, "claude-haiku-5-5", 0.1, 100, 50, 0.0, 1, route=routes[0])
+
+
 @pytest.fixture
 def cfg(tmp_path):
     return Config(data_dir=tmp_path / "Closet", auto_download_model=False)
 
 
 @pytest.fixture
-def services(cfg):
-    sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None)  # independent of whether the page is built
+def claude():
+    return FakeClaude()
+
+
+@pytest.fixture
+def services(cfg, claude):
+    sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None,   # independent of whether the page is built
+                                   tagger=claude, routes=lambda: claude.routes())
     yield sv
     sv.stop()
 

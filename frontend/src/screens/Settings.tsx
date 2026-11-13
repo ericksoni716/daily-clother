@@ -46,7 +46,7 @@ export function SettingsScreen({ version }: { version: string }) {
           {model && <ModelSection model={model} refresh={refreshModel} toast={toast} disabled={offline} />}
           {settings && <BackupSection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
           <StorageSection offline={offline} profile={profile} />
-          <TaggingSection offline={offline} />
+          <TaggingSection offline={offline} settings={settings} onChange={setSettings} reload={load} toast={toast} />
         </div>
         <div className="settings-col">
           <Section title="Where you are" id="s-place">
@@ -283,10 +283,18 @@ const README_CLAUDE_CODE = 'https://github.com/ericksoni716/daily-clother#instal
 
 const ROUTE_TEXT: Record<TaggingRoute['id'], { name: string; hint: string }> = {
   plan: { name: 'Your Claude plan, through Claude Code', hint: 'Costs nothing extra; counts against your plan’s usage limits.' },
-  api: { name: 'An API key', hint: 'Billed per photo; only used when your plan can’t be.' },
+  api: { name: 'An API key', hint: 'Billed per photo; only used when your plan can’t be, and only if you allow it below.' },
 };
 
-function TaggingSection({ offline }: { offline: boolean }) {
+interface TaggingProps {
+  offline: boolean;
+  settings: Settings | null;
+  onChange(s: Settings): void;
+  reload(): Promise<void>;
+  toast(m: string, k?: 'ok' | 'error'): void;
+}
+
+function TaggingSection({ offline, settings, onChange, reload, toast }: TaggingProps) {
   const [status, setStatus] = useState<TaggingStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -305,7 +313,9 @@ function TaggingSection({ offline }: { offline: boolean }) {
     };
   }, [offline, attempt]);
 
-  const checkAgain = <button className="btn" onClick={() => setAttempt((n) => n + 1)}>Check again</button>;
+  const checkAgain = <button className="btn" onClick={() => { setAttempt((n) => n + 1); void reload(); }}>Check again</button>;
+  const apiAllowed = !!settings?.tagging_api_enabled;
+  const waiting = settings?.pending_tags ?? 0;
   let body: ReactNode;
   if (offline) body = <p className="hint">Tagging details aren't available while you're offline.</p>;
   else if (error) {
@@ -319,7 +329,8 @@ function TaggingSection({ offline }: { offline: boolean }) {
   else {
     const byId = new Map(status.routes.map((r) => [r.id, r]));
     const routes = status.order.map((id) => byId.get(id)).filter((r): r is TaggingRoute => !!r);
-    const none = !routes.some((r) => r.available);
+    const none = !routes.some((r) => r.available && (r.id !== 'api' || apiAllowed));
+    const apiOnlyOff = none && byId.get('api')?.available && !apiAllowed;
     const planMissing = byId.get('plan')?.available === false;
     body = (
       <>
@@ -335,7 +346,11 @@ function TaggingSection({ offline }: { offline: boolean }) {
             </li>
           ))}
         </ol>
-        {none ? (
+        {apiOnlyOff ? (
+          <p className="form-error">
+            Closet can't reach Claude yet: your API key is set but not allowed below. <a href={README_CLAUDE_CODE} target="_blank" rel="noreferrer">Install Claude Code and sign in</a> to use your plan instead, or allow the key.
+          </p>
+        ) : none ? (
           <p className="form-error">
             Closet can't reach Claude yet. <a href={README_CLAUDE_CODE} target="_blank" rel="noreferrer">Install Claude Code and sign in</a>, then check again.
           </p>
@@ -352,6 +367,25 @@ function TaggingSection({ offline }: { offline: boolean }) {
   return (
     <Section title="Tagging" id="s-tagging">
       {body}
+      {settings && (
+        <>
+          <p className="hint" data-testid="tags-waiting">
+            {waiting === 0 ? 'No items are waiting to be described.'
+              : `${waiting} ${waiting === 1 ? 'item is' : 'items are'} waiting to be described.`}
+          </p>
+          <Toggle label="Allow the API key"
+            hint="Lets Closet use your API key when your plan can't be used. Each photo is billed to your account, and there is no spending limit yet, so this is off until you turn it on."
+            checked={apiAllowed} disabled={offline}
+            onChange={async (on) => {
+              try {
+                onChange(await api.putSettings({ tagging_api_enabled: on }));
+                toast(on ? 'The API key may be used' : 'The API key will not be used');
+              } catch (e) {
+                toast((e as Error).message, 'error');
+              }
+            }} />
+        </>
+      )}
     </Section>
   );
 }

@@ -14,7 +14,24 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from PIL import Image
 from pydantic import BaseModel
 
-from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, outfits, phone, storage, vocab, wears
+from . import (
+    APP_NAME,
+    __version__,
+    auth,
+    autostart,
+    backup,
+    db,
+    demo,
+    images,
+    items,
+    jobs,
+    outfits,
+    phone,
+    storage,
+    tagjobs,
+    vocab,
+    wears,
+)
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
 from .modelstore import MODEL, ModelStore
@@ -35,6 +52,7 @@ class Services:
     worker: jobs.Worker
     scheduler: backup.Scheduler
     web_dir: Path | None = None
+    tag_worker: tagjobs.Worker | None = None
     on_quit: Callable[[], None] = lambda: None
     _phone_cache: tuple[float, dict] | None = field(default=None, repr=False)
 
@@ -42,10 +60,20 @@ class Services:
         if not self.model.ready and self.cfg.auto_download_model:
             self.model.start_download()
         self.worker.start()
+        if self.tag_worker:
+            self.tag_worker.start()
         self.scheduler.start()
+
+    def wake(self) -> None:
+        """Nudge both queues (a new item, another closet opened)."""
+        self.worker.wake()
+        if self.tag_worker:
+            self.tag_worker.wake()
 
     def stop(self) -> None:
         self.scheduler.stop()
+        if self.tag_worker:
+            self.tag_worker.stop()
         self.worker.stop()
         self.model.stop()
 
@@ -57,11 +85,13 @@ class Services:
         return info
 
 
-def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path | str | None = "bundled") -> Services:
+def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path | str | None = "bundled",
+                   tagger: tagjobs.Tagger | None = None, routes: tagjobs.Routes | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
-    with the program, None serves no page (tests), or give a folder.
+    with the program, None serves no page (tests), or give a folder. `tagger`
+    and `routes` stand in for Claude in tests; by default the real routes are used.
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
@@ -79,13 +109,14 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     def real_cutter(img: Image.Image) -> Image.Image:
         return make_cutout(img, predict_mask(img, MODEL, model.path))[0]
 
-    worker = jobs.Worker(cfg, state, lambda: model.ready, cutter or real_cutter)
+    tag_worker = tagjobs.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)), tagger or tagjobs.claude_tagger)
+    worker = jobs.Worker(cfg, state, lambda: model.ready, cutter or real_cutter, on_done=tag_worker.wake)
     holder["worker"] = worker
     model.refresh()  # know the model's real state before the first request is answered
     if web_dir == "bundled":
         candidate = bundle_dir() / "web"
         web_dir = candidate if (candidate / "index.html").exists() else None
-    return Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir)
+    return Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker)
 
 
 class Passphrase(BaseModel):
@@ -112,6 +143,7 @@ class LaundryState(BaseModel):
 class SettingsPatch(BaseModel):
     backup_folder: str | None = None
     autostart: bool | None = None
+    tagging_api_enabled: bool | None = None
     place: dict | None = None
     model_config = {"extra": "forbid"}
 
@@ -246,6 +278,15 @@ def create_app(sv: Services) -> FastAPI:
         sv.worker.wake()
         return item
 
+    @app.post("/api/items/{item_id}/retag", status_code=202, dependencies=protected)
+    def retag(item_id: str, conn=Depends(conn_dep)):
+        if state.get("profile") == "demo":
+            items.get(conn, item_id)
+            raise HTTPException(409, "The demo closet is never sent to Claude; its descriptions were made in advance.")
+        item = items.retag(conn, item_id)
+        sv.wake()
+        return item
+
     @app.get("/api/items/{item_id}/wears", dependencies=protected)
     def list_wears(item_id: str, conn=Depends(conn_dep)):
         return {"wears": wears.list_wears(conn, item_id)}
@@ -362,6 +403,7 @@ def create_app(sv: Services) -> FastAPI:
             "version": __version__, "profile": state.get("profile"), "data_dir": str(cfg.data_dir), "port": cfg.port,
             "backup_folder": state.get("backup_folder"), "last_backup": state.get("last_backup"),
             "last_good_backup": backup.last_good(state), "pending_cutouts": jobs.pending_count(conn),
+            "pending_tags": tagjobs.waiting_count(conn), "tagging_api_enabled": bool(state.get("tagging_api_enabled")),
             "phone": sv.phone_info(), "autostart": auto, "heic_supported": images.HEIC, "place": state.get("place"),
         }
 
@@ -393,6 +435,9 @@ def create_app(sv: Services) -> FastAPI:
                 autostart.set_enabled(body.autostart)
             except Exception as e:
                 raise HTTPException(409, str(e))
+        if "tagging_api_enabled" in sent and body.tagging_api_enabled is not None:
+            state.update(tagging_api_enabled=body.tagging_api_enabled)
+            sv.wake()   # items waiting for a route may be able to go now
         return settings_payload(conn)
 
     @app.get("/api/storage", dependencies=protected)
@@ -403,7 +448,9 @@ def create_app(sv: Services) -> FastAPI:
     @app.get("/api/tagging", dependencies=protected)
     async def get_tagging():
         # starts `claude auth status` (a few seconds at most), so keep it off the event loop
-        return await run_in_threadpool(tagger_routes.status)
+        result = await run_in_threadpool(tagger_routes.status)
+        sv.tag_worker.wake()   # the owner may just have signed in: waiting items need not wait for the next round
+        return result
 
     @app.post("/api/backup", dependencies=protected)
     def backup_now():
@@ -419,7 +466,7 @@ def create_app(sv: Services) -> FastAPI:
         if body.profile == "demo":
             demo.ensure(cfg)
         state.update(profile=body.profile)
-        sv.worker.wake()
+        sv.wake()
         return {"profile": body.profile}
 
     @app.post("/api/quit", status_code=202, dependencies=protected)

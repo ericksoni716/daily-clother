@@ -44,6 +44,8 @@ export function useOffline(): boolean {
 }
 
 const busy = (i: ItemSummary) => i.cutout_state === 'pending' || i.cutout_state === 'processing';
+const describing = (i: ItemSummary) => i.tag_state === 'working';
+const awaiting = (i: ItemSummary) => i.tag_state === 'waiting';
 
 interface Props {
   profile: Profile;
@@ -105,19 +107,23 @@ export function ClosetProvider({ profile, onProfile, onLogout, onQuit, toast, ch
     return () => window.clearInterval(t);
   }, [offline, loadAll]);
 
-  // Poll while cutouts are being made.
-  // Every 2 s while the model can work on them; slower while it is missing or failed,
-  // since nothing changes until it is downloaded (the model state is still followed).
-  const anyBusy = (items.active ?? []).some(busy) || (items.archived ?? []).some(busy);
+  // Poll while cutouts are being made or items are being described.
+  // Every 2 s while the model (or Claude) is working on them; slower while the model is missing or failed
+  // or items wait for a way to reach Claude, since nothing changes until then (the model state is still followed).
+  const all = [...(items.active ?? []), ...(items.archived ?? [])];
+  const anyBusy = all.some(busy);
+  const anyDescribing = all.some(describing);
+  const anyAwaiting = all.some(awaiting);
   const modelStuck = model?.state === 'missing' || model?.state === 'failed';
+  const fast = (anyBusy && !modelStuck) || anyDescribing;
   useEffect(() => {
-    if (!anyBusy || offline) return;
+    if (!(anyBusy || anyDescribing || anyAwaiting) || offline) return;
     const t = window.setInterval(() => {
       void loadItems('active');
-      void refreshModel();
-    }, modelStuck ? 10_000 : 2000);
+      if (anyBusy) void refreshModel();
+    }, fast ? 2000 : 10_000);
     return () => window.clearInterval(t);
-  }, [anyBusy, offline, modelStuck, loadItems, refreshModel]);
+  }, [anyBusy, anyDescribing, anyAwaiting, fast, offline, loadItems, refreshModel]);
 
   // Poll the model while it downloads.
   useEffect(() => {
@@ -176,7 +182,7 @@ export function ClosetProvider({ profile, onProfile, onLogout, onQuit, toast, ch
 }
 
 const SUMMARY_KEYS: (keyof ItemSummary)[] = ['id', 'name', 'category', 'color', 'color_hex', 'pattern', 'location', 'rating',
-  'status', 'cutout_state', 'thumb_url', 'has_illustration', 'illustration_url', 'has_photo', 'last_worn', 'wear_count',
+  'status', 'cutout_state', 'tag_state', 'thumb_url', 'has_illustration', 'illustration_url', 'has_photo', 'last_worn', 'wear_count',
   'wears_since_wash', 'laundry', 'created_at', 'updated_at'];
 
 function pickSummary(item: ItemSummary): ItemSummary {

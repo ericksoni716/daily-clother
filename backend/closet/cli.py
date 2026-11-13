@@ -246,6 +246,13 @@ def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -
             raise RuntimeError(f"cutout looks wrong: {covered:.0%} of the crop is foreground")
         return f"cutout {cut.width}x{cut.height}, {covered:.0%} foreground"
 
+    def tagger():
+        import anthropic
+
+        from .tagger import claude_cli
+        claude_cli.strict_schema()
+        return f"anthropic {anthropic.__version__}, tagging schema ready"
+
     def https():
         import urllib.request
         from urllib.parse import urlsplit
@@ -265,6 +272,7 @@ def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -
     check("web_page", page)
     check("drawing", drawing)
     check("model_state", model)
+    check("tagger", tagger)
     if with_cutout:
         check("cutout", cutout)
     if with_https:  # the same connection the model download makes; needs the internet

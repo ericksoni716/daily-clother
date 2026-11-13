@@ -17,12 +17,16 @@ Wave 1 (landed):
 - [x] #23 Outfit engine: the rules that choose today's outfits, with an API and no screen. The same task went to two models (#23, #24); the Opus 5.5 result was merged.
 - [x] #21 Bulk import of single-item photos, with duplicates caught and resume (migration 0005).
 
-Wave 2:
-- [ ] #33 Tagging in the app, part 2: tag each item after its cutout and keep the full answer (migration 0006).
-- [ ] #34 Today's outfits by themselves: the weather lookup, and the wear log and laundry feeding the engine.
+Wave 2 (landed):
+- [x] #33 Tagging in the app, part 2: each item is described after its cutout and the whole answer is kept (migration 0006). The API key is only used when switched on in Settings; the demo closet is never sent to Claude.
+- [x] #34 Today's outfits by themselves: the weather lookup for a saved place, and the wear log and laundry feeding the engine (`POST /api/outfits/today`).
 - [x] #35 The drawing in the app, part 1: the drawing code is in the backend (`closet/drawing/`); all 203 gallery drawings came out identical.
 
-Next: the outfit screen (two models, since it is judged by looking), the drawing shown on the item and corrections, the review queue, mannequin layering and outfit rating; then gap analysis and shopping.
+Wave 3:
+- [ ] #45 and #46 The Today screen, given to two models; compared from screenshots.
+- [ ] #41 and #42 What's missing: the gap analysis by rule, with an API and no screen, given to two models.
+
+Next: the drawing shown on the item and corrections by command, the review queue, mannequin layering and outfit rating, the gap screen and shopping.
 
 ## Waiting on the owner
 - **Garment review**: the owner called the drawings good enough for now (after round 7). Marks and notes in the review gallery are still read when they appear; drawing work is parked until asked for.

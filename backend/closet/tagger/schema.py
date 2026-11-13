@@ -71,6 +71,10 @@ ShoeStyle = Literal["na", "low_sneaker", "high_top", "runner", "slip_on", "boot"
 Feature = Literal["v_insert", "pleats", "pressed_crease", "contrast_stitching", "toe_cap", "side_stripe",
                   "contrast_heel_tab", "chunky_sole"]
 
+# Stored with every answer the app keeps. Raise it whenever `ItemTags` changes shape or vocabulary, so stored
+# answers can be told apart (a test holds a fingerprint of the schema and fails until this is raised).
+SCHEMA_VERSION = 1
+
 FIELDS = ("category", "color", "pattern", "formality", "season")
 DETAIL_FIELDS = ("fit_detail", "sleeve_length", "neckline", "collar", "placket", "placket_buttons", "button_color", "cuff",
                  "sleeve_construction", "pockets", "hem", "fabric", "fiber", "weight", "knit_gauge", "corduroy_wale", "color_texture", "pattern_name", "pattern_orientation",

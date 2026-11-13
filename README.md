@@ -7,8 +7,9 @@ iPhone. Your closet never leaves your computer.
 **Status: stop A (the first of the app's try-it stops; see `docs/BACKLOG.md`).**
 You can capture items with one photo each, get the background removed, browse
 the closet on phone and desktop, try a 30-item demo closet, and back up and
-restore. Tagging by AI, illustrations for your own items, outfits and shopping
-come at later stops. No API key is needed yet.
+restore. New items are described by Claude through your Claude plan.
+Illustrations for your own items, outfits and shopping come at later stops. No
+API key is needed.
 
 ## Install and first run
 
@@ -32,6 +33,19 @@ Your browser then opens the app:
 2. The background-removal model (about 170 MB) downloads once, with progress
    shown at the top of the closet and in Settings. You can add photos
    straight away; they are processed when the download finishes.
+
+After you add a photo, Closet removes its background, then asks Claude to
+describe the item (see "Installing Claude Code" below). The name, category,
+colour, pattern, formality, season, shape and material fill in by themselves a
+little later; the item page says "Suggested by Claude" and you can change
+anything that's wrong. Claude never changes something you set yourself.
+**What Claude saw**, at the bottom of the item page, lists the details it
+noticed, including those the drawing can't show yet. If Claude can't be
+reached, items wait and are described as soon as it can; if describing fails,
+the item says why and offers **Try again**. **Describe it again** asks once
+more, for example for items added before this version, which are not described
+by themselves. The demo closet is never sent to Claude: its descriptions were
+made in advance.
 
 To stop the program use **Quit Closet** in the icon's menu or in Settings.
 Double-clicking the program while it is already running just opens the app.
@@ -97,9 +111,11 @@ visit, read-only.
 Closet will ask Claude to describe your clothes (what kind of garment, colour,
 collar, buttons and so on). It does this through **Claude Code**, a free
 program from Anthropic that uses your Claude plan, so nothing extra is charged
-per photo. An API key can be used instead, but it is billed per photo and is
-only used when the plan can't be. **Settings → Tagging** shows which of the two
-Closet can use right now.
+per photo. An API key can be used instead, but it is billed per photo, is only
+used when the plan can't be, and only if you turn on **Allow the API key** in
+**Settings → Tagging** (it is off, because there is no spending limit yet).
+**Settings → Tagging** shows which of the two Closet can use right now and how
+many items are waiting to be described.
 
 You install Claude Code once and sign in once. You need to type two short
 commands; copy and paste them exactly.

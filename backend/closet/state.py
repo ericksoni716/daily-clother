@@ -21,6 +21,7 @@ DEFAULTS: dict[str, Any] = {
     "last_backup": None,      # {"at", "ok", "error", "folder", "kind"}
     "model_url": None,        # override for the model download address
     "profile": "main",
+    "tagging_api_enabled": False,  # may tagging use the API key (billed)? Off until the owner turns it on in Settings
     "place": None,            # {"name", "latitude", "longitude", "timezone"}, chosen in Settings
     "weather": None,          # the last forecast for the place: {"key", "fetched", "offset", "answer"}
 }

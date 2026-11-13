@@ -9,7 +9,7 @@ import uuid
 import zlib
 from pathlib import Path
 
-from . import db, images, jobs, vocab
+from . import db, images, jobs, tagjobs, vocab
 
 TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "acquired_on", "notes", "rating_reason", "color_hex")
 ENUM_FIELDS = tuple(vocab.ENUM_FIELDS)
@@ -45,7 +45,7 @@ def summary(conn, row) -> dict:
         "illustration_url": (f"/api/items/{row['id']}/illustration.svg?v={zlib.crc32(row['illustration_svg'].encode()):08x}"
                              if row["illustration_svg"] is not None else None),
         "last_worn": worn[0], "wear_count": worn[1], "wears_since_wash": row["wears_since_wash"], "laundry": row["laundry"],
-        "created_at": row["created_at"], "updated_at": row["updated_at"],
+        "tag_state": row["tag_state"], "created_at": row["created_at"], "updated_at": row["updated_at"],
     }
 
 
@@ -56,6 +56,12 @@ def detail(conn, row) -> dict:
         out[f] = row[f]
     for f in ("silhouette", "confidence", "source"):
         out[f] = json.loads(row[f] or "{}")
+    for f in ("tag_error", "tag_route", "tag_model", "tag_schema_version", "tagged_at"):
+        out[f] = row[f]
+    # what the tagger saw, from its stored answer: the details, and what it saw that no field (or drawing) covers yet
+    details = dict((json.loads(row["tag_answer"]) if row["tag_answer"] else {}).get("details") or {})
+    out["seen_not_drawn"] = details.pop("other_features", None) or []
+    out["details"] = details or None
     out["photos"] = [{
         "id": p["id"], "kind": p["kind"], "url": _media(p["original_path"]), "thumb_url": _media(p["thumb_path"]),
         "cutout_url": _media(p["cutout_path"]), "cutout_thumb_url": _media(p["cutout_thumb_path"]),
@@ -171,6 +177,10 @@ def update(conn, item_id: str, changes: dict) -> dict:
                 raise ItemError(f"'{value}' is not a known {field}. Choose one of: {', '.join(vocab.ENUM_FIELDS[field])}.")
             if field in ("category", "color", "pattern", "formality", "season"):
                 source[field], confidence[field] = "user", 1.0
+        elif field in tagjobs.FILLED and field != "silhouette":
+            if value is not None and not isinstance(value, str):
+                raise ItemError(f"{field} must be text.")
+            source[field] = "user"   # tagging never overwrites what the owner set
         elif field == "status":
             if value not in ("active", "archived"):
                 raise ItemError("Status must be active or archived.")
@@ -218,5 +228,20 @@ def retry_cutout(conn, item_id: str) -> dict:
         return detail(conn, row)
     conn.execute("BEGIN IMMEDIATE")
     jobs.enqueue_cutout(conn, item_id, photo["id"])
+    conn.execute("COMMIT")
+    return detail(conn, get(conn, item_id))
+
+
+def retag(conn, item_id: str) -> dict:
+    """Queue the item to be described again. Fields the owner has set stay as they are."""
+    row = get(conn, item_id)
+    if _front(conn, item_id) is None:
+        raise ItemError("This item has no photo for Claude to look at.", 409)
+    if row["cutout_state"] in ("pending", "processing"):
+        return detail(conn, row)   # it is described as soon as its cutout is ready
+    if row["cutout_state"] != "ready":
+        raise ItemError("Claude describes an item once its background has been removed. Try the cutout again first.", 409)
+    conn.execute("BEGIN IMMEDIATE")
+    tagjobs.enqueue(conn, item_id)
     conn.execute("COMMIT")
     return detail(conn, get(conn, item_id))

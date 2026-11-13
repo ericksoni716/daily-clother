@@ -93,7 +93,8 @@ def _spec(category: str, formality: str, weight: str = "midweight", *, rain: boo
 
 
 def _for_day(place: str, ctx: outfits.Context, *, rain: bool = False, warm: bool = False) -> dict:
-    level = "business" if ctx.occasion in ("business", "formal") else ctx.occasion
+    level = ("business" if ctx.occasion in ("business", "formal") else "casual"
+             if ctx.occasion in ("athletic", "casual") else ctx.occasion)
     category = {"base": "shirt" if level in ("business", "smart_casual") else "tee",
                 "mid": "sweater", "outer": "coat", "bottom": "trousers",
                 "shoes": "dress_shoes" if level in ("business", "smart_casual") else "sneakers"}[place]
@@ -117,6 +118,13 @@ def _compatible(parts: dict[str, outfits.Piece]) -> bool:
             and outfits._layers_ok(parts["base"], parts.get("mid"), parts.get("outer"))
             and not outfits._outfit_problems(values, [p for pl, p in parts.items() if pl != "outer"],
                                              parts.get("outer")))
+
+
+def _replacement_works(p: outfits.Piece, place: str, parts: dict, ctx: outfits.Context) -> bool:
+    replaced = {**parts, place: p}
+    warmth = sum(outfits._warmth(piece, pl) for pl, piece in replaced.items())
+    return (_fits(p, place, ctx) and _compatible(replaced)
+            and warmth <= outfits._warmth_target(ctx.low_c) + outfits.WARMTH_TOLERANCE + outfits.WARMTH_NOTE_GAP)
 
 
 def _day_record(band: str, ctx: outfits.Context, problems: list[str]) -> dict:
@@ -167,7 +175,8 @@ class _Collector:
             article = "Another" if set(entry["methods"]) <= {"thin", "wear"} else "A"
             name = f"{article} {CATEGORY_NAMES[spec['category']]} for {OCCASION_NAMES[spec['formality']]}"
             if spec.get("material") == "waterproof":
-                name = "A rain-proof outer layer"
+                weight_words = "light" if spec["weight_class"] in ("lightweight", "midweight") else "heavier"
+                name = f"A {weight_words} rain-proof outer layer"
             elif spec.get("weight_class") == "super_heavy" and place == "outer":
                 name = f"{article} warm winter coat"
             result.append({
@@ -251,20 +260,28 @@ def _day_gaps(items: list[dict], pool: list[outfits.Piece], found: _Collector) -
             warnings = choice["warnings"]
             day = _day_record(band, ctx, warnings)
             outer = parts.get("outer")
-            if rain and temperature < outfits.HOT_C and not (outer and outfits._rain_friendly(outer)):
+            owned_rain_layer = any(outfits._rain_friendly(p) and not outfits._rain_unfriendly(p)
+                                   and _replacement_works(p, "outer", parts, ctx)
+                                   for p in eligible["outer"])
+            if (rain and temperature < outfits.HOT_C
+                    and not (outer and outfits._rain_friendly(outer) and not outfits._rain_unfriendly(outer))
+                    and not owned_rain_layer):
                 for weight in outfits.WEIGHT_CLASSES:
                     spec = _spec("coat", "smart_casual", weight, rain=True)
                     candidate = _candidate(spec)
                     if outfits._layers_ok(parts["base"], parts.get("mid"), candidate):
+                        why = (f"Your {outer.label} may not like rain; look for a rain-friendly alternative."
+                               if outer and outfits._rain_unfriendly(outer) else
+                               "On some rainy days the engine can only say to take an umbrella; the chosen layers do not keep rain off.")
                         found.add(spec, "days", DAY_SCORE,
-                                  "On some rainy days the engine can only say to take an umbrella; the chosen layers do not keep rain off.",
-                                  ids, day)
+                                  why, ids, day)
                         break
-            for pl in ("outer", "shoes"):
-                p = parts.get(pl)
-                if p and rain and outfits._rain_unfriendly(p):
-                    found.add(_for_day(pl, ctx, rain=pl == "outer"), "days", DAY_SCORE,
-                              f"Your {p.label} may not like rain; look for a rain-friendly alternative.", [p.id], day)
+            shoes = parts["shoes"]
+            owned_shoes = any(not outfits._rain_unfriendly(q) and _replacement_works(q, "shoes", parts, ctx)
+                              for q in eligible["shoes"])
+            if rain and outfits._rain_unfriendly(shoes) and not owned_shoes:
+                found.add(_for_day("shoes", ctx), "days", DAY_SCORE,
+                          f"Your {shoes.label} may not like rain; look for a rain-friendly alternative.", [shoes.id], day)
             warmth = sum(outfits._warmth(p, pl) for pl, p in parts.items())
             warmth += sum(outfits.ACCESSORY_WARMTH.get(all_pieces[i].category, ZERO)
                           for i in choice["pieces"]["accessories"])
@@ -287,7 +304,9 @@ def _day_gaps(items: list[dict], pool: list[outfits.Piece], found: _Collector) -
                         break
             elif warmth > target + outfits.WARMTH_TOLERANCE + outfits.WARMTH_NOTE_GAP:
                 spec = _spec(parts["base"].category, vocab.FORMALITY[parts["base"].formality], "lightweight")
-                if _candidate(spec).weight < parts["base"].weight:
+                owned_lighter = any(p.weight < parts["base"].weight and _replacement_works(p, "base", parts, ctx)
+                                    for p in eligible["base"])
+                if _candidate(spec).weight < parts["base"].weight and not owned_lighter:
                     found.add(spec, "days", DAY_SCORE, "Some suggested outfits are too warm; a lighter top would help.", ids, day)
             # Diagnose clashes by trying one plain neutral replacement, not by parsing warning prose.
             if outfits._outfit_problems(list(parts.values()), [p for pl, p in parts.items() if pl != "outer"], outer):

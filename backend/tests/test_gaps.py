@@ -55,6 +55,28 @@ def test_heavy_raincoat_does_not_cover_every_mild_rainy_day():
     assert any(d["temperature"] == "mild" for d in rain["evidence"]["days"])
 
 
+def test_lower_ranked_owned_raincoat_is_not_a_gap():
+    clothes = closet()
+    clothes[-1].update(weight_class="lightweight", rating="love")
+    clothes.append(item("raincoat", "coat", material="waterproof", weight_class="lightweight",
+                        formality="smart_casual", rating="meh"))
+    answer = outfits.suggest(clothes, outfits.Context(12, 12, rain=True, occasion="business"))
+    assert any("umbrella" in w for w in answer["outfits"][0]["warnings"])
+    assert not [g for g in report(clothes)["gaps"] if g["look_for"].get("material") == "waterproof"]
+
+
+def test_suede_coat_replacement_fits_over_heavy_shirts():
+    clothes = [item(f"shirt-{n}", "shirt", weight_class="heavyweight") for n in range(3)]
+    clothes += [item("coat", "coat", material="suede", weight_class="heavyweight"),
+                item("trousers", "trousers"), item("shoes", "dress_shoes")]
+    rain = [g for g in report(clothes)["gaps"] if g["look_for"].get("material") == "waterproof"]
+    assert len(rain) == 1
+    replacement = gaps._candidate(rain[0]["look_for"])
+    assert all(outfits._layers_ok(outfits._piece(i), None, replacement)
+               for i in clothes if i["category"] == "shirt")
+    assert any("test coat" in why and "rain" in why for why in rain[0]["why"])
+
+
 def test_already_warmest_coat_is_not_sold_as_a_warmer_one():
     clothes = closet()
     clothes[-1]["formality"] = "smart_casual"
@@ -154,6 +176,17 @@ def test_merging_combines_methods_days_and_wear_evidence():
     assert "thin" in worn["methods"]  # formal days can only use the business pair
     assert worn["evidence"]["days"] and worn["evidence"]["wear_counts"]
     assert len({g["id"] for g in result["gaps"]}) == len(result["gaps"])
+
+
+def test_shared_occasion_needs_merge_into_one_purchase():
+    collector = gaps._Collector([outfits._piece(i) for i in closet()])
+    for occasion in ("athletic", "casual"):
+        ctx = outfits.Context(20, 20, occasion=occasion)
+        collector.add(gaps._for_day("base", ctx), "days", gaps.DAY_SCORE, "A plain top is missing.",
+                      day=gaps._day_record("mild", ctx, ["A plain top is missing."]))
+    merged = collector.finish(gaps.MAX_GAPS)
+    assert len(merged) == 1
+    assert {d["occasion"] for d in merged[0]["evidence"]["days"]} == {"athletic", "casual"}
 
 
 def test_ranking_limits_determinism_and_no_mutation():

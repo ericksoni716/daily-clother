@@ -201,6 +201,19 @@ def test_a_piece_that_cannot_be_drawn_falls_back_to_the_plainest_of_its_category
     assert figure(dict(base=TEE)).startswith("<svg")
 
 
+def test_the_sheet_of_demo_figures_is_written(tmp_path):
+    out = tmp_path / "sheet.svg"
+    run = subprocess.run([sys.executable, str(BACKEND.parent / "tools" / "make_figure_sheet.py"), str(out)],
+                         capture_output=True, text=True, timeout=120)
+    assert run.returncode == 0, run.stderr
+    svg = out.read_text(encoding="utf-8")
+    captions = re.findall(r"<text[^>]*>([^<]+)</text>", svg)
+    assert len(captions) >= 8
+    assert any("hot" in c.lower() and "shorts" in c.lower() for c in captions)
+    assert any("cold" in c.lower() for c in captions) and any("mild" in c.lower() for c in captions)
+    assert svg.count("<svg") == len(captions) + 1
+
+
 def test_the_figure_needs_no_opencv():
     code = ("import sys\n"
             "from closet.drawing.figure import Piece, figure\n"

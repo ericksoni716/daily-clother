@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
-import { HangerIcon, SearchIcon, WarnIcon } from '../components/Icons';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { CloseIcon, DrawingIcon, FilterIcon, HangerIcon, ImagesIcon, SearchIcon, WarnIcon } from '../components/Icons';
 import { ModelBanner } from '../components/ModelBanner';
-import { Button, buttonClass, EmptyState, PageHeader, SegmentedControl } from '../components/ui';
+import { Button, buttonClass, EmptyState, PageHeader, SegmentedControl, Sheet } from '../components/ui';
 import { loadGridView, saveGridView, type GridView } from '../drawing';
 import { categoryPlural, label, tileCaption } from '../labels';
 import { itemPath, Link, navigate } from '../router';
@@ -22,6 +22,10 @@ export function ClosetScreen({ status, selectedId, wide }: Props) {
   const [query, setQuery] = useState('');
   const [laundry, setLaundry] = useState<Laundry | null>(null);
   const [gridView, setGridView] = useState<GridView>(loadGridView);
+  const [filtering, setFiltering] = useState(false);
+  const [panelTop, setPanelTop] = useState(0);
+  const filterButton = useRef<HTMLButtonElement>(null);
+  const layout = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     void loadItems(status);
@@ -34,38 +38,91 @@ export function ClosetScreen({ status, selectedId, wide }: Props) {
   }, [list]);
 
   const activeCategory = category && categories.includes(category) ? category : null;
+  const activeLaundry = status === 'active' ? laundry : null;
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return (list ?? []).filter((it) => {
       if (activeCategory && it.category !== activeCategory) return false;
-      if (laundry && status === 'active' && (it.laundry ?? 'clean') !== laundry) return false;
+      if (activeLaundry && (it.laundry ?? 'clean') !== activeLaundry) return false;
       if (!q) return true;
       const hay = [it.name, label('category', it.category), label('color', it.color), label('pattern', it.pattern), it.category, it.color]
         .filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
-  }, [list, activeCategory, laundry, status, query]);
+  }, [list, activeCategory, activeLaundry, query]);
 
   const empty = list !== null && list.length === 0;
   const title = status === 'archived' ? 'Archived' : profile === 'demo' ? 'Demo closet' : 'Your closet';
+  const filters = (activeCategory ? 1 : 0) + (activeLaundry ? 1 : 0) + (status === 'archived' ? 1 : 0);
+  const panel = wide && selectedId !== null;
+
+  // The panel scrolls with the page, so it opens level with where the owner is looking, not at the top of the grid.
+  const choose = () => {
+    if (!wide || !layout.current) return;
+    setPanelTop(Math.max(0, Math.round(16 - layout.current.getBoundingClientRect().top)));
+  };
 
   const grid = (
     <section className="closet-main" aria-labelledby="closet-title">
       <PageHeader title={title} titleId="closet-title" countTestId="item-count"
         count={list && !empty && (shown.length === list.length ? `${list.length} ${list.length === 1 ? 'item' : 'items'}` : `${shown.length} of ${list.length}`)}
-        secondary={
-          <div className="row">
-            {status === 'active' && list && !empty && <Link to="/insights" className={buttonClass({ small: true })}>Insights</Link>}
-            <SegmentedControl label="Which clothes" small value={status}
-              options={[{ value: 'active', label: 'In use', to: '/' }, { value: 'archived', label: 'Archived', to: '/archived' }]} />
-          </div>
-        } />
+        secondary={status === 'active' && list && !empty && <Link to="/insights" className={buttonClass({ variant: 'ghost', small: true })}>Insights</Link>} />
 
       {status === 'active' && <ModelBanner />}
 
       {list === null && !loadError && <div className="grid grid-skeleton" aria-hidden="true">{Array.from({ length: 6 }, (_, i) => <div key={i} className="tile-skeleton" />)}</div>}
       {list === null && loadError && <p className="form-error" role="alert">{loadError}</p>}
+
+      {list ? (
+        <>
+          <div className="closet-toolbar">
+            {list && !empty && (
+              <label className="search">
+                <SearchIcon />
+                <span className="visually-hidden">Search your clothes</span>
+                <input type="search" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+              </label>
+            )}
+            <div className="filter-wrap">
+              <button ref={filterButton} type="button" className={`btn filter-button${filters ? ' has-filters' : ''}`} aria-expanded={filtering}
+                aria-haspopup="dialog" onClick={() => setFiltering((f) => !f)}>
+                <FilterIcon /><span className="filter-text">Filter</span>
+                {filters > 0 && <><span className="filter-count" aria-hidden="true">{filters}</span><span className="visually-hidden">, {filters} on</span></>}
+              </button>
+              {filtering && (
+                <Sheet title="Filter" popover keep={filterButton} className="filter-sheet" onClose={() => setFiltering(false)}>
+                  <FilterChoices status={status} categories={categories} category={activeCategory} laundry={activeLaundry}
+                    onCategory={setCategory} onLaundry={setLaundry} />
+                </Sheet>
+              )}
+            </div>
+            {list && !empty && (
+              <SegmentedControl label="Show" className="grid-view" value={gridView}
+                options={[
+                  { value: 'photos', label: <><ImagesIcon /><span className="seg-text">Photos</span></> },
+                  { value: 'drawings', label: <><DrawingIcon /><span className="seg-text">Drawings</span></> },
+                ]}
+                onChange={(value) => { setGridView(value); saveGridView(value); }} />
+            )}
+          </div>
+          {filters > 0 && (
+            <ul className="active-filters" aria-label="Filters on">
+              {status === 'archived' && (
+                <li><Link to="/" className="chip chip-remove" aria-label="Remove filter: Archived">Archived<CloseIcon /></Link></li>
+              )}
+              {activeCategory && (
+                <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${categoryPlural(activeCategory)}`}
+                  onClick={() => setCategory(null)}>{categoryPlural(activeCategory)}<CloseIcon /></button></li>
+              )}
+              {activeLaundry && (
+                <li><button type="button" className="chip chip-remove" aria-label={`Remove filter: ${LAUNDRY[activeLaundry]}`}
+                  onClick={() => setLaundry(null)}>{LAUNDRY[activeLaundry]}<CloseIcon /></button></li>
+              )}
+            </ul>
+          )}
+        </>
+      ) : null}
 
       {empty && status === 'active' && <EmptyCloset demo={profile === 'demo'} />}
       {empty && status === 'archived' && (
@@ -73,64 +130,71 @@ export function ClosetScreen({ status, selectedId, wide }: Props) {
       )}
 
       {list && !empty && (
-        <>
-          <div className="filters">
-            <label className="search">
-              <SearchIcon />
-              <span className="visually-hidden">Search your clothes</span>
-              <input type="search" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
-            </label>
-            {categories.length > 1 && (
-              <div className="chips chips-scroll" role="group" aria-label="Filter by category">
-                <button className={`chip${!activeCategory ? ' is-on' : ''}`} aria-pressed={!activeCategory} onClick={() => setCategory(null)}>All</button>
-                {categories.map((c) => (
-                  <button key={c} className={`chip${activeCategory === c ? ' is-on' : ''}`} aria-pressed={activeCategory === c}
-                    onClick={() => setCategory(activeCategory === c ? null : c)}>{categoryPlural(c)}</button>
-                ))}
-              </div>
-            )}
-            <div className="filters-row">
-              {status === 'active' && (
-                <div className="chips" role="group" aria-label="Filter by laundry">
-                  {([['clean', 'Clean'], ['laundry', 'In the laundry']] as const).map(([value, text]) => (
-                    <button key={value} className={`chip${laundry === value ? ' is-on' : ''}`} aria-pressed={laundry === value}
-                      onClick={() => setLaundry(laundry === value ? null : value)}>{text}</button>
-                  ))}
-                </div>
-              )}
-              <SegmentedControl label="Show" small className="grid-view" value={gridView}
-                options={[{ value: 'photos', label: 'Photos' }, { value: 'drawings', label: 'Drawings' }]}
-                onChange={(value) => { setGridView(value); saveGridView(value); }} />
-            </div>
-          </div>
-          {shown.length === 0 ? (
-            <div className="empty"><p className="muted">Nothing matches. Try another word or category.</p></div>
-          ) : (
-            <ul className="grid" aria-label="Clothes">
-              {shown.map((it) => (
-                <li key={it.id}><Tile item={it} status={status} selected={it.id === selectedId} model={model} view={gridView} /></li>
-              ))}
-            </ul>
-          )}
-        </>
+        shown.length === 0 ? (
+          <div className="empty"><p className="muted">Nothing matches. Try another word or filter.</p></div>
+        ) : (
+          <ul className="grid" aria-label="Clothes">
+            {shown.map((it) => (
+              <li key={it.id}><Tile item={it} status={status} selected={it.id === selectedId} model={model} view={gridView} onChoose={choose} /></li>
+            ))}
+          </ul>
+        )
       )}
     </section>
   );
 
-  if (!wide) return grid;
   return (
-    <div className="master-detail">
+    <div ref={layout} className={`closet-layout${panel ? ' has-panel' : ''}`}>
       {grid}
-      <aside className="detail-panel" aria-label="Item details">
-        {selectedId ? (
+      {panel && (
+        <aside className="detail-panel closet-panel" aria-label="Item details" style={{ marginTop: panelTop }}>
           <ItemDetail key={selectedId} id={selectedId} status={status} inPanel />
-        ) : (
-          <div className="panel-empty">
-            <HangerIcon />
-            <p>{empty ? 'Your clothes will show up here.' : 'Choose something to see and change its details.'}</p>
+        </aside>
+      )}
+    </div>
+  );
+}
+
+const LAUNDRY: Record<Laundry, string> = { clean: 'Clean', laundry: 'In the laundry' };
+
+function FilterChoices({ status, categories, category, laundry, onCategory, onLaundry }: {
+  status: 'active' | 'archived';
+  categories: string[];
+  category: string | null;
+  laundry: Laundry | null;
+  onCategory(c: string | null): void;
+  onLaundry(l: Laundry | null): void;
+}) {
+  return (
+    <div className="filter-choices">
+      <div className="filter-group">
+        <h3 className="chip-group-title">Which clothes</h3>
+        <SegmentedControl label="Which clothes" small value={status}
+          options={[{ value: 'active', label: 'In use', to: '/' }, { value: 'archived', label: 'Archived', to: '/archived' }]} />
+      </div>
+      {categories.length > 1 && (
+        <div className="filter-group">
+          <h3 className="chip-group-title" id="filter-category">Category</h3>
+          <div className="chips" role="group" aria-label="Filter by category">
+            <button type="button" className={`chip${!category ? ' is-on' : ''}`} aria-pressed={!category} onClick={() => onCategory(null)}>All</button>
+            {categories.map((c) => (
+              <button key={c} type="button" className={`chip${category === c ? ' is-on' : ''}`} aria-pressed={category === c}
+                onClick={() => onCategory(category === c ? null : c)}>{categoryPlural(c)}</button>
+            ))}
           </div>
-        )}
-      </aside>
+        </div>
+      )}
+      {status === 'active' && (
+        <div className="filter-group">
+          <h3 className="chip-group-title">Laundry</h3>
+          <div className="chips" role="group" aria-label="Filter by laundry">
+            {(['clean', 'laundry'] as const).map((value) => (
+              <button key={value} type="button" className={`chip${laundry === value ? ' is-on' : ''}`} aria-pressed={laundry === value}
+                onClick={() => onLaundry(laundry === value ? null : value)}>{LAUNDRY[value]}</button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -139,13 +203,15 @@ export function busyLabel(model: ModelInfo | null): string {
   return model && model.state !== 'ready' ? 'Waiting for the model' : 'Removing background…';
 }
 
-function Tile({ item, status, selected, model, view }: { item: ItemSummary; status: 'active' | 'archived'; selected: boolean; model: ModelInfo | null; view: GridView }) {
+function Tile({ item, status, selected, model, view, onChoose }: {
+  item: ItemSummary; status: 'active' | 'archived'; selected: boolean; model: ModelInfo | null; view: GridView; onChoose(): void;
+}) {
   const name = item.name || label('category', item.category) || 'New item';
   const caption = tileCaption(item.category, item.color);
   const busy = item.cutout_state === 'pending' || item.cutout_state === 'processing';
   return (
     <Link to={itemPath(item.id, status)} className={`tile${selected ? ' is-selected' : ''}`} aria-current={selected ? 'true' : undefined}
-      data-testid="tile">
+      data-testid="tile" onClick={onChoose}>
       <div className="tile-card">
         <TilePicture item={item} view={view} />
         {busy && <span className="badge badge-busy"><span className="spinner" aria-hidden="true" />{busyLabel(model)}</span>}

@@ -14,7 +14,7 @@ test('offline: the saved closet still opens, read-only, with a banner', async ({
   await expect(page.getByTestId('tile')).toHaveCount(30);
   // open one item while online, so its full details are saved too
   await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
-  await expect(page.locator('.detail-panel').getByRole('group', { name: 'Category' })).toBeVisible();
+  await expect(page.locator('.detail-panel').getByRole('button', { name: /^Category:/ })).toBeVisible();
   await page.waitForLoadState('networkidle');
 
   await context.setOffline(true);
@@ -33,7 +33,7 @@ test('offline: the saved closet still opens, read-only, with a banner', async ({
   // editing is disabled too (the page reloaded on the saved item)
   const panel = page.locator('.detail-panel');
   await expect(panel.getByText("You're offline, so this item can't be changed right now.")).toBeVisible();
-  await expect(panel.getByRole('group', { name: 'Category' }).getByRole('button').first()).toBeDisabled();
+  await expect(panel.getByRole('button', { name: /^Category:/ })).toBeDisabled();
   await expect(panel.getByRole('button', { name: 'Archive' })).toBeDisabled();
 
   // an item never opened before still shows what the closet knows about it

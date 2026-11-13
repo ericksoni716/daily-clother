@@ -32,7 +32,10 @@ test.describe('phone', () => {
     await expect(page.getByRole('link', { name: 'Closet' }).first()).toBeVisible();
     await expect(page.locator('.detail-panel')).toHaveCount(0);
     await expect(page.getByTestId('tile')).toHaveCount(0);
-    await expect(page.getByRole('group', { name: 'Category' })).toBeVisible();
+    // a detail opens its choices in a sheet from the bottom of the screen
+    await page.getByRole('button', { name: /^Category:/ }).click();
+    await expect(page.getByRole('dialog', { name: 'Category' }).getByRole('group', { name: 'Category' })).toBeVisible();
+    await page.getByRole('dialog', { name: 'Category' }).getByRole('button', { name: 'Done' }).click();
 
     await tabbar.getByRole('link', { name: 'Add' }).click();
     await expect(page.getByRole('button', { name: 'Take photo' })).toBeVisible();
@@ -53,6 +56,7 @@ test.describe('desktop', () => {
     await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
     await expect(page).toHaveURL(/\/item\//);
     const panel = page.locator('aside.detail-panel');
+    await panel.getByRole('button', { name: /^Category:/ }).click();
     await expect(panel.getByRole('group', { name: 'Category' })).toBeVisible();
 
     const s = (await sidebar.boundingBox())!;

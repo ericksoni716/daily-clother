@@ -24,7 +24,7 @@ import logging
 import re
 from dataclasses import dataclass
 
-from ..tagger.schema import NAMED_HEX, SILHOUETTE_FIELDS, Details, ItemTags, Silhouette, drawing_for
+from ..tagger.schema import NAMED_HEX, SILHOUETTE_FIELDS, Details, ItemTags, Silhouette, drawing_for, drawn_words
 from .illustrate import Fill, Spec, render
 
 log = logging.getLogger("closet.drawing")
@@ -103,6 +103,16 @@ def drawing_from_fields(category, color_hex: str | None = None, pattern=None, si
 def _pattern(pattern) -> list[str]:
     word = PATTERN_WORDS.get(pattern) if isinstance(pattern, str) else None
     return [f"the {word}: the drawing shows only the colour for now"] if word else []
+
+
+def words_drawn(answer) -> list[str]:
+    """The tagger's other_features words that the item's drawing now shows (a loafer's tassels, a footwear id)."""
+    try:
+        tags = _tags(answer)
+        return drawn_words(tags) if tags else []
+    except Exception:
+        log.exception("could not read which of the tagger's words are drawn")
+        return []
 
 
 def _notes(notes: list[str]) -> tuple[str, ...]:

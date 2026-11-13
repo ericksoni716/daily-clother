@@ -215,7 +215,8 @@ def test_the_demo_closets_drawings_are_the_ones_made_in_advance(client, cfg):
     assert red["illustration_svg"] != polo["illustration_svg"] and "#b33a3a" in red["illustration_svg"]
 
 
-def test_the_migration_keeps_the_drawings_made_before_it(cfg):
+def test_the_migration_keeps_the_drawings_made_before_it(cfg, monkeypatch):
+    monkeypatch.setattr(drawing, "DRAWING_VERSION", 1)   # the migration marks drawings as version 1; a later one redraws them
     path = cfg.db_path("main")
     path.parent.mkdir(parents=True, exist_ok=True)
     old = sqlite3.connect(path)
@@ -238,3 +239,12 @@ def test_the_migration_keeps_the_drawings_made_before_it(cfg):
         assert illustrations.current(conn, rows["b"])["illustration_svg"] == draw.svg_from_fields("tee", None, uid="b")
     finally:
         conn.close()
+
+
+def test_the_shoe_words_the_drawing_shows_leave_seen_not_drawn():
+    answer = {"category": "dress_shoes", "color": "brown", "pattern": "solid",
+              "details": {"shoe_style": "loafer", "other_features": ["tassels", "contrast welt stitching"]}}
+    row = {"source": "{}", "silhouette": "{}", "tag_answer": json.dumps(answer), "category": "dress_shoes",
+           "color": "brown", "pattern": "solid", "own_details": None}
+    assert illustrations.not_drawn(row, ["tassels", "contrast welt stitching"]) == ["contrast welt stitching"]
+    assert draw.words_drawn({**answer, "category": "shirt"}) == []

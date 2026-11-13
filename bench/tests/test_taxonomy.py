@@ -223,7 +223,7 @@ UNCHANGED = {
     "barn_jacket": "4a3332cae9f90e8b",
     "pants.jeans": "b09a649969597eec",
     "pants.dress": "567a1b5f294a79cc",
-    "shoe.derby": "37b558bd4608ec33",
+    "shoe.derby": "f356f82e866763c4",   # redrawn on purpose: open lacing (#108)
     "shoe.low_sneaker": "f104192ad8e6afc6",
 }
 
@@ -308,3 +308,68 @@ def test_jackets_stay_on_the_canvas_and_their_sleeves_off_the_body(name):
             d = ((Co[0] - K[0]) / math.dist(K, Co), (Co[1] - K[1]) / math.dist(K, Co))
             top_w = abs((A[0] - K[0]) * d[1] - (A[1] - K[1]) * d[0])
             assert math.dist(Co, Ci) < top_w, (fit, weight)
+
+
+def test_the_footwear_table_follows_the_taxonomy():
+    from closet_bench.taxonomy import FOOTWEAR, FOOTWEAR_LACING, FOOTWEAR_TOE_TREATMENT, SHOE_STYLES
+    shoes = {n: e for n, e in TAXONOMY["garments"].items() if e["category"] == "footwear"}
+    assert list(FOOTWEAR) == list(shoes)
+    for fid, (style, _, _, _) in FOOTWEAR.items():
+        assert style in SHOE_STYLES
+        assert style == {"sandals": "sandal"}.get(shoes[fid]["app_style"], shoes[fid]["app_style"]), fid
+    assert list(FOOTWEAR_TOE_TREATMENT) == TAXONOMY["footwear"]["toe_treatment"]
+    assert list(FOOTWEAR_LACING) == TAXONOMY["footwear"]["lacing"]
+    assert set(COVERAGE["footwear"]) == set(shoes)
+
+
+@pytest.mark.parametrize("style, words, want_style, want", [
+    ("na", ["penny_loafer"], "loafer", {"strap": "penny"}),
+    ("loafer", ["tassels"], "loafer", {"strap": "tassel"}),
+    ("na", ["horsebit loafer"], "loafer", {"strap": "horsebit"}),
+    ("loafer", ["venetian"], "loafer", {"strap": "none"}),
+    ("derby", ["plain_toe_oxford"], "oxford", {"toe_cap": "none"}),
+    ("derby", ["cap-toe oxford", "6 eyelets"], "oxford", {"toe_cap": "stitched", "eyelets": 6}),
+    ("na", ["wholecut"], "oxford", {"toe_cap": "none", "wholecut": True}),
+    ("derby", ["brogue", "wingtip"], "derby", {"brogue": "full"}),
+    ("na", ["brogues", "medallion"], "oxford", {"brogue": "semi"}),
+    ("oxford", ["quarter brogue"], "oxford", {"brogue": "quarter"}),
+    ("oxford", ["open_derby"], "derby", {}),
+    ("na", ["derby"], "derby", {}),
+    ("low_sneaker", ["slide"], "sandal", {"sandal": "slide"}),
+    ("sandal", ["sandal", "ankle strap"], "sandal", {"sandal": "strap"}),
+    ("sandal", ["flip_flop"], "sandal", {"sandal": "slide"}),
+    ("runner", ["embroidered logo"], "runner", {}),
+])
+def test_the_taggers_shoe_words_choose_the_drawing(style, words, want_style, want):
+    from closet_bench.taxonomy import shoe_words
+    got_style, params, _ = shoe_words(style, words)
+    assert (got_style, params) == (want_style, want)
+
+
+def test_only_what_is_drawn_leaves_the_seen_list():
+    from closet_bench.taxonomy import shoe_words
+    assert shoe_words("derby", ["monk_strap", "tassels", "5 eyelets", "red sole"])[2] == ["tassels", "5 eyelets"]
+
+
+@pytest.mark.parametrize("base, key, values", [
+    (dict(style="loafer"), "strap", ["penny", "tassel", "horsebit", "none"]),
+    (dict(style="sandal"), "sandal", ["slide", "two_strap", "strap"]),
+    (dict(style="derby"), "brogue", ["none", "quarter", "semi", "full"]),
+    (dict(style="oxford"), "brogue", ["none", "quarter", "semi", "full"]),
+    (dict(style="oxford"), "eyelets", [3, 5, 7]),
+    (dict(style="derby"), "eyelets", [3, 5, 7]),
+    (dict(style="oxford"), "wholecut", [False, True]),
+])
+def test_every_shoe_variant_draws_its_own_picture_on_the_same_ground(base, key, values):
+    pictures = set()
+    for v in values:
+        shape = build("sneaker", {**base, key: v})
+        assert shape.anchors == build("sneaker", {}).anchors
+        svg = render(Spec("sneaker", {**base, key: v}, Fill("solid", "#5a3b28")), "line")
+        xml.dom.minidom.parseString(svg)
+        pictures.add(svg)
+    assert len(pictures) == len(values)
+
+
+def test_oxford_and_derby_lacing_differ():
+    assert build("sneaker", dict(style="oxford")).parts != build("sneaker", dict(style="derby")).parts

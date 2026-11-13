@@ -203,8 +203,10 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
         extras.update(taxonomy.surface_extras(cloth))
         return "pants", p, extras, []
     if tags.category in ("sneakers", "boots", "dress_shoes", "sandals"):
-        by_category = {"boots": "boot", "dress_shoes": "derby"}.get(tags.category) or ("high_top" if s.shoe_height == "high" else "low_sneaker")
-        style = d.shoe_style if d.shoe_style in SHOE_STYLES else by_category   # no sandal shape yet: drawn as a low shoe
+        by_category = ({"boots": "boot", "dress_shoes": "derby", "sandals": "sandal"}.get(tags.category)
+                       or ("high_top" if s.shoe_height == "high" else "low_sneaker"))
+        style = d.shoe_style if d.shoe_style in SHOE_STYLES else by_category
+        style, words, _ = taxonomy.shoe_words(style, d.other_features)   # a footwear id or detail the tagger named
         p = {"height": "high" if style in ("high_top", "boot", "chelsea_boot") else "low", "style": style}
         if "chunky_sole" in d.features:
             p["sole"] = "chunky"
@@ -214,7 +216,8 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
             p["stripe"] = "side"
         if "contrast_heel_tab" in d.features:
             p["heel_tab"] = "contrast"
-        return "sneaker", p, extras, (["sandals have no shape of their own yet"] if tags.category == "sandals" else [])
+        p.update(words)
+        return "sneaker", p, extras, []
     # a top: the details decide, in the taxonomy's words; the coarse silhouette fills in what the details leave "na"
     category_neck = {"shirt": "collar", "polo": "collar", "hoodie": "hood", "jacket": "collar", "coat": "collar"}.get(tags.category, "crew")
     coarse_neck = s.neck or category_neck
@@ -232,6 +235,13 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
     if "v_insert" in d.features:
         p["neck_detail"] = "v-insert"
     return "top", p, {**extras, **more}, notes
+
+
+def drawn_words(tags: ItemTags) -> list[str]:
+    """The tagger's other_features words that the drawing shows (a shoe's footwear id, strap or lacing)."""
+    if tags.category not in ("sneakers", "boots", "dress_shoes", "sandals"):
+        return []
+    return taxonomy.shoe_words(tags.details.shoe_style, tags.details.other_features)[2]
 
 
 def silhouette_params(tags: ItemTags) -> tuple[str, dict]:

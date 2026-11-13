@@ -371,7 +371,9 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     sole_c = spec.sole_color or shape.sole_default or "#f4f1ea"
 
     def part_color(key):
-        return {"trim": spec.trim_color, "lace": spec.lace_color, "sole": sole_c, "sole_line": None}.get(key, key)
+        return {"trim": spec.trim_color, "lace": spec.lace_color, "sole": sole_c, "sole_line": None,
+                "sole_dark": shade(sole_c, -0.35 if luminance(sole_c) > 0.25 else 0.2),   # an outsole under a sandal's footbed
+                "deep": shade(base, 0.14 if luminance(base) < 0.1 else -0.15)}.get(key, key)   # deep: the same leather, in shadow
 
     def overlay(d: str, role: str, color: str | None = None) -> str:
         if role == "edge":   # a line with no fill, e.g. the visible edges of a collar
@@ -395,6 +397,10 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             if color == "sole_line":
                 c = shade(sole_c, -0.25 if luminance(sole_c) > 0.25 else 0.22)
             return f'<path d="{d}" fill="none" stroke="{c}" stroke-width="1.3" stroke-dasharray="3.2 2.4" stroke-linecap="round"/>'
+        if role == "punch":    # brogue punching: a row of small holes along a seam
+            c = shade(base, 0.3 if luminance(base) < 0.3 else -0.32)   # holes show the darker lining, or catch light on black
+            return (f'<path d="{d}" fill="none" stroke="{c}" stroke-width="3.1" stroke-dasharray="0 4.8" '
+                    f'stroke-linecap="round"/>')
         if role == "inlay":    # a piece in its own colour (lace, rubber toe, contrast panel); body cloth when none is given
             c = part_color(color)
             body = f'<path d="{d}" fill="{c}"/>' if c else (f'<path d="{d}" fill="{paint}"/>'

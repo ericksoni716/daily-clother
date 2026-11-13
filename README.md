@@ -8,7 +8,8 @@ iPhone. Your closet never leaves your computer.
 You can capture items with one photo each, get the background removed, browse
 the closet on phone and desktop, try a 30-item demo closet, and back up and
 restore. New items are described by Claude through your Claude plan.
-Illustrations for your own items, outfits and shopping come at later stops. No
+Every item gets a drawing, which you can show instead of photos in the
+closet. Outfits and shopping come at later stops. No
 API key is needed.
 
 ## Install and first run
@@ -39,6 +40,12 @@ describe the item (see "Installing Claude Code" below). The name, category,
 colour, pattern, formality, season, shape and material fill in by themselves a
 little later; the item page says "Suggested by Claude" and you can change
 anything that's wrong. Claude never changes something you set yourself.
+Once it is described the item gets its drawing: switch between **Drawing**,
+**Cutout** and **Photo** above the item. Beside the drawing, **Not in the
+drawing** lists what it can't show yet (for example a logo, or stripes drawn as
+plain colour). The drawing follows your changes: pick another colour or sleeve
+length and it is drawn again. **Photos | Drawings** above the closet shows the
+whole closet either way; this device remembers your choice.
 **What Claude saw**, at the bottom of the item page, lists the details it
 noticed, including those the drawing can't show yet. If Claude can't be
 reached, items wait and are described as soon as it can; if describing fails,

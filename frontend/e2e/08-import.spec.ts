@@ -61,8 +61,10 @@ test('an import cut short by closing the page is carried on without adding anyth
   await expect(rows.filter({ hasText: 'graphic-tee' }).getByTestId('queue-status')).toHaveText('Done', { timeout: 30_000 });
   await expect(rows.filter({ hasText: 'sneaker-held' }).getByTestId('queue-status')).toHaveText('Uploading');
 
-  await page.unroute('**/api/items');
+  // Reload while the upload is still held, as closing the tab would end it. Removing the route first
+  // would let the held request through to the server, and the photo would go in before the reload.
   await page.reload();
+  await page.unroute('**/api/items');
   const resume = page.getByTestId('resume');
   await expect(resume).toContainText('1 photo was not added yet');
   await expect(rows.filter({ hasText: 'sneaker-held' }).getByTestId('queue-status')).toHaveText('Not added yet');

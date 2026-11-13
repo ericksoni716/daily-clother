@@ -4,6 +4,7 @@ import { ModelProgress, modelStateText } from '../components/ModelBanner';
 import { PhoneAccess } from '../components/PhoneAccess';
 import { WhereYouAre } from '../components/WhereYouAre';
 import { LifeQuestions } from '../components/LifeQuestions';
+import { UpdatesSection } from '../components/Updates';
 import { formatDateTime, formatSize, parsePrice } from '../labels';
 import { Link } from '../router';
 import { apiKeyLine, apiKeySavedLine, dayName, formatUsd, monthName, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
@@ -95,6 +96,10 @@ export function SettingsScreen({ version }: { version: string }) {
                 }} />
             </Section>
           )}
+
+          <Section title="Updates" id="s-updates">
+            <UpdatesSection offline={offline} toast={toast} />
+          </Section>
 
           <Section title="About" id="s-about">
             <dl className="facts">

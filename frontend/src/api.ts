@@ -8,6 +8,7 @@ import type { GapsAnswer, HideReason, Wish } from './gaps';
 import type { Life } from './life';
 import type { Check, WouldPiece } from './wouldwork';
 import type { FigurePieces } from './figure';
+import type { UpdateMode, UpdateStatus } from './updates';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
 export class ApiError extends Error {
@@ -222,6 +223,11 @@ export const api = {
   outfitFigure: (pieces: FigurePieces, signal?: AbortSignal) =>
     request<string>('/api/outfits/figure', { method: 'POST', body: pieces, signal, text: true }),
   backup: () => request<BackupRecord>('/api/backup', { method: 'POST' }),
+  // New versions of Closet
+  updates: () => request<UpdateStatus>('/api/updates'),
+  setUpdateMode: (mode: UpdateMode) => request<UpdateStatus>('/api/updates', { method: 'PUT', body: { mode } }),
+  checkUpdates: () => request<UpdateStatus>('/api/updates/check', { method: 'POST' }),
+  installUpdate: () => request<UpdateStatus>('/api/updates/install', { method: 'POST' }),
   setProfile: (profile: Profile) => request<{ profile: Profile }>('/api/profile', { method: 'POST', body: { profile } }),
   quit: () => request<void>('/api/quit', { method: 'POST' }),
 };

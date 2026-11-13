@@ -45,7 +45,8 @@ Next (not started; the owner asked for a pause after this wave and a release): s
 
 Fixes after 0.2.0:
 - [x] A newer program that finds an older copy running says so and offers to close it and use the new one (it used to open the old one without a word). The owner's first test of 0.2.0 found it.
-- [ ] The owner's first item in 0.2.0 failed to be described after three tries. The same photo is described correctly through the plan route here, so the cause is on the owner's computer; the real reason is kept in the `jobs` table but shown nowhere. Showing it on the item (and in the log) would make the next failure diagnosable without a terminal.
+- [x] The owner's first item in 0.2.0 failed to be described after three tries. The cause: Claude Code on the owner's Mac was using an API key that Anthropic refused ("Not a valid API key for this workspace"), and Closet took that for a bad answer. Now a refused sign-in keeps items waiting with a note saying what to do, and they go ahead by themselves once Claude Code is signed in with the plan.
+- [ ] Other failures still keep their real reason only in the `jobs` table. Showing it on a failed item (and in the log) would make the next unknown failure diagnosable without a terminal.
 
 ## Waiting on the owner
 - **Garment review**: the owner called the drawings good enough for now (after round 7). Marks and notes in the review gallery are still read when they appear; drawing work is parked until asked for.

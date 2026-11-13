@@ -12,7 +12,7 @@ import os
 from PIL import Image
 
 from . import claude_cli
-from .tagging import ApiRefused, CapReached, Meter, RouteUnavailable, TagResult, tag_item
+from .tagging import ApiRefused, CapReached, Meter, PlanSignIn, RouteUnavailable, TagResult, tag_item
 
 ORDERS = {"auto": ("plan", "api"), "plan": ("plan",), "api": ("api",), "api-first": ("api", "plan")}
 
@@ -27,6 +27,7 @@ class Router:
         self._meter = meter   # the app's spend cap and record of calls; the bench runs without one
         self.skipped: dict[str, str] = {}   # route -> why it was given up on, for the rest of this run
         self.capped = False   # the API route was given up on because of the spend cap
+        self.sign_in = False  # the plan route was given up on because Claude Code's sign-in does not work
 
     def _api_client(self):
         if self._client is None:
@@ -50,10 +51,12 @@ class Router:
             except RouteUnavailable as e:
                 self.skipped[route] = str(e)   # stop trying this route until the next run
                 self.capped = self.capped or isinstance(e, CapReached)
+                self.sign_in = self.sign_in or isinstance(e, PlanSignIn)
                 if isinstance(e, ApiRefused) and self._meter:
                     self._meter.api_refused(e.reason)
         reasons = "; ".join(f"{r}: {why}" for r, why in self.skipped.items()) or "no route configured"
-        raise (CapReached if self.capped else RouteUnavailable)(f"Claude cannot be reached right now. {reasons}")
+        kind = CapReached if self.capped else PlanSignIn if self.sign_in else RouteUnavailable
+        raise kind(f"Claude cannot be reached right now. {reasons}")
 
 
 def api_status() -> tuple[bool, str]:

@@ -57,6 +57,11 @@ class ApiRefused(RouteUnavailable):
         self.reason = reason
 
 
+class PlanSignIn(RouteUnavailable):
+    """Claude Code is installed but its sign-in does not work: not signed in, or signed in with an API key
+    that Anthropic turns down. The owner has to sign in again; nothing was wrong with the photo or the prompt."""
+
+
 class CapReached(RouteUnavailable):
     """The call was not made: it could take this month's API spending past the owner's limit."""
 

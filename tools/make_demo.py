@@ -221,7 +221,7 @@ def main() -> None:
         by_name = answers(cases)
         for it in data["items"]:
             it["answer"] = by_name[it["name"]]
-        data["schema_version"] = SCHEMA_VERSION
+        data = {"style": data["style"], "schema_version": SCHEMA_VERSION, "items": data["items"]}   # as a full run writes it
         (OUT / "items.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"answers written for {len(data['items'])} items (schema version {SCHEMA_VERSION})")
         return

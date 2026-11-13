@@ -8,6 +8,7 @@ import { AddScreen } from './screens/Add';
 import { SettingsScreen } from './screens/Settings';
 import { ItemDetail } from './screens/ItemDetail';
 import { TodayScreen } from './screens/Today';
+import { BagIcon, MissingScreen } from './screens/Missing';
 
 export function Shell({ version }: { version: string }) {
   const path = usePath();
@@ -18,6 +19,7 @@ export function Shell({ version }: { version: string }) {
 
   let content;
   if (route.name === 'today') content = <TodayScreen itemId={route.itemId} wide={wide} />;
+  else if (route.name === 'missing') content = <MissingScreen itemId={route.itemId} wide={wide} />;
   else if (route.name === 'add') content = <AddScreen />;
   else if (route.name === 'settings') content = <SettingsScreen version={version} />;
   else if (route.itemId && !wide) content = <ItemDetail key={route.itemId} id={route.itemId} status={route.status} />;
@@ -74,6 +76,7 @@ const NAV = [
   { key: 'today', to: '/today', label: 'Today', Icon: SunIcon },
   { key: 'closet', to: '/', label: 'Closet', Icon: HangerIcon },
   { key: 'archived', to: '/archived', label: 'Archived', Icon: ArchiveIcon },
+  { key: 'missing', to: '/missing', label: "What's missing", short: 'Missing', Icon: BagIcon },
   { key: 'add', to: '/add', label: 'Add', Icon: PlusIcon },
   { key: 'settings', to: '/settings', label: 'Settings', Icon: GearIcon },
 ] as const;
@@ -105,7 +108,9 @@ function TabBar({ section, offline }: { section: string; offline: boolean }) {
   const tabs = NAV.filter((n) => n.key !== 'archived');
   return (
     <nav className="tabbar" aria-label="Main">
-      {tabs.map(({ key, to, label, Icon }) => {
+      {tabs.map((n) => {
+        const { key, to, Icon } = n;
+        const label = 'short' in n ? n.short : n.label;
         const active = section === key || (key === 'closet' && section === 'archived');
         if (key === 'add' && offline) {
           return (

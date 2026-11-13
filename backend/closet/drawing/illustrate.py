@@ -31,6 +31,9 @@ class Fill:
     # the plain cloth the collar is cut from, when the body's stripes are placed (a polo's chest band): the
     # repeating ground stripes without the band; None = the body's own cloth
     trim_stripes: fills.Stripes | None = None
+    # with trim_stripes: whether the sleeves (and cuffs) are cut from that plain cloth too. False when the photo
+    # shows the placed bands continuing onto the sleeves (a rugby shirt); the collar is always the plain cloth.
+    sleeves_from_trim: bool = True
 
 
 @dataclass
@@ -416,7 +419,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             # a cuff wraps round the wrist: its cloth runs across its own sleeve's
             xs = [float(v) for v in re.findall(r"-?\d+(?:\.\d+)?", d)[0::2]]
             n = 0 if (sum(xs) / max(1, len(xs))) >= CX_ROT[0] else 1
-            out = f'<path d="{d}" fill="{turned(f"c{n}", shape.sleeves[n][1] + 90, ground=True)}"/>'
+            out = f'<path d="{d}" fill="{turned(f"c{n}", shape.sleeves[n][1] + 90, ground=spec.fill.sleeves_from_trim)}"/>'
         else:
             out = f'<path d="{d}" fill="{paint}"/>' + (f'<path d="{d}" fill="{col}" opacity="{op}"/>' if op else "")
         if style in ("line", "soft"):
@@ -442,13 +445,13 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     if patterned:
         # placed stripes (a polo's chest bands) are on the body only: sleeves are cut from the plain ground
         for n, (d, degrees) in enumerate(shape.sleeves):
-            g.append(f'<path d="{d}" fill="{turned(f"s{n}", degrees, ground=True)}"/>')
+            g.append(f'<path d="{d}" fill="{turned(f"s{n}", degrees, ground=spec.fill.sleeves_from_trim)}"/>')
     if tex_defs:   # the surface runs down the body and along each sleeve
         g.append(f'<path d="{shape.outline}" fill="url(#t{uid})"/>')
         for n, (d, degrees) in enumerate(shape.sleeves):
             defs += (f'<pattern id="t{uid}s{n}" href="#t{uid}" '
                      f'patternTransform="rotate({degrees:.1f} {CX_ROT[0]} {CX_ROT[1]})"/>')
-            g.append(f'<path d="{d}" fill="{paint if not patterned else turned(f"s{n}", degrees, ground=True)}"/>'
+            g.append(f'<path d="{d}" fill="{paint if not patterned else turned(f"s{n}", degrees, ground=spec.fill.sleeves_from_trim)}"/>'
                      f'<path d="{d}" fill="url(#t{uid}s{n})"/>')
     if spec.sheen and not patterned:   # one soft highlight across the chest
         defs += (f'<linearGradient id="h{uid}" x1="0" y1="0" x2="1" y2="1">'

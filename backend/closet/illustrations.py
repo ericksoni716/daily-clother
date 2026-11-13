@@ -22,9 +22,11 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+from dataclasses import replace
 
 from . import details, drawing
 from .drawing import item as draw
+from .drawing import stored
 from .drawing.figure import PLACES, Piece, figure
 from .tagger.schema import SILHOUETTE_FIELDS, Details
 
@@ -97,11 +99,24 @@ def describe(row, extra: dict | None = None) -> Piece:
     silhouette = _json(row["silhouette"], {})
     answer = drawn_answer(row, extra)
     if answer is None:
-        return Piece(row["category"], None, row["color_hex"], row["color"], row["pattern"], silhouette)
+        piece = Piece(row["category"], None, row["color_hex"], row["color"], row["pattern"], silhouette)
+        return replace(piece, fill=pattern_fill(row, piece))
     # the item's own colour (from the answer, the photo or the owner), unless the owner chose a colour word
     # and left a colour from before beside it
     own_hex = source.get("color_hex") == OWNER or source.get("color") != OWNER
-    return Piece(answer.get("category"), answer, row["color_hex"] if own_hex else None, row["color"], row["pattern"], silhouette)
+    piece = Piece(answer.get("category"), answer, row["color_hex"] if own_hex else None, row["color"], row["pattern"],
+                  silhouette)
+    return replace(piece, fill=pattern_fill(row, piece))
+
+
+def pattern_fill(row, piece: Piece | None = None):
+    """The item's measured pattern as a fill for its drawing, or None (drawn in its colour). Not used once the
+    owner has said the item is plain (pattern "solid")."""
+    keys = row.keys() if hasattr(row, "keys") else row
+    if "pattern_fill" not in keys or not row["pattern_fill"] or row["pattern"] == "solid":
+        return None
+    base = (piece.color_hex if piece else None) or row["color_hex"] or "#888888"
+    return stored.fill_from(row["pattern_fill"], base)
 
 
 def make(row, extra: dict | None = None) -> draw.Drawing:
@@ -109,10 +124,11 @@ def make(row, extra: dict | None = None) -> draw.Drawing:
     try:
         piece = describe(row, extra)
         uid = row["id"][:8]
+        fill = piece.fill
         if piece.answer is None:
             return draw.drawing_from_fields(piece.category, piece.color_hex, piece.pattern, piece.silhouette,
-                                            color=piece.color, uid=uid)
-        return draw.drawing_from_answer(piece.answer, piece.color_hex, uid=uid)
+                                            color=piece.color, uid=uid, fill=fill)
+        return draw.drawing_from_answer(piece.answer, piece.color_hex, uid=uid, fill=fill)
     except Exception:   # never fail an item
         log.exception("could not draw an item")
         return draw.Drawing(None, (draw.NOT_MADE,))

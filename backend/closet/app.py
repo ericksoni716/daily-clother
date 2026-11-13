@@ -27,6 +27,7 @@ from . import (
     jobs,
     outfits,
     phone,
+    review,
     storage,
     tagjobs,
     vocab,
@@ -138,6 +139,11 @@ class WearDay(BaseModel):
 
 class LaundryState(BaseModel):
     state: str
+
+
+class Confirm(BaseModel):
+    fields: list[str]
+    model_config = {"extra": "forbid"}
 
 
 class SettingsPatch(BaseModel):
@@ -304,6 +310,14 @@ def create_app(sv: Services) -> FastAPI:
     @app.post("/api/items/{item_id}/laundry", dependencies=protected)
     def set_laundry(item_id: str, body: LaundryState, conn=Depends(conn_dep)):
         return wears.set_laundry(conn, item_id, body.state)
+
+    @app.get("/api/review", dependencies=protected)
+    def review_queue(conn=Depends(conn_dep)):
+        return review.queue(conn, describes=state.get("profile") != "demo")
+
+    @app.post("/api/items/{item_id}/confirm", dependencies=protected)
+    def confirm_fields(item_id: str, body: Confirm, conn=Depends(conn_dep)):
+        return review.confirm(conn, item_id, body.fields)
 
     @app.get("/media/{rel:path}", dependencies=protected)
     def media(rel: str):

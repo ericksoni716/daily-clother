@@ -138,3 +138,25 @@
 .wish-note > label { font-size: 0.82rem; font-weight: 600; color: var(--muted); }
 .wish-card .wish-note textarea { min-height: 56px; }
 .wish-note .row { margin-top: 2px; }
+
+/* ---------------------------------------------------------------- shopping for a wish */
+.wish-shop { margin: 4px 0 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.wish-price { margin: 0 0 8px; font-size: 0.92rem; }
+.wish-price-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; align-items: end; margin-bottom: 8px; }
+.wish-price-form .row, .wish-price-form .form-error { grid-column: 1 / -1; margin: 0; }
+.wish-shop-actions { margin-bottom: 6px; }
+.wish-shop-actions .btn svg { width: 16px; height: 16px; }
+.wish-shop-line { margin: 4px 0; font-size: 0.86rem; line-height: 1.45; }
+.find-list { list-style: none; margin: 10px 0 6px; padding: 0; display: grid; gap: 10px; }
+.find-card { display: flex; gap: 12px; padding: 10px; border-radius: var(--radius-small); background: var(--surface-2); }
+.find-image { flex: none; width: 76px; height: 96px; object-fit: cover; border-radius: var(--radius-small); background: var(--surface); }
+.find-body { min-width: 0; flex: 1; }
+.find-body h4 { margin: 0 0 2px; font-size: 0.98rem; overflow-wrap: anywhere; }
+.find-shop { margin: 0 0 4px; font-size: 0.9rem; }
+.find-sold { color: var(--warn); }
+.find-drop { display: inline-block; margin: 0 0 6px; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; font-size: 0.84rem; }
+.find-verdict { margin: 0 0 4px; font-weight: 600; }
+.find-verdict.is-good { color: var(--accent); }
+.find-verdict.is-caution { color: var(--warn); }
+.find-reasons { font-size: 0.88rem; margin-bottom: 6px; }
+.find-piece { margin: 0 0 6px; font-size: 0.84rem; }

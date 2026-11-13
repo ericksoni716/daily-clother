@@ -15,6 +15,7 @@ import { wishById } from '../wouldwork';
 import type { ItemSummary } from '../types';
 import { activeSituations, lifeSummary, situationLabel, type SituationId } from '../life';
 import { ItemDetail } from './ItemDetail';
+import { WishShop } from './Shop';
 import { WouldWork } from './WouldWork';
 import './Missing.css';
 
@@ -139,6 +140,7 @@ export function MissingScreen({ itemId, check, wishId, wide }: { itemId: string 
     confirmHide: (id) => change(id, () => api.hideGap(id, 'never_wear'), 'Applied to similar suggestions'),
     addByHand: (name, note) => change('new-wish', () => api.addWish({ name, note }), 'On your wishlist'),
     saveNote: (w, note) => change(w.id, () => api.changeWish(w.id, { note }), 'Note saved'),
+    savePrice: (w, changes) => change(w.id, () => api.changeWish(w.id, changes), 'Price range saved'),
     bought: async (w) => {
       if (await change(w.id, () => api.wishBought(w.id), `Taken off the list. Add a photo of your new ${w.name.replace(/^(A|An) /, '').toLowerCase()}.`)) navigate('/add');
     },
@@ -313,6 +315,7 @@ interface Actions {
   confirmHide(id: string): Promise<unknown>;
   addByHand(name: string, note: string): Promise<boolean>;
   saveNote(w: Wish, note: string): Promise<boolean>;
+  savePrice(w: Wish, changes: { price_min: number | null; price_max: number | null; price_currency: string | null }): Promise<boolean>;
   bought(w: Wish): Promise<unknown>;
   remove(w: Wish): Promise<unknown>;
 }
@@ -671,6 +674,7 @@ function WishCard({ wish, actions }: { wish: Wish; actions: Actions }) {
           </div>
         )}
       </div>
+      <WishShop wish={wish} locked={actions.locked} onPrice={(w, changes) => actions.savePrice(w, changes)} />
       <div className="row wish-actions">
         <button className="btn btn-small" disabled={busy || actions.locked} title={title}
           onClick={() => navigate(`/missing/check/wish/${encodeURIComponent(wish.id)}`)}>I found one: would it work?</button>

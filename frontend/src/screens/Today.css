@@ -60,8 +60,7 @@
 .today-slide { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; container-type: inline-size; }
 
 .today-card {
-  display: grid; gap: 14px; height: 100%;
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 14px; box-shadow: var(--shadow);
+  display: grid; gap: 14px; height: 100%; padding: 14px;
 }
 .today-card-pieces, .today-card-why { min-width: 0; }
 
@@ -75,11 +74,7 @@
 .today-pieces { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 10px; }
 .today-piece { position: relative; min-width: 0; }
 .today-piece-link { display: flex; flex-direction: column; text-decoration: none; color: var(--ink); border-radius: var(--radius-md); }
-.today-piece-card {
-  position: relative; display: block; aspect-ratio: 400 / 460; border-radius: var(--radius-md); background: var(--card); overflow: hidden;
-  box-shadow: inset 0 0 0 1px var(--card-edge); transition: box-shadow 0.15s;
-}
-.today-piece-card > img, .today-piece-card > .pic-placeholder { position: absolute; inset: 0; width: 100%; height: 100%; }
+.today-piece-card { aspect-ratio: 400 / 460; border-radius: var(--radius-md); transition: box-shadow 0.15s; }
 .today-piece-link:hover .today-piece-card { box-shadow: inset 0 0 0 1px var(--card-edge), var(--shadow-hover); }
 .today-piece.is-base .today-piece-card, .today-piece.is-open .today-piece-card { box-shadow: 0 0 0 3px var(--accent); }
 .today-piece-place { margin-top: 7px; color: var(--ink-3); font-size: var(--text-xs); font-weight: var(--weight-heading); text-transform: uppercase; letter-spacing: 0.04em; }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type SVGProps } from 'react';
 import { api, ApiError } from '../api';
 import { ChipGroup } from '../components/ui/Chips';
+import { Button, EmptyState, PageHeader } from '../components/ui';
 import { CloudOffIcon, HangerIcon } from '../components/Icons';
 import { FIELD_TITLES, label } from '../labels';
 import { notReadyText, progressText, reviewChanges, reviewRows, skippedText, sureText, type ReviewRow } from '../review';
@@ -96,11 +97,8 @@ export function ReviewScreen() {
   let body;
   if (offline) {
     body = (
-      <div className="empty empty-big">
-        <div className="empty-art"><CloudOffIcon /></div>
-        <p className="empty-title">Reviewing is unavailable offline</p>
-        <p className="muted">It needs Closet on your computer to be reachable. This page carries on by itself once it is.</p>
-      </div>
+      <EmptyState big icon={<CloudOffIcon />} title="Reviewing is unavailable offline"
+        body="It needs Closet on your computer to be reachable. This page carries on by itself once it is." />
     );
   } else if (current) {
     body = <ReviewCard key={current.id} item={current} onDone={() => next(false)} onSkip={() => next(true)} />;
@@ -108,11 +106,8 @@ export function ReviewScreen() {
     body = error ? <p className="form-error" role="alert">{error}</p> : <div className="detail-picture tile-skeleton review-skeleton" aria-busy="true" />;
   } else if (total > 0) {
     body = (
-      <div className="empty empty-big" data-testid="review-end">
-        <p className="empty-title">That's all for now</p>
-        <p className="muted">{skippedText(skipped)}</p>
-        <button className="btn" onClick={() => void load()}>Look at the skipped ones again</button>
-      </div>
+      <EmptyState big testId="review-end" title="That's all for now" body={skippedText(skipped)}
+        action={<Button onClick={() => void load()}>Look at the skipped ones again</Button>} />
     );
   } else {
     body = <NothingToReview queue={queue} />;
@@ -120,12 +115,8 @@ export function ReviewScreen() {
 
   return (
     <section className="review" aria-labelledby="review-title">
-      <header className="page-header">
-        <div className="page-title-row">
-          <h1 id="review-title">Review</h1>
-          {!offline && current && <span className="count" data-testid="review-progress">{progressText(index + 1, total)}</span>}
-        </div>
-      </header>
+      <PageHeader title="Review" titleId="review-title" countTestId="review-progress"
+        count={!offline && current && progressText(index + 1, total)} />
       {body}
     </section>
   );
@@ -136,10 +127,8 @@ function NothingToReview({ queue }: { queue: ReviewQueue }) {
   const shown = others.slice(0, 8);
   const name = (o: { name: string | null; category: string | null }) => o.name || label('category', o.category) || 'New item';
   return (
-    <div className="empty empty-big" data-testid="review-empty">
-      <div className="empty-art"><HangerIcon /></div>
-      <p className="empty-title">Nothing to review</p>
-      <p className="muted">Claude was sure of everything it described, or you have already checked it.</p>
+    <EmptyState big testId="review-empty" icon={<HangerIcon />} title="Nothing to review"
+      body="Claude was sure of everything it described, or you have already checked it.">
       {others.length > 0 && (
         <div className="review-others">
           <p data-testid="review-not-ready">{notReadyText(queue.waiting, queue.failed)}</p>
@@ -154,7 +143,7 @@ function NothingToReview({ queue }: { queue: ReviewQueue }) {
           {others.length > shown.length && <Link to="/">and {others.length - shown.length} more in your closet</Link>}
         </div>
       )}
-    </div>
+    </EmptyState>
   );
 }
 

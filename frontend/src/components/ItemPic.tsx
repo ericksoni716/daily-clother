@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { label } from '../labels';
-import { Link } from '../router';
+import { ItemThumb } from './ui/ItemThumb';
 import type { ItemSummary } from '../types';
 import { HangerIcon } from './Icons';
 
@@ -29,9 +29,7 @@ export function Pieces({ ids, byId, max, label: groupLabel }: { ids: string[]; b
         const item = byId.get(id);
         return (
           <li key={id}>
-            <Link to={`/missing/item/${encodeURIComponent(id)}`} className="gap-thumb" title={itemName(item)} data-testid="gap-piece">
-              <Pic item={item} />
-            </Link>
+            <ItemThumb item={item} to={`/missing/item/${encodeURIComponent(id)}`} className="gap-thumb" title={itemName(item)} testId="gap-piece" />
           </li>
         );
       })}

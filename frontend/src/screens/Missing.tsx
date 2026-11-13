@@ -7,6 +7,7 @@ import {
   colorWords, type Gap, type GapsAnswer, HELP_LEVELS, helpOf, HIDE_REASONS, type HideReason, loadSavedGaps, lookForLines,
   type LookFor, otherFindings, reasonLabel, saveGaps, type Wish,
 } from '../gaps';
+import { Card, Notice, PageHeader, SegmentedControl } from '../components/ui';
 import { swatchOf } from '../labels';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
@@ -179,31 +180,26 @@ export function MissingScreen({ itemId, check, wishId, wide }: { itemId: string 
 
   const main = (
     <div className="missing-main" aria-busy={asking || phase.kind === 'loading'}>
-      <header className="page-header missing-header">
-        <div className="page-title-row">
-          <h1 id="missing-title">What's missing</h1>
-          {phase.kind === 'ready' && phase.gaps.enough && (
-            <span className="count">{phase.gaps.checked.items} pieces, {phase.gaps.checked.wears} wears looked at</span>
-          )}
-        </div>
-        {asking && phase.kind === 'ready' && <span className="missing-asking muted"><span className="spinner" aria-hidden="true" /> Looking again…</span>}
-        {locked
-          ? <span className="btn is-disabled" aria-disabled="true" title={OFFLINE_TITLE}>Would this work?</span>
-          : <Link to="/missing/check" className="btn" data-testid="would-work-open">Would this work?</Link>}
-      </header>
+      <PageHeader className="missing-header" title="What's missing" titleId="missing-title"
+        count={phase.kind === 'ready' && phase.gaps.enough && `${phase.gaps.checked.items} pieces, ${phase.gaps.checked.wears} wears looked at`}
+        secondary={<>
+          {asking && phase.kind === 'ready' && <span className="missing-asking muted"><span className="spinner" aria-hidden="true" /> Looking again…</span>}
+          {locked
+            ? <span className="btn is-disabled" aria-disabled="true" title={OFFLINE_TITLE}>Would this work?</span>
+            : <Link to="/missing/check" className="btn" data-testid="would-work-open">Would this work?</Link>}
+        </>} />
       {!wide && (
-        <div className="segmented missing-tabs" role="group" aria-label="Show">
-          <button className={tab === 'gaps' ? 'is-on' : ''} aria-pressed={tab === 'gaps'} onClick={() => setTab('gaps')}>Suggestions</button>
-          <button className={tab === 'wishlist' ? 'is-on' : ''} aria-pressed={tab === 'wishlist'} onClick={() => setTab('wishlist')}>
-            Wishlist{wishes && wishes.length > 0 ? ` · ${wishes.length}` : ''}
-          </button>
-        </div>
+        <SegmentedControl label="Show" className="missing-tabs" value={tab}
+          options={[
+            { value: 'gaps', label: 'Suggestions' },
+            { value: 'wishlist', label: `Wishlist${wishes && wishes.length > 0 ? ` · ${wishes.length}` : ''}` },
+          ]}
+          onChange={setTab} />
       )}
       {phase.kind === 'ready' && phase.savedAt && (
-        <p className="notice notice-warn missing-saved" role="status">
-          <WarnIcon />
+        <Notice as="p" tone="warning" className="missing-saved" role="status" icon={<WarnIcon />}>
           <span>Saved earlier{savedWhen(phase.savedAt)}. You're offline, so nothing here can be changed until Closet on your computer can be reached.</span>
-        </p>
+        </Notice>
       )}
       {phase.kind === 'ready' && (wide || tab === 'gaps') && <>
         {!lifeOpen && <LifeBasis context={phase.gaps.context} locked={locked} busy={busy !== null} onOpen={() => setLifeOpen(true)}
@@ -478,7 +474,7 @@ function GapCard({ gap, byId, actions }: { gap: Gap; byId: Map<string, ItemSumma
   const busy = actions.busy === gap.id;
   const title = actions.locked ? OFFLINE_TITLE : undefined;
   return (
-    <article className="gap-card" data-testid="gap" data-gap={gap.id} aria-labelledby={titleId}>
+    <Card as="article" className="gap-card" data-testid="gap" data-gap={gap.id} aria-labelledby={titleId}>
       <header className="gap-head">
         <h3 id={titleId}>{gap.name}</h3>
         <HelpMeter score={gap.score} />
@@ -509,20 +505,20 @@ function GapCard({ gap, byId, actions }: { gap: Gap; byId: Map<string, ItemSumma
           <button className="btn btn-ghost" disabled={actions.locked || busy} title={title} onClick={() => setAsking(true)}>Not for me</button>
         </div>
       )}
-    </article>
+    </Card>
   );
 }
 
 function WishedGap({ gap }: { gap: Gap }) {
   return (
-    <article className="gap-card is-wished" data-testid="gap" data-gap={gap.id} aria-label={gap.name}>
+    <Card as="article" className="gap-card is-wished" data-testid="gap" data-gap={gap.id} aria-label={gap.name}>
       <header className="gap-head">
         <h3>{gap.name}</h3>
         <HelpMeter score={gap.score} />
       </header>
       <p className="gap-wished"><CheckIcon /> On your wishlist</p>
       <SituationLabels gap={gap} />
-    </article>
+    </Card>
   );
 }
 
@@ -649,7 +645,7 @@ function WishCard({ wish, actions }: { wish: Wish; actions: Actions }) {
   const colors = colorWords(wish.look_for?.colors);
   const noteId = useId();
   return (
-    <article className="wish-card" data-testid="wish" aria-label={wish.name}>
+    <Card as="article" className="wish-card" data-testid="wish" aria-label={wish.name}>
       <h3>{wish.name}</h3>
       {lines.length > 0 && (
         <p className="wish-look">
@@ -678,6 +674,6 @@ function WishCard({ wish, actions }: { wish: Wish; actions: Actions }) {
           onClick={() => void actions.bought(wish)}>I bought it</button>
         <button className="btn btn-small btn-ghost" disabled={busy || actions.locked} title={title} onClick={() => void actions.remove(wish)}>Remove</button>
       </div>
-    </article>
+    </Card>
   );
 }

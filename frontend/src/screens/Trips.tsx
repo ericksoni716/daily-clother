@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError, connection } from '../api';
 import { ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
+import { EmptyState, PageHeader } from '../components/ui';
 import { loadGridView, type GridView } from '../drawing';
 import { label } from '../labels';
 import { Link, navigate } from '../router';
@@ -117,20 +118,13 @@ function TripList() {
   const { upcoming, past } = upcomingFirst(trips ?? []);
   return (
     <div className="trips">
-      <header className="page-header">
-        <div className="page-title-row"><h1 id="trips-title">Trips</h1></div>
-        {trips && trips.length > 0 && planButton}
-      </header>
+      <PageHeader title="Trips" titleId="trips-title" primary={trips && trips.length > 0 && planButton} />
       <p className="hint trips-intro">Closet says what to pack: the fewest pieces from your closet that dress every day of a trip, for the weather there.</p>
       {error && <p className={trips ? 'form-error' : 'notice'} role="alert">{error}</p>}
       {!trips && !error && <p className="muted"><span className="spinner" aria-hidden="true" /> Loading your trips…</p>}
       {trips && trips.length === 0 && (
-        <div className="empty empty-big">
-          <div className="empty-art"><SuitcaseIcon /></div>
-          <p className="empty-title">No trips yet</p>
-          <p className="muted">Choose where you're going and when, and Closet works out what to take.</p>
-          {planButton}
-        </div>
+        <EmptyState big icon={<SuitcaseIcon />} title="No trips yet"
+          body="Choose where you're going and when, and Closet works out what to take." action={planButton} />
       )}
       {upcoming.length > 0 && <TripCards title="Coming up" trips={upcoming} />}
       {past.length > 0 && <TripCards title="Past trips" trips={past} />}
@@ -147,7 +141,7 @@ function TripCards({ title, trips }: { title: string; trips: TripSummary[] }) {
           const done = t.packed === t.lines && t.lines > 0;
           return (
             <li key={t.id}>
-              <Link to={`/trips/${encodeURIComponent(t.id)}`} className={`trip-card${t.past ? ' is-past' : ''}`} data-testid="trip-card">
+              <Link to={`/trips/${encodeURIComponent(t.id)}`} className={`card trip-card${t.past ? ' is-past' : ''}`} data-testid="trip-card">
                 <span className="trip-card-icon"><SuitcaseIcon /></span>
                 <span className="trip-card-text">
                   <strong>{tripTitle(t)}</strong>
@@ -251,7 +245,7 @@ function PlanTrip() {
   return (
     <div className="trips trip-planning" aria-busy={asking}>
       <BackToTrips />
-      <header className="page-header"><h1 id="trips-title">Plan a trip</h1></header>
+      <PageHeader title="Plan a trip" titleId="trips-title" />
       {offline && <p className="notice" role="status">You're offline. Planning a trip needs Closet on your computer to be reachable.</p>}
       <TripForm draft={draft} setDraft={(d) => { setDraft(d); setPlanned(null); }} today={today} locked={offline} asking={asking} onSubmit={submit} />
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -522,12 +516,8 @@ function SavedTrip({ id }: { id: string }) {
   return (
     <div className="trips trip-saved" aria-busy={busy}>
       <BackToTrips />
-      <header className="page-header trip-header">
-        <div>
-          <h1 id="trips-title">{shortPlace(trip.place.name)}</h1>
-          <p className="muted trip-sub">{dateRange(trip.first_day, trip.last_day)} · {occasionLabel(trip.occasion)}{trip.can_wash ? ' · Can wash there' : ''}</p>
-        </div>
-      </header>
+      <PageHeader className="trip-header" title={shortPlace(trip.place.name)} titleId="trips-title"
+        subtitle={<>{dateRange(trip.first_day, trip.last_day)} · {occasionLabel(trip.occasion)}{trip.can_wash ? ' · Can wash there' : ''}</>} />
 
       {locked && (
         <p className="notice notice-warn" role="status">

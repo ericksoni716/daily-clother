@@ -76,7 +76,7 @@ def choices(row, name: str) -> dict:
     value = _current(row)[name]
     base = illustrations.make(row, {name: value}).svg
     out = []
-    for v in details.values(name):
+    for v in details.values(name, row["category"]):
         svg = None
         if v != value:
             made = illustrations.make(row, {name: v}).svg
@@ -168,7 +168,7 @@ def _allowed(row) -> dict[str, list]:
     out: dict[str, list] = {f: list(vocab.ENUM_FIELDS[f]) for f in details.FIELDS}
     out.update({f"silhouette.{k}": list(v) for k, v in vocab.SILHOUETTE.items()})
     for n in details.names_for(row["category"]):
-        out[n] = [str(v) for v in details.values(n)]
+        out[n] = [str(v) for v in details.values(n, row["category"])]
     return out
 
 

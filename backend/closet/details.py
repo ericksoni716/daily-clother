@@ -15,6 +15,7 @@ from typing import get_args
 from . import vocab
 from .drawing.item import BOTTOMS, SHOES, TOPS
 from .tagger.schema import Color, Details, Feature, ItemTags, Pattern, Silhouette
+from .tagger.taxonomy import kinds_for
 
 FEATURES: tuple[str, ...] = get_args(Feature)
 DETAILS: tuple[str, ...] = tuple(n for n in Details.model_fields if n not in ("features", "other_features"))
@@ -29,15 +30,17 @@ GROUPS = {"shape": "Shape", "neck": "Collar and neck", "front": "Front", "sleeve
 # what can be fixed on each kind of garment, grouped, in the order the item page shows them
 BY_KIND: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
     "top": (
+        ("shape", ("garment",)),
         ("neck", ("neckline", "collar", "trim_color")),
         ("front", ("placket", "placket_buttons", "button_color", "v_insert")),
-        ("sleeves", ("sleeve_length", "cuff", "sleeve_construction")),
+        ("sleeves", ("sleeve_length", "cuff", "sleeve_construction", "side_stripe")),
         ("pockets", ("pockets",)),
         ("hem", ("hem",)),
         ("cloth", ("fit_detail", "fabric", "fiber", "weight", "knit_gauge", "corduroy_wale", "color_texture",
                    "pattern_name", "pattern_orientation")),
     ),
     "bottom": (
+        ("shape", ("garment", "side_stripe")),
         ("front", ("waist", "pleats", "pressed_crease")),
         ("pockets", ("pockets",)),
         ("hem", ("pant_hem",)),
@@ -61,7 +64,7 @@ TITLES = {
     "sole_color": "sole colour", "lace_color": "lace colour",
     "v_insert": "V insert under the neck", "pleats": "pleats", "pressed_crease": "pressed crease",
     "contrast_stitching": "contrast stitching", "toe_cap": "toe cap", "side_stripe": "side stripe",
-    "contrast_heel_tab": "contrast heel tab", "chunky_sole": "chunky sole",
+    "contrast_heel_tab": "contrast heel tab", "chunky_sole": "chunky sole", "garment": "kind",
     "category": "kind of garment", "color": "colour", "color_hex": "colour shade", "pattern": "pattern",
     "formality": "formality", "season": "season", "silhouette": "shape", "name": "name", "material": "material",
     "silhouette.sleeve": "sleeves", "silhouette.neck": "neck", "silhouette.top_length": "length", "silhouette.fit": "fit",
@@ -95,6 +98,9 @@ _WORDS = {
                    "chelsea_boot": "Chelsea boot"},
     "sole_color": {"same": "same as the upper"}, "lace_color": {"same": "same as the upper"},
     "trim_color": {"same": "same as the body"}, "button_color": {"same": "same as the cloth"},
+    "garment": {"unknown": "not said", "t_shirt": "T-shirt", "ocbd": "oxford button-down", "casual_button_up": "casual shirt",
+                "pajama_set_woven": "woven pyjama set", "pajama_set_knit": "knit pyjama set",
+                "two_in_one_shorts": "two-in-one shorts", "open_hem_sweatpants": "open-hem sweatpants"},
 }
 
 
@@ -107,8 +113,11 @@ def names_for(category) -> tuple[str, ...]:
     return tuple(n for _, names in BY_KIND.get(kind_of(category) or "", ()) for n in names)
 
 
-def values(name: str) -> tuple:
-    """The values a detail can take, in the schema's order."""
+def values(name: str, category=None) -> tuple:
+    """The values a detail can take, in the schema's order. With the item's category, the kinds of garment
+    are only those it can be (a top's kinds for a top, a bottom's for trousers or shorts)."""
+    if name == "garment" and category is not None:
+        return ("unknown",) + kinds_for(category)
     if name in FEATURES:
         return ("no", "yes")
     if name == "placket_buttons":

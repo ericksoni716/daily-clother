@@ -5,6 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 
 from . import gaps, outfits, taste
+from .tagger.taxonomy import LOUNGE_KINDS, SPORT_KINDS
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,10 @@ WORK_DRESS = ("casual", "smart_casual", "business", "formal")
 VACATION_BANDS = {"warm": ("mild", "hot"), "cold": ("cold", "cool"), "both": ALL_BANDS}
 SOFT_WORDS = ("jersey", "fleece", "sweat", "jogger", "tracksuit", "lounge", "knit", "stretch")
 RELAXED_FITS = ("regular", "relaxed", "oversized")
+# Kinds worn at home besides the owner's loungewear: soft, warm and loose (the taxonomy's own loungewear is LOUNGE_KINDS).
+HOME_KINDS = ("sweatpants", "joggers", "open_hem_sweatpants", "fleece_pullover", "crewneck_sweatshirt", "hoodie", "shorts")
+# Kinds to exercise in besides sportswear (SPORT_KINDS).
+EXERCISE_KINDS = ("sweatpants", "shorts", "hoodie", "crewneck_sweatshirt")
 ACTIVE_TAGS = {None: "active", "light": "light_active", "warm": "warm_active",
                "rain": "rain_active", "rainwarm": "rainwarm_active"}
 LOUNGE_CHOICES = 2
@@ -123,14 +128,25 @@ def soft(row: dict) -> bool:
 
 
 def eligible(row: dict, key: str) -> bool:
-    category = row.get("category")
+    """Whether an item can be worn for a situation. Its kind (`today.cloth`) decides when the tagger or the owner
+    named one; an item of no known kind is judged by its category and the words for soft cloth in its name."""
+    category, kind = row.get("category"), row.get("kind")
     if key == "lounging":
+        if kind in LOUNGE_KINDS or kind in HOME_KINDS:
+            return True
+        if kind in SPORT_KINDS and kind not in HOME_KINDS:
+            return category in ("tee", "hoodie")
         return row.get("formality") in (None, "athletic", "casual") and (
-            category in ("tee", "hoodie") or category in ("trousers", "shorts", "sweater") and soft(row))
+            category in ("tee", "hoodie") or category in ("trousers", "shorts", "sweater") and (kind is None and soft(row)))
     if key == "exercise":
+        if kind in SPORT_KINDS or kind in EXERCISE_KINDS:
+            return True
+        if kind in LOUNGE_KINDS:
+            return False
         return row.get("formality") in (None, "athletic", "casual") and (
-            category in ("tee", "hoodie", "shorts", "sneakers", "jacket", "coat")
-            or category == "trousers" and (row.get("formality") == "athletic" or soft(row)))
+            category in ("tee", "hoodie", "sneakers", "jacket", "coat")
+            or category == "shorts" and kind is None
+            or category == "trousers" and kind is None and (row.get("formality") == "athletic" or soft(row)))
     return True
 
 
@@ -304,12 +320,18 @@ def analyse(rows: list[dict], wears: list[dict], answers: dict | None, climate: 
         matching = [d for d in days if d.as_dict() in g["evidence"]["days"]]
         g["situations"] = _situation_shares(matching, answers)
         if g["id"].endswith("-lounge"):
-            g["look_for"].update(material="soft jersey, fleece or knit; not denim or tailored cloth", fit="relaxed")
+            g["look_for"].update(material="soft jersey, fleece or knit; not denim or tailored cloth", fit="relaxed",
+                                 kind="joggers, sweatpants, lounge trousers or a fleece pullover" if g["id"].startswith(("trousers", "sweater"))
+                                 else "a lounge tee or a soft T-shirt")
         elif g["id"].endswith("active"):
             tag = g["id"].split("-")[-1].removesuffix("_active")
             g["look_for"].update(gaps.TAG_LOOK.get(tag, {}))
             material = g["look_for"].get("material")
             g["look_for"]["material"] = ((material + "; ") if material else "") + "cloth you can move in; check it suits your activity"
+            g["look_for"]["kind"] = {"tee": "a training tee", "shorts": "running or training shorts",
+                                     "trousers": "track trousers, joggers or running tights", "sweater": "a technical half-zip or a fleece pullover",
+                                     "jacket": "a track jacket or a running shell", "hoodie": "a training hoodie",
+                                     "sneakers": "trainers for your sport"}.get(g["id"].split("-")[0], "sportswear")
     learned = taste.learn(rows, wears)
     taste.apply(result_gaps, learned, c)
     return {"enough": True, "message": None, "gaps": result_gaps[:limit], "notes": notes,

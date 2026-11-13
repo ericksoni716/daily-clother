@@ -114,7 +114,7 @@ def test_the_options_are_the_ones_for_the_kind_of_garment_and_each_drawing_diffe
             r = client.get(f"/api/items/{item['id']}/details/{d['name']}")
             assert r.status_code == 200
             found = r.json()["choices"]
-            assert [c["value"] for c in found] == list(details.values(d["name"]))
+            assert [c["value"] for c in found] == list(details.values(d["name"], answer["category"]))
             assert [c["value"] for c in found if c["current"]] == [said]
             for c in found:
                 assert c["words"]

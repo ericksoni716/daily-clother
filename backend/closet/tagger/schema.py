@@ -17,10 +17,10 @@ from __future__ import annotations
 
 from typing import Literal, get_args
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from . import taxonomy
-from .taxonomy import AXES, CORDUROY_WALES, KNIT_GAUGES, SHOE_STYLES, WEIGHT_CLASSES, top_drawing
+from .taxonomy import AXES, BOTTOM_DRAWINGS, CORDUROY_WALES, GARMENTS, KNIT_GAUGES, SHOE_STYLES, WEIGHT_CLASSES, top_drawing
 
 Category = Literal["tee", "shirt", "polo", "sweater", "hoodie", "jacket", "coat", "jeans", "trousers", "shorts",
                    "sneakers", "boots", "dress_shoes", "sandals", "bag", "belt", "hat", "scarf", "other"]
@@ -46,6 +46,7 @@ def _axis(name: str, *extra: str):
     return Literal[tuple(extra) + AXES[name]]
 
 
+Garment = Literal[("unknown",) + tuple(GARMENTS)]           # the owner's taxonomy's kinds of clothing
 ColorOrSame = Literal[("same",) + get_args(Color)]          # "same" = matches the body, or does not apply
 FitDetail = _axis("fit")
 SleeveLength = _axis("sleeve_length", "na")
@@ -73,10 +74,10 @@ Feature = Literal["v_insert", "pleats", "pressed_crease", "contrast_stitching", 
 
 # Stored with every answer the app keeps. Raise it whenever `ItemTags` changes shape or vocabulary, so stored
 # answers can be told apart (a test holds a fingerprint of the schema and fails until this is raised).
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 FIELDS = ("category", "color", "pattern", "formality", "season")
-DETAIL_FIELDS = ("fit_detail", "sleeve_length", "neckline", "collar", "placket", "placket_buttons", "button_color", "cuff",
+DETAIL_FIELDS = ("garment", "fit_detail", "sleeve_length", "neckline", "collar", "placket", "placket_buttons", "button_color", "cuff",
                  "sleeve_construction", "pockets", "hem", "fabric", "fiber", "weight", "knit_gauge", "corduroy_wale", "color_texture", "pattern_name", "pattern_orientation",
                  "trim_color", "waist", "pant_hem", "shoe_style", "sole_color", "lace_color")
 SILHOUETTE_FIELDS = ("sleeve", "neck", "top_length", "fit", "leg", "pant_length", "shoe_height")
@@ -98,7 +99,12 @@ class Silhouette(BaseModel):
         return cls(**{**dict.fromkeys(SILHOUETTE_FIELDS), **known})
 
 
+# Fields added since version 1, with the value an older stored answer is read with.
+ADDED_IN_2 = {"garment": "unknown"}
+
+
 class Details(BaseModel):
+    garment: Garment = Field(description="The kind of clothing, when one of these plainly fits: sportswear (performance_tee, athletic_half_zip, track_jacket, track_pants, joggers, running_shorts, compression_tights ...) is made for exercise, loungewear (lounge_pants, sleep_shorts, pajama sets, robes) for home. A fleece_pullover is a polar or sherpa fleece pullover with a short zip or snap placket; a fleece_jacket zips all the way. 'unknown' when none fits or you cannot tell; prefer the plain kind (t_shirt, chinos, shorts) unless it is clearly made for sport or lounging.")
     fit_detail: FitDetail = Field(description="How it is cut. boxy = wide and short; relaxed = roomy; oversized = dropped shoulders, clearly too big on purpose. Trousers and shoes: regular.")
     sleeve_length: SleeveLength = Field(description="'na' for anything that is not a top.")
     neckline: Neckline = Field(description="The neck opening of a collarless or knit top (a henley is 'henley', a polo 'polo_collar'). 'na' for a woven shirt, jacket or coat with a collar, and for anything that is not a top.")
@@ -112,25 +118,31 @@ class Details(BaseModel):
     hem: Hem = Field(description="Bottom edge of a top; 'na' otherwise.")
     fabric: Fabric = Field(description="The cloth's structure where it is plain to see (corduroy, cable, pique, denim, flannel, oxford ...); 'unknown' when you cannot tell.")
     fiber: Fiber = Field(description="What the cloth is made of. Read it from a care tag when one is legible; otherwise your best judgement from how it looks (fuzzy wool, crumpled linen, smooth cotton), or 'unknown'.")
-    weight: Weight = Field(description="How thick and substantial the cloth is, which decides how the garment sits and what it can be layered under. lightweight: linen, poplin, a thin tee, a thin nylon jacket. midweight: an oxford shirt, a standard tee, chinos. heavyweight: wool flannel, denim, a sweatshirt, a thick overshirt. super_heavy: fleece, sherpa, melton, a puffer, a chunky knit. 'unknown' only when you really cannot tell.")
+    weight: Weight = Field(description="How thick and substantial the cloth is, which decides how the garment sits and what it can be layered under. lightweight: linen, poplin, a thin tee, a thin nylon jacket. midweight: an oxford shirt, a standard tee, chinos. heavyweight: wool flannel, denim, a sweatshirt, polar fleece, a thick overshirt. super_heavy: sherpa, melton, a puffer, a chunky knit. 'unknown' only when you really cannot tell.")
     knit_gauge: KnitGauge = Field(description="Sweaters and other knitwear: how fine the stitches are, from extra_fine (smooth, thin) to super_chunky; 'na' otherwise.")
     corduroy_wale: CorduroyWale = Field(description="Corduroy only: how wide the ridges are, from needlecord (very fine) to jumbo; 'na' otherwise.")
     color_texture: ColorTexture = Field(description="How the colour sits in the cloth; solid when unremarkable.")
     pattern_name: PatternName = Field(description="The specific pattern; solid when there is none. Flannel is a fabric, never a pattern.")
     pattern_orientation: PatternOrientation = Field(description="Direction of stripes or pattern; all_over for solids and all-over patterns.")
-    trim_color: ColorOrSame = Field(description="Colour of a contrasting collar, cuffs or ribbing; 'same' when they match the body.")
+    trim_color: ColorOrSame = Field(description="Colour of a contrasting collar, cuffs or ribbing, or of a strip binding the edges (as on a fleece pullover); 'same' when they match the body.")
     waist: Waist = Field(description="Trousers and shorts only; 'na' otherwise.")
     pant_hem: PantHem = Field(description="Trousers only: turn_up = a turned-up cuff; ribbed = a knitted cuff as on joggers; 'na' otherwise.")
     shoe_style: ShoeStyle = Field(description="Shoes only; 'na' otherwise. derby = open lacing, oxford = closed lacing, slip_on = a laceless canvas shoe.")
     sole_color: ColorOrSame = Field(description="Shoes: colour of the sole; 'same' otherwise.")
     lace_color: ColorOrSame = Field(description="Shoes: colour of the laces; 'same' when they match the upper, there are none, or it is not a shoe.")
-    features: list[Feature] = Field(description="Any of these that are present; empty if none. v_insert = the stitched triangle under a sweatshirt's neck; contrast_stitching = topstitching in a thread colour that stands out, as on most blue jeans; side_stripe = a contrast panel or stripe on the side of a shoe.")
+    features: list[Feature] = Field(description="Any of these that are present; empty if none. v_insert = the stitched triangle under a sweatshirt's neck; contrast_stitching = topstitching in a thread colour that stands out, as on most blue jeans; side_stripe = a contrast panel or stripe on the side of a shoe, or stripes down the sleeves of a track jacket or the sides of track trousers or shorts.")
     other_features: list[str] = Field(description="Up to four distinctive details nothing above covers, a few words each, e.g. 'embroidered chest logo', 'elbow patches'. Empty if none.")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _older(cls, data):
+        """An answer stored before a field was added reads as if it had said the field's 'nothing'."""
+        return {**ADDED_IN_2, **data} if isinstance(data, dict) else data
 
     @classmethod
     def plain(cls, **known) -> Details:
         """Nothing distinctive, plus whatever is known."""
-        base = dict(fit_detail="regular", sleeve_length="na", neckline="na", collar="none", placket="none", placket_buttons=0,
+        base = dict(garment="unknown", fit_detail="regular", sleeve_length="na", neckline="na", collar="none", placket="none", placket_buttons=0,
                     button_color="same", cuff="none", sleeve_construction="na", pockets="none", hem="na", fabric="unknown",
                     fiber="unknown", weight="unknown", knit_gauge="na", corduroy_wale="na",
                     color_texture="solid", pattern_name="solid", pattern_orientation="all_over", trim_color="same",
@@ -188,6 +200,7 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
         jeans = tags.category == "jeans" or d.pockets == "five_pocket_jean"
         p = {"leg": s.leg or "straight", "length": "short" if tags.category == "shorts" else (s.pant_length or "full"),
              "jeans": jeans}
+        p.update(BOTTOM_DRAWINGS.get(d.garment, {}))   # what sets the kind apart: a tight leg, a slit hem, a stripe
         if d.waist in ("drawstring", "elastic"):
             p["waist"] = d.waist
         if d.pockets in ("cargo", "bellows"):
@@ -200,6 +213,8 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
             p["hem"] = {"turn_up": "turnup", "ribbed": "rib"}[d.pant_hem]
         if "contrast_stitching" in d.features:
             p["stitch"] = "contrast"
+        if "side_stripe" in d.features:
+            p["stripe"] = "side"
         extras.update(taxonomy.surface_extras(cloth))
         return "pants", p, extras, []
     if tags.category in ("sneakers", "boots", "dress_shoes", "sandals"):
@@ -227,8 +242,12 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
          "cuff": d.cuff, "sleeve_construction": d.sleeve_construction,
          "pockets": d.pockets,
          "hem": d.hem if d.hem != "na" else "straight", **cloth,
-         "length": s.top_length or ("long" if tags.category == "coat" else "regular")}
+         "length": s.top_length or ("long" if tags.category == "coat" else "regular"),
+         "garment": d.garment, "side_stripe": "side_stripe" in d.features, "contrast_trim": d.trim_color != "same",
+         "second_color": bool(tags.secondary_colors)}
     p, more, notes = top_drawing(g)
+    if p.get("colorblock"):   # the second colour: the first of the other colours seen
+        more["block_color"] = NAMED_HEX.get(tags.secondary_colors[0])
     if "v_insert" in d.features:
         p["neck_detail"] = "v-insert"
     return "top", p, {**extras, **more}, notes

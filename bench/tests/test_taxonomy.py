@@ -221,6 +221,10 @@ UNCHANGED = {
     "quilted_jacket": "9daae90d264d9d8d",
     "fleece_jacket": "d1ff07dded0b7647",
     "barn_jacket": "4a3332cae9f90e8b",
+    "fleece_pullover": "2ec1c00de609e68f",
+    "performance_tee": "bc82d495d035b729",
+    "athletic_half_zip": "0efb8a51d5f50cde",
+    "track_jacket": "8fb12b0ed42ce58f",
     "pants.jeans": "b09a649969597eec",
     "pants.dress": "567a1b5f294a79cc",
     "shoe.derby": "37b558bd4608ec33",
@@ -308,3 +312,34 @@ def test_jackets_stay_on_the_canvas_and_their_sleeves_off_the_body(name):
             d = ((Co[0] - K[0]) / math.dist(K, Co), (Co[1] - K[1]) / math.dist(K, Co))
             top_w = abs((A[0] - K[0]) * d[1] - (A[1] - K[1]) * d[0])
             assert math.dist(Co, Ci) < top_w, (fit, weight)
+
+
+def test_garments_are_the_owners_clothing_kinds():
+    from closet_bench.taxonomy import APP_CATEGORY, BOTTOM_DRAWINGS, GARMENTS, LOUNGE_KINDS, SPORT_KINDS
+    data = TAXONOMY
+    garments = {k: v for k, v in data["garments"].items() if v["category"] not in ("footwear", "accessory")}
+    assert GARMENTS == {k: v["category"] for k, v in garments.items()}
+    assert set(APP_CATEGORY) == set(GARMENTS)
+    assert all(APP_CATEGORY[k] == v["app_category"] for k, v in garments.items() if v.get("app_category"))
+    assert set(SPORT_KINDS) == {k for k, v in garments.items() if v["category"] == "activewear"}
+    assert set(LOUNGE_KINDS) == {k for k, v in garments.items() if v["category"] == "loungewear"}
+    assert "fleece_pullover" in SPORT_KINDS and APP_CATEGORY["fleece_pullover"] == "sweater"
+    assert set(BOTTOM_DRAWINGS) <= set(GARMENTS)
+    assert set(COVERAGE["garment"]) == set(GARMENTS)
+
+
+def test_fleece_pullover_draws_its_blocks_and_binding():
+    p, extras, _ = top_drawing({**GARMENT_DRAWINGS["fleece_pullover"], "contrast_trim": True, "second_color": True})
+    assert p["binding"] and p["colorblock"]
+    svg = render(Spec("top", p, Fill("solid", "#9fdcc4"), trim_color="#f2735f", block_color="#2f6db5", **extras), "line")
+    assert 'fill="#2f6db5"' in svg and 'stroke="#f2735f"' in svg
+    plain = render(Spec("top", top_drawing(GARMENT_DRAWINGS["fleece_pullover"])[0], Fill("solid", "#9fdcc4")), "line")
+    assert 'fill="#2f6db5"' not in plain
+
+
+def test_sport_and_lounge_bottoms_draw_apart():
+    from closet_bench.taxonomy import BOTTOM_DRAWINGS
+    svgs = {k: render(Spec("pants", dict(v), Fill("solid", "#30343c"), trim_color="#f2f2f0"), "line")
+            for k, v in BOTTOM_DRAWINGS.items()}
+    assert all(s.startswith("<svg") for s in svgs.values())
+    assert len({svgs[k] for k in ("joggers", "track_pants", "compression_tights", "running_shorts", "open_hem_sweatpants")}) == 5

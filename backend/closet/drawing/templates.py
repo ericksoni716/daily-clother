@@ -792,6 +792,10 @@ def top(**kw) -> Shape:
         S_, c1_, c2_, A_ = armhole
         pts = [S_] + _bez(S_, c1_, c2_, A_, 14)
         inner = _offset_line(pts, -9 * bs)
+        # both edges run on past the side seam and the outline cuts them, so the band meets the side at full width
+        t = _unit((pts[-1][0] - pts[-2][0], pts[-1][1] - pts[-2][1]))
+        pts = pts + [(A_[0] + 8, A_[1] + t[1] * 8 / max(t[0], 0.3))]
+        inner = inner + [(inner[-1][0] + 12, inner[-1][1] + t[1] * 12 / max(t[0], 0.3))]
         for m, _ in sides:
             sh.parts.append(Part(_poly([m(v) for v in pts + inner[::-1]]), "band", clip=True))
 

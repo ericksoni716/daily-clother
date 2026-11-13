@@ -201,8 +201,8 @@ UNCHANGED = {
     "western_shirt": "a1ad566838687b49",
     "camp_collar_shirt": "bac5875fc1cc3b18",
     "popover_shirt": "cac441662b38341d",
-    "band_collar_shirt": "20a9e0c807730277",
-    "guayabera": "0b61b57064b7d0ad",
+    "band_collar_shirt": "11056acfc48fb1e3",   # #110: calmer linen
+    "guayabera": "ab725b68fc90b0a5",   # #110: calmer linen
     "overshirt": "dd3a6290ec43cc3a",
     "tuxedo_shirt": "ec5dd2150449a71d",   # #110: larger wing tips
     "crewneck_sweatshirt": "0edf19bc449d8b09",
@@ -211,7 +211,7 @@ UNCHANGED = {
     "pullover_sweater": "bfd3f8d9ffa21272",
     "cardigan": "7adab43828f8f794",
     "shawl_cardigan": "83fdf05adc7a61a4",
-    "sweater_vest": "24bf8dfca26aaa93",
+    "sweater_vest": "2f625d5fe5c6c2d4",   # #110: armhole band keeps its width
     "quarter_zip": "a6c19157293b4d69",
     "chore_coat": "55f95cedffe81d08",
     "trucker_jacket": "1fd21e47f12d94f2",   # #110: buttoned waistband, not a rib
@@ -368,3 +368,17 @@ def test_a_trucker_has_a_buttoned_waistband_not_a_rib():
     low = [d for d in sh.dots if hy - 25 < d[1] < hy and 100 < d[0] < 300]
     assert len(low) >= 3 and any(abs(x - 200) < 0.5 for x, _, _ in low)   # the front button and an adjuster each side
     assert hem_rib(_shape(GARMENT_DRAWINGS["crewneck_sweatshirt"]))          # a knit keeps its rib
+
+
+def test_a_vest_armhole_band_meets_the_side_at_full_width():
+    sh = _shape(GARMENT_DRAWINGS["sweater_vest"])
+    band = [q for q in sh.parts if q.role == "band" and q.clip][0]
+    under = max(_pts(band.d), key=lambda v: v[1])
+    side = max(x for x, y in _pts(sh.outline) if abs(y - under[1]) < 3)
+    assert under[0] > side    # the band's lower edge runs on past the side seam; the outline cuts it square
+
+
+def test_the_linen_texture_is_sparse():
+    svg = draw({**CONTEXT["fit"], "fabric": "linen"})
+    tile = re.search(r'<pattern id="ta"[^>]*width="([\d.]+)" height="([\d.]+)"', svg)
+    assert tile and float(tile.group(1)) * float(tile.group(2)) >= 56 * 15

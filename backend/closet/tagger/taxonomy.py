@@ -497,7 +497,7 @@ _WOVEN_NOTES = {
     "corduroy": (D, "vertical wales, spacing set by corduroy_wale; heavy"),
     "seersucker": (D, "puckered stripes between flat ones; light"),
     "herringbone": (D, "chevron columns"), "twill": (D, "fine diagonal"), "denim": (D, "steep twill with pale weft; heavy"),
-    "linen": (D, "short slub streaks; light"), "hopsack": (D, "small basket weave"), "tweed": (D, "flecks; super heavy, slight halo"),
+    "linen": (D, "sparse short slub streaks; light"), "hopsack": (D, "small basket weave"), "tweed": (D, "flecks; super heavy, slight halo"),
     "ripstop": (D, "grid of heavier threads"), "waffle_weave": (D, "waffle grid; heavy"),
     "oxford": (N_, "plain at this size: oxford cloth's fine basket weave does not show; midweight"),
     "royal_oxford": (N_, "plain at this size, like oxford"), "fresco": (A_, "drawn as a basket weave; light"),

@@ -196,7 +196,7 @@ def _texture_tile(name: str, sc: float, lo: str, hi: str):
         return (8 * sc, h, f'<path d="M0,{h * .3:.2f}q{2 * sc:.2f},{1.6 * sc:.2f} {4 * sc:.2f},0t{4 * sc:.2f},0" stroke="{lo}" '
                            f'stroke-width="{0.9 * min(sc, 1.6):.2f}" fill="none" opacity=".2"/>')
     if name == "linen":      # slubs: short, uneven streaks
-        return (40, 9, f'<path d="M2,2H13M21,2.5H25M8,6.5H15M27,6H38M31,8.2H34" stroke="{lo}" stroke-width=".9" opacity=".12"/>')
+        return (56, 15, f'<path d="M3,3H13M31,4.5H35M14,10.5H20M40,11H50" stroke="{lo}" stroke-width=".8" opacity=".11"/>')
     if name == "basket":     # hopsack, oxford: pairs of threads over pairs
         return (6, 6, f'<path d="M.5,1.3H2.5M.5,2.3H2.5M4,3.5V5.5M5,3.5V5.5" stroke="{lo}" stroke-width=".6" opacity=".2"/>')
     if name == "tweed":      # flecks of other colours

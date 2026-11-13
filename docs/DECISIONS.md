@@ -117,6 +117,25 @@ The rules live in `backend/closet/outfits.py`; every number is a named constant 
 | Scores start at 80 for an outfit that breaks nothing; loved pieces, one accent colour and rain-ready pieces add, distance from the formality aimed for and warmth off target subtract | So that 100 is rare and a relaxed-pass outfit is visibly lower. |
 | The API answers 422 for a build-around id not in the open closet; the engine on its own answers with a `missing` sentence | A wrong id from the screen is a bug to show; the engine itself never raises for a closet's contents. `worn_days_ago` comes from the request until the wear log exists. |
 
+### What's missing (gaps by rule)
+
+The rules live in `backend/closet/gaps.py`; every number is a named constant at its top. These are the choices someone could have made differently.
+
+| Decision | Why |
+|---|---|
+| Gaps are found by running the outfit engine itself over 40 days: cold, cool, mild and hot (low/high 0/6, 8/14, 15/21, 25/31 °C), each dry and rainy, for each of the five occasions | The engine is what the owner sees every morning, so a day it cannot dress well is the gap that matters. The four bands land on either side of its own thresholds (coat at 8 °C and below, no layers at 24 °C and above). A real year of weather was not used: it would need a place and a clock. |
+| A day fails when the engine returns nothing, has to use a piece that breaks a rule, puts together pieces that clash, is well short of warm or well too warm, says "take an umbrella" in every outfit it offers, puts suede or canvas shoes on a rainy day, or cannot make three outfits that differ | Each is turned into the one piece that would fix it (a coat on a cold day without one, a sweater when there is a coat, light trousers when only jeans suit a hot business day). Rain counts only when none of the three outfits keeps it off, since the owner can pick the second one. |
+| Days count by occasion: casual and smart casual fully, business 0.7, sport and formal 0.3 | Sport and formal days are rare; a gap that only shows on them should not top the list. |
+| A thin place is a place where every outfit offered for a day uses the same piece and nothing else suits; for a coat on a cold day, a lighter one does not count as a second | One pair of smart shoes or one coat is fine until it is at the cobbler's. |
+| An orphan is an item in at most one of the grid's outfits whose partners of one kind (bottoms for a top, tops for a bottom, and so on) all clash with it; the gap is one plain, neutral piece of that kind | A loud shirt with no plain trousers is the example the owner gave; one purchase brings it into use. |
+| From the wear log: an item worn at least 4 times and at least 3 times the average of the others of its category, in a log of at least 10 wears, asks for a second one like it, unless one is already owned | Fewer wears say nothing yet. Never-worn items are listed in a note, not as gaps: buying more does not help them. The log's period comes from its own dates, not the clock. |
+| The basics are ten: a plain neutral tee, a white or light blue oxford, a plain neutral sweater, dark jeans, neutral chinos or trousers, a warm coat, a rain-proof outer layer, plain sneakers, smart leather shoes and a leather belt | Taken from the classics in `docs/menswear-reference.md` and kept short: each is something most outfits the engine makes need, or a day it cannot dress without. Suits, ties, polos and boots in particular were left out; a basic the owner owns but rated dislike is still missing. |
+| Findings that the same purchase would meet are merged: same category and kind (warm, light, rain) and formalities within two steps; the merged score is the best finding plus a quarter of the others, up to 100 | One rain coat fixes every rainy day; listing it once per occasion would bury everything else. Two kinds of smart trousers far apart in formality stay separate. |
+| The list is cut to 8, and a closet with fewer than 8 pieces of clothing gets a sentence instead | A list of everything is no help, and a three-item closet is missing nearly everything. |
+| Items in the laundry count as owned; archived items do not; disliked items are owned but never used | A shirt in the wash is not missing. The engine already never picks a disliked item, so it is not something to build on. |
+| The analysis reads the engine's own pieces, options and rules (functions in `outfits.py` whose names start with `_`) and does not change `outfits.py` | The two cannot disagree about what suits a day. If the engine changes, the gaps follow. |
+| The API keeps the last answer per closet and reuses it until an item or a wear changes; a wash, a timestamp or a cutout does not count | The analysis takes about a second on the demo closet and about four on 300 items (40 runs of the engine, each bounded by its own six-candidates-per-place search, not by the size of the closet). |
+
 ## Reaching Claude: two routes
 
 Decided with the owner after phase 1: the app can reach Claude two ways, and

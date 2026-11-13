@@ -114,6 +114,8 @@ class Swatch:
     # with a phase: the tile's width as a fraction of the garment's neck-to-hem length (sizes it against the body,
     # not the outline, whose width depends on how the sleeves lie)
     length_frac: float | None = None
+    # with a phase: the other front's own placement (the viewer's right); None = the same as `phase`
+    phase_right: tuple[float, float] | None = None
 
 
 def _flatten_lighting(rgb: np.ndarray) -> np.ndarray:

@@ -47,6 +47,11 @@ it solid. To be fixed in the app (holes inside the garment's outline must never 
   as well and the two masks combined. On eight test shirts this turned a 22% solid plaid into 66% and a 28%
   multi-stripe into 41%, and left the other six untouched. Filling holes by size was tried and dropped: a
   plaid's checks join into one grid, and closing the mask filled the gaps between arms and body.
+- Placement per front (`match_front`): each front's placement is found by matching the photo just inside that
+  front, beside the button line, against the flattened repeat at every placement; checked against a held-out
+  patch lower down (2 to 8 px apart on three shirts, repeats 35 to 134 px). A shirt's fronts do not line up
+  across the buttons, so each front is drawn with its own (`Swatch.phase_right`). The height is taken along
+  the button run. Measuring through the flattening map alone was right on one front only.
 - Placement (`placed_from_landmarks`, and `Swatch.phase` / `Swatch.length_frac` in the app's renderer): the
   flattened repeat is lined up on the button line, PLACE_AT of the way from neck to hem, and sized against the
   neck-to-hem length; the landmarks come from Claude (`landmarks_prompt.md`).

@@ -110,10 +110,20 @@ def _defs_for_fill(fill: Fill, shape: Shape, uid: str, garment_w: float, garment
                 tw = sw.length_frac * (hy - ny)
                 th = tw * sw.image.height / sw.image.width
             ax, ay = nx + PLACE_AT * (hx - nx), ny + PLACE_AT * (hy - ny)
+            row = sorted(d[1] for d in shape.dots if abs(d[0] - nx) < 3)
+            if len(row) >= 2:   # buttons down the front: the height is taken along the button run
+                ay = row[0] + PLACE_AT * (row[-1] - row[0])
             px, py = ax - sw.phase[0] * tw, ay - sw.phase[1] * th
-        return (f'<pattern id="p{uid}" patternUnits="userSpaceOnUse" x="{px:.1f}" y="{py:.1f}" width="{tw:.2f}" height="{th:.2f}">'
-                f'<image href="{uri}" width="{tw + 0.4:.2f}" height="{th + 0.4:.2f}" preserveAspectRatio="none"/></pattern>',
-                f"url(#p{uid})")
+        img = f'<image href="{uri}" width="{tw + 0.4:.2f}" height="{th + 0.4:.2f}" preserveAspectRatio="none"/>'
+        out = (f'<pattern id="p{uid}" patternUnits="userSpaceOnUse" x="{px:.1f}" y="{py:.1f}" width="{tw:.2f}" height="{th:.2f}">'
+               f'{img}</pattern>')
+        if sw.phase is not None and sw.phase_right is not None and "neck" in shape.anchors:
+            # the other front (the viewer's right) has its own placement: on a real shirt the pattern does not
+            # line up across the buttons. It shares the tile; only where it starts differs.
+            rx, ry = ax - sw.phase_right[0] * tw, ay - sw.phase_right[1] * th
+            out += (f'<pattern id="p{uid}r" patternUnits="userSpaceOnUse" x="{rx:.1f}" y="{ry:.1f}" width="{tw:.2f}" '
+                    f'height="{th:.2f}">{img}</pattern>')
+        return out, f"url(#p{uid})"
     return "", fill.color
 
 
@@ -424,6 +434,11 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     # the garment body; a same-paint stroke rounds the corners in the flat style
     round_stroke = f' stroke="{paint}" stroke-width="5" stroke-linejoin="round"' if style == "flat" and not patterned else ""
     g.append(f'<path d="{shape.outline}" fill="{paint}"{round_stroke}/>')
+    sw_ = spec.fill.swatch if spec.fill.kind == "swatch" else None
+    if sw_ is not None and sw_.phase is not None and sw_.phase_right is not None and "neck" in shape.anchors:
+        cxn = shape.anchors["neck"][0]
+        defs += f'<clipPath id="fr{uid}"><rect x="{cxn:.1f}" y="0" width="{W}" height="{H}"/></clipPath>'
+        g.append(f'<path d="{shape.outline}" fill="url(#p{uid}r)" clip-path="url(#fr{uid})"/>')
     if patterned:
         # placed stripes (a polo's chest bands) are on the body only: sleeves are cut from the plain ground
         for n, (d, degrees) in enumerate(shape.sleeves):

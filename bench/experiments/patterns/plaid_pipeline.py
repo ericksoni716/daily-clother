@@ -266,6 +266,8 @@ def placed_from_landmarks(info, P, Q, lm, photo_scale=1.0):
     hx, hy = lm["hem_center"]["x"] * photo_scale, lm["hem_center"]["y"] * photo_scale
     bl = [(b["x"] * photo_scale, b["y"] * photo_scale) for b in lm["button_line"]]
     ay = ny + PLACE_AT * (hy - ny)
+    if len(bl) >= 2:   # buttons: the height is taken along the button run (steadier than neck and hem)
+        ay = bl[0][1] + PLACE_AT * (bl[-1][1] - bl[0][1])
     if len(bl) >= 2:   # the button line's x at that height
         ys_, xs_ = np.array([b[1] for b in bl]), np.array([b[0] for b in bl])
         ax = float(np.polyval(np.polyfit(ys_, xs_, 1), ay))
@@ -276,3 +278,107 @@ def placed_from_landmarks(info, P, Q, lm, photo_scale=1.0):
     u = ((ax - ox[iy, ix]) % P) / P
     v = ((ay - oy[iy, ix]) % Q) / Q
     return (float(u), float(v)), P / (hy - ny), (ax, ay)
+
+
+def check_placement(cut, tile_lab, info, P, Q, anchor, phase, side=+1):
+    """Does the rebuilt repeat, at the measured placement, match the photo beside the button line? Compares one
+    repeat of the photo (on one front, clear of the button strip) with the repeat shifted to every placement;
+    returns the measured placement's rank (1 = best of all) and its match against the best."""
+    rgb = np.asarray(cut.convert("RGB")); lab = dewarp.to_lab(rgb)
+    ax, ay = anchor
+    x0 = int(ax + side * 0.15 * P) if side > 0 else int(ax - 0.15 * P - P)
+    y0 = int(ay - Q / 2)
+    patch = dewarp.signal(lab[y0:y0 + Q, x0:x0 + P])
+    up = tile_lab.shape[1] // P
+    t = cv2.resize(dewarp.signal(tile_lab), (P, Q), interpolation=cv2.INTER_AREA)
+    # the tile spot at the patch's top-left: phase is the anchor's spot; the patch starts (x0-ax, y0-ay) away
+    u0 = int(round(phase[0] * P + (x0 - ax))) % P
+    v0 = int(round(phase[1] * Q + (y0 - ay))) % Q
+    scores = np.zeros((Q, P))
+    pz = patch - patch.mean()
+    for dv in range(Q):
+        rolled = np.roll(t, -dv, 0)
+        for du in range(P):
+            w = np.roll(rolled, -du, 1)
+            scores[dv, du] = (pz * (w - w.mean())).sum() / (np.sqrt((pz ** 2).sum() * ((w - w.mean()) ** 2).sum()) + 1e-6)
+    mine = scores[v0, u0]
+    rank = int((scores > mine).sum()) + 1
+    by, bx = np.unravel_index(np.argmax(scores), scores.shape)
+    off = (min(abs(bx - u0), P - abs(bx - u0)), min(abs(by - v0), Q - abs(by - v0)))
+    return dict(rank=rank, of=P * Q, match=round(float(mine), 2), best=round(float(scores.max()), 2), off_px=off)
+
+
+def placed_fronts(cut, P, Q, lm, photo_scale=1.0, log=print):
+    """Each front's own placement. Each front is flattened on its own; its placement is read just inside that
+    front at the anchor height and carried to the button line; the right front's repeat is lined up with the
+    left's, so both placements refer to the same tile. Returns (tile, (phase_left, phase_right), length_frac,
+    anchor, per-front info) or None."""
+    res = {}
+    for side in ("left", "right"):
+        r = dewarp.rectify(cut, P, Q, side=side, log=lambda s: None)
+        if r is not None:
+            res[side] = r
+    if "left" not in res:
+        return None
+    ta, ia = res["left"]
+    phase_l, lf, anchor = placed_from_landmarks(ia, P, Q, lm, photo_scale)
+    ax, ay = anchor
+
+    def phase_at(info, x):
+        u = ((x - info["ox"][int(ay), int(x)]) % P) / P
+        v = ((ay - info["oy"][int(ay), int(x)]) % Q) / Q
+        return ((u + (ax - x) / P) % 1, v)
+
+    phase_l = phase_at(ia, ax - 0.5 * P)
+    phase_r = None
+    if "right" in res:
+        tb, ib = res["right"]
+        sa, sb = dewarp.signal(ta), dewarp.signal(tb)
+        cc = np.real(np.fft.ifft2(np.fft.fft2(sa - sa.mean()) * np.conj(np.fft.fft2(sb - sb.mean()))))
+        dy, dx = np.unravel_index(np.argmax(cc), cc.shape)    # tile_a ~ tile_b shifted by (dy, dx)
+        up = ta.shape[1] // P
+        pu, pv = phase_at(ib, ax + 0.5 * P)
+        phase_r = ((pu + dx / up / P) % 1, (pv + dy / up / Q) % 1)
+    return ta, (phase_l, phase_r), lf, anchor, res
+
+
+def _scores(lab, tile_sig, P, Q, x0, y0):
+    patch = dewarp.signal(lab[y0:y0 + Q, x0:x0 + P])
+    if patch.shape != (Q, P):
+        return None
+    pz = patch - patch.mean()
+    big = np.tile(tile_sig, (2, 2)).astype(np.float32)
+    r = cv2.matchTemplate(big, pz.astype(np.float32), cv2.TM_CCOEFF_NORMED)[:Q, :P]
+    return r                                              # r[dv, du]: the patch's top-left is tile spot (du, dv)
+
+
+def match_front(cut, tile_lab, P, Q, anchor, side, offsets=(-1.0,), check=(0.5,)):
+    """A front's placement by matching the photo beside the button line against the repeat directly: patches one
+    repeat in size, just inside that front, at `offsets` repeats from the anchor height (estimate), and at `check`
+    (held out). Returns (phase at the anchor, how far the held-out patch's own best is from it, in px)."""
+    rgb = np.asarray(cut.convert("RGB")); lab = dewarp.to_lab(rgb)
+    ax, ay = anchor
+    x0 = int(ax + 0.15 * P) if side > 0 else int(ax - 0.15 * P - P)
+    t = cv2.resize(dewarp.signal(tile_lab), (P, Q), interpolation=cv2.INTER_AREA)
+    def best(offs):
+        acc = None
+        for o in offs:
+            y0 = int(ay + o * Q)
+            r = _scores(lab, t, P, Q, x0, y0)
+            if r is None:
+                continue
+            # shift so every score refers to the spot at the anchor itself
+            r = np.roll(np.roll(r, int(round(-(x0 - ax))), 1), int(round(-(y0 - ay))), 0)
+            acc = r if acc is None else acc + r
+        if acc is None:
+            return None
+        v, u = np.unravel_index(np.argmax(acc), acc.shape)
+        return u, v, float(acc.max() / len(offs))
+    est, held = best(offsets), best(check)
+    if est is None:
+        return None
+    u, v, sc = est
+    off = None
+    if held:
+        off = (int(min(abs(held[0] - u), P - abs(held[0] - u))), int(min(abs(held[1] - v), Q - abs(held[1] - v))))
+    return (u / P, v / Q), off, round(sc, 2)

@@ -12,6 +12,11 @@ ever being sent to Claude. After a change to the tagging schema, rewrite just
 those answers (no model needed):
 
     python tools/make_demo.py --answers-only
+
+Some items carry a price (PRICES) so Insights has a cost per wear to show;
+after changing them, rewrite just the prices (no model needed):
+
+    python tools/make_demo.py --prices-only
 """
 from __future__ import annotations
 
@@ -119,6 +124,23 @@ HISTORY = {
     "Light wash jeans": ([2], 3, False),
 }
 
+# name -> what was paid, in cents (US dollars), so Insights has a cost per wear to show; the rest have no price.
+PRICES = {
+    "Dark indigo jeans": 9800,
+    "White tee": 2500,
+    "Blue oxford shirt": 6500,
+    "White canvas sneakers": 5500,
+    "Brown boots": 22000,
+    "Burgundy cable sweater": 12000,
+    "Navy polo": 4500,
+    "Black jeans": 7900,
+    "Light wash jeans": 6000,
+    "Black overcoat": 35000,
+    "Grey wool trousers": 14000,
+    "Navy bomber jacket": 16000,
+    "Grey runners": 11000,
+}
+
 
 def _named(hex_color: str | None) -> str:
     """The colour word nearest a hex colour (buttons, trim, soles, laces); "same" when there is none."""
@@ -210,12 +232,30 @@ def add_history(items: list[dict]) -> None:
             it["history"] = dict(worn=worn, washed=washed, laundry=laundry)
 
 
+def add_prices(items: list[dict]) -> None:
+    for it in items:
+        if it["name"] in PRICES:
+            answer = it.pop("answer", None)   # keep the answer last, as a full run writes it
+            it["price_cents"] = PRICES[it["name"]]
+            if answer is not None:
+                it["answer"] = answer
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--models-dir", type=Path, default=ROOT / "bench" / "models")
     ap.add_argument("--answers-only", action="store_true", help="only rewrite the stored tagging answers in items.json")
+    ap.add_argument("--prices-only", action="store_true", help="only rewrite the prices in items.json")
     a = ap.parse_args()
     cases = {c["id"]: c for c in json.loads((ROOT / "bench" / "hardcases" / "cases.json").read_text())["cases"]}
+    if a.prices_only:
+        data = json.loads((OUT / "items.json").read_text(encoding="utf-8"))
+        for it in data["items"]:
+            it.pop("price_cents", None)
+        add_prices(data["items"])
+        (OUT / "items.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"prices written for {sum('price_cents' in it for it in data['items'])} items")
+        return
     if a.answers_only:
         data = json.loads((OUT / "items.json").read_text(encoding="utf-8"))
         by_name = answers(cases)
@@ -252,6 +292,7 @@ def main() -> None:
                           illustration_svg=render(Spec(template, params, fill, sole_color=extra.get("sole"), **extra.get("spec", {})), STYLE, uid=item_id[:8]),
                           photo=None))
     add_history(items)
+    add_prices(items)
     by_name = answers(cases)
     for it in items:
         it["answer"] = by_name[it["name"]]

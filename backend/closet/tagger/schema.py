@@ -17,10 +17,20 @@ from __future__ import annotations
 
 from typing import Literal, get_args
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from . import taxonomy
-from .taxonomy import AXES, CORDUROY_WALES, KNIT_GAUGES, SHOE_STYLES, WEIGHT_CLASSES, top_drawing
+from .taxonomy import (
+    ACCESSORIES,
+    ACCESSORY_GARMENTS,
+    ACCESSORY_KINDS,
+    AXES,
+    CORDUROY_WALES,
+    KNIT_GAUGES,
+    SHOE_STYLES,
+    WEIGHT_CLASSES,
+    top_drawing,
+)
 
 Category = Literal["tee", "shirt", "polo", "sweater", "hoodie", "jacket", "coat", "jeans", "trousers", "shorts",
                    "sneakers", "boots", "dress_shoes", "sandals", "bag", "belt", "hat", "scarf", "other"]
@@ -68,17 +78,24 @@ PatternOrientation = _axis("pattern_orientation")
 Waist = Literal["na", "belt_loops", "drawstring", "elastic"]
 PantHem = Literal["na", "plain", "turn_up", "ribbed"]
 ShoeStyle = Literal["na", "low_sneaker", "high_top", "runner", "slip_on", "boot", "chelsea_boot", "loafer", "derby", "oxford", "sandal"]
+# accessories: the taxonomy's accessory garment ids, and the kinds its `accessories` section names
+Accessory = Literal[("na",) + tuple(ACCESSORY_GARMENTS)]
+AccessoryKind = Literal[("na",) + ACCESSORY_KINDS]
+_KINDS_HELP = "; ".join(f"{name}: {', '.join(ACCESSORIES[group])}" for name, group in (
+    ("Hats", "hats"), ("Belts", "belts"), ("Scarves", "scarves"), ("Bags", "bags"), ("Ties", "ties"),
+    ("Pocket squares (the fold)", "pocket_square_folds"), ("Gloves", "gloves"), ("Eyewear (the frame)", "eyewear_frames"),
+    ("Watches", "watches"), ("Socks", "socks")))
 Feature = Literal["v_insert", "pleats", "pressed_crease", "contrast_stitching", "toe_cap", "side_stripe",
                   "contrast_heel_tab", "chunky_sole"]
 
 # Stored with every answer the app keeps. Raise it whenever `ItemTags` changes shape or vocabulary, so stored
 # answers can be told apart (a test holds a fingerprint of the schema and fails until this is raised).
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 FIELDS = ("category", "color", "pattern", "formality", "season")
 DETAIL_FIELDS = ("fit_detail", "sleeve_length", "neckline", "collar", "placket", "placket_buttons", "button_color", "cuff",
                  "sleeve_construction", "pockets", "hem", "fabric", "fiber", "weight", "knit_gauge", "corduroy_wale", "color_texture", "pattern_name", "pattern_orientation",
-                 "trim_color", "waist", "pant_hem", "shoe_style", "sole_color", "lace_color")
+                 "trim_color", "waist", "pant_hem", "shoe_style", "sole_color", "lace_color", "accessory", "accessory_kind")
 SILHOUETTE_FIELDS = ("sleeve", "neck", "top_length", "fit", "leg", "pant_length", "shoe_height")
 
 
@@ -124,6 +141,8 @@ class Details(BaseModel):
     shoe_style: ShoeStyle = Field(description="Shoes only; 'na' otherwise. derby = open lacing, oxford = closed lacing, slip_on = a laceless canvas shoe.")
     sole_color: ColorOrSame = Field(description="Shoes: colour of the sole; 'same' otherwise.")
     lace_color: ColorOrSame = Field(description="Shoes: colour of the laces; 'same' when they match the upper, there are none, or it is not a shoe.")
+    accessory: Accessory = Field(description="Accessories only: which one it is (cap, beanie and brimmed_hat are hats; tie, pocket_square, gloves, eyewear, watch and socks are filed as category 'other'). 'na' for clothes and shoes.")
+    accessory_kind: AccessoryKind = Field(description="Accessories only: its kind, from the list for what it is. " + _KINDS_HELP + ". 'na' when it does not apply or you cannot tell.")
     features: list[Feature] = Field(description="Any of these that are present; empty if none. v_insert = the stitched triangle under a sweatshirt's neck; contrast_stitching = topstitching in a thread colour that stands out, as on most blue jeans; side_stripe = a contrast panel or stripe on the side of a shoe.")
     other_features: list[str] = Field(description="Up to four distinctive details nothing above covers, a few words each, e.g. 'embroidered chest logo', 'elbow patches'. Empty if none.")
 
@@ -135,8 +154,16 @@ class Details(BaseModel):
                     fiber="unknown", weight="unknown", knit_gauge="na", corduroy_wale="na",
                     color_texture="solid", pattern_name="solid", pattern_orientation="all_over", trim_color="same",
                     waist="na", pant_hem="na", shoe_style="na", sole_color="same", lace_color="same",
-                    features=[], other_features=[])
+                    accessory="na", accessory_kind="na", features=[], other_features=[])
         return cls(**{**base, **known})
+
+    @model_validator(mode="before")
+    @classmethod
+    def _before_accessories(cls, data):
+        """An answer kept from schema 1 has no accessory fields: then they did not apply."""
+        if isinstance(data, dict):
+            data = {"accessory": "na", "accessory_kind": "na", **data}
+        return data
 
 
 class ShotRequest(BaseModel):
@@ -184,6 +211,17 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
              "weight": None if d.weight == "unknown" else d.weight,
              "knit_gauge": None if d.knit_gauge == "na" else d.knit_gauge,
              "corduroy_wale": None if d.corduroy_wale == "na" else d.corduroy_wale}
+    if tags.category in ("bag", "belt", "hat", "scarf", "other"):
+        made = taxonomy.accessory_drawing(tags.category, d.accessory, d.accessory_kind, cloth)
+        if made is None:
+            raise ValueError(f"there is nothing to draw for this {tags.category}")
+        template, p, notes = made
+        extras.update(taxonomy.surface_extras(cloth))
+        if p.pop("soft", False):
+            extras["halo"] = True
+        if p.get("style") == "silk":
+            extras["sheen"] = True
+        return template, p, extras, notes
     if tags.category in ("jeans", "trousers", "shorts"):
         jeans = tags.category == "jeans" or d.pockets == "five_pocket_jean"
         p = {"leg": s.leg or "straight", "length": "short" if tags.category == "shorts" else (s.pant_length or "full"),

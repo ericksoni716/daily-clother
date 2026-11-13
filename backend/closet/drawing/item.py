@@ -9,8 +9,12 @@ given (its stripes, plaid or print: see `closet.drawing.stored`).
 
 Neither ever raises. A value the tagger's vocabulary does not know is dropped
 and the rest kept; if the drawing still fails, the plainest drawing of the
-category is returned. Categories with no shape (bag, belt, hat, scarf, other)
-and unknown categories give None: there is nothing to draw.
+category is returned. Accessories (bag, belt, hat, scarf) are drawn from the
+taxonomy's accessory id and kind in the answer's details (a cap, beanie or brimmed
+hat; a tote, backpack...), and their plainest shape without them. An "other" item is
+drawn only when its answer names one of the taxonomy's other accessories (gloves, a
+tie, socks...), as a plain tag; any other "other" item and unknown categories give
+None: there is nothing to draw.
 
 `drawing_from_answer` and `drawing_from_fields` give the same drawing together
 with what it leaves out or shows only roughly, in plain words (a pattern, a
@@ -24,6 +28,7 @@ import logging
 import re
 from dataclasses import dataclass
 
+from ..tagger import taxonomy
 from ..tagger.schema import NAMED_HEX, SILHOUETTE_FIELDS, Details, ItemTags, Silhouette, drawing_for
 from .illustrate import Fill, Spec, render
 
@@ -33,7 +38,8 @@ STYLE = "line"   # style B, the owner's choice; the demo closet is drawn in it
 TOPS = ("tee", "shirt", "polo", "sweater", "hoodie", "jacket", "coat")
 BOTTOMS = ("jeans", "trousers", "shorts")
 SHOES = ("sneakers", "boots", "dress_shoes", "sandals")
-DRAWN = TOPS + BOTTOMS + SHOES
+ACCESSORIES = ("bag", "belt", "hat", "scarf")
+DRAWN = TOPS + BOTTOMS + SHOES + ACCESSORIES
 DEFAULT_HEX = NAMED_HEX["grey"]   # when neither a colour nor a colour word is known
 
 _HEX = re.compile(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})")
@@ -76,7 +82,7 @@ def drawing_from_answer(answer, color_hex: str | None = None, *, uid: str = "a",
     notes: list[str] = []
     try:
         tags = _tags(answer, notes)
-        if tags is None:
+        if tags is None or not _drawable(tags):
             return Drawing(None)
         svg, drawn = _draw(tags, _color(color_hex, tags.color), _uid(uid), notes, fill)
         return Drawing(svg, _notes(([] if drawn else _pattern(tags.pattern)) + notes))
@@ -111,13 +117,13 @@ def _notes(notes: list[str]) -> tuple[str, ...]:
 
 def _tags(answer, notes: list[str] | None = None) -> ItemTags | None:
     if isinstance(answer, ItemTags):
-        return answer if answer.category in DRAWN else None
+        return answer if answer.category in DRAWN + ("other",) else None
     if isinstance(answer, (str, bytes)):
         try:
             answer = json.loads(answer)
         except ValueError:
             return None
-    if not isinstance(answer, dict) or answer.get("category") not in DRAWN:
+    if not isinstance(answer, dict) or answer.get("category") not in DRAWN + ("other",):
         return None
     try:
         return ItemTags.model_validate(answer)
@@ -127,6 +133,12 @@ def _tags(answer, notes: list[str] | None = None) -> ItemTags | None:
         if notes is not None and (_dropped(answer.get("silhouette"), silhouette) or _dropped(answer.get("details"), details)):
             notes.append(DROPPED)
         return _plain(answer["category"], silhouette, details, word)
+
+
+def _drawable(tags: ItemTags) -> bool:
+    """Whether there is a drawing for the item: every category in DRAWN, and an "other" item only when its answer
+    names one of the taxonomy's accessories."""
+    return tags.category in DRAWN or taxonomy.accessory_drawing(tags.category, tags.details.accessory) is not None
 
 
 def _dropped(raw, kept: dict) -> bool:
@@ -193,7 +205,8 @@ def _draw(tags: ItemTags, hex_: str, uid: str, notes: list[str], fill: Fill | No
     except Exception:
         log.exception("drawing a %s failed; drawing the plainest %s instead", tags.category, tags.category)
         notes.append(FELL_BACK)
-        template, params, extras, approximated = drawing_for(_plain(tags.category, {}, {}))
+        keep = {"accessory": tags.details.accessory} if tags.category == "other" else {}
+        template, params, extras, approximated = drawing_for(_plain(tags.category, {}, keep))
         svg = render(Spec(template, params, Fill("solid", hex_), **extras), STYLE, uid=uid)
         notes.extend(approximated)
         return svg, False

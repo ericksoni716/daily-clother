@@ -555,3 +555,160 @@ COVERAGE["weight"] = {
 def coverage_counts() -> dict[str, tuple[int, int, int]]:
     """(drawn, approximate, not drawn) per axis."""
     return {ax: tuple(sum(1 for s, _ in vals.values() if s == st) for st in (D, A_, N_)) for ax, vals in COVERAGE.items()}
+
+
+# ---- accessories
+
+# The taxonomy's accessory garments (its `garments` with category "accessory") and the app category each is
+# filed under, and the kinds of each (its `accessories` section), in the JSON's order; a test keeps both equal
+# to it. The template an accessory is drawn with is named after its garment id.
+ACCESSORY_GARMENTS: dict[str, str] = {
+    "cap": "hat", "beanie": "hat", "brimmed_hat": "hat", "belt": "belt", "tie": "other", "pocket_square": "other",
+    "scarf": "scarf", "gloves": "other", "bag": "bag", "eyewear": "other", "watch": "other", "socks": "other",
+}
+ACCESSORIES: dict[str, tuple[str, ...]] = {
+    "hats": ("baseball_cap_structured", "dad_cap", "five_panel", "trucker_cap", "beanie", "fisherman_beanie", "flat_cap",
+             "newsboy", "bucket_hat", "fedora", "trilby", "panama", "boater", "wide_brim", "cowboy_hat", "beret", "trapper"),
+    "belts": ("dress_belt", "casual_leather", "braided_leather", "canvas_web", "woven_elastic", "western", "reversible"),
+    "buckle_finish": ("brass", "nickel", "gunmetal", "matte_black"),
+    "ties": ("silk_woven", "silk_printed", "knit", "wool", "grenadine", "bow_tie"),
+    "tie_patterns": ("solid", "repp_stripe", "foulard", "paisley", "dots", "club_motif"),
+    "pocket_square_folds": ("flat", "one_point", "puff", "crown"),
+    "scarves": ("long_knit", "woven_wool", "cashmere", "silk", "bandana", "neck_gaiter"),
+    "gloves": ("leather_dress", "knit", "mittens", "fingerless", "work", "touchscreen"),
+    "bags": ("tote", "daypack", "rucksack", "roll_top", "messenger", "briefcase", "duffel", "crossbody_sling", "belt_bag",
+             "dopp_kit"),
+    "eyewear_frames": ("wayfarer", "aviator", "round", "browline", "rectangular", "sport_wrap"),
+    "eyewear_lenses": ("grey", "green", "brown", "mirrored", "gradient", "clear"),
+    "watches": ("dress", "dive", "field", "chronograph", "digital_sport"),
+    "watch_straps": ("leather", "steel_bracelet", "nato", "rubber", "canvas"),
+    "socks": ("dress_otc", "dress_mid_calf", "casual_crew", "athletic_crew", "no_show", "boot_ragg"),
+    "jewelry": ("signet_ring", "band", "chain", "beaded_bracelet", "cuff_bracelet", "cufflinks", "tie_bar", "lapel_pin"),
+    "other": ("suspenders_button", "suspenders_clip", "umbrella_stick", "umbrella_compact"),
+}
+# which group of the `accessories` section names the kinds of each accessory garment
+ACCESSORY_GROUP = {"cap": "hats", "beanie": "hats", "brimmed_hat": "hats", "belt": "belts", "tie": "ties",
+                   "pocket_square": "pocket_square_folds", "scarf": "scarves", "gloves": "gloves", "bag": "bags",
+                   "eyewear": "eyewear_frames", "watch": "watches", "socks": "socks"}
+# every kind the tagger may name (a few words are shared by two groups: "knit" ties and gloves)
+ACCESSORY_KINDS: tuple[str, ...] = tuple(dict.fromkeys(k for g in dict.fromkeys(ACCESSORY_GROUP.values()) for k in ACCESSORIES[g]))
+# the accessories with a shape of their own; the others are drawn as a plain tag (the "accessory" template)
+ACCESSORY_TEMPLATES = ("bag", "belt", "cap", "beanie", "brimmed_hat", "scarf")
+
+# kind -> (template, its style). The hats are one group in the taxonomy, so a hat's kind decides its template.
+_KIND_DRAWING = {
+    "baseball_cap_structured": ("cap", "structured"), "dad_cap": ("cap", "dad"), "five_panel": ("cap", "five_panel"),
+    "trucker_cap": ("cap", "trucker"), "beanie": ("beanie", "cuffed"), "fisherman_beanie": ("beanie", "fisherman"),
+    "beret": ("beanie", "beret"), "trapper": ("beanie", "trapper"), "flat_cap": ("brimmed_hat", "flat_cap"),
+    "newsboy": ("brimmed_hat", "newsboy"), "bucket_hat": ("brimmed_hat", "bucket"), "fedora": ("brimmed_hat", "fedora"),
+    "trilby": ("brimmed_hat", "trilby"), "panama": ("brimmed_hat", "panama"), "boater": ("brimmed_hat", "boater"),
+    "wide_brim": ("brimmed_hat", "wide_brim"), "cowboy_hat": ("brimmed_hat", "cowboy"),
+    "dress_belt": ("belt", "dress"), "casual_leather": ("belt", "casual"), "braided_leather": ("belt", "braided"),
+    "canvas_web": ("belt", "web"), "woven_elastic": ("belt", "elastic"), "western": ("belt", "western"),
+    "reversible": ("belt", "dress"),
+    "long_knit": ("scarf", "knit"), "woven_wool": ("scarf", "woven"), "cashmere": ("scarf", "woven"),
+    "silk": ("scarf", "silk"), "bandana": ("scarf", "bandana"), "neck_gaiter": ("scarf", "gaiter"),
+    "tote": ("bag", "tote"), "daypack": ("bag", "backpack"), "rucksack": ("bag", "rucksack"),
+    "roll_top": ("bag", "roll_top"), "messenger": ("bag", "messenger"), "briefcase": ("bag", "briefcase"),
+    "duffel": ("bag", "duffel"), "crossbody_sling": ("bag", "sling"), "belt_bag": ("bag", "belt_bag"),
+    "dopp_kit": ("bag", "pouch"),
+}
+# the plainest drawing of each accessory category, and of each garment id, when no kind is known
+_PLAIN_STYLE = {"cap": "structured", "beanie": "cuffed", "brimmed_hat": "fedora", "belt": "casual", "scarf": "woven",
+                "bag": "tote"}
+_UNSAID = {"bag": "which kind of bag it is was not said, so it is drawn as a tote",
+           "hat": "which kind of hat it is was not said, so it is drawn as a cap",
+           "knit_hat": "which kind of hat it is was not said; it looks knitted, so it is drawn as a beanie",
+           "belt": "which kind of belt it is was not said, so it is drawn as a plain leather belt",
+           "scarf": "which kind of scarf it is was not said, so it is drawn as a woven scarf"}
+_NOUN = {"tie": "ties have", "pocket_square": "pocket squares have", "gloves": "gloves have", "eyewear": "glasses have",
+         "watch": "watches have", "socks": "socks have"}
+
+
+def accessory_drawing(category: str, accessory: str | None = None, kind: str | None = None,
+                      cloth: dict | None = None) -> tuple[str, dict, list[str]] | None:
+    """Template, parameters and notes for an accessory, from its app category, its taxonomy garment id and its
+    kind (taxonomy words; "na" or None when not known). None when it is not an accessory (an "other" item that
+    is none of the taxonomy's accessories). An id or kind filed under another category is not used."""
+    cloth = cloth or {}
+    accessory = accessory if ACCESSORY_GARMENTS.get(accessory or "") == category else None
+    if category == "other":
+        if accessory is None:
+            return None
+        return "accessory", {"kind": accessory}, [f"{_NOUN[accessory]} no shape of their own yet, so a plain tag "
+                                                   "stands in for the drawing"]
+    if category not in ("bag", "belt", "hat", "scarf"):
+        return None
+    group = ACCESSORY_GROUP[accessory or ("cap" if category == "hat" else category)]
+    drawn = _KIND_DRAWING.get(kind) if kind in ACCESSORIES[group] else None
+    if drawn is not None and (category == "hat" or drawn[0] == (accessory or category)):
+        template, style = drawn
+        notes = []
+        if kind == "reversible":
+            notes.append("a reversible belt is drawn as a dress belt: its other side is not shown")
+        params = {"style": style}
+        if kind == "cashmere":
+            params["soft"] = True
+        return template, params, notes
+    if category == "hat":
+        if accessory is not None:
+            return accessory, {"style": _PLAIN_STYLE[accessory]}, []
+        knitted = cloth.get("fabric") in AXES["knit_structure"] and cloth.get("fabric") not in ("jersey", "mesh")
+        return ("beanie", {"style": "cuffed"}, [_UNSAID["knit_hat"]]) if knitted else \
+            ("cap", {"style": "structured"}, [_UNSAID["hat"]])
+    if category == "scarf" and (cloth.get("fabric") in AXES["knit_structure"] or cloth.get("fiber") == "silk"):
+        style = "knit" if cloth.get("fabric") in AXES["knit_structure"] else "silk"
+        return "scarf", {"style": style}, []
+    return category, {"style": _PLAIN_STYLE[category]}, [_UNSAID[category]]
+
+
+_KIND_NOTES = {
+    "baseball_cap_structured": (D, "a tall six-panel crown with a stiff front and a curved peak"),
+    "dad_cap": (D, "a lower, softer crown"),
+    "five_panel": (D, "a flat front panel and a short peak"),
+    "trucker_cap": (D, "a tall front panel and mesh sides"),
+    "beanie": (D, "a knitted crown with a turned-up cuff"),
+    "fisherman_beanie": (D, "short, sitting high, with a deep cuff"),
+    "beret": (D, "a soft flat crown leaning to one side, drawn with the beanie template"),
+    "trapper": (D, "a padded crown with ear flaps, drawn with the beanie template"),
+    "flat_cap": (D, "a low rounded crown sloping onto a short peak"),
+    "newsboy": (D, "a fuller crown in panels, with a button on top and a short peak"),
+    "bucket_hat": (D, "a round crown and a brim sloping down all round"),
+    "fedora": (D, "a pinched crown with a dent, a ribbon band and a medium brim"),
+    "trilby": (D, "a shorter pinched crown and a narrow brim"),
+    "panama": (D, "a fedora's shape in woven straw"),
+    "boater": (D, "a flat-topped crown, a stiff flat brim and a band"),
+    "wide_brim": (D, "a fedora's crown on a wide brim"),
+    "cowboy_hat": (D, "a tall dented crown and a brim curled up at the sides"),
+    "dress_belt": (D, "a narrow strap with a small buckle"),
+    "casual_leather": (D, "a wider strap with a larger buckle"),
+    "braided_leather": (D, "a braided strap with no holes"),
+    "canvas_web": (D, "a woven web strap with a slide buckle and a metal tip"),
+    "woven_elastic": (D, "a stretch strap woven in a zigzag, with no holes"),
+    "western": (D, "a wide tooled strap with a large buckle"),
+    "reversible": (A_, "drawn as a dress belt: its other side is not shown"),
+    "long_knit": (D, "ribbed, with plain ends"),
+    "woven_wool": (D, "fringed ends"),
+    "cashmere": (D, "fringed ends and a soft edge"),
+    "silk": (D, "a narrow scarf with pointed ends"),
+    "bandana": (D, "a square folded into a triangle and knotted"),
+    "neck_gaiter": (D, "a short tube"),
+    "tote": (D, "an open bag with two handles"),
+    "daypack": (D, "a rounded backpack with a grab handle and a zipped front pocket"),
+    "rucksack": (D, "a backpack with a flap held by two straps"),
+    "roll_top": (D, "a backpack whose top is rolled down and clipped"),
+    "messenger": (D, "a wide flap and a strap over the shoulder"),
+    "briefcase": (D, "a stiff case with a top handle and a clasp"),
+    "duffel": (D, "a barrel-shaped bag with two handles"),
+    "crossbody_sling": (D, "a small rounded bag on a long strap"),
+    "belt_bag": (D, "a small curved pouch with a strap out to each side"),
+    "dopp_kit": (D, "a small zipped case"),
+}
+# accessory garment ids, and the kinds of each, as the drawing shows them
+COVERAGE["accessory"] = {
+    g: ((D, f"its own template, `{g}`") if g in ACCESSORY_TEMPLATES else
+        (N_, "no shape of its own yet: a plain tag stands in for it (the `accessory` template)"))
+    for g in ACCESSORY_GARMENTS}
+for _group in dict.fromkeys(ACCESSORY_GROUP.values()):
+    COVERAGE[_group] = {k: _KIND_NOTES.get(k, (N_, "no shape of its own yet: a plain tag stands in for it"))
+                        for k in ACCESSORIES[_group]}

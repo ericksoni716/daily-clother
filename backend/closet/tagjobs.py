@@ -47,9 +47,9 @@ _CONFIDENCE = {"category": "category_confidence", "color": "color_confidence", "
 FAILED = ("Claude could not describe this item after three tries. You can try again, or retake the photo "
           "against a plainer background.")
 NO_PHOTO = "This item has no photo for Claude to look at."
-SIGN_IN = ("Claude Code on this computer can't use your Claude plan: Anthropic turned down how it is signed in. "
-           "Open Terminal, type claude, then /login, and choose your Claude subscription. It will be described "
-           "by itself once that works.")
+SIGN_IN = ("Claude Code on this computer can't use your Claude plan: Anthropic turned down the account it is "
+           "signed in to (for example a work account that has been turned off). Open Terminal, type claude, then "
+           "/logout, then /login with your own Claude subscription. It will be described by itself once that works.")
 _WAIT_NOTES = (spend.LIMIT_REACHED, SIGN_IN)   # why waiting items wait, when Closet knows
 
 

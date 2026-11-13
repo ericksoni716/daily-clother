@@ -31,8 +31,9 @@ _LOGIN_WORDS = ("not logged in", "please run /login", "authentication")
 # "API Error: 400 Not a valid API key for this workspace" or "Invalid API key · Fix external API key"
 _KEY_WORDS = ("not a valid api key", "invalid api key", "invalid x-api-key", "external api key", "api error: 401")
 NOT_SIGNED_IN = "Claude Code is not signed in on this computer (run `claude` once and log in)"
-KEY_REFUSED = ("Claude Code on this computer is signed in with an API key that Anthropic turns down, "
-               "not with your Claude plan (run `claude`, type /login and choose your Claude subscription)")
+KEY_REFUSED = ("Claude Code on this computer is signed in to an account Anthropic no longer accepts (for example "
+               "a work account that has been turned off), not to your Claude plan (run `claude`, type /logout, "
+               "then /login with your own Claude subscription)")
 
 
 def sign_in_problem(text: str) -> str | None:

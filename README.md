@@ -298,11 +298,11 @@ Tagging** in Closet and press **Check again**: "Your Claude plan, through
 Claude Code" should say **ready**. If it says Claude Code is not installed,
 quit Closet and start it again so it sees the new program.
 
-**If an item says Anthropic turned down how Claude Code is signed in:** Claude
-Code on your computer is using an API key (for example from signing in with an
-Anthropic Console account) instead of your Claude plan, and that key is not
-accepted. In Terminal (or PowerShell) type `claude`, then `/login`, choose your
-Claude subscription and sign in, then `/exit`. Your items are described by
+**If an item says Anthropic turned down the account Claude Code is signed in
+to:** Claude Code on your computer is signed in to an account that no longer
+works, for example a work account that has been turned off, instead of your
+own Claude plan. In Terminal (or PowerShell) type `claude`, then `/logout`,
+then `/login`, sign in with your own Claude subscription, then `/exit`. Your items are described by
 themselves within a minute or two; an item that already says Claude couldn't
 describe it needs **Try again**.
 

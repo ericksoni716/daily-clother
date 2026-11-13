@@ -36,6 +36,13 @@ Your browser then opens the app:
 To stop the program use **Quit Closet** in the icon's menu or in Settings.
 Double-clicking the program while it is already running just opens the app.
 
+Every day: open an item and tap **Wore it today** (tap **Undo** if that was a
+mistake). The item shows how often it has been worn and when last, and lists
+the recent days, each of which can be removed. **Put in the laundry** and
+**It's clean** keep track of the wash; in the closet, items in the laundry
+carry a small mark, and the **Clean** and **In the laundry** buttons show only
+those.
+
 ## Adding your clothes
 
 Open **Add**. One piece of clothing per photo works best.
@@ -84,6 +91,43 @@ sharing: `tailscale serve reset`.
 The computer must be on and Closet running for the phone to add or change
 anything. When it is not, the phone still shows your closet from its last
 visit, read-only.
+
+## Installing Claude Code
+
+Closet will ask Claude to describe your clothes (what kind of garment, colour,
+collar, buttons and so on). It does this through **Claude Code**, a free
+program from Anthropic that uses your Claude plan, so nothing extra is charged
+per photo. An API key can be used instead, but it is billed per photo and is
+only used when the plan can't be. **Settings → Tagging** shows which of the two
+Closet can use right now.
+
+You install Claude Code once and sign in once. You need to type two short
+commands; copy and paste them exactly.
+
+**Windows:**
+
+1. Open the Start menu, type **PowerShell** and open **Windows PowerShell**.
+2. Paste this line and press Enter:
+   `irm https://claude.ai/install.ps1 | iex`
+   (or, if you prefer the Windows package manager: `winget install Anthropic.ClaudeCode`).
+3. When it has finished, close PowerShell and open it again.
+
+**Mac:**
+
+1. Open **Terminal** (press Command-Space, type **Terminal**, press Enter).
+2. Paste this line and press Enter:
+   `curl -fsSL https://claude.ai/install.sh | bash`
+3. When it has finished, close Terminal and open it again.
+
+**Sign in (both):** in the same window type `claude` and press Enter. It opens
+your browser; sign in with your Claude account, then come back and type
+`/exit` to close it. This sign-in is remembered.
+
+**Check it:** type `claude auth status` and press Enter. It says you are logged
+in (and which account) when everything is ready. Then open **Settings →
+Tagging** in Closet and press **Check again**: "Your Claude plan, through
+Claude Code" should say **ready**. If it says Claude Code is not installed,
+quit Closet and start it again so it sees the new program.
 
 ## Your data
 

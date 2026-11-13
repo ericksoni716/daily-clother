@@ -9,11 +9,20 @@ owner; see `DECISIONS.md`, "How the work is organised").
 - **Track 2, the app:** what the program does. The owner tries the downloaded
   program at each stop (A, B, C, D, then smaller ones).
 
+## In progress (Copilot agents)
+
+Wave 1, started together because none depends on another:
+- #20 Tagging in the app, part 1: the tagger and its two routes move into the backend; Settings shows which routes are available.
+- #21 Bulk import of single-item photos, with duplicates caught and resume (migration 0003 if one is needed).
+- #22 Wear log and laundry state (migration 0004).
+- #23 and #24 Outfit engine: the rules that choose today's outfits, with an API and no screen. The same task given to two models; the better result is merged.
+
+Next, as these land: tagging part 2 (tag each item after its cutout and store the full answer, migration 0002), the drawing in the app, corrections and the review queue; the weather lookup, the outfit screen, mannequin layering and outfit rating; then gap analysis and shopping.
+
 ## Waiting on the owner
-- **Garment review**: marks and notes in the review gallery (a private Claude artifact; rebuilt each round with `tools/make_review_gallery.py`).
+- **Garment review**: the owner called the drawings good enough for now (after round 7). Marks and notes in the review gallery are still read when they appear; drawing work is parked until asked for.
 - **Mac 0.1.1**: confirm the background-removal model now downloads on the owner's Mac.
 - **The Windows build** for stop A has still not been made or tried.
-- **Whether thick cloth now looks thick** (review gallery, section "Weight and cloth") and **whether the rebuilt jackets look right** (blazer, sport coat, suit jacket, overcoat, peacoat), and **whether garments worn open look right** (round 7, section "Worn open").
 - **The app's top UI complaints**, as the brief for UI tasks. A full interface-design pass comes after more features exist.
 - **25–30 photos of the owner's own clothes** with an answer key (`bench/answer_key.template.csv`). Most useful: items that differ from the usual (a polo with one or three buttons, a henley, corduroy, fleece or heavy wool beside light cotton, a sweatshirt with a V-insert). The bench runs them through the Claude plan by default; an API key is optional.
 - Three photos for the untested hard cases: something striped, something floral or patterned, something camouflage.

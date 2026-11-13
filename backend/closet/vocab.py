@@ -1,7 +1,7 @@
 """The small, coarse vocabulary items are described with.
 
 Kept short on purpose: these are the words that drive outfits and gaps. The
-tagging bench uses the same lists (a test keeps the two in step).
+tagger (`closet/tagger/schema.py`) uses the same lists (a test keeps the two in step).
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ COLOR = ["black", "white", "grey", "navy", "blue", "light_blue", "green", "olive
 PATTERN = ["solid", "stripe", "plaid", "floral", "camo", "graphic", "other"]
 FORMALITY = ["athletic", "casual", "smart_casual", "business", "formal"]
 SEASON = ["warm", "cool", "all"]
-LOCATION = ["closet", "drawer", "laundry", "storage"]
+LOCATION = ["closet", "drawer", "storage"]  # where an item lives when clean; the laundry is its own state (wears.py)
 CONDITION = ["new", "good", "worn", "needs_repair"]
 RATING = ["love", "like", "meh", "dislike"]
 SILHOUETTE = {

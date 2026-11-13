@@ -1,4 +1,4 @@
-import type { Item, ItemPatch, ItemSummary, ModelInfo, Session, Settings, Storage, Vocab, Profile, BackupRecord } from './types';
+import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingStatus, Vocab, Profile, BackupRecord } from './types';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
 export class ApiError extends Error {
@@ -114,6 +114,11 @@ export const api = {
   patch: (id: string, changes: ItemPatch) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes }),
   remove: (id: string) => request<void>(`/api/items/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  wear: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/wears`, { method: 'POST' }),
+  unwear: (id: string, day: string) =>
+    request<Item>(`/api/items/${encodeURIComponent(id)}/wears/${encodeURIComponent(day)}`, { method: 'DELETE' }),
+  setLaundry: (id: string, state: Laundry) =>
+    request<Item>(`/api/items/${encodeURIComponent(id)}/laundry`, { method: 'POST', body: { state } }),
   retryCutout: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/retry-cutout`, { method: 'POST' }),
   /** `duplicate` is true when the photo was already in the closet; the item returned is the one it is in. */
   upload: (photo: Blob, filename: string, clientKey: string, sha256?: string | null, signal?: AbortSignal) => {
@@ -130,6 +135,7 @@ export const api = {
   putSettings: (changes: { backup_folder?: string | null; autostart?: boolean }) =>
     request<Settings>('/api/settings', { method: 'PUT', body: changes }),
   storage: () => request<Storage>('/api/storage'),
+  tagging: () => request<TaggingStatus>('/api/tagging'),
   backup: () => request<BackupRecord>('/api/backup', { method: 'POST' }),
   setProfile: (profile: Profile) => request<{ profile: Profile }>('/api/profile', { method: 'POST', body: { profile } }),
   quit: () => request<void>('/api/quit', { method: 'POST' }),

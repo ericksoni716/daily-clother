@@ -1,5 +1,6 @@
 export type CutoutState = 'none' | 'pending' | 'processing' | 'ready' | 'failed';
 export type Profile = 'main' | 'demo';
+export type Laundry = 'clean' | 'laundry';
 export type ModelState = 'missing' | 'downloading' | 'failed' | 'ready';
 
 export interface Session {
@@ -24,6 +25,11 @@ export interface ItemSummary {
   has_illustration: boolean;
   illustration_url?: string | null;
   has_photo: boolean;
+  /** Local date ("YYYY-MM-DD") of the latest wear, or null. */
+  last_worn: string | null;
+  wear_count: number;
+  wears_since_wash: number;
+  laundry: Laundry;
   created_at: string;
   updated_at: string;
 }
@@ -57,6 +63,8 @@ export interface Item extends ItemSummary {
   cutout_error: string | null;
   silhouette: Silhouette;
   photos: Photo[];
+  /** The latest wears, newest first. */
+  recent_wears: string[];
 }
 
 export type ItemPatch = Partial<Omit<Item, 'silhouette'>> & { silhouette?: Record<string, string | null> };
@@ -119,4 +127,18 @@ export interface Storage {
   total_bytes: number;
   data_dir: string;
   free_bytes: number | null;
+}
+
+/** One way of reaching Claude: the owner's Claude plan through Claude Code, or an API key. */
+export interface TaggingRoute {
+  id: 'plan' | 'api';
+  available: boolean;
+  /** Why it can't be used right now, in plain words; empty when it can. */
+  detail: string;
+}
+
+/** Which routes to Claude can be used right now, and the order they are tried in. */
+export interface TaggingStatus {
+  order: TaggingRoute['id'][];
+  routes: TaggingRoute[];
 }

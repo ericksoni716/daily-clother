@@ -1,6 +1,7 @@
 """The web API and the page it serves."""
 from __future__ import annotations
 
+import json
 import logging
 import threading
 import time
@@ -14,11 +15,12 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from PIL import Image
 from pydantic import BaseModel
 
-from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, phone, storage, vocab
+from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, outfits, phone, storage, vocab, wears
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
 from .modelstore import MODEL, ModelStore
 from .state import State
+from .tagger import routes as tagger_routes
 
 log = logging.getLogger("closet.app")
 
@@ -94,6 +96,15 @@ class ProfileChoice(BaseModel):
 
 class ModelUrl(BaseModel):
     url: str | None = None
+
+
+class WearDay(BaseModel):
+    worn_on: str | None = None
+    model_config = {"extra": "forbid"}
+
+
+class LaundryState(BaseModel):
+    state: str
 
 
 class SettingsPatch(BaseModel):
@@ -181,10 +192,13 @@ def create_app(sv: Services) -> FastAPI:
         return vocab.as_dict()
 
     @app.get("/api/items", dependencies=protected)
-    def list_items(status: str = "active", category: str | None = None, q: str | None = None, conn=Depends(conn_dep)):
+    def list_items(status: str = "active", category: str | None = None, q: str | None = None, laundry: str | None = None,
+                   conn=Depends(conn_dep)):
         if status not in ("active", "archived"):
             raise HTTPException(422, "Status must be active or archived.")
-        return {"items": items.list_items(conn, status, category, q)}
+        if laundry is not None and laundry not in wears.LAUNDRY:
+            raise HTTPException(422, "The laundry filter must be clean or laundry.")
+        return {"items": items.list_items(conn, status, category, q, laundry)}
 
     @app.post("/api/items", dependencies=protected)
     async def create_item(response: Response, photo: UploadFile = File(...), client_key: str | None = Form(None),
@@ -229,6 +243,24 @@ def create_app(sv: Services) -> FastAPI:
         sv.worker.wake()
         return item
 
+    @app.get("/api/items/{item_id}/wears", dependencies=protected)
+    def list_wears(item_id: str, conn=Depends(conn_dep)):
+        return {"wears": wears.list_wears(conn, item_id)}
+
+    @app.post("/api/items/{item_id}/wears", dependencies=protected)
+    def add_wear(item_id: str, response: Response, body: WearDay | None = None, conn=Depends(conn_dep)):
+        item, created = wears.add(conn, item_id, body.worn_on if body else None)
+        response.status_code = 201 if created else 200
+        return item
+
+    @app.delete("/api/items/{item_id}/wears/{worn_on}", dependencies=protected)
+    def remove_wear(item_id: str, worn_on: str, conn=Depends(conn_dep)):
+        return wears.remove(conn, item_id, worn_on)
+
+    @app.post("/api/items/{item_id}/laundry", dependencies=protected)
+    def set_laundry(item_id: str, body: LaundryState, conn=Depends(conn_dep)):
+        return wears.set_laundry(conn, item_id, body.state)
+
     @app.get("/media/{rel:path}", dependencies=protected)
     def media(rel: str):
         root = images_dir().resolve()
@@ -237,6 +269,33 @@ def create_app(sv: Services) -> FastAPI:
             raise HTTPException(404, "No such image.")
         return FileResponse(target, media_type="image/webp",
                             headers={"Cache-Control": "private, max-age=31536000, immutable"})
+
+    # -------------------------------------------------------------- outfits
+    @app.post("/api/outfits/suggest", dependencies=protected)
+    async def suggest_outfits(request: Request):
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        try:
+            ctx, count = outfits.parse_request(body)
+        except outfits.ContextError as e:
+            raise HTTPException(422, str(e))
+        path = cfg.db_path(state.get("profile"))
+
+        def work() -> dict:
+            conn = db.connect(path)
+            try:
+                rows = [{**{k: r[k] for k in r.keys() if k not in ("illustration_svg", "confidence", "source")},
+                         "silhouette": json.loads(r["silhouette"] or "{}")} for r in conn.execute("SELECT * FROM items")]
+            finally:
+                conn.close()
+            if ctx.build_around and not any(r["id"] == ctx.build_around for r in rows):
+                raise HTTPException(422, "The item to build around is not in this closet.")
+            return outfits.suggest(rows, ctx, count)
+
+        # comparing thousands of combinations takes a moment; do it in a worker thread so other requests keep being answered
+        return await run_in_threadpool(work)
 
     # ---------------------------------------------------------------- model
     @app.get("/api/model", dependencies=protected)
@@ -298,6 +357,11 @@ def create_app(sv: Services) -> FastAPI:
     async def get_storage():
         # walking a big closet takes a while; do it in a worker thread so other requests keep being answered
         return await run_in_threadpool(storage.usage, cfg, state.get("profile"))
+
+    @app.get("/api/tagging", dependencies=protected)
+    async def get_tagging():
+        # starts `claude auth status` (a few seconds at most), so keep it off the event loop
+        return await run_in_threadpool(tagger_routes.status)
 
     @app.post("/api/backup", dependencies=protected)
     def backup_now():

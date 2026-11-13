@@ -280,6 +280,10 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .badge svg { width: 14px; height: 14px; flex: none; }
 .badge-warn { color: #8a3a10; }
+.tile-mark {
+  position: absolute; top: 8px; right: 8px; padding: 3px 8px; border-radius: 999px; font-size: 0.72rem; font-weight: 650;
+  background: var(--accent-bg); color: var(--accent-ink); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
 .spinner {
   width: 12px; height: 12px; flex: none; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent;
   animation: spin 0.9s linear infinite; opacity: 0.8;
@@ -365,6 +369,13 @@ button, input, textarea, select { font: inherit; color: inherit; }
 @media (min-width: 600px) { .more-body { grid-template-columns: 1fr 1fr; column-gap: 14px; } .more-body .chip-group, .more-body label:last-child { grid-column: 1 / -1; } }
 .detail-panel .more-body { grid-template-columns: 1fr; }
 
+.wear { margin: 4px 0 18px; padding: 14px; border-radius: var(--radius-small); background: var(--surface-2); }
+.wear-summary { font-weight: 650; margin: 0 0 2px; }
+.wear .muted { margin: 0 0 12px; font-size: 0.92rem; }
+.wear-done { font-weight: 600; color: var(--accent); }
+.wear-recent { margin-top: 14px; }
+.wear-recent ul { list-style: none; margin: 0; padding: 0; }
+.wear-recent li { display: flex; align-items: center; justify-content: space-between; min-height: 40px; border-top: 1px solid var(--line); }
 .detail-actions { margin: 8px 0 12px; }
 .confirm { padding: 14px; border-radius: var(--radius-small); background: var(--danger-soft); }
 .confirm p { margin-bottom: 12px; }
@@ -438,6 +449,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .storage-list div { display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; border-bottom: 1px solid var(--line); }
 .storage-list div:last-child { border-bottom: 0; }
 .storage-list dd { margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.route-list { margin: 0 0 12px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.route-list .hint { margin: 2px 0 0 18px; }
 
 .toggle { display: flex; align-items: center; gap: 14px; cursor: pointer; position: relative; min-height: var(--tap); }
 .toggle-text { flex: 1; display: flex; flex-direction: column; }

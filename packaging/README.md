@@ -60,7 +60,9 @@ Each run gets a fresh temporary data folder (`CLOSET_DATA_DIR`) and
 - `--no-browser --no-tray --port N`: `/api/health` answers within 120 s with
   `app: closet`, `model_state: missing`, `setup_required: true`; `GET /` is
   the built page (`id="root"`); `POST /api/setup` gives 204 and a session
-  cookie; `GET /api/items` is 200; after switching to the demo profile there
+  cookie; `GET /api/items` is 200; `GET /api/tagging` is 200 and lists the
+  plan route then the API route (which proves the tagger package and its
+  `models.json` were bundled); after switching to the demo profile there
   are 30 items; `POST /api/quit` makes the program exit with code 0 within
   30 s; the data folder has `closet.db` and no `closet.lock`.
 - `--cutout --model FILE` copies the model into the data folder and requires

@@ -1,5 +1,6 @@
 {
  "style": "line",
+ "schema_version": 1,
  "items": [
   {
    "id": "05cb8b7edd6a5ac983080bc0521b5248",
@@ -2469,6 +2470,5 @@
     "needs_shot": null
    }
   }
- ],
- "schema_version": 1
+ ]
 }

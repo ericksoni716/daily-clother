@@ -4,6 +4,7 @@ import { ModelProgress, modelStateText } from '../components/ModelBanner';
 import { PhoneAccess } from '../components/PhoneAccess';
 import { WhereYouAre } from '../components/WhereYouAre';
 import { formatDateTime, formatSize, parsePrice } from '../labels';
+import { Link } from '../router';
 import { dayName, formatUsd, monthName, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
 import { useCloset } from '../store';
 import type { ModelInfo, Profile, Settings, Storage, TaggingRoute, TaggingSpend, TaggingStatus } from '../types';
@@ -52,6 +53,7 @@ export function SettingsScreen({ version }: { version: string }) {
         <div className="settings-col">
           <Section title="Where you are" id="s-place">
             <WhereYouAre place={settings ? settings.place : undefined} offline={offline} onChange={setSettings} toast={toast} />
+            <p className="hint">Going away? <Link to="/trips">Plan a trip</Link> and Closet says what to pack for the weather there.</p>
           </Section>
           {settings && (
             <Section title="Phone access" id="s-phone">

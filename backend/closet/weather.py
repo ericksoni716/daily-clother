@@ -49,7 +49,7 @@ def fetch(url: str) -> bytes:
     """One GET to Open-Meteo through the computer's certificates. Tests replace this."""
     req = urllib.request.Request(url, headers={"User-Agent": f"Closet/{__version__}", "Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=TIMEOUT_S, context=net.ssl_context()) as r:
-        return r.read(MAX_BYTES)
+        return r.read(MAX_BYTES + 1)
 
 
 def _now() -> float:
@@ -59,7 +59,10 @@ def _now() -> float:
 
 def _get(url: str, params: dict) -> dict:
     try:
-        data = json.loads(fetch(f"{url}?{urlencode(params)}"))
+        raw = fetch(f"{url}?{urlencode(params)}")
+        if len(raw) > MAX_BYTES:
+            raise WeatherError("The weather service gave an answer that was too large.")
+        data = json.loads(raw)
     except urllib.error.HTTPError as e:
         log.warning("weather service answered %s", e.code)
         raise WeatherError(f"The weather service answered with an error ({e.code}).") from None

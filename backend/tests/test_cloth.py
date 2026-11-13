@@ -4,7 +4,7 @@ import json
 import pytest
 
 from closet import app as app_module
-from closet import db, gaps, outfits, today
+from closet import db, outfits, today
 
 from .conftest import upload
 
@@ -159,7 +159,8 @@ def warm_coat_score(body):
 
 def test_the_gaps_use_the_stored_answer_and_a_new_one_is_not_served_from_the_cache(client, cfg, monkeypatch):
     runs = []
-    monkeypatch.setattr(app_module, "find_gaps", lambda *a: runs.append(1) or gaps.find_gaps(*a))
+    original = app_module.life.analyse
+    monkeypatch.setattr(app_module.life, "analyse", lambda *a: runs.append(1) or original(*a))
     assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
     coat_id = next(i["id"] for i in client.get("/api/items").json()["items"] if i["category"] == "coat")
     before = client.get("/api/gaps").json()

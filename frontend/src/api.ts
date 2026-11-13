@@ -5,6 +5,7 @@ import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherChe
 import type { Insights } from './insights';
 import type { OutfitSent, Rating, Reason, WornOutfit, WornPage } from './worn';
 import type { GapsAnswer, HideReason, Wish } from './gaps';
+import type { Life } from './life';
 import type { FigurePieces } from './figure';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
@@ -176,7 +177,7 @@ export const api = {
   downloadModel: () => request<ModelInfo>('/api/model/download', { method: 'POST' }),
   setModelUrl: (url: string) => request<ModelInfo>('/api/model/url', { method: 'PUT', body: { url } }),
   settings: () => request<Settings>('/api/settings'),
-  putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean; tagging_api_cap_usd?: number | null }) =>
+  putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean; tagging_api_cap_usd?: number | null; life?: Life | null; life_prompt_dismissed?: boolean }) =>
     request<Settings>('/api/settings', { method: 'PUT', body: changes }),
   storage: () => request<Storage>('/api/storage'),
   tagging: () => request<TaggingStatus>('/api/tagging'),

@@ -1,7 +1,7 @@
 {
  "style": "line",
- "schema_version": 1,
- "drawing_version": 1,
+ "schema_version": 2,
+ "drawing_version": 2,
  "items": [
   {
    "id": "05cb8b7edd6a5ac983080bc0521b5248",
@@ -79,6 +79,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -157,6 +159,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -236,6 +240,8 @@
      "shoe_style": "low_sneaker",
      "sole_color": "white",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -323,6 +329,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -401,6 +409,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -488,6 +498,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -568,6 +580,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": [
       "paper plane print on the chest"
@@ -657,6 +671,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -743,6 +759,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -831,6 +849,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [
       "contrast_stitching"
      ],
@@ -919,6 +939,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -999,6 +1021,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -1077,6 +1101,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -1155,6 +1181,8 @@
      "shoe_style": "runner",
      "sole_color": "white",
      "lace_color": "white",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -1242,6 +1270,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -1334,6 +1364,8 @@
      "shoe_style": "low_sneaker",
      "sole_color": "white",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -1411,6 +1443,8 @@
      "shoe_style": "high_top",
      "sole_color": "white",
      "lace_color": "white",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -1489,6 +1523,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -1574,6 +1610,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -1660,6 +1698,8 @@
      "shoe_style": "boot",
      "sole_color": "black",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -1745,6 +1785,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -1824,6 +1866,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -1915,6 +1959,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [
       "contrast_stitching"
      ],
@@ -2004,6 +2050,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -2091,6 +2139,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -2171,6 +2221,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -2251,6 +2303,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -2339,6 +2393,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -2416,6 +2472,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [],
      "other_features": []
     },
@@ -2495,6 +2553,8 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
      "features": [
       "pleats"
      ],

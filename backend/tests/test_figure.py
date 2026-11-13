@@ -268,3 +268,58 @@ def test_the_figure_route_keeps_demo_and_main_closets_apart(client):
     client.post("/api/profile", json={"profile": "main"})
     assert client.post("/api/outfits/figure", json={"base": by_cat["tee"]}).status_code == 422
     assert client.post("/api/outfits/figure", json={"base": main_item["id"]}).status_code == 200
+
+
+# ------------------------------------------------------------------ accessories
+
+BELT = Piece("belt", answer("belt", accessory="belt", accessory_kind="dress_belt"), "#5a3a22")
+HAT = Piece("hat", answer("hat", accessory="brimmed_hat", accessory_kind="fedora"), "#555555")
+SCARF = Piece("scarf", answer("scarf", accessory="scarf", accessory_kind="long_knit"), "#b8332e")
+BAG = Piece("bag", answer("bag", accessory="bag", accessory_kind="tote"), "#c2a878")
+TIE = Piece("other", answer("other", accessory="tie", accessory_kind="silk_woven"), "#27344f")
+
+
+def test_each_accessory_is_placed_at_its_point_on_the_wearer():
+    layout = plan(dict(base=TEE, bottom=JEANS, shoes=SNEAKERS, accessories=[BELT, HAT, SCARF, BAG, TIE]))
+    got = {p.place: p for p in layout.pieces}
+    assert [p for p in ("belt", "scarf", "hat", "bag") if p in got] == ["belt", "scarf", "hat", "bag"]
+    assert "other" not in got and len(layout.pieces) == 7   # a tie is not drawn in the figure
+    assert got["belt"].point(got["belt"].shape.anchors["waist"]) == pytest.approx((fig.CX, fig.BELT_Y))
+    assert got["scarf"].point(got["scarf"].shape.anchors["neck"]) == pytest.approx((fig.CX, fig.NECK_Y))
+    hx, hy = got["hat"].point(got["hat"].shape.anchors["head"])
+    assert hx == pytest.approx(fig.CX) and hy == pytest.approx(fig.NECK_Y - fig.HAT_ABOVE_NECK_CM * K_PX)
+    assert got["hat"].box()[3] < fig.NECK_Y   # above the collar
+    # the bag beside the figure, on the viewer's right, its handle at a hand's height
+    right = max(p.box()[2] for p in layout.pieces if p.place != "bag")
+    assert got["bag"].box()[0] > right
+    assert got["bag"].point(got["bag"].shape.anchors["hand"])[1] == pytest.approx(WAIST_Y + fig.HAND_BELOW_WAIST_CM * K_PX)
+    # each at the same scale as the clothes
+    assert all(got[p].px_per_cm == K_PX for p in ("belt", "scarf", "hat", "bag"))
+
+
+def test_a_belt_tucks_the_first_top_in_and_only_the_first_of_each_accessory_is_drawn():
+    svg = figure(dict(base=TEE, bottom=JEANS, accessories=[BELT, Piece("belt", None, "#00ff00")]))
+    assert "#5a3a22" not in svg or "#00ff00" not in svg
+    assert 'clip-path="url(#kft0)"' in svg   # the tee is cut off at the belt
+    alone = figure(dict(bottom=JEANS, accessories=[BELT]))   # on the trousers when there is no top
+    assert alone.startswith("<svg") and "#kft0" not in alone
+
+
+def test_odd_accessories_do_not_raise():
+    for accessories in (None, "a bag", [None, 3, "x"], [TEE], [Piece("other")], [Piece("bag", answer="not json")],
+                        [Piece("hat", color_hex="url(javascript:x)")]):
+        svg = figure(dict(base=TEE, accessories=accessories))
+        assert svg.startswith("<svg") and "javascript" not in svg
+    assert [p.place for p in plan(dict(base=TEE, accessories=[TEE, Piece("other")])).pieces] == ["base"]
+
+
+def test_the_figure_route_takes_accessories(client):
+    a, b = upload(client, key="e").json(), upload(client, key="f").json()
+    client.patch(f"/api/items/{a['id']}", json={"category": "tee"})
+    client.patch(f"/api/items/{b['id']}", json={"category": "hat", "color_hex": "#654321"})
+    r = client.post("/api/outfits/figure", json={"base": a["id"], "accessories": [b["id"]]})
+    assert r.status_code == 200 and "#654321" in r.text
+    assert client.post("/api/outfits/figure", json={"accessories": [b["id"]]}).status_code == 200
+    assert client.post("/api/outfits/figure", json={"base": a["id"], "accessories": None}).status_code == 200
+    for bad in ("x", [3], [""], ["x" * 65], ["not-an-item"], [b["id"]] * 9):
+        assert client.post("/api/outfits/figure", json={"base": a["id"], "accessories": bad}).status_code == 422, bad

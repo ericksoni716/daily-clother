@@ -689,7 +689,7 @@ _KIND_NOTES = {
     "reversible": (A_, "drawn as a dress belt: its other side is not shown"),
     "long_knit": (D, "ribbed, with plain ends"),
     "woven_wool": (D, "fringed ends"),
-    "cashmere": (D, "fringed ends and a soft edge"),
+    "cashmere": (A_, "drawn as a woven wool scarf with a soft edge (halo)"),
     "silk": (D, "a narrow scarf with pointed ends"),
     "bandana": (D, "a square folded into a triangle and knotted"),
     "neck_gaiter": (D, "a short tube"),

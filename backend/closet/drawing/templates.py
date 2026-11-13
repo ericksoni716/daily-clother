@@ -2168,14 +2168,14 @@ def beanie(**kw) -> Shape:
 # crown height, crown top half width, top shape, brim half width, brim tip height, brim fall at the front, band
 _BRIMMED = {
     "fedora": (11.0, 7.0, "dent", 15.0, -1.2, 2.6, 2.0),
-    "trilby": (9.5, 6.5, "dent", 12.2, -2.4, 2.4, 1.8),
+    "trilby": (9.5, 6.5, "dent", 11.0, -0.6, 3.0, 1.8),
     "panama": (11.0, 7.0, "dent", 15.0, -1.2, 2.6, 2.0),
     "wide_brim": (12.0, 7.2, "dent", 20.0, -1.0, 3.2, 2.2),
     "cowboy": (13.0, 7.6, "cattleman", 19.0, -5.5, 3.0, 1.6),
     "boater": (8.0, 8.8, "flat", 15.0, -0.6, 1.4, 3.4),
     "bucket": (8.5, 7.6, "round", 0.0, 0.0, 0.0, 0.0),
-    "flat_cap": (6.2, 9.4, "low", 9.2, 0.2, 2.4, 0.0),
-    "newsboy": (8.2, 10.6, "full", 9.2, 0.2, 2.4, 0.0),
+    "flat_cap": (6.2, 9.4, "low", 8.4, 0.2, 3.6, 0.0),
+    "newsboy": (8.2, 10.6, "full", 8.4, 0.2, 3.6, 0.0),
 }
 
 
@@ -2270,7 +2270,7 @@ def belt(**kw) -> Shape:
         _belt_surface(dr, style, [(-half + 0.3, half - 0.3, 0.0)], w)
         return _finish(dr, kw.get("px"))
     # laid flat, folded in half: the buckle end along the top, round the fold, the tip back along the bottom
-    L, g = 26.0, 0.6
+    L, g = 15.0, 0.6
     tip = -L + 4.0
     outline = [("M", (-L, -g - w)), ("L", (L, -g - w)), ("C", (L + (w + g) * 1.33, -g - w), (L + (w + g) * 1.33, g + w), (L, g + w)),
                ("L", (tip + 1.6, g + w))]
@@ -2322,7 +2322,7 @@ def _belt_surface(dr: _Draft, style: str, runs, w):
                 dr.line((x, y + w / 2), (x + 1.4, y))
                 x += 1.4
         elif style == "web":   # the weave runs along the strap
-            for f in (-0.3, -0.1, 0.1, 0.3):
+            for f in (-0.25, 0.25):
                 dr.line((x0, y + f * w), (x1, y + f * w))
         elif style == "elastic":   # a zigzag weave
             pts, x, s = [], x0, -1
@@ -2468,7 +2468,7 @@ def bag(**kw) -> Shape:
     if style == "sling":
         dr = _Draft([("M", (-12.0, 20.0)), ("Q", (0, 15.0), (12.0, 20.0)), ("C", (14.5, 24.0), (14.0, 34.0), (9.0, 35.0)),
                      ("Q", (0, 36.5), (-9.0, 35.0)), ("C", (-14.0, 34.0), (-14.5, 24.0), (-12.0, 20.0)), ("Z",)], anchor="hand")
-        dr.behind.append((_arch(0, 22.0, 10.5, 0.0, 2.4), "trim", None))
+        dr.behind.append((_arch(0, 22.0, 8.0, 0.0, 2.4), "trim", None))
         dr.lines.append([("M", (-11.0, 23.5)), ("Q", (0, 19.0), (11.0, 23.5))])
         dr.part(_rr(7.6, 21.6, 9.0, 25.6, 0.5), "inlay", BUCKLE["gunmetal"])
         return _finish(dr, kw.get("px"))

@@ -9,8 +9,10 @@ from pathlib import Path
 
 import pytest
 
+from closet_bench.fills import Stripes
 from closet_bench.illustrate import Fill, Spec, render
-from closet_bench.taxonomy import (AXES, CORDUROY_WALES, COVERAGE, GARMENT_DRAWINGS, KNIT_GAUGES, TOP_AXES, WEIGHT_CLASSES,
+from closet_bench.taxonomy import (ACCESSORIES, ACCESSORY_GARMENTS, ACCESSORY_GROUP, ACCESSORY_TEMPLATES, AXES, CORDUROY_WALES,
+                                   COVERAGE, GARMENT_DRAWINGS, KNIT_GAUGES, TOP_AXES, WEIGHT_CLASSES, accessory_drawing,
                                    surface_extras, top_drawing)
 from closet_bench.templates import build
 
@@ -308,3 +310,49 @@ def test_jackets_stay_on_the_canvas_and_their_sleeves_off_the_body(name):
             d = ((Co[0] - K[0]) / math.dist(K, Co), (Co[1] - K[1]) / math.dist(K, Co))
             top_w = abs((A[0] - K[0]) * d[1] - (A[1] - K[1]) * d[0])
             assert math.dist(Co, Ci) < top_w, (fit, weight)
+
+
+def test_accessories_are_a_copy_of_the_json():
+    garments = {n: e["app_category"] for n, e in TAXONOMY["garments"].items() if e["category"] == "accessory"}
+    assert ACCESSORY_GARMENTS == garments
+    groups = {k: v for k, v in TAXONOMY["accessories"].items() if k != "app_category"}
+    assert {k: list(v) for k, v in ACCESSORIES.items()} == groups
+
+
+def test_coverage_names_every_accessory_and_every_kind():
+    assert set(COVERAGE["accessory"]) == set(ACCESSORY_GARMENTS)
+    for g, group in ACCESSORY_GROUP.items():
+        assert set(COVERAGE[group]) == set(ACCESSORIES[group]), group
+        drawn = g in ACCESSORY_TEMPLATES
+        assert (COVERAGE["accessory"][g][0] == "drawn") == drawn, g
+        if not drawn:   # nothing of an accessory with no shape of its own is claimed as drawn
+            assert all(status == "not_drawn" for status, _ in COVERAGE[group].values()), group
+
+
+STRIPED = Fill("stripes", "#27344f", stripes=Stripes("vertical", [("#27344f", 0.03), ("#ece4d0", 0.03)]))
+
+
+@pytest.mark.parametrize("garment", list(ACCESSORY_GARMENTS))
+def test_every_accessory_and_kind_draws_valid_svg_and_never_the_top(garment):
+    category = ACCESSORY_GARMENTS[garment]
+    for kind in (None, *ACCESSORIES[ACCESSORY_GROUP[garment]]):
+        made = accessory_drawing(category, garment, kind)
+        assert made is not None, (garment, kind)
+        template, params, notes = made
+        assert template != "top" and all(isinstance(n, str) and n for n in notes)
+        if category == "hat":   # a hat's kind decides which of the three hats draws it
+            assert template in ("cap", "beanie", "brimmed_hat"), (garment, kind)
+        else:
+            assert template == (garment if garment in ACCESSORY_TEMPLATES else "accessory"), (garment, kind)
+        params.pop("soft", None)
+        for fill in (Fill("solid", "#7a5a3a"), STRIPED):
+            valid(render(Spec(template, params, fill), "line", uid="acc"))
+
+
+def test_each_accessory_with_a_shape_draws_differently_by_kind():
+    for garment in ACCESSORY_TEMPLATES:
+        category = ACCESSORY_GARMENTS[garment]
+        drawn = {kind: render(Spec(*accessory_drawing(category, garment, kind)[:2], Fill("solid", "#336699")), "line")
+                 for kind, (status, _) in COVERAGE[ACCESSORY_GROUP[garment]].items() if status == "drawn"
+                 and accessory_drawing(category, garment, kind)[0] == garment}
+        assert len(set(drawn.values())) == len(drawn), garment

@@ -170,17 +170,28 @@ class FigureError(ValueError):
     """The request for an outfit figure cannot be answered; the message says why, in plain words."""
 
 
-def figure_ids(body) -> dict[str, str]:
+MAX_ACCESSORIES = 8   # an outfit's accessories, as many as one request may name
+
+
+def figure_ids(body) -> dict[str, str | list[str]]:
     """The item ids by place from a request for an outfit figure: places as the outfit engine names them
-    (base, mid, outer, bottom, shoes), each an item id or null."""
+    (base, mid, outer, bottom, shoes), each an item id or null, and "accessories", a list of up to
+    MAX_ACCESSORIES item ids (or null)."""
     if not isinstance(body, dict):
         raise FigureError("Send the items by place, for example {\"base\": \"…\", \"bottom\": \"…\"}.")
-    unknown = [k for k in body if k not in PLACES]
+    unknown = [k for k in body if k not in PLACES and k != "accessories"]
     if unknown:
-        raise FigureError(f"Unknown place: {unknown[0]}. The places are {', '.join(PLACES)}.")
-    ids = {}
+        raise FigureError(f"Unknown place: {unknown[0]}. The places are {', '.join(PLACES)} and accessories.")
+    ids: dict[str, str | list[str]] = {}
     for place, value in body.items():
         if value is None:
+            continue
+        if place == "accessories":
+            if not isinstance(value, list) or len(value) > MAX_ACCESSORIES or \
+                    not all(isinstance(v, str) and v and len(v) <= 64 for v in value):
+                raise FigureError(f"The accessories must be a list of at most {MAX_ACCESSORIES} item ids.")
+            if value:
+                ids[place] = list(dict.fromkeys(value))
             continue
         if not isinstance(value, str) or not value or len(value) > 64:
             raise FigureError(f"The {place} must be an item id or null.")
@@ -190,18 +201,24 @@ def figure_ids(body) -> dict[str, str]:
     return ids
 
 
-def outfit_figure(conn, ids: dict[str, str]) -> str:
+def outfit_figure(conn, ids: dict[str, str | list[str]]) -> str:
     """The outfit drawn as worn, from the open closet's items. Each piece is drawn from what its own drawing is
     made from (`describe`), so the owner's corrections show here too."""
+    wanted = [(place, v) for place, value in ids.items() for v in (value if isinstance(value, list) else [value])]
     rows = {r["id"]: r for r in conn.execute(
-        f"SELECT * FROM items WHERE id IN ({','.join('?' * len(ids))})", list(ids.values()))}
-    for place, item_id in ids.items():
+        f"SELECT * FROM items WHERE id IN ({','.join('?' * len(wanted))})", [v for _, v in wanted])}
+    for place, item_id in wanted:
         if item_id not in rows:
-            raise FigureError(f"The {place} is not in this closet.")
-    pieces = {}
-    for place, item_id in ids.items():
+            raise FigureError(f"The {'accessory' if place == 'accessories' else place} is not in this closet.")
+    pieces: dict = {}
+    for place, item_id in wanted:
         try:
-            pieces[place] = describe(rows[item_id])
+            piece = describe(rows[item_id])
         except Exception:   # a piece that cannot be read is left out; the rest are still drawn
             log.exception("could not read an item for an outfit figure")
+            continue
+        if place == "accessories":
+            pieces.setdefault(place, []).append(piece)
+        else:
+            pieces[place] = piece
     return figure(pieces)

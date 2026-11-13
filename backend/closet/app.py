@@ -419,15 +419,17 @@ def create_app(sv: Services) -> FastAPI:
         profile = profile or state.get("profile")
         conn = db.connect(cfg.db_path(profile))
         try:
-            rows = [{**{k: r[k] for k in r.keys() if k not in ("illustration_svg", "confidence", "source")},
-                     "silhouette": json.loads(r["silhouette"] or "{}")} for r in conn.execute("SELECT * FROM items ORDER BY id")]
+            rows = closet_rows(conn)
             worn = [{"item_id": r["item_id"], "worn_on": r["worn_on"]}
                     for r in conn.execute("SELECT item_id, worn_on FROM wears ORDER BY item_id, worn_on")]
         finally:
             conn.close()
         # the answer only depends on the items and the wear log; the laundry state and times are left out
-        # so a wash or a rename's timestamp does not throw away seconds of work
-        ignore = ("laundry", "wears_since_wash", "washed_at", "updated_at", "created_at", "cutout_state", "cutout_error")
+        # so a wash or a rename's timestamp does not throw away seconds of work; the stored answer counts through
+        # what the rows take from it (weight_class, the sleeve), so a new answer that changes the weight is seen
+        ignore = ("laundry", "wears_since_wash", "washed_at", "updated_at", "created_at", "cutout_state", "cutout_error",
+                  "tag_state", "tag_error", "tag_route", "tag_model", "tag_schema_version", "tagged_at",
+                  "illustration_version", "illustration_notes")   # a redrawn picture changes no outfit
         seen = hashlib.sha256(json.dumps([[{k: v for k, v in r.items() if k not in ignore} for r in rows], worn],
                                          sort_keys=True, default=str).encode()).hexdigest()
         cached = gaps_cache.get(profile)

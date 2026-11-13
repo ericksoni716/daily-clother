@@ -24,7 +24,9 @@ Wave 2 (landed):
 
 Wave 3:
 - [ ] #45 and #46 The Today screen, given to two models; compared from screenshots.
-- [ ] #41 and #42 What's missing: the gap analysis by rule, with an API and no screen, given to two models.
+- [x] #41 and #42 What's missing: the gap analysis by rule (`GET /api/gaps`), no screen yet. Given to two models; the Opus 5.5 result was merged.
+- [ ] #50 The drawing in the app, part 2: every item gets its drawing, kept up to date.
+- [ ] #51 Review queue: confirm or fix only what the tagger was unsure about.
 
 Next: the drawing shown on the item and corrections by command, the review queue, mannequin layering and outfit rating, the gap screen and shopping.
 

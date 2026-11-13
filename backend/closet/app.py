@@ -1,6 +1,8 @@
 """The web API and the page it serves."""
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
 import threading
 import time
@@ -34,6 +36,7 @@ from . import (
 )
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
+from .gaps import find_gaps
 from .modelstore import MODEL, ModelStore
 from .state import State
 from .tagger import routes as tagger_routes
@@ -358,6 +361,38 @@ def create_app(sv: Services) -> FastAPI:
                 conn.close()
 
         # asks Open-Meteo (a few seconds at most) and compares many outfits, so keep it off the event loop
+        return await run_in_threadpool(work)
+
+    # ----------------------------------------------------------------- gaps
+    gaps_cache: dict[str, tuple[str, dict]] = {}  # profile -> (what the closet and wear log were, the answer)
+
+    @app.get("/api/gaps", dependencies=protected)
+    async def get_gaps():
+        profile = state.get("profile")
+        path = cfg.db_path(profile)
+
+        def work() -> dict:
+            conn = db.connect(path)
+            try:
+                rows = [{**{k: r[k] for k in r.keys() if k not in ("illustration_svg", "confidence", "source")},
+                         "silhouette": json.loads(r["silhouette"] or "{}")} for r in conn.execute("SELECT * FROM items ORDER BY id")]
+                worn = [{"item_id": r["item_id"], "worn_on": r["worn_on"]}
+                        for r in conn.execute("SELECT item_id, worn_on FROM wears ORDER BY item_id, worn_on")]
+            finally:
+                conn.close()
+            # the answer only depends on the items and the wear log; the laundry state and times are left out
+            # so a wash or a rename's timestamp does not throw away seconds of work
+            ignore = ("laundry", "wears_since_wash", "washed_at", "updated_at", "created_at", "cutout_state", "cutout_error")
+            seen = hashlib.sha256(json.dumps([[{k: v for k, v in r.items() if k not in ignore} for r in rows], worn],
+                                             sort_keys=True, default=str).encode()).hexdigest()
+            cached = gaps_cache.get(profile)
+            if cached and cached[0] == seen:
+                return cached[1]
+            answer = find_gaps(rows, worn)
+            gaps_cache[profile] = (seen, answer)
+            return answer
+
+        # the engine is run over 40 kinds of day, a few seconds on a big closet: keep it off the event loop
         return await run_in_threadpool(work)
 
     # ---------------------------------------------------------------- weather

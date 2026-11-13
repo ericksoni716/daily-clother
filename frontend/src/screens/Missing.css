@@ -22,7 +22,7 @@
 .life-style-echo q { color: var(--ink); }
 .life-style-echo span { display: block; font-size: .76rem; }
 .life-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
-.life-filters .chip { min-height: 44px; }
+.life-filters .chip { min-height: 44px; min-width: 44px; padding-inline: 12px; }
 .gap-situations { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .gap-situations li { border-radius: 6px; padding: 4px 8px; background: var(--surface-2); color: var(--muted); font-size: .76rem; font-weight: 600; }
 

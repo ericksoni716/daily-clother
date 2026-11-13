@@ -150,6 +150,38 @@ test('review 10: Based on expands details and leaves filters and first suggestio
   await expect(page.getByRole('button', { name: 'Edit answers' })).not.toBeVisible();
 });
 
+test('real demo: all six situation filters and the first suggestion fit above phone navigation', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  await useProfile(page, 'demo');
+  await page.goto('/missing');
+  const filters = page.getByRole('group', { name: 'Suggestions for' });
+  await expect(filters.getByRole('button')).toHaveText([
+    'All', 'Work', 'Everyday', 'Going out', 'Lounging at home', 'Exercise', 'Vacation',
+  ]);
+  const chips = await filters.getByRole('button').evaluateAll((buttons) =>
+    buttons.map((button) => {
+      const { width, height, top } = button.getBoundingClientRect();
+      return { width, height, top };
+    }));
+  expect(new Set(chips.map((chip) => chip.top)).size).toBeLessThanOrEqual(2);
+  expect(chips.every((chip) => chip.width >= 44 && chip.height >= 44)).toBe(true);
+  const basis = page.getByRole('button', { name: 'See the answers behind these suggestions' });
+  await expect(basis).toHaveAttribute('aria-expanded', 'false');
+  const nav = await page.getByRole('navigation', { name: 'Main' }).boundingBox();
+  expect(nav).not.toBeNull();
+  const first = page.getByTestId('gap').first();
+  for (const target of [basis, filters, first.getByRole('heading', { level: 3 }),
+    first.getByRole('list', { name: 'Why' }).getByRole('listitem').first()]) {
+    await expect(target).toBeVisible();
+    const box = await target.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(nav!.y);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
 test('review 5: all-never answers explain no situations chosen, not a complete closet', async ({ page }) => {
   const life = structuredClone(example);
   for (const id of Object.keys(life.situations) as SituationId[]) life.situations[id] = 0;

@@ -80,6 +80,7 @@ Done:
 - [x] Tagging works through the Claude plan (`claude -p`) with the API key as fallback; seven test photos tagged with valid answers on both the coarse and the detail fields.
 - [x] Hip patch pockets added to the taxonomy.
 - [x] The top template draws the taxonomy's fit, sleeve, neckline, collar, placket, cuff, pocket and hem values, and shows weight, fuzzy cloth, knit gauge and corduroy wale.
+- [x] #108 Shoes: loafer straps (penny, tassel, horsebit, venetian), oxford closed and derby open lacing, the number of eyelets, toe caps and brogue punching (quarter, semi, full), wholecut, and a sandal shape (slide, two-strap, strap sandal) on a footbed. Chosen from the taxonomy's footwear ids and words the tagger names; every footwear id is in `COVERAGE`.
 
 In progress (owner's corrections to the first taxonomy sheets):
 - [x] Fits recalibrated from real garment measurements: everything was drawn slim.
@@ -91,7 +92,7 @@ In progress (owner's corrections to the first taxonomy sheets):
 To do:
 - [ ] Drawing faults its own author listed: the tab and wing collars barely read, lapels on black and plaid read only by their edges, the puffer has channels but no puffed outline, the trucker jacket has a rib band where a waistband belongs, the vest's armhole rib thins at the underarm, linen texture is busy at full size.
 - [ ] Accessories (bag, belt, hat, scarf) have categories but no drawing; today they would be drawn as a crew-neck top. They need simple shapes of their own or a neutral placeholder.
-- [ ] Shoes: the loafer strap, lacing on dress shoes, a sandal shape.
+- [ ] Shoes left after #108: a monk strap's buckles, a flip-flop's thong, apron and split toes, speed hooks and D-rings, boot kinds (chukka, western, rain), a cork footbed's grain, patent shine.
 - [ ] Trousers: the taxonomy's bottoms are a signature line each; rise, fit names and jeans washes are not tagged yet.
 - [ ] Re-run the tagging test with the tightened prompt (snaps, hip pockets and feature flags were wrong in the first run).
 - [ ] Striped, floral and camouflage hard cases on real photos.

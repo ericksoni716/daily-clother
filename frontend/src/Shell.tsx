@@ -21,7 +21,7 @@ export function Shell({ version }: { version: string }) {
 
   let content;
   if (route.name === 'today') content = <TodayScreen itemId={route.itemId} wide={wide} />;
-  else if (route.name === 'missing') content = <MissingScreen itemId={route.itemId} wide={wide} />;
+  else if (route.name === 'missing') content = <MissingScreen itemId={route.itemId} check={route.check} wishId={route.wishId} wide={wide} />;
   else if (route.name === 'add') content = <AddScreen />;
   else if (route.name === 'settings') content = <SettingsScreen version={version} />;
   else if (route.name === 'review') content = <ReviewScreen />;

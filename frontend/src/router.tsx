@@ -24,7 +24,7 @@ export function usePath(): string {
 export type Route =
   | { name: 'closet'; status: 'active' | 'archived'; itemId: string | null }
   | { name: 'today'; itemId: string | null }
-  | { name: 'missing'; itemId: string | null }
+  | { name: 'missing'; itemId: string | null; check: boolean; wishId: string | null }
   | { name: 'add' }
   | { name: 'settings' }
   | { name: 'review' };
@@ -36,7 +36,10 @@ export function parseRoute(path: string): Route {
   if (today) return { name: 'today', itemId: today[1] ? decodeURIComponent(today[1]) : null };
   if (path === '/review') return { name: 'review' };
   const missing = path.match(/^\/missing(?:\/item\/([^/]+))?\/?$/);
-  if (missing) return { name: 'missing', itemId: missing[1] ? decodeURIComponent(missing[1]) : null };
+  if (missing) return { name: 'missing', itemId: missing[1] ? decodeURIComponent(missing[1]) : null, check: false, wishId: null };
+  // Would this work?, started from the screen or from a wish
+  const check = path.match(/^\/missing\/check(?:\/wish\/([^/]+))?\/?$/);
+  if (check) return { name: 'missing', itemId: null, check: true, wishId: check[1] ? decodeURIComponent(check[1]) : null };
   const archived = path.startsWith('/archived');
   const m = path.match(/^\/(?:archived\/)?item\/([^/]+)$/);
   return { name: 'closet', status: archived ? 'archived' : 'active', itemId: m ? decodeURIComponent(m[1]) : null };

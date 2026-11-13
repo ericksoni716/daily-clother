@@ -240,7 +240,8 @@ def _try_days(c: gaps._Closet, cand: outfits.Piece) -> list[dict]:
         found = outfits.suggest(c.engine_items, ctx, 1)["outfits"]
         best = found[0] if found else None
         problems = _problems(best, cand, c.by_id, ctx, t) if best else ["nothing goes with it."]
-        out.append({"day": d, "suits": _suits(cand, ctx, t), "outfit": best, "good": best is not None and not problems and _suits(cand, ctx, t),
+        suits = _suits(cand, ctx, t)
+        out.append({"day": d, "suits": suits, "outfit": best, "good": best is not None and not problems and suits,
                     "problems": problems})
     return out
 

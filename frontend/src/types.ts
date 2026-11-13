@@ -112,6 +112,38 @@ export interface Settings {
   phone: { tailscale_installed: boolean; running: boolean; address: string | null; command: string };
   autostart: boolean | null;
   heic_supported: boolean;
+  /** Where the owner is, for the weather; null until chosen. */
+  place: Place | null;
+}
+
+/** A place to look up the weather for (saved in the program's settings, not in a closet). */
+export interface Place {
+  name: string;
+  latitude: number;
+  longitude: number;
+  timezone: string;
+}
+
+/** One day's forecast, in °C. */
+export interface Weather {
+  date: string;
+  low_c: number;
+  high_c: number;
+  /** Percent, or null when the forecast has none. */
+  rain_chance: number | null;
+  rain: boolean;
+  /** One word: clear, cloudy, foggy, drizzle, rain, snow, storms or mixed. */
+  summary: string;
+  fetched_at: string;
+}
+
+/** Today's weather for the saved place; `message` says in plain words why there is none, or that it is old. */
+export interface WeatherLookup {
+  place: Place | null;
+  weather: Weather | null;
+  old: boolean;
+  is_today: boolean;
+  message: string | null;
 }
 
 /** Disk space used by the open closet (its own pictures and database; the shared model, logs and backups). */

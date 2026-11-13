@@ -21,7 +21,7 @@ from datetime import date, timedelta
 from . import weather
 from .state import State
 
-ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+ARCHIVE_URL = weather.ARCHIVE_URL  # asked through weather.archive_daily, the lookup the home climate uses too
 FORECAST_DAYS = 16           # Open-Meteo forecasts this many days, today included
 MAX_TRIP_DAYS = 30           # a trip is at most this many days, first and last included
 MAX_AHEAD_DAYS = 366         # a trip can start at most this many days from today
@@ -158,15 +158,8 @@ def _usual(place: dict, days: list[str], today: date) -> dict:
     history = {d: _past_years(d, today) for d in wanted}
     past_dates = [sample for samples in history.values() for sample in samples]
     start, end = min(past_dates), max(past_dates)
-    data = weather._get(ARCHIVE_URL, {
-        "latitude": place["latitude"], "longitude": place["longitude"], "timezone": place["timezone"],
-        "start_date": start.isoformat(), "end_date": end.isoformat(),
-        "daily": "temperature_2m_min,temperature_2m_max,precipitation_sum", "temperature_unit": "celsius"})
-    daily = data.get("daily")
-    if not isinstance(daily, dict) or not isinstance(daily.get("time"), list):
-        raise weather.WeatherError("The weather service gave an answer Closet could not read.")
-    lows, highs, rains = (daily.get(k) if isinstance(daily.get(k), list) else []
-                          for k in ("temperature_2m_min", "temperature_2m_max", "precipitation_sum"))
+    daily = weather.archive_daily(place, start, end, timezone=place["timezone"])
+    lows, highs, rains = (daily[k] or [] for k in weather.ARCHIVE_DAILY)
     past: dict[str, tuple[float | None, float | None, float | None]] = {}
     for i, day in enumerate(daily["time"]):
         if isinstance(day, str):

@@ -264,7 +264,10 @@ function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
       <OutfitPics outfit={outfit} byId={byId} />
       <p className="worn-names">{names.join(', ')}</p>
       {rating || !outfit.rating ? (
-        <RateOutfit outfit={outfit} offline={offline} onRated={onRated} />
+        <RateOutfit outfit={outfit} offline={offline} onRated={(o) => {
+          if (!outfit.rating) setRating(true);   // the reasons stay open after the first answer
+          onRated(o);
+        }} />
       ) : null}
       <div className="row worn-actions">
         {outfit.rating && (

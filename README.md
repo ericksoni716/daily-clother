@@ -70,6 +70,21 @@ piece**); tap a piece to open it. With no place saved, type today's low and
 high temperatures there instead. Offline, Today shows the outfits it last
 found that day.
 
+Closet remembers what you wore together. The morning after, Today asks **How
+was yesterday's outfit?** under the outfits: tap **Loved it**, **Fine** or
+**Not again**, and if you like say why (**Too warm**, **Too cold**, **Too
+dressed up**, **Got compliments** and a few more); **Not now** puts the
+question away. Your answers shape what Today offers: pieces you loved together
+come up together a little more, an outfit you said **Not again** to is not
+offered again, and if you were cold on a day like today you are dressed a
+little warmer. The outfit says when a rating played a part ("You loved these
+together on 3 November"). **Worn** at the top of Today lists the outfits you
+wore, newest first: rate one or change its rating, **Wear this again** (Today
+starts from it, with what is clean), **Remove** it (the wears it recorded go
+too), or **Record an outfit** for a day you got dressed without Closet. Offline,
+the list shows what it last saw, and rating waits until Closet on your computer
+can be reached.
+
 **What's missing** (**Missing** in the bar at the bottom of a phone) looks at
 your closet and what you wear and suggests what to buy, the most helpful
 first. Each suggestion says why, in sentences about your own clothes, what to
@@ -240,7 +255,8 @@ free weather service Open-Meteo; nothing about your clothes is.
 ## Demo closet
 
 **Settings → Demo closet** opens a sample closet of 30 items so you can try
-everything without your own photos. It is kept separate from your real closet
+everything without your own photos, with a few outfits worn in the last two
+weeks (yesterday's not rated yet, so Today asks about it). It is kept separate from your real closet
 and is never backed up. Photo credits are in
 `backend/closet/demo_data/CREDITS.md`.
 

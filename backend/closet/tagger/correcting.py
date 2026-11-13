@@ -1,7 +1,9 @@
 """Turn the owner's sentence about an item ("it has three buttons") into changes to its description.
 
 The same two routes as tagging, tried the same way: the Claude plan through
-`claude -p` first, the API key only when the caller allows it. Claude is sent
+`claude -p` first, the API key only when the caller allows it, every call
+counted by the caller's meter and every API request checked against the
+monthly limit before it is made (`spend.Meter`, purpose "correct_item"). Claude is sent
 the sentence, the item's current description and the values each part may
 take; the item's photo only when the caller passes it (the caller first tries
 without it). The answer is a list of changes and what could not be understood;
@@ -22,9 +24,11 @@ from PIL import Image
 from pydantic import BaseModel, Field
 
 from . import claude_cli
-from .tagging import CONFIG, RouteUnavailable, TaggingError, encode_image
+from .tagging import CONFIG, ApiRefused, CapReached, Meter, RouteUnavailable, TaggingError, encode_image
 
 MODEL = CONFIG["roles"]["tagging"]
+MAX_TOKENS = 2000    # the longest answer asked for: a few changes and a sentence (`spend.CORRECT_MAX_TOKENS`)
+MAX_ATTEMPTS = 2
 SYSTEM = ("You correct the description of one item of clothing in a private wardrobe app, following what its owner "
           "says. If an image file is named in the request, look at it with the Read tool. Answer in the required JSON "
           "format. Do nothing else.")
@@ -47,6 +51,8 @@ class CorrectionResult:
     answer: CorrectionAnswer
     route: str     # "plan" or "api"
     model: str
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 
 def prompt(sentence: str, description: dict, allowed: dict[str, list], with_photo: bool) -> str:
@@ -68,15 +74,20 @@ Turn what the owner says into changes: each change is one name from the list and
 - {"The image is the item with its background removed." if with_photo else "You have not been shown the item. If the sentence cannot be understood without seeing it (for example \"the colour is wrong\"), set needs_photo to true and give no changes."}"""
 
 
-def correct_api(client, model: str, text: str, images: list[Image.Image], max_attempts: int = 2) -> CorrectionAnswer:
+def correct_api(client, model: str, text: str, images: list[Image.Image], meter: Meter | None = None) -> CorrectionResult:
+    """Through the API key. With a `meter`, every request is checked against it before it is sent and counted
+    once it comes back, as for tagging."""
     import anthropic
 
     content = [encode_image(im) for im in images] + [{"type": "text", "text": text}]
     effort = CONFIG["models"][model].get("effort", "low")
+    tokens_in = tokens_out = 0
     last: Exception | None = None
-    for _ in range(max_attempts):
+    for _ in range(MAX_ATTEMPTS):
+        if meter:
+            meter.before_api_call(model, len(images))
         try:
-            resp = client.messages.parse(model=model, max_tokens=2000, messages=[{"role": "user", "content": content}],
+            resp = client.messages.parse(model=model, max_tokens=MAX_TOKENS, messages=[{"role": "user", "content": content}],
                                          output_format=CorrectionAnswer, output_config={"effort": effort})
         except (anthropic.RateLimitError, anthropic.APIConnectionError) as e:
             last = e
@@ -87,19 +98,24 @@ def correct_api(client, model: str, text: str, images: list[Image.Image], max_at
                 continue
             message = str(getattr(e, "message", e))
             if e.status_code in (401, 403) or "credit balance" in message.lower() or "billing" in message.lower():
-                raise RouteUnavailable(f"the API key cannot be used right now ({e.status_code})") from e
+                reason = "key" if e.status_code in (401, 403) else "credit"
+                raise ApiRefused(f"the API key cannot be used right now ({e.status_code})", reason) from e
             raise TaggingError(f"{model} rejected the request ({e.status_code})") from e
+        tokens_in += resp.usage.input_tokens
+        tokens_out += resp.usage.output_tokens
+        if meter:
+            meter.record("api", model, resp.usage.input_tokens, resp.usage.output_tokens)
         if resp.stop_reason == "refusal":
             raise TaggingError(f"{model} declined to answer")
         if resp.parsed_output is None:
             last = TaggingError(f"{model} returned an incomplete answer")
             continue
-        return resp.parsed_output
+        return CorrectionResult(resp.parsed_output, "api", model, tokens_in, tokens_out)
     raise TaggingError(f"{model} gave no valid answer: {type(last).__name__ if last else 'none'}")
 
 
-def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | None = None, timeout: float = 120,
-                max_attempts: int = 2) -> CorrectionAnswer:
+def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | None = None, timeout: float = 120) -> CorrectionResult:
+    """Through the Claude plan (`claude -p`); the photo, if any, is saved in a folder of its own for it to read."""
     from anthropic.lib._parse._transform import transform_schema
 
     exe = exe or claude_cli.find_claude()
@@ -116,7 +132,7 @@ def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | Non
                "--json-schema", json.dumps(transform_schema(CorrectionAnswer)), "--tools", "Read", "--allowedTools", "Read",
                "--strict-mcp-config", "--no-session-persistence", "--system-prompt", SYSTEM]
         kwargs = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
-        for _ in range(max_attempts):
+        for _ in range(MAX_ATTEMPTS):
             try:
                 proc = subprocess.run(cmd, cwd=tmp, env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True,
                                       timeout=timeout, **kwargs)
@@ -139,28 +155,41 @@ def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | Non
                 last = TaggingError(f"{model} through Claude Code gave no usable answer (exit {proc.returncode})")
                 continue
             try:
-                return CorrectionAnswer.model_validate(answer)
+                parsed = CorrectionAnswer.model_validate(answer)
             except ValueError:
                 last = TaggingError(f"{model} through Claude Code answered outside the schema")
+                continue
+            usage = out.get("usage") or {}
+            tokens_in = sum(int(usage.get(k) or 0) for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
+            return CorrectionResult(parsed, "plan", model, tokens_in, int(usage.get("output_tokens") or 0))
     raise last or TaggingError(f"{model} through Claude Code gave no answer")
 
 
 def correct(sentence: str, description: dict, allowed: dict[str, list], images: list[Image.Image],
-            routes: tuple[str, ...], client=None, exe: str | None = None) -> CorrectionResult:
-    """Ask Claude, trying `routes` in order ("plan", "api"); RouteUnavailable when none can be used."""
+            routes: tuple[str, ...], client=None, exe: str | None = None, meter: Meter | None = None) -> CorrectionResult:
+    """Ask Claude, trying `routes` in order ("plan", "api"), as tagging does (`routes.Router`): `meter` records every
+    call and keeps the API key under its limit, and is told when the API refuses the key. Raises `CapReached` when
+    only the limit stood in the way, `RouteUnavailable` when no route could be used for another reason."""
     text = prompt(sentence, description, allowed, bool(images))
-    skipped = []
+    skipped, capped = [], False
     for route in routes:
         try:
             if route == "plan":
-                return CorrectionResult(correct_cli(MODEL, text, images, exe=exe), "plan", MODEL)
+                result = correct_cli(MODEL, text, images, exe=exe)
+                if meter:
+                    meter.record("plan", result.model, result.input_tokens, result.output_tokens)
+                return result
             if route == "api":
                 if client is None:
                     if not os.environ.get("ANTHROPIC_API_KEY"):
                         raise RouteUnavailable("no API key is set")
                     import anthropic
                     client = anthropic.Anthropic()
-                return CorrectionResult(correct_api(client, MODEL, text, images), "api", MODEL)
+                return correct_api(client, MODEL, text, images, meter=meter)
         except RouteUnavailable as e:
             skipped.append(f"{route}: {e}")
-    raise RouteUnavailable("Claude cannot be reached right now. " + ("; ".join(skipped) or "no route can be used"))
+            capped = capped or isinstance(e, CapReached)
+            if isinstance(e, ApiRefused) and meter:
+                meter.api_refused(e.reason)
+    reasons = "; ".join(skipped) or "no route can be used"
+    raise (CapReached if capped else RouteUnavailable)(f"Claude cannot be reached right now. {reasons}")

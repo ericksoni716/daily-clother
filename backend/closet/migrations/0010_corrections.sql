@@ -1,5 +1,5 @@
 -- Corrections: the owner's own details, kept apart from Claude's answer, and the history of every change to a description.
--- Numbered 0011: main has 0007, and 0008 to 0010 are taken by pull requests that merge before this one.
+-- Numbered 0010: main has 0001 and 0004 to 0009; a pull request merged before this one may take 0010 first.
 -- A migration numbered below a closet's current version would never run.
 
 ALTER TABLE items ADD COLUMN own_details TEXT;   -- JSON object: detail -> the owner's value, laid over the answer's details when

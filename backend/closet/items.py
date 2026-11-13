@@ -213,12 +213,15 @@ def update(conn, item_id: str, changes: dict, record: bool = True) -> dict:
         sets.append(f"{field} = ?")
         args.append(value)
     if sets:
+        owner = kept = details.own(row)
         if "silhouette" in changes:   # a shape the owner sets puts aside their own matching details
-            owner = details.own(row)
             kept = details.drop_for_shape(owner, json.loads(row["silhouette"] or "{}"), json.loads(args[sets.index("silhouette = ?")]))
-            if kept != owner:
-                sets.append("own_details = ?")
-                args.append(details.dump(kept))
+        if "category" in changes:   # and another kind of garment those it does not have (an undo brings them back)
+            names = details.names_for(args[sets.index("category = ?")])
+            kept = {k: v for k, v in kept.items() if k in names}
+        if kept != owner:
+            sets.append("own_details = ?")
+            args.append(details.dump(kept))
         sets += ["source = ?", "confidence = ?", "updated_at = ?"]
         args += [json.dumps(source), json.dumps(confidence), db.now(), item_id]
         mine = not conn.in_transaction

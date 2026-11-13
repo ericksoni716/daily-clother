@@ -182,6 +182,22 @@ def suggested_fields(tags: ItemTags) -> dict:
     }
 
 
+def fill(tags: ItemTags, field: str, current, by: str | None, suggested: dict | None = None) -> tuple | None:
+    """What an answer does to one of the item's fields, which is `current` and was set by `by`: None when it leaves
+    it as it is, else (value, who set it, how sure). A value of None clears the field (who set it is then None).
+
+    A field is filled when the owner has not set it (`by` is "user" for those) and it is either empty or was filled
+    by an earlier answer. Undoing a change uses the same rule (`corrections.undo`), so a field given back to the
+    tagger is what the answer the item has now says.
+    """
+    value = (suggested or suggested_fields(tags))[field]
+    if by == "user" or (current not in (None, "", {}) and by != "ai"):
+        return None
+    if value in (None, "", {}):
+        return (None, None, None) if by == "ai" else None
+    return value, "ai", getattr(tags, _CONFIDENCE[field]) if field in _CONFIDENCE else None
+
+
 def apply_answer(conn, item_id: str, tags: ItemTags, route: str, model: str | None) -> None:
     """Store the whole answer and fill in the item's fields, inside the caller's transaction.
 
@@ -194,21 +210,21 @@ def apply_answer(conn, item_id: str, tags: ItemTags, route: str, model: str | No
     source = json.loads(row["source"] or "{}")
     confidence = json.loads(row["confidence"] or "{}")
     sets: dict = {}
-    for field, value in suggested_fields(tags).items():
+    suggested = suggested_fields(tags)
+    for field in suggested:
         current = json.loads(row["silhouette"] or "{}") if field == "silhouette" else row[field]
-        by = source.get(field)
-        if by == "user" or (current not in (None, "", {}) and by != "ai"):
+        filled = fill(tags, field, current, source.get(field), suggested)
+        if filled is None:
             continue
-        if value in (None, "", {}):
-            if by == "ai":   # the earlier answer said something this one does not: clear it
-                sets[field] = "{}" if field == "silhouette" else None
-                source.pop(field, None)
-                confidence.pop(field, None)
+        value, by, sure = filled
+        sets[field] = (json.dumps(value) if value else "{}") if field == "silhouette" else value
+        if by is None:   # the earlier answer said something this one does not: clear it
+            source.pop(field, None)
+            confidence.pop(field, None)
             continue
-        sets[field] = json.dumps(value) if field == "silhouette" else value
-        source[field] = "ai"
-        if field in _CONFIDENCE:
-            confidence[field] = getattr(tags, _CONFIDENCE[field])
+        source[field] = by
+        if sure is not None:
+            confidence[field] = sure
     confidence["details"] = tags.details_confidence
     t = db.now()
     sets.update(source=json.dumps(source), confidence=json.dumps(confidence), tag_state="done", tag_error=None,

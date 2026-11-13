@@ -9,7 +9,7 @@ import pytest
 
 from closet import db, details, illustrations, tagjobs
 from closet.config import bundle_dir
-from closet.tagger.schema import ItemTags
+from closet.tagger.schema import NAMED_HEX, ItemTags
 
 from .conftest import upload
 
@@ -336,6 +336,212 @@ def test_undo_is_refused_when_a_later_change_touched_the_same_thing(client, serv
     assert client.post(f"/api/items/{item['id']}/history/99999/undo").status_code == 404
 
 
+def undo(client, item_id, entry_id):
+    return client.post(f"/api/items/{item_id}/history/{entry_id}/undo")
+
+
+def redescribe(client, services, item_id, answer: ItemTags):
+    services.tag_worker.tagger = lambda images, routes: tagjobs.TagResult(answer, "fake", 0, 0, 0, 0.0, 1, route="plan")
+    assert client.post(f"/api/items/{item_id}/retag").status_code == 202
+    assert services.tag_worker.drain() == 1
+    return client.get(f"/api/items/{item_id}").json()
+
+
+def test_undo_goes_back_several_steps(client, services, claude):
+    item = described(client, services, claude)
+    first = svg(client, item)
+    for n in (1, 4, 6):
+        client.put(f"/api/items/{item['id']}/details", json={"details": {"placket_buttons": n}})
+    six, four, one = history(client, item["id"])[:3]
+    assert not four["can_undo"] and not one["can_undo"]
+    assert undo(client, item["id"], six["id"]).json()["item"]["own_details"] == {"placket_buttons": 4}
+    entries = {e["id"]: e for e in history(client, item["id"])}
+    assert entries[four["id"]]["can_undo"] and not entries[one["id"]]["can_undo"]
+    assert undo(client, item["id"], four["id"]).json()["item"]["own_details"] == {"placket_buttons": 1}
+    assert {e["id"]: e for e in history(client, item["id"])}[one["id"]]["can_undo"]   # undone changes do not block
+    back = undo(client, item["id"], one["id"]).json()["item"]
+    assert back["own_details"] == {} and svg(client, back) == first
+
+    # an undo undone puts the change back, and that blocks the earlier change again
+    latest = history(client, item["id"])[0]
+    assert latest["kind"] == "undo" and latest["undoes"] == one["id"]
+    assert undo(client, item["id"], latest["id"]).json()["item"]["own_details"] == {"placket_buttons": 1}
+    assert {e["id"]: e for e in history(client, item["id"])}[one["id"]]["undone"]
+    redo_four = next(e for e in history(client, item["id"]) if e["kind"] == "undo" and e["undoes"] == four["id"])
+    assert undo(client, item["id"], redo_four["id"]).json()["item"]["own_details"] == {"placket_buttons": 4}
+    entries = history(client, item["id"])
+    assert not next(e for e in entries if e["undoes"] == one["id"])["can_undo"]   # buttons changed again since
+
+
+def test_undoing_a_new_description_puts_back_everything_it_changed(client, services, claude):
+    item = described(client, services, claude)
+    assert (item["name"], item["material"]) == ("Navy polo", "100% cotton")
+    henley = redescribe(client, services, item["id"], ItemTags.model_validate(demo_answer("Oatmeal henley")))
+    assert henley["name"] != item["name"] and henley["material"] is None
+    assert henley["confidence"]["details"] != item["confidence"]["details"]
+    entry = history(client, item["id"])[0]
+    back = undo(client, item["id"], entry["id"]).json()["item"]
+    for field in ("name", "material", "category", "color", "pattern", "silhouette", "confidence", "source"):
+        assert back[field] == item[field], field
+    assert svg(client, back) == svg(client, item)
+
+
+def test_undoing_the_owners_change_after_a_new_description_follows_the_current_answer(client, services, claude):
+    item = described(client, services, claude)
+    green = client.patch(f"/api/items/{item['id']}", json={"color": "green", "color_hex": "#3f7d4f"}).json()
+    assert green["source"]["color"] == "user"
+    henley = ItemTags.model_validate(demo_answer("Oatmeal henley"))
+    again = redescribe(client, services, item["id"], henley)
+    assert again["color"] == "green"   # the owner's word stands
+    owners = next(e for e in history(client, item["id"]) if e["kind"] == "field")
+    assert owners["can_undo"]
+    back = undo(client, item["id"], owners["id"]).json()["item"]
+    # the field is what the answer now says, as if the answer had come after the undo
+    assert (back["color"], back["color_hex"], back["source"]["color"]) == ("cream", NAMED_HEX["cream"], "ai")
+    assert back["confidence"]["color"] == henley.color_confidence
+    drawn = svg(client, back)
+    assert redescribe(client, services, item["id"], henley)["color"] == "cream"
+    assert svg(client, client.get(f"/api/items/{item['id']}").json()) == drawn   # the drawing already matched the answer
+
+
+def test_the_demo_drawing_made_in_advance_comes_back_whenever_the_item_is_as_it_was(client, services, cfg):
+    assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
+    polo = next(i for i in client.get("/api/items").json()["items"] if i["name"] == "Navy polo")
+    drawn = svg(client, client.get(f"/api/items/{polo['id']}").json())
+    client.put(f"/api/items/{polo['id']}/details", json={"details": {"placket_buttons": 3}})
+    client.put(f"/api/items/{polo['id']}/details", json={"details": {"button_color": "white"}})
+    buttons, colour = history(client, polo["id"])[1], history(client, polo["id"])[0]
+    middle = undo(client, polo["id"], buttons["id"]).json()["item"]   # not the latest entry
+    assert svg(client, middle) != drawn   # the white buttons are still there
+    back = undo(client, polo["id"], colour["id"]).json()["item"]
+    assert back["own_details"] == {} and svg(client, back) == drawn
+    assert client.post("/api/profile", json={"profile": "main"}).status_code == 200
+
+
+@pytest.mark.parametrize("state", ["pending", "failed"])
+def test_no_photo_is_sent_while_its_background_is_not_removed(client, services, claude, cfg, state):
+    claude.mode = "answers"
+    item = upload(client, key="k1").json()   # not cut out yet
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        tagjobs.apply_answer(conn, item["id"], ItemTags.model_validate(demo_answer("Navy polo")), "plan", "fake")
+        conn.execute("UPDATE items SET cutout_state = ? WHERE id = ?", (state, item["id"]))
+        conn.execute("COMMIT")
+    finally:
+        conn.close()
+    body = client.post(f"/api/items/{item['id']}/correct", json={"sentence": "the colour is wrong"}).json()
+    assert [c[3] for c in claude.corrections] == [0]   # asked once, words only
+    assert body["state"] == "not_understood" and body["changes"] == []
+    assert "no photo" in body["sent"]
+    assert "photo" in body["not_understood"] and ("not been removed yet" if state == "pending" else "could not be removed") \
+        in body["not_understood"]
+
+
+@pytest.mark.parametrize("method,path,payload", [
+    ("post", "correct/confirm", {"sentence": "x", "changes": [{"name": "color", "value": [1]}]}),
+    ("post", "correct/confirm", {"sentence": "x", "changes": [{"name": "color", "value": {"a": 1}}]}),
+    ("post", "correct/confirm", {"sentence": "x", "changes": [{"name": 5, "value": "navy"}]}),
+    ("post", "correct/confirm", {"sentence": "x", "changes": [{"name": "placket_buttons", "value": True}]}),
+    ("post", "correct/confirm", {"sentence": "x", "changes": "navy"}),
+    ("post", "correct/confirm", {"sentence": 5, "changes": [{"name": "color", "value": "navy"}]}),
+    ("post", "correct/confirm", {"changes": [{"name": "color", "value": "navy"}]}),
+    ("post", "correct/confirm", [1, 2]),
+    ("post", "correct", {"sentence": ["it has two buttons"]}),
+    ("post", "correct", {}),
+    ("post", "correct", "it has two buttons"),
+    ("put", "details", {"details": {"collar": ["band"]}}),
+    ("put", "details", {"details": {"silhouette.sleeve": {"a": 1}}}),
+    ("put", "details", {"details": "collar"}),
+    ("put", "details", {}),
+    ("post", "history/abc/undo", None),
+])
+def test_wrong_input_gets_a_plain_422(client, services, claude, method, path, payload):
+    item = described(client, services, claude)
+    r = getattr(client, method)(f"/api/items/{item['id']}/{path}", **({} if payload is None else {"json": payload}))
+    assert r.status_code == 422, r.text
+    assert isinstance(r.json()["detail"], str) and r.json()["detail"][0].isupper() and "{" not in r.json()["detail"]
+    r = client.post(f"/api/items/{item['id']}/correct/confirm", content=b"{not json", headers={"content-type": "application/json"})
+    assert r.status_code == 422 and isinstance(r.json()["detail"], str)
+    assert len(history(client, item["id"])) == 1
+
+
+def test_changing_the_kind_of_garment_puts_aside_details_it_does_not_have(client, services, claude):
+    item = described(client, services, claude)
+    client.put(f"/api/items/{item['id']}/details", json={"details": {"collar": "spread", "placket_buttons": 1}})
+    trousers = client.patch(f"/api/items/{item['id']}", json={"category": "trousers"}).json()
+    assert trousers["own_details"] == {}
+    entry = history(client, item["id"])[0]
+    assert {p["name"] for p in entry["parts"]} >= {"category", "collar", "placket_buttons"}
+    back = undo(client, item["id"], entry["id"]).json()["item"]
+    assert back["category"] == "polo" and back["own_details"] == {"collar": "spread", "placket_buttons": 1}
+    # a sentence that changes the kind and sets a detail of the new kind
+    client.patch(f"/api/items/{item['id']}", json={"category": "shirt"})
+    assert client.get(f"/api/items/{item['id']}").json()["own_details"] == {"collar": "spread", "placket_buttons": 1}
+
+
+def test_the_sentence_routes_read_the_closet_once(client, services, claude, monkeypatch):
+    claude.mode = "answers"
+    assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
+    polo = next(i for i in client.get("/api/items").json()["items"] if i["name"] == "Navy polo")
+    real = services.state.get
+    reads = []
+
+    def get(key):   # the closet switches to the real one just after the request starts
+        if key == "profile":
+            reads.append(key)
+            return "demo" if len(reads) == 1 else "main"
+        return real(key)
+    monkeypatch.setattr(services.state, "get", get)
+    r = client.post(f"/api/items/{polo['id']}/correct", json={"sentence": "it has two buttons"})
+    assert r.status_code == 409 and claude.corrections == []
+    reads.clear()
+    r = client.post(f"/api/items/{polo['id']}/correct/confirm",
+                    json={"sentence": "x", "changes": [{"name": "placket_buttons", "value": 2}]})
+    assert r.status_code == 409
+    monkeypatch.setattr(services.state, "get", real)
+    assert client.post("/api/profile", json={"profile": "main"}).status_code == 200
+
+
+def test_a_confirmation_is_refused_when_the_item_changed_since_claude_read_it(client, services, claude):
+    item = described(client, services, claude)
+    found = client.post(f"/api/items/{item['id']}/correct", json={"sentence": "it has two buttons"}).json()
+    client.put(f"/api/items/{item['id']}/details", json={"details": {"placket_buttons": 5}})
+    r = client.post(f"/api/items/{item['id']}/correct/confirm", json={"sentence": found["sentence"], "changes": found["changes"]})
+    assert r.status_code == 409 and "changed" in r.json()["detail"]
+    assert client.get(f"/api/items/{item['id']}").json()["own_details"] == {"placket_buttons": 5}
+
+
+def test_confirming_a_field_is_recorded_and_can_be_undone(client, services, claude):
+    item = described(client, services, claude)
+    assert client.post(f"/api/items/{item['id']}/confirm", json={"fields": ["formality"]}).status_code == 200
+    entry = history(client, item["id"])[0]
+    assert entry["kind"] == "field" and [(p["name"], p["before"], p["after"], p["same"]) for p in entry["parts"]] == [
+        ("formality", "smart_casual", "smart_casual", True)]
+    back = undo(client, item["id"], entry["id"]).json()["item"]
+    assert back["source"]["formality"] == "ai" and back["confidence"]["formality"] == item["confidence"]["formality"]
+    # the same value given again by the owner makes it theirs: recorded too
+    client.patch(f"/api/items/{item['id']}", json={"color": "navy"})
+    entry = history(client, item["id"])[0]
+    assert entry["kind"] == "field" and entry["parts"][0]["name"] == "color" and entry["parts"][0]["same"]
+    # but a PATCH that changes nothing at all is not
+    count = len(history(client, item["id"]))
+    client.patch(f"/api/items/{item['id']}", json={"color": "navy"})
+    assert len(history(client, item["id"])) == count
+
+
+def test_the_history_goes_with_a_deleted_item(client, services, claude, cfg):
+    item = described(client, services, claude)
+    client.put(f"/api/items/{item['id']}/details", json={"details": {"placket_buttons": 1}})
+    assert client.delete(f"/api/items/{item['id']}").status_code in (200, 204)
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM changes WHERE item_id = ?", (item["id"],)).fetchone()[0] == 0
+    finally:
+        conn.close()
+    assert client.get(f"/api/items/{item['id']}/history").status_code == 404
+
+
 # ---- the demo closet, login, the migration
 
 def test_the_demo_closet_can_be_corrected_by_picking_but_is_never_sent_to_claude(client, services, claude, cfg):
@@ -383,8 +589,9 @@ def test_the_migration_runs_on_a_closet_made_by_the_previous_version(cfg):
     path.parent.mkdir(parents=True, exist_ok=True)
     old = sqlite3.connect(path)
     last = 0
+    ours = next(v for v, f in db.migration_files() if f.name.endswith("_corrections.sql"))
     for version, file in db.migration_files():
-        if version < 11:   # a closet made by the version before corrections
+        if version < ours:   # a closet made by the version before corrections
             old.executescript(file.read_text(encoding="utf-8") + f"\nPRAGMA user_version = {version};")
             last = version
     old.execute("INSERT INTO items (id, name, category, cutout_state, created_at, updated_at) "
@@ -392,7 +599,7 @@ def test_the_migration_runs_on_a_closet_made_by_the_previous_version(cfg):
     old.commit()
     old.close()
     result = db.migrate(path, cfg.local_backups_dir)
-    assert result["from"] == last and 11 in result["applied"] and result["backup"]
+    assert result["from"] == last and ours in result["applied"] and result["backup"]
     conn = db.connect(path)
     r = conn.execute("SELECT * FROM items WHERE id = 'a'").fetchone()
     assert r["name"] == "Old shirt" and r["own_details"] is None and details.own(r) == {}

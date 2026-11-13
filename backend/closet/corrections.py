@@ -17,12 +17,15 @@ import logging
 from collections.abc import Callable
 from pathlib import Path
 
+from PIL import Image
+
 from . import db, details, history, illustrations, items, tagjobs, vocab
 from .tagger.correcting import CorrectionResult
-from .tagger.schema import NAMED_HEX
-from .tagger.tagging import RouteUnavailable
+from .tagger.schema import NAMED_HEX, ItemTags
+from .tagger.tagging import CapReached, RouteUnavailable
 
 log = logging.getLogger("closet.corrections")
+_UNSET = object()
 
 SENTENCE_MAX = 500
 WAITING = ("Claude can't be reached right now, so the sentence was not read. Nothing was changed. Try again later, "
@@ -31,6 +34,15 @@ FAILED = "Claude could not read the sentence this time. Nothing was changed. Try
 SENT_TEXT = "Your sentence and the item's description (words only, no photo) were sent to Claude."
 SENT_PHOTO = ("Your sentence, the item's description and its photo with the background removed were sent to Claude, "
               "because the sentence could not be understood without seeing the item.")
+LIMIT = ("This month's spending limit for the API key has been reached, and your Claude plan can't be used right now, "
+         "so the sentence was not read. Nothing was changed. Pick the details instead, or raise the limit in Settings.")
+# why the photo was not sent when Claude asked to see it; the photo with its background is never sent
+PHOTO_NOT_READY = ("Claude needs to see the item to understand that, but its photo was not sent: its background has not "
+                   "been removed yet. Try again in a moment, or pick the details instead.")
+PHOTO_FAILED = ("Claude needs to see the item to understand that, but its photo was not sent: its background could not "
+                "be removed, and a photo with its background is never sent. Pick the details instead.")
+NO_PHOTO = "Claude needs to see the item to understand that, but it has no photo. Pick the details instead."
+CHANGED = "The item has changed since Claude read your sentence. Nothing was changed; ask again."
 NO_KIND = "There are no details to fix for this kind of item. Change what it is first."
 
 # a corrector: (sentence, the item's description, the values each part may take, photos, routes) -> the answer
@@ -75,9 +87,21 @@ def choices(row, name: str) -> dict:
 
 
 # ----------------------------------------------------------- applying
+def _plain_value(name, value) -> None:
+    """A value sent for a detail or field must be a word, a whole number or nothing (anything else: a 422)."""
+    if value is None or isinstance(value, str) or (isinstance(value, int) and not isinstance(value, bool)):
+        return
+    if isinstance(value, bool) and name in details.FEATURES:
+        return
+    raise items.ItemError(f"The value for “{name}” must be one word or a whole number.")
+
+
 def _split(row, changes: dict, fields_allowed: bool) -> tuple[dict, dict]:
     coarse, picked = {}, {}
     for name, value in changes.items():
+        if not isinstance(name, str):
+            raise items.ItemError("Each change needs the name of a detail.")
+        _plain_value(name, value)
         if name in details.FIELDS or name in details.SHAPES:
             if not fields_allowed:
                 raise items.ItemError(f"'{name}' is not a detail; change it with the item's other fields.")
@@ -98,7 +122,7 @@ def apply(conn, item_id: str, changes: dict, kind: str = "detail", sentence: str
     """Set details (a value of None gives the detail back to Claude's answer) and, for a correction by sentence,
     the item's fields; draw the item again and keep the whole change as one entry in its history."""
     if not isinstance(changes, dict) or not changes:
-        raise items.ItemError("Say which details to change.")
+        raise items.ItemError("Say which details to change, each with its new value.")
     conn.execute("BEGIN IMMEDIATE")
     try:
         before = items.get(conn, item_id)
@@ -156,30 +180,46 @@ def _description(row) -> dict:
     return out
 
 
+def _photo(conn, images_dir: Path, row) -> tuple[list, str | None]:
+    """The front photo with its background removed, or why it cannot be sent."""
+    if row["cutout_state"] == "failed":
+        return [], PHOTO_FAILED
+    if row["cutout_state"] != "ready":
+        return [], PHOTO_NOT_READY if row["cutout_state"] in ("pending", "processing") else NO_PHOTO
+    photo = items._front(conn, row["id"])
+    if photo is None or not photo["cutout_path"]:
+        return [], NO_PHOTO
+    try:
+        with Image.open(images_dir / photo["cutout_path"]) as im:
+            return [im.convert("RGBA")], None
+    except OSError:
+        return [], NO_PHOTO
+
+
 def understand(conn, images_dir: Path, item_id: str, sentence, routes: tuple[str, ...], corrector: Corrector) -> dict:
     """Ask Claude what the sentence changes. Nothing is applied: the owner confirms the changes first."""
     text = _clean_sentence(sentence)
     row = items.get(conn, item_id)
+    waiting = {"state": "waiting", "message": WAITING, "changes": [], "sentence": text, "limit": False}
     if not routes:
-        return {"state": "waiting", "message": WAITING, "changes": [], "sentence": text}
+        return waiting
     allowed, now = _allowed(row), _description(row)
-    sent = SENT_TEXT
+    sent, no_photo = SENT_TEXT, None
     try:
         result = corrector(text, now, allowed, [], routes)
         answer = result.answer
         if answer.needs_photo and not answer.changes:
-            try:
-                photos = tagjobs._photos(conn, images_dir, item_id)[:1]
-            except (LookupError, OSError):
-                photos = []
+            photos, no_photo = _photo(conn, images_dir, row)
             if photos:
                 sent = SENT_PHOTO
                 answer = corrector(text, now, allowed, photos, routes).answer
+    except CapReached:
+        return {**waiting, "message": LIMIT, "limit": True}
     except RouteUnavailable:
-        return {"state": "waiting", "message": WAITING, "changes": [], "sentence": text}
+        return waiting
     except Exception as e:   # never show or log what Claude was sent
         log.warning("a correction could not be read (%s)", type(e).__name__)
-        return {"state": "failed", "message": FAILED, "changes": [], "sentence": text}
+        return {"state": "failed", "message": FAILED, "changes": [], "sentence": text, "limit": False}
     found: dict = {}
     refused = []
     for change in answer.changes:
@@ -195,29 +235,71 @@ def understand(conn, images_dir: Path, item_id: str, sentence, routes: tuple[str
         out.append({"name": name, "title": details.title(name), "value": value, "before": now.get(name),
                     "before_words": details.words(name, now.get(name)), "after_words": details.words(name, value)})
     unclear = (answer.not_understood or "").strip()
+    if no_photo:
+        unclear = " ".join(filter(None, [unclear, no_photo]))
     if refused:
         unclear = " ".join(filter(None, [unclear, "Claude answered with values the app does not know, so they were left out: "
                                          + ", ".join(refused) + "."]))
     if not out and not unclear:
         unclear = "Nothing in that sentence changes the description."
     return {"state": "understood" if out else "not_understood", "changes": out, "not_understood": unclear or None,
-            "sent": sent, "sentence": text, "message": None}
+            "sent": sent, "sentence": text, "message": None, "limit": False}
 
 
 def confirm(conn, item_id: str, sentence, changes) -> dict:
-    """Apply the changes the owner confirmed from a correction by sentence."""
+    """Apply the changes the owner confirmed from a correction by sentence. A change that says what the value was
+    when Claude read the sentence (`before`) is refused if the item has changed since."""
     text = _clean_sentence(sentence)
     if not isinstance(changes, list) or not changes:
         raise items.ItemError("Confirm at least one change.")
-    picked = {}
+    picked, before = {}, {}
     for c in changes:
         if not isinstance(c, dict) or not isinstance(c.get("name"), str) or "value" not in c:
             raise items.ItemError("Each change needs a name and a value.")
+        _plain_value(c["name"], c["value"])
         picked[c["name"]] = c["value"]
+        if "before" in c:
+            _plain_value(c["name"], c["before"])
+            before[c["name"]] = c["before"]
+    if before:
+        now = _description(items.get(conn, item_id))
+        if any(now.get(name, _UNSET) != was for name, was in before.items()):
+            raise items.ItemError(CHANGED, 409)
     return apply(conn, item_id, picked, kind="sentence", sentence=text)
 
 
 # --------------------------------------------------------------- undoing
+def _given_back(row, sets: dict, source: dict, confidence: dict, fields: list[str]) -> None:
+    """Fields an undo gives back to the tagger are what the answer the item has now says, as if that answer had
+    come after the undo (`tagjobs.fill`): an answer that came since the change is not undone with it."""
+    text = sets["tag_answer"] if "tag_answer" in sets else row["tag_answer"]
+    if not text:
+        return
+    try:
+        tags = ItemTags.model_validate_json(text)
+    except ValueError:   # an answer from an older schema: leave the fields as they were
+        return
+    suggested = tagjobs.suggested_fields(tags)
+    for field in fields:
+        if field not in suggested:
+            continue
+        current = sets[field] if field in sets else row[field]
+        if field == "silhouette":
+            current = illustrations._json(current, {})
+        filled = tagjobs.fill(tags, field, current, source.get(field), suggested)
+        if filled is None:
+            continue
+        value, by, sure = filled
+        sets[field] = json.dumps(value or {}) if field == "silhouette" else value
+        if by is None:
+            source.pop(field, None)
+            confidence.pop(field, None)
+            continue
+        source[field] = by
+        if sure is not None:
+            confidence[field] = sure
+
+
 def undo(conn, item_id: str, change_id: int) -> dict:
     """Put back what a change replaced, if it is still the latest change to everything it touched."""
     conn.execute("BEGIN IMMEDIATE")
@@ -234,9 +316,11 @@ def undo(conn, item_id: str, change_id: int) -> dict:
         confidence = illustrations._json(row["confidence"], {})
         owner = details.own(row)
         sets: dict = {}
+        fields = []
         for part in json.loads(entry["parts"]):
             name, was = part["name"], part["before"] or {}
             if part["target"] == "field":
+                fields.append(name)
                 value = was.get("value")
                 sets[name] = json.dumps(value or {}) if name == "silhouette" else value
                 for store, key in ((source, "source"), (confidence, "confidence")):
@@ -251,11 +335,16 @@ def undo(conn, item_id: str, change_id: int) -> dict:
                     owner.pop(name, None)
             elif part["target"] == "answer":
                 sets.update({c: was.get(c) for c in history.ANSWER})
+                if was.get("details_confidence") is None:
+                    confidence.pop("details", None)
+                else:
+                    confidence["details"] = was["details_confidence"]
+        _given_back(row, sets, source, confidence, fields)
         sets.update(source=json.dumps(source), confidence=json.dumps(confidence), own_details=details.dump(owner),
                     updated_at=db.now())
         conn.execute(f"UPDATE items SET {', '.join(f'{k} = ?' for k in sets)} WHERE id = ?", [*sets.values(), item_id])
-        drawn = history.drawing_before(entry) if not later else None
-        if drawn is not None:   # nothing changed since: the drawing it had (the demo's are drawn by hand)
+        drawn = history.drawing_for(conn, items.get(conn, item_id))
+        if drawn is not None:   # the item is as it was before some change: the drawing it had then (the demo's are made in advance)
             conn.execute("UPDATE items SET illustration_svg = ?, illustration_version = ?, illustration_notes = ? WHERE id = ?",
                          (drawn.get("svg"), drawn.get("version"), drawn.get("notes"), item_id))
         else:

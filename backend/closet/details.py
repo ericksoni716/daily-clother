@@ -63,7 +63,7 @@ TITLES = {
     "contrast_stitching": "contrast stitching", "toe_cap": "toe cap", "side_stripe": "side stripe",
     "contrast_heel_tab": "contrast heel tab", "chunky_sole": "chunky sole",
     "category": "kind of garment", "color": "colour", "color_hex": "colour shade", "pattern": "pattern",
-    "formality": "formality", "season": "season", "silhouette": "shape",
+    "formality": "formality", "season": "season", "silhouette": "shape", "name": "name", "material": "material",
     "silhouette.sleeve": "sleeves", "silhouette.neck": "neck", "silhouette.top_length": "length", "silhouette.fit": "fit",
     "silhouette.leg": "leg", "silhouette.pant_length": "trouser length", "silhouette.shoe_height": "shoe height",
 }
@@ -130,7 +130,7 @@ def words(name: str, value) -> str:
         return "yes" if value else "no"
     if isinstance(value, int):
         return "none" if value == 0 and name == "placket_buttons" else str(value)
-    if name == "color_hex":
+    if name in ("color_hex", "name", "material"):   # the owner's or Claude's own words
         return str(value)
     return _WORDS.get(name, {}).get(value) or _ANY.get(value) or str(value).replace("_", " ")
 

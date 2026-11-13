@@ -98,21 +98,27 @@ class FakeClaude:
 class FakeApi:
     """Stands in for the Anthropic API behind the API-key route (its `messages.parse`); no test reaches the real one.
 
-    Answers ANSWER and reports token counts as the real API does; `error` makes the next calls raise it instead.
+    Answers ANSWER (or, asked to read a correction, `correction`: two buttons) and reports token counts as the real
+    API does; `error` makes the next calls raise it instead. `requests` keeps what each call was sent.
     """
 
     def __init__(self, input_tokens: int = 2000, output_tokens: int = 400):
         self.input_tokens, self.output_tokens = input_tokens, output_tokens
         self.error: Exception | None = None
         self.calls = 0
+        self.requests: list[dict] = []
         self.messages = self
+        self.correction = CorrectionAnswer(changes=[Change(name="placket_buttons", value="2")], not_understood="",
+                                           needs_photo=False)
 
     def parse(self, **kw):
         self.calls += 1
+        self.requests.append(kw)
         if self.error:
             raise self.error
         usage = SimpleNamespace(input_tokens=self.input_tokens, output_tokens=self.output_tokens)
-        return SimpleNamespace(parsed_output=ANSWER, stop_reason="end_turn", usage=usage)
+        answer = self.correction if kw.get("output_format") is CorrectionAnswer else ANSWER
+        return SimpleNamespace(parsed_output=answer, stop_reason="end_turn", usage=usage)
 
 
 @pytest.fixture

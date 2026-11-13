@@ -30,6 +30,10 @@ export async function login(page: Page) {
     await field.fill(PASS);
     await page.getByRole('button', { name: 'Open my closet' }).click();
   }
+  // A closet that can dress the owner opens on Today; these tests start from the closet itself.
+  const today = page.locator('#today-title');
+  await expect(title.or(today)).toBeVisible();
+  if (await today.isVisible()) await page.goto('/');
   await expect(title).toBeVisible();
 }
 

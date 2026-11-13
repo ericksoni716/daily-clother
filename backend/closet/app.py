@@ -139,6 +139,18 @@ class WearDay(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class WearMany(BaseModel):
+    item_ids: list[str]
+    worn_on: str | None = None
+    model_config = {"extra": "forbid"}
+
+
+class WearManyDay(BaseModel):
+    item_ids: list[str]
+    worn_on: str
+    model_config = {"extra": "forbid"}
+
+
 class LaundryState(BaseModel):
     state: str
 
@@ -303,6 +315,16 @@ def create_app(sv: Services) -> FastAPI:
     @app.delete("/api/items/{item_id}/wears/{worn_on}", dependencies=protected)
     def remove_wear(item_id: str, worn_on: str, conn=Depends(conn_dep)):
         return wears.remove(conn, item_id, worn_on)
+
+    @app.post("/api/wears", dependencies=protected)
+    def add_wears(body: WearMany, response: Response, conn=Depends(conn_dep)):
+        result = wears.add_many(conn, body.item_ids, body.worn_on)
+        response.status_code = 201 if result["recorded"] else 200
+        return result
+
+    @app.post("/api/wears/remove", dependencies=protected)
+    def remove_wears(body: WearManyDay, conn=Depends(conn_dep)):
+        return wears.remove_many(conn, body.item_ids, body.worn_on)
 
     @app.post("/api/items/{item_id}/laundry", dependencies=protected)
     def set_laundry(item_id: str, body: LaundryState, conn=Depends(conn_dep)):

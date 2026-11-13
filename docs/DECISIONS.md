@@ -167,6 +167,22 @@ The rules live in `backend/closet/gaps.py`; every number is a named constant at 
 | The analysis reads the engine's own pieces, options and rules (functions in `outfits.py` whose names start with `_`) and does not change `outfits.py` | The two cannot disagree about what suits a day. If the engine changes, the gaps follow. |
 | The API keeps the last answer per closet and reuses it until an item or a wear changes; a wash, a timestamp or a cutout does not count | The analysis takes about a second on the demo closet and about four on 300 items (40 runs of the engine, each bounded by its own six-candidates-per-place search, not by the size of the closet). |
 
+### The Today screen
+
+`frontend/src/screens/Today.tsx` (its own styles in `Today.css`), with the wording and what the device keeps in `frontend/src/today.ts`.
+
+| Decision | Why |
+|---|---|
+| The app opens on Today once the closet has a top (tee, shirt or polo), something for the legs and shoes that are not archived or disliked; only once per tab, on the closet's front page | Before that Today could only say what is missing, so the closet is the better first screen. Once per tab (and again after logging in) so tapping **Closet**, reloading or switching closets stays where the owner went. |
+| The outfit is shown as its pieces laid out in the order they are put on (outer layer, mid layer, top, bottom, shoes, extras), not dressed on a figure | Clear and works with any mix of cutouts and drawings; a layered mannequin is a later issue. |
+| Warnings sit at the top of the outfit in a coloured box; the reasons follow under "Why this works", always open | A warning (rain, a rule broken) changes what the owner does, a reason only explains. |
+| Occasion and mood are chips; the last choice is kept on this device (`localStorage`), not on the server | It is a habit of the device (work phone, home computer), not a fact about the closet. It starts at casual, as usual. |
+| "I'm wearing this" records the whole outfit with one call (`POST /api/wears`), and undo removes only the wears that call added (`POST /api/wears/remove`) | One call is all or nothing, so a dropped connection never leaves half an outfit worn. A piece already worn that day was worn anyway; undo must not remove that. Choosing another outfit the same day undoes the first one. |
+| Worn today, typed temperatures and the last outfits fetched are kept on the device for that day only, per closet, and removed on logout with the other saved copies | So the screen still says what is worn after a reload, and offline it shows the outfits found earlier (the service worker never keeps answers to `POST`). |
+| "Not this piece" and "Start from this piece" apply until cleared or the app is closed; they are not remembered on the device | They answer "not that one today", not a lasting preference (that is the rating). |
+| Typed temperatures are offered only when there is no saved place (or the forecast cannot be had); the forecast cannot be corrected from this screen | One way to set the day keeps the top of the screen short; the server already allows a correction if it is wanted later. |
+| `context.message` carries the server's own sentence when the forecast is old | The screen says it in the same words as Settings. |
+
 ## Reaching Claude: two routes
 
 Decided with the owner after phase 1: the app can reach Claude two ways, and

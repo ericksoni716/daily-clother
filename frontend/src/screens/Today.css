@@ -1,0 +1,164 @@
+/* The Today screen. Uses the tokens and shared classes in styles.css; only what is new to this screen is here. */
+
+.today { max-width: 72rem; min-width: 0; }
+.today-header { margin-bottom: 10px; }
+.today-item { max-width: 40rem; margin: 0 auto; }
+.today-panel-top { margin: -6px 0 6px -8px; }
+.inline-icon { width: 1.15em; height: 1.15em; vertical-align: -0.25em; }
+
+/* ---------------------------------------------------------------- the day */
+.today-day {
+  display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 14px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0;
+}
+.today-day > svg { flex: none; width: 26px; height: 26px; color: var(--warn); }
+.today-day-text { flex: 1; min-width: 0; }
+.today-day-line { margin: 0; font-size: 1.05rem; font-weight: 600; display: flex; flex-wrap: wrap; column-gap: 0; row-gap: 2px; }
+.today-day-line > span + span::before { content: '·'; color: var(--muted); padding: 0 0.5em; font-weight: 400; }
+.today-day-old { margin: 4px 0 0; color: var(--warn); font-size: 0.9rem; }
+.today-day-form { display: block; }
+.today-day-why { margin: 0 0 10px; font-weight: 560; }
+.today-typed { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; align-items: end; max-width: 30rem; }
+.today-typed .field { margin-bottom: 10px; }
+.today-typed .field input { width: 100%; }
+.today-rain { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; min-height: var(--tap); margin-bottom: 6px; }
+.today-rain input { width: 22px; height: 22px; accent-color: var(--accent-bg); }
+.today-typed-actions, .today-typed .form-error { grid-column: 1 / -1; }
+.today-typed .form-error { margin: 10px 0 0; }
+.today-day-form .hint { margin: 12px 0 0; }
+.today-day-form .hint a { color: var(--accent); }
+
+/* ---------------------------------------------------------------- occasion and mood */
+.today-choices { display: grid; gap: 8px; margin-bottom: 14px; min-width: 0; }
+.today-choice { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.today-choice .chip-group-title { flex: none; width: 5.6rem; margin: 0; }
+.today-choice .chips-scroll { flex: 1; min-width: 0; margin: 0 calc(-1 * var(--gutter)) 0 0; padding: 3px var(--gutter) 3px 0; }
+@media (min-width: 1000px) {
+  .today-choice .chips-scroll { margin: 0; padding: 0; }
+  .today-choices { grid-template-columns: auto auto; justify-content: start; column-gap: 32px; }
+  .today-choice .chip-group-title { width: auto; }
+}
+.today-changes { margin: -2px 0 14px; align-items: center; }
+.chip-change { background: var(--accent-soft); border-color: transparent; max-width: 100%; }
+.chip-change > span { font-size: 1.1rem; line-height: 1; }
+
+/* ---------------------------------------------------------------- the outfits */
+.today-outfits { min-width: 0; }
+.today-outfits.is-asking .today-track { opacity: 0.55; transition: opacity 0.2s; }
+.today-outfits-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; min-height: var(--tap); }
+.today-outfits-head h2 { margin: 0; font-size: 1.15rem; flex: 1; min-width: 0; }
+.today-outfits-head .count { font-weight: 400; }
+.today-asking { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; }
+.today-arrows { display: flex; gap: 6px; }
+.btn-icon { width: var(--tap); padding: 0; }
+
+.today-track {
+  display: flex; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory;
+  scrollbar-width: none; outline: none; border-radius: 18px;
+}
+.today-track::-webkit-scrollbar { display: none; }
+.today-slide { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; container-type: inline-size; }
+
+.today-card {
+  display: grid; gap: 14px; height: 100%;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px; box-shadow: var(--shadow);
+}
+.today-card-pieces, .today-card-why { min-width: 0; }
+
+.today-warnings {
+  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-small);
+  background: var(--warn-soft); border-left: 5px solid var(--warn); color: var(--ink); font-weight: 560;
+}
+.today-warnings > svg { flex: none; width: 24px; height: 24px; color: var(--warn); }
+.today-warnings ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+
+.today-pieces { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 10px; }
+.today-piece { position: relative; min-width: 0; }
+.today-piece-link { display: flex; flex-direction: column; text-decoration: none; color: var(--ink); border-radius: var(--radius); }
+.today-piece-card {
+  position: relative; display: block; aspect-ratio: 400 / 460; border-radius: var(--radius); background: var(--card); overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--card-edge); transition: box-shadow 0.15s;
+}
+.today-piece-card > img, .today-piece-card > .pic-placeholder { position: absolute; inset: 0; width: 100%; height: 100%; }
+.today-piece-link:hover .today-piece-card { box-shadow: inset 0 0 0 1px var(--card-edge), 0 6px 18px rgba(38, 35, 31, 0.1); }
+.today-piece.is-base .today-piece-card, .today-piece.is-open .today-piece-card { box-shadow: 0 0 0 3px var(--accent); }
+.today-piece-place { margin-top: 7px; color: var(--muted); font-size: 0.74rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; }
+.today-piece.is-base .today-piece-place { color: var(--accent); }
+.today-piece-name {
+  font-weight: 600; font-size: 0.9rem; line-height: 1.25; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-clamp: 2;
+}
+.today-piece-more {
+  position: absolute; top: 2px; right: 2px; width: var(--tap); height: var(--tap); padding: 0; border: none; background: none;
+  display: grid; place-items: center; cursor: pointer; color: #3a362f;
+}
+.today-piece-more svg {
+  width: 30px; height: 30px; padding: 4px; border-radius: 50%; background: rgba(255, 253, 249, 0.92);
+  box-shadow: 0 1px 3px rgba(38, 35, 31, 0.2);
+}
+.today-piece-more[aria-expanded='true'] svg { background: var(--accent-bg); color: var(--accent-ink); }
+
+.today-piece-menu {
+  margin-top: 12px; padding: 12px; border-radius: var(--radius-small); background: var(--surface-2);
+}
+.today-piece-menu p { margin: 0 0 8px; overflow-wrap: anywhere; }
+.today-hint { margin: 10px 0 0; }
+
+.today-wear { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.today-wear-button { min-height: 52px; font-size: 1.05rem; }
+.today-worn {
+  flex: 1; min-width: 12rem; display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 12px; min-height: var(--tap);
+  border-radius: var(--radius-small); background: var(--accent-soft); color: var(--accent); font-weight: 650;
+}
+.today-worn svg { flex: none; width: 22px; height: 22px; }
+
+.today-card-why .chip-group-title { margin: 0 0 8px; }
+.today-reasons { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.today-reasons li { display: flex; gap: 8px; align-items: flex-start; line-height: 1.4; }
+.today-reasons svg { flex: none; width: 18px; height: 18px; margin-top: 2px; color: var(--accent); }
+
+/* Wide card: pieces on the left, why and the button on the right. */
+@container (min-width: 640px) {
+  .today-card {
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 19rem); grid-template-rows: auto 1fr;
+    grid-template-areas: 'warn why' 'pieces why'; column-gap: 24px; padding: 18px; align-items: start;
+  }
+  .today-warnings { grid-area: warn; }
+  .today-card-pieces { grid-area: pieces; }
+  .today-card-why { grid-area: why; }
+  .today-pieces { grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 18px 12px; }
+}
+
+.today-thumbs { display: flex; justify-content: center; gap: 0; margin-top: 6px; }
+.today-thumb {
+  display: grid; place-items: center; min-width: var(--tap); min-height: var(--tap); padding: 0; border: none; background: none; cursor: pointer;
+}
+.today-thumb-pics { display: none; }
+.today-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); transition: background 0.15s, transform 0.15s; }
+.today-thumb.is-on .today-dot { background: var(--accent-bg); transform: scale(1.25); }
+
+@media (min-width: 1000px) {
+  .today-thumbs { justify-content: flex-start; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .today-thumb { padding: 6px; border-radius: var(--radius-small); border: 1px solid var(--line); background: var(--surface); }
+  .today-thumb.is-on { box-shadow: 0 0 0 2px var(--accent); border-color: transparent; }
+  .today-thumb:hover:not(.is-on) { border-color: var(--muted); }
+  .today-thumb-pics { display: grid; grid-template-columns: repeat(4, 34px); gap: 3px; }
+  .today-thumb-pics > * {
+    position: relative; display: block; width: 34px; height: 39px; border-radius: 6px; background: var(--card); overflow: hidden; object-fit: contain;
+  }
+  .today-thumb-pics > .pic-cutout { padding: 2px; filter: none; }
+  .today-thumb-pics > .pic-photo { object-fit: cover; }
+  .today-dot { display: none; }
+}
+
+/* ---------------------------------------------------------------- other states */
+.today-saved { align-items: center; }
+.today-worn-note { align-items: center; }
+.today-worn-note > svg { color: var(--accent); }
+.today-worn-note > div { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.today-error .row { margin-top: 10px; }
+.today-loading .muted { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.today-missing { text-align: center; padding: 28px 12px; max-width: 32rem; margin: 0 auto; }
+.today-missing-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
+.today-missing-actions { justify-content: center; margin-top: 18px; }
+.btn.is-disabled { opacity: 0.5; cursor: not-allowed; }

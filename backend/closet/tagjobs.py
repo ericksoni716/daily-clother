@@ -5,7 +5,7 @@ Same queue and same rules as the cutouts (`jobs.py`): jobs are rows in the
 resumes; three attempts, then the item is marked failed with the reason in
 plain words. When no route to Claude can be used the job waits, without using
 up an attempt, and starts when one can. The routes are tried in the order
-`GET /api/tagging` reports; the API key only when the owner has turned it on
+`GET /api/tagging` reports (the order chosen in Settings); the API key only when the owner has turned it on
 and set a monthly limit, and never past that limit (`spend.py`): then the item
 waits and says why.
 
@@ -24,7 +24,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, history, illustrations, patjobs, spend
+from . import db, failures, history, illustrations, patjobs, spend
 from .config import Config
 from .state import State
 from .tagger import routes as tagger_routes
@@ -79,11 +79,13 @@ def recover(conn) -> int:
     A job that has already used its three attempts is failed instead, so a job that keeps crashing ends."""
     t = db.now()
     conn.execute("BEGIN IMMEDIATE")
-    stale = conn.execute("SELECT id, item_id, attempts FROM jobs WHERE kind = ? AND state = 'running'", (KIND,)).fetchall()
+    stale = conn.execute("SELECT id, item_id, attempts, error FROM jobs WHERE kind = ? AND state = 'running'",
+                         (KIND,)).fetchall()
     for job in stale:
         if job["attempts"] >= MAX_ATTEMPTS:
             conn.execute("UPDATE jobs SET state = 'failed', updated_at = ? WHERE id = ?", (t, job["id"]))
             conn.execute("UPDATE items SET tag_state = 'failed', tag_error = ?, updated_at = ? WHERE id = ?", (FAILED, t, job["item_id"]))
+            failures.report(conn, job["item_id"], "description", job["error"])
         else:
             conn.execute("UPDATE jobs SET state = 'queued', updated_at = ? WHERE id = ?", (t, job["id"]))
             conn.execute("UPDATE items SET tag_state = 'waiting', updated_at = ? WHERE id = ?", (t, job["item_id"]))
@@ -154,6 +156,7 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], tagger: Tagger) -> 
             conn.execute("UPDATE jobs SET state = 'failed', error = ?, updated_at = ? WHERE id = ?", (str(e)[:500], t, job["id"]))
             conn.execute("UPDATE items SET tag_state = 'failed', tag_error = ?, updated_at = ? WHERE id = ?",
                          (NO_PHOTO if missing else FAILED, t, job["item_id"]))
+            failures.report(conn, job["item_id"], "description", str(e))
         return "done"
     conn.execute("BEGIN IMMEDIATE")
     try:
@@ -246,17 +249,23 @@ def apply_answer(conn, item_id: str, tags: ItemTags, route: str, model: str | No
 
 
 # ------------------------------------------------------- reaching Claude
-def usable_routes(state: State) -> tuple[str, ...]:
-    """The routes that can be used now, in the order part 1 reports them.
+def route_order(state: State) -> str:
+    """The order the owner chose in Settings (`tagger.routes.ORDERS`); `auto` if none, or if the file holds another."""
+    order = state.get("tagging_route_order")
+    return order if order in tagger_routes.ORDERS else "auto"
 
+
+def usable_routes(state: State) -> tuple[str, ...]:
+    """The routes that can be used now, in the order the owner chose (the plan first unless they chose otherwise).
+
+    Describing items, landmarks, typed corrections and "Would this work?" all ask this, so the choice applies to each.
     The API key is billed, so it is only used when the owner has turned it on and set a monthly limit.
     Whether the limit leaves room is checked before each request (`spend.Meter`), so an item can say why it waits.
     """
-    allowed = []
-    for r in tagger_routes.status()["routes"]:
-        if r["available"] and (r["id"] != "api" or spend.api_allowed(state)):
-            allowed.append(r["id"])
-    return tuple(allowed)
+    order = route_order(state)
+    available = {r["id"]: r["available"] for r in tagger_routes.status(order)["routes"]}
+    return tuple(r for r in tagger_routes.ORDERS[order]
+                 if available.get(r) and (r != "api" or spend.api_allowed(state)))
 
 
 def claude_tagger(images: list[Image.Image], routes: tuple[str, ...], meter: Meter | None = None, client=None) -> TagResult:

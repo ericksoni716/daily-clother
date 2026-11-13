@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LookFor, Wish } from './gaps';
 import {
-  type Check, checkKinds, fillWords, isDone, noteFor, pieceFromLook, pieceToSend, stillToChoose, verdictTone, waitingWords, WEIGHTS, weightLabel, wishById,
+  type Check, checkKinds, fillNote, fillWords, isDone, noteFor, pieceFromLook, pieceToSend, stillToChoose, verdictTone, waitingWords, WEIGHTS, weightLabel, wishById,
   wishFrom, wornWords,
 } from './wouldwork';
 
@@ -93,5 +93,16 @@ describe('how much of a gap it fills', () => {
     expect(fillWords({ gone: true, filled: true })).toBe('no longer missing');
     expect(fillWords({ gone: false, filled: true })).toBe('mostly filled');
     expect(fillWords({ gone: false, filled: false })).toBe('a little less of a gap');
+  });
+});
+
+describe('who a gap it fills is for', () => {
+  it('names the situations, and says when the gap is low on the list', () => {
+    expect(fillNote({ situations: [], low: false })).toBeNull();
+    expect(fillNote({})).toBeNull();
+    expect(fillNote({ situations: ['Work'], low: false })).toBe('for work');
+    expect(fillNote({ situations: ['Work', 'Everyday', 'Going out'], low: false })).toBe('for work, everyday and going out');
+    expect(fillNote({ situations: ['Exercise'], low: true })).toBe('for exercise, low on your list');
+    expect(fillNote({ situations: [], low: true })).toBe('low on your list');
   });
 });

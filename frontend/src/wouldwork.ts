@@ -38,6 +38,12 @@ export interface WouldAnswer {
   fills: {
     gap_id: string; name: string; score_before: number; score_after: number; gone: boolean; filled: boolean; days: WouldDay[];
     of_days: number; found_by: string[];
+    /** Its place on the list before (1 first); low when, weighed by how the owner lives, it is below what the list shows. */
+    rank: number; low: boolean;
+    /** The owner's situations whose days it frees ("Work", "Everyday"); empty until the questions are answered. */
+    situations: string[];
+    /** Whether it makes the verdict "Fills a gap". */
+    counts: boolean;
   }[];
   goes_with: {
     days: number;
@@ -49,6 +55,10 @@ export interface WouldAnswer {
   };
   repeats: { items: { id: string; worn: number; hardly_worn: boolean }[]; text: string | null; disliked: string[]; disliked_text: string | null };
   holds_back: string[];
+  /** Weighed by how the owner lives: the situations the piece serves, and a sentence saying so. */
+  weighed: boolean;
+  situations: { id: string; label: string }[];
+  situations_text: string | null;
   checked: { items: number; wears: number; days: number };
 }
 
@@ -167,6 +177,15 @@ export function wornWords(n: number): string {
 export function wishById(wishes: Wish[] | null, id: string | null): Wish | null {
   if (!id || !wishes) return null;
   return wishes.find((w) => w.id === id) ?? null;
+}
+
+/** Who a gap the piece would fill is for, and whether it is low on the owner's list: "for work and everyday". */
+export function fillNote(fill: { situations?: string[]; low?: boolean }): string | null {
+  const who = (fill.situations ?? []).map((s) => s.toLowerCase());
+  const words = who.length === 0 ? '' : who.length === 1 ? `for ${who[0]}`
+    : `for ${who.slice(0, -1).join(', ')} and ${who[who.length - 1]}`;
+  if (fill.low) return words ? `${words}, low on your list` : 'low on your list';
+  return words || null;
 }
 
 /** How much of a gap the piece would fill, in the answer's list. */

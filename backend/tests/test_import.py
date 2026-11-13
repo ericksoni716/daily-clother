@@ -78,18 +78,19 @@ def test_adding_needs_login(anon):
     assert r.status_code == 401
 
 
-def test_migration_0003_carries_over_the_hash_of_photos_already_in_the_closet(tmp_path, monkeypatch):
+def test_migration_0005_carries_over_the_hash_of_photos_already_in_the_closet(tmp_path, monkeypatch):
     path = tmp_path / "closet.db"
     real = db.migration_files()
-    monkeypatch.setattr(db, "migration_files", lambda: [m for m in real if m[0] < 3])
+    monkeypatch.setattr(db, "migration_files", lambda: [m for m in real if m[0] < 5])
     db.migrate(path, tmp_path / "bk")
     conn = db.connect(path)
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == 4
     conn.execute("INSERT INTO items (id, created_at, updated_at) VALUES ('i', 'now', 'now')")
     conn.execute("INSERT INTO photos (id, item_id, original_path, thumb_path, sha256, created_at) "
                  "VALUES ('p', 'i', 'a', 'b', 'abc', 'now')")
     conn.close()
     monkeypatch.setattr(db, "migration_files", lambda: real)
-    assert 3 in db.migrate(path, tmp_path / "bk")["applied"]
+    assert 5 in db.migrate(path, tmp_path / "bk")["applied"]
     conn = db.connect(path)
     assert conn.execute("SELECT source_sha256 FROM photos WHERE id = 'p'").fetchone()[0] == "abc"
     conn.close()

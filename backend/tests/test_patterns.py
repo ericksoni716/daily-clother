@@ -262,3 +262,42 @@ def test_quilt_garment():
     assert info["distinct"] >= 10
     arr = np.asarray(img).astype(float)
     assert arr.std() > 20                                          # flowers and ground, not one flat colour
+
+
+# --- a graphic tee -------------------------------------------------------------------------------------------
+
+def _tee(logo=True):
+    """A white tee laid flat on a transparent background, with a red and navy logo on its chest if `logo`."""
+    from PIL import ImageDraw
+    im = Image.new("RGBA", (440, 520), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    d.polygon([(130, 20), (310, 20), (420, 120), (370, 180), (330, 150), (330, 500), (110, 500), (110, 150),
+               (70, 180), (20, 120)], fill=WHITE + (255,))
+    if logo:
+        d.ellipse((170, 140, 270, 240), fill=RED + (255,))
+        d.rectangle((195, 165, 245, 215), fill=NAVY + (255,))
+    return im
+
+
+def test_a_graphic_is_lifted_from_a_tee_and_drawn_at_its_place():
+    from closet.drawing import item, stored
+    from closet.patterns.measure import measure
+    kept = measure(_tee(), "graphic")
+    assert kept["kind"] == "plain" and kept["version"] == stored.VERSION
+    x0, y0, x1, y1 = kept["graphic"]["box"]          # fractions of the garment (400 x 480 px from (20, 20))
+    assert x0 <= 150 / 400 and x1 >= 250 / 400 and y0 <= 120 / 480 and y1 >= 220 / 480
+    assert x1 - x0 < 0.4 and y1 - y0 < 0.4            # the logo, not the whole shirt
+    g = stored.graphic_from(kept)
+    assert abs(g.cx - 0.5) < 0.02 and g.image.mode == "RGBA"
+    arr = np.asarray(g.image)
+    assert arr[..., 3].min() < 50 and arr[..., 3].max() == 255   # the shirt around the logo is see-through
+    assert stored.fill_from(kept, "#f0f0eb") is None             # the cloth itself is drawn in its colour
+    plain = item.drawing_from_fields("tee", "#f0f0eb", "graphic", {"sleeve": "short", "neck": "crew"})
+    drawn = item.drawing_from_fields("tee", "#f0f0eb", "graphic", {"sleeve": "short", "neck": "crew"}, graphic=g)
+    assert "<image" not in plain.svg and any("graphic print" in n for n in plain.not_drawn)
+    assert "<image" in drawn.svg and not any("graphic print" in n for n in drawn.not_drawn)
+
+
+def test_a_plain_tee_has_no_graphic_to_lift():
+    from closet.patterns.measure import measure
+    assert measure(_tee(logo=False), "graphic") is None

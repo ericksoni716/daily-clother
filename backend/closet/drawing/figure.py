@@ -40,6 +40,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 
 from . import item
+from .fills import Graphic
 from .illustrate import CARD, Fill, Spec, _draw
 from .templates import BODY_W, CX, K_PX, PX_CM, SHOE_G, SHOE_L, Shape, build
 
@@ -79,6 +80,7 @@ class Piece:
     pattern: str | None = None
     silhouette: dict | None = None
     fill: Fill | None = None     # the item's pattern measured from its photo, as its own drawing uses it
+    graphic: Graphic | None = None   # a print lifted from its photo (tops only), as its own drawing uses it
 
 
 @dataclass
@@ -151,7 +153,8 @@ def _spec(piece: Piece) -> Spec:
         word = piece.color if isinstance(piece.color, str) and piece.color in item.NAMED_HEX else "grey"
         tags = item._plain(piece.category, item._known_silhouette(piece.silhouette), {}, word)
     template, params, extras, _ = item.drawing_for(tags)
-    return Spec(template, dict(params), piece.fill or Fill("solid", item._color(piece.color_hex, tags.color)), **extras)
+    return Spec(template, dict(params), piece.fill or Fill("solid", item._color(piece.color_hex, tags.color)),
+                graphic=piece.graphic if template == "top" else None, **extras)
 
 
 def _plainest(piece: Piece) -> Spec:

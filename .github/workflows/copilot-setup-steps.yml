@@ -5,6 +5,9 @@ name: copilot setup steps
 # branch, and only the job named `copilot-setup-steps`.
 #
 # It also runs when this file changes, to check that the steps still work.
+#
+# timeout-minutes is also the cloud agent's session limit (59 is the most
+# GitHub allows). At 30, agents ran out of time before pushing their work.
 
 on:
   workflow_dispatch:
@@ -18,7 +21,7 @@ on:
 jobs:
   copilot-setup-steps:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 59
     permissions:
       contents: read
     steps:

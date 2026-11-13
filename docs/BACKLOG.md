@@ -39,6 +39,7 @@ Wave 4:
 - [x] #77 The outfit engine and the gap analysis use what the tagger saw: the cloth's weight, then the knit gauge, and the sleeve length. What the owner typed wins over the tagger; the tagger wins over a guess from the name.
 - [ ] #78 and #79 Trip packing: what to take for the weather there, given to two models.
 - [ ] #85 "Would this work?": check a piece against the closet before buying it, from a photo or a description.
+- [ ] #88 and #89 What's missing informed by how the owner lives: his situations (work, everyday, going out, lounging, exercise, vacation) and how often, the weather where he lives, and his taste. The owner's request after seeing the screen. Given to two models.
 
 Next: shop searches for a wish, with each find checked against the closet, then price checks.
 

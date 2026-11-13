@@ -64,7 +64,7 @@ export interface Item extends ItemSummary {
   rating_reason: string | null;
   illustration_svg: string | null;
   cutout_error: string | null;
-  /** Why describing it failed, in plain words. */
+  /** Why describing it failed, or while it waits, why it can't go yet (the API key's monthly limit), in plain words. */
   tag_error: string | null;
   /** Who described it: 'plan', 'api', or 'demo' for the demo closet's descriptions made in advance. */
   tag_route: string | null;
@@ -130,8 +130,12 @@ export interface Settings {
   pending_cutouts: number;
   /** Items waiting to be described by Claude. */
   pending_tags: number;
-  /** Whether the API key may be used for tagging (off until there is a spend cap). */
+  /** Whether the API key may be used for tagging: off by default, and only with a monthly limit. */
   tagging_api_enabled: boolean;
+  /** The API key's monthly spending limit in US dollars; null until set. */
+  tagging_api_cap_usd: number | null;
+  /** Set when Anthropic refused the key and Closet switched it off. */
+  tagging_api_off: ApiTurnedOff | null;
   phone: { tailscale_installed: boolean; running: boolean; address: string | null; command: string };
   autostart: boolean | null;
   heic_supported: boolean;
@@ -190,6 +194,49 @@ export interface TaggingRoute {
   available: boolean;
   /** Why it can't be used right now, in plain words; empty when it can. */
   detail: string;
+}
+
+/** Why Closet switched the API key off by itself: no credit left, or the key was not accepted. */
+export interface ApiTurnedOff {
+  at: string;
+  reason: 'credit' | 'key';
+}
+
+/** One calendar month of calls to Claude (the computer's local time). */
+export interface SpendMonth {
+  month: string;
+  api_calls: number;
+  plan_calls: number;
+  spent_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+/** GET /api/tagging/spend: what the API key has cost, its limit, and what waiting items would cost. */
+export interface TaggingSpend {
+  allowed: boolean;
+  cap_usd: number | null;
+  suggested_cap_usd: number;
+  max_cap_usd: number;
+  /** "2026-11" */
+  month: string;
+  spent_usd: number;
+  api_calls: number;
+  plan_calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  left_usd: number | null;
+  /** Less is left than one more photo could cost. */
+  reached: boolean;
+  /** The most one photo should cost through the API key. */
+  per_photo_usd: number;
+  waiting: { items: number; photos: number; at_most_usd: number };
+  model: string;
+  /** The date the price table was written down, "2026-11-03". */
+  prices_checked: string;
+  turned_off: ApiTurnedOff | null;
+  /** Newest first, this month included once anything was sent. */
+  history: SpendMonth[];
 }
 
 /** Which routes to Claude can be used right now, and the order they are tried in. */

@@ -250,7 +250,7 @@ def test_the_api_route_is_only_used_once_the_owner_turns_it_on(client, services,
     assert tagjobs.usable_routes(state) == ("plan",)
     both_routes["plan"] = False
     assert tagjobs.usable_routes(state) == ()   # the key alone is not enough
-    r = client.put("/api/settings", json={"tagging_api_enabled": True})
+    r = client.put("/api/settings", json={"tagging_api_enabled": True, "tagging_api_cap_usd": 5})   # a limit is needed
     assert r.status_code == 200 and r.json()["tagging_api_enabled"] is True
     assert tagjobs.usable_routes(state) == ("api",)
     both_routes["plan"] = True
@@ -299,7 +299,7 @@ def test_the_migration_runs_on_a_closet_made_by_the_previous_version(cfg):
 
 def test_turning_the_api_key_off_takes_effect_before_the_next_item(client, services, claude, cfg, both_routes):
     both_routes["plan"] = False
-    client.put("/api/settings", json={"tagging_api_enabled": True})
+    client.put("/api/settings", json={"tagging_api_enabled": True, "tagging_api_cap_usd": 5})
     upload(client, key="a")
     upload(client, data=photo_bytes(color=(20, 30, 90)), key="b")
     cut(services)

@@ -9,7 +9,9 @@ import { SettingsScreen } from './screens/Settings';
 import { ItemDetail } from './screens/ItemDetail';
 import { TodayScreen } from './screens/Today';
 import { TripsScreen } from './screens/Trips';
+import { InsightsScreen } from './screens/Insights';
 import { ReviewBadge, ReviewIcon, ReviewScreen, useReviewCount } from './screens/Review';
+import { BagIcon, MissingScreen } from './screens/Missing';
 
 export function Shell({ version }: { version: string }) {
   const path = usePath();
@@ -21,14 +23,17 @@ export function Shell({ version }: { version: string }) {
 
   let content;
   if (route.name === 'today') content = <TodayScreen itemId={route.itemId} wide={wide} />;
+  else if (route.name === 'missing') content = <MissingScreen itemId={route.itemId} wide={wide} />;
   else if (route.name === 'add') content = <AddScreen />;
   else if (route.name === 'settings') content = <SettingsScreen version={version} />;
+  else if (route.name === 'insights') content = <InsightsScreen />;
   else if (route.name === 'review') content = <ReviewScreen />;
   else if (route.name === 'trips') content = <TripsScreen tripId={route.tripId} />;
   else if (route.itemId && !wide) content = <ItemDetail key={route.itemId} id={route.itemId} status={route.status} />;
   else content = <ClosetScreen status={route.status} selectedId={route.itemId} wide={wide} />;
 
-  const section = route.name === 'closet' ? (route.status === 'archived' ? 'archived' : 'closet') : route.name;
+  // Insights is reached from the Closet screen, so Closet stays the highlighted section
+  const section = route.name === 'closet' ? (route.status === 'archived' ? 'archived' : 'closet') : route.name === 'insights' ? 'closet' : route.name;
 
   return (
     <div className="shell">
@@ -81,6 +86,7 @@ const NAV = [
   { key: 'archived', to: '/archived', label: 'Archived', Icon: ArchiveIcon },
   { key: 'trips', to: '/trips', label: 'Trips', Icon: SuitcaseIcon },
   { key: 'review', to: '/review', label: 'Review', Icon: ReviewIcon },
+  { key: 'missing', to: '/missing', label: "What's missing", short: 'Missing', Icon: BagIcon },
   { key: 'add', to: '/add', label: 'Add', Icon: PlusIcon },
   { key: 'settings', to: '/settings', label: 'Settings', Icon: GearIcon },
 ] as const;
@@ -113,7 +119,9 @@ function TabBar({ section, offline, toReview }: { section: string; offline: bool
   const tabs = NAV.filter((n) => n.key !== 'archived' && n.key !== 'trips');
   return (
     <nav className="tabbar" aria-label="Main">
-      {tabs.map(({ key, to, label, Icon }) => {
+      {tabs.map((n) => {
+        const { key, to, Icon } = n;
+        const label = 'short' in n ? n.short : n.label;
         const active = section === key || (key === 'closet' && section === 'archived') || (key === 'today' && section === 'trips');
         if (key === 'add' && offline) {
           return (

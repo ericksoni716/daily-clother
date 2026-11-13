@@ -362,32 +362,42 @@ def measure2(cut, log=print):
     return dict(orientation=way, bands=[(h, n / total) for h, n in bands], palette=pal)
 
 
-def yarn_colours(cut, kmax=6, sample=40000):
-    """The garment's yarn colours from its own pixels (no merging of light and dark: white and light blue are
-    two yarns), as many as clearly help, each taken at its lit side."""
+def yarn_colours(cut, kmax=8, sample=60000):
+    """The garment's yarn colours from its own pixels: generous clustering; small clusters are kept when they
+    are a colour of their own (a pink accent stripe), not when they are a shade between two others."""
     rgb = np.asarray(cut.convert("RGB"))
     m = mask_of(cut, erode_frac=0.02)
     lab = cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB).astype(np.float32)[m]
     if len(lab) > sample:
         lab = lab[np.random.default_rng(0).choice(len(lab), sample, replace=False)]
     crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.5)
-    prev = None
-    best = None
-    for k in range(2, kmax + 1):
-        cv2.setRNGSeed(0)
-        comp, lbl, cen = cv2.kmeans(lab, k, None, crit, 3, cv2.KMEANS_PP_CENTERS)
-        if prev is not None and (prev - comp) / prev < 0.18:
-            break
-        prev = comp
-        best = (lbl.ravel(), cen, k)
-    lbl, cen, k = best
-    out = []
-    for i in range(k):
+    cv2.setRNGSeed(0)
+    _, lbl, cen = cv2.kmeans(lab, kmax, None, crit, 3, cv2.KMEANS_PP_CENTERS)
+    lbl = lbl.ravel()
+    share = np.bincount(lbl, minlength=kmax) / len(lbl)
+    cols = []
+    for i in range(kmax):
         px = lab[lbl == i]
-        if len(px) < 0.01 * len(lab):
+        if len(px) < 0.003 * len(lab):
             continue
-        out.append([np.percentile(px[:, 0], 75), np.median(px[:, 1]), np.median(px[:, 2])])
-    return np.array(out, np.float32)
+        cols.append(([np.percentile(px[:, 0], 75), np.median(px[:, 1]), np.median(px[:, 2])], share[i]))
+    # drop near-duplicates (keep the bigger), and small clusters that are a shade between two bigger ones
+    cols.sort(key=lambda t: -t[1])
+    kept = []
+    for c, sh in cols:
+        c = np.array(c)
+        if any(np.linalg.norm((c - k) * np.array([0.5, 1, 1])) < 10 for k, _ in kept):
+            continue
+        between = False
+        if sh < 0.03:
+            for i, (A, _) in enumerate(kept):
+                for B, _ in kept[i + 1:]:
+                    t = np.clip(np.dot(c - A, B - A) / (np.dot(B - A, B - A) + 1e-6), 0, 1)
+                    if 0.15 < t < 0.85 and np.linalg.norm(A + t * (B - A) - c) < 7:
+                        between = True
+        if not between:
+            kept.append((c, sh))
+    return np.array([k for k, _ in kept], np.float32)
 
 
 def clean_runs(labels, min_len, cyclic=True):
@@ -535,36 +545,45 @@ def measure4(cut, log=print, up=4):
     if not rep_line:
         return measure3(cut, log=log)
     lag = int(rep_line.split("every ")[1].split(" px")[0])
-    L = choose_repeat(cut, lag, way, log=log)
-    rep, u, use = fold_by_phase(cut, L, way, up=up, log=log)
+    # repeat length: the fast fold's pick and the first estimate, each refined, judged by the precise fold
+    cands = sorted({round(choose_repeat(cut, lag, way, log=log), 2), float(lag)})
+    scored = []
+    for c0 in cands:
+        for c in (c0 * 0.99, c0, c0 * 1.01):
+            res_c = fold_by_match(cut, c, way, iters=2, up=up, log=lambda s: None)
+            if res_c is not None:
+                scored.append((float(res_c[0].std(0).sum()), c, res_c))
+    top = max(sc for sc, _, _ in scored)
+    _, L, (rep, u, use) = min(((sc, c, r) for sc, c, r in scored if sc >= 0.97 * top), key=lambda t: t[1])
+    log(f"  repeat {L:.2f} px chosen from {', '.join(f'{c:.2f}' for c in cands)}")
     nb = len(rep)
-    # yarn colours from the sharp repeat itself: cluster its bins generously, then drop any cluster that is
-    # only a blend of two others (the edge between two stripes) or nearly the same as another
+    # yarn colours from the sharp repeat itself. A real yarn makes stripes at least about a pixel wide; the
+    # blend at the edge between two stripes is only ever a sliver. So: cluster generously, keep the clusters
+    # that form a run of at least `up` slots (one photo pixel) somewhere, merge near-identical ones, and give
+    # every slot the nearest kept colour.
     cv2.setRNGSeed(0)
-    _, lbl, cen = cv2.kmeans(rep.astype(np.float32), 6, None, (3, 50, 0.1), 5, cv2.KMEANS_PP_CENTERS)
-    cen = list(cen)
-    def blend_of_others(i, keep):
-        c = cen[i]
+    _, lbl6, cen6 = cv2.kmeans(rep.astype(np.float32), 6, None, (3, 50, 0.1), 5, cv2.KMEANS_PP_CENTERS)
+    lbl6 = lbl6.ravel()
+    longest = {}
+    shift = next((i for i in range(nb) if lbl6[i] != lbl6[i - 1]), 0)
+    seqv = np.roll(lbl6, -shift)
+    s0 = 0
+    for i in range(1, nb + 1):
+        if i == nb or seqv[i] != seqv[s0]:
+            longest[int(seqv[s0])] = max(longest.get(int(seqv[s0]), 0), i - s0); s0 = i
+    keep = [k for k in range(len(cen6)) if longest.get(k, 0) >= max(3, up)]
+    if len(keep) < 2:
+        keep = sorted(longest, key=lambda k: -longest[k])[:2]
+    merged = True
+    while merged and len(keep) > 2:
+        merged = False
         for a in keep:
             for b in keep:
-                if a >= b or i in (a, b):
-                    continue
-                A, B = cen[a], cen[b]
-                t = np.clip(np.dot(c - A, B - A) / (np.dot(B - A, B - A) + 1e-6), 0, 1)
-                if 0.15 < t < 0.85 and np.linalg.norm(A + t * (B - A) - c) < 9:
-                    return True
-        return False
-    keep = list(range(len(cen)))
-    changed = True
-    while changed and len(keep) > 2:
-        changed = False
-        for i in sorted(keep, key=lambda i: (lbl.ravel() == i).sum()):
-            near = any(np.linalg.norm(cen[i] - cen[j]) < 12 for j in keep if j != i)
-            if near or blend_of_others(i, keep):
-                keep.remove(i)
-                changed = True
+                if a < b and np.linalg.norm(cen6[a] - cen6[b]) < 8:
+                    keep.remove(b if longest[b] < longest[a] else a); merged = True; break
+            if merged:
                 break
-    pure = np.array([cen[i] for i in keep], np.float32)
+    pure = np.array([cen6[k] for k in keep], np.float32)
     w_ = np.array([0.6, 1, 1])
     lbl = np.argmin(np.linalg.norm((rep[:, None] - pure[None]) * w_, axis=2), 1)
     lbl = clean_runs(lbl, min_len=max(2, up // 2))
@@ -620,3 +639,137 @@ def choose_repeat(cut, lag, way, log=print):
     fine = [(float(fold_by_phase(cut, x, way, up=2, log=lambda s: None)[0].std(0).sum()), x)
             for x in np.linspace(L * 0.985, L * 1.015, 7)]
     return max(fine)[1]
+
+
+def _signal(lab, m):
+    s = np.zeros(lab.shape[:2], np.float32)
+    for c in range(3):
+        ch = lab[..., c]
+        s += (ch - ch[m].mean()) / (ch[m].std() + 1e-3)
+    return np.where(m, s, 0).astype(np.float32)
+
+
+def fold_by_match(cut, L, way, ref_rep=None, iters=3, up=4, win_h=None, log=print):
+    """Fold every garment pixel onto one repeat, finding the stripes' position area by area by matching each
+    area's profile against the whole repeat (every stripe in it, to a fraction of a pixel). Only the position
+    within one repeat matters, so areas are combined as directions on a circle and nothing has to be joined."""
+    rgb = np.asarray(cut.convert("RGB"))
+    lab = cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB).astype(np.float32)
+    m = mask_of(cut)
+    if way == "horizontal":
+        lab, m = lab.transpose(1, 0, 2), m.T
+    H, W = m.shape
+    sig = _signal(lab, m)
+    win_w = int(np.ceil(1.5 * L))
+    win_h = win_h or max(8, int(1.5 * L))
+    nb = max(8, int(round(L * up)))
+    if ref_rep is None:
+        # start from the straightened sequence folded onto the repeat (crisp where strips lined up)
+        lab_o, m_o = (cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB).astype(np.float32), mask_of(cut))
+        if way == "vertical":
+            lab_o, m_o = lab_o.transpose(1, 0, 2), m_o.T
+        res = straightened_sequence(lab_o, m_o, log=lambda s: None)
+        seq = res[0]
+        known = np.where(~np.isnan(seq[:, 0]))[0]
+        ref_rep = folded_repeat(seq, L, known.min(), known.max(), up=up)
+    for it in range(iters):
+        # the reference as a signal profile over one repeat, sampled every 1/up px
+        rp = ref_rep.copy()
+        ref_sig = np.zeros(len(rp), np.float32)
+        for c in range(3):
+            ch = lab[..., c][m]
+            ref_sig += (rp[:, c] - ch.mean()) / (ch.std() + 1e-3)
+        sy, sx = max(4, win_h // 2), max(2, int(L / 3))
+        cy, cx, ph, wt = [], [], [], []
+        Fr = np.fft.fft(ref_sig - ref_sig.mean())
+        for y0 in range(0, H - win_h, sy):
+            for x0 in range(0, W - win_w, sx):
+                wm = m[y0:y0 + win_h, x0:x0 + win_w]
+                if wm.mean() < 0.9:
+                    continue
+                prof = sig[y0:y0 + win_h, x0:x0 + win_w].mean(0)
+                # resample the window profile onto the repeat's grid (1/up px), wrapping around the repeat
+                # each repeat slot k sits at x = x0 + ((k/nb*L - x0) mod L) in this window: interpolate there
+                slot_x = x0 + ((np.arange(nb) / nb * L - x0) % L)
+                f = np.interp(slot_x, x0 + np.arange(win_w), prof)
+                f = f - f.mean()
+                cc = np.real(np.fft.ifft(np.fft.fft(f) * np.conj(Fr)))
+                k = int(np.argmax(cc))
+                den = np.sqrt((f ** 2).sum() * ((ref_sig - ref_sig.mean()) ** 2).sum()) + 1e-6
+                score = cc[k] / den
+                if score < (0.3 if it == 0 else 0.5):
+                    continue
+                a_, b_, c_ = cc[k - 1], cc[k], cc[(k + 1) % nb]
+                d = a_ - 2 * b_ + c_
+                kf = k + (0.5 * (a_ - c_) / d if d < 0 else 0)
+                # window content at repeat position p sits at reference position p - kf: shift in px
+                cy.append(y0 + win_h / 2); cx.append(x0 + win_w / 2); ph.append(kf / nb * L); wt.append(score)
+        if len(ph) < 10:
+            log(f"  pass {it + 1}: too few areas matched ({len(ph)})")
+            return None
+        cy, cx, ph, wt = map(np.array, (cy, cx, ph, wt))
+        # a smooth field of shifts: average unit vectors on the circle, weighted, over nearby areas
+        z = wt * np.exp(2j * np.pi * ph / L)
+        grid_y = np.arange(0, H, 8); grid_x = np.arange(0, W, 8)
+        Zr = np.zeros((len(grid_y), len(grid_x))); Zi = np.zeros_like(Zr); Wg = np.zeros_like(Zr)
+        iy = np.clip((cy / 8).astype(int), 0, len(grid_y) - 1); ix = np.clip((cx / 8).astype(int), 0, len(grid_x) - 1)
+        np.add.at(Zr, (iy, ix), z.real); np.add.at(Zi, (iy, ix), z.imag); np.add.at(Wg, (iy, ix), wt)
+        sgm = max(1.5, 1.2 * L / 8)
+        Zr, Zi, Wg = (cv2.GaussianBlur(a.astype(np.float32), (0, 0), sgm) for a in (Zr, Zi, Wg))
+        shift = np.angle(Zr + 1j * Zi) / (2 * np.pi) * L
+        known = Wg > 0.05 * Wg.max()
+        full = cv2.resize(shift.astype(np.float32), (W, H), interpolation=cv2.INTER_NEAREST)
+        # careful: interpolating angles linearly across the wrap would be wrong, so nearest is used at 8 px
+        kn = cv2.resize(known.astype(np.uint8), (W, H), interpolation=cv2.INTER_NEAREST).astype(bool)
+        xx = np.arange(W, dtype=np.float32)[None, :]
+        u = (xx - full) % L
+        use = m & kn
+        bins = np.floor(u[use] / L * nb).astype(int) % nb
+        vals = lab[use]
+        order = np.argsort(bins, kind="stable"); bs, vs = bins[order], vals[order]
+        st = np.searchsorted(bs, np.arange(nb)); en = np.searchsorted(bs, np.arange(nb), side="right")
+        rep = np.full((nb, 3), np.nan, np.float32)
+        for k in range(nb):
+            if en[k] - st[k] > 3:
+                rep[k] = np.median(vs[st[k]:en[k]], 0)
+        for c in range(3):
+            bad = np.isnan(rep[:, c])
+            if bad.any() and (~bad).any():
+                idx = np.arange(nb); rep[bad, c] = np.interp(idx[bad], idx[~bad], rep[~bad, c], period=nb)
+        log(f"  pass {it + 1}: {len(ph)} areas matched (median {np.median(wt):.2f}), {int(use.sum())} pixels folded")
+        ref_rep = rep
+    return rep, u, use
+
+
+_TARGETS = {"white": (246, 246, 244), "cream": (238, 232, 214)}
+
+
+def balance_to_words(result, words):
+    """Correct the photo's lighting from the colour words Claude gave the item: when it says the item has
+    white (or cream), the lightest neutral yarn is that colour, and every yarn gets the same correction
+    (per channel, in linear light, within limits), so the other colours shift with it."""
+    word = next((w for w in ("white", "cream") if w in words), None)
+    if not word:
+        return result, None
+    hexes = result["yarns"]
+    rgb = np.array([[int(h[i:i + 2], 16) for i in (1, 3, 5)] for h in hexes], float)
+    lab = cv2.cvtColor(rgb[None].astype(np.uint8), cv2.COLOR_RGB2LAB)[0].astype(float)
+    chroma = np.hypot(lab[:, 1] - 128, lab[:, 2] - 128)
+    neutral = [i for i in range(len(hexes)) if chroma[i] < 14]
+    if not neutral:
+        return result, None
+    w = max(neutral, key=lambda i: lab[i, 0])
+    lin = lambda c: np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+    unlin = lambda c: np.where(c <= 0.0031308, 12.92 * c, 1.055 * np.power(np.clip(c, 0, None), 1 / 2.4) - 0.055)
+    raw = lin(np.array(_TARGETS[word]) / 255) / np.maximum(lin(rgb[w] / 255), 1e-4)
+    # brightness is corrected freely (within 0.8 to 1.6); the balance between channels only a little (8%),
+    # so a "white" that is really a blend with a coloured stripe cannot drain the colour from everything
+    level = float(np.clip(np.exp(np.log(raw).mean()), 0.8, 1.6))
+    tilt = np.clip(raw / np.exp(np.log(raw).mean()), 0.92, 1.08)
+    gain = level * tilt
+    new = np.clip(unlin(lin(rgb / 255) * gain) * 255, 0, 255)
+    mapping = {h: "#%02x%02x%02x" % tuple(int(round(v)) for v in c) for h, c in zip(hexes, new)}
+    out = dict(result)
+    out["yarns"] = [mapping[h] for h in hexes]
+    out["bands"] = [(mapping.get(h, h), f) for h, f in result["bands"]]
+    return out, (hexes[w], word, np.round(gain, 2).tolist())

@@ -17,6 +17,9 @@ here: run them against cutouts in `bench/private/` (git-ignored).
 - `stripes.py`: stripes. Which way they run; regular stripes folded onto one sharp repeat by reading the
   stripes' local position from the photo (complex demodulation at the stripe spacing, so nothing has to be
   joined), the repeat length chosen by how sharply it folds; yarn colours without the blends at stripe edges.
+  Complex repeats (many stripes) are folded by matching each area against the whole repeat (`fold_by_match`);
+  yarn colours are the clusters that form real stripes (a blend at an edge is only a sliver), and
+  `balance_to_words` corrects the photo's lighting when Claude's colour words say the item has white or cream.
   Stripes with no repeat (a placed chest band) use the straightened sequence across the whole garment, laid
   out as fractions of the garment so each stripe lands where it really is.
 - `quilt.py`: florals and other irregular prints, by image quilting from the whole garment; `quilt_garment`

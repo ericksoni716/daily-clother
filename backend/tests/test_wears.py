@@ -5,7 +5,7 @@ import pytest
 
 from closet import db, wears
 
-from .conftest import upload
+from .conftest import photo_bytes, upload
 
 TODAY = date(2026, 11, 12)
 
@@ -79,7 +79,7 @@ def test_laundry_state_and_marking_clean_resets_the_count(client):
 
 def test_the_laundry_filter(client):
     a = upload(client, key="a", name="Shirt").json()
-    upload(client, key="b", name="Jeans")
+    upload(client, photo_bytes(color=(20, 90, 160)), key="b", name="Jeans")   # another photo: the same one is not added twice
     client.post(f"/api/items/{a['id']}/laundry", json={"state": "laundry"})
     names = lambda **p: sorted(i["name"] for i in client.get("/api/items", params=p).json()["items"])  # noqa: E731
     assert names(laundry="laundry") == ["Shirt"]

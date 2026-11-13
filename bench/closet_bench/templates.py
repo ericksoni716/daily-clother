@@ -12,6 +12,8 @@ import math
 import re
 from dataclasses import dataclass, field
 
+from .taxonomy import SHOE_STYLES  # shared with the tagger (backend/closet/tagger/taxonomy.py)
+
 W, H = 400, 460
 CX = 200.0
 
@@ -1678,7 +1680,6 @@ SNEAKER_DEFAULTS = dict(height="low", sole="regular")
 #   foxing   True | False                 the stripe round a vulcanised sole (default for high_top, slip_on)
 #   laces    True | False                 default by style
 
-SHOE_STYLES = ("low_sneaker", "high_top", "runner", "slip_on", "loafer", "derby", "oxford", "boot", "chelsea_boot")
 SHOE_X0, SHOE_L, SHOE_G = 40.0, 320.0, 330.0   # toe tip x, length toe to heel, ground y
 
 

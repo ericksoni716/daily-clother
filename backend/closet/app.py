@@ -20,6 +20,7 @@ from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
 from .modelstore import MODEL, ModelStore
 from .state import State
+from .tagger import routes as tagger_routes
 
 log = logging.getLogger("closet.app")
 
@@ -326,6 +327,11 @@ def create_app(sv: Services) -> FastAPI:
     async def get_storage():
         # walking a big closet takes a while; do it in a worker thread so other requests keep being answered
         return await run_in_threadpool(storage.usage, cfg, state.get("profile"))
+
+    @app.get("/api/tagging", dependencies=protected)
+    async def get_tagging():
+        # starts `claude auth status` (a few seconds at most), so keep it off the event loop
+        return await run_in_threadpool(tagger_routes.status)
 
     @app.post("/api/backup", dependencies=protected)
     def backup_now():

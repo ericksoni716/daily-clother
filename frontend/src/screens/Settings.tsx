@@ -4,7 +4,7 @@ import { ModelProgress, modelStateText } from '../components/ModelBanner';
 import { PhoneAccess } from '../components/PhoneAccess';
 import { formatDateTime, formatSize } from '../labels';
 import { useCloset } from '../store';
-import type { ModelInfo, Profile, Settings, Storage } from '../types';
+import type { ModelInfo, Profile, Settings, Storage, TaggingRoute, TaggingStatus } from '../types';
 
 function Section({ title, children, id }: { title: string; children: ReactNode; id: string }) {
   return (
@@ -45,6 +45,7 @@ export function SettingsScreen({ version }: { version: string }) {
           {model && <ModelSection model={model} refresh={refreshModel} toast={toast} disabled={offline} />}
           {settings && <BackupSection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
           <StorageSection offline={offline} profile={profile} />
+          <TaggingSection offline={offline} />
         </div>
         <div className="settings-col">
           {settings && (
@@ -269,6 +270,83 @@ function StorageSection({ offline, profile }: { offline: boolean; profile: Profi
 
   return (
     <Section title="Storage" id="s-storage">
+      {body}
+    </Section>
+  );
+}
+
+const README_CLAUDE_CODE = 'https://github.com/ericksoni716/daily-clother#installing-claude-code';
+
+const ROUTE_TEXT: Record<TaggingRoute['id'], { name: string; hint: string }> = {
+  plan: { name: 'Your Claude plan, through Claude Code', hint: 'Costs nothing extra; counts against your plan’s usage limits.' },
+  api: { name: 'An API key', hint: 'Billed per photo; only used when your plan can’t be.' },
+};
+
+function TaggingSection({ offline }: { offline: boolean }) {
+  const [status, setStatus] = useState<TaggingStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    if (offline) return;
+    let current = true;
+    setStatus(null);
+    setError(null);
+    api.tagging().then(
+      (s) => current && setStatus(s),
+      (e) => current && setError((e as Error).message),
+    );
+    return () => {
+      current = false;
+    };
+  }, [offline, attempt]);
+
+  const checkAgain = <button className="btn" onClick={() => setAttempt((n) => n + 1)}>Check again</button>;
+  let body: ReactNode;
+  if (offline) body = <p className="hint">Tagging details aren't available while you're offline.</p>;
+  else if (error) {
+    body = (
+      <>
+        <p className="form-error" role="alert">Couldn't check how Closet can reach Claude: {error}</p>
+        <button className="btn" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
+      </>
+    );
+  } else if (!status) body = <p className="hint">Checking how Closet can reach Claude…</p>;
+  else {
+    const byId = new Map(status.routes.map((r) => [r.id, r]));
+    const routes = status.order.map((id) => byId.get(id)).filter((r): r is TaggingRoute => !!r);
+    const none = !routes.some((r) => r.available);
+    const planMissing = byId.get('plan')?.available === false;
+    body = (
+      <>
+        <p className="hint">Closet asks Claude to describe your clothes. It tries these in this order and uses the first one that works:</p>
+        <ol className="route-list">
+          {routes.map((r) => (
+            <li key={r.id} data-testid={`route-${r.id}`}>
+              <p className={`state-line ${r.available ? 'state-ready' : 'state-missing'}`}>
+                <span className="state-dot" aria-hidden="true" />
+                <span><strong>{ROUTE_TEXT[r.id]?.name ?? r.id}</strong>: {r.available ? 'ready' : r.detail || 'not available'}</span>
+              </p>
+              <p className="hint">{ROUTE_TEXT[r.id]?.hint}</p>
+            </li>
+          ))}
+        </ol>
+        {none ? (
+          <p className="form-error">
+            Closet can't reach Claude yet. <a href={README_CLAUDE_CODE} target="_blank" rel="noreferrer">Install Claude Code and sign in</a>, then check again.
+          </p>
+        ) : planMissing && (
+          <p className="hint">
+            To use your plan instead of paying per photo, <a href={README_CLAUDE_CODE} target="_blank" rel="noreferrer">install Claude Code and sign in</a>.
+          </p>
+        )}
+        {checkAgain}
+      </>
+    );
+  }
+
+  return (
+    <Section title="Tagging" id="s-tagging">
       {body}
     </Section>
   );

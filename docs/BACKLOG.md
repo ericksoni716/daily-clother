@@ -45,6 +45,7 @@ Next (not started; the owner asked for a pause after this wave and a release): s
 
 Design (from the design review; each builds on the first):
 - [x] #127 Design 1, a design system: one set of tokens in `frontend/src/styles.css` (four text levels, surfaces, see-through borders, a 1.25 type scale from 16px, 4px spacing, four radii, one depth for cards), no colour outside them, a Light / Dark / Same as this device choice in Settings → Look, and shared pieces in `frontend/src/components/ui/` used where the swap was mechanical. Layouts unchanged; `src/design.test.ts` keeps CSS on the scale. Known: the spacing tokens are not yet used by existing paddings, the model banner is still its own component, and a forced choice is applied once the script runs.
+- [x] #128 Design 2, navigation: five places in the phone's bar with Add in the middle as a round button; Review reached from a note on the closet and a dot on Closet (and under Closet in the computer's menu); the computer's menu starts with Add clothes and keeps Settings at the foot; Archived only from the closet's switch; a 32px demo strip with Leave. The place search on Today (#130) and How you live on What's missing (#131) are separate issues.
 
 Fixes after 0.2.0:
 - [x] A newer program that finds an older copy running says so and offers to close it and use the new one (it used to open the old one without a word). The owner's first test of 0.2.0 found it.

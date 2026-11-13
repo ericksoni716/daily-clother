@@ -206,7 +206,7 @@ test("today in a closet that can't dress the owner yet: the server's reasons, wh
   const why = page.getByRole('list', { name: 'Why not' });
   await expect(why.getByRole('listitem').first()).toBeVisible();
   await expect(page.getByTestId('add-first')).toContainText('Add first: a top');
-  await expect(page.getByRole('link', { name: 'Add clothes' })).toHaveAttribute('href', '/add');
+  await expect(page.getByRole('main').getByRole('link', { name: 'Add clothes' })).toHaveAttribute('href', '/add');
 });
 
 test('the app opens on Today once the closet can dress the owner', async ({ page, context }) => {

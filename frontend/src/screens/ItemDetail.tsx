@@ -6,12 +6,13 @@ import { formatPrice, label, parsePrice, ratingLabel, SWATCH } from '../labels';
 import { Link, navigate } from '../router';
 import { silhouetteGroups } from '../silhouette';
 import { useCloset } from '../store';
+import { drawingPlaceholder, loadGridView, notInDrawing } from '../drawing';
 import { describedBy, detailLines, tagNotice } from '../tagging';
 import type { Item, ItemPatch } from '../types';
 import { localDay, sinceWash, wearDay, wearSummary } from '../wears';
 import { busyLabel } from './Closet';
 
-type View = 'illustration' | 'cutout' | 'photo';
+type View = 'drawing' | 'cutout' | 'photo';
 
 interface Props {
   id: string;
@@ -129,7 +130,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
     const summary = items.active?.find((x) => x.id === id) ?? items.archived?.find((x) => x.id === id);
     if (offline && summary) {
       // Not saved for offline use yet: show what the closet list knows.
-      const asItem = { ...summary, photos: [], silhouette: {}, illustration_svg: null } as unknown as Item;
+      const asItem = { ...summary, photos: [], silhouette: {}, illustration_svg: null, seen_not_drawn: [], drawing_notes: [] } as unknown as Item;
       return (
         <article className="detail" aria-label={summary.name || 'Item'}>
           <DetailTop inPanel={inPanel} backTo={backTo} />
@@ -362,40 +363,55 @@ function DetailTop({ inPanel, backTo }: { inPanel?: boolean; backTo: string }) {
 
 function Picture({ item, busyText, fallbackThumb }: { item: Item; busyText: string; fallbackThumb?: string | null }) {
   const photo = item.photos[0];
+  const hasDrawing = !!(item.illustration_url || item.has_illustration);
+  const placeholder = drawingPlaceholder(item.tag_state, item.category, hasDrawing);
   const views: { key: View; label: string }[] = [];
-  if (item.illustration_url || item.has_illustration) views.push({ key: 'illustration', label: 'Illustration' });
+  // the drawing's place is offered while one is on its way, so it can say so
+  if (hasDrawing || item.tag_state === 'waiting' || item.tag_state === 'working') views.push({ key: 'drawing', label: 'Drawing' });
   if (photo?.cutout_url) views.push({ key: 'cutout', label: 'Cutout' });
   if (photo?.url) views.push({ key: 'photo', label: 'Photo' });
-  const preferred: View | undefined = photo?.cutout_url ? 'cutout' : views[0]?.key;
+  const [liked] = useState(loadGridView);
+  const preferred: View | undefined = liked === 'drawings' && hasDrawing ? 'drawing' : photo?.cutout_url ? 'cutout' : views[0]?.key;
   const [chosen, setChosen] = useState<View | undefined>(undefined);
   const view = chosen && views.some((v) => v.key === chosen) ? chosen : preferred;
   const alt = item.name || label('category', item.category) || 'Item';
   const busy = item.cutout_state === 'pending' || item.cutout_state === 'processing';
+  const missing = view === 'drawing' && !placeholder ? notInDrawing(item.seen_not_drawn, item.drawing_notes) : [];
 
   let pic: ReactNode;
   if (view === 'cutout') pic = <img className="pic-cutout" src={photo!.cutout_url!} alt={`${alt}, background removed`} />;
   else if (view === 'photo') pic = <img className="pic-photo-full" src={photo!.url!} alt={`${alt}, original photo`} />;
-  else if (view === 'illustration') {
-    pic = item.illustration_url
-      ? <img className="pic-illustration" src={item.illustration_url} alt={`${alt}, illustration`} />
-      : <div className="pic-illustration" role="img" aria-label={`${alt}, illustration`} dangerouslySetInnerHTML={{ __html: item.illustration_svg ?? '' }} />;
+  else if (view === 'drawing') {
+    pic = placeholder
+      ? <div className="pic-placeholder pic-waiting" role="status"><HangerIcon /><p>{placeholder}</p></div>
+      : item.illustration_url
+        ? <img className="pic-illustration" src={item.illustration_url} alt={`${alt}, drawing`} />
+        : <div className="pic-illustration" role="img" aria-label={`${alt}, drawing`} dangerouslySetInnerHTML={{ __html: item.illustration_svg ?? '' }} />;
   } else if (fallbackThumb) pic = <img className={item.cutout_state === 'ready' ? 'pic-cutout' : 'pic-photo'} src={fallbackThumb} alt={alt} />;
   else pic = <div className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></div>;
 
   return (
-    <div className="detail-picture-wrap">
-      <div className={`detail-picture view-${view ?? 'none'}`}>
-        {pic}
-        {busy && <span className="badge badge-busy"><span className="spinner" aria-hidden="true" />{busyText}</span>}
-      </div>
-      {views.length > 1 && (
-        <div className="segmented" role="group" aria-label="Picture">
-          {views.map((v) => (
-            <button key={v.key} type="button" className={view === v.key ? 'is-on' : ''} aria-pressed={view === v.key} onClick={() => setChosen(v.key)}>
-              {v.label}
-            </button>
-          ))}
+    <div className={`detail-picture-wrap${missing.length ? ' has-notes' : ''}`}>
+      <div className="detail-picture-main">
+        <div className={`detail-picture view-${view ?? 'none'}`}>
+          {pic}
+          {busy && <span className="badge badge-busy"><span className="spinner" aria-hidden="true" />{busyText}</span>}
         </div>
+        {views.length > 1 && (
+          <div className="segmented" role="group" aria-label="Picture">
+            {views.map((v) => (
+              <button key={v.key} type="button" className={view === v.key ? 'is-on' : ''} aria-pressed={view === v.key} onClick={() => setChosen(v.key)}>
+                {v.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {missing.length > 0 && (
+        <section className="drawing-notes" aria-labelledby="drawing-notes-title">
+          <h3 id="drawing-notes-title">Not in the drawing</h3>
+          <ul>{missing.map((m) => <li key={m}>{m}</li>)}</ul>
+        </section>
       )}
     </div>
   );

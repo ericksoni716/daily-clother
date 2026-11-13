@@ -75,6 +75,8 @@ export interface Item extends ItemSummary {
   details: Record<string, unknown> | null;
   /** Features Claude saw that the drawing does not show yet. */
   seen_not_drawn: string[];
+  /** What the drawing could not show, in plain words (e.g. a pattern drawn as its colour only). */
+  drawing_notes: string[];
   /** Who set each field: 'user' for the owner, 'ai' for a suggestion. */
   source: Record<string, string>;
   confidence: Record<string, number>;

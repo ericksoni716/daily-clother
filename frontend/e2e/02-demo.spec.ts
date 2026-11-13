@@ -40,8 +40,8 @@ test('item detail: switch pictures, change a chip, it persists', async ({ page }
   // cutout is the default when there is one
   await expect(picture.getByRole('button', { name: 'Cutout' })).toHaveAttribute('aria-pressed', 'true');
   await expect(panel.getByRole('img', { name: /background removed/ })).toBeVisible();
-  await picture.getByRole('button', { name: 'Illustration' }).click();
-  await expect(panel.getByRole('img', { name: /illustration/ })).toBeVisible();
+  await picture.getByRole('button', { name: 'Drawing' }).click();
+  await expect(panel.getByRole('img', { name: /drawing/ })).toBeVisible();
   await picture.getByRole('button', { name: 'Photo' }).click();
   await expect(panel.getByRole('img', { name: /original photo/ })).toBeVisible();
 

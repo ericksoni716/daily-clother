@@ -10,12 +10,18 @@ Neither ever raises. A value the tagger's vocabulary does not know is dropped
 and the rest kept; if the drawing still fails, the plainest drawing of the
 category is returned. Categories with no shape (bag, belt, hat, scarf, other)
 and unknown categories give None: there is nothing to draw.
+
+`drawing_from_answer` and `drawing_from_fields` give the same drawing together
+with what it leaves out or shows only roughly, in plain words (a pattern, a
+detail drawn as something close, why it fell back to the plainest drawing), for
+the item page's "seen but not drawn" list.
 """
 from __future__ import annotations
 
 import json
 import logging
 import re
+from dataclasses import dataclass
 
 from ..tagger.schema import NAMED_HEX, SILHOUETTE_FIELDS, Details, ItemTags, Silhouette, drawing_for
 from .illustrate import Fill, Spec, render
@@ -32,19 +38,26 @@ DEFAULT_HEX = NAMED_HEX["grey"]   # when neither a colour nor a colour word is k
 _HEX = re.compile(r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})")
 _UID = re.compile(r"[A-Za-z0-9_-]{1,32}")
 
+# what the item page lists beside the drawing, in plain words (lower case, as the tagger's own notes are)
+PATTERN_WORDS = {"stripe": "stripes", "plaid": "plaid", "floral": "floral print", "camo": "camouflage",
+                 "graphic": "graphic print", "other": "pattern"}
+DROPPED = "some details Claude gave that the drawing does not know yet"
+FELL_BACK = "its details could not be drawn, so it is shown plain"
+NOT_MADE = "no drawing could be made of it"
+
+
+@dataclass(frozen=True)
+class Drawing:
+    """An item's drawing (None when there is nothing to draw) and, in plain words, what it leaves out or shows roughly."""
+    svg: str | None
+    not_drawn: tuple[str, ...] = ()
+
 
 def svg_from_answer(answer, color_hex: str | None = None, *, uid: str = "a") -> str | None:
     """The drawing for an item from its stored tagger answer (a dict, its JSON text or an `ItemTags`).
     `color_hex` is the item's own colour (measured from the photo or set by the owner); without it the
     answer's colour word is used."""
-    try:
-        tags = _tags(answer)
-        if tags is None:
-            return None
-        return _draw(tags, _color(color_hex, tags.color), _uid(uid))
-    except Exception:   # never raise: the item screen must always open
-        log.exception("could not draw an item from its tagger answer")
-        return None
+    return drawing_from_answer(answer, color_hex, uid=uid).svg
 
 
 def svg_from_fields(category, color_hex: str | None = None, pattern=None, silhouette=None, *,
@@ -53,16 +66,47 @@ def svg_from_fields(category, color_hex: str | None = None, pattern=None, silhou
     silhouette object (sleeve, neck, top_length, fit, leg, pant_length, shoe_height); `color` is the
     colour word, used when there is no `color_hex`. `pattern` is accepted but not drawn: a pattern
     comes from the photo."""
+    return drawing_from_fields(category, color_hex, pattern, silhouette, color=color, uid=uid).svg
+
+
+def drawing_from_answer(answer, color_hex: str | None = None, *, uid: str = "a") -> Drawing:
+    """`svg_from_answer`, with what the drawing could not show."""
+    notes: list[str] = []
+    try:
+        tags = _tags(answer, notes)
+        if tags is None:
+            return Drawing(None)
+        svg = _draw(tags, _color(color_hex, tags.color), _uid(uid), notes)
+        return Drawing(svg, _notes(_pattern(tags.pattern) + notes))
+    except Exception:   # never raise: the item screen must always open
+        log.exception("could not draw an item from its tagger answer")
+        return Drawing(None, _notes(notes + [NOT_MADE]))
+
+
+def drawing_from_fields(category, color_hex: str | None = None, pattern=None, silhouette=None, *,
+                        color: str | None = None, uid: str = "a") -> Drawing:
+    """`svg_from_fields`, with what the drawing could not show."""
+    notes: list[str] = []
     try:
         if category not in DRAWN:
-            return None
-        return _draw(_plain(category, _known_silhouette(silhouette), {}), _color(color_hex, color), _uid(uid))
+            return Drawing(None)
+        svg = _draw(_plain(category, _known_silhouette(silhouette), {}), _color(color_hex, color), _uid(uid), notes)
+        return Drawing(svg, _notes(_pattern(pattern) + notes))
     except Exception:
         log.exception("could not draw an item from its fields")
-        return None
+        return Drawing(None, _notes(notes + [NOT_MADE]))
 
 
-def _tags(answer) -> ItemTags | None:
+def _pattern(pattern) -> list[str]:
+    word = PATTERN_WORDS.get(pattern) if isinstance(pattern, str) else None
+    return [f"the {word}: the drawing shows only the colour for now"] if word else []
+
+
+def _notes(notes: list[str]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(n for n in notes if n))
+
+
+def _tags(answer, notes: list[str] | None = None) -> ItemTags | None:
     if isinstance(answer, ItemTags):
         return answer if answer.category in DRAWN else None
     if isinstance(answer, (str, bytes)):
@@ -76,7 +120,16 @@ def _tags(answer) -> ItemTags | None:
         return ItemTags.model_validate(answer)
     except ValueError:   # an odd value somewhere, or an answer from an older schema: keep what is valid
         word = answer.get("color") if answer.get("color") in NAMED_HEX else "grey"
-        return _plain(answer["category"], _known_silhouette(answer.get("silhouette")), _known_details(answer.get("details")), word)
+        silhouette, details = _known_silhouette(answer.get("silhouette")), _known_details(answer.get("details"))
+        if notes is not None and (_dropped(answer.get("silhouette"), silhouette) or _dropped(answer.get("details"), details)):
+            notes.append(DROPPED)
+        return _plain(answer["category"], silhouette, details, word)
+
+
+def _dropped(raw, kept: dict) -> bool:
+    """Whether anything with a value was left out of `raw` when only the known parts were kept."""
+    return isinstance(raw, dict) and any(v not in (None, "", [], 0, "na", "none", "same", "unknown") and k not in kept
+                                         for k, v in raw.items())
 
 
 def _known_silhouette(raw) -> dict:
@@ -114,14 +167,20 @@ def _plain(category: str, silhouette: dict, details: dict, color: str = "grey") 
         details=Details.plain(**details), details_confidence=1, brand=None, size=None, material=None, needs_shot=None)
 
 
-def _draw(tags: ItemTags, hex_: str, uid: str) -> str:
+def _draw(tags: ItemTags, hex_: str, uid: str, notes: list[str]) -> str:
+    """The drawing; what was drawn only roughly, or why it fell back to the plainest drawing, is added to `notes`."""
     try:
-        template, params, extras, _ = drawing_for(tags)
-        return render(Spec(template, params, Fill("solid", hex_), **extras), STYLE, uid=uid)
+        template, params, extras, approximated = drawing_for(tags)
+        svg = render(Spec(template, params, Fill("solid", hex_), **extras), STYLE, uid=uid)
+        notes.extend(approximated)
+        return svg
     except Exception:
         log.exception("drawing a %s failed; drawing the plainest %s instead", tags.category, tags.category)
-        template, params, extras, _ = drawing_for(_plain(tags.category, {}, {}))
-        return render(Spec(template, params, Fill("solid", hex_), **extras), STYLE, uid=uid)
+        notes.append(FELL_BACK)
+        template, params, extras, approximated = drawing_for(_plain(tags.category, {}, {}))
+        svg = render(Spec(template, params, Fill("solid", hex_), **extras), STYLE, uid=uid)
+        notes.extend(approximated)
+        return svg
 
 
 def _color(color_hex, word) -> str:

@@ -435,6 +435,9 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     depth = DEPTH_PX[wt] if spec.template == "top" else 0
     # always a darker tone of the cloth (a lighter one reads as gloss); the darker the cloth, the more it takes to show
     d_col, d_op = "#000", (0.42 if dark_item else 0.22 if luminance(base) < 0.55 else 0.14)
+    if depth and any(part.role == "band" for part in shape.parts):   # the soft shade a thick knit casts on its rib
+        defs += (f'<filter id="r{uid}" filterUnits="userSpaceOnUse" x="-50" y="-100" width="500" height="700">'
+                 f'<feGaussianBlur stdDeviation="{depth * 0.6:.1f}"/></filter>')
     behind = "".join(overlay(part.d, part.role, part.color) for part in shape.behind)
     if not shape.fronts:
         g.append(behind)
@@ -479,6 +482,9 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
         g.append(halo(d))
     for d in shape.seams:
         g.append(thin(d))
+    for d in shape.folds:   # a light cloth's drape: finer and fainter than a seam
+        g.append(f'<path d="{d}" fill="none" stroke="{l_stroke}" stroke-width="{l_w * 0.8:.2f}" stroke-linecap="round" '
+                 f'opacity="{l_op * 0.6:.2f}"/>')
     g.append("</g>")
     top_side, behind_neck = [], []   # worn open: the top front's collar and lapel; pieces behind the neck
     for part in shape.parts:   # parts marked clip are cut by the garment's edge (laces, a rubber toe)
@@ -486,6 +492,9 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
         if depth and part.role in ("collar_r", "collar_l", "trim"):   # a thick piece stands proud of the body
             piece = (f'<g clip-path="url(#{clip})"><path d="{part.d}" transform="translate({depth * 0.35:.1f} {depth * 0.8:.1f})" '
                      f'fill="{d_col}" opacity="{d_op + 0.05:.2f}"/></g>') + piece
+        elif depth and part.role == "band":   # a thick knit blouses over its rib: a soft shade along the rib's edge
+            piece = (f'<g clip-path="url(#{clip})"><path d="{part.d}" fill="none" stroke="{d_col}" stroke-width="{depth * 2.6:.1f}" '
+                     f'stroke-linejoin="round" opacity="{min(0.5, d_op + 0.15):.2f}" filter="url(#r{uid})"/></g>') + piece
         piece = f'<g clip-path="url(#{clip})">{piece}</g>' if part.clip else piece
         if shape.fronts and part.role == "hole":   # the inside of the neck is part of the back, drawn with it
             continue

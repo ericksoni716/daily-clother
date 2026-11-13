@@ -215,7 +215,7 @@ def test_the_demo_closets_drawings_are_the_ones_made_in_advance(client, cfg):
     assert red["illustration_svg"] != polo["illustration_svg"] and "#b33a3a" in red["illustration_svg"]
 
 
-def test_the_migration_keeps_the_drawings_made_before_it(cfg):
+def test_the_migration_keeps_the_drawings_made_before_it(cfg, monkeypatch):
     path = cfg.db_path("main")
     path.parent.mkdir(parents=True, exist_ok=True)
     old = sqlite3.connect(path)
@@ -234,7 +234,13 @@ def test_the_migration_keeps_the_drawings_made_before_it(cfg):
     try:
         rows = {r["id"]: r for r in conn.execute("SELECT * FROM items")}
         assert rows["a"]["illustration_version"] == 1 and rows["b"]["illustration_version"] is None
+        # the migration stamps them as drawn by version 1, so a program drawing with version 1 keeps them...
+        monkeypatch.setattr(drawing, "DRAWING_VERSION", 1)
         assert illustrations.current(conn, rows["a"])["illustration_svg"] == "<svg>made in advance</svg>"   # kept
+        monkeypatch.undo()
+        # ...and a later drawing version draws them again
+        if drawing.DRAWING_VERSION > 1:
+            assert illustrations.current(conn, rows["a"])["illustration_svg"] != "<svg>made in advance</svg>"
         assert illustrations.current(conn, rows["b"])["illustration_svg"] == draw.svg_from_fields("tee", None, uid="b")
     finally:
         conn.close()

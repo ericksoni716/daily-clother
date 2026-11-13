@@ -189,36 +189,37 @@ JACKETS = ("blazer", "sport_coat", "suit_jacket", "overcoat", "peacoat")
 # 84% body width and the depth shading landed there (every one was checked equal between main and the
 # jackets branch). When a drawing is changed on purpose, record its digest again in the same change.
 # Recorded again for #110 (drawing faults) where a drawing changed on purpose: the cause is noted on each line.
+# Every lightweight garment also gained drape folds, and every heavy one with a rib band its soft shade.
 UNCHANGED = {
     "t_shirt": "7ec599596bc532fc",
     "henley": "4c2da65dd3332fd4",
     "polo": "ffed94ccace3764e",
-    "rugby_shirt": "acc4ca8b20a1e42d",
-    "dress_shirt": "e0551fcbf7514ef4",
+    "rugby_shirt": "58043fad9ef598d3",
+    "dress_shirt": "c809ac4c9f65fe00",
     "ocbd": "06950d0f0cbd3c6d",
     "flannel_shirt": "f64ec8598d9a7f90",
     "work_shirt": "e27744a52320dbbc",
     "western_shirt": "a1ad566838687b49",
-    "camp_collar_shirt": "bac5875fc1cc3b18",
+    "camp_collar_shirt": "33fe64a35259670c",
     "popover_shirt": "cac441662b38341d",
-    "band_collar_shirt": "11056acfc48fb1e3",   # #110: calmer linen
-    "guayabera": "ab725b68fc90b0a5",   # #110: calmer linen
+    "band_collar_shirt": "e36611ed2e43240f",   # #110: calmer linen
+    "guayabera": "8635571b38df9032",   # #110: calmer linen
     "overshirt": "dd3a6290ec43cc3a",
-    "tuxedo_shirt": "ec5dd2150449a71d",   # #110: larger wing tips
-    "crewneck_sweatshirt": "0edf19bc449d8b09",
-    "hoodie": "0126877fc9782d00",
-    "zip_hoodie": "e1c1a4e860a9dd83",
-    "pullover_sweater": "bfd3f8d9ffa21272",
+    "tuxedo_shirt": "1da8831867f6be24",   # #110: larger wing tips
+    "crewneck_sweatshirt": "1832fa04fb176c8c",
+    "hoodie": "d94a19965cb06860",
+    "zip_hoodie": "8893ac4861061caa",
+    "pullover_sweater": "725e485e6f2ba239",
     "cardigan": "7adab43828f8f794",
-    "shawl_cardigan": "83fdf05adc7a61a4",
-    "sweater_vest": "2f625d5fe5c6c2d4",   # #110: armhole band keeps its width
+    "shawl_cardigan": "0bc8de3347821e13",
+    "sweater_vest": "2525fdb5d88de43f",   # #110: armhole band keeps its width
     "quarter_zip": "a6c19157293b4d69",
     "chore_coat": "55f95cedffe81d08",
     "trucker_jacket": "1fd21e47f12d94f2",   # #110: buttoned waistband, not a rib
-    "bomber": "b489e7d70c3f37ac",
+    "bomber": "edb93b35920fe310",
     "harrington": "85c603c5ff653c7a",
     "field_jacket": "1eab41a1382a9c74",
-    "puffer": "a19007ce4fc78a9c",   # #110: outline swells between channels
+    "puffer": "ea68fbbdd4556bf6",   # #110: outline swells between channels
     "quilted_jacket": "9daae90d264d9d8d",
     "fleece_jacket": "d1ff07dded0b7647",
     "barn_jacket": "4a3332cae9f90e8b",
@@ -382,3 +383,17 @@ def test_the_linen_texture_is_sparse():
     svg = draw({**CONTEXT["fit"], "fabric": "linen"})
     tile = re.search(r'<pattern id="ta"[^>]*width="([\d.]+)" height="([\d.]+)"', svg)
     assert tile and float(tile.group(1)) * float(tile.group(2)) >= 56 * 15
+
+
+def test_only_a_light_cloth_drapes_in_soft_folds():
+    shirt = CONTEXT["fit"]
+    light = _shape(shirt, weight="lightweight")
+    assert len(light.folds) == 6     # two from each underarm, one at each elbow
+    assert not _shape(shirt, weight="midweight").folds and not _shape(shirt, weight="heavyweight").folds
+    assert all(f in draw({**shirt, "weight": "lightweight"}) for f in light.folds)
+
+
+def test_a_heavy_knit_shades_where_the_body_meets_its_rib():
+    mid = draw({**GARMENT_DRAWINGS["crewneck_sweatshirt"], "weight": "midweight"})
+    heavy = draw({**GARMENT_DRAWINGS["crewneck_sweatshirt"], "weight": "heavyweight"})
+    assert "feGaussianBlur" in heavy and "feGaussianBlur" not in mid

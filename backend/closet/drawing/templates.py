@@ -39,6 +39,7 @@ class Shape:
     behind: list[Part] = field(default_factory=list)
     sleeves: list[tuple[str, float]] = field(default_factory=list)  # (path, degrees the cloth is turned)
     seams: list[str] = field(default_factory=list)  # thin lines on the body that parts (a collar) lie over
+    folds: list[str] = field(default_factory=list)  # soft drape wrinkles of a light cloth, fainter than a seam
     sole_default: str | None = None  # the sole's colour when the photo gives none (leather shoes: dark brown)
     snaps: list[tuple[float, float, float]] = field(default_factory=list)  # press studs: a ring round a cap, not a button
     # worn open: (the edge of the front that lies on top, the viewer's right one, as a run of points from the
@@ -1005,6 +1006,21 @@ def top(**kw) -> Shape:
             sh.lines.append(f"M {_pt((CX - 5, end))} L {_pt((CX + 5, end))}")
 
     _pockets(sh, p["pockets"], sy, hy, hh, hs, p["hem"], cuff, A, rib_h, lapel_front)
+    if wt == 0 and not jacket:   # a light cloth drapes: soft folds fall from the underarm and gather at the elbow
+        Ub = U or A
+        # one long fold from the underarm and a shorter, steeper one below it; the two sides differ, as cloth does
+        for m, folds, at in ((lambda v: v, ((3, 4, 44, 0.78, 0.62), (4, 29, 22, 0.5, 0.86)), 0.55),
+                             (_mirror, ((3, 9, 36, 0.66, 0.75), (5, 40, 16, 0.38, 0.92)), 0.47)):
+            for dx_, dy_, ln_, ux, uy in folds:
+                a0 = (_x_on(side_from, Ub[1] + dy_) - dx_, Ub[1] + dy_)
+                a1 = (a0[0] - ln_ * ux, a0[1] + ln_ * uy)
+                sh.folds.append(f"M {_pt(m(a0))} Q {_pt(m((a0[0] - ln_ * ux * 0.3, a0[1] + ln_ * uy * 0.75)))} {_pt(m(a1))}")
+            if cuff and sleeve in ("long", "three-quarter") and not (p["pockets"] == "utility" and m is not _mirror):
+                Co, Ci, d = cuff   # an elbow fold, clear of a sleeve pocket
+                o, i_ = _lerp(P1, Co, at), _lerp(A, Ci, at)
+                f0, f1 = _lerp(o, i_, 0.1), _lerp(o, i_, 0.48)
+                sag = _lerp(f0, f1, 0.5)
+                sh.folds.append(f"M {_pt(m(f0))} Q {_pt(m((sag[0] + d[0] * 6, sag[1] + d[1] * 6)))} {_pt(m(f1))}")
     if state == "open" and front != "none":   # the edge of the front that lies on top, for the renderer to open
         if lapel_front and lapel_front[0] == "cardigan":
             apex = (CX - lapel_front[2] / 2, lapel_front[1])      # the V's point; the button band runs down from it

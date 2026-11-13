@@ -545,9 +545,9 @@ COVERAGE["fiber"] = {
         "shearling": (D, "super heavy, sherpa curl and fuzzy edge"),
     }[v] for v in AXES["fiber"]}
 COVERAGE["weight"] = {
-    "lightweight": (D, "fine outline and inner lines, a touch narrower body"),
+    "lightweight": (D, "fine outline and inner lines, a touch narrower body, faint drape folds from the underarms and at the elbows"),
     "midweight": (D, "the reference drawing"),
-    "heavyweight": (D, "heavier outline, wider body, rounder shoulder, deeper bands, doubled hem and cuff stitching, collar topstitch"),
+    "heavyweight": (D, "heavier outline, wider body, rounder shoulder, deeper bands with a soft shade where the body meets them, doubled hem and cuff stitching, collar topstitch"),
     "super_heavy": (D, "all of heavyweight, more so"),
 }
 

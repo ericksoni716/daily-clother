@@ -15,7 +15,24 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from PIL import Image
 from pydantic import BaseModel
 
-from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, outfits, phone, storage, vocab, wears
+from . import (
+    APP_NAME,
+    __version__,
+    auth,
+    autostart,
+    backup,
+    db,
+    demo,
+    gaps,
+    images,
+    items,
+    jobs,
+    outfits,
+    phone,
+    storage,
+    vocab,
+    wears,
+)
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
 from .modelstore import MODEL, ModelStore
@@ -295,6 +312,28 @@ def create_app(sv: Services) -> FastAPI:
             return outfits.suggest(rows, ctx, count)
 
         # comparing thousands of combinations takes a moment; do it in a worker thread so other requests keep being answered
+        return await run_in_threadpool(work)
+
+    @app.get("/api/gaps", dependencies=protected)
+    async def get_gaps():
+        path = cfg.db_path(state.get("profile"))
+
+        def work() -> dict:
+            conn = db.connect(path)
+            try:
+                # Read both inputs from the same closet and SQLite snapshot, then release it before analysis.
+                conn.execute("BEGIN")
+                rows = [dict(r) for r in conn.execute(
+                    "SELECT id, name, category, color, color_hex, pattern, formality, season, material, "
+                    "silhouette, rating, status, location, laundry FROM items WHERE status = 'active'")]
+                history = [dict(r) for r in conn.execute(
+                    "SELECT item_id, worn_on FROM wears ORDER BY item_id, worn_on")]
+                for row in rows:
+                    row["silhouette"] = json.loads(row["silhouette"] or "{}")
+            finally:
+                conn.close()
+            return gaps.analyze(rows, history)
+
         return await run_in_threadpool(work)
 
     # ---------------------------------------------------------------- model

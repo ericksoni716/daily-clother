@@ -45,6 +45,47 @@ Each photo: `id, kind, url, thumb_url, cutout_url, cutout_thumb_url, width, heig
 |---|---|
 | `POST /api/outfits/suggest {low_c, high_c, rain?, occasion?, mood?, build_around?, leave_out?, worn_days_ago?, count?}` | Today's outfits from the open closet, chosen by rule (`backend/closet/outfits.py`). `low_c` and `high_c` are the day's low and high in °C; `rain` true or false (default false); `occasion` one of the formality values (default `casual`); `mood` `usual`, `sharp` or `relaxed` (default `usual`); `build_around` an item id that must be in every outfit; `leave_out` a list of item ids; `worn_days_ago` an object of item id to days since last worn (0 is today); `count` 1 to 10 (default 3). Answer: `{outfits: [{pieces: {base, mid, outer, bottom, shoes, accessories[]}, score, reasons[], warnings[]}], missing[]}`. `pieces` holds item ids (`mid` and `outer` may be null); `score` is 0 to 100, best first; `reasons` say why the pieces go together and `warnings` what to be aware of, both as sentences. When no outfit can be made `outfits` is empty and `missing` says why ("There are no shoes in this closet yet."). Archived items, items in the laundry and items rated dislike are never used. 422 with a sentence for a bad value or a `build_around` item that is not in the open closet; 400 for a body that is not JSON. |
 
+## What's missing
+
+`GET /api/gaps` requires login and reads the open closet only. There are no
+parameters, no saved results, no shopping search and no Claude call. Laundry
+is ignored; archived and disliked pieces are not considered usable. The item
+and wear-log snapshot and the analysis run in a worker thread.
+
+Answer: `{gaps: [...], notes: [...], item_count, days_checked}`.
+
+- `gaps`: at most eight, highest help score first. Each has:
+  - `id`: a stable key for the purchase's required attributes.
+  - `name`: a short description in plain words.
+  - `look_for`: `category, formality, season, pattern, colors[]`, with
+    `weight_class` for clothes and `material` where relevant. These use the
+    closet/engine vocabulary. Colours are alternatives, not all required.
+    Rain protection is a material requirement, not a new stored field.
+  - `why[]`: readable sentences naming owned items.
+  - `score`: integer 0–100, a rule-based priority, **not** a percentage or a
+    count of new outfits.
+  - `methods[]`: any of `days`, `thin`, `orphan`, `wear`, `basic`. Agreeing
+    rules are merged into one purchase.
+  - `evidence`: `days[]` with `temperature` (`cold`, `cool`, `mild`, `hot`),
+    `temperature_c`, `rain`, `occasion`, and `problems[]`; `items[]` with real
+    `id, name` references; `works_with[]` containing compatible item ids;
+    `wear_counts` mapping item ids to recorded wear counts where relevant.
+    `works_with` means pairwise colour/formality compatibility, not a promise
+    that all those items form an outfit together. Day evidence is a sample,
+    not an exhaustive count of all possible outfits.
+- `notes`: `{kind, message, item_ids[]}`. `small_closet` explains why fewer
+  than six usable garments cannot be judged (`gaps: []`, `days_checked: 0`).
+  Otherwise `wear_history` says no wears are recorded, or `never_worn` lists
+  items with no recorded wears. These are not shopping recommendations.
+- `item_count`: usable garments, excluding accessories and uncategorised items.
+  Accessories still take part in the outfit engine's day checks.
+- `days_checked`: normally 40: four temperatures, dry/rain, every occasion.
+
+The pure Python entry point is `closet.gaps.find_gaps(items, wears, options=None)`,
+returning just the ranked list; `analyze` returns the full report above. Wear
+rows contain `item_id, worn_on`. `Options(limit=...)` can shorten the list to
+one through eight; the HTTP endpoint always uses the defaults.
+
 ## Background-removal model
 | Call | Result |
 |---|---|

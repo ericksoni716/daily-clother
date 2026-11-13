@@ -34,6 +34,7 @@ def ensure(cfg: Config) -> int:
         data = json.loads((source / "items.json").read_text(encoding="utf-8"))
         if conn.execute("SELECT COUNT(*) FROM items").fetchone()[0]:
             _answers(conn, data)   # a demo closet made before the answers existed gets them now
+            _prices(conn, data)    # and one made before the demo had prices gets those
             return 0
         dest = cfg.images_dir("demo")
         added = 0
@@ -99,6 +100,17 @@ def _answers(conn, data: dict) -> None:
         sure = {f: answer[f"{f}_confidence"] for f, by in source.items() if by == "demo" and f"{f}_confidence" in answer}
         if any(confidence.get(f) != v for f, v in sure.items()):
             conn.execute("UPDATE items SET confidence = ? WHERE id = ?", (json.dumps({**confidence, **sure}), it["id"]))
+    conn.execute("COMMIT")
+
+
+def _prices(conn, data: dict) -> None:
+    """Give a demo closet made before its items had prices the prices, once: only when no item has one."""
+    if conn.execute("SELECT 1 FROM items WHERE price_cents IS NOT NULL LIMIT 1").fetchone():
+        return
+    conn.execute("BEGIN")
+    for it in data["items"]:
+        if it.get("price_cents") is not None:
+            conn.execute("UPDATE items SET price_cents = ? WHERE id = ?", (it["price_cents"], it["id"]))
     conn.execute("COMMIT")
 
 

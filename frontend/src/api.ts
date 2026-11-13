@@ -1,7 +1,9 @@
 import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue } from './types';
 import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
+import type { Insights } from './insights';
 import type { GapsAnswer, HideReason, Wish } from './gaps';
 import type { Check, WouldPiece } from './wouldwork';
+import type { FigurePieces } from './figure';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
 export class ApiError extends Error {
@@ -67,6 +69,8 @@ interface Options {
   /** Do not treat a 401 as "logged out" (used by login itself). */
   quiet401?: boolean;
   signal?: AbortSignal;
+  /** The answer is text (an SVG drawing), not JSON. */
+  text?: boolean;
 }
 
 async function request<T>(path: string, opts: Options = {}): Promise<T> {
@@ -88,6 +92,7 @@ async function request<T>(path: string, opts: Options = {}): Promise<T> {
   if (res.status === 204) return undefined as T;
   let data: unknown = null;
   const text = await res.text();
+  if (opts.text && res.ok) return text as T;
   if (text) {
     try {
       data = JSON.parse(text);
@@ -153,6 +158,7 @@ export const api = {
   weather: () => request<WeatherLookup>('/api/weather'),
   today: (choices: TodayRequest, signal?: AbortSignal) =>
     request<TodayAnswer>('/api/outfits/today', { method: 'POST', body: choices, signal }),
+  insights: () => request<Insights>('/api/insights'),
   // What's missing and the wishlist
   gaps: () => request<GapsAnswer>('/api/gaps'),
   hideGap: (id: string, reason: HideReason | null) =>
@@ -172,6 +178,8 @@ export const api = {
     return request<Check>('/api/would-this-work', { method: 'POST', form });
   },
   check: (id: string, signal?: AbortSignal) => request<Check>(`/api/would-this-work/${encodeURIComponent(id)}`, { signal }),
+  outfitFigure: (pieces: FigurePieces, signal?: AbortSignal) =>
+    request<string>('/api/outfits/figure', { method: 'POST', body: pieces, signal, text: true }),
   backup: () => request<BackupRecord>('/api/backup', { method: 'POST' }),
   setProfile: (profile: Profile) => request<{ profile: Profile }>('/api/profile', { method: 'POST', body: { profile } }),
   quit: () => request<void>('/api/quit', { method: 'POST' }),

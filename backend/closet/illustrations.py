@@ -24,6 +24,7 @@ import sqlite3
 
 from . import drawing
 from .drawing import item as draw
+from .drawing.figure import PLACES, Piece, figure
 from .tagger.schema import SILHOUETTE_FIELDS
 
 log = logging.getLogger("closet.illustrations")
@@ -44,34 +45,43 @@ def _json(text, default):
         return default
 
 
+def describe(row) -> Piece:
+    """What the item's drawing is made from: its stored tagger answer with the owner's corrections put into it,
+    and its own colour; or, with no answer, its coarse fields. The outfit figure draws each piece from this too."""
+    source = _json(row["source"], {})
+    silhouette = _json(row["silhouette"], {})
+    answer = _json(row["tag_answer"], None)
+    if not isinstance(answer, dict):
+        return Piece(row["category"], None, row["color_hex"], row["color"], row["pattern"], silhouette)
+    answer = dict(answer)
+    for field in ("category", "color", "pattern"):
+        if source.get(field) == OWNER:
+            answer[field] = row[field]
+    if source.get("silhouette") == OWNER and isinstance(silhouette, dict):
+        said = answer.get("silhouette") if isinstance(answer.get("silhouette"), dict) else {}
+        details = dict(answer["details"]) if isinstance(answer.get("details"), dict) else None
+        for k, leave in DETAIL_FOR.items():
+            if details is not None and silhouette.get(k) is not None and silhouette.get(k) != said.get(k):
+                details.update(leave)
+        if details is not None:
+            answer["details"] = details
+        # a field the owner left empty is the answer's
+        answer["silhouette"] = {k: said.get(k) if silhouette.get(k) is None else silhouette.get(k) for k in SILHOUETTE_FIELDS}
+    # the item's own colour (from the answer, the photo or the owner), unless the owner chose a colour word
+    # and left a colour from before beside it
+    own_hex = source.get("color_hex") == OWNER or source.get("color") != OWNER
+    return Piece(answer.get("category"), answer, row["color_hex"] if own_hex else None, row["color"], row["pattern"], silhouette)
+
+
 def make(row) -> draw.Drawing:
     """The drawing for an item row as it stands now. Never raises."""
     try:
-        source = _json(row["source"], {})
-        silhouette = _json(row["silhouette"], {})
-        answer = _json(row["tag_answer"], None)
+        piece = describe(row)
         uid = row["id"][:8]
-        if not isinstance(answer, dict):
-            return draw.drawing_from_fields(row["category"], row["color_hex"], row["pattern"], silhouette,
-                                            color=row["color"], uid=uid)
-        answer = dict(answer)
-        for field in ("category", "color", "pattern"):
-            if source.get(field) == OWNER:
-                answer[field] = row[field]
-        if source.get("silhouette") == OWNER and isinstance(silhouette, dict):
-            said = answer.get("silhouette") if isinstance(answer.get("silhouette"), dict) else {}
-            details = dict(answer["details"]) if isinstance(answer.get("details"), dict) else None
-            for k, leave in DETAIL_FOR.items():
-                if details is not None and silhouette.get(k) is not None and silhouette.get(k) != said.get(k):
-                    details.update(leave)
-            if details is not None:
-                answer["details"] = details
-            # a field the owner left empty is the answer's
-            answer["silhouette"] = {k: said.get(k) if silhouette.get(k) is None else silhouette.get(k) for k in SILHOUETTE_FIELDS}
-        # the item's own colour (from the answer, the photo or the owner), unless the owner chose a colour word
-        # and left a colour from before beside it
-        own_hex = source.get("color_hex") == OWNER or source.get("color") != OWNER
-        return draw.drawing_from_answer(answer, row["color_hex"] if own_hex else None, uid=uid)
+        if piece.answer is None:
+            return draw.drawing_from_fields(piece.category, piece.color_hex, piece.pattern, piece.silhouette,
+                                            color=piece.color, uid=uid)
+        return draw.drawing_from_answer(piece.answer, piece.color_hex, uid=uid)
     except Exception:   # never fail an item
         log.exception("could not draw an item")
         return draw.Drawing(None, (draw.NOT_MADE,))
@@ -107,3 +117,44 @@ def notes(row) -> list[str]:
     """What the item's drawing leaves out or shows only roughly, in plain words."""
     out = _json(row["illustration_notes"], [])
     return [n for n in out if isinstance(n, str)] if isinstance(out, list) else []
+
+
+class FigureError(ValueError):
+    """The request for an outfit figure cannot be answered; the message says why, in plain words."""
+
+
+def figure_ids(body) -> dict[str, str]:
+    """The item ids by place from a request for an outfit figure: places as the outfit engine names them
+    (base, mid, outer, bottom, shoes), each an item id or null."""
+    if not isinstance(body, dict):
+        raise FigureError("Send the items by place, for example {\"base\": \"…\", \"bottom\": \"…\"}.")
+    unknown = [k for k in body if k not in PLACES]
+    if unknown:
+        raise FigureError(f"Unknown place: {unknown[0]}. The places are {', '.join(PLACES)}.")
+    ids = {}
+    for place, value in body.items():
+        if value is None:
+            continue
+        if not isinstance(value, str) or not value or len(value) > 64:
+            raise FigureError(f"The {place} must be an item id or null.")
+        ids[place] = value
+    if not ids:
+        raise FigureError("Say which items to draw.")
+    return ids
+
+
+def outfit_figure(conn, ids: dict[str, str]) -> str:
+    """The outfit drawn as worn, from the open closet's items. Each piece is drawn from what its own drawing is
+    made from (`describe`), so the owner's corrections show here too."""
+    rows = {r["id"]: r for r in conn.execute(
+        f"SELECT * FROM items WHERE id IN ({','.join('?' * len(ids))})", list(ids.values()))}
+    for place, item_id in ids.items():
+        if item_id not in rows:
+            raise FigureError(f"The {place} is not in this closet.")
+    pieces = {}
+    for place, item_id in ids.items():
+        try:
+            pieces[place] = describe(rows[item_id])
+        except Exception:   # a piece that cannot be read is left out; the rest are still drawn
+            log.exception("could not read an item for an outfit figure")
+    return figure(pieces)

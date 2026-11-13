@@ -42,6 +42,7 @@ from . import (
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
 from .gaps import find_gaps
+from .insights import find_insights
 from .modelstore import MODEL, ModelStore
 from .state import State
 from .tagger import routes as tagger_routes
@@ -419,6 +420,31 @@ def create_app(sv: Services) -> FastAPI:
         # asks Open-Meteo (a few seconds at most) and compares many outfits, so keep it off the event loop
         return await run_in_threadpool(work)
 
+    @app.post("/api/outfits/figure", dependencies=protected)
+    async def outfit_figure(request: Request):
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        try:
+            ids = illustrations.figure_ids(body)
+        except illustrations.FigureError as e:
+            raise HTTPException(422, str(e))
+        path = cfg.db_path(state.get("profile"))
+
+        def work() -> str:
+            conn = db.connect(path)
+            try:
+                return illustrations.outfit_figure(conn, ids)
+            except illustrations.FigureError as e:
+                raise HTTPException(422, str(e))
+            finally:
+                conn.close()
+
+        # drawing a whole outfit takes a few milliseconds per piece: keep it off the event loop
+        svg = await run_in_threadpool(work)
+        return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "no-store"})
+
     # ----------------------------------------------------------------- gaps
     gaps_cache: dict[str, tuple[str, dict]] = {}  # profile -> (what the closet and wear log were, the answer)
 
@@ -426,8 +452,7 @@ def create_app(sv: Services) -> FastAPI:
         """A closet's item rows and wear log, as the gap analysis reads them."""
         conn = db.connect(cfg.db_path(profile))
         try:
-            rows = [{**{k: r[k] for k in r.keys() if k not in ("illustration_svg", "confidence", "source")},
-                     "silhouette": json.loads(r["silhouette"] or "{}")} for r in conn.execute("SELECT * FROM items ORDER BY id")]
+            rows = closet_rows(conn)
             worn = [{"item_id": r["item_id"], "worn_on": r["worn_on"]}
                     for r in conn.execute("SELECT item_id, worn_on FROM wears ORDER BY item_id, worn_on")]
         finally:
@@ -439,8 +464,11 @@ def create_app(sv: Services) -> FastAPI:
         profile = profile or state.get("profile")
         rows, worn = inputs or gap_inputs(profile)
         # the answer only depends on the items and the wear log; the laundry state and times are left out
-        # so a wash or a rename's timestamp does not throw away seconds of work
-        ignore = ("laundry", "wears_since_wash", "washed_at", "updated_at", "created_at", "cutout_state", "cutout_error")
+        # so a wash or a rename's timestamp does not throw away seconds of work; the stored answer counts through
+        # what the rows take from it (weight_class, the sleeve), so a new answer that changes the weight is seen
+        ignore = ("laundry", "wears_since_wash", "washed_at", "updated_at", "created_at", "cutout_state", "cutout_error",
+                  "tag_state", "tag_error", "tag_route", "tag_model", "tag_schema_version", "tagged_at",
+                  "illustration_version", "illustration_notes")   # a redrawn picture changes no outfit
         seen = hashlib.sha256(json.dumps([[{k: v for k, v in r.items() if k not in ignore} for r in rows], worn],
                                          sort_keys=True, default=str).encode()).hexdigest()
         cached = gaps_cache.get(profile)
@@ -466,6 +494,12 @@ def create_app(sv: Services) -> FastAPI:
         # the engine is run over 40 kinds of day, a few seconds on a big closet: keep it off the event loop
         return await run_in_threadpool(work)
 
+    # -------------------------------------------------------------- insights
+    @app.get("/api/insights", dependencies=protected)
+    def get_insights(conn=Depends(conn_dep)):
+        rows = conn.execute("SELECT id, name, category, color, formality, season, price_cents, status, created_at FROM items").fetchall()
+        worn = conn.execute("SELECT item_id, worn_on FROM wears").fetchall()
+        return find_insights(rows, worn, wears.today())
     app.include_router(wishlist.router(conn_dep, gap_analysis, protected))
 
     def closet_for_check(profile: str) -> tuple[list[dict], list[dict], dict]:

@@ -8,6 +8,7 @@ import { AddScreen } from './screens/Add';
 import { SettingsScreen } from './screens/Settings';
 import { ItemDetail } from './screens/ItemDetail';
 import { TodayScreen } from './screens/Today';
+import { InsightsScreen } from './screens/Insights';
 import { ReviewBadge, ReviewIcon, ReviewScreen, useReviewCount } from './screens/Review';
 import { BagIcon, MissingScreen } from './screens/Missing';
 
@@ -24,11 +25,13 @@ export function Shell({ version }: { version: string }) {
   else if (route.name === 'missing') content = <MissingScreen itemId={route.itemId} check={route.check} wishId={route.wishId} wide={wide} />;
   else if (route.name === 'add') content = <AddScreen />;
   else if (route.name === 'settings') content = <SettingsScreen version={version} />;
+  else if (route.name === 'insights') content = <InsightsScreen />;
   else if (route.name === 'review') content = <ReviewScreen />;
   else if (route.itemId && !wide) content = <ItemDetail key={route.itemId} id={route.itemId} status={route.status} />;
   else content = <ClosetScreen status={route.status} selectedId={route.itemId} wide={wide} />;
 
-  const section = route.name === 'closet' ? (route.status === 'archived' ? 'archived' : 'closet') : route.name;
+  // Insights is reached from the Closet screen, so Closet stays the highlighted section
+  const section = route.name === 'closet' ? (route.status === 'archived' ? 'archived' : 'closet') : route.name === 'insights' ? 'closet' : route.name;
 
   return (
     <div className="shell">

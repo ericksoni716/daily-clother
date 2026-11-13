@@ -15,7 +15,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, images, tagjobs
+from . import db, failures, images, tagjobs
 from .config import Config
 from .state import State
 
@@ -77,6 +77,7 @@ def run_one(conn, images_dir: Path, cutter: Cutter, tag: bool = True) -> bool:
             conn.execute("UPDATE items SET cutout_state = 'failed', cutout_error = ?, updated_at = ? WHERE id = ?",
                          ("The background could not be removed from this photo. You can try again, or retake it "
                           "against a plainer background.", t, job["item_id"]))
+            failures.report(conn, job["item_id"], "cutout", str(e))
         return True
     t = db.now()
     conn.execute("BEGIN IMMEDIATE")

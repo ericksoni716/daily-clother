@@ -23,7 +23,7 @@ Wave 2 (landed):
 - [x] #35 The drawing in the app, part 1: the drawing code is in the backend (`closet/drawing/`); all 203 gallery drawings came out identical.
 
 Wave 3:
-- [ ] #45 and #46 The Today screen, given to two models; compared from screenshots.
+- [x] #45 and #46 The Today screen: the day, the occasion and mood, the outfits with why and warnings, "I'm wearing this", leave a piece out or start from one. Given to two models and compared from screenshots; the Opus 5.5 result was merged.
 - [x] #41 and #42 What's missing: the gap analysis by rule (`GET /api/gaps`), no screen yet. Given to two models; the Opus 5.5 result was merged.
 - [ ] #50 The drawing in the app, part 2: every item gets its drawing, kept up to date.
 - [ ] #51 Review queue: confirm or fix only what the tagger was unsure about.

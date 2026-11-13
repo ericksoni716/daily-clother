@@ -1083,10 +1083,14 @@ def _tailored(p, block) -> Shape:
     n_b = max(0, int(n_b))
     roll3 = None                                    # three-roll-two: the top buttonhole shows on the lapel
     if dbl:   # 6x2: rows of two; the fastening row, one below it, the rest above the break for show
-        rows = max(1, min(4, n_b // 2 or 3))
+        # Told one or two buttons, those are the ones that fasten (6x1, 6x2): a double-breasted front shows
+        # six. Told more, that is every button on it.
+        rows = 3 if n_b <= 2 else max(2, min(4, n_b // 2))
         sp = T["db_spacing"] * k_
         yf = ny + T["db_stance"] * k_
         above = rows - 2 if rows >= 3 else 0
+        if n_b == 1:   # 6x1: the lapels roll down to the bottom row, the only one that fastens
+            above = rows - 1
         ys = [yf + (i - above) * sp for i in range(rows)]
         y_break, ov = yf - 4, 32.0 + bulk
     else:
@@ -1115,15 +1119,16 @@ def _tailored(p, block) -> Shape:
 
     # ---- collar and lapels (right side: the wearer's left, which lies on top)
     cs = p.get("collar") if p.get("collar") in ("notch", "peak", "shawl") else "notch"
+    grow = max(0.0, dch) * LAPEL_GROW               # a fuller cut has broader lapels, in cm
     nt = _qbez(N, (N[0], Tt[1] + 2), Tt, 6)          # the collar's edge from the shoulder up behind the neck
     if cs == "shawl":   # one smooth roll from the top button round the neck, no notch
-        wsh = 9 * k_ + bulk * 0.6
+        wsh = (9 + grow) * k_ + bulk * 0.6
         y1 = Bk[1] - (Bk[1] - ny) * 0.45
         outer = [Bk] + _bez(Bk, (roll_x(y1) + wsh * 1.05, y1), (N[0] + wsh * 0.4, ny + 30), N, 16)
         pieces = [(outer + nt + [Rt], [Tt, Rt] + outer)]
         edge_pts = outer
     else:
-        lw = (T["db_lapel"] if dbl else T["lapel"] + (1.25 if cs == "peak" else 0)) * k_ + bulk * 0.5
+        lw = (T["db_lapel"] if dbl else T["lapel"] + (1.25 if cs == "peak" else 0)) * k_ + grow * k_ + bulk * 0.5
         y_g = ny + T["gorge"] * k_
         Ry = y_g - nr[1] * lw
         P = (roll_x(Ry) + nr[0] * lw, y_g)          # the lapel's widest point, at the height of the gorge
@@ -1150,6 +1155,13 @@ def _tailored(p, block) -> Shape:
         mid = _lerp(Bk, P, 0.5)
         vb = _unit((P[0] - Bk[0], P[1] - Bk[1]))
         edge_pts = [Bk] + _qbez(Bk, (mid[0] - vb[1] * belly, mid[1] + vb[0] * belly), P, 12)
+        if roll3:   # three-roll-two: below the top buttonhole the lapel is not pressed flat but rolls softly over
+            # the top button down to the middle one, so it is broad there, not a point
+            Q3 = (roll_x(roll3) + 11 + bulk * 0.5, roll3)
+            v3 = _unit((P[0] - Q3[0], P[1] - Q3[1]))
+            m3 = _lerp(Q3, P, 0.5)
+            low = [Bk] + _qbez(Bk, (Q3[0] - v3[0] * 10, Q3[1] - v3[1] * 10), Q3, 6)
+            edge_pts = low + _qbez(Q3, (m3[0] - v3[1] * belly, m3[1] + v3[0] * belly), P, 10)
         mc = _lerp(Cp, N, 0.5)
         outer_c = [Cp] + _qbez(Cp, (mc[0] + 3, mc[1]), N, 6)
         leaf = [G, X] + outer_c + nt + [Rt]
@@ -1205,9 +1217,10 @@ def _tailored(p, block) -> Shape:
         else:
             xl, xr = CX - 19 - bulk, CX + 19 + bulk
         sh.dots += [(xl, y, rb), (xr, y, rb)]
-    if roll3 and edge_x(roll3) - roll_x(roll3) > 10:
-        x0 = roll_x(roll3) + 2
-        sh.lines.append(f"M {_pt((x0, roll3))} L {_pt((x0 + 6, roll3 - 1))}")
+    if roll3 and cs != "shawl":   # the top buttonhole on the roll of the lapel; its button is hidden under it
+        x0, x1 = roll_x(roll3), edge_x(roll3) - 3.5   # it runs on under the roll
+        sh.lines.append(f"M {_pt((x0, roll3))} L {_pt((x1, roll3))} M {_pt((x1 + 1.2, roll3))} "
+                        f"A 1.2 1.2 0 1 0 {_pt((x1 - 1.2, roll3))} A 1.2 1.2 0 1 0 {_pt((x1 + 1.2, roll3))}")
     if cs != "shawl":   # the lapel buttonhole, just below the notch
         yh = y_g + 14
         c = (roll_x(yh) + (edge_x(yh) - roll_x(yh)) * 0.5, yh)

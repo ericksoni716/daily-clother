@@ -2,6 +2,8 @@
 
 A field guide to men's clothing for a system that must **name, describe, combine and draw** garments. It is written to work without internet access: everything the renderer needs to know about what a garment *is* and what it *looks like* lives here.
 
+Sections 11–17 (activewear and loungewear, footwear, color, bottoms in depth, accessories, layering and outfit rules) continue in `menswear-reference-extended.md`.
+
 The companion file `menswear-taxonomy.json` holds the same axes as enums plus validity rules, so code can enumerate permutations and reject impossible ones.
 
 ---

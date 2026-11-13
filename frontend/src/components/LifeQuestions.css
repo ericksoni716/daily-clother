@@ -1,0 +1,32 @@
+.life-questions { padding: 18px; margin-bottom: 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); }
+.life-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.life-heading h2 { font-size: 1.4rem; margin: 0; }
+.life-eyebrow { font-size: .68rem; letter-spacing: .1em; color: var(--accent); font-weight: 700; margin: 0 0 4px; }
+.life-minute { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+.life-intro { color: var(--muted); font-size: .94rem; margin: 10px 0 16px; }
+.life-questions fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.life-questions select { min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-small); background: var(--surface); color: var(--ink); max-width: 100%; }
+.life-questions select:disabled { opacity: .7; }
+.life-frequencies { display: grid; gap: 0 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.life-frequency { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); font-weight: 600; font-size: .92rem; }
+.life-frequency select { width: 10rem; min-height: 44px; font-size: .9rem; }
+.life-details { margin-top: 14px; }
+.life-vacation { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.life-vacation .field { min-width: 0; }
+.life-vacation .field > span { min-height: 2.5em; display: flex; align-items: end; }
+.life-questions .field { margin-bottom: 10px; }
+.life-questions .hint { margin: 0; }
+.life-actions { margin-top: 16px; }
+.life-dialog { position: fixed; inset: 0; width: 100%; max-width: none; height: 100dvh; max-height: none; margin: 0; padding: 0; border: 0; background: var(--surface); color: var(--ink); overflow-y: auto; }
+.life-dialog::backdrop { background: var(--surface); }
+@media (max-width: 680px) {
+  .life-dialog .life-questions { border: 0; border-radius: 0; margin: 0; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); }
+  .life-dialog .life-frequencies { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; }
+  .life-dialog .life-frequency { display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 0; border: 0; font-size: .86rem; }
+  .life-dialog .life-frequency select { width: 100%; font-size: 1rem; }
+  .life-dialog .life-intro { margin: 8px 0 14px; font-size: .88rem; }
+  .life-dialog .life-details { margin-top: 12px; }
+  .life-dialog .life-vacation .field > span { min-height: 2.5em; }
+  .life-dialog .life-questions .hint { font-size: .76rem; }
+  .life-dialog .life-actions { margin-top: 12px; }
+}

@@ -1,6 +1,7 @@
 /** What's missing: the shapes the server sends, plain words for them, and the copy kept on this device. */
 import { label } from './labels';
 import { SAVED_PREFIX } from './today';
+import type { Life } from './life';
 
 export interface LookFor {
   category: string;
@@ -10,9 +11,18 @@ export interface LookFor {
   colors: string[];
   pattern: string | null;
   material: string | null;
+  fit?: string | null;
+  avoid_patterns?: string[];
+  avoid_fits?: string[];
 }
 
-export type GapState = 'open' | 'hidden' | 'wished';
+export type GapState = 'open' | 'hidden' | 'wished' | 'held_back';
+
+export interface GapHold {
+  gap_id: string;
+  name: string;
+  situations: string[];
+}
 
 export interface Gap {
   id: string;
@@ -25,6 +35,8 @@ export interface Gap {
   state: GapState;
   hidden_reason: HideReason | null;
   wish_id: string | null;
+  situations?: { id: string; label: string; days_per_week: number; share: number; days_per_year: number }[];
+  held_back_by?: GapHold[];
 }
 
 export interface GapNote {
@@ -39,6 +51,18 @@ export interface GapsAnswer {
   gaps: Gap[];
   notes: GapNote[];
   checked: { items: number; wears: number; days: number };
+  /** Older offline copies predate life questions. */
+  context?: {
+    life: Life | null;
+    prompt_dismissed: boolean;
+    demo: boolean;
+    climate: {
+      used: boolean; place: string | null; shares: Record<string, { share: number; wet_share: number }> | null;
+      years: number[]; old: boolean; message: string | null;
+    };
+    taste: { used: boolean; summary: string | null };
+    suppressed: (GapHold & { needs_confirmation?: boolean })[];
+  };
 }
 
 export interface Wish {
@@ -147,7 +171,15 @@ export function lookForLines(look: LookFor | null | undefined): string[] {
   if (look.pattern === 'solid') lines.push('Plain, no pattern');
   else if (look.pattern) lines.push(`${label('pattern', look.pattern)} pattern`);
   if (look.material) lines.push(look.material.charAt(0).toUpperCase() + look.material.slice(1));
+  if (look.fit) lines.push(`${plainWords(look.fit)} fit`);
+  if (look.avoid_patterns?.length) lines.push(`Avoid ${look.avoid_patterns.map((p) => label('pattern', p).toLowerCase()).join(', ')} patterns`);
+  if (look.avoid_fits?.length) lines.push(`Avoid ${look.avoid_fits.map((f) => plainWords(f).toLowerCase()).join(', ')} fits`);
   return lines;
+}
+
+function plainWords(value: string): string {
+  const words = value.replaceAll('_', ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 // --------------------------------------------------------------------- the quieter findings

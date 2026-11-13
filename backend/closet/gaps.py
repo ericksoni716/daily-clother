@@ -45,6 +45,8 @@ MAX_GAPS = 8                 # the list is cut to this many gaps
 # (name, low °C, high °C): the engine dresses for the low plus 30% of the way to the high, so these
 # land at about 2°C (an outer layer is needed), 10°C, 17°C and 27°C (no layers, no cool-season pieces).
 TEMP_BANDS = (("cold", 0.0, 6.0), ("cool", 8.0, 14.0), ("mild", 15.0, 21.0), ("hot", 25.0, 31.0))
+DAYS_PER_WEEK = 7
+WEATHER_CELLS = len(TEMP_BANDS) * 2
 DAY_OUTFITS = 3              # outfits asked of the engine for each day; fewer than this that differ is a failure
 # How much a bad day of each occasion counts: everyday occasions most, sport and formal occasions least.
 OCCASION_WEIGHT = {"athletic": 0.3, "casual": 1.0, "smart_casual": 1.0, "business": 0.7, "formal": 0.3}
@@ -241,10 +243,23 @@ class Day:
     high_c: float
     rain: bool
     occasion: str
+    situation: str | None = None
+    frequency: float = 0
+    weather_share: float = 0
+    mood: str = "usual"
+
+    @property
+    def weight(self) -> float:
+        # Eight weather cells per occasion in the original grid; a full week has the same scale.
+        return (OCCASION_WEIGHT[self.occasion] if self.situation is None
+                else self.frequency / DAYS_PER_WEEK * self.weather_share * WEATHER_CELLS)
 
     def as_dict(self) -> dict:
-        return {"temperature": self.band, "low_c": self.low_c, "high_c": self.high_c, "rain": self.rain,
-                "occasion": self.occasion, "words": day_words(self)}
+        answer = {"temperature": self.band, "low_c": self.low_c, "high_c": self.high_c, "rain": self.rain,
+                  "occasion": self.occasion, "words": day_words(self)}
+        if self.situation:
+            answer.update(situation=self.situation, share=self.frequency / 7 * self.weather_share)
+        return answer
 
 
 def grid() -> list[Day]:
@@ -315,7 +330,7 @@ def _days_words(days: Iterable[Day]) -> str:
 
 
 def _day_order(d: Day) -> tuple:
-    return ([b for b, _, _ in TEMP_BANDS].index(d.band), d.rain, vocab.FORMALITY.index(d.occasion))
+    return ([b for b, _, _ in TEMP_BANDS].index(d.band), d.rain, vocab.FORMALITY.index(d.occasion), d.situation or "")
 
 
 def _your(p: outfits.Piece) -> str:
@@ -468,15 +483,15 @@ class _DayFailure:
     count: int = 0
 
 
-def _run_grid(c: _Closet) -> tuple[list[_DayFailure], list[tuple[outfits.Piece, str, Day]], dict[str, int]]:
+def _run_grid(c: _Closet, days: list[Day] | None = None) -> tuple[list[_DayFailure], list[tuple[outfits.Piece, str, Day]], dict[str, int]]:
     """Run the engine over the grid. Returns failures, thin places (piece, place, day) and how often each item was used."""
     failures: list[_DayFailure] = []
     thin: list[tuple[outfits.Piece, str, Day]] = []
     used: dict[str, int] = {}
     pool = c.pieces
     outers_owned = [p for p in pool if _fills(p, "outer")]
-    for d in grid():
-        ctx = outfits.Context(d.low_c, d.high_c, d.rain, d.occasion)
+    for d in grid() if days is None else days:
+        ctx = outfits.Context(d.low_c, d.high_c, d.rain, d.occasion, mood=d.mood)
         t = outfits._design_temp(ctx)
         result = outfits.suggest(c.engine_items, ctx, DAY_OUTFITS)
         offered = result["outfits"]
@@ -580,7 +595,7 @@ def _day_findings(failures: list[_DayFailure]) -> list[_Finding]:
     out = []
     for (kind, want, place), fs in sorted(groups.items(), key=lambda g: (g[0][0], str(g[0][1]), g[0][2])):
         days = [f.day for f in fs]
-        weight = sum(OCCASION_WEIGHT[f.day.occasion] * FAILURE_WEIGHT[kind] for f in fs)
+        weight = sum(f.day.weight * FAILURE_WEIGHT[kind] for f in fs)
         why = _day_why(kind, place, fs)
         items: list[str] = []
         for f in fs:
@@ -651,12 +666,13 @@ def _thin_findings(thin: list[tuple[outfits.Piece, str, Day]]) -> list[_Finding]
     for (_pid, place, want), entries in sorted(groups.items(), key=lambda g: (g[0][0], g[0][1], str(g[0][2]))):
         p = entries[0][0]
         days = [d for _, _, d in entries]
-        weight = sum(OCCASION_WEIGHT[d.occasion] for d in days)
+        weight = sum(d.weight for d in days)
         it = "they" if _plural(p) else "it"
         noun = PLACE_NOUN[place][1 if _plural(p) else 0]
         why = [f"Every outfit for {_days_words(days)} rests on {_your(p)}: {it} {_be([p])} the only {noun} that suit"
                f"{'' if _plural(p) else 's'}. If {it} {_be([p])} in the wash or being mended, there is nothing to change to."]
-        score = min(THIN_SCORE_MAX, THIN_SCORE_BASE + THIN_SCORE_PER_POINT * weight)
+        base = THIN_SCORE_BASE if days[0].situation is None else THIN_SCORE_BASE * min(1, weight / WEATHER_CELLS)
+        score = min(THIN_SCORE_MAX, base + THIN_SCORE_PER_POINT * weight)
         out.append(_Finding("thin_place", want, place, why, score, _levels(days), days, [p.id],
                             first_color=p.color if want[0] == p.category else None))
     return out
@@ -915,4 +931,3 @@ def find_gaps(items: Iterable[object], wears: Iterable[object] = (), options: Op
     findings = _day_findings(failures) + _thin_findings(thin) + _orphan_findings(c, used) + wear_found + _basic_findings(c)
     gaps = _merge(findings, c)
     return {"enough": True, "message": None, "gaps": gaps[:max(0, int(opts.max_gaps))], "notes": notes, "checked": checked}
-

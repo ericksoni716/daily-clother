@@ -25,6 +25,7 @@ from . import (
     auth,
     autostart,
     backup,
+    climate,
     corrections,
     db,
     demo,
@@ -33,6 +34,7 @@ from . import (
     images,
     items,
     jobs,
+    life,
     outfits,
     phone,
     review,
@@ -47,7 +49,6 @@ from . import (
 )
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
-from .gaps import find_gaps
 from .insights import find_insights
 from .modelstore import MODEL, ModelStore
 from .state import State
@@ -243,6 +244,8 @@ class SettingsPatch(BaseModel):
     tagging_api_enabled: bool | None = None
     tagging_api_cap_usd: float | None = None
     place: dict | None = None
+    life: object = None
+    life_prompt_dismissed: bool | None = None
     model_config = {"extra": "forbid"}
 
 
@@ -606,19 +609,32 @@ def create_app(sv: Services) -> FastAPI:
                     for r in conn.execute("SELECT item_id, worn_on FROM wears ORDER BY item_id, worn_on")]
         finally:
             conn.close()
-        # the answer only depends on the items and the wear log; the laundry state and times are left out
+        if profile == "demo":
+            answers, home = life.example()
+            dismissed = True
+        else:
+            answers = state.get("life")
+            dismissed = state.get("life_prompt_dismissed")
+            home = climate.lookup(state) if answers is not None else {
+                "used": False, "place": None, "shares": None, "years": [], "old": False,
+                "message": "Home weather is not being used. Tell Closet how you live, and choose where you are in Settings.",
+            }
+        # Items, wears and life/weather context determine the answer; laundry and processing times are left out
         # so a wash or a rename's timestamp does not throw away seconds of work; the stored answer counts through
         # what the rows take from it (weight_class, the sleeve), so a new answer that changes the weight is seen
-        ignore = ("laundry", "wears_since_wash", "washed_at", "updated_at", "created_at", "cutout_state", "cutout_error",
+        ignore = ("laundry", "wears_since_wash", "washed_at", "updated_at", "cutout_state", "cutout_error",
                   "tag_state", "tag_error", "tag_route", "tag_model", "tag_schema_version", "tagged_at",
                   "illustration_version", "illustration_notes")   # a redrawn picture changes no outfit
-        seen = hashlib.sha256(json.dumps([[{k: v for k, v in r.items() if k not in ignore} for r in rows], worn],
+        seen = hashlib.sha256(json.dumps([[{k: v for k, v in r.items() if k not in ignore} for r in rows], worn,
+                                         answers, home, dismissed],
                                          sort_keys=True, default=str).encode()).hexdigest()
         cached = gaps_cache.get(profile)
         if cached and cached[0] == seen:
             return cached[1]
         # every gap, not only the first few: one the owner hid or wished for must not push a new one off the list
-        answer = find_gaps(rows, worn, {"max_gaps": GAPS_ALL})
+        answer = life.analyse(rows, worn, answers, home, GAPS_ALL)
+        answer["context"] = {"life": answers, "prompt_dismissed": dismissed, "demo": profile == "demo",
+                             "climate": home, "taste": answer.pop("taste"), "suppressed": []}
         gaps_cache[profile] = (seen, answer)
         return answer
 
@@ -630,7 +646,7 @@ def create_app(sv: Services) -> FastAPI:
             answer = gap_analysis(profile)
             conn = db.connect(cfg.db_path(profile))
             try:
-                return wishlist.mark(conn, answer)
+                return wishlist.mark(conn, answer, consent=state.get("life_gap_hides").get(profile, {}))
             finally:
                 conn.close()
 
@@ -643,7 +659,7 @@ def create_app(sv: Services) -> FastAPI:
         rows = conn.execute("SELECT id, name, category, color, formality, season, price_cents, status, created_at FROM items").fetchall()
         worn = conn.execute("SELECT item_id, worn_on FROM wears").fetchall()
         return find_insights(rows, worn, wears.today())
-    app.include_router(wishlist.router(conn_dep, gap_analysis, protected))
+    app.include_router(wishlist.router(conn_dep, gap_analysis, protected, state))
 
     # ---------------------------------------------------------------- weather
     @app.get("/api/places", dependencies=protected)
@@ -747,6 +763,8 @@ def create_app(sv: Services) -> FastAPI:
             "pending_tags": tagjobs.waiting_count(conn), "tagging_api_enabled": spend.api_allowed(state),
             "tagging_api_cap_usd": spend.cap(state), "tagging_api_off": state.get("tagging_api_off"),
             "phone": sv.phone_info(), "autostart": auto, "heic_supported": images.HEIC, "place": state.get("place"),
+            "life": life.example()[0] if state.get("profile") == "demo" else state.get("life"),
+            "life_prompt_dismissed": True if state.get("profile") == "demo" else state.get("life_prompt_dismissed"),
         }
 
     @app.get("/api/settings", dependencies=protected)
@@ -756,6 +774,20 @@ def create_app(sv: Services) -> FastAPI:
     @app.put("/api/settings", dependencies=protected)
     def put_settings(body: SettingsPatch, conn=Depends(conn_dep)):
         sent = body.model_fields_set
+        if "life" in sent or "life_prompt_dismissed" in sent:
+            if state.get("profile") == "demo":
+                raise HTTPException(422, "The demo keeps its example answers. Switch to your own closet to change how you live.")
+            try:
+                answers = life.check(body.life) if "life" in sent else state.get("life")
+            except ValueError as e:
+                raise HTTPException(422, str(e))
+            changes = {"life": answers}
+            if "life_prompt_dismissed" in sent:
+                if body.life_prompt_dismissed is None:
+                    raise HTTPException(422, "Choose whether to leave the questions for later.")
+                changes["life_prompt_dismissed"] = body.life_prompt_dismissed
+            state.update(**changes)
+            gaps_cache.pop("main", None)
         if "backup_folder" in sent:
             folder = (body.backup_folder or "").strip()
             if folder:
@@ -771,7 +803,8 @@ def create_app(sv: Services) -> FastAPI:
             except ValueError as e:
                 raise HTTPException(422, str(e))
             if place != state.get("place"):
-                state.update(place=place, weather=None)
+                state.update(place=place, weather=None, climate=None)
+                gaps_cache.pop("main", None)
         if "autostart" in sent and body.autostart is not None:
             try:
                 autostart.set_enabled(body.autostart)

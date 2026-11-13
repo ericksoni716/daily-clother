@@ -91,6 +91,60 @@ Both ask Open-Meteo (no key needed) in a worker thread, through the computer's c
 
 Hidden gaps and the wishlist are kept in the open closet's database, so the demo closet and the real one have their own and backups include them.
 
+### Life-aware gaps
+
+`GET /api/gaps` additionally returns `context`:
+
+```
+{
+  life: null | {situations, work_dress, vacation_climate, vacation_weeks, style_words},
+  prompt_dismissed: boolean,
+  demo: boolean,
+  climate: {used, place, shares, years, old, message},
+  taste: {used: boolean, summary: string | null},
+  suppressed: [{gap_id, name, situations: [situation_id], needs_confirmation: boolean}]
+}
+```
+
+`climate.place` is a display name or null; `shares` is null, or an object with
+`cold`, `cool`, `mild`, `hot`, each `{share, wet_share}`. Both are fractions:
+`share` is the part of all observed days in that band, `wet_share` the part of
+that band's days with at least 1 mm precipitation. `years` lists the four full
+years observed (empty for the fixed demo). An unavailable lookup is still 200,
+with `used:false` and an actionable `message`; kept older data has `old:true`.
+No network call is made for an unanswered life questionnaire or the demo.
+
+Each gap adds `situations: [{id, label, days_per_week, share, days_per_year}]`.
+`share` is that situation's frequency / 7 times the weather shares of the
+distinct days the gap serves, **not** a percentage of the gap's score.
+Situations may overlap, so their shares need not total 1.
+Vacation frequency is additionally scaled by weeks away / (365.25 / 7);
+`days_per_week` still shows the answer for a week away.
+Evidence days add `situation` and `share` when personalized.
+`look_for` can additionally contain `fit`, `avoid_fits[]`, `avoid_patterns[]`.
+Before answers, gap order, IDs, scores and existing fields are unchanged and
+`situations` is empty. Home/exercise-only purchases get new `lounge`/`active`
+kinds (including `light_active`, `warm_active`, `rain_active`, `rainwarm_active`
+where exercise needs those properties); existing purchase IDs retain the
+original construction.
+
+The cache now also depends on answers, place/climate context and creation
+dates used for long-owned items. Updating answers or place discards the main
+cache; changed climate shares invalidate it too. Decisions are applied after
+the cached analysis: confirmed `never_wear` holds back the same category and
+dress/kind in the agreed situations, leaving outerwear, unrelated situations
+and wishes alone. Held-back suggestions remain in `gaps` with
+`state:"held_back"` and `held_back_by:[{gap_id,name,situations}]`; partially
+affected open suggestions also have `held_back_by`. They do not consume the
+open-suggestion limit when fully held back.
+Old hides without consent remain direct hides only. Repeating
+`POST /api/gaps/{id}/hide` with `reason:"never_wear"` confirms the displayed
+situations, even if the original hidden suggestion is no longer missing.
+Consent is kept separately for each closet in settings, matched to the hide's
+timestamp, and removed on Undo. It is not in closet backups.
+`context.suppressed` keeps those decisions visible even if the original gap
+is gone; `DELETE /api/gaps/{gap_id}/hide` undoes one without re-analysing.
+
 ## Insights
 | Call | Result |
 |---|---|
@@ -128,3 +182,35 @@ All behind the login, kept per closet (demo and real closet apart).
 - `DELETE /api/trips/{id}` — 204.
 
 Wrong input answers 422 with a sentence for the owner; an unknown trip 404.
+
+### Life settings
+
+`GET /api/settings` also includes `life` (null until answered) and
+`life_prompt_dismissed` (false initially).
+`PUT /api/settings` accepts either or both. A non-null `life` is a complete
+questionnaire:
+
+```
+{
+  "situations": {
+    "work": 4, "everyday": 4, "going_out": 1,
+    "lounging": 4, "exercise": 1, "vacation": 4
+  },
+  "work_dress": "smart_casual",
+  "vacation_climate": "warm",
+  "vacation_weeks": 2,
+  "style_words": ""
+}
+```
+
+Frequency values are finite numbers from 0 to 7, in days/week. The screen's
+choices are 0 (never), 0.25 (now and then), 1 (about weekly), 4 (most days).
+`work_dress`: `casual | smart_casual | business | formal`;
+`vacation_climate`: `warm | cold | both`; `vacation_weeks`: 0–52, fractions
+allowed; `style_words`: one line, at most 200 characters, trimmed but never
+interpreted. Unknown/missing questionnaire fields and invalid values return
+422 with a plain sentence. `life:null` restores the original analysis.
+The demo reads fixed example answers and refuses edits to either life setting
+(422); it never changes the owner's answers. All routes require the normal
+login. No migration, new endpoint, key or external service other than
+Open-Meteo's archive is involved.

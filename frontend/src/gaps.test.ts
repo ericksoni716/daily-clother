@@ -67,6 +67,12 @@ describe('what to look for, in plain words', () => {
     expect(colorWords(null)).toBe('');
     expect(orWords(['a', 'b', 'c'])).toBe('a, b or c');
   });
+
+  it('shows learned fit and avoidance without requiring them in older answers', () => {
+    expect(lookForLines(look({ fit: 'regular', avoid_patterns: ['plaid', 'graphic'], avoid_fits: ['extra_slim'] })))
+      .toEqual(['A smart casual coat', 'Regular fit', 'Avoid plaid, graphic patterns', 'Avoid extra slim fits']);
+    expect(lookForLines(look())).toEqual(['A smart casual coat']);
+  });
 });
 
 describe('how much a gap would help', () => {

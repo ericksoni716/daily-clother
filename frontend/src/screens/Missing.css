@@ -9,6 +9,22 @@
 .missing-item { max-width: 40rem; margin: 0 auto; }
 .missing-panel-top { margin: -6px 0 6px -8px; }
 .missing-section-title { font-size: 1.15rem; margin: 0 0 12px; }
+.life-basis { margin-bottom: 18px; }
+.life-basis-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.life-basis-summary { margin: 0; padding: 4px 0; min-height: 44px; width: 100%; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border: 0; background: transparent; text-align: left; font-size: .88rem; color: var(--muted); line-height: 1.5; cursor: pointer; }
+.life-basis-summary:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+.life-basis-line .btn { flex-shrink: 0; }
+.life-invitation { background: var(--accent-soft); border-radius: 14px; padding: 16px; margin-top: 12px; display: grid; gap: 12px; }
+.life-invitation h2 { font-size: 1.05rem; margin: 0 0 4px; }
+.life-invitation h2 span { color: var(--muted); font-weight: 400; white-space: nowrap; font-size: .9rem; }
+.life-invitation p { margin: 0; font-size: .9rem; }
+.life-context-note, .life-style-echo { margin: 9px 0 0; font-size: .82rem; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+.life-style-echo q { color: var(--ink); }
+.life-style-echo span { display: block; font-size: .76rem; }
+.life-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+.life-filters .chip { min-height: 44px; min-width: 44px; padding-inline: 12px; }
+.gap-situations { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.gap-situations li { border-radius: 6px; padding: 4px 8px; background: var(--surface-2); color: var(--muted); font-size: .76rem; font-weight: 600; }
 
 /* ---------------------------------------------------------------- loading, errors, too small */
 .missing-loading { display: grid; gap: 12px; }

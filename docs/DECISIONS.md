@@ -79,6 +79,16 @@ the owner once it was clear the recognition work does not depend on the app.
 | Whether the plan route can be used is checked with `claude auth status`; whether the API route can be used, by whether `ANTHROPIC_API_KEY` is set | `claude auth status` reads the local login, asks Claude nothing and exits 0 when signed in, so Settings can check it on every visit for free. It runs with the API key removed from its environment, as a real plan call does, gives up after 5 seconds, and its output (which names the account and the config folder) is never returned or logged. The keychain is meant to hold the key (see "Before phase 0"), but nothing stores a key there yet and no entry name has been chosen; the check reads the keychain once the app can save a key in it. Only a key's presence is looked at. |
 | The `anthropic` package is not in the packaged program yet | Nothing in the app tags yet (that is part 2), and the tagger imports it only when a call is made. Part 2 adds it, pinned, because both routes need it: the API route to call, the plan route for the strict answer schema it passes to `claude -p`. |
 
+## Stop C
+
+| Decision | Why |
+|---|---|
+| Being in the laundry is its own state on an item (`clean` or `laundry`), not a value of `location`; `location` says where the item lives when it is clean | The two would otherwise contradict each other (an item "in the drawer" and "in the laundry" at once), and taking an item out of the wash would lose where it goes back to. Migration 0004 moves every item whose location was `laundry` into the laundry state and leaves its location unset, since where it lived before was never recorded. `laundry` is no longer offered as a location, and the server refuses it with a message pointing to "Put in the laundry". |
+| A wear is one item on one calendar day, the computer's local date; a day can be given but not one in the future | "Wore it today" is the everyday case and should not need a date; counting the same shirt twice in a day would mislead the outfit builder. Undo removes that day's wear. |
+| Each item keeps a count of wears since it was last marked clean, and the time it was marked clean; removing a wear only lowers the count if it was recorded after that time | The count stays right when a wear logged before the wash is removed afterwards. Marking an item clean always resets it, even if it was not in the laundry: it has just been washed. A wear can be recorded while an item is in the laundry (it may have been worn again before the wash). |
+| The demo closet's wear history is stored as "days ago" and turned into dates when the demo closet is first opened | So it always looks recent. It does not move after that: a demo closet opened a month ago shows wears a month and a half old. |
+| The closet grid filters clean or laundry items on the page, not by asking the server | The list the page already holds has the laundry state, and it keeps working offline. The server's `laundry` filter is there for the outfit builder. |
+
 ## Reaching Claude: two routes
 
 Decided with the owner after phase 1: the app can reach Claude two ways, and

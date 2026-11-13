@@ -133,7 +133,7 @@ def test_database_is_migrated_and_a_newer_one_is_refused(cfg, tmp_path):
     import pytest
     path = tmp_path / "x" / "closet.db"
     first = db.migrate(path, tmp_path / "bk")
-    assert first["applied"] == [1] and first["backup"] is None
+    assert first["applied"] == [v for v, _ in db.migration_files()] and first["backup"] is None
     assert db.migrate(path, tmp_path / "bk")["applied"] == []
     conn = db.connect(path)
     conn.execute("PRAGMA user_version = 999")
@@ -148,21 +148,23 @@ def test_a_backup_copy_is_taken_before_an_existing_database_is_migrated(tmp_path
     extra = tmp_path / "migs"
     extra.mkdir()
     real = db.migration_files()
-    (extra / "0002_more.sql").write_text("CREATE TABLE more (id INTEGER PRIMARY KEY);")
-    monkeypatch.setattr(db, "migration_files", lambda: real + [(2, extra / "0002_more.sql")])
+    n = db.latest_version()
+    more, bad = extra / f"{n + 1:04d}_more.sql", extra / f"{n + 2:04d}_bad.sql"
+    more.write_text("CREATE TABLE more (id INTEGER PRIMARY KEY);")
+    monkeypatch.setattr(db, "migration_files", lambda: real + [(n + 1, more)])
     result = db.migrate(path, tmp_path / "bk")
-    assert result["applied"] == [2] and result["backup"] and (tmp_path / "bk").glob("pre-migration-v1-*.sqlite")
+    assert result["applied"] == [n + 1] and result["backup"] and (tmp_path / "bk").glob(f"pre-migration-v{n}-*.sqlite")
     from pathlib import Path
     assert Path(result["backup"]).exists()
     # a failing migration leaves the database at its old version
-    (extra / "0003_bad.sql").write_text("CREATE TABLE ok3 (id INTEGER); THIS IS NOT SQL;")
-    monkeypatch.setattr(db, "migration_files", lambda: real + [(2, extra / "0002_more.sql"), (3, extra / "0003_bad.sql")])
+    bad.write_text("CREATE TABLE ok3 (id INTEGER); THIS IS NOT SQL;")
+    monkeypatch.setattr(db, "migration_files", lambda: real + [(n + 1, more), (n + 2, bad)])
     import sqlite3
 
     import pytest
     with pytest.raises(sqlite3.Error):
         db.migrate(path, tmp_path / "bk")
     conn = db.connect(path)
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 2
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == n + 1
     assert conn.execute("SELECT name FROM sqlite_master WHERE name = 'ok3'").fetchone() is None
     conn.close()

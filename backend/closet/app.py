@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from PIL import Image
 from pydantic import BaseModel
 
-from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, phone, storage, vocab
+from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, phone, storage, vocab, wears
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
 from .modelstore import MODEL, ModelStore
@@ -95,6 +95,15 @@ class ProfileChoice(BaseModel):
 
 class ModelUrl(BaseModel):
     url: str | None = None
+
+
+class WearDay(BaseModel):
+    worn_on: str | None = None
+    model_config = {"extra": "forbid"}
+
+
+class LaundryState(BaseModel):
+    state: str
 
 
 class SettingsPatch(BaseModel):
@@ -182,10 +191,13 @@ def create_app(sv: Services) -> FastAPI:
         return vocab.as_dict()
 
     @app.get("/api/items", dependencies=protected)
-    def list_items(status: str = "active", category: str | None = None, q: str | None = None, conn=Depends(conn_dep)):
+    def list_items(status: str = "active", category: str | None = None, q: str | None = None, laundry: str | None = None,
+                   conn=Depends(conn_dep)):
         if status not in ("active", "archived"):
             raise HTTPException(422, "Status must be active or archived.")
-        return {"items": items.list_items(conn, status, category, q)}
+        if laundry is not None and laundry not in wears.LAUNDRY:
+            raise HTTPException(422, "The laundry filter must be clean or laundry.")
+        return {"items": items.list_items(conn, status, category, q, laundry)}
 
     @app.post("/api/items", dependencies=protected)
     async def create_item(response: Response, photo: UploadFile = File(...), client_key: str | None = Form(None),
@@ -229,6 +241,24 @@ def create_app(sv: Services) -> FastAPI:
         item = items.retry_cutout(conn, item_id)
         sv.worker.wake()
         return item
+
+    @app.get("/api/items/{item_id}/wears", dependencies=protected)
+    def list_wears(item_id: str, conn=Depends(conn_dep)):
+        return {"wears": wears.list_wears(conn, item_id)}
+
+    @app.post("/api/items/{item_id}/wears", dependencies=protected)
+    def add_wear(item_id: str, response: Response, body: WearDay | None = None, conn=Depends(conn_dep)):
+        item, created = wears.add(conn, item_id, body.worn_on if body else None)
+        response.status_code = 201 if created else 200
+        return item
+
+    @app.delete("/api/items/{item_id}/wears/{worn_on}", dependencies=protected)
+    def remove_wear(item_id: str, worn_on: str, conn=Depends(conn_dep)):
+        return wears.remove(conn, item_id, worn_on)
+
+    @app.post("/api/items/{item_id}/laundry", dependencies=protected)
+    def set_laundry(item_id: str, body: LaundryState, conn=Depends(conn_dep)):
+        return wears.set_laundry(conn, item_id, body.state)
 
     @app.get("/media/{rel:path}", dependencies=protected)
     def media(rel: str):

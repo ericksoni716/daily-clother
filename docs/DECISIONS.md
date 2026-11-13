@@ -208,6 +208,25 @@ The rules live in `backend/closet/gaps.py`; every number is a named constant at 
 | Typed temperatures are offered only when there is no saved place (or the forecast cannot be had); the forecast cannot be corrected from this screen | One way to set the day keeps the top of the screen short; the server already allows a correction if it is wanted later. |
 | `context.message` carries the server's own sentence when the forecast is old | The screen says it in the same words as Settings. |
 
+### The What's missing screen and the wishlist
+
+`frontend/src/screens/Missing.tsx` (its own styles in `Missing.css`), with the wording and what the device keeps in `frontend/src/gaps.ts`; the server side is `backend/closet/wishlist.py` and migration `0008_wishlist.sql`.
+
+| Decision | Why |
+|---|---|
+| A gap is known by the `id` the analysis gives it: its category and formality, and its kind for outer layers and warm or light pieces (`outer-rain`, `trousers-business-light`) | It was checked to stay the same when the analysis runs again after wears are added or items archived. It is built from what to buy, not from the evidence, so it changes only when the suggestion itself changes (for example the formality, when the days that need it change); that is then a new suggestion, and a wish already made for the old one stays on the list. |
+| `GET /api/gaps` itself says, for each gap, whether it is hidden or on the wishlist, rather than a separate call | One request, one copy to keep for offline, and the screen cannot show a gap as open that the server knows was decided. The analysis is asked for every gap and the list cut after marking, so hiding one brings the next one up instead of leaving seven. |
+| Hidden and wished gaps stay in the answer, in their places; the screen shows wished ones as a short "On your wishlist" line and hidden ones in a closed "Hidden" section below | The owner sees that a decision was kept, and can bring a hidden one back. A wished gap cannot be hidden (remove the wish first); wishing a hidden gap brings it back. |
+| "Not for me" asks why with four choices (I have one that is not in the closet yet, I never dress like that, too expensive, something else) and does not insist | The reason is for the owner and for a later shopping step; one more tap to say nothing should not be the price of hiding something. |
+| How much a gap would help is shown as four bars and words ("Would help a lot", "a fair bit", "some", "a little"), from the score at 60, 45 and 25 | A number out of 100 invites reading too much into 34 against 38; four steps can be compared at a glance. The cut points were set by eye on the demo closet (its scores run from 71 down to 5) and may want moving once the real closet is in. |
+| What to look for is written out (kind and formality, season, weight, pattern, material) and the colours are given as swatches with "these go with what you have"; the owner's pieces the gap is based on are small pictures that open the item | Field names mean nothing to the owner; the pictures show which of his own things the sentence is about. |
+| The pieces never worn and the ones worn far more than the rest are in a quieter "Also worth knowing" section under the list | They are not something to buy, but worth seeing. A piece worn far more than the rest is still a gap (a second one like it) and stays in the list too. |
+| "I bought it" takes the wish off the list and opens Add; the row is kept with the date | So the new item can be photographed straight away; if it does not fill the gap the analysis offers it again. Keeping the row costs nothing and allows a "bought" history later. |
+| A wish keeps the name and what to look for as they were when it was made | The analysis can change while the owner is shopping; the list should not change under him. |
+| Hidden gaps and wishes live in the closet's own database | The demo closet and the real one keep theirs apart, and backups include them, like everything else about the closet. |
+| On a computer the wishlist is a panel beside the suggestions (the item opens in its place); on a phone the two are a switch at the top | The owner asked for the computer first; side by side, deciding and seeing the list happen together. A phone has room for one. |
+| The last answer and wishlist fetched are kept on the device per closet and shown offline, marked "Saved earlier", with the buttons off and saying why; they are removed on logout with the other saved copies | As on Today: the service worker never keeps `/api/gaps`, and a list to shop from is most wanted away from home. |
+
 ## Reaching Claude: two routes
 
 Decided with the owner after phase 1: the app can reach Claude two ways, and

@@ -351,6 +351,11 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
         col = "#fff" if dark_item else "#000"
         if spec.trim_color and role in ("band", "cuff"):
             out = f'<path d="{d}" fill="{spec.trim_color}"/>'
+        elif role == "cuff" and patterned and shape.sleeves:
+            # a cuff wraps round the wrist: its cloth runs across its own sleeve's
+            xs = [float(v) for v in re.findall(r"-?\d+(?:\.\d+)?", d)[0::2]]
+            n = 0 if (sum(xs) / max(1, len(xs))) >= CX_ROT[0] else 1
+            out = f'<path d="{d}" fill="{turned(f"c{n}", shape.sleeves[n][1] + 90)}"/>'
         else:
             out = f'<path d="{d}" fill="{paint}"/>' + (f'<path d="{d}" fill="{col}" opacity="{op}"/>' if op else "")
         if style in ("line", "soft"):

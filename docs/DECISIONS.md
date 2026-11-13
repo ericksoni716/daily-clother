@@ -399,6 +399,8 @@ The findings live in `backend/closet/insights.py`; every number is a named const
 | Names are put into sentences as the owner typed them ("your New Balance 990", "your Grey wool trousers") | Lower-casing the first letter reads better for plain names but breaks brands and places, and there is no telling them apart. |
 | A sentence claims only what is true of every piece it counts: when nothing is listed because it is too early to say for some pieces, it says that rather than "everything has been worn"; the never-worn headline gives the shortest time among the pieces listed; worn most says how many more were worn as often when they do not all fit | Each sentence is read first and on its own. |
 | The demo closet has prices on 13 pieces (`tools/make_demo.py`, `PRICES`); a demo closet made before this gets them added once when it is opened, if none of its items has a price | So the screen has something to show without changing anything else in the demo data. |
+| Each card leads with a short label, then one figure ("$61.08 a wear", "3 pieces", "18 of 30 worn"), then one sentence. The figure is worked out on the page from the numbers the answer already carries (`insights.ts`), and the cost-per-wear sentence is rewritten there without it; the server's sentences are unchanged | The long sentences buried the figure. Keeping them on the server unchanged keeps the saved offline copies and the backend tests as they are. When there is too little to show a figure, the card has only the sentence saying why. |
+| Pieces with a price and no wear are listed once, in **Not worn yet**, not again under Cost per wear | The same pieces were shown twice on one screen. The answer still carries `not_worn` for anything that wants it. |
 
 ## Reaching Claude: two routes
 
@@ -524,3 +526,15 @@ See `docs/PHASE0.md` for the results and what is still open.
 - **Disabled** is a flat inset fill, a dashed edge and the faintest text, not lowered opacity, so it reads as off rather than faded. Pressed buttons shrink to 97% over 120ms, except when the device asks for reduced motion.
 - **Light or dark:** `<html data-theme="light|dark">` wins over the device; with no attribute the device's setting is followed. The choice is kept in this browser's `localStorage` (`closet.theme`), not on the server, since it is about the device; "Same as this device" removes it. It is applied as the app's script starts, so a forced choice can show the device's colours for a moment while the page loads, and the browser bar colour still follows the device.
 - **Shared pieces** (`frontend/src/components/ui/`) style themselves with `:where()`, which has no specificity, so a screen's own class can still set size and padding without fighting them.
+- **Page widths:** a page that is one column (Add, Settings, Review, Trips, Worn) is at most 720px wide (`--content-w`) and starts beside the sidebar, not centred; a page with two panes (Closet, What's missing) uses the full width. A trip's packing list and its days now stack in that column, and the Review card's picture is narrower (17rem) beside its fields.
+
+## Settings
+
+Settings is one column of groups, in this order: **Your closet** (demo switch, start with the computer, background removal, backups, storage), **Where you are**, **How you live**, **Look**, **Describing clothes**, **Phone access**, then **Advanced**, closed until opened (the model's download address and where to put it by hand, the folder the closet is stored in, the version), and **Log out** / **Quit Closet** as a row at the end, not a card.
+
+| Decision | Why |
+|---|---|
+| Where you are and How you live sit just after Your closet | They are everyday choices that the design brief's list of groups did not place; they belong with the everyday ones, before the look and the technical ones. |
+| Background removal says in Your closet whether the model is ready and offers the download; only its address and the folder to put it in by hand are under Advanced | The owner needs to see at once if photos are not being cut out; the address is only needed when the download fails. |
+| Describing clothes lists the plan and the API key once each, in the order they are tried, each with one status line. The key's line is the one that says where the key is kept ("No API key yet."), not the route check's "No API key is set" as well | The key was described twice in two wordings. |
+| The monthly limit, this month's spending and the history are under **Monthly limit and spending**, closed until opened (and opened by itself when the switch needs a limit typed); "limit reached" and what the waiting items would cost stay outside it | What has to be acted on is seen without opening anything; the figures are there when wanted. |

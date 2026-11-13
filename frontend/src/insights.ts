@@ -142,6 +142,44 @@ export function groupLabel(field: MakeupField, value: string | null): string {
   return field === 'category' ? categoryPlural(value) : label(field, value);
 }
 
+// --------------------------------------------------------------------- the figure each card leads with
+
+/** "$61.08 a wear" once the closet has a cost per wear; null while the sentence says why there is none. */
+export function costHero(f: CostPerWear): string | null {
+  return f.closet ? perWear(f.closet.per_wear_cents) : null;
+}
+
+/** The cost-per-wear sentence without the figure the card already leads with. */
+export function costSentence(f: CostPerWear): string {
+  const c = f.closet;
+  if (!c) return f.sentence;
+  const whom = c.pieces === 1 ? 'the one piece with a price' : `the ${c.pieces} pieces with a price`;
+  return `You paid ${money(c.spent_cents)} for ${whom} and have worn ${c.pieces === 1 ? 'it' : 'them'} ${plural(c.wears, 'time')}.`;
+}
+
+/** "3 pieces" not being worn; null when there is too little history, or nothing to list. */
+export function unwornHero(f: Unworn, listed: number): string | null {
+  return f.enough && listed > 0 ? plural(listed, 'piece') : null;
+}
+
+/** "25 wears" recorded in the chosen window; null when there are none. */
+export function wornMostHero(w: WornWindow): string | null {
+  return w.wears > 0 ? plural(w.wears, 'wear') : null;
+}
+
+/** "2 of 5 kinds" where a few pieces do most of the wearing, or "Fairly even". */
+export function spreadHero(f: Insights['spread']): string | null {
+  if (!f.enough || !f.categories.length) return null;
+  const few = f.categories.filter((c) => c.kind === 'few').length;
+  return few ? `${few} of ${plural(f.categories.length, 'kind')}` : 'Fairly even';
+}
+
+/** "18 of 30 worn" once there are enough wears, else how many pieces there are. */
+export function makeupHero(f: Insights['makeup']): string | null {
+  if (!f.pieces) return null;
+  return f.enough && f.worn !== null ? `${f.worn} of ${f.pieces} worn` : plural(f.pieces, 'piece');
+}
+
 /** A bar's width as a percentage of the largest, at least a sliver when there is anything to show. */
 export function barWidth(n: number, max: number): number {
   if (!max || n <= 0) return 0;

@@ -398,6 +398,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .dropzone > svg { width: 44px; height: 44px; color: var(--accent); margin-bottom: 6px; }
 .dropzone .btn { margin-top: 12px; }
+.dropzone-buttons { justify-content: center; }
 .dropzone-title { font-size: 1.15rem; font-weight: 650; margin: 0; }
 .dropzone.is-over { border-color: var(--accent); background: var(--accent-soft); }
 
@@ -415,6 +416,10 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .queue-status svg { width: 16px; height: 16px; }
 .status-done .queue-status { color: var(--accent); }
 .status-failed .queue-status { color: var(--danger); }
+.status-duplicate .queue-status { color: var(--muted); }
+.queue-controls { margin-bottom: 10px; }
+.resume .row { margin-top: 4px; }
+.import-note { margin-top: 14px; }
 .queue-error { font-size: 0.85rem; color: var(--danger); }
 .queue-note { font-size: 0.85rem; color: var(--muted); }
 .queue-done { margin-top: 14px; }

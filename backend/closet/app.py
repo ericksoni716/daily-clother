@@ -205,9 +205,9 @@ def create_app(sv: Services) -> FastAPI:
 
     @app.post("/api/items", dependencies=protected)
     async def create_item(response: Response, photo: UploadFile = File(...), client_key: str | None = Form(None),
-                          name: str | None = Form(None), conn=Depends(conn_dep)):
+                          name: str | None = Form(None), photo_sha256: str | None = Form(None), conn=Depends(conn_dep)):
         data = await photo.read(images.MAX_UPLOAD_BYTES + 1)
-        item, created = items.create_from_photo(conn, images_dir(), data, client_key, name)
+        item, created = items.create_from_photo(conn, images_dir(), data, client_key, name, photo_sha256 or None)
         response.status_code = 201 if created else 200
         sv.worker.wake()
         return item

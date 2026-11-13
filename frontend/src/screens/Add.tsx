@@ -1,18 +1,51 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type DragEvent } from 'react';
 import { CameraIcon, CheckIcon, CloudOffIcon, ImagesIcon, WarnIcon } from '../components/Icons';
-import { filesFromDrop } from '../resize';
+import { filesFromDrop, splitPhotos } from '../resize';
 import { Link, useMediaQuery } from '../router';
 import { useCloset } from '../store';
-import type { QueueEntry, UploadStatus } from '../uploadQueue';
-import { addFiles, clearFinished, previewOf, uploads } from '../uploads';
+import { countEntries, type QueueEntry, type UploadStatus } from '../uploadQueue';
+import { addFiles, cancelImport, clearFinished, previewOf, uploads } from '../uploads';
 
 const STATUS_TEXT: Record<UploadStatus, string> = {
   waiting: 'Waiting',
   resizing: 'Resizing',
   uploading: 'Uploading',
   done: 'Done',
+  duplicate: 'Already in your closet',
   failed: 'Failed',
+  missing: 'Not added yet',
 };
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/** What happened to the files just chosen or dropped, in plain words. */
+function describeAdded(queued: number, alreadyListed: number, skipped: File[]): string {
+  const parts: string[] = [];
+  if (queued) parts.push(`${plural(queued, 'photo')} added to the import.`);
+  if (alreadyListed) parts.push(`${plural(alreadyListed, 'photo was', 'photos were')} already waiting to go in, so ${alreadyListed === 1 ? 'it was' : 'they were'} left out.`);
+  if (skipped.length) {
+    const names = skipped.slice(0, 3).map((f) => f.name).join(', ');
+    const more = skipped.length > 3 ? ` and ${skipped.length - 3} more` : '';
+    parts.push(`Skipped ${plural(skipped.length, 'file')} that ${skipped.length === 1 ? 'is not a photo' : 'are not photos'}: ${names}${more}.`);
+  }
+  return parts.join(' ') || 'There were no photos in what you chose.';
+}
+
+/** "3 waiting · 2 uploading · 10 added …", leaving out what is zero. */
+function summaryText(c: ReturnType<typeof countEntries>): string {
+  const parts: string[] = [];
+  if (c.waiting) parts.push(`${c.waiting} waiting`);
+  if (c.uploading) parts.push(`${c.uploading} uploading`);
+  if (c.done) parts.push(`${c.done} added`);
+  if (c.duplicate) parts.push(`${c.duplicate} already in your closet`);
+  if (c.failed) parts.push(`${c.failed} didn't work`);
+  if (c.missing) parts.push(`${c.missing} not added yet`);
+  return parts.join(' · ');
+}
+
+function usePaused(): boolean {
+  return useSyncExternalStore((l) => uploads.subscribe(l), () => uploads.isPaused);
+}
 
 function useQueue(): QueueEntry[] {
   return useSyncExternalStore((l) => uploads.subscribe(l), () => uploads.snapshot);
@@ -44,21 +77,31 @@ function useWakeLock(active: boolean) {
 export function AddScreen() {
   const { offline, profile } = useCloset();
   const queue = useQueue();
+  const paused = usePaused();
   const desktop = useMediaQuery('(min-width: 1000px) and (pointer: fine)');
   const phone = !desktop;
   const camera = useRef<HTMLInputElement>(null);
   const library = useRef<HTMLInputElement>(null);
+  const folder = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
 
-  const pending = queue.filter((e) => e.status === 'waiting' || e.status === 'resizing' || e.status === 'uploading').length;
-  const done = queue.filter((e) => e.status === 'done').length;
-  const failed = queue.filter((e) => e.status === 'failed').length;
+  // React does not know the folder-picking attribute, so it is set by hand
+  useEffect(() => {
+    folder.current?.setAttribute('webkitdirectory', '');
+  }, [offline, desktop]);
+
+  const counts = countEntries(queue);
+  const pending = counts.waiting + counts.uploading;
   const longBatch = phone && pending > 5;
-  useWakeLock(pending > 0 && longBatch);
+  useWakeLock(pending > 0 && longBatch && !paused);
 
   function take(list: FileList | File[] | null) {
     const files = Array.from(list ?? []);
-    if (files.length) addFiles(files);
+    if (!files.length) return;
+    const { photos, skipped } = splitPhotos(files);
+    const alreadyListed = photos.length ? addFiles(photos) : 0;
+    setNote(describeAdded(photos.length - alreadyListed, alreadyListed, skipped));
   }
 
   async function onDrop(e: DragEvent) {
@@ -68,6 +111,17 @@ export function AddScreen() {
     take(await filesFromDrop(e.dataTransfer));
   }
 
+  const pickers = (
+    <>
+      <input ref={camera} className="visually-hidden" type="file" accept="image/*" capture="environment" tabIndex={-1}
+        aria-hidden="true" data-testid="camera-input" onChange={(e) => { take(e.target.files); e.target.value = ''; }} />
+      <input ref={library} className="visually-hidden" type="file" accept="image/*" multiple tabIndex={-1}
+        aria-hidden="true" data-testid="library-input" onChange={(e) => { take(e.target.files); e.target.value = ''; }} />
+      <input ref={folder} className="visually-hidden" type="file" multiple tabIndex={-1}
+        aria-hidden="true" data-testid="folder-input" onChange={(e) => { take(e.target.files); e.target.value = ''; }} />
+    </>
+  );
+
   return (
     <section className="add" aria-labelledby="add-title">
       <header className="page-header">
@@ -76,13 +130,31 @@ export function AddScreen() {
       {profile === 'demo' && <p className="notice">You're in the demo closet, so new photos are added to the demo. Use "Back to my closet" above to add to your own.</p>}
 
       {offline ? (
-        <div className="notice notice-warn">
+        <div className="notice notice-warn" data-testid="import-offline">
           <CloudOffIcon />
-          <p>Adding photos needs Closet on your computer to be reachable. Check that the computer is on and Closet is running; this page will work again as soon as it is.</p>
+          <div>
+            <p>Importing photos is unavailable right now: Closet on your computer can't be reached. Check that the computer is on and Closet is running; this page will work again as soon as it is.</p>
+            {pending > 0 && <p>The {plural(pending, 'photo')} still to go will carry on by themselves when it is back.</p>}
+          </div>
         </div>
       ) : (
         <>
-          <p className="muted add-intro">One piece of clothing per photo works best: lay it flat or hang it against a plain wall. Closet removes the background for you.</p>
+          <p className="muted add-intro">One piece of clothing per photo works best: lay it flat or hang it against a plain wall. Closet removes the background for you. Photos already in your closet are recognised and not added twice.</p>
+
+          {counts.missing > 0 && (
+            <div className="notice notice-warn resume" data-testid="resume">
+              <WarnIcon />
+              <div>
+                <p>Your last import stopped before it finished: {plural(counts.missing, 'photo was', 'photos were')} not added yet.
+                  To carry on, choose the same photos{desktop ? ' or folder' : ''} again. Nothing that already went in is added twice.</p>
+                <div className="row">
+                  <button className="btn btn-primary btn-small" onClick={() => library.current?.click()}>Choose photos</button>
+                  {desktop && <button className="btn btn-small" onClick={() => folder.current?.click()}>Choose a folder</button>}
+                  <button className="btn btn-ghost btn-small" onClick={cancelImport}>Forget them</button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {!desktop && (
             <div className="add-buttons">
@@ -104,36 +176,48 @@ export function AddScreen() {
               data-testid="dropzone">
               <ImagesIcon />
               <p className="dropzone-title">Drop photos here</p>
-              <p className="muted small">Or a whole folder of them. JPEG, PNG, WebP and HEIC all work.</p>
-              <button className="btn btn-primary" onClick={() => library.current?.click()}>Choose photos</button>
+              <p className="muted small">Or a whole folder of them, folders inside it included. JPEG, PNG, WebP and HEIC all work; anything else is skipped.</p>
+              <div className="row dropzone-buttons">
+                <button className="btn btn-primary" onClick={() => library.current?.click()}>Choose photos</button>
+                <button className="btn" onClick={() => folder.current?.click()}>Choose a folder</button>
+              </div>
             </div>
           )}
 
-          <input ref={camera} className="visually-hidden" type="file" accept="image/*" capture="environment" tabIndex={-1}
-            aria-hidden="true" data-testid="camera-input" onChange={(e) => { take(e.target.files); e.target.value = ''; }} />
-          <input ref={library} className="visually-hidden" type="file" accept="image/*" multiple tabIndex={-1}
-            aria-hidden="true" data-testid="library-input" onChange={(e) => { take(e.target.files); e.target.value = ''; }} />
+          {pickers}
         </>
       )}
 
-      {longBatch && (
+      {note && <p className="notice import-note" role="status" data-testid="import-note">{note}</p>}
+
+      {longBatch && !paused && !offline && (
         <p className="notice">Keep this screen on until the uploads finish. {pending} photos to go.</p>
       )}
 
       {queue.length > 0 && (
         <div className="queue">
           <div className="queue-head">
-            <h2>Uploads</h2>
-            <span className="muted small">
-              {pending ? `${pending} to go` : `${done} added${failed ? `, ${failed} didn't work` : ''}`}
+            <h2>Import</h2>
+            <span className="muted small" data-testid="queue-summary" aria-live="polite">
+              {paused && pending ? 'Paused · ' : ''}{summaryText(counts)}
             </span>
           </div>
+          {pending > 0 && (
+            <div className="row queue-controls">
+              {paused
+                ? <button className="btn btn-small btn-primary" onClick={() => uploads.resume()}>Carry on</button>
+                : <button className="btn btn-small" onClick={() => uploads.pause()}>Pause</button>}
+              <button className="btn btn-small btn-ghost" onClick={cancelImport}>Cancel the rest</button>
+              {paused && <span className="muted small">Uploads already going will finish; nothing new starts.</span>}
+            </div>
+          )}
           <ul className="queue-list">
             {queue.map((e) => <QueueRow key={e.id} entry={e} />)}
           </ul>
-          {!pending && (
+          {!pending && counts.missing === 0 && (
             <div className="row queue-done">
-              {done > 0 && <Link to="/" className="btn btn-primary">See them in your closet</Link>}
+              {counts.done > 0 && <Link to="/" className="btn btn-primary">See them in your closet</Link>}
+              {counts.failed > 1 && <button className="btn" onClick={() => uploads.retryFailed()}>Retry all that didn't work</button>}
               <button className="btn btn-ghost" onClick={clearFinished}>Clear list</button>
             </div>
           )}
@@ -149,12 +233,12 @@ function QueueRow({ entry }: { entry: QueueEntry }) {
   return (
     <li className={`queue-row status-${entry.status}`} data-testid="queue-row">
       <div className="queue-thumb">
-        {preview && !broken ? <img src={preview} alt="" onError={() => setBroken(true)} /> : <ImagesIcon />}
+        {preview && !broken ? <img src={preview} alt="" loading="lazy" onError={() => setBroken(true)} /> : <ImagesIcon />}
       </div>
       <div className="queue-info">
         <span className="queue-name">{entry.name}</span>
         <span className="queue-status" data-testid="queue-status">
-          {entry.status === 'done' && <CheckIcon />}
+          {(entry.status === 'done' || entry.status === 'duplicate') && <CheckIcon />}
           {entry.status === 'failed' && <WarnIcon />}
           {(entry.status === 'resizing' || entry.status === 'uploading') && <span className="spinner" aria-hidden="true" />}
           {STATUS_TEXT[entry.status]}

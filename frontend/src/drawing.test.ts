@@ -10,7 +10,8 @@ describe('drawing wording', () => {
   });
 
   it('says why there is no drawing to show', () => {
-    expect(drawingPlaceholder('waiting', 'polo', true)).toBe('Waiting to be described; the drawing comes after.');
+    expect(drawingPlaceholder('waiting', null, false)).toBe('Waiting to be described; the drawing comes after.');
+    expect(drawingPlaceholder('waiting', 'polo', true)).toBeNull();   // one drawn from the fields the owner set is shown
     expect(drawingPlaceholder('working', null, false)).toBe('Waiting to be described; the drawing comes after.');
     expect(drawingPlaceholder('done', 'polo', true)).toBeNull();
     expect(drawingPlaceholder('none', null, false)).toMatch(/^Choose what kind of item/);

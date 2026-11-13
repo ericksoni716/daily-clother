@@ -16,8 +16,8 @@ export function notInDrawing(seen: readonly string[] | null | undefined, notes: 
 
 /** What the drawing's place says when there is no drawing to show, or null when there is one. */
 export function drawingPlaceholder(tagState: TagState | undefined, category: string | null, hasDrawing: boolean): string | null {
-  if (tagState === 'waiting' || tagState === 'working') return 'Waiting to be described; the drawing comes after.';
   if (hasDrawing) return null;
+  if (tagState === 'waiting' || tagState === 'working') return 'Waiting to be described; the drawing comes after.';
   if (!category) return 'Choose what kind of item it is below, and a drawing is made.';
   return 'There is no drawing for this kind of item yet.';
 }

@@ -9,7 +9,7 @@ import { useCloset } from '../store';
 import { placeLabel, wornOrder } from '../today';
 import type { ItemSummary } from '../types';
 import {
-  CANDIDATE_ID, type Check, checkKinds, isDone, pieceFromLook, pieceToSend, POLL_MS, stillToChoose, verdictTone, waitingWords,
+  CANDIDATE_ID, type Check, checkKinds, isDone, noteFor, pieceFromLook, pieceToSend, POLL_MS, stillToChoose, verdictTone, waitingWords,
   WEIGHTS, weightLabel, wishFrom, type WouldAnswer, type WouldPiece, wornWords,
 } from '../wouldwork';
 import './WouldWork.css';
@@ -24,6 +24,27 @@ type Stage =
 
 /** Kept while the app is open, so opening an item from the answer and coming back shows the answer again. */
 let memory: { profile: string; wishId: string | null; draft: Partial<WouldPiece>; stage: Stage } | null = null;
+/** A check being sent: leaving the screen does not lose it, and coming back picks it up when the server answers. */
+let sending: { profile: string; wishId: string | null; result: Promise<Stage> } | null = null;
+/** The checks whose answer was already put on the wishlist (or into the wish's note), by check id. */
+const wishedChecks = new Set<string>();
+
+/** Where a send left off: a check (its id known) or the form again; stored before any screen hears of it. */
+function settle(profile: string, wishId: string | null, stage: Stage): Stage {
+  if (memory && memory.profile === profile && memory.wishId === wishId && memory.stage.kind === 'sending') {
+    memory = { ...memory, stage };
+  }
+  return stage;
+}
+
+/** The stage a screen opens on: a send that never got an id goes back to the form. */
+function openingStage(remembered: typeof memory): Stage {
+  if (!remembered) return { kind: 'form', error: null };
+  if (remembered.stage.kind === 'sending' && !(sending && sending.profile === remembered.profile && sending.wishId === remembered.wishId)) {
+    return { kind: 'form', error: null };
+  }
+  return remembered.stage;
+}
 
 export interface WouldWorkProps {
   /** The wish it was started from ("I found one: would it work?"), if any. */
@@ -33,15 +54,17 @@ export interface WouldWorkProps {
   locked: boolean;
   busy: boolean;
   onWish(name: string, note: string): Promise<boolean>;
+  /** Writes the answer into the note of the wish the check was started from. */
+  onNote(wish: Wish, note: string): Promise<boolean>;
   onBought(wish: Wish): Promise<unknown>;
 }
 
-export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onBought }: WouldWorkProps) {
+export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, onBought }: WouldWorkProps) {
   const { profile, vocab, toast } = useCloset();
   const remembered = memory && memory.profile === profile && memory.wishId === wishId ? memory : null;
   const [draft, setDraft] = useState<Partial<WouldPiece>>(remembered?.draft ?? pieceFromLook(wish?.look_for));
-  const [stage, setStage] = useState<Stage>(remembered?.stage ?? { kind: 'form', error: null });
-  const [wished, setWished] = useState(false);
+  const [stage, setStage] = useState<Stage>(() => openingStage(remembered));
+  const [wished, setWished] = useState(() => stage.kind === 'check' && wishedChecks.has(stage.check.id));
   const titleId = useId();
   const demo = profile === 'demo';
 
@@ -57,6 +80,18 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onBought }
   useEffect(() => {
     memory = { profile, wishId, draft, stage };
   }, [profile, wishId, draft, stage]);
+
+  // came back while a check was being sent: pick it up when the server answers
+  useEffect(() => {
+    if (stage.kind !== 'sending' || !sending || sending.profile !== profile || sending.wishId !== wishId) return;
+    let live = true;
+    void sending.result.then((next) => {
+      if (live) setStage(next);
+    });
+    return () => {
+      live = false;
+    };
+  }, [stage.kind, profile, wishId]);
 
   // ask how the check is getting on until it is answered
   const checkId = stage.kind === 'check' && !isDone(stage.check.state) ? stage.check.id : null;
@@ -83,26 +118,30 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onBought }
     };
   }, [checkId]);
 
-  async function start(run: () => Promise<Check>) {
+  function start(run: () => Promise<Check>) {
+    const result = run().then(
+      (check): Stage => settle(profile, wishId, { kind: 'check', check }),
+      (e): Stage => settle(profile, wishId, { kind: 'form', error: (e as Error).message }),
+    );
+    sending = { profile, wishId, result };
+    void result.then(() => {
+      if (sending?.result === result) sending = null;
+    });
+    memory = { profile, wishId, draft, stage: { kind: 'sending' } };
     setStage({ kind: 'sending' });
     setWished(false);
-    try {
-      setStage({ kind: 'check', check: await run() });
-    } catch (e) {
-      setStage({ kind: 'form', error: (e as Error).message });
-    }
   }
 
   function byHand(e: FormEvent) {
     e.preventDefault();
     if (stillToChoose(draft)) return;
-    void start(() => api.checkByHand(pieceToSend(draft)));
+    start(() => api.checkByHand(pieceToSend(draft)));
   }
 
   function photo(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = '';
-    if (file) void start(() => api.checkPhoto(file, file.name || 'photo.jpg'));
+    if (file) start(() => api.checkPhoto(file, file.name || 'photo.jpg'));
   }
 
   function again(keep: boolean) {
@@ -113,7 +152,11 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onBought }
 
   async function putOnWishlist(check: Check) {
     const { name, note } = wishFrom(check);
-    if (await onWish(name, note)) setWished(true);
+    if (wishedChecks.has(check.id)) return;
+    if (await (wish ? onNote(wish, noteFor(wish, note)) : onWish(name, note))) {
+      wishedChecks.add(check.id);
+      setWished(true);
+    }
   }
 
   async function bought(check: Check) {
@@ -163,7 +206,9 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onBought }
           <div className="row wouldwork-actions">
             <button className="btn btn-primary" disabled={locked || busy || wished} title={locked ? OFFLINE_TITLE : undefined}
               onClick={() => void putOnWishlist(stage.check)}>
-              {wished ? <><CheckIcon /> On your wishlist</> : <><PlusIcon /> Put it on my wishlist</>}
+              {wish
+                ? (wished ? <><CheckIcon /> In the wish's note</> : <><PlusIcon /> Add it to the wish's note</>)
+                : (wished ? <><CheckIcon /> On your wishlist</> : <><PlusIcon /> Put it on my wishlist</>)}
             </button>
             <button className="btn" disabled={locked || busy} title={locked ? OFFLINE_TITLE : 'Opens Add, to photograph it'}
               onClick={() => void bought(stage.check)}>I bought it</button>

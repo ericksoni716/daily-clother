@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LookFor, Wish } from './gaps';
 import {
-  type Check, checkKinds, isDone, pieceFromLook, pieceToSend, stillToChoose, verdictTone, waitingWords, WEIGHTS, weightLabel, wishById,
+  type Check, checkKinds, isDone, noteFor, pieceFromLook, pieceToSend, stillToChoose, verdictTone, waitingWords, WEIGHTS, weightLabel, wishById,
   wishFrom, wornWords,
 } from './wouldwork';
 
@@ -75,5 +75,15 @@ describe('waiting and the answer', () => {
     expect(wishById([wish], 'w1')).toBe(wish);
     expect(wishById([wish], 'w2')).toBeNull();
     expect(wishById(null, 'w1')).toBeNull();
+  });
+});
+
+describe("the answer in a wish's note", () => {
+  it('keeps the note as it was, adds the answer once, and stays within the limit', () => {
+    expect(noteFor({ note: '' }, 'Tan coat. Would this work? said: fills a gap.')).toBe('Tan coat. Would this work? said: fills a gap.');
+    const once = noteFor({ note: 'Size 40' }, 'Tan coat.');
+    expect(once).toBe('Size 40\n\nTan coat.');
+    expect(noteFor({ note: once }, 'Tan coat.')).toBe(once);
+    expect(noteFor({ note: 'x'.repeat(990) }, 'Tan coat, smart casual.').length).toBe(1000);
   });
 });

@@ -35,7 +35,10 @@ export interface WouldAnswer {
   verdict_words: string;
   reasons: string[];
   piece: WouldPiece;
-  fills: { gap_id: string; name: string; score_before: number; score_after: number; gone: boolean; days: WouldDay[]; found_by: string[] }[];
+  fills: {
+    gap_id: string; name: string; score_before: number; score_after: number; gone: boolean; filled: boolean; days: WouldDay[];
+    of_days: number; found_by: string[];
+  }[];
   goes_with: {
     days: number;
     suits: number;
@@ -44,7 +47,7 @@ export interface WouldAnswer {
     examples: { day: WouldDay; pieces: OutfitPieces; score: number; reasons: string[] }[];
     text: string | null;
   };
-  repeats: { items: { id: string; worn: number; hardly_worn: boolean }[]; text: string | null };
+  repeats: { items: { id: string; worn: number; hardly_worn: boolean }[]; text: string | null; disliked: string[]; disliked_text: string | null };
   holds_back: string[];
   checked: { items: number; wears: number; days: number };
 }
@@ -144,6 +147,14 @@ export function wishFrom(check: Pick<Check, 'piece' | 'piece_words' | 'answer'>)
   const verdict = check.answer && check.answer.verdict !== 'too_small' ? ` Would this work? said: ${check.answer.verdict_words.toLowerCase()}.` : '';
   const note = `${check.piece_words ?? name}.${verdict}`.slice(0, 1000);
   return { name, note };
+}
+
+/** A wish's note with a check's answer added: the note as it was, then the answer, never the same answer twice. */
+export function noteFor(wish: Pick<Wish, 'note'>, note: string): string {
+  const was = (wish.note ?? '').trim();
+  if (!was) return note;
+  if (was.includes(note)) return was;
+  return `${was}\n\n${note}`.slice(0, 1000);
 }
 
 /** "Worn 3 times", "Not worn yet". */

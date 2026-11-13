@@ -97,6 +97,13 @@ export function MissingScreen({ itemId, check, wishId, wide }: { itemId: string 
     memory = { profile, phase, tab };
   }, [profile, phase, tab]);
 
+  // back from a check (which may have put something on the wishlist or marked a wish bought): ask for the lists again
+  const wasChecking = useRef(check);
+  useEffect(() => {
+    if (wasChecking.current && !check) setAttempt((n) => n + 1);
+    wasChecking.current = check;
+  }, [check]);
+
   const byId = useMemo(() => new Map((items.active ?? []).map((i) => [i.id, i])), [items.active]);
   const locked = offline || (phase.kind === 'ready' && phase.savedAt !== null);
 
@@ -134,7 +141,8 @@ export function MissingScreen({ itemId, check, wishId, wide }: { itemId: string 
   const wouldWork = check && (
     <WouldWork key={`${profile}-${wishId ?? ''}`} wish={wishById(wishes, wishId)} wishId={wishId} byId={byId} locked={locked}
       busy={busy === 'new-wish' || (wishId !== null && busy === wishId)}
-      onWish={(name, note) => actions.addByHand(name, note)} onBought={(w) => actions.bought(w)} />
+      onWish={(name, note) => actions.addByHand(name, note)} onNote={(w, note) => actions.saveNote(w, note)}
+      onBought={(w) => actions.bought(w)} />
   );
 
   if (check && !wide) {

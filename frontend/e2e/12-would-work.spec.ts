@@ -74,6 +74,39 @@ test('would this work?, described by hand in the demo closet on a computer, and 
   await expect(page).toHaveURL(/\/missing\/item\//);
   await page.goBack();
   await expect(page.getByTestId('would-work-answer')).toBeVisible();
+  // ...and it is still on the wishlist once: the button does not add it again
+  await expect(panel.getByRole('button', { name: 'On your wishlist' })).toBeDisabled();
+  expect((await (await page.request.get('/api/wishlist')).json()).wishes).toHaveLength(1);
+  // closing the check shows the wishlist with the new wish in it
+  await page.goto('/missing');
+  await expect(page.getByTestId('wish')).toHaveCount(1);
+});
+
+test('would this work?: leaving while the check is being sent and coming back picks it up', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openMissing(page);
+  let held: import('@playwright/test').Route | null = null;
+  await page.route('**/api/would-this-work', (route) => {
+    if (route.request().method() !== 'POST') return route.continue();
+    held = route;   // not answered until the test lets it go
+  });
+  await page.getByRole('link', { name: 'Would this work?' }).click();
+  const panel = page.getByTestId('would-work');
+  const form = panel.getByRole('form', { name: 'Describe it by hand' });
+  await form.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { name: 'Coat', exact: true }).click();
+  await form.getByRole('group', { name: 'Main colour' }).getByRole('button', { name: 'Tan', exact: true }).click();
+  await form.getByRole('button', { name: 'Would it work?' }).click();
+  await expect(panel.getByTestId('would-work-waiting')).toContainText('Sending');
+  await expect.poll(() => held !== null).toBe(true);
+  // away to the closet, then back while the request is still on its way
+  await page.getByRole('link', { name: 'Closet', exact: true }).first().click();
+  await expect(page).not.toHaveURL(/\/missing/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/missing\/check$/);
+  await expect(page.getByTestId('would-work-waiting')).toContainText('Sending');
+  await held!.continue();
+  await expect(page.getByTestId('would-work-answer')).toBeVisible({ timeout: 30_000 });
+  await page.unroute('**/api/would-this-work');
 });
 
 test('would this work? on a phone: a full page, a fourth pair of jeans you have already, and I found one from a wish', async ({ page }) => {
@@ -99,8 +132,8 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   const gaps = await (await page.request.get('/api/gaps')).json();
   const rain = gaps.gaps.find((g: { id: string }) => g.id === 'outer-rain');
   await page.request.post('/api/wishlist', { data: { gap_id: rain.id } });
+  // back from the check, the lists are asked for again: the wish shows without reloading the page
   await page.locator('.detail-top').getByRole('link', { name: "What's missing" }).click();
-  await page.reload();   // the wish was added behind the screen's back
   await page.getByRole('button', { name: /^Wishlist · 1/ }).click();
   await page.getByTestId('wish').first().getByRole('button', { name: 'I found one: would it work?' }).click();
   await expect(page).toHaveURL(/\/missing\/check\/wish\//);
@@ -108,6 +141,22 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   await expect(fromWish).toContainText(`Checking a find for ${rain.name}`);
   await expect(fromWish.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { name: 'Coat', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(fromWish.getByRole('switch', { name: /keeps the rain off/ })).toBeChecked();
+
+  // the answer goes into that wish's note, not into a second wish
+  const kind = fromWish.getByRole('form', { name: 'Describe it by hand' });
+  if (await kind.getByRole('button', { name: 'Would it work?' }).isDisabled()) {
+    await kind.getByRole('group', { name: 'Main colour' }).getByRole('button', { name: 'Tan', exact: true }).click();
+  }
+  await kind.getByRole('button', { name: 'Would it work?' }).click();
+  await expect(fromWish.getByTestId('would-work-answer')).toBeVisible({ timeout: 30_000 });
+  await fromWish.getByRole('button', { name: "Add it to the wish's note" }).click();
+  await expect(fromWish.getByRole('button', { name: "In the wish's note" })).toBeDisabled();
+  const { wishes } = await (await page.request.get('/api/wishlist')).json();
+  expect(wishes).toHaveLength(1);
+  expect(wishes[0].note).toContain('keeps the rain off');
+  await page.locator('.detail-top').getByRole('link', { name: "What's missing" }).click();
+  await page.getByRole('button', { name: /^Wishlist · 1/ }).click();
+  await expect(page.getByTestId('wish').first().getByRole('textbox', { name: 'Note' })).toHaveValue(/keeps the rain off/);
 });
 
 test('would this work? is off while offline, with the same words as the other buttons', async ({ page, context }) => {

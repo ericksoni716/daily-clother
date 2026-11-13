@@ -46,9 +46,9 @@ def fake_claude(images, routes):
 
 
 def api_only_status(order="auto", claude_exe=None):
-    return {"order": ["plan", "api"], "routes": [
-        {"id": "plan", "available": False, "detail": "Claude Code is not installed on this computer."},
-        {"id": "api", "available": True, "detail": ""}]}
+    routes = {"plan": {"id": "plan", "available": False, "detail": "Claude Code is not installed on this computer."},
+              "api": {"id": "api", "available": True, "detail": ""}}
+    return {"order": list(tagger_routes.ORDERS[order]), "routes": [routes[r] for r in tagger_routes.ORDERS[order]]}
 
 
 def build_services(cfg, **kwargs):

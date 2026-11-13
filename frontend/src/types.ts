@@ -152,6 +152,8 @@ export interface Settings {
   tagging_api_cap_usd: number | null;
   /** Set when Anthropic refused the key and Closet switched it off. */
   tagging_api_off: ApiTurnedOff | null;
+  /** Which route to Claude is tried first: the plan first (default), the key first, or only one of them. */
+  tagging_route_order: RouteOrder;
   /** Whether an API key is set and where it comes from; never the key itself. */
   api_key: ApiKeyInfo;
   phone: { tailscale_installed: boolean; running: boolean; address: string | null; command: string };
@@ -270,6 +272,9 @@ export interface TaggingSpend {
   /** Newest first, this month included once anything was sent. */
   history: SpendMonth[];
 }
+
+/** The order the routes to Claude are tried in, as chosen in Settings. */
+export type RouteOrder = 'auto' | 'api-first' | 'plan' | 'api';
 
 /** Which routes to Claude can be used right now, and the order they are tried in. */
 export interface TaggingStatus {

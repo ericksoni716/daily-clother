@@ -299,6 +299,7 @@ class SettingsPatch(BaseModel):
     autostart: bool | None = None
     tagging_api_enabled: bool | None = None
     tagging_api_cap_usd: float | None = None
+    tagging_route_order: str | None = None
     place: dict | None = None
     life: object = None
     life_prompt_dismissed: bool | None = None
@@ -838,7 +839,7 @@ def create_app(sv: Services) -> FastAPI:
             "last_good_backup": backup.last_good(state), "pending_cutouts": jobs.pending_count(conn),
             "pending_tags": tagjobs.waiting_count(conn), "tagging_api_enabled": spend.api_allowed(state),
             "tagging_api_cap_usd": spend.cap(state), "tagging_api_off": state.get("tagging_api_off"),
-            "api_key": apikey.info(),
+            "tagging_route_order": tagjobs.route_order(state), "api_key": apikey.info(),
             "phone": sv.phone_info(), "autostart": auto, "heic_supported": images.HEIC, "place": state.get("place"),
             "life": life.example()[0] if state.get("profile") == "demo" else state.get("life"),
             "life_prompt_dismissed": True if state.get("profile") == "demo" else state.get("life_prompt_dismissed"),
@@ -900,6 +901,14 @@ def create_app(sv: Services) -> FastAPI:
                 changes["tagging_api_off"] = None   # the owner has looked at why it was switched off
             state.update(**changes)
             sv.wake()   # items waiting for a route (or for the limit) may be able to go now
+        if "tagging_route_order" in sent:
+            order = body.tagging_route_order
+            if order not in tagger_routes.ORDERS:
+                raise HTTPException(422, f"Choose one of {', '.join(tagger_routes.ORDERS)}.")
+            if tagger_routes.ORDERS[order][0] == "api" and not apikey.get():
+                raise HTTPException(422, "Save an API key before choosing to use it first.")
+            state.update(tagging_route_order=order)
+            sv.wake()
         return settings_payload(conn)
 
     @app.put("/api/settings/api-key", dependencies=protected)
@@ -933,6 +942,8 @@ def create_app(sv: Services) -> FastAPI:
         except apikey.KeychainError as e:
             raise HTTPException(409, str(e))
         log.info("the API key was removed from the keychain")
+        if tagger_routes.ORDERS[tagjobs.route_order(state)][0] == "api" and not apikey.get():
+            state.update(tagging_route_order="auto")   # a choice that needs a key goes back to the plan first
         return settings_payload(conn)
 
     @app.get("/api/storage", dependencies=protected)
@@ -943,7 +954,7 @@ def create_app(sv: Services) -> FastAPI:
     @app.get("/api/tagging", dependencies=protected)
     async def get_tagging():
         # starts `claude auth status` (a few seconds at most), so keep it off the event loop
-        result = await run_in_threadpool(tagger_routes.status)
+        result = await run_in_threadpool(tagger_routes.status, tagjobs.route_order(state))
         sv.tag_worker.wake()   # the owner may just have signed in: waiting items need not wait for the next round
         return result
 

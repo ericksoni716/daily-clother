@@ -275,6 +275,84 @@ def test_the_real_tagger_never_reaches_the_api_when_only_the_plan_is_allowed(mon
     assert used == []
 
 
+def test_each_route_order_is_applied_to_every_caller_of_the_routes(cfg, monkeypatch, keychain):
+    """Describing, "Would this work?", typed corrections and landmarks all try the routes in the order chosen."""
+    from PIL import Image
+
+    from closet import app as app_module
+    from closet.tagger import correcting
+
+    from .conftest import fake_cutter
+    monkeypatch.setattr(tagger_routes, "status", lambda order="auto", claude_exe=None: {
+        "order": list(tagger_routes.ORDERS[order]),
+        "routes": [{"id": r, "available": True, "detail": ""} for r in tagger_routes.ORDERS[order]]})
+    tried = []
+
+    def unusable(route):
+        def fail(*a, **k):
+            tried.append(route)
+            raise RouteUnavailable("not now")
+        return fail
+    monkeypatch.setattr(tagger_routes.claude_cli, "tag_item_cli", unusable("plan"))
+    monkeypatch.setattr(tagger_routes, "tag_item", unusable("api"))
+    monkeypatch.setattr(correcting, "correct_cli", unusable("plan"))
+    monkeypatch.setattr(correcting, "correct_api", unusable("api"))
+    sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, api_client=object(),
+                                   measurer=lambda *a: None)   # the real tagger, corrector and landmarker
+    keychain.key = "sk-ant-test-only"
+    sv.state.update(tagging_api_enabled=True, tagging_api_cap_usd=5)
+    img = Image.new("RGBA", (40, 40), (90, 90, 90, 255))
+    callers = {
+        "describing": lambda: sv.tag_worker.tagger([img], sv.tag_worker.routes()),
+        "would this work": lambda: sv.check_tagger([img], sv.tag_worker.routes()),
+        "typed correction": lambda: sv.corrector("it has three buttons", {}, {}, [], sv.tag_worker.routes()),
+        "landmarks": lambda: sv.pattern_worker.landmarker(img, sv.pattern_worker.routes()),
+    }
+    for order, expected in tagger_routes.ORDERS.items():
+        sv.state.update(tagging_route_order=order)
+        assert tagjobs.usable_routes(sv.state) == expected
+        for name, call in callers.items():
+            tried.clear()
+            with pytest.raises(RouteUnavailable):
+                call()
+            assert tuple(tried) == expected, (order, name)
+    sv.state.update(tagging_api_enabled=False)   # the key is still only used once it is allowed, with a limit
+    for order, expected in tagger_routes.ORDERS.items():
+        sv.state.update(tagging_route_order=order)
+        assert tagjobs.usable_routes(sv.state) == tuple(r for r in expected if r != "api")
+
+
+def test_the_route_order_is_kept_in_settings_and_an_unknown_one_is_refused(client, services, keychain, monkeypatch):
+    monkeypatch.setattr(tagger_routes, "status", lambda order="auto", claude_exe=None: {
+        "order": list(tagger_routes.ORDERS[order]),
+        "routes": [{"id": r, "available": True, "detail": ""} for r in tagger_routes.ORDERS[order]]})
+    assert client.get("/api/settings").json()["tagging_route_order"] == "auto"   # the plan first by default
+    assert client.get("/api/tagging").json()["order"] == ["plan", "api"]
+    for wrong in ("banana", "API-FIRST", "", None, 3):
+        r = client.put("/api/settings", json={"tagging_route_order": wrong})
+        assert r.status_code == 422, wrong
+    # choices that put the key first need a key
+    r = client.put("/api/settings", json={"tagging_route_order": "api-first"})
+    assert r.status_code == 422 and "Save an API key" in r.json()["detail"]
+    assert client.put("/api/settings", json={"tagging_route_order": "plan"}).json()["tagging_route_order"] == "plan"
+    assert client.get("/api/tagging").json()["order"] == ["plan"]
+    keychain.key = "sk-ant-test-only"
+    for order in tagger_routes.ORDERS:
+        r = client.put("/api/settings", json={"tagging_route_order": order})
+        assert r.status_code == 200 and r.json()["tagging_route_order"] == order
+        assert client.get("/api/settings").json()["tagging_route_order"] == order
+        assert client.get("/api/tagging").json()["order"] == list(tagger_routes.ORDERS[order])
+    assert services.state.get("tagging_route_order") == "api-first"
+    # removing the only key puts a choice that needs it back to the plan first
+    assert client.delete("/api/settings/api-key").json()["tagging_route_order"] == "auto"
+    keychain.key = "sk-ant-test-only"
+    client.put("/api/settings", json={"tagging_route_order": "plan"})
+    keychain.key = "sk-ant-test-only"
+    assert client.delete("/api/settings/api-key").json()["tagging_route_order"] == "plan"   # a choice without the key stays
+    services.state.update(tagging_route_order="something else")   # a settings file edited by hand
+    assert tagjobs.route_order(services.state) == "auto"
+
+
 def test_retag_needs_login(anon):
     assert anon.post("/api/items/x/retag").status_code == 401
 

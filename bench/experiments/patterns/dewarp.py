@@ -202,7 +202,7 @@ def accumulate(lab, m, ox, oy, P, Q, up=2):
     return tile, counts.reshape(Q * up, P * up)
 
 
-def rectify(cut, P, Q, ref_lab=None, iters=3, center_gap=0.06, log=print, thresh=40, stride=0.2, deg=4, cover=0.75, up=1):
+def rectify(cut, P, Q, ref_lab=None, iters=3, center_gap=0.06, log=print, thresh=40, stride=0.2, deg=4, cover=0.75, up=1, side=None):
     rgb = np.asarray(cut.convert("RGB"))
     lab = to_lab(rgb)
     m = garment_mask(cut, thresh=thresh)   # faint garment too: areas that are really background fail to match
@@ -210,6 +210,10 @@ def rectify(cut, P, Q, ref_lab=None, iters=3, center_gap=0.06, log=print, thresh
     mid, gap = (xs.min() + xs.max()) // 2, int(center_gap * (xs.max() - xs.min()))
     mm = m.copy()
     mm[:, mid - gap: mid + gap] = False            # the button strip
+    if side == "left":                               # one front only: the two fronts do not line up
+        mm[:, mid:] = False
+    elif side == "right":
+        mm[:, :mid] = False
     sig = signal(lab)
     if ref_lab is None:
         # first reference: the repeat-sized square that best matches its neighbours (no flattening yet)
@@ -236,7 +240,32 @@ def rectify(cut, P, Q, ref_lab=None, iters=3, center_gap=0.06, log=print, thresh
         field = smooth_fill(un, deg=deg)
         ox, oy = full_field(field, centres, m.shape)
         use = mm & measured_mask(un, centres, m.shape, (Q // 2, P // 2))
+        # only where the map is steady: where it changes fast (an edge of the measured area, a guessed stretch)
+        # it would pile many photo pixels onto one spot of the repeat and draw a line that is not in the cloth
+        gx_ = cv2.Sobel(ox, cv2.CV_32F, 1, 0, ksize=3) / 8
+        gy_ = cv2.Sobel(oy, cv2.CV_32F, 0, 1, ksize=3) / 8
+        cx_ = cv2.Sobel(ox, cv2.CV_32F, 0, 1, ksize=3) / 8
+        cy_ = cv2.Sobel(oy, cv2.CV_32F, 1, 0, ksize=3) / 8
+        bend = np.maximum.reduce([np.abs(gx_), np.abs(gy_), np.abs(cx_), np.abs(cy_)])
+        # the steepest places of the map are dropped: the top tenth of the bend among the pixels in use, and
+        # anything bending by more than half (never more than a third of the pixels, so a crumpled garment
+        # still gives enough to measure)
+        if use.any():
+            lim_b = max(min(0.5, np.percentile(bend[use], 90)), np.percentile(bend[use], 67))
+            use &= bend <= lim_b
         tile, counts = accumulate(lab, use, ox, oy, P, Q, up=up)
+        # drop the pixels that disagree most with the rebuilt repeat at their spot (a seam, a pocket edge, the
+        # button strip land on the same spots every time, so the median alone does not remove them), then rebuild
+        H_, W_ = use.shape
+        yy, xx = np.mgrid[0:H_, 0:W_].astype(np.float32)
+        tu = (np.minimum(((xx - ox) % P) * up, P * up - 1)).astype(int)
+        tv = (np.minimum(((yy - oy) % Q) * up, Q * up - 1)).astype(int)
+        resid = np.linalg.norm(lab - tile[tv, tu], axis=2)
+        lim = np.percentile(resid[use], 85)
+        bad = (resid > lim).astype(np.uint8)
+        # only disagreements that form lines or patches count, not the scattered grain of the cloth
+        bad = cv2.morphologyEx(bad, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8)) > 0
+        tile, counts = accumulate(lab, use & ~bad, ox, oy, P, Q, up=up)
         spread = (np.nanmax(un[..., 0]) - np.nanmin(un[..., 0]), np.nanmax(un[..., 1]) - np.nanmin(un[..., 1]))
         log(f"  pass {it + 1}: {n_ok} areas measured (median match {np.median(conf[conf > 0]):.2f}); the cloth drifts "
             f"{spread[0]:.0f} px across and {spread[1]:.0f} px down; {np.median(counts):.0f} pixels per spot")
@@ -338,3 +367,32 @@ def unwrap_ls(off, conf, P, Q, min_conf=0.5, min_patch=10, deg=2):
             for t, k in enumerate(members):
                 out[cells[k]] = shifted[t]
     return out
+
+
+def rectify_fronts(cut, P, Q, log=print, **kw):
+    """Flatten each front of the garment on its own (the plaid does not line up across the buttons), then lay
+    the second front's repeat over the first's and combine them, each spot weighted by how many pixels it holds."""
+    res = {}
+    for side in ("left", "right"):
+        r = rectify(cut, P, Q, log=lambda s, side=side: log(f"  {side}:{s}"), side=side, **kw)
+        if r is not None:
+            res[side] = r
+    if not res:
+        return None
+    if len(res) == 1:
+        return next(iter(res.values()))
+    (ta, ia), (tb, ib) = res["left"], res["right"]
+    sa, sb = signal(ta), signal(tb)
+    cc = np.real(np.fft.ifft2(np.fft.fft2(sa - sa.mean()) * np.conj(np.fft.fft2(sb - sb.mean()))))
+    dy, dx = np.unravel_index(np.argmax(cc), cc.shape)
+    tb = np.roll(np.roll(tb, dy, 0), dx, 1)
+    cb = np.roll(np.roll(ib["counts"], dy, 0), dx, 1).astype(np.float32)
+    ca = ia["counts"].astype(np.float32)
+    agree = float(np.corrcoef(signal(ta).ravel(), signal(tb).ravel())[0, 1])
+    log(f"  the two fronts agree {agree:.2f} after lining up (shift {dx}, {dy})")
+    if agree < 0.8:                       # not clearly the same: one map over the whole garment does better
+        log("  the fronts do not clearly agree: flattening the whole garment as one")
+        return rectify(cut, P, Q, log=log, **kw)
+    w = (ca + cb)[..., None]
+    merged = (ta * ca[..., None] + tb * cb[..., None]) / np.maximum(w, 1)
+    return merged, dict(ia, counts=ca + cb)

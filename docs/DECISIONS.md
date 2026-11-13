@@ -222,6 +222,15 @@ The rules live in `backend/closet/gaps.py`; every number is a named constant at 
 | Typed temperatures are offered only when there is no saved place (or the forecast cannot be had); the forecast cannot be corrected from this screen | One way to set the day keeps the top of the screen short; the server already allows a correction if it is wanted later. |
 | `context.message` carries the server's own sentence when the forecast is old | The screen says it in the same words as Settings. |
 
+### What's missing, informed by how the owner lives
+
+- **Nothing changes until he answers.** With no answers the analysis is exactly the old one (fixed `OCCASION_WEIGHT`, every band the same; a test compares it with a saved copy). Situations, the climate, taste and the holding back of "I never dress like that" all start once he has answered. The answers and the climate live in the program's settings (`state.py`), one set per closet; no migration.
+- **Situations** (`backend/closet/life.py`, `SITUATIONS`): work = the occasion of how people dress there; everyday = casual; going out = smart casual in the sharp mood (0.8) and formal (0.2); exercise = the engine's athletic occasion, in the home weather; vacation = casual (0.7) and smart casual (0.3) in the bands of where he goes (`VACATION_BANDS`, a quarter of days wet), weeks a year × 7 / 52 days a week; lounging is not run through the engine. A day weighs Σ situation days a week / 5 × use share × share of the year that weather happens × 8.
+- **Lounging** is told apart from everyday by the pieces: a hoodie, or a tee or sweater no dressier than casual, and trousers or shorts that are athletic or have soft words in their name or material (jersey, fleece, joggers, sweatpants…). It cannot tell lounging clothes from gym clothes, and exercise cannot tell the gym from a run outside.
+- **The climate**: the last 5 full years of daily lows, highs and rain from Open-Meteo's archive; a day falls in the band of its design temperature (as the engine dresses); wet = at least 1 mm. Kept 120 days; after a failure not asked again for an hour. The demo closet uses a built-in example climate.
+- **Taste** (`gaps._taste`): used from 20 wears or 8 rated pieces; points are wears plus rating (love 3, like 1, meh −1, dislike −3); a colour or fit is favoured with at least 20 % and 5 points (at most 2 colours); a pattern, fit or colour on at least 2 pieces, all disliked or owned 120 days before the last wear and never worn, is avoided. Favoured colours come first only among the colours already suggested for the category.
+- **"I never dress like that"** holds back gaps for the same place and formality whose situations are all among the hidden one's (coats and jackets are never held back). Unhiding releases them.
+
 ### The What's missing screen and the wishlist
 
 `frontend/src/screens/Missing.tsx` (its own styles in `Missing.css`), with the wording and what the device keeps in `frontend/src/gaps.ts`; the server side is `backend/closet/wishlist.py` and migration `0008_wishlist.sql`.

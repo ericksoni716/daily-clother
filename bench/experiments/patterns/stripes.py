@@ -446,6 +446,16 @@ def measure3(cut, log=print, up=4):
         return None
     seq, y0, y1 = res
     yarns = yarn_colours(cut)
+    # colours the stripe sequence itself shows that no yarn colour is close to (a pink band too small a share
+    # of the whole garment to make the palette): add them, so they are not snapped to a grey
+    known_seq = seq[y0:y1 + 1][~np.isnan(seq[y0:y1 + 1, 0])]
+    w_ = np.array([0.6, 1, 1])
+    far = known_seq[np.min(np.linalg.norm((known_seq[:, None] - yarns[None]) * w_, axis=2), 1) > 14]
+    if len(far) >= 3:
+        k = min(3, max(1, len(far) // 4))
+        cv2.setRNGSeed(0)
+        _, _, extra = cv2.kmeans(far.astype(np.float32), k, None, (3, 30, 0.5), 3, cv2.KMEANS_PP_CENTERS)
+        yarns = np.vstack([yarns, extra]).astype(np.float32)
     rep_line = next((s for s in logs if "repeat every" in s), None)
     def nearest(cols):
         d = np.linalg.norm((cols[:, None] - yarns[None]) * np.array([0.6, 1, 1]), axis=2)

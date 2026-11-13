@@ -8,7 +8,8 @@ iPhone. Your closet never leaves your computer.
 You can capture items with one photo each, get the background removed, browse
 the closet on phone and desktop, try a 30-item demo closet, and back up and
 restore. New items are described by Claude through your Claude plan.
-Illustrations for your own items, outfits and shopping come at later stops. No
+Today suggests outfits, and What's missing keeps a wishlist of useful additions.
+Illustrations for your own items, shop searches and price checks come later. No
 API key is needed.
 
 ## Install and first run
@@ -85,6 +86,8 @@ small pictures are your own clothes: tap one to open it.
   hidden when the closet is checked again.
 - **Add your own wish** is for something the suggestions did not mention.
   Each wish has a note; choose **Save note** after changing it.
+  If a refresh finds a note changed on another device while you were writing,
+  it keeps your draft and lets you choose which version to use.
 - **I bought it** takes a wish off the list and opens **Add** so you can
   photograph the new piece. **Remove** simply takes it off the list.
 

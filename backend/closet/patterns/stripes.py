@@ -805,7 +805,20 @@ def compose_placed(cut, body, ground, log=quiet, step=0.25):
     # the body's measured bands as a colour at each position
     edges = np.cumsum([0] + [f for _, f in body["bands"]]) * span
 
+    # when measure4 found a repeat it folded the placed bands away, so its bands say nothing about them: a
+    # band's colour is then read from the straightened sequence itself, as the nearest of the garment's colours
+    from_seq = "rep" in body
+    if from_seq:
+        pal_hex = list(dict.fromkeys(list(body.get("yarns") or []) + list(ground["hexes"])))
+        pal = _hex_to_lab(pal_hex)
+        filled = s.copy()
+        for c in range(3):
+            filled[:, c] = np.interp(np.arange(span), np.where(ok)[0], s[ok, c]) if ok.any() else 128
+
     def body_at(y):
+        if from_seq:
+            c = filled[min(span - 1, int(y))]
+            return pal_hex[int(np.argmin(np.linalg.norm((pal - c) * np.array([0.6, 1, 1]), axis=1)))]
         i = min(len(body["bands"]) - 1, int(np.searchsorted(edges, y, side="right") - 1))
         return body["bands"][max(0, i)][0]
     L, lbl, hexes = ground["L"], ground["lbl"], ground["hexes"]

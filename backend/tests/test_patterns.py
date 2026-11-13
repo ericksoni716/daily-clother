@@ -171,6 +171,19 @@ def test_placed_stripes_keep_the_band():
     assert band_lab is not None and len(band_lab) == 1
 
 
+def test_placed_band_survives_when_the_body_measures_as_a_repeat():
+    """On a sharp photo measure4 folds a regular ground into one repeat and loses the band; compose_placed must
+    then read the band from the photo itself."""
+    cut = _placed_stripes()
+    ground = stripes.ground_stripes(cut)
+    body = {"orientation": "horizontal", "bands": [(ground["hexes"][0], 0.5), (ground["hexes"][1], 0.5)],
+            "yarns": list(ground["hexes"]) + ["#c81e28"], "rep": np.zeros((4, 3))}
+    bands = stripes.compose_placed(cut, body, ground)
+    span = 360
+    r, g, b = _colour_at(bands, (195 - 20) / span)
+    assert r > 150 and g < 80 and b < 80        # red at the band's height
+
+
 # --- sleeves -----------------------------------------------------------------------------------------------
 
 def _t_shirt(band_on_sleeves):

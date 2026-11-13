@@ -61,24 +61,25 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   const busy = item?.cutout_state === 'pending' || item?.cutout_state === 'processing';
   const describing = item?.tag_state === 'working';
   const awaiting = item?.tag_state === 'waiting';
+  const measuring = item?.pattern_state === 'waiting' || item?.pattern_state === 'working';
   const followed = useRef('');
   useEffect(() => {
-    if (!(busy || describing || awaiting) || offline) return;
+    if (!(busy || describing || awaiting || measuring) || offline) return;
     const t = window.setInterval(async () => {
       if (inflight.current) return;
       try {
         const fresh = await api.item(id);
         if (inflight.current) return;
         setItem(fresh);
-        const states = `${fresh.cutout_state}/${fresh.tag_state}`;
+        const states = `${fresh.cutout_state}/${fresh.tag_state}/${fresh.pattern_state}`;
         if (states !== followed.current) upsert(fresh);
         followed.current = states;
       } catch {
         /* the next tick tries again */
       }
-    }, busy || describing ? 2000 : 10_000);
+    }, busy || describing ? 2000 : measuring ? 5000 : 10_000);
     return () => window.clearInterval(t);
-  }, [busy, describing, awaiting, offline, id, upsert]);
+  }, [busy, describing, awaiting, measuring, offline, id, upsert]);
 
   const retag = useCallback(async () => {
     try {
@@ -217,6 +218,15 @@ export function ItemDetail({ id, status, inPanel }: Props) {
             {item.tag_state === 'waiting' && item.tag_error && <> <Link to="/settings">Open Settings</Link></>}
           </p>
         )
+      )}
+
+      {measuring && (
+        <p className="notice" role="status" data-testid="pattern-measuring">
+          Measuring the {patternWord(item.pattern)} from the photo, so the drawing can show it. This can take a minute or two.
+        </p>
+      )}
+      {item.pattern_state === 'failed' && item.pattern_error && (
+        <p className="muted tag-note" data-testid="pattern-failed">{item.pattern_error}</p>
       )}
 
       <WearPanel item={item} disabled={locked}
@@ -527,4 +537,8 @@ function Actions({ item, disabled, onArchive, onDelete }: { item: Item; disabled
       )}
     </div>
   );
+}
+
+function patternWord(pattern: string | null): string {
+  return ({ stripe: 'stripes', plaid: 'plaid', floral: 'print', camo: 'camouflage' } as Record<string, string>)[pattern ?? ''] ?? 'pattern';
 }

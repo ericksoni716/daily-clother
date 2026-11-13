@@ -723,11 +723,14 @@ def create_app(sv: Services) -> FastAPI:
     app.include_router(wishlist.router(conn_dep, gap_analysis, protected, state))
 
     def closet_for_check(profile: str) -> tuple[list[dict], list[dict], dict | None]:
-        # The check compares the plain analysis with and without the piece, and works both out itself. The answer
-        # kept for the list is weighed by how the owner lives, which the check does not know yet: put beside an
-        # unweighed "after", every gap that only that weighing finds would look filled.
+        # Until the owner has said how they live, the check works out the plain analysis itself, with and without
+        # the piece, exactly as before. Once they have (and always in the demo, as its list), it is given the
+        # weighed list the screen shows; its "context" carries the answers and climate the check weighs the
+        # "after" with, so both sides are weighed alike.
         rows, worn = gap_inputs(profile)
-        return rows, worn, None
+        if profile != "demo" and state.get("life") is None:
+            return rows, worn, None
+        return rows, worn, gap_analysis(profile, (rows, worn))
 
     assert sv.tag_worker and sv.check_tagger, "build_services wires both"
     checks = wouldjobs.Checks(cfg, state, closet_for_check, sv.tag_worker.routes, sv.check_tagger,

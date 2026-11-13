@@ -4,7 +4,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from closet import gaps, wouldwork
+from closet import gaps, life, wouldwork
 from closet.config import bundle_dir
 
 TODAY = date(2026, 11, 13)
@@ -173,6 +173,67 @@ def test_the_check_does_not_change_what_the_gap_analysis_finds(closet):
     check(closet, {"category": "coat", "color": "navy", "rain_proof": True})
     assert gaps.find_gaps(items, wears, {"max_gaps": wouldwork.ALL_GAPS}) == before
     assert all(i["id"] != wouldwork.CANDIDATE_ID for i in items)
+
+
+# ------------------------------------------------------------------ how the owner lives (the demo's example answers)
+@pytest.fixture(scope="module")
+def lived():
+    items, wears = demo()
+    answers, home = life.example()
+    return items, wears, life.analyse(items, wears, answers, home, wouldwork.ALL_GAPS), answers, home
+
+
+def check_lived(lived, piece):
+    items, wears, before, answers, home = lived
+    return wouldwork.check(items, wears, piece, before, answers, home)
+
+
+def test_a_piece_filling_a_gap_high_on_the_weighed_list_fills_it_and_says_for_whom(lived):
+    a = check_lived(lived, {"category": "dress_shoes", "color": "black", "formality": "business"})
+    assert a["weighed"] and a["verdict"] == "fills_gap"
+    shoes = a["fills"][0]
+    assert shoes["gap_id"] == "dress_shoes-business" and shoes["counts"] and not shoes["low"]
+    assert shoes["rank"] <= wouldwork.RANK_MAX and shoes["situations"] == ["Work"]
+    assert a["reasons"][0].startswith("It would fill “A pair of smart leather shoes” for work, covering")
+    assert {"id": "work", "label": "Work"} in a["situations"] and a["situations_text"].startswith("It suits work")
+    # never lounging: shoes are not worn at home
+    assert all(s["id"] != "lounging" for s in a["situations"])
+
+
+def test_a_piece_filling_only_a_gap_low_on_the_weighed_list_is_not_said_to_fill_a_gap(lived, monkeypatch):
+    piece = {"category": "coat", "color": "black", "formality": "athletic", "rain_proof": True,
+             "weight_class": "heavyweight"}
+    a = check_lived(lived, piece)
+    low = next(f for f in a["fills"] if f["gap_id"] == "outer-rain_active")
+    assert low["filled"] and low["low"] and not low["counts"] and low["rank"] > wouldwork.RANK_MAX
+    assert low["situations"] == ["Exercise"]
+    assert not any(f["counts"] for f in a["fills"]) and a["verdict"] != "fills_gap"
+    assert not any("would fill" in r for r in a["reasons"])
+    # it is where the list ranks the gap that holds it back
+    monkeypatch.setattr(wouldwork, "RANK_MAX", low["rank"])
+    assert check_lived(lived, piece)["verdict"] == "fills_gap"
+
+
+def test_the_weighed_check_works_out_the_list_itself_alike_and_leaves_it_unchanged(lived):
+    items, wears, before, answers, home = lived
+    piece = {"category": "coat", "color": "tan", "formality": "smart_casual", "rain_proof": True}
+    given = check_lived(lived, piece)
+    assert wouldwork.check(items, wears, piece, None, answers, home) == given
+    assert given["verdict"] == "fills_gap" and given["fills"][0]["gap_id"] == "outer-rain"
+    assert life.analyse(items, wears, answers, home, wouldwork.ALL_GAPS) == before
+
+
+def test_unanswered_questions_give_the_plain_check(closet):
+    items, wears, before = closet
+    piece = {"category": "coat", "color": "tan", "formality": "smart_casual", "rain_proof": True}
+    a = check(closet, piece)
+    assert wouldwork.check(items, wears, piece) == a == wouldwork.check(items, wears, piece, before, None, None)
+    assert not a["weighed"] and a["situations"] == [] and a["situations_text"] is None
+    assert all(f["situations"] == [] and not f["low"] and f["counts"] == (f["filled"] and f["found_by"] != ["worn_most"])
+               for f in a["fills"])
+    assert all("situation" not in d for f in a["fills"] for d in f["days"])
+    # no situation is named, as before
+    assert a["verdict"] == "fills_gap" and a["reasons"][0].startswith("It would fill “A rain-proof outer layer”, covering")
 
 
 def test_an_empty_or_tiny_closet_says_there_is_not_enough_to_say():

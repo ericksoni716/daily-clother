@@ -2,7 +2,8 @@
 
 Experiments towards drawing an item's pattern from its own photo (the owner asked for it; it was in the
 original spec and fell out when the drawing moved into the app). Not used by the app yet. No photos are kept
-here: run them against cutouts in `bench/private/` (git-ignored).
+here: run them against cutouts in `bench/private/` (git-ignored). The chosen methods now live in the app, in
+`backend/closet/patterns/`; these files keep the dead ends too.
 
 - `dewarp.py`, `match.py`: flatten a crumpled plaid. Measure, area by area, how far the plaid is shifted
   against a reference repeat (normalised matching, to a tenth of a pixel), join the shifts into one map,

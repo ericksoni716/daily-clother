@@ -4,7 +4,8 @@
 
 The cutout is the middle of the photo and Claude always answers with the fixed
 answer in `conftest.ANSWER`, so the browser can follow an item from upload to
-described without the model file or any call to Claude.
+described without the model file or any call to Claude. Corrections by sentence
+are read by the same stand-in the backend tests use.
 """
 import sys
 import time
@@ -12,7 +13,7 @@ import time
 from closet import app, cli
 from closet.tagger.tagging import TagResult
 
-from .conftest import ANSWER, fake_cutter
+from .conftest import ANSWER, FakeClaude, fake_cutter
 
 _real_build = app.build_services
 
@@ -23,7 +24,9 @@ def fake_claude(images, routes):
 
 
 def build_services(cfg, **kwargs):
-    sv = _real_build(cfg, cutter=fake_cutter, tagger=fake_claude, routes=lambda: ("plan",), **kwargs)
+    reader = FakeClaude()
+    reader.mode = "answers"
+    sv = _real_build(cfg, cutter=fake_cutter, tagger=fake_claude, routes=lambda: ("plan",), corrector=reader.correct, **kwargs)
     sv.worker.is_ready = lambda: True
     return sv
 

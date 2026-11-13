@@ -22,8 +22,10 @@ from . import (
     auth,
     autostart,
     backup,
+    corrections,
     db,
     demo,
+    history,
     illustrations,
     images,
     items,
@@ -41,6 +43,7 @@ from .cutout import make_cutout, predict_mask
 from .gaps import find_gaps
 from .modelstore import MODEL, ModelStore
 from .state import State
+from .tagger import correcting
 from .tagger import routes as tagger_routes
 from .today import closet_rows
 from .today import suggest as suggest_today
@@ -58,6 +61,7 @@ class Services:
     scheduler: backup.Scheduler
     web_dir: Path | None = None
     tag_worker: tagjobs.Worker | None = None
+    corrector: corrections.Corrector = correcting.correct
     on_quit: Callable[[], None] = lambda: None
     _phone_cache: tuple[float, dict] | None = field(default=None, repr=False)
 
@@ -91,12 +95,13 @@ class Services:
 
 
 def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path | str | None = "bundled",
-                   tagger: tagjobs.Tagger | None = None, routes: tagjobs.Routes | None = None) -> Services:
+                   tagger: tagjobs.Tagger | None = None, routes: tagjobs.Routes | None = None,
+                   corrector: corrections.Corrector | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
-    with the program, None serves no page (tests), or give a folder. `tagger`
-    and `routes` stand in for Claude in tests; by default the real routes are used.
+    with the program, None serves no page (tests), or give a folder. `tagger`,
+    `routes` and `corrector` stand in for Claude in tests; by default the real routes are used.
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
@@ -121,7 +126,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     if web_dir == "bundled":
         candidate = bundle_dir() / "web"
         web_dir = candidate if (candidate / "index.html").exists() else None
-    return Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker)
+    return Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker,
+                    corrector=corrector or correcting.correct)
 
 
 class Passphrase(BaseModel):
@@ -134,6 +140,19 @@ class ProfileChoice(BaseModel):
 
 class ModelUrl(BaseModel):
     url: str | None = None
+
+
+class DetailsBody(BaseModel):
+    details: dict
+
+
+class Sentence(BaseModel):
+    sentence: str
+
+
+class Confirmed(BaseModel):
+    sentence: str
+    changes: list
 
 
 class WearDay(BaseModel):
@@ -308,6 +327,62 @@ def create_app(sv: Services) -> FastAPI:
         item = items.retag(conn, item_id)
         sv.wake()
         return item
+
+    # ---------------------------------------------- correcting an item, and its history
+    def not_in_demo(conn, item_id: str) -> None:
+        if state.get("profile") == "demo":
+            items.get(conn, item_id)
+            raise HTTPException(409, "The demo closet is never sent to Claude, so it can't read sentences here. "
+                                     "Pick the details instead.")
+
+    @app.get("/api/items/{item_id}/details", dependencies=protected)
+    def detail_options(item_id: str, conn=Depends(conn_dep)):
+        return corrections.options(items.get(conn, item_id))
+
+    @app.get("/api/items/{item_id}/details/{name}", dependencies=protected)
+    async def detail_choices(item_id: str, name: str):
+        path = cfg.db_path(state.get("profile"))
+
+        def work() -> dict:
+            conn = db.connect(path)
+            try:
+                return corrections.choices(items.get(conn, item_id), name)
+            finally:
+                conn.close()
+        return await run_in_threadpool(work)
+
+    @app.put("/api/items/{item_id}/details", dependencies=protected)
+    def set_details(item_id: str, body: DetailsBody, conn=Depends(conn_dep)):
+        return corrections.apply(conn, item_id, body.details)
+
+    @app.post("/api/items/{item_id}/correct", dependencies=protected)
+    async def correct_item(item_id: str, body: Sentence):
+        path, folder = cfg.db_path(state.get("profile")), images_dir()
+
+        def work() -> dict:
+            conn = db.connect(path)
+            try:
+                not_in_demo(conn, item_id)
+                routes = sv.tag_worker.routes() if sv.tag_worker else ()
+                return corrections.understand(conn, folder, item_id, body.sentence, routes, sv.corrector)
+            finally:
+                conn.close()
+        # asking Claude takes a while; other requests keep being answered meanwhile
+        return await run_in_threadpool(work)
+
+    @app.post("/api/items/{item_id}/correct/confirm", dependencies=protected)
+    def confirm_correction(item_id: str, body: Confirmed, conn=Depends(conn_dep)):
+        not_in_demo(conn, item_id)
+        return corrections.confirm(conn, item_id, body.sentence, body.changes)
+
+    @app.get("/api/items/{item_id}/history", dependencies=protected)
+    def item_history(item_id: str, conn=Depends(conn_dep)):
+        items.get(conn, item_id)
+        return history.listing(conn, item_id)
+
+    @app.post("/api/items/{item_id}/history/{change_id}/undo", dependencies=protected)
+    def undo_change(item_id: str, change_id: int, conn=Depends(conn_dep)):
+        return corrections.undo(conn, item_id, change_id)
 
     @app.get("/api/items/{item_id}/wears", dependencies=protected)
     def list_wears(item_id: str, conn=Depends(conn_dep)):

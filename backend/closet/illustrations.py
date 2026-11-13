@@ -3,7 +3,8 @@
 The drawing is made from the item's stored tagger answer when there is one, and
 from its coarse fields (category, colour, pattern, silhouette) when there is
 not. Where the owner has set a field (`source[field] == "user"`), the drawing
-follows the item's field, not the answer.
+follows the item's field, not the answer, and the details the owner has set
+(`own_details`, see `details.py`) are laid over the answer's.
 
 It is made again when tagging finishes (`tagjobs.apply_answer`), when the owner
 changes a field it shows (`items.update`), and when it was made by older drawing
@@ -22,9 +23,9 @@ import json
 import logging
 import sqlite3
 
-from . import drawing
+from . import details, drawing
 from .drawing import item as draw
-from .tagger.schema import SILHOUETTE_FIELDS
+from .tagger.schema import SILHOUETTE_FIELDS, Details
 
 log = logging.getLogger("closet.illustrations")
 
@@ -44,30 +45,58 @@ def _json(text, default):
         return default
 
 
-def make(row) -> draw.Drawing:
-    """The drawing for an item row as it stands now. Never raises."""
+def drawn_answer(row, extra: dict | None = None) -> dict | None:
+    """The answer the item is drawn from: Claude's, with the owner's fields and own details laid over it (and
+    `extra` details over those, for a preview). None when there is no answer and the owner has set no detail:
+    the item is then drawn from its fields alone."""
+    source = _json(row["source"], {})
+    silhouette = _json(row["silhouette"], {})
+    answer = _json(row["tag_answer"], None)
+    owner = {**details.own(row), **(extra or {})}
+    if not isinstance(answer, dict):
+        if not owner:
+            return None
+        answer = details.plain_answer(row["category"], silhouette, row["color"], row["pattern"])
+        if answer is None:
+            return None
+    answer = dict(answer)
+    for field in ("category", "color", "pattern"):
+        if source.get(field) == OWNER:
+            answer[field] = row[field]
+    if source.get("silhouette") == OWNER and isinstance(silhouette, dict):
+        said = answer.get("silhouette") if isinstance(answer.get("silhouette"), dict) else {}
+        found = dict(answer["details"]) if isinstance(answer.get("details"), dict) else None
+        for k, leave in DETAIL_FOR.items():
+            if found is not None and silhouette.get(k) is not None and silhouette.get(k) != said.get(k):
+                found.update(leave)
+        if found is not None:
+            answer["details"] = found
+        # a field the owner left empty is the answer's
+        answer["silhouette"] = {k: said.get(k) if silhouette.get(k) is None else silhouette.get(k) for k in SILHOUETTE_FIELDS}
+    if owner and isinstance(answer.get("details"), dict):
+        answer["details"] = details.lay(answer["details"], owner)   # the owner's details win over Claude's
+    return answer
+
+
+def shown_details(row) -> dict:
+    """The details as the item is drawn now (Claude's, the owner's laid over them), or the plain ones."""
+    try:
+        answer = drawn_answer(row)
+    except Exception:
+        answer = None
+    found = answer.get("details") if isinstance(answer, dict) else None
+    return found if isinstance(found, dict) else Details.plain().model_dump(mode="json")
+
+
+def make(row, extra: dict | None = None) -> draw.Drawing:
+    """The drawing for an item row as it stands now (with `extra` details laid over it, for a preview). Never raises."""
     try:
         source = _json(row["source"], {})
-        silhouette = _json(row["silhouette"], {})
-        answer = _json(row["tag_answer"], None)
         uid = row["id"][:8]
-        if not isinstance(answer, dict):
-            return draw.drawing_from_fields(row["category"], row["color_hex"], row["pattern"], silhouette,
+        answer = drawn_answer(row, extra)
+        if answer is None:
+            return draw.drawing_from_fields(row["category"], row["color_hex"], row["pattern"], _json(row["silhouette"], {}),
                                             color=row["color"], uid=uid)
-        answer = dict(answer)
-        for field in ("category", "color", "pattern"):
-            if source.get(field) == OWNER:
-                answer[field] = row[field]
-        if source.get("silhouette") == OWNER and isinstance(silhouette, dict):
-            said = answer.get("silhouette") if isinstance(answer.get("silhouette"), dict) else {}
-            details = dict(answer["details"]) if isinstance(answer.get("details"), dict) else None
-            for k, leave in DETAIL_FOR.items():
-                if details is not None and silhouette.get(k) is not None and silhouette.get(k) != said.get(k):
-                    details.update(leave)
-            if details is not None:
-                answer["details"] = details
-            # a field the owner left empty is the answer's
-            answer["silhouette"] = {k: said.get(k) if silhouette.get(k) is None else silhouette.get(k) for k in SILHOUETTE_FIELDS}
         # the item's own colour (from the answer, the photo or the owner), unless the owner chose a colour word
         # and left a colour from before beside it
         own_hex = source.get("color_hex") == OWNER or source.get("color") != OWNER

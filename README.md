@@ -313,3 +313,7 @@ and is never backed up. Photo credits are in
 - `bench/` — tagging and illustration experiments from phase 0.
 - `docs/` — `DECISIONS.md` (what and why), `BACKLOG.md` (what is left),
   `API.md`, `PHASE0.md`.
+
+## Planning a trip
+
+Open **Trips** (in the sidebar; on the phone, the "Trips" link on Today or in Settings) and choose **Plan a trip**. Search for where you are going, pick the first and last day (up to 30 days), the occasion, and whether you can wash there. Closet shows the weather (the forecast, or what those dates are usually like), what to pack with how many days each piece is worn, basics like socks, and an outfit for each day. Use "Not this one" to swap a piece out and "Take something else" to insist on one. Save the trip, then tick things off as you pack, on the computer or the phone.

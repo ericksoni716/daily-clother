@@ -386,3 +386,15 @@ Facts checked in Anthropic's documentation on 2026-11-12:
 ## Phase 0 findings
 
 See `docs/PHASE0.md` for the results and what is still open.
+
+## Trip packing
+
+- **Usual weather from five years.** Trip days inside Open-Meteo's 16-day forecast use the forecast; later days use the same calendar days in each of the last five years from Open-Meteo's archive, averaged, and a day counts as rainy when it rained in at least half of those years (`backend/closet/tripweather.py`). Each day says which it is ("Forecast" / "Usually, on these dates"). If the archive cannot be reached, those days say the weather is not known and the forecast days still answer.
+- **Re-wear rules** are named constants in `backend/closet/trips.py` (`REWEAR_DAYS`: tees 1 day, shirts and polos 2, hoodies 3, sweaters and trousers 4, jeans 5, shorts 3; one coat or jacket; at most two pairs of shoes unless the days cannot be covered otherwise). "I can wash there" multiplies them by `WASH_FACTOR` (2).
+- **Basics** are counts, not closet items: underwear and socks one per day plus one spare (fewer when washing), sleepwear, and an umbrella when a rainy day has no rain-friendly coat.
+- **The planner** dresses the hardest days first, preferring pieces already packed, then fewest new pieces, then the engine's score. It calls the outfit engine's own helpers; `outfits.py` itself is unchanged.
+- **Where Trips sits.** In the sidebar on the computer. The phone's bottom bar is full, so there is no tab: a "Trips" link sits on Today's header and in Settings under "Where you are".
+- **Migration number.** `0012_trips.sql`: migrations `0010` and `0011` are assigned to branches merging before trips; a migration must be above the closet's current version to run.
+- **A replan keeps the saved weather for days a refresh cannot answer.** It says the weather could not be refreshed and does not lose a usable plan just because the weather service is down.
+- **Usual-weather answers are keyed by the exact days requested, and use only past calendar matches.** If the target day is more than a year ahead, the nearest matching date can still be in the future; the archive only has dates already passed. February 29 uses February 28 in years without a leap day.
+- A saved trip keeps the weather its plan was made for; opening it checks the forecast again and only offers "Plan again" when it changed.

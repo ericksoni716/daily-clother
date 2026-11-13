@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
-import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, SunIcon, WarnIcon } from '../components/Icons';
+import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, SunIcon, WarnIcon } from '../components/Icons';
 import { OutfitFigure } from '../components/OutfitFigure';
 import { useTodayView } from '../figure';
 import { label } from '../labels';
@@ -253,6 +253,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
           <span className="count">{longDate(today)}</span>
           <Link to="/today/worn" className="btn btn-small btn-ghost today-worn-link">Worn</Link>
         </div>
+        <Link to="/trips" className="btn btn-small btn-ghost today-trips"><SuitcaseIcon /> Trips</Link>
       </header>
 
       <DayLine phase={phase} typed={typed} editing={editDay} locked={locked}

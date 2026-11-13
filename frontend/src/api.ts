@@ -1,6 +1,7 @@
 import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue } from './types';
 import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
+import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
 import type { Insights } from './insights';
 import type { OutfitSent, Rating, Reason, WornOutfit, WornPage } from './worn';
 import type { GapsAnswer, HideReason, Wish } from './gaps';
@@ -184,6 +185,16 @@ export const api = {
   weather: () => request<WeatherLookup>('/api/weather'),
   today: (choices: TodayRequest, signal?: AbortSignal) =>
     request<TodayAnswer>('/api/outfits/today', { method: 'POST', body: choices, signal }),
+  planTrip: (trip: TripRequest, signal?: AbortSignal) =>
+    request<PlannedTrip>('/api/trips/plan', { method: 'POST', body: trip, signal }),
+  saveTrip: (trip: TripRequest) => request<Trip>('/api/trips', { method: 'POST', body: trip }),
+  trips: () => request<{ trips: TripSummary[] }>('/api/trips').then((r) => r.trips),
+  trip: (id: string) => request<Trip>(`/api/trips/${encodeURIComponent(id)}`),
+  /** Looks the weather up again for a saved trip; the trip itself is not changed. */
+  tripWeather: (id: string) => request<WeatherCheck>(`/api/trips/${encodeURIComponent(id)}/weather`),
+  patchTrip: (id: string, changes: TripPatch) =>
+    request<Trip>(`/api/trips/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes }),
+  removeTrip: (id: string) => request<void>(`/api/trips/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   insights: () => request<Insights>('/api/insights'),
   // What's missing and the wishlist
   gaps: () => request<GapsAnswer>('/api/gaps'),

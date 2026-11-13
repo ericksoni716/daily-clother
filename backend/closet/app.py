@@ -36,6 +36,7 @@ from . import (
     outfits,
     phone,
     review,
+    savedtrips,
     spend,
     storage,
     tagjobs,
@@ -656,6 +657,62 @@ def create_app(sv: Services) -> FastAPI:
     async def get_weather():
         found = await run_in_threadpool(lookup, state)
         return {k: found[k] for k in ("place", "weather", "old", "is_today", "message")}
+
+    # ---------------------------------------------------------------- trips
+    async def json_body(request: Request) -> object:
+        try:
+            return await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+
+    async def trip_work(fn: Callable, *args):
+        path = cfg.db_path(state.get("profile"))
+
+        def work():
+            conn = db.connect(path)
+            try:
+                return fn(conn, *args)
+            except savedtrips.TripError as e:
+                raise HTTPException(422, str(e))
+            except savedtrips.TripNotFound:
+                raise HTTPException(404, "That trip is not in this closet.")
+            finally:
+                conn.close()
+
+        # the weather service and the planner can each take a moment: keep them off the event loop
+        return await run_in_threadpool(work)
+
+    @app.post("/api/trips/plan", dependencies=protected)
+    async def plan_trip(request: Request):
+        body = await json_body(request)
+        return await trip_work(savedtrips.work_out, state, body)
+
+    @app.post("/api/trips", status_code=201, dependencies=protected)
+    async def create_trip(request: Request):
+        body = await json_body(request)
+        return await trip_work(savedtrips.create, state, body)
+
+    @app.get("/api/trips", dependencies=protected)
+    async def list_trips():
+        return {"trips": await trip_work(savedtrips.list_all)}
+
+    @app.get("/api/trips/{trip_id}", dependencies=protected)
+    async def get_trip(trip_id: str):
+        return await trip_work(savedtrips.get, trip_id)
+
+    @app.get("/api/trips/{trip_id}/weather", dependencies=protected)
+    async def trip_weather(trip_id: str):
+        return await trip_work(savedtrips.check_weather, state, trip_id)
+
+    @app.patch("/api/trips/{trip_id}", dependencies=protected)
+    async def patch_trip(trip_id: str, request: Request):
+        body = await json_body(request)
+        return await trip_work(savedtrips.patch, state, trip_id, body)
+
+    @app.delete("/api/trips/{trip_id}", status_code=204, dependencies=protected)
+    async def delete_trip(trip_id: str):
+        await trip_work(savedtrips.delete, trip_id)
+        return Response(status_code=204)
 
     # ---------------------------------------------------------------- model
     @app.get("/api/model", dependencies=protected)

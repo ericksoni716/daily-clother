@@ -167,6 +167,23 @@ The rules live in `backend/closet/gaps.py`; every number is a named constant at 
 | The analysis reads the engine's own pieces, options and rules (functions in `outfits.py` whose names start with `_`) and does not change `outfits.py` | The two cannot disagree about what suits a day. If the engine changes, the gaps follow. |
 | The API keeps the last answer per closet and reuses it until an item or a wear changes; a wash, a timestamp or a cutout does not count | The analysis takes about a second on the demo closet and about four on 300 items (40 runs of the engine, each bounded by its own six-candidates-per-place search, not by the size of the closet). |
 
+### What's missing: the screen and wishlist
+
+The screen is `frontend/src/screens/Missing.tsx`, with its own styles and
+wording/storage helpers. The analysis in `backend/closet/gaps.py` is unchanged.
+
+| Decision | Why |
+|---|---|
+| Suggestions and wishlist share one page: side by side on a computer, wishlist below with a jump link on a phone | The owner can compare an idea with what they already chose without changing screens. Reasons stay open, with the server's wording, and the owner's pieces open from their little pictures. |
+| Five small filled bars and three descriptions show how much a suggestion helps: "Big difference" at 70+, "Useful addition" at 40–69, "A little more choice" below 40 | A visual comparison without asking the owner to interpret a number out of 100. Bars fill in fixed steps of 20 (at least one), not relative to the current list, so hiding the best idea does not change the others' meaning. These are not promised outfit counts. |
+| Hidden choices and wishlist snapshots live in the closet's database, migration **0007** | Real and demo choices stay separate; the real closet's backups include them without extra files or changes to backup code. **The migration number must be checked against merge order and may need renumbering before merge.** |
+| Use the analysis's existing gap identity, not a hash of the whole answer | Verified in `_merge`: the key is category/formality/kind, or the shared outer-layer family/kind for coats and jackets. Scores, names, colours and evidence can change without losing the choice. If the analysis changes the requested formality or kind, it is a different suggestion; no fuzzy matching broadens what the owner hid. |
+| Overlay `hidden`, `hidden_reason` and `wished` on `GET /api/gaps` after its cache; a separate route lists all hidden snapshots | Keeps the screen's ranked result and state together without invalidating the expensive analysis on every decision. Snapshots make a hidden idea restorable, and a wish readable, even after it falls out of the top eight. Hidden ideas still count toward the analysis's existing eight; this screen does not ask it to find replacements. |
+| Adding a suggested wish is idempotent and unhides it; an active wish cannot also be hidden | One choice has one meaning. The server copies the suggestion rather than trusting client-supplied criteria. Manual wishes have a name and a description instead. |
+| Notes save explicitly; "I bought it" marks the wish bought then opens Add, while Remove deletes it | An explicit save shows when the note has reached the computer. Buying is not the same as adding an item: a photograph still needs to be taken. Bought entries stay in the database, but are not an active wish or a permanently dismissed gap; adding the new item lets the analysis reassess what is missing. |
+| The device saves the last analysis, hidden list and wishlist together per closet, and clears both closets' copies on logout | The page stays useful offline without mixing demo and real choices. Saved answers are dated and read-only; nothing queues an offline edit. The page asks again when the connection returns. |
+| Never-worn notes and any returned wear-heavy explanation appear quietly below the suggestions | The server's observations are not all reasons to shop. Wear-heavy explanations come from returned gaps marked `worn_most`; the screen does not compute a second analysis or invent missing findings. Shop searches and prices remain later work. |
+
 ### The Today screen
 
 `frontend/src/screens/Today.tsx` (its own styles in `Today.css`), with the wording and what the device keeps in `frontend/src/today.ts`.

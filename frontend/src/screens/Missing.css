@@ -1,0 +1,107 @@
+/* What's missing: the suggestions and the owner's list share one workspace. */
+.missing { max-width: 82rem; margin: 0 auto; min-width: 0; }
+.missing-header { display: flex; justify-content: space-between; align-items: end; gap: 18px; margin: 4px 0 28px; }
+.missing-eyebrow { color: var(--accent); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; margin-bottom: 8px; }
+.missing-header h1 { font-size: clamp(1.85rem, 3vw, 2.4rem); letter-spacing: -0.035em; }
+.missing-intro { color: var(--muted); margin: 10px 0 0; max-width: 31rem; }
+.missing-count { display: inline-flex; align-items: center; justify-content: center; min-width: 25px; height: 25px; padding: 0 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 0.8rem; font-weight: 650; }
+.missing-layout { display: grid; grid-template-columns: minmax(0, 1fr) 19rem; gap: 24px; align-items: start; }
+.missing-suggestions, .missing-wishlist { min-width: 0; }
+.missing-section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.missing-section-head .hint { margin: 5px 0 0; }
+.missing-section-head > .btn { padding: 0 10px; font-size: 0.875rem; }
+.missing-suggestions > .missing-section-head { margin: 0 0 16px; }
+.missing-cards { display: grid; gap: 18px; }
+.missing-card { border: 1px solid var(--line); background: var(--surface); padding: 22px; border-radius: 16px; box-shadow: var(--shadow); overflow-wrap: anywhere; }
+.missing-card-first { border-top: 3px solid var(--accent); padding-top: 20px; }
+.missing-card-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+.missing-label { color: var(--muted); font-size: 0.72rem; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px; }
+.missing-card-top > .missing-label { margin: 0; color: var(--accent); }
+.missing-card h3 { font-size: 1.4rem; letter-spacing: -0.02em; line-height: 1.25; }
+.missing-help { display: flex; align-items: center; gap: 7px; color: var(--accent); font-size: 0.74rem; font-weight: 600; flex-shrink: 0; }
+.missing-help-bars { display: inline-flex; gap: 3px; align-items: end; height: 15px; }
+.missing-help-bars i { width: 5px; height: 7px; background: var(--line); border-radius: 2px; }
+.missing-help-bars i:nth-child(2) { height: 9px; }
+.missing-help-bars i:nth-child(3) { height: 11px; }
+.missing-help-bars i:nth-child(4) { height: 13px; }
+.missing-help-bars i:nth-child(5) { height: 15px; }
+.missing-help-bars .is-filled { background: var(--accent); }
+.missing-reasons { list-style: none; padding: 0; margin: 14px 0 18px; display: grid; gap: 8px; font-size: 0.94rem; line-height: 1.55; }
+.missing-look { background: var(--surface-2); border-radius: 10px; padding: 12px 14px; font-size: 0.85rem; line-height: 1.6; }
+.missing-look > p:last-of-type { margin-bottom: 0; }
+.missing-swatches { display: flex; gap: 5px; margin-top: 8px; }
+.missing-swatches > span { width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.16); }
+.missing-evidence { margin-top: 16px; }
+.missing-pieces { display: flex; flex-wrap: wrap; gap: 10px; list-style: none; padding: 0; margin: 8px 0 0; }
+.missing-pieces li { width: 64px; }
+.missing-pieces a { display: block; color: var(--muted); text-decoration: none; border-radius: 8px; }
+.missing-piece-picture { display: grid; place-items: center; width: 64px; height: 70px; border: 1px solid var(--card-edge); border-radius: 8px; background: var(--card); overflow: hidden; }
+.missing-piece-picture img { width: 100%; height: 100%; object-fit: contain; }
+.missing-piece-picture img.pic-cutout { padding: 3px; }
+.missing-piece-picture img.pic-photo { object-fit: cover; }
+.missing-pieces a:hover .missing-piece-picture { border-color: var(--accent); }
+.missing-piece-name { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-clamp: 2; overflow: hidden; font-size: 0.66rem; line-height: 1.35; margin-top: 5px; }
+.missing-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.missing-card-actions .btn { font-size: 0.875rem; padding: 0 14px; }
+.missing-wished { display: inline-flex; align-items: center; gap: 8px; min-height: var(--tap); color: var(--accent); font-weight: 600; font-size: 0.9rem; }
+.missing-wished svg { width: 20px; height: 20px; }
+.missing-hide-form { margin-top: 14px; padding: 14px; border-radius: 10px; background: var(--surface-2); }
+.missing-hide-form select { width: 100%; max-width: 100%; min-height: var(--tap); border: 1px solid var(--line); border-radius: 8px; background: var(--surface); padding: 8px; font-size: 0.85rem; }
+.missing-wishlist { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); scroll-margin-top: 20px; }
+.missing-wishlist-head { padding: 20px; background: var(--accent-soft); border-radius: 15px 15px 0 0; }
+.missing-wishlist-head h2 { color: var(--accent); font-size: 1.2rem; }
+.missing-wishlist-head p { font-size: 0.85rem; line-height: 1.55; margin: 8px 0 0; color: var(--muted); }
+.missing-wishlist-head .missing-count { background: var(--surface); }
+.missing-wishlist-body { padding: 18px; }
+.missing-wishlist-empty { text-align: center; padding: 14px 0 24px; }
+.missing-wishlist-empty > svg { width: 36px; height: 36px; color: var(--accent); margin-bottom: 12px; }
+.missing-wishlist-empty h3 { font-size: 1rem; margin-bottom: 8px; }
+.missing-wishlist-empty p { font-size: 0.875rem; color: var(--muted); line-height: 1.6; }
+.missing-wishlist-foot { color: var(--muted); font-size: 0.75rem; text-align: center; margin: 14px 4px 0; line-height: 1.5; }
+.missing-wish { padding-bottom: 22px; margin-bottom: 22px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.missing-wish h3 { font-size: 1.15rem; line-height: 1.35; margin-bottom: 12px; }
+.missing-wish .missing-look { padding: 10px; margin-bottom: 14px; font-size: 0.8rem; }
+.missing-wish .field textarea { min-height: 72px; font-size: 0.85rem; }
+.missing-wish .field { margin-bottom: 8px; }
+.missing-note-conflict { padding: 10px; margin-bottom: 12px; background: var(--warn-soft); border-radius: 8px; font-size: 0.85rem; }
+.missing-wish-actions { gap: 0; margin-top: 10px; }
+.missing-wish-actions .btn { font-size: 0.85rem; padding: 0 12px; }
+.missing-manual h3 { font-size: 1rem; margin-bottom: 16px; }
+.missing-manual input, .missing-manual textarea { font-size: 0.9rem; }
+.missing-observations { margin-top: 36px; border-top: 1px solid var(--line); padding-top: 24px; }
+.missing-observation { margin-top: 18px; font-size: 0.9rem; color: var(--muted); }
+.missing-hidden { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
+.missing-hidden summary { cursor: pointer; min-height: var(--tap); font-size: 0.9rem; font-weight: 600; }
+.missing-hidden summary .missing-count { margin-left: 6px; }
+.missing-hidden-card { padding: 16px 0; border-top: 1px solid var(--line); }
+.missing-hidden-card h3 { font-size: 1rem; margin-bottom: 8px; }
+.missing-hidden-card .missing-look { margin: 10px 0; }
+.missing-empty { padding: 32px 22px; border: 1px dashed var(--line); border-radius: 14px; text-align: center; background: var(--surface); }
+.missing-empty > svg { color: var(--accent); width: 36px; height: 36px; margin-bottom: 12px; }
+.missing-empty h3 { margin-bottom: 10px; font-size: 1.15rem; }
+.missing-empty p { color: var(--muted); margin-bottom: 18px; }
+.missing-loading { padding: 60px 20px; text-align: center; }
+.missing-loading h2 { margin: 16px 0 8px; }
+.missing-item { max-width: 40rem; margin: 0 auto; }
+.missing-item > .btn { margin-bottom: 16px; }
+@media (min-width: 1400px) {
+  .missing-layout { grid-template-columns: minmax(0, 1fr) 22rem; gap: 32px; }
+}
+@media (max-width: 999px) {
+  .missing-layout { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+  .missing-header { align-items: start; flex-direction: column; gap: 12px; margin-bottom: 18px; }
+  .missing-header .missing-eyebrow { display: none; }
+  .missing-header h1 { font-size: 1.85rem; }
+  .missing-intro { font-size: 0.9rem; margin-top: 6px; }
+  .missing-suggestions > .missing-section-head { margin-bottom: 12px; }
+  .missing-card { padding: 18px; }
+  .missing-card-first { padding-top: 16px; }
+  .missing-card-top { flex-wrap: wrap; }
+  .missing-card h3 { font-size: 1.3rem; }
+  .missing-reasons { font-size: 0.9rem; }
+  .missing-help { font-size: 0.7rem; }
+  .missing-piece-picture { height: 65px; width: 60px; }
+  .missing-pieces li { width: 60px; }
+  .missing-pieces { gap: 8px; }
+  .missing-wishlist { grid-row: 2; }
+}

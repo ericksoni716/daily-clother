@@ -29,6 +29,7 @@ from . import (
     jobs,
     outfits,
     phone,
+    shopping,
     storage,
     tagjobs,
     vocab,
@@ -386,36 +387,32 @@ def create_app(sv: Services) -> FastAPI:
         return await run_in_threadpool(work)
 
     # ----------------------------------------------------------------- gaps
-    gaps_cache: dict[str, tuple[str, dict]] = {}  # profile -> (what the closet and wear log were, the answer)
+    gaps_cache: dict[str, tuple[str, dict]] = {}  # database path -> (what the closet and wear log were, the answer)
+
+    def analyze_gaps(conn) -> dict:
+        path = conn.execute("PRAGMA database_list").fetchone()["file"]
+        rows = [{**{k: r[k] for k in r.keys() if k not in ("illustration_svg", "confidence", "source")},
+                 "silhouette": json.loads(r["silhouette"] or "{}")} for r in conn.execute("SELECT * FROM items ORDER BY id")]
+        worn = [{"item_id": r["item_id"], "worn_on": r["worn_on"]}
+                for r in conn.execute("SELECT item_id, worn_on FROM wears ORDER BY item_id, worn_on")]
+        # the answer only depends on the items and the wear log; the laundry state and times are left out
+        # so a wash or a rename's timestamp does not throw away seconds of work
+        ignore = ("laundry", "wears_since_wash", "washed_at", "updated_at", "created_at", "cutout_state", "cutout_error")
+        seen = hashlib.sha256(json.dumps([[{k: v for k, v in r.items() if k not in ignore} for r in rows], worn],
+                                         sort_keys=True, default=str).encode()).hexdigest()
+        cached = gaps_cache.get(path)
+        if cached and cached[0] == seen:
+            return cached[1]
+        answer = find_gaps(rows, worn)
+        gaps_cache[path] = (seen, answer)
+        return answer
 
     @app.get("/api/gaps", dependencies=protected)
-    async def get_gaps():
-        profile = state.get("profile")
-        path = cfg.db_path(profile)
+    def get_gaps(conn=Depends(conn_dep)):
+        # A synchronous route runs the engine in a worker thread, not on the event loop.
+        return shopping.overlay(conn, analyze_gaps(conn))
 
-        def work() -> dict:
-            conn = db.connect(path)
-            try:
-                rows = [{**{k: r[k] for k in r.keys() if k not in ("illustration_svg", "confidence", "source")},
-                         "silhouette": json.loads(r["silhouette"] or "{}")} for r in conn.execute("SELECT * FROM items ORDER BY id")]
-                worn = [{"item_id": r["item_id"], "worn_on": r["worn_on"]}
-                        for r in conn.execute("SELECT item_id, worn_on FROM wears ORDER BY item_id, worn_on")]
-            finally:
-                conn.close()
-            # the answer only depends on the items and the wear log; the laundry state and times are left out
-            # so a wash or a rename's timestamp does not throw away seconds of work
-            ignore = ("laundry", "wears_since_wash", "washed_at", "updated_at", "created_at", "cutout_state", "cutout_error")
-            seen = hashlib.sha256(json.dumps([[{k: v for k, v in r.items() if k not in ignore} for r in rows], worn],
-                                             sort_keys=True, default=str).encode()).hexdigest()
-            cached = gaps_cache.get(profile)
-            if cached and cached[0] == seen:
-                return cached[1]
-            answer = find_gaps(rows, worn)
-            gaps_cache[profile] = (seen, answer)
-            return answer
-
-        # the engine is run over 40 kinds of day, a few seconds on a big closet: keep it off the event loop
-        return await run_in_threadpool(work)
+    app.include_router(shopping.router(conn_dep, analyze_gaps, protected))
 
     # ---------------------------------------------------------------- weather
     @app.get("/api/places", dependencies=protected)

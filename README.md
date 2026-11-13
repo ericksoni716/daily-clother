@@ -70,6 +70,32 @@ the recent days, each of which can be removed. **Put in the laundry** and
 carry a small mark, and the **Clean** and **In the laundry** buttons show only
 those.
 
+## What's missing and your wishlist
+
+Open **What's missing** in the main navigation. It suggests a few useful
+additions, best first, with the reasons and what to look for. The little green
+bars compare how much each would help; they are not a count of outfits. The
+small pictures are your own clothes: tap one to open it.
+
+- **I'll look for this** puts an idea on **Your wishlist**, beside the
+  suggestions on a computer. On a phone, the **Your wishlist** button jumps to
+  the list below.
+- **Not for me** hides an idea. You can give a reason, or leave it blank.
+  **Hidden suggestions**, below the ideas, lets you bring it back. It stays
+  hidden when the closet is checked again.
+- **Add your own wish** is for something the suggestions did not mention.
+  Each wish has a note; choose **Save note** after changing it.
+- **I bought it** takes a wish off the list and opens **Add** so you can
+  photograph the new piece. **Remove** simply takes it off the list.
+
+The quieter section below the ideas shows what the analysis noticed about
+what you wear. With too few clothes to judge, the page asks you to add more;
+you can still make a wishlist. Offline, the last answer saved on this device
+is labelled **Saved earlier**, with its date; changes wait until Closet on
+your computer is reachable. The demo and your own closet have separate
+wishlists and hidden ideas. Your own list is included in your database backups.
+Shop searches and price checks are not part of this screen yet.
+
 ## Adding your clothes
 
 Open **Add**. One piece of clothing per photo works best.

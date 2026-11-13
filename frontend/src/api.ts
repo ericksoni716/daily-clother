@@ -1,5 +1,6 @@
 import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup } from './types';
 import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
+import { forgetShopping } from './shopping';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
 export class ApiError extends Error {
@@ -67,7 +68,7 @@ interface Options {
   signal?: AbortSignal;
 }
 
-async function request<T>(path: string, opts: Options = {}): Promise<T> {
+export async function request<T>(path: string, opts: Options = {}): Promise<T> {
   const init: RequestInit = { method: opts.method ?? 'GET', credentials: 'same-origin', signal: opts.signal };
   if (opts.form) init.body = opts.form;
   else if (opts.body !== undefined) {
@@ -154,6 +155,7 @@ export const api = {
 /** Removes the saved copies of closet data (kept: the app's own files). */
 export async function clearSavedData(): Promise<void> {
   forgetSaved();
+  forgetShopping();
   if (!('caches' in window)) return;
   const names = await caches.keys();
   await Promise.all(names.filter((n) => n.startsWith('closet-data') || n.startsWith('closet-media')).map((n) => caches.delete(n)));

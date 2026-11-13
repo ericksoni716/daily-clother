@@ -236,7 +236,9 @@ def test_gaps_answers_for_the_open_closet(client):
     assert body["enough"] is True and body["gaps"] and body["checked"]["items"] == len(demo_ids)
     assert body["checked"]["wears"] > 0 and body["checked"]["days"] == len(gaps.grid())
     for g in body["gaps"]:
-        assert set(g) == {"id", "name", "look_for", "why", "score", "found_by", "evidence"}
+        assert set(g) == {"id", "name", "look_for", "why", "score", "found_by", "evidence",
+                          "hidden", "hidden_reason", "wished"}
+        assert g["hidden"] is False and g["hidden_reason"] is None and g["wished"] is False
         assert set(g["evidence"]) == {"days", "items"} and set(g["evidence"]["items"]) <= demo_ids
         assert set(g["found_by"]) <= {"days", "thin_place", "orphan", "worn_most", "basic"}
         assert g["look_for"]["category"]

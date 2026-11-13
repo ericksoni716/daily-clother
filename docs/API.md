@@ -64,6 +64,51 @@ Both ask Open-Meteo (no key needed) in a worker thread, through the computer's c
 |---|---|
 | `GET /api/gaps` | What the open closet is missing, found by rule (`backend/closet/gaps.py`) from its items and wear log. Answer: `{enough, message, gaps: [gap], notes: [{kind, text, items[]}], checked: {items, wears, days}}`. When the closet has fewer than 8 pieces of clothing `enough` is false, `message` says so in a sentence and `gaps` is empty; otherwise `message` is null. Each gap: `{id, name, look_for: {category, formality, season, weight_class, colors[], pattern, material}, why[], score, found_by[], evidence: {days: [{temperature, low_c, high_c, rain, occasion, words}], items[]}}`, best first, at most 8. `name` is in plain words ("A rain-proof outer layer"); `look_for` uses the item fields (null where it does not matter; `material` is a phrase); `why` is sentences naming the owner's items; `score` is 0 to 100; `found_by` is one or more of `days`, `thin_place`, `orphan`, `worn_most`, `basic`; `evidence.items` are item ids of the open closet. `notes` holds things that are not gaps (`never_worn`: items with no wear in the log). Archived items are left out; items in the laundry count as owned. The answer is kept until an item or a wear changes (a wash does not count), so a second call is instant. |
 
+Each gap now also has `hidden` (boolean), `hidden_reason` (one of the reason
+values below, or null) and `wished` (boolean, an active wishlist entry exists).
+These flags are read from the open closet's database on every call, **after**
+the cached analysis, so choosing or hiding an idea never reruns or changes the
+analysis. Hidden and wished suggestions remain in the ranked answer; the
+screen hides the former and marks the latter instead of offering them again.
+
+The existing stable `id` is category + formality + kind (omitting absent
+parts), except coats/jackets share an `outer` family + kind. It does not depend
+on score, wording, colours or evidence item IDs. A different formality/kind
+is a different suggestion. Hidden records and wishes keep a snapshot so they
+survive an idea falling out of the current top eight.
+
+### Hidden ideas and wishlist
+
+All routes require login and operate on the open closet, including the demo.
+Reasons are `already_owned`, `not_my_style`, `too_expensive`, `other`, or null.
+The screen labels these "I have one that is not in the closet yet", "I never
+dress like that", "Too expensive", and "Other".
+
+`Wish`: `{id, gap_id, name, look_for, details, note, created_at}`. `gap_id` and
+`look_for` are null for a wish added by hand; `details` is its free-text
+description of what to look for. A suggested wish copies the server's name and
+`look_for` and starts with empty `details` and `note`. Bought wishes are kept
+in the database but excluded from the list; removing a wish deletes it.
+
+| Call | Result |
+|---|---|
+| `GET /api/gaps/hidden` | `{gaps: [gap]}` with the saved name, reasons, criteria and evidence, plus `hidden: true`, `hidden_reason`, `wished: false`. Includes ideas no longer suggested. |
+| `PUT /api/gaps/{id}/hidden {reason?}` | 200 the hidden gap. Repeating updates the reason. The snapshot comes from the current analysis or an earlier saved choice, never from client-supplied evidence. 404 for an unknown idea; 409 if it is on the wishlist (remove that wish first). |
+| `DELETE /api/gaps/{id}/hidden` | 204; clears the hidden flag and reason. Safe to repeat. It can be suggested again if the analysis finds it. |
+| `GET /api/wishlist` | `{wishes: [Wish]}`, active wishes, newest first. |
+| `POST /api/wishlist {gap_id}` | 201 `Wish` from the suggestion; 200 the existing active wish if already added. Also unhides the suggestion. 404 if neither current nor saved. |
+| `POST /api/wishlist {name, details?, note?}` | 201 `Wish` added by hand. Name is required, at most 200 characters; details at most 4000, note at most 2000. |
+| `PATCH /api/wishlist/{id} {note}` | 200 updated `Wish`. Empty text clears the note; the note must be at most 2000 characters. |
+| `POST /api/wishlist/{id}/bought` | 204; dates the purchase and removes the wish from the active list. The screen then opens `/add`; no wardrobe item is fabricated. |
+| `DELETE /api/wishlist/{id}` | 204; removes the wish. The gap, if still found, can be offered again. |
+
+Wish updates, purchases and removals return 404 for a missing or already bought
+wish. Requests reject unknown fields, wrong types and invalid reasons with 422,
+malformed JSON with 400, and bodies above 32 KiB with 413. Suggested wishes
+accept `gap_id` alone, not client-written criteria. This storage is migration
+**0007**; it is in each closet's SQLite database and therefore in its snapshots
+and backups (the demo remains excluded from scheduled backups).
+
 ## Background-removal model
 | Call | Result |
 |---|---|

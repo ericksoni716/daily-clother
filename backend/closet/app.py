@@ -361,7 +361,9 @@ def create_app(sv: Services) -> FastAPI:
     @app.get("/api/tagging", dependencies=protected)
     async def get_tagging():
         # starts `claude auth status` (a few seconds at most), so keep it off the event loop
-        return await run_in_threadpool(tagger_routes.status)
+        result = await run_in_threadpool(tagger_routes.status)
+        sv.tag_worker.wake()   # the owner may just have signed in: waiting items need not wait for the next round
+        return result
 
     @app.post("/api/backup", dependencies=protected)
     def backup_now():

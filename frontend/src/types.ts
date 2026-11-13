@@ -1,4 +1,6 @@
 export type CutoutState = 'none' | 'pending' | 'processing' | 'ready' | 'failed';
+/** Being described by Claude: none (never asked), waiting, working, done, failed. */
+export type TagState = 'none' | 'waiting' | 'working' | 'done' | 'failed';
 export type Profile = 'main' | 'demo';
 export type Laundry = 'clean' | 'laundry';
 export type ModelState = 'missing' | 'downloading' | 'failed' | 'ready';
@@ -21,6 +23,7 @@ export interface ItemSummary {
   rating: string | null;
   status: 'active' | 'archived';
   cutout_state: CutoutState;
+  tag_state: TagState;
   thumb_url: string | null;
   has_illustration: boolean;
   illustration_url?: string | null;
@@ -61,6 +64,20 @@ export interface Item extends ItemSummary {
   rating_reason: string | null;
   illustration_svg: string | null;
   cutout_error: string | null;
+  /** Why describing it failed, in plain words. */
+  tag_error: string | null;
+  /** Who described it: 'plan', 'api', or 'demo' for the demo closet's descriptions made in advance. */
+  tag_route: string | null;
+  tag_model: string | null;
+  tag_schema_version: number | null;
+  tagged_at: string | null;
+  /** The construction details from the stored answer (taxonomy values; null when there is none). */
+  details: Record<string, unknown> | null;
+  /** Features Claude saw that the drawing does not show yet. */
+  seen_not_drawn: string[];
+  /** Who set each field: 'user' for the owner, 'ai' for a suggestion. */
+  source: Record<string, string>;
+  confidence: Record<string, number>;
   silhouette: Silhouette;
   photos: Photo[];
   /** The latest wears, newest first. */
@@ -109,6 +126,10 @@ export interface Settings {
   last_backup: BackupRecord | null;
   last_good_backup: string | null;
   pending_cutouts: number;
+  /** Items waiting to be described by Claude. */
+  pending_tags: number;
+  /** Whether the API key may be used for tagging (off until there is a spend cap). */
+  tagging_api_enabled: boolean;
   phone: { tailscale_installed: boolean; running: boolean; address: string | null; command: string };
   autostart: boolean | null;
   heic_supported: boolean;

@@ -6,6 +6,7 @@ import { formatPrice, label, parsePrice, ratingLabel, SWATCH } from '../labels';
 import { Link, navigate } from '../router';
 import { silhouetteGroups } from '../silhouette';
 import { useCloset } from '../store';
+import { describedBy, detailLines, tagNotice } from '../tagging';
 import type { Item, ItemPatch } from '../types';
 import { localDay, sinceWash, wearDay, wearSummary } from '../wears';
 import { busyLabel } from './Closet';
@@ -33,7 +34,7 @@ function applyPatch(item: Item, changes: ItemPatch): Item {
 }
 
 export function ItemDetail({ id, status, inPanel }: Props) {
-  const { vocab, upsert, drop, toast, offline, model, items } = useCloset();
+  const { vocab, upsert, drop, toast, offline, model, items, profile } = useCloset();
   const [item, setItem] = useState<Item | null>(null);
   const [error, setError] = useState<string | null>(null);
   const inflight = useRef(0);
@@ -53,21 +54,40 @@ export function ItemDetail({ id, status, inPanel }: Props) {
     void load();
   }, [load]);
 
-  // Follow the cutout while it is being made.
+  // Follow the cutout while it is being made, and the description while it is waited for or being written
+  // (slowly while it waits: nothing changes until Claude can be reached). The closet grid follows along.
   const busy = item?.cutout_state === 'pending' || item?.cutout_state === 'processing';
+  const describing = item?.tag_state === 'working';
+  const awaiting = item?.tag_state === 'waiting';
+  const followed = useRef('');
   useEffect(() => {
-    if (!busy || offline) return;
+    if (!(busy || describing || awaiting) || offline) return;
     const t = window.setInterval(async () => {
       if (inflight.current) return;
       try {
         const fresh = await api.item(id);
-        if (!inflight.current) setItem(fresh);
+        if (inflight.current) return;
+        setItem(fresh);
+        const states = `${fresh.cutout_state}/${fresh.tag_state}`;
+        if (states !== followed.current) upsert(fresh);
+        followed.current = states;
       } catch {
         /* the next tick tries again */
       }
-    }, 2000);
+    }, busy || describing ? 2000 : 10_000);
     return () => window.clearInterval(t);
-  }, [busy, offline, id]);
+  }, [busy, describing, awaiting, offline, id, upsert]);
+
+  const retag = useCallback(async () => {
+    try {
+      const saved = await api.retag(id);
+      setItem(saved);
+      upsert(saved);
+      toast('Asking Claude to describe it again');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    }
+  }, [id, upsert, toast]);
 
   const save = useCallback(async (changes: ItemPatch, saidAs = 'Saved') => {
     if (!item) return;
@@ -138,6 +158,11 @@ export function ItemDetail({ id, status, inPanel }: Props) {
 
   const locked = offline;
   const groups = silhouetteGroups(item.category);
+  const tagText = tagNotice(item.tag_state, item.tag_route);
+  const lines = detailLines(item.details);
+  const seen = item.seen_not_drawn ?? [];
+  const canRetag = profile !== 'demo' && item.cutout_state === 'ready' && item.has_photo &&
+    (item.tag_state === 'done' || item.tag_state === 'none');
 
   return (
     <article className="detail" aria-label={item.name || 'Item'}>
@@ -164,6 +189,20 @@ export function ItemDetail({ id, status, inPanel }: Props) {
             }}>Try the cutout again</button>
           </div>
         </div>
+      )}
+
+      {item.tag_state === 'failed' ? (
+        <div className="notice notice-warn">
+          <WarnIcon />
+          <div>
+            <p><strong>Claude couldn't describe this item.</strong>{item.tag_error ? ` ${item.tag_error}` : ''}</p>
+            <button className="btn btn-small" disabled={locked} onClick={retag}>Try again</button>
+          </div>
+        </div>
+      ) : item.tag_state === 'done' ? (
+        tagText && <p className="muted tag-note">{tagText}</p>
+      ) : (
+        tagText && <p className="notice" role="status">{tagText}</p>
       )}
 
       <WearPanel item={item} disabled={locked}
@@ -205,6 +244,34 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           <TextField label="Notes" multiline value={item.notes} disabled={locked} onSave={(v) => save({ notes: v })} />
         </div>
       </details>
+
+      {(lines.length > 0 || seen.length > 0) && (
+        <details className="more">
+          <summary>What Claude saw</summary>
+          <div className="tag-body">
+            {lines.length > 0 && (
+              <dl className="tag-details">
+                {lines.map((l) => (
+                  <div key={l.title}><dt>{l.title}</dt><dd>{l.value}</dd></div>
+                ))}
+              </dl>
+            )}
+            {seen.length > 0 && (
+              <>
+                <h3 className="tag-seen-title">Seen but not drawn yet</h3>
+                <ul className="tag-seen">{seen.map((f) => <li key={f}>{f}</li>)}</ul>
+              </>
+            )}
+            {describedBy(item.tag_route, item.tagged_at) && <p className="muted">{describedBy(item.tag_route, item.tagged_at)}</p>}
+          </div>
+        </details>
+      )}
+
+      {canRetag && (
+        <div className="row tag-again">
+          <button className="btn" disabled={locked} onClick={retag}>Describe it again</button>
+        </div>
+      )}
 
       <Actions item={item} disabled={locked} onArchive={async (archived) => {
         await save({ status: archived ? 'archived' : 'active' }, archived ? 'Archived' : 'Back in your closet');

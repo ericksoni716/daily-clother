@@ -369,6 +369,16 @@ button, input, textarea, select { font: inherit; color: inherit; }
 @media (min-width: 600px) { .more-body { grid-template-columns: 1fr 1fr; column-gap: 14px; } .more-body .chip-group, .more-body label:last-child { grid-column: 1 / -1; } }
 .detail-panel .more-body { grid-template-columns: 1fr; }
 
+.tag-note { font-size: 0.88rem; margin: -2px 0 14px; }
+.tag-body { padding: 4px 0 14px; }
+.tag-body .muted { font-size: 0.88rem; margin: 10px 0 0; }
+.tag-details { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 14px; }
+.tag-details dt { font-size: 0.78rem; font-weight: 650; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.tag-details dd { margin: 0; }
+.tag-seen-title { font-size: 0.95rem; margin: 16px 0 6px; }
+.tag-seen { margin: 0; padding-left: 20px; }
+.tag-again { margin: 0 0 18px; }
+
 .wear { margin: 4px 0 18px; padding: 14px; border-radius: var(--radius-small); background: var(--surface-2); }
 .wear-summary { font-weight: 650; margin: 0 0 2px; }
 .wear .muted { margin: 0 0 12px; font-size: 0.92rem; }

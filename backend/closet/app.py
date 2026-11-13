@@ -37,6 +37,7 @@ from . import (
     vocab,
     wears,
     wishlist,
+    wouldjobs,
 )
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
@@ -62,6 +63,7 @@ class Services:
     scheduler: backup.Scheduler
     web_dir: Path | None = None
     tag_worker: tagjobs.Worker | None = None
+    check_tagger: tagjobs.Tagger | None = None   # describes a photo for "Would this work?", recorded as its own purpose
     on_quit: Callable[[], None] = lambda: None
     _phone_cache: tuple[float, dict] | None = field(default=None, repr=False)
 
@@ -124,6 +126,11 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     def real_tagger(images: list[Image.Image], usable: tuple[str, ...]):
         return tagjobs.claude_tagger(images, usable, meter=meter, client=api_client)
 
+    check_meter = spend.Meter(cfg, state, wouldjobs.PURPOSE)
+
+    def check_tagger(images: list[Image.Image], usable: tuple[str, ...]):
+        return tagjobs.claude_tagger(images, usable, meter=check_meter, client=api_client)
+
     tag_worker = tagjobs.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)), tagger or real_tagger)
     worker = jobs.Worker(cfg, state, lambda: model.ready, cutter or real_cutter, on_done=tag_worker.wake)
     holder["worker"] = worker
@@ -131,7 +138,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     if web_dir == "bundled":
         candidate = bundle_dir() / "web"
         web_dir = candidate if (candidate / "index.html").exists() else None
-    return Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker)
+    return Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker,
+                    check_tagger=tagger or check_tagger)
 
 
 class Passphrase(BaseModel):
@@ -414,9 +422,8 @@ def create_app(sv: Services) -> FastAPI:
     # ----------------------------------------------------------------- gaps
     gaps_cache: dict[str, tuple[str, dict]] = {}  # profile -> (what the closet and wear log were, the answer)
 
-    def gap_analysis(profile: str | None = None) -> dict:
-        """The open closet's gaps, all of them (cut to the list's length when marked); slow the first time."""
-        profile = profile or state.get("profile")
+    def gap_inputs(profile: str) -> tuple[list[dict], list[dict]]:
+        """A closet's item rows and wear log, as the gap analysis reads them."""
         conn = db.connect(cfg.db_path(profile))
         try:
             rows = [{**{k: r[k] for k in r.keys() if k not in ("illustration_svg", "confidence", "source")},
@@ -425,6 +432,12 @@ def create_app(sv: Services) -> FastAPI:
                     for r in conn.execute("SELECT item_id, worn_on FROM wears ORDER BY item_id, worn_on")]
         finally:
             conn.close()
+        return rows, worn
+
+    def gap_analysis(profile: str | None = None, inputs: tuple[list[dict], list[dict]] | None = None) -> dict:
+        """The open closet's gaps, all of them (cut to the list's length when marked); slow the first time."""
+        profile = profile or state.get("profile")
+        rows, worn = inputs or gap_inputs(profile)
         # the answer only depends on the items and the wear log; the laundry state and times are left out
         # so a wash or a rename's timestamp does not throw away seconds of work
         ignore = ("laundry", "wears_since_wash", "washed_at", "updated_at", "created_at", "cutout_state", "cutout_error")
@@ -454,6 +467,15 @@ def create_app(sv: Services) -> FastAPI:
         return await run_in_threadpool(work)
 
     app.include_router(wishlist.router(conn_dep, gap_analysis, protected))
+
+    def closet_for_check(profile: str) -> tuple[list[dict], list[dict], dict]:
+        rows, worn = gap_inputs(profile)
+        return rows, worn, gap_analysis(profile, (rows, worn))
+
+    assert sv.tag_worker and sv.check_tagger, "build_services wires both"
+    checks = wouldjobs.Checks(cfg, state, closet_for_check, sv.tag_worker.routes, sv.check_tagger,
+                              sv.worker.cutter, sv.worker.is_ready)
+    app.include_router(wouldjobs.router(checks, protected))
 
     # ---------------------------------------------------------------- weather
     @app.get("/api/places", dependencies=protected)

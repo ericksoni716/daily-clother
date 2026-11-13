@@ -195,3 +195,28 @@ export interface TaggingStatus {
   order: TaggingRoute['id'][];
   routes: TaggingRoute[];
 }
+
+/** One field the tagger was unsure of: its value (an object of parts for the silhouette) and the allowed values. */
+export interface ReviewField {
+  field: 'category' | 'color' | 'pattern' | 'formality' | 'season' | 'silhouette';
+  value: string | Record<string, string>;
+  confidence: number;
+  allowed: string[] | Record<string, string[]>;
+}
+
+export interface ReviewItem extends ItemSummary {
+  /** The biggest picture to judge from: the cutout, else the photo, else the drawing. */
+  picture_url: string | null;
+  picture_kind: 'cutout' | 'photo' | 'illustration' | null;
+  fields: ReviewField[];
+}
+
+/** The review queue, most doubtful first, and the items not in it because they are not described yet. */
+export interface ReviewQueue {
+  count: number;
+  items: ReviewItem[];
+  waiting: number;
+  failed: number;
+  waiting_items: { id: string; name: string | null; category: string | null }[];
+  failed_items: { id: string; name: string | null; category: string | null }[];
+}

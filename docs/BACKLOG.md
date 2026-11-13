@@ -26,7 +26,12 @@ Wave 3:
 - [x] #45 and #46 The Today screen: the day, the occasion and mood, the outfits with why and warnings, "I'm wearing this", leave a piece out or start from one. Given to two models and compared from screenshots; the Opus 5.5 result was merged.
 - [x] #41 and #42 What's missing: the gap analysis by rule (`GET /api/gaps`), no screen yet. Given to two models; the Opus 5.5 result was merged.
 - [ ] #50 The drawing in the app, part 2: every item gets its drawing, kept up to date.
-- [ ] #51 Review queue: confirm or fix only what the tagger was unsure about.
+- [x] #51 Review queue: a Review screen with a badge shows only the fields the tagger was unsure of; confirm, change or skip.
+- [ ] #56 and #57 The "What's missing" screen and the wishlist, given to two models.
+- [ ] #60 Outfits remembered and rated, and the engine learning from the ratings.
+- [ ] #62 The packaged program built and smoke-tested automatically.
+- [ ] #63 A spend cap and a cost estimate for the API-key route.
+- [ ] #64 Insights: cost per wear, never worn, worn most.
 
 Next: the drawing shown on the item and corrections by command, the review queue, mannequin layering and outfit rating, the gap screen and shopping.
 

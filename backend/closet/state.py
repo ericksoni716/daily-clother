@@ -26,6 +26,9 @@ DEFAULTS: dict[str, Any] = {
     "tagging_api_off": None,       # {"at", "reason": "credit" | "key"} when Anthropic refused the key and it was switched off
     "place": None,            # {"name", "latitude", "longitude", "timezone"}, chosen in Settings
     "weather": None,          # the last forecast for the place: {"key", "fetched", "offset", "answer"}
+    "life": None,             # the optional situations and style line for What's missing
+    "life_prompt_dismissed": False,
+    "climate": None,          # years of home weather, kept for months, not part of a closet
 }
 
 

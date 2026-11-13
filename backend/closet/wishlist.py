@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 
-from . import db
+from . import db, life
 from .gaps import MAX_GAPS
 from .items import ItemError
 
@@ -33,9 +33,11 @@ def mark(conn: sqlite3.Connection, answer: dict, offered: int = MAX_GAPS) -> dic
     Up to `offered` open gaps are kept, best first; every hidden or wished gap the analysis found is kept too, in
     its place, so a gap the owner has decided about never pushes a new one off the list. The answer is not changed.
     """
-    hidden = {r["gap_id"]: r["reason"] for r in conn.execute("SELECT gap_id, reason FROM hidden_gaps")}
+    hidden_rows = [dict(r) for r in conn.execute("SELECT gap_id, name, reason FROM hidden_gaps ORDER BY gap_id")]
+    hidden = {r["gap_id"]: r["reason"] for r in hidden_rows}
     wished = {r["gap_id"]: r["id"] for r in conn.execute(
         "SELECT gap_id, id FROM wishes WHERE gap_id IS NOT NULL AND bought_at IS NULL")}
+    answer = _hold_back(answer, hidden_rows, set(wished))
     gaps, open_count = [], 0
     for g in answer.get("gaps", []):
         if g["id"] in wished:
@@ -50,6 +52,64 @@ def mark(conn: sqlite3.Connection, answer: dict, offered: int = MAX_GAPS) -> dic
         gaps.append({**g, "state": state, "hidden_reason": hidden.get(g["id"]) if state == "hidden" else None,
                      "wish_id": wished.get(g["id"])})
     return {**answer, "gaps": gaps}
+
+
+def _signature(gap_id: str) -> tuple[str, str, str]:
+    parts = gap_id.split("-")
+    # Weather variants of the same piece are alike; home and exercise are distinct purchases.
+    kind = "active" if parts[-1].endswith("active") else "lounge" if parts[-1] == "lounge" else ""
+    dress = next((p for p in parts[1:] if p in life.WORK_DRESS or p == "athletic"), "")
+    return parts[0], dress, kind
+
+
+def _hold_back(answer: dict, hidden: list[dict], wished: set[str]) -> dict:
+    context = answer.get("context")
+    if not context or not context.get("life"):
+        return answer
+    answers = context["life"]
+    by_id = {g["id"]: g for g in answer["gaps"]}
+    policies = []
+    for row in hidden:
+        if row["reason"] != "never_wear":
+            continue
+        signature = _signature(row["gap_id"])
+        original = by_id.get(row["gap_id"])
+        if original:
+            situations = [s["id"] for s in original.get("situations", [])]
+        else:
+            # The original may no longer be missing. Its ID still tells us the dress and kind;
+            # keep the decision visible and reversible rather than depending on a vanished card.
+            _, dress, kind = signature
+            situations = [key for key in life.SITUATIONS if life.frequency(key, answers) and (
+                key == "lounging" if kind == "lounge" else key == "exercise" if kind == "active" else
+                key not in ("lounging", "exercise") and (not dress or
+                life.gaps.PIECE_FORMALITY[life.occasion(key, answers)] == dress))]
+        policies.append({"gap_id": row["gap_id"], "name": row["name"], "situations": situations})
+    held = []
+    hidden_ids = {row["gap_id"] for row in hidden}
+    for g in answer["gaps"]:
+        if g["id"] in hidden_ids or g["id"] in wished:
+            held.append(g)
+            continue
+        removed = {s for policy in policies if _signature(policy["gap_id"]) == _signature(g["id"])
+                   for s in policy["situations"]}
+        served = g.get("situations", [])
+        remaining = [s for s in served if s["id"] not in removed]
+        if len(remaining) == len(served):
+            held.append(g)
+        elif remaining:
+            before = sum(s["share"] for s in served)
+            share = sum(s["share"] for s in remaining)
+            held.append({**g, "situations": remaining, "score": round(g["score"] * share / before) if before else 0,
+                         "why": [text for text in g["why"] if not any(
+                             text.startswith(f"For {life.SITUATIONS[key].label.lower()},") for key in removed)],
+                         "evidence": {**g["evidence"], "days": [
+                             d for d in g["evidence"]["days"] if d.get("situation") not in removed]}})
+    held.sort(key=lambda g: (-g["score"], g["name"], g["id"]))
+    taste = context["taste"]
+    if policies:
+        taste = {**taste, "used": True}
+    return {**answer, "gaps": held, "context": {**context, "suppressed": policies, "taste": taste}}
 
 
 def _find(gaps: list[dict], gap_id: str) -> dict:

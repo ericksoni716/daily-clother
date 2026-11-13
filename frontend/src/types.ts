@@ -1,3 +1,5 @@
+import type { Life } from './life';
+
 export type CutoutState = 'none' | 'pending' | 'processing' | 'ready' | 'failed';
 /** Being described by Claude: none (never asked), waiting, working, done, failed. */
 export type TagState = 'none' | 'waiting' | 'working' | 'done' | 'failed';
@@ -141,6 +143,8 @@ export interface Settings {
   heic_supported: boolean;
   /** Where the owner is, for the weather; null until chosen. */
   place: Place | null;
+  life: Life | null;
+  life_prompt_dismissed: boolean;
 }
 
 /** A place to look up the weather for (saved in the program's settings, not in a closet). */

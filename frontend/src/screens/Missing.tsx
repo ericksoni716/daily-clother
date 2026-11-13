@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type ReactNode, type SVGProps } from 'react';
 import { api, ApiError } from '../api';
 import { CheckIcon, ChevronLeftIcon, HangerIcon, PlusIcon, WarnIcon } from '../components/Icons';
+import { LifeQuestions } from '../components/LifeQuestions';
 import {
   colorWords, type Gap, type GapsAnswer, HELP_LEVELS, helpOf, HIDE_REASONS, type HideReason, loadSavedGaps, lookForLines,
   type LookFor, otherFindings, reasonLabel, saveGaps, type Wish,
@@ -10,6 +11,7 @@ import { Link, navigate } from '../router';
 import { useCloset } from '../store';
 import { timeOf } from '../today';
 import type { ItemSummary } from '../types';
+import { activeSituations, lifeSummary, situationLabel, type SituationId } from '../life';
 import { ItemDetail } from './ItemDetail';
 import './Missing.css';
 
@@ -41,6 +43,8 @@ export function MissingScreen({ itemId, wide }: { itemId: string | null; wide: b
   const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [lifeOpen, setLifeOpen] = useState(false);
+  const [situation, setSituation] = useState<SituationId | 'all'>('all');
   const shown = useRef(phase);
   useEffect(() => {
     shown.current = phase;
@@ -166,8 +170,16 @@ export function MissingScreen({ itemId, wide }: { itemId: string | null; wide: b
           <span>Saved earlier{savedWhen(phase.savedAt)}. You're offline, so nothing here can be changed until Closet on your computer can be reached.</span>
         </p>
       )}
+      {phase.kind === 'ready' && (wide || tab === 'gaps') && <>
+        {!lifeOpen && <LifeBasis context={phase.gaps.context} locked={locked} busy={busy !== null} onOpen={() => setLifeOpen(true)}
+          onDismiss={() => void change('life-dismiss', () => api.putSettings({ life_prompt_dismissed: true }))} />}
+        {lifeOpen && <LifeQuestions initial={phase.gaps.context?.life ?? null} locked={locked}
+          demo={profile === 'demo'} onSaved={async () => { setSituation('all'); await load(); toast('Your answers are saved'); }}
+          onClose={() => setLifeOpen(false)} />}
+      </>}
       {wide || tab === 'gaps'
-        ? <Body phase={phase} byId={byId} actions={actions} offline={offline} onRetry={() => setAttempt((n) => n + 1)} />
+        ? <Body phase={phase} byId={byId} actions={actions} offline={offline} onRetry={() => setAttempt((n) => n + 1)}
+          situation={situation} onSituation={setSituation} />
         : wishlist}
     </div>
   );
@@ -187,6 +199,48 @@ export function MissingScreen({ itemId, wide }: { itemId: string | null; wide: b
         ) : wishlist}
       </aside>
     </div>
+  );
+}
+
+function LifeBasis({ context, locked, busy, onOpen, onDismiss }: {
+  context: GapsAnswer['context']; locked: boolean; busy: boolean; onOpen(): void; onDismiss(): void;
+}) {
+  if (!context) return null;
+  const { life, climate, taste, demo } = context;
+  const answers = lifeSummary(life);
+  const basis = [...(answers.length ? answers : ['your closet']),
+    ...(climate.used ? [`weather${climate.place ? ` in ${climate.place}` : ' where you live'}`] : []),
+    ...(taste.used ? ['what you wear and rate'] : [])];
+  return (
+    <section className="life-basis" aria-label="What these suggestions are based on">
+      <div className="life-basis-line">
+        <button className="life-basis-summary" onClick={onOpen} aria-label="See the answers behind these suggestions">
+          Based on: {basis.join(' · ')}.
+        </button>
+        <button className="btn btn-ghost btn-small" onClick={onOpen}>
+          {demo ? 'Example answers' : locked ? 'Saved answers' : life ? 'Edit answers' : 'Your answers'}
+        </button>
+      </div>
+      {!life && !context.prompt_dismissed && !demo && !locked && (
+        <div className="life-invitation">
+          <div><h2>Tell it how you live <span>· 1 minute</span></h2>
+            <p>More for your everyday. Less for days you never dress for.</p></div>
+          <div className="row">
+            <button className="btn btn-primary btn-small" onClick={onOpen}>Answer a few questions</button>
+            <button className="btn btn-ghost btn-small" disabled={busy} onClick={onDismiss}>Not now</button>
+          </div>
+        </div>
+      )}
+      {climate.message && <p className="life-context-note">{climate.message} <Link to="/settings">Where you are in Settings</Link></p>}
+      {!climate.used && !climate.message && <p className="life-context-note">Using a general mix of weather. <Link to="/settings">Set where you are in Settings</Link></p>}
+      {climate.used && climate.old && !climate.message && <p className="life-context-note">Using the last saved climate for this place.</p>}
+      <details className="life-context-note">
+        <summary>How these suggestions work</summary>
+        {taste.used && taste.summary && <p>{taste.summary}</p>}
+        <p>Lounging means relaxed clothes at home; Closet can't identify sleepwear. Exercise suggestions are general, not specific to a sport.</p>
+      </details>
+      {life?.style_words && <p className="life-style-echo">Your words: <q>{life.style_words}</q> <span>Kept as a note, not used to rank suggestions.</span></p>}
+    </section>
   );
 }
 
@@ -213,8 +267,9 @@ interface Actions {
   remove(w: Wish): Promise<unknown>;
 }
 
-function Body({ phase, byId, actions, offline, onRetry }: {
+function Body({ phase, byId, actions, offline, onRetry, situation, onSituation }: {
   phase: Phase; byId: Map<string, ItemSummary>; actions: Actions; offline: boolean; onRetry(): void;
+  situation: SituationId | 'all'; onSituation(id: SituationId | 'all'): void;
 }) {
   if (phase.kind === 'loading') {
     return (
@@ -245,18 +300,26 @@ function Body({ phase, byId, actions, offline, onRetry }: {
       </div>
     );
   }
-  const shown = gaps.gaps.filter((g) => g.state !== 'hidden');
+  const active = activeSituations(gaps.context?.life);
+  const selected = active.some((s) => s.id === situation) ? situation : 'all';
+  const shown = gaps.gaps.filter((g) => g.state !== 'hidden' && (selected === 'all' || g.situations?.some((s) => s.id === selected)));
   const hidden = gaps.gaps.filter((g) => g.state === 'hidden');
+  const suppressed = gaps.context?.suppressed ?? [];
   const open = shown.filter((g) => g.state === 'open').length;
   const others = otherFindings(gaps);
   return (
     <>
       <section aria-labelledby="gaps-title">
+        {gaps.context?.life && <div className="life-filters" role="group" aria-label="Suggestions for">
+          <button className={`chip${selected === 'all' ? ' is-on' : ''}`} aria-pressed={selected === 'all'} onClick={() => onSituation('all')}>All</button>
+          {active.map((s) => <button key={s.id} className={`chip${selected === s.id ? ' is-on' : ''}`}
+            aria-pressed={selected === s.id} onClick={() => onSituation(s.id)}>{s.label}</button>)}
+        </div>}
         <h2 id="gaps-title" className="missing-section-title">
           {open ? 'Worth looking for, most helpful first' : 'Worth looking for'}
         </h2>
         {shown.length === 0 && (
-          <p className="notice">{hidden.length
+          <p className="notice">{selected !== 'all' ? `Nothing to look for just for ${situationLabel(selected).toLowerCase()} right now.` : hidden.length
             ? "You've hidden every suggestion. They are below if you change your mind."
             : 'Nothing is missing that the rules can find. Your closet covers every kind of day they try.'}</p>
         )}
@@ -269,6 +332,18 @@ function Body({ phase, byId, actions, offline, onRetry }: {
           ))}
         </ol>
       </section>
+
+      {suppressed.length > 0 && <details className="more missing-hidden" data-testid="suppressed-gaps">
+        <summary>Days you've ruled out ({suppressed.length})</summary>
+        <p className="hint">You said “I never dress like that”. These decisions still apply, even when the suggestion is no longer in the list.</p>
+        <ul className="missing-hidden-list">
+          {suppressed.map((s) => <li key={s.gap_id}>
+            <div><strong>{s.name}</strong><span className="muted"> · {s.situations.map(situationLabel).join(', ')}</span></div>
+            <button className="btn btn-small" disabled={actions.locked || actions.busy === s.gap_id} title={actions.locked ? OFFLINE_TITLE : undefined}
+              aria-label={`Undo decision about ${s.name}`} onClick={() => void actions.unhide(s.gap_id)}>Undo</button>
+          </li>)}
+        </ul>
+      </details>}
 
       {hidden.length > 0 && (
         <details className="more missing-hidden" data-testid="hidden-gaps">
@@ -327,6 +402,7 @@ function GapCard({ gap, byId, actions }: { gap: Gap; byId: Map<string, ItemSumma
         <h3 id={titleId}>{gap.name}</h3>
         <HelpMeter score={gap.score} />
       </header>
+      <SituationLabels gap={gap} />
       <div className="gap-body">
         <ul className="gap-why" aria-label="Why">
           {gap.why.map((w) => <li key={w}>{w}</li>)}
@@ -364,8 +440,16 @@ function WishedGap({ gap }: { gap: Gap }) {
         <HelpMeter score={gap.score} />
       </header>
       <p className="gap-wished"><CheckIcon /> On your wishlist</p>
+      <SituationLabels gap={gap} />
     </article>
   );
+}
+
+function SituationLabels({ gap }: { gap: Gap }) {
+  if (!gap.situations?.length) return null;
+  return <ul className="gap-situations" aria-label="Useful for">
+    {gap.situations.map((s) => <li key={s.id}>{s.label}</li>)}
+  </ul>;
 }
 
 function HideForm({ name, locked, busy, onHide, onCancel }: {

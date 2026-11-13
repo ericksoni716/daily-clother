@@ -76,6 +76,51 @@ Both ask Open-Meteo (no key needed) in a worker thread, through the computer's c
 
 Hidden gaps and the wishlist are kept in the open closet's database, so the demo closet and the real one have their own and backups include them.
 
+### Life-aware gaps
+
+`GET /api/gaps` additionally returns `context`:
+
+```
+{
+  life: null | {situations, work_dress, vacation_climate, vacation_weeks, style_words},
+  prompt_dismissed: boolean,
+  demo: boolean,
+  climate: {used, place, shares, years, old, message},
+  taste: {used: boolean, summary: string | null},
+  suppressed: [{gap_id, name, situations: [situation_id]}]
+}
+```
+
+`climate.place` is a display name or null; `shares` is null, or an object with
+`cold`, `cool`, `mild`, `hot`, each `{share, wet_share}`. Both are fractions:
+`share` is the part of all observed days in that band, `wet_share` the part of
+that band's days with at least 1 mm precipitation. `years` lists the four full
+years observed (empty for the fixed demo). An unavailable lookup is still 200,
+with `used:false` and an actionable `message`; kept older data has `old:true`.
+No network call is made for an unanswered life questionnaire or the demo.
+
+Each gap adds `situations: [{id, label, days_per_week, share, days_per_year}]`.
+`share` is that situation's frequency / 7 times the weather shares of the
+distinct days the gap serves, **not** a percentage of the gap's score.
+Situations may overlap, so their shares need not total 1.
+Vacation frequency is additionally scaled by weeks away / (365.25 / 7);
+`days_per_week` still shows the answer for a week away.
+Evidence days add `situation` and `share` when personalized.
+`look_for` can additionally contain `fit`, `avoid_fits[]`, `avoid_patterns[]`.
+Before answers, gap order, IDs, scores and existing fields are unchanged and
+`situations` is empty. Home/exercise-only purchases get new `lounge`/`active`
+kinds (including `light_active`, `warm_active`, `rain_active`, `rainwarm_active`
+where exercise needs those properties); existing purchase IDs retain the
+original construction.
+
+The cache now also depends on answers, place/climate context and creation
+dates used for long-owned items. Updating answers or place discards the main
+cache; changed climate shares invalidate it too. Decisions are applied after
+the cached analysis: `never_wear` holds back the same category and dress/kind
+in the same situations, leaving unrelated situations and wishes alone.
+`context.suppressed` keeps those decisions visible even if the original gap
+is gone; `DELETE /api/gaps/{gap_id}/hide` undoes one without re-analysing.
+
 ## Background-removal model
 | Call | Result |
 |---|---|
@@ -94,3 +139,35 @@ Hidden gaps and the wishlist are kept in the open closet's database, so the demo
 | `POST /api/backup` | The backup record; 409 with the record (and its `error`) if it failed. |
 | `POST /api/profile {profile: "main"\|"demo"}` | Switches between the real closet and the demo closet. |
 | `POST /api/quit` | 202; the program exits shortly after. |
+
+### Life settings
+
+`GET /api/settings` also includes `life` (null until answered) and
+`life_prompt_dismissed` (false initially).
+`PUT /api/settings` accepts either or both. A non-null `life` is a complete
+questionnaire:
+
+```
+{
+  "situations": {
+    "work": 4, "everyday": 4, "going_out": 1,
+    "lounging": 4, "exercise": 1, "vacation": 4
+  },
+  "work_dress": "smart_casual",
+  "vacation_climate": "warm",
+  "vacation_weeks": 2,
+  "style_words": ""
+}
+```
+
+Frequency values are finite numbers from 0 to 7, in days/week. The screen's
+choices are 0 (never), 0.25 (now and then), 1 (about weekly), 4 (most days).
+`work_dress`: `casual | smart_casual | business | formal`;
+`vacation_climate`: `warm | cold | both`; `vacation_weeks`: 0–52, fractions
+allowed; `style_words`: one line, at most 200 characters, trimmed but never
+interpreted. Unknown/missing questionnaire fields and invalid values return
+422 with a plain sentence. `life:null` restores the original analysis.
+The demo reads fixed example answers and refuses edits to either life setting
+(422); it never changes the owner's answers. All routes require the normal
+login. No migration, new endpoint, key or external service other than
+Open-Meteo's archive is involved.

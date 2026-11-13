@@ -85,6 +85,29 @@ the screen shows what it last found, and nothing can be changed until Closet on
 your computer can be reached again. A closet with fewer than 8 pieces is too
 small to judge yet.
 
+**Tell it how you live: 1 minute**, at the top of What's missing, asks how often
+you dress for work, everyday life, going out, lounging at home, exercise and
+vacation. Say how people dress at work, and roughly how many weeks you spend
+away and whether those places are warm or cold. Days can overlap: work and
+exercise can happen on the same day. **Not now** leaves the original suggestions
+unchanged. You can answer later or change your answers from **Based on…** on
+What's missing, or **Settings → How you live**.
+
+Once answered, common days matter more than rare ones. A saved place lets
+Closet use the last four full years of weather there; with no place or no
+weather available it says so and gives each season equal weight. Vacation
+uses your warm/cold answer, not the weather at home. The situation buttons
+show just the suggestions for that part of your life.
+
+With enough recorded wears or ratings, suggestions put your favourite colours
+first among those that go with your clothes, and avoid fits and patterns you
+consistently dislike. **I never dress like that** also holds back similar
+suggestions for those situations; the screen explains this and offers **Undo**.
+The optional **My style in a few words** line is kept and shown back to you,
+but is not interpreted yet. Lounging is only a guess from relaxed tops and
+soft trousers, not a way to recognise sleepwear; exercise cannot yet tell
+running gear from gym clothes or judge sports performance.
+
 To record a single item: open it and tap **Wore it today** (tap **Undo** if
 that was a mistake). The item shows how often it has been worn and when last, and lists
 the recent days, each of which can be removed. **Put in the laundry** and
@@ -250,6 +273,10 @@ In **Settings → Where you are**, search for your town or city and choose it
 from the list, so Closet can look up today's weather when it suggests outfits.
 Only the name you search for and the chosen place's location are sent, to the
 free weather service Open-Meteo; nothing about your clothes is.
+After you answer **How you live**, the same place is also used for long-term
+weather on What's missing. That lookup sends only the coordinates and keeps
+the result for six months. Your life answers and style words stay on your
+computer, in its settings; they are not in closet backups.
 
 ## Demo closet
 
@@ -257,6 +284,9 @@ free weather service Open-Meteo; nothing about your clothes is.
 everything without your own photos. It is kept separate from your real closet
 and is never backed up. Photo credits are in
 `backend/closet/demo_data/CREDITS.md`.
+What's missing uses fixed example life answers and seasons in the demo,
+unaffected by your own answers or place. Switch back to your own closet to
+save your answers.
 
 ## For development
 

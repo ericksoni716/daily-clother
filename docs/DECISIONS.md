@@ -193,6 +193,75 @@ The rules live in `backend/closet/gaps.py`; every number is a named constant at 
 | The analysis reads the engine's own pieces, options and rules (functions in `outfits.py` whose names start with `_`) and does not change `outfits.py` | The two cannot disagree about what suits a day. If the engine changes, the gaps follow. |
 | The API keeps the last answer per closet and reuses it until an item or a wear changes; a wash, a timestamp or a cutout does not count | The analysis takes about a second on the demo closet and about four on 300 items (40 runs of the engine, each bounded by its own six-candidates-per-place search, not by the size of the closet). |
 
+### What's missing: how the owner lives
+
+This extends the fixed grid above **only after answers**. Before answers the
+old analysis is byte-for-byte unchanged (including scores and order); **Not
+now** dismisses the invitation, not the ability to answer later. There is no
+migration: `life`, `life_prompt_dismissed`, and `climate` live in `settings.json`.
+No dependency or change to `outfits.py` is needed. `gaps._run_grid` accepts an
+optional set of days/moods; its default is still the original grid.
+
+`life.SITUATIONS` is the one mapping table, with a reason beside every row:
+
+| Situation | Occasion / mood | Weather and pieces | Why |
+|---|---|---|---|
+| Work | The chosen casual, smart casual, business or formal / sharp | All home bands; all pieces the engine permits | The actual workplace, not an assumed office dress code. |
+| Everyday | casual / usual | All home bands; ordinary engine pieces | Errands and seeing friends. |
+| Going out | smart casual / sharp | All home bands; ordinary engine pieces | A step up for dinner, not an assumed black-tie calendar. |
+| Lounging at home | casual / relaxed | Indoors at 18–22°C, no rain; tees, hoodies and soft relaxed trousers/shorts/knits, never outdoor coats or shoes | There is no loungewear category. Coverage asks for two suitable tops and bottoms, rather than asking the outdoor engine to insist on shoes. |
+| Exercise | athletic / relaxed | Home bands; casual/athletic tees, hoodies, shorts, sneakers, jackets/coats, and athletic or soft trousers | Never call jeans or tailored trousers exercise clothes; keep warmth, lightweight and waterproof requirements in the suggested purchase. |
+| Vacation | casual / relaxed | Warm = mild/hot; cold = cold/cool; both = all; wet/dry equally likely; ordinary engine pieces | Destination weather is not home weather. |
+
+Frequencies: never = 0, now and then = 0.25, about weekly = 1, most days = 4
+days/week. Situations can overlap; they are not forced to sum to seven.
+Vacation means that frequency **during weeks away**, scaled by weeks/year
+divided by 365.25/7. No weeks away means no vacation gaps.
+The optional style line is at most 200 characters, shown verbatim and reserved
+for future shop search; no model or keyword rule reads it.
+
+Lounging's soft words (`SOFT_WORDS`) are jersey, fleece, sweat, jogger, knit
+and stretch; fits, when known, must be regular, relaxed or oversized. Tees and
+hoodies must be casual/athletic; soft bottoms must also be casual/athletic.
+These are proxies, not knowledge of softness, pyjamas or the difference
+between a going-out tee and a home tee. A hoodie can layer at home, but is not
+counted as a base top. Exercise cannot distinguish running, gym work or other
+sports, moisture-wicking fabric, support or protective equipment. The screen
+must not promise that it can.
+
+| Decision | Why |
+|---|---|
+| Score failing days by `frequency / 7 × weather share × 8 × failure weight` | Frequency times weather is the important part. The constant 8 preserves the old score scale (eight weather cells per occasion for a full week). The original `OCCASION_WEIGHT` is used only without answers. |
+| Scale thin-place base scores, basics, orphans and wear-driven extras by applicable days too | A fixed "basic winter coat" bonus must not put winter back at the top in a hot climate. Business/formal basics cannot recreate days the owner never has. |
+| Keep the existing merge and ID rule (category, formality, kind) | Hidden gaps and wishes refer to those IDs. New indoor and athletic purchases have new `lounge`/`active` kinds instead of renaming an existing suggestion. |
+| Reasons start with the situation, its frequency and applicable weather | The owner should see why a gap matters to his actual week. Annual weather counts describe days **here**; the per-situation API count also includes frequency. |
+| Use four complete calendar years from Open-Meteo's archive, kept for 180 days | Four years smooth unusual seasons without a large download. Only coordinates, fixed query fields/dates and automatic time-zone selection are sent; no name, answers, style or closet data. The common bounded fetch uses a 6-second timeout, 1 MiB maximum and the computer's certificates. |
+| Require every date, finite low/high and precipitation, and sensible ranges | A missing season must not look like a climate with no cold days. The shared `climate.archive` reader is available for future trip history too. |
+| Classify at the engine's design temperature, low + 0.3 × (high − low) | Cold ≤8°C, cool <15°C, mild <24°C, hot otherwise. Wet means ≥1 mm total precipitation (including snow's water equivalent); the wet share is conditional on the band. |
+| Failed archive requests reuse valid same-place data, clearly marked old, or use equal bands and equal wet/dry | A lookup failure must not stop gaps or quietly claim home weather was used. Retry at most hourly, refresh on the next full-year boundary, and discard kept weather when the place changes. Cache writes check the place under the settings lock. |
+| Taste needs at least 10 distinct item/day wears across 3 items, or 5 rated active items | Less says nothing: no taste claim or guessed preference. Each enabled evidence source contributes separately. The rules are in `taste.py`, not a model. |
+| Attribute preference needs 2 positively evidenced items and at least 4 points | Colours, patterns, fits and formality are counted. Each wear is one point, capped at 10/item; love = 4, like = 2, meh = 0, dislike = −4. A dislike overrides historical wears. Colour compatibility is ranked before taste; a favourite loud colour cannot introduce a clash. Favoured plain patterns and fits can be suggested; the required occasion is not weakened to match taste. |
+| Avoidance needs 2 negatively evidenced items, at least 75% of items with that value, and negative total points | One disliked shirt does not mean every shirt with its fit or pattern is disliked. Never-worn items contribute −2 only after 180 days of ownership and a 90-day wear log with enough wears. Age is measured at the log's last date, not today's clock, keeping the rule deterministic. Avoided fits/patterns are removed from suggestions and included as exclusions. |
+| `never_wear` holds back the same category and dress/kind for shared situations; weather variants count as similar | A hidden winter pair of business trousers should not return as summer trousers for the same work days. Home/exercise kinds stay distinct. Other situations survive with reduced score; wishes are never silently removed. The decision remains visible with Undo even if its original gap disappears, using its stable ID to recover the dress/kind. No migration or destructive deletion. |
+| Demo has fixed example life answers and climate shares; its questionnaire is read-only | The owner's place and answers must not change the example or send a weather request. Items, wears, hides and wishes in the demo remain independently editable as before. |
+| Cache includes life/climate context and ownership dates; decisions are still applied afterwards | Answer, place and climate changes cannot serve yesterday's analysis; a wash or picture update still does not trigger a slow analysis. Undoing a hidden suggestion is immediate. |
+
+Timing on the implementation runner (seconds, median of three alternating
+uncached runs, same inputs before/after; no network):
+
+| Closet | Before | After, no answers | After, example life and climate |
+|---|---:|---:|---:|
+| 30 demo items | 1.30 | 1.42 | 0.77 |
+| 300 generated items | 3.64 | 3.07 | 3.74 |
+
+The generated closet uses seed 89, the existing test item builder, twelve
+clothing/shoe categories and random vocabulary colours, formalities, seasons
+and patterns; both closets use an empty wear log for this comparison.
+The before implementation is the base commit's `gaps.py`; every unanswered
+answer was also checked for exact equality. Runner load makes small timing
+differences noise, not a promised speedup. The normal API reuses its answer;
+the first home-climate request can add the weather lookup's six-second timeout.
+
 ### What the engine knows about the cloth
 
 `closet_rows` in `backend/closet/today.py` is the one place that prepares the closet for the outfit engine and the gap analysis (`POST /api/outfits/suggest`, `POST /api/outfits/today`, `GET /api/gaps`). Each row carries the weight class and the sleeve taken from the tagger's stored answer (`tag_answer`), in the keys the engine already read (`weight_class`, `silhouette.sleeve`); `outfits.py` is unchanged.

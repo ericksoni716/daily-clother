@@ -3,6 +3,7 @@ import { api, ApiError } from '../api';
 import { ModelProgress, modelStateText } from '../components/ModelBanner';
 import { PhoneAccess } from '../components/PhoneAccess';
 import { WhereYouAre } from '../components/WhereYouAre';
+import { LifeQuestions } from '../components/LifeQuestions';
 import { formatDateTime, formatSize, parsePrice } from '../labels';
 import { dayName, formatUsd, monthName, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
 import { useCloset } from '../store';
@@ -21,6 +22,7 @@ export function SettingsScreen({ version }: { version: string }) {
   const { offline, model, refreshModel, profile, switchProfile, logout, quit, toast } = useCloset();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [lifeOpen, setLifeOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -50,6 +52,15 @@ export function SettingsScreen({ version }: { version: string }) {
           <TaggingSection offline={offline} settings={settings} onChange={setSettings} reload={load} toast={toast} />
         </div>
         <div className="settings-col">
+          <Section title="How you live" id="s-life">
+            <p className="hint">Tell What's missing about work, everyday life and time away. Change your answers whenever life changes.</p>
+            {lifeOpen && settings ? (
+              <LifeQuestions initial={settings.life ?? null} locked={offline} demo={profile === 'demo'}
+                onSaved={(saved) => { setSettings(saved); toast('Your answers are saved'); }} onClose={() => setLifeOpen(false)} />
+            ) : <button className="btn" disabled={!settings || offline} onClick={() => setLifeOpen(true)}>
+              {profile === 'demo' ? 'See example answers' : settings?.life ? 'Edit my answers' : 'Tell it how you live'}
+            </button>}
+          </Section>
           <Section title="Where you are" id="s-place">
             <WhereYouAre place={settings ? settings.place : undefined} offline={offline} onChange={setSettings} toast={toast} />
           </Section>

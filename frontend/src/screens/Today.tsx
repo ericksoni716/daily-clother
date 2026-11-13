@@ -70,7 +70,10 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const requestRef = useRef(request);
   requestRef.current = request;
   // What was last asked: the same choices are not asked again when coming back to the screen.
-  const asked = useRef<{ key: string; attempt: number }>({ key: remembered && remembered.phase.kind !== 'error' ? remembered.key : '', attempt: 0 });
+  const answeredKey = remembered && remembered.phase.kind === 'ready' ? remembered.key : '';
+  const asked = useRef<{ key: string; attempt: number }>({ key: answeredKey, attempt: 0 });
+  // The choices the outfits on screen answer (kept in `memory` with them).
+  const answered = useRef(answeredKey);
 
   useEffect(() => {
     if (items.active === null) void loadItems('active');
@@ -81,9 +84,12 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     asked.current = { key, attempt };
     const req = requestRef.current;
     const ctrl = new AbortController();
+    let done = false;
     setAsking(true);
     api.today(req, ctrl.signal).then(
       (answer) => {
+        done = true;
+        answered.current = key;
         kept.setOutfits({ day: localDay(), saved_at: new Date().toISOString(), request: req, answer });
         setPhase({ kind: 'ready', answer, savedAt: null });
         setIndex(0);
@@ -92,13 +98,16 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
       },
       (e) => {
         if ((e as Error)?.name === 'AbortError') return;
+        done = true;
         const err = e as ApiError;
         setAsking(false);
         if (err.status === 0) {
           const saved = kept.outfits(localDay());
           if (saved) {
             const r = saved.request;
-            asked.current = { key: JSON.stringify(requestFor({ occasion: r.occasion, mood: r.mood }, r.build_around ?? null, r.leave_out ?? [], typedOf(r))), attempt };
+            const savedKey = JSON.stringify(requestFor({ occasion: r.occasion, mood: r.mood }, r.build_around ?? null, r.leave_out ?? [], typedOf(r)));
+            asked.current = { key: savedKey, attempt };
+            answered.current = savedKey;
             setPhase({ kind: 'ready', answer: saved.answer, savedAt: saved.saved_at });
             setChoice({ occasion: r.occasion, mood: r.mood });
             setBuildAround(r.build_around ?? null);
@@ -110,6 +119,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
           return;
         }
         asked.current = { key: '', attempt };
+        answered.current = '';
         if (err.status === 422 && req.low_c === undefined) setPhase({ kind: 'needs-day', message: err.message });
         else setPhase({ kind: 'error', message: err.message, offline: false });
       },
@@ -117,6 +127,8 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     return () => {
       ctrl.abort();
       setAsking(false);
+      // not answered: ask again when the screen shows these choices next
+      if (!done) asked.current = { key: '', attempt: -1 };
     };
   }, [key, attempt, kept]);
 
@@ -129,7 +141,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   }, [offline, showingSaved]);
 
   useEffect(() => {
-    memory = { profile, day: today, key: asked.current.key, phase, index, buildAround, leaveOut };
+    memory = { profile, day: today, key: answered.current, phase, index, buildAround, leaveOut };
   }, [profile, today, phase, index, buildAround, leaveOut]);
 
   const choose = (next: Choice) => {

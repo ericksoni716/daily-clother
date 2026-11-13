@@ -52,6 +52,12 @@ export interface Photo {
 
 export type Silhouette = Record<string, string>;
 
+export interface Failure {
+  stage: 'cutout' | 'description';
+  reason: string;
+  details: string | null;
+}
+
 export interface Item extends ItemSummary {
   formality: string | null;
   season: string | null;
@@ -71,6 +77,9 @@ export interface Item extends ItemSummary {
   /** The pattern measured from the photo: null (nothing to measure), waiting, working, done or failed. */
   pattern_state: 'waiting' | 'working' | 'done' | 'failed' | null;
   pattern_error: string | null;
+  /** Why its cutout or its description failed: a plain sentence, and the stored reason with keys and outside paths
+   * taken out (null when nothing was recorded). Null when nothing has failed. */
+  failure: Failure | null;
   /** Who described it: 'plan', 'api', or 'demo' for the demo closet's descriptions made in advance. */
   tag_route: string | null;
   tag_model: string | null;

@@ -48,7 +48,7 @@ Fixes after 0.2.0:
 - [x] The owner's first item in 0.2.0 failed to be described after three tries. The cause: Claude Code on the owner's Mac was still signed in to a work account that had been turned off, so Anthropic refused its key ("Not a valid API key for this workspace"), and Closet took that for a bad answer. Now a refused sign-in keeps items waiting with a note saying what to do, and they go ahead by themselves once Claude Code is signed in with the plan.
 - [x] A box in Settings to paste the API key, kept in the computer's keychain (Mac keychain, Windows Credential Manager) and checked with Anthropic first; replace and remove. Not yet run on a real Mac or Windows keychain.
 - [ ] A choice of "API key first" for owners who would rather pay per photo than use their plan (the route order exists in the code, `api-first`, but is not offered).
-- [ ] Other failures still keep their real reason only in the `jobs` table. Showing it on a failed item (and in the log) would make the next unknown failure diagnosable without a terminal.
+- [x] A failed item shows why: the plain sentence, and a "Details" fold with the reason the job recorded (keys, tokens, e-mail addresses and paths outside Closet's folder taken out), written once to the log as well; "Try again" never queues a second job (`failure` in the item, no migration).
 
 Patterns from the photo (owner's request; it had fallen out of the app):
 - [x] Plaids flattened and placed per front, madras measured whole, stripes (regular and placed bands, sleeves checked), prints quilted; OpenCV and the second background model in the app; migration 0013.

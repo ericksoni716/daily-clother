@@ -140,7 +140,10 @@ def test_three_failed_attempts_end_in_failed_with_a_plain_reason_then_retag_work
     body = client.get(f"/api/items/{item['id']}").json()
     assert body["tag_state"] == "failed" and "try again" in body["tag_error"].lower()
     assert body["category"] is None and row(cfg, item["id"])["tag_answer"] is None
-    assert "outside the schema" not in caplog.text   # only the kind of failure is logged, never what Claude said
+    # each attempt logs only the kind of failure; the cleaned reason is logged once, when the item is marked failed
+    attempts = [r for r in caplog.records if r.name == "closet.tagjobs"]
+    assert attempts and not any("outside the schema" in r.getMessage() for r in attempts)
+    assert caplog.text.count("outside the schema") == 1
     assert tag_jobs(cfg, item["id"])[0]["state"] == "failed"
 
     claude.mode = "answers"

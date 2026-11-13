@@ -189,6 +189,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           <WarnIcon />
           <div>
             <p><strong>The background couldn't be removed.</strong>{item.cutout_error ? ` ${item.cutout_error}` : ''}</p>
+            <FailureDetails item={item} stage="cutout" />
             <button className="btn btn-small" disabled={locked} onClick={async () => {
               try {
                 setItem(await api.retryCutout(id));
@@ -206,6 +207,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           <WarnIcon />
           <div>
             <p><strong>Claude couldn't describe this item.</strong>{item.tag_error ? ` ${item.tag_error}` : ''}</p>
+            <FailureDetails item={item} stage="description" />
             <button className="btn btn-small" disabled={locked} onClick={retag}>Try again</button>
           </div>
         </div>
@@ -374,6 +376,19 @@ function WearPanel({ item, disabled, onWear, onUnwear, onLaundry }: WearPanelPro
         </div>
       )}
     </section>
+  );
+}
+
+/** What was recorded when the cutout or the description failed, folded away (keys and outside paths taken out). */
+function FailureDetails({ item, stage }: { item: Item; stage: 'cutout' | 'description' }) {
+  const details = item.failure?.stage === stage ? item.failure.details : null;
+  if (!details) return null;
+  return (
+    <details className="failure-details" data-testid="failure-details">
+      <summary>Details</summary>
+      <p>What Closet recorded, for working out what went wrong:</p>
+      <pre>{details}</pre>
+    </details>
   );
 }
 

@@ -331,6 +331,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .notice > svg { flex: none; width: 22px; height: 22px; }
 .notice-warn { background: var(--warn-soft); }
 .notice-warn > svg { color: var(--warn); }
+.failure-details { margin: 0 0 8px; }
+.failure-details summary { cursor: pointer; }
+.failure-details pre { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.85rem; }
 
 /* ---------------------------------------------------------------- master / detail */
 @media (min-width: 1000px) {

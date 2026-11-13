@@ -84,3 +84,17 @@ Both ask Open-Meteo (no key needed) in a worker thread, through the computer's c
 | `POST /api/backup` | The backup record; 409 with the record (and its `error`) if it failed. |
 | `POST /api/profile {profile: "main"\|"demo"}` | Switches between the real closet and the demo closet. |
 | `POST /api/quit` | 202; the program exits shortly after. |
+
+## Trips
+
+All behind the login, kept per closet (demo and real closet apart).
+
+- `POST /api/trips/plan` — body `{place, first_day, last_day, occasion?, day_occasions?, can_wash?, leave_out?, pin?}`; works out the weather and packing plan, saves nothing. A trip is at most 30 days and starts today or later.
+- `POST /api/trips` — same body; plans and saves. 201 with the trip.
+- `GET /api/trips` — `{trips: [...]}`, upcoming first, then past.
+- `GET /api/trips/{id}` — the trip: choices, `weather` (each day with `source`: `forecast`, `usual` or `unknown`), `plan` (`packed`, `days`, `basics`, `uncovered`, `notes`), `lines` and `packed` (ticked lines).
+- `GET /api/trips/{id}/weather` — looks the weather up again; `{checked, changed, days, message}`; changes nothing.
+- `PATCH /api/trips/{id}` — `{ticks?: {line: bool}, occasion?, day_occasions?, can_wash?, leave_out?, pin?, replan?}`.
+- `DELETE /api/trips/{id}` — 204.
+
+Wrong input answers 422 with a sentence for the owner; an unknown trip 404.

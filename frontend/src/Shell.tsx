@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArchiveIcon, CloudOffIcon, GearIcon, HangerIcon, PlusIcon, SunIcon } from './components/Icons';
+import { ArchiveIcon, CloudOffIcon, GearIcon, HangerIcon, PlusIcon, SuitcaseIcon, SunIcon } from './components/Icons';
 import { useLanding } from './landing';
 import { Link, parseRoute, usePath, useMediaQuery, WIDE } from './router';
 import { useCloset } from './store';
@@ -8,6 +8,7 @@ import { AddScreen } from './screens/Add';
 import { SettingsScreen } from './screens/Settings';
 import { ItemDetail } from './screens/ItemDetail';
 import { TodayScreen } from './screens/Today';
+import { TripsScreen } from './screens/Trips';
 import { ReviewBadge, ReviewIcon, ReviewScreen, useReviewCount } from './screens/Review';
 
 export function Shell({ version }: { version: string }) {
@@ -23,6 +24,7 @@ export function Shell({ version }: { version: string }) {
   else if (route.name === 'add') content = <AddScreen />;
   else if (route.name === 'settings') content = <SettingsScreen version={version} />;
   else if (route.name === 'review') content = <ReviewScreen />;
+  else if (route.name === 'trips') content = <TripsScreen tripId={route.tripId} />;
   else if (route.itemId && !wide) content = <ItemDetail key={route.itemId} id={route.itemId} status={route.status} />;
   else content = <ClosetScreen status={route.status} selectedId={route.itemId} wide={wide} />;
 
@@ -77,6 +79,7 @@ const NAV = [
   { key: 'today', to: '/today', label: 'Today', Icon: SunIcon },
   { key: 'closet', to: '/', label: 'Closet', Icon: HangerIcon },
   { key: 'archived', to: '/archived', label: 'Archived', Icon: ArchiveIcon },
+  { key: 'trips', to: '/trips', label: 'Trips', Icon: SuitcaseIcon },
   { key: 'review', to: '/review', label: 'Review', Icon: ReviewIcon },
   { key: 'add', to: '/add', label: 'Add', Icon: PlusIcon },
   { key: 'settings', to: '/settings', label: 'Settings', Icon: GearIcon },
@@ -106,11 +109,12 @@ function Sidebar({ section, offline, toReview }: { section: string; offline: boo
 }
 
 function TabBar({ section, offline, toReview }: { section: string; offline: boolean; toReview: number | null }) {
-  const tabs = NAV.filter((n) => n.key !== 'archived');
+  // the bottom bar is full: Trips is reached from Today and Settings on the phone
+  const tabs = NAV.filter((n) => n.key !== 'archived' && n.key !== 'trips');
   return (
     <nav className="tabbar" aria-label="Main">
       {tabs.map(({ key, to, label, Icon }) => {
-        const active = section === key || (key === 'closet' && section === 'archived');
+        const active = section === key || (key === 'closet' && section === 'archived') || (key === 'today' && section === 'trips');
         if (key === 'add' && offline) {
           return (
             <button key={key} className="tab" disabled title="Adding photos needs Closet on your computer to be reachable">

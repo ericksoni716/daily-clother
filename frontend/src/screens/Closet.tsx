@@ -168,7 +168,7 @@ function Tile({ item, status, selected, model, view }: { item: ItemSummary; stat
   );
 }
 
-function TilePicture({ item, view }: { item: ItemSummary; view: GridView }) {
+export function TilePicture({ item, view }: { item: ItemSummary; view: GridView }) {
   const alt = item.name || label('category', item.category) || 'Item';
   if (view === 'drawings' && item.illustration_url) return <img className="pic-illustration" src={item.illustration_url} alt={`${alt}, drawing`} loading="lazy" />;
   if (item.cutout_state === 'ready' && item.thumb_url) return <img className="pic-cutout" src={item.thumb_url} alt={alt} loading="lazy" />;

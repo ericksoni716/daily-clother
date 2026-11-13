@@ -49,3 +49,6 @@ export const SunIcon = (p: P) => (
 export const MoreIcon = (p: P) => (
   <svg {...base} {...p}><circle cx="5.5" cy="12" r="1.3" fill="currentColor" /><circle cx="12" cy="12" r="1.3" fill="currentColor" /><circle cx="18.5" cy="12" r="1.3" fill="currentColor" /></svg>
 );
+export const SuitcaseIcon = (p: P) => (
+  <svg {...base} {...p}><rect x="3.5" y="7" width="17" height="12.5" rx="2" /><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M8 7v12.5M16 7v12.5" /></svg>
+);

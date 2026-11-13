@@ -63,6 +63,21 @@ piece**); tap a piece to open it. With no place saved, type today's low and
 high temperatures there instead. Offline, Today shows the outfits it last
 found that day.
 
+**What's missing** (**Missing** in the bar at the bottom of a phone) looks at
+your closet and what you wear and suggests what to buy, the most helpful
+first. Each suggestion says why, in sentences about your own clothes, what to
+look for (the kind of piece, the season, the colours that go with what you
+have) and shows the pieces it is based on; tap one to open it. Tap **I'll look
+for this** to put it on your **Wishlist**, or **Not for me** to hide it (you can
+say why, but you don't have to; **Hidden** at the bottom brings it back). On
+the wishlist, keep a note (size, shop, budget), add something by hand with
+**Add by hand**, and when you have it tap **I bought it**: it leaves the list
+and **Add** opens so you can photograph it. Your decisions are kept when the
+suggestions are worked out again, and the demo closet keeps its own. Offline,
+the screen shows what it last found, and nothing can be changed until Closet on
+your computer can be reached again. A closet with fewer than 8 pieces is too
+small to judge yet.
+
 To record a single item: open it and tap **Wore it today** (tap **Undo** if
 that was a mistake). The item shows how often it has been worn and when last, and lists
 the recent days, each of which can be removed. **Put in the laundry** and

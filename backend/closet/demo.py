@@ -75,13 +75,26 @@ def ensure(cfg: Config) -> int:
 
 
 def _answers(conn, data: dict) -> None:
-    """Store each demo item's answer, made in advance, as if Claude had given it (route "demo", no model)."""
+    """Store each demo item's answer, made in advance, as if Claude had given it (route "demo", no model).
+
+    How sure each answer is goes onto the fields the demo still fills (not those the owner has set), so the
+    review queue shows the few the answers are unsure of; an older demo closet gets them too.
+    """
     conn.execute("BEGIN")
     for it in data["items"]:
-        if it.get("answer"):
-            conn.execute("UPDATE items SET tag_state = 'done', tag_error = NULL, tag_answer = ?, tag_schema_version = ?, "
-                         "tag_route = 'demo', tag_model = NULL, tagged_at = created_at WHERE id = ? AND tag_answer IS NULL",
-                         (json.dumps(it["answer"]), data.get("schema_version"), it["id"]))
+        answer = it.get("answer")
+        if not answer:
+            continue
+        conn.execute("UPDATE items SET tag_state = 'done', tag_error = NULL, tag_answer = ?, tag_schema_version = ?, "
+                     "tag_route = 'demo', tag_model = NULL, tagged_at = created_at WHERE id = ? AND tag_answer IS NULL",
+                     (json.dumps(answer), data.get("schema_version"), it["id"]))
+        row = conn.execute("SELECT source, confidence FROM items WHERE id = ?", (it["id"],)).fetchone()
+        if row is None:
+            continue
+        source, confidence = json.loads(row["source"] or "{}"), json.loads(row["confidence"] or "{}")
+        sure = {f: answer[f"{f}_confidence"] for f, by in source.items() if by == "demo" and f"{f}_confidence" in answer}
+        if any(confidence.get(f) != v for f, v in sure.items()):
+            conn.execute("UPDATE items SET confidence = ? WHERE id = ?", (json.dumps({**confidence, **sure}), it["id"]))
     conn.execute("COMMIT")
 
 

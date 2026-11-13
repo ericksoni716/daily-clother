@@ -17,6 +17,7 @@ from .templates import H, Shape, W, _x_on, build
 
 STYLES = ("flat", "line", "soft", "traced")
 CX_ROT = (200, 120)  # patterns are turned about the middle of the chest
+PLACE_AT = 0.35      # where along the centre line, from neck to hem, a placed pattern is lined up
 CARD = "#f1eee8"
 INK = "#26231f"
 
@@ -27,6 +28,12 @@ class Fill:
     color: str = "#888888"
     stripes: fills.Stripes | None = None
     swatch: fills.Swatch | None = None
+    # the plain cloth the collar is cut from, when the body's stripes are placed (a polo's chest band): the
+    # repeating ground stripes without the band; None = the body's own cloth
+    trim_stripes: fills.Stripes | None = None
+    # with trim_stripes: whether the sleeves (and cuffs) are cut from that plain cloth too. False when the photo
+    # shows the placed bands continuing onto the sleeves (a rugby shirt); the collar is always the plain cloth.
+    sleeves_from_trim: bool = True
 
 
 @dataclass
@@ -97,9 +104,29 @@ def _defs_for_fill(fill: Fill, shape: Shape, uid: str, garment_w: float, garment
         tw = sw.width_frac * garment_w
         th = tw * sw.image.height / sw.image.width
         uri = fills.data_uri(sw.image, 360, "JPEG", 84)
-        return (f'<pattern id="p{uid}" patternUnits="userSpaceOnUse" x="{x0:.1f}" y="{y0:.1f}" width="{tw:.2f}" height="{th:.2f}">'
-                f'<image href="{uri}" width="{tw + 0.4:.2f}" height="{th + 0.4:.2f}" preserveAspectRatio="none"/></pattern>',
-                f"url(#p{uid})")
+        px, py = x0, y0
+        if sw.phase is not None and "neck" in shape.anchors and "hem" in shape.anchors:
+            # placed: the tile's point sw.phase lands on the centre line PLACE_AT of the way from neck to hem,
+            # and the tile is sized against the neck-to-hem length, as it was measured on the garment
+            (nx, ny), (hx, hy) = shape.anchors["neck"], shape.anchors["hem"]
+            if sw.length_frac:
+                tw = sw.length_frac * (hy - ny)
+                th = tw * sw.image.height / sw.image.width
+            ax, ay = nx + PLACE_AT * (hx - nx), ny + PLACE_AT * (hy - ny)
+            row = sorted(d[1] for d in shape.dots if abs(d[0] - nx) < 3)
+            if len(row) >= 2:   # buttons down the front: the height is taken along the button run
+                ay = row[0] + PLACE_AT * (row[-1] - row[0])
+            px, py = ax - sw.phase[0] * tw, ay - sw.phase[1] * th
+        img = f'<image href="{uri}" width="{tw + 0.4:.2f}" height="{th + 0.4:.2f}" preserveAspectRatio="none"/>'
+        out = (f'<pattern id="p{uid}" patternUnits="userSpaceOnUse" x="{px:.1f}" y="{py:.1f}" width="{tw:.2f}" height="{th:.2f}">'
+               f'{img}</pattern>')
+        if sw.phase is not None and sw.phase_right is not None and "neck" in shape.anchors:
+            # the other front (the viewer's right) has its own placement: on a real shirt the pattern does not
+            # line up across the buttons. It shares the tile; only where it starts differs.
+            rx, ry = ax - sw.phase_right[0] * tw, ay - sw.phase_right[1] * th
+            out += (f'<pattern id="p{uid}r" patternUnits="userSpaceOnUse" x="{rx:.1f}" y="{ry:.1f}" width="{tw:.2f}" '
+                    f'height="{th:.2f}">{img}</pattern>')
+        return out, f"url(#p{uid})"
     return "", fill.color
 
 
@@ -266,14 +293,46 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     tex_defs = _texture_defs(spec.texture, uid, dark_item, spec.texture_scale)
     defs += tex_defs
 
-    def turned(name: str, degrees: float) -> str:
-        """The same cloth turned by an angle (sleeves hang at an angle; collar leaves are cut on a slant)."""
+    trim_paint = None
+    if patterned and spec.fill.trim_stripes:
+        tdefs, trim_paint = _defs_for_fill(Fill("stripes", spec.fill.color, stripes=spec.fill.trim_stripes), shape,
+                                           f"{uid}g", gw, gh)
+        defs += tdefs
+
+    def turned(name: str, degrees: float, ground: bool = False) -> str:
+        """The same cloth turned by an angle (sleeves hang at an angle; collar leaves are cut on a slant).
+        ground=True: the collar's plain cloth (`Fill.trim_stripes`) when there is one."""
         nonlocal defs
         if not patterned:
             return paint
+        if ground and trim_paint:
+            defs += (f'<pattern id="p{uid}g{name}" href="#p{uid}g" '
+                     f'patternTransform="rotate({degrees:.1f} {CX_ROT[0]} {CX_ROT[1]})"/>')
+            return f"url(#p{uid}g{name})"
         defs += (f'<pattern id="p{uid}{name}" href="#p{uid}" '
                  f'patternTransform="rotate({degrees:.1f} {CX_ROT[0]} {CX_ROT[1]})"/>')
         return f"url(#p{uid}{name})"
+
+    def collar_turn(d: str, role: str) -> float:
+        """How far to turn the cloth on a collar leaf. A collar is cut with its cloth running round the neck,
+        so on each leaf the stripes run along the leaf, from where it leaves the neck to its point, whichever
+        way they run on the body."""
+        st = spec.fill.stripes if spec.fill.kind == "stripes" else None
+        nums = [float(v) for v in re.findall(r"-?\d+(?:\.\d+)?", d)]
+        pts = np.array(list(zip(nums[0::2], nums[1::2])))
+        if len(pts) < 3:
+            return -24 if role.endswith("_r") else 24
+        # the leaf's line: from its outer corner (where it leaves the side of the neck: the point furthest
+        # from the centre in the leaf's upper half) to its lowest corner (the collar point)
+        tip = pts[np.argmax(pts[:, 1])]
+        upper = pts[pts[:, 1] <= (pts[:, 1].min() + pts[:, 1].max()) / 2]
+        outer = upper[np.argmax(np.abs(upper[:, 0] - CX_ROT[0]))]
+        vx, vy = tip - outer
+        n_ = float(np.hypot(vx, vy)) or 1.0
+        vx, vy = vx / n_, vy / n_
+        if st is not None and st.orientation == "horizontal":
+            return float(np.degrees(np.arctan2(vy, vx)))     # turns (1, 0) onto the leaf
+        return float(np.degrees(np.arctan2(-vx, vy)))        # turns (0, 1) onto the leaf
 
     if style == "flat":
         o_stroke, o_w, l_stroke, l_w, l_op = "none", 0, ("#ffffff" if dark_item else "#000000"), 2.2, 0.22
@@ -324,7 +383,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             # the same cloth as the body (turned, when patterned); its edges are a separate "edge" part
             if spec.collar_color or spec.trim_color:
                 return f'<path d="{d}" fill="{spec.collar_color or spec.trim_color}"/>'
-            return f'<path d="{d}" fill="{turned(role[-1], -24 if role == "collar_r" else 24)}"/>'
+            return f'<path d="{d}" fill="{turned(role[-1] + "c", collar_turn(d, role), ground=True)}"/>'
         if role in ("lapel_r", "lapel_l"):
             # a tailored jacket's collar and lapels: cut from the body's cloth, so they carry its surface too
             fill = spec.collar_color or spec.trim_color or turned(role[-1], -24 if role == "lapel_r" else 24)
@@ -345,12 +404,22 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             c = sole_c
             return f'<path d="{d}" fill="{c}"/>' + (f'<path d="{d}" fill="#000" opacity=".06"/>' if style != "line" else "")
         if role == "hole":
-            return f'<path d="{d}" fill="{paint}"/><path d="{d}" fill="#000" opacity=".22"/>'
+            # inside the neck of a top, what shows is mostly the collar band, whose cloth runs round the neck
+            inner = paint
+            if patterned and spec.template == "top":
+                st = spec.fill.stripes if spec.fill.kind == "stripes" else None
+                inner = turned("hn", 0 if (st is not None and st.orientation == "horizontal") else 90, ground=True)
+            return f'<path d="{d}" fill="{inner}"/><path d="{d}" fill="#000" opacity=".22"/>'
         # a shirt cuff is the body's own cloth: no tint where a line already marks it
         op = {"trim": 0.10, "band": 0.12, "cuff": 0.0 if style == "line" else 0.06}.get(role, 0.1)
         col = "#fff" if dark_item else "#000"
         if spec.trim_color and role in ("band", "cuff"):
             out = f'<path d="{d}" fill="{spec.trim_color}"/>'
+        elif role == "cuff" and patterned and shape.sleeves:
+            # a cuff wraps round the wrist: its cloth runs across its own sleeve's
+            xs = [float(v) for v in re.findall(r"-?\d+(?:\.\d+)?", d)[0::2]]
+            n = 0 if (sum(xs) / max(1, len(xs))) >= CX_ROT[0] else 1
+            out = f'<path d="{d}" fill="{turned(f"c{n}", shape.sleeves[n][1] + 90, ground=spec.fill.sleeves_from_trim)}"/>'
         else:
             out = f'<path d="{d}" fill="{paint}"/>' + (f'<path d="{d}" fill="{col}" opacity="{op}"/>' if op else "")
         if style in ("line", "soft"):
@@ -368,15 +437,21 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     # the garment body; a same-paint stroke rounds the corners in the flat style
     round_stroke = f' stroke="{paint}" stroke-width="5" stroke-linejoin="round"' if style == "flat" and not patterned else ""
     g.append(f'<path d="{shape.outline}" fill="{paint}"{round_stroke}/>')
+    sw_ = spec.fill.swatch if spec.fill.kind == "swatch" else None
+    if sw_ is not None and sw_.phase is not None and sw_.phase_right is not None and "neck" in shape.anchors:
+        cxn = shape.anchors["neck"][0]
+        defs += f'<clipPath id="fr{uid}"><rect x="{cxn:.1f}" y="0" width="{W}" height="{H}"/></clipPath>'
+        g.append(f'<path d="{shape.outline}" fill="url(#p{uid}r)" clip-path="url(#fr{uid})"/>')
     if patterned:
+        # placed stripes (a polo's chest bands) are on the body only: sleeves are cut from the plain ground
         for n, (d, degrees) in enumerate(shape.sleeves):
-            g.append(f'<path d="{d}" fill="{turned(f"s{n}", degrees)}"/>')
+            g.append(f'<path d="{d}" fill="{turned(f"s{n}", degrees, ground=spec.fill.sleeves_from_trim)}"/>')
     if tex_defs:   # the surface runs down the body and along each sleeve
         g.append(f'<path d="{shape.outline}" fill="url(#t{uid})"/>')
         for n, (d, degrees) in enumerate(shape.sleeves):
             defs += (f'<pattern id="t{uid}s{n}" href="#t{uid}" '
                      f'patternTransform="rotate({degrees:.1f} {CX_ROT[0]} {CX_ROT[1]})"/>')
-            g.append(f'<path d="{d}" fill="{paint if not patterned else turned(f"s{n}", degrees)}"/>'
+            g.append(f'<path d="{d}" fill="{paint if not patterned else turned(f"s{n}", degrees, ground=spec.fill.sleeves_from_trim)}"/>'
                      f'<path d="{d}" fill="url(#t{uid}s{n})"/>')
     if spec.sheen and not patterned:   # one soft highlight across the chest
         defs += (f'<linearGradient id="h{uid}" x1="0" y1="0" x2="1" y2="1">'

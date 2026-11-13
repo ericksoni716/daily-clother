@@ -11,6 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import numpy as np
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.exception_handlers import request_validation_exception_handler
@@ -38,6 +39,7 @@ from . import (
     jobs,
     life,
     outfits,
+    patjobs,
     phone,
     review,
     savedtrips,
@@ -53,7 +55,7 @@ from . import (
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
 from .insights import find_insights
-from .modelstore import MODEL, ModelStore
+from .modelstore import MODEL, SECOND_MODEL, ModelStore
 from .state import State
 from .tagger import correcting
 from .tagger import routes as tagger_routes
@@ -63,6 +65,7 @@ from .weather import WeatherError, check_place, lookup, search_places
 
 log = logging.getLogger("closet.app")
 
+SEE_THROUGH = 0.2   # a cutout this see-through inside its outline is asked of the second model as well
 GAPS_ALL = 100   # gaps asked of the analysis; the list shows at most gaps.MAX_GAPS not yet decided on
 
 
@@ -75,6 +78,8 @@ class Services:
     scheduler: backup.Scheduler
     web_dir: Path | None = None
     tag_worker: tagjobs.Worker | None = None
+    pattern_worker: patjobs.Worker | None = None
+    second_model: ModelStore | None = None   # asked as well when the first leaves a patterned item see-through
     corrector: corrections.Corrector = correcting.correct
     check_tagger: tagjobs.Tagger | None = None   # describes a photo for "Would this work?", recorded as its own purpose
     on_quit: Callable[[], None] = lambda: None
@@ -86,6 +91,10 @@ class Services:
         self.worker.start()
         if self.tag_worker:
             self.tag_worker.start()
+        if self.pattern_worker:
+            self.pattern_worker.start()
+        if self.second_model is not None and not self.second_model.ready and self.cfg.auto_download_model:
+            self.second_model.start_download()
         self.scheduler.start()
 
     def wake(self) -> None:
@@ -93,13 +102,19 @@ class Services:
         self.worker.wake()
         if self.tag_worker:
             self.tag_worker.wake()
+        if self.pattern_worker:
+            self.pattern_worker.wake()
 
     def stop(self) -> None:
         self.scheduler.stop()
         if self.tag_worker:
             self.tag_worker.stop()
+        if self.pattern_worker:
+            self.pattern_worker.stop()
         self.worker.stop()
         self.model.stop()
+        if self.second_model is not None:
+            self.second_model.stop()
 
     def phone_info(self) -> dict:
         if self._phone_cache and time.time() - self._phone_cache[0] < 30:
@@ -111,7 +126,8 @@ class Services:
 
 def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path | str | None = "bundled",
                    tagger: tagjobs.Tagger | None = None, routes: tagjobs.Routes | None = None, api_client=None,
-                   corrector: corrections.Corrector | None = None) -> Services:
+                   corrector: corrections.Corrector | None = None, measurer: patjobs.Measurer | None = None,
+                   landmarker: patjobs.Landmarker | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
@@ -132,8 +148,15 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     holder: dict = {}
     model = ModelStore(cfg.models_dir, state, on_ready=lambda: holder["worker"].wake())
 
+    second = ModelStore(cfg.models_dir, state, name=SECOND_MODEL, url_key="second_model_url")
+
     def real_cutter(img: Image.Image) -> Image.Image:
-        return make_cutout(img, predict_mask(img, MODEL, model.path))[0]
+        mask = predict_mask(img, MODEL, model.path)
+        if second.ready:
+            from .patterns.masks import see_through  # OpenCV: loaded only once a cutout is made
+            if see_through(mask) > SEE_THROUGH:   # a plaid's dark checks taken for background: ask the other model
+                mask = Image.fromarray(np.maximum(np.asarray(mask), np.asarray(predict_mask(img, SECOND_MODEL, second.path))))
+        return make_cutout(img, mask)[0]
 
     meter = spend.Meter(cfg, state)
 
@@ -153,11 +176,29 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     tag_worker = tagjobs.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)), tagger or real_tagger)
     worker = jobs.Worker(cfg, state, lambda: model.ready, cutter or real_cutter, on_done=tag_worker.wake)
     holder["worker"] = worker
+    landmark_meter = spend.Meter(cfg, state, spend.PURPOSE_LANDMARKS, spend.estimate_landmarks)
+
+    def real_landmarker(cut: Image.Image, usable: tuple[str, ...]) -> dict:
+        from .tagger import landmarks
+        return landmarks.ask(cut, usable, client=api_client, meter=landmark_meter)
+
+    def real_measurer(cut, pattern, words, marks):
+        from .patterns.measure import measure  # OpenCV: loaded only when a pattern is measured
+        return measure(cut, pattern, words, marks)
+
+    pattern_worker = patjobs.Worker(cfg, state, measurer or real_measurer,
+                                    landmarker if landmarker is not None else (None if tagger else real_landmarker),
+                                    routes or (lambda: tagjobs.usable_routes(state)))
+    if measurer is None and tagger is not None:
+        pattern_worker = None    # tests standing in for Claude measure no patterns unless they ask to
     model.refresh()  # know the model's real state before the first request is answered
     if web_dir == "bundled":
         candidate = bundle_dir() / "web"
         web_dir = candidate if (candidate / "index.html").exists() else None
+    second.refresh()
+    tag_worker.on_described = pattern_worker.wake if pattern_worker else (lambda: None)
     return Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker,
+                    pattern_worker=pattern_worker, second_model=second if cutter is None else None,
                     corrector=corrector or real_corrector,
                     check_tagger=tagger or check_tagger)
 

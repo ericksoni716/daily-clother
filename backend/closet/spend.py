@@ -23,6 +23,7 @@ from .tagger.tagging import CONFIG, MAX_TOKENS, CapReached, RouteUnavailable
 
 PURPOSE_TAG = "tag_item"
 PURPOSE_CORRECT = "correct_item"   # reading the owner's sentence about an item (`tagger/correcting.py`)
+PURPOSE_LANDMARKS = "item_landmarks"   # where a patterned top's buttons, neck, hem and sleeves are (`tagger/landmarks.py`)
 PRICES_CHECKED: str = CONFIG.get("prices_checked", "")
 TAGGING_MODEL: str = CONFIG["roles"]["tagging"]
 SUGGESTED_CAP_USD = 5.0     # see DECISIONS, "Spend cap for the API key"
@@ -67,6 +68,11 @@ def cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
 def estimate_call(photos: int, model: str = TAGGING_MODEL) -> float:
     """The most one request to describe an item with this many photos should cost."""
     return cost_usd(model, TEXT_TOKENS + IMAGE_TOKENS * max(1, photos), MAX_TOKENS)
+
+
+def estimate_landmarks(photos: int, model: str = TAGGING_MODEL) -> float:
+    """The most one request for an item's landmarks should cost: a short prompt and schema, the photo, a short answer."""
+    return cost_usd(model, CORRECT_TEXT_TOKENS + IMAGE_TOKENS * max(1, photos), CORRECT_MAX_TOKENS)
 
 
 def estimate_correction(photos: int, model: str = TAGGING_MODEL) -> float:

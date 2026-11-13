@@ -151,7 +151,7 @@ else:
     tray_imports = ["pystray._xorg", "pystray._appindicator", "pystray._gtk"]
 
 hiddenimports = closet_modules + ["_pillow_heif", "pystray", "pystray._dummy", "truststore", "certifi",
-                                   "anthropic", "anthropic.lib._parse._transform"] + tray_imports
+                                   "anthropic", "anthropic.lib._parse._transform", "cv2"] + tray_imports
 
 excludes = [
     "tkinter",
@@ -170,9 +170,6 @@ excludes = [
     "IPython",
     "matplotlib",
     "tests",
-    # OpenCV is only for the bench: the drawing code imports it inside the functions that read a
-    # photo (the traced style, fills measured from a cutout), which the app does not call.
-    "cv2",
 ]
 
 # --- icon -----------------------------------------------------------------

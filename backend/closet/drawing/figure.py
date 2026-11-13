@@ -78,6 +78,7 @@ class Piece:
     color: str | None = None
     pattern: str | None = None
     silhouette: dict | None = None
+    fill: Fill | None = None     # the item's pattern measured from its photo, as its own drawing uses it
 
 
 @dataclass
@@ -150,7 +151,7 @@ def _spec(piece: Piece) -> Spec:
         word = piece.color if isinstance(piece.color, str) and piece.color in item.NAMED_HEX else "grey"
         tags = item._plain(piece.category, item._known_silhouette(piece.silhouette), {}, word)
     template, params, extras, _ = item.drawing_for(tags)
-    return Spec(template, dict(params), Fill("solid", item._color(piece.color_hex, tags.color)), **extras)
+    return Spec(template, dict(params), piece.fill or Fill("solid", item._color(piece.color_hex, tags.color)), **extras)
 
 
 def _plainest(piece: Piece) -> Spec:

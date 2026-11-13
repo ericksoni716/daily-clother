@@ -477,6 +477,26 @@ Facts checked in Anthropic's documentation on 2026-11-12:
 | It never fails: a missing place is not drawn; an item in the wrong place (shoes as the bottom) is skipped; a piece that cannot be drawn from its description is drawn as the plainest of its category; if nothing can be drawn, an empty card | An outfit with one odd item should still be shown. |
 | A sheet of figures from the demo closet is kept at `docs/screenshots/outfit-figures.png` (and `.svg`), written by `tools/make_figure_sheet.py` | So a change to the figure can be judged by looking, as the issue asked. |
 
+
+## Patterns drawn from the photo
+
+The owner's original spec asked for patterns to come from the photo; it fell out when the drawing moved into
+the app (issue #37 said the app must not need OpenCV) and was never decided against. Rebuilt and tested on the
+owner's own and other real photos (bench/experiments/patterns, with notes there).
+
+| Decision | Why |
+|---|---|
+| OpenCV is part of the app (`opencv-python-headless`), used only by `closet/patterns` and the cutout's see-through check; the drawing code still never imports it | The owner chose quality over the program's size. A numpy/Pillow port was built and matched OpenCV, but the methods that mattered (template matching, k-means, image quilting) are better kept on the library the bench uses. |
+| A plaid is flattened, not sampled: its repeat is found over the whole garment, every area matched against it to a tenth of a pixel, the crumpled cloth mapped back into one straight repeat (each front on its own when they agree), and that repeat drawn | Every square cut from a photo carried its folds, a pocket or the button strip, and mirrored squares made kaleidoscopes. Redrawing the plaid as flat bands lost the thin white lines. |
+| A plaid with no regular repeat (madras) is measured whole and kept as one garment-sized tile | Quilting broke a plaid's lines. |
+| Stripes are measured as a sequence across the whole garment: regular stripes folded onto one sharp repeat (each area matched to the whole repeat), placed bands (a polo's chest band) drawn over a crisp ground; the collar is cut from the ground, and the sleeves too unless the photo shows the bands on them | A polo's band landed on its collar and sleeves; rugby shirts carry their bands onto the sleeves, so it is measured, not assumed. |
+| Colours of stripes are corrected from Claude's colour words: when it says the item has white or cream, the lightest neutral yarn is made that colour and every yarn moves with it (brightness freely, balance by at most 8%) | Most photos are taken in tinted light; a white shirt measured grey. |
+| Florals, camouflage and other prints are pieced (image quilting) from big squares from all over the garment, after turning it upright and evening out the light | One repeated square showed rows of the same flower; a slanted shirt gave slanted streaks. |
+| Placing a plaid: Claude gives the buttons, neck, hem, shoulders and underarms (`tagger/landmarks.py`, the larger model); each front is placed by matching the photo beside the button line against the repeat, held out against cloth lower down | Finding buttons in the image alone took pocket edges and round shapes in a plaid for buttons; the tagging model put underarms on the chest. Placing through the flattening map alone was right on one front only. |
+| Measuring runs in the background after an item is described (`patjobs.py`), and again when the owner changes its pattern; a failure leaves the item drawn in its colour with a note | It takes from a second to two minutes; no item waits for it to be usable. |
+| The second background model (u2net) is downloaded after the first and asked as well when a cutout is more than 20% see-through inside its outline | The first model takes a plaid's dark checks for background (22% of the owner's shirt kept); the two combined kept 66%. Six plain or striped test shirts were left exactly as they were. |
+| The kept pattern is JSON in `items.pattern_fill` (migration 0013), a tile as a small WebP inside it | One row holds the item; backups and restores carry it with no new folder. |
+
 ## Phase 0 findings
 
 See `docs/PHASE0.md` for the results and what is still open.

@@ -50,6 +50,12 @@ Fixes after 0.2.0:
 - [ ] A choice of "API key first" for owners who would rather pay per photo than use their plan (the route order exists in the code, `api-first`, but is not offered).
 - [ ] Other failures still keep their real reason only in the `jobs` table. Showing it on a failed item (and in the log) would make the next unknown failure diagnosable without a terminal.
 
+Patterns from the photo (owner's request; it had fallen out of the app):
+- [x] Plaids flattened and placed per front, madras measured whole, stripes (regular and placed bands, sleeves checked), prints quilted; OpenCV and the second background model in the app; migration 0013.
+- [ ] Florals placed motif by motif on a good photo (now pieced from the whole garment).
+- [ ] Very fine stripes on small photos (a 285 px polo loses its 1–2 px pink lines).
+- [ ] Graphic prints on tops are still drawn plain in the app (the bench lifts them).
+
 ## Waiting on the owner
 - **Garment review**: the owner called the drawings good enough for now (after round 7). Marks and notes in the review gallery are still read when they appear; drawing work is parked until asked for.
 - **Mac 0.1.1**: confirm the background-removal model now downloads on the owner's Mac.

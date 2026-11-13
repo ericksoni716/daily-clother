@@ -337,8 +337,9 @@ def test_migration_0012_adds_trips_to_a_closet_at_version_11(tmp_path):
 
     result = db.migrate(path, tmp_path / "backups")
     conn = db.connect(path)
-    assert result["applied"] == [12]
-    assert conn.execute("PRAGMA user_version").fetchone()[0] == 12
+    # 0012 is applied first; any later migration follows it (this test was written when 0012 was the last)
+    assert result["applied"][0] == 12 and result["applied"] == sorted(result["applied"])
+    assert conn.execute("PRAGMA user_version").fetchone()[0] == max(v for v, _ in db.migration_files())
     assert conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='trips'").fetchone()
     conn.close()
 

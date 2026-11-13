@@ -13,6 +13,7 @@ pystray==0.19.5          # tray icon; optional at runtime
 truststore==0.10.5       # HTTPS with the computer's own trusted certificates (a packaged Python has none on macOS)
 certifi==2026.10.23      # fallback certificate bundle
 anthropic==2.8.0         # the API-key route to Claude for tagging (and the schema the plan route sends)
+opencv-python-headless==5.0.0.93   # measuring an item's pattern from its photo (closet/patterns); the drawing itself never imports it
 
 # transitive
 annotated-doc==0.0.6

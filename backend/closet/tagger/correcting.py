@@ -49,7 +49,7 @@ class CorrectionAnswer(BaseModel):
 
 @dataclass
 class CorrectionResult:
-    answer: CorrectionAnswer
+    answer: BaseModel   # a CorrectionAnswer, or another question's answer
     route: str     # "plan" or "api"
     model: str
     input_tokens: int = 0
@@ -75,9 +75,11 @@ Turn what the owner says into changes: each change is one name from the list and
 - {"The image is the item with its background removed." if with_photo else "You have not been shown the item. If the sentence cannot be understood without seeing it (for example \"the colour is wrong\"), set needs_photo to true and give no changes."}"""
 
 
-def correct_api(client, model: str, text: str, images: list[Image.Image], meter: Meter | None = None) -> CorrectionResult:
+def correct_api(client, model: str, text: str, images: list[Image.Image], meter: Meter | None = None,
+                answer_model=CorrectionAnswer) -> CorrectionResult:
     """Through the API key. With a `meter`, every request is checked against it before it is sent and counted
-    once it comes back, as for tagging."""
+    once it comes back, as for tagging. `answer_model` is the shape of the answer (another short question to
+    Claude, such as the landmarks, uses the same way in)."""
     import anthropic
 
     content = [encode_image(im) for im in images] + [{"type": "text", "text": text}]
@@ -89,7 +91,7 @@ def correct_api(client, model: str, text: str, images: list[Image.Image], meter:
             meter.before_api_call(model, len(images))
         try:
             resp = client.messages.parse(model=model, max_tokens=MAX_TOKENS, messages=[{"role": "user", "content": content}],
-                                         output_format=CorrectionAnswer, output_config={"effort": effort})
+                                         output_format=answer_model, output_config={"effort": effort})
         except (anthropic.RateLimitError, anthropic.APIConnectionError) as e:
             last = e
             continue
@@ -115,7 +117,8 @@ def correct_api(client, model: str, text: str, images: list[Image.Image], meter:
     raise TaggingError(f"{model} gave no valid answer: {type(last).__name__ if last else 'none'}")
 
 
-def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | None = None, timeout: float = 120) -> CorrectionResult:
+def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | None = None, timeout: float = 120,
+                answer_model=CorrectionAnswer, system: str = SYSTEM) -> CorrectionResult:
     """Through the Claude plan (`claude -p`); the photo, if any, is saved in a folder of its own for it to read."""
     from anthropic.lib._parse._transform import transform_schema
 
@@ -130,8 +133,8 @@ def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | Non
             claude_cli._save(images[0], Path(tmp) / "item.jpg")
             text += "\n\nThe image file is in the current folder: item.jpg. Open it with the Read tool, then answer."
         cmd = [exe, "-p", text, "--model", model, "--effort", effort, "--output-format", "json",
-               "--json-schema", json.dumps(transform_schema(CorrectionAnswer)), "--tools", "Read", "--allowedTools", "Read",
-               "--strict-mcp-config", "--no-session-persistence", "--system-prompt", SYSTEM]
+               "--json-schema", json.dumps(transform_schema(answer_model)), "--tools", "Read", "--allowedTools", "Read",
+               "--strict-mcp-config", "--no-session-persistence", "--system-prompt", system]
         kwargs = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
         for _ in range(MAX_ATTEMPTS):
             try:
@@ -157,7 +160,7 @@ def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | Non
                 last = TaggingError(f"{model} through Claude Code gave no usable answer (exit {proc.returncode})")
                 continue
             try:
-                parsed = CorrectionAnswer.model_validate(answer)
+                parsed = answer_model.model_validate(answer)
             except ValueError:
                 last = TaggingError(f"{model} through Claude Code answered outside the schema")
                 continue
@@ -172,12 +175,18 @@ def correct(sentence: str, description: dict, allowed: dict[str, list], images: 
     """Ask Claude, trying `routes` in order ("plan", "api"), as tagging does (`routes.Router`): `meter` records every
     call and keeps the API key under its limit, and is told when the API refuses the key. Raises `CapReached` when
     only the limit stood in the way, `RouteUnavailable` when no route could be used for another reason."""
-    text = prompt(sentence, description, allowed, bool(images))
+    return ask(prompt(sentence, description, allowed, bool(images)), images, routes, client=client, exe=exe, meter=meter)
+
+
+def ask(text: str, images: list[Image.Image], routes: tuple[str, ...], client=None, exe: str | None = None,
+        meter: Meter | None = None, answer_model=CorrectionAnswer, system: str = SYSTEM,
+        model: str = MODEL) -> CorrectionResult:
+    """A short question to Claude with an answer of the given shape, through `routes` in order, as `correct`."""
     skipped, capped = [], False
     for route in routes:
         try:
             if route == "plan":
-                result = correct_cli(MODEL, text, images, exe=exe)
+                result = correct_cli(model, text, images, exe=exe, answer_model=answer_model, system=system)
                 if meter:
                     meter.record("plan", result.model, result.input_tokens, result.output_tokens)
                 return result
@@ -186,7 +195,7 @@ def correct(sentence: str, description: dict, allowed: dict[str, list], images: 
                     if not apikey.get():
                         raise RouteUnavailable("no API key is set")
                     client = apikey.client()
-                return correct_api(client, MODEL, text, images, meter=meter)
+                return correct_api(client, model, text, images, meter=meter, answer_model=answer_model)
         except RouteUnavailable as e:
             skipped.append(f"{route}: {e}")
             capped = capped or isinstance(e, CapReached)

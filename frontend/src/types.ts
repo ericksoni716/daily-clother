@@ -68,6 +68,9 @@ export interface Item extends ItemSummary {
   cutout_error: string | null;
   /** Why describing it failed, or while it waits, why it can't go yet (the API key's monthly limit), in plain words. */
   tag_error: string | null;
+  /** The pattern measured from the photo: null (nothing to measure), waiting, working, done or failed. */
+  pattern_state: 'waiting' | 'working' | 'done' | 'failed' | null;
+  pattern_error: string | null;
   /** Who described it: 'plan', 'api', or 'demo' for the demo closet's descriptions made in advance. */
   tag_route: string | null;
   tag_model: string | null;

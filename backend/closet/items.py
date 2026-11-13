@@ -9,7 +9,7 @@ import uuid
 import zlib
 from pathlib import Path
 
-from . import db, details, history, illustrations, images, jobs, patjobs, tagjobs, vocab
+from . import db, details, history, illustrations, images, jobs, palette, patjobs, tagjobs, vocab
 
 TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "acquired_on", "notes", "rating_reason", "color_hex")
 ENUM_FIELDS = tuple(vocab.ENUM_FIELDS)
@@ -62,6 +62,8 @@ def detail(conn, row) -> dict:
         out[f] = row[f]
     # the pattern measured from the photo: null (nothing to measure), waiting, working, done or failed
     out["pattern_state"], out["pattern_error"] = row["pattern_state"], row["pattern_error"]
+    # its colours as measured from the pattern, largest first, each {color, hex, share}; empty when not measured
+    out["pattern_colors"] = palette.shown(row)
     # what the tagger saw, from its stored answer: the details, and what it saw that no field (or drawing) covers yet
     said = dict((json.loads(row["tag_answer"]) if row["tag_answer"] else {}).get("details") or {})
     out["seen_not_drawn"] = said.pop("other_features", None) or []

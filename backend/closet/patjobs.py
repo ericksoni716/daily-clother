@@ -21,7 +21,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, illustrations
+from . import db, illustrations, palette
 from .config import Config
 from .state import State
 from .tagger.tagging import RouteUnavailable
@@ -110,7 +110,7 @@ def run_one(conn, images_dir: Path, measurer: Measurer, landmarker: Landmarker |
                 except Exception:
                     log.warning("asking for an item's landmarks failed; measuring without them", exc_info=True)
         t0 = time.monotonic()
-        kept = measurer(cut, row["pattern"], _words(row), marks)
+        kept = palette.keep(measurer(cut, row["pattern"], _words(row), marks), row["pattern"])
         log.info("measured a %s in %.1f s", row["pattern"], time.monotonic() - t0)
     except Exception as e:   # never lost: the item says why and is drawn in its colour
         log.warning("measuring an item's pattern failed: %s", type(e).__name__, exc_info=True)
@@ -125,6 +125,7 @@ def run_one(conn, images_dir: Path, measurer: Measurer, landmarker: Landmarker |
             return "done"
         conn.execute("UPDATE items SET pattern_fill = ?, pattern_state = ?, pattern_error = ? WHERE id = ?",
                      (json.dumps(kept) if kept else None, "done" if kept else "failed", error, item_id))
+        palette.settle(conn, item_id)   # the item's colour from the measured colours, unless the owner set it
         illustrations.redraw(conn, item_id)
         conn.execute("COMMIT")
     except Exception:

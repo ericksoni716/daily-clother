@@ -29,11 +29,15 @@ Wave 3:
 - [x] #51 Review queue: a Review screen with a badge shows only the fields the tagger was unsure of; confirm, change or skip.
 - [ ] #56 and #57 The "What's missing" screen and the wishlist, given to two models.
 - [ ] #60 Outfits remembered and rated, and the engine learning from the ratings.
-- [ ] #62 The packaged program built and smoke-tested automatically.
+- [x] #62 The packaged program is built and smoke-tested on Linux on every change to `main` and on pull requests that touch what goes into it (`package-check` workflow). It makes no release, tag or download. Windows and macOS are still built only by the release.
 - [ ] #63 A spend cap and a cost estimate for the API-key route.
 - [ ] #64 Insights: cost per wear, never worn, worn most.
 
-Next: the drawing shown on the item and corrections by command, the review queue, mannequin layering and outfit rating, the gap screen and shopping.
+Wave 4:
+- [ ] #70 Correct an item by picking (choices shown as small drawings) or by saying it, with a history that can be undone.
+- [ ] #71 and #72 The outfit drawn as worn: the layered figure, given to two models.
+
+Next: the weight class from the tagger's answer feeding the outfit engine, shopping searches and price checks from the wishlist, trip packing.
 
 ## Waiting on the owner
 - **Garment review**: the owner called the drawings good enough for now (after round 7). Marks and notes in the review gallery are still read when they appear; drawing work is parked until asked for.

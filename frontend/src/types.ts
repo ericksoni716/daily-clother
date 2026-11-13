@@ -14,6 +14,13 @@ export interface Session {
   profile: Profile;
 }
 
+/** One colour of a measured pattern: its colour word, its shade and how much of the pattern it covers (0..1). */
+export interface PatternColour {
+  color: string;
+  hex: string;
+  share: number;
+}
+
 export interface ItemSummary {
   id: string;
   name: string | null;
@@ -71,6 +78,8 @@ export interface Item extends ItemSummary {
   /** The pattern measured from the photo: null (nothing to measure), waiting, working, done or failed. */
   pattern_state: 'waiting' | 'working' | 'done' | 'failed' | null;
   pattern_error: string | null;
+  /** The colours measured from the pattern, largest first (empty when it has not been measured). */
+  pattern_colors?: PatternColour[];
   /** Who described it: 'plan', 'api', or 'demo' for the demo closet's descriptions made in advance. */
   tag_route: string | null;
   tag_model: string | null;

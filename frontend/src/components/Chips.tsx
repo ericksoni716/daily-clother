@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { Fragment, useId, type ReactNode } from 'react';
 import { label as labelFor, FIELD_TITLES, SWATCH } from '../labels';
 
 interface Props {
@@ -12,10 +12,12 @@ interface Props {
   swatches?: boolean;
   /** Allow tapping the chosen chip again to clear it. */
   clearable?: boolean;
+  /** Shown just after the chosen chip (e.g. the colours measured from a pattern). */
+  beside?: ReactNode;
 }
 
 /** A group of tappable chips where at most one is chosen. */
-export function ChipGroup({ field, options, value, onChange, disabled, title, labelOf, swatches, clearable = true }: Props) {
+export function ChipGroup({ field, options, value, onChange, disabled, title, labelOf, swatches, clearable = true, beside }: Props) {
   const id = useId();
   const heading = title ?? FIELD_TITLES[field] ?? field;
   return (
@@ -25,17 +27,19 @@ export function ChipGroup({ field, options, value, onChange, disabled, title, la
         {options.map((opt) => {
           const on = value === opt;
           return (
-            <button
-              key={opt}
-              type="button"
-              className={`chip${on ? ' is-on' : ''}`}
-              aria-pressed={on}
-              disabled={disabled}
-              onClick={() => onChange(on ? (clearable ? null : opt) : opt)}
-            >
-              {swatches && <span className="swatch" style={{ background: SWATCH[opt] ?? '#ccc' }} aria-hidden="true" />}
-              {labelOf ? labelOf(opt) : labelFor(field, opt)}
-            </button>
+            <Fragment key={opt}>
+              <button
+                type="button"
+                className={`chip${on ? ' is-on' : ''}`}
+                aria-pressed={on}
+                disabled={disabled}
+                onClick={() => onChange(on ? (clearable ? null : opt) : opt)}
+              >
+                {swatches && <span className="swatch" style={{ background: SWATCH[opt] ?? '#ccc' }} aria-hidden="true" />}
+                {labelOf ? labelOf(opt) : labelFor(field, opt)}
+              </button>
+              {on && beside}
+            </Fragment>
           );
         })}
       </div>

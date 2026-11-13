@@ -5,7 +5,8 @@ a cutout and Claude has described it (`tagjobs.apply_answer` marks it), and agai
 pattern. The worker takes one waiting item at a time: for a top it first asks Claude where the buttons, neck,
 hem, shoulders and underarms are (`tagger.landmarks`, through the same routes and monthly limit as describing;
 without an answer the pattern is still measured, only not placed), then measures (`patterns.measure`, which
-can take a minute or two on a large photo), keeps the result in `items.pattern_fill` and redraws the item.
+can take a minute or two on a large photo), keeps the result in `items.pattern_fill` with the colours measured from it (`palette`), lays those colours
+over the item's colour words (`palette.settle`: the owner's own colour always wins) and redraws the item.
 
 A measurement that fails never costs the item its drawing: it is drawn in its colour and says why. The demo
 closet is never measured: its drawings were made in advance.

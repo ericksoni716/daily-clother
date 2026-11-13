@@ -3,13 +3,13 @@ import { api, ApiError } from '../api';
 import { ChipGroup } from '../components/Chips';
 import { FixDetails, ItemHistory } from '../components/FixDetails';
 import { BackIcon, HangerIcon, WarnIcon } from '../components/Icons';
-import { formatPrice, label, parsePrice, ratingLabel, SWATCH } from '../labels';
+import { formatPrice, label, measuredColours, parsePrice, ratingLabel, SWATCH } from '../labels';
 import { Link, navigate } from '../router';
 import { silhouetteGroups } from '../silhouette';
 import { useCloset } from '../store';
 import { drawingPlaceholder, loadGridView, notInDrawing } from '../drawing';
 import { describedBy, detailLines, tagNotice } from '../tagging';
-import type { Item, ItemPatch } from '../types';
+import type { Item, ItemPatch, PatternColour } from '../types';
 import { localDay, sinceWash, wearDay, wearSummary } from '../wears';
 import { busyLabel } from './Closet';
 
@@ -239,7 +239,8 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           onChange={(v) => save({ category: v })} />
         <ChipGroup field="color" options={vocab.color} value={item.color} disabled={locked} swatches
           onChange={(v) => save({ color: v, color_hex: v ? (SWATCH[v]?.startsWith('#') ? SWATCH[v] : null) : null })} />
-        <ChipGroup field="pattern" options={vocab.pattern} value={item.pattern} disabled={locked} onChange={(v) => save({ pattern: v })} />
+        <ChipGroup field="pattern" options={vocab.pattern} value={item.pattern} disabled={locked} onChange={(v) => save({ pattern: v })}
+          beside={<MeasuredColours colours={item.pattern_colors} />} />
         <ChipGroup field="formality" options={vocab.formality} value={item.formality} disabled={locked} onChange={(v) => save({ formality: v })} />
         <ChipGroup field="season" options={vocab.season} value={item.season} disabled={locked} onChange={(v) => save({ season: v })} />
         <ChipGroup field="location" options={vocab.location} value={item.location} disabled={locked} onChange={(v) => save({ location: v })} />
@@ -536,6 +537,17 @@ function Actions({ item, disabled, onArchive, onDelete }: { item: Item; disabled
         </div>
       )}
     </div>
+  );
+}
+
+/** The colours measured from the pattern, as small swatches beside the pattern word. */
+function MeasuredColours({ colours }: { colours?: PatternColour[] }) {
+  if (!colours?.length) return null;
+  const words = `Colours measured from the photo: ${measuredColours(colours)}`;
+  return (
+    <span className="measured-colours" role="img" aria-label={words} title={words} data-testid="pattern-colours">
+      {colours.map((c) => <span key={c.color} className="swatch" style={{ background: c.hex }} />)}
+    </span>
   );
 }
 

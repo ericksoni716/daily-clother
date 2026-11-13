@@ -24,7 +24,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, history, illustrations, patjobs, spend
+from . import db, failures, history, illustrations, patjobs, spend
 from .config import Config
 from .state import State
 from .tagger import routes as tagger_routes
@@ -79,11 +79,13 @@ def recover(conn) -> int:
     A job that has already used its three attempts is failed instead, so a job that keeps crashing ends."""
     t = db.now()
     conn.execute("BEGIN IMMEDIATE")
-    stale = conn.execute("SELECT id, item_id, attempts FROM jobs WHERE kind = ? AND state = 'running'", (KIND,)).fetchall()
+    stale = conn.execute("SELECT id, item_id, attempts, error FROM jobs WHERE kind = ? AND state = 'running'",
+                         (KIND,)).fetchall()
     for job in stale:
         if job["attempts"] >= MAX_ATTEMPTS:
             conn.execute("UPDATE jobs SET state = 'failed', updated_at = ? WHERE id = ?", (t, job["id"]))
             conn.execute("UPDATE items SET tag_state = 'failed', tag_error = ?, updated_at = ? WHERE id = ?", (FAILED, t, job["item_id"]))
+            failures.report(conn, job["item_id"], "description", job["error"])
         else:
             conn.execute("UPDATE jobs SET state = 'queued', updated_at = ? WHERE id = ?", (t, job["id"]))
             conn.execute("UPDATE items SET tag_state = 'waiting', updated_at = ? WHERE id = ?", (t, job["item_id"]))
@@ -154,6 +156,7 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], tagger: Tagger) -> 
             conn.execute("UPDATE jobs SET state = 'failed', error = ?, updated_at = ? WHERE id = ?", (str(e)[:500], t, job["id"]))
             conn.execute("UPDATE items SET tag_state = 'failed', tag_error = ?, updated_at = ? WHERE id = ?",
                          (NO_PHOTO if missing else FAILED, t, job["item_id"]))
+            failures.report(conn, job["item_id"], "description", str(e))
         return "done"
     conn.execute("BEGIN IMMEDIATE")
     try:

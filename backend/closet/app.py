@@ -32,6 +32,7 @@ from . import (
     history,
     illustrations,
     images,
+    instance,
     items,
     jobs,
     life,
@@ -885,6 +886,16 @@ def create_app(sv: Services) -> FastAPI:
 
     @app.post("/api/quit", status_code=202, dependencies=protected)
     def quit_program():
+        threading.Timer(0.3, sv.on_quit).start()
+        return {"status": "shutting-down"}
+
+    @app.post("/api/instance/quit", status_code=202, include_in_schema=False)
+    def quit_for_newer_copy(request: Request):
+        """A newer copy of the program, started on the same computer, asks this one to make way. It proves it
+        can read this copy's data folder by sending the token from the lock file; nothing else is accepted."""
+        if not instance.quit_token_matches(cfg, request.headers.get(instance.QUIT_HEADER)):
+            raise HTTPException(403, "Not allowed.")
+        log.info("a newer copy of the program asked this one to quit")
         threading.Timer(0.3, sv.on_quit).start()
         return {"status": "shutting-down"}
 

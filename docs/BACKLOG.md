@@ -43,6 +43,10 @@ Wave 4:
 
 Next (not started; the owner asked for a pause after this wave and a release): shop searches for a wish with each find checked against the closet, price checks, "Would this work?" taking how the owner lives into account, kinds of clothing for sportswear and loungewear.
 
+Fixes after 0.2.0:
+- [x] A newer program that finds an older copy running says so and offers to close it and use the new one (it used to open the old one without a word). The owner's first test of 0.2.0 found it.
+- [ ] The owner's first item in 0.2.0 failed to be described after three tries. The same photo is described correctly through the plan route here, so the cause is on the owner's computer; the real reason is kept in the `jobs` table but shown nowhere. Showing it on the item (and in the log) would make the next failure diagnosable without a terminal.
+
 ## Waiting on the owner
 - **Garment review**: the owner called the drawings good enough for now (after round 7). Marks and notes in the review gallery are still read when they appear; drawing work is parked until asked for.
 - **Mac 0.1.1**: confirm the background-removal model now downloads on the owner's Mac.

@@ -177,6 +177,7 @@ The answer (`answer`, when `ready`): `{enough, message, verdict, verdict_words, 
 | `POST /api/backup` | The backup record; 409 with the record (and its `error`) if it failed. |
 | `POST /api/profile {profile: "main"\|"demo"}` | Switches between the real closet and the demo closet. |
 | `POST /api/quit` | 202; the program exits shortly after. |
+| `POST /api/instance/quit` (header `X-Closet-Instance-Token`) | Not for the page: a newer copy of the program asks this one to quit. Needs no session, only the token this copy wrote into `closet.lock` in the data folder; 202 and the program exits shortly after, 403 otherwise. |
 
 ## Trips
 

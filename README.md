@@ -72,6 +72,11 @@ demo closet you can pick and undo, but sentences are not sent to Claude.
 
 To stop the program use **Quit Closet** in the icon's menu or in Settings.
 Double-clicking the program while it is already running just opens the app.
+If the copy that is running is an older version (you downloaded an update but
+the old one was still open), Closet says so and asks whether to close the old
+one and use the new one; your closet is the same either way. On Windows the
+window has **Yes** (use the new one) and **No** (keep the old one). If start at
+login was on, it now starts the new program.
 
 Every day starts on **Today**, which the app opens on once your closet has at
 least a top, something for your legs and a pair of shoes. It shows today's

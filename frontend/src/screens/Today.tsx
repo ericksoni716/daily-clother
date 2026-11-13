@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, SunIcon, WarnIcon } from '../components/Icons';
+import { OutfitFigure } from '../components/OutfitFigure';
+import { useTodayView } from '../figure';
 import { label } from '../labels';
 import { Link } from '../router';
 import { useCloset } from '../store';
@@ -561,6 +563,7 @@ function OutfitCard({ outfit, byId, worn, busy, actions, onWear, onUndo }: Omit<
   const locked = actions.locked;
   const title = locked ? OFFLINE_TITLE : undefined;
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [view, setView] = useTodayView();
   const menuItem = menuFor ? byId.get(menuFor) : undefined;
   useEffect(() => {
     if (!menuFor) return;
@@ -578,7 +581,17 @@ function OutfitCard({ outfit, byId, worn, busy, actions, onWear, onUndo }: Omit<
       )}
 
       <div className="today-card-pieces">
-        <ul className="today-pieces" aria-label="Pieces, in the order they are put on">
+        <div className="segmented segmented-small today-view" role="group" aria-label="Show the outfit">
+          {([['pieces', 'Pieces'], ['worn', 'As worn']] as const).map(([value, text]) => (
+            <button key={value} type="button" className={view === value ? 'is-on' : ''} aria-pressed={view === value}
+              onClick={() => { setMenuFor(null); setView(value); }}>{text}</button>
+          ))}
+        </div>
+        {view === 'worn' && (
+          <OutfitFigure pieces={outfit.pieces} alt={`The outfit as worn: ${joinWords(wornOrder(outfit.pieces).map((p) => itemName(byId.get(p.id))))}`}
+            version={ids.map((id) => byId.get(id)?.illustration_url ?? '').join(' ')} />
+        )}
+        <ul className="today-pieces" hidden={view === 'worn'} aria-label="Pieces, in the order they are put on">
           {wornOrder(outfit.pieces).map((p) => (
             <li key={p.id}>
               <Piece id={p.id} place={p.place} item={byId.get(p.id)} isBase={actions.buildAround === p.id}
@@ -598,7 +611,9 @@ function OutfitCard({ outfit, byId, worn, busy, actions, onWear, onUndo }: Omit<
             </div>
           </div>
         )}
-        <p className="hint today-hint">Tap a piece to see it. Its <MoreIcon className="inline-icon" /> button leaves it out or builds every outfit around it.</p>
+        <p className="hint today-hint">{view === 'worn' ? 'Drawn as worn, from the pieces\' own drawings. Choose Pieces to see one, leave it out or build around it.' : (
+          <>Tap a piece to see it. Its <MoreIcon className="inline-icon" /> button leaves it out or builds every outfit around it.</>
+        )}</p>
       </div>
 
       <div className="today-card-why">

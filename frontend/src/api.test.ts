@@ -17,7 +17,7 @@ describe('saves outlive the page', () => {
     const calls = answering();
     await api.patch('abc', { notes: 'soft' });
     expect(calls[0]).toMatchObject({ method: 'PATCH', keepalive: true, credentials: 'same-origin' });
-    await api.rateOutfit('o1', 'good');
+    await api.rateOutfit('o1', 'loved');
     await api.putSettings({ autostart: true });
     await api.patchTrip('t1', { ticks: { 'Navy polo': true } });
     expect(calls.slice(1).map((c) => c.keepalive)).toEqual([true, true, true]);

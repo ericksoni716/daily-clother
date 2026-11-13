@@ -49,9 +49,7 @@ numbers only, never file names.
 | File | Purpose |
 |---|---|
 | `closet_bench/cutout.py` | Background removal with ONNX models, crop, WebP cutout |
-| `closet_bench/fills.py` | Colours, fabric swatches, stripes and prints taken from the photo |
-| `closet_bench/templates.py` | Parametric garment shapes (tops, pants, sneakers so far) |
-| `closet_bench/illustrate.py` | The four styles; shape + fill = SVG |
+| `closet_bench/fills.py`, `templates.py`, `illustrate.py` | The drawing. These now live in the backend, in `backend/closet/drawing/` (colours, fabric swatches, stripes and prints taken from the photo; the parametric garment shapes; the four styles, shape + fill = SVG). The bench names are the same modules, so imports here work unchanged. OpenCV is imported only inside the parts that read a photo (the fills and the "traced" style), so the app's program draws without it |
 | `closet_bench/schema.py`, `tagging.py`, `taxonomy.py`, `claude_cli.py`, `routes.py` | The tagger. These now live in the backend, in `backend/closet/tagger/` (attribute vocabulary and answer shape; the prompt and the API-key route; the owner's taxonomy as the drawing sees it; the plan route through `claude -p`; plan first, API key as fallback). The bench names are the same modules, so imports here work unchanged |
 | `backend/closet/tagger/models.json` | The one place model IDs and prices live |
 | `closet_bench/hardcases.py`, `bench.py` | The two commands above |

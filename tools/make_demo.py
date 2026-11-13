@@ -17,11 +17,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "bench"))
+sys.path.insert(0, str(ROOT / "backend"))
 
+from closet.drawing import fills  # noqa: E402
+from closet.drawing.illustrate import Fill, Spec, render  # noqa: E402
 from closet_bench import cutout as C  # noqa: E402
-from closet_bench import fills  # noqa: E402
 from closet_bench.hardcases import build_spec  # noqa: E402
-from closet_bench.illustrate import Fill, Spec, render  # noqa: E402
 
 OUT = ROOT / "backend" / "closet" / "demo_data"
 STYLE = "line"   # the owner chose style B: bold outline, thin inner lines

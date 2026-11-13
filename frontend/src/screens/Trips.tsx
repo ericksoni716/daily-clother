@@ -398,8 +398,11 @@ function PlacePicker({ place, locked, onChoose }: { place: Place | null; locked:
 // ------------------------------------------------------------------ a saved trip
 
 function SavedTrip({ id }: { id: string }) {
-  const { offline, profile, toast } = useCloset();
+  const { offline, profile, toast, items } = useCloset();
   const byId = useTripItems();
+  // A piece missing from the closet is called archived or gone, so the plan waits until both lists are here:
+  // shown a moment too early, every piece read "no longer in your closet". Offline there may be nothing to wait for.
+  const itemsReady = offline || (items.active !== null && items.archived !== null);
   const [trip, setTrip] = useState<Trip | null>(() => loadSavedTrips(profile)?.details[id] ?? null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -494,11 +497,11 @@ function SavedTrip({ id }: { id: string }) {
     }
   }
 
-  if (!trip) {
+  if (!trip || !itemsReady) {
     return (
       <div className="trips">
         <BackToTrips />
-        {error ? <p className={offline ? 'notice' : 'form-error'} role="alert">{error}</p>
+        {error && !trip ? <p className={offline ? 'notice' : 'form-error'} role="alert">{error}</p>
           : <p className="muted"><span className="spinner" aria-hidden="true" /> Loading the trip…</p>}
       </div>
     );

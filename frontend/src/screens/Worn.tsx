@@ -8,7 +8,7 @@ import { occasionLabel } from '../today';
 import type { ItemSummary } from '../types';
 import { localDay } from '../wears';
 import {
-  contextWords, RATINGS, ratingLabel, ratingSummary, reasonLabel, reasonsFor, pieceName, wornDay, wornIds, type Rating, type Reason,
+  contextWords, RATINGS, ratingLabel, ratingSummary, reasonLabel, reasonsFor, loadSavedWorn, pieceName, saveWorn, wornDay, wornIds, type Rating, type Reason,
   type WornOutfit, type WornPage,
 } from '../worn';
 import './Worn.css';
@@ -115,9 +115,18 @@ export function useAllItems(): Map<string, ItemSummary> {
   return useMemo(() => new Map([...(items.archived ?? []), ...(items.active ?? [])].map((i) => [i.id, i])), [items.active, items.archived]);
 }
 
-/** Fetch the first page of worn outfits again, so the copy saved for offline matches what changed. */
-export function refreshSaved(): Promise<WornPage | null> {
-  return api.wornOutfits().catch(() => null);
+/**
+ * Fetch the first page of worn outfits again and keep it for this closet, so the copy saved for offline matches
+ * what changed. When Closet on the computer cannot be reached, this closet's saved copy (or null).
+ */
+export async function refreshSaved(profile: string): Promise<WornPage | null> {
+  try {
+    const page = await api.wornOutfits();
+    saveWorn(profile, page);
+    return page;
+  } catch (e) {
+    return (e as ApiError).status === 0 ? loadSavedWorn(profile)?.page ?? null : null;
+  }
 }
 
 export function WornScreen() {
@@ -135,14 +144,22 @@ export function WornScreen() {
   const load = useCallback(async () => {
     try {
       const page = await api.wornOutfits();
+      saveWorn(profile, page);
       setList(page.outfits);
       setNext(page.next);
       setError(null);
     } catch (e) {
       const err = e as ApiError;
+      const saved = err.status === 0 ? loadSavedWorn(profile) : null;
+      if (saved) {
+        setList(saved.page.outfits);
+        setNext(saved.page.next);
+        setError(null);
+        return;
+      }
       setError(err.status === 0 ? "You're offline, and the worn outfits were not saved on this device yet." : err.message);
     }
-  }, []);
+  }, [profile]);
 
   useEffect(() => {
     setList(null);
@@ -166,7 +183,7 @@ export function WornScreen() {
   const byId = useAllItems();
   const replace = (o: WornOutfit) => {
     setList((l) => (l ?? []).map((x) => (x.id === o.id ? o : x)));
-    void refreshSaved();
+    void refreshSaved(profile);
   };
 
   return (
@@ -193,7 +210,7 @@ export function WornScreen() {
             setAdding(false);
             setList((l) => [o, ...(l ?? [])].sort((a, b) => (a.worn_on === b.worn_on ? 0 : a.worn_on < b.worn_on ? 1 : -1)));
             void loadItems('active');
-            void refreshSaved();
+            void refreshSaved(profile);
             toast('Outfit recorded');
           }} />
       )}
@@ -215,7 +232,7 @@ export function WornScreen() {
                 onRemoved={() => {
                   setList((l) => (l ?? []).filter((x) => x.id !== o.id));
                   void loadItems('active');
-                  void refreshSaved();
+                  void refreshSaved(profile);
                 }} />
             </li>
           ))}

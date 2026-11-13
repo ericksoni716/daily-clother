@@ -245,7 +245,7 @@ Storage in `backend/closet/worn.py` (migration 0010), the learning in `backend/c
 | A sentence names the rating that shaped an outfit ("You loved these together on 3 November", "Dressed a little warmer than usual: you were cold on a day like this on 5 November") | The owner should see why the app changed its mind. |
 | Today asks about yesterday's unrated outfit first, then today's; the question sits below the outfits and "Not now" is remembered on the device per closet | Today's outfit is still being worn in the morning; the question must never push the outfits down. |
 | "Wear this again" starts Today from the outfit's pieces that can be worn today and fills the rest | A piece in the wash should not stop the outfit; the screen names what was left out. |
-| The first page of worn outfits is kept for offline by the service worker, and fetched again after every change; offline, rating and removing are off and say why | Otherwise the saved copy would show a rating already changed, and Today would ask again about an outfit already rated. |
+| The first page of worn outfits is kept on the device per closet, removed on logout with the other saved copies, and fetched again after every change; offline, rating and removing are off and say why | The service worker does not keep `/api/outfits/worn`: it keeps answers by address, so after switching closets it would show the demo closet's outfits as the owner's. Fetching again after a change keeps the copy from showing a rating already changed, or Today asking again about an outfit already rated. |
 
 ### The What's missing screen and the wishlist
 

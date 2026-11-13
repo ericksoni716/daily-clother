@@ -153,6 +153,32 @@ function local(): KV | null {
   }
 }
 
+/** The first page of worn outfits as last fetched, kept per closet for offline (forgotten on logout with the rest). */
+export interface SavedWorn {
+  saved_at: string;
+  page: WornPage;
+}
+
+const savedKey = (profile: string) => `${SAVED_PREFIX}:worn-list:${profile}`;
+
+export function loadSavedWorn(profile: string, kv: KV | null = local()): SavedWorn | null {
+  try {
+    const raw = kv?.getItem(savedKey(profile));
+    const value = raw ? (JSON.parse(raw) as SavedWorn) : null;
+    return value && typeof value.saved_at === 'string' && Array.isArray(value.page?.outfits) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveWorn(profile: string, page: WornPage, kv: KV | null = local(), now = new Date()) {
+  try {
+    kv?.setItem(savedKey(profile), JSON.stringify({ saved_at: now.toISOString(), page }));
+  } catch {
+    /* private mode or full: not kept, nothing else breaks */
+  }
+}
+
 /** Under the Today screen's prefix, so it is forgotten on logout with the rest. */
 const dismissedKey = (profile: string) => `${SAVED_PREFIX}:asked:${profile}`;
 /** Only the last few are kept: the question is only ever about today or yesterday. */

@@ -1,5 +1,6 @@
 import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue } from './types';
 import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
+import type { Insights } from './insights';
 import type { GapsAnswer, HideReason, Wish } from './gaps';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
@@ -152,6 +153,7 @@ export const api = {
   weather: () => request<WeatherLookup>('/api/weather'),
   today: (choices: TodayRequest, signal?: AbortSignal) =>
     request<TodayAnswer>('/api/outfits/today', { method: 'POST', body: choices, signal }),
+  insights: () => request<Insights>('/api/insights'),
   // What's missing and the wishlist
   gaps: () => request<GapsAnswer>('/api/gaps'),
   hideGap: (id: string, reason: HideReason | null) =>

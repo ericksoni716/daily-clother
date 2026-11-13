@@ -31,7 +31,7 @@ Wave 3:
 - [ ] #60 Outfits remembered and rated, and the engine learning from the ratings. Built (#61); sent back with faults found in review.
 - [x] #62 The packaged program is built and smoke-tested on Linux on every change to `main` and on pull requests that touch what goes into it (`package-check` workflow). It makes no release, tag or download. Windows and macOS are still built only by the release.
 - [x] #63 A monthly spending limit for the API key (migration 0009): the key is only used once a limit is set, a request that could go past it is not made and the item waits and says why, every request is recorded with what it cost, and Settings shows the month, an estimate for what is waiting, and the history.
-- [ ] #64 Insights: cost per wear, never worn, worn most. Built (#67); sent back with faults found in review.
+- [x] #64 Insights, reached from the Closet screen: cost per wear, pieces never worn or not worn for a long time (counted in days of their own season), worn most, how evenly each kind is worn, and what the closet is made of. Sent back once with eight faults found in review; all fixed.
 
 Wave 4:
 - [ ] #70 Correct an item by picking (choices shown as small drawings) or by saying it, with a history that can be undone.

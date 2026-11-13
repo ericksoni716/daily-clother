@@ -242,6 +242,28 @@ The rules live in `backend/closet/gaps.py`; every number is a named constant at 
 | On a computer the wishlist is a panel beside the suggestions (the item opens in its place); on a phone the two are a switch at the top | The owner asked for the computer first; side by side, deciding and seeing the list happen together. A phone has room for one. |
 | The last answer and wishlist fetched are kept on the device per closet and shown offline, marked "Saved earlier", with the buttons off and saying why; they are removed on logout with the other saved copies | As on Today: the service worker never keeps `/api/gaps`, and a list to shop from is most wanted away from home. |
 
+### Insights
+
+The findings live in `backend/closet/insights.py`; every number is a named constant at its top. The screen is `frontend/src/screens/Insights.tsx` (styles in `Insights.css`), with the wording and what the device keeps in `frontend/src/insights.ts`.
+
+| Decision | Why |
+|---|---|
+| Insights is reached from a button at the top of the Closet screen, not from the main navigation; while it is open, **Closet** stays highlighted | The tab bar on a phone already holds four entries and other screens are being added; Insights is about the closet's own pieces, so it belongs with them. |
+| Money is shown with `$` and never converted; prices stay in cents as typed | The price field shows `$` and the owner lives in New York. There is no currency field, and adding one would need a migration. |
+| Cost per wear is price divided by times worn (all time, laundry included); a piece with a price and no wear has none and is listed with its price as "not worn yet"; the closet's own figure is what was paid for the pieces with a price over their wears, once there are 5 | Zero or infinity would mislead. The best and worst lists hold at most 3 each and never the same piece twice, so a closet with few priced pieces still shows both. |
+| Never worn: not worn at all, added at least 30 days ago, a log of at least 10 wears, and at least 7 days of the piece's season since it was added or since the log began, whichever is later | A new piece has not had its chance, and with almost no log everything looks unworn. 7 days is short on purpose: the demo closet's log goes back only about two weeks and must not change, and the per-piece sentence says how long it has been ("since you began recording what you wear"). |
+| Not worn for a long time: 90 days of the piece's season since its last wear, once the log itself goes back 90 days | Counting only days of its season means a winter coat last worn in March is not neglected in August; it is in December. |
+| Seasons are New York's months: warm clothes April to October, cool clothes October to April (both in April and October), "all" every month | The owner's home. A southern-hemisphere closet would need these flipped; there is no setting for it. |
+| Worn most is shown for the last 30 days, 90 days and all time, 5 pieces each, once a window has 5 wears; ties go to the piece worn more recently, then by name | Short windows show habits, all time shows favourites. The window is counted back from today; when the log is shorter the sentence says how far it goes back. |
+| The spread in a kind of clothing (last 90 days, at least 2 pieces and 5 wears) is "a few do the work" when the fewest pieces that together have 80% of the wears are at most half the pieces; otherwise "fairly even" | A plain, explainable cut-off; a statistic like the Gini coefficient would need explaining. |
+| What the closet is made of counts every piece in use by kind, colour, formality and season, and the share worn in the last 90 days once the log has 10 wears | The share means little with a few wears recorded, so it is held back until then. |
+| From a never-worn piece: **Archive** archives it at once (as from the item; undone from Archived); **Keep** hides it from the not-worn lists for 90 days, remembered on this device only (`localStorage`, per closet) and kept after logout | It is a habit of the device, like the occasion on Today, and needs no migration. **Show again** lists every kept piece again. |
+| The answer is worked out on each call, not kept on the server | It is a few passes over the items and the log, fast even on a large closet. |
+| The last answer is kept on the device per closet (with Today's and What's missing's saved copies, removed on logout) and shown offline marked "Saved earlier", with Archive off; the service worker does not keep `/api/insights` | The service worker keeps answers by address only, so after switching closets it would show one closet's sentences and prices as the other's. |
+| Names are put into sentences as the owner typed them ("your New Balance 990", "your Grey wool trousers") | Lower-casing the first letter reads better for plain names but breaks brands and places, and there is no telling them apart. |
+| A sentence claims only what is true of every piece it counts: when nothing is listed because it is too early to say for some pieces, it says that rather than "everything has been worn"; the never-worn headline gives the shortest time among the pieces listed; worn most says how many more were worn as often when they do not all fit | Each sentence is read first and on its own. |
+| The demo closet has prices on 13 pieces (`tools/make_demo.py`, `PRICES`); a demo closet made before this gets them added once when it is opened, if none of its items has a price | So the screen has something to show without changing anything else in the demo data. |
+
 ## Reaching Claude: two routes
 
 Decided with the owner after phase 1: the app can reach Claude two ways, and

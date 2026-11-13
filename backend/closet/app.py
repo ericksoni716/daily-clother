@@ -14,7 +14,24 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from PIL import Image
 from pydantic import BaseModel
 
-from . import APP_NAME, __version__, auth, autostart, backup, db, demo, images, items, jobs, outfits, phone, storage, tagjobs, vocab, wears
+from . import (
+    APP_NAME,
+    __version__,
+    auth,
+    autostart,
+    backup,
+    db,
+    demo,
+    images,
+    items,
+    jobs,
+    outfits,
+    phone,
+    storage,
+    tagjobs,
+    vocab,
+    wears,
+)
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
 from .modelstore import MODEL, ModelStore

@@ -143,6 +143,7 @@ def test_selfcheck_reports_each_library(cfg):
     assert result["webp"]["ok"] and result["onnxruntime"]["ok"] and result["database"]["ok"]
     assert result["model_state"] == {"ok": True, "detail": "missing"}
     assert "30 items" in result["database"]["detail"]
+    assert result["drawing"]["ok"] and "drew a shirt" in result["drawing"]["detail"]
 
 
 def test_settings_follow_the_environment(tmp_path):

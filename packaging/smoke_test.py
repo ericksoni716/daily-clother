@@ -10,8 +10,8 @@ Every run uses a fresh, empty data folder (CLOSET_DATA_DIR) and
 CLOSET_NO_AUTO_DOWNLOAD=1, so nothing on the machine is touched or downloaded.
 
 Default mode:
-  1. `PROGRAM selfcheck --out FILE`: exit code 0, every check ok,
-     model_state == "missing".
+  1. `PROGRAM selfcheck --out FILE`: exit code 0, every check ok (the
+     drawing check draws a garment), model_state == "missing".
   2. `PROGRAM --no-browser --no-tray --port N`: /api/health answers within
      the startup timeout with app == "closet", model_state == "missing",
      setup_required == true; GET / is the built page (id="root");
@@ -49,7 +49,7 @@ from pathlib import Path
 
 DEMO_ITEMS = 30
 PASSPHRASE = "smoke-test-passphrase"
-BASE_CHECKS = ("webp", "heic", "onnxruntime", "database", "web_page", "model_state")
+BASE_CHECKS = ("webp", "heic", "onnxruntime", "database", "web_page", "drawing", "model_state")
 
 # Never route loopback requests through a proxy from the environment.
 _opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))

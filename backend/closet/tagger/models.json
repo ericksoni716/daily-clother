@@ -1,5 +1,6 @@
 {
-  "_note": "The one place model IDs and prices live. Prices are US dollars per million tokens (prompts up to 100K tokens for Haiku), checked 2026-11-03.",
+  "_note": "The one place model IDs and prices live. Prices are US dollars per million tokens (prompts up to 100K tokens for Haiku), checked 2026-11-03. The app's spend cap reads these prices; check them against Anthropic's pricing page before relying on them, and change prices_checked when they are written down again.",
+  "prices_checked": "2026-11-03",
   "roles": {
     "tagging": "claude-haiku-5-5",
     "reasoning": "claude-opus-5-5"

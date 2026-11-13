@@ -30,7 +30,7 @@ Wave 3:
 - [x] #56 and #57 The "What's missing" screen and the wishlist (migration 0008): the gaps best first with the reasons and what to look for, "I'll look for this", "Not for me" with a reason, wishes added by hand, "I bought it". Given to two models and compared from screenshots; the Opus 5.5 result was merged.
 - [ ] #60 Outfits remembered and rated, and the engine learning from the ratings.
 - [x] #62 The packaged program is built and smoke-tested on Linux on every change to `main` and on pull requests that touch what goes into it (`package-check` workflow). It makes no release, tag or download. Windows and macOS are still built only by the release.
-- [ ] #63 A spend cap and a cost estimate for the API-key route.
+- [x] #63 A monthly spending limit for the API key (migration 0009): the key is only used once a limit is set, a request that could go past it is not made and the item waits and says why, every request is recorded with what it cost, and Settings shows the month, an estimate for what is waiting, and the history.
 - [ ] #64 Insights: cost per wear, never worn, worn most.
 
 Wave 4:

@@ -1,4 +1,4 @@
-import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue } from './types';
+import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue } from './types';
 import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { GapsAnswer, HideReason, Wish } from './gaps';
 
@@ -143,10 +143,11 @@ export const api = {
   downloadModel: () => request<ModelInfo>('/api/model/download', { method: 'POST' }),
   setModelUrl: (url: string) => request<ModelInfo>('/api/model/url', { method: 'PUT', body: { url } }),
   settings: () => request<Settings>('/api/settings'),
-  putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean }) =>
+  putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean; tagging_api_cap_usd?: number | null }) =>
     request<Settings>('/api/settings', { method: 'PUT', body: changes }),
   storage: () => request<Storage>('/api/storage'),
   tagging: () => request<TaggingStatus>('/api/tagging'),
+  tagSpend: () => request<TaggingSpend>('/api/tagging/spend'),
   places: (q: string) => request<{ places: Place[] }>(`/api/places?q=${encodeURIComponent(q)}`).then((r) => r.places),
   weather: () => request<WeatherLookup>('/api/weather'),
   today: (choices: TodayRequest, signal?: AbortSignal) =>

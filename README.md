@@ -151,11 +151,25 @@ visit, read-only.
 Closet will ask Claude to describe your clothes (what kind of garment, colour,
 collar, buttons and so on). It does this through **Claude Code**, a free
 program from Anthropic that uses your Claude plan, so nothing extra is charged
-per photo. An API key can be used instead, but it is billed per photo, is only
-used when the plan can't be, and only if you turn on **Allow the API key** in
-**Settings → Tagging** (it is off, because there is no spending limit yet).
+per photo. An API key can be used instead, but it is billed per photo by
+Anthropic, is only used when the plan can't be, and only if you turn on
+**Allow the API key** in **Settings → Tagging**. It is off until you do.
 **Settings → Tagging** shows which of the two Closet can use right now and how
 many items are waiting to be described.
+
+**What the API key costs.** At the prices Closet knows (written down on
+3 November 2026 — prices change, so check Anthropic's pricing page), one photo
+costs well under 1¢, about $0.003 at most. To allow the API key you set a
+**monthly limit** in US dollars; $5 is suggested, enough for well over a
+thousand photos. Before every request Closet adds what this month has cost so
+far to the most that request could cost, and if that would pass the limit it
+does not ask: the item waits and says the monthly limit was reached. Your plan
+is still used whenever it can be. Settings shows what this month has cost, how
+many requests were made, what the waiting items would cost at most and the
+last few months. If Anthropic refuses the key or says the account is out of
+credit, Closet turns the API key off and says why in Settings. What Closet
+shows is worked out from its own price list; your Anthropic account shows what
+was really charged.
 
 You install Claude Code once and sign in once. You need to type two short
 commands; copy and paste them exactly.

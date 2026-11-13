@@ -1,5 +1,6 @@
 import io
 import zlib
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -63,6 +64,26 @@ class FakeClaude:
         if self.mode == "fails":
             raise TaggingError("the answer was outside the schema")
         return TagResult(ANSWER, "claude-haiku-5-5", 0.1, 100, 50, 0.0, 1, route=routes[0])
+
+
+class FakeApi:
+    """Stands in for the Anthropic API behind the API-key route (its `messages.parse`); no test reaches the real one.
+
+    Answers ANSWER and reports token counts as the real API does; `error` makes the next calls raise it instead.
+    """
+
+    def __init__(self, input_tokens: int = 2000, output_tokens: int = 400):
+        self.input_tokens, self.output_tokens = input_tokens, output_tokens
+        self.error: Exception | None = None
+        self.calls = 0
+        self.messages = self
+
+    def parse(self, **kw):
+        self.calls += 1
+        if self.error:
+            raise self.error
+        usage = SimpleNamespace(input_tokens=self.input_tokens, output_tokens=self.output_tokens)
+        return SimpleNamespace(parsed_output=ANSWER, stop_reason="end_turn", usage=usage)
 
 
 @pytest.fixture

@@ -5,7 +5,9 @@ Same queue and same rules as the cutouts (`jobs.py`): jobs are rows in the
 resumes; three attempts, then the item is marked failed with the reason in
 plain words. When no route to Claude can be used the job waits, without using
 up an attempt, and starts when one can. The routes are tried in the order
-`GET /api/tagging` reports; the API key only when the owner has turned it on.
+`GET /api/tagging` reports; the API key only when the owner has turned it on
+and set a monthly limit, and never past that limit (`spend.py`): then the item
+waits and says why.
 
 The tagger's whole answer is kept with the item whatever happens to its
 fields, and a field the owner has set is never overwritten. The demo closet is
@@ -22,12 +24,12 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, illustrations
+from . import db, illustrations, spend
 from .config import Config
 from .state import State
 from .tagger import routes as tagger_routes
 from .tagger.schema import NAMED_HEX, SCHEMA_VERSION, ItemTags
-from .tagger.tagging import CONFIG, RouteUnavailable, TagResult
+from .tagger.tagging import CONFIG, CapReached, Meter, RouteUnavailable, TagResult
 
 log = logging.getLogger("closet.tagjobs")
 KIND = "tag"
@@ -85,6 +87,15 @@ def recover(conn) -> int:
     return len(stale)
 
 
+def note_limit(conn, reached: bool) -> None:
+    """Tell the waiting items that the API key's monthly limit is what holds them up, or stop saying so."""
+    if reached:
+        conn.execute("UPDATE items SET tag_error = ? WHERE tag_state = 'waiting' AND tag_error IS NOT ?",
+                     (spend.LIMIT_REACHED, spend.LIMIT_REACHED))
+    else:
+        conn.execute("UPDATE items SET tag_error = NULL WHERE tag_state = 'waiting' AND tag_error = ?", (spend.LIMIT_REACHED,))
+
+
 def _photos(conn, images_dir: Path, item_id: str) -> list[Image.Image]:
     """The front photo's cutout first (what the prompt expects), then any other photos of the item."""
     out = []
@@ -115,12 +126,14 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], tagger: Tagger) -> 
         result = tagger(_photos(conn, images_dir, job["item_id"]), routes)
         if not isinstance(result.tags, ItemTags):
             raise TypeError("the tagger did not return a tagging answer")
-    except RouteUnavailable:
+    except RouteUnavailable as e:
         # nothing is wrong with the item: Claude cannot be reached right now, so it waits without losing an attempt
         log.info("tagging job %s is waiting: no route to Claude can be used right now", job["id"])
         t = db.now()
         conn.execute("UPDATE jobs SET state = 'queued', attempts = attempts - 1, updated_at = ? WHERE id = ?", (t, job["id"]))
         conn.execute("UPDATE items SET tag_state = 'waiting', updated_at = ? WHERE id = ?", (t, job["item_id"]))
+        # every waiting item waits for the same reason; say so when it is the monthly limit
+        note_limit(conn, isinstance(e, CapReached))
         return "blocked"
     except Exception as e:  # any failure is recorded against the job, never lost; only its kind is logged
         log.warning("tagging job %s failed (attempt %s): %s", job["id"], attempts, type(e).__name__)
@@ -128,7 +141,7 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], tagger: Tagger) -> 
         missing = isinstance(e, (LookupError, OSError))
         if attempts < MAX_ATTEMPTS and not missing:
             conn.execute("UPDATE jobs SET state = 'queued', error = ?, updated_at = ? WHERE id = ?", (str(e)[:500], t, job["id"]))
-            conn.execute("UPDATE items SET tag_state = 'waiting', updated_at = ? WHERE id = ?", (t, job["item_id"]))
+            conn.execute("UPDATE items SET tag_state = 'waiting', tag_error = NULL, updated_at = ? WHERE id = ?", (t, job["item_id"]))
         else:
             conn.execute("UPDATE jobs SET state = 'failed', error = ?, updated_at = ? WHERE id = ?", (str(e)[:500], t, job["id"]))
             conn.execute("UPDATE items SET tag_state = 'failed', tag_error = ?, updated_at = ? WHERE id = ?",
@@ -137,6 +150,7 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], tagger: Tagger) -> 
     conn.execute("BEGIN IMMEDIATE")
     try:
         apply_answer(conn, job["item_id"], result.tags, route=result.route, model=result.model)
+        note_limit(conn, False)   # Claude could be reached: the others are no longer held up by the limit
         conn.execute("UPDATE jobs SET state = 'done', error = NULL, updated_at = ? WHERE id = ?", (db.now(), job["id"]))
         conn.execute("COMMIT")
     except Exception:
@@ -208,24 +222,26 @@ def apply_answer(conn, item_id: str, tags: ItemTags, route: str, model: str | No
 def usable_routes(state: State) -> tuple[str, ...]:
     """The routes that can be used now, in the order part 1 reports them.
 
-    The API key is billed and has no spend cap yet, so it is only used when the owner has turned it on.
+    The API key is billed, so it is only used when the owner has turned it on and set a monthly limit.
+    Whether the limit leaves room is checked before each request (`spend.Meter`), so an item can say why it waits.
     """
     allowed = []
     for r in tagger_routes.status()["routes"]:
-        if r["available"] and (r["id"] != "api" or state.get("tagging_api_enabled")):
+        if r["available"] and (r["id"] != "api" or spend.api_allowed(state)):
             allowed.append(r["id"])
     return tuple(allowed)
 
 
-def claude_tagger(images: list[Image.Image], routes: tuple[str, ...]) -> TagResult:
+def claude_tagger(images: list[Image.Image], routes: tuple[str, ...], meter: Meter | None = None, client=None) -> TagResult:
     """Ask Claude, trying `routes` in order; a route that turns out unusable is skipped.
 
-    The API route still refuses to run without a key (`Router`), whatever it is told.
+    The API route still refuses to run without a key (`Router`), whatever it is told. `meter` records each call
+    and keeps the API key under its limit; `client` stands in for the API in tests.
     """
     order = next((name for name, seq in tagger_routes.ORDERS.items() if seq == routes), None)
     if order is None:
         raise RouteUnavailable("no route to Claude can be used right now")
-    return tagger_routes.Router(order).tag(MODEL, images)
+    return tagger_routes.Router(order, client=client, meter=meter).tag(MODEL, images)
 
 
 class Worker:
@@ -274,7 +290,10 @@ class Worker:
             while not self._stop.is_set() and has_work(conn):
                 # asked again before each item, so turning the API key off (or a plan limit) takes effect at once
                 routes = self.routes()
-                if not routes or run_one(conn, self.cfg.images_dir(profile), routes, self.tagger) != "done":
+                if not routes:
+                    note_limit(conn, False)   # nothing can be tried at all: the limit is not what they wait for
+                    break
+                if run_one(conn, self.cfg.images_dir(profile), routes, self.tagger) != "done":
                     break
                 done += 1
         finally:

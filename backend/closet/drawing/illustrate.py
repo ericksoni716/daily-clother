@@ -27,6 +27,9 @@ class Fill:
     color: str = "#888888"
     stripes: fills.Stripes | None = None
     swatch: fills.Swatch | None = None
+    # the plain cloth the collar is cut from, when the body's stripes are placed (a polo's chest band): the
+    # repeating ground stripes without the band; None = the body's own cloth
+    trim_stripes: fills.Stripes | None = None
 
 
 @dataclass
@@ -266,11 +269,22 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     tex_defs = _texture_defs(spec.texture, uid, dark_item, spec.texture_scale)
     defs += tex_defs
 
-    def turned(name: str, degrees: float) -> str:
-        """The same cloth turned by an angle (sleeves hang at an angle; collar leaves are cut on a slant)."""
+    trim_paint = None
+    if patterned and spec.fill.trim_stripes:
+        tdefs, trim_paint = _defs_for_fill(Fill("stripes", spec.fill.color, stripes=spec.fill.trim_stripes), shape,
+                                           f"{uid}g", gw, gh)
+        defs += tdefs
+
+    def turned(name: str, degrees: float, ground: bool = False) -> str:
+        """The same cloth turned by an angle (sleeves hang at an angle; collar leaves are cut on a slant).
+        ground=True: the collar's plain cloth (`Fill.trim_stripes`) when there is one."""
         nonlocal defs
         if not patterned:
             return paint
+        if ground and trim_paint:
+            defs += (f'<pattern id="p{uid}g{name}" href="#p{uid}g" '
+                     f'patternTransform="rotate({degrees:.1f} {CX_ROT[0]} {CX_ROT[1]})"/>')
+            return f"url(#p{uid}g{name})"
         defs += (f'<pattern id="p{uid}{name}" href="#p{uid}" '
                  f'patternTransform="rotate({degrees:.1f} {CX_ROT[0]} {CX_ROT[1]})"/>')
         return f"url(#p{uid}{name})"
@@ -345,7 +359,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             # the same cloth as the body (turned, when patterned); its edges are a separate "edge" part
             if spec.collar_color or spec.trim_color:
                 return f'<path d="{d}" fill="{spec.collar_color or spec.trim_color}"/>'
-            return f'<path d="{d}" fill="{turned(role[-1] + "c", collar_turn(d, role))}"/>'
+            return f'<path d="{d}" fill="{turned(role[-1] + "c", collar_turn(d, role), ground=True)}"/>'
         if role in ("lapel_r", "lapel_l"):
             # a tailored jacket's collar and lapels: cut from the body's cloth, so they carry its surface too
             fill = spec.collar_color or spec.trim_color or turned(role[-1], -24 if role == "lapel_r" else 24)
@@ -370,7 +384,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             inner = paint
             if patterned and spec.template == "top":
                 st = spec.fill.stripes if spec.fill.kind == "stripes" else None
-                inner = turned("hn", 0 if (st is not None and st.orientation == "horizontal") else 90)
+                inner = turned("hn", 0 if (st is not None and st.orientation == "horizontal") else 90, ground=True)
             return f'<path d="{d}" fill="{inner}"/><path d="{d}" fill="#000" opacity=".22"/>'
         # a shirt cuff is the body's own cloth: no tint where a line already marks it
         op = {"trim": 0.10, "band": 0.12, "cuff": 0.0 if style == "line" else 0.06}.get(role, 0.1)

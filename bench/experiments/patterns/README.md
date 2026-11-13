@@ -20,6 +20,11 @@ here: run them against cutouts in `bench/private/` (git-ignored).
   Complex repeats (many stripes) are folded by matching each area against the whole repeat (`fold_by_match`);
   yarn colours are the clusters that form real stripes (a blend at an edge is only a sliver), and
   `balance_to_words` corrects the photo's lighting when Claude's colour words say the item has white or cream.
+  Placed stripes (a polo's chest bands): `ground_stripes` measures the plain repeating ground in its own
+  stretch of the garment (spacing from the fold; colours from the photo's extremes, since stripes 2 px wide
+  blur together), and `compose_placed` draws every plain stretch with that crisp ground and the placed bands
+  with their measured colours. The ground is also the collar's cloth (`Fill.trim_stripes` in the app's
+  renderer), so a chest band never lands on the collar.
   Stripes with no repeat (a placed chest band) use the straightened sequence across the whole garment, laid
   out as fractions of the garment so each stripe lands where it really is.
 - `quilt.py`: florals and other irregular prints, by image quilting from the whole garment; `quilt_garment`

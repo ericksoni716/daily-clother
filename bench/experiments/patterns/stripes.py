@@ -9,6 +9,7 @@
 """
 import cv2
 import numpy as np
+from PIL import Image
 
 
 def mask_of(cut, thresh=200, erode_frac=0.01):
@@ -773,3 +774,143 @@ def balance_to_words(result, words):
     out["yarns"] = [mapping[h] for h in hexes]
     out["bands"] = [(mapping.get(h, h), f) for h, f in result["bands"]]
     return out, (hexes[w], word, np.round(gain, 2).tolist())
+
+
+def ground_region(seq, y0, y1, min_frac=0.12):
+    """For placed stripes: the longest stretch of the sequence that is plain ground (low colourfulness, judged
+    against the garment's own colourful bands). Returns (a, b) positions or None."""
+    s = seq[y0:y1 + 1]
+    ok = ~np.isnan(s[:, 0])
+    chroma = np.where(ok, np.hypot(s[:, 1] - 128, s[:, 2] - 128), np.nan)
+    k = max(3, int(0.03 * len(s)))
+    sm = np.array([np.nanmean(chroma[max(0, i - k):i + k + 1]) if ok[max(0, i - k):i + k + 1].any() else np.nan
+                   for i in range(len(s))])
+    lim = np.nanpercentile(sm, 35) * 1.35
+    plain = ok & (sm <= lim)
+    best, start = None, None
+    for i in range(len(s) + 1):
+        if i < len(s) and plain[i]:
+            start = i if start is None else start
+        elif start is not None:
+            if best is None or i - start > best[1] - best[0]:
+                best = (start, i)
+            start = None
+    if best is None or best[1] - best[0] < min_frac * len(s):
+        return None
+    return y0 + best[0], y0 + best[1]
+
+
+def ground_stripes(cut, log=print, up=4):
+    """The repeating ground of placed stripes, as Stripes (the cloth a polo's collar is cut from), and the
+    region it was measured in. Folded from that region only, by matching, so fine stripes come out sharp."""
+    rgb = np.asarray(cut.convert("RGB"))
+    lab = cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB).astype(np.float32)
+    m = mask_of(cut)
+    way, _ = orientation(lab, m)
+    lab_o, m_o = (lab.transpose(1, 0, 2), m.T) if way == "vertical" else (lab, m)
+    res = straightened_sequence(lab_o, m_o, log=lambda s: None)
+    if res is None:
+        return None
+    seq, y0, y1 = res
+    reg = ground_region(seq, y0, y1)
+    if reg is None:
+        return None
+    a, b = reg
+    sub = seq[a:b].copy()
+    # the ground's repeat: autocorrelation of the plain stretch
+    x = sub - np.nanmean(sub, 0)
+    x = np.nan_to_num(x)
+    n = len(x)
+    best = None
+    for lag in range(3, n // 2):
+        u, v = x[:-lag], x[lag:]
+        r = (u * v).sum() / (np.sqrt((u ** 2).sum() * (v ** 2).sum()) + 1e-6)
+        if lag > 3 and r > 0.4 and (best is None or r > best[1] + 0.05):
+            best = (lag, r)
+            if r > 0.75:
+                break
+    if best is None:
+        return None
+    # fold only the ground region: hide the rest of the garment
+    a_img = np.asarray(cut).copy()
+    if way == "horizontal":
+        a_img[:a, :, 3] = 0
+        a_img[b:, :, 3] = 0
+    else:
+        a_img[:, :a, 3] = 0
+        a_img[:, b:, 3] = 0
+    gcut = Image.fromarray(a_img, "RGBA")
+    scored = []
+    for L in np.linspace(best[0] * 0.9, best[0] * 1.1, 9):
+        r_ = fold_by_match(gcut, L, way, iters=2, up=up, log=lambda s: None)
+        if r_ is not None:
+            scored.append((float(r_[0].std(0).sum()), L, r_[0]))
+    if not scored:
+        return None
+    _, L, rep = max(scored, key=lambda t: t[0])
+    # stripes this fine are blurred together in the photo: the fold gives their spacing and widths, but the
+    # colours are taken from the photo's own extremes in the ground (its darkest and lightest tenth)
+    gm = np.asarray(gcut)[..., 3] > 200
+    px = lab[gm]
+    lum = px[:, 0]
+    dark = np.median(px[lum <= np.percentile(lum, 10)], 0)
+    light = np.median(px[lum >= np.percentile(lum, 90)], 0)
+    mid = (rep[:, 0].min() + rep[:, 0].max()) / 2
+    lbl = (rep[:, 0] > mid).astype(int)              # 1: ground, 0: stripe
+    lbl = clean_runs(lbl, min_len=max(2, up // 2))
+    yarns = np.array([dark, light], np.float32)
+    rgbs = cv2.cvtColor(np.clip(yarns[None], 0, 255).astype(np.uint8), cv2.COLOR_LAB2RGB)[0]
+    hexes = ["#%02x%02x%02x" % tuple(int(v) for v in c) for c in rgbs]
+    span = (y1 - y0 + 1)
+    runs = []
+    for i in lbl:
+        if runs and runs[-1][0] == hexes[i]:
+            runs[-1][1] += 1
+        else:
+            runs.append([hexes[i], 1])
+    if len(runs) > 1 and runs[0][0] == runs[-1][0]:
+        runs[0][1] += runs.pop()[1]
+    nb = len(lbl)
+    bands = [(h, k / nb * L / span) for h, k in runs]
+    log(f"  ground: rows {a}-{b}, repeat {L:.2f} px, {len(bands)} stripes, colours {sorted(set(h for h, _ in bands))}")
+    return dict(orientation=way, bands=bands, region=(a, b), L=L, rep=rep, lbl=lbl, hexes=hexes)
+
+
+def compose_placed(cut, body, ground, log=print, step=0.25):
+    """Placed stripes: every plain stretch of the body drawn with the crisp ground repeat, the placed bands
+    with their measured colours. `body` and `ground` are results of measure4 and ground_stripes."""
+    rgb = np.asarray(cut.convert("RGB"))
+    lab = cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB).astype(np.float32)
+    m = mask_of(cut)
+    way = body["orientation"]
+    lab_o, m_o = (lab.transpose(1, 0, 2), m.T) if way == "vertical" else (lab, m)
+    seq, y0, y1 = straightened_sequence(lab_o, m_o, log=lambda s: None)
+    s = seq[y0:y1 + 1]
+    ok = ~np.isnan(s[:, 0])
+    chroma = np.where(ok, np.hypot(s[:, 1] - 128, s[:, 2] - 128), np.nan)
+    k = max(2, int(0.015 * len(s)))
+    sm = np.array([np.nanmean(chroma[max(0, i - k):i + k + 1]) if ok[max(0, i - k):i + k + 1].any() else np.nan
+                   for i in range(len(s))])
+    lim = np.nanpercentile(sm, 35) * 1.35
+    plain = np.where(np.isnan(sm), True, sm <= lim)      # unknown ends (collar, hem) are ground cloth
+    span = len(s)
+    # the body's measured bands as a colour at each position
+    edges = np.cumsum([0] + [f for _, f in body["bands"]]) * span
+    def body_at(y):
+        i = min(len(body["bands"]) - 1, int(np.searchsorted(edges, y, side="right") - 1))
+        return body["bands"][max(0, i)][0]
+    L, lbl, hexes = ground["L"], ground["lbl"], ground["hexes"]
+    nb = len(lbl)
+    a = ground["region"][0] - y0
+    out = []
+    for y in np.arange(0, span, step):
+        if plain[min(span - 1, int(y))]:
+            h = hexes[lbl[int(((y - a) % L) / L * nb) % nb]]
+        else:
+            h = body_at(y)
+        if out and out[-1][0] == h:
+            out[-1][1] += step
+        else:
+            out.append([h, step])
+    log(f"  {int(plain.mean() * 100)}% of the length is plain ground; {len(out)} bands")
+    return [(h, n / span) for h, n in out]

@@ -64,6 +64,11 @@
   background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 14px; box-shadow: var(--shadow);
 }
 .today-card-pieces, .today-card-why { min-width: 0; }
+.today-view { margin-bottom: 10px; }
+.today-figure { text-align: center; }
+.today-figure > img { display: block; width: 100%; height: 420px; object-fit: contain; }
+.today-figure-message { min-height: 260px; display: grid; place-content: center; gap: 8px; }
+.today-figure .hint { margin: 8px 0 0; }
 
 .today-warnings {
   display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-small);

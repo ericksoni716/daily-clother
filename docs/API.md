@@ -49,6 +49,18 @@ Each photo: `id, kind, url, thumb_url, cutout_url, cutout_thumb_url, width, heig
 | `GET /media/{path}` | A WebP image; cacheable forever (paths never change content). |
 
 ## Outfits
+
+`POST /api/outfits/figure` draws the selected pieces together on an invisible wearer.
+Like the other outfit endpoints, it requires login. Send the item IDs directly:
+`{base?, mid?, outer?, bottom?, shoes?}`; each value is a string or null. Omitted
+and null places are left empty, so `{}` returns an empty drawing. Unknown keys
+(including `accessories` and a nested `pieces` object), invalid values, and IDs
+outside the open closet return 422. IDs are resolved only in the main or demo
+closet open when the request starts. The response is raw `image/svg+xml` with
+`Cache-Control: private, no-store`, not JSON. Drawing uses the stored description
+with the owner's colour and shape corrections, or the item's coarse fields when
+there is no description. It does not change any items or store a new drawing.
+
 | Call | Result |
 |---|---|
 | `POST /api/outfits/suggest {low_c, high_c, rain?, occasion?, mood?, build_around?, leave_out?, worn_days_ago?, count?}` | Today's outfits from the open closet, chosen by rule (`backend/closet/outfits.py`). `low_c` and `high_c` are the day's low and high in °C; `rain` true or false (default false); `occasion` one of the formality values (default `casual`); `mood` `usual`, `sharp` or `relaxed` (default `usual`); `build_around` an item id that must be in every outfit; `leave_out` a list of item ids; `worn_days_ago` an object of item id to days since last worn (0 is today); `count` 1 to 10 (default 3). Answer: `{outfits: [{pieces: {base, mid, outer, bottom, shoes, accessories[]}, score, reasons[], warnings[]}], missing[]}`. `pieces` holds item ids (`mid` and `outer` may be null); `score` is 0 to 100, best first; `reasons` say why the pieces go together and `warnings` what to be aware of, both as sentences. When no outfit can be made `outfits` is empty and `missing` says why ("There are no shoes in this closet yet."). Archived items, items in the laundry and items rated dislike are never used. 422 with a sentence for a bad value or a `build_around` item that is not in the open closet; 400 for a body that is not JSON. |

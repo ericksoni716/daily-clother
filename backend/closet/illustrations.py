@@ -44,34 +44,51 @@ def _json(text, default):
         return default
 
 
+def _prepare(row) -> tuple[dict, str | None, bool]:
+    source = _json(row["source"], {})
+    silhouette = _json(row["silhouette"], {})
+    answer = _json(row["tag_answer"], None)
+    if not isinstance(answer, dict):
+        return {"category": row["category"], "color": row["color"], "pattern": row["pattern"],
+                "silhouette": silhouette, "details": {}}, row["color_hex"], False
+    answer = dict(answer)
+    for field in ("category", "color", "pattern"):
+        if source.get(field) == OWNER:
+            answer[field] = row[field]
+    if source.get("silhouette") == OWNER and isinstance(silhouette, dict):
+        said = answer.get("silhouette") if isinstance(answer.get("silhouette"), dict) else {}
+        details = dict(answer["details"]) if isinstance(answer.get("details"), dict) else None
+        for k, leave in DETAIL_FOR.items():
+            if details is not None and silhouette.get(k) is not None and silhouette.get(k) != said.get(k):
+                details.update(leave)
+        if details is not None:
+            answer["details"] = details
+        # a field the owner left empty is the answer's
+        answer["silhouette"] = {k: said.get(k) if silhouette.get(k) is None else silhouette.get(k) for k in SILHOUETTE_FIELDS}
+    # the item's own colour, unless the owner chose a colour word and left the old swatch beside it
+    own_hex = source.get("color_hex") == OWNER or source.get("color") != OWNER
+    return answer, row["color_hex"] if own_hex else None, True
+
+
+def description(row) -> dict:
+    """The stored description with the owner's corrections and chosen swatch, for item and outfit drawings."""
+    try:
+        answer, color_hex, _ = _prepare(row)
+        return {**answer, "color_hex": color_hex}
+    except Exception:
+        return {"category": row["category"], "color": row["color"], "color_hex": row["color_hex"],
+                "silhouette": {}, "details": {}}
+
+
 def make(row) -> draw.Drawing:
     """The drawing for an item row as it stands now. Never raises."""
     try:
-        source = _json(row["source"], {})
-        silhouette = _json(row["silhouette"], {})
-        answer = _json(row["tag_answer"], None)
+        answer, color_hex, tagged = _prepare(row)
         uid = row["id"][:8]
-        if not isinstance(answer, dict):
-            return draw.drawing_from_fields(row["category"], row["color_hex"], row["pattern"], silhouette,
-                                            color=row["color"], uid=uid)
-        answer = dict(answer)
-        for field in ("category", "color", "pattern"):
-            if source.get(field) == OWNER:
-                answer[field] = row[field]
-        if source.get("silhouette") == OWNER and isinstance(silhouette, dict):
-            said = answer.get("silhouette") if isinstance(answer.get("silhouette"), dict) else {}
-            details = dict(answer["details"]) if isinstance(answer.get("details"), dict) else None
-            for k, leave in DETAIL_FOR.items():
-                if details is not None and silhouette.get(k) is not None and silhouette.get(k) != said.get(k):
-                    details.update(leave)
-            if details is not None:
-                answer["details"] = details
-            # a field the owner left empty is the answer's
-            answer["silhouette"] = {k: said.get(k) if silhouette.get(k) is None else silhouette.get(k) for k in SILHOUETTE_FIELDS}
-        # the item's own colour (from the answer, the photo or the owner), unless the owner chose a colour word
-        # and left a colour from before beside it
-        own_hex = source.get("color_hex") == OWNER or source.get("color") != OWNER
-        return draw.drawing_from_answer(answer, row["color_hex"] if own_hex else None, uid=uid)
+        if not tagged:
+            return draw.drawing_from_fields(answer["category"], color_hex, answer["pattern"], answer["silhouette"],
+                                            color=answer["color"], uid=uid)
+        return draw.drawing_from_answer(answer, color_hex, uid=uid)
     except Exception:   # never fail an item
         log.exception("could not draw an item")
         return draw.Drawing(None, (draw.NOT_MADE,))

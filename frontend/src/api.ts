@@ -1,5 +1,5 @@
 import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue } from './types';
-import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
+import { forgetSaved, type FigurePieces, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
 export class ApiError extends Error {
@@ -65,6 +65,7 @@ interface Options {
   /** Do not treat a 401 as "logged out" (used by login itself). */
   quiet401?: boolean;
   signal?: AbortSignal;
+  svg?: boolean;
 }
 
 async function request<T>(path: string, opts: Options = {}): Promise<T> {
@@ -84,6 +85,12 @@ async function request<T>(path: string, opts: Options = {}): Promise<T> {
   }
   setOffline(res.headers.get(FROM_CACHE_HEADER) === '1');
   if (res.status === 204) return undefined as T;
+  if (res.ok && opts.svg) {
+    if (res.headers.get('Content-Type')?.split(';')[0].trim() !== 'image/svg+xml') {
+      throw new ApiError(res.status, "Closet did not send a drawing. Try again.");
+    }
+    return await res.blob() as T;
+  }
   let data: unknown = null;
   const text = await res.text();
   if (text) {
@@ -150,6 +157,8 @@ export const api = {
   weather: () => request<WeatherLookup>('/api/weather'),
   today: (choices: TodayRequest, signal?: AbortSignal) =>
     request<TodayAnswer>('/api/outfits/today', { method: 'POST', body: choices, signal }),
+  figure: (pieces: FigurePieces, signal?: AbortSignal) =>
+    request<Blob>('/api/outfits/figure', { method: 'POST', body: pieces, signal, svg: true }),
   backup: () => request<BackupRecord>('/api/backup', { method: 'POST' }),
   setProfile: (profile: Profile) => request<{ profile: Profile }>('/api/profile', { method: 'POST', body: { profile } }),
   quit: () => request<void>('/api/quit', { method: 'POST' }),

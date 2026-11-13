@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, SunIcon, WarnIcon } from '../components/Icons';
+import { OutfitFigure } from '../components/OutfitFigure';
 import { label } from '../labels';
 import { Link } from '../router';
 import { useCloset } from '../store';
 import {
   dayParts, joinWords, longDate, keptFor, loadChoice, moodLabel, MOODS, occasionLabel, OCCASIONS, outfitIds, parseTemp, placeLabel,
   saveChoice, sameOutfit, timeOf, whatToAddFirst, wornOrder, type Choice, type Outfit, type Place, type TodayAnswer,
-  type TodayRequest, type TypedDay, type WornToday,
+  figureKey, loadTodayView, saveTodayView, type TodayView, type TodayRequest, type TypedDay, type WornToday,
 } from '../today';
 import type { ItemSummary } from '../types';
 import { localDay } from '../wears';
@@ -54,6 +55,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const remembered = memory && memory.profile === profile && memory.day === today ? memory : null;
 
   const [choice, setChoice] = useState<Choice>(() => loadChoice());
+  const [view, setView] = useState<TodayView>(() => loadTodayView());
   const [buildAround, setBuildAround] = useState<string | null>(remembered?.buildAround ?? null);
   const [leaveOut, setLeaveOut] = useState<string[]>(remembered?.leaveOut ?? []);
   const [typed, setTyped] = useState<TypedDay | null>(() => kept.typed(today));
@@ -271,6 +273,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
       )}
 
       <Body phase={phase} asking={asking} index={index} setIndex={setIndex} byId={byId} worn={worn} busy={busy}
+        view={view} onView={(next) => { setView(next); saveTodayView(next); }}
         actions={pieceActions} items={items.active} onWear={wear} onUndo={undo} offline={offline}
         changed={!!buildAround || leaveOut.length > 0}
         onClear={() => { setBuildAround(null); setLeaveOut([]); }}
@@ -407,6 +410,8 @@ interface PieceActions {
 }
 
 interface BodyProps {
+  view: TodayView;
+  onView(view: TodayView): void;
   phase: Phase;
   asking: boolean;
   index: number;
@@ -528,12 +533,19 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
         )}
       </div>
 
+      <div className="chips today-view" role="group" aria-label="Outfit view">
+        {(['pieces', 'as-worn'] as const).map((view) => (
+          <button key={view} className={`chip${rest.view === view ? ' is-on' : ''}`} aria-pressed={rest.view === view}
+            onClick={() => rest.onView(view)}>{view === 'pieces' ? 'Pieces' : 'As worn'}</button>
+        ))}
+      </div>
+
       <div className="today-track" ref={track} onScroll={onScroll} tabIndex={-1}>
         {outfits.map((o, i) => (
           <article key={outfitIds(o.pieces).join(',')} className="today-slide" aria-roledescription="slide"
             aria-label={`Outfit ${i + 1} of ${count}`} aria-hidden={i !== current} inert={i !== current}
             data-testid={i === current ? 'current-outfit' : undefined}>
-            <OutfitCard outfit={o} {...rest} />
+            <OutfitCard outfit={o} active={i === current} {...rest} />
           </article>
         ))}
       </div>
@@ -555,7 +567,8 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
   );
 }
 
-function OutfitCard({ outfit, byId, worn, busy, actions, onWear, onUndo }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & { outfit: Outfit }) {
+function OutfitCard({ outfit, active, view, byId, worn, busy, actions, onWear, onUndo }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & { outfit: Outfit; active: boolean }) {
+  const { profile } = useCloset();
   const ids = outfitIds(outfit.pieces);
   const isWorn = !!worn && sameOutfit(worn.ids, ids);
   const locked = actions.locked;
@@ -578,6 +591,9 @@ function OutfitCard({ outfit, byId, worn, busy, actions, onWear, onUndo }: Omit<
       )}
 
       <div className="today-card-pieces">
+        {view === 'as-worn' ? (
+          active && <OutfitFigure key={figureKey(profile, outfit.pieces, byId)} pieces={outfit.pieces} offline={locked} />
+        ) : <>
         <ul className="today-pieces" aria-label="Pieces, in the order they are put on">
           {wornOrder(outfit.pieces).map((p) => (
             <li key={p.id}>
@@ -599,6 +615,7 @@ function OutfitCard({ outfit, byId, worn, busy, actions, onWear, onUndo }: Omit<
           </div>
         )}
         <p className="hint today-hint">Tap a piece to see it. Its <MoreIcon className="inline-icon" /> button leaves it out or builds every outfit around it.</p>
+        </>}
       </div>
 
       <div className="today-card-why">

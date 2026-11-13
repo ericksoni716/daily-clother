@@ -13,6 +13,19 @@ export interface OutfitPieces {
   accessories: string[];
 }
 
+export type FigurePieces = Record<'base' | 'mid' | 'outer' | 'bottom' | 'shoes', string | null>;
+
+export function figurePieces(p: OutfitPieces): FigurePieces {
+  return { base: p.base, mid: p.mid, outer: p.outer, bottom: p.bottom, shoes: p.shoes };
+}
+
+export function figureKey(profile: string, pieces: OutfitPieces, items: Map<string, ItemSummary>): string {
+  return JSON.stringify([profile, Object.entries(figurePieces(pieces)).map(([place, id]) => {
+    const item = id ? items.get(id) : undefined;
+    return [place, id, item?.updated_at, item?.illustration_url];
+  })]);
+}
+
 export interface Outfit {
   pieces: OutfitPieces;
   score: number;
@@ -189,6 +202,17 @@ export function joinWords(words: string[]): string {
 /** Everything under this prefix is closet data and is removed on logout with the other saved copies. */
 export const SAVED_PREFIX = 'closet-today-saved';
 const CHOICE_KEY = 'closet-today-choice';
+const VIEW_KEY = 'closet-today-view';
+
+export type TodayView = 'pieces' | 'as-worn';
+
+export function loadTodayView(kv: KV | null = local()): TodayView {
+  return read<string>(VIEW_KEY, kv) === 'as-worn' ? 'as-worn' : 'pieces';
+}
+
+export function saveTodayView(view: TodayView, kv: KV | null = local()) {
+  write(VIEW_KEY, view, kv);
+}
 
 type KV = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 

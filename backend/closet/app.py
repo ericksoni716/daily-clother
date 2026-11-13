@@ -38,6 +38,7 @@ from . import (
 )
 from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
+from .drawing import figure
 from .gaps import find_gaps
 from .modelstore import MODEL, ModelStore
 from .state import State
@@ -151,6 +152,15 @@ class WearManyDay(BaseModel):
     item_ids: list[str]
     worn_on: str
     model_config = {"extra": "forbid"}
+
+
+class FigurePieces(BaseModel):
+    base: str | None = None
+    mid: str | None = None
+    outer: str | None = None
+    bottom: str | None = None
+    shoes: str | None = None
+    model_config = {"extra": "forbid", "strict": True}
 
 
 class LaundryState(BaseModel):
@@ -355,6 +365,28 @@ def create_app(sv: Services) -> FastAPI:
                             headers={"Cache-Control": "private, max-age=31536000, immutable"})
 
     # -------------------------------------------------------------- outfits
+    @app.post("/api/outfits/figure", dependencies=protected)
+    async def outfit_figure(body: FigurePieces):
+        path = cfg.db_path(state.get("profile"))
+
+        def work() -> str:
+            conn = db.connect(path)
+            try:
+                pieces = {}
+                for place, item_id in body.model_dump().items():
+                    if item_id is None:
+                        continue
+                    row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
+                    if row is None:
+                        raise HTTPException(422, "A piece is not in the open closet.")
+                    pieces[place] = illustrations.description(row)
+            finally:
+                conn.close()
+            return figure.svg_from_pieces(pieces)
+
+        svg = await run_in_threadpool(work)
+        return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "private, no-store"})
+
     @app.post("/api/outfits/suggest", dependencies=protected)
     async def suggest_outfits(request: Request):
         try:

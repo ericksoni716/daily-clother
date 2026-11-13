@@ -70,6 +70,12 @@ piece**); tap a piece to open it. With no place saved, type today's low and
 high temperatures there instead. Offline, Today shows the outfits it last
 found that day.
 
+Above an outfit, **Pieces | As worn** switches between the pieces laid out and
+one drawing of the clothes together, with open layers over the top, trousers
+below and a pair of shoes. This device remembers the choice. The figure follows
+your colour and shape corrections; patterns are still shown as plain colour.
+It needs a connection to Closet; **Pieces** remains available offline.
+
 To record a single item: open it and tap **Wore it today** (tap **Undo** if
 that was a mistake). The item shows how often it has been worn and when last, and lists
 the recent days, each of which can be removed. **Put in the laundry** and

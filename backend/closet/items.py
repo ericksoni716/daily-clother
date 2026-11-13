@@ -9,7 +9,7 @@ import uuid
 import zlib
 from pathlib import Path
 
-from . import db, illustrations, images, jobs, tagjobs, vocab
+from . import db, details, history, illustrations, images, jobs, tagjobs, vocab
 
 TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "acquired_on", "notes", "rating_reason", "color_hex")
 ENUM_FIELDS = tuple(vocab.ENUM_FIELDS)
@@ -61,9 +61,10 @@ def detail(conn, row) -> dict:
     for f in ("tag_error", "tag_route", "tag_model", "tag_schema_version", "tagged_at"):
         out[f] = row[f]
     # what the tagger saw, from its stored answer: the details, and what it saw that no field (or drawing) covers yet
-    details = dict((json.loads(row["tag_answer"]) if row["tag_answer"] else {}).get("details") or {})
-    out["seen_not_drawn"] = details.pop("other_features", None) or []
-    out["details"] = details or None
+    said = dict((json.loads(row["tag_answer"]) if row["tag_answer"] else {}).get("details") or {})
+    out["seen_not_drawn"] = said.pop("other_features", None) or []
+    out["details"] = said or None
+    out["own_details"] = details.own(row)   # the details the owner has set, laid over Claude's when drawn
     out["drawing_notes"] = illustrations.notes(row)
     out["photos"] = [{
         "id": p["id"], "kind": p["kind"], "url": _media(p["original_path"]), "thumb_url": _media(p["thumb_path"]),
@@ -162,7 +163,9 @@ def create_from_photo(conn, images_dir: Path, data: bytes, client_key: str | Non
     return {**detail(conn, get(conn, item_id)), "duplicate": False}, True
 
 
-def update(conn, item_id: str, changes: dict) -> dict:
+def update(conn, item_id: str, changes: dict, record: bool = True) -> dict:
+    """Change the item's own fields. A change to what describes it is kept in its history unless `record` is
+    False (the caller records it, with other changes, as one)."""
     row = get(conn, item_id)
     unknown = set(changes) - PATCHABLE
     if unknown:
@@ -210,11 +213,32 @@ def update(conn, item_id: str, changes: dict) -> dict:
         sets.append(f"{field} = ?")
         args.append(value)
     if sets:
+        owner = kept = details.own(row)
+        if "silhouette" in changes:   # a shape the owner sets puts aside their own matching details
+            kept = details.drop_for_shape(owner, json.loads(row["silhouette"] or "{}"), json.loads(args[sets.index("silhouette = ?")]))
+        if "category" in changes:   # and another kind of garment those it does not have (an undo brings them back)
+            names = details.names_for(args[sets.index("category = ?")])
+            kept = {k: v for k, v in kept.items() if k in names}
+        if kept != owner:
+            sets.append("own_details = ?")
+            args.append(details.dump(kept))
         sets += ["source = ?", "confidence = ?", "updated_at = ?"]
         args += [json.dumps(source), json.dumps(confidence), db.now(), item_id]
-        conn.execute(f"UPDATE items SET {', '.join(sets)} WHERE id = ?", args)
-        if illustrations.SHOWN & changes.keys():
-            illustrations.redraw(conn, item_id)
+        mine = not conn.in_transaction
+        if mine:
+            conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute(f"UPDATE items SET {', '.join(sets)} WHERE id = ?", args)
+            if illustrations.SHOWN & changes.keys():
+                illustrations.redraw(conn, item_id)
+            if record:
+                history.record(conn, row, get(conn, item_id), "owner", "field")
+            if mine:
+                conn.execute("COMMIT")
+        except Exception:
+            if mine and conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
     return detail(conn, get(conn, item_id))
 
 

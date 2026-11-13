@@ -18,9 +18,11 @@ from datetime import datetime
 from . import db
 from .config import Config
 from .state import State
+from .tagger.correcting import MAX_TOKENS as CORRECT_MAX_TOKENS
 from .tagger.tagging import CONFIG, MAX_TOKENS, CapReached, RouteUnavailable
 
 PURPOSE_TAG = "tag_item"
+PURPOSE_CORRECT = "correct_item"   # reading the owner's sentence about an item (`tagger/correcting.py`)
 PRICES_CHECKED: str = CONFIG.get("prices_checked", "")
 TAGGING_MODEL: str = CONFIG["roles"]["tagging"]
 SUGGESTED_CAP_USD = 5.0     # see DECISIONS, "Spend cap for the API key"
@@ -32,6 +34,10 @@ HISTORY_MONTHS = 12
 # tokens by Anthropic's rule of width x height / 750, rounded up), and the longest answer the request allows.
 TEXT_TOKENS = 8000
 IMAGE_TOKENS = 1600
+# Reading a correction: the longest prompt the app writes (a 500-character sentence, a shirt's description and every
+# value it may take, about 7,000 characters with the schema; counted at 1 token for every character pair, then the
+# whole doubled), a photo when one is sent, and the longest answer the request allows (`correcting.MAX_TOKENS`).
+CORRECT_TEXT_TOKENS = 9000
 
 LIMIT_REACHED = ("This month's spending limit for the API key has been reached, and your Claude plan can't be used "
                  "right now. It will be described when your plan can be used again, when the new month starts, or if "
@@ -61,6 +67,11 @@ def cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
 def estimate_call(photos: int, model: str = TAGGING_MODEL) -> float:
     """The most one request to describe an item with this many photos should cost."""
     return cost_usd(model, TEXT_TOKENS + IMAGE_TOKENS * max(1, photos), MAX_TOKENS)
+
+
+def estimate_correction(photos: int, model: str = TAGGING_MODEL) -> float:
+    """The most one request to read a correction should cost (`photos` is 0 or 1)."""
+    return cost_usd(model, CORRECT_TEXT_TOKENS + IMAGE_TOKENS * max(0, photos), CORRECT_MAX_TOKENS)
 
 
 def record(conn, route: str, model: str, input_tokens: int, output_tokens: int, purpose: str = PURPOSE_TAG) -> float:
@@ -143,8 +154,8 @@ def summary(cfg: Config, state: State, conn) -> dict:
 class Meter:
     """The app's `tagger.tagging.Meter`: records every call in the real closet and keeps the API key under the limit."""
 
-    def __init__(self, cfg: Config, state: State, purpose: str = PURPOSE_TAG):
-        self.cfg, self.state, self.purpose = cfg, state, purpose
+    def __init__(self, cfg: Config, state: State, purpose: str = PURPOSE_TAG, estimate=estimate_call):
+        self.cfg, self.state, self.purpose, self.estimate = cfg, state, purpose, estimate
 
     def _connect(self):
         return db.connect(self.cfg.db_path("main"))
@@ -157,7 +168,7 @@ class Meter:
             so_far = spent(conn)
         finally:
             conn.close()
-        if so_far + estimate_call(images, model) > cap(self.state):
+        if so_far + self.estimate(images, model) > cap(self.state):
             raise CapReached("this month's spending limit for the API key has been reached")
 
     def record(self, route: str, model: str, input_tokens: int, output_tokens: int) -> None:

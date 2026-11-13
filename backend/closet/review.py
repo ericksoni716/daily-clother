@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 
-from . import db, items, vocab
+from . import db, history, items, vocab
 
 # How sure the tagger has to be for a field to be left alone; below this the field is shown for review.
 # Starting values from the phase 0 runs (docs/PHASE0.md): every wrong answer came with 0.8 or less, and one
@@ -116,7 +116,15 @@ def confirm(conn, item_id: str, fields: list) -> dict:
         if value in (None, "", {}):
             raise items.ItemError(f"This item has no {field} to confirm.")
         source[field], confidence[field] = "user", 1.0   # as when the owner changes it (items.update)
-    if fields:
-        conn.execute("UPDATE items SET source = ?, confidence = ?, updated_at = ? WHERE id = ?",
-                     (json.dumps(source), json.dumps(confidence), db.now(), item_id))
+    if fields:   # kept in the item's history like any change: the field is the owner's now
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute("UPDATE items SET source = ?, confidence = ?, updated_at = ? WHERE id = ?",
+                         (json.dumps(source), json.dumps(confidence), db.now(), item_id))
+            history.record(conn, row, items.get(conn, item_id), "owner", "field")
+            conn.execute("COMMIT")
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
     return items.detail(conn, items.get(conn, item_id))

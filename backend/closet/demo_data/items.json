@@ -863,6 +863,14 @@
    "size": null,
    "illustration_svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 400 460\" width=\"400\" height=\"460\"><defs><clipPath id=\"c23fc7199\"><path d=\"M 119.6,28 C 112.6,58 100.1,75.9 102,115.8 C 104.3,165.8 107.8,213.2 108.9,263.2 L 112.8,451.4 L 189.2,451.4 L 193.1,263.2 L 200,133.8 L 206.9,263.2 L 210.8,451.4 L 287.2,451.4 L 291.1,263.2 C 292.2,213.2 295.7,165.8 298,115.8 C 299.9,75.9 287.4,58 280.4,28 Z\"/></clipPath><pattern id=\"t23fc7199\" patternUnits=\"userSpaceOnUse\" x=\"200\" y=\"0\" width=\"6.00\" height=\"12.00\"><path d=\"M1.50,0V12\" stroke=\"#000\" stroke-width=\"1.20\" opacity=\".24\"/><path d=\"M4.32,0V12\" stroke=\"#fff\" stroke-width=\"1.00\" opacity=\".12\"/></pattern></defs><rect width=\"400\" height=\"460\" rx=\"18\" fill=\"#f1eee8\"/><g transform=\"translate(0 -10.2)\"><path d=\"M 119.6,28 C 112.6,58 100.1,75.9 102,115.8 C 104.3,165.8 107.8,213.2 108.9,263.2 L 112.8,451.4 L 189.2,451.4 L 193.1,263.2 L 200,133.8 L 206.9,263.2 L 210.8,451.4 L 287.2,451.4 L 291.1,263.2 C 292.2,213.2 295.7,165.8 298,115.8 C 299.9,75.9 287.4,58 280.4,28 Z\" fill=\"#8a5a33\"/><path d=\"M 119.6,28 C 112.6,58 100.1,75.9 102,115.8 C 104.3,165.8 107.8,213.2 108.9,263.2 L 112.8,451.4 L 189.2,451.4 L 193.1,263.2 L 200,133.8 L 206.9,263.2 L 210.8,451.4 L 287.2,451.4 L 291.1,263.2 C 292.2,213.2 295.7,165.8 298,115.8 C 299.9,75.9 287.4,58 280.4,28 Z\" fill=\"url(#t23fc7199)\"/><g clip-path=\"url(#c23fc7199)\"></g><path d=\"M 119.6,28 L 280.4,28 L 284.7,43.7 L 115.3,43.7 Z\" fill=\"#8a5a33\"/><path d=\"M 119.6,28 L 280.4,28 L 284.7,43.7 L 115.3,43.7 Z\" fill=\"#000\" opacity=\"0.12\"/><path d=\"M 119.6,28 L 280.4,28 L 284.7,43.7 L 115.3,43.7 Z\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 160.6,25.5 L 167,25.5 L 167,47.2 L 160.6,47.2 Z\" fill=\"#8a5a33\"/><path d=\"M 160.6,25.5 L 167,25.5 L 167,47.2 L 160.6,47.2 Z\" fill=\"#000\" opacity=\"0.1\"/><path d=\"M 160.6,25.5 L 167,25.5 L 167,47.2 L 160.6,47.2 Z\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 233,25.5 L 239.4,25.5 L 239.4,47.2 L 233,47.2 Z\" fill=\"#8a5a33\"/><path d=\"M 233,25.5 L 239.4,25.5 L 239.4,47.2 L 233,47.2 Z\" fill=\"#000\" opacity=\"0.1\"/><path d=\"M 233,25.5 L 239.4,25.5 L 239.4,47.2 L 233,47.2 Z\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 124.4,25.5 L 130.8,25.5 L 130.8,47.2 L 124.4,47.2 Z\" fill=\"#8a5a33\"/><path d=\"M 124.4,25.5 L 130.8,25.5 L 130.8,47.2 L 124.4,47.2 Z\" fill=\"#000\" opacity=\"0.1\"/><path d=\"M 124.4,25.5 L 130.8,25.5 L 130.8,47.2 L 124.4,47.2 Z\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 269.2,25.5 L 275.6,25.5 L 275.6,47.2 L 269.2,47.2 Z\" fill=\"#8a5a33\"/><path d=\"M 269.2,25.5 L 275.6,25.5 L 275.6,47.2 L 269.2,47.2 Z\" fill=\"#000\" opacity=\"0.1\"/><path d=\"M 269.2,25.5 L 275.6,25.5 L 275.6,47.2 L 269.2,47.2 Z\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linejoin=\"round\" opacity=\"0.95\"/><g clip-path=\"url(#c23fc7199)\"><path d=\"M 200,43.7 L 200,130.8\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 214.1,43.7 L 214.1,92.4 Q 214.1,106.4 200,108.4\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 155,43.7 L 102.4,102.5\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 245,43.7 L 297.6,102.5\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 111.8,442.7 L 190.2,442.7\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 288.2,442.7 L 209.8,442.7\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/></g><circle cx=\"200.0\" cy=\"35.8\" r=\"3.4\" fill=\"#f1eee8\" stroke=\"#26231f\" stroke-width=\"1.1\"/><path d=\"M 119.6,28 C 112.6,58 100.1,75.9 102,115.8 C 104.3,165.8 107.8,213.2 108.9,263.2 L 112.8,451.4 L 189.2,451.4 L 193.1,263.2 L 200,133.8 L 206.9,263.2 L 210.8,451.4 L 287.2,451.4 L 291.1,263.2 C 292.2,213.2 295.7,165.8 298,115.8 C 299.9,75.9 287.4,58 280.4,28 Z\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"3.80\" stroke-linejoin=\"round\"/></g></svg>",
    "photo": null,
+   "history": {
+    "worn": [
+     6,
+     9
+    ],
+    "washed": 10,
+    "laundry": false
+   },
    "answer": {
     "category": "trousers",
     "category_confidence": 1.0,
@@ -1682,6 +1690,13 @@
    "size": null,
    "illustration_svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 400 460\" width=\"400\" height=\"460\"><defs><clipPath id=\"c9029829f\"><path d=\"M 230,58 L 278.5,80 Q 286.7,83.7 289.7,92.2 L 358.9,282.2 L 331,292.3 L 273.5,170.1 L 273.3,174.4 L 273,178.3 L 272.9,181.7 L 272.7,184.9 L 272.5,187.9 L 272.4,190.9 L 272.2,193.9 L 272.1,197.1 L 272.1,200.6 L 272.1,204.5 L 272.1,214.5 L 272.2,224.1 L 272.3,233.3 L 272.4,242.1 L 272.6,250.6 L 272.8,258.9 L 273,266.9 L 273.2,274.8 L 273.3,282.6 L 273.5,290.3 Q 200,295.3 126.5,290.3 L 126.7,282.6 L 126.8,274.8 L 127,266.9 L 127.2,258.9 L 127.4,250.6 L 127.6,242.1 L 127.7,233.3 L 127.8,224.1 L 127.9,214.5 L 127.9,204.5 L 127.9,200.6 L 127.9,197.1 L 127.8,193.9 L 127.6,190.9 L 127.5,187.9 L 127.3,184.9 L 127.1,181.7 L 127,178.3 L 126.7,174.4 L 126.5,170.1 L 69,292.3 L 41.1,282.2 L 110.3,92.2 Q 113.3,83.7 121.5,80 L 170,58 Q 200,54 230,58 Z\"/></clipPath><pattern id=\"t9029829f\" patternUnits=\"userSpaceOnUse\" x=\"200\" y=\"0\" width=\"7.00\" height=\"7.00\"><path d=\"M0,.6H7.00M.6,0V7.00\" stroke=\"#000\" stroke-width=\"1.1\" opacity=\".15\" fill=\"none\"/></pattern><pattern id=\"t9029829fs0\" href=\"#t9029829f\" patternTransform=\"rotate(-20.0 200 120)\"/><pattern id=\"t9029829fs1\" href=\"#t9029829f\" patternTransform=\"rotate(20.0 200 120)\"/></defs><rect width=\"400\" height=\"460\" rx=\"18\" fill=\"#f1eee8\"/><g transform=\"translate(0 55.6)\"><path d=\"M 230,58 L 278.5,80 Q 286.7,83.7 289.7,92.2 L 358.9,282.2 L 331,292.3 L 273.5,170.1 L 273.3,174.4 L 273,178.3 L 272.9,181.7 L 272.7,184.9 L 272.5,187.9 L 272.4,190.9 L 272.2,193.9 L 272.1,197.1 L 272.1,200.6 L 272.1,204.5 L 272.1,214.5 L 272.2,224.1 L 272.3,233.3 L 272.4,242.1 L 272.6,250.6 L 272.8,258.9 L 273,266.9 L 273.2,274.8 L 273.3,282.6 L 273.5,290.3 Q 200,295.3 126.5,290.3 L 126.7,282.6 L 126.8,274.8 L 127,266.9 L 127.2,258.9 L 127.4,250.6 L 127.6,242.1 L 127.7,233.3 L 127.8,224.1 L 127.9,214.5 L 127.9,204.5 L 127.9,200.6 L 127.9,197.1 L 127.8,193.9 L 127.6,190.9 L 127.5,187.9 L 127.3,184.9 L 127.1,181.7 L 127,178.3 L 126.7,174.4 L 126.5,170.1 L 69,292.3 L 41.1,282.2 L 110.3,92.2 Q 113.3,83.7 121.5,80 L 170,58 Q 200,54 230,58 Z\" fill=\"#e3dccb\"/><path d=\"M 230,58 L 278.5,80 Q 286.7,83.7 289.7,92.2 L 358.9,282.2 L 331,292.3 L 273.5,170.1 L 273.3,174.4 L 273,178.3 L 272.9,181.7 L 272.7,184.9 L 272.5,187.9 L 272.4,190.9 L 272.2,193.9 L 272.1,197.1 L 272.1,200.6 L 272.1,204.5 L 272.1,214.5 L 272.2,224.1 L 272.3,233.3 L 272.4,242.1 L 272.6,250.6 L 272.8,258.9 L 273,266.9 L 273.2,274.8 L 273.3,282.6 L 273.5,290.3 Q 200,295.3 126.5,290.3 L 126.7,282.6 L 126.8,274.8 L 127,266.9 L 127.2,258.9 L 127.4,250.6 L 127.6,242.1 L 127.7,233.3 L 127.8,224.1 L 127.9,214.5 L 127.9,204.5 L 127.9,200.6 L 127.9,197.1 L 127.8,193.9 L 127.6,190.9 L 127.5,187.9 L 127.3,184.9 L 127.1,181.7 L 127,178.3 L 126.7,174.4 L 126.5,170.1 L 69,292.3 L 41.1,282.2 L 110.3,92.2 Q 113.3,83.7 121.5,80 L 170,58 Q 200,54 230,58 Z\" fill=\"url(#t9029829f)\"/><path d=\"M 278.5,80 Q 286.7,83.7 289.7,92.2 L 358.9,282.2 L 331,292.3 L 273.5,170.1 C 277.5,143.1 275.5,111.5 278.5,80 Z\" fill=\"#e3dccb\"/><path d=\"M 278.5,80 Q 286.7,83.7 289.7,92.2 L 358.9,282.2 L 331,292.3 L 273.5,170.1 C 277.5,143.1 275.5,111.5 278.5,80 Z\" fill=\"url(#t9029829fs0)\"/><path d=\"M 121.5,80 Q 113.3,83.7 110.3,92.2 L 41.1,282.2 L 69,292.3 L 126.5,170.1 C 122.5,143.1 124.5,111.5 121.5,80 Z\" fill=\"#e3dccb\"/><path d=\"M 121.5,80 Q 113.3,83.7 110.3,92.2 L 41.1,282.2 L 69,292.3 L 126.5,170.1 C 122.5,143.1 124.5,111.5 121.5,80 Z\" fill=\"url(#t9029829fs1)\"/><g clip-path=\"url(#c9029829f)\"><path d=\"M 273.5,170.1 L 273.5,170.1\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 126.5,170.1 L 126.5,170.1\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 278.5,80 C 275.5,111.5 277.5,143.1 273.5,170.1 L 273.5,170.1\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 121.5,80 C 124.5,111.5 122.5,143.1 126.5,170.1 L 126.5,170.1\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 193,84 L 193,155 L 207,155 L 207,84\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/></g><path d=\"M 170,58 Q 200,54 230,58 Q 200,106 170,58 Z\" fill=\"#e3dccb\"/><path d=\"M 170,58 Q 200,54 230,58 Q 200,106 170,58 Z\" fill=\"#000\" opacity=\".22\"/><g clip-path=\"url(#c9029829f)\"><path d=\"M 165,62 Q 200,122 235,62\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 127.5,281.3 Q 200,286.3 272.5,281.3\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/></g><circle cx=\"200.0\" cy=\"97.0\" r=\"3.0\" fill=\"#8a7a63\" stroke=\"#26231f\" stroke-width=\"1.1\"/><circle cx=\"200.0\" cy=\"119.0\" r=\"3.0\" fill=\"#8a7a63\" stroke=\"#26231f\" stroke-width=\"1.1\"/><circle cx=\"200.0\" cy=\"141.0\" r=\"3.0\" fill=\"#8a7a63\" stroke=\"#26231f\" stroke-width=\"1.1\"/><path d=\"M 230,58 L 278.5,80 Q 286.7,83.7 289.7,92.2 L 358.9,282.2 L 331,292.3 L 273.5,170.1 L 273.3,174.4 L 273,178.3 L 272.9,181.7 L 272.7,184.9 L 272.5,187.9 L 272.4,190.9 L 272.2,193.9 L 272.1,197.1 L 272.1,200.6 L 272.1,204.5 L 272.1,214.5 L 272.2,224.1 L 272.3,233.3 L 272.4,242.1 L 272.6,250.6 L 272.8,258.9 L 273,266.9 L 273.2,274.8 L 273.3,282.6 L 273.5,290.3 Q 200,295.3 126.5,290.3 L 126.7,282.6 L 126.8,274.8 L 127,266.9 L 127.2,258.9 L 127.4,250.6 L 127.6,242.1 L 127.7,233.3 L 127.8,224.1 L 127.9,214.5 L 127.9,204.5 L 127.9,200.6 L 127.9,197.1 L 127.8,193.9 L 127.6,190.9 L 127.5,187.9 L 127.3,184.9 L 127.1,181.7 L 127,178.3 L 126.7,174.4 L 126.5,170.1 L 69,292.3 L 41.1,282.2 L 110.3,92.2 Q 113.3,83.7 121.5,80 L 170,58 Q 200,54 230,58 Z\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"3.80\" stroke-linejoin=\"round\"/></g></svg>",
    "photo": null,
+   "history": {
+    "worn": [
+     13
+    ],
+    "washed": 14,
+    "laundry": false
+   },
    "answer": {
     "category": "tee",
     "category_confidence": 1.0,
@@ -2020,6 +2035,14 @@
    "size": null,
    "illustration_svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 400 460\" width=\"400\" height=\"460\"><defs><clipPath id=\"cb2d12d60\"><path d=\"M 240,65 L 293.7,80 Q 302.4,82.4 305.9,90.7 L 388.8,285.9 L 357.3,299.3 L 288.7,174.4 L 288.5,179.3 L 288.3,183.7 L 288.1,187.6 L 287.9,191.2 L 287.8,194.7 L 287.6,198 L 287.5,201.5 L 287.4,205.1 L 287.3,209.1 L 287.3,213.5 L 287.3,226.6 L 287.4,239.2 L 287.5,251.2 L 287.7,262.7 L 287.9,273.8 L 288,284.6 L 288.2,295.1 L 288.4,305.4 L 288.6,315.6 L 288.7,325.7 Q 200,330.7 111.3,325.7 L 111.4,315.6 L 111.6,305.4 L 111.8,295.1 L 112,284.6 L 112.1,273.8 L 112.3,262.7 L 112.5,251.2 L 112.6,239.2 L 112.7,226.6 L 112.7,213.5 L 112.7,209.1 L 112.6,205.1 L 112.5,201.5 L 112.4,198 L 112.2,194.7 L 112.1,191.2 L 111.9,187.6 L 111.7,183.7 L 111.5,179.3 L 111.3,174.4 L 42.7,299.3 L 11.2,285.9 L 94.1,90.7 Q 97.6,82.4 106.3,80 L 160,65 L 167.5,40.5 Q 200,28 232.5,40.5 L 240,65 Z\"/></clipPath></defs><rect width=\"400\" height=\"460\" rx=\"18\" fill=\"#f1eee8\"/><g transform=\"translate(0 49.2)\"><path d=\"M 240,65 L 293.7,80 Q 302.4,82.4 305.9,90.7 L 388.8,285.9 L 357.3,299.3 L 288.7,174.4 L 288.5,179.3 L 288.3,183.7 L 288.1,187.6 L 287.9,191.2 L 287.8,194.7 L 287.6,198 L 287.5,201.5 L 287.4,205.1 L 287.3,209.1 L 287.3,213.5 L 287.3,226.6 L 287.4,239.2 L 287.5,251.2 L 287.7,262.7 L 287.9,273.8 L 288,284.6 L 288.2,295.1 L 288.4,305.4 L 288.6,315.6 L 288.7,325.7 Q 200,330.7 111.3,325.7 L 111.4,315.6 L 111.6,305.4 L 111.8,295.1 L 112,284.6 L 112.1,273.8 L 112.3,262.7 L 112.5,251.2 L 112.6,239.2 L 112.7,226.6 L 112.7,213.5 L 112.7,209.1 L 112.6,205.1 L 112.5,201.5 L 112.4,198 L 112.2,194.7 L 112.1,191.2 L 111.9,187.6 L 111.7,183.7 L 111.5,179.3 L 111.3,174.4 L 42.7,299.3 L 11.2,285.9 L 94.1,90.7 Q 97.6,82.4 106.3,80 L 160,65 L 167.5,40.5 Q 200,28 232.5,40.5 L 240,65 Z\" fill=\"#b89b6e\"/><g clip-path=\"url(#cb2d12d60)\"><path d=\"M 288.7,174.4 L 288.7,174.4\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 111.3,174.4 L 111.3,174.4\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 160,65 Q 178,91.5 200,91.5 Q 222,91.5 240,65\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 230.8,73.7 L 292.7,94.5\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 169.2,73.7 L 107.3,94.5\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 293.7,80 C 290.7,113 292.7,146.1 288.7,174.4 L 288.7,174.4\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 106.3,80 C 109.3,113 107.3,146.1 111.3,174.4 L 111.3,174.4\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 193,92.8 L 193,330.2\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 207,92.8 L 207,330.2\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/></g><path d=\"M 200,79.5 L 173,52.5 C 170,48.5 170.5,41.5 180,39.5 Q 200,36.6 220,39.5 C 229.5,41.5 230,48.5 227,52.5 Z\" fill=\"#b89b6e\"/><path d=\"M 200,79.5 L 173,52.5 C 170,48.5 170.5,41.5 180,39.5 Q 200,36.6 220,39.5 C 229.5,41.5 230,48.5 227,52.5 Z\" fill=\"#000\" opacity=\".22\"/><path d=\"M 172.5,51 Q 200,48.5 227.5,51\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 200,34.2 Q 216.2,34.2 232.5,40.5 L 240,65 L 225,102.5 L 200,79.5 L 227,52.5 C 230,48.5 229.5,41.5 220,39.5 Q 210,38 200,38 Z\" fill=\"#b89b6e\"/><path d=\"M 200,34.2 Q 183.8,34.2 167.5,40.5 L 160,65 L 175,102.5 L 200,79.5 L 173,52.5 C 170,48.5 170.5,41.5 180,39.5 Q 190,38 200,38 Z\" fill=\"#b89b6e\"/><path d=\"M 160,65 L 175,102.5 L 200,79.5 M 240,65 L 225,102.5 L 200,79.5 M 200,79.5 L 173,52.5 C 170,48.5 170.5,41.5 180,39.5 Q 200,36.6 220,39.5 C 229.5,41.5 230,48.5 227,52.5 Z\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><g clip-path=\"url(#cb2d12d60)\"><path d=\"M 112.3,316.7 Q 200,321.7 287.7,316.7\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 221,152 L 221,190 Q 221,196 227,196 L 253,196 Q 259,196 259,190 L 259,152 Z\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 221,165 L 240,171 L 259,165\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 141,152 L 141,190 Q 141,196 147,196 L 173,196 Q 179,196 179,190 L 179,152 Z\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 141,165 L 160,171 L 179,165\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 224.7,239.7 L 224.7,285.7 Q 224.7,291.7 230.7,291.7 L 268.7,291.7 Q 274.7,291.7 274.7,285.7 L 274.7,239.7 Z\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 224.7,252.7 L 249.7,258.7 L 274.7,252.7\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 125.3,239.7 L 125.3,285.7 Q 125.3,291.7 131.3,291.7 L 169.3,291.7 Q 175.3,291.7 175.3,285.7 L 175.3,239.7 Z\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/><path d=\"M 125.3,252.7 L 150.3,258.7 L 175.3,252.7\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\" opacity=\"0.95\"/></g><circle cx=\"200.0\" cy=\"86.3\" r=\"3.4\" fill=\"#f1eee8\" stroke=\"#26231f\" stroke-width=\"1.1\"/><circle cx=\"200.0\" cy=\"127.5\" r=\"3.4\" fill=\"#f1eee8\" stroke=\"#26231f\" stroke-width=\"1.1\"/><circle cx=\"200.0\" cy=\"169.6\" r=\"3.4\" fill=\"#f1eee8\" stroke=\"#26231f\" stroke-width=\"1.1\"/><circle cx=\"200.0\" cy=\"211.6\" r=\"3.4\" fill=\"#f1eee8\" stroke=\"#26231f\" stroke-width=\"1.1\"/><circle cx=\"200.0\" cy=\"253.6\" r=\"3.4\" fill=\"#f1eee8\" stroke=\"#26231f\" stroke-width=\"1.1\"/><circle cx=\"200.0\" cy=\"295.7\" r=\"3.4\" fill=\"#f1eee8\" stroke=\"#26231f\" stroke-width=\"1.1\"/><path d=\"M 240,65 L 293.7,80 Q 302.4,82.4 305.9,90.7 L 388.8,285.9 L 357.3,299.3 L 288.7,174.4 L 288.5,179.3 L 288.3,183.7 L 288.1,187.6 L 287.9,191.2 L 287.8,194.7 L 287.6,198 L 287.5,201.5 L 287.4,205.1 L 287.3,209.1 L 287.3,213.5 L 287.3,226.6 L 287.4,239.2 L 287.5,251.2 L 287.7,262.7 L 287.9,273.8 L 288,284.6 L 288.2,295.1 L 288.4,305.4 L 288.6,315.6 L 288.7,325.7 Q 200,330.7 111.3,325.7 L 111.4,315.6 L 111.6,305.4 L 111.8,295.1 L 112,284.6 L 112.1,273.8 L 112.3,262.7 L 112.5,251.2 L 112.6,239.2 L 112.7,226.6 L 112.7,213.5 L 112.7,209.1 L 112.6,205.1 L 112.5,201.5 L 112.4,198 L 112.2,194.7 L 112.1,191.2 L 111.9,187.6 L 111.7,183.7 L 111.5,179.3 L 111.3,174.4 L 42.7,299.3 L 11.2,285.9 L 94.1,90.7 Q 97.6,82.4 106.3,80 L 160,65 L 167.5,40.5 Q 200,28 232.5,40.5 L 240,65 Z\" fill=\"none\" stroke=\"#26231f\" stroke-width=\"3.80\" stroke-linejoin=\"round\"/></g></svg>",
    "photo": null,
+   "history": {
+    "worn": [
+     6,
+     13
+    ],
+    "washed": null,
+    "laundry": false
+   },
    "answer": {
     "category": "jacket",
     "category_confidence": 0.65,
@@ -2483,6 +2506,155 @@
     "material": null,
     "needs_shot": null
    }
+  }
+ ],
+ "outfits": [
+  {
+   "id": "fde0a81823c153d88b2b87ff836e27c3",
+   "days_ago": 1,
+   "recorded_by": "today",
+   "pieces": {
+    "base": "c642f3e0d206581aa3733850b211d734",
+    "mid": null,
+    "outer": null,
+    "bottom": "96dd2211e18456d2bec84bcf45798f77",
+    "shoes": "4e249ac7f39151ae94db50cf16288994",
+    "accessories": []
+   },
+   "context": {
+    "low_c": 9,
+    "high_c": 16,
+    "rain": false,
+    "occasion": "casual",
+    "mood": null
+   },
+   "score": 74,
+   "reasons": [
+    "A casual outfit for a mild day."
+   ],
+   "warnings": [],
+   "rating": null,
+   "rating_reasons": [],
+   "rating_note": null
+  },
+  {
+   "id": "87e5097ef99c5a63a08ead022dfc8291",
+   "days_ago": 2,
+   "recorded_by": "today",
+   "pieces": {
+    "base": "12a1bc4c2086523ead1ed8d43676e451",
+    "mid": "4a2af4adf0685804b42974cf9f875ccf",
+    "outer": null,
+    "bottom": "22adb1b89d6b59e9b17baa1dd7df94e8",
+    "shoes": "4e249ac7f39151ae94db50cf16288994",
+    "accessories": []
+   },
+   "context": {
+    "low_c": 12,
+    "high_c": 18,
+    "rain": false,
+    "occasion": "casual",
+    "mood": null
+   },
+   "score": 68,
+   "reasons": [
+    "Two layers for a mild day."
+   ],
+   "warnings": [],
+   "rating": "fine",
+   "rating_reasons": [
+    "too_warm"
+   ],
+   "rating_note": null
+  },
+  {
+   "id": "f655a11caabc5cbd80080ee12331bd37",
+   "days_ago": 6,
+   "recorded_by": "today",
+   "pieces": {
+    "base": "c642f3e0d206581aa3733850b211d734",
+    "mid": "a858161b55495f29a3a1f93699feec5d",
+    "outer": "b2d12d60393c5916842e6bf4a1278017",
+    "bottom": "23fc719965b3589ebe4dee0ad4a72c7d",
+    "shoes": "7a5bd749c80e5f22bdd010e9debf20f0",
+    "accessories": []
+   },
+   "context": {
+    "low_c": 4,
+    "high_c": 10,
+    "rain": false,
+    "occasion": "smart_casual",
+    "mood": null
+   },
+   "score": 81,
+   "reasons": [
+    "Three layers for a cold day.",
+    "Warm browns with a burgundy sweater."
+   ],
+   "warnings": [],
+   "rating": "loved",
+   "rating_reasons": [
+    "compliments"
+   ],
+   "rating_note": null
+  },
+  {
+   "id": "bd1a95cfb2275b16aeb2df80809215dc",
+   "days_ago": 9,
+   "recorded_by": "today",
+   "pieces": {
+    "base": "1d954f87caf458cd90250bf81fc18b05",
+    "mid": null,
+    "outer": null,
+    "bottom": "23fc719965b3589ebe4dee0ad4a72c7d",
+    "shoes": "4e249ac7f39151ae94db50cf16288994",
+    "accessories": []
+   },
+   "context": {
+    "low_c": 8,
+    "high_c": 13,
+    "rain": false,
+    "occasion": "casual",
+    "mood": null
+   },
+   "score": 63,
+   "reasons": [
+    "A flannel shirt for a cool day."
+   ],
+   "warnings": [],
+   "rating": "not_again",
+   "rating_reasons": [
+    "too_cold"
+   ],
+   "rating_note": null
+  },
+  {
+   "id": "2f48de4741eb56aab17d25fb175795e1",
+   "days_ago": 13,
+   "recorded_by": "today",
+   "pieces": {
+    "base": "9029829f46a95de6bee965e3022eb0e4",
+    "mid": "a858161b55495f29a3a1f93699feec5d",
+    "outer": "b2d12d60393c5916842e6bf4a1278017",
+    "bottom": "96dd2211e18456d2bec84bcf45798f77",
+    "shoes": "7a5bd749c80e5f22bdd010e9debf20f0",
+    "accessories": []
+   },
+   "context": {
+    "low_c": 2,
+    "high_c": 9,
+    "rain": false,
+    "occasion": "casual",
+    "mood": null
+   },
+   "score": 79,
+   "reasons": [
+    "Three layers for a cold day."
+   ],
+   "warnings": [],
+   "rating": "loved",
+   "rating_reasons": [],
+   "rating_note": null
   }
  ]
 }

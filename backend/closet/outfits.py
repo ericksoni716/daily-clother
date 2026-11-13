@@ -151,6 +151,19 @@ PIECE_PROBLEM_PENALTY = 20   # only when the strict rules left nothing: per piec
 OUTFIT_PROBLEM_PENALTY = 15  # likewise, per rule broken between pieces
 OUTER_MISSING_PENALTY = 10   # likewise, no outer layer in the cold when one exists
 
+# ------------------------------------------------------------------ what the owner said about outfits worn (see Feedback)
+OUTFIT_RATINGS = ("loved", "fine", "not_again")
+OUTFIT_REASONS = ("too_warm", "too_cold", "too_dressy", "too_casual", "colours_clashed", "uncomfortable", "compliments", "other")
+LOVED_PAIR_BONUS = 1.0       # per pair of pieces worn together in an outfit rated "loved it" (or that got compliments)
+LOVED_MAX_BONUS = 4.0        # at most this much in all: about one loved piece, so "a little more likely", never a rule
+AVOID_PAIR_PENALTY = 3.0     # per pair of pieces that were the problem in an outfit rated "not again"
+AVOID_MAX_PENALTY = 9.0      # at most this much in all: the pair is less likely, not banned (the exact outfit is)
+SIMILAR_DAY_C = 4.0          # "too warm" or "too cold" counts when that day was dressed for within this many °C of today
+WARMTH_SHIFT_PER_RATING = 0.5  # warmth points added to the target per "too cold" on a similar day (taken off per "too warm")
+WARMTH_SHIFT_MAX = 1.5       # never more than this either way: about 3°C of dressing, the bound on what ratings can do
+MONTH_WORDS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+               "November", "December")
+
 DEFAULT_COUNT = 3
 MAX_COUNT = 10
 TEMP_RANGE_C = (-50, 55)
@@ -170,6 +183,32 @@ class Context:
     build_around: str | None = None
     leave_out: tuple[str, ...] = ()
     worn_days_ago: Mapping[str, int] = field(default_factory=dict)
+    keep: tuple[str, ...] = ()       # pieces every outfit must hold (wearing an outfit again); not taken from requests
+
+
+@dataclass(frozen=True)
+class Remembered:
+    """What one rated outfit taught: its pieces, the pairs of them that count, and the day it was worn."""
+    day: str                                   # YYYY-MM-DD
+    kind: str                                  # "loved", "compliments" or "not_again"
+    pieces: frozenset[str]
+    pairs: frozenset[frozenset[str]]
+
+
+@dataclass(frozen=True)
+class Feedback:
+    """What the owner's ratings of outfits worn before ask of today's outfits. Made by `feedback_from`.
+
+    `liked`: pieces worn together in an outfit loved (or that got compliments), a little more likely together again.
+    `avoided`: the pairs that were the problem in an outfit rated "not again", less likely together again.
+    `not_again`: outfits rated "not again", as (base, mid, outer, bottom, shoes) ids ("" for none) -> the day; never offered as they were.
+    `warmth_shift`: warmth points added to (or, below 0, taken off) the target, from "too cold" and "too warm" on days like today.
+    """
+    liked: tuple[Remembered, ...] = ()
+    avoided: tuple[Remembered, ...] = ()
+    not_again: Mapping[tuple[str, ...], str] = field(default_factory=dict)
+    warmth_shift: float = 0.0
+    warmth_day: str | None = None              # the latest rating behind the shift
 
 
 def parse_request(data: object) -> tuple[Context, int]:
@@ -532,14 +571,16 @@ def _options(pool: list[Piece], place: str, ctx: Context, t: float, forced: tupl
                   min(out, key=lambda o: (o.warmth, -o.score), default=None)):
         if extra is not None and extra not in keep:
             keep.append(extra)
+    keep += [o for o in out if o.piece.id in ctx.keep and o not in keep]   # pieces kept from an outfit worn again
     return keep
 
 
-def _search(pool: list[Piece], ctx: Context, t: float, forced: tuple[Piece, str] | None, strict: bool) -> list[_Outfit]:
+def _search(pool: list[Piece], ctx: Context, t: float, forced: tuple[Piece, str] | None, strict: bool,
+            warmth_shift: float = 0.0) -> list[_Outfit]:
     opts = {place: _options(pool, place, ctx, t, forced, strict) for place in PLACES}
     if not opts["base"] or not opts["bottom"] or not opts["shoes"]:
         return []
-    target = _warmth_target(t)
+    target = _warmth_target(t) + warmth_shift
     mids: list[_Option | None] = list(opts["mid"])
     outers: list[_Option | None] = list(opts["outer"])
     if not (forced and forced[1] == "mid"):
@@ -645,7 +686,7 @@ def _add_accessories(o: _Outfit, pool: list[Piece], ctx: Context, t: float, forc
 
 # ====================================================================== explaining
 def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | None,
-             closet_outers: list[Piece]) -> tuple[int, list[str], list[str]]:
+             closet_outers: list[Piece], feedback: Feedback | None = None) -> tuple[int, list[str], list[str]]:
     core = o.core()
     every = core + o.accessories
     pieces = [x.piece for x in core]
@@ -657,7 +698,7 @@ def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | Non
         if problem:
             warnings.append(f"{problem} You asked to build around it, so the rest is chosen to suit it.")
 
-    target = _warmth_target(t)
+    target = _warmth_target(t) + (feedback.warmth_shift if feedback else 0.0)
     warmth = sum(x.warmth for x in every)
     tops = [x.piece for x in (o.base, o.mid, o.outer) if x is not None]
     if len(tops) == 1 and t >= HOT_C:
@@ -719,6 +760,8 @@ def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | Non
     belt = next((x.piece for x in o.accessories if x.piece.category == "belt"), None)
     if belt and belt.color and belt.color == o.shoes.piece.color:
         reasons.append(f"{_the(belt, True)} matches {_the(o.shoes.piece)}.")
+    if feedback:
+        _explain_feedback(core, feedback, reasons, warnings)
 
     if ctx.rain:
         if o.shoes.piece.category == "boots":
@@ -748,6 +791,128 @@ def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | Non
     raw += _warmth_penalty(sum(x.warmth for x in core), target, t) - _warmth_penalty(warmth, target, t)
     score = max(0, min(100, round(SCORE_START + raw)))
     return score, reasons, warnings
+
+
+# ====================================================================== learning from ratings
+def _date_words(day: str) -> str:
+    """ "3 November" from "2026-11-03"; the day as given if it is not a date."""
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", day or "")
+    if not m or not 1 <= int(m.group(2)) <= 12:
+        return day
+    return f"{int(m.group(3))} {MONTH_WORDS[int(m.group(2)) - 1]}"
+
+
+def _pairs(ids: object) -> frozenset[frozenset[str]]:
+    return frozenset(frozenset(p) for p in itertools.combinations(sorted(set(ids)), 2))
+
+
+def _problem_pairs(ids: frozenset[str], reasons: set[str], known: Mapping[str, Piece], same_occasion: bool) -> frozenset[frozenset[str]]:
+    """The pairs of an outfit rated "not again" that its reasons say were the problem."""
+    every = _pairs(ids)
+    ps = [known[i] for i in sorted(ids) if i in known]
+    out: set[frozenset[str]] = set()
+    if not reasons - {"compliments"} or reasons & {"uncomfortable", "other"}:
+        out |= every   # no reason given, or one that does not say which piece: the whole outfit
+    if "colours_clashed" in reasons:
+        loud = [p for p in ps if not _neutral(p) or p.pattern != "solid"]
+        if len(loud) >= 2:
+            out |= _pairs(p.id for p in loud)
+        elif loud:
+            out |= {frozenset((loud[0].id, p.id)) for p in ps if p is not loud[0]}
+        else:
+            out |= every
+    for reason, pick in (("too_dressy", max), ("too_casual", min)):
+        # too dressy for one occasion can be right for another, so only on the same kind of day
+        if reason in reasons and same_occasion and ps:
+            level = pick(p.formality for p in ps)
+            odd = [p for p in ps if p.formality == level]
+            if len(odd) == len(ps):
+                out |= every
+            else:
+                out |= {frozenset((a.id, b.id)) for a in odd for b in ps if b.formality != level}
+    return frozenset(out)
+
+
+def feedback_from(rated: list[dict], items: list[dict], context: Context) -> Feedback:
+    """Turn rated outfits (as `GET /api/outfits/worn` gives them) into what the engine needs for this day.
+
+    Pure: the same outfits, items and day always give the same Feedback. Unrated outfits teach nothing, and
+    neither does one with a piece that is no longer among `items` (deleted since): a rating is about the outfit
+    as it was worn, and what is left of it was never worn as an outfit.
+    """
+    known = {p.id: p for p in (_piece(i) for i in items if isinstance(i, dict) and i.get("id")) if p is not None}
+    present = {str(i["id"]) for i in items if isinstance(i, dict) and i.get("id")}
+    t = _design_temp(context)
+    liked: list[Remembered] = []
+    avoided: list[Remembered] = []
+    not_again: dict[tuple[str, ...], str] = {}
+    votes: list[tuple[str, int]] = []
+    for o in sorted((o for o in rated if isinstance(o, dict)), key=lambda o: (str(o.get("worn_on")), str(o.get("id")))):
+        rating = o.get("rating")
+        if rating not in OUTFIT_RATINGS:
+            continue
+        reasons = {r for r in (o.get("rating_reasons") or ()) if r in OUTFIT_REASONS}
+        day = str(o.get("worn_on") or "")
+        placed = o.get("pieces") if isinstance(o.get("pieces"), dict) else {}
+        core = {pl: str(placed[pl]) for pl in PLACES if placed.get(pl)}
+        ids = frozenset(core.values())
+        extras = placed.get("accessories") if isinstance(placed.get("accessories"), list) else []
+        if not ids <= present or not {str(a) for a in extras} <= present:
+            continue
+        if rating == "loved" or ("compliments" in reasons and rating != "not_again"):
+            if len(ids) >= 2:
+                liked.append(Remembered(day, "loved" if rating == "loved" else "compliments", ids, _pairs(ids)))
+        if rating == "not_again" and ids:
+            not_again[tuple(core.get(pl, "") for pl in PLACES)] = day
+            day_ctx = o.get("context") if isinstance(o.get("context"), dict) else {}
+            bad = _problem_pairs(ids, reasons, known, day_ctx.get("occasion") in (None, context.occasion))
+            if bad:
+                avoided.append(Remembered(day, "not_again", ids, bad))
+        direction = ("too_cold" in reasons) - ("too_warm" in reasons)
+        day_ctx = o.get("context") if isinstance(o.get("context"), dict) else {}
+        low, high = day_ctx.get("low_c"), day_ctx.get("high_c")
+        if direction and all(isinstance(v, int | float) and not isinstance(v, bool) for v in (low, high)):
+            then = low + DESIGN_TEMP_SHARE * (high - low)
+            if abs(then - t) <= SIMILAR_DAY_C:
+                votes.append((day, direction))
+    total = sum(d for _, d in votes)
+    shift = max(-WARMTH_SHIFT_MAX, min(WARMTH_SHIFT_MAX, WARMTH_SHIFT_PER_RATING * total))
+    shift_day = max((day for day, d in votes if total and (d > 0) == (total > 0)), default=None)
+    return Feedback(tuple(liked), tuple(avoided), not_again, shift, shift_day if shift else None)
+
+
+def _feedback_score(ids: tuple[str, ...], liked: frozenset[frozenset[str]], avoided: frozenset[frozenset[str]]) -> float:
+    pairs = _pairs(i for i in ids if i)
+    good = sum(1 for p in pairs if p in liked)
+    bad = sum(1 for p in pairs if p in avoided)
+    return min(LOVED_MAX_BONUS, LOVED_PAIR_BONUS * good) - min(AVOID_MAX_PENALTY, AVOID_PAIR_PENALTY * bad)
+
+
+def _explain_feedback(core: list[_Option], fb: Feedback, reasons: list[str], warnings: list[str]) -> None:
+    ids = frozenset(x.piece.id for x in core)
+    pairs = _pairs(ids)
+    best = max((r for r in fb.liked if len(r.pieces & ids) >= 2),
+               key=lambda r: (len(r.pieces & ids), r.day, r.kind), default=None)
+    if best is not None:
+        when = _date_words(best.day)
+        shared = [x.piece for x in core if x.piece.id in best.pieces]
+        if best.pieces == ids:
+            reasons.append(f"You loved this outfit on {when}." if best.kind == "loved"
+                           else f"You got compliments for this outfit on {when}.")
+        elif best.kind == "loved":
+            reasons.append(f"You loved {_join([_the(p) for p in shared])} together on {when}.")
+        else:
+            reasons.append(f"You got compliments wearing {_join([_the(p) for p in shared])} together on {when}.")
+    bad = max((r for r in fb.avoided if r.pairs & pairs), key=lambda r: r.day, default=None)
+    if bad is not None:
+        hit = set().union(*(p for p in bad.pairs & pairs))
+        named = [x.piece for x in core if x.piece.id in hit]
+        warnings.append(f"{_join([_the(named[0], True)] + [_the(p) for p in named[1:]])} were together in an outfit "
+                        f"you said not again to on {_date_words(bad.day)}.")
+    if fb.warmth_shift > 0 and fb.warmth_day:
+        reasons.append(f"Dressed a little warmer than usual: you were cold on a day like this on {_date_words(fb.warmth_day)}.")
+    elif fb.warmth_shift < 0 and fb.warmth_day:
+        reasons.append(f"Dressed a little lighter than usual: you were too warm on a day like this on {_date_words(fb.warmth_day)}.")
 
 
 # ====================================================================== entry point
@@ -781,11 +946,18 @@ def _missing_place(place: str, everything: list[tuple[Piece, dict]], pool: list[
     return f"None of your {words} can be worn today: {_join(parts)}."
 
 
-def suggest(items: list[dict], context: Context | dict, count: int = DEFAULT_COUNT) -> dict:
+def _only_not_again(days: list[str]) -> str:
+    return (f"The only outfit that suits today is one you said not again to on {_date_words(max(days))}. "
+            "Change its rating on the Worn screen to have it offered again.")
+
+
+def suggest(items: list[dict], context: Context | dict, count: int = DEFAULT_COUNT, feedback: Feedback | None = None) -> dict:
     """Ranked outfits for the day.
 
     Returns {"outfits": [{"pieces": {base, mid, outer, bottom, shoes, accessories}, "score", "reasons",
     "warnings"}], "missing": [sentences]}. `missing` says what the closet lacks when no outfit can be made.
+    `feedback` is what the owner's ratings of earlier outfits ask (see `feedback_from`); without it, or with
+    an empty one, the outfits are exactly those the rules alone give.
     """
     ctx = context if isinstance(context, Context) else parse_request(dict(context))[0]
     if isinstance(count, bool) or not isinstance(count, int) or count < 1:
@@ -822,19 +994,40 @@ def suggest(items: list[dict], context: Context | dict, count: int = DEFAULT_COU
     if missing:
         return {"outfits": [], "missing": missing}
 
+    fb = feedback or Feedback()
+    liked = frozenset().union(*(r.pairs for r in fb.liked))
+    avoided = frozenset().union(*(r.pairs for r in fb.avoided))
+    refused: list[str] = []   # days of "not again" outfits that were the only ones left
+
     def run(strict: bool) -> list[tuple[_Outfit, tuple[Piece, str] | None]]:
         seen, out = set(), []
         for place in forced_places:
             forced = (forced_piece, place) if forced_piece is not None and place is not None else None
             core_forced = forced if forced and place != "accessory" else None
-            for o in _search(pool, ctx, t, core_forced, strict):
-                if o.ids() not in seen:
-                    seen.add(o.ids())
-                    out.append((o, forced))
+            for o in _search(pool, ctx, t, core_forced, strict, fb.warmth_shift):
+                if o.ids() in seen:
+                    continue
+                seen.add(o.ids())
+                if ctx.keep and not set(ctx.keep) <= set(o.ids()):
+                    continue
+                if o.ids() in fb.not_again:
+                    refused.append(fb.not_again[o.ids()])
+                    continue
+                if liked or avoided:
+                    o.raw += _feedback_score(o.ids(), liked, avoided)
+                out.append((o, forced))
         return out
 
-    found = run(strict=True) or run(strict=False)
+    found = run(strict=True)
+    if not found and refused:
+        # the outfits that keep the rules were all refused: say so, rather than offer ones that break the rules
+        return {"outfits": [], "missing": [_only_not_again(refused)]}
+    found = found or run(strict=False)
     if not found:
+        if refused:
+            return {"outfits": [], "missing": [_only_not_again(refused)]}
+        if ctx.keep:
+            return {"outfits": [], "missing": ["The pieces kept from that outfit do not make an outfit for today."]}
         what = f"goes with {_the(forced_piece)}" if forced_piece else "works together today"
         return {"outfits": [], "missing": [f"Nothing in the closet {what}."]}
     forced_of = {id(o): f for o, f in found}
@@ -843,7 +1036,7 @@ def suggest(items: list[dict], context: Context | dict, count: int = DEFAULT_COU
     for rank, o in enumerate(_pick([o for o, _ in found], count)):
         forced = forced_of[id(o)]
         _add_accessories(o, pool, ctx, t, forced)
-        score, reasons, warnings = _explain(o, ctx, t, forced, closet_outers)
+        score, reasons, warnings = _explain(o, ctx, t, forced, closet_outers, feedback)
         pieces = {place: (getattr(o, place).piece.id if getattr(o, place) else None) for place in PLACES}
         pieces["accessories"] = [x.piece.id for x in o.accessories]
         result.append((-score, rank, {"pieces": pieces, "score": score, "reasons": reasons, "warnings": warnings}))

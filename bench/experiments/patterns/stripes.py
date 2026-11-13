@@ -104,8 +104,8 @@ def align_piecewise(p, ref, piece, max_shift):
     return out
 
 
-def straightened_sequence(lab, m, iters=3, log=print):
-    profs, centres = strip_profiles(lab, m, None)
+def straightened_sequence(lab, m, iters=3, log=print, strip_frac=0.03):
+    profs, centres = strip_profiles(lab, m, None, strip_frac=strip_frac)
     if len(profs) < 3:
         return None
     H = profs.shape[1]

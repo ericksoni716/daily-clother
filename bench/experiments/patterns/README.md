@@ -12,6 +12,9 @@ here: run them against cutouts in `bench/private/` (git-ignored).
   between sharp colour edges. The flattened repeat itself proved the most faithful fill on the owner's photos.
 - Matching drops near-ties (soft or nearly symmetric plaids), and areas are joined all at once (least-squares
   unwrapping); a patch is only joined if it sits on the same cloth (a shirt's two fronts are separate cloth).
+- Plaids that do not repeat (madras): `no_repeat` measures both band sequences whole, straightened, and redraws
+  them at their true positions over the garment (one tile the garment's size). Quilting was tried and rejected
+  for plaids: it breaks their lines.
 - `sett.py`: earlier ways of measuring the bands (averaged strips; colours from crossings).
 - `repeat2d.py`: the repeat over the whole garment (2-D autocorrelation) and the best-matching square.
 - `stripes.py`: stripes. Which way they run; regular stripes folded onto one sharp repeat by reading the

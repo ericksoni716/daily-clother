@@ -106,3 +106,73 @@ def crisp2(tile_lab):
             col = np.median(rgb[np.ix_(cy, cx)].reshape(-1, 3), 0)
             out[np.ix_(ys, xs)] = col
     return out.astype(np.uint8), len(ex), len(ey)
+
+
+def lattice_angle(cut):
+    """The across repeat's length and tilt (degrees), from the strongest self-match off the centre."""
+    import repeat2d as R2
+    rgb = np.asarray(cut.convert("RGB")); m = R2.body_mask(np.asarray(cut)[..., 3]); lab = dewarp.to_lab(rgb)
+    ac = sum(R2.autocorr(lab[..., c], m)[0] for c in range(3)) / 3
+    c = np.fft.fftshift(ac).astype(np.float32)
+    cy, cx = c.shape[0] // 2, c.shape[1] // 2
+    hw = min(cx - 2, int(0.45 * m.shape[1])); hh = 12
+    lo = max(12, int(0.06 * m.shape[1]))                  # shorter repeats are the weave's texture, not the plaid
+    win = c[cy - hh:cy + hh + 1, cx + lo:cx + hw]          # shifts mostly across, a little up or down
+    y, x = np.unravel_index(np.argmax(win), win.shape)
+    dy, dx = y - hh, x + lo
+    return float(np.hypot(dx, dy)), float(np.degrees(np.arctan2(dy, dx))), float(win[y, x])
+
+
+def one_way(cut, log=print):
+    """A plaid that repeats across but not down (madras, a placed band): the across bands folded onto their
+    repeat, the down bands measured as one straightened sequence from top to bottom, then redrawn straight."""
+    import stripes as S_
+    P, ang, strength = lattice_angle(cut)
+    up = cut.rotate(ang, Image.BICUBIC, expand=True)      # the across repeat level
+    log(f"  repeats every {P:.1f} px across (turned {ang:.1f} degrees, match {strength:.2f})")
+    rgb = np.asarray(up.convert("RGB")); lab = dewarp.to_lab(rgb); m = S_.mask_of(up)
+    xs = np.where(m.any(0))[0]; gw = xs.max() - xs.min()
+    # down: strips a whole across-repeat wide, so the across bands average out of them
+    seq_d, y0, y1 = S_.straightened_sequence(lab, m, log=lambda s: None, strip_frac=min(0.5, P / gw))
+    # across: tall strips, then folded onto the repeat
+    seq_a, x0, x1 = S_.straightened_sequence(lab.transpose(1, 0, 2), m.T, log=lambda s: None, strip_frac=0.2)
+    known = np.where(~np.isnan(seq_a[:, 0]))[0]
+    rep_a = S_.folded_repeat(seq_a, P, known.min(), known.max(), up=1)
+    M = lab[m].mean(0)
+    span = np.arange(y0, y1 + 1)
+    d = seq_d[y0:y1 + 1].copy()
+    ok = ~np.isnan(d[:, 0])
+    for c in range(3):
+        d[:, c] = np.interp(np.arange(len(d)), np.where(ok)[0], d[ok, c])
+    warp = np.clip(2 * rep_a - M, 0, 255)                  # undo the mixing with the other direction
+    weft = np.clip(2 * d - M, 0, 255)
+    tile = (warp[None, :, :] + weft[:, None, :]) / 2       # rows: the whole height; columns: one repeat
+    rgb_t = dewarp.lab_to_rgb(tile.astype(np.float32))
+    log(f"  drawn as {rgb_t.shape[1]} px across x {rgb_t.shape[0]} px down (the whole garment)")
+    return dict(tile=rgb_t, P=P, width_frac=P / up.width, height_frac=len(d) / up.height)
+
+
+def no_repeat(cut, log=print, lean_deg=None):
+    """A plaid with no regular repeat (madras): both band sequences measured whole, straightened, and redrawn
+    at their true positions across the garment. The fill is one tile the size of the garment."""
+    import stripes as S_
+    import quilt as Q_
+    ang = Q_.lean(cut) if lean_deg is None else lean_deg
+    up = cut.rotate(-ang, Image.BICUBIC, expand=True)
+    rgb = np.asarray(up.convert("RGB")); lab = dewarp.to_lab(rgb); m = S_.mask_of(up)
+    ys, xs = np.where(m.any(1))[0], np.where(m.any(0))[0]
+    gw, gh = xs.max() - xs.min(), ys.max() - ys.min()
+    # wide strips each way, so the bands running the other way average out
+    seq_d, y0, y1 = S_.straightened_sequence(lab, m, log=lambda s: None, strip_frac=0.25)
+    seq_a, x0, x1 = S_.straightened_sequence(lab.transpose(1, 0, 2), m.T, log=lambda s: None, strip_frac=0.25)
+    def fill(seq, a, b):
+        d = seq[a:b + 1].copy(); ok = ~np.isnan(d[:, 0])
+        for c in range(3):
+            d[:, c] = np.interp(np.arange(len(d)), np.where(ok)[0], d[ok, c])
+        return d
+    d, a = fill(seq_d, y0, y1), fill(seq_a, x0, x1)
+    M = lab[m].mean(0)
+    warp, weft = np.clip(2 * a - M, 0, 255), np.clip(2 * d - M, 0, 255)
+    tile = (warp[None, :, :] + weft[:, None, :]) / 2
+    log(f"  turned upright by {-ang:.1f} degrees; {len(a)} px across x {len(d)} px down, measured whole")
+    return dict(tile=dewarp.lab_to_rgb(tile.astype(np.float32)), width_frac=len(a) / up.width)

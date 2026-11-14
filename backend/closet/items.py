@@ -79,6 +79,13 @@ def detail(conn, row) -> dict:
     } for p in conn.execute("SELECT * FROM photos WHERE item_id = ? ORDER BY kind = 'front' DESC, created_at", (row["id"],))]
     out["recent_wears"] = [r[0] for r in conn.execute(
         "SELECT worn_on FROM wears WHERE item_id = ? ORDER BY worn_on DESC LIMIT ?", (row["id"], RECENT_WEARS))]
+    # the photo of several pieces this item was cut from, and its box in it (fractions); null for a photo of its own
+    out["source_photo"] = None
+    if row["source_photo_id"]:
+        src = conn.execute("SELECT id, original_path FROM source_photos WHERE id = ?", (row["source_photo_id"],)).fetchone()
+        if src is not None:
+            out["source_photo"] = {"id": src["id"], "photo_url": _media(src["original_path"]),
+                             "box": json.loads(row["source_box"]) if row["source_box"] else None}
     return out
 
 
@@ -107,6 +114,16 @@ def list_items(conn, status: str = "active", category: str | None = None, q: str
     return [summary(conn, r) for r in conn.execute(sql, args)]
 
 
+def photo_hash(data: bytes, given: str | None) -> str:
+    """The SHA-256 of the file the owner picked: as the browser sent it (checked), or else of the bytes received."""
+    if given is None:
+        return hashlib.sha256(data).hexdigest()
+    given = given.strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", given):
+        raise ItemError("photo_sha256 must be the file's SHA-256 as 64 hexadecimal characters.")
+    return given
+
+
 def _same_photo(conn, source_sha256: str):
     """The item, archived or not, that already has a photo made from this file."""
     return conn.execute("SELECT items.* FROM photos JOIN items ON items.id = photos.item_id WHERE photos.source_sha256 = ? "
@@ -133,12 +150,7 @@ def create_from_photo(conn, images_dir: Path, data: bytes, client_key: str | Non
         existing = conn.execute("SELECT * FROM items WHERE client_key = ?", (client_key,)).fetchone()
         if existing is not None:
             return {**detail(conn, existing), "duplicate": False}, False
-    if source_sha256 is not None:
-        source_sha256 = source_sha256.strip().lower()
-        if not re.fullmatch(r"[0-9a-f]{64}", source_sha256):
-            raise ItemError("photo_sha256 must be the file's SHA-256 as 64 hexadecimal characters.")
-    else:
-        source_sha256 = hashlib.sha256(data).hexdigest()
+    source_sha256 = photo_hash(data, source_sha256)
     same = _same_photo(conn, source_sha256)
     if same is not None:
         return _duplicate(conn, same), False
@@ -251,9 +263,14 @@ def update(conn, item_id: str, changes: dict, record: bool = True) -> dict:
 
 
 def delete(conn, images_dir: Path, item_id: str) -> None:
-    get(conn, item_id)
+    row = get(conn, item_id)
     conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
     shutil.rmtree(images_dir / item_id, ignore_errors=True)
+    source = row["source_photo_id"]
+    if source and conn.execute("SELECT 1 FROM items WHERE source_photo_id = ? LIMIT 1", (source,)).fetchone() is None:
+        # the last item cut from a photo of several pieces: the photo is not kept for nothing
+        if conn.execute("DELETE FROM source_photos WHERE id = ? AND state = 'added'", (source,)).rowcount:
+            shutil.rmtree(images_dir / "sources" / source, ignore_errors=True)
 
 
 def retry_cutout(conn, item_id: str) -> dict:

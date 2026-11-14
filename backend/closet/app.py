@@ -44,6 +44,7 @@ from . import (
     review,
     savedtrips,
     shop,
+    sources,
     spend,
     storage,
     tagjobs,
@@ -60,6 +61,7 @@ from .modelstore import MODEL, SECOND_MODEL, ModelStore
 from .state import HOME_PLACE, State
 from .tagger import correcting
 from .tagger import routes as tagger_routes
+from .tagger.tagging import RouteUnavailable
 from .today import closet_rows
 from .today import suggest as suggest_today
 from .weather import WeatherError, check_place, lookup, place_near, search_places
@@ -85,6 +87,7 @@ class Services:
     check_tagger: tagjobs.Tagger | None = None   # describes a photo for "Would this work?", recorded as its own purpose
     shopper: shop.Shopper | None = None           # searches shops for a wish and looks prices up again
     price_checks: shop.PriceScheduler | None = None   # looks prices up once a day while the program runs
+    finder: sources.Worker | None = None          # asks where each piece is in a photo of several
     on_quit: Callable[[], None] = lambda: None
     _phone_cache: tuple[float, dict] | None = field(default=None, repr=False)
 
@@ -96,6 +99,8 @@ class Services:
             self.tag_worker.start()
         if self.pattern_worker:
             self.pattern_worker.start()
+        if self.finder:
+            self.finder.start()
         if self.second_model is not None and not self.second_model.ready and self.cfg.auto_download_model:
             self.second_model.start_download()
         self.scheduler.start()
@@ -109,6 +114,8 @@ class Services:
             self.tag_worker.wake()
         if self.pattern_worker:
             self.pattern_worker.wake()
+        if self.finder:
+            self.finder.wake()
 
     def stop(self) -> None:
         self.scheduler.stop()
@@ -118,6 +125,8 @@ class Services:
             self.tag_worker.stop()
         if self.pattern_worker:
             self.pattern_worker.stop()
+        if self.finder:
+            self.finder.stop()
         self.worker.stop()
         self.model.stop()
         if self.second_model is not None:
@@ -134,14 +143,16 @@ class Services:
 def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path | str | None = "bundled",
                    tagger: tagjobs.Tagger | None = None, routes: tagjobs.Routes | None = None, api_client=None,
                    corrector: corrections.Corrector | None = None, measurer: patjobs.Measurer | None = None,
-                   landmarker: patjobs.Landmarker | None = None, shop_asker: shop.Asker | None = None) -> Services:
+                   landmarker: patjobs.Landmarker | None = None, shop_asker: shop.Asker | None = None,
+                   finder: sources.Finder | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
     with the program, None serves no page (tests), or give a folder. `tagger`,
     `routes` and `corrector` stand in for Claude in tests; by default the real routes are used, each call recorded and
     the API key kept under its monthly limit. `api_client` stands in for the API alone (tests), behind that same limit.
-    `shop_asker` stands in for Claude searching shops and looking up prices (tests).
+    `shop_asker` stands in for Claude searching shops and looking up prices (tests), `finder` for Claude finding
+    the pieces in a photo of several (tests).
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
@@ -205,12 +216,24 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
         web_dir = candidate if (candidate / "index.html").exists() else None
     second.refresh()
     tag_worker.on_described = pattern_worker.wake if pattern_worker else (lambda: None)
+    finding_meter = spend.Meter(cfg, state, spend.PURPOSE_GARMENTS, spend.estimate_garments)
+
+    def real_finder(photo: Image.Image, usable: tuple[str, ...]) -> list[dict]:
+        from .tagger import garments
+        return garments.ask(photo, usable, client=api_client, meter=finding_meter)
+
+    def no_finder(photo: Image.Image, usable: tuple[str, ...]) -> list[dict]:
+        raise RouteUnavailable("tests standing in for Claude find no pieces unless they ask to")
+
+    finding = sources.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)),
+                             finder or (no_finder if tagger is not None else real_finder))
     shopper = shop.Shopper(cfg, state, lambda profile: closet_inputs(cfg, profile), tag_worker.routes,
                            shop_asker or shop.ClaudeAsker(cfg, state, client=api_client))
     return Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker,
                     pattern_worker=pattern_worker, second_model=second if cutter is None else None,
                     corrector=corrector or real_corrector,
-                    check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper))
+                    check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper),
+                    finder=finding)
 
 
 def closet_inputs(cfg: Config, profile: str) -> tuple[list[dict], list[dict]]:
@@ -753,6 +776,9 @@ def create_app(sv: Services) -> FastAPI:
     app.include_router(wouldjobs.router(checks, protected))
     assert sv.shopper, "build_services wires it"
     app.include_router(shop.router(sv.shopper, state, conn_dep, protected))
+    app.include_router(sources.router(conn_dep, images_dir, state, protected,
+                                      sv.finder.wake if sv.finder else (lambda: None), sv.worker.wake,
+                                      lambda img: sv.worker.cutter(img), lambda: sv.worker.is_ready()))
 
     # ---------------------------------------------------------------- weather
     @app.get("/api/places", dependencies=protected)

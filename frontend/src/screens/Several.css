@@ -59,7 +59,7 @@
 }
 .several-piece-actions { gap: 8px; flex-wrap: wrap; }
 .several-join {
-  min-height: 36px; padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid var(--line-strong);
+  min-height: var(--tap); padding: 4px 8px; border-radius: var(--radius-sm); border: 1px solid var(--line-strong);
   background: var(--surface); font-size: var(--text-sm);
 }
 .several-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }

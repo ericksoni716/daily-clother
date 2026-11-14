@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { useMediaQuery } from '../../router';
 import { Button } from './Button';
 import { cls } from './cls';
+import { trapTab } from './focus';
 
 /** Below this width choices open as a sheet from the bottom of the screen. */
 export const PHONE = '(max-width: 699px)';
@@ -9,6 +10,7 @@ export const PHONE = '(max-width: 699px)';
 /**
  * Choices that open on demand: a sheet from the bottom on a phone; on a wider screen a popover under the button that
  * opened it (`popover`) or simply in place in the page. Escape closes it, and so do a tap outside a sheet or a popover.
+ * While a sheet or a popover is open, Tab stays inside it; once it closes, focus goes back to what opened it.
  */
 export function Sheet({ title, onClose, popover, keep, className, testId, children }: {
   title: string;
@@ -53,6 +55,7 @@ export function Sheet({ title, onClose, popover, keep, className, testId, childr
         role={floating ? 'dialog' : undefined} aria-modal={phone || undefined} aria-label={floating ? title : undefined}
         tabIndex={floating ? -1 : undefined} data-testid={testId}
         onKeyDown={(e) => {
+          if (floating) trapTab(e, ref.current);
           if (e.key !== 'Escape') return;
           e.stopPropagation();
           onClose();

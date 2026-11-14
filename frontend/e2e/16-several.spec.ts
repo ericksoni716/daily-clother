@@ -1,3 +1,4 @@
+import { axeViolations } from './a11y';
 import { expect, PASS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
@@ -54,6 +55,7 @@ test.describe('several items from one photo', () => {
     const pieces = page.getByTestId('several-piece');
     await expect(pieces).toHaveText([/red shirt/, /blue trousers/, /green scarf/]);
     await expect(page.getByTestId('several-add')).toHaveText('Add these 3 items');
+    expect(await axeViolations(page)).toEqual([]);
 
     // the green scarf is not wanted
     await page.getByRole('button', { name: 'Remove box 3' }).click();

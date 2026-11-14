@@ -147,7 +147,7 @@
 .today-arrow:not(:disabled) { border-color: var(--line-strong); }
 .today-thumbs { display: flex; justify-content: center; gap: 0; min-width: 0; flex-wrap: wrap; }
 .today-thumb {
-  display: grid; place-items: center; min-width: 32px; min-height: var(--tap); padding: 0; border: none; background: none; cursor: pointer;
+  display: grid; place-items: center; min-width: var(--tap); min-height: var(--tap); padding: 0; border: none; background: none; cursor: pointer;
 }
 .today-thumb-pics { display: none; }
 .today-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line-strong); transition: background 0.15s, transform 0.15s; }

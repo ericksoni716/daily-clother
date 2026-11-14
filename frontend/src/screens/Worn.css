@@ -29,7 +29,7 @@ p.worn-rating { margin: 0; font-size: var(--text-sm); color: var(--ink-3); }
   font: inherit; text-align: left; cursor: pointer;
 }
 .worn-menu-item:hover:not(:disabled), .worn-menu-item:focus-visible { background: var(--surface-2); }
-.worn-menu-item:disabled { cursor: not-allowed; opacity: 0.55; }
+.worn-menu-item:disabled { cursor: not-allowed; color: var(--ink-3); }
 .worn-menu-item.is-danger { color: var(--danger); }
 .worn-more { margin-top: 16px; }
 

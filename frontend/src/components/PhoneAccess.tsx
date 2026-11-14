@@ -1,11 +1,27 @@
+import { useMemo } from 'react';
+import { QUIET, qrMatrix, qrPath } from '../qr';
 import type { Settings } from '../types';
+
+/** The address as a QR code for the iPhone's camera: always black on white, whatever the theme. */
+function AddressCode({ address }: { address: string }) {
+  const matrix = useMemo(() => qrMatrix(address), [address]);
+  const side = matrix.length + 2 * QUIET;
+  return (
+    <svg className="phone-qr" role="img" aria-label={`QR code of ${address}`} data-payload={address}
+      viewBox={`0 0 ${side} ${side}`} shapeRendering="crispEdges">
+      <rect width={side} height={side} fill="#fff" />
+      <path d={qrPath(matrix)} fill="#000" />
+    </svg>
+  );
+}
 
 export function PhoneAccess({ phone }: { phone: Settings['phone'] | null }) {
   if (!phone) return <p className="muted">Checking…</p>;
   if (phone.address) {
     return (
       <div>
-        <p>On your iPhone, with Tailscale connected, open this address in Safari, then choose Share › Add to Home Screen:</p>
+        <p>On your iPhone, with Tailscale connected, point the camera at this code, or open the address below in Safari. Then choose Share › Add to Home Screen:</p>
+        <AddressCode address={phone.address} />
         <p className="address"><a href={phone.address} target="_blank" rel="noreferrer">{phone.address}</a></p>
         {phone.stop_command && (
           <p className="muted small">

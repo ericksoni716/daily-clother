@@ -13,6 +13,7 @@
     "icons": "node scripts/make-icons.mjs"
   },
   "dependencies": {
+    "qrcode-generator": "2.0.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },
@@ -27,6 +28,7 @@
     "eslint": "^10.14.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.14.0",
+    "jsqr": "1.4.0",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.2",
     "vite": "^8.3.8",

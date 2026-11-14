@@ -44,13 +44,16 @@ test.describe('phone', () => {
     // it rises from the bottom edge of the screen
     await expect.poll(async () => { const b = (await sheet.boundingBox())!; return Math.round(b.y + b.height); }).toBe(844);
     await page.screenshot({ path: `${SHOTS}/closet-filter-phone.png` });
-    await sheet.getByRole('group', { name: 'Filter by category' }).getByRole('button', { name: 'Polos', exact: true }).click();
+    await sheet.getByRole('group', { name: 'Filter by category' }).getByRole('button', { name: 'Sweaters', exact: true }).click();
     await sheet.getByRole('button', { name: 'Done' }).click();
     await expect(sheet).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Remove filter: Polos' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove filter: Sweaters' })).toBeVisible();
 
-    await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
-    await expect(page.getByRole('heading', { level: 2 }).getByRole('textbox', { name: 'Name' })).toHaveValue('Navy polo');
+    // earlier tests may have changed the demo closet, so open whichever sweater comes first
+    const first = page.getByTestId('tile').first();
+    const name = (await first.locator('.tile-name').textContent())!;
+    await first.click();
+    await expect(page.getByRole('heading', { level: 2 }).getByRole('textbox', { name: 'Name' })).toHaveValue(name);
     await page.waitForLoadState('networkidle');
     await page.screenshot({ path: `${SHOTS}/item-phone.png` });
 
@@ -84,9 +87,11 @@ test.describe('computer', () => {
     await page.keyboard.press('Escape');
     await expect(popover).toHaveCount(0);
 
-    await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
+    const first = page.getByTestId('tile').first();
+    const name = (await first.locator('.tile-name').textContent())!;
+    await first.click();
     const panel = page.locator('aside.detail-panel');
-    await expect(panel.getByRole('textbox', { name: 'Name' })).toHaveValue('Navy polo');
+    await expect(panel.getByRole('textbox', { name: 'Name' })).toHaveValue(name);
     expect((await panel.boundingBox())!.width).toBeCloseTo(420, 0);
     // no scrollbar of its own: it scrolls with the page
     expect(await panel.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);

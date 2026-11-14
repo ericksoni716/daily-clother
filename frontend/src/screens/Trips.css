@@ -116,6 +116,13 @@
 .trip-why-list { margin: 0 0 8px; padding-left: 1.2em; display: grid; gap: 4px; }
 
 /* ---------------------------------------------------------------- day by day */
+.trip-days-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin-bottom: 10px; }
+.trip-days-head h2 { margin: 0; }
+/* a day's outfit as worn: smaller than on Today, so several days still fit on a phone's screen */
+.trip-day .today-figure { min-height: 0; max-width: 13rem; }
+.trip-day .today-figure > img { max-height: 310px; }
+.trip-day .today-figure > .pic-placeholder { height: 310px; }
+@media (max-width: 599px) { .trip-day .today-figure { margin: 0 auto; } }
 .trip-day-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .trip-day { padding: 12px 14px; }
 .trip-day.has-problem { border-left: 5px solid var(--warn); }

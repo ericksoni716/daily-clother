@@ -48,6 +48,7 @@ from . import (
     spend,
     storage,
     tagjobs,
+    trips,
     updates,
     vocab,
     wears,
@@ -359,6 +360,7 @@ class SettingsPatch(BaseModel):
     place: dict | None = None
     life: object = None
     life_prompt_dismissed: bool | None = None
+    rewear: object = None
     model_config = {"extra": "forbid"}
 
 
@@ -906,6 +908,7 @@ def create_app(sv: Services) -> FastAPI:
             "home_place": HOME_PLACE,
             "life": life.example()[0] if state.get("profile") == "demo" else state.get("life"),
             "life_prompt_dismissed": True if state.get("profile") == "demo" else state.get("life_prompt_dismissed"),
+            "rewear": savedtrips.rewear(state),
         }
 
     @app.get("/api/settings", dependencies=protected)
@@ -929,6 +932,17 @@ def create_app(sv: Services) -> FastAPI:
                 changes["life_prompt_dismissed"] = body.life_prompt_dismissed
             state.update(**changes)
             gaps_cache.pop("main", None)
+        if "rewear" in sent:
+            if body.rewear is None:
+                state.update(rewear=None)   # back to the defaults
+            else:
+                try:
+                    if not isinstance(body.rewear, dict):
+                        raise trips.PlanError("Say how often each kind is worn before washing, for example {\"tops\": 1}.")
+                    trips.check_rewear(body.rewear)
+                    state.update(rewear=trips.check_rewear({**savedtrips.rewear(state), **body.rewear}))
+                except trips.PlanError as e:
+                    raise HTTPException(422, str(e))
         if "backup_folder" in sent:
             folder = (body.backup_folder or "").strip()
             if folder:

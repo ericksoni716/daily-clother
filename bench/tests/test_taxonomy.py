@@ -848,3 +848,17 @@ def test_each_accessory_with_a_shape_draws_differently_by_kind():
                  for kind, (status, _) in COVERAGE[ACCESSORY_GROUP[garment]].items() if status == "drawn"
                  and accessory_drawing(category, garment, kind)[0] == garment}
         assert len(set(drawn.values())) == len(drawn), garment
+
+
+def test_the_closet_categories_of_each_kind_of_clothing_follow_the_taxonomy():
+    from closet.vocab import CATEGORY
+    from closet_bench.taxonomy import GARMENT_CATEGORIES
+    garments = TAXONOMY["garments"].values()
+    # every category of everyday clothing; footwear, accessories, activewear and loungewear are not kinds a trip counts
+    clothing = {g["category"] for g in garments} - {"footwear", "accessory", "activewear", "loungewear"}
+    assert set(GARMENT_CATEGORIES) == clothing
+    for category, closet in GARMENT_CATEGORIES.items():
+        assert closet and set(closet) <= set(CATEGORY), category
+        given = {g["app_category"] for g in garments if g["category"] == category and "app_category" in g}
+        assert given <= set(closet), category
+    assert set(GARMENT_CATEGORIES["bottoms"]) == {g["app_category"] for g in garments if g["category"] == "bottoms"}

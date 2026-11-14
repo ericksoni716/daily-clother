@@ -462,6 +462,13 @@ APP_CATEGORY: dict[str, str | None] = {
     "robe": "coat", "kimono_robe": "coat", "smoking_jacket": "jacket",
 }
 _BOTTOM_APP = ("jeans", "trousers", "shorts")
+# The taxonomy's categories of everyday clothing (its `garments`' "category") and the closet categories
+# (`vocab.CATEGORY`) their garments are kept as, read from GARMENTS and APP_CATEGORY. Activewear and loungewear are
+# left out: their garments are kept as the same closet categories. Trip packing reads its kinds of clothing from these.
+GARMENT_CATEGORIES: dict[str, tuple[str, ...]] = {
+    c: tuple(dict.fromkeys(APP_CATEGORY[g] for g, gc in GARMENTS.items() if gc == c and APP_CATEGORY[g]))
+    for c in dict.fromkeys(GARMENTS.values()) if c not in ("activewear", "loungewear")
+}
 
 
 def kinds_for(category: str | None) -> tuple[str, ...]:

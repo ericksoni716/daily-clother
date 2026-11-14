@@ -750,6 +750,11 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .settings-sub > * { margin: 0; }
 .settings-sub > .btn { align-self: flex-start; }
 .settings-sub h3, .route-name { font-size: var(--text-md); }
+.settings-rewear { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0 12px; }
+.settings-rewear .field { margin-bottom: 8px; }
+.settings-rewear select {
+  min-height: var(--tap); padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
 .settings-spend { margin: 0; }
 .settings-spend summary { justify-content: space-between; }
 .settings-spend summary > span:first-child { flex: 1; }

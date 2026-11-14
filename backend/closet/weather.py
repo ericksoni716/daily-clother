@@ -243,19 +243,20 @@ def _coordinate(value: object, limit: int) -> bool:
 
 
 def archive_daily(place: dict, start: date, end: date, *, timezone: str,
-                  precipitation_unit: str | None = None) -> dict[str, list | None]:
+                  precipitation_unit: str | None = None, fields: tuple[str, ...] = ARCHIVE_DAILY) -> dict[str, list | None]:
     """The one lookup of Open-Meteo's archive, shared by the home climate and the trips' usual weather.
 
     Sends only the place's latitude and longitude, the time zone given, the dates and the daily fields; goes
     through `_get` (the computer's certificates, a bounded wait and size, errors in the owner's words). Returns
     the daily columns as the archive gave them: {"time": [...], "temperature_2m_min": list or None, ...}, a
     column that is not a list being None. What a missing day or value means is the caller's to decide; each
-    keeps what it worked out in its own way. Raises WeatherError, ArchiveUnreadable when there is no list of days.
+    keeps what it worked out in its own way. `fields` are the daily columns asked for (ARCHIVE_DAILY unless a
+    caller needs more). Raises WeatherError, ArchiveUnreadable when there is no list of days.
     """
     if not _coordinate(place.get("latitude"), 90) or not _coordinate(place.get("longitude"), 180):
         raise ArchiveUnreadable
     params = {"latitude": place["latitude"], "longitude": place["longitude"], "timezone": timezone,
-              "start_date": start.isoformat(), "end_date": end.isoformat(), "daily": ",".join(ARCHIVE_DAILY),
+              "start_date": start.isoformat(), "end_date": end.isoformat(), "daily": ",".join(fields),
               "temperature_unit": "celsius"}
     if precipitation_unit:
         params["precipitation_unit"] = precipitation_unit
@@ -263,4 +264,4 @@ def archive_daily(place: dict, start: date, end: date, *, timezone: str,
     if not isinstance(daily, dict) or not isinstance(daily.get("time"), list):
         raise ArchiveUnreadable
     return {"time": daily["time"],
-            **{field: daily[field] if isinstance(daily.get(field), list) else None for field in ARCHIVE_DAILY}}
+            **{field: daily[field] if isinstance(daily.get(field), list) else None for field in fields}}

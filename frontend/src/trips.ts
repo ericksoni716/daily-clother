@@ -1,5 +1,5 @@
 import { longDate, SAVED_PREFIX, shortPlace, temps, type Outfit } from './today';
-import type { Place } from './types';
+import type { Place, RewearKind } from './types';
 
 /** Where a day's weather comes from: the forecast, what the dates are usually like, typed in, or not known. */
 export type WeatherSource = 'forecast' | 'usual' | 'given' | 'unknown';
@@ -12,6 +12,8 @@ export interface TripDay {
   rain_chance: number | null;
   summary: string | null;
   source: WeatherSource;
+  /** The feels-like high, which counts the humidity, when the weather service gave one. */
+  feels_high_c?: number;
 }
 
 export type PackGroup = 'tops' | 'layers' | 'bottoms' | 'shoes' | 'outer' | 'accessories';
@@ -34,12 +36,33 @@ export interface PlanDay {
   problem: string | null;
   /** Why an outfit has something to watch out for, in plain words. */
   warning: string | null;
+  /** The day falls on a wash (plans made before laundry on the trip do not say). */
+  laundry?: boolean;
 }
 
 export interface Basic {
   key: string;
   name: string;
   count: number;
+  /** Why this many, in plain words (underwear and socks). */
+  why?: string;
+}
+
+/** Laundry on the trip: on one day of it, every so many days, or none. */
+export type TripLaundry = { day: number } | { every: number } | null;
+
+/** Each kind's count in plain words: "5 shirts: one a day, laundry on day 4". */
+export interface KindCount {
+  kind: RewearKind;
+  count: number;
+  words: string;
+}
+
+/** Where a wash falls: "Wash on day 4: the shirts from days 1–3 are worn again from day 5." */
+export interface WashNote {
+  day: number;
+  date: string;
+  words: string;
 }
 
 export interface Plan {
@@ -49,6 +72,10 @@ export interface Plan {
   uncovered: { date: string; reason: string }[];
   warnings: { date: string; reason: string }[];
   notes: string[];
+  /** Plans made before laundry on the trip and the explained counts do not have these. */
+  laundry?: TripLaundry;
+  counts?: KindCount[];
+  washes?: WashNote[];
 }
 
 export interface TripChoices {
@@ -57,7 +84,7 @@ export interface TripChoices {
   last_day: string;
   occasion: string;
   day_occasions: Record<string, string>;
-  can_wash: boolean;
+  laundry: TripLaundry;
   leave_out: string[];
   pin: string[];
 }
@@ -86,7 +113,7 @@ export interface TripSummary {
   first_day: string;
   last_day: string;
   occasion: string;
-  can_wash: boolean;
+  laundry: TripLaundry;
   lines: number;
   packed: number;
   uncovered: number;
@@ -102,7 +129,7 @@ export interface TripPatch {
   ticks?: Record<string, boolean>;
   occasion?: string;
   day_occasions?: Record<string, string>;
-  can_wash?: boolean;
+  laundry?: TripLaundry;
   leave_out?: string[];
   pin?: string[];
   replan?: boolean;
@@ -282,4 +309,60 @@ export function wornWords(days: number): string {
 /** The list cut in two: trips still to come (or under way), then past ones; the server sends them in that order. */
 export function upcomingFirst(trips: TripSummary[]): { upcoming: TripSummary[]; past: TripSummary[] } {
   return { upcoming: trips.filter((t) => !t.past), past: trips.filter((t) => t.past) };
+}
+
+/** The kinds of clothing for "Before it needs washing", in the order Settings shows them. */
+export const REWEAR_KINDS: { kind: RewearKind; label: string }[] = [
+  { kind: 'tops', label: 'Shirts, tees and polos' },
+  { kind: 'knits', label: 'Knitwear and sweatshirts' },
+  { kind: 'bottoms', label: 'Trousers and shorts' },
+  { kind: 'outer', label: 'Jackets and coats' },
+  { kind: 'basics', label: 'Underwear, socks and basics' },
+];
+
+/** The most wears the setting offers for one kind; past it, "The whole trip". */
+export const MAX_REWEAR = 10;
+
+export type LaundryMode = 'none' | 'day' | 'every';
+
+export function laundryMode(l: TripLaundry | undefined): LaundryMode {
+  if (!l) return 'none';
+  return 'day' in l ? 'day' : 'every';
+}
+
+/** The laundry days a trip of n days can have: day 2 to the day before the last. */
+export function laundryDays(n: number): number[] {
+  return Array.from({ length: Math.max(0, n - 2) }, (_, i) => i + 2);
+}
+
+/** How often laundry can come round on a trip of n days: every day to every n − 2 days. */
+export function laundryEvery(n: number): number[] {
+  return Array.from({ length: Math.max(0, n - 2) }, (_, i) => i + 1);
+}
+
+/** The laundry choice when it still fits a trip of n days, or null (none) when it no longer does. */
+export function fitLaundry(l: TripLaundry | undefined, n: number): TripLaundry {
+  if (!l) return null;
+  if ('day' in l) return laundryDays(n).includes(l.day) ? l : null;
+  return laundryEvery(n).includes(l.every) ? l : null;
+}
+
+/** A first choice when the owner picks a way of doing laundry: the middle day, or every 3 days. */
+export function startLaundry(mode: LaundryMode, n: number): TripLaundry {
+  if (mode === 'none' || n < 3) return null;
+  if (mode === 'day') return { day: Math.min(n - 1, Math.max(2, Math.ceil(n / 2))) };
+  return { every: Math.min(3, n - 2) };
+}
+
+/** "Laundry on day 4", "Laundry every 3 days", "Laundry every day", or null for none. */
+export function laundryWords(l: TripLaundry | undefined): string | null {
+  if (!l) return null;
+  if ('day' in l) return `Laundry on day ${l.day}`;
+  return l.every === 1 ? 'Laundry every day' : `Laundry every ${l.every} days`;
+}
+
+/** "Worn once", "Worn up to 3 times", "The whole trip": a choice of the setting. */
+export function rewearWords(n: number | null): string {
+  if (n === null) return 'The whole trip';
+  return n === 1 ? 'Worn once' : `Worn up to ${n} times`;
 }

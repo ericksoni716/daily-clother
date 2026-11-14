@@ -36,11 +36,13 @@
 }
 .trip-differ ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .trip-differ label { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.trip-differ select, .trip-take select {
+.trip-differ select, .trip-take select, .trip-laundry select {
   min-height: var(--tap); padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink);
   max-width: 100%;
 }
-.trip-wash { margin: 4px 0 14px; max-width: 30rem; }
+.trip-laundry { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 14px; max-width: 30rem; }
+.trip-laundry .field { margin-bottom: 0; }
+.trip-laundry .hint { margin: 0; }
 .trip-big-button { min-height: 52px; font-size: var(--text-md); }
 .trip-save { max-width: 30rem; margin: 18px 0 8px; }
 
@@ -54,7 +56,7 @@
 .trip-progress strong { flex: none; }
 .trip-progress .progress { max-width: none; }
 .trip-options { margin: 24px 0 10px; padding-top: 16px; border-top: 1px solid var(--line); display: grid; gap: 10px; max-width: 46rem; }
-.trip-options .trip-wash { margin: 0; }
+.trip-options .trip-laundry { margin: 0; }
 
 /* ---------------------------------------------------------------- the weather strip */
 .trip-weather { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 14px; scrollbar-width: thin; }
@@ -110,6 +112,8 @@
 .trip-take { margin: 2px 0 16px; }
 .trip-take .field select { width: 100%; }
 .trip-notes { padding-left: 1.2em; }
+.trip-why { margin: 14px 0 0; }
+.trip-why-list { margin: 0 0 8px; padding-left: 1.2em; display: grid; gap: 4px; }
 
 /* ---------------------------------------------------------------- day by day */
 .trip-day-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }

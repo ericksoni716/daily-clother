@@ -114,11 +114,20 @@ def _keep(state: State, kind: str, key: str, days: dict, on: str | None = None) 
 
 
 # ---------------------------------------------------------------------- the forecast
+FEELS_HIGH = "apparent_temperature_max"  # the day's feels-like high, which counts the humidity (trips.sweaty)
+
+
+def _add_feels(day: dict, feels_high: float | None) -> None:
+    """Adds the feels-like high to a day when the weather service gave one; a day without it is judged on its high."""
+    if feels_high is not None:
+        day["feels_high_c"] = round(feels_high, 1)
+
+
 def _forecast(place: dict) -> dict:
     """{date: day} for every day Open-Meteo forecasts at the place, today first."""
     data = weather._get(weather.FORECAST_URL, {
         "latitude": place["latitude"], "longitude": place["longitude"], "timezone": place["timezone"],
-        "daily": "temperature_2m_min,temperature_2m_max,precipitation_probability_max,weather_code",
+        "daily": f"temperature_2m_min,temperature_2m_max,precipitation_probability_max,weather_code,{FEELS_HIGH}",
         "temperature_unit": "celsius", "forecast_days": FORECAST_DAYS})
     daily = data.get("daily")
     if not isinstance(daily, dict) or not isinstance(daily.get("time"), list):
@@ -130,6 +139,7 @@ def _forecast(place: dict) -> dict:
 
     lows, highs = column("temperature_2m_min"), column("temperature_2m_max")
     chances, codes = column("precipitation_probability_max"), column("weather_code")
+    feels = column(FEELS_HIGH)
     out = {}
     for i, day in enumerate(daily["time"]):
         low = _number(lows[i]) if i < len(lows) else None
@@ -146,6 +156,7 @@ def _forecast(place: dict) -> dict:
         out[day] = {"date": day, "low_c": round(min(low, high), 1), "high_c": round(max(low, high), 1), "rain": rain,
                     "rain_chance": round(chance) if chance is not None else None, "summary": summary or "mixed",
                     "source": "forecast"}
+        _add_feels(out[day], _number(feels[i]) if i < len(feels) else None)
     if not out:
         raise weather.WeatherError("The weather service gave an answer Closet could not read.")
     return out
@@ -158,20 +169,22 @@ def _usual(place: dict, days: list[str], today: date) -> dict:
     history = {d: _past_years(d, today) for d in wanted}
     past_dates = [sample for samples in history.values() for sample in samples]
     start, end = min(past_dates), max(past_dates)
-    daily = weather.archive_daily(place, start, end, timezone=place["timezone"])
-    lows, highs, rains = (daily[k] or [] for k in weather.ARCHIVE_DAILY)
-    past: dict[str, tuple[float | None, float | None, float | None]] = {}
+    daily = weather.archive_daily(place, start, end, timezone=place["timezone"], fields=(*weather.ARCHIVE_DAILY, FEELS_HIGH))
+    lows, highs, rains, feels_highs = (daily[k] or [] for k in (*weather.ARCHIVE_DAILY, FEELS_HIGH))
+    past: dict[str, tuple[float | None, ...]] = {}
     for i, day in enumerate(daily["time"]):
         if isinstance(day, str):
-            past[day] = (_number(lows[i]) if i < len(lows) else None, _number(highs[i]) if i < len(highs) else None,
-                         _number(rains[i]) if i < len(rains) else None)
+            past[day] = tuple(_number(column[i]) if i < len(column) else None
+                              for column in (lows, highs, rains, feels_highs))
     out = {}
     for d in wanted:
-        temps, rained, years = [], 0, 0
+        temps, rained, years, feels = [], 0, 0, []
         for sample in history[d]:
-            low, high, rain = past.get(sample.isoformat(), (None, None, None))
+            low, high, rain, feel = past.get(sample.isoformat(), (None, None, None, None))
             if low is not None and high is not None:
                 temps.append((min(low, high), max(low, high)))
+            if feel is not None:
+                feels.append(feel)
             if rain is not None:
                 years += 1
                 rained += rain >= RAIN_MM
@@ -182,6 +195,7 @@ def _usual(place: dict, days: list[str], today: date) -> dict:
             "high_c": round(sum(t[1] for t in temps) / len(temps), 1),
             "rain": bool(years) and rained >= USUAL_RAIN_SHARE * years,
             "rain_chance": round(100 * rained / years) if years else None, "summary": None, "source": "usual"}
+        _add_feels(out[d.isoformat()], sum(feels) / len(feels) if feels else None)
     return out
 
 

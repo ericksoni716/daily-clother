@@ -319,6 +319,31 @@ describe('carrying on after the tab was closed', () => {
     expect(box.saved).toEqual([]);
   });
 
+  it('sends photos of several pieces as such, and keeps that and the photo kept with the list', async () => {
+    const { box, store } = memoryStore();
+    const sent: [string, boolean][] = [];
+    const { q } = makeQueue(async (_b, filename, _k, _h, several) => {
+      sent.push([filename, several]);
+      return several ? { id: null, sourceId: `source-${filename}` } : { id: `item-${filename}` };
+    }, { store });
+    q.add([{ name: 'pile' }], { several: true });
+    q.add([{ name: 'shirt' }]);
+    await q.idle();
+    expect(sent).toEqual([['pile', true], ['shirt', false]]);
+    expect(q.snapshot.map((e) => [e.status, e.several, e.sourceId, e.itemId])).toEqual([
+      ['done', true, 'source-pile', null], ['done', false, null, 'item-shirt'],
+    ]);
+    expect(box.saved!.map((e) => [e.several, e.sourceId])).toEqual([[true, 'source-pile'], [false, null]]);
+    const again = makeQueue(async () => ({ id: 'i' }), { store });
+    expect(again.q.snapshot.map((e) => [e.several, e.sourceId])).toEqual([[true, 'source-pile'], [false, null]]);
+  });
+
+  it('a list saved before photos of several pieces reads as one piece each', () => {
+    const { store } = memoryStore([{ name: 'a', fileKey: 'a', clientKey: 'k1', status: 'done', error: null, itemId: 'i' }]);
+    const { q } = makeQueue(async () => ({ id: 'i' }), { store });
+    expect(q.snapshot[0]).toMatchObject({ several: false, sourceId: null, status: 'done' });
+  });
+
   it('a broken saved list is ignored', () => {
     const { q } = makeQueue(async () => ({ id: 'i' }), { store: { load: () => { throw new Error('bad json'); }, save: () => undefined } });
     expect(q.snapshot).toEqual([]);

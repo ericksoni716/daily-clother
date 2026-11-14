@@ -531,6 +531,24 @@ owner's own and other real photos (bench/experiments/patterns, with notes there)
 | The item's main colour becomes the largest measured colour unless Claude's main colour covers at least ¾ as much, and its shade becomes the measured one; both stay the tagger's (confidence 0.9) and a colour or shade the owner set is never changed | The outfit engine and What's missing read `color` as before, so matching improves with no change there. The measured colour is part of Claude's side like the drawing, not an entry in the history; it is laid over again after describing again or undoing. |
 | The measured colours are kept inside `items.pattern_fill` with the pattern they were measured for, and used only while the item still has that pattern; the item page shows them as swatches beside the pattern word | No schema change. Items measured before this are not measured again for it: they get colours the next time they are described or their pattern changes. |
 
+## Several items from one photo
+
+The owner photographs several pieces laid out together and gets one item per piece (#151). Video sweeps are out
+(the owner's decision).
+
+| Decision | Why |
+|---|---|
+| Claude finds the pieces (`tagger/garments.py`): one box per separate piece, in pixels of the photo shrunk to 1024, turned into fractions; the larger model, as for landmarks; same routes, same monthly limit, purpose `find_garments`, an estimate checked before each API request | The issue preferred this to a new detection model, and no dependency is added. Placing edges on a photo is where the tagging model was weakest. At the prices written down one photo costs at most about 8¢ with the API key. |
+| The boxes are tidied before the owner sees them: cut to the photo, under 3% of a side dropped, two overlapping 80% or more (shared area over joint area) joined, at most 20 | Claude sometimes boxes the same piece twice; a suit's jacket over its trousers overlaps far less than that, so stays two pieces. The thresholds are starting values to tune on the owner's photos. |
+| The owner checks every box before anything is added: remove, join two, move or resize by the corners (pointer events, so touch works), add one; nothing is guessed at "Add" | Claude's boxes on a cluttered bed are not known to be right; checking costs seconds and a wrong item costs more. |
+| The photo is kept once, in `source_photos` and `images/sources/<id>/` (migration 0022); each item is an ordinary item whose photo is its box cut out of it with 2% of the photo around it, and remembers the photo and box (`items.source_photo_id`, `items.source_box`) | Each item is then cut out, described, drawn and pattern-measured by the existing queue with no special case. The margin keeps a piece's edges when Claude's box is tight. |
+| Each item's photo carries the source file's hash; a photo already kept, or already in the closet as an item, is not kept again, as in bulk import | The same file sent twice, or once as one piece and once as several, never adds pieces twice. |
+| Any change by the owner ends the wait for Claude: a later answer is dropped (`UPDATE … WHERE state = 'finding'`) | An answer must never overwrite boxes the owner has started on. |
+| The cutouts beside the boxes are made by the same models, on demand, and kept until the items are added; while the model is not ready the page shows the box's part of the photo | The owner sees what each item will be; nothing is made for a box that moves again. |
+| The photo goes with the last of its items deleted; a photo not added can be forgotten | Nothing is kept for nothing; an archived item keeps it. |
+| Bulk import marks a whole choice (files or a folder) as "several items per photo" with the same switch on Add | One switch for one photo and for a folder; a mixed folder is imported in two goes. |
+| The demo closet never asks Claude: its photos wait for the owner to draw the boxes | As for describing: the demo never sends photos to Claude. |
+
 ## Phase 0 findings
 
 See `docs/PHASE0.md` for the results and what is still open.

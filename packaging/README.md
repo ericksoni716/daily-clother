@@ -69,7 +69,7 @@ calls Claude with a key.
   cookie; `GET /api/items` is 200; `GET /api/tagging` is 200 and lists the
   plan route then the API route (which proves the tagger package and its
   `models.json` were bundled); after switching to the demo profile there
-  are 30 items and a demo item's drawing is served as SVG;
+  are 43 items and a demo item's drawing is served as SVG;
   `POST /api/quit` makes the program exit with code 0 within 30 s; the data
   folder has `closet.db` and no `closet.lock`.
 - Migrations: the selfcheck counts as many bundled migrations as

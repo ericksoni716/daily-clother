@@ -62,13 +62,13 @@ test("what's missing shows the gaps, best first, with the reasons and what to lo
 
 test('a reason given for several kinds of day is said once, with the days listed under it', async ({ page }) => {
   await openMissing(page);
-  const belt = gap(page, 'A leather belt');
-  const sentence = 'A leather belt finishes trousers and jeans; the engine adds one to every outfit that has them. You have none.';
-  await expect(belt.getByTestId('gap-summary')).toHaveText(sentence);
+  const rain = gap(page, 'A rain-proof outer layer');
+  const sentence = 'A mac, trench or waxed jacket keeps the rain off without an umbrella. You have none.';
+  await expect(rain.getByTestId('gap-summary')).toHaveText(sentence);
   // the card is no longer a wall of the same sentence
-  expect(await belt.evaluate((el) => el.getBoundingClientRect().height)).toBeLessThan(600);
-  await belt.getByText('Why, day by day (4)').click();
-  const why = belt.getByRole('list', { name: 'Why' });
+  expect(await rain.evaluate((el) => el.getBoundingClientRect().height)).toBeLessThan(600);
+  await rain.getByText('Why, day by day (4)').click();
+  const why = rain.getByRole('list', { name: 'Why' });
   await expect(why.getByText(sentence, { exact: true })).toHaveCount(1);
   await expect(why.getByRole('list', { name: 'For' }).getByRole('listitem').locator('strong')).toHaveText(['Work', 'Everyday', 'Going out', 'Vacation']);
 });

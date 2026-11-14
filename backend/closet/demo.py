@@ -62,11 +62,19 @@ def _add_items(cfg: Config, conn, data: dict, chosen: list[dict]) -> int:
     source = bundle_dir() / "demo_data"
     dest = cfg.images_dir("demo")
     conn.execute("BEGIN IMMEDIATE")
-    for n, it in enumerate(data["items"]):
+    first = [it for it in data["items"] if not it.get("wave")]
+    second = [it for it in data["items"] if it.get("wave")]
+    for it in data["items"]:
         if it not in chosen:
             continue
-        # spread created_at so the grid has a stable, sensible order
-        created = f"2026-01-{28 - n % 28:02d}T12:{n % 60:02d}:00.000000Z"
+        # spread created_at so the grid has a stable, sensible order; the first wave keeps the order it always had,
+        # the second wave comes after it in the grid
+        if it.get("wave"):
+            n = second.index(it)
+            created = f"2025-12-{28 - n % 28:02d}T12:{n % 60:02d}:00.000000Z"
+        else:
+            n = first.index(it)
+            created = f"2026-01-{28 - n % 28:02d}T12:{n % 60:02d}:00.000000Z"
         src = {f: "demo" for f in ("category", "color", "pattern", "formality", "season", "silhouette") if it.get(f)}
         kept = it.get("pattern_fill")
         conn.execute(

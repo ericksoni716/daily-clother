@@ -92,8 +92,10 @@ test('in the demo closet: say what it is with the kind picker, see the drawing c
   await filters.getByRole('group', { name: 'Filter by group' }).getByRole('button', { name: 'Activewear' }).click();
   await filters.getByRole('group', { name: 'Filter by kind' }).getByRole('button', { name: 'Fleece pullover' }).click();
   await filters.getByRole('button', { name: 'Done' }).click();
-  await expect(page.getByTestId('tile')).toHaveCount(1);
-  await expect(page.getByTestId('tile')).toContainText('Grey hoodie');
+  // the demo's own fleece pullover, and the hoodie now said to be one
+  await expect(page.getByTestId('tile')).toHaveCount(2);
+  await expect(page.getByTestId('tile').filter({ hasText: 'Grey hoodie' })).toHaveCount(1);
+  await expect(page.getByTestId('tile').filter({ hasText: 'Forest fleece pullover' })).toHaveCount(1);
   await page.getByRole('button', { name: 'Remove filter: Fleece pullover' }).click();
   await page.getByRole('button', { name: 'Remove filter: Activewear' }).click();
 

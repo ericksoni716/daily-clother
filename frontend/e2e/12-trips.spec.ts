@@ -199,7 +199,8 @@ test('the offline trip list is kept separately for the demo and real closet', as
   const trip = await response.json();
   try {
     await page.goto('/trips');
-    await expect(page.getByTestId('trip-card')).toHaveCount(1);
+    // the demo closet's own saved trip, and this one
+    await expect(page.getByTestId('trip-card')).toHaveCount(2);
     await page.evaluate(() => navigator.serviceWorker.ready);
     await useProfile(page, 'main');
     await page.context().setOffline(true);

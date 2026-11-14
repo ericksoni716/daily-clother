@@ -11,7 +11,7 @@ import pytest
 
 from closet_bench.fills import Stripes
 from closet_bench.illustrate import BUTTON_CONTRAST, INSIDE_CONTRAST, Fill, Spec, _over, contrast, layer, render
-from closet_bench.taxonomy import (ACCESSORIES, ACCESSORY_GARMENTS, ACCESSORY_GROUP, ACCESSORY_TEMPLATES, AXES, CORDUROY_WALES,
+from closet_bench.taxonomy import (ACCESSORIES, COLORWORK, ACCESSORY_GARMENTS, ACCESSORY_GROUP, ACCESSORY_TEMPLATES, AXES, CORDUROY_WALES,
                                    COVERAGE, GARMENT_DRAWINGS, KNIT_GAUGES, TOP_AXES, WEIGHT_CLASSES, accessory_drawing,
                                    surface_extras, top_drawing)
 from closet_bench.templates import BODY_W, BLOCKS, CX, K_PX, SLEEVE_GAP, SLEEVE_HANG, build
@@ -200,7 +200,7 @@ def test_every_plain_cloth_has_a_surface_of_its_own():
     assert all(coverage[v][0] == "drawn" for v in PLAIN_CLOTHS)
     textures = {v: surface_extras({"fabric": v})["texture"] for v in PLAIN_CLOTHS}
     assert all(textures.values()) and len(set(textures.values())) == len(PLAIN_CLOTHS)
-    others = {surface_extras({"fabric": v})["texture"] for v in coverage if v not in PLAIN_CLOTHS}
+    others = {surface_extras({"fabric": v})["texture"] for v in coverage if v not in PLAIN_CLOTHS and v not in COLORWORK}
     assert not others & set(textures.values())
     svgs = {v: draw({**shirt, "fabric": v}) for v in PLAIN_CLOTHS}
     assert len(set(svgs.values())) == len(PLAIN_CLOTHS)
@@ -209,6 +209,48 @@ def test_every_plain_cloth_has_a_surface_of_its_own():
         valid(draw({**shirt, "fabric": v}, "flat"))
     assert draw({**shirt, "fabric": "shaker", "knit_gauge": "chunky"}) != svgs["shaker"]
     assert draw({**shirt, "fabric": "flat_knit", "knit_gauge": "chunky"}) != svgs["flat_knit"]
+
+
+@pytest.mark.parametrize("cloth", ("#d9cbb0", "#27344f", "#1f1f22", "#f6f5f2"))
+def test_colourwork_knits_are_drawn_where_the_garment_carries_them(cloth):
+    # #182: Fair Isle, Nordic, argyle, intarsia, jacquard knit, Cowichan and guernsey are knitted in, not plain
+    knit = {"neckline": "crew", "cuff": "rib_knit", "hem": "ribbed_band", "sleeve_length": "long"}
+    plain = draw({**knit, "fabric": "flat_knit"}, color=cloth)
+    svgs = {}
+    for v in COLORWORK:
+        assert COVERAGE["knit_structure"][v][0] == "drawn"
+        p, extras, _ = top_drawing({**knit, "fabric": v})
+        assert extras["colorwork"] == COLORWORK[v] and build("top", p).anchors == build("top", top_drawing(knit)[0]).anchors
+        svgs[v] = draw({**knit, "fabric": v}, color=cloth)
+        valid(svgs[v])
+        valid(draw({**knit, "fabric": v}, "flat", color=cloth))
+    assert plain not in svgs.values() and len(set(svgs.values())) == len(COLORWORK)
+    # in the other colours seen, where they stand out from the cloth
+    seen = render(Spec("top", top_drawing(knit)[0], Fill("solid", cloth), colorwork="fair_isle",
+                       motif_colors=("#b8332e", "#3f7d4f")), "line")
+    assert "#b8332e" in seen and "#3f7d4f" in seen
+    # a photo's fill already carries the pattern: it is not drawn twice
+    striped = Fill("stripes", cloth, stripes=Stripes("horizontal", [(cloth, 0.03), ("#b8332e", 0.03)]))
+    assert (render(Spec("top", top_drawing(knit)[0], striped, colorwork="fair_isle"), "line")
+            == render(Spec("top", top_drawing(knit)[0], striped), "line"))
+
+
+def test_a_pattern_named_fair_isle_nordic_or_argyle_is_drawn_as_colourwork():
+    knit = {"neckline": "crew", "cuff": "rib_knit", "hem": "ribbed_band"}
+    for name in ("fair_isle", "nordic", "argyle"):
+        assert top_drawing({**knit, "pattern_name": name})[1]["colorwork"] == name
+    assert "colorwork" not in top_drawing({**knit, "pattern_name": "gingham"})[1]
+
+
+def test_a_colourwork_cardigan_worn_open_keeps_its_pattern():
+    p, extras, _ = top_drawing({"neckline": "v_neck", "placket": "front_placket", "cuff": "rib_knit",
+                                "hem": "ribbed_band", "fabric": "argyle"})
+    over = Spec("top", {**p, "state": "open"}, Fill("solid", "#7a8a5c"), **extras)
+    plain = Spec("top", {**p, "state": "open"}, Fill("solid", "#7a8a5c"), **{**extras, "colorwork": None})
+    under = Spec("top", top_drawing(GARMENT_DRAWINGS["ocbd"])[0], Fill("solid", "#f4f3ee"))
+    worn = layer(under, over, "line")
+    valid(worn)
+    assert worn != layer(under, plain, "line")
 
 
 def test_the_hidden_button_down_shows_no_buttons():

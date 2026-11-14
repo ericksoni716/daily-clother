@@ -479,7 +479,8 @@ def kinds_for(category: str | None) -> tuple[str, ...]:
 
 # Axes that decide the shape of a top. `top_drawing` reads exactly these keys (taxonomy values), plus
 # "length" (cropped | regular | long | knee), "placket_buttons" (an int, or None for the usual number),
-# "back_detail" (western_yoke draws the pointed front yoke too), and the surface keys `surface_extras` reads.
+# "back_detail" (western_yoke draws the pointed front yoke too), "pattern_name" (a Fair Isle, Nordic or argyle
+# pattern is drawn as colourwork, as the knit structure of the same name is), and the surface keys `surface_extras` reads.
 TOP_AXES = ("fit", "sleeve_length", "neckline", "collar", "placket", "cuff", "sleeve_construction", "pockets", "hem")
 
 _FIT = {"slim": "slim", "tailored": "tailored", "regular": "regular", "cropped": "regular", "longline": "regular",
@@ -520,7 +521,7 @@ _TEXTURE = {   # fabric (woven or knit structure) -> tone-on-tone surface; scale
     "pique": "pique", "moss": "moss", "terry_towelling": "terry", "mesh": "mesh", "pointelle": "pointelle",
     "seersucker": "seersucker", "herringbone": "herringbone", "twill": "twill", "brushed_twill": "brushed_twill",
     "gabardine": "gabardine", "cavalry_twill": "cavalry_twill", "whipcord": "whipcord", "denim": "denim", "garter": "garter",
-    "guernsey": "garter", "linen": "linen", "slub_jersey": "slub_jersey", "hopsack": "basket",
+    "guernsey": "flat_knit", "linen": "linen", "slub_jersey": "slub_jersey", "hopsack": "basket",
     "fresco": "fresco", "tweed": "tweed", "ripstop": "ripstop", "sherpa": "sherpa",
     "polar_fleece": "fleece", "fleece_back": "fleece",
     # the plain weaves, shirtings and smooth cloths, and the jerseys (#182): each a faint surface of its own
@@ -531,7 +532,13 @@ _TEXTURE = {   # fabric (woven or knit structure) -> tone-on-tone surface; scale
     "velvet": "velvet", "melton": "melton", "waxed_cotton": "waxed",
     "jersey": "jersey", "interlock": "interlock", "flat_knit": "flat_knit", "french_terry": "french_terry",
     "velour": "velour", "shaker": "shaker",
+    # colourwork knits: plain knitting under the knitted-in pattern (`COLORWORK`)
+    "fair_isle": "flat_knit", "nordic": "flat_knit", "argyle": "flat_knit", "intarsia": "flat_knit",
+    "jacquard_knit": "flat_knit", "cowichan": "flat_knit",
 }
+# a knitted-in colour pattern, drawn where the garment carries it; a fabric, or a pattern the tagger named
+COLORWORK = {"fair_isle": "fair_isle", "nordic": "nordic", "argyle": "argyle", "intarsia": "intarsia",
+             "jacquard_knit": "jacquard_knit", "cowichan": "cowichan", "guernsey": "guernsey"}
 _WALE_SCALE = {"needlecord": 0.55, "standard": 1.0, "mid": 1.4, "wide_wale": 1.9, "jumbo": 2.6}
 _GAUGE_SCALE = {"extra_fine": 0.7, "fine": 0.85, "medium": 1.0, "chunky": 1.3, "super_chunky": 1.65}
 _QUILT = {"baffle": "baffle", "diamond": "quilt_diamond", "box": "quilt_box"}
@@ -743,6 +750,9 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
         notes.append("a sleeve pocket on a sleeveless top is not drawn")
     surf = surface_extras(g)
     extras.update({k: v for k, v in surf.items() if v})
+    colorwork = COLORWORK.get(_fabric(g) or "") or COLORWORK.get(g.get("pattern_name") or "")
+    if colorwork:
+        extras["colorwork"] = colorwork
     if surf["weight"]:
         p["weight"] = surf["weight"]
     if g.get("knit_gauge") in KNIT_GAUGES:
@@ -1116,12 +1126,18 @@ _KNIT_NOTES = {
     "flat_knit": (D, "a sweater's plain knitting: bigger stitches, scaled by knit_gauge"),
     "french_terry": (D, "the jersey face of a heavier cloth: larger, firmer stitches; heavy"),
     "velour": (D, "a plush pile in soft upright brush marks and a soft edge (halo)"),
-    "guernsey": (A_, "drawn as garter ridges; heavy"),
+    "guernsey": (D, "a plain knit body under a yoke panel of tone-on-tone ridges and diamonds; heavy"),
+    "fair_isle": (D, "a round yoke of peerie and OXO bands and a border above the hem, in the other colours seen"),
+    "nordic": (D, "a yoke of eight-petal stars and lice (single contrast stitches) over body and sleeves"),
+    "argyle": (D, "diamonds and a dashed overcheck down the front; the sleeves plain"),
+    "intarsia": (D, "a large stepped picture in blocks of colour on the chest; a real picture's shape comes only from the photo"),
+    "jacquard_knit": (D, "a small two-colour figure repeated all over"),
+    "cowichan": (D, "a bold zigzag band across the chest and a stepped band low on the body; super heavy"),
 }
 COVERAGE["woven_structure"] = {
     v: _WOVEN_NOTES[v] for v in AXES["woven_structure"]}
 COVERAGE["knit_structure"] = {
-    v: _KNIT_NOTES.get(v, (N_, "a colour pattern: carried by the photo's fill, not drawn"))
+    v: _KNIT_NOTES[v]
     for v in AXES["knit_structure"]}
 COVERAGE["fiber"] = {
     v: {

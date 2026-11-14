@@ -355,8 +355,10 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
          "hem": d.hem if d.hem != "na" else "straight", **cloth,
          "length": s.top_length or ("long" if tags.category == "coat" else "regular"),
          "garment": d.garment, "side_stripe": "side_stripe" in d.features, "contrast_trim": d.trim_color != "same",
-         "second_color": bool(tags.secondary_colors)}
+         "second_color": bool(tags.secondary_colors), "pattern_name": d.pattern_name}
     p, more, notes = top_drawing(g)
+    if more.get("colorwork"):   # knitted in the other colours seen
+        more["motif_colors"] = tuple(NAMED_HEX[c] for c in tags.secondary_colors if c in NAMED_HEX)
     if p.get("colorblock"):   # the second colour: the first of the other colours seen
         more["block_color"] = NAMED_HEX.get(tags.secondary_colors[0])
     if "v_insert" in d.features:

@@ -6,6 +6,7 @@ the fourth traces the real outline from the cutout instead.
 from __future__ import annotations
 
 import colorsys
+import math
 import re
 from dataclasses import dataclass, field
 
@@ -13,7 +14,7 @@ import numpy as np
 from PIL import Image
 
 from . import fills
-from .templates import CX_ROT, H, Shape, W, _x_on, build
+from .templates import CX, CX_ROT, K_PX, H, Shape, W, _x_on, build
 
 STYLES = ("flat", "line", "soft", "traced")
 PLACE_AT = 0.35      # where along the centre line, from neck to hem, a placed pattern is lined up
@@ -53,6 +54,9 @@ class Spec:
     halo: bool = False                # a fuzzy cloth (fleece, sherpa, mohair, brushed flannel): a soft, broken edge
     sheen: bool = False               # a shiny cloth (satin, nylon): a soft highlight across the body
     texture_scale: float | None = None  # the texture's spacing: corduroy wale, knit gauge (None = standard)
+    colorwork: str | None = None      # a knitted-in colour pattern placed as the garment carries it (fair_isle | nordic |
+                                      # argyle | intarsia | jacquard_knit | cowichan | guernsey); tops only
+    motif_colors: tuple[str, ...] = ()  # the colourwork's colours (the other colours seen); () = shades of the cloth
     notes: list[str] = field(default_factory=list)
 
 
@@ -418,6 +422,145 @@ def _cloth_tile(name: str, sc: float, lo: str, hi: str):
     return None
 
 
+def _motif_colors(base: str, colors) -> tuple[str, str]:
+    """The colourwork's two colours: the other colours seen where they stand out from the cloth, else a pale
+    cream on a dark cloth and a deep shade on a light one, with a colour between the two for the second."""
+    seen = [c for c in (colors or ()) if isinstance(c, str) and re.fullmatch(r"#[0-9a-fA-F]{6}", c)
+            and contrast(c, base) >= 1.35]
+    c1 = seen[0] if seen else ("#efe6d2" if luminance(base) < 0.42 else shade(base, -0.34))
+    c2 = seen[1] if len(seen) > 1 else _over(base, c1, 0.55)
+    return c1, c2
+
+
+def _ring(k: float, n_per: float = 14.0):
+    """Points round the neck at `k` beyond the neckline: an oval sitting on the shoulders, as a round yoke
+    lies when the sweater is laid flat. Spaced about `n_per` apart, from shoulder to shoulder through the front."""
+    cx, cy, rx, ry = CX, 52.0, 35.0 + k, 40.0 + k * 0.9
+    steps = max(6, int(math.pi * (rx + ry) / 2 / n_per))
+    pts = []
+    for i in range(-steps, steps + 1):
+        t = math.pi / 2 + math.pi * i / steps * 0.62   # the front half and round onto the shoulders
+        pts.append((cx + rx * math.cos(t), cy + ry * math.sin(t)))
+    return pts, (cx, cy, rx, ry)
+
+
+def _diamond(x: float, y: float, r: float) -> str:
+    return f"M{x:.1f},{y - r:.1f}L{x + r:.1f},{y:.1f}L{x:.1f},{y + r:.1f}L{x - r:.1f},{y:.1f}Z"
+
+
+def _colorwork(kind: str, shape: Shape, base: str, colors, uid: str) -> str:
+    """A knitted-in colour pattern, placed where the garment carries it: a Fair Isle or Nordic yoke round the
+    neck, argyle diamonds down the front, an intarsia picture on the chest, Cowichan bands, a jacquard all
+    over, a guernsey's tone-on-tone yoke panel. Drawn on the body, under its seams, ribbing and parts."""
+    c1, c2 = _motif_colors(base, colors)
+    x0, sy, x1, hy = shape.body_box
+    low = hy - 8 * K_PX    # above a ribbed hem
+    out: list[str] = []
+
+    def oval(k, colour, width):
+        _, (cx, cy, rx, ry) = _ring(k)
+        return (f'<ellipse cx="{cx:.1f}" cy="{cy:.1f}" rx="{rx:.1f}" ry="{ry:.1f}" fill="none" stroke="{colour}" '
+                f'stroke-width="{width}"/>')
+
+    def border(y0, y1):   # a band across the body above the hem: two rules and a row of small diamonds
+        h = y1 - y0
+        row = "".join(_diamond(x, (y0 + y1) / 2, h * 0.3) for x in _range(x0 - 60, x1 + 60, h * 0.95))
+        return (f'<path d="M0,{y0:.1f}H{W}M0,{y1:.1f}H{W}" stroke="{c1}" stroke-width="3.2"/>'
+                f'<path d="{row}" fill="{c2}"/>')
+
+    if kind in ("fair_isle", "nordic"):
+        if kind == "nordic":   # lice: single stitches of the contrast over body and sleeves, below the yoke
+            _, (cx, cy, rx, ry) = _ring(66)
+            dots = "".join(f'<rect x="{x - 1.6:.1f}" y="{y - 1.6:.1f}" width="3.2" height="3.2"/>'
+                           for j, y in enumerate(_range(sy + 4, low - 4, 15))
+                           for x in _range(-20 + (j % 2) * 9, W + 20, 18)
+                           if ((x - cx) / (rx + 5)) ** 2 + ((y - cy) / (ry + 5)) ** 2 > 1)
+            out.append(f'<g fill="{c1}">{dots}</g>')
+            out += [oval(8, c1, 3.6), oval(64, c1, 3.6), oval(58, c2, 2.2)]
+            pts, _ = _ring(34, 26)
+            out.append(f'<g fill="{c1}">' + "".join(_star(x, y, 11.5) for x, y in pts) + "</g>")
+            pts, _ = _ring(34, 26)
+            out.append(f'<g fill="{c2}">' + "".join(_diamond(x, y, 2.6) for x, y in pts) + "</g>")
+        else:   # peerie and OXO bands round the yoke, and a border above the hem
+            out += [oval(8, c1, 3.6), oval(30, c2, 3.4), oval(48, c1, 3.6), oval(66, c2, 3.2)]
+            pts, _ = _ring(19, 13)
+            out.append(f'<g fill="{c1}">' + "".join(_diamond(x, y, 5.6) for x, y in pts[::2]) + "</g>")
+            out.append(f'<g stroke="{c1}" stroke-width="2.2">' + "".join(
+                f'<path d="M{x - 4:.1f},{y - 4:.1f}l8,8M{x + 4:.1f},{y - 4:.1f}l-8,8"/>' for x, y in pts[1::2]) + "</g>")
+            pts, _ = _ring(39, 10)
+            out.append(f'<g fill="{c2}">' + "".join(_diamond(x, y, 3.4) for x, y in pts) + "</g>")
+            pts, _ = _ring(57, 11)
+            out.append(f'<g fill="{c1}">' + "".join(
+                f'<path d="M{x - 3.6:.1f},{y + 2.6:.1f}L{x:.1f},{y - 3:.1f}L{x + 3.6:.1f},{y + 2.6:.1f}Z"/>' for x, y in pts) + "</g>")
+            out.append(border(low - 24, low - 6))
+    elif kind == "argyle":   # diamonds down the front and back; the sleeves are plain
+        dw, dh = (x1 - x0) / 3, (x1 - x0) / 3 * 1.36
+        top = sy - dh * 0.25
+        cells, check = [], []
+        for j in range(-1, int((low - top) / dh) + 2):
+            for i in range(-2, 3):
+                cx_, cy_ = CX + i * dw, top + j * dh
+                cells.append(f"M{cx_:.1f},{cy_ - dh / 2:.1f}L{cx_ + dw / 2:.1f},{cy_:.1f}L{cx_:.1f},{cy_ + dh / 2:.1f}"
+                             f"L{cx_ - dw / 2:.1f},{cy_:.1f}Z")
+        for i in range(-8, 9):   # the overcheck: thin lines through the middles of the diamonds, both ways
+            xa, ya = CX + i * dw, top - 2 * dh
+            check.append(f"M{xa:.1f},{ya:.1f}l{dw * 8:.1f},{dh * 8:.1f}M{xa:.1f},{ya:.1f}l{-dw * 8:.1f},{dh * 8:.1f}")
+        out.append(f'<clipPath id="ab{uid}"><rect x="{x0:.1f}" y="0" width="{x1 - x0:.1f}" height="{low:.1f}"/></clipPath>'
+                   f'<g clip-path="url(#ab{uid})"><path d="{"".join(cells)}" fill="{c1}"/>'
+                   f'<path d="{"".join(check)}" stroke="{c2}" stroke-width="1.6" fill="none" stroke-dasharray="5 3"/></g>')
+    elif kind == "intarsia":   # one large picture knitted into the chest, in blocks of colour
+        cell = 10.0
+        rows = ("...X...", "..XXX..", ".XXOXX.", "XXOOOXX", ".XXOXX.", "..XXX..", "...X...")
+        ox, oy = CX - 3.5 * cell, sy + 30
+        out.append(f'<g fill="{c1}">' + "".join(f'<rect x="{ox + i * cell:.1f}" y="{oy + j * cell:.1f}" width="{cell + .3}" height="{cell + .3}"/>'
+                   for j, r in enumerate(rows) for i, ch in enumerate(r) if ch == "X") + "</g>")
+        out.append(f'<g fill="{c2}">' + "".join(f'<rect x="{ox + i * cell:.1f}" y="{oy + j * cell:.1f}" width="{cell + .3}" height="{cell + .3}"/>'
+                   for j, r in enumerate(rows) for i, ch in enumerate(r) if ch == "O") + "</g>")
+    elif kind == "jacquard_knit":   # a small two-colour figure repeated all over
+        motif = "".join(_diamond(x + (j % 2) * 11, y, 4.2) for j, y in enumerate(_range(sy - 10, low - 2, 15))
+                        for x in _range(-11, W + 11, 22))
+        dots = "".join(f'<rect x="{x + (j % 2) * 11 + 9.5:.1f}" y="{y - 1.6:.1f}" width="3.2" height="3.2"/>'
+                       for j, y in enumerate(_range(sy - 10, low - 2, 15)) for x in _range(-11, W + 11, 22))
+        out.append(f'<path d="{motif}" fill="{c1}"/><g fill="{c2}">{dots}</g>')
+    elif kind == "cowichan":   # bold bands across chest and lower body, round the sleeves too
+        ya, yb = sy + 38, sy + 64
+        zig = f"M-20,{yb - 4:.1f}" + "".join(
+            f"L{x + 9:.1f},{ya + 4:.1f}L{x + 18:.1f},{yb - 4:.1f}" for x in _range(-20, W + 20, 18))
+        out.append(f'<path d="M0,{ya:.1f}H{W}M0,{yb:.1f}H{W}" stroke="{c1}" stroke-width="3.6"/>'
+                   f'<path d="{zig}" fill="none" stroke="{c1}" stroke-width="4.2" stroke-linejoin="miter"/>')
+        y0, y1 = low - 40, low - 12
+        steps = "".join(f'<path d="M{x:.1f},{y1:.1f}V{(y0 + y1) / 2:.1f}H{x + 8:.1f}V{y0 + 4:.1f}H{x + 16:.1f}'
+                        f'V{(y0 + y1) / 2:.1f}H{x + 24:.1f}V{y1:.1f}Z"/>' for x in _range(-24, W + 24, 34))
+        out.append(f'<g fill="{c1}">{steps}</g><path d="M0,{y0:.1f}H{W}M0,{y1 + 2:.1f}H{W}" stroke="{c2}" stroke-width="3"/>')
+    elif kind == "guernsey":   # a yoke panel of knit-and-purl patterning, tone on tone, above a plain body
+        tone = shade(base, 0.14 if luminance(base) < 0.3 else -0.14)
+        ya = sy + 46
+        ridges = "".join(f"M0,{y:.1f}H{W}" for y in _range(sy - 6, ya, 6))
+        out.append(f'<g opacity=".55"><path d="{ridges}" stroke="{tone}" stroke-width="2"/>'
+                   f'<path d="M0,{ya + 2:.1f}H{W}" stroke="{tone}" stroke-width="3"/>'
+                   f'<path d="{"".join(_diamond(x, ya + 13, 7) for x in _range(-10, W + 10, 20))}" fill="none" '
+                   f'stroke="{tone}" stroke-width="2"/><path d="M0,{ya + 24:.1f}H{W}" stroke="{tone}" stroke-width="3"/></g>')
+    return "".join(out)
+
+
+def _range(a: float, b: float, step: float):
+    v = a
+    while v <= b:
+        yield v
+        v += step
+
+
+def _star(x: float, y: float, r: float) -> str:
+    """A Selbu star: eight petals, each a small diamond pointing out from the middle."""
+    d = []
+    for i in range(8):
+        t = math.pi / 4 * i
+        px, py = x + r * 0.55 * math.cos(t), y + r * 0.55 * math.sin(t)
+        ux, uy, vx, vy = math.cos(t) * r * .45, math.sin(t) * r * .45, -math.sin(t) * r * .17, math.cos(t) * r * .17
+        d.append(f"M{px - ux:.1f},{py - uy:.1f}L{px + vx:.1f},{py + vy:.1f}L{px + ux:.1f},{py + uy:.1f}L{px - vx:.1f},{py - vy:.1f}Z")
+    return f'<path d="{"".join(d)}"/>'
+
+
 def _graphic_markup(g: fills.Graphic | None, box: tuple[float, float, float, float], clip: str) -> str:
     if not g:
         return ""
@@ -695,6 +838,8 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
                      f'patternTransform="rotate({degrees:.1f} {CX_ROT[0]} {CX_ROT[1]})"/>')
             g.append(f'<path d="{d}" fill="{bpaint if shape.block_sleeves else paint if not patterned else turned(f"s{n}", degrees, ground=spec.fill.sleeves_from_trim)}"/>'
                      f'<path d="{d}" fill="url(#t{uid}s{n})"/>')
+    if spec.colorwork and not patterned and spec.template == "top":   # a photo's fill already carries the pattern
+        g.append(f'<g clip-path="url(#{clip})">{_colorwork(spec.colorwork, shape, base, spec.motif_colors, uid)}</g>')
     if spec.sheen and not patterned:   # one soft highlight across the chest
         defs += (f'<linearGradient id="h{uid}" x1="0" y1="0" x2="1" y2="1">'
                  '<stop offset=".2" stop-color="#fff" stop-opacity="0"/><stop offset=".34" stop-color="#fff" stop-opacity=".16"/>'

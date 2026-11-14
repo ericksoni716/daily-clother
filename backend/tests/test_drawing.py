@@ -244,3 +244,16 @@ def test_an_answer_from_before_the_accessory_fields_still_draws():
     del old["details"]["accessory"], old["details"]["accessory_kind"]
     assert ItemTags.model_validate(old).details.accessory == "na"
     assert item.svg_from_answer(old, "#336699") == item.svg_from_answer(POLO, "#336699")
+
+
+def test_a_fair_isle_sweater_is_drawn_in_its_other_colours_and_its_pattern_is_not_listed_as_missing():
+    # #182: colourwork knits are drawn from their tags, in the other colours seen
+    sweater = {**answer("sweater", {"sleeve": "long"}, neckline="crew", cuff="rib_knit", hem="ribbed_band",
+                        fabric="fair_isle"), "pattern": "other", "secondary_colors": ["navy", "red"]}
+    out = item.drawing_from_answer(sweater, "#d9cbb0")
+    assert "#27344f" in out.svg and "#b8332e" in out.svg
+    assert not any("pattern" in n for n in out.not_drawn)
+    told = {**sweater, "details": {**sweater["details"], "fabric": "unknown", "pattern_name": "nordic"}}
+    assert drawing_for(ItemTags.model_validate(told))[2]["colorwork"] == "nordic"
+    striped = {**sweater, "pattern": "stripe"}   # a stripe is not what the colourwork draws
+    assert any("stripes" in n for n in item.drawing_from_answer(striped, "#d9cbb0").not_drawn)

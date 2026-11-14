@@ -178,13 +178,14 @@ def test_the_bottoms_fields_choose_the_trouser_drawing(category, details, want):
 
 
 @pytest.mark.parametrize("category, kind, want, fabric", [
-    ("trousers", "chinos", {"pockets": "slant", "hem": "plain"}, "twill"),
-    ("trousers", "dress_trousers", {"crease": True, "hem": "plain"}, None),
+    ("trousers", "chinos", {"pockets": "slant", "hem": "plain", "back_pockets": ["welt"]}, "twill"),
+    ("trousers", "dress_trousers", {"crease": True, "hem": "plain", "back_pockets": ["jetted"]}, None),
     ("trousers", "jeans", {"jeans": True}, None),
-    ("trousers", "corduroys", {"pockets": "slant"}, "corduroy"),
-    ("trousers", "fatigues", {"fly": "button"}, "sateen"),
-    ("trousers", "cargo_pants", {"cargo": True}, None),
-    ("trousers", "work_pants", {"panels": ["double_knee"], "extra_pockets": ["hammer", "rule"]}, "canvas"),
+    ("trousers", "corduroys", {"pockets": "slant", "back_pockets": ["welt"]}, "corduroy"),
+    ("trousers", "fatigues", {"fly": "button", "back_pockets": ["flap"]}, "twill"),   # back sateen: a sheen looked glossy
+    ("trousers", "cargo_pants", {"cargo": True, "back_pockets": ["flap"]}, None),
+    ("trousers", "work_pants", {"panels": ["double_knee"], "extra_pockets": ["hammer", "rule"], "back_pockets": ["patch"]},
+     "canvas"),
 ])
 def test_an_everyday_trouser_kind_draws_its_own_look(category, kind, want, fabric):
     tags = ItemTags.model_validate(answer(category, garment=kind))
@@ -193,6 +194,15 @@ def test_an_everyday_trouser_kind_draws_its_own_look(category, kind, want, fabri
     from closet.tagger.taxonomy import surface_extras
     assert extras.get("texture") == (surface_extras({"fabric": fabric})["texture"] if fabric else None)
     assert item.svg_from_answer(answer(category, garment=kind)) != item.svg_from_answer(answer(category))
+
+
+@pytest.mark.parametrize("category, kind, like", [
+    ("trousers", "pajama_set_woven", "lounge_pants"), ("shorts", "pajama_set_knit", "sleep_shorts"),
+    ("trousers", "lounge_knit_set", "joggers"), ("trousers", "lounge_sweatsuit", "sweatpants"),
+    ("shorts", "lounge_sweatsuit", "training_shorts"),
+])
+def test_a_sets_bottom_is_drawn_as_the_bottom_it_is_cut_like(category, kind, like):
+    assert _drawn(answer(category, garment=kind)) == _drawn(answer(category, garment=like))
 
 
 def test_a_told_detail_wins_over_the_kinds_look():

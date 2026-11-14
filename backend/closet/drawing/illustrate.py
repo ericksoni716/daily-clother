@@ -776,6 +776,8 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             return body + f'<path d="{d}" fill="none" stroke="{l_stroke if style != "flat" else shade(c or base, -0.3)}" stroke-width="{l_w}" stroke-linejoin="round" opacity="{l_op}"/>'
         if role == "mark":     # a small piece in its own colour with no edge (a watch's hands and hour marks)
             return f'<path d="{d}" fill="{part_color(color) or paint}"/>'
+        if role == "shade":    # cloth in shadow (the fold of a pleat): a darker tone of the cloth, no edge
+            return f'<path d="{d}" fill="{d_col}" opacity="{d_op}"/>'
         if role == "shine":    # a hard gloss (patent leather): a bright streak, no edge
             return f'<path d="{d}" fill="#fff" opacity=".6"/>'
         if role == "fade":     # cloth worn paler (denim whiskers, a knee): a soft light wash over it, no edge

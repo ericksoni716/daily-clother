@@ -320,11 +320,11 @@ BOTTOM_DRAWING: dict[str, dict[str, tuple[dict, str, str]]] = {
             "none": ({"fly": "none"}, "drawn", "a centre seam, no fly")},
     "front": {
         "flat": ({"pleats": 0}, "drawn", ""), "single_pleat": ({"pleats": 1}, "drawn", "one pleat each side"),
-        "double_pleat": ({"pleats": 2}, "drawn", "two pleats each side"),
-        "reverse_pleat": ({"pleats": 1, "pleat_dir": "reverse"}, "approximate",
-                          "a pleat with a small lip toward the pocket: at grid size it looks like any single pleat"),
-        "forward_pleat": ({"pleats": 1, "pleat_dir": "forward"}, "approximate",
-                          "a pleat with a small lip toward the fly: at grid size it looks like any single pleat"),
+        "double_pleat": ({"pleats": 2}, "drawn", "two pleats each side, set apart so they read as two at grid size"),
+        "reverse_pleat": ({"pleats": 1, "pleat_dir": "reverse"}, "drawn",
+                          "the fold shaded on its pocket side, where it opens; at grid size only a darker speck"),
+        "forward_pleat": ({"pleats": 1, "pleat_dir": "forward"}, "drawn",
+                          "the fold shaded on its fly side, where it opens; at grid size only a darker speck"),
     },
     "rise": {"low": ({"rise": "low"}, "drawn", "a shorter fly and crotch"), "mid": ({}, "drawn", ""),
              "high": ({"rise": "high"}, "drawn", "a longer fly and crotch")},
@@ -350,10 +350,10 @@ BOTTOM_DRAWING: dict[str, dict[str, tuple[dict, str, str]]] = {
         "scoop": ({"pockets": "scoop"}, "drawn", "the curved jeans pocket"),
         "frog_mouth": ({"pockets": "frog"}, "drawn", "a horizontal opening under the band"),
         "coin": ({"coin": True}, "drawn", "the watch pocket"),
-        "back_welt_single": ({}, "not_drawn", "on the back: the drawing shows the front"),
-        "back_welt_double": ({}, "not_drawn", "on the back: the drawing shows the front"),
-        "back_patch": ({}, "not_drawn", "on the back: the drawing shows the front"),
-        "back_flap": ({}, "not_drawn", "on the back: the drawing shows the front"),
+        "back_welt_single": ({"back_pockets": ["welt"]}, "drawn", "on the item page's small back view: a slit with one lip and a button"),
+        "back_welt_double": ({"back_pockets": ["jetted"]}, "drawn", "on the item page's small back view: a slit with two lips and a button"),
+        "back_patch": ({"back_pockets": ["patch"]}, "drawn", "on the item page's small back view: a pointed patch, topstitched"),
+        "back_flap": ({"back_pockets": ["flap"]}, "drawn", "on the item page's small back view: a patch with a buttoned flap"),
         "cargo": ({"cargo": True}, "drawn", "bellows pockets on the thighs"),
         "hammer_loop": ({"extra_pockets": ["hammer"]}, "drawn", "a loop on the left side"),
         "rule_pocket": ({"extra_pockets": ["rule"]}, "drawn", "a narrow pocket on the right thigh"),
@@ -362,13 +362,14 @@ BOTTOM_DRAWING: dict[str, dict[str, tuple[dict, str, str]]] = {
     "back_details": {
         "double_knee": ({"panels": ["double_knee"]}, "drawn", "a panel over each knee"),
         "gusseted_crotch": ({"panels": ["gusset"]}, "drawn", "a diamond set into the crotch"),
-        "back_yoke": ({}, "not_drawn", "on the back"), "rivets": ({"rivets": True}, "drawn", "copper rivets at the front pocket corners"),
-        "back_patch_label": ({}, "not_drawn", "on the back"), "darts": ({}, "not_drawn", "on the back"),
-        "centre_back_v_loop": ({}, "not_drawn", "on the back"),
+        "back_yoke": ({"back": ["yoke"]}, "drawn", "on the item page's small back view: the seam dipping to the centre"), "rivets": ({"rivets": True}, "drawn", "copper rivets at the front pocket corners"),
+        "back_patch_label": ({"back": ["label"]}, "drawn", "on the item page's small back view: a leather label on the band"),
+        "darts": ({"back": ["darts"]}, "drawn", "on the item page's small back view: a short line above each pocket"),
+        "centre_back_v_loop": ({"back": ["v_loop"]}, "drawn", "on the item page's small back view: two loops meeting in a V"),
     },
     "denim_fades": {
         "whiskers": ({"fades": ["whiskers"]}, "drawn", "pale creases fanning from the crotch"),
-        "honeycombs": ({}, "not_drawn", "behind the knees"), "stacks": ({"fades": ["stacks"]}, "drawn", "pale bands above the hem"),
+        "honeycombs": ({"fades": ["honeycombs"]}, "drawn", "on the item page's small back view: pale creases behind each knee"), "stacks": ({"fades": ["stacks"]}, "drawn", "pale bands above the hem"),
         "train_tracks": ({"fades": ["tracks"]}, "drawn", "pale lines down the outer seams"),
         "roping": ({"fades": ["roping"]}, "drawn", "pale slanting twists along the hem"),
         "pocket_fade": ({"fades": ["pocket"]}, "drawn", "the pocket edge worn pale"),
@@ -726,6 +727,11 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
             p["hem"] = "rib"
         if g.get("second_color"):
             p["colorblock"] = ("sleeves",)   # the leather sleeves, in the second colour seen
+    elif kind == "overcoat":   # knee length, cut from the measured overcoat, not a blazer made longer
+        if p["length"] in ("regular", "cropped", "long"):
+            p["length"] = "knee"
+        if p.get("block") == "jacket":
+            p["block"] = "coat"
     elif kind == "robe":   # a wrap front held by a sash, at least to the knee
         p["belt"] = "sash"
         if p["length"] in ("regular", "cropped", "long"):
@@ -1288,7 +1294,8 @@ for _key in BOTTOM_DRAWING:
         v: (status, note) for v, (_, status, note) in BOTTOM_DRAWING[_key].items()}
 COVERAGE["denim_washes"] = {w: (D, "the jeans drawn in the wash's colour when no colour was measured")
                             for w in DENIM_WASH_SHADE if w != "overdyed"}
-COVERAGE["denim_washes"]["overdyed"] = (N_, "an overdye has no one colour: the measured colour is used")
+COVERAGE["denim_washes"]["overdyed"] = (A_, "drawn in the colour measured from the photo, as denim; the overdye's own "
+                                             "cast over the blue is not drawn")
 COVERAGE["shorts_inseam_in"] = {k: (D, "the shorts drawn to the inseam told, in inches") for k in SHORTS_INSEAM_IN}
 COVERAGE["shades"] = {name: (D, "the item drawn in the shade's colour") for name in SHADES}
 COVERAGE["families"] = {f: (N_, "used to match colours in outfits, not drawn") for f in COLOR_FAMILIES}
@@ -1331,21 +1338,39 @@ BOTTOM_DRAWINGS: dict[str, dict] = {
     "two_in_one_shorts": dict(waist="elastic", pockets="none", length="brief", hem="split"),
     "sleep_shorts": dict(waist="elastic", pockets="none", hem="plain"),
 }
+# A set (pyjamas, a lounge or sweat suit) is tagged as its top or its bottom; its bottom is drawn as the bottom kind
+# it is cut like: (as trousers, as shorts).
+SET_BOTTOMS: dict[str, tuple[str, str]] = {
+    "pajama_set_woven": ("lounge_pants", "sleep_shorts"), "pajama_set_knit": ("lounge_pants", "sleep_shorts"),
+    "lounge_knit_set": ("joggers", "sleep_shorts"), "lounge_sweatsuit": ("sweatpants", "training_shorts"),
+}
+
+
+def bottom_look(garment, category) -> dict:
+    """What sets a bottom's kind apart, as `pants` template parameters (a set's bottom: the kind it is cut like)."""
+    if garment in SET_BOTTOMS:
+        garment = SET_BOTTOMS[garment][category == "shorts"]
+    return dict(BOTTOM_DRAWINGS.get(garment, {}))
 # The everyday trousers and shorts: what each kind looks like when the details leave it open, as `pants` template
 # parameters laid under the ones the details give (a told detail wins), the cloth it is drawn in when none was seen,
 # and how well that shows.
 BOTTOM_KINDS: dict[str, tuple[dict, str | None, str, str]] = {
-    "chinos": ({"pockets": "slant", "hem": "plain"}, "twill", D, "slant pockets, a plain hem and a twill texture"),
-    "dress_trousers": ({"pockets": "slant", "crease": True, "hem": "plain"}, None, D,
-                       "a pressed crease down each leg, slant pockets, a plain hem"),
-    "jeans": ({"jeans": True}, None, D, "five pockets: the scoop, the watch pocket and its rivets, a topstitched hem"),
-    "corduroys": ({"pockets": "slant"}, "corduroy", D, "slant pockets and the cord's wales"),
-    "fatigues": ({"pockets": "slant", "fly": "button"}, "sateen", A_,
-                 "a button fly and a sateen sheen; the back-sateen cloth is only suggested and the back flap pockets are "
-                 "out of view"),
-    "cargo_pants": ({"pockets": "slant", "cargo": True}, None, D, "slant pockets and bellows pockets on the thighs"),
-    "work_pants": ({"pockets": "scoop", "panels": ["double_knee"], "extra_pockets": ["hammer", "rule"]}, "canvas", D,
-                   "a panel over each knee, a hammer loop and a rule pocket, scoop pockets"),
+    "chinos": ({"pockets": "slant", "hem": "plain", "back_pockets": ["welt"]}, "twill", D,
+               "slant pockets, a plain hem and a twill texture; welt pockets on the back view"),
+    "dress_trousers": ({"pockets": "slant", "crease": True, "hem": "plain", "back_pockets": ["jetted"]}, None, D,
+                       "a pressed crease down each leg, slant pockets, a plain hem; jetted pockets on the back view"),
+    "jeans": ({"jeans": True}, None, D, "five pockets: the scoop, the watch pocket and its rivets, a topstitched hem; "
+              "the yoke and patch pockets on the back view"),
+    "corduroys": ({"pockets": "slant", "back_pockets": ["welt"]}, "corduroy", D,
+                  "slant pockets and the cord's wales; welt pockets on the back view"),
+    "fatigues": ({"pockets": "slant", "fly": "button", "back_pockets": ["flap"]}, "twill", A_,
+                 "a button fly, slant pockets and buttoned flap pockets on the back view; the back-sateen cloth (a dense, "
+                 "soft, nearly matte weave) is drawn as a twill"),
+    "cargo_pants": ({"pockets": "slant", "cargo": True, "back_pockets": ["flap"]}, None, D,
+                    "slant pockets and bellows pockets on the thighs; flap pockets on the back view"),
+    "work_pants": ({"pockets": "scoop", "panels": ["double_knee"], "extra_pockets": ["hammer", "rule"], "back_pockets": ["patch"]},
+                   "canvas", D, "a panel over each knee, a hammer loop and a rule pocket, scoop pockets; patch pockets on "
+                   "the back view"),
     "shorts": ({}, None, D, "the shorts drawing, cut to the inseam when it was told"),
 }
 _KIND_NOTES = {
@@ -1359,6 +1384,7 @@ _KIND_NOTES = {
     "varsity_jacket": "a knitted collar, cuffs and hem, a snap front; with a second colour, the sleeves in it (the "
                       "chenille letters are not drawn)",
     "waxed_jacket": "the brown cord collar and a waxed cotton sheen",
+    "overcoat": "knee length, cut from the measured overcoat with its own collar and lapels; no breast pocket",
     "robe": "a knotted sash round the waist, to the knee; its collar and cloth from its details",
     # #182: what sets each apart, where the details do not say otherwise
     "leather_jacket": "leather's creases and shine, a zip front and a stand collar (a rider's lapels when told)",
@@ -1398,6 +1424,10 @@ _KIND_NOTES = {
 COVERAGE["garment"] = {g: (D, _KIND_NOTES[g]) if g in _KIND_NOTES else (BOTTOM_KINDS[g][2], BOTTOM_KINDS[g][3])
                        if g in BOTTOM_KINDS else (D, "") if g in GARMENT_DRAWINGS else
                        (A_, f"drawn from its details as a {APP_CATEGORY[g] or 'top or bottom'}") for g in GARMENTS}
+# a set's two halves are two items: its top as the kind's note says, its trousers or shorts as the bottom it is cut like
+COVERAGE["garment"].update({g: (COVERAGE["garment"][g][0], COVERAGE["garment"][g][1].replace(
+    "(the trousers are their own item)", f"; the trousers drawn as {pants.replace('_', ' ')}, the shorts as "
+    f"{shorts.replace('_', ' ')}").replace(" ;", ";")) for g, (pants, shorts) in SET_BOTTOMS.items()})
 
 
 # ---- accessories

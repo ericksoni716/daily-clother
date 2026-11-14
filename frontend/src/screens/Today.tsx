@@ -4,7 +4,7 @@ import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, HistoryIcon, MoreI
 import { OutfitFigure } from '../components/OutfitFigure';
 import { Button, buttonClass, Card, EmptyState, ItemThumb, Notice, PageHeader, SegmentedControl } from '../components/ui';
 import { WhereYouAre } from '../components/WhereYouAre';
-import { useTodayView, type TodayView } from '../figure';
+import { useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
@@ -646,8 +646,7 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
         </h2>
         {asking && <span className="today-asking muted"><span className="spinner" aria-hidden="true" /><span className="visually-hidden">Asking again…</span></span>}
         <SegmentedControl label="Show the outfit" small className="today-view" value={view}
-          options={[{ value: 'pieces', label: 'Pieces' }, { value: 'worn', label: 'As worn' }]}
-          onChange={setView} />
+          options={VIEW_OPTIONS} onChange={setView} />
       </div>
 
       <div className="today-track" ref={track} onScroll={onScroll} tabIndex={-1}>

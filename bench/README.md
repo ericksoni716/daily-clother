@@ -1,6 +1,6 @@
 # Bench
 
-Experiments that decide how the app tags and draws clothes. Two commands:
+Experiments that decide how the app tags and draws clothes. Three commands:
 
 ```
 cd bench
@@ -16,7 +16,25 @@ python -m closet_bench.hardcases
 #    used. Force one with --route plan or --route api.
 python -m closet_bench.bench --photos private/photos --key private/key.csv
 #    -> out/bench/report.html and results.json
+
+# 3. Tracing shoe photos into the flat style (#192, stage 1)
+#    Side-on photos of one shoe each in private/shoes/ (git-ignored). Uses the
+#    app's cut-out model when models/ has it (command 1 downloads it),
+#    otherwise OpenCV's GrabCut.
+#    Sheets are also saved as PNG when Chrome or Chromium is installed.
+python -m closet_bench.trace_shoes --photos private/shoes
+#    -> out/trace_shoes/index.html, shoe-NN.sheet.svg/.png and results.json
 ```
+
+The shoe tracing bench tries six ways of tracing (k-means colours, mean-shift
+then k-means, bilateral filter then k-means; two settings each) and puts them
+side by side with the photo, the cut-out and today's template drawing, at item
+size and at grid-tile size. Each trace is scored (outline overlap with the
+cut-out, colour error, how many colours and paths, whether logos and stripes
+survived) and the best approach overall is named. A quality gate says which
+photos are too poor to trace and why (blurred, low contrast, not side-on, cut
+off, more than one thing in the photo). To have the template drawn from the
+shoe's tags, save its tagger answer beside the photo as `<photo name>.json`.
 
 To score answers produced some other way (for example by Claude subagents),
 save them as `<folder>/<model name>/<photo name>.json` and add
@@ -52,5 +70,5 @@ numbers only, never file names.
 | `closet_bench/fills.py`, `templates.py`, `illustrate.py` | The drawing. These now live in the backend, in `backend/closet/drawing/` (colours, fabric swatches, stripes and prints taken from the photo; the parametric garment shapes; the four styles, shape + fill = SVG). The bench names are the same modules, so imports here work unchanged. OpenCV is imported only inside the parts that read a photo (the fills and the "traced" style), so the app's program draws without it |
 | `closet_bench/schema.py`, `tagging.py`, `taxonomy.py`, `claude_cli.py`, `routes.py` | The tagger. These now live in the backend, in `backend/closet/tagger/` (attribute vocabulary and answer shape; the prompt and the API-key route; the owner's taxonomy as the drawing sees it; the plan route through `claude -p`; plan first, API key as fallback). The bench names are the same modules, so imports here work unchanged |
 | `backend/closet/tagger/models.json` | The one place model IDs and prices live |
-| `closet_bench/hardcases.py`, `bench.py` | The two commands above |
+| `closet_bench/hardcases.py`, `bench.py`, `trace_shoes.py` | The three commands above |
 | `tests/` | `python -m pytest tests` |

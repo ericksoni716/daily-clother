@@ -598,6 +598,17 @@ Facts checked in Anthropic's documentation on 2026-11-12:
 | A pyjama or lounge set is drawn as its top; a set's trousers or shorts, tagged as their own item, are drawn as the bottom they are cut like (`taxonomy.SET_BOTTOMS`: lounge pants or sleep shorts for pyjamas, joggers for a knit set, sweatpants or training shorts for a sweatsuit); the set counts as drawn | The trousers of a set are their own item, drawn with the trouser kinds. |
 | A heathered or marled top is drawn with pale and dark flecks over plain knitting | The commonest irregular cloth on tops (grey marl). It replaces only a plain surface (jersey, flat knit, French terry, fleece or none); a cable or rib keeps its own. |
 
+### Tracing shoes from the photo (#192, stage 1)
+
+| Decision | Why |
+|---|---|
+| Tracing a shoe photo is tried on the bench first (`closet_bench.trace_shoes`), on the owner's photos, before anything changes in the app | The owner doubted tracing would hold up on real photos (shadows, glare, laces, angles); Phase 0 had found templates beat tracing for garments. The bench shows the traces next to today's template and scores them, so the owner can judge. |
+| Six variants from three approaches: k-means colours (4 and 6), mean-shift then colours (gentle and strong), a bilateral filter then colours (light and strong smoothing) | The issue asked for two or three approaches with a couple of settings each; all use OpenCV, already installed. No new dependency. |
+| A colour and the same colour in shade are one region, drawn in its lit shade | Phase 0 found shading split into extra regions. Two colours count as one when their hue and chroma match and one is up to 25 L darker. |
+| The sole is found and quantised on its own (two colours at most) | It is usually a different material and colour from the upper, and the drawings keep it as a separate region. |
+| Each variant gets a combined score: 0.35 outline overlap with the cut-out, 0.25 colour closeness (ΔE), 0.2 cleanliness (fewer paths), 0.2 marks kept | Overlap and colour are what make the drawing read as the owner's shoe; cleanliness and marks tell the variants apart once those are good. The weights are a first guess, to be checked against what the owner prefers on the sheets. |
+| The quality gate turns a photo away with a plain reason and the measured value: no shoe found, too small, blurred, low contrast with the background, cut off at the frame, two shoes, outline broken up, not side-on (no flat sole, no toe end), or a trace that does not match the cut-out | So the app can later fall back to the template by itself. The limits are set on synthetic images only; the owner's run is what checks them. |
+
 ## Patterns drawn from the photo
 
 The owner's original spec asked for patterns to come from the photo; it fell out when the drawing moved into

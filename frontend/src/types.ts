@@ -44,6 +44,11 @@ export interface ItemSummary {
   laundry: Laundry;
   created_at: string;
   updated_at: string;
+  /** what it is: its kind from the owner's taxonomy (see kinds.ts), or null when nobody has said */
+  kind?: string | null;
+  kind_name?: string | null;
+  /** the group it is shown in: its kind's, or its category's when it has no kind */
+  group?: string | null;
 }
 
 export interface Photo {
@@ -66,6 +71,10 @@ export interface Failure {
 }
 
 export interface Item extends ItemSummary {
+  /** who said what it is ("owner" or "claude"), how sure Claude was, and the kinds Claude's answer also fits */
+  kind_by?: 'owner' | 'claude' | null;
+  kind_confidence?: number | null;
+  kind_alternatives?: string[];
   formality: string | null;
   season: string | null;
   brand: string | null;
@@ -123,6 +132,8 @@ export interface Vocab {
   condition: string[];
   rating: string[];
   silhouette: Record<string, string[]>;
+  /** the groups kinds are shown in, for the Closet filter */
+  kind_groups?: { id: string; title: string }[];
 }
 
 export interface ModelInfo {

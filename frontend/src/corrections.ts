@@ -102,10 +102,12 @@ export function svgSource(svg: string): string {
 
 const isFlag = (v: unknown) => v === 'yes' || v === 'no';
 
-/** The parts worth saying: the colour's shade is left out when the colour itself is named. */
+/** The parts worth saying: the colour's shade is left out when the colour itself is named, the category when the kind is. */
 export function shownParts(parts: HistoryPart[]): HistoryPart[] {
   const hasColour = parts.some((p) => p.name === 'color');
-  return parts.filter((p) => p.target !== 'answer' && !(hasColour && p.name === 'color_hex'));
+  // the kind of garment follows from the kind the owner chose: saying the kind says it
+  const hasKind = parts.some((p) => p.target === 'detail' && p.name === 'garment');
+  return parts.filter((p) => p.target !== 'answer' && !(hasColour && p.name === 'color_hex') && !(hasKind && p.name === 'category'));
 }
 
 /** One change in words, without who made it: "the front from buttons to a half placket". */

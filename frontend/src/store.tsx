@@ -183,7 +183,7 @@ export function ClosetProvider({ profile, onProfile, onLogout, onQuit, toast, ch
 
 const SUMMARY_KEYS: (keyof ItemSummary)[] = ['id', 'name', 'category', 'color', 'color_hex', 'pattern', 'location', 'rating',
   'status', 'cutout_state', 'tag_state', 'thumb_url', 'has_illustration', 'illustration_url', 'has_photo', 'last_worn', 'wear_count',
-  'wears_since_wash', 'laundry', 'created_at', 'updated_at'];
+  'wears_since_wash', 'laundry', 'created_at', 'updated_at', 'kind', 'kind_name', 'group'];
 
 function pickSummary(item: ItemSummary): ItemSummary {
   const out = {} as Record<string, unknown>;

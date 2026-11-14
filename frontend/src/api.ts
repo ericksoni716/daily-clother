@@ -9,6 +9,7 @@ import type { FindsAnswer } from './shop';
 import type { Life } from './life';
 import type { Check, WouldPiece } from './wouldwork';
 import type { FigurePieces } from './figure';
+import type { KindCatalogue } from './kinds';
 import type { UpdateMode, UpdateStatus } from './updates';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
@@ -183,6 +184,10 @@ export const api = {
   /** Sets details; null gives one back to Claude's description. */
   setDetails: (id: string, details: Record<string, unknown>) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}/details`, { method: 'PUT', body: { details } }),
+  /** Every kind in the owner's taxonomy, in its groups; and saying what an item is (its category follows). */
+  kinds: () => request<KindCatalogue>('/api/kinds'),
+  setKind: (id: string, kind: string) =>
+    request<Item>(`/api/items/${encodeURIComponent(id)}/kind`, { method: 'PUT', body: { kind } }),
   correct: (id: string, sentence: string) =>
     request<CorrectionAnswer>(`/api/items/${encodeURIComponent(id)}/correct`, { method: 'POST', body: { sentence } }),
   confirmCorrection: (id: string, sentence: string, changes: { name: string; value: unknown; before?: unknown }[]) =>

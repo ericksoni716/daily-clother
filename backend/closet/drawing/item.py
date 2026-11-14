@@ -13,9 +13,9 @@ and the rest kept; if the drawing still fails, the plainest drawing of the
 category is returned. Accessories (bag, belt, hat, scarf) are drawn from the
 taxonomy's accessory id and kind in the answer's details (a cap, beanie or brimmed
 hat; a tote, backpack...), and their plainest shape without them. An "other" item is
-drawn only when its answer names one of the taxonomy's other accessories (gloves, a
-tie, socks...), as a plain tag; any other "other" item and unknown categories give
-None: there is nothing to draw.
+drawn only when its answer names one of the taxonomy's other accessories (a tie, a
+pocket square, gloves, glasses, a watch, socks), each with a shape of its own; any
+other "other" item and unknown categories give None: there is nothing to draw.
 
 `drawing_from_answer` and `drawing_from_fields` give the same drawing together
 with what it leaves out or shows only roughly, in plain words (a pattern, a
@@ -208,6 +208,8 @@ def _draw(tags: ItemTags, hex_: str, uid: str, notes: list[str], fill: Fill | No
     if fill is not None or graphic is not None:
         try:
             template, params, extras, approximated = drawing_for(tags)
+            if template in ("tie", "socks"):   # the pattern measured from the photo, not the one drawn from the words
+                params.pop("pattern", None)
             svg = render(Spec(template, params, fill or Fill("solid", hex_), graphic=graphic, **extras), STYLE, uid=uid)
             notes.extend(approximated)
             return svg, True
@@ -218,7 +220,7 @@ def _draw(tags: ItemTags, hex_: str, uid: str, notes: list[str], fill: Fill | No
         template, params, extras, approximated = drawing_for(tags)
         svg = render(Spec(template, params, Fill("solid", hex_), **extras), STYLE, uid=uid)
         notes.extend(approximated)
-        return svg, False
+        return svg, template in ("tie", "socks") and params.get("pattern", "solid") != "solid"   # a tie's stripes
     except Exception:
         log.exception("drawing a %s failed; drawing the plainest %s instead", tags.category, tags.category)
         notes.append(FELL_BACK)

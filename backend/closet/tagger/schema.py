@@ -286,10 +286,22 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
              "knit_gauge": None if d.knit_gauge == "na" else d.knit_gauge,
              "corduroy_wale": None if d.corduroy_wale == "na" else d.corduroy_wale}
     if tags.category in ("bag", "belt", "hat", "scarf", "other"):
-        made = taxonomy.accessory_drawing(tags.category, d.accessory, d.accessory_kind, cloth)
+        pattern = d.pattern_name if d.pattern_name != "solid" else tags.pattern
+        made = taxonomy.accessory_drawing(tags.category, d.accessory, d.accessory_kind, cloth, pattern)
         if made is None:
             raise ValueError(f"there is nothing to draw for this {tags.category}")
         template, p, notes = made
+        words, _ = taxonomy.accessory_words(template, d.other_features)
+        dial = words.pop("dial_color", None)
+        if template in ("tie", "socks", "watch", "eyewear", "belt"):
+            p.update(words)
+        if template == "watch":   # "blue dial", "light blue dial", "sunburst blue dial"; else the second colour
+            dial = (NAMED_HEX.get(dial) or NAMED_HEX.get(dial.split("_")[-1])) if dial else None
+            dial = dial or (NAMED_HEX.get(tags.secondary_colors[0]) if tags.secondary_colors else None)
+            if dial:
+                p["dial_color"] = dial
+        if template in ("tie", "socks") and p.get("pattern", "solid") != "solid" and tags.secondary_colors:
+            extras["block_color"] = NAMED_HEX.get(tags.secondary_colors[0])   # the pattern's colour
         extras.update(taxonomy.surface_extras(cloth))
         if p.pop("soft", False):
             extras["halo"] = True
@@ -365,7 +377,13 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
 
 
 def drawn_words(tags: ItemTags) -> list[str]:
-    """The tagger's other_features words that the drawing shows (a shoe's footwear id, strap or lacing)."""
+    """The tagger's other_features words that the drawing shows (a shoe's footwear id, strap or lacing; a tie's
+    width, a watch's strap, a lens's tint ...)."""
+    if tags.category in ("belt", "other"):
+        made = taxonomy.accessory_drawing(tags.category, tags.details.accessory, tags.details.accessory_kind)
+        if made is None or made[0] not in ("tie", "socks", "watch", "eyewear", "belt"):
+            return []
+        return taxonomy.accessory_words(made[0], tags.details.other_features)[1]
     if tags.category not in ("sneakers", "boots", "dress_shoes", "sandals"):
         return []
     return taxonomy.shoe_words(tags.details.shoe_style, tags.details.other_features)[2]

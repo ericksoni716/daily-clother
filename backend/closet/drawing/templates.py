@@ -22,7 +22,7 @@ CX_ROT = (200, 120)  # patterns and a sleeve's cloth are turned about the middle
 @dataclass
 class Part:
     d: str
-    role: str  # trim | hole | sole | band | cuff | collar_r | collar_l | edge (a stroke with no fill) | inlay | stitch | fade | shine
+    role: str  # trim | hole | sole | band | cuff | collar_r | collar_l | edge (a stroke with no fill) | inlay | stitch | fade | shine | mark (an inlay with no edge)
     color: str | None = None   # inlay/stitch: "trim" | "lace" | "sole" | "sole_line" | a hex; None = the body's cloth
     clip: bool = False         # drawn inside the outline only (an inlay may be drawn oversize and cut by the edge)
 
@@ -1413,11 +1413,13 @@ def _tailored(p, block) -> Shape:
         pocket = [_poly([(xs_, wy - 8), (xs_ + 6, wy - 8), (xb_ + 6, wy + 46), (xb_, wy + 46)])]
     for d_ in pocket:
         sh.lines += [d_, _mirror_path(d_)]
+    breast = None
     if kind != "none" and lower != "slash":   # the breast welt, on the wearer's left only, rising to the outside
         yc = ny + T["breast"] * k_
         b0 = max(CX + 0.36 * chest, edge_x(yc + 8) + 7)
         b1 = min(b0 + 10 * k_, CX + chest - 10)
         sh.lines.append(_poly([(b0, yc), (b1, yc - 4), (b1, yc + 4), (b0, yc + 8)]))
+        breast = ((b0 + b1) / 2, yc - 2)   # the middle of its mouth: where a pocket square stands
     if not coat and lower != "slash":   # front darts, from below the chest into the hip pocket
         xd = x0 + pw * 0.42 if lower != "none" else CX + 0.55 * chest
         yd0 = ny + T["breast"] * k_ + 26
@@ -1434,6 +1436,8 @@ def _tailored(p, block) -> Shape:
                           f"L {_pt(ml(N))} {neck_path} Z".split())
     sh.anchors = {"neck": (CX, 58.0), "shoulder_l": (CX - 23 * K_PX, 80.0), "shoulder_r": (CX + 23 * K_PX, 80.0),
                   "hem": (CX, hy), "neck_point_l": ml(N), "neck_point_r": N}
+    if breast is not None:
+        sh.anchors["breast"] = breast
     sh.body_box = (CX - chest, sy, CX + chest, hy)
     xs = [float(x) for x, _ in re.findall(r"(-?[\d.]+),(-?[\d.]+)", sh.outline)]
     xmax = max(max(xs), 2 * CX - min(xs))
@@ -2770,7 +2774,8 @@ def sneaker(**kw) -> Shape:
 # forehead), a belt's "waist" (the middle of the strap, worn), a scarf's "neck" (the base of the neck its loop
 # goes round) and a bag's "hand" (the top of its handle or strap). With `px` (pixels per centimetre) the anchor
 # is put at (CX, 0) at that scale, as the outfit figure wants it; without, the piece is scaled to fill the card.
-# The other accessories (ties, gloves, glasses ...) have no shape of their own yet: `accessory` draws a plain tag.
+# Ties, pocket squares, gloves, glasses, watches and socks are drawn in the same way in `accessories`;
+# `accessory` draws a plain tag, for an accessory with no shape of its own.
 
 BUCKLE = {"brass": "#b8955a", "nickel": "#c4c6c9", "gunmetal": "#5d6066", "matte_black": "#2a2b2e"}
 FIT_W, FIT_H = 330.0, 380.0   # the room an accessory may take on its card
@@ -2820,8 +2825,9 @@ def _path(cmds, k, ox, oy):
 def _finish(dr: _Draft, px=None) -> Shape:
     """The draft at `px` pixels per centimetre with its anchor at (CX, 0), or fitted to the card."""
     if px is None:
-        pts = [q for c in [dr.outline] + [p[0] for p in dr.parts] + [b[0] for b in dr.behind]
-               for q in _path(c, 1.0, 0.0, 0.0)[1]]
+        # a pattern laid over the whole piece and cut by its edge (a tie's stripes) does not make it any bigger
+        cover = [p[0] for p in dr.parts if not (p[1] == "block" and p[3])]
+        pts = [q for c in [dr.outline] + cover + [b[0] for b in dr.behind] for q in _path(c, 1.0, 0.0, 0.0)[1]]
         pts += [(x + s * r, y + s * r) for x, y, r in dr.dots for s in (-1, 1)]
         x0, x1 = min(x for x, _ in pts), max(x for x, _ in pts)
         y0, y1 = min(y for _, y in pts), max(y for _, y in pts)
@@ -2834,7 +2840,8 @@ def _finish(dr: _Draft, px=None) -> Shape:
     for cmds, role, color, clip in dr.parts:
         d, more = _path(cmds, k, ox, oy)
         sh.parts.append(Part(d, role, color, clip))
-        pts += more
+        if not (role == "block" and clip):
+            pts += more
     for cmds, role, color in dr.behind:
         d, more = _path(cmds, k, ox, oy)
         sh.behind.append(Part(d, role, color))
@@ -3273,7 +3280,7 @@ def bag(**kw) -> Shape:
 
 
 def accessory(**kw) -> Shape:
-    """A plain tag, standing in for an accessory with no shape of its own yet (a tie, gloves, glasses ...)."""
+    """A plain tag, standing in for an accessory with no shape of its own."""
     dr = _Draft([("M", (-4.0, -8.0)), ("L", (4.0, -8.0)), ("L", (8.0, -3.5)), ("L", (8.0, 11.0)), ("Q", (8.0, 12.0), (7.0, 12.0)),
                  ("L", (-7.0, 12.0)), ("Q", (-8.0, 12.0), (-8.0, 11.0)), ("L", (-8.0, -3.5)), ("Z",)], anchor="tag")
     dr.part(_ellipse(0, -4.6, 1.1, 1.1), "hole")
@@ -3288,4 +3295,7 @@ TEMPLATES = {"top": top, "pants": pants, "sneaker": sneaker, "cap": cap, "beanie
 
 
 def build(template: str, params: dict) -> Shape:
+    if template not in TEMPLATES:   # ties, pocket squares, gloves, glasses, watches and socks: their own module
+        from .accessories import SHAPES
+        return SHAPES[template](**params)
     return TEMPLATES[template](**params)

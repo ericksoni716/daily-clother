@@ -1277,8 +1277,10 @@ ACCESSORY_GROUP = {"cap": "hats", "beanie": "hats", "brimmed_hat": "hats", "belt
                    "eyewear": "eyewear_frames", "watch": "watches", "socks": "socks"}
 # every kind the tagger may name (a few words are shared by two groups: "knit" ties and gloves)
 ACCESSORY_KINDS: tuple[str, ...] = tuple(dict.fromkeys(k for g in dict.fromkeys(ACCESSORY_GROUP.values()) for k in ACCESSORIES[g]))
-# the accessories with a shape of their own; the others are drawn as a plain tag (the "accessory" template)
-ACCESSORY_TEMPLATES = ("bag", "belt", "cap", "beanie", "brimmed_hat", "scarf")
+# the accessories with a shape of their own (all of them); an "accessory" template, a plain tag, stays for an
+# item drawn before they had one
+ACCESSORY_TEMPLATES = ("bag", "belt", "cap", "beanie", "brimmed_hat", "scarf", "tie", "pocket_square", "gloves",
+                       "eyewear", "watch", "socks")
 
 # kind -> (template, its style). The hats are one group in the taxonomy, so a hat's kind decides its template.
 _KIND_DRAWING = {
@@ -1306,22 +1308,94 @@ _UNSAID = {"bag": "which kind of bag it is was not said, so it is drawn as a tot
            "knit_hat": "which kind of hat it is was not said; it looks knitted, so it is drawn as a beanie",
            "belt": "which kind of belt it is was not said, so it is drawn as a plain leather belt",
            "scarf": "which kind of scarf it is was not said, so it is drawn as a woven scarf"}
-_NOUN = {"tie": "ties have", "pocket_square": "pocket squares have", "gloves": "gloves have", "eyewear": "glasses have",
-         "watch": "watches have", "socks": "socks have"}
+# the small accessories (filed as "other"): the kind each is drawn as when its kind was not said, and what to call it
+_OTHER_PLAIN = {"tie": ("silk_woven", "a woven silk tie"), "pocket_square": ("flat", "folded flat"),
+                "gloves": ("leather_dress", "leather gloves"), "eyewear": ("wayfarer", "a wayfarer"),
+                "watch": ("dress", "a dress watch"), "socks": ("casual_crew", "a crew sock")}
+_OTHER_NOUN = {"tie": "tie", "pocket_square": "pocket square", "gloves": "gloves", "eyewear": "glasses",
+               "watch": "watch", "socks": "socks"}
+# the taxonomy's pattern names a tie or a pair of socks is drawn with; any stripe is a tie's diagonal repp stripe
+_TIE_PATTERN = {"polka_dot": "dots", "pin_dot": "dots", "paisley": "paisley", "foulard": "foulard",
+                "geometric": "foulard", "novelty": "club_motif", "stripe": "repp_stripe"}
+_SOCK_PATTERN = {"argyle": "argyle", "polka_dot": "dots", "pin_dot": "dots", "stripe": "stripes"}
+# the tagger's own words (other_features) that say more than a kind: (accessory, phrase) -> parameters
+_ACCESSORY_WORDS = {
+    ("tie", "skinny"): {"width": "skinny"}, ("tie", "slim"): {"width": "slim"}, ("tie", "narrow"): {"width": "slim"},
+    ("tie", "wide"): {"width": "wide"}, ("tie", "broad"): {"width": "wide"},
+    ("tie", "repp"): {"pattern": "repp_stripe"}, ("tie", "regimental"): {"pattern": "repp_stripe"},
+    ("tie", "stripe"): {"pattern": "repp_stripe"}, ("tie", "striped"): {"pattern": "repp_stripe"},
+    ("tie", "club"): {"pattern": "club_motif"}, ("tie", "crest"): {"pattern": "club_motif"},
+    ("tie", "motif"): {"pattern": "club_motif"}, ("tie", "foulard"): {"pattern": "foulard"},
+    ("tie", "paisley"): {"pattern": "paisley"}, ("tie", "dots"): {"pattern": "dots"}, ("tie", "dot"): {"pattern": "dots"},
+    ("tie", "polka"): {"pattern": "dots"}, ("tie", "square end"): {"end": "square"},
+    ("watch", "square"): {"dial": "square"}, ("watch", "rectangular"): {"dial": "rectangular"},
+    ("watch", "tank"): {"dial": "rectangular"}, ("watch", "cushion"): {"dial": "cushion"},
+    ("watch", "leather"): {"strap": "leather"}, ("watch", "bracelet"): {"strap": "steel_bracelet"},
+    ("watch", "steel bracelet"): {"strap": "steel_bracelet"}, ("watch", "nato"): {"strap": "nato"},
+    ("watch", "rubber"): {"strap": "rubber"}, ("watch", "silicone"): {"strap": "rubber"},
+    ("watch", "canvas"): {"strap": "canvas"}, ("watch", "gold"): {"case": "gold"},
+    ("eyewear", "clear"): {"lens": "clear"}, ("eyewear", "grey"): {"lens": "grey"}, ("eyewear", "gray"): {"lens": "grey"},
+    ("eyewear", "green"): {"lens": "green"}, ("eyewear", "brown"): {"lens": "brown"}, ("eyewear", "amber"): {"lens": "brown"},
+    ("eyewear", "mirrored"): {"lens": "mirrored"}, ("eyewear", "mirror"): {"lens": "mirrored"},
+    ("eyewear", "gradient"): {"lens": "gradient"},
+    ("socks", "stripes"): {"pattern": "stripes"}, ("socks", "striped"): {"pattern": "stripes"},
+    ("socks", "argyle"): {"pattern": "argyle"}, ("socks", "dots"): {"pattern": "dots"},
+    ("belt", "brass"): {"buckle": "brass"}, ("belt", "gold"): {"buckle": "brass"}, ("belt", "nickel"): {"buckle": "nickel"},
+    ("belt", "silver"): {"buckle": "nickel"}, ("belt", "chrome"): {"buckle": "nickel"},
+    ("belt", "gunmetal"): {"buckle": "gunmetal"}, ("belt", "matte black"): {"buckle": "matte_black"},
+    ("belt", "black buckle"): {"buckle": "matte_black"},
+}
+
+
+def accessory_words(accessory: str, words: list[str]) -> tuple[dict, list[str]]:
+    """What the tagger's own words (other_features) add to an accessory's drawing: (parameters, the words now
+    drawn). A tie's width and pattern, a watch's dial shape, strap and gold case, and its dial's colour ("blue
+    dial", returned as the colour's words in `dial_color`), a lens's tint (words about the lenses), a belt's
+    buckle; the first word to say each wins."""
+    params: dict = {}
+    used: list[str] = []
+    for word in words:
+        said = _say(word)
+        hit = False
+        for (who, phrase), more in _ACCESSORY_WORDS.items():
+            if who == "eyewear" and " len" not in said:   # "green" alone may be the frame's colour
+                continue
+            if who == accessory and _say(phrase) in said and not set(more) & set(params):
+                params.update(more)
+                hit = True
+        m = re.search(r" ([a-z_]+(?: [a-z]+)?) (?:dial|face) ", said)
+        if accessory == "watch" and m and "dial_color" not in params:
+            params["dial_color"] = m.group(1).replace(" ", "_")
+            hit = True
+        if hit:
+            used.append(word)
+    return params, used
 
 
 def accessory_drawing(category: str, accessory: str | None = None, kind: str | None = None,
-                      cloth: dict | None = None) -> tuple[str, dict, list[str]] | None:
+                      cloth: dict | None = None, pattern: str | None = None) -> tuple[str, dict, list[str]] | None:
     """Template, parameters and notes for an accessory, from its app category, its taxonomy garment id and its
     kind (taxonomy words; "na" or None when not known). None when it is not an accessory (an "other" item that
-    is none of the taxonomy's accessories). An id or kind filed under another category is not used."""
+    is none of the taxonomy's accessories). An id or kind filed under another category is not used. `pattern`,
+    the taxonomy's pattern name (or the coarse "stripe"), gives a tie's or a pair of socks' pattern."""
     cloth = cloth or {}
     accessory = accessory if ACCESSORY_GARMENTS.get(accessory or "") == category else None
     if category == "other":
         if accessory is None:
             return None
-        return "accessory", {"kind": accessory}, [f"{_NOUN[accessory]} no shape of their own yet, so a plain tag "
-                                                   "stands in for the drawing"]
+        plain, said = _OTHER_PLAIN[accessory]
+        notes = []
+        if kind not in ACCESSORIES[ACCESSORY_GROUP[accessory]]:
+            notes.append(f"which kind of {_OTHER_NOUN[accessory]} it is was not said, so it is drawn as {said}")
+        params = {"style": kind if not notes else plain}
+        if kind in ("wool", "boot_ragg"):   # a wool tie, a thick ragg sock: a soft, fuzzy edge
+            params["soft"] = True
+        if accessory in ("tie", "socks") and pattern:
+            key = "stripe" if "stripe" in pattern or pattern == "rugby_hoops" else pattern
+            drawn = (_TIE_PATTERN if accessory == "tie" else _SOCK_PATTERN).get(key)
+            if drawn:
+                params["pattern"] = drawn
+        return accessory, params, notes
     if category not in ("bag", "belt", "hat", "scarf"):
         return None
     group = ACCESSORY_GROUP[accessory or ("cap" if category == "hat" else category)]
@@ -1389,7 +1463,42 @@ _ACCESSORY_NOTES = {
     "belt_bag": (D, "a small curved pouch with a strap out to each side"),
     "dopp_kit": (D, "a small zipped case"),
 }
-# accessory garment ids, and the kinds of each, as the drawing shows them
+_ACCESSORY_NOTES.update({
+    "silk_woven": (D, "a fuller knot from the thicker silk; a pointed blade"),
+    "silk_printed": (D, "a neat, smaller knot from the thinner silk"),
+    "wool": (D, "the fullest knot"),
+    "grenadine": (A_, "an open gauze weave, drawn as a fine grid of small openings over the blade"),
+    "bow_tie": (D, "two folded wings either side of a small knot"),
+    "flat": (D, "a straight band of cloth just above the pocket"),
+    "one_point": (D, "one point standing up out of the pocket"),
+    "puff": (D, "the middle of the square pushed up, loose and rounded"),
+    "crown": (D, "three points standing up"),
+    "leather_dress": (D, "a fitted glove with a short cuff, a snap and three lines of points down the back"),
+    "mittens": (D, "one rounded pocket for the four fingers and a ribbed cuff"),
+    "fingerless": (D, "the fingers come out of ribbed openings"),
+    "work": (D, "a broad glove with a stiff gauntlet cuff and a strap over the knuckles"),
+    "touchscreen": (D, "a knitted glove with pads on the thumb and the first two fingertips"),
+    "wayfarer": (D, "thick frames, wider at the top, with a straight brow"),
+    "aviator": (D, "thin metal frames, teardrop lenses and a double bridge"),
+    "round": (D, "small round lenses in thin frames and a keyhole bridge"),
+    "browline": (D, "a heavy brow over thin lower rims"),
+    "rectangular": (D, "rectangular lenses with rounded corners"),
+    "sport_wrap": (D, "one shield lens across both eyes"),
+    "dress": (D, "a small round case, a pale dial with thin marks, and a stitched leather strap"),
+    "dive": (D, "a larger case with a turning bezel, a dark dial and a steel bracelet"),
+    "field": (D, "a dark dial with bold marks at the quarters, on a NATO strap"),
+    "chronograph": (D, "three small dials and two pushers beside the crown"),
+    "digital_sport": (D, "a square case and a screen of figures, on a rubber strap"),
+    "dress_otc": (D, "over the calf, with a fine rib down the leg"),
+    "dress_mid_calf": (D, "to the middle of the calf, with a fine rib down the leg"),
+    "casual_crew": (D, "a crew sock with a ribbed top"),
+    "athletic_crew": (D, "a crew sock with a deeper rib and a band round the arch"),
+    "no_show": (D, "a low cup round the foot; not seen when worn"),
+    "boot_ragg": (A_, "thick, with a deep rib and a pale heel and toe; the marled yarn is drawn in one colour"),
+})
+# accessory garment ids, and the kinds of each, as the drawing shows them. The knit tie and the knit glove share
+# their kind's name, and one note: the glove's.
+_ACCESSORY_NOTES["knit"] = (D, "knitted: a ribbed cuff and rows across the back (a knit tie: rows across it and a square end)")
 COVERAGE["accessory"] = {
     g: ((D, f"its own template, `{g}`") if g in ACCESSORY_TEMPLATES else
         (N_, "no shape of its own yet: a plain tag stands in for it (the `accessory` template)"))
@@ -1397,6 +1506,33 @@ COVERAGE["accessory"] = {
 for _group in dict.fromkeys(ACCESSORY_GROUP.values()):
     COVERAGE[_group] = {k: _ACCESSORY_NOTES.get(k, (N_, "no shape of its own yet: a plain tag stands in for it"))
                         for k in ACCESSORIES[_group]}
+# what the tagger's pattern names and words add (accessory_drawing, accessory_words)
+COVERAGE["tie_patterns"] = {
+    "solid": (D, "the tie in one colour"),
+    "repp_stripe": (D, "diagonal stripes in the second colour, from any striped pattern or the word 'repp'"),
+    "foulard": (D, "a small repeating diamond in the second colour"),
+    "paisley": (D, "small teardrops in the second colour"),
+    "dots": (D, "small dots in the second colour"),
+    "club_motif": (A_, "a small shield repeated stands in for whatever the club's motif is"),
+}
+COVERAGE["eyewear_lenses"] = {v: (D, "the lenses in that tint, from the tagger's words") for v in ("grey", "green", "brown")}
+COVERAGE["eyewear_lenses"].update({
+    "mirrored": (A_, "a pale blue tint with a glint: the mirror's reflection is not drawn"),
+    "gradient": (D, "the tint fading toward the bottom of the lens"),
+    "clear": (D, "a pale wash over what is behind the lens"),
+})
+COVERAGE["watch_straps"] = {
+    "leather": (D, "stitched round its edges, with a buckle and holes"),
+    "steel_bracelet": (D, "links across, the middle row set apart, and a clasp"),
+    "nato": (D, "one strap passing under the case, with two metal keepers"),
+    "rubber": (D, "grooves across near the case"),
+    "canvas": (D, "its weave along it"),
+}
+COVERAGE["buckle_finish"] = {v: (D, "the buckle in that metal, when the tagger's words name it") for v in ACCESSORIES["buckle_finish"]}
+COVERAGE["jewelry"] = {v: (N_, "not drawn: the tagger files no jewelry, it is not one of the accessory garments")
+                       for v in ACCESSORIES["jewelry"]}
+COVERAGE["other"] = {v: (N_, "not drawn: braces and umbrellas are not one of the accessory garments the tagger files")
+                     for v in ACCESSORIES["other"]}
 
 
 # The owner's file: docs/ in a source checkout, next to this module in the packaged program (packaging/closet.spec).

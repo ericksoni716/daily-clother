@@ -1,4 +1,5 @@
 """The outfit drawn as worn (closet/drawing/figure.py) and the route that draws it (POST /api/outfits/figure)."""
+import math
 import re
 import subprocess
 import sys
@@ -547,6 +548,33 @@ def test_no_skin_shows_where_a_garment_covers_it(top, bottom):
     for p in _flat(body.torso):   # the torso below the collar: under the top, or under the trousers below it
         if p[1] > fig.NECK_Y + 6 * K_PX:
             assert _clear(p, cover, margin) or _clear(p, trousers, margin), (p, "torso")
+
+
+def test_he_has_an_average_build_with_shoulders_wider_than_hips():
+    layout = plan(dict(base=SHIRT, bottom=TROUSERS, shoes=SNEAKERS))
+    head = [x for x, _ in _flat(layout.body.head)]
+    hw = (max(head) - min(head)) / K_PX
+    shoulders, hips = 2 * fig.SHOULDER_HALF_CM / hw, 2 * fig.HIP_HALF_CM / hw
+    assert 2.2 <= shoulders <= 2.3 and 1.6 <= hips <= 1.7
+    # the trousers drawn over his hips stay well inside his shoulders
+    b = layout.get("bottom")
+    crotch = b.point(b.shape.anchors["crotch"])[1]
+    waist = b.point(b.shape.anchors["waist"])[1]
+    xs = [x for x, y in _flat(b.shape.outline, b.transforms[0]) if waist <= y <= crotch]
+    assert (max(xs) - min(xs)) / K_PX / hw <= 1.9   # his hips and a little ease
+    assert 2 * fig.SHOULDER_HALF_CM / ((max(xs) - min(xs)) / K_PX) >= 1.2
+
+
+def test_his_hands_are_as_long_as_his_face():
+    body = plan(dict(base=TEE, bottom=SHORTS, shoes=SNEAKERS)).body
+    head, hair = _flat(body.head), _flat(body.hair)
+    chin, left = max(y for _, y in head), min(x for x, _ in head)
+    temple = max(y for x, y in hair if x < left + 2 * K_PX)   # the hairline at the side of the face
+    face = chin - temple
+    for hand in body.hands:
+        pts = _flat(hand)
+        length = max(math.dist(p, q) for p in pts for q in pts)
+        assert 0.85 * face <= length <= 1.1 * face
 
 
 def test_skin_shows_below_a_short_sleeve_and_shorts():

@@ -37,7 +37,7 @@ PHONE = (390, 844)
 # the page around the figure: the app's colours (frontend/src/styles.css) for each theme
 THEMES = {
     "light": dict(bg="#f6f2ea", surface="#fffdf9", ink="#26231f", muted="#6b655b", card="#f1eee8", edge="#e4ded3"),
-    "dark": dict(bg="#1b1916", surface="#24211d", ink="#eeeae3", muted="#aaa397", card="#e6e1d8", edge="#cfc8bb"),
+    "dark": dict(bg="#1b1916", surface="#24211d", ink="#eeeae3", muted="#aaa397", card="#f1eee8", edge="#cfc8bb"),
 }
 
 

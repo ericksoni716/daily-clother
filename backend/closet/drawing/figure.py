@@ -89,11 +89,12 @@ LINE = 3.8                    # the body's outline, as wide as a garment's (illu
 HEAD_CM = 24.0                # the top of the head to the chin: one head, of the 7.5
 HEADS = 7.5
 NECK_CM = 30.0                # the base of the neck, where a top's neckline sits (its "neck" anchor)
-NECK_HALF_CM = 5.5
-SHOULDER_CM, SHOULDER_HALF_CM = 35.0, 17.0   # the shoulder points, where a top's shoulder seam lands: two head widths apart
-CHEST_CM, CHEST_HALF_CM = 46.0, 12.0         # at the armpits: inside the slimmest top
-WAIST_CM, WAIST_HALF_CM = 71.0, 11.5         # where trousers' waistband sits
-HIP_CM, HIP_HALF_CM = 84.0, 14.0
+# an average build, not a slim fashion figure: the head is 16 cm wide, the shoulders 2.3 head widths, the hips 1.65
+NECK_HALF_CM = 6.3
+SHOULDER_CM, SHOULDER_HALF_CM = 35.0, 18.3   # the shoulder points, where a top's shoulder seam lands
+CHEST_CM, CHEST_HALF_CM = 46.0, 14.5         # at the armpits: inside the slimmest top
+WAIST_CM, WAIST_HALF_CM = 71.0, 12.6         # where trousers' waistband sits
+HIP_CM, HIP_HALF_CM = 84.0, 13.2
 CROTCH_CM = 94.0
 KNEE_CM = 132.0
 GROUND_CM = HEADS * HEAD_CM   # 180 cm
@@ -101,7 +102,8 @@ WRIST_CM = 100.0              # the wrist, a little below the crotch; the finger
 ELBOW_CM = 71.0
 ARM_DEG = 13.0                 # the arms hang this far out from straight down, so sleeves read clearly
 ARM_IN_CM, ARM_DOWN_CM = 4.0, 5.0   # the top of the arm's middle, in from the shoulder point and under it
-ARM_HALF_CM, ELBOW_HALF_CM, WRIST_HALF_CM = 3.6, 3.0, 2.3
+ARM_HALF_CM, ELBOW_HALF_CM, WRIST_HALF_CM = 4.3, 3.6, 2.7
+HAND_SCALE = 0.82             # the hand (HAND, drawn 16.5 cm long) is drawn as long as his face, chin to hairline
 LEG_TOP_HALF_CM = 7.0         # the top of each leg (inside the trousers), from the middle
 THIGH_HALF_CM, KNEE_HALF_CM, CALF_HALF_CM = 7.0, 4.8, 5.0
 CALF_CM = 146.0
@@ -124,6 +126,8 @@ OUTER_BLOCKS = ("outer", "bomber", "jacket", "coat")
 # still reaches below the trousers' waistband, so no skin shows between them.
 TOP_LENGTH = [(0.0, 0.0), (55.0, WAIST_CM - NECK_CM + 10.0), (78.0, 61.0), (113.0, KNEE_CM - NECK_CM + 2.0)]
 TROUSER_WAIST_HALF_CM = 13.5  # a regular trouser waist, worn (a 41 cm flat waist)
+TROUSER_HIP_HALF_CM = 14.5    # and its hips (50 cm flat), over his, from the hips down
+FLAT_HIP_CM, FLAT_HIP_HALF_CM = 18.8, 25.0   # the trousers template's regular hips: below the waist, and half wide
 BREAK_CM = 5.0                # a full-length trouser hem rests this far above the ground, on the shoe
 DIP_CM = 2.0                  # the break: a full-length hem falls this much lower over the instep than at its sides
 TOE_CM = 7.0                  # seen a little from above, the toes stand forward of the legs: lower on the page by this
@@ -142,8 +146,9 @@ def _y(cm: float) -> float:
 SHOULDER_Y, WAIST_Y, CROTCH_Y, GROUND_Y = _y(SHOULDER_CM), _y(WAIST_CM), _y(CROTCH_CM), _y(GROUND_CM)
 HEM_Y = GROUND_Y - BREAK_CM * K_PX
 CHIN_Y = _y(HEAD_CM)
-BOTTOM_SX = TROUSER_WAIST_HALF_CM * K_PX / (20.5 * PX_CM)   # trousers' flat drawing to the figure, across
-LEG_CM = 12.5 * PX_CM * BOTTOM_SX / K_PX   # the middle of each leg, from the middle: where a straight leg's hem is
+BOTTOM_SX = TROUSER_WAIST_HALF_CM * K_PX / (20.5 * PX_CM)   # trousers' flat drawing to the figure, across, at the waist
+HIP_SX = TROUSER_HIP_HALF_CM * K_PX / (FLAT_HIP_HALF_CM * PX_CM)   # ...and from the hips down
+LEG_CM = 12.5 * PX_CM * HIP_SX / K_PX   # the middle of each leg, from the middle: where a straight leg's hem is
 BELT_HALF_CM = TROUSER_WAIST_HALF_CM - 0.3   # a worn belt, either side of its buckle: the trousers' waist as drawn
 BELT_Y = WAIST_Y + 1.7 * K_PX   # the middle of the waistband
 HAT_Y = CROWN_Y + 9.0 * K_PX  # where a hat's crown meets its brim, on the head
@@ -384,7 +389,9 @@ def _fit_top(spec: Spec, shape: Shape) -> tuple[Shape, float]:
     # below the underarm the body stands off his hips by some ease, less for a slimmer fit (never none, so no skin
     # shows beside it)
     room = HIP_HALF_CM + max(0.5, HIP_EASE_CM + (fuller - 1.0) * EASE_PER_FIT)
-    ease = max(1.0, room * K_PX / (own_half * sx * UNDERARM_IN))
+    ease = room * K_PX / (own_half * sx * UNDERARM_IN)
+    if fuller > 1.02 or block == "coat":   # a fuller fit, or a coat to the knee, hangs straight down from the chest
+        ease = max(1.0, ease)
     hem_y = shape.anchors.get("hem", (CX, shape.body_box[3]))[1]
     above = HOOD_ABOVE if params.get("neck") == "hood" else 0.85   # a hood lies back on the shoulders
     table = [(-40.0, -40.0 * above), (0.0, 0.0), ((sh[1] - ny) / K_PX, SHOULDER_CM - NECK_CM)] + TOP_LENGTH[1:]
@@ -442,7 +449,8 @@ def _fit_bottom(shape: Shape) -> Shape:
         for c, h in legs:
             s = max(0.0, 1 - abs(x - c) / h) if h else 0.0
             y += DIP_CM * K_PX * t * t * math.sin(math.pi / 2 * s)
-        return CX + (x - wx) * BOTTOM_SX, y
+        t = min(1.0, max(0.0, (q[1] - wy) / (FLAT_HIP_CM * PX_CM)))
+        return CX + (x - wx) * (BOTTOM_SX + (HIP_SX - BOTTOM_SX) * t), y
     return fitting.warp(shape, fn, radius=0.85, split=4.0 if legs else None)
 
 
@@ -630,7 +638,11 @@ def _arm(layout: Layout) -> tuple[str, str, list[str]]:
         full = max(1.0, math.dist(sleeve.shoulder, sleeve.outer))
         for u, r in ((0.15, ra), (0.6, re_), (1.0 - 0.5 * k / full, rw)):
             cs.append(sleeve.at(u, 0.5))
-            hs.append(max(1.2 * k, min(r, math.dist(sleeve.at(u, 0.0), sleeve.at(u, 1.0)) / 2 - LINE - 1.0)))
+            ahead, back = sleeve.at(min(1.0, u + 0.05), 0.5), sleeve.at(u - 0.05, 0.5)
+            ax = _unit(ahead[0] - back[0], ahead[1] - back[1])
+            o, i = sleeve.at(u, 0.0), sleeve.at(u, 1.0)   # the sleeve's width square to its length, not along the seam
+            across = abs((i[0] - o[0]) * ax[1] - (i[1] - o[1]) * ax[0])
+            hs.append(max(1.2 * k, min(r, across / 2 - LINE - 1.0)))
         w = cs[-1]
         d = _unit(w[0] - cs[1][0], w[1] - cs[1][1])
         # the arm's round end stays inside the cuff; the hand, drawn from the wrist, comes out of it
@@ -645,7 +657,8 @@ def _arm(layout: Layout) -> tuple[str, str, list[str]]:
     p = (h[1], -h[0])
 
     def put(q):
-        return (w[0] + (q[0] * p[0] + q[1] * h[0]) * k, w[1] + (q[0] * p[1] + q[1] * h[1]) * k)
+        kh = k * HAND_SCALE
+        return (w[0] + (q[0] * p[0] + q[1] * h[0]) * kh, w[1] + (q[0] * p[1] + q[1] * h[1]) * kh)
 
     hand = _curve([put(q) for q in HAND], closed=True)
     fingers = [_curve([put(q) for q in line]) for line in FINGERS]

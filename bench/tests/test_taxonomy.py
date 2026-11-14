@@ -253,6 +253,32 @@ def test_a_colourwork_cardigan_worn_open_keeps_its_pattern():
     assert worn != layer(under, plain, "line")
 
 
+def test_a_tops_fibre_shows_where_no_fabric_says_otherwise():
+    # #182: leather, suede, worsted, lambswool and merino each change a top's drawing
+    tee = {"neckline": "crew", "sleeve_length": "long", "hem": "straight"}
+    plain = draw(tee)
+    svgs = {f: draw({**tee, "fiber": f}) for f in ("leather", "suede", "worsted_wool", "lambswool")}
+    assert plain not in svgs.values() and len(set(svgs.values())) == 4
+    assert top_drawing({**tee, "fiber": "leather"})[1]["sheen"]
+    assert top_drawing({**tee, "fiber": "leather", "fabric": "jersey"})[1]["texture"] == "jersey"   # the fabric wins
+    knit = {**tee, "fabric": "flat_knit"}
+    assert draw({**knit, "fiber": "merino"}) != draw(knit)
+    assert draw({**knit, "fiber": "merino", "knit_gauge": "chunky"}) == draw({**knit, "knit_gauge": "chunky"})
+    for f in ("leather", "suede", "worsted_wool", "lambswool", "merino", "hemp", "cotton"):
+        assert COVERAGE["fiber"][f][0] == "drawn", f
+    assert COVERAGE["fiber"]["acrylic"][0] == "approximate"
+
+
+def test_a_convertible_cuff_shows_its_spare_buttonhole_and_cargo_pockets_are_drawn_on_a_top():
+    shirt = CONTEXT["collar"]
+    barrel, convertible = (build("top", top_drawing({**shirt, "cuff": c})[0]) for c in ("barrel_1", "convertible"))
+    assert convertible.anchors == barrel.anchors
+    assert len(convertible.parts) == len(barrel.parts) + 2   # a buttonhole on each cuff
+    p, _, notes = top_drawing({**shirt, "cuff": "convertible", "pockets": "cargo"})
+    assert p["cuffs"] == "convertible" and p["pockets"] == "bellows" and not notes
+    assert COVERAGE["cuff"]["convertible"][0] == COVERAGE["pockets"]["cargo"][0] == "drawn"
+
+
 def test_the_hidden_button_down_shows_no_buttons():
     shirt = CONTEXT["collar"]
     hidden = draw({**shirt, "collar": "hidden_button_down"})
@@ -300,11 +326,11 @@ UNCHANGED = {
     "crewneck_sweatshirt": "8ef1ba5c1c7c3579",   # #182: french terry surface
     "hoodie": "d94a19965cb06860",
     "zip_hoodie": "8893ac4861061caa",
-    "pullover_sweater": "725e485e6f2ba239",
-    "cardigan": "be363c4f1293246e",   # #182: flat knit surface
-    "shawl_cardigan": "4de220b078e04c61",   # #182: shaker surface
-    "sweater_vest": "2525fdb5d88de43f",   # #110: armhole band keeps its width
-    "quarter_zip": "a7cd9c247a6fe55d",   # #182: flat knit surface
+    "pullover_sweater": "ab9e46737cb8df6d",   # #182: lambswool's soft edge
+    "cardigan": "5a7ef550bc921053",   # #182: flat knit surface, merino's fine gauge
+    "shawl_cardigan": "8dadaebcd226c9ce",   # #182: shaker surface, lambswool's soft edge
+    "sweater_vest": "e3a185d363c7fcfe",   # #110: armhole band keeps its width; #182: lambswool's soft edge
+    "quarter_zip": "27bc1f5d9a22353b",   # #182: flat knit surface, merino's fine gauge
     "chore_coat": "f82ceba2e738d934",   # #182: canvas surface
     "trucker_jacket": "1fd21e47f12d94f2",   # #110: buttoned waistband, not a rib
     "bomber": "6cc6616e2a294223",   # #182: plain surface

@@ -99,7 +99,7 @@ CASES: dict[str, list[tuple[str, str, str, dict, dict]]] = {
     ],
     "tops-fibres": [
         _knit("no fibre told", "unknown"), _knit("cotton", "unknown", fiber="cotton"),
-        _knit("merino", "unknown", fiber="merino"), _knit("lambswool", "unknown", fiber="lambswool"),
+        _knit("merino", "flat_knit", fiber="merino"), _knit("lambswool", "unknown", fiber="lambswool"),
         _knit("acrylic", "unknown", fiber="acrylic"), _weave("hemp", "unknown", "#b9a98a", fiber="hemp"),
         ("worsted wool jacket", "jacket", "#3a3f4a", dict(fiber="worsted_wool", **JACKET), {}),
         ("leather jacket", "jacket", "#3a2a20", dict(fiber="leather", **JACKET), {}),

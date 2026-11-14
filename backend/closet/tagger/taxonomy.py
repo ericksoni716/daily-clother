@@ -497,7 +497,7 @@ _COLLAR = {"point": "point", "semi_spread": "semi_spread", "spread": "spread", "
 _FRONT = {"front_placket": "buttons", "french_front": "french", "hidden_fly": "hidden", "snap": "buttons",
           "double_breasted": "double", "half_placket_popover": "popover", "henley": "half", "polo": "half",
           "zip_quarter": "quarter-zip", "zip_half": "half-zip", "zip_full": "zip", "none": "none"}
-_CUFF = {"barrel_1": "button", "barrel_2": "button2", "french": "french", "convertible": "button", "mitred": "mitred",
+_CUFF = {"barrel_1": "button", "barrel_2": "button2", "french": "french", "convertible": "convertible", "mitred": "mitred",
          "snap_3": "snap3", "rib_knit": "rib", "open_hem": "open", "rolled": "rolled", "roll_tab": "roll-tab", "none": "plain"}
 _SHOULDER = {"set_in": "set-in", "raglan": "raglan", "drop_shoulder": "drop", "saddle_shoulder": "saddle", "dolman": "dolman"}
 _POCKETS = {"none": "none", "chest_patch_single": "chest", "chest_patch_double": "chest-patch-two",
@@ -595,7 +595,7 @@ def surface_extras(g: dict) -> dict:
     scale = None
     if tex == "corduroy" and wale in _WALE_SCALE and wale != "standard":
         scale = _WALE_SCALE[wale]
-    elif tex in ("cable_knit", "rib_knit", "fisherman_rib", "waffle", "garter", "moss", "flat_knit", "shaker"):
+    elif tex in _GAUGED:
         scale = _GAUGE_SCALE.get(gauge) or (1.25 if fabric == "aran" else 0.75 if fabric == "rib_1x1" else None)
         if scale == 1.0:
             scale = None
@@ -739,8 +739,6 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
         p["stripes"] = "sleeve"   # a track jacket's stripes run down the sleeves
     # notes for what is drawn as something close
     approx = {
-        "convertible": "convertible cuff drawn as a one-button barrel cuff",
-        "cargo": "cargo pockets on a top drawn as bellows pockets",
         "five_pocket_jean": "five-pocket layout belongs to jeans: not drawn on a top",
     }
     for v in (collar, g.get("cuff"), g.get("pockets"), _fabric(g)):
@@ -750,6 +748,18 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
         notes.append("a sleeve pocket on a sleeveless top is not drawn")
     surf = surface_extras(g)
     extras.update({k: v for k, v in surf.items() if v})
+    # a top's fibre shows where no fabric says otherwise: leather's creases and shine, suede's nap, worsted's
+    # fine twill, lambswool's soft edge, merino's fine knitting
+    fiber = g.get("fiber")
+    if _fabric(g) in (None, "unknown") and not g.get("quilting") and fiber in _TOP_FIBER_TEXTURE:
+        extras["texture"] = _TOP_FIBER_TEXTURE[fiber]
+    if extras.get("texture") == "leather" and not extras.get("halo"):
+        extras["sheen"] = True
+    if fiber == "lambswool":
+        extras["halo"] = True
+        extras.pop("sheen", None)
+    if fiber == "merino" and g.get("knit_gauge") not in KNIT_GAUGES and extras.get("texture") in _GAUGED:
+        extras["texture_scale"] = _GAUGE_SCALE["fine"] * (extras.get("texture_scale") or 1.0)
     colorwork = COLORWORK.get(_fabric(g) or "") or COLORWORK.get(g.get("pattern_name") or "")
     if colorwork:
         extras["colorwork"] = colorwork
@@ -761,6 +771,9 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
         p["quilting"] = "baffle"
     return p, extras, notes
 
+
+_TOP_FIBER_TEXTURE = {"leather": "leather", "suede": "suede", "worsted_wool": "twill"}
+_GAUGED = ("cable_knit", "rib_knit", "fisherman_rib", "waffle", "garter", "moss", "flat_knit", "shaker")
 
 # the cloth a kind of top is drawn in when none was seen
 _KIND_FABRIC = {"trench_coat": "gabardine", "varsity_jacket": "melton", "waxed_jacket": "waxed_cotton"}
@@ -1041,7 +1054,7 @@ COVERAGE: dict[str, dict[str, tuple[str, str]]] = {
     "cuff": _c(
         ("barrel_1", (D, "one button")), ("barrel_2", (D, "two buttons side by side")),
         ("french", (D, "deep folded cuff with a cufflink, no button")),
-        ("convertible", (A_, "drawn as a one-button barrel cuff: the second buttonhole does not show")),
+        ("convertible", (D, "a barrel cuff's button, and beside it the spare buttonhole for a cufflink")),
         ("mitred", (D, "cuff corner cut on the slant")), ("snap_3", (D, "deep cuff with three snaps")),
         ("rib_knit", (D, "rib band; on short sleeves the polo's armband")),
         ("open_hem", (D, "a stitched hem at the wrist, no cuff")),
@@ -1068,7 +1081,7 @@ COVERAGE: dict[str, dict[str, tuple[str, str]]] = {
         ("hip_patch_double", (D, "two plain patches low on the front")),
         ("hip_flap_double", (D, "two patches with buttoned flaps low on the front")),
         ("five_pocket_jean", (N_, "a trouser pocket layout; not drawn on a top")),
-        ("cargo", (A_, "drawn as bellows pockets on a top")),
+        ("cargo", (D, "large bellows pockets with flaps, as on a field jacket")),
     ),
     "hem": _c(
         ("curved_shirt_tail", (D, "")), ("straight_with_vents", (D, "small slits at the side seams with bar tacks")),
@@ -1142,16 +1155,19 @@ COVERAGE["knit_structure"] = {
 COVERAGE["fiber"] = {
     v: {
         "linen": (D, "light weight and slub streaks when no fabric is known"), "cotton_linen": (D, "light weight, linen slubs"),
-        "hemp": (A_, "drawn as linen slubs; midweight"), "cotton": (A_, "the default: no change"),
-        "merino": (A_, "fine and clean: midweight, no halo"), "lambswool": (A_, "midweight; no halo drawn"),
+        "hemp": (D, "slub streaks like linen's, a step heavier: midweight"),
+        "cotton": (D, "the reference cloth: drawn as its fabric says, with a clean edge"),
+        "merino": (D, "fine and clean: a knit with no gauge told is drawn fine gauge (smaller stitches), no halo"),
+        "lambswool": (D, "a soft, slightly fuzzy edge (halo) on a top; midweight"),
         "shetland": (D, "heavier and a fuzzy edge (halo)"), "cashmere": (D, "soft edge (halo)"),
         "yak": (D, "heavier, soft edge"), "camel": (D, "heavier"), "alpaca": (D, "heavier, fuzzy edge"),
-        "mohair": (D, "fuzzy edge"), "worsted_wool": (A_, "midweight, clean edge (the default look)"),
+        "mohair": (D, "fuzzy edge"), "worsted_wool": (D, "a top with no fabric told is drawn in a fine, clean twill: smooth worsted cloth; midweight"),
         "woolen_wool": (D, "one step heavier than the fabric alone (wool flannel vs cotton flannel)"),
         "silk": (D, "lighter and a sheen highlight"), "polyester": (D, "one step lighter than the fabric alone"),
-        "nylon": (D, "lighter and a sheen highlight"), "acrylic": (A_, "drawn like wool of the same knit"),
+        "nylon": (D, "lighter and a sheen highlight"), "acrylic": (A_, "drawn like wool of the same knit: at item size the two look the same, and its slight synthetic shine is not drawn"),
         "viscose": (D, "lighter: fine edges"), "lyocell": (D, "lighter: fine edges"), "modal": (D, "lighter: fine edges"),
-        "leather": (A_, "the depth of a heavy cloth; no leather surface or sheen"), "suede": (A_, "the depth of a heavy cloth; no nap"),
+        "leather": (D, "on a top: soft creases where the hide flexes and a sheen highlight; heavy"),
+        "suede": (D, "on a top: a brushed nap, paler one way and darker the other; heavy"),
         "shearling": (D, "super heavy, sherpa curl and fuzzy edge"),
     }[v] for v in AXES["fiber"]}
 COVERAGE["weight"] = {

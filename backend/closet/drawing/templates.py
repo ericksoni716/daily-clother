@@ -522,7 +522,7 @@ def top(**kw) -> Shape:
         puff, puff_in = [], []   # a puffer's sleeve swells between its channels on both edges, down to the cuff
         if p.get("quilting") == "baffle":
             amp = 3.2 + bulk * 0.3
-            cuff_d = {"rib": 17 * bs, "button": 22 + bulk, "button2": 22 + bulk, "mitred": 22 + bulk, "french": 28 + bulk,
+            cuff_d = {"rib": 17 * bs, "button": 22 + bulk, "button2": 22 + bulk, "convertible": 22 + bulk, "mitred": 22 + bulk, "french": 28 + bulk,
                       "snap3": 31 + bulk}.get(cuffs, 0) if kind in ("long", "three-quarter") else 0
             end = (Co[0] - d[0] * cuff_d, Co[1] - d[1] * cuff_d)
             puff = _scallop_run(P1, end, 32.0, amp, math.degrees(thr), (d[1], -d[0])) + [end]
@@ -859,10 +859,10 @@ def top(**kw) -> Shape:
         Co, Ci, d = cuff
         din = _unit((A[0] - Ci[0], A[1] - Ci[1]))   # up the sleeve's inner edge
         long_cuff = sleeve in ("long", "three-quarter") and cuffs not in ("rolled", "roll-tab")
-        depth = {"rib": 17 * bs, "button": 22, "button2": 22, "mitred": 22, "french": 28, "snap3": 31}.get(cuffs)
+        depth = {"rib": 17 * bs, "button": 22, "button2": 22, "convertible": 22, "mitred": 22, "french": 28, "snap3": 31}.get(cuffs)
         if cuffs == "rib" and not long_cuff:
             depth = 11 * bs     # a polo's ribbed armband
-        if depth and (long_cuff or cuffs == "rib") and cuffs in ("rib", "button", "button2", "mitred", "french", "snap3"):
+        if depth and (long_cuff or cuffs == "rib") and cuffs in ("rib", "button", "button2", "convertible", "mitred", "french", "snap3"):
             depth += bulk if cuffs != "rib" else 0
             Bo = (Co[0] - d[0] * depth, Co[1] - d[1] * depth)
             Bi = (Ci[0] + din[0] * depth, Ci[1] + din[1] * depth)
@@ -872,6 +872,9 @@ def top(**kw) -> Shape:
                 sh.parts.append(Part(_poly(band), "band" if cuffs == "rib" else "cuff", color=on_sleeve))
                 if cuffs in ("button", "mitred"):   # the button sits in the middle of the cuff's depth, clear of its edges
                     fasten(*m(at(0.34 if cuffs == "button" else 0.36, 0.5)), 2.6)
+                elif cuffs == "convertible":        # a button, and beside it the spare buttonhole for a cufflink
+                    fasten(*m(at(0.34, 0.5)), 2.6)
+                    sh.parts.append(Part(_poly([m(at(0.1, 0.5)), m(at(0.24, 0.5))], close=False), "edge"))
                 elif cuffs == "button2":            # two buttons side by side
                     fasten(*m(at(0.24, 0.5)), 2.5)
                     fasten(*m(at(0.44, 0.5)), 2.5)

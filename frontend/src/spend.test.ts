@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aboutUsd, apiKeyLine, apiKeySavedLine, dayName, formatUsd, importLine, monthName, spentLine, suggestionLine, turnedOffLine, waitingLine } from './spend';
+import { aboutUsd, apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, importLine, monthName, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from './spend';
 
 describe('money wording', () => {
   it('shows dollars and cents, and never a fraction of a cent', () => {
@@ -58,5 +58,25 @@ describe('the API key box', () => {
     expect(apiKeySavedLine({ ...saved, checked: true }, false)).toBe('Key saved. Anthropic accepted it. Turn on Allow the API key below to use it.');
     expect(apiKeySavedLine({ ...saved, checked: true }, true)).toBe('Key saved. Anthropic accepted it.');
     expect(apiKeySavedLine({ ...saved, checked: false }, true)).toMatch(/^Key saved\. Closet couldn't reach Anthropic/);
+  });
+});
+
+describe('which route is tried first', () => {
+  const plan = { id: 'plan' as const, available: true, detail: '' };
+  const api = { id: 'api' as const, available: true, detail: '' };
+
+  it('offers the four orders in plain words, the plan first by default, and marks the ones that need a key', () => {
+    expect(ROUTE_ORDERS.map((o) => o.value)).toEqual(['auto', 'api-first', 'plan', 'api']);
+    expect(ROUTE_ORDERS[0].label).toBe("Use my Claude plan first, the key only if the plan can't");
+    expect(ROUTE_ORDERS.filter((o) => o.needsKey).map((o) => o.value)).toEqual(['api-first', 'api']);
+  });
+
+  it('names the first route in the order that is ready, the key only once it is allowed', () => {
+    expect(firstRouteLine(['plan', 'api'], [plan, api], true)).toBe('Closet will try your Claude plan first.');
+    expect(firstRouteLine(['api', 'plan'], [api, plan], true)).toBe('Closet will try your API key first.');
+    expect(firstRouteLine(['api', 'plan'], [api, plan], false)).toBe('Closet will try your Claude plan first.');
+    expect(firstRouteLine(['plan', 'api'], [{ ...plan, available: false }, api], true)).toBe('Closet will try your API key first.');
+    expect(firstRouteLine(['api'], [api], false)).toBe('');
+    expect(firstRouteLine(['plan'], [{ ...plan, available: false }], true)).toBe('');
   });
 });

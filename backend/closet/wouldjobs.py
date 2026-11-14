@@ -136,7 +136,9 @@ class Checks:
                 p = piece()
                 self._set(check_id, state="checking", piece=p, piece_words=wouldwork.describe(p))
                 rows, worn, before = self.closet(profile)
-                answer = wouldwork.check(rows, worn, p, before)
+                # a weighed list carries how the owner lives; the check weighs the piece the same way
+                context = (before or {}).get("context") or {}
+                answer = wouldwork.check(rows, worn, p, before, context.get("life"), context.get("climate"))
                 self._set(check_id, state="ready", answer=answer, finished_at=db.now())
             except CapReached:
                 self._set(check_id, state="failed", message=f"{spend.LIMIT_REACHED} {BY_HAND}", by_hand=True,

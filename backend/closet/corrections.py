@@ -19,7 +19,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, details, history, illustrations, items, palette, tagjobs, vocab
+from . import db, details, history, illustrations, items, kinds, palette, tagjobs, vocab
 from .tagger.correcting import CorrectionResult
 from .tagger.schema import NAMED_HEX, ItemTags
 from .tagger.tagging import CapReached, RouteUnavailable
@@ -52,7 +52,7 @@ Corrector = Callable[[str, dict, dict, list, tuple], CorrectionResult]
 # ------------------------------------------------------------- by picking
 def _current(row) -> dict:
     shown = illustrations.shown_details(row)
-    return {name: details.shown(shown, name) for name in details.names_for(row["category"])}
+    return {name: details.shown(shown, name) for name in details.names_of(row)}
 
 
 def options(row) -> dict:
@@ -63,16 +63,18 @@ def options(row) -> dict:
     now, owner = _current(row), details.own(row)
     groups = []
     for group, names in details.BY_KIND[kind]:
-        groups.append({"id": group, "title": details.GROUPS[group], "details": [
-            {"name": n, "title": details.title(n), "value": now[n], "words": details.words(n, now[n]), "own": n in owner}
-            for n in names]})
+        shown = [n for n in names if n in now]   # the details the item's kind has
+        if shown:
+            groups.append({"id": group, "title": details.GROUPS[group], "details": [
+                {"name": n, "title": details.title(n), "value": now[n], "words": details.words(n, now[n]), "own": n in owner}
+                for n in shown]})
     return {"kind": kind, "groups": groups, "message": None}
 
 
 def choices(row, name: str) -> dict:
     """A detail's choices, with a small drawing of the item for each choice that changes the drawing. The kinds
     of garment (dozens of them) are offered in words only."""
-    if name not in details.names_for(row["category"]):
+    if name not in details.names_of(row):
         raise items.ItemError(f"The {details.title(name)} can't be set on this kind of item.", 404)
     value = _current(row)[name]
     drawn = name not in details.WORDED
@@ -132,7 +134,7 @@ def apply(conn, item_id: str, changes: dict, kind: str = "detail", sentence: str
         if coarse:
             items.update(conn, item_id, coarse, record=False)
         row = items.get(conn, item_id)
-        allowed = details.names_for(row["category"])
+        allowed = details.names_of(row)
         owner = details.own(row)
         for name, value in picked.items():
             if name not in allowed:
@@ -156,6 +158,33 @@ def apply(conn, item_id: str, changes: dict, kind: str = "detail", sentence: str
     return items.detail(conn, items.get(conn, item_id))
 
 
+def set_kind(conn, item_id: str, kind) -> dict:
+    """Say what the item is: a kind from the taxonomy. It is the owner's word (kept by "Describe it again"), the
+    item's category follows from it so the outfits and What's missing read it as before, the details the kind does
+    not have are hidden but kept, and the change is one entry in the history that can be undone."""
+    if not isinstance(kind, str) or kind not in kinds.KINDS:
+        raise items.ItemError("Choose one of the kinds in the list.")
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        before = items.get(conn, item_id)
+        category = kinds.category_for(kind, before["category"])
+        source = json.loads(before["source"] or "{}")
+        confidence = json.loads(before["confidence"] or "{}")
+        source["category"], confidence["category"] = "user", 1.0
+        owner = details.own(before)
+        owner["garment"] = kind
+        conn.execute("UPDATE items SET category = ?, own_details = ?, source = ?, confidence = ?, updated_at = ? WHERE id = ?",
+                     (category, details.dump(owner), json.dumps(source), json.dumps(confidence), db.now(), item_id))
+        illustrations.redraw(conn, item_id)
+        history.record(conn, before, items.get(conn, item_id), "owner", "detail")
+        conn.execute("COMMIT")
+    except Exception:
+        if conn.in_transaction:
+            conn.execute("ROLLBACK")
+        raise
+    return items.detail(conn, items.get(conn, item_id))
+
+
 # ------------------------------------------------------------ by saying
 def _clean_sentence(sentence) -> str:
     text = " ".join(str(sentence or "").split())
@@ -169,7 +198,7 @@ def _clean_sentence(sentence) -> str:
 def _allowed(row) -> dict[str, list]:
     out: dict[str, list] = {f: list(vocab.ENUM_FIELDS[f]) for f in details.FIELDS}
     out.update({f"silhouette.{k}": list(v) for k, v in vocab.SILHOUETTE.items()})
-    for n in details.names_for(row["category"]):
+    for n in details.names_of(row):
         out[n] = [str(v) for v in details.values(n, row["category"])]
     return out
 

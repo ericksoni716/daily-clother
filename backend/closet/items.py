@@ -9,7 +9,7 @@ import uuid
 import zlib
 from pathlib import Path
 
-from . import db, details, failures, history, illustrations, images, jobs, palette, patjobs, tagjobs, vocab
+from . import db, details, failures, history, illustrations, images, jobs, kinds, palette, patjobs, tagjobs, vocab
 
 TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "acquired_on", "notes", "rating_reason", "color_hex")
 ENUM_FIELDS = tuple(vocab.ENUM_FIELDS)
@@ -47,6 +47,7 @@ def summary(conn, row) -> dict:
                              if row["illustration_svg"] is not None else None),
         "last_worn": worn[0], "wear_count": worn[1], "wears_since_wash": row["wears_since_wash"], "laundry": row["laundry"],
         "tag_state": row["tag_state"], "created_at": row["created_at"], "updated_at": row["updated_at"],
+        **kinds.summary_fields(row),   # what it is: its kind from the taxonomy, and the group it is shown in
     }
 
 
@@ -71,6 +72,10 @@ def detail(conn, row) -> dict:
     out["seen_not_drawn"] = illustrations.not_drawn(row, said.pop("other_features", None) or [])
     out["details"] = said or None
     out["own_details"] = details.own(row)   # the details the owner has set, laid over Claude's when drawn
+    # who said what it is (the owner or Claude), how sure Claude was, and the kinds Claude's answer also fits
+    said = kinds.of_row(row)
+    out["kind_by"], out["kind_confidence"] = said["by"], said["confidence"]
+    out["kind_alternatives"] = kinds.alternatives(row, said["kind"])
     out["drawing_notes"] = illustrations.notes(row)
     out["photos"] = [{
         "id": p["id"], "kind": p["kind"], "url": _media(p["original_path"]), "thumb_url": _media(p["thumb_path"]),
@@ -223,8 +228,11 @@ def update(conn, item_id: str, changes: dict, record: bool = True) -> dict:
         if "silhouette" in changes:   # a shape the owner sets puts aside their own matching details
             kept = details.drop_for_shape(owner, json.loads(row["silhouette"] or "{}"), json.loads(args[sets.index("silhouette = ?")]))
         if "category" in changes:   # and another kind of garment those it does not have (an undo brings them back)
-            names = details.names_for(args[sets.index("category = ?")])
+            category = args[sets.index("category = ?")]
+            names = details.names_for(category)
             kept = {k: v for k, v in kept.items() if k in names}
+            if kept.get("garment") in kinds.KINDS and kinds.category_for(kept["garment"], category) != category:
+                kept.pop("garment")   # a kind the item no longer is
         if kept != owner:
             sets.append("own_details = ?")
             args.append(details.dump(kept))

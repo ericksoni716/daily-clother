@@ -237,7 +237,8 @@ def _draw(tags: ItemTags, hex_: str, uid: str, notes: list[str], fill: Fill | No
         template, params, extras, approximated = drawing_for(tags)
         svg = render(Spec(template, params, Fill("solid", hex_), **extras), STYLE, uid=uid)
         notes.extend(approximated)
-        return svg, False
+        # a colourwork knit's pattern (Fair Isle, argyle...) is drawn from its tags, in the other colours seen
+        return svg, bool(extras.get("colorwork")) and tags.pattern in ("other", "graphic", "plaid")
     except Exception:
         log.exception("drawing a %s failed; drawing the plainest %s instead", tags.category, tags.category)
         notes.append(FELL_BACK)

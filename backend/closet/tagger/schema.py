@@ -345,8 +345,8 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
     coarse_neck = s.neck or category_neck
     g = {"fit": d.fit_detail if d.fit_detail != "regular" else _COARSE_FIT.get(s.fit, "regular"),
          "sleeve_length": d.sleeve_length if d.sleeve_length != "na" else _COARSE_SLEEVE.get(
-             s.sleeve or ("short" if tags.category in ("tee", "polo") else "long")),
-         "collar": d.collar if d.collar != "none" else ("point" if (coarse_neck == "collar" and d.neckline == "na") else "none"),
+             s.sleeve or taxonomy.KIND_SLEEVE.get(d.garment) or ("short" if tags.category in ("tee", "polo") else "long")),
+         "collar": d.collar if d.collar != "none" else (taxonomy.KIND_COLLAR.get(d.garment, "point") if (coarse_neck == "collar" and d.neckline == "na") else "none"),
          "neckline": d.neckline if d.neckline != "na" else _COARSE_NECK.get(coarse_neck, "crew"),
          "placket": d.placket, "placket_buttons": d.placket_buttons if d.placket != "none" else None,
          "cuff": d.cuff, "sleeve_construction": d.sleeve_construction,
@@ -354,12 +354,17 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
          "hem": d.hem if d.hem != "na" else "straight", **cloth,
          "length": s.top_length or ("long" if tags.category == "coat" else "regular"),
          "garment": d.garment, "side_stripe": "side_stripe" in d.features, "contrast_trim": d.trim_color != "same",
-         "second_color": bool(tags.secondary_colors)}
+         "second_color": bool(tags.secondary_colors), "pattern_name": d.pattern_name,
+         "color_texture": d.color_texture}
     p, more, notes = top_drawing(g)
+    if more.get("colorwork"):   # knitted in the other colours seen
+        more["motif_colors"] = tuple(NAMED_HEX[c] for c in tags.secondary_colors if c in NAMED_HEX)
     if p.get("colorblock"):   # the second colour: the first of the other colours seen
         more["block_color"] = NAMED_HEX.get(tags.secondary_colors[0])
     if "v_insert" in d.features:
         p["neck_detail"] = "v-insert"
+    if p.get("stripes") == "hoops" and not extras["trim_color"] and tags.secondary_colors:
+        extras["trim_color"] = NAMED_HEX.get(tags.secondary_colors[0])   # a hockey jersey's stripes: the other colour seen
     return "top", p, {**extras, **more}, notes
 
 

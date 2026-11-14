@@ -17,6 +17,7 @@
   /* item cards stay light in both themes so the drawings and cutouts read as they do on paper */
   --card: #f1eee8;
   --card-edge: #e4ded3;
+  --card-figure: #f1eee8; /* the As worn drawing's own background, in both themes */
   --card-ink: #26231f;
   --card-veil: rgba(255, 253, 249, 0.92);
   --card-ink-2: #3f3a33;

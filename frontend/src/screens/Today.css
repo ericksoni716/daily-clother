@@ -183,8 +183,10 @@
 /* The switch between the pieces laid out and the outfit drawn as worn. */
 .today-view { flex: none; }
 .today-pieces[hidden] { display: none; }
+/* the drawing's own background (CARD in backend/closet/drawing/illustrate.py) edge to edge, in both themes,
+   so the figure is not a lighter box inside the dark theme's card */
 .today-figure {
-  margin: 0; display: grid; place-items: center; border-radius: var(--radius-md); background: var(--card);
+  margin: 0; display: grid; place-items: center; border-radius: var(--radius-md); background: var(--card-figure);
   box-shadow: inset 0 0 0 1px var(--card-edge); min-height: 240px;
 }
 /* tall enough to read on a phone, short enough on a computer to leave the rest of the card on the first screen */

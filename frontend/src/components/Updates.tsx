@@ -23,9 +23,8 @@ export function UpdateBanner({ offline, toast }: { offline: boolean; toast: Toas
   const [busy, setBusy] = useState(false);
   if (offline || installing || !showBanner(status) || !status?.available) return null;
   return (
-    <div className="ribbon ribbon-update" role="status" data-testid="update-banner">
-      <span><strong>Closet {status.available.version} is ready</strong><span className="ribbon-more"> · your closets are backed up before it is installed.</span></span>
-      <Button small className="btn-on-accent" disabled={busy} onClick={async () => {
+    <Notice role="status" testId="update-banner" className="update-notice"
+      action={<Button variant="primary" small disabled={busy} onClick={async () => {
         setBusy(true);
         try {
           await updates.install(toast);
@@ -34,8 +33,10 @@ export function UpdateBanner({ offline, toast }: { offline: boolean; toast: Toas
         } finally {
           setBusy(false);
         }
-      }}>Install</Button>
-    </div>
+      }}>Install</Button>}>
+      <strong>Closet {status.available.version} is ready</strong>
+      <span className="ribbon-more"> · your closets are backed up before it is installed.</span>
+    </Notice>
   );
 }
 

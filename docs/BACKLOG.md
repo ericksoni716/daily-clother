@@ -160,7 +160,7 @@ Original phase 5.
 - Price checks (#112: run by the app itself while it runs).
 
 ### After D, each its own smaller stop
-- Multi-item photos and video sweeps (bench first; decides ffmpeg bundled or downloaded on first use).
+- Multi-item photos: done in #151 (Claude finds the pieces, the owner checks the boxes; see DECISIONS, "Several items from one photo"). Video sweeps are out (owner's decision). Still to learn: how well Claude boxes a cluttered bed.
 - Taste learning analytics, cost per wear, never worn (rest of original phase 6).
 - Trip packing (historical weather beyond the 16-day forecast, count-only basics).
 - Extras: calendar-aware suggestions, offline edit queue. Cut: resale suggestions, seasonal storage rotation.

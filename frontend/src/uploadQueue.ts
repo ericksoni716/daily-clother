@@ -23,10 +23,22 @@ export interface QueueEntry {
   attempts: number;
   error: string | null;
   itemId: string | null;
+  /** The photo holds several pieces: it is kept once and each piece found in it becomes an item after a check. */
+  several: boolean;
+  /** For a photo of several pieces, the kept photo, whose boxes are checked before its items are added. */
+  sourceId: string | null;
 }
 
-/** What is kept between visits. */
-export type SavedEntry = Pick<QueueEntry, 'name' | 'fileKey' | 'clientKey' | 'status' | 'error' | 'itemId'>;
+/** What is kept between visits (lists saved before photos of several pieces have neither of the last two). */
+export type SavedEntry = Pick<QueueEntry, 'name' | 'fileKey' | 'clientKey' | 'status' | 'error' | 'itemId'>
+  & Partial<Pick<QueueEntry, 'several' | 'sourceId'>>;
+
+/** What the server answered for one upload: the item (or, for several pieces, the kept photo) it went into. */
+export interface Uploaded {
+  id: string | null;
+  duplicate?: boolean;
+  sourceId?: string | null;
+}
 
 export interface UploadErrorLike {
   status?: number;
@@ -36,8 +48,9 @@ export interface UploadErrorLike {
 export interface QueueDeps<F> {
   /** Resize/re-encode; returns the blob to send and its file name. */
   prepare(file: F): Promise<{ blob: Blob; filename: string }>;
-  /** `sha256` is the hash of the file as chosen (null if it could not be worked out). */
-  upload(blob: Blob, filename: string, clientKey: string, sha256: string | null): Promise<{ id: string; duplicate?: boolean }>;
+  /** `sha256` is the hash of the file as chosen (null if it could not be worked out); `several` sends it as a photo
+   * of several pieces. */
+  upload(blob: Blob, filename: string, clientKey: string, sha256: string | null, several: boolean): Promise<Uploaded>;
   newKey(): string;
   sleep(ms: number): Promise<void>;
   /** File name to show. */
@@ -120,6 +133,7 @@ export class UploadQueue<F> {
         id: `u${++this.seq}`, name: s.name, fileKey: s.fileKey, clientKey: s.clientKey,
         status: FINISHED.includes(s.status) ? s.status : 'missing',
         attempts: 0, error: FINISHED.includes(s.status) ? null : s.error, itemId: s.itemId ?? null,
+        several: s.several ?? false, sourceId: s.sourceId ?? null,
       }));
     }
   }
@@ -137,7 +151,9 @@ export class UploadQueue<F> {
     return () => this.listeners.delete(l);
   }
 
-  add(files: F[]): AddResult<F> {
+  /** Queue files; with `several`, each is a photo of several pieces. */
+  add(files: F[], opts: { several?: boolean } = {}): AddResult<F> {
+    const several = opts.several ?? false;
     const result: AddResult<F> = { ids: [], files: [], skipped: 0 };
     for (const file of files) {
       const fileKey = this.deps.keyOf ? this.deps.keyOf(file) : this.deps.nameOf(file);
@@ -153,11 +169,12 @@ export class UploadQueue<F> {
         // deleted since (or this is the other closet), the photo is added as it should be.
         id = known.id;
         this.prepared.delete(id);
-        this.entries = this.entries.map((e) => (e.id === id ? { ...e, status: 'waiting', attempts: 0, error: null } : e));
+        this.entries = this.entries.map((e) => (e.id === id ? { ...e, status: 'waiting', attempts: 0, error: null, several } : e));
       } else {
         id = `u${++this.seq}`;
         this.entries = [...this.entries, {
           id, name: this.deps.nameOf(file), fileKey, clientKey: this.deps.newKey(), status: 'waiting', attempts: 0, error: null, itemId: null,
+          several, sourceId: null,
         }];
       }
       this.files.set(id, file);
@@ -240,7 +257,8 @@ export class UploadQueue<F> {
     for (const l of this.listeners) l(this.entries);
     if (this.deps.store) {
       try {
-        this.deps.store.save(this.entries.map(({ name, fileKey, clientKey, status, error, itemId }) => ({ name, fileKey, clientKey, status, error, itemId })));
+        this.deps.store.save(this.entries.map(({ name, fileKey, clientKey, status, error, itemId, several, sourceId }) =>
+          ({ name, fileKey, clientKey, status, error, itemId, several, sourceId })));
       } catch {
         /* storage full or blocked: the import still runs, it just cannot be resumed */
       }
@@ -287,8 +305,8 @@ export class UploadQueue<F> {
       const attempt = entry.attempts + 1;
       this.update(id, { status: 'uploading', attempts: attempt });
       try {
-        const item = await this.deps.upload(ready.blob, ready.filename, entry.clientKey, ready.sha256);
-        this.update(id, { status: item.duplicate ? 'duplicate' : 'done', itemId: item.id, error: null });
+        const got = await this.deps.upload(ready.blob, ready.filename, entry.clientKey, ready.sha256, entry.several);
+        this.update(id, { status: got.duplicate ? 'duplicate' : 'done', itemId: got.id, sourceId: got.sourceId ?? null, error: null });
         this.prepared.delete(id);
         this.files.delete(id);
         return;

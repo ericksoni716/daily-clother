@@ -7,6 +7,7 @@ import { Link, parseRoute, usePath, useMediaQuery, WIDE } from './router';
 import { useCloset } from './store';
 import { ClosetScreen } from './screens/Closet';
 import { AddScreen } from './screens/Add';
+import { SeveralScreen } from './screens/Several';
 import { SettingsScreen } from './screens/Settings';
 import { ItemDetail } from './screens/ItemDetail';
 import { TodayScreen } from './screens/Today';
@@ -30,6 +31,7 @@ export function Shell({ version }: { version: string }) {
   else if (route.name === 'worn') content = <WornScreen />;
   else if (route.name === 'missing') content = <MissingScreen itemId={route.itemId} check={route.check} wishId={route.wishId} wide={wide} />;
   else if (route.name === 'add') content = <AddScreen />;
+  else if (route.name === 'several') content = <SeveralScreen key={route.id} id={route.id} />;
   else if (route.name === 'settings') content = <SettingsScreen version={version} />;
   else if (route.name === 'insights') content = <InsightsScreen />;
   else if (route.name === 'review') content = <ReviewScreen />;

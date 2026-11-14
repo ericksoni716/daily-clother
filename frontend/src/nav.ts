@@ -3,11 +3,12 @@ import type { Route } from './router';
 
 /**
  * The part of the app a route belongs to: Archived, an item and Insights are part of the closet, Worn is part of
- * Today, Would this work? is part of What's missing. Review and Trips are their own sidebar links.
+ * Today, Would this work? is part of What's missing, checking the pieces in a photo of several is part of Add. Review and Trips are their own sidebar links.
  */
 export function navSection(route: Route): string {
   if (route.name === 'insights') return 'closet';
   if (route.name === 'worn') return 'today';
+  if (route.name === 'several') return 'add';
   return route.name;
 }
 

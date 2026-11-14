@@ -69,13 +69,20 @@ def thumbnail(img: Image.Image, edge: int = THUMB_EDGE) -> Image.Image:
 
 
 def store_upload(data: bytes, images_dir: Path, item_id: str, photo_id: str) -> Stored:
-    img = decode(data)
+    return store_image(decode(data), images_dir, item_id, photo_id, hashlib.sha256(data).hexdigest())
+
+
+def store_image(img: Image.Image, images_dir: Path, folder: str, photo_id: str, sha256: str | None = None) -> Stored:
+    """Keep a photo (shrunk in place to at most MAX_EDGE) and its thumbnail in `folder`; `sha256` defaults to the
+    kept file's."""
     img.thumbnail((MAX_EDGE, MAX_EDGE), Image.LANCZOS)
-    rel = f"{item_id}/{photo_id}.webp"
-    rel_thumb = f"{item_id}/{photo_id}.t.webp"
+    rel = f"{folder}/{photo_id}.webp"
+    rel_thumb = f"{folder}/{photo_id}.t.webp"
     size = save_webp(img, images_dir / rel, 85)
     save_webp(thumbnail(img), images_dir / rel_thumb, 80)
-    return Stored(rel, rel_thumb, img.width, img.height, size, hashlib.sha256(data).hexdigest())
+    if sha256 is None:
+        sha256 = hashlib.sha256((images_dir / rel).read_bytes()).hexdigest()
+    return Stored(rel, rel_thumb, img.width, img.height, size, sha256)
 
 
 def store_cutout(cutout: Image.Image, images_dir: Path, item_id: str, photo_id: str) -> tuple[str, str]:

@@ -26,7 +26,11 @@ async function sha256(file: File): Promise<string | null> {
 /** The one upload queue for the page; it keeps going while the owner looks at other screens. */
 export const uploads = new UploadQueue<File>({
   prepare: preparePhoto,
-  upload: (blob, filename, key, hash) => api.upload(blob, filename, key, hash),
+  upload: async (blob, filename, key, hash, several) => {
+    if (!several) return api.upload(blob, filename, key, hash);
+    const got = await api.uploadSeveral(blob, filename, key, hash);
+    return { id: got.item?.id ?? null, duplicate: got.duplicate, sourceId: got.source?.id ?? null };
+  },
   newKey: () => (typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : fallbackUuid()),
   sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
   nameOf: (f) => f.webkitRelativePath || f.name || 'Photo',
@@ -39,15 +43,16 @@ connection.subscribe((off) => uploads.setOnline(!off));
 
 /** Small preview pictures for the queue rows. */
 const previews = new Map<string, string>();
-/** Queues photos; returns how many were already in the list and left out. */
-export function addFiles(files: File[]): number {
-  const { ids, files: queued, skipped } = uploads.add(files);
+/** Queues photos (each of several pieces, with `several`); returns the rows queued and how many were already in
+ * the list and left out. */
+export function addFiles(files: File[], several = false): { ids: string[]; skipped: number } {
+  const { ids, files: queued, skipped } = uploads.add(files, { several });
   ids.forEach((id, i) => {
     const old = previews.get(id);
     if (old) URL.revokeObjectURL(old);
     previews.set(id, URL.createObjectURL(queued[i]));
   });
-  return skipped;
+  return { ids, skipped };
 }
 export function previewOf(id: string): string | undefined {
   return previews.get(id);

@@ -1,4 +1,4 @@
-import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder } from './types';
+import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder } from './types';
 import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
@@ -203,6 +203,26 @@ export const api = {
     if (sha256) form.append('photo_sha256', sha256);
     return request<Item & { duplicate?: boolean }>('/api/items', { method: 'POST', form, signal });
   },
+  /** A photo of several pieces, kept once; `duplicate` when it (or a single item made from it) is already kept. */
+  uploadSeveral: (photo: Blob, filename: string, clientKey: string, sha256?: string | null, signal?: AbortSignal) => {
+    const form = new FormData();
+    form.append('photo', photo, filename);
+    form.append('client_key', clientKey);
+    if (sha256) form.append('photo_sha256', sha256);
+    return request<SourceUpload>('/api/sources', { method: 'POST', form, signal });
+  },
+  sources: () => request<{ sources: SourcePhoto[] }>('/api/sources').then((r) => r.sources),
+  source: (id: string) => request<SourcePhoto>(`/api/sources/${encodeURIComponent(id)}`),
+  addBox: (id: string, box: BoxEdges) =>
+    request<SourcePhoto>(`/api/sources/${encodeURIComponent(id)}/boxes`, { method: 'POST', body: box }),
+  moveBox: (id: string, boxId: string, box: BoxEdges) =>
+    request<SourcePhoto>(`/api/sources/${encodeURIComponent(id)}/boxes/${encodeURIComponent(boxId)}`, { method: 'PUT', body: box }),
+  removeBox: (id: string, boxId: string) =>
+    request<SourcePhoto>(`/api/sources/${encodeURIComponent(id)}/boxes/${encodeURIComponent(boxId)}`, { method: 'DELETE' }),
+  mergeBoxes: (id: string, ids: string[]) =>
+    request<SourcePhoto>(`/api/sources/${encodeURIComponent(id)}/boxes/merge`, { method: 'POST', body: { ids } }),
+  addSourceItems: (id: string) => request<SourcePhoto>(`/api/sources/${encodeURIComponent(id)}/add`, { method: 'POST' }),
+  forgetSource: (id: string) => request<void>(`/api/sources/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   model: () => request<ModelInfo>('/api/model'),
   downloadModel: () => request<ModelInfo>('/api/model/download', { method: 'POST' }),
   setModelUrl: (url: string) => request<ModelInfo>('/api/model/url', { method: 'PUT', body: { url } }),

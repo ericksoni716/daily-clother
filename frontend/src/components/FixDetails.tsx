@@ -14,6 +14,9 @@ interface Props {
   item: Item;
   /** "Fix the details" only: whether its panel is open (its button is FixDetailsButton, beside the picture). */
   open?: boolean;
+  /** "Fix the details" only: a detail to open at once (a word of the item's fit line was tapped); `at` tells a
+   * second tap on the same word from the first. */
+  focus?: { field: string; at: number } | null;
   /** Offline: nothing can be changed. */
   disabled: boolean;
   onSaved(item: Item, saidAs: string): void;
@@ -50,11 +53,20 @@ export function FixDetailsButton({ open, disabled, onToggle }: { open: boolean; 
 }
 
 /** "Fix the details": the details for this kind of garment, picked by looking, or said in a sentence. */
-export function FixDetails({ item, open = false, disabled, onSaved, onError }: Props) {
+export function FixDetails({ item, open = false, focus = null, disabled, onSaved, onError }: Props) {
   const [options, setOptions] = useState<DetailOptions | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [picking, setPicking] = useState<string | null>(null);
+  const [picking, setPicking] = useState<string | null>(focus?.field ?? null);
   const [choices, setChoices] = useState<DetailChoices | null>(null);
+  const [focused, setFocused] = useState(focus);
+  const panel = useRef<HTMLElement>(null);
+  if (focus !== focused) {   // a word of the fit line was tapped: open its detail
+    setFocused(focus);
+    if (focus) {
+      setChoices(null);
+      setPicking(focus.field);
+    }
+  }
   const [busy, setBusy] = useState(false);
   const stamp = stampOf(item);
   const id = item.id;
@@ -78,6 +90,11 @@ export function FixDetails({ item, open = false, disabled, onSaved, onError }: P
     return () => void (gone = true);
   }, [open, picking, disabled, id, stamp, report]);
 
+  useEffect(() => {   // ...and bring it into view once the details are there
+    if (!open || !focus || !options) return;
+    panel.current?.querySelector(`[data-detail="${focus.field}"]`)?.scrollIntoView?.({ block: 'center' });
+  }, [open, focus, options]);
+
   const pick = async (name: string, value: unknown, saidAs: string) => {
     setBusy(true);
     try {
@@ -92,7 +109,7 @@ export function FixDetails({ item, open = false, disabled, onSaved, onError }: P
   const alt = item.name || 'Item';
   if (!open) return null;
   return (
-    <section className="fix" aria-label="Fix the details">
+    <section className="fix" aria-label="Fix the details" ref={panel}>
       {disabled && open && <p className="muted">{OFFLINE}</p>}
       {open && !disabled && (
         <div className="fix-panel">
@@ -111,7 +128,7 @@ export function FixDetails({ item, open = false, disabled, onSaved, onError }: P
                 {g.details.map((d) => {
                   const on = picking === d.name;
                   return (
-                    <li key={d.name}>
+                    <li key={d.name} data-detail={d.name}>
                       <button type="button" className={`fix-detail${on ? ' is-on' : ''}`} aria-expanded={on}
                         aria-label={`${detailSummary(d)}${d.own ? ' (set by you)' : ''}`} onClick={() => {
                           setChoices(null);

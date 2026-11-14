@@ -79,6 +79,8 @@ def detail(conn, row) -> dict:
     out["kind_by"], out["kind_confidence"] = kind["by"], kind["confidence"]
     out["kind_alternatives"] = kinds.alternatives(row, kind["kind"])
     out["drawing_notes"] = illustrations.notes(row)
+    # how it sits on the outfit figure: its fit, length and sleeves (or leg), each with the detail that corrects it
+    out["as_worn"] = illustrations.worn(row)
     # trousers and shorts: a small drawing from behind (back pockets, yoke, label), its address versioned like the drawing's
     back = illustrations.back(row)
     out["back_url"] = f"/api/items/{row['id']}/back.svg?v={zlib.crc32(back.encode()):08x}" if back else None

@@ -226,6 +226,66 @@ def shoe_words(style: str, words: list[str]) -> tuple[str, dict, list[str]]:
             used.append(word)
     return style, params, used
 
+# The garments (kinds of clothing) of the taxonomy's `garments` block, with their taxonomy category; footwear and
+# accessories are left out (shoes have their own style field). A test keeps this equal to the JSON.
+GARMENTS: dict[str, str] = {
+    "t_shirt": "knit_top", "henley": "knit_top", "polo": "knit_top", "rugby_shirt": "knit_top",
+    "dress_shirt": "woven_shirt", "ocbd": "woven_shirt", "casual_button_up": "woven_shirt", "flannel_shirt": "woven_shirt",
+    "work_shirt": "woven_shirt", "western_shirt": "woven_shirt", "camp_collar_shirt": "woven_shirt",
+    "popover_shirt": "woven_shirt", "band_collar_shirt": "woven_shirt", "guayabera": "woven_shirt",
+    "overshirt": "woven_shirt", "tuxedo_shirt": "woven_shirt",
+    "crewneck_sweatshirt": "sweatshirt", "hoodie": "sweatshirt",
+    "pullover_sweater": "knitwear", "cardigan": "knitwear", "sweater_vest": "knitwear",
+    "chore_coat": "outerwear", "trucker_jacket": "outerwear", "bomber": "outerwear", "varsity_jacket": "outerwear",
+    "harrington": "outerwear", "field_jacket": "outerwear", "waxed_jacket": "outerwear", "peacoat": "outerwear",
+    "overcoat": "outerwear", "trench_coat": "outerwear", "parka": "outerwear", "puffer": "outerwear",
+    "quilted_jacket": "outerwear", "fleece_jacket": "outerwear", "leather_jacket": "outerwear", "barn_jacket": "outerwear",
+    "blazer": "tailoring", "sport_coat": "tailoring", "suit_jacket": "tailoring",
+    "chinos": "bottoms", "dress_trousers": "bottoms", "jeans": "bottoms", "corduroys": "bottoms", "fatigues": "bottoms",
+    "cargo_pants": "bottoms", "work_pants": "bottoms", "sweatpants": "bottoms", "shorts": "bottoms",
+    "performance_tee": "activewear", "running_long_sleeve": "activewear", "running_singlet": "activewear",
+    "compression_top": "activewear", "base_layer": "activewear", "athletic_half_zip": "activewear",
+    "track_jacket": "activewear", "windbreaker": "activewear", "softshell_jacket": "activewear", "rain_shell": "activewear",
+    "fleece_pullover": "activewear", "soccer_jersey": "activewear", "basketball_jersey": "activewear",
+    "hockey_jersey": "activewear", "baseball_jersey": "activewear", "cycling_jersey": "activewear",
+    "running_shorts": "activewear", "two_in_one_shorts": "activewear", "training_shorts": "activewear",
+    "basketball_shorts": "activewear", "compression_tights": "activewear", "track_pants": "activewear",
+    "tech_pants": "activewear", "joggers": "activewear", "open_hem_sweatpants": "activewear",
+    "pajama_set_woven": "loungewear", "pajama_set_knit": "loungewear", "sleep_shorts": "loungewear",
+    "lounge_pants": "loungewear", "lounge_knit_set": "loungewear", "lounge_sweatsuit": "loungewear", "robe": "loungewear",
+    "kimono_robe": "loungewear", "smoking_jacket": "loungewear",
+}
+SPORT_KINDS = frozenset(g for g, c in GARMENTS.items() if c == "activewear")
+LOUNGE_KINDS = frozenset(g for g, c in GARMENTS.items() if c == "loungewear")
+# The app's category for each garment: the JSON's `app_category` where it gives one (a test checks), otherwise
+# the usual one for its taxonomy category. None for a set (a pyjama set, a sweatsuit): it is a top or a bottom.
+_APP_BY_TAXONOMY = {"knit_top": "tee", "woven_shirt": "shirt", "sweatshirt": "sweater", "knitwear": "sweater",
+                    "outerwear": "jacket", "tailoring": "jacket", "bottoms": "trousers"}
+APP_CATEGORY: dict[str, str | None] = {
+    **{g: _APP_BY_TAXONOMY.get(c) for g, c in GARMENTS.items()},
+    "polo": "polo", "rugby_shirt": "polo", "hoodie": "hoodie", "peacoat": "coat", "overcoat": "coat",
+    "trench_coat": "coat", "parka": "coat",
+    "jeans": "jeans", "shorts": "shorts", "chinos": "trousers", "dress_trousers": "trousers", "corduroys": "trousers",
+    "fatigues": "trousers", "cargo_pants": "trousers", "work_pants": "trousers", "sweatpants": "trousers",
+    "performance_tee": "tee", "running_long_sleeve": "tee", "running_singlet": "tee", "compression_top": "tee",
+    "base_layer": "tee", "athletic_half_zip": "sweater", "track_jacket": "jacket", "windbreaker": "jacket",
+    "softshell_jacket": "jacket", "rain_shell": "jacket", "fleece_pullover": "sweater", "soccer_jersey": "tee",
+    "basketball_jersey": "tee", "hockey_jersey": "tee", "baseball_jersey": "shirt", "cycling_jersey": "tee",
+    "running_shorts": "shorts", "two_in_one_shorts": "shorts", "training_shorts": "shorts", "basketball_shorts": "shorts",
+    "compression_tights": "trousers", "track_pants": "trousers", "tech_pants": "trousers", "joggers": "trousers",
+    "open_hem_sweatpants": "trousers", "sleep_shorts": "shorts", "lounge_pants": "trousers",
+    "pajama_set_woven": None, "pajama_set_knit": None, "lounge_knit_set": None, "lounge_sweatsuit": None,
+    "robe": "coat", "kimono_robe": "coat", "smoking_jacket": "jacket",
+}
+_BOTTOM_APP = ("jeans", "trousers", "shorts")
+
+
+def kinds_for(category: str | None) -> tuple[str, ...]:
+    """The garments that can be an item of the app's category: a top's kinds or a bottom's (sets are both)."""
+    bottom = category in _BOTTOM_APP
+    return tuple(g for g, app in APP_CATEGORY.items() if app is None or (app in _BOTTOM_APP) == bottom)
+
+
 # Axes that decide the shape of a top. `top_drawing` reads exactly these keys (taxonomy values), plus
 # "length" (cropped | regular | long | knee), "placket_buttons" (an int, or None for the usual number),
 # "back_detail" (western_yoke draws the pointed front yoke too), and the surface keys `surface_extras` reads.
@@ -426,6 +486,19 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
         notes.append("rugby collar drawn in white twill, the classic contrast")
     if collar == "camp" and g.get("hem") is None:
         p["hem"] = "straight"
+    # the kind of garment says what no axis does
+    kind = g.get("garment")
+    if kind in _PULLOVERS and placket == "snap":
+        p["front"] = "half"   # a pullover's snaps close a short placket, not a front that opens to the hem
+    if kind == "fleece_pullover":
+        # the classic snap-front fleece: a contrast colour (the trim colour) binds its edges, and a second
+        # colour (when one is seen) is cut into the yoke, sleeves and pocket
+        if g.get("contrast_trim"):
+            p["binding"] = True
+        if g.get("second_color"):
+            p["colorblock"] = ("yoke", "sleeves", "pocket")
+    if g.get("side_stripe") and p["sleeve"] != "none":
+        p["stripes"] = "sleeve"   # a track jacket's stripes run down the sleeves
     # notes for what is drawn as something close
     approx = {
         "hidden_button_down": "hidden button-down drawn as a soft-roll point collar (its buttons are under the points)",
@@ -449,6 +522,9 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
         p["quilting"] = "baffle"
     return p, extras, notes
 
+
+_PULLOVERS = ("fleece_pullover", "athletic_half_zip", "crewneck_sweatshirt", "hoodie", "pullover_sweater", "base_layer",
+              "running_long_sleeve", "compression_top")
 
 # Signature garments, as axis values. Outerwear and tailoring have no axis values in the taxonomy's
 # `garments` block; these say how each is drawn with the top template.
@@ -519,6 +595,16 @@ GARMENT_DRAWINGS: dict[str, dict] = {
                    hem="straight", fit="tailored", fabric="hopsack", fiber="worsted_wool", closure_material="metal_shank"),
     "sport_coat": dict(collar="notch_lapel", placket="front_placket", placket_buttons=2, pockets="hip_patch_double",
                        hem="straight", fit="tailored", fabric="tweed", closure_material="horn"),
+    "fleece_pullover": dict(garment="fleece_pullover", collar="stand", placket="snap", placket_buttons=4,
+                            pockets="chest_flap_single", hem="straight", cuff="open_hem", fabric="polar_fleece",
+                            contrast_trim=True, second_color=True),
+    "performance_tee": dict(garment="performance_tee", neckline="crew", sleeve_length="short", sleeve_construction="raglan",
+                            hem="straight", fit="slim", fabric="mesh", fiber="polyester"),
+    "athletic_half_zip": dict(garment="athletic_half_zip", neckline="quarter_zip", placket="zip_quarter",
+                              sleeve_construction="raglan", cuff="open_hem", hem="straight", fit="slim", fabric="interlock",
+                              fiber="polyester", weight="lightweight"),
+    "track_jacket": dict(garment="track_jacket", collar="stand", placket="zip_full", pockets="split_hand", cuff="rib_knit",
+                         hem="ribbed_band", fabric="interlock", fiber="polyester", side_stripe=True),
     "suit_jacket": dict(collar="peak_lapel", placket="front_placket", placket_buttons=1, pockets="welt", hem="straight",
                         fit="tailored", fabric="plain", fiber="worsted_wool", closure_material="corozo"),
 }
@@ -711,3 +797,36 @@ COVERAGE["sandal"] = {
 def coverage_counts() -> dict[str, tuple[int, int, int]]:
     """(drawn, approximate, not drawn) per axis."""
     return {ax: tuple(sum(1 for s, _ in vals.values() if s == st) for st in (D, A_, N_)) for ax, vals in COVERAGE.items()}
+
+
+# Trousers and shorts whose kind changes the drawing, as `pants` template parameters laid over the ones the
+# details give (the details still decide the rest: a drawstring, pleats, a crease).
+BOTTOM_DRAWINGS: dict[str, dict] = {
+    "sweatpants": dict(waist="drawstring", pockets="side", hem="rib", leg="tapered"),
+    "joggers": dict(waist="drawstring", pockets="side", hem="rib", leg="tapered"),
+    "open_hem_sweatpants": dict(waist="drawstring", pockets="side", hem="plain", leg="straight"),
+    "track_pants": dict(waist="elastic", pockets="side", hem="plain", leg="tapered", stripe="side"),
+    "tech_pants": dict(waist="elastic", pockets="slant", hem="plain", leg="tapered"),
+    "compression_tights": dict(waist="elastic", pockets="none", hem="plain", leg="skinny"),
+    "lounge_pants": dict(waist="drawstring", pockets="none", hem="plain", leg="straight"),
+    "running_shorts": dict(waist="drawstring", pockets="none", length="brief", hem="split"),
+    "training_shorts": dict(waist="drawstring", pockets="side", hem="plain"),
+    "basketball_shorts": dict(waist="drawstring", pockets="side", hem="plain", stripe="side"),
+    "two_in_one_shorts": dict(waist="elastic", pockets="none", length="brief", hem="split"),
+    "sleep_shorts": dict(waist="elastic", pockets="none", hem="plain"),
+}
+_KIND_NOTES = {
+    "fleece_pullover": "stand collar and a short snap placket; with a trim colour its edges are bound in it, and a "
+                       "second colour is cut into the yoke, sleeves and pocket",
+    "performance_tee": "a slim raglan tee in a fine mesh texture",
+    "athletic_half_zip": "a slim raglan top with a short zip",
+    "track_jacket": "full zip, stand collar, rib cuffs and hem; with side stripes, two stripes down each sleeve in the trim colour",
+    **{k: (("a tight leg" if v.get("leg") == "skinny" else "a short inseam and a slit hem" if v.get("hem") == "split"
+            else "an elastic or drawstring waist") + (" and a stripe down each side in the trim colour" if v.get("stripe") else "")
+           + (", ribbed ankle cuffs" if v.get("hem") == "rib" else ""))
+       for k, v in BOTTOM_DRAWINGS.items()},
+}
+# A kind is drawn when its drawing has what sets it apart; otherwise it is drawn from its details on the template
+# of its app category (a soccer jersey as a tee with its collar and stripes as seen).
+COVERAGE["garment"] = {g: (D, _KIND_NOTES[g]) if g in _KIND_NOTES else (D, "") if g in GARMENT_DRAWINGS else
+                       (A_, f"drawn from its details as a {APP_CATEGORY[g] or 'top or bottom'}") for g in GARMENTS}

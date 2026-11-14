@@ -114,10 +114,12 @@ def test_the_options_are_the_ones_for_the_kind_of_garment_and_each_drawing_diffe
             r = client.get(f"/api/items/{item['id']}/details/{d['name']}")
             assert r.status_code == 200
             found = r.json()["choices"]
-            assert [c["value"] for c in found] == list(details.values(d["name"]))
+            assert [c["value"] for c in found] == list(details.values(d["name"], answer["category"]))
             assert [c["value"] for c in found if c["current"]] == [said]
             for c in found:
                 assert c["words"]
+                if d["name"] in details.WORDED:
+                    assert c["svg"] is None
                 if c["current"]:
                     assert c["svg"] is None
                 elif c["svg"] is not None:
@@ -622,3 +624,14 @@ def test_the_migration_runs_on_a_closet_made_by_the_previous_version(cfg):
     assert conn.execute("SELECT COUNT(*) FROM changes").fetchone()[0] == 0
     assert illustrations.make(r).svg   # drawn as before
     conn.close()
+
+
+def test_the_kind_offers_only_the_kinds_an_item_of_its_category_can_be(client, services, cfg):
+    item = with_answer(client, services, cfg, "Grey wool trousers", demo_answer("Grey wool trousers"))
+    found = [c["value"] for c in client.get(f"/api/items/{item['id']}/details/garment").json()["choices"]]
+    assert found[0] == "unknown" and {"joggers", "track_pants", "lounge_pants", "chinos"} <= set(found)
+    assert "fleece_pullover" not in found and "t_shirt" not in found
+    r = client.put(f"/api/items/{item['id']}/details", json={"details": {"garment": "track_pants"}})
+    assert r.status_code == 200 and r.json()["own_details"] == {"garment": "track_pants"}
+    assert client.put(f"/api/items/{item['id']}/details", json={"details": {"garment": "nonsense"}}).status_code == 422
+    assert client.put(f"/api/items/{item['id']}/details", json={"details": {"garment": "t_shirt"}}).status_code == 422

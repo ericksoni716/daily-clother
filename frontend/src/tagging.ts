@@ -21,6 +21,7 @@ export function tagNotice(state: TagState | undefined, route: string | null, err
 }
 
 const TITLES: Record<string, string> = {
+  garment: 'Kind',
   fit_detail: 'Fit',
   sleeve_length: 'Sleeves',
   neckline: 'Neckline',
@@ -57,6 +58,10 @@ const WORDS: Record<string, string> = {
   turn_up: 'turned up',
   v_insert: 'V insert under the neck',
   super_heavy: 'very heavy',
+  t_shirt: 'T-shirt',
+  ocbd: 'oxford button-down',
+  two_in_one_shorts: 'two-in-one shorts',
+  open_hem_sweatpants: 'open-hem sweatpants',
 };
 
 /** Values that say only "nothing to see here". */

@@ -42,6 +42,10 @@ class Shape:
     folds: list[str] = field(default_factory=list)  # soft drape wrinkles of a light cloth, fainter than a seam
     sole_default: str | None = None  # the sole's colour when the photo gives none (leather shoes: dark brown)
     snaps: list[tuple[float, float, float]] = field(default_factory=list)  # press studs: a ring round a cap, not a button
+    # colour-blocking: regions of the body (a yoke) painted in the second colour, clipped by the outline, and
+    # whether the sleeves are cut in it too. Parts in the second colour have color "block".
+    blocks: list[str] = field(default_factory=list)
+    block_sleeves: bool = False
     # worn open: (the edge of the front that lies on top, the viewer's right one, as a run of points from the
     # neck to below the hem; how its buttonholes are cut, "vertical" or "horizontal"). The other front is its
     # mirror image. The renderer builds the two fronts from this and swings them open.
@@ -91,6 +95,10 @@ TOP_DEFAULTS = dict(
 #   yoke      plain | western | none       a shirt's front yoke seam (default: plain on a woven shirt collar)
 #   weight    lightweight | midweight | heavyweight | super_heavy   how thick the cloth is: bulk, edge depth
 #   gauge     extra_fine | fine | medium | chunky | super_chunky     knit gauge: the depth of rib bands
+#   binding   False | True             a contrast strip wrapped over the edges: the collar's top, the placket, the
+#             sleeve ends and the hem (role "binding" inside the garment, "binding_edge" on its outline)
+#   colorblock  a tuple of parts cut in the second colour: yoke | sleeves | collar | pocket
+#   stripes   none | sleeve            two stripes down the outside of each sleeve (a track jacket), in the trim colour
 # Finer pocket values: chest-flap | chest-patch-two | pencil | western | welt | split | slash | chore |
 #   chest-flap-two | guayabera | bellows | utility | hip-patch | hip-flap
 
@@ -777,6 +785,24 @@ def top(**kw) -> Shape:
         sh.lines.append(f"M {_pt((CX - 9, front_bottom + 4))} L {_pt((CX - 11, front_bottom + 52))}")
         sh.lines.append(f"M {_pt((CX + 9, front_bottom + 4))} L {_pt((CX + 11, front_bottom + 52))}")
 
+    blocks = tuple(p.get("colorblock") or ())
+    if "collar" in blocks and collar:
+        for q in sh.parts:
+            if q.role in ("collar_r", "collar_l", "lapel_r", "lapel_l", "hole"):
+                q.color = "block"
+    if "yoke" in blocks:   # the chest and shoulders above a seam across the front
+        yb = sy + 50
+        curve = seam or (armhole if not sleeved else None)
+        if curve and yb < curve[3][1]:
+            run = [v for v in [curve[0]] + _bez(*curve, 16) if v[1] < yb] + [(_cubic_x_at_y(*curve, yb), yb)]
+        else:
+            run = [S, (S[0], yb)]
+        region = [(Sl[0], 0.0), (S[0], 0.0)] + run + [_mirror(v) for v in run[::-1]]
+        sh.blocks.append(_poly(region))
+        sh.seams.append(f"M {_pt(_mirror(run[-1]))} L {_pt(run[-1])}")
+    sh.block_sleeves = "sleeves" in blocks and sleeved
+    on_sleeve = "block" if sh.block_sleeves else None
+
     # ---- yoke seams: near-parallel to the shoulder, from under the collar to the armhole
     yoke = p.get("yoke") or ("plain" if (woven and collar) else "none")
     if yoke_start and seam and yoke == "plain":
@@ -816,6 +842,17 @@ def top(**kw) -> Shape:
         for m, _ in sides:
             sh.parts.append(Part(_poly([m(v) for v in pts + inner[::-1]]), "band", clip=True))
 
+    # ---- stripes down the outside of the sleeves (a track jacket)
+    if cuff and p.get("stripes") == "sleeve":
+        Co, Ci, d = cuff
+        a0 = (P1[0] + d[0] * 6, P1[1] + d[1] * 6)
+        a1 = (Co[0] - d[0] * 4, Co[1] - d[1] * 4)
+        for o0, o1 in ((5.0, 9.5), (13.0, 17.5)):
+            strip = [(a0[0] + q[0] * o0, a0[1] + q[1] * o0), (a1[0] + q[0] * o0, a1[1] + q[1] * o0),
+                     (a1[0] + q[0] * o1, a1[1] + q[1] * o1), (a0[0] + q[0] * o1, a0[1] + q[1] * o1)]
+            for m in (lambda v: v, _mirror):
+                sh.parts.append(Part(_poly([m(v) for v in strip]), "inlay", color="trim", clip=True))
+
     # ---- cuffs
     if cuff:
         Co, Ci, d = cuff
@@ -831,7 +868,7 @@ def top(**kw) -> Shape:
             at = lambda f, g: (Co[0] + (Ci[0] - Co[0]) * f - d[0] * depth * g, Co[1] + (Ci[1] - Co[1]) * f - d[1] * depth * g)
             for m in (lambda v: v, _mirror):
                 band = [m(v) for v in (corner + [Ci, Bi, Bo])]
-                sh.parts.append(Part(_poly(band), "band" if cuffs == "rib" else "cuff"))
+                sh.parts.append(Part(_poly(band), "band" if cuffs == "rib" else "cuff", color=on_sleeve))
                 if cuffs in ("button", "mitred"):   # the button sits in the middle of the cuff's depth, clear of its edges
                     fasten(*m(at(0.34 if cuffs == "button" else 0.36, 0.5)), 2.6)
                 elif cuffs == "button2":            # two buttons side by side
@@ -855,14 +892,14 @@ def top(**kw) -> Shape:
             roll = [Co, Ci, Bi, Bo]
             mid_o, mid_i = _lerp(roll[0], roll[3], 0.5), _lerp(roll[1], roll[2], 0.5)
             for m in (lambda v: v, _mirror):
-                sh.parts.append(Part(_poly([m(v) for v in roll]), "cuff"))
+                sh.parts.append(Part(_poly([m(v) for v in roll]), "cuff", color=on_sleeve))
                 sh.parts.append(Part(_poly([m(mid_o), m(mid_i)], close=False), "edge"))
                 if cuffs == "roll-tab":   # the tab that holds the roll up, buttoned on the sleeve
                     tb = (Co[0] + (Ci[0] - Co[0]) * 0.3, Co[1] + (Ci[1] - Co[1]) * 0.3)
                     t0 = (tb[0] - d[0] * (depth - 1), tb[1] - d[1] * (depth - 1))
                     t1 = (tb[0] - d[0] * (depth + 30), tb[1] - d[1] * (depth + 30))
                     tab = [o(t0, -3.5), o(t0, 3.5), o(t1, 3.5), _lerp(o(t1, 0), (t1[0] - d[0] * 4, t1[1] - d[1] * 4), 1), o(t1, -3.5)]
-                    sh.parts.append(Part(_poly([m(v) for v in tab]), "cuff"))
+                    sh.parts.append(Part(_poly([m(v) for v in tab]), "cuff", color=on_sleeve))
                     fasten(*m((t1[0] + d[0] * 3, t1[1] + d[1] * 3)), 2.4)
         elif sleeve != "long" or cuffs == "open":
             hem_d = 10.5 + bulk * 0.6
@@ -1000,13 +1037,14 @@ def top(**kw) -> Shape:
     elif front in ("half", "popover"):
         # a polo or henley placket: as long as its buttons need; a woven popover's runs to mid-chest
         pop = front == "popover"
-        n = (3 if pop else 2) if count is None else min(5, count - (1 if (pop and stand_button and count) else 0))
+        n = (3 if pop else 2) if count is None else min(5, count - (1 if (stand_button and count) else 0))
         n = max(n, 0)
         top_y = front_bottom if collar else front_bottom + 2
         first, step = top_y + (17 if collar else 13), (34 if pop else 22)
         end = first + step * max(n - 1, 0) + (14 if n else 26)
         if pop:
             end = max(end, top_y + 96)
+        placket_seam = len(sh.seams)
         sh.seams.append(f"M {_pt((CX - 7, top_y))} L {_pt((CX - 7, end))} L {_pt((CX + 7, end))} L {_pt((CX + 7, top_y))}")
         if stand_button and count != 0:
             fasten(CX, stand_button, 3.2)
@@ -1021,7 +1059,31 @@ def top(**kw) -> Shape:
         if front != "zip":
             sh.lines.append(f"M {_pt((CX - 5, end))} L {_pt((CX + 5, end))}")
 
-    _pockets(sh, p["pockets"], sy, hy, hh, hs, p["hem"], cuff, A, rib_h, lapel_front)
+    nd = len(sh.dots)
+    _pockets(sh, p["pockets"], sy, hy, hh, hs, p["hem"], cuff, A, rib_h, lapel_front, block="pocket" in blocks)
+    if snap:   # a snap front's pocket flaps close with snaps too
+        sh.snaps.extend(sh.dots[nd:])
+        del sh.dots[nd:]
+    if p.get("binding"):
+        inner, edge = [], []
+        if banded:
+            inner.append(_poly([ml(v) for v in top_r[::-1]] + top_r[1:], close=False))
+            edge.append(_poly([E, TR] + back[1:] + [ml(E)], close=False))
+        elif neck in ("crew", "scoop"):
+            dip = (24 if sleeved else 36) + (12 if neck == "scoop" else 0)
+            inner.append(f"M {_pt(N)} Q {_pt((CX, ny + dip * 2))} {_pt(Nl)}")
+        if front in ("half", "popover"):
+            inner.append(sh.seams[placket_seam])
+        elif front in ("buttons", "zip", "quarter-zip", "half-zip") and not lapel_front:
+            x = 7 if front == "buttons" else 4
+            end = {"quarter-zip": front_bottom + 78, "half-zip": front_bottom + 128}.get(front, bottom)
+            inner.extend(f"M {_pt((CX + s_ * x, front_bottom))} L {_pt((CX + s_ * x, end))}" for s_ in (-1, 1))
+        if cuff:
+            for m in (lambda v: v, _mirror):
+                edge.append(_poly([m(v) for v in corner + [cuff[1]]], close=False))
+        edge.append(f"M {_pt(side_pts[-1])} {hem}")
+        sh.parts.extend(Part(d_, "binding") for d_ in inner)
+        sh.parts.extend(Part(d_, "binding_edge", clip=True) for d_ in edge)
     if wt == 0 and not jacket:   # a light cloth drapes: soft folds fall from the underarm and gather at the elbow
         Ub = U or A
         # one long fold from the underarm and a shorter, steeper one below it; the two sides differ, as cloth does
@@ -1441,10 +1503,15 @@ def _lapels(sh, cs, ny, N, TR, TL, k, rise, front, bulk, hy):
     return ("lapel", yb, ov)
 
 
-def _pockets(sh, kind, sy, hy, hh, hs, hem, cuff, A, rib_h, lapel_front):
+def _pockets(sh, kind, sy, hy, hh, hs, hem, cuff, A, rib_h, lapel_front, block=False):
+    color = "block" if block else None   # colour-blocking: patch pockets and their flaps in the second colour
+
     def patch(x, y, w, h, flap=True):
-        sh.lines.append(f"M {_pt((x, y))} L {_pt((x, y + h - 6))} Q {_pt((x, y + h))} {_pt((x + 6, y + h))} "
-                        f"L {_pt((x + w - 6, y + h))} Q {_pt((x + w, y + h))} {_pt((x + w, y + h - 6))} L {_pt((x + w, y))} Z")
+        d = (f"M {_pt((x, y))} L {_pt((x, y + h - 6))} Q {_pt((x, y + h))} {_pt((x + 6, y + h))} "
+             f"L {_pt((x + w - 6, y + h))} Q {_pt((x + w, y + h))} {_pt((x + w, y + h - 6))} L {_pt((x + w, y))} Z")
+        if block:
+            sh.parts.append(Part(d, "block"))
+        sh.lines.append(d)
         if flap:
             sh.lines.append(f"M {_pt((x, y + 13))} L {_pt((x + w / 2, y + 19))} L {_pt((x + w, y + 13))}")
         else:   # a plain patch pocket: just the stitched hem across its top
@@ -1453,12 +1520,15 @@ def _pockets(sh, kind, sy, hy, hh, hs, hem, cuff, A, rib_h, lapel_front):
     def flapped(x, y, w, h, bellows=False, button=True, point=True):
         """A patch pocket under a separate buttoned flap; bellows show their folded sides."""
         fy = y + 12
-        sh.lines.append(f"M {_pt((x, fy))} L {_pt((x, y + h - 6))} Q {_pt((x, y + h))} {_pt((x + 6, y + h))} "
-                        f"L {_pt((x + w - 6, y + h))} Q {_pt((x + w, y + h))} {_pt((x + w, y + h - 6))} L {_pt((x + w, fy))}")
+        d = (f"M {_pt((x, fy))} L {_pt((x, y + h - 6))} Q {_pt((x, y + h))} {_pt((x + 6, y + h))} "
+             f"L {_pt((x + w - 6, y + h))} Q {_pt((x + w, y + h))} {_pt((x + w, y + h - 6))} L {_pt((x + w, fy))}")
+        if block:
+            sh.parts.append(Part(d + " Z", "block"))
+        sh.lines.append(d)
         if bellows:
             sh.lines.append(f"M {_pt((x + 3.5, fy))} L {_pt((x + 3.5, y + h - 3.5))} L {_pt((x + w - 3.5, y + h - 3.5))} L {_pt((x + w - 3.5, fy))}")
         fl = [(x - 1.5, y - 1), (x + w + 1.5, y - 1), (x + w + 1.5, fy)] + ([(x + w / 2, fy + 5)] if point else []) + [(x - 1.5, fy)]
-        sh.parts.append(Part(_poly(fl), "cuff"))
+        sh.parts.append(Part(_poly(fl), "cuff", color=color))
         if button:
             sh.dots.append((x + w / 2, fy + (1 if point else -4), 2.4))
 
@@ -1559,7 +1629,10 @@ PANTS_DEFAULTS = dict(leg="straight", length="full", jeans=False)
 #   cargo   False | True                     bellows pockets on the outer thighs
 #   pleats  0 | 1 | 2                        per side; pleated trousers also get a crease
 #   crease  False | True                     pressed front crease (dress trousers)
-#   hem     stitched | plain | turnup | rib  visible topstitch, blind hem, turn-up cuff, knit cuff (joggers)
+#   hem     stitched | plain | turnup | rib | split   visible topstitch, blind hem, turn-up cuff, knit cuff
+#           (joggers), a running short's slit at the side
+#   stripe  none | side                      a stripe down each outer seam (track trousers), in the trim colour
+# leg also takes skinny (compression tights) and length brief (running shorts: a short inseam).
 #   coin    True | False                     jeans' watch pocket and rivets
 #   stitch  tonal | contrast                 jeans' topstitch drawn in gold thread as well
 
@@ -1601,19 +1674,20 @@ def pants(**kw) -> Shape:
 
     wy = 28.0
     hw = 20.5 * k                                   # half waist
-    hh = (25.0 if leg != "wide" else 26.5) * k      # half hip (a 50 cm flat hip; 52-53 for a wide cut)
+    hh = {"wide": 26.5, "skinny": 22.5}.get(leg, 25.0) * k   # half hip (a 50 cm flat hip; 52-53 wide, 45 stretch)
     cy = wy + 27.0 * k                              # crotch
     band = (4.0 * k if waist == "belt" else 4.6 * k) + max(0, wt - 1) * 2.5
     bb = wy + band                                  # bottom of the waistband
     hip_y = cy - 18                                 # the widest point, ~4/5 of the way down the rise
     # one leg: its width at the knee and the opening, and where its middle sits at the hem
-    kn, op = {"tapered": (19.5, 16.5), "straight": (21.5, 19.5), "wide": (25.5, 25.0)}[leg]
+    kn, op = {"tapered": (19.5, 16.5), "straight": (21.5, 19.5), "wide": (25.5, 25.0), "skinny": (15.0, 11.0)}[leg]
     kn, op = kn * k, op * k
-    inseam = {"full": 81.0, "ankle": 71.0, "short": 22.0}[length]
+    inseam = {"full": 81.0, "ankle": 71.0, "short": 22.0, "brief": 12.0}[length]
+    short = length in ("short", "brief")
     hy = cy + inseam * k
     knee_y = cy + 33.0 * k
     c0 = CX - hh / 2                                # middle of the leg at the crotch
-    if length == "short":
+    if short:
         op = 27.5 * k                               # a shorts leg opening is wider than its thigh: it flares
         hc = CX - 6 - op / 2
         Ho, Hi = (hc - op / 2, hy), (hc + op / 2, hy + 2)
@@ -1623,7 +1697,7 @@ def pants(**kw) -> Shape:
         Ho, Hi = (hc - op / 2, hy), (hc + op / 2, hy)
         kc = c0 + (hc - c0) * (knee_y - cy) / (hy - cy)
         Ko, Ki = (kc - kn / 2, knee_y), (kc + kn / 2, knee_y)
-    rib = hem_kind == "rib" and length != "short"
+    rib = hem_kind == "rib" and not short
     if rib:                                         # joggers: the leg gathers into a knitted cuff
         Ho, Hi = (hc - op / 2 + 3, hy), (hc + op / 2 - 3, hy)
 
@@ -1766,9 +1840,19 @@ def pants(**kw) -> Shape:
             cuff = [(a[0] - 2.5, a[1] - t), (b[0] + 2.5, b[1] - t), (b[0] + 1.5, b[1] + 1), (a[0] - 1.5, a[1] + 1)]
             sh.parts.append(Part("M " + " L ".join(_pt(mm(v)) for v in cuff) + " Z", "cuff"))
         elif hem_kind == "rib":
-            t = 5.5 * k if length != "short" else 3 * k
+            t = 5.5 * k if not short else 3 * k
             cuff = [(a[0] - 0.5, a[1] - t), (b[0] + 0.5, b[1] - t), (b[0], b[1]), (a[0], a[1])]
             sh.parts.append(Part("M " + " L ".join(_pt(mm(v)) for v in cuff) + " Z", "band"))
+        elif hem_kind == "split":   # a running short's side slit, its hem turned up either side of it
+            sh.lines.append(f"M {_pt(mm((a[0] + 2, a[1] - 0.5)))} Q {_pt(mm((a[0] + 9, a[1] - 9)))} {_pt(mm((a[0] + 5, a[1] - 18)))}")
+            sh.lines.append(f"M {_pt(mm((a[0] + 9, a[1] - 2.2 * k)))} L {_pt(mm((b[0] + 1, b[1] - 2.2 * k)))}")
+
+    # ---- a stripe down each outer seam
+    if p.get("stripe") == "side":
+        run = [(side_x(y), y) for y in (bb + 2, (bb + hip_y) / 2, hip_y - 1)] + [Hp] + ([Ko] if Ko else []) + [Ho]
+        a_, b_ = _offset_line(run, 3.0), _offset_line(run, 10.0)
+        for mm in (lambda q: q, m):
+            sh.parts.append(Part(_poly([mm(v) for v in a_ + b_[::-1]]), "inlay", color="trim", clip=True))
     if stitch == "contrast":
         for d in stitch_lines:
             sh.parts.append(Part(d, "stitch"))

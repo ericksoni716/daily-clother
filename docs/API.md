@@ -126,7 +126,7 @@ Situations may overlap, so their shares need not total 1.
 Vacation frequency is additionally scaled by weeks away / (365.25 / 7);
 `days_per_week` still shows the answer for a week away.
 Evidence days add `situation` and `share` when personalized.
-`look_for` can additionally contain `fit`, `avoid_fits[]`, `avoid_patterns[]`.
+`look_for` can additionally contain `fit`, `avoid_fits[]`, `avoid_patterns[]`, and for home and exercise gaps `kind` (a phrase naming kinds of clothing to look for, such as joggers or a training tee).
 Before answers, gap order, IDs, scores and existing fields are unchanged and
 `situations` is empty. Home/exercise-only purchases get new `lounge`/`active`
 kinds (including `light_active`, `warm_active`, `rain_active`, `rainwarm_active`

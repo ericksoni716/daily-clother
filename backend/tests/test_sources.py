@@ -391,6 +391,16 @@ def test_a_photo_whose_pieces_were_added_is_not_added_again_as_one_item(c, sv):
     assert len(c.get("/api/items").json()["items"]) == 3
 
 
+def test_a_photo_waiting_to_be_checked_is_not_added_as_one_item(c, sv):
+    data = pile_bytes(shift=3)
+    src = found(c, sv, data=data)
+    single = upload(c, data, key="single")
+    assert single.status_code == 409 and "Add its pieces from there" in single.json()["detail"]
+    assert c.get("/api/items").json()["items"] == []
+    assert c.delete(f"/api/sources/{src['id']}").status_code == 204
+    assert upload(c, data, key="single").status_code == 201   # once forgotten it can be one item
+
+
 def test_the_hash_of_the_picked_file_decides(c, sv):
     sha = "ab" * 32
     first = send(c, pile_bytes(), key="a", sha=sha)

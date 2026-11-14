@@ -154,6 +154,7 @@ def create_from_photo(conn, images_dir: Path, data: bytes, client_key: str | Non
     same = _same_photo(conn, source_sha256)
     if same is not None:
         return _duplicate(conn, same), False
+    _refuse_waiting_source(conn, source_sha256)
     item_id, photo_id = uuid.uuid4().hex, uuid.uuid4().hex
     stored = images.store_upload(data, images_dir, item_id, photo_id)
     t = db.now()
@@ -165,6 +166,7 @@ def create_from_photo(conn, images_dir: Path, data: bytes, client_key: str | Non
             conn.execute("ROLLBACK")
             shutil.rmtree(images_dir / item_id, ignore_errors=True)
             return _duplicate(conn, same), False
+        _refuse_waiting_source(conn, source_sha256)
         conn.execute("INSERT INTO items (id, client_key, name, location, created_at, updated_at) VALUES (?, ?, ?, 'closet', ?, ?)",
                      (item_id, client_key or None, (name or "").strip() or None, t, t))
         conn.execute("INSERT INTO photos (id, item_id, kind, original_path, thumb_path, width, height, bytes, sha256, "
@@ -179,6 +181,16 @@ def create_from_photo(conn, images_dir: Path, data: bytes, client_key: str | Non
         shutil.rmtree(images_dir / item_id, ignore_errors=True)
         raise
     return {**detail(conn, get(conn, item_id)), "duplicate": False}, True
+
+
+WAITING_SOURCE = ("This photo is already on Add as a photo of several pieces, waiting for them to be checked. "
+                  "Add its pieces from there, or forget it first to add it as one item.")
+
+
+def _refuse_waiting_source(conn, source_sha256: str) -> None:
+    """A photo kept as several pieces and not added yet would otherwise give its pieces twice."""
+    if conn.execute("SELECT 1 FROM source_photos WHERE source_sha256 = ? AND state != 'added'", (source_sha256,)).fetchone():
+        raise ItemError(WAITING_SOURCE, 409)
 
 
 def update(conn, item_id: str, changes: dict, record: bool = True) -> dict:

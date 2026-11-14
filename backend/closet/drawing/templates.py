@@ -1785,7 +1785,9 @@ def pants(**kw) -> Shape:
     xmin = min(Ho[0], Hp[0]) - 2
     sh.bbox = (xmin, wy - 3, 2 * CX - xmin, hy + 4)
     sh.body_box = (CX - hh, wy, CX + hh, hy)
-    sh.anchors = {"waist": (CX, wy), "crotch": (CX, cy), "hem": (CX, hy)}
+    # the middle of each leg's opening (the viewer's left leg, then the right)
+    sh.anchors = {"waist": (CX, wy), "crotch": (CX, cy), "hem": (CX, hy), "leg_l": (hc, hy), "leg_r": (2 * CX - hc, hy),
+                  "hem_out": Ho, "hem_in": Hi}   # the viewer's left leg's opening, outer and inner corner
 
     def side_x(y):
         """x of the left outer seam at height y (above the hip)."""

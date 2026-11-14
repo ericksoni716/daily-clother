@@ -8,8 +8,8 @@ import pytest
 
 from closet.drawing import figure as fig
 from closet.drawing import illustrate
-from closet.drawing.figure import GROUND_Y, K_PX, MARGIN, WAIST_Y, Piece, figure, plan
-from closet.drawing.templates import PX_CM, SHOE_G
+from closet.drawing.figure import CX, GROUND_Y, K_PX, LEG_CM, MARGIN, TOE_CM, WAIST_Y, Piece, figure, plan
+from closet.drawing.templates import PX_CM
 from closet.tagger.schema import Details, ItemTags, Silhouette
 
 from .conftest import upload
@@ -115,24 +115,62 @@ def test_shoes_stand_on_the_ground_under_the_legs(name):
     layout = plan(OUTFITS[name])
     shoes, b = layout.get("shoes"), layout.get("bottom")
     assert len(shoes.transforms) == 2                          # a pair
+    full = b.spec.params.get("length", "full") == "full"
     hem_y = b.point(b.shape.anchors["hem"])[1]
-    x0, _, x1, _ = b.box(b.shape.body_box)
-    for copy, (lo, hi) in enumerate(((x0, 200), (200, x1))):  # the viewer's left shoe under the left leg, and so on
-        sx = sorted(shoes.point((x, SHOE_G), copy)[0] for x in (shoes.shape.bbox[0], shoes.shape.bbox[2]))
-        assert shoes.point((sx[0], SHOE_G), copy)[1] == pytest.approx(GROUND_Y)
-        assert sx[0] < hi and sx[1] > lo                       # overlaps the leg above it
-        assert (sx[1] <= 200 + 1) if copy == 0 else (sx[0] >= 200 - 1)
-        assert GROUND_Y > hem_y
-    # the toes turn out: the left shoe's toe is left of its heel
-    toe, heel = shoes.shape.anchors["toe"], shoes.shape.anchors["heel"]
+    legs = ([b.point(b.shape.anchors[k])[0] for k in ("leg_l", "leg_r")] if full
+            else [CX - LEG_CM * K_PX, CX + LEG_CM * K_PX])
+    x0, y0, x1, y1 = shoes.front.bbox
+    for copy, leg in enumerate(legs):                          # each shoe centred under its leg, toes on the ground
+        sx = sorted(shoes.point((x, 0.0), copy)[0] for x in (x0, x1))
+        assert (sx[0] + sx[1]) / 2 == pytest.approx(leg)
+        assert shoes.point((0.0, 0.0), copy)[1] == pytest.approx(GROUND_Y + TOE_CM * K_PX)
+        assert (sx[1] <= CX) if copy == 0 else (sx[0] >= CX)
+    if full:   # a full-length hem covers the top of the shoe: the toe box and the front of the sole show below it
+        assert shoes.point((0.0, y0), 0)[1] < hem_y < GROUND_Y
+    # seen from the front, toes forward and turned out: the left shoe's toe is left of its heel, the right one's right
+    toe, heel = shoes.front.anchors["toe"], shoes.front.anchors["heel"]
     assert shoes.point(toe, 0)[0] < shoes.point(heel, 0)[0] and shoes.point(toe, 1)[0] > shoes.point(heel, 1)[0]
+    assert shoes.point(toe, 0)[1] > shoes.point(heel, 0)[1]   # the toe is nearer: lower on the page
+
+
+def test_under_full_length_trousers_nothing_of_a_shoe_shows_beside_the_leg():
+    layout = plan(dict(base=TEE, bottom=TROUSERS, shoes=BOOTS))
+    b = layout.get("bottom")
+    svg = figure(dict(base=TEE, bottom=TROUSERS, shoes=BOOTS), uid="q")
+    (xo, hy), (xi, _) = b.point(b.shape.anchors["hem_out"]), b.point(b.shape.anchors["hem_in"])
+    clip = re.search(r'<clipPath id="qk">(.*?)</clipPath>', svg).group(1)
+    rects = [tuple(float(v) for v in r) for r in re.findall(r'x="([-\d.]+)" y="([-\d.]+)" width="([\d.]+)" height="([\d.]+)"', clip)]
+    below, left, right = rects                                  # anywhere below the hem; above it, only in a leg
+    assert below[1] == pytest.approx(hy, abs=0.1)
+    assert left[0] == pytest.approx(xo, abs=0.1) and left[2] == pytest.approx(xi - xo, abs=0.1)
+    assert left[1] + left[3] == pytest.approx(hy, abs=0.1) and right[0] == pytest.approx(2 * CX - xi, abs=0.1)
+    assert 'clip-path="url(#qk)"' in svg
+    # shorts leave the shoes whole
+    assert "qk" not in figure(dict(base=TEE, bottom=SHORTS, shoes=BOOTS), uid="q")
+
+
+@pytest.mark.parametrize("style,extra", [
+    ("low_sneaker", {}), ("runner", {}), ("slip_on", {}), ("high_top", {}), ("loafer", {}), ("derby", {}), ("oxford", {}),
+    ("boot", {}), ("chelsea_boot", {}), ("sandal", {"other_features": ["sandal"]}), ("sandal", {"other_features": ["slide"]}),
+    ("sandal", {"other_features": ["flip_flop"]})])
+def test_every_kind_of_shoe_is_drawn_from_the_front(style, extra):
+    category = {"boot": "boots", "chelsea_boot": "boots", "sandal": "sandals", "loafer": "dress_shoes",
+                "derby": "dress_shoes", "oxford": "dress_shoes"}.get(style, "sneakers")
+    shoes = Piece(category, answer(category, shoe_style=style, **extra), "#6b4a32")
+    for bottom in (TROUSERS, SHORTS):
+        for limbs in (False, True):
+            layout = plan(dict(base=TEE, bottom=bottom, shoes=shoes), limbs=limbs)
+            placed = layout.get("shoes")
+            assert placed.front is not None and placed.front.body and placed.front.outline.startswith("M ")
+            svg = figure(dict(base=TEE, bottom=bottom, shoes=shoes), limbs=limbs)
+            assert all(f'<g transform="{fig._matrix(t)}"><path' in svg for t in placed.transforms)   # the pair, as drawn
 
 
 @pytest.mark.parametrize("name", list(OUTFITS))
 def test_the_figure_fits_its_canvas_with_even_margins(name):
     layout = plan(OUTFITS[name])
     vx, vy, vw, vh = layout.view
-    boxes = [p.box() for p in layout.pieces]
+    boxes = [p.box() for p in layout.pieces] + [layout.form.box]
     assert min(b[0] for b in boxes) - vx == pytest.approx(MARGIN)
     assert min(b[1] for b in boxes) - vy == pytest.approx(MARGIN)
     assert vx + vw - max(b[2] for b in boxes) == pytest.approx(MARGIN)
@@ -341,3 +379,62 @@ def test_the_figure_route_takes_accessories(client):
     assert client.post("/api/outfits/figure", json={"base": a["id"], "accessories": None}).status_code == 200
     for bad in ("x", [3], [""], ["x" * 65], ["not-an-item"], [b["id"]] * 9):
         assert client.post("/api/outfits/figure", json={"base": a["id"], "accessories": bad}).status_code == 422, bad
+
+
+def test_the_form_is_drawn_first_behind_every_garment():
+    for name, pieces in OUTFITS.items():
+        svg = figure(pieces, uid="q")
+        body = svg[svg.index("</defs>"):]
+        first = re.search(r'rx="18" fill="[^"]+"/>(<[^>]+>)', body).group(1)
+        assert first == '<g id="qm">', name
+    assert 'id="qm"' not in figure(dict(shoes=SNEAKERS), uid="q")   # shoes alone: nothing to stand on
+
+
+def test_the_form_has_no_head_hands_or_feet_and_shows_no_limb_by_default():
+    layout = plan(dict(base=TEE, bottom=SHORTS, shoes=SNEAKERS))
+    form, b = layout.form, layout.get("bottom")
+    assert form.limbs == [] and not form.ankles
+    assert form.box[3] < b.point(b.shape.anchors["crotch"])[1]     # it ends inside the trousers, above the crotch
+    tee = layout.get("base")
+    assert form.box[1] < tee.box()[1]                               # the neck stub stands above the collar ...
+    assert form.box[1] > tee.box()[1] - 13 * K_PX                   # ... a little: there is no head
+    for p in (SHIRT, COAT, HOODIE):                                  # above every collar, and never a head's height
+        layout = plan(dict(base=p))
+        cut = fig.NECK_Y - fig.NECK_MAX_CM * K_PX - fig.NECK_HALF_CM * K_PX * 0.3   # the cap, seen from a little above
+        assert layout.form.box[1] < layout.get("base").box()[1] or layout.form.box[1] == pytest.approx(cut, abs=0.2)
+        assert layout.form.box[1] >= cut - 0.2
+
+
+def test_with_limbs_only_short_sleeves_and_shorts_show_one_and_it_stops_at_the_elbow_or_knee():
+    layout = plan(dict(base=TEE, bottom=SHORTS, shoes=SNEAKERS), limbs=True)
+    form, b = layout.form, layout.get("bottom")
+    assert len(form.limbs) == 4 and form.ankles                     # two arms, two legs
+    hem = b.point(b.shape.anchors["hem"])[1]
+    knee = WAIST_Y + fig.KNEE_BELOW_WAIST_CM * K_PX
+    nums = lambda d: [(float(x), float(y)) for x, y in re.findall(r"(-?[\d.]+),(-?[\d.]+)", d)]   # noqa: E731
+    legs = [d for d, _ in form.limbs if min(y for _, y in nums(d)) > WAIST_Y]
+    assert len(legs) == 2 and all(max(y for _, y in nums(d)) <= knee + 0.5 for d in legs)
+    assert all(min(y for _, y in nums(d)) < hem for d in legs)     # from under the shorts
+    shoulder = layout.get("base").point(layout.get("base").shape.anchors["shoulder_l"])
+    for d, _ in form.limbs:
+        if d not in legs:
+            far = max(((x - shoulder[0]) ** 2 + (y - shoulder[1]) ** 2) ** 0.5 for x, y in nums(d))
+            far = min(far, max(((x - (2 * CX - shoulder[0])) ** 2 + (y - shoulder[1]) ** 2) ** 0.5 for x, y in nums(d)))
+            assert far <= (fig.ELBOW_CM + fig.ARM_HALF_CM) * K_PX + 1
+    # long sleeves and full-length trousers cover the limbs: nothing shows past a cuff or a hem
+    covered = plan(dict(base=SHIRT, bottom=TROUSERS, shoes=SNEAKERS), limbs=True).form
+    assert covered.limbs == []
+    assert "<path" not in figure(dict(base=SHIRT, bottom=TROUSERS, shoes=SNEAKERS), uid="q", limbs=True).split('<g id="qm">')[1].split("</g>")[0].split("/>", 2)[2]
+
+
+def test_the_form_shows_in_an_open_top_worn_on_its_own():
+    svg = figure(dict(mid=OVERSHIRT.__class__("shirt", answer("shirt", collar="point", placket="front_placket"), "#a9c3e0"),
+                      bottom=JEANS), uid="q")
+    assert '<use href="#qm"/>' in svg and '<use href="#qw"/>' in svg   # the form in the opening, the trousers over it
+
+
+def test_the_figure_does_not_change_the_items_drawings():
+    from closet.drawing import templates
+    pants = templates.build("pants", {})
+    assert {"waist", "crotch", "hem", "leg_l", "leg_r", "hem_out", "hem_in"} <= set(pants.anchors)
+    assert pants.anchors["leg_l"][0] == pytest.approx((pants.anchors["hem_out"][0] + pants.anchors["hem_in"][0]) / 2)

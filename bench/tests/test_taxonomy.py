@@ -922,6 +922,22 @@ def test_outerwear_kinds_draw_what_sets_them_apart():
         assert COVERAGE["garment"][kind][0] == "drawn", kind
 
 
+def test_an_overcoat_is_a_knee_length_coat_without_a_breast_pocket():
+    # the tagger's coarse length is at most "long"; told it is an overcoat, it is drawn as one, not as a blazer
+    told = {"garment": "overcoat", "collar": "notch_lapel", "placket": "front_placket", "pockets": "welt", "length": "long"}
+    coat, _, _ = top_drawing(told)
+    blazer, _, _ = top_drawing({**told, "garment": "blazer"})
+    assert coat["length"] == "knee" and coat["block"] == "coat"
+    assert blazer["length"] == "long" and blazer["block"] == "jacket"
+    drawn, jacket = build("top", coat), build("top", blazer)
+    assert drawn.anchors["hem"][1] > jacket.anchors["hem"][1] + 60
+    assert {k: v for k, v in drawn.anchors.items() if k != "hem"} == {k: v for k, v in jacket.anchors.items() if k != "hem"}
+    assert {part.role for part in drawn.parts} >= {"lapel_r", "lapel_l"}
+    # pockets: the blazer's two hip welts and its breast welt (read as a pocket square); the coat's hip welts only
+    pockets = lambda shape: [line for line in shape.lines if line.endswith("Z")]  # noqa: E731
+    assert len(pockets(jacket)) == 3 and len(pockets(drawn)) == 2
+
+
 def test_a_robe_is_tied_with_a_sash_and_velvet_has_a_sheen():
     robe, _, _ = top_drawing({"garment": "robe", "collar": "shawl", "length": "regular"})
     assert robe["belt"] == "sash" and robe["length"] == "knee" and robe["block"] == "coat"

@@ -1,20 +1,20 @@
 """Phone-sized pictures of outfits as worn, in the light and the dark theme (developer tool; not shipped).
 
-    python tools/make_figure_shots.py NAME [--plain] [--out DIR]
+    python tools/make_figure_shots.py NAME [--out DIR]
 
-Draws four outfits with `closet.drawing.figure` (from the demo closet's items, plus a pair of sandals the demo
-closet does not have) and puts each one in a page laid out like the Today card on a 390 x 844 phone, in the light
+Draws five outfits with `closet.drawing.figure` (from the demo closet's items, plus a pair of sandals the demo
+closet does not have, and its corduroy trousers drawn with a relaxed leg) and puts each one in a page laid out like the Today card on a 390 x 844 phone, in the light
 and the dark theme, then takes a picture of the page with a Chrome or Chromium found on this computer. The
 pictures are written as DIR/figure-<outfit>-<light|dark>-NAME.png (DIR is docs/screenshots by default), so the
-same outfits can be compared before and after a change to the figure. With `--plain` the wearer's head has no
-face drawn on it, only its shape and hair (see `figure`).
+same outfits can be compared before and after a change to the figure.
 """
 from __future__ import annotations
 
 import argparse
 import base64
+import copy
+import dataclasses
 import html
-import inspect
 import shutil
 import subprocess
 import sys
@@ -25,10 +25,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(ROOT / "tools"))
 
+from make_figure_sheet import demo_rows  # noqa: E402
+
 from closet.drawing.figure import Piece, figure  # noqa: E402
 from closet.illustrations import describe  # noqa: E402
 from closet.tagger.schema import Details, ItemTags, Silhouette  # noqa: E402
-from make_figure_sheet import demo_rows  # noqa: E402
 
 OUT = ROOT / "docs" / "screenshots"
 PHONE = (390, 844)
@@ -50,6 +51,13 @@ def sandals() -> Piece:
     return Piece("sandals", tags.model_dump(mode="json"), "#a87a4f", "tan")
 
 
+def relaxed(piece: Piece) -> Piece:
+    """The trousers with a relaxed leg, as if the tagger had said so: the demo closet has none."""
+    answer = copy.deepcopy(piece.answer)
+    answer["details"]["leg_shape"] = "relaxed"
+    return dataclasses.replace(piece, answer=answer)
+
+
 # file name, caption, then the demo items by name for each place
 OUTFITS = [
     ("open-shirt", "Open chambray shirt over a henley, jeans, sneakers",
@@ -61,7 +69,10 @@ OUTFITS = [
     ("coat-boots", "Overcoat over a sweater and shirt, boots",
      dict(base="Blue oxford shirt", mid="Burgundy cable sweater", outer="Black overcoat", bottom="Grey wool trousers",
           shoes="Brown boots")),
+    ("hoodie-relaxed", "Oversized hoodie, relaxed trousers, sneakers",
+     dict(base="Grey hoodie", bottom="Brown corduroy trousers", shoes="Grey runners")),
 ]
+RELAXED = {"Brown corduroy trousers"}
 
 
 def pieces_for(names: dict) -> dict:
@@ -72,6 +83,8 @@ def pieces_for(names: dict) -> dict:
             out[place] = [describe(rows[n]) for n in name]
         else:
             out[place] = describe(rows[name]) if name else sandals()
+            if name in RELAXED:
+                out[place] = relaxed(out[place])
     return out
 
 
@@ -106,13 +119,11 @@ def shoot(markup: str, png: Path) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("name", help="the end of each file name, such as before or after")
-    ap.add_argument("--plain", action="store_true", help="draw the head without a face")
     ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
-    extra = {"face": False} if args.plain and "face" in inspect.signature(figure).parameters else {}
     for key, caption, names in OUTFITS:
-        svg = figure(pieces_for(names), uid="s" + key[:2], **extra)
+        svg = figure(pieces_for(names), uid="s" + key[:2])
         for theme in THEMES:
             png = args.out / f"figure-{key}-{theme}-{args.name}.png"
             shoot(page(svg, caption, theme), png)

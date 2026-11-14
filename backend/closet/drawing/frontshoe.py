@@ -38,10 +38,11 @@ _LOW = [(0.0, 6.8), (0.12, 7.4), (0.3, 6.4), (0.46, 8.0), (0.56, 7.2), (0.7, 5.6
 _DRESS = [(0.0, 6.2), (0.12, 6.6), (0.3, 5.6), (0.46, 6.6), (0.56, 6.1), (0.7, 4.7), (0.85, 3.3), (0.95, 2.2), (1.0, 0.8)]
 _SLIP = [(0.0, 6.2), (0.12, 6.6), (0.3, 5.8), (0.46, 6.6), (0.56, 6.2), (0.7, 5.2), (0.85, 4.1), (0.95, 2.9), (1.0, 1.0)]
 _BOOT = [(0.0, 7.6), (0.12, 7.8), (0.3, 7.6), (0.46, 8.6), (0.56, 7.6), (0.7, 6.0), (0.85, 4.6), (0.95, 3.2), (1.0, 1.1)]
+TRAINERS = ("low_sneaker", "runner")
 STYLES = {
     #               ball  sole  top     shaft
-    "low_sneaker": (5.4, 2.5, _LOW, 0.0),
-    "runner": (5.5, 3.4, _LOW, 0.0),
+    "low_sneaker": (5.4, 2.9, _LOW, 0.0),
+    "runner": (5.5, 3.6, _LOW, 0.0),
     "slip_on": (5.2, 2.1, _SLIP, 0.0),
     "high_top": (5.4, 2.6, _LOW, 16.5),
     "loafer": (4.9, 1.1, _DRESS, 0.0),
@@ -181,7 +182,11 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
     sole_d = _path(_hull(sole_pts))
     out.append(fill(sole_d, sole_c))
     defs += f'<clipPath id="{uid}s"><path d="{sole_d}"/></clipPath>'
-    if style in ("high_top", "slip_on") or p.get("foxing"):   # the stripe round a vulcanised sole
+    if style in TRAINERS:   # a trainer's sole: the outsole under it a shade darker, so its edge reads under a hem
+        low = [view(*q) for h in (0.0, sole_t * 0.32) for q in contour(h)]
+        c = shade(sole_c, -0.22 if luminance(sole_c) > 0.25 else 0.18)
+        out.append(f'<g clip-path="url(#{uid}s)">' + fill(_path(_hull(low)), c, edge=False) + "</g>")
+    if style in ("high_top", "slip_on") + TRAINERS or p.get("foxing"):   # the stripe round a vulcanised sole
         line = [view(x, u, sole_t * 0.55) for x, u, _ in contour(0)]
         out.append(f'<g clip-path="url(#{uid}s)">' + ln(_path(line, close=False), 1.1,
                                                          shade(sole_c, -0.3 if luminance(sole_c) > 0.25 else 0.22), 1) + "</g>")
@@ -317,9 +322,15 @@ def _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, 
                     x, y = s(0.6, xs, 0.3)
                     out.append(f'<path d="M {x:.1f},{y:.1f} l {-1.5 * xs:.1f},5 l {3 * xs:.1f},0 Z" fill="{shade(base, -0.2)}" '
                                f'stroke="{INK}" stroke-width=".8"/>')
+    if style in TRAINERS:   # the overlay round the toe box, stitched on a little above the sole
+        guard = [s(u, xs, 0.0) for u, xs in ((0.7, -0.98), (0.8, -0.9), (0.88, -0.7), (0.93, -0.35), (0.95, 0.0),
+                                              (0.93, 0.35), (0.88, 0.7), (0.8, 0.9), (0.7, 0.98))]
+        guard = [(x, y + 0.9 * view.px) for x, y in guard]
+        out.append(ln(_path(guard, close=False), 1.3))
     if style in ("derby", "oxford", "boot", "low_sneaker", "high_top", "runner") and laced:
-        # the two edges of the lacing, and the laces across them, from the throat down to the toe box
-        lo, hi = (0.5, 0.74) if style != "oxford" else (0.52, 0.72)
+        # the two edges of the lacing, and the laces across them, from the throat down to the toe box (on a
+        # trainer, down far enough that a row or two shows under a trouser hem)
+        lo, hi = {"oxford": (0.52, 0.72), "low_sneaker": (0.52, 0.8), "runner": (0.52, 0.8)}.get(style, (0.5, 0.74))
         for xs in (-0.42, 0.42):
             out.append(ln(_path([s(u, xs, 0.05) for u in (lo - 0.03, (lo + hi) / 2, hi)], close=False), 1.2))
         n = max(3, min(7, int(p.get("eyelets", 5)))) - 1

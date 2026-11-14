@@ -327,14 +327,17 @@ def layer(under: Spec, over: Spec, style: str, uid: str = "a") -> str:
     return _svg(o_back + f'<g clip-path="url(#w{uid})">{u_body}</g>' + o_fronts, u_defs + o_defs + seen)
 
 
-def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | None = None, inside: str | None = None):
+def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | None = None, inside: str | None = None,
+          shape: Shape | None = None):
     """The markup for one garment: (defs, body, the vertical shift it was placed with, and, when it is worn
     open, the paths within which a garment underneath can show). With `layered`, an open garment's body comes
     back in two pieces, (the inside of its back, its two fronts), so another garment can be drawn between.
     `inside` is markup (in the garment's own coordinates) drawn over the inside of its neck, under its collar:
-    what the wearer shows there. Only the outfit figure uses it."""
+    what the wearer shows there. `shape` is the garment's shape when it is not the one its template builds (the
+    figure fits it to the wearer). Only the outfit figure uses these two."""
     params = spec.params if not spec.weight or "weight" in spec.params else {**spec.params, "weight": spec.weight}
-    shape = build(spec.template, params)
+    if shape is None:
+        shape = build(spec.template, params)
     bx0, by0, bx1, by1 = shape.bbox
     gw, gh = bx1 - bx0, by1 - by0
     # centre the garment vertically on the card (unless it is placed with another garment's shift)

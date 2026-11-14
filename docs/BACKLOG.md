@@ -63,6 +63,7 @@ Fixes after 0.2.0:
 - [x] #104 A choice in Settings of which route to Claude is tried first: the plan first (as before), the API key first, only the plan, or only the key. The key-first choices need a saved key; the key is still only used once allowed with a monthly limit.
 - [x] A failed item shows why: the plain sentence, and a "Details" fold with the reason the job recorded (keys, tokens, e-mail addresses and paths outside Closet's folder taken out), written once to the log as well; "Try again" never queues a second job (`failure` in the item, no migration).
 - [x] #114 A change made just before the page is reloaded or closed is no longer lost: saves are sent so that they outlive the page, and an edit still being typed (or trip ticks waiting their turn) is sent as the page goes away. It had been parked since a browser test raced it.
+- [x] #147 A note typed just before a reload was still lost now and then (the browser test `14-leave` failed 10 times in 30): the browser dropped a save on its way through the service worker as the page went away. Saves now skip the service worker where the browser allows it.
 
 Patterns from the photo (owner's request; it had fallen out of the app):
 - [x] Plaids flattened and placed per front, madras measured whole, stripes (regular and placed bands, sleeves checked), prints quilted; OpenCV and the second background model in the app; migration 0013.

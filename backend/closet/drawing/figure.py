@@ -79,7 +79,7 @@ from . import fitting, item
 from .fills import Graphic
 from .frontshoe import FrontShoe, bare_feet, front_shoe
 from .illustrate import CARD, INK, Fill, Spec, _draw, shade
-from .templates import CX, K_PX, PX_CM, TOP_DEFAULTS, Shape, _block_for, build
+from .templates import CX, K_PX, LEG_WIDTHS, PX_CM, TOP_DEFAULTS, Shape, _block_for, build
 
 log = logging.getLogger("closet.drawing")
 
@@ -186,9 +186,14 @@ FIT_LONGER_CM = {"boxy": -4.0, "oversized": 6.0}   # a boxy top is a little shor
 # the hips
 SHAPED_EASE = [(ARMPIT_CM, 2.4), (WAIST_CM, 0.6), (HIP_CM, 1.2)]
 # a trouser leg, scaled across about its own middle by its leg shape: by this at the knee and at the hem (from none
-# at the crotch), so a slim leg narrows to its hem, a straight one falls straight and a wide one stays wide
-LEG_EASE = {"slim": (0.97, 0.9), "tapered": (1.0, 0.88), "relaxed": (1.05, 1.07), "wide": (1.1, 1.14),
-            "bootcut": (1.0, 1.04), "flare": (1.0, 1.05), "barrel": (1.06, 0.95)}
+# at the crotch), so a slim leg narrows to its hem, a straight one falls straight and a wide one stays wide. Taken
+# from the trousers template's own knee and opening widths for each shape (templates.LEG_WIDTHS), against a
+# straight leg's, to these powers (at the knee, at the hem): the figure shows the same shapes, more strongly than the
+# flat drawing, and more at the hem, so a slim leg tapers more than a straight one
+LEG_GAIN = (0.35, 0.55)
+LEG_MIN_HALF_CM = 4.6         # ...but never narrowed to less than this either side of its middle: room for his ankle
+LEG_EASE = {leg: ((kn / LEG_WIDTHS["straight"][0]) ** LEG_GAIN[0], (op / LEG_WIDTHS["straight"][1]) ** LEG_GAIN[1])
+            for leg, (kn, op) in LEG_WIDTHS.items()}
 TROUSER_WAIST_HALF_CM = 15.5  # a regular trouser waist, worn (a 41 cm flat waist): his waist and a little ease
 TROUSER_HIP_HALF_CM = 16.8    # and its hips (50 cm flat), over his, from the hips down
 FLAT_HIP_CM, FLAT_HIP_HALF_CM = 18.8, 25.0   # the trousers template's regular hips: below the waist, and half wide
@@ -773,7 +778,8 @@ def _fit_bottom(shape: Shape, leg: str = "straight") -> Shape:
             t = min(1.0, (q[1] - cy) / (hy - cy))
             f = 1 + (knee - 1) * t / kt if t < kt else knee + (hem - knee) * (t - kt) / (1 - kt)
             c = CX + math.copysign(abs(CX - c0) + (abs(CX - legs[0][0]) - abs(CX - c0)) * t, x - CX)
-            x = c + (x - c) * f
+            least = min(abs(x - c), LEG_MIN_HALF_CM * K_PX / HIP_SX)
+            x = c + math.copysign(max(abs(x - c) * f, least), x - c)
         t = min(1.0, max(0.0, (y - HEM_Y + 8 * K_PX) / (8 * K_PX)))   # only near a full-length hem
         for c, h in legs:
             s = max(0.0, 1 - abs(x - c) / h) if h else 0.0

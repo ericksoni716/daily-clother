@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from closet.drawing import figure as fig
-from closet.drawing import fitting, illustrate
+from closet.drawing import fitting, frontshoe, illustrate, templates
 from closet.drawing.figure import CX, GROUND_Y, K_PX, LEG_CM, MARGIN, TOE_CM, WAIST_Y, Piece, figure, plan
 from closet.drawing.templates import PX_CM
 from closet.tagger.schema import Details, ItemTags, Silhouette
@@ -929,6 +929,23 @@ def test_the_trouser_leg_follows_its_shape():
         assert w[0] < w[1] - 1.0 < w[2] - 2.0, (cm, w)
     taper = {k: _leg_width(b, fig.KNEE_CM) - _leg_width(b, 168.0) for k, b in legs.items()}
     assert taper["slim"] > taper["straight"] + 0.5 and taper["wide"] < 0.5, taper
+
+
+def test_every_leg_shape_is_drawn_as_the_trousers_template_draws_it_and_still_fits_his_ankle():
+    """The figure's taper comes from the template's own knee and opening widths for each leg shape (no second table),
+    so the order at the hem is the template's; a skinny leg is not narrowed past room for his ankle."""
+    assert set(fig.LEG_EASE) == set(templates.LEG_WIDTHS)
+    hems = {}
+    for leg in templates.LEG_WIDTHS:
+        b = plan(dict(base=TEE, bottom=Piece("trousers", answer("trousers", {"pant_length": "full"}, leg_shape=leg),
+                                             "#6f7278"))).get("bottom")
+        hems[leg] = _leg_width(b, 168.0)
+    op = {leg: w[1] for leg, w in templates.LEG_WIDTHS.items()}
+    for a in op:   # a leg whose opening is clearly narrower on the flat drawing is narrower on him (barrel ~ straight)
+        for b in op:
+            if op[a] + 1.0 <= op[b]:
+                assert hems[a] < hems[b], (a, b, hems)
+    assert hems["skinny"] > 2 * frontshoe.ANKLE_HALF_CM, hems
 
 
 def test_cropped_trousers_show_the_ankle():

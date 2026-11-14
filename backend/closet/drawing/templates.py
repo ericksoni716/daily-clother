@@ -1671,6 +1671,10 @@ def _pockets(sh, kind, sy, hy, hh, hs, hem, cuff, A, rib_h, lapel_front, block=F
 
 # -------------------------------------------------------------------- pants
 
+# a trouser leg's width (flat, cm) at the knee and at the opening, by its leg shape (the outfit figure scales from these)
+LEG_WIDTHS = {"tapered": (19.5, 16.5), "straight": (21.5, 19.5), "wide": (25.5, 25.0), "skinny": (15.0, 11.0),
+              "slim": (18.5, 16.0), "relaxed": (23.5, 21.5), "bootcut": (20.0, 22.5), "flare": (20.0, 27.0),
+              "barrel": (27.0, 19.0)}
 PANTS_DEFAULTS = dict(leg="straight", length="full", jeans=False)
 # Optional details, each read off a photo (defaults follow `jeans`):
 #   waist   belt | elastic | drawstring      how it fastens; elastic/drawstring have no fly
@@ -1753,9 +1757,7 @@ def pants(**kw) -> Shape:
     bb = wy + band                                  # bottom of the waistband
     hip_y = cy - 18                                 # the widest point, ~4/5 of the way down the rise
     # one leg: its width at the knee and the opening, and where its middle sits at the hem
-    kn, op = {"tapered": (19.5, 16.5), "straight": (21.5, 19.5), "wide": (25.5, 25.0), "skinny": (15.0, 11.0),
-              "slim": (18.5, 16.0), "relaxed": (23.5, 21.5), "bootcut": (20.0, 22.5), "flare": (20.0, 27.0),
-              "barrel": (27.0, 19.0)}.get(leg, (21.5, 19.5))
+    kn, op = LEG_WIDTHS.get(leg, LEG_WIDTHS["straight"])
     kn, op = kn * k, op * k
     inseam = {"full": 81.0, "ankle": 71.0, "short": 22.0, "brief": 12.0}[length]
     short = length in ("short", "brief")

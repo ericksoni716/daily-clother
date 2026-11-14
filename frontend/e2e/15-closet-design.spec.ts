@@ -58,6 +58,7 @@ test.describe('phone', () => {
     await page.getByRole('button', { name: /^Season/ }).click();
     const season = page.getByRole('dialog', { name: 'Season' });
     await expect(season).toBeVisible();
+    await expect.poll(async () => { const b = (await season.boundingBox())!; return Math.round(b.y + b.height); }).toBe(844);
     await page.screenshot({ path: `${SHOTS}/item-field-phone.png` });
     await page.keyboard.press('Escape');
     await expect(season).toHaveCount(0);

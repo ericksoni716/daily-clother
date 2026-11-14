@@ -70,10 +70,10 @@ def run_one(conn, images_dir: Path, cutter: Cutter, tag: bool = True) -> bool:
         log.warning("cutout job %s failed (attempt %s): %s", job["id"], attempts, type(e).__name__)
         t = db.now()
         if attempts < MAX_ATTEMPTS:
-            conn.execute("UPDATE jobs SET state = 'queued', error = ?, updated_at = ? WHERE id = ?", (str(e)[:500], t, job["id"]))
+            conn.execute("UPDATE jobs SET state = 'queued', error = ?, updated_at = ? WHERE id = ?", (failures.kept(conn, str(e)), t, job["id"]))
             conn.execute("UPDATE items SET cutout_state = 'pending', updated_at = ? WHERE id = ?", (t, job["item_id"]))
         else:
-            conn.execute("UPDATE jobs SET state = 'failed', error = ?, updated_at = ? WHERE id = ?", (str(e)[:500], t, job["id"]))
+            conn.execute("UPDATE jobs SET state = 'failed', error = ?, updated_at = ? WHERE id = ?", (failures.kept(conn, str(e)), t, job["id"]))
             conn.execute("UPDATE items SET cutout_state = 'failed', cutout_error = ?, updated_at = ? WHERE id = ?",
                          ("The background could not be removed from this photo. You can try again, or retake it "
                           "against a plainer background.", t, job["item_id"]))

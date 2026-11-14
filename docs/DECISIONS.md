@@ -580,6 +580,17 @@ Facts checked in Anthropic's documentation on 2026-11-12:
 | Bags, belts, caps, beanies, brimmed hats and scarves each have a template, and their kind picks its style (a fedora, a trucker cap, a rucksack, a web belt...). The other accessories are drawn as a plain tag in their colour, never as a top | The issue's four, with the hat split as the taxonomy splits it. A tag says "an accessory" without pretending to a shape. Every id and kind is listed in `COVERAGE`. |
 | A bag, belt, hat or scarf whose kind is not said is drawn as the plainest of its kind (a tote, a plain leather belt, a cap or, when knitted, a beanie, a woven scarf), with a note saying so | Better than no drawing; the note tells the owner why it may not look like theirs. |
 
+### Coverage of tops and knits (#182)
+
+| Decision | Why |
+|---|---|
+| Every plain weave, shirting, smooth cloth and jersey has a faint tone-on-tone surface of its own (poplin's broken cords, oxford's paired pale flecks, end-on-end's upright streak, jersey's stitches...), kept faint enough that the cloth still reads as plain | They used to look identical. Each surface was sized to survive on a closet tile; the faintest (plain, challis, melton) are barely there at tile size by design: those cloths are plain. |
+| A colourwork knit is drawn where the garment carries it: Fair Isle and Nordic as a yoke round the neck (and a border above the hem), argyle as diamonds all over the body, intarsia as one motif on the chest, jacquard knit and Cowichan as bands, guernsey tone-on-tone | Placement is what tells these knits apart at item size. The motifs are knitted in the other colours seen in the photo; with none, in cream on a dark cloth or a deep shade of a light one. A colourwork pattern the tagger names (`pattern_name`) counts as well as the fabric. |
+| A top's fibre is drawn when no fabric says otherwise: leather's creases and shine, suede's nap, worsted's fine twill, lambswool's soft edge, merino's finer knitting | Applied on tops only (`top_drawing`), so trousers and accessories keep their own look. Acrylic stays approximate: drawn like wool, which it looks like at item size. |
+| A kind of top (`_KIND_TOP`) has a look of its own, some of it always (a hockey jersey's stripes, a singlet's missing sleeves) and the rest only where the details were silent; a kind's usual cloth and fibre, collar and sleeve likewise fill in only what was not seen | The same rule as the trouser kinds: what the tagger saw wins. A hockey jersey's stripes are in the trim colour, else the other colour seen; jerseys are bound in a contrast trim only when one was seen. Crests, numbers, lacing and thumbholes are too small to draw. |
+| A pyjama or lounge set is drawn as its top; the set counts as drawn | The trousers of a set are their own item, drawn with the trouser kinds. |
+| A heathered or marled top is drawn with pale and dark flecks over plain knitting | The commonest irregular cloth on tops (grey marl). It replaces only a plain surface (jersey, flat knit, French terry, fleece or none); a cable or rib keeps its own. |
+
 ## Patterns drawn from the photo
 
 The owner's original spec asked for patterns to come from the photo; it fell out when the drawing moved into

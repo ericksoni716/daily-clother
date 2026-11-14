@@ -88,6 +88,7 @@ Done:
 - [x] Tagging works through the Claude plan (`claude -p`) with the API key as fallback; seven test photos tagged with valid answers on both the coarse and the detail fields.
 - [x] Hip patch pockets added to the taxonomy.
 - [x] The top template draws the taxonomy's fit, sleeve, neckline, collar, placket, cuff, pocket and hem values, and shows weight, fuzzy cloth, knit gauge and corduroy wale.
+- [x] #108 Shoes: loafer straps (penny, tassel, horsebit, venetian), oxford closed and derby open lacing, the number of eyelets, toe caps and brogue punching (quarter, semi, full), wholecut, and a sandal shape (slide, two-strap, strap sandal) on a footbed. Chosen from the taxonomy's footwear ids and words the tagger names; every footwear id is in `COVERAGE`.
 
 In progress (owner's corrections to the first taxonomy sheets):
 - [x] Fits recalibrated from real garment measurements: everything was drawn slim.
@@ -99,7 +100,7 @@ In progress (owner's corrections to the first taxonomy sheets):
 To do:
 - [x] Drawing faults its own author listed (#110): the tab collar has close-set points and a buttoned strap, the wing collar larger tips; lapels on dark or patterned cloth carry a facing shade; the puffer's sides and sleeves swell between its channels; the trucker jacket has a buttoned waistband with side adjusters; the vest's armhole band keeps its width to the side seam; linen texture is sparser and fainter. Before/after sheets: `docs/screenshots/drawing-faults-*.png`. Still open: at item size the tab strap and wing tips are only specks, and tab and point collars are hard to tell apart.
 - [ ] Accessories (bag, belt, hat, scarf) have categories but no drawing; today they would be drawn as a crew-neck top. They need simple shapes of their own or a neutral placeholder.
-- [ ] Shoes: the loafer strap, lacing on dress shoes, a sandal shape.
+- [ ] Shoes left after #108: a monk strap's buckles, a flip-flop's thong, apron and split toes, speed hooks and D-rings, boot kinds (chukka, western, rain), a cork footbed's grain, patent shine.
 - [ ] Trousers: the taxonomy's bottoms are a signature line each; rise, fit names and jeans washes are not tagged yet.
 - [ ] Re-run the tagging test with the tightened prompt (snaps, hip pockets and feature flags were wrong in the first run).
 - [ ] Striped, floral and camouflage hard cases on real photos.

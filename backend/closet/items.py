@@ -68,7 +68,7 @@ def detail(conn, row) -> dict:
     out["failure"] = failures.of(conn, row)
     # what the tagger saw, from its stored answer: the details, and what it saw that no field (or drawing) covers yet
     said = dict((json.loads(row["tag_answer"]) if row["tag_answer"] else {}).get("details") or {})
-    out["seen_not_drawn"] = said.pop("other_features", None) or []
+    out["seen_not_drawn"] = illustrations.not_drawn(row, said.pop("other_features", None) or [])
     out["details"] = said or None
     out["own_details"] = details.own(row)   # the details the owner has set, laid over Claude's when drawn
     out["drawing_notes"] = illustrations.notes(row)

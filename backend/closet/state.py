@@ -25,6 +25,7 @@ DEFAULTS: dict[str, Any] = {
     "tagging_api_enabled": False,  # may tagging use the API key (billed)? Off until the owner turns it on in Settings
     "tagging_api_cap_usd": None,   # the API key's monthly spending limit in US dollars; needed to turn the key on
     "tagging_api_off": None,       # {"at", "reason": "credit" | "key"} when Anthropic refused the key and it was switched off
+    "tagging_route_order": "auto", # which route to Claude is tried first: a key of tagger.routes.ORDERS
     "place": None,            # {"name", "latitude", "longitude", "timezone"}, chosen in Settings
     "weather": None,          # the last forecast for the place: {"key", "fetched", "offset", "answer"}
     "trip_weather": None,     # forecasts and usual weather looked up for trips: {"forecast": {...}, "usual": {...}}

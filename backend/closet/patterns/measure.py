@@ -7,7 +7,9 @@ One function, `measure`, picks the method for the pattern Claude saw:
 - stripes: regular stripes folded onto one sharp repeat, or stripes with placed bands (a polo's chest band)
   drawn over a crisp ground, the collar (and, unless the photo shows bands on them, the sleeves) cut from that
   ground; colours corrected from Claude's colour words when it says the item has white or cream;
-- a floral, camouflage or other irregular print: pieced together (quilted) from the whole garment.
+- a floral, camouflage or other irregular print: pieced together (quilted) from the whole garment;
+- a graphic (a logo, a chest print) on a top: lifted from the photo with its background made see-through
+  (`drawing.fills.extract_graphic`) and kept with its place on the garment; the cloth is drawn in its colour.
 Anything else, or a measurement that fails, gives None: the item is drawn in its colour.
 """
 from __future__ import annotations
@@ -16,11 +18,12 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from ..drawing.stored import VERSION, tile_text
+from ..drawing import fills
+from ..drawing.stored import VERSION, graphic_part, tile_text
 from . import flatten, plaid, prints, stripes
 from .common import garment_mask, lab_to_rgb, quiet
 
-MEASURED = ("plaid", "stripe", "floral", "camo", "other")
+MEASURED = ("plaid", "stripe", "floral", "camo", "other", "graphic")
 TILE_SCALE = 3   # a repeat is kept at three times the photo's detail, so its lines stay crisp when drawn large
 
 
@@ -113,10 +116,27 @@ def _print(cut, log):
     return {"kind": "tile", "image": tile_text(img), "width_frac": round(img.width / max(1, _garment_width(cut)), 4)}
 
 
+def _graphic(cut, log):
+    """The print lifted from the garment, its box in fractions of the garment (the cutout's opaque part)."""
+    a = np.asarray(cut)[..., 3]
+    ys, xs = np.where(a > 128)
+    if len(xs) == 0:
+        return None
+    gx0, gy0, gx1, gy1 = int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
+    g = fills.extract_graphic(cut.crop((gx0, gy0, gx1, gy1)))
+    if g is None:
+        log("no print found")
+        return None
+    w, h = gx1 - gx0, gy1 - gy0
+    x0, y0, x1, y1 = g.box
+    log(f"print lifted: {x1 - x0} x {y1 - y0} px")
+    return {"kind": "plain", "graphic": graphic_part(g.image, (x0 / w, y0 / h, x1 / w, y1 / h))}
+
+
 def measure(cut: Image.Image, pattern: str, words: list[str] | None = None, landmarks: dict | None = None,
             log=quiet) -> dict | None:
     """The kept pattern for an item, or None to draw it in its colour. `pattern` is the item's pattern word
-    (stripe, plaid, floral, camo, other), `words` Claude's colour words for it, `landmarks` Claude's points in
+    (stripe, plaid, floral, camo, other), or graphic for a print to lift, `words` Claude's colour words for it, `landmarks` Claude's points in
     the cutout's own pixels (`closet.tagger.landmarks`), or None."""
     if pattern not in MEASURED:
         return None
@@ -125,6 +145,8 @@ def measure(cut: Image.Image, pattern: str, words: list[str] | None = None, land
         out = _plaid(cut, landmarks, log)
     elif pattern == "stripe":
         out = _stripes(cut, list(words or []), landmarks, log)
+    elif pattern == "graphic":
+        out = _graphic(cut, log)
     else:
         out = _print(cut, log)
     if out is not None:

@@ -17,6 +17,12 @@ were in the closet, and answers:
 - a verdict, one of VERDICTS, chosen by the thresholds below, with one or two
   sentences of reasons built from the points above.
 
+Once the owner has said how they live (`answers` and `climate`, as `life.analyse`
+takes them), the gaps before and after are the weighed ones the list shows, a gap
+makes the verdict "fills a gap" only when it is high on that list (RANK_MAX), and
+the answer says which of the owner's situations the piece serves. Without
+answers the check is exactly the plain one.
+
 Neither `outfits.py` nor `gaps.py` is changed: both are called, and their own
 pieces and rules (functions whose names start with `_`) are read, as `gaps.py`
 reads the engine's. The same inputs always give the same answer.
@@ -25,7 +31,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 
-from . import gaps, outfits, vocab
+from . import gaps, life, outfits, vocab
 
 CANDIDATE_ID = "~candidate"  # the piece's id while it is tried in the closet; never an item id (those are hex)
 
@@ -46,6 +52,8 @@ REPEAT_MIN = 1               # this many owned pieces doing the same job and it 
 HARDLY_WORN_MAX = 1          # worn at most this many times in the log is "hardly worn"...
                              # ...said only when the log has at least gaps.WEAR_MIN_LOG wears, as the gap analysis does
 FEW_PARTNERS_SHARE = 1 / 3   # fewer than this share of the pieces it is worn with go with it, and the answer says so
+RANK_MAX = gaps.MAX_GAPS     # with the owner's answers, a gap makes "fills a gap" only when it is this high on the
+                             # weighed list, the gaps What's missing shows; one further down is listed, as low
 COMPARE_MAX = 6              # owned pieces of its kind (most worn first) tried on a day it fails, to tell whether the
                              # piece or the closet falls short there
 PAIRS_MAX = 6                # the owner's pieces it pairs with best, at most this many
@@ -294,8 +302,14 @@ def _examples(tried: list[dict]) -> list[dict]:
              "reasons": r["outfit"]["reasons"]} for r in chosen]
 
 
-def _day_key(d: Mapping) -> tuple:
+def _grid_key(d: Mapping) -> tuple:
+    """The kind of day of the gap analysis's grid, the days the piece is tried on."""
     return (d.get("temperature"), bool(d.get("rain")), d.get("occasion"))
+
+
+def _day_key(d: Mapping) -> tuple:
+    """A day of a gap: the kind of day and, on the weighed list, whose situation it is (None on the plain one)."""
+    return (*_grid_key(d), d.get("situation"))
 
 
 def _as_day(d: Mapping) -> gaps.Day:
@@ -317,7 +331,12 @@ def _after(c: gaps._Closet) -> list[dict]:
     return gaps._merge(findings, c)
 
 
-def _fills(before: Mapping, after: list[dict], good: set[tuple], closet: set[tuple]) -> list[dict]:
+def _labels(keys: Iterable[str | None]) -> list[str]:
+    found = set(keys)
+    return [spec.label for key, spec in life.SITUATIONS.items() if key in found]
+
+
+def _fills(before: Mapping, after: list[dict], good: set[tuple], closet: set[tuple], weighed: bool = False) -> list[dict]:
     """Gaps the piece fills or helps with, most helped first.
 
     Kinds of day, not scores: the days a gap fails on now are compared with the days it fails on with the piece
@@ -325,27 +344,37 @@ def _fills(before: Mapping, after: list[dict], good: set[tuple], closet: set[tup
     is the verdict's test: at least FILL_MIN_SHARE of its days fail no longer and on each of them the piece makes a
     good outfit, or nothing of its kind does (`closet`: the closet falls short there, not the piece); a gap with no
     days is filled when nothing of it is left. The days named (`days`) are only those that fail no longer and on which the piece itself makes a good outfit, so
-    "covering ... that nothing covers now" is never said of a day its outfit breaks a rule on.
+    "covering ... that nothing covers now" is never said of a day its outfit breaks a rule on. `good` and `closet`
+    are kinds of day of the grid (`_grid_key`).
+
+    `rank` is the gap's place in the list before (1 first). On the weighed list (`weighed`) `low` is true when it is
+    below RANK_MAX, and `situations` names whose days it frees (or, for a gap resting on no days, whose it is for).
+    `counts` is whether it makes the verdict "fills a gap".
     """
     after_by_id = {g["id"]: g for g in after}
     after_by_name = {(g["look_for"]["category"], g["name"]): g for g in after}
     out = []
-    for g in before.get("gaps", []):
+    for rank, g in enumerate(before.get("gaps", []), 1):
         a = after_by_id.get(g["id"]) or after_by_name.get((g["look_for"]["category"], g["name"]))
         days = g["evidence"]["days"] if set(g.get("found_by", [])) & set(DAY_WAYS) else []
         still = {_day_key(d) for d in a["evidence"]["days"]} if a and set(a["found_by"]) & set(DAY_WAYS) else set()
         freed = [d for d in days if _day_key(d) not in still]
-        covered = [d for d in freed if _day_key(d) in good]
+        covered = [d for d in freed if _grid_key(d) in good]
         settled = [w for w in g.get("found_by", []) if w not in DAY_WAYS and (a is None or w not in a["found_by"])]
         if not freed and not settled:
             continue
         open_ways = [w for w in g.get("found_by", []) if w not in DAY_WAYS and w not in settled]
         gone = len(freed) == len(days) and not open_ways
-        credited = [d for d in freed if _day_key(d) in good or _day_key(d) in closet]
+        credited = [d for d in freed if _grid_key(d) in good or _grid_key(d) in closet]
         filled = len(credited) >= FILL_MIN_SHARE * len(days) if days else gone
+        low = weighed and rank > RANK_MAX
+        situations = (_labels(d.get("situation") for d in credited) if days else
+                      _labels(s.get("id") for s in g.get("situations") or [])) if weighed else []
         out.append({"gap_id": g["id"], "name": g["name"], "score_before": g["score"],
                     "score_after": 0 if gone or a is None else a["score"], "gone": gone, "filled": filled,
-                    "days": covered, "of_days": len(days), "found_by": list(g.get("found_by", []))})
+                    "days": covered, "of_days": len(days), "found_by": list(g.get("found_by", [])),
+                    "rank": rank, "low": low, "situations": situations,
+                    "counts": filled and not low and bool(set(g.get("found_by", [])) - WEAR_ONLY)})
     out.sort(key=lambda f: (not f["filled"], -len(f["days"]), -(f["score_before"] - f["score_after"]), f["name"]))
     return out
 
@@ -513,15 +542,37 @@ def _light_base() -> outfits.Piece:
     return p
 
 
+def _serves(row: dict, tried: list[dict], answers: Mapping, climate: Mapping) -> list[dict]:
+    """The owner's situations the piece serves: those it may be worn for (`life.eligible`) with at least one of
+    their days on which it makes a good outfit, in the questionnaire's order."""
+    good = {_grid_key(r["day"].as_dict()) for r in tried if r["good"]}
+    return [{"id": key, "label": spec.label} for key, spec in life.SITUATIONS.items()
+            if life.eligible(row, key) and any(_grid_key(d.as_dict()) in good
+                                               for d in life.days_for(key, dict(answers), dict(climate)))]
+
+
+def _serves_text(serves: list[dict]) -> str:
+    if not serves:
+        return "It does not make a good outfit for any of the situations you told Closet about."
+    return f"It suits {gaps._join([s['label'].lower() for s in serves])}."
+
+
 # ====================================================================== entry point
-def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, before: Mapping | None = None) -> dict:
+def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, before: Mapping | None = None,
+          answers: Mapping | None = None, climate: Mapping | None = None) -> dict:
     """Would this piece work with the closet? `piece` is a description as `parse_piece` returns it (it is checked
-    again). `before` is `gaps.find_gaps(items, wears, {"max_gaps": ALL_GAPS})` when the caller has it already.
+    again). `answers` and `climate` are how the owner lives, as `life.analyse` takes them; None while the questions
+    are unanswered. `before` is the gap analysis the check compares with, when the caller has it already:
+    `gaps.find_gaps(items, wears, {"max_gaps": ALL_GAPS})` without answers, `life.analyse(items, wears, answers,
+    climate, ALL_GAPS)` with them.
 
     Returns {"enough", "message", "verdict", "verdict_words", "reasons": [sentences], "piece", "fills": [{gap_id,
-    name, score_before, score_after, gone, days}], "goes_with": {days, suits, of, items, examples, text},
-    "repeats": {items: [{id, worn, hardly_worn}], text}, "holds_back": [sentences], "checked": {items, wears, days}}.
+    name, score_before, score_after, gone, filled, days, of_days, found_by, rank, low, situations, counts}],
+    "goes_with": {days, suits, of, items, examples, text}, "repeats": {items: [{id, worn, hardly_worn}], text},
+    "holds_back": [sentences], "situations": [{id, label}], "situations_text", "weighed", "checked": {items, wears,
+    days}}. `situations` and `situations_text` are empty and None without answers.
     """
+    weighed = answers is not None
     piece = parse_piece(piece)
     items, wears = list(items), list(wears)
     row = candidate_row(piece)
@@ -533,7 +584,8 @@ def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, befo
     answer = {"enough": True, "message": None, "verdict": None, "verdict_words": None, "reasons": [], "piece": piece,
               "fills": [], "goes_with": {"days": 0, "suits": 0, "of": len(gaps.grid()), "items": [], "examples": [],
                                          "text": None},
-              "repeats": repeats, "holds_back": [], "checked": {"items": len(owned), "wears": c.wear_total, "days": 0}}
+              "repeats": repeats, "holds_back": [], "situations": [], "situations_text": None, "weighed": weighed,
+              "checked": {"items": len(owned), "wears": c.wear_total, "days": 0}}
     if len(clothes) < gaps.MIN_ITEMS:
         n = len(clothes)
         message = (f"With {_count(n)} piece{'' if n == 1 else 's'} of clothing the closet is too small to say whether "
@@ -543,16 +595,23 @@ def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, befo
                       reasons=[message])
         return answer
 
+    climate = climate or {}
     if before is None:
-        before = gaps.find_gaps(items, wears, {"max_gaps": ALL_GAPS})
+        before = (life.analyse(items, wears, dict(answers), dict(climate), ALL_GAPS) if answers is not None
+                  else gaps.find_gaps(items, wears, {"max_gaps": ALL_GAPS}))
     tried = _try_days(c, cand)
     peers = _peers(c, cand)
     _mark_closet_days(c, tried, peers)
     good = [r for r in tried if r["good"]]
     suits = [r for r in tried if r["suits"]]
     mine = [r for r in suits if not r["good"] and not r["closet"]]
-    fills = _fills(before, _after(c), {_day_key(r["day"].as_dict()) for r in good},
-                   {_day_key(r["day"].as_dict()) for r in tried if r["closet"]})
+    after = (life.analyse(items + [row], wears, dict(answers), dict(climate), ALL_GAPS, without=CANDIDATE_ID)["gaps"]
+             if answers is not None else _after(c))
+    fills = _fills(before, after, {_grid_key(r["day"].as_dict()) for r in good},
+                   {_grid_key(r["day"].as_dict()) for r in tried if r["closet"]}, weighed)
+    if answers is not None:
+        answer["situations"] = _serves(row, tried, answers, climate)
+        answer["situations_text"] = _serves_text(answer["situations"])
     partners = _partners(tried)[:PAIRS_MAX]
     goes_text = None
     if good:
@@ -569,7 +628,7 @@ def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, befo
     # nothing of its kind dresses well is the closet's shortfall, said as such, not the piece's.
     fair = len(good) + len(mine)
     hard = not suits or bool(mine) and (len(good) < GOOD_MIN_DAYS or len(good) < GOOD_MIN_SHARE * fair)
-    real = [f for f in fills if f["filled"] and set(f["found_by"]) - WEAR_ONLY]
+    real = [f for f in fills if f["counts"]]
     if real and not hard:
         verdict = "fills_gap"
     elif hard:
@@ -584,6 +643,8 @@ def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, befo
         top = real[0]
         more = len(real) - 1
         fill_text = f"It would fill “{top['name']}”"
+        if top["situations"]:
+            fill_text += f" for {gaps._join([label.lower() for label in top['situations']])}"
         if top["days"]:
             fill_text += f", covering {gaps._days_words(_as_day(d) for d in top['days'])} that nothing covers now"
         fill_text += f", and {_count(more)} more gap{'' if more == 1 else 's'}." if more else "."

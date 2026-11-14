@@ -1,23 +1,35 @@
 /* The Today screen. Uses the tokens and shared classes in styles.css; only what is new to this screen is here. */
 
 .today { max-width: 72rem; min-width: 0; }
-.today-header { margin-bottom: 10px; }
+.page-header.today-header { margin-bottom: var(--space-2); flex-wrap: nowrap; }
+.today-header .page-title-row { min-width: 0; flex-wrap: wrap; column-gap: var(--space-2); }
+.today-links { display: flex; gap: var(--space-2); flex: none; }
+.today-links .btn { padding: 0 var(--space-3); gap: 6px; }
+.today-links .btn svg { width: 18px; height: 18px; color: var(--ink-3); }
+/* on a phone the date goes under the title, so Worn and Trips fit beside it */
+@media (max-width: 599px) {
+  .today-header .page-title-row { flex-direction: column; align-items: flex-start; gap: 0; }
+  .today-day-line, .today-day-change .btn-link { font-size: var(--text-sm); }
+  .today-outfits-head h2 { font-size: var(--text-sm); }
+}
 .today-item { max-width: 40rem; margin: 0 auto; }
 .today-panel-top { margin: -6px 0 6px -8px; }
 .inline-icon { width: 1.15em; height: 1.15em; vertical-align: -0.25em; }
 
-/* ---------------------------------------------------------------- the day */
-.today-day {
-  display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 14px;
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); min-width: 0;
+/* ---------------------------------------------------------------- the day: one line, then the choices */
+.today-day { margin-bottom: var(--space-1); min-width: 0; }
+.today-day-line {
+  margin: 0; min-height: var(--tap); display: flex; flex-wrap: wrap; align-items: center; row-gap: 0;
+  font-size: var(--text-md); font-weight: var(--weight-label);
 }
-.today-day > svg { flex: none; width: 26px; height: 26px; color: var(--warn); }
-.today-day-text { flex: 1; min-width: 0; }
-.today-day-line { margin: 0; font-size: var(--text-md); font-weight: var(--weight-label); display: flex; flex-wrap: wrap; column-gap: 0; row-gap: 2px; }
-.today-day-line > span + span::before { content: '·'; color: var(--ink-3); padding: 0 0.5em; font-weight: var(--weight-body); }
-.today-day-old { margin: 4px 0 0; color: var(--warn); font-size: var(--text-sm); }
-.today-day-form { display: block; }
-.today-day-why { margin: 0 0 10px; font-weight: var(--weight-label); }
+.today-day-line > span + span::before { content: '·'; color: var(--ink-3); padding: 0 0.4em; font-weight: var(--weight-body); }
+.today-day-change .btn-link { min-height: var(--tap); padding: 0 4px; font-size: var(--text-md); }
+.today-day-old { margin: 0 0 var(--space-2); color: var(--warn); font-size: var(--text-sm); }
+
+.today-day-panel { padding: var(--space-4); margin-bottom: var(--space-4); max-width: 40rem; }
+.today-day-panel h2 { font-size: var(--text-lg); margin-bottom: var(--space-1); }
+.today-typed-title { font-size: var(--text-md); margin: var(--space-5) 0 var(--space-2); }
+.today-day-why { margin: 0 0 var(--space-3); font-weight: var(--weight-label); }
 .today-typed { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; align-items: end; max-width: 30rem; }
 .today-typed .field { margin-bottom: 10px; }
 .today-typed .field input { width: 100%; }
@@ -25,31 +37,28 @@
 .today-rain input { width: 22px; height: 22px; accent-color: var(--accent-bg); }
 .today-typed-actions, .today-typed .form-error { grid-column: 1 / -1; }
 .today-typed .form-error { margin: 10px 0 0; }
-.today-day-form .hint { margin: 12px 0 0; }
-.today-day-form .hint a { color: var(--accent); }
+.today-day-panel .hint .btn-link { padding: 0; min-height: 0; }
 
-/* ---------------------------------------------------------------- occasion and mood */
-.today-choices { display: grid; gap: 8px; margin-bottom: 14px; min-width: 0; }
-.today-choice { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.today-choice .chip-group-title { flex: none; width: 5.6rem; margin: 0; }
-.today-choice .chips-scroll { flex: 1; min-width: 0; margin: 0 calc(-1 * var(--gutter)) 0 0; padding: 3px var(--gutter) 3px 0; }
+/* occasion and mood: one row of chips that scrolls sideways on a phone */
+.chips-scroll.today-choices { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); min-width: 0; }
+.today-choice { display: flex; gap: var(--space-2); flex: none; }
+.today-choices-sep { flex: none; width: 1px; height: 24px; background: var(--line); margin: 0 var(--space-1); }
 @media (min-width: 1000px) {
-  .today-choice .chips-scroll { margin: 0; padding: 0; }
-  .today-choices { grid-template-columns: auto auto; justify-content: start; column-gap: 32px; }
-  .today-choice .chip-group-title { width: auto; }
+  .today-choices { flex-wrap: wrap; row-gap: var(--space-2); }
+  .today-choice { flex-wrap: wrap; }
 }
 .today-changes { margin: -2px 0 14px; align-items: center; }
 .chip-change { background: var(--accent-soft); border-color: transparent; max-width: 100%; }
 .chip-change > span { font-size: var(--text-md); line-height: 1; }
+.today-no-weather-why { color: var(--ink-2); }
 
 /* ---------------------------------------------------------------- the outfits */
 .today-outfits { min-width: 0; }
 .today-outfits.is-asking .today-track { opacity: 0.55; transition: opacity 0.2s; }
-.today-outfits-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; min-height: var(--tap); }
-.today-outfits-head h2 { margin: 0; font-size: var(--text-lg); flex: 1; min-width: 0; }
+.today-outfits-head { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); min-height: var(--tap); }
+.today-outfits-head h2 { margin: 0; font-size: var(--text-md); flex: 1; min-width: 0; }
 .today-outfits-head .count { font-weight: var(--weight-body); }
-.today-asking { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); }
-.today-arrows { display: flex; gap: 6px; }
+.today-asking { display: inline-flex; align-items: center; }
 .btn-icon { width: var(--tap); padding: 0; }
 
 .today-track {
@@ -59,25 +68,17 @@
 .today-track::-webkit-scrollbar { display: none; }
 .today-slide { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; container-type: inline-size; }
 
-.today-card {
-  display: grid; gap: 14px; height: 100%; padding: 14px;
-}
+.today-card { display: grid; gap: var(--space-3); height: 100%; padding: var(--space-3); align-content: start; }
 .today-card-pieces, .today-card-why { min-width: 0; }
 
-.today-warnings {
-  display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-sm);
-  background: var(--warn-soft); border-left: 5px solid var(--warn); color: var(--ink); font-weight: var(--weight-label);
-}
-.today-warnings > svg { flex: none; width: 24px; height: 24px; color: var(--warn); }
-.today-warnings ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-
-.today-pieces { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px 10px; }
+/* the pieces: at least 100px wide on a phone */
+.today-pieces { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3) 10px; }
 .today-piece { position: relative; min-width: 0; }
 .today-piece-link { display: flex; flex-direction: column; text-decoration: none; color: var(--ink); border-radius: var(--radius-md); }
 .today-piece-card { aspect-ratio: 400 / 460; border-radius: var(--radius-md); transition: box-shadow 0.15s; }
 .today-piece-link:hover .today-piece-card { box-shadow: inset 0 0 0 1px var(--card-edge), var(--shadow-hover); }
 .today-piece.is-base .today-piece-card, .today-piece.is-open .today-piece-card { box-shadow: 0 0 0 3px var(--accent); }
-.today-piece-place { margin-top: 7px; color: var(--ink-3); font-size: var(--text-xs); font-weight: var(--weight-heading); text-transform: uppercase; letter-spacing: 0.04em; }
+.today-piece-place { margin-top: 6px; color: var(--ink-3); font-size: var(--text-xs); font-weight: var(--weight-heading); text-transform: uppercase; letter-spacing: 0.04em; }
 .today-piece.is-base .today-piece-place { color: var(--accent); }
 .today-piece-name {
   font-weight: var(--weight-label); font-size: var(--text-sm); line-height: 1.25; overflow: hidden;
@@ -97,43 +98,64 @@
   margin-top: 12px; padding: 12px; border-radius: var(--radius-sm); background: var(--surface-2);
 }
 .today-piece-menu p { margin: 0 0 8px; overflow-wrap: anywhere; }
-.today-hint { margin: 10px 0 0; }
 
-.today-wear { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-.today-wear-button { min-height: 52px; font-size: var(--text-md); }
+/* "I'm wearing this", straight under the pieces */
+.today-wear { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.today-wear-button { font-size: var(--text-md); }
 .today-worn {
   flex: 1; min-width: 12rem; display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 12px; min-height: var(--tap);
   border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent); font-weight: var(--weight-heading);
 }
 .today-worn svg { flex: none; width: 22px; height: 22px; }
 
+/* watch-outs set apart in the warning colour, then why it works, quieter */
+.today-warnings {
+  display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin-bottom: var(--space-3); border-radius: var(--radius-sm);
+  background: var(--warn-soft); border-left: 4px solid var(--warn); color: var(--warn); font-weight: var(--weight-label);
+}
+.today-warnings > svg { flex: none; width: 22px; height: 22px; color: var(--warn); }
+.today-warnings ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .today-card-why .chip-group-title { margin: 0 0 8px; }
-.today-reasons { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.today-reasons { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; color: var(--ink-2); }
 .today-reasons li { display: flex; gap: 8px; align-items: flex-start; line-height: 1.4; }
 .today-reasons svg { flex: none; width: 18px; height: 18px; margin-top: 2px; color: var(--accent); }
+.today-hint { margin: var(--space-3) 0 0; }
 
-/* Wide card: pieces on the left, why and the button on the right. */
+/* Wide card: pieces with the button under them on the left, why on the right. */
 @container (min-width: 640px) {
   .today-card {
     grid-template-columns: minmax(0, 1fr) minmax(16rem, 19rem); grid-template-rows: auto 1fr;
-    grid-template-areas: 'warn why' 'pieces why'; column-gap: 24px; padding: 18px; align-items: start;
+    grid-template-areas: 'pieces why' 'wear why'; column-gap: var(--space-6); row-gap: var(--space-4); padding: 18px;
   }
-  .today-warnings { grid-area: warn; }
   .today-card-pieces { grid-area: pieces; }
+  .today-wear { grid-area: wear; align-self: start; }
   .today-card-why { grid-area: why; }
   .today-pieces { grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 18px 12px; }
 }
+/* Narrow card (a phone): square pictures and the name only (the place is still read out), so the button stays on the first screen. */
+@container (max-width: 639px) {
+  .today-piece-card { aspect-ratio: 1; }
+  .today-piece-place {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  .today-piece-name { margin-top: 4px; }
+}
 
-.today-thumbs { display: flex; justify-content: center; gap: 0; margin-top: 6px; }
+/* the way to the other outfits: clear arrows either side of the dots */
+.today-nav { display: flex; align-items: center; justify-content: center; gap: var(--space-2); margin-top: var(--space-2); }
+.today-arrow { flex: none; width: var(--tap); height: var(--tap); }
+.today-arrow:not(:disabled) { border-color: var(--line-strong); }
+.today-thumbs { display: flex; justify-content: center; gap: 0; min-width: 0; flex-wrap: wrap; }
 .today-thumb {
-  display: grid; place-items: center; min-width: var(--tap); min-height: var(--tap); padding: 0; border: none; background: none; cursor: pointer;
+  display: grid; place-items: center; min-width: 32px; min-height: var(--tap); padding: 0; border: none; background: none; cursor: pointer;
 }
 .today-thumb-pics { display: none; }
-.today-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); transition: background 0.15s, transform 0.15s; }
-.today-thumb.is-on .today-dot { background: var(--accent-bg); transform: scale(1.25); }
+.today-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line-strong); transition: background 0.15s, transform 0.15s; }
+.today-thumb.is-on .today-dot { background: var(--accent-bg); transform: scale(1.3); }
 
 @media (min-width: 1000px) {
-  .today-thumbs { justify-content: flex-start; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .today-nav { justify-content: flex-start; gap: var(--space-3); margin-top: var(--space-3); }
+  .today-thumbs { justify-content: flex-start; gap: 10px; }
   .today-thumb { padding: 6px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); }
   .today-thumb.is-on { box-shadow: 0 0 0 2px var(--accent); border-color: transparent; }
   .today-thumb:hover:not(.is-on) { border-color: var(--ink-3); }
@@ -153,12 +175,13 @@
 .today-worn-note > div { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 .today-error .row { margin-top: 10px; }
 .today-loading .muted { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+.today-empty .empty-title { text-wrap: balance; }
 .today-missing { text-align: center; padding: 28px 12px; max-width: 32rem; margin: 0 auto; }
 .today-missing-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 6px; }
 .today-missing-actions { justify-content: center; margin-top: 18px; }
 
 /* The switch between the pieces laid out and the outfit drawn as worn. */
-.today-view { margin-bottom: 12px; }
+.today-view { flex: none; }
 .today-pieces[hidden] { display: none; }
 .today-figure {
   margin: 0; display: grid; place-items: center; border-radius: var(--radius-md); background: var(--card);

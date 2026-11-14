@@ -1,7 +1,9 @@
+import { resolve } from 'node:path';
 import type { Page, Route } from '@playwright/test';
 import { expect, login, test, useProfile } from './fixtures';
 
 const BROOKLYN = 'Brooklyn, New York, United States';
+const SHOTS = resolve(import.meta.dirname, '..', '..', 'docs', 'screenshots');
 
 test.afterEach(async ({ page, context }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' });
@@ -48,8 +50,9 @@ test('today: the day, an outfit with its reasons, and the occasion changes the o
 
   const day = page.getByTestId('day-line');
   await expect(day).toContainText('Brooklyn');
-  await expect(day).toContainText('3°C to 10°C');
-  await expect(day).toContainText('Rain likely (70%)');
+  await expect(day).toContainText('3–10°C');
+  await expect(day).toContainText('rain 70%');
+  await expect(page.getByTestId('no-weather')).toHaveCount(0);
 
   const outfit = current(page);
   await expect(outfit.getByTestId('piece').first()).toBeVisible();
@@ -145,6 +148,21 @@ test('today on a phone: swipe to another outfit, open a piece, and come back to 
   await expect(page.locator('nav.tabbar').getByRole('link', { name: 'Today' })).toHaveAttribute('aria-current', 'page');
   await expect(current(page).getByTestId('piece').first()).toBeVisible();
 
+  // the outfit leads: its pieces are big enough to see and "I'm wearing this" is on the first screen, above the tab bar
+  const wear = current(page).getByRole('button', { name: "I'm wearing this" });
+  const box = (await wear.boundingBox())!;
+  const tabbar = (await page.locator('nav.tabbar').boundingBox())!;
+  expect(box.y + box.height).toBeLessThanOrEqual(tabbar.y);
+  expect(box.width).toBeGreaterThan(300);
+  for (const w of await current(page).locator('.today-piece-card').evaluateAll((cards) => cards.map((c) => c.getBoundingClientRect().width))) {
+    expect(w).toBeGreaterThanOrEqual(100);
+  }
+  for (const name of ['Previous outfit', 'Next outfit']) {
+    const arrow = (await page.getByRole('button', { name }).boundingBox())!;
+    expect(arrow.width).toBeGreaterThanOrEqual(44);
+    expect(arrow.height).toBeGreaterThanOrEqual(44);
+  }
+
   // swipe (a sideways scroll of the outfits)
   await page.locator('.today-track').evaluate((el) => el.scrollTo({ left: el.clientWidth, behavior: 'instant' }));
   await expect(page.getByRole('heading', { name: /2 of/ })).toBeVisible();
@@ -161,20 +179,59 @@ test('today on a phone: swipe to another outfit, open a piece, and come back to 
   expect(overflow).toBeLessThanOrEqual(0);
 });
 
-test('today with no saved place: says so, links to Settings, and dresses for typed temperatures', async ({ page }) => {
+test('today when the forecast cannot be fetched: an outfit for a mild day, a notice, and typed temperatures behind it', async ({ page }) => {
+  // no faked weather: the test backend never reaches the weather service, so the forecast for New York fails
   await openToday(page);
-  const dayForm = page.getByRole('region', { name: 'The day' });
-  await expect(dayForm.getByText(/Choose where you are in Settings/)).toBeVisible();
-  await expect(dayForm.getByRole('link', { name: 'choose where you are in Settings' })).toHaveAttribute('href', '/settings');
-
-  await dayForm.getByLabel('Low °C').fill('18');
-  await dayForm.getByLabel('High °C').fill('26');
-  await dayForm.getByRole('button', { name: 'Dress me for this' }).click();
-  const day = page.getByTestId('day-line');
-  await expect(day).toContainText('Your temperatures');
-  await expect(day).toContainText('18°C to 26°C');
-  await expect(day).toContainText('No rain expected');
+  const notice = page.getByTestId('no-weather');
+  await expect(notice).toContainText('The weather could not be fetched');
+  await expect(page.getByTestId('day-line')).toContainText('a mild day');
   await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  await expect(current(page).getByRole('button', { name: "I'm wearing this" })).toBeVisible();
+
+  const retried = page.waitForResponse('**/api/outfits/today');
+  await notice.getByRole('button', { name: 'Try again' }).click();
+  await retried;
+  await expect(notice).toBeVisible();
+
+  await notice.getByRole('button', { name: 'Type temperatures' }).click();
+  const panel = page.getByRole('region', { name: 'Where are you?' });
+  await expect(panel.getByText('Using: New York, United States')).toBeVisible();
+  await panel.getByLabel('Low °C').fill('18');
+  await panel.getByLabel('High °C').fill('26');
+  await panel.getByRole('button', { name: 'Dress me for this' }).click();
+  const day = page.getByTestId('day-line');
+  await expect(day).toContainText('your temperatures');
+  await expect(day).toContainText('18–26°C');
+  await expect(day).toContainText('no rain');
+  await expect(page.getByTestId('no-weather')).toHaveCount(0);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+
+  // "Use the forecast again" goes back to the forecast (still the mild day here)
+  await page.getByRole('button', { name: 'Change' }).click();
+  await panel.getByRole('button', { name: 'Use the forecast again' }).click();
+  await expect(page.getByTestId('day-line')).toContainText('a mild day');
+});
+
+test('today: "Use my location" asks the browser only on a tap and saves the place it names', async ({ page, context }) => {
+  await context.grantPermissions(['geolocation']);
+  await context.setGeolocation({ latitude: 40.6782, longitude: -73.9442 });
+  const near: string[] = [];
+  await page.route('**/api/places/near*', async (route) => {
+    near.push(route.request().url());
+    await route.fulfill({ json: { place: { name: BROOKLYN, latitude: 40.68, longitude: -73.94, timezone: 'America/New_York' } } });
+  });
+  await fakeWeather(page);
+  await openToday(page);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  expect(near).toEqual([]);
+
+  await page.getByRole('button', { name: 'Change' }).click();
+  await page.getByRole('button', { name: 'Use my location' }).click();
+  await expect(page.getByText(`Saved: ${BROOKLYN}`).first()).toBeVisible();
+  expect(near).toHaveLength(1);
+  expect(near[0]).toContain('latitude=40.6782');
+  const settings = await (await page.request.get('/api/settings')).json();
+  expect(settings.place.name).toBe(BROOKLYN);
 });
 
 test('today offline: the outfits fetched earlier are shown as saved, and the buttons say why they are off', async ({ page, context }) => {
@@ -199,14 +256,17 @@ test('today offline: the outfits fetched earlier are shown as saved, and the but
   await expect(page.getByRole('group', { name: 'Occasion' }).getByRole('button', { name: 'Formal' })).toBeDisabled();
 });
 
-test("today in a closet that can't dress the owner yet: the server's reasons, what to add first, and a link to add", async ({ page }) => {
+test("today in a closet that can't dress the owner yet: says what is needed, what to add first, and a link to add", async ({ page }) => {
   await fakeWeather(page);
   await login(page);
   await page.goto('/today');
-  const why = page.getByRole('list', { name: 'Why not' });
-  await expect(why.getByRole('listitem').first()).toBeVisible();
-  await expect(page.getByTestId('add-first')).toContainText('Add first: a top');
-  await expect(page.getByRole('main').getByRole('link', { name: 'Add clothes' })).toHaveAttribute('href', '/add');
+  const empty = page.getByTestId('today-empty');
+  await expect(empty).toContainText('Add a top, something for your legs and shoes, and Today can dress you');
+  await expect(page.getByTestId('add-first')).toContainText('Still to add:');
+  await expect(empty.getByRole('link', { name: 'Add clothes' })).toHaveAttribute('href', '/add');
+  // nothing to dress, so no weather or occasion either
+  await expect(page.getByTestId('day-line')).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Occasion' })).toHaveCount(0);
 });
 
 test('the app opens on Today once the closet can dress the owner', async ({ page, context }) => {
@@ -233,7 +293,7 @@ for (const [label, viewport] of [['phone', { width: 390, height: 844 }], ['compu
     await expect(current(page).getByTestId('piece').first()).toBeVisible();
     await expect.poll(() => current(page).locator('img').evaluateAll((imgs) => imgs.every((i) => (i as HTMLImageElement).complete))).toBe(true);
     await page.evaluate(() => window.scrollTo(0, 0));
-    const path = testInfo.outputPath(`today-${label}.png`);
+    const path = resolve(SHOTS, `today-${label}.png`);
     await page.screenshot({ path });
     await testInfo.attach(`Today on a ${label}`, { path, contentType: 'image/png' });
   });

@@ -6,12 +6,15 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 
 from closet import wears, weather
+from closet.state import HOME_PLACE, State
 
 from .conftest import upload
 
 TODAY = date(2026, 11, 12)
 NOON = datetime(2026, 11, 12, 17, 0, tzinfo=UTC).timestamp()  # noon in New York
 NYC = {"name": "New York, New York, United States", "latitude": 40.7143, "longitude": -74.006, "timezone": "America/New_York"}
+HOME = {"name": "New York, United States", "latitude": 40.7143, "longitude": -74.006, "timezone": "America/New_York"}
+YORK = {"name": "York, England, United Kingdom", "latitude": 53.9576, "longitude": -1.0827, "timezone": "Europe/London"}
 
 
 class FakeOpenMeteo:
@@ -28,6 +31,11 @@ class FakeOpenMeteo:
         self.calls.append((parts.netloc + parts.path, params))
         if self.down:
             raise urllib.error.URLError("no network")
+        if parts.netloc == "nominatim.openstreetmap.org":
+            if params["lat"] == "0.0":
+                return b'{"error": "Unable to geocode"}'
+            return json.dumps({"place_id": 1, "address": {
+                "town": "Hoboken", "county": "Hudson County", "state": "New Jersey", "country": "United States"}}).encode()
         if parts.netloc == "geocoding-api.open-meteo.com":
             if params["name"] == "Nowhere at all":
                 return b'{"generationtime_ms": 0.1}'
@@ -89,32 +97,77 @@ def test_place_search_says_when_the_service_cannot_be_reached(client, fake):
 
 
 def test_saving_and_removing_a_place(client, fake):
-    assert client.get("/api/settings").json()["place"] is None
-    assert save_place(client)["place"] == NYC
-    assert client.get("/api/settings").json()["place"] == NYC
+    # New York until a place is chosen; the place chosen wins, and removing it goes back to New York
+    assert client.get("/api/settings").json()["place"] == HOME == HOME_PLACE
+    assert client.get("/api/settings").json()["home_place"] == HOME
+    assert save_place(client, YORK)["place"] == YORK
+    assert client.get("/api/settings").json()["place"] == YORK
     for bad, words in (({"name": "X", "latitude": 95, "longitude": 0, "timezone": "UTC"}, "latitude"),
                        ({"name": "", "latitude": 1, "longitude": 0, "timezone": "UTC"}, "name"),
                        ({"name": "X", "latitude": 1, "longitude": 0, "timezone": "Not a zone!"}, "time zone")):
         r = client.put("/api/settings", json={"place": bad})
         assert r.status_code == 422 and words in r.json()["detail"]
-    assert client.get("/api/settings").json()["place"] == NYC
-    assert client.put("/api/settings", json={"place": None}).json()["place"] is None
-    assert client.get("/api/weather").json()["place"] is None
+    assert client.get("/api/settings").json()["place"] == YORK
+    assert client.put("/api/settings", json={"place": None}).json()["place"] == HOME
+    assert client.get("/api/weather").json()["place"] == HOME
+
+
+def test_the_place_is_new_york_until_one_is_chosen_and_a_chosen_place_is_kept(tmp_path):
+    fresh = State(tmp_path / "fresh.json")
+    assert fresh.get("place") == HOME
+    older = tmp_path / "older.json"   # settings saved before the default, with no place chosen
+    older.write_text(json.dumps({"place": None, "profile": "demo"}), encoding="utf-8")
+    assert State(older).get("place") == HOME and State(older).get("profile") == "demo"
+    chosen = tmp_path / "chosen.json"
+    chosen.write_text(json.dumps({"place": YORK}), encoding="utf-8")
+    assert State(chosen).get("place") == YORK
+    fresh.update(place=YORK)
+    assert State(tmp_path / "fresh.json").get("place") == YORK
+
+
+def test_a_place_near_the_browser_position_sends_only_the_rounded_coordinates(client, fake):
+    r = client.get("/api/places/near", params={"latitude": 40.745123, "longitude": -74.032456})
+    assert r.status_code == 200, r.text
+    assert r.json() == {"place": {"name": "Hoboken, New Jersey, United States", "latitude": 40.75, "longitude": -74.03,
+                                  "timezone": "auto"}}
+    where, params = fake.calls[-1]
+    assert where == "nominatim.openstreetmap.org/reverse"
+    assert params == {"lat": "40.75", "lon": "-74.03", "format": "jsonv2", "zoom": "10", "accept-language": "en"}
+    # asking does not save it: the screen saves it like a place chosen from the search
+    assert client.get("/api/settings").json()["place"] == HOME
+    r = client.get("/api/places/near", params={"latitude": 0, "longitude": 0})
+    assert r.status_code == 502 and "No town or city was found" in r.json()["detail"]
+    r = client.get("/api/places/near", params={"latitude": 95, "longitude": 0})
+    assert r.status_code == 422 and "latitude" in r.json()["detail"]
+    assert client.get("/api/places/near", params={"latitude": "north", "longitude": 0}).status_code == 422
+    fake.down = True
+    r = client.get("/api/places/near", params={"latitude": 40.7, "longitude": -74})
+    assert r.status_code == 502 and "Couldn't reach the place-name service" in r.json()["detail"]
 
 
 def test_place_and_weather_need_login(anon):
     assert anon.get("/api/places", params={"q": "York"}).status_code == 401
     assert anon.get("/api/weather").status_code == 401
+    assert anon.get("/api/places/near", params={"latitude": 1, "longitude": 1}).status_code == 401
     assert anon.put("/api/settings", json={"place": NYC}).status_code == 401
     assert anon.post("/api/outfits/today", json={}).status_code == 401
 
 
 # ---------------------------------------------------------------------- weather
-def test_no_place_saved_is_said_in_plain_words(client, fake):
+def test_with_no_place_chosen_the_weather_is_new_yorks(client, fake):
     r = client.get("/api/weather")
     assert r.status_code == 200
-    assert r.json() == {"place": None, "weather": None, "old": False, "is_today": False,
-                        "message": "Choose where you are in Settings to see today's weather."}
+    body = r.json()
+    assert body["place"] == HOME and body["weather"]["low_c"] == 3.2 and body["message"] is None
+    where, params = fake.calls[-1]
+    assert where == "api.open-meteo.com/v1/forecast" and (params["latitude"], params["timezone"]) == ("40.7143", "America/New_York")
+
+
+def test_no_place_at_all_is_said_in_plain_words(tmp_path, fake):
+    state = State(tmp_path / "settings.json")
+    state.update(place=None)   # not reachable from the screen, which goes back to New York; still said in words
+    assert weather.lookup(state) == {"place": None, "weather": None, "old": False, "is_today": False,
+                                     "message": "Choose where you are in Settings to see today's weather."}
     assert fake.calls == []
 
 
@@ -222,12 +275,13 @@ def pieces(outfit):
     return [p[k] for k in ("base", "mid", "outer", "bottom", "shoes") if p[k]] + p["accessories"]
 
 
-def test_today_with_no_place_and_no_temperatures_asks_for_one_or_the_other(client, fake):
+def test_today_with_no_place_chosen_dresses_for_new_yorks_weather(client, fake):
+    small_closet(client)
     r = client.post("/api/outfits/today", json={})
-    assert r.status_code == 422
-    assert r.json()["detail"] == ("Choose where you are in Settings so Closet can look up the weather, "
-                                  "or give today's low and high temperatures.")
-    assert fake.calls == []
+    assert r.status_code == 200, r.text
+    ctx = r.json()["context"]
+    assert ctx["source"] == "forecast" and ctx["place"] == HOME["name"] and (ctx["low_c"], ctx["high_c"]) == (3.2, 9.8)
+    assert r.json()["outfits"]
 
 
 def test_today_uses_the_weather_for_the_saved_place(client, fake):
@@ -282,10 +336,33 @@ def test_today_with_temperatures_given_works_when_the_service_is_down(client, fa
     small_closet(client)
     save_place(client)
     fake.down = True
-    r = client.post("/api/outfits/today", json={"low_c": 15})
-    assert r.status_code == 422 and r.json()["detail"].endswith("Give today's low and high temperatures instead.")
     body = client.post("/api/outfits/today", json={"low_c": 15, "high_c": 20}).json()
     assert body["outfits"] and body["context"]["rain"] is False and body["context"]["source"] == "given"
+
+
+def test_today_without_a_forecast_dresses_for_a_mild_day_and_says_why(client, fake):
+    small_closet(client)
+    save_place(client)
+    fake.down = True
+    r = client.post("/api/outfits/today", json={})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["outfits"]
+    ctx = body["context"]
+    assert (ctx["low_c"], ctx["high_c"], ctx["rain"], ctx["source"], ctx["place"]) == (14, 20, False, "mild", None)
+    assert ctx["message"].startswith("Couldn't reach the weather service.")
+    # what was given is kept, the rest is the mild day's
+    ctx = client.post("/api/outfits/today", json={"low_c": 22}).json()["context"]
+    assert (ctx["low_c"], ctx["high_c"], ctx["rain"], ctx["source"]) == (22, 22, False, "mild")
+    ctx = client.post("/api/outfits/today", json={"high_c": 10, "rain": True}).json()["context"]
+    assert (ctx["low_c"], ctx["high_c"], ctx["rain"], ctx["source"]) == (10, 10, True, "mild")
+    # an old forecast for an earlier day is not used for today
+    fake.down = False
+    client.get("/api/weather")
+    fake.clock["now"] += 86400
+    fake.down = True
+    ctx = client.post("/api/outfits/today", json={}).json()["context"]
+    assert ctx["source"] == "mild" and "earlier day" in ctx["message"]
 
 
 def test_today_uses_an_old_forecast_for_today_and_says_so(client, fake):

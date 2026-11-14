@@ -72,7 +72,7 @@ export function SettingsScreen({ version }: { version: string }) {
             </button>}
           </Section>
           <Section title="Where you are" id="s-place">
-            <WhereYouAre place={settings ? settings.place : undefined} offline={offline} onChange={setSettings} toast={toast} />
+            <WhereYouAre place={settings ? settings.place : undefined} home={settings?.home_place} offline={offline} onChange={setSettings} toast={toast} />
             <p className="hint">Going away? <Link to="/trips">Plan a trip</Link> and Closet says what to pack for the weather there.</p>
           </Section>
           {settings && (

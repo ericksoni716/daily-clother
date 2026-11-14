@@ -2,6 +2,12 @@
 
     cd backend && python -m tests.e2e_backend --no-browser --no-tray --port N
 
+Every backend the browser tests start runs from here, so none of them reaches the
+weather service: Open-Meteo and Nominatim are always out of reach (the place is
+New York until one is chosen, so Today would otherwise ask the real one). The
+specs fake the answers they need in the browser. With CLOSET_E2E_FAKES empty
+nothing else is replaced: the model and Claude are the real code.
+
 The cutout is the middle of the photo and Claude always answers with the fixed
 answer in `conftest.ANSWER`, so the browser can follow an item from upload to
 described without the model file or any call to Claude.
@@ -30,8 +36,9 @@ import shutil
 import sqlite3
 import sys
 import time
+import urllib.error
 
-from closet import apikey, app, cli, demo
+from closet import apikey, app, cli, demo, weather
 from closet.tagger import routes as tagger_routes
 from closet.tagger.shopping import Found, PriceAnswer, PriceSeen, ShopAnswer
 from closet.tagger.tagging import TaggingError, TagResult
@@ -99,7 +106,13 @@ def seed_from_demo(cfg):
         shutil.copytree(cfg.images_dir("demo"), cfg.images_dir("main"), dirs_exist_ok=True)
 
 
+def no_weather_service(url):
+    raise urllib.error.URLError("the browser tests never reach the weather service")
+
+
 def build_services(cfg, **kwargs):
+    if not os.environ.get("CLOSET_E2E_FAKES"):
+        return _real_build(cfg, **kwargs)
     if os.environ.get("CLOSET_E2E_SEED") == "demo":
         seed_from_demo(cfg)
     kwargs.setdefault("shop_asker", FakeShop())
@@ -118,5 +131,6 @@ def build_services(cfg, **kwargs):
 
 
 if __name__ == "__main__":
+    weather.fetch = no_weather_service
     app.build_services = build_services
     sys.exit(cli.main(sys.argv[1:]))

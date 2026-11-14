@@ -510,7 +510,7 @@ def test_the_plan_route_may_only_search_the_web(monkeypatch):
     seen = {}
 
     def run(cmd, **kw):
-        seen["cmd"], seen["input"] = cmd, kw.get("input")
+        seen["cmd"], seen["input"] = cmd, kw["stdin"].read().decode("utf-8")
         answer = {"prices": [{"url": "https://shop.example/coat", "price": 99.0, "currency": "USD", "available": True}]}
         return SimpleNamespace(returncode=0, stderr="", stdout=json.dumps(
             {"structured_output": answer, "usage": {"input_tokens": 10, "output_tokens": 5}}))

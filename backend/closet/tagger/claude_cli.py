@@ -98,6 +98,16 @@ def print_command(exe: str, model: str, effort: str, schema: dict, tools: str, s
     return cmd
 
 
+def prompt_file(prompt: str):
+    """The prompt, in UTF-8, as a file to hand Claude Code on standard input (deleted when closed). A file and not a
+    pipe: on Windows writing to a pipe does not respect the timeout, so a Claude Code that never read its input would
+    hold Closet up for good."""
+    f = tempfile.TemporaryFile()
+    f.write(prompt.encode("utf-8"))
+    f.seek(0)
+    return f
+
+
 STATUS_TIMEOUT = 5.0   # seconds; `claude auth status` only reads the local login
 
 
@@ -165,8 +175,9 @@ def tag_item_cli(model: str, images: list[Image.Image], exe: str | None = None, 
         cmd = print_command(exe, model, effort, strict_schema(), "Read", SYSTEM)
         for attempt in range(1, max_attempts + 1):
             try:
-                proc = subprocess.run(cmd, cwd=tmp, env=env, input=prompt, capture_output=True, timeout=timeout,
-                                      **run_options())
+                with prompt_file(prompt) as stdin:
+                    proc = subprocess.run(cmd, cwd=tmp, env=env, stdin=stdin, capture_output=True, timeout=timeout,
+                                          **run_options())
             except subprocess.TimeoutExpired:
                 last = TaggingError(f"{model} through Claude Code did not answer within {timeout:.0f} seconds")
                 continue

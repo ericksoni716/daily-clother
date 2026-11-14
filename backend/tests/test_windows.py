@@ -69,28 +69,28 @@ def test_the_prompt_and_the_schema_reach_the_program_whole():
     cmd = claude_cli.print_command("claude", "claude-haiku-5-5", "low", claude_cli.strict_schema(), "Read",
                                    claude_cli.SYSTEM)
     assert prompt not in cmd
-    proc = subprocess.run([sys.executable, "-c", ECHO, *cmd[1:]], input=prompt, capture_output=True, timeout=60,
-                          **claude_cli.run_options())
+    with claude_cli.prompt_file(prompt) as stdin:
+        proc = subprocess.run([sys.executable, "-c", ECHO, *cmd[1:]], stdin=stdin, capture_output=True, timeout=60,
+                              **claude_cli.run_options())
     assert proc.returncode == 0, proc.stderr
     got = json.loads(proc.stdout)
     assert got["argv"] == cmd[1:]
     assert json.loads(got["argv"][got["argv"].index("--json-schema") + 1]) == claude_cli.strict_schema()
-    # what arrives is UTF-8, as Claude Code reads it (Windows ends lines with \r\n on the way)
-    assert bytes.fromhex(got["stdin"]).decode("utf-8").replace("\r\n", "\n") == prompt
+    assert bytes.fromhex(got["stdin"]).decode("utf-8") == prompt   # UTF-8, as Claude Code reads it, byte for byte
 
 
 def test_the_answer_is_read_as_utf8_whatever_the_computers_language(monkeypatch):
     seen = {}
 
     def run(cmd, **kw):
-        seen.update(kw)
+        seen.update(kw, prompt=kw["stdin"].read().decode("utf-8"))
         return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="Not logged in")
     monkeypatch.setattr(claude_cli.subprocess, "run", run)
     from PIL import Image
     with pytest.raises(PlanSignIn):
         claude_cli.tag_item_cli("claude-haiku-5-5", [Image.new("RGB", (8, 8))], exe="claude")
     assert seen["encoding"] == "utf-8" and seen["errors"] == "replace" and "text" not in seen
-    assert "stdin" not in seen and "Open each with the Read tool" in seen["input"]
+    assert "Open each with the Read tool" in seen["prompt"] and "input" not in seen
 
 
 def test_on_windows_claude_code_starts_without_a_console_window():

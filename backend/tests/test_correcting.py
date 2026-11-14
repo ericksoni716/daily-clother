@@ -58,7 +58,7 @@ def cli(monkeypatch):
 
     def run(cmd, cwd=None, **kw):
         seen["commands"].append(cmd)
-        seen["inputs"].append(kw.get("input"))
+        seen["inputs"].append(kw["stdin"].read().decode("utf-8"))
         seen["files"].append(sorted(p.name for p in Path(cwd).iterdir()))
         return seen["reply"]
     monkeypatch.setattr(correcting.subprocess, "run", run)

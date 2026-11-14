@@ -136,8 +136,9 @@ def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | Non
         cmd = claude_cli.print_command(exe, model, effort, transform_schema(answer_model), tools, system)
         for _ in range(MAX_ATTEMPTS):
             try:
-                proc = subprocess.run(cmd, cwd=tmp, env=env, input=text, capture_output=True, timeout=timeout,
-                                      **claude_cli.run_options())
+                with claude_cli.prompt_file(text) as stdin:
+                    proc = subprocess.run(cmd, cwd=tmp, env=env, stdin=stdin, capture_output=True, timeout=timeout,
+                                          **claude_cli.run_options())
             except subprocess.TimeoutExpired:
                 last = TaggingError(f"{model} through Claude Code did not answer within {timeout:.0f} seconds")
                 continue

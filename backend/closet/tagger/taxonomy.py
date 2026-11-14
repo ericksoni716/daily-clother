@@ -711,6 +711,11 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
             p["hem"] = "rib"
         if g.get("second_color"):
             p["colorblock"] = ("sleeves",)   # the leather sleeves, in the second colour seen
+    elif kind == "overcoat":   # knee length, cut from the measured overcoat, not a blazer made longer
+        if p["length"] in ("regular", "cropped", "long"):
+            p["length"] = "knee"
+        if p.get("block") == "jacket":
+            p["block"] = "coat"
     elif kind == "robe":   # a wrap front held by a sash, at least to the knee
         p["belt"] = "sash"
         if p["length"] in ("regular", "cropped", "long"):
@@ -1229,6 +1234,7 @@ _KIND_NOTES = {
     "varsity_jacket": "a knitted collar, cuffs and hem, a snap front; with a second colour, the sleeves in it (the "
                       "chenille letters are not drawn)",
     "waxed_jacket": "the brown cord collar and a waxed cotton sheen",
+    "overcoat": "knee length, cut from the measured overcoat with its own collar and lapels; no breast pocket",
     "robe": "a knotted sash round the waist, to the knee; its collar and cloth from its details",
     **{k: (("a tight leg" if v.get("leg") == "skinny" else "a short inseam and a slit hem" if v.get("hem") == "split"
             else "an elastic or drawstring waist") + (" and a stripe down each side in the trim colour" if v.get("stripe") else "")

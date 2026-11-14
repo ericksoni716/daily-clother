@@ -1413,7 +1413,9 @@ def _tailored(p, block) -> Shape:
         pocket = [_poly([(xs_, wy - 8), (xs_ + 6, wy - 8), (xb_ + 6, wy + 46), (xb_, wy + 46)])]
     for d_ in pocket:
         sh.lines += [d_, _mirror_path(d_)]
-    if kind != "none" and lower != "slash":   # the breast welt, on the wearer's left only, rising to the outside
+    # the breast welt, on the wearer's left only, rising to the outside; none on an overcoat, where it reads as a
+    # blazer's pocket square
+    if kind != "none" and lower != "slash" and not coat:
         yc = ny + T["breast"] * k_
         b0 = max(CX + 0.36 * chest, edge_x(yc + 8) + 7)
         b1 = min(b0 + 10 * k_, CX + chest - 10)

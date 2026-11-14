@@ -2,46 +2,48 @@
 
 One front view of a whole outfit, worn by a person drawn in the garments' own
 flat style (`_body`): head, neck, arms, hands, legs and feet, about 7.5 heads
-tall, standing front-on with the arms a little away from the body. The skin is
+tall (HEAD_CM), shoulders about two head widths apart, standing front-on with
+the arms a little away from the body and the wrists at mid-thigh. The skin is
 one colour, SKIN, read from this one place; it is drawn first, behind every
 garment, so it shows only where nothing covers it: the face and neck, the hands
 below the cuffs, the forearms below short sleeves, the legs below shorts, the
 ankles in low shoes and the feet in sandals. The head has a simple face (eyes,
-brows, a hint of nose and mouth) or, with face=False, only hair and its shape.
-Each piece is drawn by the same templates and renderer as the item drawings,
-from the same description, and placed by the points on the wearer every
-template keeps; the body is placed by the same points:
+brows, a hint of nose and mouth).
 
-- Tops share the neck and shoulder points, so they are drawn where they are on
-  their own card. The base top is closed. A mid or outer layer that opens all
-  the way down the front is worn open over what is under it; one that does not
-  (a pullover, a hoodie) is worn closed, and of what is under it only what
-  would really show is drawn: below its hem, above its neck, inside its neck
-  opening, and the under sleeves where its own sleeves are shorter. Three
-  layers nest the same way.
-- Every piece is drawn at K_PX pixels per centimetre of the garment. The tops
-  are drawn at that scale already; the trousers' template is drawn at PX_CM,
-  so it is scaled by K_PX / PX_CM, and the shoes are drawn at K_PX. Lengths
-  are true at that scale.
-  Widths follow the tops' rule: a top's body is drawn at BODY_W (84%) of its
-  flat width, because laid flat the cloth that wraps round the body lies out to
-  the sides; trousers wrap round the legs the same way, so their width is drawn
-  at the same share (BOTTOM_W). Drawn at full flat width, their hips stood out
-  past the hem of every top.
-- The trousers' waist sits WAIST_BELOW_NECK_CM under the neck point, which is
-  above every top's hem: tops hang over the waistband, untucked.
-- The ground lies a fixed distance under the waist (rise, inseam and a little
-  break), the same whatever the trousers, so ankle trousers and shorts end
-  above it. The shoes stand on it as a pair, seen from the front
-  (`frontshoe`), toes forward and a little out, each centred under its
-  trouser leg (the viewer's right one mirrored); a full-length hem covers the
-  top of the shoe and nothing of it shows beside the leg.
+The body sets the proportions, and each garment is fitted to it here only.
+Every piece is drawn by the same templates and renderer as the item drawings,
+from the same description, but the item drawings are fashion flats (long
+sleeves, a wide body), so the shape the template builds is moved point by point
+onto the wearer (`fitting.warp`) before it is drawn (`illustrate._draw(...,
+shape=)`); the item drawings themselves do not change:
+
+- A top (`_fit_top`): its body is scaled about the middle so a regular top's
+  shoulder seam lands on his shoulder point (SHOULDER_HALF_CM) and moved down
+  him by TOP_LENGTH (a regular shirt to the hip, a knee coat to the knee, a
+  cropped top still over the waistband). A fuller fit stays fuller (FIT_GAIN),
+  a slimmer one hugs, never closer than a little ease over the hips. Each
+  sleeve is put on the arm by its four corners: a long sleeve ends round the
+  wrist (a jacket's or coat's PAST_WRIST_CM past it), a shorter one as far down
+  the arm as it is down a long one; a short sleeve hangs from the underarm. A
+  hood lies low on the shoulders. The base top is closed. A mid or outer layer
+  that opens all the way down the front is worn open over what is under it;
+  one that does not (a pullover, a hoodie) is worn closed, and of what is under
+  it only what would really show is drawn: below its hem, above its neck,
+  inside its neck opening, and the under sleeves where its own sleeves are
+  shorter. Three layers nest the same way.
+- Trousers (`_fit_bottom`): scaled across to his waist (BOTTOM_SX), the waist on
+  his waist, the crotch at his crotch and a full-length hem resting on the shoe
+  BREAK_CM above the ground, dipping DIP_CM over the instep (the break);
+  shorter legs fall in proportion. Wide legs stay wide.
+- The shoes stand on the ground as a pair, seen from the front (`frontshoe`),
+  toes forward and a little out, each ankle centred under its trouser leg (the
+  viewer's right one mirrored); a full-length hem covers the top of the shoe
+  and nothing of it shows beside the leg.
 - Accessories (`pieces["accessories"]`, a list) go by the point each template is
   drawn about, at K_PX: a belt is worn round the trousers' waistband, and the
   first top is then worn tucked in (its body cut off at the belt, its sleeves
   kept), so the belt shows over it and under any layer worn over it; a scarf at the neck point,
-  over every top; a hat's band HAT_ABOVE_NECK_CM above the neck point, where a
-  forehead would be; a bag beside the figure on the viewer's right, its handle
+  over every top; a hat's band at HAT_Y, on the head; a bag beside the figure on the viewer's right, its handle
   at the height of a hand. One of each is drawn (the first given); the other
   accessories (ties, gloves, socks...) are not drawn in the figure.
 

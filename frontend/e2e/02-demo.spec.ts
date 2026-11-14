@@ -99,6 +99,28 @@ test('a rejected change is undone and the server message shown', async ({ page }
   await expect(stripe).toHaveAttribute('aria-pressed', 'false');
 });
 
+test('the colours measured from a pattern show as swatches beside the pattern word', async ({ page }) => {
+  await login(page);
+  await useProfile(page, 'demo');
+  // the demo closet is never measured: the item page is given the colours a measured navy and white stripe has
+  // (on the context, so the answer is changed whether the page or its service worker asks)
+  await page.context().route('**/api/items/*', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const res = await route.fetch();
+    const item = await res.json();
+    item.pattern = 'stripe';
+    item.pattern_colors = [{ color: 'navy', hex: '#1b2a49', share: 0.6 }, { color: 'white', hex: '#f4f1ea', share: 0.4 }];
+    await route.fulfill({ response: res, json: item });
+  });
+  await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
+  const pattern = page.locator('.detail-panel').getByRole('group', { name: 'Pattern' });
+  await expect(pattern.getByRole('button', { name: 'Stripe' })).toHaveAttribute('aria-pressed', 'true');
+  const colours = pattern.getByTestId('pattern-colours');
+  await expect(colours).toHaveAttribute('aria-label', 'Colours measured from the photo: Navy 60%, white 40%');
+  await expect(colours.locator('.swatch')).toHaveCount(2);
+  await page.context().unrouteAll({ behavior: 'ignoreErrors' });
+});
+
 test('archive and unarchive, delete with confirmation', async ({ page }) => {
   await login(page);
   await useProfile(page, 'demo');

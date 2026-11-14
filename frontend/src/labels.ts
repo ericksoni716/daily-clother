@@ -20,6 +20,16 @@ const PLURAL: Record<string, string> = {
   other: 'Other',
 };
 
+/** The colours measured from a pattern in words, largest first: "Navy 60%, white 40%". */
+export function measuredColours(colours: { color: string; share: number }[] | null | undefined): string {
+  return (colours ?? [])
+    .map((c, i) => {
+      const word = label('color', c.color);
+      return `${i ? word.toLowerCase() : word} ${Math.round(c.share * 100)}%`;
+    })
+    .join(', ');
+}
+
 /** "smart_casual" -> "Smart casual". */
 export function humanize(value: string): string {
   const words = value.replace(/_/g, ' ').trim();

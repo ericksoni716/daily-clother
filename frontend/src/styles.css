@@ -654,3 +654,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .toast-error { background: var(--danger); color: var(--on-danger); border-radius: var(--radius-md); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(6px); } }
 .detail-name { font-size: var(--text-lg); margin: 4px 0 6px; }
+
+/* the colours measured from a pattern, beside the pattern word on the item page */
+.measured-colours { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 40px; }
+.measured-colours .swatch { width: 14px; height: 14px; }

@@ -103,7 +103,7 @@ To do:
 - [ ] Trousers: the taxonomy's bottoms are a signature line each; rise, fit names and jeans washes are not tagged yet.
 - [ ] Re-run the tagging test with the tightened prompt (snaps, hip pockets and feature flags were wrong in the first run).
 - [ ] Striped, floral and camouflage hard cases on real photos.
-- [ ] Take the colour word for patterned items from the measured palette instead of the model.
+- [x] Take the colour word for patterned items from the measured palette instead of the model (#106).
 - [ ] One real call through the API-key route for cost and timing (deliberately last; it costs money).
 
 Rules that keep the two tracks independent:

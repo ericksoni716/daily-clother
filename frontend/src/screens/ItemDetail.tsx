@@ -584,6 +584,12 @@ function Picture({ item, busyText, fallbackThumb, fix }: { item: Item; busyText:
           {pic}
           {busy && <span className="badge badge-busy"><span className="spinner" aria-hidden="true" />{busyText}</span>}
         </div>
+        {view === 'drawing' && !placeholder && item.back_url && (
+          <figure className="back-view">
+            <img src={item.back_url} alt={`${alt}, drawing from the back`} />
+            <figcaption>From the back</figcaption>
+          </figure>
+        )}
         {(views.length > 1 || fix) && (
           <div className="picture-controls">
             {views.length > 1 && (

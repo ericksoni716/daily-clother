@@ -350,10 +350,10 @@ BOTTOM_DRAWING: dict[str, dict[str, tuple[dict, str, str]]] = {
         "scoop": ({"pockets": "scoop"}, "drawn", "the curved jeans pocket"),
         "frog_mouth": ({"pockets": "frog"}, "drawn", "a horizontal opening under the band"),
         "coin": ({"coin": True}, "drawn", "the watch pocket"),
-        "back_welt_single": ({}, "not_drawn", "on the back: the drawing shows the front"),
-        "back_welt_double": ({}, "not_drawn", "on the back: the drawing shows the front"),
-        "back_patch": ({}, "not_drawn", "on the back: the drawing shows the front"),
-        "back_flap": ({}, "not_drawn", "on the back: the drawing shows the front"),
+        "back_welt_single": ({"back_pockets": ["welt"]}, "drawn", "on the item page's small back view: a slit with one lip and a button"),
+        "back_welt_double": ({"back_pockets": ["jetted"]}, "drawn", "on the item page's small back view: a slit with two lips and a button"),
+        "back_patch": ({"back_pockets": ["patch"]}, "drawn", "on the item page's small back view: a pointed patch, topstitched"),
+        "back_flap": ({"back_pockets": ["flap"]}, "drawn", "on the item page's small back view: a patch with a buttoned flap"),
         "cargo": ({"cargo": True}, "drawn", "bellows pockets on the thighs"),
         "hammer_loop": ({"extra_pockets": ["hammer"]}, "drawn", "a loop on the left side"),
         "rule_pocket": ({"extra_pockets": ["rule"]}, "drawn", "a narrow pocket on the right thigh"),
@@ -362,13 +362,14 @@ BOTTOM_DRAWING: dict[str, dict[str, tuple[dict, str, str]]] = {
     "back_details": {
         "double_knee": ({"panels": ["double_knee"]}, "drawn", "a panel over each knee"),
         "gusseted_crotch": ({"panels": ["gusset"]}, "drawn", "a diamond set into the crotch"),
-        "back_yoke": ({}, "not_drawn", "on the back"), "rivets": ({"rivets": True}, "drawn", "copper rivets at the front pocket corners"),
-        "back_patch_label": ({}, "not_drawn", "on the back"), "darts": ({}, "not_drawn", "on the back"),
-        "centre_back_v_loop": ({}, "not_drawn", "on the back"),
+        "back_yoke": ({"back": ["yoke"]}, "drawn", "on the item page's small back view: the seam dipping to the centre"), "rivets": ({"rivets": True}, "drawn", "copper rivets at the front pocket corners"),
+        "back_patch_label": ({"back": ["label"]}, "drawn", "on the item page's small back view: a leather label on the band"),
+        "darts": ({"back": ["darts"]}, "drawn", "on the item page's small back view: a short line above each pocket"),
+        "centre_back_v_loop": ({"back": ["v_loop"]}, "drawn", "on the item page's small back view: two loops meeting in a V"),
     },
     "denim_fades": {
         "whiskers": ({"fades": ["whiskers"]}, "drawn", "pale creases fanning from the crotch"),
-        "honeycombs": ({}, "not_drawn", "behind the knees"), "stacks": ({"fades": ["stacks"]}, "drawn", "pale bands above the hem"),
+        "honeycombs": ({"fades": ["honeycombs"]}, "drawn", "on the item page's small back view: pale creases behind each knee"), "stacks": ({"fades": ["stacks"]}, "drawn", "pale bands above the hem"),
         "train_tracks": ({"fades": ["tracks"]}, "drawn", "pale lines down the outer seams"),
         "roping": ({"fades": ["roping"]}, "drawn", "pale slanting twists along the hem"),
         "pocket_fade": ({"fades": ["pocket"]}, "drawn", "the pocket edge worn pale"),
@@ -1205,17 +1206,22 @@ BOTTOM_DRAWINGS: dict[str, dict] = {
 # parameters laid under the ones the details give (a told detail wins), the cloth it is drawn in when none was seen,
 # and how well that shows.
 BOTTOM_KINDS: dict[str, tuple[dict, str | None, str, str]] = {
-    "chinos": ({"pockets": "slant", "hem": "plain"}, "twill", D, "slant pockets, a plain hem and a twill texture"),
-    "dress_trousers": ({"pockets": "slant", "crease": True, "hem": "plain"}, None, D,
-                       "a pressed crease down each leg, slant pockets, a plain hem"),
-    "jeans": ({"jeans": True}, None, D, "five pockets: the scoop, the watch pocket and its rivets, a topstitched hem"),
-    "corduroys": ({"pockets": "slant"}, "corduroy", D, "slant pockets and the cord's wales"),
-    "fatigues": ({"pockets": "slant", "fly": "button"}, "sateen", A_,
-                 "a button fly and a sateen sheen; the back-sateen cloth is only suggested and the back flap pockets are "
-                 "out of view"),
-    "cargo_pants": ({"pockets": "slant", "cargo": True}, None, D, "slant pockets and bellows pockets on the thighs"),
-    "work_pants": ({"pockets": "scoop", "panels": ["double_knee"], "extra_pockets": ["hammer", "rule"]}, "canvas", D,
-                   "a panel over each knee, a hammer loop and a rule pocket, scoop pockets"),
+    "chinos": ({"pockets": "slant", "hem": "plain", "back_pockets": ["welt"]}, "twill", D,
+               "slant pockets, a plain hem and a twill texture; welt pockets on the back view"),
+    "dress_trousers": ({"pockets": "slant", "crease": True, "hem": "plain", "back_pockets": ["jetted"]}, None, D,
+                       "a pressed crease down each leg, slant pockets, a plain hem; jetted pockets on the back view"),
+    "jeans": ({"jeans": True}, None, D, "five pockets: the scoop, the watch pocket and its rivets, a topstitched hem; "
+              "the yoke and patch pockets on the back view"),
+    "corduroys": ({"pockets": "slant", "back_pockets": ["welt"]}, "corduroy", D,
+                  "slant pockets and the cord's wales; welt pockets on the back view"),
+    "fatigues": ({"pockets": "slant", "fly": "button", "back_pockets": ["flap"]}, "sateen", A_,
+                 "a button fly, slant pockets and buttoned flap pockets on the back view; the back-sateen cloth (a dense, "
+                 "soft, nearly matte weave) is only suggested by a sateen sheen"),
+    "cargo_pants": ({"pockets": "slant", "cargo": True, "back_pockets": ["flap"]}, None, D,
+                    "slant pockets and bellows pockets on the thighs; flap pockets on the back view"),
+    "work_pants": ({"pockets": "scoop", "panels": ["double_knee"], "extra_pockets": ["hammer", "rule"], "back_pockets": ["patch"]},
+                   "canvas", D, "a panel over each knee, a hammer loop and a rule pocket, scoop pockets; patch pockets on "
+                   "the back view"),
     "shorts": ({}, None, D, "the shorts drawing, cut to the inseam when it was told"),
 }
 _KIND_NOTES = {

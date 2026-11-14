@@ -738,6 +738,35 @@ def test_every_trouser_detail_draws_its_own_picture_from_the_same_waist_and_hem(
     assert len(pictures) == len(values)
 
 
+def _numbers(d):
+    return [float(v) for v in re.findall(r"-?\d+(?:\.\d+)?", d)]
+
+
+def test_a_pleat_is_shaded_on_the_side_it_opens_to():
+    plain = build("pants", dict(pleats=1))
+    assert not [p for p in plain.parts if p.role == "shade"]   # a pleat whose way is not told has no shade
+    sides = {}
+    for way in ("reverse", "forward"):
+        shades = [p for p in build("pants", dict(pleats=1, pleat_dir=way)).parts if p.role == "shade"]
+        assert len(shades) == 2   # one on each leg, mirrored
+        left = min(shades, key=lambda p: _numbers(p.d)[0])
+        xs = _numbers(left.d)[0::2]
+        sides[way] = (xs[1] - xs[0])   # from the fold toward where it opens
+        right = max(shades, key=lambda p: _numbers(p.d)[0])
+        assert [round(2 * CX - x, 1) for x in xs] == [round(x, 1) for x in _numbers(right.d)[0::2]]
+    assert sides["reverse"] < 0 < sides["forward"]   # toward the pocket (out) and toward the fly (in)
+
+
+def test_double_pleats_are_far_enough_apart_to_read_as_two():
+    flat, single, double = (build("pants", dict(pleats=n)).lines for n in (0, 1, 2))
+    band = build("pants", {}).parts[0].d   # pleats start at the foot of the waistband
+    bb = max(_numbers(band)[1::2])
+    starts = lambda lines, but: [x for d in lines if d not in but for x, y in [_numbers(d)[:2]] if abs(y - bb) < 0.1]
+    first = min(starts(single, flat))      # the left leg's pleat
+    second = min(starts(double, single))   # and the one a double pleat adds beside it
+    assert first - second >= 15   # about 6 px at grid size
+
+
 def test_shorts_are_drawn_to_their_inseam():
     hems = [build("pants", dict(length="short", inseam=i)).anchors["hem"][1] for i in (3, 5, 7, 9, 11)]
     assert hems == sorted(hems) and len(set(hems)) == len(hems)

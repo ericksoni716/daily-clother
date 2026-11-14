@@ -1893,11 +1893,18 @@ def pants(**kw) -> Shape:
     for mm in (lambda q: q, m):
         if pleats:
             for i in range(pleats):
-                x = CX - 0.30 * hw - i * 12
-                sh.lines.append(f"M {_pt(mm((x, bb)))} L {_pt(mm((x - 1.5, bb + (34 if i == 0 else 24))))}")
-                if p.get("pleat_dir"):   # the fold's lip, on the side it opens to
+                # a second pleat sits far enough out to read as its own line at grid size, clear of the pocket
+                x = CX - 0.30 * hw - i * 16
+                if p.get("pleat_dir"):
+                    # the fold opens toward the pocket (reverse) or the fly (forward): the cloth folded under
+                    # shows as a shaded wedge on that side of the fold, widest at the waistband
                     s_ = -1 if p["pleat_dir"] == "reverse" else 1
-                    sh.lines.append(f"M {_pt(mm((x, bb)))} L {_pt(mm((x + s_ * 5, bb + 3)))}")
+                    ln = 44 if i == 0 else 32
+                    wedge = [(x, bb), (x + s_ * (7.0 if i == 0 else 5.0), bb), (x - 1.2, bb + ln * 0.85)]
+                    sh.parts.append(Part("M " + " L ".join(_pt(mm(q)) for q in wedge) + " Z", "shade"))
+                    sh.lines.append(f"M {_pt(mm((x, bb)))} L {_pt(mm((x - 1.5, bb + ln)))}")
+                else:
+                    sh.lines.append(f"M {_pt(mm((x, bb)))} L {_pt(mm((x - 1.5, bb + (34 if i == 0 else 30))))}")
         if crease and Ko:
             top = (c0 + 2, bb + (34 if pleats else 60))
             sh.lines.append(f"M {_pt(mm(top))} L {_pt(mm(((Ko[0] + Ki[0]) / 2, knee_y)))} L {_pt(mm((hc, hy - 4)))}")

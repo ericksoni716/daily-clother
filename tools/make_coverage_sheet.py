@@ -21,6 +21,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 from make_figure_sheet import to_png  # noqa: E402
 
 from closet.drawing import item  # noqa: E402
+from closet.tagger.taxonomy import wash_hex  # noqa: E402
 from closet.tagger.schema import Details, ItemTags, Silhouette  # noqa: E402
 
 SHIRT = dict(placket="front_placket", cuff="barrel_1", hem="curved_shirt_tail")
@@ -43,22 +44,42 @@ CASES: dict[str, list[tuple[str, str, str, dict, dict]]] = {
         ("chunky moss", "sweater", "#5c6b4a", dict(fabric="moss", knit_gauge="chunky", **KNIT), {}),
     ],
     "trousers": [
-        ("trousers, no kind", "trousers", "#b9a27c", {}, {}),
-        ("chinos", "trousers", "#b9a27c", dict(garment="chinos"), {}),
-        ("dress trousers", "trousers", "#4a4f58", dict(garment="dress_trousers"), {}),
-        ("corduroys", "trousers", "#7a5434", dict(garment="corduroys"), {}),
-        ("fatigues", "trousers", "#5f6b3a", dict(garment="fatigues"), {}),
-        ("cargo pants", "trousers", "#6b6550", dict(garment="cargo_pants"), {}),
-        ("work pants", "trousers", "#8a6a3c", dict(garment="work_pants"), {}),
-        ("jeans told as trousers", "trousers", "#3f5f8f", dict(garment="jeans"), {}),
-        ("shorts", "shorts", "#b9a27c", dict(garment="shorts"), {}),
-        ("split hem", "trousers", "#30343c", dict(hem_finish="split"), {}),
-        ("notched hem", "trousers", "#30343c", dict(hem_finish="notched"), {}),
-        ("rivets", "trousers", "#8a6a3c", dict(back_details=["rivets"]), {}),
-        ("stacks fade", "jeans", "#3f5f8f", dict(denim_fades=["stacks"]), {}),
-        ("roping fade", "jeans", "#3f5f8f", dict(denim_fades=["roping"]), {}),
+        ("single pleat", "trousers", "#4a4f58", dict(trouser_front="single_pleat"), {}),
+        ("double pleat", "trousers", "#4a4f58", dict(trouser_front="double_pleat"), {}),
         ("reverse pleat", "trousers", "#4a4f58", dict(trouser_front="reverse_pleat"), {}),
         ("forward pleat", "trousers", "#4a4f58", dict(trouser_front="forward_pleat"), {}),
+        ("double pleat, stone", "trousers", "#c9bfae", dict(garment="chinos", trouser_front="double_pleat"), {}),
+        ("reverse pleat, stone", "trousers", "#c9bfae", dict(garment="chinos", trouser_front="reverse_pleat"), {}),
+        ("jeans, back", "jeans", "#3f5f8f", dict(trouser_pockets=["scoop", "coin", "back_patch"],
+                                                 back_details=["back_yoke", "back_patch_label", "rivets"]), {"_back": True}),
+        ("dress trousers, back", "trousers", "#4a4f58", dict(garment="dress_trousers", trouser_front="single_pleat",
+                                                            trouser_pockets=["slant", "back_welt_double"],
+                                                            back_details=["darts"]), {"_back": True}),
+        ("chinos, back", "trousers", "#b9a27c", dict(garment="chinos", trouser_pockets=["slant", "back_welt_single"]),
+         {"_back": True}),
+        ("fatigues, back", "trousers", "#5f6b3a", dict(garment="fatigues", trouser_pockets=["slant", "back_flap"]),
+         {"_back": True}),
+        ("V belt loop, back", "trousers", "#30343c", dict(trouser_pockets=["slant", "back_welt_single"],
+                                                          back_details=["centre_back_v_loop", "darts"]), {"_back": True}),
+        ("honeycombs, back", "jeans", "#2f4468", dict(trouser_pockets=["back_patch"], back_details=["back_yoke"],
+                                                      denim_fades=["honeycombs"]), {"_back": True}),
+        ("fatigues", "trousers", "#5f6b3a", dict(garment="fatigues"), {}),
+        ("low rise jeans", "jeans", "#3f5f8f", dict(rise="low"), {}),
+        ("high rise trousers", "trousers", "#4a4f58", dict(rise="high", trouser_front="double_pleat"), {}),
+        ("skinny jeans", "jeans", "#3f5f8f", dict(leg_shape="skinny"), {}),
+        ("relaxed jeans", "jeans", "#3f5f8f", dict(leg_shape="relaxed"), {}),
+        ("flare jeans", "jeans", "#3f5f8f", dict(leg_shape="flare"), {}),
+        ("raw denim", "jeans", wash_hex("raw"), dict(denim_wash="raw"), {}),
+        ("rinse wash", "jeans", wash_hex("rinse"), dict(denim_wash="rinse"), {}),
+        ("dark wash", "jeans", wash_hex("dark"), dict(denim_wash="dark"), {}),
+        ("mid wash", "jeans", wash_hex("mid"), dict(denim_wash="mid"), {}),
+        ("light wash", "jeans", wash_hex("light"), dict(denim_wash="light"), {}),
+        ("black", "jeans", wash_hex("black"), dict(denim_wash="black"), {}),
+        ("washed black (faded)", "jeans", wash_hex("washed_black"), dict(denim_wash="washed_black"), {}),
+        ("overdyed olive", "jeans", "#5f6b3a", dict(denim_wash="overdyed"), {}),
+        ("pyjama trousers", "trousers", "#a9c4e0", dict(garment="pajama_set_woven"), {}),
+        ("sweatsuit trousers", "trousers", "#8a8d91", dict(garment="lounge_sweatsuit"), {}),
+        ("knit lounge set, shorts", "shorts", "#d9ccb4", dict(garment="lounge_knit_set"), {}),
     ],
     "jackets": [
         ("trench coat", "coat", "#c3b091", dict(garment="trench_coat", collar="notch_lapel", placket="double_breasted",
@@ -129,8 +150,11 @@ def sheet(group: str) -> str:
     for i, (caption, category, color, details, sil) in enumerate(cases):
         x, y = (i % columns) * cell_w, (i // columns) * (LARGE + CAPTION)
         tags = answer(category, details, sil)
-        svg = item.svg_from_answer(tags, color, uid=f"c{i}") or ""
-        small = item.svg_from_answer(tags, color, uid=f"s{i}") or ""
+        # a back view where the code has one (an older checkout draws the front: that is what it showed)
+        draw = getattr(item, "back_from_answer", None) if sil.get("_back") else None
+        draw = draw or item.svg_from_answer
+        svg = draw(tags, color, uid=f"c{i}") or ""
+        small = draw(tags, color, uid=f"s{i}") or ""
         cells.append(_place(small, x + 4, y + LARGE - SMALL, SMALL, SMALL))
         cells.append(_place(svg, x + SMALL + 6, y, LARGE, LARGE))
         cells.append(f'<text x="{x + cell_w / 2}" y="{y + LARGE + 20}" text-anchor="middle" font-family="sans-serif" '

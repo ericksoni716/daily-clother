@@ -151,10 +151,10 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], tagger: Tagger) -> 
         t = db.now()
         missing = isinstance(e, (LookupError, OSError))
         if attempts < MAX_ATTEMPTS and not missing:
-            conn.execute("UPDATE jobs SET state = 'queued', error = ?, updated_at = ? WHERE id = ?", (str(e)[:500], t, job["id"]))
+            conn.execute("UPDATE jobs SET state = 'queued', error = ?, updated_at = ? WHERE id = ?", (failures.kept(conn, str(e)), t, job["id"]))
             conn.execute("UPDATE items SET tag_state = 'waiting', tag_error = NULL, updated_at = ? WHERE id = ?", (t, job["item_id"]))
         else:
-            conn.execute("UPDATE jobs SET state = 'failed', error = ?, updated_at = ? WHERE id = ?", (str(e)[:500], t, job["id"]))
+            conn.execute("UPDATE jobs SET state = 'failed', error = ?, updated_at = ? WHERE id = ?", (failures.kept(conn, str(e)), t, job["id"]))
             conn.execute("UPDATE items SET tag_state = 'failed', tag_error = ?, updated_at = ? WHERE id = ?",
                          (NO_PHOTO if missing else FAILED, t, job["item_id"]))
             failures.report(conn, job["item_id"], "description", str(e))

@@ -1,7 +1,7 @@
 """Why an item's cutout or description failed, in words that are safe to show and to log.
 
 The real reason is the failed job's `error` in the `jobs` table. It can hold
-anything an exception said, so before it leaves the database it is cleaned:
+anything an exception said, so it is cleaned before it is written there and again before it leaves the database:
 anything that looks like a key or a token, an e-mail address, and file paths
 outside Closet's own folder are taken out. A path inside that folder is kept,
 starting from "[Closet folder]", so it does not show the owner's user name.
@@ -77,6 +77,12 @@ def clean(text: str | None, folder: Path | None = None) -> str | None:
     if len(text) > MAX_DETAILS:
         text = text[:MAX_DETAILS - 1] + "…"
     return text or None
+
+
+def kept(conn, error: str | None) -> str | None:
+    """The reason a failed attempt keeps in the `jobs` table: cleaned the same way before it is written, as the
+    database is copied into backups."""
+    return clean(error, data_folder(conn))
 
 
 def _job_error(conn, kind: str, item_id: str) -> str | None:

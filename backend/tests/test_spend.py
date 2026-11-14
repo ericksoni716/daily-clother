@@ -6,17 +6,19 @@ replaced by a function that answers (or says the plan's limit is reached).
 import json
 import logging
 import sqlite3
+import threading
 from datetime import datetime, timedelta
 
 import anthropic
 import httpx2 as httpx
 import pytest
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from closet import app as app_module
 from closet import backup, db, spend, tagjobs
 from closet.tagger import routes as tagger_routes
-from closet.tagger.tagging import RouteUnavailable, TagResult, tag_item
+from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError, TagResult, tag_item
 
 from .conftest import ANSWER, PASSPHRASE, FakeApi, fake_cutter, upload
 
@@ -343,3 +345,62 @@ def test_a_second_photo_raises_the_estimate(client, services, cfg):
     waiting = client.get("/api/tagging/spend").json()["waiting"]
     assert waiting["items"] == 1 and waiting["photos"] == 2
     assert waiting["at_most_usd"] == pytest.approx(spend.estimate_call(2))
+
+
+class Held(FakeApi):
+    """An API request that stays out until it is let go, as a long one does while another worker asks."""
+
+    def __init__(self):
+        super().__init__()
+        self.inside, self.go = threading.Event(), threading.Event()
+
+    def parse(self, **kw):
+        self.inside.set()
+        assert self.go.wait(10)
+        return super().parse(**kw)
+
+
+def test_requests_made_at_once_cannot_together_pass_the_limit(client, services, cfg):
+    """Workers ask Claude at the same time (describing, landmarks, the pieces in a photo, "Would this work?",
+    shopping): what a request on its way may cost counts against the limit until it has come back."""
+    allow(client, 1.0)
+    one = spend.estimate_call(1, "claude-haiku-5-5")
+    preload(cfg, 1.0 - 1.5 * one)   # room for one request, not two
+    meter, image = spend.Meter(cfg, services.state), Image.new("RGBA", (40, 40))
+    slow, done = Held(), []
+    first = threading.Thread(target=lambda: done.append(tag_item(slow, "claude-haiku-5-5", [image], meter=meter)))
+    first.start()
+    try:
+        assert slow.inside.wait(10)
+        other = FakeApi()
+        with pytest.raises(CapReached):
+            tag_item(other, "claude-haiku-5-5", [image], meter=meter)
+        assert other.calls == 0   # not made: together they could have passed the limit
+    finally:
+        slow.go.set()
+        first.join(10)
+    assert len(done) == 1 and len(calls(cfg)) == 2   # the preloaded spend and the first request
+    # back, it cost what it cost (much less than its estimate): there is room again
+    assert tag_item(other, "claude-haiku-5-5", [image], meter=meter).route == "api" and other.calls == 1
+
+
+def test_a_request_that_fails_lets_go_of_what_it_held(client, services, cfg):
+    allow(client, 1.0)
+    one = spend.estimate_call(1, "claude-haiku-5-5")
+    preload(cfg, 1.0 - 1.5 * one)
+    meter, image = spend.Meter(cfg, services.state), Image.new("RGBA", (40, 40))
+    refused = FakeApi()
+    refused.error = bad_request(400, "the request was not understood")
+    failed = []
+
+    def ask():
+        try:
+            tag_item(refused, "claude-haiku-5-5", [image], meter=meter)
+        except TaggingError as e:
+            failed.append(e)
+    worker = threading.Thread(target=ask)
+    worker.start()
+    worker.join(10)
+    assert len(failed) == 1 and refused.calls == 1
+    other = FakeApi()   # the failed request is not out any more, so it holds nothing back
+    assert tag_item(other, "claude-haiku-5-5", [image], meter=meter).route == "api" and other.calls == 1

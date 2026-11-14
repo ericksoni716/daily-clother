@@ -337,7 +337,7 @@ def _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, 
         lace = lace_c or (shade(base, -0.28) if luminance(base) > 0.75 else shade(base, 0.35 if luminance(base) < 0.3 else -0.25))
         for i in range(n):
             u = lo + (hi - lo) * i / max(1, n - 1)
-            d = _path(across(u, 0.42, 0.25), close=False)
+            d = _path(across(u, 0.42 if style not in TRAINERS else 0.5, 0.25), close=False)
             out.append(ln(d, 2.8, INK, 0.9) + ln(d, 1.5, lace, 1))
         if shaft:   # a boot laces on up its shaft
             for i in range(3):

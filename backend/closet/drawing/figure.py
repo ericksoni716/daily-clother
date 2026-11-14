@@ -100,7 +100,7 @@ ELBOW_CM = 71.0
 ARM_DEG = 13.0                 # the arms hang this far out from straight down, so sleeves read clearly
 ARM_IN_CM, ARM_DOWN_CM = 4.0, 5.0   # the top of the arm's middle, in from the shoulder point and under it
 ARM_HALF_CM, ELBOW_HALF_CM, WRIST_HALF_CM = 3.6, 3.0, 2.3
-LEG_TOP_HALF_CM = 8.5         # the top of each leg (inside the trousers), from the middle
+LEG_TOP_HALF_CM = 7.0         # the top of each leg (inside the trousers), from the middle
 THIGH_HALF_CM, KNEE_HALF_CM, CALF_HALF_CM = 7.0, 4.8, 5.0
 CALF_CM = 146.0
 
@@ -111,16 +111,20 @@ SHORT_ACROSS = 0.5           # and a short one's (a share of the way between for
 SHORT_SHARE = 0.55            # a sleeve shorter than this share of a long one is fitted as a short sleeve
 SHORT_TILT = 0.4              # a short sleeve's opening is tilted this share of its tilt on the flat drawing
 FIT_GAIN = 1.0                # a fuller fit than regular is drawn this much fuller again (as a power of how much fuller)
-HOOD_ABOVE = 0.45             # a hood worn down stands this much as high above the neck as on its flat drawing
+HIP_EASE_CM = 1.5             # how far a regular top's body stands off his hips at its hem
+EASE_PER_FIT = 13.0           # ...less by this for each unit narrower its fit is on the flat drawing, to 0.5 cm
+HOOD_ABOVE = 0.3              # a hood worn down stands this much as high above the neck as on its flat drawing
 UNDERARM_IN = 0.88            # a top's body, from the underarm down, is drawn this much narrower than its shoulders
 PAST_WRIST_CM = 1.5           # a jacket's or coat's sleeve runs this far past the wrist
 OUTER_BLOCKS = ("outer", "bomber", "jacket", "coat")
 # a top's length: cm below the neck on the flat drawing -> on him. A regular shirt ends at the hip, just above the
-# crotch; a knee-length coat at the knee. Shorter and longer tops (and their length tags) fall in proportion.
-TOP_LENGTH = [(0.0, 0.0), (78.0, 61.0), (113.0, KNEE_CM - NECK_CM + 2.0)]
+# crotch; a knee-length coat at the knee. Longer tops (and their length tags) fall in proportion; a cropped one
+# still reaches below the trousers' waistband, so no skin shows between them.
+TOP_LENGTH = [(0.0, 0.0), (55.0, WAIST_CM - NECK_CM + 10.0), (78.0, 61.0), (113.0, KNEE_CM - NECK_CM + 2.0)]
 TROUSER_WAIST_HALF_CM = 13.5  # a regular trouser waist, worn (a 41 cm flat waist)
 BREAK_CM = 5.0                # a full-length trouser hem rests this far above the ground, on the shoe
-TOE_CM = 5.0                  # seen a little from above, the toes stand forward of the legs: lower on the page by this
+DIP_CM = 2.0                  # the break: a full-length hem falls this much lower over the instep than at its sides
+TOE_CM = 7.0                  # seen a little from above, the toes stand forward of the legs: lower on the page by this
 RISE_CM, INSEAM_CM = 27.0, 81.0   # the trousers template's regular front rise and full inseam
 MARGIN = 18.0                 # the same space on every side of the figure
 
@@ -372,14 +376,21 @@ def _fit_top(spec: Spec, shape: Shape) -> tuple[Shape, float]:
     pit_y = right.armpit[1] if right else sh[1] + 90.0
     sx = SHOULDER_HALF_CM * K_PX / (sh[0] - CX)
     own_sleeves = fitting.sleeves(shape)
-    own_sh = next((sl.shoulder for sl in own_sleeves if sl.side == 1), sh)
-    sx *= max(1.0, (own_sh[0] - CX) / (sh[0] - CX)) ** FIT_GAIN   # a fuller fit, fuller still on him
+    own_half = shape.body_box[2] - CX
+    fuller = own_half / (ref.body_box[2] - CX)   # 1 for a regular fit, below for slim, above for oversized
+    sx *= max(1.0, fuller) ** FIT_GAIN   # a fuller fit, fuller still on him
+    # below the underarm the body stands off his hips by some ease, less for a slimmer fit (never none, so no skin
+    # shows beside it)
+    room = HIP_HALF_CM + max(0.5, HIP_EASE_CM + (fuller - 1.0) * EASE_PER_FIT)
+    ease = max(1.0, room * K_PX / (own_half * sx * UNDERARM_IN))
+    hem_y = shape.anchors.get("hem", (CX, shape.body_box[3]))[1]
     above = HOOD_ABOVE if params.get("neck") == "hood" else 0.85   # a hood lies back on the shoulders
     table = [(-40.0, -40.0 * above), (0.0, 0.0), ((sh[1] - ny) / K_PX, SHOULDER_CM - NECK_CM)] + TOP_LENGTH[1:]
 
     def body(q):
         t = max(0.0, min(1.0, (q[1] - sh[1]) / (pit_y - sh[1])))
-        return CX + (q[0] - CX) * sx * (1 - (1 - UNDERARM_IN) * t), NECK_Y + _between(table, (q[1] - ny) / K_PX) * K_PX
+        low = max(0.0, min(1.0, (q[1] - pit_y) / ((hem_y - pit_y) or 1.0)))
+        return CX + (q[0] - CX) * sx * (1 - (1 - UNDERARM_IN) * t) * (1 + (ease - 1) * low), NECK_Y + _between(table, (q[1] - ny) / K_PX) * K_PX
 
     parts = []
     angle = ARM_DEG
@@ -417,10 +428,20 @@ def _fit_bottom(shape: Shape) -> Shape:
     crotch, and a full-length hem resting on the shoe (BREAK_CM above the ground); shorter legs fall in proportion."""
     wx, wy = shape.anchors["waist"]
     table = [(wy, WAIST_Y), (wy + RISE_CM * PX_CM, CROTCH_Y), (wy + (RISE_CM + INSEAM_CM) * PX_CM, HEM_Y)]
+    a = shape.anchors
+    legs = []
+    if all(k in a for k in ("leg_l", "leg_r", "hem_out", "hem_in")):
+        half = abs(a["hem_out"][0] - a["hem_in"][0]) / 2
+        legs = [(a["leg_l"][0], half), (a["leg_r"][0], half)]
 
     def fn(q):
-        return CX + (q[0] - wx) * BOTTOM_SX, _between(table, q[1])
-    return fitting.warp(shape, fn, radius=0.85)
+        x, y = q[0], _between(table, q[1])
+        t = min(1.0, max(0.0, (y - HEM_Y + 8 * K_PX) / (8 * K_PX)))   # only near a full-length hem
+        for c, h in legs:
+            s = max(0.0, 1 - abs(x - c) / h) if h else 0.0
+            y += DIP_CM * K_PX * t * t * math.sin(math.pi / 2 * s)
+        return CX + (x - wx) * BOTTOM_SX, y
+    return fitting.warp(shape, fn, radius=0.85, split=4.0 if legs else None)
 
 
 def _legs(layout: Layout) -> tuple[float, float, bool]:
@@ -449,19 +470,20 @@ def _inside_legs(layout: Layout) -> str:
 
 
 def _stand(shoes: Placed, layout: Layout) -> Placed:
-    """The pair, each shoe centred under its leg, the toes on the ground and turned out; the viewer's right shoe
+    """The pair, each ankle centred under its leg, the toes on the ground and turned out; the viewer's right shoe
     is the left one mirrored. With trousers on, the wearer's ankle stands in each shoe (a bare foot in a sandal)."""
     left, right, _ = _legs(layout)
     if layout.get("bottom") is not None:
         shoes.front = front_shoe(shoes.spec, K_PX, sole_default=shoes.shape.sole_default, ankle=_ankle(), toes=TOE_LINE)
         shoes.shape = Shape(outline=shoes.front.outline, bbox=shoes.front.bbox, body_box=shoes.front.bbox,
                             anchors=dict(shoes.front.anchors), sole_default=shoes.shape.sole_default)
-    shoes.transforms = _pair(shoes.shape.bbox, left, right)
+    shoes.transforms = _pair(shoes.front.anchors["ankle"][0], left, right)
     return shoes
 
 
-def _pair(bbox, left: float, right: float) -> list[tuple[float, float, float, float, float, float]]:
-    bx = (bbox[0] + bbox[2]) / 2
+def _pair(ankle_x: float, left: float, right: float) -> list[tuple[float, float, float, float, float, float]]:
+    """Each foot's ankle in the middle of its leg (the toes turn out from it), the toes on the ground."""
+    bx = ankle_x
     y = GROUND_Y + TOE_CM * K_PX
     return [(1.0, 0.0, 0.0, 1.0, left - bx, y), (-1.0, 0.0, 0.0, 1.0, right + bx, y)]
 
@@ -484,7 +506,7 @@ def _pt(q) -> str:
 
 def _torso(top: float, short: bool = False) -> str:
     """The torso, from the neck (cut at `top`, under the chin) to the hips: the shoulders on the shoulder points,
-    narrower than any top fitted to him below them, and it ends just under the crotch, inside the trousers.
+    narrower than any top fitted to him below them, and it ends just above the crotch, inside the trousers.
     `short`: it ends at the waist, for a figure with no trousers."""
     k, n = K_PX, NECK_Y
     nw = NECK_HALF_CM * k
@@ -495,7 +517,7 @@ def _torso(top: float, short: bool = False) -> str:
              ("C", at(SHOULDER_HALF_CM + 0.5, SHOULDER_CM + 2), at(CHEST_HALF_CM + 2, CHEST_CM - 6), at(CHEST_HALF_CM, CHEST_CM)),
              ("C", at(CHEST_HALF_CM - 0.5, CHEST_CM + 9), at(WAIST_HALF_CM, WAIST_CM - 9), at(WAIST_HALF_CM, WAIST_CM)),
              ("C", at(WAIST_HALF_CM, WAIST_CM + 5), at(HIP_HALF_CM, HIP_CM - 6), at(HIP_HALF_CM, HIP_CM)),
-             ("C", at(HIP_HALF_CM, HIP_CM + 6), at(8, CROTCH_CM + 1), at(0, CROTCH_CM + 1))]
+             ("C", at(HIP_HALF_CM, HIP_CM + 5), at(8, CROTCH_CM - 2), at(0, CROTCH_CM - 2))]
     if short:
         right = right[:3]
 
@@ -603,11 +625,14 @@ def _arm(layout: Layout) -> tuple[str, str, list[str]]:
         sleeve = next((sl for sl in fitting.sleeves(top.shape) if sl.side == -1), None)
     if sleeve is not None:   # down the middle of the sleeve, no wider than it
         cs, hs = [], []
-        for u, r in ((0.15, ra), (0.6, re_), (1.0 - 0.5 * k / max(1.0, math.dist(sleeve.shoulder, sleeve.outer)), rw)):
+        full = max(1.0, math.dist(sleeve.shoulder, sleeve.outer))
+        for u, r in ((0.15, ra), (0.6, re_), (1.0 - 0.5 * k / full, rw)):
             cs.append(sleeve.at(u, 0.5))
             hs.append(max(1.2 * k, min(r, math.dist(sleeve.at(u, 0.0), sleeve.at(u, 1.0)) / 2 - LINE - 1.0)))
         w = cs[-1]
         d = _unit(w[0] - cs[1][0], w[1] - cs[1][1])
+        # the arm's round end stays inside the cuff; the hand, drawn from the wrist, comes out of it
+        cs[-1] = sleeve.at(1.0 - (hs[-1] + LINE + 2.0) / full, 0.5)
         arm = _tube(cs, hs)
     else:
         el = (_y(ELBOW_CM) - a[1]) / d[1]
@@ -718,7 +743,7 @@ def _body(layout: Layout) -> Body:
             fs, tr = shoes.front, shoes.transforms
         else:   # no shoes: bare feet
             fs = bare_feet(k, ankle=_ankle(), toes=TOE_LINE)
-            tr = _pair(fs.bbox, *_legs(layout)[:2])
+            tr = _pair(fs.anchors["ankle"][0], *_legs(layout)[:2])
             body.feet = (fs, tr)
             x0, y0, x1, y1 = fs.bbox
             pts += [(t[0] * x + t[4], y + t[5]) for t in tr for x in (x0, x1) for y in (y0, y1)]

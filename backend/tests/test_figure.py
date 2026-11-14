@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from closet.drawing import figure as fig
-from closet.drawing import illustrate
+from closet.drawing import fitting, illustrate
 from closet.drawing.figure import CX, GROUND_Y, K_PX, LEG_CM, MARGIN, TOE_CM, WAIST_Y, Piece, figure, plan
 from closet.drawing.templates import PX_CM
 from closet.tagger.schema import Details, ItemTags, Silhouette
@@ -49,11 +49,47 @@ OUTFITS = {
 
 
 def test_tops_share_the_neck_and_shoulder_points():
-    layout = plan(OUTFITS["three layers"])
-    tops = [p for p in layout.pieces if p.place in ("base", "mid", "outer")]
-    assert [p.place for p in tops] == ["base", "mid", "outer"]
-    for anchor in ("neck", "shoulder_l", "shoulder_r"):
-        assert len({p.point(p.shape.anchors[anchor]) for p in tops}) == 1
+    """The wearer sets the proportions: every regular top is fitted so its neck sits on his neck and each sleeve's
+    shoulder seam on his shoulder point."""
+    sp = {1: (CX + fig.SHOULDER_HALF_CM * K_PX, fig.SHOULDER_Y), -1: (CX - fig.SHOULDER_HALF_CM * K_PX, fig.SHOULDER_Y)}
+    for name, pieces in OUTFITS.items():
+        tops = [p for p in plan(pieces).pieces if p.place in ("base", "mid", "outer")]
+        assert len({p.point(p.shape.anchors["neck"]) for p in tops}) == 1, name
+        for p in tops:
+            sleeves = fitting.sleeves(p.shape)
+            assert {s.side for s in sleeves} == {1, -1}
+            for s in sleeves:
+                assert p.point(s.shoulder) == pytest.approx(sp[s.side], abs=0.5), (name, p.place)
+
+
+@pytest.mark.parametrize("top", [SHIRT, OVERSHIRT, SWEATER, HOODIE, JACKET, COAT], ids=["shirt", "overshirt", "sweater", "hoodie", "jacket", "coat"])
+def test_a_long_sleeve_ends_at_the_wrist(top):
+    """Whatever the sleeve's length on the flat drawing, on him it ends round the wrist; a jacket's or coat's a
+    little past it."""
+    t = plan(dict(base=top, bottom=JEANS)).get("base")
+    outer = fig._block_for({**fig.TOP_DEFAULTS, **t.spec.params}) in fig.OUTER_BLOCKS
+    for s in fitting.sleeves(t.shape):
+        start, d, length = fig._arm_line(s.side)
+        cuff = t.point(s.cuff)
+        along = ((cuff[0] - start[0]) * d[0] + (cuff[1] - start[1]) * d[1] - length) / K_PX   # cm past the wrist
+        if outer:
+            assert 0.5 <= along <= 2.5, (s.side, along)
+        else:
+            assert abs(along) <= 1.0, (s.side, along)
+
+
+def test_a_short_sleeve_ends_above_the_elbow_and_fit_tags_still_show():
+    tee = plan(dict(base=TEE, bottom=SHORTS)).get("base")
+    for s in fitting.sleeves(tee.shape):
+        assert tee.point(s.cuff)[1] < fig._y(fig.ELBOW_CM)
+    # an oversized hoodie is fuller on him than a regular one; a slim tee narrower
+    def body_half(piece):
+        p = plan(dict(base=piece, bottom=JEANS)).get("base")
+        return p.box(p.shape.body_box)[2] - CX
+    big = Piece("hoodie", None, "#8b8e92", silhouette={"neck": "hood", "fit": "oversized"})
+    slim = Piece("tee", None, "#f4f2ee", silhouette={"sleeve": "short", "fit": "slim"})
+    assert body_half(big) > body_half(HOODIE) * 1.1
+    assert body_half(slim) < body_half(TEE)
 
 
 def test_an_open_layer_shows_what_is_under_it_and_a_closed_one_does_not():
@@ -101,13 +137,14 @@ def test_the_top_hangs_over_the_waistband(top, bottom):
 @pytest.mark.parametrize("name", list(OUTFITS))
 def test_every_piece_is_drawn_at_the_same_scale(name):
     layout = plan(OUTFITS[name])
-    assert {round(p.px_per_cm, 6) for p in layout.pieces} == {round(K_PX, 6)}
+    # the tops and the trousers are fitted to the wearer in place; everything else is drawn at his scale
+    assert {round(p.px_per_cm, 6) for p in layout.pieces if p.place not in ("base", "mid", "outer", "bottom")} <= {round(K_PX, 6)}
     b = layout.get("bottom")
-    a, _, _, d, _, _ = b.transforms[0]
-    assert d * PX_CM == pytest.approx(K_PX)                    # trouser lengths: K_PX a cm, as a top's
-    # a full-length trouser: the rise and inseam from the waist, in the tops' pixels per cm
-    if b.spec.params.get("length") == "full":
-        assert b.point(b.shape.anchors["hem"])[1] - WAIST_Y == pytest.approx((27 + 81) * K_PX)
+    assert b.point(b.shape.anchors["waist"])[1] == pytest.approx(WAIST_Y)
+    assert b.point(b.shape.anchors["crotch"])[1] == pytest.approx(fig.CROTCH_Y)
+    # a full-length trouser: the hem rests on the shoe, a break above the ground
+    if b.spec.params.get("length", "full") == "full":
+        assert b.point(b.shape.anchors["hem"])[1] == pytest.approx(fig.HEM_Y, abs=fig.DIP_CM * K_PX + 0.1)
 
 
 @pytest.mark.parametrize("name", list(OUTFITS))
@@ -120,9 +157,9 @@ def test_shoes_stand_on_the_ground_under_the_legs(name):
     legs = ([b.point(b.shape.anchors[k])[0] for k in ("leg_l", "leg_r")] if full
             else [CX - LEG_CM * K_PX, CX + LEG_CM * K_PX])
     x0, y0, x1, y1 = shoes.front.bbox
-    for copy, leg in enumerate(legs):                          # each shoe centred under its leg, toes on the ground
+    for copy, leg in enumerate(legs):                          # each ankle centred under its leg, toes on the ground
         sx = sorted(shoes.point((x, 0.0), copy)[0] for x in (x0, x1))
-        assert (sx[0] + sx[1]) / 2 == pytest.approx(leg)
+        assert shoes.point(shoes.front.anchors["ankle"], copy)[0] == pytest.approx(leg)
         assert shoes.point((0.0, 0.0), copy)[1] == pytest.approx(GROUND_Y + TOE_CM * K_PX)
         assert (sx[1] <= CX) if copy == 0 else (sx[0] >= CX)
     if full:   # a full-length hem covers the top of the shoe: the toe box and the front of the sole show below it
@@ -158,15 +195,14 @@ def test_every_kind_of_shoe_is_drawn_from_the_front(style, extra):
                 "derby": "dress_shoes", "oxford": "dress_shoes"}.get(style, "sneakers")
     shoes = Piece(category, answer(category, shoe_style=style, **extra), "#6b4a32")
     for bottom in (TROUSERS, SHORTS):
-        for face in (False, True):
-            layout = plan(dict(base=TEE, bottom=bottom, shoes=shoes))
-            placed = layout.get("shoes")
-            assert placed.front is not None and placed.front.body and placed.front.outline.startswith("M ")
-            assert placed.front.ankle                                # the wearer's ankle (a bare foot in a sandal) in it
-            svg = figure(dict(base=TEE, bottom=bottom, shoes=shoes), face=face)
-            assert all(f'<g transform="{fig._matrix(t)}"><path' in svg for t in placed.transforms)   # the pair, as drawn
-            if style == "sandal":   # skin in the sandal: the bare foot
-                assert fig.SKIN in placed.front.body.split("<path", 2)[2]
+        layout = plan(dict(base=TEE, bottom=bottom, shoes=shoes))
+        placed = layout.get("shoes")
+        assert placed.front is not None and placed.front.body and placed.front.outline.startswith("M ")
+        assert placed.front.ankle                                # the wearer's ankle (a bare foot in a sandal) in it
+        svg = figure(dict(base=TEE, bottom=bottom, shoes=shoes))
+        assert all(f'<g transform="{fig._matrix(t)}"><path' in svg for t in placed.transforms)   # the pair, as drawn
+        if style == "sandal":   # skin in the sandal: the bare foot
+            assert fig.SKIN in placed.front.body.split("<path", 2)[2]
 
 
 @pytest.mark.parametrize("name", list(OUTFITS))
@@ -346,12 +382,12 @@ def test_each_accessory_is_placed_at_its_point_on_the_wearer():
     assert got["belt"].point(got["belt"].shape.anchors["waist"]) == pytest.approx((fig.CX, fig.BELT_Y))
     assert got["scarf"].point(got["scarf"].shape.anchors["neck"]) == pytest.approx((fig.CX, fig.NECK_Y))
     hx, hy = got["hat"].point(got["hat"].shape.anchors["head"])
-    assert hx == pytest.approx(fig.CX) and hy == pytest.approx(fig.NECK_Y - fig.HAT_ABOVE_NECK_CM * K_PX)
+    assert hx == pytest.approx(fig.CX) and hy == pytest.approx(fig.HAT_Y)
     assert got["hat"].box()[3] < fig.NECK_Y   # above the collar
     # the bag beside the figure, on the viewer's right, its handle at a hand's height
     right = max(p.box()[2] for p in layout.pieces if p.place != "bag")
     assert got["bag"].box()[0] > right
-    assert got["bag"].point(got["bag"].shape.anchors["hand"])[1] == pytest.approx(WAIST_Y + fig.HAND_BELOW_WAIST_CM * K_PX)
+    assert got["bag"].point(got["bag"].shape.anchors["hand"])[1] == pytest.approx(fig._y(fig.WRIST_CM + 4))
     # each at the same scale as the clothes
     assert all(got[p].px_per_cm == K_PX for p in ("belt", "scarf", "hat", "bag"))
 
@@ -445,7 +481,7 @@ def test_the_wearer_is_a_person_about_seven_and_a_half_heads_tall():
     assert body.head and body.hair and len(body.ears) == 2 and len(body.arms) == 2 and len(body.hands) == 2
     assert len(body.legs) == 2
     head = _flat(body.head)
-    top, chin = min(y for _, y in head + _flat(body.hair)), max(y for _, y in head)   # crown of the hair to the chin
+    top, chin = min(y for _, y in head), max(y for _, y in head)   # crown of the head (under the hair) to the chin
     assert chin < fig.NECK_Y and chin < layout.get("base").box()[1]   # the chin above the collar
     heads = (GROUND_Y - top) / (chin - top)
     assert 7.0 <= heads <= 8.0
@@ -456,12 +492,11 @@ def test_the_wearer_is_a_person_about_seven_and_a_half_heads_tall():
         assert min(xs) > b.box()[2] or max(xs) < b.box()[0]
 
 
-def test_both_heads_draw_and_the_face_is_optional():
-    with_face, plain = figure(OUTFITS["tee, shorts and sneakers"], uid="q"), figure(OUTFITS["tee, shorts and sneakers"], uid="q", face=False)
-    assert fig.FACE and f'fill="{fig.EYE}"' in with_face and f'fill="{fig.EYE}"' not in plain
-    assert fig.HAIR in with_face and fig.HAIR in plain
+def test_the_head_has_a_simple_face():
+    svg = figure(OUTFITS["tee, shorts and sneakers"], uid="q")
+    assert f'fill="{fig.EYE}"' in svg and fig.HAIR in svg
     # the head is drawn over the tops, before a scarf or a hat
-    assert plain.rindex(fig.HAIR) > plain.index(TEE.color_hex)
+    assert svg.rindex(fig.HAIR) > svg.index(TEE.color_hex)
 
 
 def test_the_skin_colour_is_read_from_one_place(monkeypatch):
@@ -479,7 +514,7 @@ def test_the_shoes_are_on_the_feet(name):
     for copy, leg in enumerate(body.legs):
         end = shoes.point(ankle, copy)
         pts = _flat(leg)
-        foot = [p for p in pts if p[1] > max(y for _, y in pts) - 0.5]   # the leg's end, across the ankle
+        foot = [p for p in pts if p[1] > max(y for _, y in pts) - 1.5]   # the leg's end, across the ankle
         assert (min(x for x, _ in foot) + max(x for x, _ in foot)) / 2 == pytest.approx(end[0], abs=0.6)
         assert max(x for x, _ in foot) - min(x for x, _ in foot) == pytest.approx(2 * (edge[0] - ankle[0]), abs=0.6)
         assert min(shoes.point((x0, 0), copy)[0], shoes.point((x1, 0), copy)[0]) < end[0] < max(
@@ -539,3 +574,28 @@ def test_the_figure_does_not_change_the_items_drawings():
     pants = templates.build("pants", {})
     assert {"waist", "crotch", "hem", "leg_l", "leg_r", "hem_out", "hem_in"} <= set(pants.anchors)
     assert pants.anchors["leg_l"][0] == pytest.approx((pants.anchors["hem_out"][0] + pants.anchors["hem_in"][0]) / 2)
+
+
+FLAT_LAYS = [("tee", {"sleeve": "short"}), ("tee", {"sleeve": "short", "fit": "slim", "top_length": "cropped"}),
+             ("shirt", {}), ("shirt", {"fit": "oversized", "sleeve": "short"}), ("sweater", {"neck": "v"}),
+             ("hoodie", {"neck": "hood", "fit": "oversized"}), ("jacket", {}), ("coat", {"top_length": "long"}),
+             ("coat", {"top_length": "knee"}), ("polo", {}), ("jeans", {"leg": "tapered"}), ("trousers", {"leg": "wide"}),
+             ("chinos", {"leg": "straight", "pant_length": "ankle"}), ("shorts", {}), ("sneakers", {}),
+             ("boots", {"shoe_height": "high"}), ("sandals", {}), ("dress_shoes", {})]
+
+
+def test_fitting_garments_on_the_wearer_leaves_the_flat_drawings_byte_for_byte_alone():
+    """The garments are fitted to the wearer only in the figure: the items' own drawings (closet tiles, the item
+    page, the coverage sheets) are exactly what they were before the figure fitted them (digest taken at a389de3).
+    A deliberate change to the item drawings (with DRAWING_VERSION raised) updates this digest."""
+    import hashlib
+
+    from closet.drawing.item import svg_from_fields
+    h = hashlib.sha256()
+    for category, silhouette in FLAT_LAYS:
+        h.update((svg_from_fields(category, "#6b4a32", None, silhouette, uid="f") or "-").encode())
+    assert h.hexdigest() == "17abe72e3e2f1df5c3168977260cac7f4579f3bcaeff231005f75236793b6616"
+    # drawing a garment with its own template's shape passed in is drawing it as it is
+    spec = plan(dict(base=SHIRT)).get("base").spec
+    params = spec.params if not spec.weight or "weight" in spec.params else {**spec.params, "weight": spec.weight}
+    assert illustrate._draw(spec, "line", "f") == illustrate._draw(spec, "line", "f", shape=illustrate.build(spec.template, params))

@@ -33,6 +33,38 @@ def warp_path(d: str, fn: Callable[[Point], Point]) -> str:
     return PAIR.sub(move, d)
 
 
+def split_lines(d: str, step: float) -> str:
+    """The path with every straight segment (a closing one too) longer than `step` cut into pieces of at most that,
+    so a warp that bends can bend it."""
+    out: list[str] = []
+    cur: Point = (0.0, 0.0)
+    start: Point = cur
+
+    def line_to(q: Point) -> None:
+        n = max(1, math.ceil(math.dist(cur, q) / step))
+        out.extend(f"L {_f(cur[0] + (q[0] - cur[0]) * i / n)},{_f(cur[1] + (q[1] - cur[1]) * i / n)}" for i in range(1, n))
+    for cmd, args in re.findall(r"([MLQCZ])([^MLQCZ]*)", d):
+        pts = [(float(a), float(b)) for a, b in PAIR.findall(args)]
+        if cmd == "L":
+            for q in pts:
+                line_to(q)
+                out.append(f"L {_f(q[0])},{_f(q[1])}")
+                cur = q
+            continue
+        if cmd == "Z":
+            if math.dist(cur, start) > step:
+                line_to(start)
+            out.append("Z")
+            cur = start
+            continue
+        out.append(f"{cmd} {args.strip()}")
+        if pts:
+            cur = pts[-1]
+            if cmd == "M":
+                start = pts[0]
+    return " ".join(out)
+
+
 def points(d: str, steps: int = 8) -> list[Point]:
     """The points along a path (curves sampled), as one run; good enough for distances and extents."""
     out: list[Point] = []
@@ -191,12 +223,13 @@ def blend(body: Callable[[Point], Point], parts: list[tuple[list[Point], Callabl
 
 
 def warp(shape: Shape, fn: Callable[[Point], Point], deg: Callable[[float], float] | None = None,
-         radius: float = 1.0, box: Callable[[Point], Point] | None = None) -> Shape:
+         radius: float = 1.0, box: Callable[[Point], Point] | None = None, split: float | None = None) -> Shape:
     """The shape with every point moved by `fn`. `deg` turns the sleeves' cloth to their new angle; dots and snaps
     keep their place on the cloth and are scaled by `radius`; the body's box is moved by `box` (default `fn`), as
-    wide as its lower edge."""
+    wide as its lower edge. With `split`, straight segments are cut into pieces at most that long first, so they
+    bend with the map."""
     def path(d: str) -> str:
-        return warp_path(d, fn)
+        return warp_path(split_lines(d, split) if split else d, fn)
 
     def part(p: Part) -> Part:
         return replace(p, d=path(p.d))

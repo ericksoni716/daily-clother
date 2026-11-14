@@ -54,10 +54,11 @@ def cli_answer(answer: dict, usage=None, returncode=0):
 def cli(monkeypatch):
     """A stand-in for `claude -p`: answers `reply` and keeps the commands it was given."""
     seen = {"commands": [], "reply": cli_answer({"changes": [{"name": "placket_buttons", "value": "2"}],
-                                                 "not_understood": "", "needs_photo": False}), "files": []}
+                                                 "not_understood": "", "needs_photo": False}), "files": [], "inputs": []}
 
     def run(cmd, cwd=None, **kw):
         seen["commands"].append(cmd)
+        seen["inputs"].append(kw.get("input"))
         seen["files"].append(sorted(p.name for p in Path(cwd).iterdir()))
         return seen["reply"]
     monkeypatch.setattr(correcting.subprocess, "run", run)
@@ -90,13 +91,14 @@ def test_the_plan_route_is_tried_first_and_recorded_at_no_cost(cli):
     assert api.calls == 0 and meter.checked == []
     assert meter.recorded == [("plan", correcting.MODEL, 3500, 80)]
     cmd = cli["commands"][0]
-    assert cmd[0] == "claude" and "it has two buttons" in cmd[cmd.index("-p") + 1] and cli["files"][0] == []
+    assert cmd[0] == "claude" and "it has two buttons" in cli["inputs"][0] and cli["files"][0] == []
+    assert not any("it has two buttons" in part for part in cmd)   # the owner's words never on a command line
 
 
 def test_the_plan_route_is_given_the_photo_as_a_file(cli):
     correcting.correct("the colour is wrong", DESCRIPTION, ALLOWED, [Image.new("RGBA", (40, 60), (20, 30, 90, 255))],
                        ("plan",), exe="claude")
-    assert cli["files"][0] == ["item.jpg"] and "item.jpg" in cli["commands"][0][cli["commands"][0].index("-p") + 1]
+    assert cli["files"][0] == ["item.jpg"] and "item.jpg" in cli["inputs"][0]
 
 
 def test_a_plan_at_its_limit_falls_back_to_the_api_key(cli):

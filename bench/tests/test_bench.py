@@ -422,7 +422,7 @@ def test_the_tagging_request_and_answer_survive_a_real_http_round_trip():
 FAKE_CLAUDE = '''#!/usr/bin/env python3
 import json, os, sys
 mode = os.environ.get("FAKE_CLAUDE_MODE", "ok")
-record = {"argv": sys.argv[1:], "saw_api_key": "ANTHROPIC_API_KEY" in os.environ,
+record = {"argv": sys.argv[1:], "saw_api_key": "ANTHROPIC_API_KEY" in os.environ, "stdin": sys.stdin.read(),
           "photos": sorted(f for f in os.listdir(".") if f.endswith(".jpg"))}
 with open(os.environ["FAKE_CLAUDE_LOG"], "a") as f:
     f.write(json.dumps(record) + "\\n")
@@ -461,7 +461,7 @@ def test_plan_route_tags_through_claude_code_without_ever_seeing_the_api_key(fak
     call = calls()[0]
     assert call["saw_api_key"] is False and call["photos"] == ["photo-1.jpg", "photo-2.jpg"]
     argv = call["argv"]
-    assert argv[0] == "-p" and "photo-1.jpg, photo-2.jpg" in argv[1]
+    assert argv[0] == "-p" and "photo-1.jpg, photo-2.jpg" in call["stdin"]   # the prompt comes on standard input
     assert argv[argv.index("--model") + 1] == "claude-haiku-5-5" and argv[argv.index("--tools") + 1] == "Read"
     assert "--bare" not in argv  # bare mode cannot use the plan login
     import json

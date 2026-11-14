@@ -510,7 +510,7 @@ def test_the_plan_route_may_only_search_the_web(monkeypatch):
     seen = {}
 
     def run(cmd, **kw):
-        seen["cmd"] = cmd
+        seen["cmd"], seen["input"] = cmd, kw.get("input")
         answer = {"prices": [{"url": "https://shop.example/coat", "price": 99.0, "currency": "USD", "available": True}]}
         return SimpleNamespace(returncode=0, stderr="", stdout=json.dumps(
             {"structured_output": answer, "usage": {"input_tokens": 10, "output_tokens": 5}}))
@@ -520,4 +520,4 @@ def test_the_plan_route_may_only_search_the_web(monkeypatch):
     assert answer.prices[0].price == 99.0
     cmd = seen["cmd"]
     assert cmd[cmd.index("--tools") + 1] == "WebSearch,WebFetch" and cmd[cmd.index("--allowedTools") + 1] == "WebSearch,WebFetch"
-    assert "https://shop.example/coat" in cmd[cmd.index("-p") + 1]
+    assert "https://shop.example/coat" in seen["input"] and not any("shop.example" in part for part in cmd)

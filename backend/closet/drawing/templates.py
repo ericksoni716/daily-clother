@@ -16,6 +16,7 @@ from ..tagger.taxonomy import SHOE_STYLES  # shared with the tagger
 
 W, H = 400, 460
 CX = 200.0
+CX_ROT = (200, 120)  # patterns and a sleeve's cloth are turned about the middle of the chest
 
 
 @dataclass
@@ -38,6 +39,7 @@ class Shape:
     behind: list[Part] = field(default_factory=list)
     sleeves: list[tuple[str, float]] = field(default_factory=list)  # (path, degrees the cloth is turned)
     seams: list[str] = field(default_factory=list)  # thin lines on the body that parts (a collar) lie over
+    folds: list[str] = field(default_factory=list)  # soft drape wrinkles of a light cloth, fainter than a seam
     sole_default: str | None = None  # the sole's colour when the photo gives none (leather shoes: dark brown)
     snaps: list[tuple[float, float, float]] = field(default_factory=list)  # press studs: a ring round a cap, not a button
     # worn open: (the edge of the front that lies on top, the viewer's right one, as a run of points from the
@@ -143,7 +145,7 @@ GAUGE_BAND = {"extra_fine": 0.8, "fine": 0.9, "medium": 1.0, "chunky": 1.25, "su
 LEAVES = {
     "semi_spread": (25, 23, "sharp"), "point": (18, 30, "sharp"), "spread": (30, 16, "sharp"), "cutaway": (33, 8.5, "sharp"),
     "button_down": (21, 27, "roll"), "hidden_button_down": (21, 27, "roll"), "club": (24, 22, "club"),
-    "tab": (18, 30, "sharp"), "pin": (19, 29, "sharp"), "western": (23, 37, "sharp"),
+    "tab": (10, 29, "sharp"), "pin": (19, 29, "sharp"), "western": (23, 37, "sharp"),
     "knit": (27, 18.5, "sharp"), "johnny": (32, 15, "sharp"), "rugby": (25, 20, "sharp"),
 }
 BAND_COLLARS = ("band", "stand", "wing", "rib")
@@ -262,8 +264,25 @@ def _scallop(pts, spacing, amp, outward=1):
             x = a[0] + (b[0] - a[0]) * i / n
             y = a[1] + (b[1] - a[1]) * i / n
             f = ((y - 0.8) % spacing) / spacing
-            out.append((x + outward * amp * math.sin(math.pi * f), y))
+            ease = min(1.0, (y - pts[0][1]) / 14)   # grows in from the underarm, so no sliver opens beside the sleeve
+            out.append((x + outward * amp * ease * math.sin(math.pi * f), y))
     out.append(pts[-1])
+    return out
+
+
+def _scallop_run(a, b, spacing, amp, deg, outward):
+    """Points from a to b (both excluded) swelling out by up to amp between the channels of a puffer's
+    sleeve. The channels are the body's, turned by deg about CX_ROT with the sleeve's cloth, so the
+    pinches fall on the stitched lines; outward is the unit direction the edge swells to."""
+    r = math.radians(deg)
+    n = max(2, int(math.dist(a, b) / 2))
+    out = []
+    for i in range(1, n):
+        x, y = a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n
+        py = math.sin(r) * (x - CX_ROT[0]) + math.cos(r) * (y - CX_ROT[1]) + CX_ROT[1]
+        f = ((py - 0.8) % spacing) / spacing
+        s = amp * math.sin(math.pi * f) * min(1.0, i / n * 8, (n - i) / n * 8)   # eased in at both ends
+        out.append((x + outward[0] * s, y + outward[1] * s))
     return out
 
 
@@ -491,7 +510,21 @@ def top(**kw) -> Shape:
             sil = corner + [Ci, A]
             side_from = side
             sh_over = None
-        arm = f"Q {_pt(K)} {_pt(P1)} L " + " L ".join(_pt(v) for v in sil)
+        puff, puff_in = [], []   # a puffer's sleeve swells between its channels on both edges, down to the cuff
+        if p.get("quilting") == "baffle":
+            amp = 3.2 + bulk * 0.3
+            cuff_d = {"rib": 17 * bs, "button": 22 + bulk, "button2": 22 + bulk, "mitred": 22 + bulk, "french": 28 + bulk,
+                      "snap3": 31 + bulk}.get(cuffs, 0) if kind in ("long", "three-quarter") else 0
+            end = (Co[0] - d[0] * cuff_d, Co[1] - d[1] * cuff_d)
+            puff = _scallop_run(P1, end, 32.0, amp, math.degrees(thr), (d[1], -d[0])) + [end]
+            if Ci in sil:   # the inner edge, from the top of the cuff up to where it meets the body
+                Bi_ = _lerp(Ci, A, min(0.9, cuff_d / max(1.0, math.dist(Ci, A))))
+                puff_in = [Bi_] + _scallop_run(Bi_, A, 32.0, amp, math.degrees(thr), (-d[1], d[0]))
+                i_c = sil.index(Ci) + 1
+                nxt = sil[i_c] if i_c < len(sil) else A
+                puff_in = [v for v in puff_in if math.dist(Ci, v) < math.dist(Ci, nxt) - 10]
+                sil = sil[:i_c] + puff_in + sil[i_c:]
+        arm = f"Q {_pt(K)} {_pt(P1)} L " + " L ".join(_pt(v) for v in puff + sil)
         arm_pts_r = None
 
     # ---- outline, clockwise from the right neck point
@@ -517,6 +550,7 @@ def top(**kw) -> Shape:
     if sleeved:
         sil_l = [_mirror(v) for v in sil[::-1]]
         arm_l = (" ".join(f"L {_pt(v)}" for v in left_side_pts[1:]) + " L " + " L ".join(_pt(v) for v in sil_l[1:])
+                 + "".join(f" L {_pt(_mirror(v))}" for v in puff[::-1])
                  + f" L {_pt(_mirror(P1))} Q {_pt(_mirror(K))} {_pt(_mirror(S))}")
     else:
         arm_l = (" ".join(f"L {_pt(v)}" for v in left_side_pts[1:])
@@ -554,7 +588,8 @@ def top(**kw) -> Shape:
     if cuff:
         deg = math.degrees(th)
         s0, s1, s2, s3 = seam
-        right_sleeve = (f"M {_pt(S)} Q {_pt(K)} {_pt(P1)} L " + " L ".join(_pt(v) for v in corner) + f" L {_pt(Ci)} L {_pt(A)} "
+        right_sleeve = (f"M {_pt(S)} Q {_pt(K)} {_pt(P1)} L " + " L ".join(_pt(v) for v in puff + corner) + f" L {_pt(Ci)} "
+                        + "".join(f"L {_pt(v)} " for v in puff_in) + f"L {_pt(A)} "
                         f"C {_pt(s2)} {_pt(s1)} {_pt(s0)} Z")
         sh.sleeves = [(right_sleeve, -deg), (_mirror_path(right_sleeve), deg)]
         if sh_over:   # the sleeve's inner edge where it lies over the body
@@ -693,11 +728,12 @@ def top(**kw) -> Shape:
             sh.seams.append(f"M {_pt(Nl)} Q {_pt((CX - 22, stand_y))} {_pt((CX, stand_y))} Q {_pt((CX + 22, stand_y))} {_pt(N)}")
             front_bottom = stand_y
             stand_button = btn_y
-            if cs == "tab":   # a strap joins the points under the tie, buttoned over the top button
-                tw = 3.2
+            if cs == "tab":   # a rounded strap joins the close-set points under the tie, buttoned in the middle
+                ty, tw = C0[1] + dy * 0.62, 7.5
+                half = dx * (ty - C0[1]) / dy + 9       # its ends tuck under the leaves
                 first_leaf = next(i for i, q in enumerate(sh.parts) if q.role == "collar_r")
-                sh.parts.insert(first_leaf, Part(_poly([(CX - 14, btn_y - tw), (CX + 14, btn_y - tw), (CX + 14, btn_y + tw),
-                                                               (CX - 14, btn_y + tw)]), "cuff"))
+                sh.parts.insert(first_leaf, Part(_capsule_h(CX - half, CX + half, ty, 2 * tw), "trim"))
+                sh.dots.append((CX, ty, 3.0))
                 stand_button = None
     elif banded:
         # A stand with no leaves: its front rises from the neckline seam; above its top
@@ -716,9 +752,9 @@ def top(**kw) -> Shape:
             sh.parts.append(Part(_poly(band), role or f"collar_{side}"))
             if role is None:
                 sh.parts.append(Part(_poly([m(v) for v in top_r + bot_r], close=True), "edge"))
-        if cs == "wing":   # the stand's front tips are pressed out into small wings
+        if cs == "wing":   # the stand's front tips are pressed out into wings, wide enough to read at item size
             for m, side in sides:
-                w = [(CX + 1.2, y_ct - 0.5), (CX + 15, y_ct - 4), (CX + 13, y_ct + 12)]
+                w = [(CX + 1.2, y_ct - 0.5), (CX + 28, y_ct + 2), (CX + 19, y_ct + 12.5), (CX + 4.5, y_cb - 1)]
                 sh.parts.append(Part(_poly([m(v) for v in w]), f"collar_{side}"))
                 sh.parts.append(Part(_poly([m(v) for v in w]), "edge"))
         if front != "none":
@@ -773,6 +809,10 @@ def top(**kw) -> Shape:
         S_, c1_, c2_, A_ = armhole
         pts = [S_] + _bez(S_, c1_, c2_, A_, 14)
         inner = _offset_line(pts, -9 * bs)
+        # both edges run on past the side seam and the outline cuts them, so the band meets the side at full width
+        t = _unit((pts[-1][0] - pts[-2][0], pts[-1][1] - pts[-2][1]))
+        pts = pts + [(A_[0] + 8, A_[1] + t[1] * 8 / max(t[0], 0.3))]
+        inner = inner + [(inner[-1][0] + 12, inner[-1][1] + t[1] * 12 / max(t[0], 0.3))]
         for m, _ in sides:
             sh.parts.append(Part(_poly([m(v) for v in pts + inner[::-1]]), "band", clip=True))
 
@@ -835,7 +875,22 @@ def top(**kw) -> Shape:
 
     # ---- hem
     rib_h = (7.0 if block in ("knit", "bomber") else 5.5) * K_PX * bs
-    if p["hem"] == "rib":
+    if p["hem"] == "rib" and leafy and woven:   # a woven jacket (a trucker): a buttoned waistband with side adjusters
+        b = min(rib_h, 5 * K_PX + bulk * 0.5)
+        xb = _x_on(side_from, hy - b)
+        sh.parts.append(Part(
+            f"M {_pt((xb, hy - b))} L {_pt(Hc)} Q {_pt((CX, hy + hem_dip))} {_pt(Hl)} "
+            f"L {_pt((2 * CX - xb, hy - b))} Q {_pt((CX, hy - b + hem_dip))} {_pt((xb, hy - b))} Z", "cuff"))
+        if front != "none":
+            sh.parts.append(Part(f"M {_pt((CX - 7, hy - b + hem_dip / 2))} L {_pt((CX - 7, hy + hem_dip / 2))}", "edge"))
+            fasten(CX, hy - b / 2 + hem_dip / 2, 3.4)
+        yt, yb_ = hy - b + 3.5, hy - 2
+        xe = _x_on(side_from, hy - b / 2) - 8
+        tab = [(xe, yt), (xe - 20, yt), (xe - 26, (yt + yb_) / 2), (xe - 20, yb_), (xe, yb_)]
+        for m in (lambda v: v, _mirror):
+            sh.parts.append(Part(_poly([m(v) for v in tab]), "cuff"))
+            fasten(*m((xe - 18, (yt + yb_) / 2)), 2.4)
+    elif p["hem"] == "rib":
         b = rib_h
         xb = _x_on(side_from, hy - b)
         sh.parts.append(Part(
@@ -967,6 +1022,21 @@ def top(**kw) -> Shape:
             sh.lines.append(f"M {_pt((CX - 5, end))} L {_pt((CX + 5, end))}")
 
     _pockets(sh, p["pockets"], sy, hy, hh, hs, p["hem"], cuff, A, rib_h, lapel_front)
+    if wt == 0 and not jacket:   # a light cloth drapes: soft folds fall from the underarm and gather at the elbow
+        Ub = U or A
+        # one long fold from the underarm and a shorter, steeper one below it; the two sides differ, as cloth does
+        for m, folds, at in ((lambda v: v, ((3, 4, 44, 0.78, 0.62), (4, 29, 22, 0.5, 0.86)), 0.55),
+                             (_mirror, ((3, 9, 36, 0.66, 0.75), (5, 40, 16, 0.38, 0.92)), 0.47)):
+            for dx_, dy_, ln_, ux, uy in folds:
+                a0 = (_x_on(side_from, Ub[1] + dy_) - dx_, Ub[1] + dy_)
+                a1 = (a0[0] - ln_ * ux, a0[1] + ln_ * uy)
+                sh.folds.append(f"M {_pt(m(a0))} Q {_pt(m((a0[0] - ln_ * ux * 0.3, a0[1] + ln_ * uy * 0.75)))} {_pt(m(a1))}")
+            if cuff and sleeve in ("long", "three-quarter") and not (p["pockets"] == "utility" and m is not _mirror):
+                Co, Ci, d = cuff   # an elbow fold, clear of a sleeve pocket
+                o, i_ = _lerp(P1, Co, at), _lerp(A, Ci, at)
+                f0, f1 = _lerp(o, i_, 0.1), _lerp(o, i_, 0.48)
+                sag = _lerp(f0, f1, 0.5)
+                sh.folds.append(f"M {_pt(m(f0))} Q {_pt(m((sag[0] + d[0] * 6, sag[1] + d[1] * 6)))} {_pt(m(f1))}")
     if state == "open" and front != "none":   # the edge of the front that lies on top, for the renderer to open
         if lapel_front and lapel_front[0] == "cardigan":
             apex = (CX - lapel_front[2] / 2, lapel_front[1])      # the V's point; the button band runs down from it

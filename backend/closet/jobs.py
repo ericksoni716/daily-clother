@@ -9,6 +9,7 @@ same table.
 from __future__ import annotations
 
 import logging
+import shutil
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -81,6 +82,10 @@ def run_one(conn, images_dir: Path, cutter: Cutter, tag: bool = True) -> bool:
         return True
     t = db.now()
     conn.execute("BEGIN IMMEDIATE")
+    if conn.execute("SELECT 1 FROM items WHERE id = ?", (job["item_id"],)).fetchone() is None:
+        conn.execute("COMMIT")   # deleted while its cutout ran: what was just written goes too
+        shutil.rmtree(images_dir / job["item_id"], ignore_errors=True)
+        return True
     conn.execute("UPDATE photos SET cutout_path = ?, cutout_thumb_path = ? WHERE id = ?", (rel, rel_thumb, job["photo_id"]))
     conn.execute("UPDATE jobs SET state = 'done', error = NULL, updated_at = ? WHERE id = ?", (t, job["id"]))
     conn.execute("UPDATE items SET cutout_state = 'ready', cutout_error = NULL, updated_at = ? WHERE id = ?", (t, job["item_id"]))

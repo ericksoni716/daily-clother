@@ -68,6 +68,19 @@ def test_deleting_an_item_drops_its_queued_job(client, services):
     assert drain(services) == 0
 
 
+def test_an_item_deleted_while_its_cutout_runs_leaves_no_pictures_behind(client, services, cfg):
+    item = upload(client).json()
+    services.worker.is_ready = lambda: True
+
+    def deleted_meanwhile(img):
+        assert client.delete(f"/api/items/{item['id']}").status_code == 204
+        return fake_cutter(img)
+
+    services.worker.cutter = deleted_meanwhile
+    drain(services)
+    assert not (cfg.images_dir("main") / item["id"]).exists()
+
+
 # ---- model download states
 
 PAYLOAD = bytes(range(256)) * 4000  # about 1 MB

@@ -1,4 +1,7 @@
+import { resolve } from 'node:path';
 import { expect, login, test, useProfile } from './fixtures';
+
+const SHOTS = resolve(import.meta.dirname, '../../docs/screenshots');
 
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
@@ -47,22 +50,59 @@ test('in the demo closet: pick the number of buttons, see the drawing change, un
   await expect(detail.getByRole('alert')).toContainText('never sent to Claude');
 });
 
-test('in the demo closet: say which kind a top is, in words, and undo it', async ({ page }) => {
+test('in the demo closet: say what it is with the kind picker, see the drawing change, and undo it', async ({ page }) => {
   await login(page);
   await useProfile(page, 'demo');
   await page.getByTestId('tile').filter({ hasText: 'Grey hoodie' }).click();
   const detail = page.locator('.detail-panel');
-  await detail.getByRole('button', { name: 'Fix the details' }).click();
-  await detail.getByRole('button', { name: /^Kind: / }).click();
-  const kinds = detail.getByRole('group', { name: 'Which kind is it?' });
-  await expect(kinds.getByRole('button', { name: 'not said' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(kinds.getByRole('button', { name: 'joggers' })).toHaveCount(0);   // only the kinds a top can be
-  await kinds.getByRole('button', { name: 'fleece pullover', exact: true }).click();
-  await expect(detail.getByRole('button', { name: 'Kind: fleece pullover (set by you)' })).toBeVisible();
+  const drawing = detail.getByRole('img', { name: 'Grey hoodie, drawing' });
+  await expect(drawing).toBeVisible();
+  const before = (await drawing.getAttribute('src'))!;
+  const row = detail.getByTestId('what-is-it');
+  const was = (await row.getAttribute('aria-label'))!;
+  await expect(row).toHaveAccessibleName(/^What is it\?: .*Kind not said yet$/);
+
+  await row.click();
+  const picker = page.getByRole('dialog', { name: 'What is it?' });
+  await expect(picker.getByRole('group', { name: 'Groups' })).toBeVisible();
+  await picker.getByRole('searchbox').fill('fleece');
+  const found = picker.getByRole('region', { name: 'Kinds found' });
+  await expect(found.getByRole('button', { name: 'Joggers' })).toHaveCount(0);
+  await expect(found.locator('img').first()).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  await page.screenshot({ path: `${SHOTS}/kind-picker-computer.png` });
+  await found.getByRole('button', { name: 'Fleece pullover', exact: true }).click();
+
+  await expect(picker).toHaveCount(0);
+  await expect(row).toHaveAccessibleName('What is it?: Fleece pullover · Activewear. Set by you');
+  await expect(detail.getByTestId('kind-pic')).toBeVisible();
+  await expect(drawing).not.toHaveAttribute('src', before);
+  await page.waitForLoadState('networkidle');
+  await page.screenshot({ path: `${SHOTS}/kind-chosen-computer.png` });
+
+  // the picker marks the kind it is now
+  await row.click();
+  await picker.getByRole('searchbox').fill('fleece');
+  await expect(picker.getByRole('button', { name: 'Fleece pullover', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await picker.getByRole('button', { name: 'Done' }).click();
+
+  // the Closet can be filtered by group and by kind
+  await page.locator('.closet-toolbar').getByRole('button', { name: /^Filter/ }).click();
+  const filters = page.getByRole('dialog', { name: 'Filter' });
+  await filters.getByRole('group', { name: 'Filter by group' }).getByRole('button', { name: 'Activewear' }).click();
+  await filters.getByRole('group', { name: 'Filter by kind' }).getByRole('button', { name: 'Fleece pullover' }).click();
+  await filters.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByTestId('tile')).toHaveCount(1);
+  await expect(page.getByTestId('tile')).toContainText('Grey hoodie');
+  await page.getByRole('button', { name: 'Remove filter: Fleece pullover' }).click();
+  await page.getByRole('button', { name: 'Remove filter: Activewear' }).click();
+
   await detail.locator('summary', { hasText: 'History' }).click();
   const line = 'You changed the kind from not said to fleece pullover';
   await detail.getByRole('button', { name: `Undo: ${line}` }).click();
   await expect(detail.getByText(`${line} (undone)`)).toBeVisible();
+  await expect(row).toHaveAttribute('aria-label', was);
+  await expect(drawing).toHaveAttribute('src', before);
 });
 
 test('on a phone the details fit the screen', async ({ page }) => {

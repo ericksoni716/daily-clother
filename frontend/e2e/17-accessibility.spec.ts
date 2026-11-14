@@ -77,6 +77,13 @@ for (const [layout, use] of LAYOUTS) {
         await page.getByRole('button', { name: /^Season/ }).click();
         await expect(page.getByRole('group', { name: 'Season' })).toBeVisible();
         await check(page, 'item field', phone, shot);
+        await page.keyboard.press('Escape');
+        await page.getByRole('button', { name: /^What is it\?:/ }).click();
+        await expect(page.getByRole('dialog', { name: 'What is it?' }).locator('.fix-tile img').first()).toBeVisible();
+        await check(page, 'kind picker', phone, shot);
+        await page.getByRole('dialog', { name: 'What is it?' }).getByRole('searchbox').fill('fleece');
+        await check(page, 'kind search', phone, shot);
+        await page.keyboard.press('Escape');
 
         await visit(page, '/today', '#today-title');
         await expect(page.getByTestId('current-outfit').getByTestId('piece').first()).toBeVisible();

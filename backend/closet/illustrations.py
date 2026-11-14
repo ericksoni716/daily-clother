@@ -24,7 +24,7 @@ import logging
 import sqlite3
 from dataclasses import replace
 
-from . import details, drawing
+from . import details, drawing, kinds
 from .drawing import item as draw
 from .drawing import stored
 from .drawing.figure import PLACES, Piece, figure
@@ -55,13 +55,16 @@ def drawn_answer(row, extra: dict | None = None) -> dict | None:
     source = _json(row["source"], {})
     silhouette = _json(row["silhouette"], {})
     answer = _json(row["tag_answer"], None)
-    owner = {**details.own(row), **(extra or {})}
+    kind = kinds.owner_kind(row)
+    owner = {k: v for k, v in details.own(row).items() if kinds.applies(kind, k)}   # what the kind has not is kept, not drawn
+    owner.update(extra or {})
     if not isinstance(answer, dict):
         if not owner:
             return None
         answer = details.plain_answer(row["category"], silhouette, row["color"], row["pattern"])
         if answer is None:
             return None
+    said = kinds.said_kind(answer)
     answer = dict(answer)
     for field in ("category", "color", "pattern"):
         if source.get(field) == OWNER:
@@ -78,6 +81,8 @@ def drawn_answer(row, extra: dict | None = None) -> dict | None:
         answer["silhouette"] = {k: said.get(k) if silhouette.get(k) is None else silhouette.get(k) for k in SILHOUETTE_FIELDS}
     if owner and isinstance(answer.get("details"), dict):
         answer["details"] = details.lay(answer["details"], owner)   # the owner's details win over Claude's
+    if kind and isinstance(answer.get("details"), dict):
+        answer["details"] = kinds.conform(answer["details"], kind, said, owner)   # and the drawing follows their kind
     return answer
 
 

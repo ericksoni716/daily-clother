@@ -37,6 +37,7 @@ from . import (
     instance,
     items,
     jobs,
+    kinds,
     life,
     outfits,
     patjobs,
@@ -268,11 +269,12 @@ class ModelUrl(BaseModel):
 
 
 # the routes that correct an item answer wrong input with a sentence, not pydantic's list of errors
-CORRECTING = re.compile(r"^/api/items/[^/]+/(details|correct|correct/confirm|history/[^/]+/undo)$")
+CORRECTING = re.compile(r"^/api/items/[^/]+/(details|kind|correct|correct/confirm|history/[^/]+/undo)$")
 PLAIN_INPUT = {
     "sentence": "Write the correction as words.",
     "changes": "Send the changes to confirm as a list, each with a name and a value.",
     "details": "Send the details to change as names, each with its new value.",
+    "kind": "Send the kind to choose, as its name in the list.",
     "change_id": "That is not a change in this item's history.",
 }
 
@@ -289,6 +291,10 @@ def plain_input(e: RequestValidationError) -> str:
 
 class DetailsBody(BaseModel):
     details: dict
+
+
+class KindBody(BaseModel):
+    kind: str
 
 
 class Sentence(BaseModel):
@@ -446,7 +452,21 @@ def create_app(sv: Services) -> FastAPI:
 
     @app.get("/api/vocab", dependencies=protected)
     def get_vocab():
-        return vocab.as_dict()
+        return {**vocab.as_dict(), "kind_groups": kinds.catalogue()["groups"]}
+
+    @app.get("/api/kinds", dependencies=protected)
+    def get_kinds():
+        return kinds.catalogue()
+
+    @app.get("/api/kinds/{kind}.svg", dependencies=protected)
+    def get_kind_drawing(kind: str, color: str = kinds.TILE_HEX):
+        if kind not in kinds.KINDS:
+            raise HTTPException(404, "There is no such kind.")
+        svg = kinds.drawing(kind, color.lower())
+        if svg is None:
+            raise HTTPException(404, "This kind has no drawing.")
+        return Response(svg, media_type="image/svg+xml", headers={
+            "Cache-Control": "private, max-age=86400", "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
 
     @app.get("/api/items", dependencies=protected)
     def list_items(status: str = "active", category: str | None = None, q: str | None = None, laundry: str | None = None,
@@ -537,6 +557,10 @@ def create_app(sv: Services) -> FastAPI:
     @app.put("/api/items/{item_id}/details", dependencies=protected)
     def set_details(item_id: str, body: DetailsBody, conn=Depends(conn_dep)):
         return corrections.apply(conn, item_id, body.details)
+
+    @app.put("/api/items/{item_id}/kind", dependencies=protected)
+    def set_kind(item_id: str, body: KindBody, conn=Depends(conn_dep)):
+        return corrections.set_kind(conn, item_id, body.kind)
 
     @app.post("/api/items/{item_id}/correct", dependencies=protected)
     async def correct_item(item_id: str, body: Sentence):

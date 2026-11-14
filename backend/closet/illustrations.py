@@ -27,7 +27,7 @@ from dataclasses import replace
 from . import details, drawing, kinds
 from .drawing import item as draw
 from .drawing import stored
-from .drawing.figure import PLACES, Piece, figure
+from .drawing.figure import PLACES, Piece, as_worn, figure
 from .tagger.schema import SILHOUETTE_FIELDS, Details
 
 log = logging.getLogger("closet.illustrations")
@@ -112,6 +112,15 @@ def describe(row, extra: dict | None = None) -> Piece:
     piece = Piece(answer.get("category"), answer, row["color_hex"] if own_hex else None, row["color"], row["pattern"],
                   silhouette)
     return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row))
+
+
+def worn(row) -> list[dict]:
+    """How the item sits on the outfit figure, in words, each with the detail that corrects it (figure.as_worn)."""
+    try:
+        return as_worn(describe(row))
+    except Exception:
+        log.exception("telling how item %s is worn failed", row["id"])
+        return []
 
 
 def pattern_fill(row, piece: Piece | None = None):

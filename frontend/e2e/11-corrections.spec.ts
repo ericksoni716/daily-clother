@@ -139,3 +139,30 @@ test('offline: fixing the details and undoing are off, and say why', async ({ pa
   await expect(panel.getByText("You're offline, so the history can't be shown or undone right now.")).toBeVisible();
   await context.setOffline(false);
 });
+
+test('in the demo closet: the fit line says how it sits, and a word opens its detail to fix', async ({ page }) => {
+  await login(page);
+  await useProfile(page, 'demo');
+  const listed = (await (await page.request.get('/api/items')).json()).items as { id: string; name: string }[];
+  const polo = listed.find((i) => i.name === 'Navy polo')!;
+  const worn = (await (await page.request.get(`/api/items/${polo.id}`)).json()).as_worn as { part: string; value: string }[];
+  expect(worn).toContainEqual(expect.objectContaining({ part: 'sleeve', value: 'short' }));
+
+  await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
+  const detail = page.locator('.detail-panel');
+  const line = detail.getByTestId('worn-line');
+  await expect(line).toHaveText(/^Regular fit · short sleeves$/);
+  await line.getByRole('button', { name: 'short sleeves' }).click();
+
+  // "Fix the details" opens at the sleeve length, with its choices
+  await expect(detail.getByRole('button', { name: 'Close the details' })).toBeVisible();
+  const choices = detail.getByRole('group', { name: 'Choices for the sleeve length' });
+  await expect(choices).toBeVisible();
+  await choices.getByRole('button', { name: 'long', exact: true }).click();
+  await expect(line).toHaveText(/^Regular fit · long sleeves$/);
+
+  // put it back for the specs after this one
+  await detail.locator('summary', { hasText: 'History' }).click();
+  await detail.getByRole('button', { name: /^Undo: You changed the sleeve length/ }).click();
+  await expect(line).toHaveText(/^Regular fit · short sleeves$/);
+});

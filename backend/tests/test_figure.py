@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from closet.drawing import figure as fig
-from closet.drawing import fitting, illustrate
+from closet.drawing import fitting, frontshoe, illustrate, templates
 from closet.drawing.figure import CX, GROUND_Y, K_PX, LEG_CM, MARGIN, TOE_CM, WAIST_Y, Piece, figure, plan
 from closet.drawing.templates import PX_CM
 from closet.tagger.schema import Details, ItemTags, Silhouette
@@ -825,3 +825,152 @@ def test_fitting_garments_on_the_wearer_leaves_the_flat_drawings_byte_for_byte_a
     spec = plan(dict(base=SHIRT)).get("base").spec
     params = spec.params if not spec.weight or "weight" in spec.params else {**spec.params, "weight": spec.weight}
     assert illustrate._draw(spec, "line", "f") == illustrate._draw(spec, "line", "f", shape=illustrate.build(spec.template, params))
+
+
+# ------------------------------------------------------------------ as worn: fit and length
+
+def _tee(fit: str, **more) -> Piece:
+    return Piece("tee", answer("tee", fit_detail=fit, sleeve_length="short", neckline="crew", **more), "#f4f2ee")
+
+
+def _side(t, cm: float) -> float:
+    """How far the top's body reaches from the middle at a height on him (cm): its outline's nearest crossing."""
+    y = fig._y(cm)
+    pts = [t.point(q) for q in fitting.points(t.shape.outline)]
+    xs = [x0 + (y - y0) * (x1 - x0) / (y1 - y0) for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1], strict=True)
+          if (y0 > y) != (y1 > y) and x0 > CX]
+    return (min(xs) - CX) / K_PX
+
+
+def _hem_cm(t) -> float:
+    return (t.point(t.shape.anchors["hem"])[1] - fig.CROWN_Y) / K_PX
+
+
+def test_the_fit_sets_how_far_the_body_and_sleeves_stand_off_him():
+    """The same tee, slim to oversized: its body is wider at every height and its sleeves fuller, in that order."""
+    fits = ("slim", "regular", "relaxed", "oversized")
+    tops = [plan(dict(base=_tee(f), bottom=TROUSERS)).get("base") for f in fits]
+    for cm in (65.0, 75.0, 85.0):
+        widths = [_side(t, cm) for t in tops]
+        assert all(a < b - 0.3 for a, b in zip(widths, widths[1:], strict=False)), (cm, widths)
+        assert widths[-1] > widths[1] + 4.0, (cm, widths)
+    sleeves = []
+    for t in tops:
+        s = next(s for s in fitting.sleeves(t.shape) if s.side == 1)
+        y = fig._y(57.0)
+        sleeves.append(_sleeve_across(t, s, y)[1])   # its outer edge, off the arm
+    assert sleeves == sorted(sleeves) and sleeves[0] < sleeves[-1] - 2 * K_PX, sleeves
+
+
+def test_a_slim_top_is_shaped_at_the_waist():
+    t = plan(dict(base=_tee("slim"), bottom=TROUSERS)).get("base")
+    chest, waist, hip = _side(t, 62.0), _side(t, fig.WAIST_CM), _side(t, fig.HIP_CM + 2)
+    assert waist < chest - 0.8 and waist < hip - 1.2, (chest, waist, hip)
+    assert waist > fig.WAIST_HALF_CM, waist   # still off his sides
+    regular = plan(dict(base=_tee("regular"), bottom=TROUSERS)).get("base")
+    assert waist < _side(regular, fig.WAIST_CM) - 1.5
+
+
+@pytest.mark.parametrize(("piece", "landmark"), [
+    (_tee("cropped"), "waist"), (_tee("regular"), "hip"), (_tee("longline"), "below_hip"),
+    (Piece("tee", None, "#888888"), "hip"),   # nothing told: a regular length
+    (Piece("jacket", answer("jacket", collar="point", placket="zip_full", fit_detail="cropped"), "#2a3550"), "waist"),
+    (Piece("jacket", answer("jacket", collar="point", placket="zip_full"), "#2a3550"), "hip"),
+    (Piece("coat", answer("coat", {"top_length": "long"}, collar="notch_lapel", placket="front_placket"), "#232326"), "thigh"),
+], ids=["cropped tee", "regular tee", "longline tee", "untold tee", "cropped jacket", "jacket", "long coat"])
+def test_a_top_ends_at_the_landmark_its_length_goes_to(piece, landmark):
+    t = plan(dict(base=piece, bottom=TROUSERS)).get("base")
+    assert _hem_cm(t) == pytest.approx(fig.HEM_AT[landmark], abs=1.0)
+
+
+def test_a_coat_goes_to_the_hip_the_thigh_or_the_knee():
+    assert [fig.reaches({"length": n}, category="coat") for n in ("cropped", "regular", "long", "knee")] == \
+        ["waist", "hip", "thigh", "knee"]
+    assert [fig.reaches({"length": n}, category="shirt") for n in ("cropped", "regular", "long")] == ["waist", "hip", "below_hip"]
+    assert fig.reaches({}, category="tee") == "hip"
+    assert fig.HEM_AT["thigh"] < fig.KNEE_CM < fig.HEM_AT["knee"]
+
+
+def test_a_boxy_top_is_shorter_and_an_oversized_one_longer():
+    hems = {f: _hem_cm(plan(dict(base=_tee(f), bottom=TROUSERS)).get("base")) for f in ("boxy", "regular", "oversized")}
+    assert hems["boxy"] < hems["regular"] - 3 and hems["oversized"] > hems["regular"] + 3, hems
+
+
+@pytest.mark.parametrize(("length", "cm"), [("short", fig.SLEEVE_ENDS["short"]), ("elbow", fig.SLEEVE_ENDS["elbow"]),
+                                            ("three_quarter", fig.SLEEVE_ENDS["three-quarter"]), ("long", fig.WRIST_CM)])
+def test_a_sleeve_ends_where_its_length_goes(length, cm):
+    """Short halfway down the upper arm (below the underarm, above the elbow), elbow at the elbow, three-quarter
+    down the forearm, long at the wrist."""
+    shirt = Piece("shirt", answer("shirt", collar="point", placket="front_placket", sleeve_length=length,
+                                  cuff="barrel_1" if length == "long" else "open_hem"), "#a9c3e0")
+    t = plan(dict(base=shirt, bottom=TROUSERS)).get("base")
+    for s in fitting.sleeves(t.shape):
+        start, d, _ = fig._arm_line(s.side)
+        cuff = t.point(s.cuff)
+        assert (cuff[1] - fig.CROWN_Y) / K_PX == pytest.approx(cm, abs=1.5), (s.side, length)
+    assert fig.ARMPIT_CM < fig.SLEEVE_ENDS["short"] < fig.ELBOW_CM < fig.SLEEVE_ENDS["three-quarter"] < fig.WRIST_CM
+
+
+def _leg_width(b, cm: float) -> float:
+    y = fig._y(cm)
+    pts = [b.point(q) for q in fitting.points(b.shape.outline)]
+    xs = sorted(x0 + (y - y0) * (x1 - x0) / (y1 - y0) for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1], strict=True)
+                if (y0 > y) != (y1 > y) and x0 < CX)
+    return (xs[-1] - xs[0]) / K_PX
+
+
+def test_the_trouser_leg_follows_its_shape():
+    """Slim narrows to its hem, straight falls straight, wide stays wide: the leg is wider in that order at the
+    knee and the hem, and only the slim one narrows much below the knee."""
+    legs = {leg: plan(dict(base=TEE, bottom=Piece("trousers", answer("trousers", {"pant_length": "full"}, leg_shape=leg),
+                                                       "#6f7278"))).get("bottom") for leg in ("slim", "straight", "wide")}
+    for cm in (fig.KNEE_CM, 168.0):
+        w = [_leg_width(legs[k], cm) for k in ("slim", "straight", "wide")]
+        assert w[0] < w[1] - 1.0 < w[2] - 2.0, (cm, w)
+    taper = {k: _leg_width(b, fig.KNEE_CM) - _leg_width(b, 168.0) for k, b in legs.items()}
+    assert taper["slim"] > taper["straight"] + 0.5 and taper["wide"] < 0.5, taper
+
+
+def test_every_leg_shape_is_drawn_as_the_trousers_template_draws_it_and_still_fits_his_ankle():
+    """The figure's taper comes from the template's own knee and opening widths for each leg shape (no second table),
+    so the order at the hem is the template's; a skinny leg is not narrowed past room for his ankle."""
+    assert set(fig.LEG_EASE) == set(templates.LEG_WIDTHS)
+    hems = {}
+    for leg in templates.LEG_WIDTHS:
+        b = plan(dict(base=TEE, bottom=Piece("trousers", answer("trousers", {"pant_length": "full"}, leg_shape=leg),
+                                             "#6f7278"))).get("bottom")
+        hems[leg] = _leg_width(b, 168.0)
+    op = {leg: w[1] for leg, w in templates.LEG_WIDTHS.items()}
+    for a in op:   # a leg whose opening is clearly narrower on the flat drawing is narrower on him (barrel ~ straight)
+        for b in op:
+            if op[a] + 1.0 <= op[b]:
+                assert hems[a] < hems[b], (a, b, hems)
+    assert hems["skinny"] > 2 * frontshoe.ANKLE_HALF_CM, hems
+
+
+def test_cropped_trousers_show_the_ankle():
+    full = plan(dict(bottom=Piece("trousers", answer("trousers", {"pant_length": "full"}), "#6f7278"))).get("bottom")
+    ankle = plan(dict(bottom=Piece("trousers", answer("trousers", {"pant_length": "ankle"}), "#6f7278"))).get("bottom")
+    hem = lambda b: (b.point(b.shape.anchors["hem_out"])[1] - fig.CROWN_Y) / K_PX   # noqa: E731
+    assert hem(full) == pytest.approx(fig.GROUND_CM - fig.BREAK_CM, abs=0.5)
+    assert fig.CALF_CM < hem(ankle) < fig.GROUND_CM - 10.0
+
+
+def test_as_worn_tells_fit_length_and_sleeves_and_leaves_out_what_was_not_told():
+    worn = fig.as_worn(_tee("cropped"))
+    assert worn == [{"part": "fit", "value": "regular", "field": "fit_detail"},
+                    {"part": "length", "value": "waist", "field": "fit_detail"},
+                    {"part": "sleeve", "value": "short", "field": "sleeve_length"}]
+    assert fig.as_worn(_tee("oversized"))[0]["value"] == "oversized"
+    assert [w["part"] for w in fig.as_worn(_tee("relaxed"))] == ["fit", "sleeve"]   # its length was not told
+    assert fig.as_worn(Piece("tee", None, "#888888")) == []   # nothing told: drawn regular, nothing said
+    assert fig.as_worn(Piece("tee", None, "#888888", silhouette={"sleeve": "long"})) == [
+        {"part": "sleeve", "value": "long", "field": "sleeve_length"}]
+    coat = Piece("coat", answer("coat", {"top_length": "long"}, collar="notch_lapel", placket="front_placket"), "#232326")
+    assert {"part": "length", "value": "thigh", "field": "fit_detail"} in fig.as_worn(coat)
+    trousers = Piece("trousers", answer("trousers", leg_shape="slim", trouser_break="cropped"), "#6f7278")
+    assert fig.as_worn(trousers) == [{"part": "leg", "value": "slim", "field": "leg_shape"},
+                                     {"part": "length", "value": "ankle", "field": "trouser_break"}]
+    assert fig.as_worn(Piece("shorts", answer("shorts", inseam=7), "#6f7550")) == [
+        {"part": "length", "value": "short", "field": "inseam"}]
+    assert fig.as_worn(SNEAKERS) == [] and fig.as_worn(Piece("hat", None, "#222222")) == []

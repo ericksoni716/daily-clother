@@ -6,7 +6,9 @@ const BROOKLYN = 'Brooklyn, New York, United States';
 const SHOTS = resolve(import.meta.dirname, '..', '..', 'docs', 'screenshots');
 
 test.afterEach(async ({ page, context }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
+  // every tab the test opened, not only `page`: a faked request still in flight fails once its tab closes, and the
+  // error lands in the next test. Nothing reads those late answers, so their errors are ignored.
+  for (const tab of context.pages()) await tab.unrouteAll({ behavior: 'ignoreErrors' });
   await context.setOffline(false);
   await page.request.put('/api/settings', { data: { place: null } });
   await page.request.post('/api/profile', { data: { profile: 'main' } });
@@ -283,6 +285,9 @@ test('the app opens on Today once the closet can dress the owner', async ({ page
   await expect(fresh.locator('#today-title')).toBeVisible();
   await expect(fresh).toHaveURL(/\/today$/);
   await expect(fresh.locator('nav.sidebar').getByRole('link', { name: 'Today' })).toHaveAttribute('aria-current', 'page');
+  // the new tab asked for today's outfits: let that answer arrive and its faked route finish before the test ends
+  await expect(current(fresh).getByTestId('piece').first()).toBeVisible();
+  await fresh.unrouteAll({ behavior: 'wait' });
 });
 
 for (const [label, viewport] of [['phone', { width: 390, height: 844 }], ['computer', { width: 1280, height: 800 }]] as const) {

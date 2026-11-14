@@ -11,7 +11,7 @@ import pytest
 
 from closet_bench.fills import Stripes
 from closet_bench.illustrate import BUTTON_CONTRAST, INSIDE_CONTRAST, Fill, Spec, _over, contrast, layer, render
-from closet_bench.taxonomy import (ACCESSORIES, COLORWORK, ACCESSORY_GARMENTS, ACCESSORY_GROUP, ACCESSORY_TEMPLATES, AXES, CORDUROY_WALES,
+from closet_bench.taxonomy import (_KIND_TOP, ACCESSORIES, COLORWORK, ACCESSORY_GARMENTS, ACCESSORY_GROUP, ACCESSORY_TEMPLATES, AXES, CORDUROY_WALES,
                                    COVERAGE, GARMENT_DRAWINGS, KNIT_GAUGES, TOP_AXES, WEIGHT_CLASSES, accessory_drawing,
                                    surface_extras, top_drawing)
 from closet_bench.templates import BODY_W, BLOCKS, CX, K_PX, SLEEVE_GAP, SLEEVE_HANG, build
@@ -277,6 +277,47 @@ def test_a_convertible_cuff_shows_its_spare_buttonhole_and_cargo_pockets_are_dra
     p, _, notes = top_drawing({**shirt, "cuff": "convertible", "pockets": "cargo"})
     assert p["cuffs"] == "convertible" and p["pockets"] == "bellows" and not notes
     assert COVERAGE["cuff"]["convertible"][0] == COVERAGE["pockets"]["cargo"][0] == "drawn"
+
+
+# what drawing_for passes for a top when the tagger told only the kind: every axis at its quiet value
+QUIET_TOP = dict(fit="regular", sleeve_length="short", collar="none", neckline="crew", placket="none", cuff="none",
+                 pockets="none", hem="straight", fabric="unknown", length="regular", contrast_trim=False,
+                 second_color=False)
+
+
+@pytest.mark.parametrize("kind", sorted(_KIND_TOP))
+def test_each_kind_of_top_is_drawn_with_its_look(kind):
+    p, extras, _ = top_drawing({**QUIET_TOP, "garment": kind, "contrast_trim": True})
+    plain, plain_extras, _ = top_drawing(QUIET_TOP)
+    assert (p, extras) != (plain, plain_extras)
+    shape = build("top", p)
+    assert shape.anchors.keys() == build("top", plain).anchors.keys()
+    valid(render(Spec("top", p, Fill("solid", "#3f6fb0"), trim_color="#f4f1ea", **extras), "line"))
+    assert COVERAGE["garment"][kind][0] == "drawn"
+
+
+def test_a_kinds_look_gives_way_to_what_was_told():
+    told = {**QUIET_TOP, "garment": "windbreaker", "placket": "snap", "cuff": "open_hem"}
+    p, _, _ = top_drawing(told)
+    assert p["front"] != "zip" and p["cuffs"] != "rib"
+    # binding only with a contrast colour; a hockey jersey's stripes whatever was told
+    assert not top_drawing({**QUIET_TOP, "garment": "soccer_jersey"})[0].get("binding")
+    assert top_drawing({**QUIET_TOP, "garment": "soccer_jersey", "contrast_trim": True})[0]["binding"]
+    hockey = top_drawing({**QUIET_TOP, "garment": "hockey_jersey", "neckline": "crew", "fit": "slim"})[0]
+    assert hockey["stripes"] == "hoops" and hockey["fit"] == "slim"
+    hooped = build("top", hockey)
+    assert sum(part.role == "inlay" for part in hooped.parts) == 2 + 2   # a band round each short sleeve, two above the hem
+    leather = top_drawing({**QUIET_TOP, "garment": "leather_jacket"})[1]
+    assert leather["texture"] == "leather" and leather["sheen"]
+
+
+def test_a_heathered_or_marled_top_is_flecked():
+    tee = {**QUIET_TOP, "fabric": "jersey"}
+    assert top_drawing({**tee, "color_texture": "heathered"})[1]["texture"] == "marl"
+    assert top_drawing({**tee, "color_texture": "marled", "fabric": "unknown"})[1]["texture"] == "marl"
+    assert top_drawing({**tee, "color_texture": "heathered", "fabric": "cable"})[1]["texture"] == "cable_knit"
+    assert top_drawing(tee)[1]["texture"] == "jersey"
+    assert COVERAGE["fabric_effects"]["heathered_marled"][0] == "drawn"
 
 
 def test_the_hidden_button_down_shows_no_buttons():

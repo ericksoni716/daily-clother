@@ -98,7 +98,8 @@ TOP_DEFAULTS = dict(
 #   binding   False | True             a contrast strip wrapped over the edges: the collar's top, the placket, the
 #             sleeve ends and the hem (role "binding" inside the garment, "binding_edge" on its outline)
 #   colorblock  a tuple of parts cut in the second colour: yoke | sleeves | collar | pocket
-#   stripes   none | sleeve            two stripes down the outside of each sleeve (a track jacket), in the trim colour
+#   stripes   none | sleeve | hoops    two stripes down the outside of each sleeve (a track jacket), or stripes round
+#             the arms and the body above the hem (a hockey jersey); in the trim colour
 #   belt      False | True | sash      a self belt buckled round the waist (a trench coat); a robe's knotted sash
 # Finer pocket values: chest-flap | chest-patch-two | pencil | western | welt | split | slash | chore |
 #   chest-flap-two | guayabera | bellows | utility | hip-patch | hip-flap
@@ -853,6 +854,24 @@ def top(**kw) -> Shape:
                      (a1[0] + q[0] * o1, a1[1] + q[1] * o1), (a0[0] + q[0] * o1, a0[1] + q[1] * o1)]
             for m in (lambda v: v, _mirror):
                 sh.parts.append(Part(_poly([m(v) for v in strip]), "inlay", color="trim", clip=True))
+    # ---- stripes round the arms and the body above the hem (a hockey jersey)
+    if p.get("stripes") == "hoops":
+        bands = []
+        if cuff:
+            Co, Ci, d = cuff
+            q_ = _unit((Ci[0] - Co[0], Ci[1] - Co[1]))
+            span = (((24, 31), (37, 44)) if sleeve in ("long", "three-quarter") else ((12, 18),))
+            for a, b in span:
+                bands.append([(Co[0] - d[0] * a - q_[0] * 6, Co[1] - d[1] * a - q_[1] * 6),
+                              (Ci[0] - d[0] * a + q_[0] * 3, Ci[1] - d[1] * a + q_[1] * 3),
+                              (Ci[0] - d[0] * b + q_[0] * 3, Ci[1] - d[1] * b + q_[1] * 3),
+                              (Co[0] - d[0] * b - q_[0] * 6, Co[1] - d[1] * b - q_[1] * 6)])
+        for band in bands:
+            for m in (lambda v: v, _mirror):
+                sh.parts.append(Part(_poly([m(v) for v in band]), "inlay", color="trim", clip=True))
+        for a, b in ((44, 36), (30, 22)):
+            band = [(CX - hh - 4, hy - a), (CX + hh + 4, hy - a), (CX + hh + 4, hy - b), (CX - hh - 4, hy - b)]
+            sh.parts.append(Part(_poly(band), "inlay", color="trim", clip=True))
 
     # ---- cuffs
     if cuff:

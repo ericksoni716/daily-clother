@@ -8,7 +8,7 @@ import pytest
 
 from closet.drawing import item
 from closet.drawing.illustrate import Fill, Spec, render
-from closet.tagger.schema import Details, ItemTags, Silhouette, drawing_for
+from closet.tagger.schema import NAMED_HEX, Details, ItemTags, Silhouette, drawing_for
 
 BACKEND = Path(__file__).resolve().parents[1]
 
@@ -257,3 +257,16 @@ def test_a_fair_isle_sweater_is_drawn_in_its_other_colours_and_its_pattern_is_no
     assert drawing_for(ItemTags.model_validate(told))[2]["colorwork"] == "nordic"
     striped = {**sweater, "pattern": "stripe"}   # a stripe is not what the colourwork draws
     assert any("stripes" in n for n in item.drawing_from_answer(striped, "#d9cbb0").not_drawn)
+
+
+def test_a_kind_of_top_told_alone_is_drawn_with_its_look():
+    # #182: a hockey jersey's stripes in the other colour seen, its long sleeves; a smoking jacket's shawl collar
+    hockey = {**answer("tee", {}, garment="hockey_jersey"), "secondary_colors": ["white"]}
+    template, p, extras, _ = drawing_for(ItemTags.model_validate(hockey))
+    assert p["stripes"] == "hoops" and p["sleeve"] == "long" and extras["trim_color"] == NAMED_HEX["white"]
+    assert NAMED_HEX["white"] in item.drawing_from_answer(hockey, "#27344f").svg
+    smoking = answer("jacket", {}, garment="smoking_jacket")
+    _, p, extras, _ = drawing_for(ItemTags.model_validate(smoking))
+    assert p["collar"] == "shawl" and p["belt"] == "sash" and extras["texture"] == "velvet"
+    told = answer("jacket", {}, garment="smoking_jacket", collar="peak_lapel")
+    assert drawing_for(ItemTags.model_validate(told))[1]["collar"] == "peak"

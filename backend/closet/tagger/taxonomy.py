@@ -734,7 +734,23 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
                 p["block"] = "coat"
     elif kind == "waxed_jacket":
         extras["collar_color"] = "#5a3d26"   # the brown corduroy collar
+    elif kind in _KIND_TOP:   # the kind's look (#182): some of it always, the rest where the details were silent
+        always, usual = _KIND_TOP[kind]
+        silent = {"front": placket in (None, "none"), "fit": fit in (None, "regular"),
+                  "shoulder": g.get("sleeve_construction") in (None, "na"), "cuffs": g.get("cuff") in (None, "none"),
+                  "hem": g.get("hem") in (None, "na", "straight"), "pockets": g.get("pockets") in (None, "none"),
+                  "neck": collar == "none" and neckline == "crew"}
+        look = {**{k: v for k, v in usual.items() if silent.get("neck" if k in ("collar", "v_depth") else k, True)},
+                **always}
+        if look.get("binding") == "trim":   # edges bound only in a contrast colour that was seen
+            look["binding"] = bool(g.get("contrast_trim"))
+        if look.get("neck") not in (None, "collar"):
+            p.pop("collar", None)
+        if "front" in look:
+            p.pop("buttons", None)
+        p.update(look)
     g = {**g, "fabric": _KIND_FABRIC[kind]} if kind in _KIND_FABRIC and _fabric(g) in (None, "unknown") else g
+    g = {**g, "fiber": _KIND_FIBER[kind]} if kind in _KIND_FIBER and g.get("fiber") in (None, "unknown") else g
     if g.get("side_stripe") and p["sleeve"] != "none":
         p["stripes"] = "sleeve"   # a track jacket's stripes run down the sleeves
     # notes for what is drawn as something close
@@ -760,6 +776,9 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
         extras.pop("sheen", None)
     if fiber == "merino" and g.get("knit_gauge") not in KNIT_GAUGES and extras.get("texture") in _GAUGED:
         extras["texture_scale"] = _GAUGE_SCALE["fine"] * (extras.get("texture_scale") or 1.0)
+    if g.get("color_texture") in ("heathered", "marled") and extras.get("texture") in _MARL_OVER:
+        extras["texture"] = "marl"   # the flecked yarn shows over plain knitting
+        extras.pop("texture_scale", None)
     colorwork = COLORWORK.get(_fabric(g) or "") or COLORWORK.get(g.get("pattern_name") or "")
     if colorwork:
         extras["colorwork"] = colorwork
@@ -772,11 +791,49 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
     return p, extras, notes
 
 
+# the plain surfaces a heathered or marled yarn is drawn over (none: no fabric was told)
+_MARL_OVER = (None, "jersey", "interlock", "flat_knit", "french_terry", "fleece", "slub_jersey", "plain")
 _TOP_FIBER_TEXTURE = {"leather": "leather", "suede": "suede", "worsted_wool": "twill"}
 _GAUGED = ("cable_knit", "rib_knit", "fisherman_rib", "waffle", "garter", "moss", "flat_knit", "shaker")
 
 # the cloth a kind of top is drawn in when none was seen
-_KIND_FABRIC = {"trench_coat": "gabardine", "varsity_jacket": "melton", "waxed_jacket": "waxed_cotton"}
+_KIND_FABRIC = {"trench_coat": "gabardine", "varsity_jacket": "melton", "waxed_jacket": "waxed_cotton",
+                "running_long_sleeve": "interlock", "running_singlet": "mesh", "compression_top": "interlock",
+                "base_layer": "jersey", "soccer_jersey": "interlock", "basketball_jersey": "mesh", "hockey_jersey": "mesh",
+                "baseball_jersey": "interlock", "cycling_jersey": "interlock", "pajama_set_woven": "poplin",
+                "pajama_set_knit": "jersey", "lounge_knit_set": "flat_knit", "lounge_sweatsuit": "french_terry",
+                "kimono_robe": "plain", "smoking_jacket": "velvet"}
+# the fibre a kind of top is drawn in when none was seen: leather's creases and shine, nylon's sheen
+_KIND_FIBER = {"leather_jacket": "leather", "windbreaker": "nylon", "rain_shell": "nylon", "softshell_jacket": "polyester"}
+# the collar a kind of top has when the tagger saw "a collar" and no more (else a point collar)
+KIND_COLLAR = {"leather_jacket": "stand", "windbreaker": "stand", "softshell_jacket": "stand", "rain_shell": "none",
+               "baseball_jersey": "none", "pajama_set_woven": "camp", "kimono_robe": "none", "smoking_jacket": "shawl"}
+# the sleeve a kind of top has when the tagger did not say (else short on a tee or polo, long otherwise)
+KIND_SLEEVE = {"soccer_jersey": "short", "baseball_jersey": "short", "cycling_jersey": "short", "hockey_jersey": "long",
+               "pajama_set_woven": "long", "pajama_set_knit": "long"}
+# kinds of top drawn with their look (#182): template parameters always set, and those set where the details
+# were silent. binding "trim": the edges bound only when a contrast trim colour was seen
+_KIND_TOP: dict[str, tuple[dict, dict]] = {
+    "leather_jacket": ({}, {"front": "zip"}),
+    "windbreaker": ({}, {"front": "zip", "cuffs": "rib"}),
+    "softshell_jacket": ({}, {"front": "zip", "fit": "slim", "pockets": "welt"}),
+    "rain_shell": ({"neck": "hood"}, {"front": "hidden", "hem": "tennis"}),
+    "running_long_sleeve": ({"sleeve": "long"}, {"fit": "slim", "shoulder": "raglan", "hem": "tennis"}),
+    "running_singlet": ({"sleeve": "none"}, {"fit": "slim"}),
+    "compression_top": ({"fit": "slim"}, {"shoulder": "raglan", "neck": "mock"}),
+    "base_layer": ({"sleeve": "long"}, {"fit": "slim", "shoulder": "raglan", "cuffs": "rib"}),
+    "soccer_jersey": ({}, {"shoulder": "raglan", "binding": "trim"}),
+    "basketball_jersey": ({"sleeve": "none"}, {"neck": "scoop", "binding": "trim"}),
+    "hockey_jersey": ({"stripes": "hoops"}, {"fit": "oversized", "shoulder": "drop", "neck": "v"}),
+    "baseball_jersey": ({}, {"front": "buttons", "binding": "trim"}),
+    "cycling_jersey": ({}, {"fit": "slim", "front": "zip", "neck": "collar", "collar": "stand", "hem": "rib"}),
+    "pajama_set_woven": ({}, {"front": "buttons", "pockets": "chest", "binding": True}),
+    "pajama_set_knit": ({}, {"cuffs": "rib"}),
+    "lounge_knit_set": ({}, {"fit": "relaxed", "cuffs": "rib", "hem": "rib"}),
+    "lounge_sweatsuit": ({}, {"fit": "relaxed", "shoulder": "raglan", "cuffs": "rib", "hem": "rib"}),
+    "kimono_robe": ({"belt": "sash", "length": "knee"}, {"neck": "v", "v_depth": "deep", "shoulder": "dolman"}),
+    "smoking_jacket": ({"belt": "sash"}, {}),
+}
 
 _PULLOVERS = ("fleece_pullover", "athletic_half_zip", "crewneck_sweatshirt", "hoodie", "pullover_sweater", "base_layer",
               "running_long_sleeve", "compression_top")
@@ -1238,6 +1295,19 @@ COVERAGE["families"] = {f: (N_, "used to match colours in outfits, not drawn") f
 COVERAGE["fabric_effects"] = {e: (N_, "the colour as measured is drawn; the cloth's surface comes from the fabric")
                               for e in FABRIC_EFFECTS}
 COVERAGE["fabric_effects"]["denim"] = (A_, "the fades the tagger names are drawn on jeans")
+# #182: the looks a top's cloth carries, drawn when its fabric, fibre or colour texture is told
+COVERAGE["fabric_effects"].update({
+    "linen": (D, "linen's slubby surface, when the fabric or fibre is linen"),
+    "brushed": (D, "a soft edge and no highlights on brushed cloths: flannel, brushed twill, fleece"),
+    "corduroy_velvet": (D, "corduroy's ridges and velvet's sheen, from the fabric"),
+    "suede": (D, "suede's nap, when the fibre is suede"),
+    "worsted_wool": (D, "worsted's fine twill on a top, when the fibre is worsted wool"),
+    "heathered_marled": (D, "pale and dark flecks over plain knitting, when the colour is heathered or marled"),
+    "mercerised_silk_satin": (D, "a sheen on silk, satin and sateen"),
+    "leather": (D, "leather's creases and shine"),
+    "synthetic_performance": (A_, "the measured colour carries its brightness; nylon's sheen when the fibre is nylon"),
+    "sun_fade": (N_, "the colour as measured is drawn; where the sun faded it (shoulders, collar) is not drawn"),
+})
 
 
 def coverage_counts() -> dict[str, tuple[int, int, int]]:
@@ -1290,6 +1360,34 @@ _KIND_NOTES = {
                       "chenille letters are not drawn)",
     "waxed_jacket": "the brown cord collar and a waxed cotton sheen",
     "robe": "a knotted sash round the waist, to the knee; its collar and cloth from its details",
+    # #182: what sets each apart, where the details do not say otherwise
+    "leather_jacket": "leather's creases and shine, a zip front and a stand collar (a rider's lapels when told)",
+    "windbreaker": "light nylon with a sheen, a zip front, a stand collar and gathered cuffs",
+    "softshell_jacket": "a slim matt jacket with a zip front, a stand collar and zipped welt pockets",
+    "rain_shell": "a hood, a storm flap over the zip and a longer back; nylon's sheen (taped seams are not drawn)",
+    "running_long_sleeve": "slim, raglan long sleeves and a longer back, in a fine knit (thumbholes and reflective "
+                           "trims are too small to draw)",
+    "running_singlet": "a slim tank in an open mesh",
+    "compression_top": "the slimmest fit, raglan panel seams and a mock neck, in a smooth knit with no folds",
+    "base_layer": "slim raglan long sleeves and rib cuffs, in a fine jersey",
+    "soccer_jersey": "a raglan jersey in a fine knit; with a trim colour, its neck, cuffs and hem bound in it (the "
+                     "crest and sponsor print are not drawn)",
+    "basketball_jersey": "a tank with deep armholes and a scoop neck in an open mesh; with a trim colour, the neck and "
+                         "hem bound in it (the number is not drawn)",
+    "hockey_jersey": "oversized with long sleeves and a V-neck, stripes round the arms and above the hem in the trim "
+                     "colour or the other colour seen (the lacing at the neck is not drawn)",
+    "baseball_jersey": "a short-sleeved button front with no collar; with a trim colour, piping down the placket and "
+                       "round the neck, cuffs and hem",
+    "cycling_jersey": "slim and short-sleeved, a zip front, a low stand collar and a gripper hem (its back pockets are "
+                      "out of view)",
+    "pajama_set_woven": "the top: a camp collar, a button front, a chest pocket and piped edges (the trousers are their "
+                        "own item)",
+    "pajama_set_knit": "the top: long sleeves and rib cuffs in a soft jersey (the trousers are their own item)",
+    "lounge_knit_set": "the top: a relaxed knit with rib cuffs and hem (the trousers are their own item)",
+    "lounge_sweatsuit": "the top: a relaxed raglan sweatshirt in French terry with rib cuffs and hem (the trousers are "
+                        "their own item)",
+    "kimono_robe": "a deep wrap neck, wide dolman sleeves and a knotted sash, to the knee",
+    "smoking_jacket": "velvet with a shawl collar (in the trim colour, as a satin facing, when one was seen) and a sash",
     **{k: (("a tight leg" if v.get("leg") == "skinny" else "a short inseam and a slit hem" if v.get("hem") == "split"
             else "an elastic or drawstring waist") + (" and a stripe down each side in the trim colour" if v.get("stripe") else "")
            + (", ribbed ankle cuffs" if v.get("hem") == "rib" else ""))

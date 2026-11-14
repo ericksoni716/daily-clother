@@ -190,7 +190,7 @@ TEXTURES = ("corduroy", "rib_knit", "waffle", "cable_knit", "pique", "mesh", "se
             "satin", "sateen", "flannel", "brushed_twill", "moleskin", "canvas", "gabardine", "cavalry_twill",
             "whipcord", "fresco", "velvet", "melton", "waxed",
             # jerseys and plain knits
-            "jersey", "interlock", "flat_knit", "slub_jersey", "french_terry", "velour", "shaker",
+            "jersey", "interlock", "flat_knit", "slub_jersey", "marl", "french_terry", "velour", "shaker",
             # leather and suede
             "leather", "suede")
 
@@ -401,6 +401,11 @@ def _cloth_tile(name: str, sc: float, lo: str, hi: str):
     if name == "slub_jersey":   # jersey with thicker, uneven slubs here and there
         return (30, 20, f'<path d="{_stitches(30, 20, 5, 4)}" stroke="{lo}" stroke-width=".6" fill="none" opacity=".1"/>'
                         f'<path d="M2,4.5H9M17,14.5H21" stroke="{lo}" stroke-width="1.4" stroke-linecap="round" opacity=".12"/>')
+    if name == "marl":       # heathered or marled yarn: pale and dark flecks scattered over plain knitting
+        return (18, 14, f'<path d="{_stitches(18, 14, 1, 1)}" stroke="{lo}" stroke-width=".6" fill="none" opacity=".08"/>'
+                        f'<path d="M1.5,2.5H4.5M10,4.5H12.5M5.5,9H8.5M13.5,11.5H16.5M15,1.5H17" stroke="#fff" stroke-width="1.1" '
+                        f'stroke-linecap="round" opacity=".32"/><path d="M6.5,3.5H8.5M1,7H3M11,8H13.5M3.5,12.5H5.5" '
+                        f'stroke="{lo}" stroke-width="1.1" stroke-linecap="round" opacity=".24"/>')
     if name == "french_terry":   # the smooth jersey face of a heavier cloth (its loops are on the inside)
         return (7, 6, f'<path d="{_stitches(7, 6, 1, 1)}" stroke="{lo}" stroke-width=".75" fill="none" opacity=".13"/>')
     if name == "velour":     # a plush knitted pile: soft upright brush marks

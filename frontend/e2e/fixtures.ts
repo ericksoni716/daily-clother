@@ -31,9 +31,13 @@ export async function login(page: Page) {
     await page.getByRole('button', { name: 'Open my closet' }).click();
   }
   // A closet that can dress the owner opens on Today; these tests start from the closet itself.
+  // The closet's title shows before its list has arrived, and only the list decides whether to move to Today
+  // (src/landing.ts, once per tab). Wait for that decision: otherwise it is made on a later page load in this
+  // tab (after useProfile, say), and the page leaves the closet while the test is using it.
   const today = page.locator('#today-title');
   await expect(title.or(today)).toBeVisible();
-  if (await today.isVisible()) await page.goto('/');
+  await page.waitForFunction(() => sessionStorage.getItem('closet-landed') !== null);
+  if (new URL(page.url()).pathname === '/today') await page.goto('/');
   await expect(title).toBeVisible();
 }
 

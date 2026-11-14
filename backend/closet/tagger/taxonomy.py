@@ -451,7 +451,7 @@ COVERAGE: dict[str, dict[str, tuple[str, str]]] = {
         ("snap", (D, "press studs drawn as a metal ring round a cap")),
         ("zip_quarter", (D, "short zip")), ("zip_half", (D, "zip to mid-chest")), ("zip_full", (D, "")),
         ("double_breasted", (D, "front edge well past centre, two columns of buttons; on a jacket 6x2, "
-                                "the top row set wider")),
+                                "the top row set wider; told 1 or 2 buttons, those are the ones that fasten (6x1, 6x2)")),
         ("none", (D, "")),
     ),
     "cuff": _c(

@@ -1172,7 +1172,8 @@ for _key in BOTTOM_DRAWING:
         v: (status, note) for v, (_, status, note) in BOTTOM_DRAWING[_key].items()}
 COVERAGE["denim_washes"] = {w: (D, "the jeans drawn in the wash's colour when no colour was measured")
                             for w in DENIM_WASH_SHADE if w != "overdyed"}
-COVERAGE["denim_washes"]["overdyed"] = (N_, "an overdye has no one colour: the measured colour is used")
+COVERAGE["denim_washes"]["overdyed"] = (A_, "drawn in the colour measured from the photo, as denim; the overdye's own "
+                                             "cast over the blue is not drawn")
 COVERAGE["shorts_inseam_in"] = {k: (D, "the shorts drawn to the inseam told, in inches") for k in SHORTS_INSEAM_IN}
 COVERAGE["shades"] = {name: (D, "the item drawn in the shade's colour") for name in SHADES}
 COVERAGE["families"] = {f: (N_, "used to match colours in outfits, not drawn") for f in COLOR_FAMILIES}
@@ -1202,6 +1203,19 @@ BOTTOM_DRAWINGS: dict[str, dict] = {
     "two_in_one_shorts": dict(waist="elastic", pockets="none", length="brief", hem="split"),
     "sleep_shorts": dict(waist="elastic", pockets="none", hem="plain"),
 }
+# A set (pyjamas, a lounge or sweat suit) is tagged as its top or its bottom; its bottom is drawn as the bottom kind
+# it is cut like: (as trousers, as shorts).
+SET_BOTTOMS: dict[str, tuple[str, str]] = {
+    "pajama_set_woven": ("lounge_pants", "sleep_shorts"), "pajama_set_knit": ("lounge_pants", "sleep_shorts"),
+    "lounge_knit_set": ("joggers", "sleep_shorts"), "lounge_sweatsuit": ("sweatpants", "training_shorts"),
+}
+
+
+def bottom_look(garment, category) -> dict:
+    """What sets a bottom's kind apart, as `pants` template parameters (a set's bottom: the kind it is cut like)."""
+    if garment in SET_BOTTOMS:
+        garment = SET_BOTTOMS[garment][category == "shorts"]
+    return dict(BOTTOM_DRAWINGS.get(garment, {}))
 # The everyday trousers and shorts: what each kind looks like when the details leave it open, as `pants` template
 # parameters laid under the ones the details give (a told detail wins), the cloth it is drawn in when none was seen,
 # and how well that shows.
@@ -1214,9 +1228,9 @@ BOTTOM_KINDS: dict[str, tuple[dict, str | None, str, str]] = {
               "the yoke and patch pockets on the back view"),
     "corduroys": ({"pockets": "slant", "back_pockets": ["welt"]}, "corduroy", D,
                   "slant pockets and the cord's wales; welt pockets on the back view"),
-    "fatigues": ({"pockets": "slant", "fly": "button", "back_pockets": ["flap"]}, "sateen", A_,
+    "fatigues": ({"pockets": "slant", "fly": "button", "back_pockets": ["flap"]}, "twill", A_,
                  "a button fly, slant pockets and buttoned flap pockets on the back view; the back-sateen cloth (a dense, "
-                 "soft, nearly matte weave) is only suggested by a sateen sheen"),
+                 "soft, nearly matte weave) is drawn as a twill"),
     "cargo_pants": ({"pockets": "slant", "cargo": True, "back_pockets": ["flap"]}, None, D,
                     "slant pockets and bellows pockets on the thighs; flap pockets on the back view"),
     "work_pants": ({"pockets": "scoop", "panels": ["double_knee"], "extra_pockets": ["hammer", "rule"], "back_pockets": ["patch"]},
@@ -1246,6 +1260,8 @@ _KIND_NOTES = {
 COVERAGE["garment"] = {g: (D, _KIND_NOTES[g]) if g in _KIND_NOTES else (BOTTOM_KINDS[g][2], BOTTOM_KINDS[g][3])
                        if g in BOTTOM_KINDS else (D, "") if g in GARMENT_DRAWINGS else
                        (A_, f"drawn from its details as a {APP_CATEGORY[g] or 'top or bottom'}") for g in GARMENTS}
+COVERAGE["garment"].update({g: (A_, f"its trousers drawn as {pants.replace('_', ' ')} and its shorts as {shorts.replace('_', ' ')}"
+                                   "; its top drawn from its details") for g, (pants, shorts) in SET_BOTTOMS.items()})
 
 
 # ---- accessories

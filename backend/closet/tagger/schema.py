@@ -26,7 +26,6 @@ from .taxonomy import (
     ACCESSORY_KINDS,
     AXES,
     BOTTOM_AXES,
-    BOTTOM_DRAWINGS,
     CORDUROY_WALES,
     FOOTWEAR,
     FOOTWEAR_AXES,
@@ -304,7 +303,7 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
         p.update({k: list(v) if isinstance(v, list) else v for k, v in kind.items()})   # the kind's look, under the details
         if kind_fabric and cloth["fabric"] == "unknown":
             cloth["fabric"] = kind_fabric
-        p.update(BOTTOM_DRAWINGS.get(d.garment, {}))   # what sets the kind apart: a tight leg, a slit hem, a stripe
+        p.update(taxonomy.bottom_look(d.garment, tags.category))   # what sets the kind apart: a tight leg, a slit hem, a stripe
         if d.waist in ("drawstring", "elastic"):
             p["waist"] = d.waist
         if d.pockets in ("cargo", "bellows"):
@@ -318,7 +317,7 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
         if "contrast_stitching" in d.features:
             p["stitch"] = "contrast"
         p.update(taxonomy.bottom_params(tags.category, d.model_dump()))   # the owner's bottoms block, where told
-        p.update(BOTTOM_DRAWINGS.get(d.garment, {}))   # the kind's own look wins over a told detail
+        p.update(taxonomy.bottom_look(d.garment, tags.category))   # the kind's own look wins over a told detail
         if "side_stripe" in d.features:
             p["stripe"] = "side"
         extras.update(taxonomy.surface_extras(cloth))

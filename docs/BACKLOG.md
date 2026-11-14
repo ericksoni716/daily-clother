@@ -131,6 +131,7 @@ Original phase 1.
 - [x] Packaged build, smoke test (plus a real-cutout mode), CI and release workflows. Passes on Linux, including a browser run against the packaged program.
 - [x] First packaged build on macOS (0.1.0). The owner tried it: passphrase, browser, demo closet and uploads (including AVIF) work; the model download failed and is fixed in 0.1.1.
 - [ ] First packaged build on Windows.
+- [x] #164 Ready for the Windows hub: a step-by-step Windows setup guide in the README; the Windows-only code reviewed (the plan route could not have started on Windows: describing an item made a command line longer than Windows allows; now the prompt goes on standard input, in UTF-8, and `claude.exe` is found before an npm `claude.cmd`; `taskkill` no longer flashes a console; typed Windows calls for "is it still running" and the message box); the backend tests run on Windows in CI, with real Credential Manager, start-at-login, tray and rename-while-running tests.
 - [ ] Owner tries it on a real Windows PC and iPhone. Not yet exercised: tray icon, start at login, the Tailscale address, camera capture, home-screen install, HEIC from the phone, the model download progress bar, dropping a folder of photos.
 - [ ] Pin the macOS-only tray dependencies after the first Mac build.
 
@@ -145,7 +146,7 @@ Original phase 2 and the single-photo parts of phase 3.
 - Bulk import of single-item photos, with dedupe and resume.
 - Cost estimate and spend cap (API route only), item rating chip.
 - The app's stored vocabulary (`backend/closet/vocab.py`, the frontend labels) moves to the taxonomy.
-- README: installing Claude Code on Windows and checking it is signed in.
+- README: installing Claude Code on Windows and checking it is signed in (done in #164, "Setting up Closet on a Windows PC").
 - The bench as a `bench` command in the packaged program, so the owner's photos never leave the PC.
 
 ### Stop C: today's outfit

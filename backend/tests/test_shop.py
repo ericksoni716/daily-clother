@@ -310,6 +310,32 @@ def test_a_search_that_cannot_keep_its_finds_says_so(client, fake_shop, cfg, mon
     assert body["run"]["state"] == "done" and len(body["finds"]) == 2
 
 
+def test_finds_are_never_shown_older_than_the_run(client, services, fake_shop, monkeypatch):
+    wid = wish(client)
+    armed, go, real_find, real_list = threading.Event(), threading.Event(), fake_shop.find, shop.list_finds
+
+    def find_when_told(w, routes):
+        assert go.wait(10)
+        return real_find(w, routes)
+
+    def list_then_let_the_search_finish(conn, wish_id):
+        finds = real_list(conn, wish_id)
+        if armed.is_set() and not go.is_set():
+            go.set()   # the search saves and ends after the finds were read, before the answer is sent
+            for _ in range(200):
+                if not services.shopper.running("main", wish_id):
+                    break
+                time.sleep(0.02)
+        return finds
+    monkeypatch.setattr(fake_shop, "find", find_when_told)
+    monkeypatch.setattr(shop, "list_finds", list_then_let_the_search_finish)
+    assert client.post(f"/api/wishlist/{wid}/find").status_code == 202
+    armed.set()
+    body = client.get(f"/api/wishlist/{wid}/finds").json()
+    assert body["run"]["state"] == "running" and body["finds"] == []   # not "done" with nothing found
+    assert len(settle(client, wid)["finds"]) == 2
+
+
 def test_the_finds_are_checked_against_the_closet_with_the_would_this_work_rules(cfg):
     demo.ensure(cfg)
     rows, worn = app_module.closet_inputs(cfg, "demo")

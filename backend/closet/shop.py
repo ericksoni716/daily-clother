@@ -578,9 +578,10 @@ def router(shopper: Shopper, state: State, conn_dep: Callable, protected: list) 
     r = APIRouter(dependencies=protected)
 
     def payload(conn, profile: str, wish_id: str) -> dict:
+        run = shopper.run(profile, wish_id)   # first: a run is only over once its finds are saved, so they are read
         wish = wishlist.get_wish(conn, wish_id)
         finds = list_finds(conn, wish_id)
-        return {"wish_id": wish_id, "finds": finds, "run": shopper.run(profile, wish_id), "found_at": wish["found_at"],
+        return {"wish_id": wish_id, "finds": finds, "run": run, "found_at": wish["found_at"],
                 "prices_checked_at": wish["prices_checked_at"], "demo": profile == "demo",
                 "estimate": shopper.estimate(min(len(finds), PRICE_FINDS_MAX))}
 

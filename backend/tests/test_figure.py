@@ -555,14 +555,74 @@ def test_he_has_an_average_build_with_shoulders_wider_than_hips():
     head = [x for x, _ in _flat(layout.body.head)]
     hw = (max(head) - min(head)) / K_PX
     shoulders, hips = 2 * fig.SHOULDER_HALF_CM / hw, 2 * fig.HIP_HALF_CM / hw
-    assert 2.2 <= shoulders <= 2.3 and 1.6 <= hips <= 1.7
+    assert 2.6 <= shoulders <= 2.8 and 1.9 <= hips <= 2.05
+    assert 1.3 <= shoulders / hips <= 1.45                 # clearly broader at the shoulders than the hips
     # the trousers drawn over his hips stay well inside his shoulders
     b = layout.get("bottom")
     crotch = b.point(b.shape.anchors["crotch"])[1]
     waist = b.point(b.shape.anchors["waist"])[1]
     xs = [x for x, y in _flat(b.shape.outline, b.transforms[0]) if waist <= y <= crotch]
-    assert (max(xs) - min(xs)) / K_PX / hw <= 1.9   # his hips and a little ease
+    assert 2 * fig.HIP_HALF_CM < (max(xs) - min(xs)) / K_PX <= 2 * fig.HIP_HALF_CM + 4   # his hips and a little ease
+    assert (max(xs) - min(xs)) / K_PX / hw <= 2.2
     assert 2 * fig.SHOULDER_HALF_CM / ((max(xs) - min(xs)) / K_PX) >= 1.2
+
+
+def _across(path: str, y: float) -> float:
+    """How wide a closed path is at the height y (px)."""
+    poly = _flat(path)
+    xs = [x0 + (y - y0) * (x1 - x0) / (y1 - y0) for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1], strict=True)
+          if (y0 > y) != (y1 > y)]
+    return max(xs) - min(xs)
+
+
+def test_his_neck_is_narrower_than_his_head_and_his_shoulders_slope():
+    body = plan(dict(base=TEE, bottom=SHORTS, shoes=SNEAKERS)).body
+    head = [x for x, _ in _flat(body.head)]
+    hw = max(head) - min(head)
+    for cm in (0.5, 2.0, 3.0):   # under the chin: about half the head's width
+        assert 0.4 <= _across(body.torso, fig.CHIN_Y + cm * K_PX) / hw <= 0.55
+    # it flares into the slope of the shoulders: wider at its base, and the shoulder points lower than the neck's base
+    assert _across(body.torso, fig.NECK_Y + 1.0 * K_PX) > 1.5 * _across(body.torso, fig.CHIN_Y + 2.0 * K_PX)
+    drop = (fig.SHOULDER_Y - fig.NECK_Y) / ((fig.SHOULDER_HALF_CM - fig.NECK_HALF_CM) * K_PX)
+    assert 0.25 <= drop <= 0.5   # a slope of about 15 to 25 degrees, not a flat bar
+    # every top's shoulder line slopes with them
+    t = plan(dict(base=SHIRT, bottom=JEANS)).get("base")
+    for s in fitting.sleeves(t.shape):
+        assert t.point(s.shoulder)[1] > t.point(t.shape.anchors["neck"])[1] + 15
+
+
+def test_his_arms_hang_naturally_with_the_wrists_at_the_crotch():
+    body = plan(dict(base=TEE, bottom=SHORTS, shoes=SNEAKERS)).body
+    for side in (-1, 1):
+        joint, elbow, wrist = fig._arm_points(side)
+        assert abs(wrist[1] - fig.CROTCH_Y) <= 4 * K_PX                       # the wrist level with the crotch
+        assert abs(joint[0] - CX) < fig.SHOULDER_HALF_CM * K_PX and joint[1] > fig.SHOULDER_Y   # the joint in the shoulder
+        out = math.degrees(math.atan2(abs(elbow[0] - CX) - abs(joint[0] - CX), elbow[1] - joint[1]))
+        fore = math.degrees(math.atan2(abs(wrist[0] - CX) - abs(elbow[0] - CX), wrist[1] - elbow[1]))
+        assert 8 <= out <= 20                                                 # the upper arm a little out from the body
+        assert -6 <= fore <= 0 and out - fore >= 8                            # a bend at the elbow, the forearm back in a touch
+    # the elbow is at the waist, and the arm tapers from the shoulder to the wrist
+    assert fig.CHEST_CM < fig.ELBOW_CM <= fig.WAIST_CM
+    length = fig._arm_length()
+    halves = [fig._arm_half(length * t) for t in (0.0, 0.25, 0.5, 1.0)]
+    assert halves[0] >= halves[1] > halves[2] > halves[3] and halves[0] >= 1.6 * halves[3]
+    # the fingertips reach the middle of the thigh
+    for hand in body.hands:
+        tips = max(y for _, y in _flat(hand))
+        assert 0.3 <= (tips - fig.CROTCH_Y) / (fig._y(fig.KNEE_CM) - fig.CROTCH_Y) <= 0.6
+
+
+@pytest.mark.parametrize("top", [SHIRT, SWEATER, COAT], ids=["shirt", "sweater", "coat"])
+def test_a_long_sleeve_bends_with_the_arm(top):
+    """The sleeve goes round the arm all the way down, elbow included: its middle at the elbow is on the arm's."""
+    t = plan(dict(base=top, bottom=JEANS)).get("base")
+    for s in fitting.sleeves(t.shape):
+        _, elbow, _ = fig._arm_points(s.side)
+        poly = [t.point(q) for q in s.poly]
+        xs = [x0 + (elbow[1] - y0) * (x1 - x0) / (y1 - y0) for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1], strict=True)
+              if (y0 > elbow[1]) != (y1 > elbow[1])]
+        assert (min(xs) + max(xs)) / 2 == pytest.approx(elbow[0], abs=1.5 * K_PX)
+        assert max(xs) - min(xs) >= 2 * fig._arm_half(math.dist(fig._arm_points(s.side)[0], elbow)) + K_PX   # with ease
 
 
 def test_his_hands_are_as_long_as_his_face():

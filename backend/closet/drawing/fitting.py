@@ -3,9 +3,9 @@
 The item drawings are fashion flats: a garment laid out with its sleeves hanging beside it, drawn wider and longer
 than it looks worn. The figure draws a person and fits each garment to them, without changing the garment's own
 drawing: the template's Shape is built as usual and every point of it is moved by a smooth map (`warp`) before it
-is drawn. A top's body is scaled about the middle of the figure; each sleeve is turned and stretched as one piece
-so its shoulder point lands on the wearer's shoulder and its cuff on the arm; near the armhole the two are blended,
-so the drawing stays in one piece. Shapes only use absolute M, L, Q, C and Z commands with "x,y" pairs, so a path
+is drawn. A top's body is scaled about the middle of the figure; each sleeve is put round the wearer's arm
+(`sleeve_map`), so its shoulder point lands on his shoulder, its cuff on the arm and it bends at the elbow as the
+arm does; near the armhole the two are blended, so the drawing stays in one piece. Shapes only use absolute M, L, Q, C and Z commands with "x,y" pairs, so a path
 is warped point by point (curve control points with their curve).
 """
 from __future__ import annotations
@@ -151,8 +151,24 @@ def sleeves(shape: Shape) -> list[Sleeve]:
             continue
         poly = points(d)
         side = 1 if sum(x for x, _ in poly) / len(poly) > CX else -1
-        out.append(Sleeve(poly, side, pairs[0], pairs[3], pairs[4], pairs[5]))
+        outer, inner, armpit = _corners(pairs[2:-3])
+        out.append(Sleeve(poly, side, pairs[0], outer, inner, armpit))
     return out
+
+
+def _corners(run: list[Point]) -> tuple[Point, Point, Point]:
+    """A sleeve's opening and its underarm, from the straight run of its path (after the shoulder's curve, up to
+    the underarm): the outer corner, the inner corner and the underarm. On a flat drawing the run is those three
+    points; on a sleeve fitted with its edges cut into pieces (`warp(split=)`) the corners are the two sharpest
+    turns in it."""
+    if len(run) <= 4:
+        return run[-3], run[-2], run[-1]
+
+    def turn(i: int) -> float:
+        (ax, ay), (bx, by), (cx, cy) = run[i - 1], run[i], run[i + 1]
+        return abs(math.atan2((bx - ax) * (cy - by) - (by - ay) * (cx - bx), (bx - ax) * (cx - bx) + (by - ay) * (cy - by)))
+    first, second = sorted(sorted(range(1, len(run) - 1), key=turn)[-2:])
+    return run[first], run[second], run[-1]
 
 
 def _bilinear(q, u: float, v: float) -> Point:
@@ -186,6 +202,16 @@ def quad_map(src: Sleeve, dst: tuple[Point, Point, Point, Point]) -> Callable[[P
 
     def fn(p: Point) -> Point:
         return _bilinear(dst, *_unbilinear(q, p))
+    return fn
+
+
+def sleeve_map(src: Sleeve, to: Callable[[float, float], Point]) -> Callable[[Point], Point]:
+    """The map taking the sleeve's cloth to `to(u, v)`: `u` from its armhole (0) to its opening (1), `v` from its
+    outer (0) to its inner edge (1), so a sleeve can be bent as the arm is."""
+    q = (src.shoulder, src.outer, src.inner, src.armpit)
+
+    def fn(p: Point) -> Point:
+        return to(*_unbilinear(q, p))
     return fn
 
 

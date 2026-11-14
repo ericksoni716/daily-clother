@@ -1,4 +1,5 @@
 -r requirements.txt
 pytest>=8
+pytest-xdist==3.8.0  # runs the backend tests on every core in CI (-n auto)
 httpx2>=1.0
 ruff>=0.8

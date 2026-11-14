@@ -12,6 +12,7 @@ const release = { version: '0.3.0', notes: 'Better outfits', page: 'https://gith
 describe('update wording', () => {
   it('offers the three choices, asking first by default', () => {
     expect(MODES.map((m) => m.label)).toEqual(['Install updates by themselves', 'Ask me first', 'Never check']);
+    expect(MODES.map((m) => m.short)).toEqual(['By itself', 'Ask first', 'Never']);
   });
 
   it('says when it last checked', () => {

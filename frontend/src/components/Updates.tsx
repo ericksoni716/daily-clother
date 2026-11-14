@@ -1,6 +1,7 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { HangerIcon } from './Icons';
+import { Button, Notice, SegmentedControl } from './ui';
 import { formatSize } from '../labels';
 import { availableLine, busyLine, checkedLine, lastInstallLine, MODES, showBanner, updates, useUpdates, type UpdateMode } from '../updates';
 
@@ -24,7 +25,7 @@ export function UpdateBanner({ offline, toast }: { offline: boolean; toast: Toas
   return (
     <div className="ribbon ribbon-update" role="status" data-testid="update-banner">
       <span><strong>Closet {status.available.version} is ready</strong><span className="ribbon-more"> · your closets are backed up before it is installed.</span></span>
-      <button className="btn btn-small btn-on-accent" disabled={busy} onClick={async () => {
+      <Button small className="btn-on-accent" disabled={busy} onClick={async () => {
         setBusy(true);
         try {
           await updates.install(toast);
@@ -33,7 +34,7 @@ export function UpdateBanner({ offline, toast }: { offline: boolean; toast: Toas
         } finally {
           setBusy(false);
         }
-      }}>Install</button>
+      }}>Install</Button>
     </div>
   );
 }
@@ -51,7 +52,7 @@ export function Restarting() {
           <p id="restarting-text" className="muted narrow">
             It is taking longer than it should. If Closet's icon is not near the clock or in the menu bar, open Closet again on your computer. Your closets were backed up first.
           </p>
-          <button className="btn btn-primary" onClick={() => window.location.reload()}>Try again</button>
+          <Button variant="primary" onClick={() => window.location.reload()}>Try again</Button>
         </>
       ) : (
         <p id="restarting-text" className="muted narrow" aria-busy="true">
@@ -67,7 +68,6 @@ export function UpdatesSection({ offline, toast }: { offline: boolean; toast: To
   const { status, installing } = useUpdates();
   const [checking, setChecking] = useState(false);
   const [installBusy, setInstallBusy] = useState(false);
-  const group = useId();
 
   // while something happens in the background (a download, a backup), ask again every few seconds
   const busy = status?.busy ?? null;
@@ -127,20 +127,18 @@ export function UpdatesSection({ offline, toast }: { offline: boolean; toast: To
       </dl>
       <p className="state-line" data-testid="update-checked">{checkedLine(status)}</p>
       {status.check_error && <p className="hint" data-testid="update-check-error">{status.check_error}</p>}
-      {last && <p className={status.last_install?.ok ? 'hint' : 'form-error'} data-testid="update-last">{last}</p>}
-      <fieldset className="update-modes" disabled={offline}>
-        <legend>When a new version is out</legend>
-        {MODES.map((m) => (
-          <label key={m.value} className="update-mode">
-            <input type="radio" name={group} value={m.value} checked={status.mode === m.value} onChange={() => void choose(m.value)} />
-            <span className="toggle-text">
-              <span className="toggle-label">{m.label}</span>
-              <span className="hint">{m.hint}</span>
-            </span>
-          </label>
-        ))}
-      </fieldset>
-      <button className="btn" disabled={locked || checking} onClick={checkNow}>{checking ? 'Checking…' : 'Check now'}</button>
+      {last && (status.last_install?.ok
+        ? <p className="hint" data-testid="update-last">{last}</p>
+        : <Notice as="p" tone="error" testId="update-last">{last}</Notice>)}
+      <div className="update-modes">
+        <p className="update-modes-label">When a new version is out</p>
+        <SegmentedControl label="When a new version is out" options={MODES.map((m) => ({ value: m.value, label: m.short }))}
+          small value={status.mode} onChange={(m) => { if (!offline && m !== status.mode) void choose(m); }} className="update-mode-choice" />
+        <p className="hint" data-testid="update-mode-hint">
+          <strong>{MODES.find((m) => m.value === status.mode)?.label}.</strong> {MODES.find((m) => m.value === status.mode)?.hint}
+        </p>
+      </div>
+      <Button disabled={locked || checking} onClick={checkNow}>{checking ? 'Checking…' : 'Check now'}</Button>
       {busy && !installing && <p className="state-line" role="status">{busyLine(busy)}</p>}
       {availableLine(status) && <p className="state-line" data-testid="update-available"><strong>{availableLine(status)}</strong></p>}
       {release && (
@@ -150,10 +148,10 @@ export function UpdatesSection({ offline, toast }: { offline: boolean; toast: To
             <a href={release.page} target="_blank" rel="noreferrer noopener">The release page</a>
             {status.download_size && status.can_install ? ` · ${formatSize(status.download_size)} download` : ''}
           </p>
-          {status.problem && <p className="form-error" role="alert" data-testid="update-problem">{status.problem}</p>}
+          {status.problem && <Notice as="p" tone="error" role="alert" testId="update-problem">{status.problem}</Notice>}
           {status.can_install && (
             <>
-              <button className="btn btn-primary" disabled={locked || installBusy} onClick={installNow}>Install now</button>
+              <Button variant="primary" disabled={locked || installBusy} onClick={installNow}>Install now</Button>
               <p className="hint">Your closets are backed up first. Closet restarts as the new version and this page reconnects by itself.</p>
             </>
           )}

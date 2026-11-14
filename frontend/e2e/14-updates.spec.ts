@@ -17,16 +17,18 @@ test('settings: the Updates section shows this version and keeps the choice', as
   await login(page);
   const section = await openUpdates(page);
   await expect(section.getByTestId('update-version')).toHaveText((await (await page.request.get('/api/updates')).json()).version);
-  await expect(section.getByRole('radio', { name: /Ask me first/ })).toBeChecked();
+  const choice = section.getByRole('group', { name: 'When a new version is out' });
+  await expect(choice.getByRole('button', { name: 'Ask first' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(section.getByTestId('update-mode-hint')).toContainText('asks before installing');
   // run from source, Closet only reports new versions
   await expect(section.getByText(/can't replace itself/)).toBeVisible();
   await expect(page.getByTestId('update-banner')).toHaveCount(0);
 
-  await section.getByRole('radio', { name: /Never check/ }).check();
+  await choice.getByRole('button', { name: 'Never', exact: true }).click();
   await expect(page.getByText('Saved', { exact: true })).toBeVisible();
   expect((await (await page.request.get('/api/updates')).json()).mode).toBe('never');
   await page.reload();
-  await expect(section.getByRole('radio', { name: /Never check/ })).toBeChecked();
+  await expect(choice.getByRole('button', { name: 'Never', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(section.getByTestId('update-checked')).toHaveText(/never to check/);
 });
 

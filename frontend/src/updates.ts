@@ -40,10 +40,10 @@ export interface UpdateStatus {
   releases_page: string;
 }
 
-export const MODES: { value: UpdateMode; label: string; hint: string }[] = [
-  { value: 'auto', label: 'Install updates by themselves', hint: 'Closet backs up your closets, installs the new version and restarts. This page reconnects by itself.' },
-  { value: 'ask', label: 'Ask me first', hint: 'Closet gets a new version ready and asks before installing it.' },
-  { value: 'never', label: 'Never check', hint: 'Closet does not look for new versions unless you press Check now.' },
+export const MODES: { value: UpdateMode; label: string; short: string; hint: string }[] = [
+  { value: 'auto', label: 'Install updates by themselves', short: 'By itself', hint: 'Closet backs up your closets, installs the new version and restarts. This page reconnects by itself.' },
+  { value: 'ask', label: 'Ask me first', short: 'Ask first', hint: 'Closet gets a new version ready and asks before installing it.' },
+  { value: 'never', label: 'Never check', short: 'Never', hint: 'Closet does not look for new versions unless you press Check now.' },
 ];
 
 const BUSY: Record<UpdateBusy, string> = {

@@ -11,7 +11,10 @@ TODAY = date(2026, 11, 13)
 
 
 def demo():
-    items = json.loads((bundle_dir() / "demo_data" / "items.json").read_text(encoding="utf-8"))["items"]
+    """The demo closet as these checks were written for: before its second wave of items (closet/demo.py), which
+    filled some of its gaps (smart shoes, a warm coat) and changed which pieces are hardly worn."""
+    items = [i for i in json.loads((bundle_dir() / "demo_data" / "items.json").read_text(encoding="utf-8"))["items"]
+             if i.get("wave") != 2]
     wears = [{"item_id": i["id"], "worn_on": (TODAY - timedelta(days=n)).isoformat()}
              for i in items for n in (i.get("history") or {}).get("worn", [])]
     return items, wears

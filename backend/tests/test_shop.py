@@ -447,6 +447,8 @@ def test_the_daily_round_checks_each_wish_at_most_once_a_day_and_never_the_demo(
     conn.execute("INSERT INTO wishes (id, name, note, created_at, updated_at) VALUES ('dw', 'Demo wish', '', 't', 't')")
     conn.execute("INSERT INTO finds (id, wish_id, name, shop, url, currency, piece, found_at, updated_at) VALUES "
                  "('df', 'dw', 'n', 's', 'https://demo.example', 'USD', ?, 't', 't')", (json.dumps(product().model_dump()),))
+    demo_prices = conn.execute("SELECT COUNT(*) FROM find_prices").fetchone()[0]   # the demo's own stand-in finds
+    demo_checked = dict(conn.execute("SELECT id, prices_checked_at FROM wishes").fetchall())
     conn.close()
     fake_shop.calls.clear()
 
@@ -457,8 +459,9 @@ def test_the_daily_round_checks_each_wish_at_most_once_a_day_and_never_the_demo(
     clock[0] += timedelta(hours=1, seconds=1)
     assert services.shopper.tick() == 1 and len(fake_shop.calls) == 2   # a day on: once more
     conn = db.connect(cfg.db_path("demo"))
-    assert conn.execute("SELECT COUNT(*) FROM find_prices").fetchone()[0] == 0
-    assert conn.execute("SELECT prices_checked_at FROM wishes").fetchone()[0] is None
+    assert conn.execute("SELECT COUNT(*) FROM find_prices").fetchone()[0] == demo_prices
+    assert dict(conn.execute("SELECT id, prices_checked_at FROM wishes").fetchall()) == demo_checked
+    assert demo_checked["dw"] is None
     conn.close()
     conn = db.connect(cfg.db_path("main"))
     checked = {r["id"]: r["prices_checked_at"] for r in conn.execute("SELECT id, prices_checked_at FROM wishes")}

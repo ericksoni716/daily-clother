@@ -603,7 +603,8 @@
    "photo": null,
    "history": {
     "worn": [
-     15
+     15,
+     20
     ],
     "washed": null,
     "laundry": false
@@ -728,6 +729,7 @@
     "worn": [
      4,
      11,
+     12,
      17
     ],
     "washed": 12,
@@ -1336,9 +1338,7 @@
    },
    "history": {
     "worn": [
-     2,
-     12,
-     20
+     2
     ],
     "washed": 3,
     "laundry": false
@@ -5483,7 +5483,7 @@
     "base": "c642f3e0d206581aa3733850b211d734",
     "mid": null,
     "outer": "141f8536be1d54e0a36cf47ee9e2059c",
-    "bottom": "22adb1b89d6b59e9b17baa1dd7df94e8",
+    "bottom": "1987307fd9bb554a80a86eefe0cc0d17",
     "shoes": "4e249ac7f39151ae94db50cf16288994",
     "accessories": []
    },
@@ -5604,7 +5604,7 @@
     "base": "1d954f87caf458cd90250bf81fc18b05",
     "mid": "fb2b4f78d3c551d3bd9f4d26177b947d",
     "outer": null,
-    "bottom": "22adb1b89d6b59e9b17baa1dd7df94e8",
+    "bottom": "17eb7aeb829f5b06ab8a069278a048f0",
     "shoes": "7a5bd749c80e5f22bdd010e9debf20f0",
     "accessories": []
    },

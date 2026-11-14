@@ -46,6 +46,13 @@ def big_closet(n=300, seed=1):
 TOPS_TWICE = {"tops": 2}
 
 
+def first_demo_items():
+    """The demo closet as it was before its second wave of items (a parka among them): one warm outer layer,
+    so a trip of cool days can always be covered with one, and one-day trips where the fewest pieces are the
+    engine's best."""
+    return [i for i in demo_items() if i.get("wave") != 2]
+
+
 # ---------------------------------------------------------------------- the plan
 def test_every_day_is_dressed_from_packed_pieces_only():
     result = trips.plan(demo_items(), days(10), rewear=TOPS_TWICE)
@@ -67,7 +74,7 @@ def test_fewer_pieces_than_a_fresh_outfit_a_day():
 def test_pieces_are_grouped_and_worn_no_more_than_the_rewear_rules_allow():
     by_id = {i["id"]: i for i in demo_items()}
     for laundry in (None, {"day": 5}, {"every": 3}):
-        result = trips.plan(demo_items(), days(10), {"laundry": laundry}, TOPS_TWICE)
+        result = trips.plan(first_demo_items(), days(10), {"laundry": laundry}, TOPS_TWICE)
         assert result["uncovered"] == []
         washes = {w - 1 for w in trips.wash_days(trips.check_laundry(laundry, 10), 10)}
         for p in result["packed"]:
@@ -337,9 +344,9 @@ def test_the_rewear_setting_is_checked():
 def test_the_engine_is_called_not_changed():
     # a one-day trip wears what the engine would choose first from the same pieces on that day
     trip = days(1)
-    result = trips.plan(demo_items(), trip)
+    result = trips.plan(first_demo_items(), trip)
     d = trip[0]
-    best = outfits.suggest(demo_items(), outfits.Context(d["low_c"], d["high_c"], d["rain"]), 1)["outfits"][0]
+    best = outfits.suggest(first_demo_items(), outfits.Context(d["low_c"], d["high_c"], d["rain"]), 1)["outfits"][0]
     assert result["days"][0]["outfit"]["pieces"] == best["pieces"]
 
 
@@ -356,6 +363,11 @@ def clock(monkeypatch):
     def no_network(url):
         raise AssertionError(f"the network was used: {url}")
     monkeypatch.setattr(weather, "fetch", no_network)
+
+
+def added(client):
+    """The trips listed, less the one the demo closet comes with (closet/demo.py)."""
+    return [t for t in client.get("/api/trips").json()["trips"] if t["place"]["name"] != "Lisbon, Portugal"]
 
 
 def body(n=5, **kw):
@@ -379,7 +391,7 @@ def test_planning_saves_nothing_and_saving_keeps_the_trip(client, clock):
     assert "id" not in plan and plan["place"] == NYC and len(plan["plan"]["days"]) == 5
     assert [d["source"] for d in plan["weather"]] == ["given"] * 5
     assert plan["lines"] == trips.lines(plan["plan"])
-    assert client.get("/api/trips").json() == {"trips": []}
+    assert added(client) == []
 
     r = client.post("/api/trips", json=body(occasion="smart_casual", laundry={"day": 3}))
     assert r.status_code == 201, r.text
@@ -387,7 +399,7 @@ def test_planning_saves_nothing_and_saving_keeps_the_trip(client, clock):
     assert trip["occasion"] == "smart_casual" and trip["laundry"] == {"day": 3} and trip["packed"] == []
     assert trip["plan"]["laundry"] == {"day": 3} and trip["plan"]["washes"][0]["day"] == 3
     assert client.get(f"/api/trips/{trip['id']}").json() == trip
-    listed = client.get("/api/trips").json()["trips"]
+    listed = added(client)
     assert listed == [{"id": trip["id"], "place": NYC, "first_day": trip["first_day"], "last_day": trip["last_day"],
                        "occasion": "smart_casual", "laundry": {"day": 3}, "lines": len(trip["lines"]), "packed": 0,
                        "uncovered": len(trip["plan"]["uncovered"]), "warnings": len(trip["plan"]["warnings"]), "past": False}]
@@ -403,7 +415,7 @@ def test_ticks_are_saved_and_survive_a_replan(client, clock):
     assert client.get(f"/api/trips/{trip['id']}").json()["packed"] == [basic]
     r = client.patch(f"/api/trips/{trip['id']}", json={"ticks": {"item:not-there": True}})
     assert r.status_code == 422 and "not in this trip's plan" in r.json()["detail"]
-    assert client.get("/api/trips").json()["trips"][0]["packed"] == 1
+    assert added(client)[0]["packed"] == 1
 
 
 def test_swap_and_pin_plan_again(client, clock):
@@ -451,12 +463,12 @@ def test_delete_and_the_order_of_the_list(client, clock, monkeypatch):
         d["date"] = (date.fromisoformat(d["date"]) - timedelta(days=15)).isoformat()
     soon_body["first_day"], soon_body["last_day"] = soon_body["weather"][0]["date"], soon_body["weather"][-1]["date"]
     soon = client.post("/api/trips", json=soon_body).json()
-    assert [t["id"] for t in client.get("/api/trips").json()["trips"]] == [soon["id"], later["id"]]
+    assert [t["id"] for t in added(client)] == [soon["id"], later["id"]]
     monkeypatch.setattr(wears, "today", lambda: TODAY + timedelta(days=12))  # the soon trip is over
-    listed = client.get("/api/trips").json()["trips"]
+    listed = added(client)
     assert [t["id"] for t in listed] == [later["id"], soon["id"]] and listed[1]["past"] is True
     assert client.delete(f"/api/trips/{soon['id']}").status_code == 204
-    assert [t["id"] for t in client.get("/api/trips").json()["trips"]] == [later["id"]]
+    assert [t["id"] for t in added(client)] == [later["id"]]
 
 
 def test_the_demo_closet_and_the_real_closet_keep_their_trips_apart(client, clock):
@@ -468,7 +480,7 @@ def test_the_demo_closet_and_the_real_closet_keep_their_trips_apart(client, cloc
     real = client.post("/api/trips", json=body()).json()
     assert real["plan"]["packed"] == [] and real["plan"]["uncovered"]  # nothing in the real closet yet
     client.post("/api/profile", json={"profile": "demo"})
-    assert [t["id"] for t in client.get("/api/trips").json()["trips"]] == [demo_trip["id"]]
+    assert [t["id"] for t in added(client)] == [demo_trip["id"]]
 
 
 def test_migration_0012_adds_trips_to_a_closet_at_version_11(tmp_path):

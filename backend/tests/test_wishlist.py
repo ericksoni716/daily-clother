@@ -14,6 +14,15 @@ def demo(client):
     return client
 
 
+# the wishes the demo closet comes with, newest first (closet/demo.py)
+DEMO_WISHES = ["Navy merino crewneck", "Tan suede chukka boots"]
+
+
+def wishes(client) -> list[dict]:
+    """The wishes listed, less those the demo closet comes with."""
+    return [w for w in client.get("/api/wishlist").json()["wishes"] if w["name"] not in DEMO_WISHES]
+
+
 def gap_list(client) -> list[dict]:
     r = client.get("/api/gaps")
     assert r.status_code == 200
@@ -97,7 +106,7 @@ def test_a_wished_gap_is_marked_and_not_offered_again(demo):
     # asking again gives the same wish
     again = demo.post("/api/wishlist", json={"gap_id": g["id"]})
     assert again.status_code == 200 and again.json()["id"] == wish["id"]
-    assert len(demo.get("/api/wishlist").json()["wishes"]) == 1
+    assert len(wishes(demo)) == 1
     # a wished gap cannot be hidden; it is removed from the list first
     assert demo.post(f"/api/gaps/{g['id']}/hide", json={}).status_code == 409
     # still marked after the closet changes
@@ -115,7 +124,8 @@ def test_wishing_for_a_hidden_gap_brings_it_back(demo):
 
 
 def test_the_wishlist_routes(demo):
-    assert demo.get("/api/wishlist").json() == {"wishes": []}
+    assert [w["name"] for w in demo.get("/api/wishlist").json()["wishes"]] == DEMO_WISHES
+    assert wishes(demo) == []
     gid = gap_list(demo)[0]["id"]
     from_gap = demo.post("/api/wishlist", json={"gap_id": gid, "note": "  navy if I can  "}).json()
     assert from_gap["note"] == "navy if I can"
@@ -124,7 +134,7 @@ def test_the_wishlist_routes(demo):
     hand = by_hand.json()
     assert hand["name"] == "Brown suede chelsea boots" and hand["gap_id"] is None and hand["look_for"] is None
     # newest first
-    assert [w["id"] for w in demo.get("/api/wishlist").json()["wishes"]] == [hand["id"], from_gap["id"]]
+    assert [w["id"] for w in wishes(demo)] == [hand["id"], from_gap["id"]]
 
     # change the note (and the name)
     changed = demo.patch(f"/api/wishlist/{hand['id']}", json={"note": "size 10, not too pointed"})
@@ -138,13 +148,13 @@ def test_the_wishlist_routes(demo):
     # bought: off the list, and the gap is offered again while the analysis still finds it
     r = demo.post(f"/api/wishlist/{from_gap['id']}/bought")
     assert r.status_code == 200 and r.json()["bought_at"]
-    assert [w["id"] for w in demo.get("/api/wishlist").json()["wishes"]] == [hand["id"]]
+    assert [w["id"] for w in wishes(demo)] == [hand["id"]]
     assert by_id(demo)[gid]["state"] == "open"
     assert demo.post("/api/wishlist/nope/bought").status_code == 404
 
     # remove
     assert demo.delete(f"/api/wishlist/{hand['id']}").status_code == 204
-    assert demo.get("/api/wishlist").json() == {"wishes": []}
+    assert wishes(demo) == []
     assert demo.delete(f"/api/wishlist/{hand['id']}").status_code == 404
 
 
@@ -161,7 +171,7 @@ def test_demo_and_main_closets_keep_their_own(client):
     upload(client)
     assert client.post("/api/wishlist", json={"name": "A good umbrella"}).status_code == 201
     client.post("/api/profile", json={"profile": "demo"})
-    assert client.get("/api/wishlist").json() == {"wishes": []}
+    assert wishes(client) == []
     gid = gap_list(client)[0]["id"]
     client.post(f"/api/gaps/{gid}/hide", json={})
     client.post("/api/wishlist", json={"name": "Demo wish"})
@@ -169,7 +179,7 @@ def test_demo_and_main_closets_keep_their_own(client):
     assert [w["name"] for w in client.get("/api/wishlist").json()["wishes"]] == ["A good umbrella"]
     client.post("/api/profile", json={"profile": "demo"})
     assert by_id(client)[gid]["state"] == "hidden"
-    assert [w["name"] for w in client.get("/api/wishlist").json()["wishes"]] == ["Demo wish"]
+    assert [w["name"] for w in wishes(client)] == ["Demo wish"]
 
 
 def test_hidden_gaps_and_the_wishlist_are_in_the_closets_database(client, cfg):

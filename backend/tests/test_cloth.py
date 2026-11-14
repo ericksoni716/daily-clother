@@ -162,20 +162,24 @@ def test_the_gaps_use_the_stored_answer_and_a_new_one_is_not_served_from_the_cac
     original = app_module.life.analyse
     monkeypatch.setattr(app_module.life, "analyse", lambda *a: runs.append(1) or original(*a))
     assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
-    coat_id = next(i["id"] for i in client.get("/api/items").json()["items"] if i["category"] == "coat")
+    coats = [i["id"] for i in client.get("/api/items").json()["items"] if i["category"] == "coat"]
+    coat_id = coats[0]
     before = client.get("/api/gaps").json()
     conn = db.connect(cfg.db_path("demo"))
     try:
-        stored = json.loads(conn.execute("SELECT tag_answer FROM items WHERE id = ?", (coat_id,)).fetchone()[0])
+        answers = {c: json.loads(conn.execute("SELECT tag_answer FROM items WHERE id = ?", (c,)).fetchone()[0]) for c in coats}
     finally:
         conn.close()
-    assert stored["details"]["weight"] == "super_heavy"
-    # the only coat turns out to be a light one: a warm coat is missed more than before
-    set_answer(cfg, "demo", coat_id, {**stored, "details": {**stored["details"], "weight": "lightweight"}})
+    stored = answers[coat_id]
+    assert all(a["details"]["weight"] == "super_heavy" for a in answers.values())
+    # the coats turn out to be light ones: a warm coat is missed more than before
+    for c, a in answers.items():
+        set_answer(cfg, "demo", c, {**a, "details": {**a["details"], "weight": "lightweight"}})
     light = client.get("/api/gaps").json()
     assert light != before and warm_coat_score(light) > warm_coat_score(before)
     # and back again
-    set_answer(cfg, "demo", coat_id, stored)
+    for c, a in answers.items():
+        set_answer(cfg, "demo", c, a)
     assert client.get("/api/gaps").json() == before
     assert len(runs) == 3
     # a new answer that only changes what the engine does not read (and when it was given) is served from the cache

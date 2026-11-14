@@ -167,7 +167,7 @@ def test_demo_has_a_recent_history_and_is_separate_from_the_main_closet(client):
     client.post("/api/profile", json={"profile": "demo"})
     listed = client.get("/api/items").json()["items"]
     worn = [i for i in listed if i["last_worn"]]
-    assert len(worn) >= 8 and all(days_ago(14) <= i["last_worn"] < TODAY.isoformat() for i in worn)
+    assert len(worn) >= 8 and all(days_ago(21) <= i["last_worn"] < TODAY.isoformat() for i in worn)
     assert 2 <= sum(i["laundry"] == "laundry" for i in listed) <= 5
     assert all(i["wears_since_wash"] <= i["wear_count"] for i in listed)
     assert client.get(f"/api/items/{mine['id']}/wears").status_code == 404

@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
-import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, SunIcon, WarnIcon } from '../components/Icons';
+import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, HistoryIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
 import { OutfitFigure } from '../components/OutfitFigure';
-import { useTodayView } from '../figure';
+import { Button, buttonClass, Card, EmptyState, ItemThumb, Notice, PageHeader, SegmentedControl } from '../components/ui';
+import { WhereYouAre } from '../components/WhereYouAre';
+import { useTodayView, type TodayView } from '../figure';
 import { label } from '../labels';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
 import {
-  dayParts, joinWords, longDate, keptFor, loadChoice, moodLabel, MOODS, occasionLabel, OCCASIONS, outfitIds, parseTemp, placeLabel,
+  canDress, dayParts, joinWords, longDate, keptFor, loadChoice, moodLabel, MOODS, occasionLabel, OCCASIONS, outfitIds, parseTemp, placeLabel,
   saveChoice, sameOutfit, timeOf, whatToAddFirst, wornOrder, type Choice, type Outfit, type Place, type TodayAnswer,
   type TodayRequest, type TypedDay, type WornToday,
 } from '../today';
-import type { ItemSummary } from '../types';
+import type { ItemSummary, Settings } from '../types';
 import { localDay } from '../wears';
 import { localDay as dayNow } from '../wears';
 import { dismiss, loadDismissed, pendingQuestion, pieceName, questionFor, wornDay, type WornOutfit } from '../worn';
@@ -245,32 +247,78 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     );
   }
 
+  const header = (
+    <PageHeader className="today-header" title="Today" titleId="today-title" count={longDate(today)}
+      secondary={(
+        <div className="today-links">
+          <Link to="/today/worn" className={buttonClass({ small: true })}><HistoryIcon /> Worn</Link>
+          <Link to="/trips" className={buttonClass({ small: true })}><SuitcaseIcon /> Trips</Link>
+        </div>
+      )} />
+  );
+
+  // An empty closet: nothing to dress, so no weather or choices either, only what to add.
+  if (items.active !== null && !canDress(items.active)) {
+    return (
+      <div className="today">
+        {header}
+        <EmptyState big icon={<HangerIcon />} className="today-empty" testId="today-empty"
+          title="Add a top, something for your legs and shoes, and Today can dress you"
+          action={offline
+            ? <span className="btn btn-primary is-disabled" aria-disabled="true" title={OFFLINE_TITLE}>Add clothes</span>
+            : <Link to="/add" className="btn btn-primary">Add clothes</Link>}>
+          <p className="muted" data-testid="add-first">Still to add: {joinWords(whatToAddFirst(items.active))}.</p>
+        </EmptyState>
+      </div>
+    );
+  }
+
+  const ctx = phase.kind === 'ready' ? phase.answer.context : null;
+  const setDay = (t: Omit<TypedDay, 'day'> | null) => {
+    const value = t ? { ...t, day: localDay() } : null;
+    kept.setTyped(value);
+    setTyped(value);
+    setEditDay(false);
+  };
+
   const main = (
     <div className="today" aria-busy={asking || phase.kind === 'loading'}>
-      <header className="page-header today-header">
-        <div className="page-title-row">
-          <h1 id="today-title">Today</h1>
-          <span className="count">{longDate(today)}</span>
-          <Link to="/today/worn" className="btn btn-small btn-ghost today-worn-link">Worn</Link>
-        </div>
-        <Link to="/trips" className="btn btn-small btn-ghost today-trips"><SuitcaseIcon /> Trips</Link>
-      </header>
+      {header}
 
-      <DayLine phase={phase} typed={typed} editing={editDay} locked={locked}
-        onEdit={() => setEditDay(true)}
-        onTyped={(t) => {
-          const value = t ? { ...t, day: localDay() } : null;
-          kept.setTyped(value);
-          setTyped(value);
-          setEditDay(false);
-        }} />
+      <DayLine phase={phase} editing={editDay} locked={locked} onEdit={() => setEditDay(!editDay)} />
+      {(editDay || phase.kind === 'needs-day') && (
+        <DayPanel phase={phase} typed={typed} locked={locked} offline={offline} toast={toast}
+          onTyped={setDay}
+          onClose={phase.kind === 'needs-day' ? undefined : () => setEditDay(false)}
+          onPlace={() => {
+            // a place chosen now wins over temperatures typed earlier today
+            kept.setTyped(null);
+            setTyped(null);
+            setEditDay(false);
+            setAttempt((n) => n + 1);
+          }} />
+      )}
 
-      <div className="today-choices">
-        <ChoiceGroup title="Occasion" options={OCCASIONS} value={choice.occasion} labelOf={occasionLabel} locked={locked} scroll
+      <div className="today-choices chips-scroll">
+        <ChoiceGroup title="Occasion" options={OCCASIONS} value={choice.occasion} labelOf={occasionLabel} locked={locked}
           onChange={(occasion) => choose({ ...choice, occasion })} />
-        <ChoiceGroup title="Mood" options={MOODS} value={choice.mood} labelOf={moodLabel} locked={locked} scroll
+        <span className="today-choices-sep" aria-hidden="true" />
+        <ChoiceGroup title="Mood" options={MOODS} value={choice.mood} labelOf={moodLabel} locked={locked}
           onChange={(mood) => choose({ ...choice, mood })} />
       </div>
+
+      {ctx?.source === 'mild' && !editDay && (
+        <Notice tone="warning" icon={<WarnIcon />} className="today-no-weather" role="status" testId="no-weather"
+          action={(
+            <>
+              <Button small disabled={locked || asking} onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
+              <Button small disabled={locked} onClick={() => setEditDay(true)}>Type temperatures</Button>
+            </>
+          )}>
+          <p><strong>The weather could not be fetched</strong>, so these outfits are for a mild day.</p>
+          {ctx.message && <p className="today-no-weather-why">{ctx.message}</p>}
+        </Notice>
+      )}
 
       {again && (
         <div className="chips today-changes" role="group" aria-label="Wearing again">
@@ -303,6 +351,27 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         </div>
       )}
 
+      {question && (
+        <Card as="section" className="worn-question" aria-label={questionFor(question, dayNow())} data-testid="worn-question">
+          <div className="worn-question-head">
+            <h2>{questionFor(question, dayNow())}</h2>
+            <OutfitPics outfit={question} byId={allById} />
+            <button className="btn btn-icon btn-ghost worn-question-close" aria-label="Not now"
+              onClick={() => { setDismissed(dismiss(profile, question.id)); setRated(null); }}>×</button>
+          </div>
+          <RateOutfit outfit={question} offline={offline} compact onRated={(o) => {
+            setRated(o);
+            setRecent((l) => (l ?? []).map((x) => (x.id === o.id ? o : x)));
+            void refreshSaved(profile);
+          }} />
+          {rated && (
+            <div className="row">
+              <button className="btn btn-small" onClick={() => { setDismissed(dismiss(profile, rated.id)); setRated(null); }}>Done</button>
+            </div>
+          )}
+        </Card>
+      )}
+
       {worn && phase.kind === 'ready' && !phase.answer.outfits.some((o) => sameOutfit(outfitIds(o.pieces), worn.ids)) && (
         <div className="notice today-worn-note" role="status">
           <CheckIcon />
@@ -318,25 +387,6 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         changed={!!buildAround || leaveOut.length > 0}
         onClear={() => { setBuildAround(null); setLeaveOut([]); }}
         onRetry={() => setAttempt((n) => n + 1)} />
-
-      {question && (
-        <section className="worn-question" aria-label={questionFor(question, dayNow())} data-testid="worn-question">
-          <h2>{questionFor(question, dayNow())}</h2>
-          <button className="btn btn-icon btn-ghost worn-question-close" aria-label="Not now"
-            onClick={() => { setDismissed(dismiss(profile, question.id)); setRated(null); }}>×</button>
-          <OutfitPics outfit={question} byId={allById} />
-          <RateOutfit outfit={question} offline={offline} compact onRated={(o) => {
-            setRated(o);
-            setRecent((l) => (l ?? []).map((x) => (x.id === o.id ? o : x)));
-            void refreshSaved(profile);
-          }} />
-          {rated && (
-            <div className="row">
-              <button className="btn btn-small" onClick={() => { setDismissed(dismiss(profile, rated.id)); setRated(null); }}>Done</button>
-            </div>
-          )}
-        </section>
-      )}
     </div>
   );
 
@@ -358,44 +408,59 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
 
 // ------------------------------------------------------------------ the day
 
-function DayLine({ phase, typed, editing, locked, onEdit, onTyped }: {
-  phase: Phase; typed: TypedDay | null; editing: boolean; locked: boolean;
-  onEdit(): void; onTyped(t: Omit<TypedDay, 'day'> | null): void;
-}) {
-  if (phase.kind === 'needs-day' || editing) {
-    return (
-      <section className="today-day today-day-form" aria-labelledby="day-title">
-        <h2 id="day-title" className="visually-hidden">The day</h2>
-        <p className="today-day-why">{phase.kind === 'needs-day' ? phase.message : 'Give today\u2019s temperatures.'}</p>
-        <TypedForm typed={typed} locked={locked} onTyped={onTyped} onCancel={phase.kind === 'needs-day' ? undefined : () => onTyped(typed)} />
-        <p className="hint">
-          Or <Link to="/settings">choose where you are in Settings</Link> and Closet looks up the weather each day.
-        </p>
-      </section>
-    );
-  }
-  if (phase.kind !== 'ready') {
-    return (
-      <section className="today-day" aria-label="The day">
-        <SunIcon />
-        <p className="today-day-line muted">{phase.kind === 'loading' ? 'Looking up the day…' : '\u00a0'}</p>
-      </section>
-    );
-  }
-  const c = phase.answer.context;
+function DayLine({ phase, editing, locked, onEdit }: { phase: Phase; editing: boolean; locked: boolean; onEdit(): void }) {
+  const c = phase.kind === 'ready' ? phase.answer.context : null;
   return (
     <section className="today-day" aria-label="The day">
-      <SunIcon />
-      <div className="today-day-text">
-        <p className="today-day-line" data-testid="day-line" title={c.place ?? undefined}>
-          {dayParts(c).map((part, i) => <span key={i}>{part}</span>)}
-        </p>
-        {c.old && <p className="today-day-old" role="note">{c.message || 'This is an older forecast: the weather service could not be reached.'}</p>}
-      </div>
-      {!c.place && typed && (
-        <button className="btn btn-small btn-ghost" disabled={locked} title={locked ? OFFLINE_TITLE : undefined} onClick={onEdit}>Change</button>
-      )}
+      <p className="today-day-line" data-testid="day-line" title={c?.place ?? undefined}>
+        {c ? dayParts(c).map((part, i) => <span key={i}>{part}</span>)
+          : <span className="muted">{phase.kind === 'loading' ? 'Looking up the weather…' : 'The weather'}</span>}
+        {phase.kind !== 'needs-day' && (
+          <span className="today-day-change">
+            <button className="btn btn-link" aria-expanded={editing} aria-controls="today-day-panel" disabled={locked}
+              title={locked ? OFFLINE_TITLE : undefined} onClick={onEdit}>
+              Change
+            </button>
+          </span>
+        )}
+      </p>
+      {c?.old && <p className="today-day-old" role="note">{c.message || 'This is an older forecast: the weather service could not be reached.'}</p>}
     </section>
+  );
+}
+
+/** Behind "Change": where you are (search or the browser's location), or today's temperatures typed by hand. */
+function DayPanel({ phase, typed, locked, offline, toast, onTyped, onClose, onPlace }: {
+  phase: Phase; typed: TypedDay | null; locked: boolean; offline: boolean; toast: (m: string, k?: 'ok' | 'error') => void;
+  onTyped(t: Omit<TypedDay, 'day'> | null): void; onClose?: () => void; onPlace(): void;
+}) {
+  const [settings, setSettings] = useState<Settings | null>(null);
+  useEffect(() => {
+    if (offline) return;
+    let current = true;
+    api.settings().then((s) => current && setSettings(s), () => undefined);
+    return () => {
+      current = false;
+    };
+  }, [offline]);
+
+  return (
+    <Card as="section" className="today-day-panel" id="today-day-panel" aria-labelledby="day-title">
+      {phase.kind === 'needs-day' && <p className="today-day-why">{phase.message}</p>}
+      <h2 id="day-title">Where are you?</h2>
+      <WhereYouAre inline place={settings ? settings.place : undefined} home={settings?.home_place} offline={offline} toast={toast}
+        onChange={(s) => {
+          setSettings(s);
+          onPlace();
+        }} />
+      <h3 className="today-typed-title">Or type today's temperatures</h3>
+      <TypedForm typed={typed} locked={locked} onTyped={onTyped} onCancel={onClose} />
+      {typed && (
+        <p className="hint">
+          You typed today's temperatures. <button className="btn btn-link" disabled={locked} onClick={() => onTyped(null)}>Use the forecast again</button>
+        </p>
+      )}
+    </Card>
   );
 }
 
@@ -433,28 +498,25 @@ function TypedForm({ typed, locked, onTyped, onCancel }: {
       </label>
       <div className="row today-typed-actions">
         <button className="btn btn-primary" type="submit" disabled={locked || !low.trim()} title={locked ? OFFLINE_TITLE : undefined}>Dress me for this</button>
-        {onCancel && <button className="btn btn-ghost" type="button" onClick={onCancel}>Cancel</button>}
+        {onCancel && <button className="btn btn-ghost" type="button" onClick={onCancel}>Close</button>}
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}
     </form>
   );
 }
 
-function ChoiceGroup({ title, options, value, labelOf, locked, scroll, onChange }: {
-  title: string; options: readonly string[]; value: string; labelOf(v: string): string; locked: boolean; scroll?: boolean;
+function ChoiceGroup({ title, options, value, labelOf, locked, onChange }: {
+  title: string; options: readonly string[]; value: string; labelOf(v: string): string; locked: boolean;
   onChange(v: string): void;
 }) {
   return (
     <div className="today-choice" role="group" aria-label={title}>
-      <span className="chip-group-title" aria-hidden="true">{title}</span>
-      <div className={`chips${scroll ? ' chips-scroll' : ''}`}>
-        {options.map((opt) => (
-          <button key={opt} type="button" className={`chip${value === opt ? ' is-on' : ''}`} aria-pressed={value === opt}
-            disabled={locked} title={locked ? OFFLINE_TITLE : undefined} onClick={() => value !== opt && onChange(opt)}>
-            {labelOf(opt)}
-          </button>
-        ))}
-      </div>
+      {options.map((opt) => (
+        <button key={opt} type="button" className={`chip${value === opt ? ' is-on' : ''}`} aria-pressed={value === opt}
+          disabled={locked} title={locked ? OFFLINE_TITLE : undefined} onClick={() => value !== opt && onChange(opt)}>
+          {labelOf(opt)}
+        </button>
+      ))}
     </div>
   );
 }
@@ -535,10 +597,9 @@ function Body(props: BodyProps) {
   return (
     <>
       {savedAt && (
-        <p className="notice notice-warn today-saved" role="status">
-          <WarnIcon />
+        <Notice as="p" tone="warning" className="today-saved" role="status" icon={<WarnIcon />}>
           <span>Saved earlier today{timeOf(savedAt) ? `, at ${timeOf(savedAt)}` : ''}. You're offline, so these can't be changed or worn until Closet on your computer can be reached.</span>
-        </p>
+        </Notice>
       )}
       <Carousel {...props} outfits={answer.outfits} />
     </>
@@ -574,6 +635,8 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
     if (i !== current && i >= 0 && i < count) setIndex(i);
   };
 
+  const [view, setView] = useTodayView();
+
   return (
     <section className={`today-outfits${asking ? ' is-asking' : ''}`} aria-label="Today's outfits" aria-roledescription="carousel">
       <div className="today-outfits-head">
@@ -581,13 +644,10 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
           {current === 0 ? 'Best for today' : `Another idea`}
           <span className="count"> · {count === 1 ? 'the only outfit' : `${current + 1} of ${count}`}</span>
         </h2>
-        {asking && <span className="today-asking muted"><span className="spinner" aria-hidden="true" /> Asking again…</span>}
-        {count > 1 && (
-          <div className="today-arrows">
-            <button className="btn btn-icon" aria-label="Previous outfit" disabled={current === 0} onClick={() => go(current - 1)}><ChevronLeftIcon /></button>
-            <button className="btn btn-icon" aria-label="Next outfit" disabled={current === count - 1} onClick={() => go(current + 1)}><ChevronIcon /></button>
-          </div>
-        )}
+        {asking && <span className="today-asking muted"><span className="spinner" aria-hidden="true" /><span className="visually-hidden">Asking again…</span></span>}
+        <SegmentedControl label="Show the outfit" small className="today-view" value={view}
+          options={[{ value: 'pieces', label: 'Pieces' }, { value: 'worn', label: 'As worn' }]}
+          onChange={setView} />
       </div>
 
       <div className="today-track" ref={track} onScroll={onScroll} tabIndex={-1}>
@@ -595,35 +655,40 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
           <article key={outfitIds(o.pieces).join(',')} className="today-slide" aria-roledescription="slide"
             aria-label={`Outfit ${i + 1} of ${count}`} aria-hidden={i !== current} inert={i !== current}
             data-testid={i === current ? 'current-outfit' : undefined}>
-            <OutfitCard outfit={o} {...rest} />
+            <OutfitCard outfit={o} view={view} {...rest} />
           </article>
         ))}
       </div>
 
       {count > 1 && (
-        <div className="today-thumbs" role="group" aria-label="Choose an outfit">
-          {outfits.map((o, i) => (
-            <button key={i} className={`today-thumb${i === current ? ' is-on' : ''}`} aria-label={`Outfit ${i + 1}`}
-              aria-pressed={i === current} onClick={() => go(i)}>
-              <span className="today-thumb-pics" aria-hidden="true">
-                {wornOrder(o.pieces).slice(0, 4).map((p) => <Pic key={p.id} item={rest.byId.get(p.id)} />)}
-              </span>
-              <span className="today-dot" aria-hidden="true" />
-            </button>
-          ))}
+        <div className="today-nav">
+          <button className="btn btn-icon today-arrow" aria-label="Previous outfit" disabled={current === 0} onClick={() => go(current - 1)}><ChevronLeftIcon /></button>
+          <div className="today-thumbs" role="group" aria-label="Choose an outfit">
+            {outfits.map((o, i) => (
+              <button key={i} className={`today-thumb${i === current ? ' is-on' : ''}`} aria-label={`Outfit ${i + 1}`}
+                aria-pressed={i === current} onClick={() => go(i)}>
+                <span className="today-thumb-pics" aria-hidden="true">
+                  {wornOrder(o.pieces).slice(0, 4).map((p) => <Pic key={p.id} item={rest.byId.get(p.id)} />)}
+                </span>
+                <span className="today-dot" aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+          <button className="btn btn-icon today-arrow" aria-label="Next outfit" disabled={current === count - 1} onClick={() => go(current + 1)}><ChevronIcon /></button>
         </div>
       )}
     </section>
   );
 }
 
-function OutfitCard({ outfit, byId, worn, busy, actions, onWear, onUndo }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & { outfit: Outfit }) {
+function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & {
+  outfit: Outfit; view: TodayView;
+}) {
   const ids = outfitIds(outfit.pieces);
   const isWorn = !!worn && sameOutfit(worn.ids, ids);
   const locked = actions.locked;
   const title = locked ? OFFLINE_TITLE : undefined;
   const [menuFor, setMenuFor] = useState<string | null>(null);
-  const [view, setView] = useTodayView();
   const menuItem = menuFor ? byId.get(menuFor) : undefined;
   useEffect(() => {
     if (!menuFor) return;
@@ -632,21 +697,8 @@ function OutfitCard({ outfit, byId, worn, busy, actions, onWear, onUndo }: Omit<
     return () => window.removeEventListener('keydown', close);
   }, [menuFor]);
   return (
-    <div className="today-card">
-      {outfit.warnings.length > 0 && (
-        <div className="today-warnings" role="note" aria-label="Be aware">
-          <WarnIcon />
-          <ul>{outfit.warnings.map((w) => <li key={w}>{w}</li>)}</ul>
-        </div>
-      )}
-
+    <Card className="today-card">
       <div className="today-card-pieces">
-        <div className="segmented segmented-small today-view" role="group" aria-label="Show the outfit">
-          {([['pieces', 'Pieces'], ['worn', 'As worn']] as const).map(([value, text]) => (
-            <button key={value} type="button" className={view === value ? 'is-on' : ''} aria-pressed={view === value}
-              onClick={() => { setMenuFor(null); setView(value); }}>{text}</button>
-          ))}
-        </div>
         {view === 'worn' && (
           <OutfitFigure pieces={outfit.pieces} alt={`The outfit as worn: ${joinWords(wornOrder(outfit.pieces).map((p) => itemName(byId.get(p.id))))}`}
             version={ids.map((id) => byId.get(id)?.illustration_url ?? '').join(' ')} />
@@ -659,7 +711,7 @@ function OutfitCard({ outfit, byId, worn, busy, actions, onWear, onUndo }: Omit<
             </li>
           ))}
         </ul>
-        {menuFor && (
+        {menuFor && view === 'pieces' && (
           <div className="today-piece-menu" role="group" aria-label={`Choices for ${itemName(menuItem)}`}>
             <p><strong>{itemName(menuItem)}</strong></p>
             <div className="row">
@@ -671,31 +723,37 @@ function OutfitCard({ outfit, byId, worn, busy, actions, onWear, onUndo }: Omit<
             </div>
           </div>
         )}
-        <p className="hint today-hint">{view === 'worn' ? 'Drawn as worn, from the pieces\' own drawings. Choose Pieces to see one, leave it out or build around it.' : (
-          <>Tap a piece to see it. Its <MoreIcon className="inline-icon" /> button leaves it out or builds every outfit around it.</>
-        )}</p>
+      </div>
+
+      <div className="today-wear">
+        {isWorn ? (
+          <>
+            <p className="today-worn" data-testid="worn-today"><CheckIcon /> You're wearing this today</p>
+            <button className="btn" disabled={busy || locked} title={title} onClick={() => onUndo()}>Undo</button>
+          </>
+        ) : (
+          <button className="btn btn-primary btn-block today-wear-button" disabled={busy || locked} title={title} onClick={() => onWear(outfit)}>
+            {worn ? 'Wear this instead' : "I'm wearing this"}
+          </button>
+        )}
       </div>
 
       <div className="today-card-why">
-        <div className="today-wear">
-          {isWorn ? (
-            <>
-              <p className="today-worn" data-testid="worn-today"><CheckIcon /> You're wearing this today</p>
-              <button className="btn" disabled={busy || locked} title={title} onClick={() => onUndo()}>Undo</button>
-            </>
-          ) : (
-            <button className="btn btn-primary btn-block today-wear-button" disabled={busy || locked} title={title} onClick={() => onWear(outfit)}>
-              {worn ? 'Wear this instead' : "I'm wearing this"}
-            </button>
-          )}
-        </div>
-
+        {outfit.warnings.length > 0 && (
+          <div className="today-warnings" role="note" aria-label="Be aware">
+            <WarnIcon />
+            <ul>{outfit.warnings.map((w) => <li key={w}>{w}</li>)}</ul>
+          </div>
+        )}
         <h3 className="chip-group-title">Why this works</h3>
         <ul className="today-reasons" aria-label="Why this works">
           {outfit.reasons.map((r) => <li key={r}><CheckIcon /><span>{r}</span></li>)}
         </ul>
+        <p className="hint today-hint">{view === 'worn' ? 'Drawn as worn, from the pieces\' own drawings. Choose Pieces to see one, leave it out or build around it.' : (
+          <>Tap a piece to see it. Its <MoreIcon className="inline-icon" /> button leaves it out or builds every outfit around it.</>
+        )}</p>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -706,7 +764,7 @@ function Piece({ id, place, item, isBase, open, onMore }: {
   return (
     <div className={`today-piece${isBase ? ' is-base' : ''}${open ? ' is-open' : ''}`}>
       <Link to={`/today/item/${encodeURIComponent(id)}`} className="today-piece-link" data-testid="piece">
-        <span className="today-piece-card"><Pic item={item} /></span>
+        <ItemThumb className="today-piece-card" picture={<Pic item={item} />} />
         <span className="today-piece-place">{isBase ? 'Built around' : placeLabel(place)}</span>
         <span className="today-piece-name">{name}</span>
       </Link>

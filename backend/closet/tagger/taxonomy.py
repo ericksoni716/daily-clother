@@ -8,6 +8,8 @@ values into template parameters.
 """
 from __future__ import annotations
 
+import re
+
 AXES: dict[str, tuple[str, ...]] = {
     "fit": (
         "slim", "regular", "relaxed", "boxy", "oversized", "cropped", "longline", "tailored",
@@ -87,8 +89,142 @@ AXES: dict[str, tuple[str, ...]] = {
 WEIGHT_CLASSES = ("lightweight", "midweight", "heavyweight", "super_heavy")
 KNIT_GAUGES = ("extra_fine", "fine", "medium", "chunky", "super_chunky")
 CORDUROY_WALES = ("needlecord", "standard", "mid", "wide_wale", "jumbo")
-# the shoe styles the drawing has a shape for (a sandal has none yet)
-SHOE_STYLES = ("low_sneaker", "high_top", "runner", "slip_on", "loafer", "derby", "oxford", "boot", "chelsea_boot")
+# the shoe styles the drawing has a shape for
+SHOE_STYLES = ("low_sneaker", "high_top", "runner", "slip_on", "loafer", "derby", "oxford", "boot", "chelsea_boot", "sandal")
+
+# The taxonomy's footwear garments (its `garments` with category "footwear"), in its order: the app style each is
+# (the JSON's app_style; "sandals" is the sandals category), what the drawing adds to that style, and how well the
+# drawing shows it. A footwear id or one of the footwear block's words in the tagger's other_features picks these.
+FOOTWEAR: dict[str, tuple[str, dict, str, str]] = {
+    "patent_oxford": ("oxford", {"toe_cap": "none"}, "approximate", "a plain-toe oxford; no patent shine"),
+    "plain_toe_oxford": ("oxford", {"toe_cap": "none"}, "drawn", "closed lacing, no toe cap"),
+    "cap_toe_oxford": ("oxford", {"toe_cap": "stitched"}, "drawn", "closed lacing and a stitched toe cap"),
+    "wholecut": ("oxford", {"toe_cap": "none", "wholecut": True}, "drawn", "closed lacing, no vamp seam"),
+    "brogue": ("oxford", {"brogue": "full"}, "drawn", "a wingtip with punching; derby or oxford lacing as tagged; "
+               "semi (medallion and cap) or quarter when named"),
+    "derby": ("derby", {}, "drawn", "open lacing: quarters on top of the vamp, the tongue between them"),
+    "monk_strap": ("derby", {}, "approximate", "drawn as a derby; no buckled strap"),
+    "penny_loafer": ("loafer", {"strap": "penny"}, "drawn", "the saddle strap with its slot"),
+    "tassel_loafer": ("loafer", {"strap": "tassel"}, "drawn", "a lace round the collar, tied at the throat, two tassels"),
+    "horsebit_loafer": ("loafer", {"strap": "horsebit"}, "drawn", "a metal bit across the throat"),
+    "driving_moc": ("loafer", {"strap": "none"}, "approximate", "a plain loafer; no rubber pebbles on the sole"),
+    "chelsea_boot": ("chelsea_boot", {}, "drawn", "the chelsea boot with its elastic side"),
+    "jodhpur_boot": ("boot", {}, "approximate", "a laced boot; no strap round the ankle"),
+    "chukka": ("boot", {}, "approximate", "a laced boot, taller than a chukka's two or three eyelets"),
+    "desert_boot": ("boot", {}, "approximate", "a laced boot; no crepe sole"),
+    "service_boot": ("boot", {}, "drawn", "a laced leather boot"),
+    "moc_toe_boot": ("boot", {}, "approximate", "a laced boot; no moc toe seam"),
+    "engineer_boot": ("boot", {}, "approximate", "a laced boot; no straps or buckles"),
+    "logger_boot": ("boot", {}, "approximate", "a laced boot, not as tall"),
+    "hiking_boot": ("boot", {}, "approximate", "a laced boot; no speed hooks or lug sole"),
+    "duck_boot": ("boot", {}, "approximate", "a laced boot; no rubber lower"),
+    "rain_boot": ("boot", {}, "approximate", "a laced boot; a rain boot has no laces"),
+    "western_boot": ("boot", {}, "approximate", "a laced boot; no shaft, pointed toe or heel"),
+    "combat_boot": ("boot", {}, "approximate", "a laced boot, not as tall"),
+    "snow_boot": ("boot", {}, "approximate", "a laced boot; no cuff or rubber lower"),
+    "leather_court_sneaker": ("low_sneaker", {}, "drawn", "a low sneaker"),
+    "canvas_low_top": ("low_sneaker", {}, "drawn", "a low sneaker"),
+    "canvas_high_top": ("high_top", {}, "drawn", "a high top with its rubber toe"),
+    "retro_court_shoe": ("low_sneaker", {}, "drawn", "a low sneaker"),
+    "basketball_shoe": ("high_top", {}, "approximate", "a high top; no padded collar"),
+    "skate_shoe": ("low_sneaker", {}, "approximate", "a low sneaker; no padded tongue"),
+    "retro_runner": ("runner", {}, "drawn", "a runner"),
+    "running_shoe": ("runner", {}, "drawn", "a runner"),
+    "trail_runner": ("runner", {}, "approximate", "a runner; no lugs or toggle lace"),
+    "trainer": ("runner", {}, "drawn", "a runner"),
+    "canvas_slip_on": ("slip_on", {}, "drawn", "a laceless canvas shoe"),
+    "cleats": ("low_sneaker", {}, "approximate", "a low sneaker; no studs"),
+    "chunky_sneaker": ("runner", {"sole": "chunky"}, "drawn", "a runner on a chunky sole"),
+    "boat_shoe": ("loafer", {"strap": "none"}, "approximate", "a plain loafer; no lace round the collar"),
+    "camp_moc": ("loafer", {"strap": "none"}, "approximate", "a plain loafer; no laces"),
+    "espadrille": ("slip_on", {}, "approximate", "a slip-on; no rope sole"),
+    "sandal": ("sandal", {"sandal": "two_strap"}, "drawn", "two buckled straps over a footbed"),
+    "slide": ("sandal", {"sandal": "slide"}, "drawn", "one wide strap over a footbed"),
+    "flip_flop": ("sandal", {"sandal": "slide"}, "approximate", "drawn as a slide; no thong between the toes"),
+    "moccasin_slipper": ("slip_on", {}, "approximate", "a slip-on; no moc seam or fleece"),
+    "velvet_slipper": ("loafer", {"strap": "none"}, "approximate", "a plain loafer; no velvet nap"),
+    "felt_clog": ("slip_on", {}, "approximate", "a slip-on; no clog shape"),
+}
+# the footwear block's toe treatments and lacings, in its order, and what the drawing makes of each
+FOOTWEAR_TOE_TREATMENT = {
+    "plain": ({"toe_cap": "none"}, "drawn", ""), "cap_toe": ({"toe_cap": "stitched"}, "drawn", "a stitched toe cap"),
+    "wingtip": ({"brogue": "full"}, "drawn", "on a derby or oxford: the wing and its punching"),
+    "medallion": ({"brogue": "semi"}, "drawn", "on a derby or oxford: a punched toe and cap"),
+    "apron": ({}, "not_drawn", "no apron seam on the toe yet"),
+    "split_toe": ({}, "not_drawn", "no split toe seam yet"),
+    "rubber_toe_cap": ({"toe_cap": "rubber"}, "drawn", "the rubber toe of a canvas shoe"),
+}
+FOOTWEAR_LACING = {
+    "closed_oxford": ({"style": "oxford"}, "drawn", "the facings meet under the vamp"),
+    "open_derby": ({"style": "derby"}, "drawn", "the quarters on top of the vamp, the tongue between them"),
+    "speed_hooks": ({}, "not_drawn", "drawn as eyelets"), "d_rings": ({}, "not_drawn", "drawn as eyelets"),
+    "ghillie": ({}, "not_drawn", "drawn as eyelets"), "slip_on": ({}, "drawn", "no laces"),
+    "elastic_gussets": ({}, "approximate", "the chelsea boot's elastic side; not on other shoes"),
+    "monk_single": ({}, "not_drawn", "no buckled strap yet"), "monk_double": ({}, "not_drawn", "no buckled strap yet"),
+    "hook_and_loop": ({}, "not_drawn", "no straps yet"), "toggle_speed_lace": ({}, "not_drawn", "drawn as laces"),
+    "rawhide_around_collar": ({}, "not_drawn", "no lace round a loafer's collar"),
+}
+# other words for what the drawing shows, as the tagger may put them
+_SHOE_WORDS = {
+    "quarter brogue": {"brogue": "quarter"}, "semi brogue": {"brogue": "semi"}, "full brogue": {"brogue": "full"},
+    "closed lacing": {"style": "oxford"}, "open lacing": {"style": "derby"},
+    "penny strap": {"strap": "penny"}, "saddle strap": {"strap": "penny"}, "tassels": {"strap": "tassel"},
+    "tassel": {"strap": "tassel"}, "horsebit": {"strap": "horsebit"}, "venetian": {"strap": "none"},
+    "two strap": {"sandal": "two_strap"}, "ankle strap": {"sandal": "strap"}, "heel strap": {"sandal": "strap"},
+    "strap sandal": {"sandal": "strap"}, "cap toe": {"toe_cap": "stitched"}, "toe cap": {"toe_cap": "stitched"},
+}
+
+
+def _say(word: str) -> str:
+    return " " + re.sub(r"[^a-z0-9]+", " ", word.lower()).strip() + " "
+
+
+def shoe_words(style: str, words: list[str]) -> tuple[str, dict, list[str]]:
+    """What the tagger's own words (other_features) add to a shoe's drawing: (style, params, the words now drawn).
+    A footwear id sets the style and its parameters (a brogue keeps a tagged derby lacing); the footwear block's
+    toe treatments and lacings, and a few plain words ("tassels", "5 eyelets"), refine them, whichever comes first."""
+    params: dict = {}
+    used: list[str] = []
+    found = []   # (kind, value, word) in the order the words come
+    for word in words:
+        said = _say(word)
+        for fid in FOOTWEAR:
+            if _say(fid) in said or (fid == "brogue" and " brogues " in said):
+                found.append(("id", fid, word))
+        for key, table in (("toe", FOOTWEAR_TOE_TREATMENT), ("lacing", FOOTWEAR_LACING)):
+            for v in table:
+                if _say(v) in said:
+                    found.append((key, v, word))
+        for phrase in _SHOE_WORDS:
+            if _say(phrase) in said:
+                found.append(("word", phrase, word))
+        m = re.search(r" (\d+) eyelets? ", said)
+        if m:
+            found.append(("eyelets", int(m.group(1)), word))
+    for kind, value, word in sorted(found, key=lambda x: x[0] != "id"):   # ids first, details over them
+        if kind == "id":
+            app, more, status, _ = FOOTWEAR[value]
+            if value == "brogue":
+                style = style if style in ("derby", "oxford") else "oxford"
+            else:
+                style = app
+            params.update(more)
+        elif kind == "eyelets":
+            status = "drawn"
+            params["eyelets"] = max(2, min(10, value))
+        else:
+            more, status, _ = ({"toe": FOOTWEAR_TOE_TREATMENT, "lacing": FOOTWEAR_LACING}[kind][value]
+                               if kind != "word" else (_SHOE_WORDS[value], "drawn", ""))
+            more = dict(more)
+            if more.get("style") and style not in ("derby", "oxford"):
+                more.pop("style")   # a lacing word only says which of the two dress shoes
+            style = more.pop("style", style)
+            if more.get("toe_cap") == "stitched" and params.get("brogue") == "full":   # a brogue with a cap is semi
+                more = {"brogue": "semi"}
+            params.update(more)
+        if status == "drawn" and word not in used:
+            used.append(word)
+    return style, params, used
 
 # The garments (kinds of clothing) of the taxonomy's `garments` block, with their taxonomy category; footwear and
 # accessories are left out (shoes have their own style field). A test keeps this equal to the JSON.
@@ -382,8 +518,8 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
         p["weight"] = surf["weight"]
     if g.get("knit_gauge") in KNIT_GAUGES:
         p["gauge"] = g["knit_gauge"]
-    if g.get("quilting") == "baffle":
-        notes.append("puffer baffles drawn as stitched channels; the puffed silhouette is not drawn")
+    if g.get("quilting") == "baffle":   # a puffer: the outline swells between the stitched channels
+        p["quilting"] = "baffle"
     return p, extras, notes
 
 
@@ -513,10 +649,10 @@ COVERAGE: dict[str, dict[str, tuple[str, str]]] = {
         ("cutaway", (D, "points swept nearly horizontal; a wide stand shows between them")),
         ("button_down", (D, "soft roll and a small button at each point")),
         ("hidden_button_down", (A_, "drawn as a soft-roll point collar: its buttons are hidden under the points")),
-        ("club", (D, "rounded points")), ("tab", (A_, "drawn as a point collar with a strap over the top button; under a tie it would hide")),
+        ("club", (D, "rounded points")), ("tab", (D, "close-set points with a buttoned strap linking them below the collar button; under a tie it would hide")),
         ("pin", (D, "point collar with a collar bar across")), ("band", (D, "stand only, no leaves; button on the band")),
         ("camp", (D, "flat collar with no stand, open notch and small revers down to the first button")),
-        ("wing", (D, "stand with small pressed-out wing tips")),
+        ("wing", (D, "stand with pressed-out wing tips, wide enough to read at item size")),
         ("western", (D, "long sharp points; also brings the pointed western yoke")),
         ("johnny", (D, "knit spread collar over an open V with no buttons")),
         ("flat_knit", (D, "the polo's soft knit collar")),
@@ -537,7 +673,7 @@ COVERAGE: dict[str, dict[str, tuple[str, str]]] = {
         ("snap", (D, "press studs drawn as a metal ring round a cap")),
         ("zip_quarter", (D, "short zip")), ("zip_half", (D, "zip to mid-chest")), ("zip_full", (D, "")),
         ("double_breasted", (D, "front edge well past centre, two columns of buttons; on a jacket 6x2, "
-                                "the top row set wider")),
+                                "the top row set wider; told 1 or 2 buttons, those are the ones that fasten (6x1, 6x2)")),
         ("none", (D, "")),
     ),
     "cuff": _c(
@@ -575,7 +711,7 @@ COVERAGE: dict[str, dict[str, tuple[str, str]]] = {
     "hem": _c(
         ("curved_shirt_tail", (D, "")), ("straight_with_vents", (D, "small slits at the side seams with bar tacks")),
         ("straight", (D, "")), ("tennis_tail", (D, "vents, and the longer back showing below the front")),
-        ("ribbed_band", (D, "")), ("raw", (D, "no stitch line, a few loose threads")),
+        ("ribbed_band", (D, "a knit rib band; under a woven shirt collar (a trucker) a buttoned waistband with side adjusters")), ("raw", (D, "no stitch line, a few loose threads")),
     ),
 }
 
@@ -583,7 +719,7 @@ _WOVEN_NOTES = {
     "corduroy": (D, "vertical wales, spacing set by corduroy_wale; heavy"),
     "seersucker": (D, "puckered stripes between flat ones; light"),
     "herringbone": (D, "chevron columns"), "twill": (D, "fine diagonal"), "denim": (D, "steep twill with pale weft; heavy"),
-    "linen": (D, "short slub streaks; light"), "hopsack": (D, "small basket weave"), "tweed": (D, "flecks; super heavy, slight halo"),
+    "linen": (D, "sparse short slub streaks; light"), "hopsack": (D, "small basket weave"), "tweed": (D, "flecks; super heavy, slight halo"),
     "ripstop": (D, "grid of heavier threads"), "waffle_weave": (D, "waffle grid; heavy"),
     "oxford": (N_, "plain at this size: oxford cloth's fine basket weave does not show; midweight"),
     "royal_oxford": (N_, "plain at this size, like oxford"), "fresco": (A_, "drawn as a basket weave; light"),
@@ -631,10 +767,30 @@ COVERAGE["fiber"] = {
         "shearling": (D, "super heavy, sherpa curl and fuzzy edge"),
     }[v] for v in AXES["fiber"]}
 COVERAGE["weight"] = {
-    "lightweight": (D, "fine outline and inner lines, a touch narrower body"),
+    "lightweight": (D, "fine outline and inner lines, a touch narrower body, faint drape folds from the underarms and at the elbows"),
     "midweight": (D, "the reference drawing"),
-    "heavyweight": (D, "heavier outline, wider body, rounder shoulder, deeper bands, doubled hem and cuff stitching, collar topstitch"),
+    "heavyweight": (D, "heavier outline, wider body, rounder shoulder, deeper bands with a soft shade where the body meets them, doubled hem and cuff stitching, collar topstitch"),
     "super_heavy": (D, "all of heavyweight, more so"),
+}
+
+COVERAGE["footwear"] = {fid: (status, note) for fid, (_, _, status, note) in FOOTWEAR.items()}
+COVERAGE["toe_treatment"] = {v: (status, note) for v, (_, status, note) in FOOTWEAR_TOE_TREATMENT.items()}
+COVERAGE["lacing"] = {v: (status, note) for v, (_, status, note) in FOOTWEAR_LACING.items()}
+COVERAGE["shoe_style"] = {
+    "low_sneaker": (D, ""), "high_top": (D, ""), "runner": (D, ""), "slip_on": (D, ""), "loafer": (D, ""),
+    "derby": (D, "open lacing"), "oxford": (D, "closed lacing"), "boot": (D, ""), "chelsea_boot": (D, ""),
+    "sandal": (D, "a footbed on an outsole, with straps"),
+}
+COVERAGE["loafer_strap"] = {
+    "penny": (D, "the default"), "tassel": (D, ""), "horsebit": (D, ""), "none": (D, "a venetian: the moc seam only"),
+}
+COVERAGE["brogue"] = {
+    "none": (D, ""), "quarter": (D, "punching along the toe cap"), "semi": (D, "a medallion, and punching along the cap and seams"),
+    "full": (D, "a wingtip: the wing, a medallion and punching"),
+}
+COVERAGE["sandal"] = {
+    "slide": (D, "one wide strap"), "two_strap": (D, "the default: two buckled straps"),
+    "strap": (D, "forefoot, instep, ankle and heel straps"),
 }
 
 

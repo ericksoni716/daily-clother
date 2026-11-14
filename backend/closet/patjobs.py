@@ -2,10 +2,12 @@
 
 An item whose pattern is stripes, plaid, floral, camouflage or another print waits to be measured once it has
 a cutout and Claude has described it (`tagjobs.apply_answer` marks it), and again when the owner changes its
-pattern. The worker takes one waiting item at a time: for a top it first asks Claude where the buttons, neck,
+pattern. So does a top with a graphic (Claude's pattern "graphic", or "other" named "novelty"): its print is
+lifted from the photo and drawn at its place. The worker takes one waiting item at a time: for a top it first asks Claude where the buttons, neck,
 hem, shoulders and underarms are (`tagger.landmarks`, through the same routes and monthly limit as describing;
 without an answer the pattern is still measured, only not placed), then measures (`patterns.measure`, which
-can take a minute or two on a large photo), keeps the result in `items.pattern_fill` and redraws the item.
+can take a minute or two on a large photo), keeps the result in `items.pattern_fill` with the colours measured from it (`palette`), lays those colours
+over the item's colour words (`palette.settle`: the owner's own colour always wins) and redraws the item.
 
 A measurement that fails never costs the item its drawing: it is drawn in its colour and says why. The demo
 closet is never measured: its drawings were made in advance.
@@ -21,7 +23,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, illustrations
+from . import db, illustrations, palette
 from .config import Config
 from .state import State
 from .tagger.tagging import RouteUnavailable
@@ -31,6 +33,8 @@ log = logging.getLogger("closet.patterns")
 MEASURED = ("plaid", "stripe", "floral", "camo", "other")
 TOPS = ("tee", "shirt", "polo", "sweater", "hoodie", "jacket", "coat")
 FAILED = "Closet could not measure the pattern from the photo, so the drawing shows only its colour."
+GRAPHIC = "graphic"
+GRAPHIC_FAILED = "Closet could not lift the print from the photo, so the drawing shows the item plain."
 NO_CUTOUT = "The pattern is measured from the photo with its background removed, which this item does not have yet."
 
 Measurer = Callable[..., dict | None]          # (cutout, pattern, words, landmarks) -> kept pattern or None
@@ -42,13 +46,31 @@ def wanted(pattern) -> bool:
     return isinstance(pattern, str) and pattern in MEASURED
 
 
+def _pattern_name(row) -> str | None:
+    try:
+        answer = json.loads(row["tag_answer"]) if row["tag_answer"] else {}
+    except ValueError:
+        return None
+    found = answer.get("details") if isinstance(answer, dict) else None
+    return found.get("pattern_name") if isinstance(found, dict) else None
+
+
+def method(row) -> str | None:
+    """What is measured for an item row (category, pattern, tag_answer): GRAPHIC for a top with a graphic, its
+    pattern word for a pattern measured from the photo, or None for nothing."""
+    pattern = row["pattern"]
+    if row["category"] in TOPS and (pattern == GRAPHIC or (pattern == "other" and _pattern_name(row) == "novelty")):
+        return GRAPHIC
+    return pattern if wanted(pattern) else None
+
+
 def mark(conn, item_id: str) -> None:
     """After a description arrives or the owner changes the pattern: measure it (again), or stop drawing a
     pattern that no longer applies. Inside the caller's transaction."""
-    row = conn.execute("SELECT pattern FROM items WHERE id = ?", (item_id,)).fetchone()
+    row = conn.execute("SELECT category, pattern, tag_answer FROM items WHERE id = ?", (item_id,)).fetchone()
     if row is None:
         return
-    if wanted(row["pattern"]):
+    if method(row) is not None:
         conn.execute("UPDATE items SET pattern_state = 'waiting', pattern_error = NULL WHERE id = ?", (item_id,))
     else:
         conn.execute("UPDATE items SET pattern_state = NULL, pattern_error = NULL, pattern_fill = NULL WHERE id = ?",
@@ -93,13 +115,15 @@ def run_one(conn, images_dir: Path, measurer: Measurer, landmarker: Landmarker |
     item_id = row["id"]
     conn.execute("UPDATE items SET pattern_state = 'working' WHERE id = ?", (item_id,))
     conn.execute("COMMIT")
+    how = method(row) or row["pattern"]
+    failed = GRAPHIC_FAILED if how == GRAPHIC else FAILED
     try:
         cut = _cutout(conn, images_dir, item_id)
         if cut is None:
             conn.execute("UPDATE items SET pattern_state = 'failed', pattern_error = ? WHERE id = ?", (NO_CUTOUT, item_id))
             return "done"
         marks = json.loads(row["landmarks"]) if row["landmarks"] else None
-        if marks is None and landmarker is not None and row["category"] in TOPS:
+        if marks is None and landmarker is not None and row["category"] in TOPS and how != GRAPHIC:
             usable = routes()
             if usable:
                 try:
@@ -110,13 +134,13 @@ def run_one(conn, images_dir: Path, measurer: Measurer, landmarker: Landmarker |
                 except Exception:
                     log.warning("asking for an item's landmarks failed; measuring without them", exc_info=True)
         t0 = time.monotonic()
-        kept = measurer(cut, row["pattern"], _words(row), marks)
-        log.info("measured a %s in %.1f s", row["pattern"], time.monotonic() - t0)
+        kept = palette.keep(measurer(cut, how, _words(row), marks), row["pattern"])
+        log.info("measured a %s in %.1f s", how, time.monotonic() - t0)
     except Exception as e:   # never lost: the item says why and is drawn in its colour
         log.warning("measuring an item's pattern failed: %s", type(e).__name__, exc_info=True)
-        kept, error = None, FAILED
+        kept, error = None, failed
     else:
-        error = None if kept is not None else FAILED
+        error = None if kept is not None else failed
     conn.execute("BEGIN IMMEDIATE")
     try:
         now = conn.execute("SELECT pattern, pattern_state FROM items WHERE id = ?", (item_id,)).fetchone()
@@ -125,6 +149,7 @@ def run_one(conn, images_dir: Path, measurer: Measurer, landmarker: Landmarker |
             return "done"
         conn.execute("UPDATE items SET pattern_fill = ?, pattern_state = ?, pattern_error = ? WHERE id = ?",
                      (json.dumps(kept) if kept else None, "done" if kept else "failed", error, item_id))
+        palette.settle(conn, item_id)   # the item's colour from the measured colours, unless the owner set it
         illustrations.redraw(conn, item_id)
         conn.execute("COMMIT")
     except Exception:

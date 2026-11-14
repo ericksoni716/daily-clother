@@ -21,9 +21,12 @@ test('settings: search for a place (faked), choose it and see it saved', async (
   await page.locator('nav.sidebar').getByRole('link', { name: 'Settings' }).click();
 
   const section = page.getByRole('region', { name: 'Where you are' });
-  await expect(section.getByText('No place saved yet')).toBeVisible();
+  // with nothing chosen, Closet uses New York
+  await expect(section.getByTestId('saved-place')).toHaveText('New York, United States');
+  await expect(section.getByText('New York until you choose a place.')).toBeVisible();
+  await expect(section.getByRole('button', { name: 'Use my location' })).toBeVisible();
   await expect(section.getByText(/sends Open-Meteo .* nothing about your clothes/)).toBeVisible();
-  await section.getByLabel('Search for a place').fill('Brooklyn');
+  await section.getByLabel('Choose another place').fill('Brooklyn');
   await section.getByRole('button', { name: 'Search' }).click();
   const found = section.getByRole('list', { name: 'Places found' });
   await expect(found.getByRole('button')).toHaveCount(2);
@@ -34,10 +37,10 @@ test('settings: search for a place (faked), choose it and see it saved', async (
   const saved = await (await page.request.get('/api/settings')).json();
   expect(saved.place).toEqual(BROOKLYN);
 
-  // still there after a reload, and it can be removed
+  // still there after a reload, and the owner can go back to New York
   await page.reload();
   await expect(section.getByTestId('saved-place')).toHaveText(BROOKLYN.name);
-  await section.getByRole('button', { name: 'Remove this place' }).click();
-  await expect(section.getByText('No place saved yet')).toBeVisible();
-  expect((await (await page.request.get('/api/settings')).json()).place).toBeNull();
+  await section.getByRole('button', { name: 'Back to New York' }).click();
+  await expect(section.getByTestId('saved-place')).toHaveText('New York, United States');
+  expect((await (await page.request.get('/api/settings')).json()).place.name).toBe('New York, United States');
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  colorWords, type Gap, type GapsAnswer, HELP_LEVELS, helpOf, HIDE_REASONS, loadSavedGaps, lookForLines, type LookFor,
+  colorWords, type Gap, type GapsAnswer, groupReasons, HELP_LEVELS, helpOf, HIDE_REASONS, loadSavedGaps, lookForLines, type LookFor,
   orWords, otherFindings, reasonLabel, saveGaps, whatWords,
 } from './gaps';
 import { forgetSaved } from './today';
@@ -98,12 +98,53 @@ describe('how much a gap would help', () => {
     expect(helpOf(65).level).toBe(4);
     expect(helpOf(38).level).toBe(2);
     expect(helpOf(20).level).toBe(1);
-    expect(helpOf(16).words).toBe('Would help a little');
-    expect(helpOf(71).words).toBe('Would help a lot');
+    expect(helpOf(16).words).toBe('Helps a little');
+    expect(helpOf(38).words).toBe('Helps some');
+    expect(helpOf(71).words).toBe('Helps a lot');
   });
 
   it('copes with a score that is not a number', () => {
     expect(helpOf(Number.NaN).level).toBe(1);
+  });
+});
+
+describe('why, day by day', () => {
+  const belt = 'A leather belt finishes trousers and jeans; the engine adds one to every outfit that has them. You have none.';
+  const shoes = 'Smart leather shoes (oxfords, derbies or loafers) are what business and formal days need. You have none.';
+
+  it('says a reason given for several kinds of day once, and lists the days under it', () => {
+    const groups = groupReasons([
+      `For work, most days: on the cold, cool, mild or hot days here, about 365 a year. ${belt}`,
+      `For everyday, most days: on the cold, cool, mild or hot days here, about 365 a year. ${belt}`,
+      `For going out, about once a week: on the cold, cool, mild or hot days here, about 365 a year. ${belt}`,
+      `For vacation, most days during about 2 weeks away a year: on mild or hot days away. ${belt}`,
+    ]);
+    expect(groups).toEqual([{
+      text: belt,
+      days: [
+        { occasion: 'Work', when: 'most days: on the cold, cool, mild or hot days here, about 365 a year' },
+        { occasion: 'Everyday', when: 'most days: on the cold, cool, mild or hot days here, about 365 a year' },
+        { occasion: 'Going out', when: 'about once a week: on the cold, cool, mild or hot days here, about 365 a year' },
+        { occasion: 'Vacation', when: 'most days during about 2 weeks away a year: on mild or hot days away' },
+      ],
+    }]);
+  });
+
+  it('keeps different reasons apart, in the order they came', () => {
+    const groups = groupReasons([
+      `For work, most days: on the hot days here, about 55 a year. ${shoes}`,
+      `For lounging at home, most days: indoors. ${belt}`,
+      `For work, most days: on the cold days here, about 91 a year. ${shoes}`,
+    ]);
+    expect(groups.map((g) => g.text)).toEqual([shoes, belt]);
+    expect(groups[0].days.map((d) => d.when)).toEqual(['most days: on the hot days here, about 55 a year', 'most days: on the cold days here, about 91 a year']);
+    expect(groups[1].days).toEqual([{ occasion: 'Lounging at home', when: 'most days: indoors' }]);
+  });
+
+  it('keeps reasons written before the owner said how they live, without days, and merges exact repeats', () => {
+    expect(groupReasons([belt, shoes, belt])).toEqual([{ text: belt, days: [] }, { text: shoes, days: [] }]);
+    expect(groupReasons([])).toEqual([]);
+    expect(groupReasons(undefined)).toEqual([]);
   });
 });
 

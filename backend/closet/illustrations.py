@@ -100,13 +100,13 @@ def describe(row, extra: dict | None = None) -> Piece:
     answer = drawn_answer(row, extra)
     if answer is None:
         piece = Piece(row["category"], None, row["color_hex"], row["color"], row["pattern"], silhouette)
-        return replace(piece, fill=pattern_fill(row, piece))
+        return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row))
     # the item's own colour (from the answer, the photo or the owner), unless the owner chose a colour word
     # and left a colour from before beside it
     own_hex = source.get("color_hex") == OWNER or source.get("color") != OWNER
     piece = Piece(answer.get("category"), answer, row["color_hex"] if own_hex else None, row["color"], row["pattern"],
                   silhouette)
-    return replace(piece, fill=pattern_fill(row, piece))
+    return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row))
 
 
 def pattern_fill(row, piece: Piece | None = None):
@@ -119,6 +119,15 @@ def pattern_fill(row, piece: Piece | None = None):
     return stored.fill_from(row["pattern_fill"], base)
 
 
+def pattern_graphic(row):
+    """The print lifted from the item's photo (a logo, a chest print), to draw at its place, or None. Not used
+    once the owner has said the item is plain."""
+    keys = row.keys() if hasattr(row, "keys") else row
+    if "pattern_fill" not in keys or not row["pattern_fill"] or row["pattern"] == "solid":
+        return None
+    return stored.graphic_from(row["pattern_fill"])
+
+
 def make(row, extra: dict | None = None) -> draw.Drawing:
     """The drawing for an item row as it stands now (with `extra` details laid over it, for a preview). Never raises."""
     try:
@@ -127,8 +136,8 @@ def make(row, extra: dict | None = None) -> draw.Drawing:
         fill = piece.fill
         if piece.answer is None:
             return draw.drawing_from_fields(piece.category, piece.color_hex, piece.pattern, piece.silhouette,
-                                            color=piece.color, uid=uid, fill=fill)
-        return draw.drawing_from_answer(piece.answer, piece.color_hex, uid=uid, fill=fill)
+                                            color=piece.color, uid=uid, fill=fill, graphic=piece.graphic)
+        return draw.drawing_from_answer(piece.answer, piece.color_hex, uid=uid, fill=fill, graphic=piece.graphic)
     except Exception:   # never fail an item
         log.exception("could not draw an item")
         return draw.Drawing(None, (draw.NOT_MADE,))
@@ -164,6 +173,12 @@ def notes(row) -> list[str]:
     """What the item's drawing leaves out or shows only roughly, in plain words."""
     out = _json(row["illustration_notes"], [])
     return [n for n in out if isinstance(n, str)] if isinstance(out, list) else []
+
+
+def not_drawn(row, seen: list) -> list:
+    """What the tagger saw that no field covers, less the words the drawing now shows."""
+    drawn = set(draw.words_drawn(drawn_answer(row)))
+    return [w for w in seen if w not in drawn]
 
 
 class FigureError(ValueError):

@@ -2,9 +2,11 @@
 
 The place (a name, latitude, longitude and time zone) lives in the program's
 settings, not in a closet, so the real and demo closets share it. Nothing is
-guessed from the network address. The only things sent to Open-Meteo are the
-words typed into the place search and the saved place's coordinates and time
-zone; nothing about the closet is.
+guessed from the network address; until one is chosen it is New York. The only
+things sent to Open-Meteo are the words typed into the place search and the
+saved place's coordinates and time zone; nothing about the closet is. When the
+owner taps "Use my location", the browser's position, rounded to about a
+kilometre, is sent to OpenStreetMap's Nominatim to name the town, and nothing else.
 
 A forecast is kept for an hour and reused. When Open-Meteo cannot be reached
 the last forecast for the same place is given back marked as old.
@@ -13,11 +15,12 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 import time
 import urllib.error
 import urllib.request
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from urllib.parse import urlencode
 
 from . import __version__, net
@@ -26,6 +29,7 @@ from .state import State
 log = logging.getLogger("closet.weather")
 
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
+REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"   # names the place at a position (OpenStreetMap)
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 TIMEOUT_S = 6                # give up on Open-Meteo after this long
 KEEP_S = 3600                # a forecast is reused for this long
@@ -33,6 +37,8 @@ RAIN_CHANCE = 50             # a chance of rain (%) at or above this counts as a
 MAX_PLACES = 8               # places offered for one search
 MAX_QUERY = 100              # longest place search sent
 MAX_BYTES = 1 << 20          # longest answer read
+NEAR_DIGITS = 2              # a position from the browser is rounded to about a kilometre before it is sent or saved
+TOWN = ("city", "town", "village", "municipality", "hamlet", "suburb", "county")   # the first one found names the place
 TIMEZONE = re.compile(r"^[A-Za-z0-9_+\-/]{1,64}$")
 
 # WMO weather codes (what Open-Meteo reports) to one word.
@@ -57,24 +63,24 @@ def _now() -> float:
     return time.time()
 
 
-def _get(url: str, params: dict) -> dict:
+def _get(url: str, params: dict, service: str = "weather service") -> dict:
     try:
         raw = fetch(f"{url}?{urlencode(params)}")
         if len(raw) > MAX_BYTES:
-            raise WeatherError("The weather service gave an answer that was too large.")
+            raise WeatherError(f"The {service} gave an answer that was too large.")
         data = json.loads(raw)
     except urllib.error.HTTPError as e:
-        log.warning("weather service answered %s", e.code)
-        raise WeatherError(f"The weather service answered with an error ({e.code}).") from None
+        log.warning("%s answered %s", service, e.code)
+        raise WeatherError(f"The {service} answered with an error ({e.code}).") from None
     except (urllib.error.URLError, OSError, TimeoutError) as e:
-        log.warning("weather service not reached: %s", type(e).__name__)
+        log.warning("%s not reached: %s", service, type(e).__name__)
         if net.is_certificate_error(e):
-            raise WeatherError("The weather service's security certificate could not be checked on this computer.") from None
-        raise WeatherError("Couldn't reach the weather service. Check the internet connection.") from None
+            raise WeatherError(f"The {service}'s security certificate could not be checked on this computer.") from None
+        raise WeatherError(f"Couldn't reach the {service}. Check the internet connection.") from None
     except ValueError:
-        raise WeatherError("The weather service gave an answer Closet could not read.") from None
+        raise WeatherError(f"The {service} gave an answer Closet could not read.") from None
     if not isinstance(data, dict):
-        raise WeatherError("The weather service gave an answer Closet could not read.")
+        raise WeatherError(f"The {service} gave an answer Closet could not read.")
     return data
 
 
@@ -95,6 +101,31 @@ def search_places(query: str) -> list[dict]:
             continue
         out.append(place)
     return out[:MAX_PLACES]
+
+
+def place_near(latitude: object, longitude: object) -> dict:
+    """The town or city at a position the browser gave on the owner's tap, as it is saved.
+
+    Open-Meteo cannot name a position, so OpenStreetMap's Nominatim does: it is sent only the coordinates, rounded
+    to about a kilometre. The time zone is left to Open-Meteo ("auto"). ValueError for coordinates that are not
+    numbers on the globe; WeatherError when the service cannot be reached or names no town there.
+    """
+    for v, limit, words in ((latitude, 90, "latitude"), (longitude, 180, "longitude")):
+        if isinstance(v, bool) or not isinstance(v, int | float) or not -limit <= v <= limit:
+            raise ValueError(f"The {words} must be a number from -{limit} to {limit}.")
+    lat, lon = round(float(latitude), NEAR_DIGITS), round(float(longitude), NEAR_DIGITS)
+    data = _get(REVERSE_URL, {"lat": lat, "lon": lon, "format": "jsonv2", "zoom": 10, "accept-language": "en"},
+                service="place-name service")
+    address = data.get("address") if isinstance(data.get("address"), dict) else {}
+    town = next((address[k] for k in TOWN if isinstance(address.get(k), str) and address[k].strip()), None)
+    parts = (town, address.get("state"), address.get("country"))
+    name = ", ".join(dict.fromkeys(p.strip() for p in parts if isinstance(p, str) and p.strip()))
+    if not town or not name:
+        raise WeatherError("No town or city was found where you are. Search for your place by name instead.")
+    try:
+        return check_place({"name": name, "latitude": lat, "longitude": lon, "timezone": "auto"})
+    except ValueError:
+        raise WeatherError("No town or city was found where you are. Search for your place by name instead.") from None
 
 
 def check_place(place: object) -> dict:
@@ -188,3 +219,48 @@ def lookup(state: State) -> dict:
         state.update(weather={"key": key, "fetched": _now(), "offset": offset, "answer": answer})
     return {"place": place, "weather": answer, "old": False, "message": None,
             "is_today": answer["date"] == _place_today(offset)}
+
+
+# ---------------------------------------------------------------------- past weather
+ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+ARCHIVE_DAILY = ("temperature_2m_min", "temperature_2m_max", "precipitation_sum")
+UNREADABLE = "The weather service gave an answer Closet could not read."
+
+
+class ArchiveUnreadable(WeatherError):
+    """The archive answered, or would be asked, with something that is not a list of days."""
+
+    def __init__(self) -> None:
+        super().__init__(UNREADABLE)
+
+
+def _coordinate(value: object, limit: int) -> bool:
+    try:
+        return (isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
+                and -limit <= value <= limit)
+    except OverflowError:
+        return False
+
+
+def archive_daily(place: dict, start: date, end: date, *, timezone: str,
+                  precipitation_unit: str | None = None) -> dict[str, list | None]:
+    """The one lookup of Open-Meteo's archive, shared by the home climate and the trips' usual weather.
+
+    Sends only the place's latitude and longitude, the time zone given, the dates and the daily fields; goes
+    through `_get` (the computer's certificates, a bounded wait and size, errors in the owner's words). Returns
+    the daily columns as the archive gave them: {"time": [...], "temperature_2m_min": list or None, ...}, a
+    column that is not a list being None. What a missing day or value means is the caller's to decide; each
+    keeps what it worked out in its own way. Raises WeatherError, ArchiveUnreadable when there is no list of days.
+    """
+    if not _coordinate(place.get("latitude"), 90) or not _coordinate(place.get("longitude"), 180):
+        raise ArchiveUnreadable
+    params = {"latitude": place["latitude"], "longitude": place["longitude"], "timezone": timezone,
+              "start_date": start.isoformat(), "end_date": end.isoformat(), "daily": ",".join(ARCHIVE_DAILY),
+              "temperature_unit": "celsius"}
+    if precipitation_unit:
+        params["precipitation_unit"] = precipitation_unit
+    daily = _get(ARCHIVE_URL, params).get("daily")
+    if not isinstance(daily, dict) or not isinstance(daily.get("time"), list):
+        raise ArchiveUnreadable
+    return {"time": daily["time"],
+            **{field: daily[field] if isinstance(daily.get(field), list) else None for field in ARCHIVE_DAILY}}

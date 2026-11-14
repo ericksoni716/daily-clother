@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { api, ApiError } from '../api';
-import { ChipGroup } from '../components/Chips';
+import { Card, ChipGroup, EmptyState, PageHeader } from '../components/ui';
 import { CameraIcon, CheckIcon, HangerIcon, ImagesIcon, PlusIcon, WarnIcon } from '../components/Icons';
 import { itemName, Pic, Pieces } from '../components/ItemPic';
 import type { Wish } from '../gaps';
@@ -9,7 +9,7 @@ import { useCloset } from '../store';
 import { placeLabel, wornOrder } from '../today';
 import type { ItemSummary } from '../types';
 import {
-  CANDIDATE_ID, type Check, checkKinds, fillWords, isDone, noteFor, pieceFromLook, pieceToSend, POLL_MS, stillToChoose, verdictTone, waitingWords,
+  CANDIDATE_ID, type Check, checkKinds, fillNote, fillWords, isDone, noteFor, pieceFromLook, pieceToSend, POLL_MS, stillToChoose, verdictTone, waitingWords,
   WEIGHTS, weightLabel, wishFrom, type WouldAnswer, type WouldPiece, wornWords,
 } from '../wouldwork';
 import './WouldWork.css';
@@ -57,9 +57,11 @@ export interface WouldWorkProps {
   /** Writes the answer into the note of the wish the check was started from. */
   onNote(wish: Wish, note: string): Promise<boolean>;
   onBought(wish: Wish): Promise<unknown>;
+  /** A computer's screen: what the piece is on the left, the answer on the right. */
+  wide?: boolean;
 }
 
-export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, onBought }: WouldWorkProps) {
+export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, onBought, wide = false }: WouldWorkProps) {
   const { profile, vocab, toast } = useCloset();
   const remembered = memory && memory.profile === profile && memory.wishId === wishId ? memory : null;
   const [draft, setDraft] = useState<Partial<WouldPiece>>(remembered?.draft ?? pieceFromLook(wish?.look_for));
@@ -168,18 +170,16 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
     navigate('/add');
   }
 
-  return (
-    <section className="wouldwork" aria-labelledby={titleId} data-testid="would-work">
-      <header className="wouldwork-head">
-        <h2 id={titleId}>Would this work?</h2>
-        <p className="muted">
-          {wish ? <>Checking a find for <strong>{wish.name}</strong> against your closet.</> : 'Check a piece against your closet before you buy it.'}
-        </p>
-      </header>
+  const describe = (stage.kind === 'form' || wide) && (
+    <Describe draft={draft} setDraft={setDraft} error={stage.kind === 'form' ? stage.error : null} demo={demo} locked={locked}
+      kinds={checkKinds(vocab?.category ?? [])} vocab={vocab} onPhoto={photo} onSubmit={byHand} />
+  );
 
-      {stage.kind === 'form' && (
-        <Describe draft={draft} setDraft={setDraft} error={stage.error} demo={demo} locked={locked}
-          kinds={checkKinds(vocab?.category ?? [])} vocab={vocab} onPhoto={photo} onSubmit={byHand} />
+  const answer = (
+    <>
+      {stage.kind === 'form' && wide && (
+        <EmptyState className="wouldwork-empty" icon={<HangerIcon />} title="The answer shows here"
+          body="Whether it fills a gap, what it goes with in your closet, and what you have like it already." />
       )}
 
       {stage.kind === 'sending' && <Waiting words="Sending…" />}
@@ -216,6 +216,20 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
           </div>
         </>
       )}
+    </>
+  );
+
+  return (
+    <section className={`wouldwork${wide ? ' is-wide' : ''}`} aria-labelledby={titleId} data-testid="would-work">
+      <PageHeader className="wouldwork-head" title="Would this work?" titleId={titleId}
+        back={{ to: '/missing', label: "What's missing", className: 'wouldwork-back' }}
+        subtitle={wish ? <>Checking a find for <strong>{wish.name}</strong> against your closet.</> : 'Check a piece against your closet before you buy it.'} />
+      {wide ? (
+        <div className="wouldwork-columns">
+          <Card as="section" className="wouldwork-left" aria-label="The piece">{describe}</Card>
+          <section className="wouldwork-right" aria-label="The answer">{answer}</section>
+        </div>
+      ) : <>{describe}{answer}</>}
     </section>
   );
 }
@@ -324,10 +338,18 @@ function Answer({ check, answer, byId }: { check: Check; answer: WouldAnswer; by
               <ul className="wouldwork-list">
                 {counted.map((f) => (
                   <li key={f.gap_id}><strong>{f.name}</strong>: {fillWords(f)}
+                    {fillNote(f) && <span className="muted"> · {fillNote(f)}</span>}
                     {f.days.length > 0 && <span className="muted"> · {f.days.length} kind{f.days.length === 1 ? '' : 's'} of day nothing covers now</span>}
                   </li>
                 ))}
               </ul>
+            </section>
+          )}
+
+          {answer.situations_text && (
+            <section className="wouldwork-part" aria-label="When you would wear it">
+              <h4 className="gap-label">When you would wear it</h4>
+              <p data-testid="would-work-situations">{answer.situations_text}</p>
             </section>
           )}
 

@@ -9,7 +9,7 @@ import uuid
 import zlib
 from pathlib import Path
 
-from . import db, details, history, illustrations, images, jobs, patjobs, tagjobs, vocab
+from . import db, details, failures, history, illustrations, images, jobs, palette, patjobs, tagjobs, vocab
 
 TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "acquired_on", "notes", "rating_reason", "color_hex")
 ENUM_FIELDS = tuple(vocab.ENUM_FIELDS)
@@ -62,9 +62,13 @@ def detail(conn, row) -> dict:
         out[f] = row[f]
     # the pattern measured from the photo: null (nothing to measure), waiting, working, done or failed
     out["pattern_state"], out["pattern_error"] = row["pattern_state"], row["pattern_error"]
+    # its colours as measured from the pattern, largest first, each {color, hex, share}; empty when not measured
+    out["pattern_colors"] = palette.shown(row)
+    # why the cutout or the description failed, with the stored reason cleaned of keys and outside paths
+    out["failure"] = failures.of(conn, row)
     # what the tagger saw, from its stored answer: the details, and what it saw that no field (or drawing) covers yet
     said = dict((json.loads(row["tag_answer"]) if row["tag_answer"] else {}).get("details") or {})
-    out["seen_not_drawn"] = said.pop("other_features", None) or []
+    out["seen_not_drawn"] = illustrations.not_drawn(row, said.pop("other_features", None) or [])
     out["details"] = said or None
     out["own_details"] = details.own(row)   # the details the owner has set, laid over Claude's when drawn
     out["drawing_notes"] = illustrations.notes(row)
@@ -260,7 +264,9 @@ def retry_cutout(conn, item_id: str) -> dict:
     if row["cutout_state"] in ("pending", "processing"):
         return detail(conn, row)
     conn.execute("BEGIN IMMEDIATE")
-    jobs.enqueue_cutout(conn, item_id, photo["id"])
+    if conn.execute("SELECT 1 FROM jobs WHERE kind = 'cutout' AND item_id = ? AND state IN ('queued', 'running')",
+                    (item_id,)).fetchone() is None:   # never a second job for the same item
+        jobs.enqueue_cutout(conn, item_id, photo["id"])
     conn.execute("COMMIT")
     return detail(conn, get(conn, item_id))
 

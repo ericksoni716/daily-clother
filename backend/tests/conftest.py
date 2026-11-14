@@ -1,4 +1,5 @@
 import io
+import urllib.error
 import zlib
 from types import SimpleNamespace
 
@@ -7,12 +8,23 @@ from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
 
 from closet import app as app_module
+from closet import weather
 from closet.config import Config
 from closet.tagger.correcting import Change, CorrectionAnswer, CorrectionResult
 from closet.tagger.schema import Details, ItemTags, Silhouette
 from closet.tagger.tagging import RouteUnavailable, TaggingError, TagResult
 
 PASSPHRASE = "correct horse battery"
+REAL_FETCH = weather.fetch   # for the tests of the request itself, which stop urlopen instead
+
+
+@pytest.fixture(autouse=True)
+def no_weather_service(monkeypatch):
+    """No test reaches Open-Meteo or Nominatim. The place is New York until one is chosen, so anything that looks up
+    the weather finds the service unreachable unless the test answers for it by replacing `weather.fetch` itself."""
+    def unreachable(url: str) -> bytes:
+        raise urllib.error.URLError("no network in tests")
+    monkeypatch.setattr(weather, "fetch", unreachable)
 
 
 def photo_bytes(fmt="JPEG", size=(900, 1200), color=(180, 60, 60)) -> bytes:

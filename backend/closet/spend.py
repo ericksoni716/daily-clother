@@ -19,11 +19,14 @@ from . import db
 from .config import Config
 from .state import State
 from .tagger.correcting import MAX_TOKENS as CORRECT_MAX_TOKENS
+from .tagger.shopping import MAX_TOKENS as SHOP_MAX_TOKENS
 from .tagger.tagging import CONFIG, MAX_TOKENS, CapReached, RouteUnavailable
 
 PURPOSE_TAG = "tag_item"
 PURPOSE_CORRECT = "correct_item"   # reading the owner's sentence about an item (`tagger/correcting.py`)
 PURPOSE_LANDMARKS = "item_landmarks"   # where a patterned top's buttons, neck, hem and sleeves are (`tagger/landmarks.py`)
+PURPOSE_SHOP = "shop_find"            # searching shops for a wish (`tagger/shopping.py`)
+PURPOSE_PRICES = "shop_prices"        # looking up the prices of a wish's finds again
 PRICES_CHECKED: str = CONFIG.get("prices_checked", "")
 TAGGING_MODEL: str = CONFIG["roles"]["tagging"]
 SUGGESTED_CAP_USD = 5.0     # see DECISIONS, "Spend cap for the API key"
@@ -39,6 +42,11 @@ IMAGE_TOKENS = 1600
 # value it may take, about 7,000 characters with the schema; counted at 1 token for every character pair, then the
 # whole doubled), a photo when one is sent, and the longest answer the request allows (`correcting.MAX_TOKENS`).
 CORRECT_TEXT_TOKENS = 9000
+# Searching shops: Claude reads the pages its web searches bring back, and reads them again at each step of its
+# search, so a request takes in far more than its prompt. A careful upper bound: 300,000 tokens in, the longest
+# answer the request allows, and every web search it may make, at the price per search in the price table.
+SHOP_INPUT_TOKENS = 300_000
+SEARCH_USD: float = CONFIG.get("web_search_per_1000", 10.0) / 1000
 
 LIMIT_REACHED = ("This month's spending limit for the API key has been reached, and your Claude plan can't be used "
                  "right now. It will be described when your plan can be used again, when the new month starts, or if "
@@ -80,9 +88,16 @@ def estimate_correction(photos: int, model: str = TAGGING_MODEL) -> float:
     return cost_usd(model, CORRECT_TEXT_TOKENS + IMAGE_TOKENS * max(0, photos), CORRECT_MAX_TOKENS)
 
 
-def record(conn, route: str, model: str, input_tokens: int, output_tokens: int, purpose: str = PURPOSE_TAG) -> float:
-    """Write down one call; returns what it cost (nothing on the plan route)."""
-    cost = cost_usd(model, input_tokens, output_tokens) if route == "api" else 0.0
+def estimate_shop(searches: int, model: str = TAGGING_MODEL) -> float:
+    """The most one request to search shops should cost, with at most `searches` web searches."""
+    return cost_usd(model, SHOP_INPUT_TOKENS, SHOP_MAX_TOKENS) + SEARCH_USD * max(0, searches)
+
+
+def record(conn, route: str, model: str, input_tokens: int, output_tokens: int, purpose: str = PURPOSE_TAG,
+           searches: int = 0) -> float:
+    """Write down one call; returns what it cost (nothing on the plan route). `searches`: the web searches the API
+    made for it, each billed on top of the tokens."""
+    cost = cost_usd(model, input_tokens, output_tokens) + SEARCH_USD * max(0, searches) if route == "api" else 0.0
     conn.execute("INSERT INTO claude_calls (at, month, purpose, route, model, input_tokens, output_tokens, cost_usd, "
                  "prices_checked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                  (db.now(), this_month(), purpose, route, model, int(input_tokens or 0), int(output_tokens or 0), cost,
@@ -177,10 +192,10 @@ class Meter:
         if so_far + self.estimate(images, model) > cap(self.state):
             raise CapReached("this month's spending limit for the API key has been reached")
 
-    def record(self, route: str, model: str, input_tokens: int, output_tokens: int) -> None:
+    def record(self, route: str, model: str, input_tokens: int, output_tokens: int, searches: int = 0) -> None:
         conn = self._connect()
         try:
-            record(conn, route, model, input_tokens, output_tokens, self.purpose)
+            record(conn, route, model, input_tokens, output_tokens, self.purpose, searches)
         finally:
             conn.close()
 

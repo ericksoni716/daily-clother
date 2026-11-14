@@ -14,6 +14,13 @@ export interface Session {
   profile: Profile;
 }
 
+/** One colour of a measured pattern: its colour word, its shade and how much of the pattern it covers (0..1). */
+export interface PatternColour {
+  color: string;
+  hex: string;
+  share: number;
+}
+
 export interface ItemSummary {
   id: string;
   name: string | null;
@@ -52,6 +59,12 @@ export interface Photo {
 
 export type Silhouette = Record<string, string>;
 
+export interface Failure {
+  stage: 'cutout' | 'description';
+  reason: string;
+  details: string | null;
+}
+
 export interface Item extends ItemSummary {
   formality: string | null;
   season: string | null;
@@ -71,6 +84,11 @@ export interface Item extends ItemSummary {
   /** The pattern measured from the photo: null (nothing to measure), waiting, working, done or failed. */
   pattern_state: 'waiting' | 'working' | 'done' | 'failed' | null;
   pattern_error: string | null;
+  /** The colours measured from the pattern, largest first (empty when it has not been measured). */
+  pattern_colors?: PatternColour[];
+  /** Why its cutout or its description failed: a plain sentence, and the stored reason with keys and outside paths
+   * taken out (null when nothing was recorded). Null when nothing has failed. */
+  failure: Failure | null;
   /** Who described it: 'plan', 'api', or 'demo' for the demo closet's descriptions made in advance. */
   tag_route: string | null;
   tag_model: string | null;
@@ -143,13 +161,17 @@ export interface Settings {
   tagging_api_cap_usd: number | null;
   /** Set when Anthropic refused the key and Closet switched it off. */
   tagging_api_off: ApiTurnedOff | null;
+  /** Which route to Claude is tried first: the plan first (default), the key first, or only one of them. */
+  tagging_route_order: RouteOrder;
   /** Whether an API key is set and where it comes from; never the key itself. */
   api_key: ApiKeyInfo;
   phone: { tailscale_installed: boolean; running: boolean; address: string | null; command: string };
   autostart: boolean | null;
   heic_supported: boolean;
-  /** Where the owner is, for the weather; null until chosen. */
+  /** Where the owner is, for the weather: New York (`home_place`) until another place is chosen. */
   place: Place | null;
+  /** The place used until one is chosen, and again when the chosen one is removed. */
+  home_place?: Place;
   life: Life | null;
   life_prompt_dismissed: boolean;
 }
@@ -261,6 +283,9 @@ export interface TaggingSpend {
   /** Newest first, this month included once anything was sent. */
   history: SpendMonth[];
 }
+
+/** The order the routes to Claude are tried in, as chosen in Settings. */
+export type RouteOrder = 'auto' | 'api-first' | 'plan' | 'api';
 
 /** Which routes to Claude can be used right now, and the order they are tried in. */
 export interface TaggingStatus {

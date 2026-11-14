@@ -5,7 +5,8 @@ item (its `details` make the drawing this garment and not a generic one);
 `svg_from_fields` takes only the coarse fields the closet already stores
 (category, colour, pattern, silhouette). Both draw in the owner's style, on a
 solid fill of the item's colour unless a `fill` measured from the item's photo is
-given (its stripes, plaid or print: see `closet.drawing.stored`).
+given (its stripes, plaid or print: see `closet.drawing.stored`); a top's `graphic`
+lifted from its photo (a logo, a chest print) is drawn over it at its place.
 
 Neither ever raises. A value the tagger's vocabulary does not know is dropped
 and the rest kept; if the drawing still fails, the plainest drawing of the
@@ -24,7 +25,8 @@ import logging
 import re
 from dataclasses import dataclass
 
-from ..tagger.schema import NAMED_HEX, SILHOUETTE_FIELDS, Details, ItemTags, Silhouette, drawing_for
+from ..tagger.schema import NAMED_HEX, SILHOUETTE_FIELDS, Details, ItemTags, Silhouette, drawing_for, drawn_words
+from .fills import Graphic
 from .illustrate import Fill, Spec, render
 
 log = logging.getLogger("closet.drawing")
@@ -70,15 +72,17 @@ def svg_from_fields(category, color_hex: str | None = None, pattern=None, silhou
     return drawing_from_fields(category, color_hex, pattern, silhouette, color=color, uid=uid).svg
 
 
-def drawing_from_answer(answer, color_hex: str | None = None, *, uid: str = "a", fill: Fill | None = None) -> Drawing:
+def drawing_from_answer(answer, color_hex: str | None = None, *, uid: str = "a", fill: Fill | None = None,
+                        graphic: Graphic | None = None) -> Drawing:
     """`svg_from_answer`, with what the drawing could not show. `fill` is the item's pattern measured from its
-    photo; with it the pattern is drawn and not listed as left out."""
+    photo, `graphic` a print lifted from it (drawn on tops only); with either the pattern is drawn and not listed
+    as left out."""
     notes: list[str] = []
     try:
         tags = _tags(answer, notes)
         if tags is None:
             return Drawing(None)
-        svg, drawn = _draw(tags, _color(color_hex, tags.color), _uid(uid), notes, fill)
+        svg, drawn = _draw(tags, _color(color_hex, tags.color), _uid(uid), notes, fill, graphic)
         return Drawing(svg, _notes(([] if drawn else _pattern(tags.pattern)) + notes))
     except Exception:   # never raise: the item screen must always open
         log.exception("could not draw an item from its tagger answer")
@@ -86,14 +90,15 @@ def drawing_from_answer(answer, color_hex: str | None = None, *, uid: str = "a",
 
 
 def drawing_from_fields(category, color_hex: str | None = None, pattern=None, silhouette=None, *,
-                        color: str | None = None, uid: str = "a", fill: Fill | None = None) -> Drawing:
+                        color: str | None = None, uid: str = "a", fill: Fill | None = None,
+                        graphic: Graphic | None = None) -> Drawing:
     """`svg_from_fields`, with what the drawing could not show."""
     notes: list[str] = []
     try:
         if category not in DRAWN:
             return Drawing(None)
         svg, drawn = _draw(_plain(category, _known_silhouette(silhouette), {}), _color(color_hex, color), _uid(uid),
-                           notes, fill)
+                           notes, fill, graphic)
         return Drawing(svg, _notes(([] if drawn else _pattern(pattern)) + notes))
     except Exception:
         log.exception("could not draw an item from its fields")
@@ -103,6 +108,16 @@ def drawing_from_fields(category, color_hex: str | None = None, pattern=None, si
 def _pattern(pattern) -> list[str]:
     word = PATTERN_WORDS.get(pattern) if isinstance(pattern, str) else None
     return [f"the {word}: the drawing shows only the colour for now"] if word else []
+
+
+def words_drawn(answer) -> list[str]:
+    """The tagger's other_features words that the item's drawing now shows (a loafer's tassels, a footwear id)."""
+    try:
+        tags = _tags(answer)
+        return drawn_words(tags) if tags else []
+    except Exception:
+        log.exception("could not read which of the tagger's words are drawn")
+        return []
 
 
 def _notes(notes: list[str]) -> tuple[str, ...]:
@@ -173,13 +188,15 @@ def _plain(category: str, silhouette: dict, details: dict, color: str = "grey") 
 PATTERN_FAILED = "its pattern could not be drawn, so it is shown in its colour"
 
 
-def _draw(tags: ItemTags, hex_: str, uid: str, notes: list[str], fill: Fill | None = None) -> tuple[str, bool]:
-    """The drawing, and whether the measured pattern is in it. What was drawn only roughly, or why it fell back
-    to the plainest drawing, is added to `notes`."""
-    if fill is not None:
+def _draw(tags: ItemTags, hex_: str, uid: str, notes: list[str], fill: Fill | None = None,
+          graphic: Graphic | None = None) -> tuple[str, bool]:
+    """The drawing, and whether the measured pattern (or lifted graphic) is in it. What was drawn only roughly,
+    or why it fell back to the plainest drawing, is added to `notes`."""
+    graphic = graphic if tags.category in TOPS else None
+    if fill is not None or graphic is not None:
         try:
             template, params, extras, approximated = drawing_for(tags)
-            svg = render(Spec(template, params, fill, **extras), STYLE, uid=uid)
+            svg = render(Spec(template, params, fill or Fill("solid", hex_), graphic=graphic, **extras), STYLE, uid=uid)
             notes.extend(approximated)
             return svg, True
         except Exception:   # a pattern must never cost the item its drawing

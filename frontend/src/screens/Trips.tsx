@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError, connection } from '../api';
 import { ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
+import { Card, EmptyState, PageHeader } from '../components/ui';
 import { loadGridView, type GridView } from '../drawing';
 import { label } from '../labels';
+import { SaveLine, useWhenLeaving } from '../leave';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
 import { longDate, occasionLabel, OCCASIONS, placeLabel, shortPlace, wornOrder, type Outfit } from '../today';
@@ -69,6 +71,8 @@ function forgetTrip(profile: string, id: string) {
   saveTrips(profile, { list: saved.list?.filter((t) => t.id !== id) ?? null, details });
 }
 
+const TRIPS_BACK = { to: '/trips', label: 'Trips' };
+
 function BackToTrips() {
   return (
     <div className="detail-top">
@@ -117,20 +121,13 @@ function TripList() {
   const { upcoming, past } = upcomingFirst(trips ?? []);
   return (
     <div className="trips">
-      <header className="page-header">
-        <div className="page-title-row"><h1 id="trips-title">Trips</h1></div>
-        {trips && trips.length > 0 && planButton}
-      </header>
+      <PageHeader title="Trips" titleId="trips-title" primary={trips && trips.length > 0 && planButton} />
       <p className="hint trips-intro">Closet says what to pack: the fewest pieces from your closet that dress every day of a trip, for the weather there.</p>
       {error && <p className={trips ? 'form-error' : 'notice'} role="alert">{error}</p>}
       {!trips && !error && <p className="muted"><span className="spinner" aria-hidden="true" /> Loading your trips…</p>}
       {trips && trips.length === 0 && (
-        <div className="empty empty-big">
-          <div className="empty-art"><SuitcaseIcon /></div>
-          <p className="empty-title">No trips yet</p>
-          <p className="muted">Choose where you're going and when, and Closet works out what to take.</p>
-          {planButton}
-        </div>
+        <EmptyState big icon={<SuitcaseIcon />} title="No trips yet"
+          body="Choose where you're going and when, and Closet works out what to take." action={planButton} />
       )}
       {upcoming.length > 0 && <TripCards title="Coming up" trips={upcoming} />}
       {past.length > 0 && <TripCards title="Past trips" trips={past} />}
@@ -146,8 +143,8 @@ function TripCards({ title, trips }: { title: string; trips: TripSummary[] }) {
         {trips.map((t) => {
           const done = t.packed === t.lines && t.lines > 0;
           return (
-            <li key={t.id}>
-              <Link to={`/trips/${encodeURIComponent(t.id)}`} className={`trip-card${t.past ? ' is-past' : ''}`} data-testid="trip-card">
+            <Card as="li" key={t.id} className={`trip-card-item${t.past ? ' is-past' : ''}`}>
+              <Link to={`/trips/${encodeURIComponent(t.id)}`} className="trip-card" data-testid="trip-card">
                 <span className="trip-card-icon"><SuitcaseIcon /></span>
                 <span className="trip-card-text">
                   <strong>{tripTitle(t)}</strong>
@@ -158,7 +155,7 @@ function TripCards({ title, trips }: { title: string; trips: TripSummary[] }) {
                   </span>
                 </span>
               </Link>
-            </li>
+            </Card>
           );
         })}
       </ul>
@@ -250,8 +247,7 @@ function PlanTrip() {
 
   return (
     <div className="trips trip-planning" aria-busy={asking}>
-      <BackToTrips />
-      <header className="page-header"><h1 id="trips-title">Plan a trip</h1></header>
+      <PageHeader title="Plan a trip" titleId="trips-title" back={TRIPS_BACK} />
       {offline && <p className="notice" role="status">You're offline. Planning a trip needs Closet on your computer to be reachable.</p>}
       <TripForm draft={draft} setDraft={(d) => { setDraft(d); setPlanned(null); }} today={today} locked={offline} asking={asking} onSubmit={submit} />
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -408,7 +404,8 @@ function SavedTrip({ id }: { id: string }) {
   const [busy, setBusy] = useState(false);
   const [newWeather, setNewWeather] = useState(false);
   const pending = useRef(0);
-  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const ticks = useRef(new SaveLine());
+  useWhenLeaving(() => ticks.current.flush());
 
   useEffect(() => {
     let current = true;
@@ -450,7 +447,7 @@ function SavedTrip({ id }: { id: string }) {
     setTrip((t) => t && { ...t, packed: on ? [...t.packed.filter((x) => x !== line), line] : t.packed.filter((x) => x !== line) });
     pending.current += 1;
     // one at a time, in the order they were tapped
-    queue.current = queue.current.then(() => api.patchTrip(id, { ticks: { [line]: on } })).then(
+    void ticks.current.add(() => api.patchTrip(id, { ticks: { [line]: on } })).then(
       (t) => {
         pending.current -= 1;
         if (pending.current === 0) {
@@ -521,13 +518,8 @@ function SavedTrip({ id }: { id: string }) {
 
   return (
     <div className="trips trip-saved" aria-busy={busy}>
-      <BackToTrips />
-      <header className="page-header trip-header">
-        <div>
-          <h1 id="trips-title">{shortPlace(trip.place.name)}</h1>
-          <p className="muted trip-sub">{dateRange(trip.first_day, trip.last_day)} · {occasionLabel(trip.occasion)}{trip.can_wash ? ' · Can wash there' : ''}</p>
-        </div>
-      </header>
+      <PageHeader className="trip-header" title={shortPlace(trip.place.name)} titleId="trips-title" back={TRIPS_BACK}
+        subtitle={<>{dateRange(trip.first_day, trip.last_day)} · {occasionLabel(trip.occasion)}{trip.can_wash ? ' · Can wash there' : ''}</>} />
 
       {locked && (
         <p className="notice notice-warn" role="status">
@@ -794,7 +786,7 @@ function DayCard({ day, tripOccasion, byId, view }: {
 }) {
   const o: Outfit | null = day.outfit;
   return (
-    <li className={`trip-day${day.problem || day.warning ? ' has-problem' : ''}`} data-testid="trip-day">
+    <Card as="li" className={`trip-day${day.problem || day.warning ? ' has-problem' : ''}`} data-testid="trip-day">
       <div className="trip-day-head">
         <strong>{longDate(day.date)}</strong>
         <span className="muted">{dayTemps(day.weather)}{day.weather.rain ? ' · Rain' : ''}</span>
@@ -826,6 +818,6 @@ function DayCard({ day, tripOccasion, byId, view }: {
           )}
         </>
       )}
-    </li>
+    </Card>
   );
 }

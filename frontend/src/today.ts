@@ -26,12 +26,13 @@ export interface DayContext {
   low_c: number;
   high_c: number;
   rain: boolean;
-  source: 'forecast' | 'given' | 'forecast and given';
+  /** 'mild': no forecast could be had, so the outfits are for a mild day (and `message` says why). */
+  source: 'forecast' | 'given' | 'forecast and given' | 'mild';
   old: boolean;
   place: string | null;
   rain_chance: number | null;
   summary: string | null;
-  /** Why the forecast is old, in the server's words; null when it is not. */
+  /** Why the forecast is old, or why there is none (source 'mild'), in the server's words; null otherwise. */
   message?: string | null;
   /** When the outfits start from one worn before: which of its pieces came back and which could not. */
   again?: { id: string; worn_on: string; kept: string[]; unavailable: string[] };
@@ -131,13 +132,21 @@ export function shortPlace(name: string | null | undefined): string {
   return (name ?? '').split(',')[0].trim();
 }
 
-/** The day at a glance: ["Brooklyn", "3°C to 10°C", "Rain likely (70%)"]; "Your temperatures" when they were typed in. */
+/** "8–15°C" or "About 22°C": the compact form for Today's weather line. */
+export function tempRange(low: number, high: number): string {
+  return Math.round(low) === Math.round(high) ? `About ${deg(high)}` : `${Math.round(low)}–${deg(high)}`;
+}
+
+/**
+ * Today's weather line: ["8–15°C", "no rain", "New York"]. The last part says where the day came from: the place's
+ * forecast, "your temperatures" when they were typed in, or "a mild day" when no forecast could be had.
+ */
 export function dayParts(c: DayContext): string[] {
-  const parts: string[] = [];
-  if (c.place) parts.push(shortPlace(c.place));
-  else if (c.source === 'given') parts.push('Your temperatures');
-  parts.push(temps(c.low_c, c.high_c));
-  parts.push(rainWords(c));
+  const known = c.rain_chance !== null && c.rain_chance !== undefined;
+  const parts = [tempRange(c.low_c, c.high_c), c.rain ? (known ? `rain ${c.rain_chance}%` : 'rain likely') : 'no rain'];
+  if (c.source === 'mild') parts.push('a mild day');
+  else if (c.place) parts.push(shortPlace(c.place));
+  else if (c.source === 'given') parts.push('your temperatures');
   return parts;
 }
 

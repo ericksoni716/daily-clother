@@ -5,7 +5,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from closet import tripweather, wears, weather
+from closet import trips, tripweather, wears, weather
 from closet.state import State
 
 TODAY = date(2026, 11, 12)
@@ -28,6 +28,7 @@ class FakeOpenMeteo:
         self.archive_down = False
         self.rainy_years = {1, 2, 3}
         self.start = TODAY  # the forecast's first day
+        self.feels = None   # a feels-like high to add to every day, when set
 
     def __call__(self, url: str) -> bytes:
         parts = urlsplit(url)
@@ -38,7 +39,7 @@ class FakeOpenMeteo:
             if self.forecast_down:
                 raise urllib.error.URLError("no network")
             days = [self.start + timedelta(days=i) for i in range(int(params["forecast_days"]))]
-            return json.dumps({"daily": {
+            return json.dumps({"daily": {**self._feels(params, days),
                 "time": [iso(d) for d in days], "temperature_2m_min": [10 + i for i in range(len(days))],
                 "temperature_2m_max": [16 + i for i in range(len(days))],
                 "precipitation_probability_max": [80 if i % 3 == 0 else 10 for i in range(len(days))],
@@ -49,11 +50,17 @@ class FakeOpenMeteo:
         start, end = date.fromisoformat(params["start_date"]), date.fromisoformat(params["end_date"])
         days = [start + timedelta(days=i) for i in range((end - start).days + 1)]
         trip_year = end.year + 1
-        return json.dumps({"daily": {
+        return json.dumps({"daily": {**self._feels(params, days),
             "time": [iso(d) for d in days],
             "temperature_2m_min": [5 + (trip_year - d.year) for d in days],
             "temperature_2m_max": [12 + (trip_year - d.year) for d in days],
             "precipitation_sum": [4.0 if (trip_year - d.year) in self.rainy_years else 0.0 for d in days]}}).encode()
+
+    def _feels(self, params: dict, days: list) -> dict:
+        if self.feels is None:
+            return {}
+        assert "apparent_temperature_max" in params["daily"].split(",")
+        return {"apparent_temperature_max": [self.feels] * len(days)}
 
     def count(self, where: str) -> int:
         return sum(1 for w, _ in self.calls if w == where)
@@ -95,6 +102,15 @@ def test_days_beyond_the_forecast_are_what_the_dates_are_usually_like(fake, stat
     fake.rainy_years = {1, 2}
     state.update(trip_weather=None)
     assert tripweather.lookup(state, LISBON, first, first, TODAY)["days"][0]["rain"] is False
+
+
+def test_the_feels_like_high_is_kept_for_the_hot_or_humid_day_rule(fake, state):
+    fake.feels = 26.5
+    near = tripweather.lookup(state, LISBON, TODAY + timedelta(days=1), TODAY + timedelta(days=1), TODAY)["days"][0]
+    assert near["feels_high_c"] == 26.5 and near["high_c"] == 17.0
+    far = tripweather.lookup(state, LISBON, date(2027, 3, 1), date(2027, 3, 1), TODAY)["days"][0]
+    assert far["feels_high_c"] == 26.5 and far["source"] == "usual"
+    assert trips.sweaty(near) and trips.sweaty(far) and not trips.sweaty({**near, "feels_high_c": 20})
 
 
 def test_usual_weather_uses_only_past_dates_for_a_trip_ending_over_a_year_ahead(fake, state):

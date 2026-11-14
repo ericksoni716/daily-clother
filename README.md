@@ -328,9 +328,10 @@ points to the new place.
 
 **7. Reach it from the iPhone.** Install Tailscale on the PC (tailscale.com,
 **Download**, Windows) and on the iPhone (App Store), and sign in to both with
-the same account. Then follow "Use it from your iPhone" below: the PowerShell
-command `tailscale serve --bg 8765`, then open the address it prints in Safari
-on the phone. **Settings → Phone access** shows the same address.
+the same account. Then follow "Use it from your iPhone" below: run the
+PowerShell command **Settings → Phone access** shows (usually
+`tailscale serve --bg 8765`), then open the address Settings shows in Safari on
+the phone.
 
 **8. Where your closet is kept.** Everything is in the `Closet` folder in your
 user folder, `C:\Users\you\Closet` (to open it: press Windows+R, type
@@ -348,17 +349,39 @@ the public internet.
 1. On the computer, make sure Tailscale is running and signed in. In the
    Tailscale admin console, under **DNS**, turn on **MagicDNS** and **HTTPS
    certificates** (once per account).
-2. Open a terminal (PowerShell on Windows) and run this once:
-   `tailscale serve --bg 8765`
-   It prints an address like `https://your-pc.your-tailnet.ts.net`. Closet's
-   Settings page shows the same address under **Phone access**.
+2. Open Closet's **Settings → Phone access**. It shows the command to run on
+   this computer, usually `tailscale serve --bg 8765`. Open a terminal
+   (PowerShell on Windows) and run it once. Open Settings again (it can take
+   half a minute to notice): **Phone access** now shows Closet's address, like
+   `https://your-pc.your-tailnet.ts.net`.
 3. On the iPhone, with Tailscale connected, open that address in Safari and
    log in with your passphrase.
 4. Tap **Share → Add to Home Screen**. Open Closet from the new icon.
 
+**If another app on this computer already uses Tailscale Serve.** Tailscale
+gives each computer one usual address, and only one app can have it. If another
+app already has it, `tailscale serve --bg 8765` would clash with it, and the
+plain address would open that other app instead of Closet. Closet notices this
+and suggests a command that gives Closet its own port instead, such as
+`tailscale serve --bg --https=8443 8765`. Closet's address then ends in that
+port, like `https://your-pc.your-tailnet.ts.net:8443`. Always use the address
+**Settings → Phone access** shows: it is the one that really reaches Closet.
+If it says Closet is not shared yet, run the command it shows.
+
+To see what this computer shares, run `tailscale serve status`. Closet's share
+is the line that points to `http://127.0.0.1:8765`.
+
+**If Closet's address changes** (for example it moved to `:8443`), the icon on
+the iPhone's home screen still opens the old one. Press and hold that icon
+and delete it, then open the new address in Safari, log in, and add it to
+the home screen again.
+
 `tailscale serve` shares only inside your own Tailscale network. Do not use
 `tailscale funnel`, which would publish the address to the internet. To stop
-sharing: `tailscale serve reset`.
+sharing Closet, run the command under **Settings → Phone access**, such as
+`tailscale serve --https=443 off` (or `--https=8443`, the port in Closet's
+address). It stops only Closet's share. Do not use `tailscale serve reset`: it
+also stops every other app's share on this computer.
 
 The computer must be on and Closet running for the phone to add or change
 anything. When it is not, the phone still shows your closet from its last

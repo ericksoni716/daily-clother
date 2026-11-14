@@ -137,6 +137,7 @@ Original phase 1.
 - [x] First packaged build on macOS (0.1.0). The owner tried it: passphrase, browser, demo closet and uploads (including AVIF) work; the model download failed and is fixed in 0.1.1.
 - [ ] First packaged build on Windows.
 - [x] #164 Ready for the Windows hub: a step-by-step Windows setup guide in the README; the Windows-only code reviewed (the plan route could not have started on Windows: describing an item made a command line longer than Windows allows; now the prompt goes on standard input, in UTF-8, and `claude.exe` is found before an npm `claude.cmd`; `taskkill` no longer flashes a console; typed Windows calls for "is it still running" and the message box); the backend tests run on Windows in CI, with real Credential Manager, start-at-login, tray and rename-while-running tests.
+- [x] #177 Phone access when the PC already shares another app with Tailscale Serve: Settings shows only the address `tailscale serve status --json` says reaches Closet (with `:8443` and so on when not on 443), says plainly when none does, suggests a port no other app uses, and stops only Closet's share (`tailscale serve --https=<port> off`, never `reset`).
 - [ ] Owner tries it on a real Windows PC and iPhone. Not yet exercised: tray icon, start at login, the Tailscale address, camera capture, home-screen install, HEIC from the phone, the model download progress bar, dropping a folder of photos.
 - [ ] Pin the macOS-only tray dependencies after the first Mac build.
 

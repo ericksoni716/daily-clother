@@ -174,7 +174,13 @@ export interface Settings {
   home_place?: Place;
   life: Life | null;
   life_prompt_dismissed: boolean;
+  /** "Before it needs washing": wears per kind of clothing on a trip; null is the whole trip. */
+  rewear?: Rewear;
 }
+
+/** The kinds of clothing the owner sets "Before it needs washing" for. */
+export type RewearKind = 'tops' | 'knits' | 'bottoms' | 'outer' | 'basics';
+export type Rewear = Record<RewearKind, number | null>;
 
 /** A place to look up the weather for (saved in the program's settings, not in a closet). */
 export interface Place {

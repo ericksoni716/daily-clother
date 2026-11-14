@@ -10,7 +10,8 @@ import { Link } from '../router';
 import { apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, monthName, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
 import { useCloset } from '../store';
 import { applyTheme, loadTheme, saveTheme, THEME_CHOICES, type Theme } from '../theme';
-import type { ModelInfo, Profile, RouteOrder, Settings, Storage, TaggingRoute, TaggingSpend, TaggingStatus } from '../types';
+import { MAX_REWEAR, REWEAR_KINDS, rewearWords } from '../trips';
+import type { ModelInfo, Profile, RewearKind, RouteOrder, Settings, Storage, TaggingRoute, TaggingSpend, TaggingStatus } from '../types';
 
 /** One group of settings: a card with a heading. */
 function Section({ title, hint, children, id }: { title: string; hint?: string; children: ReactNode; id: string }) {
@@ -86,6 +87,7 @@ export function SettingsScreen({ version }: { version: string }) {
               }} />
           )}
           {model && <ModelSection model={model} refresh={refreshModel} toast={toast} disabled={offline} />}
+          {settings?.rewear && <RewearSection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
           {settings && <BackupSection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
           <StorageSection offline={offline} profile={profile} />
         </Section>
@@ -196,6 +198,46 @@ function ModelAddress({ model, refresh, toast, disabled }: { model: ModelInfo; r
       </form>
       <p className="hint">Can't download here? Get the file from that address on another computer and put it here, then come back to this page:</p>
       <p><code className="path">{model.path}</code></p>
+    </Sub>
+  );
+}
+
+/** "Before it needs washing": how often each kind of clothing is worn on a trip before it needs a wash. */
+function RewearSection({ settings, onChange, toast, disabled }: { settings: Settings; onChange(s: Settings): void; toast(m: string, k?: 'ok' | 'error'): void; disabled: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const rewear = settings.rewear!;
+
+  async function save(kind: RewearKind, value: string) {
+    setBusy(true);
+    try {
+      onChange(await api.putSettings({ rewear: { [kind]: value === '' ? null : Number(value) } }));
+      toast('Saved');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Sub title="Before it needs washing" id="s-rewear">
+      <p className="hint">How many times you wear each kind on a trip before it needs washing. Trip packing counts with these; on a hot or humid day, what is worn next to the skin is worn once.</p>
+      <div className="settings-rewear">
+        {REWEAR_KINDS.map(({ kind, label }) => {
+          const n = rewear[kind];
+          const choices = Array.from({ length: MAX_REWEAR }, (_, i) => i + 1);
+          if (n !== null && !choices.includes(n)) choices.push(n);
+          return (
+            <label key={kind} className="field">
+              <span>{label}</span>
+              <select value={n === null ? '' : String(n)} disabled={disabled || busy} onChange={(e) => void save(kind, e.target.value)}>
+                {choices.map((c) => <option key={c} value={c}>{rewearWords(c)}</option>)}
+                <option value="">{rewearWords(null)}</option>
+              </select>
+            </label>
+          );
+        })}
+      </div>
     </Sub>
   );
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError, connection } from '../api';
 import { ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
-import { Card, EmptyState, PageHeader } from '../components/ui';
+import { Card, EmptyState, PageHeader, SegmentedControl } from '../components/ui';
 import { loadGridView, type GridView } from '../drawing';
 import { label } from '../labels';
 import { SaveLine, useWhenLeaving } from '../leave';
@@ -9,9 +9,10 @@ import { Link, navigate } from '../router';
 import { useCloset } from '../store';
 import { longDate, occasionLabel, OCCASIONS, placeLabel, shortPlace, wornOrder, type Outfit } from '../today';
 import {
-  addDays, basicLine, checkDates, dateRange, dayRain, dayTemps, groupPacked, itemLine, progress, shortDay, sourceRuns, tripDays,
-  loadSavedTrips, saveTrips, tripTitle, upcomingFirst, wornWords, type PlannedTrip, type Trip, type TripDay, type TripPatch,
-  type TripRequest, type TripSummary,
+  addDays, basicLine, checkDates, dateRange, dayCount, dayRain, dayTemps, fitLaundry, groupPacked, itemLine, laundryDays,
+  laundryEvery, laundryMode, laundryWords, progress, shortDay, sourceRuns, startLaundry, tripDays, loadSavedTrips, saveTrips,
+  tripTitle, upcomingFirst, wornWords, type LaundryMode, type PlannedTrip, type Trip, type TripDay, type TripLaundry,
+  type TripPatch, type TripRequest, type TripSummary,
 } from '../trips';
 import type { ItemSummary, Place } from '../types';
 import { localDay } from '../wears';
@@ -54,7 +55,7 @@ function keepTrip(profile: string, trip: Trip) {
   const saved = loadSavedTrips(profile);
   const summary: TripSummary = {
     id: trip.id, place: trip.place, first_day: trip.first_day, last_day: trip.last_day, occasion: trip.occasion,
-    can_wash: trip.can_wash, lines: trip.lines.length, packed: trip.packed.length,
+    laundry: trip.laundry ?? null, lines: trip.lines.length, packed: trip.packed.length,
     uncovered: trip.plan.uncovered.length, warnings: trip.plan.warnings?.length ?? 0, past: trip.last_day < localDay(),
   };
   const list = saved?.list?.some((t) => t.id === trip.id)
@@ -171,14 +172,15 @@ interface Draft {
   last: string;
   occasion: string;
   differ: Record<string, string>;
-  canWash: boolean;
+  laundry: TripLaundry;
 }
 
 function requestOf(d: Draft, leaveOut: string[], pin: string[]): TripRequest | null {
   if (!d.place) return null;
   const days = new Set(tripDays(d.first, d.last));
   const differ = Object.fromEntries(Object.entries(d.differ).filter(([day, occ]) => days.has(day) && occ !== d.occasion));
-  return { place: d.place, first_day: d.first, last_day: d.last, occasion: d.occasion, day_occasions: differ, can_wash: d.canWash,
+  return { place: d.place, first_day: d.first, last_day: d.last, occasion: d.occasion, day_occasions: differ,
+    laundry: fitLaundry(d.laundry, dayCount(d.first, d.last)),
     leave_out: leaveOut, pin };
 }
 
@@ -186,7 +188,7 @@ function PlanTrip() {
   const { offline, toast } = useCloset();
   const byId = useItems();
   const today = localDay();
-  const [draft, setDraft] = useState<Draft>({ place: null, first: addDays(today, 7), last: addDays(today, 11), occasion: 'casual', differ: {}, canWash: false });
+  const [draft, setDraft] = useState<Draft>({ place: null, first: addDays(today, 7), last: addDays(today, 11), occasion: 'casual', differ: {}, laundry: null });
   const [leaveOut, setLeaveOut] = useState<string[]>([]);
   const [pin, setPin] = useState<string[]>([]);
   const [planned, setPlanned] = useState<PlannedTrip | null>(null);
@@ -317,14 +319,8 @@ function TripForm({ draft, setDraft, today, locked, asking, onSubmit }: {
             </ul>
           </details>
         )}
-        <label className="toggle trip-wash">
-          <span className="toggle-text">
-            <span className="toggle-label">I can wash there</span>
-            <span className="hint">Pieces can be worn more often, so fewer are packed.</span>
-          </span>
-          <input type="checkbox" role="switch" checked={draft.canWash} disabled={locked} onChange={(e) => setDraft({ ...draft, canWash: e.target.checked })} />
-          <span className="toggle-track" aria-hidden="true"><span className="toggle-thumb" /></span>
-        </label>
+        <LaundryChoice value={fitLaundry(draft.laundry, days.length)} first={draft.first} nDays={days.length} disabled={locked}
+          onChange={(laundry) => setDraft({ ...draft, laundry })} />
         <button className="btn btn-primary trip-big-button" type="submit" disabled={locked || asking || !draft.place}
           title={locked ? OFFLINE_TITLE : undefined}>
           {asking ? <><span className="spinner" aria-hidden="true" /> Working it out…</> : 'Work out what to pack'}
@@ -519,7 +515,7 @@ function SavedTrip({ id }: { id: string }) {
   return (
     <div className="trips trip-saved" aria-busy={busy}>
       <PageHeader className="trip-header" title={shortPlace(trip.place.name)} titleId="trips-title" back={TRIPS_BACK}
-        subtitle={<>{dateRange(trip.first_day, trip.last_day)} · {occasionLabel(trip.occasion)}{trip.can_wash ? ' · Can wash there' : ''}</>} />
+        subtitle={<>{dateRange(trip.first_day, trip.last_day)} · {occasionLabel(trip.occasion)}{trip.laundry ? ` · ${laundryWords(trip.laundry)}` : ''}</>} />
 
       {locked && (
         <p className="notice notice-warn" role="status">
@@ -558,16 +554,51 @@ function SavedTrip({ id }: { id: string }) {
             ))}
           </div>
         </div>
-        <label className="toggle trip-wash">
-          <span className="toggle-text"><span className="toggle-label">I can wash there</span></span>
-          <input type="checkbox" role="switch" checked={trip.can_wash} disabled={locked || busy} onChange={(e) => void change({ can_wash: e.target.checked })} />
-          <span className="toggle-track" aria-hidden="true"><span className="toggle-thumb" /></span>
-        </label>
+        <LaundryChoice value={trip.laundry ?? null} first={trip.first_day} nDays={dayCount(trip.first_day, trip.last_day)}
+          disabled={locked || busy} onChange={(laundry) => void change({ laundry })} />
         <div className="row">
           <button className="btn" disabled={locked || busy} title={title} onClick={() => void change({ replan: true }, 'Planned again')}>Plan again</button>
           <button className="btn btn-danger-quiet" disabled={locked || busy} title={title} onClick={() => void remove()}>Delete this trip</button>
         </div>
       </section>
+    </div>
+  );
+}
+
+/** "I can do laundry": none, on one day of the trip, or every so many days. Fewer pieces are packed with it. */
+function LaundryChoice({ value, first, nDays, disabled, onChange }: {
+  value: TripLaundry; first: string; nDays: number; disabled: boolean; onChange(l: TripLaundry): void;
+}) {
+  const mode = laundryMode(value);
+  const tooShort = nDays < 3;
+  const modes: { value: LaundryMode; label: string }[] = [
+    { value: 'none', label: 'No laundry' }, { value: 'day', label: 'On one day' }, { value: 'every', label: 'Every few days' },
+  ];
+  return (
+    <div className="trip-laundry" role="group" aria-label="I can do laundry">
+      <span className="chip-group-title" aria-hidden="true">I can do laundry</span>
+      <SegmentedControl label="Laundry on the trip" small options={modes} value={mode} disabled={disabled || tooShort}
+        onChange={(m) => m !== mode && onChange(startLaundry(m, nDays))} />
+      {value && 'day' in value && (
+        <label className="field">
+          <span>Laundry day</span>
+          <select value={value.day} disabled={disabled} onChange={(e) => onChange({ day: Number(e.target.value) })}>
+            {laundryDays(nDays).map((d) => <option key={d} value={d}>Day {d} ({longDate(addDays(first, d - 1))})</option>)}
+          </select>
+        </label>
+      )}
+      {value && 'every' in value && (
+        <label className="field">
+          <span>How often</span>
+          <select value={value.every} disabled={disabled} onChange={(e) => onChange({ every: Number(e.target.value) })}>
+            {laundryEvery(nDays).map((n) => <option key={n} value={n}>{n === 1 ? 'Every day' : `Every ${n} days`}</option>)}
+          </select>
+        </label>
+      )}
+      <p className="hint">
+        {tooShort ? 'A trip this short has no day for laundry.'
+          : 'Pack only enough to last until the wash. Clothes washed that day are worn again from the next.'}
+      </p>
     </div>
   );
 }
@@ -698,7 +729,10 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
                   <li key={b.key} className={`trip-line trip-basic${ticks?.packed.has(line) ? ' is-ticked' : ''}`} data-testid="pack-line">
                     <Line ticks={ticks} line={line} name={b.name}>
                       <span className="trip-count" aria-hidden="true">{b.count}×</span>
-                      <span className="trip-line-text"><span className="trip-line-name">{b.name}</span><span className="visually-hidden">: {b.count}</span></span>
+                      <span className="trip-line-text">
+                        <span className="trip-line-name">{b.name}</span><span className="visually-hidden">: {b.count}</span>
+                        {b.why && <span className="trip-line-sub">{b.why}</span>}
+                      </span>
                     </Line>
                   </li>
                 );
@@ -706,6 +740,18 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
             </ul>
           </div>
           {plan.notes.length > 0 && <ul className="hint trip-notes">{plan.notes.map((n) => <li key={n}>{n}</li>)}</ul>}
+          {((plan.counts?.length ?? 0) > 0 || (plan.washes?.length ?? 0) > 0) && (
+            <section className="trip-why" aria-labelledby="why-title">
+              <h3 id="why-title" className="chip-group-title">Why these counts</h3>
+              {(plan.counts?.length ?? 0) > 0 && (
+                <ul className="trip-why-list" aria-label="Why these counts">{plan.counts!.map((c) => <li key={c.kind}>{c.words}</li>)}</ul>
+              )}
+              {(plan.washes?.length ?? 0) > 0 && (
+                <ul className="trip-why-list" aria-label="Laundry">{plan.washes!.map((w) => <li key={w.day}>{w.words}</li>)}</ul>
+              )}
+              <p className="hint">How often each kind is worn before washing is set in <Link to="/settings">Settings</Link>.</p>
+            </section>
+          )}
         </section>
 
         <section className="trip-days" aria-labelledby="days-title">
@@ -791,6 +837,7 @@ function DayCard({ day, tripOccasion, byId, view }: {
         <strong>{longDate(day.date)}</strong>
         <span className="muted">{dayTemps(day.weather)}{day.weather.rain ? ' · Rain' : ''}</span>
         {day.occasion !== tripOccasion && <span className="trip-day-occasion">{occasionLabel(day.occasion)}</span>}
+        {day.laundry && <span className="trip-day-occasion trip-day-laundry">Laundry day</span>}
       </div>
       {day.problem && <p className="trip-day-problem"><WarnIcon className="inline-icon" /> {day.problem}</p>}
       {day.warning && !o?.warnings.includes(day.warning) && <p className="trip-day-problem"><WarnIcon className="inline-icon" /> {day.warning}</p>}

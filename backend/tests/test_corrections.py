@@ -9,7 +9,7 @@ import pytest
 
 from closet import db, details, illustrations, tagjobs
 from closet.config import bundle_dir
-from closet.tagger.schema import NAMED_HEX, ItemTags
+from closet.tagger.schema import ItemTags
 
 from .conftest import upload
 
@@ -130,7 +130,8 @@ def test_the_options_are_the_ones_for_the_kind_of_garment_and_each_drawing_diffe
     if kind == "top":
         assert "collar" in names and "placket_buttons" in names and "pleats" not in names
     if kind == "bottom":
-        assert "pleats" in names and "waist" in names and "collar" not in names
+        # the owner's bottoms block took the place of the older pleats, crease, waist and hem flags
+        assert "trouser_front" in names and "waistband" in names and "collar" not in names and "pleats" not in names
     if kind == "shoe":
         assert "sole_color" in names and "toe_cap" in names and "placket" not in names
 
@@ -399,7 +400,7 @@ def test_undoing_the_owners_change_after_a_new_description_follows_the_current_a
     assert owners["can_undo"]
     back = undo(client, item["id"], owners["id"]).json()["item"]
     # the field is what the answer now says, as if the answer had come after the undo
-    assert (back["color"], back["color_hex"], back["source"]["color"]) == ("cream", NAMED_HEX["cream"], "ai")
+    assert (back["color"], back["color_hex"], back["source"]["color"]) == ("cream", tagjobs.color_hex(henley), "ai")
     assert back["confidence"]["color"] == henley.color_confidence
     drawn = svg(client, back)
     assert redescribe(client, services, item["id"], henley)["color"] == "cream"

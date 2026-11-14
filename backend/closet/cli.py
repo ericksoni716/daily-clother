@@ -42,10 +42,19 @@ def _say(message: str) -> None:
         print(message, flush=True)
     elif sys.platform == "win32":  # windowed build: no console, so use a message box
         try:
-            import ctypes
-            ctypes.windll.user32.MessageBoxW(None, message, APP_NAME, 0x40)
+            _message_box(message, 0x40)  # MB_ICONINFORMATION
         except Exception:
             pass
+
+
+def _message_box(text: str, flags: int) -> int:
+    """Windows' own message box; returns the button pressed (IDYES is 6, IDNO 7), 0 when it could not be shown."""
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    user32.MessageBoxW.argtypes = [wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.UINT]
+    user32.MessageBoxW.restype = ctypes.c_int
+    return user32.MessageBoxW(None, text, APP_NAME, flags)
 
 
 def _ask(question: str, yes: str, no: str, headless: bool = False) -> bool | None:
@@ -60,14 +69,13 @@ def _ask(question: str, yes: str, no: str, headless: bool = False) -> bool | Non
             return None
         return answer in ("y", "yes")
     if sys.platform == "win32":
+        # MB_YESNO | MB_ICONQUESTION | MB_SETFOREGROUND | MB_TOPMOST; Windows only offers Yes and No
+        flags = 0x4 | 0x20 | 0x10000 | 0x40000
         try:
-            import ctypes
-            # MB_YESNO | MB_ICONQUESTION | MB_SETFOREGROUND | MB_TOPMOST; Windows only offers Yes and No
-            flags = 0x4 | 0x20 | 0x10000 | 0x40000
-            text = f"{question}\n\nYes: {yes}\nNo: {no}"
-            return ctypes.windll.user32.MessageBoxW(None, text, APP_NAME, flags) == 6  # IDYES
+            answer = _message_box(f"{question}\n\nYes: {yes}\nNo: {no}", flags)
         except Exception:
             return None
+        return {6: True, 7: False}.get(answer)  # IDYES, IDNO; 0 when the box could not be shown
     if sys.platform == "darwin":
         import subprocess
 

@@ -86,6 +86,74 @@ for (const viewport of [{ name: 'computer', width: 1280, height: 800 }, { name: 
   });
 }
 
+test('laundry on the trip and the explained counts', async ({ page }) => {
+  await login(page);
+  await useProfile(page, 'demo');
+  await stubTripWeather(page);
+  let tripId: string | null = null;
+  try {
+    await page.goto('/trips/new');
+    await page.getByLabel('Where are you going?').fill('Lisbon');
+    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: PLACE.name }).click();
+    const first = futureDay(7);
+    await page.getByLabel('First day').fill(first);
+    await page.getByLabel('Last day').fill(futureDay(13));
+
+    const laundry = page.getByRole('group', { name: 'Laundry on the trip' });
+    await expect(laundry.getByRole('button', { name: 'No laundry' })).toHaveAttribute('aria-pressed', 'true');
+    await laundry.getByRole('button', { name: 'On one day' }).click();
+    await expect(page.getByLabel('Laundry day')).toHaveValue('4');
+    await page.getByRole('button', { name: 'Work out what to pack' }).click();
+
+    const counts = page.getByRole('list', { name: 'Why these counts' });
+    await expect(counts).toContainText(/: one a day, laundry on day 4/);
+    await expect(counts).toContainText('jacket: one for the whole trip');
+    await expect(page.getByRole('list', { name: 'Laundry' })).toContainText(/^Wash on day 4: .* from days 1–3 are worn again from day 5\./);
+    await expect(page.getByTestId('trip-day').nth(3)).toContainText('Laundry day');
+    await expect(page.getByTestId('pack-line').filter({ hasText: 'Underwear' })).toContainText('laundry on day 4');
+
+    await page.getByRole('button', { name: 'Save this trip' }).click();
+    await expect(page.getByRole('heading', { name: 'Lisbon' })).toBeVisible();
+    tripId = page.url().split('/').pop() ?? null;
+    await expect(page.locator('.trip-header')).toContainText('Laundry on day 4');
+
+    // changing it on the saved trip plans again for the new laundry
+    const patch = page.waitForResponse((response) =>
+      response.request().method() === 'PATCH' && response.url().includes(`/api/trips/${tripId}`) && response.ok());
+    await page.getByRole('group', { name: 'Laundry on the trip' }).getByRole('button', { name: 'Every few days' }).click();
+    await patch;
+    await expect(page.locator('.trip-header')).toContainText('Laundry every 3 days');
+    await expect(page.getByRole('list', { name: 'Why these counts' })).toContainText('laundry every 3 days');
+    await expect(page.getByLabel('How often')).toHaveValue('3');
+  } finally {
+    if (tripId) await page.request.delete(`/api/trips/${tripId}`);
+  }
+});
+
+test('"Before it needs washing" is set in Settings, per kind of clothing', async ({ page }) => {
+  await login(page);
+  try {
+    await page.goto('/settings');
+    const section = page.getByRole('region', { name: 'Before it needs washing' });
+    const tops = section.getByLabel('Shirts, tees and polos');
+    await expect(tops).toHaveValue('1');
+    await expect(section.getByLabel('Knitwear and sweatshirts')).toHaveValue('3');
+    await expect(section.getByLabel('Trousers and shorts')).toHaveValue('3');
+    await expect(section.getByLabel('Jackets and coats')).toHaveValue('');
+    await expect(section.getByLabel('Underwear, socks and basics')).toHaveValue('1');
+    const saved = page.waitForResponse((r) => r.request().method() === 'PUT' && r.url().endsWith('/api/settings') && r.ok());
+    await tops.selectOption({ label: 'Worn up to 2 times' });
+    await saved;
+    await page.reload();
+    await expect(page.getByRole('region', { name: 'Before it needs washing' }).getByLabel('Shirts, tees and polos')).toHaveValue('2');
+    const settings = await (await page.request.get('/api/settings')).json();
+    expect(settings.rewear).toEqual({ tops: 2, knits: 3, bottoms: 3, outer: null, basics: 1 });
+  } finally {
+    await page.request.put('/api/settings', { data: { rewear: null } });
+  }
+});
+
 test('a saved trip names archived and deleted pieces and offers to plan again', async ({ page }) => {
   await login(page);
   await useProfile(page, 'demo');

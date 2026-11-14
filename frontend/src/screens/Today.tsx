@@ -355,7 +355,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         <Card as="section" className="worn-question" aria-label={questionFor(question, dayNow())} data-testid="worn-question">
           <div className="worn-question-head">
             <h2>{questionFor(question, dayNow())}</h2>
-            <OutfitPics outfit={question} byId={allById} />
+            <OutfitPics outfit={question} byId={allById} linked={false} />
             <button className="btn btn-icon btn-ghost worn-question-close" aria-label="Not now"
               onClick={() => { setDismissed(dismiss(profile, question.id)); setRated(null); }}>×</button>
           </div>

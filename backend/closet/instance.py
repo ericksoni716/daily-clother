@@ -56,13 +56,25 @@ def is_newer(mine: str, theirs: str) -> bool:
 def _pid_alive(pid: int) -> bool:
     if os.name == "nt":
         import ctypes
-        handle = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        from ctypes import wintypes
+        # its own copy of kernel32 with the types declared, so a handle is not cut to 32 bits on 64-bit Windows
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        kernel32.GetExitCodeProcess.restype = wintypes.BOOL
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
         if not handle:
             return False
-        code = ctypes.c_ulong()
-        ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
-        ctypes.windll.kernel32.CloseHandle(handle)
-        return code.value == 259  # STILL_ACTIVE
+        try:
+            code = wintypes.DWORD()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return False
+            return code.value == 259  # STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
     try:
         os.kill(pid, 0)
     except ProcessLookupError:

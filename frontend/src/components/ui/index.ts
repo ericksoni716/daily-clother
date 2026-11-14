@@ -7,3 +7,5 @@ export { Notice, type NoticeTone } from './Notice';
 export { PageHeader } from './PageHeader';
 export { SegmentedControl, type Segment } from './SegmentedControl';
 export { PHONE, Sheet } from './Sheet';
+export { confirmKeys, focusables, trapTab } from './focus';
+export { useConfirmFocus } from './useConfirmFocus';

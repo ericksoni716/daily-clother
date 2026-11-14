@@ -19,6 +19,7 @@ from . import db
 from .config import Config
 from .state import State
 from .tagger.correcting import MAX_TOKENS as CORRECT_MAX_TOKENS
+from .tagger.garments import MODEL as GARMENTS_MODEL
 from .tagger.shopping import MAX_TOKENS as SHOP_MAX_TOKENS
 from .tagger.tagging import CONFIG, MAX_TOKENS, CapReached, RouteUnavailable
 
@@ -27,6 +28,7 @@ PURPOSE_CORRECT = "correct_item"   # reading the owner's sentence about an item 
 PURPOSE_LANDMARKS = "item_landmarks"   # where a patterned top's buttons, neck, hem and sleeves are (`tagger/landmarks.py`)
 PURPOSE_SHOP = "shop_find"            # searching shops for a wish (`tagger/shopping.py`)
 PURPOSE_PRICES = "shop_prices"        # looking up the prices of a wish's finds again
+PURPOSE_GARMENTS = "find_garments"    # where each piece is in a photo of several (`tagger/garments.py`)
 PRICES_CHECKED: str = CONFIG.get("prices_checked", "")
 TAGGING_MODEL: str = CONFIG["roles"]["tagging"]
 SUGGESTED_CAP_USD = 5.0     # see DECISIONS, "Spend cap for the API key"
@@ -80,6 +82,12 @@ def estimate_call(photos: int, model: str = TAGGING_MODEL) -> float:
 
 def estimate_landmarks(photos: int, model: str = TAGGING_MODEL) -> float:
     """The most one request for an item's landmarks should cost: a short prompt and schema, the photo, a short answer."""
+    return cost_usd(model, CORRECT_TEXT_TOKENS + IMAGE_TOKENS * max(1, photos), CORRECT_MAX_TOKENS)
+
+
+def estimate_garments(photos: int, model: str = GARMENTS_MODEL) -> float:
+    """The most one request for the boxes around the pieces in a photo should cost: a short prompt and schema, the
+    photo, and the longest answer allowed (about twenty boxes fit in it)."""
     return cost_usd(model, CORRECT_TEXT_TOKENS + IMAGE_TOKENS * max(1, photos), CORRECT_MAX_TOKENS)
 
 
@@ -165,7 +173,7 @@ def summary(cfg: Config, state: State, conn) -> dict:
         "plan_calls": now["plan_calls"], "input_tokens": now["input_tokens"], "output_tokens": now["output_tokens"],
         "left_usd": round(left, 6) if left is not None else None,
         "reached": left is not None and left < one,
-        "per_photo_usd": round(one, 6), "waiting": waiting(conn) if state.get("profile") != "demo" else
+        "per_photo_usd": round(one, 6), "per_find_usd": round(estimate_garments(1), 6), "waiting": waiting(conn) if state.get("profile") != "demo" else
         {"items": 0, "photos": 0, "at_most_usd": 0.0},
         "model": TAGGING_MODEL, "prices_checked": PRICES_CHECKED, "turned_off": state.get("tagging_api_off"),
         "history": months,

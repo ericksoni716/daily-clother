@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { forgetSaved } from './today';
 import {
-  addDays, checkDates, dateRange, dayCount, dayRain, dayTemps, groupPacked, progress, shortDay, sourceLabel, sourceRuns,
-  loadSavedTrips, saveTrips, tripDays, tripTitle, upcomingFirst, wornWords, type TripDay, type TripSummary,
+  addDays, checkDates, dateRange, dayCount, dayRain, dayTemps, fitLaundry, groupPacked, laundryDays, laundryEvery, laundryMode,
+  laundryWords, progress, REWEAR_KINDS, rewearWords, shortDay, sourceLabel, sourceRuns, startLaundry, loadSavedTrips, saveTrips,
+  tripDays, tripTitle, upcomingFirst, wornWords, type TripDay, type TripSummary,
 } from './trips';
 
 const day = (date: string, source: TripDay['source'], extra: Partial<TripDay> = {}): TripDay => ({
@@ -89,5 +90,42 @@ describe('trips', () => {
     const { upcoming, past } = upcomingFirst([t('a', false), t('b', true), t('c', false)]);
     expect(upcoming.map((x) => x.id)).toEqual(['a', 'c']);
     expect(past.map((x) => x.id)).toEqual(['b']);
+  });
+
+  it('offers laundry on the days of the trip a wash can free something, in plain words', () => {
+    expect(laundryDays(7)).toEqual([2, 3, 4, 5, 6]);
+    expect(laundryEvery(7)).toEqual([1, 2, 3, 4, 5]);
+    expect(laundryDays(2)).toEqual([]);
+    expect(laundryEvery(2)).toEqual([]);
+    expect(laundryWords({ day: 4 })).toBe('Laundry on day 4');
+    expect(laundryWords({ every: 3 })).toBe('Laundry every 3 days');
+    expect(laundryWords({ every: 1 })).toBe('Laundry every day');
+    expect(laundryWords(null)).toBeNull();
+    expect(laundryWords(undefined)).toBeNull();
+    expect(laundryMode({ day: 4 })).toBe('day');
+    expect(laundryMode({ every: 2 })).toBe('every');
+    expect(laundryMode(null)).toBe('none');
+  });
+
+  it('starts laundry in the middle of the trip and drops a choice the dates no longer allow', () => {
+    expect(startLaundry('day', 7)).toEqual({ day: 4 });
+    expect(startLaundry('day', 3)).toEqual({ day: 2 });
+    expect(startLaundry('every', 7)).toEqual({ every: 3 });
+    expect(startLaundry('every', 4)).toEqual({ every: 2 });
+    expect(startLaundry('day', 2)).toBeNull();
+    expect(startLaundry('none', 7)).toBeNull();
+    expect(fitLaundry({ day: 6 }, 7)).toEqual({ day: 6 });
+    expect(fitLaundry({ day: 6 }, 5)).toBeNull();
+    expect(fitLaundry({ every: 5 }, 6)).toBeNull();
+    expect(fitLaundry({ every: 4 }, 6)).toEqual({ every: 4 });
+    expect(fitLaundry(undefined, 6)).toBeNull();
+  });
+
+  it('names the kinds for "Before it needs washing" without naming jeans', () => {
+    expect(REWEAR_KINDS.map((k) => k.kind)).toEqual(['tops', 'knits', 'bottoms', 'outer', 'basics']);
+    expect(REWEAR_KINDS.some((k) => /jeans/i.test(k.label))).toBe(false);
+    expect(rewearWords(1)).toBe('Worn once');
+    expect(rewearWords(3)).toBe('Worn up to 3 times');
+    expect(rewearWords(null)).toBe('The whole trip');
   });
 });

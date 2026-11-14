@@ -95,6 +95,8 @@ export interface Item extends ItemSummary {
   pattern_error: string | null;
   /** The colours measured from the pattern, largest first (empty when it has not been measured). */
   pattern_colors?: PatternColour[];
+  /** The owner's name for its shade (from the taxonomy's shades, e.g. 'charcoal'), or null when there is none. */
+  shade?: string | null;
   /** Why its cutout or its description failed: a plain sentence, and the stored reason with keys and outside paths
    * taken out (null when nothing was recorded). Null when nothing has failed. */
   failure: Failure | null;
@@ -118,6 +120,8 @@ export interface Item extends ItemSummary {
   photos: Photo[];
   /** The latest wears, newest first. */
   recent_wears: string[];
+  /** The photo of several pieces this item was cut from, and its box in it; null for a photo of its own. */
+  source_photo?: { id: string; photo_url: string; box: BoxEdges | null } | null;
 }
 
 export type ItemPatch = Partial<Omit<Item, 'silhouette'>> & { silhouette?: Record<string, string | null> };
@@ -185,7 +189,13 @@ export interface Settings {
   home_place?: Place;
   life: Life | null;
   life_prompt_dismissed: boolean;
+  /** "Before it needs washing": wears per kind of clothing on a trip; null is the whole trip. */
+  rewear?: Rewear;
 }
+
+/** The kinds of clothing the owner sets "Before it needs washing" for. */
+export type RewearKind = 'tops' | 'knits' | 'bottoms' | 'outer' | 'basics';
+export type Rewear = Record<RewearKind, number | null>;
 
 /** A place to look up the weather for (saved in the program's settings, not in a closet). */
 export interface Place {
@@ -286,6 +296,8 @@ export interface TaggingSpend {
   reached: boolean;
   /** The most one photo should cost through the API key. */
   per_photo_usd: number;
+  /** The most finding the pieces in one photo of several should cost through the API key. */
+  per_find_usd: number;
   waiting: { items: number; photos: number; at_most_usd: number };
   model: string;
   /** The date the price table was written down, "2026-11-03". */
@@ -327,4 +339,48 @@ export interface ReviewQueue {
   failed: number;
   waiting_items: { id: string; name: string | null; category: string | null }[];
   failed_items: { id: string; name: string | null; category: string | null }[];
+}
+
+/** A box in a photo, as fractions of its width and height (0 left/top, 1 right/bottom). */
+export interface BoxEdges {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/** A box around one piece in a photo of several. */
+export interface SourceBox extends BoxEdges {
+  id: string;
+  /** Its number on the photo, from 1. */
+  n: number;
+  /** What Claude called the piece; null for a box the owner drew. */
+  label: string | null;
+  /** The piece cut out of its background; answers 409 until the background model is ready. */
+  cutout_url: string;
+}
+
+/** A photo of several pieces: waiting for Claude to find them, ready to check, or added. */
+export interface SourcePhoto {
+  id: string;
+  state: 'finding' | 'review' | 'added';
+  /** Why finding waits or did not work (or that the demo never asks Claude); null otherwise. */
+  note: string | null;
+  found_by: 'claude' | null;
+  photo_url: string;
+  thumb_url: string;
+  width: number;
+  height: number;
+  boxes: SourceBox[];
+  /** The items made from it, once added. */
+  items: ItemSummary[];
+  created_at: string;
+  updated_at: string;
+}
+
+/** What sending a photo of several pieces answers: the photo kept, or what an earlier copy of it became. */
+export interface SourceUpload {
+  duplicate: boolean;
+  source: SourcePhoto | null;
+  item: Item | null;
 }

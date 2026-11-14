@@ -18,17 +18,21 @@ from .tagger.schema import Color, Details, Feature, ItemTags, Pattern, Silhouett
 from .tagger.taxonomy import kinds_for
 
 FEATURES: tuple[str, ...] = get_args(Feature)
-DETAILS: tuple[str, ...] = tuple(n for n in Details.model_fields if n not in ("features", "other_features"))
+# lists (features, the tagger's own words, a trouser's pockets and wear) are shown, not picked one by one
+LISTS = ("features", "other_features", "trouser_pockets", "back_details", "denim_fades", "distressing")
+DETAILS: tuple[str, ...] = tuple(n for n in Details.model_fields if n not in LISTS)
 PICKABLE: tuple[str, ...] = DETAILS + FEATURES
 MAX_BUTTONS = 10
-# details whose choices are offered in words, without a drawing for each (there are too many)
-WORDED = ("garment",)
+# details that are a count: the most each can be
+NUMBERS = {"placket_buttons": MAX_BUTTONS, "eyelets": 10, "inseam": 20}
+# details whose choices are offered in words, without a drawing for each (too many, or each draws the same picture)
+WORDED = ("garment", "shade")
 # the item's own fields a correction by sentence may change (silhouette parts as "silhouette.<part>")
 FIELDS = ("category", "color", "pattern", "formality", "season")
 SHAPES = tuple(f"silhouette.{k}" for k in vocab.SILHOUETTE)
 
 GROUPS = {"shape": "Shape", "neck": "Collar and neck", "front": "Front", "sleeves": "Sleeves and cuffs",
-          "pockets": "Pockets", "hem": "Hem", "sole": "Sole and laces", "cloth": "Cloth"}
+          "pockets": "Pockets", "hem": "Hem", "sole": "Sole and laces", "lacing": "Lacing", "cloth": "Cloth"}
 # what can be fixed on each kind of garment, grouped, in the order the item page shows them
 BY_KIND: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
     "top": (
@@ -39,19 +43,22 @@ BY_KIND: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
         ("pockets", ("pockets",)),
         ("hem", ("hem",)),
         ("cloth", ("fit_detail", "fabric", "fiber", "weight", "knit_gauge", "corduroy_wale", "color_texture",
-                   "pattern_name", "pattern_orientation")),
+                   "pattern_name", "pattern_orientation", "shade")),
     ),
     "bottom": (
-        ("shape", ("garment", "side_stripe")),
-        ("front", ("waist", "pleats", "pressed_crease")),
+        ("shape", ("garment", "side_stripe", "leg_shape", "rise", "trouser_break", "crease", "inseam")),
+        ("front", ("waistband", "fly", "trouser_front")),
         ("pockets", ("pockets",)),
-        ("hem", ("pant_hem",)),
-        ("cloth", ("fabric", "fiber", "weight", "corduroy_wale", "contrast_stitching", "color_texture", "pattern_name")),
+        ("hem", ("hem_finish",)),
+        ("cloth", ("fabric", "fiber", "weight", "corduroy_wale", "denim_wash", "contrast_stitching", "color_texture",
+                   "pattern_name", "shade")),
     ),
     "shoe": (
-        ("shape", ("shoe_style", "toe_cap", "side_stripe", "contrast_heel_tab")),
-        ("sole", ("chunky_sole", "sole_color", "lace_color")),
-        ("cloth", ("fabric", "fiber", "color_texture")),
+        ("shape", ("footwear", "shoe_style", "footwear_height", "toe_shape", "toe_treatment", "toe_cap", "side_stripe",
+                   "contrast_heel_tab")),
+        ("lacing", ("lacing", "eyelets", "laces")),
+        ("sole", ("sole", "heel", "shoe_construction", "chunky_sole", "sole_color", "lace_color")),
+        ("cloth", ("upper_material", "fabric", "fiber", "color_texture", "shade")),
     ),
 }
 
@@ -63,7 +70,14 @@ TITLES = {
     "weight": "weight of the cloth", "knit_gauge": "knit", "corduroy_wale": "corduroy ridges",
     "color_texture": "colour effect", "pattern_name": "pattern's name", "pattern_orientation": "pattern direction",
     "trim_color": "trim colour", "waist": "waist", "pant_hem": "trouser hem", "shoe_style": "shoe style",
-    "sole_color": "sole colour", "lace_color": "lace colour",
+    "sole_color": "sole colour", "lace_color": "lace colour", "shade": "shade",
+    "footwear": "kind of shoe", "toe_shape": "toe shape", "toe_treatment": "toe", "lacing": "fastening",
+    "eyelets": "number of eyelets", "laces": "laces", "sole": "sole", "shoe_construction": "how the sole is attached",
+    "footwear_height": "height", "heel": "heel", "upper_material": "upper",
+    "waistband": "waistband", "fly": "fly", "trouser_front": "front", "rise": "rise", "leg_shape": "leg",
+    "trouser_break": "break", "hem_finish": "hem", "crease": "crease", "trouser_pockets": "pockets",
+    "back_details": "back and build", "denim_wash": "wash", "denim_fades": "fades", "distressing": "wear and repairs",
+    "inseam": "inseam (inches)",
     "v_insert": "V insert under the neck", "pleats": "pleats", "pressed_crease": "pressed crease",
     "contrast_stitching": "contrast stitching", "toe_cap": "toe cap", "side_stripe": "side stripe",
     "contrast_heel_tab": "contrast heel tab", "chunky_sole": "chunky sole", "garment": "kind",
@@ -99,6 +113,27 @@ _WORDS = {
     "shoe_style": {"low_sneaker": "low sneaker", "high_top": "high top", "slip_on": "slip-on",
                    "chelsea_boot": "Chelsea boot"},
     "sole_color": {"same": "same as the upper"}, "lace_color": {"same": "same as the upper"},
+    "footwear": {"plain_toe_oxford": "plain-toe oxford", "cap_toe_oxford": "cap-toe oxford", "moc_toe_boot": "moc-toe boot",
+                 "canvas_low_top": "canvas low top", "canvas_high_top": "canvas high top", "chelsea_boot": "Chelsea boot",
+                 "jodhpur_boot": "jodhpur boot"},
+    "toe_shape": {"moc_toe": "moc toe"}, "toe_treatment": {"cap_toe": "toe cap", "split_toe": "split toe"},
+    "lacing": {"closed_oxford": "closed (oxford)", "open_derby": "open (derby)", "slip_on": "no laces (slip-on)",
+               "monk_single": "one buckled strap", "monk_double": "two buckled straps",
+               "hook_and_loop": "hook-and-loop straps", "rawhide_around_collar": "rawhide lace round the collar"},
+    "sole": {"lug_commando": "lug (commando)", "eva_foam_midsole": "foam midsole", "siped_deck": "boat-shoe sole",
+             "jute_rope": "rope (jute)"},
+    "footwear_height": {"boot_6in": "6-inch boot", "boot_8in_plus": "8 inches or taller", "ankle_boot": "ankle boot",
+                        "no_show": "no-show"},
+    "heel": {"low_stacked": "low stacked"},
+    "waistband": {"elastic_drawcord": "elastic with a cord", "brace_buttons": "brace buttons", "extended_tab": "extended tab"},
+    "fly": {"button": "button fly", "zip": "zip fly", "none": "no fly"},
+    "trouser_front": {"single_pleat": "one pleat", "double_pleat": "two pleats", "reverse_pleat": "reverse pleat",
+                      "forward_pleat": "forward pleat"},
+    "trouser_break": {"no_break": "no break", "full": "full break", "slight": "slight break"},
+    "hem_finish": {"turn_up": "turned up", "rolled_cuff": "rolled", "ribbed_cuff": "ribbed cuff", "chain_stitched": "chain-stitched"},
+    "crease": {"none": "no crease"},
+    "denim_wash": {"washed_black": "washed black"},
+
     "trim_color": {"same": "same as the body"}, "button_color": {"same": "same as the cloth"},
     "garment": {"unknown": "not said", **kinds.WORDS},
 }
@@ -127,8 +162,8 @@ def values(name: str, category=None) -> tuple:
         return ("unknown",) + kinds_for(category)
     if name in FEATURES:
         return ("no", "yes")
-    if name == "placket_buttons":
-        return tuple(range(MAX_BUTTONS + 1))
+    if name in NUMBERS:
+        return tuple(range(NUMBERS[name] + 1))
     return get_args(Details.model_fields[name].annotation)
 
 
@@ -145,7 +180,8 @@ def words(name: str, value) -> str:
     if isinstance(value, bool):
         return "yes" if value else "no"
     if isinstance(value, int):
-        return "none" if value == 0 and name == "placket_buttons" else str(value)
+        return ("none" if name in ("placket_buttons", "eyelets") else "not known") if value == 0 and name in NUMBERS \
+            else str(value)
     if name in ("color_hex", "name", "material"):   # the owner's or Claude's own words
         return str(value)
     return _WORDS.get(name, {}).get(value) or _ANY.get(value) or str(value).replace("_", " ")
@@ -158,12 +194,12 @@ def coerce(name: str, value, category=None):
             return "yes"
         if value in (False, "no"):
             return "no"
-    elif name == "placket_buttons":
+    elif name in NUMBERS:
         if isinstance(value, str) and value.strip().isdigit():
             value = int(value.strip())
-        if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= MAX_BUTTONS:
+        if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= NUMBERS[name]:
             return value
-        raise ValueError(f"The number of buttons must be a whole number from 0 to {MAX_BUTTONS}.")
+        raise ValueError(f"The {title(name)} must be a whole number from 0 to {NUMBERS[name]}.")
     elif name in DETAILS:
         if value in values(name, category):
             return value

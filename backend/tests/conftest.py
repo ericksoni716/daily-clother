@@ -1,4 +1,5 @@
 import io
+import sys
 import urllib.error
 import zlib
 from types import SimpleNamespace
@@ -11,11 +12,17 @@ from closet import app as app_module
 from closet import weather
 from closet.config import Config
 from closet.tagger.correcting import Change, CorrectionAnswer, CorrectionResult
+from closet.tagger.garments import Garment, Garments
 from closet.tagger.schema import Details, ItemTags, Silhouette
 from closet.tagger.tagging import RouteUnavailable, TaggingError, TagResult
 
 PASSPHRASE = "correct horse battery"
 REAL_FETCH = weather.fetch   # for the tests of the request itself, which stop urlopen instead
+
+
+def pytest_runtest_setup(item):
+    if item.get_closest_marker("windows") and sys.platform != "win32":
+        pytest.skip("Windows only")
 
 
 @pytest.fixture(autouse=True)
@@ -40,6 +47,42 @@ def fake_cutter(img: Image.Image) -> Image.Image:
     w, h = img.size
     out = img.convert("RGBA").crop((w // 4, h // 6, w * 3 // 4, h * 5 // 6))
     return out
+
+
+# Several pieces laid out in one photo (`pile_bytes`): a red piece left, a blue one in the middle, a green one right,
+# on a pale background; and the boxes Claude would give for them, as fractions of the photo.
+PILE = ((0.05, 0.10, 0.30, 0.60, (190, 40, 40)), (0.40, 0.10, 0.65, 0.90, (30, 70, 170)),
+        (0.72, 0.30, 0.95, 0.70, (40, 150, 60)))
+GARMENT_BOXES = [{"x0": x0, "y0": y0, "x1": x1, "y1": y1, "label": label}
+                 for (x0, y0, x1, y1, _), label in zip(PILE, ("red shirt", "blue trousers", "green scarf"), strict=True)]
+
+
+def pile_bytes(size=(1200, 900), shift=0) -> bytes:
+    """A synthetic photo of several pieces (coloured shapes); `shift` moves them to make a different file."""
+    w, h = size
+    im = Image.new("RGB", size, (235, 232, 225))
+    d = ImageDraw.Draw(im)
+    for x0, y0, x1, y1, color in PILE:
+        d.rectangle((x0 * w + shift, y0 * h, x1 * w + shift, y1 * h), fill=color)
+    buf = io.BytesIO()
+    im.save(buf, "PNG")
+    return buf.getvalue()
+
+
+class FakeFinder:
+    """Stands in for Claude finding the pieces in a photo: answers `boxes` (GARMENT_BOXES unless told otherwise),
+    or raises `error`. `calls` counts the photos it was asked about."""
+
+    def __init__(self, boxes=None):
+        self.boxes = GARMENT_BOXES if boxes is None else boxes
+        self.error: Exception | None = None
+        self.calls = 0
+
+    def __call__(self, photo, routes):
+        self.calls += 1
+        if self.error:
+            raise self.error
+        return [dict(b) for b in self.boxes]
 
 
 # A fixed, valid answer, as Claude would give it for a navy polo.
@@ -122,6 +165,9 @@ class FakeApi:
         self.messages = self
         self.correction = CorrectionAnswer(changes=[Change(name="placket_buttons", value="2")], not_understood="",
                                            needs_photo=False)
+        # asked where the pieces are in a 1024-pixel-wide pile photo: GARMENT_BOXES, in its pixels
+        self.garments = Garments(garments=[Garment(name=b["label"], x0=b["x0"] * 1024, y0=b["y0"] * 768,
+                                                   x1=b["x1"] * 1024, y1=b["y1"] * 768) for b in GARMENT_BOXES])
 
     def parse(self, **kw):
         self.calls += 1
@@ -129,7 +175,7 @@ class FakeApi:
         if self.error:
             raise self.error
         usage = SimpleNamespace(input_tokens=self.input_tokens, output_tokens=self.output_tokens)
-        answer = self.correction if kw.get("output_format") is CorrectionAnswer else ANSWER
+        answer = {CorrectionAnswer: self.correction, Garments: self.garments}.get(kw.get("output_format"), ANSWER)
         return SimpleNamespace(parsed_output=answer, stop_reason="end_turn", usage=usage)
 
 

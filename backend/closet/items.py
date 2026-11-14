@@ -10,6 +10,7 @@ import zlib
 from pathlib import Path
 
 from . import db, details, failures, history, illustrations, images, jobs, kinds, palette, patjobs, tagjobs, vocab
+from .tagger.taxonomy import SHADES, nearest_shade
 
 TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "acquired_on", "notes", "rating_reason", "color_hex")
 ENUM_FIELDS = tuple(vocab.ENUM_FIELDS)
@@ -72,10 +73,11 @@ def detail(conn, row) -> dict:
     out["seen_not_drawn"] = illustrations.not_drawn(row, said.pop("other_features", None) or [])
     out["details"] = said or None
     out["own_details"] = details.own(row)   # the details the owner has set, laid over Claude's when drawn
+    out["shade"] = shade_of(row, {**said, **out["own_details"]})
     # who said what it is (the owner or Claude), how sure Claude was, and the kinds Claude's answer also fits
-    said = kinds.of_row(row)
-    out["kind_by"], out["kind_confidence"] = said["by"], said["confidence"]
-    out["kind_alternatives"] = kinds.alternatives(row, said["kind"])
+    kind = kinds.of_row(row)
+    out["kind_by"], out["kind_confidence"] = kind["by"], kind["confidence"]
+    out["kind_alternatives"] = kinds.alternatives(row, kind["kind"])
     out["drawing_notes"] = illustrations.notes(row)
     out["photos"] = [{
         "id": p["id"], "kind": p["kind"], "url": _media(p["original_path"]), "thumb_url": _media(p["thumb_path"]),
@@ -84,7 +86,23 @@ def detail(conn, row) -> dict:
     } for p in conn.execute("SELECT * FROM photos WHERE item_id = ? ORDER BY kind = 'front' DESC, created_at", (row["id"],))]
     out["recent_wears"] = [r[0] for r in conn.execute(
         "SELECT worn_on FROM wears WHERE item_id = ? ORDER BY worn_on DESC LIMIT ?", (row["id"], RECENT_WEARS))]
+    # the photo of several pieces this item was cut from, and its box in it (fractions); null for a photo of its own
+    out["source_photo"] = None
+    if row["source_photo_id"]:
+        src = conn.execute("SELECT id, original_path FROM source_photos WHERE id = ?", (row["source_photo_id"],)).fetchone()
+        if src is not None:
+            out["source_photo"] = {"id": src["id"], "photo_url": _media(src["original_path"]),
+                             "box": json.loads(row["source_box"]) if row["source_box"] else None}
     return out
+
+
+def shade_of(row, said: dict) -> str | None:
+    """The owner's name for the item's shade (docs/menswear-taxonomy.json, colors.shades): the one the owner or the
+    tagger named when it is a shade of the item's colour, else the nearest to its measured colour."""
+    color = row["color"]
+    if said.get("shade") in SHADES and SHADES[said["shade"]][1] == color:
+        return said["shade"]
+    return nearest_shade(row["color_hex"], color) if row["color_hex"] and color in {c for _, c in SHADES.values()} else None
 
 
 def get(conn, item_id: str):
@@ -110,6 +128,16 @@ def list_items(conn, status: str = "active", category: str | None = None, q: str
         args += [like] * 5
     sql += " ORDER BY created_at DESC, id"
     return [summary(conn, r) for r in conn.execute(sql, args)]
+
+
+def photo_hash(data: bytes, given: str | None) -> str:
+    """The SHA-256 of the file the owner picked: as the browser sent it (checked), or else of the bytes received."""
+    if given is None:
+        return hashlib.sha256(data).hexdigest()
+    given = given.strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", given):
+        raise ItemError("photo_sha256 must be the file's SHA-256 as 64 hexadecimal characters.")
+    return given
 
 
 def _same_photo(conn, source_sha256: str):
@@ -138,15 +166,11 @@ def create_from_photo(conn, images_dir: Path, data: bytes, client_key: str | Non
         existing = conn.execute("SELECT * FROM items WHERE client_key = ?", (client_key,)).fetchone()
         if existing is not None:
             return {**detail(conn, existing), "duplicate": False}, False
-    if source_sha256 is not None:
-        source_sha256 = source_sha256.strip().lower()
-        if not re.fullmatch(r"[0-9a-f]{64}", source_sha256):
-            raise ItemError("photo_sha256 must be the file's SHA-256 as 64 hexadecimal characters.")
-    else:
-        source_sha256 = hashlib.sha256(data).hexdigest()
+    source_sha256 = photo_hash(data, source_sha256)
     same = _same_photo(conn, source_sha256)
     if same is not None:
         return _duplicate(conn, same), False
+    _refuse_waiting_source(conn, source_sha256)
     item_id, photo_id = uuid.uuid4().hex, uuid.uuid4().hex
     stored = images.store_upload(data, images_dir, item_id, photo_id)
     t = db.now()
@@ -158,6 +182,7 @@ def create_from_photo(conn, images_dir: Path, data: bytes, client_key: str | Non
             conn.execute("ROLLBACK")
             shutil.rmtree(images_dir / item_id, ignore_errors=True)
             return _duplicate(conn, same), False
+        _refuse_waiting_source(conn, source_sha256)
         conn.execute("INSERT INTO items (id, client_key, name, location, created_at, updated_at) VALUES (?, ?, ?, 'closet', ?, ?)",
                      (item_id, client_key or None, (name or "").strip() or None, t, t))
         conn.execute("INSERT INTO photos (id, item_id, kind, original_path, thumb_path, width, height, bytes, sha256, "
@@ -172,6 +197,16 @@ def create_from_photo(conn, images_dir: Path, data: bytes, client_key: str | Non
         shutil.rmtree(images_dir / item_id, ignore_errors=True)
         raise
     return {**detail(conn, get(conn, item_id)), "duplicate": False}, True
+
+
+WAITING_SOURCE = ("This photo is already on Add as a photo of several pieces, waiting for them to be checked. "
+                  "Add its pieces from there, or forget it first to add it as one item.")
+
+
+def _refuse_waiting_source(conn, source_sha256: str) -> None:
+    """A photo kept as several pieces and not added yet would otherwise give its pieces twice."""
+    if conn.execute("SELECT 1 FROM source_photos WHERE source_sha256 = ? AND state != 'added'", (source_sha256,)).fetchone():
+        raise ItemError(WAITING_SOURCE, 409)
 
 
 def update(conn, item_id: str, changes: dict, record: bool = True) -> dict:
@@ -259,9 +294,14 @@ def update(conn, item_id: str, changes: dict, record: bool = True) -> dict:
 
 
 def delete(conn, images_dir: Path, item_id: str) -> None:
-    get(conn, item_id)
+    row = get(conn, item_id)
     conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
     shutil.rmtree(images_dir / item_id, ignore_errors=True)
+    source = row["source_photo_id"]
+    if source and conn.execute("SELECT 1 FROM items WHERE source_photo_id = ? LIMIT 1", (source,)).fetchone() is None:
+        # the last item cut from a photo of several pieces: the photo is not kept for nothing
+        if conn.execute("DELETE FROM source_photos WHERE id = ? AND state = 'added'", (source,)).rowcount:
+            shutil.rmtree(images_dir / "sources" / source, ignore_errors=True)
 
 
 def retry_cutout(conn, item_id: str) -> dict:

@@ -6,6 +6,7 @@ Claude is never called: `FakeShop` stands in for it (searching and looking up pr
 """
 import json
 import sqlite3
+import threading
 import time
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
@@ -246,10 +247,101 @@ def test_a_find_can_be_removed_and_goes_with_its_wish(client, cfg):
     conn.close()
 
 
+def hold_write_lock(cfg, wish_id: str) -> sqlite3.Connection:
+    """Another connection in the middle of writing to the closet, as a worker or a request would be."""
+    other = db.connect(cfg.db_path("main"))
+    other.execute("BEGIN IMMEDIATE")
+    other.execute("UPDATE wishes SET note = 'held' WHERE id = ?", (wish_id,))
+    return other
+
+
+def signal_when_asked(fake_shop, monkeypatch) -> threading.Event:
+    asked, real = threading.Event(), fake_shop.find
+
+    def find_then_signal(w, routes):
+        answer = real(w, routes)
+        asked.set()
+        return answer
+    monkeypatch.setattr(fake_shop, "find", find_then_signal)
+    return asked
+
+
+def test_a_search_waits_for_another_writer_and_then_keeps_its_finds(client, fake_shop, cfg, monkeypatch):
+    wid = wish(client)
+    asked = signal_when_asked(fake_shop, monkeypatch)
+    other = hold_write_lock(cfg, wid)
+    try:
+        assert client.post(f"/api/wishlist/{wid}/find").status_code == 202
+        assert asked.wait(10)
+        time.sleep(0.5)   # the search is saving its finds now, and must wait for the lock, not give up
+        assert client.get(f"/api/wishlist/{wid}/finds").json()["run"]["state"] == "running"
+    finally:
+        other.execute("COMMIT")
+        other.close()
+    body = settle(client, wid)
+    assert body["run"]["state"] == "done" and body["run"]["added"] == 2 and len(body["finds"]) == 2
+
+
+def test_a_search_that_cannot_keep_its_finds_says_so(client, fake_shop, cfg, monkeypatch):
+    real_connect = db.connect
+
+    def connect(path):   # the search's connection gives up on a lock quickly, everyone else waits as usual
+        conn = real_connect(path)
+        if threading.current_thread().name == "shop":
+            conn.execute("PRAGMA busy_timeout = 200")
+        return conn
+    monkeypatch.setattr(db, "connect", connect)
+    wid = wish(client)
+    other = hold_write_lock(cfg, wid)
+    try:
+        assert client.post(f"/api/wishlist/{wid}/find").status_code == 202
+        for _ in range(400):
+            run = client.get(f"/api/wishlist/{wid}/finds").json()["run"]
+            if run["state"] != "running":
+                break
+            time.sleep(0.05)
+    finally:
+        other.execute("COMMIT")
+        other.close()
+    body = client.get(f"/api/wishlist/{wid}/finds").json()
+    assert body["run"]["state"] == "failed" and body["run"]["message"] == shop.NOT_SAVED and body["finds"] == []
+    # once the closet is free again, the next search keeps them
+    body = find_some(client, wid)
+    assert body["run"]["state"] == "done" and len(body["finds"]) == 2
+
+
+def test_finds_are_never_shown_older_than_the_run(client, services, fake_shop, monkeypatch):
+    wid = wish(client)
+    armed, go, real_find, real_list = threading.Event(), threading.Event(), fake_shop.find, shop.list_finds
+
+    def find_when_told(w, routes):
+        assert go.wait(10)
+        return real_find(w, routes)
+
+    def list_then_let_the_search_finish(conn, wish_id):
+        finds = real_list(conn, wish_id)
+        if armed.is_set() and not go.is_set():
+            go.set()   # the search saves and ends after the finds were read, before the answer is sent
+            for _ in range(200):
+                if not services.shopper.running("main", wish_id):
+                    break
+                time.sleep(0.02)
+        return finds
+    monkeypatch.setattr(fake_shop, "find", find_when_told)
+    monkeypatch.setattr(shop, "list_finds", list_then_let_the_search_finish)
+    assert client.post(f"/api/wishlist/{wid}/find").status_code == 202
+    armed.set()
+    body = client.get(f"/api/wishlist/{wid}/finds").json()
+    assert body["run"]["state"] == "running" and body["finds"] == []   # not "done" with nothing found
+    assert len(settle(client, wid)["finds"]) == 2
+
+
 def test_the_finds_are_checked_against_the_closet_with_the_would_this_work_rules(cfg):
     demo.ensure(cfg)
     rows, worn = app_module.closet_inputs(cfg, "demo")
-    coat = shop.clean_find(product())
+    # heavyweight: under the owner's bands (#150) a midweight mac is short of warm on the cold rainy days, and a smart
+    # casual coat is too far from sport and formal days, so a midweight one covers too few of the rain gap's days
+    coat = shop.clean_find(product(weight_class="heavyweight"))
     polo = shop.clean_find(product(name="Navy polo", url="https://shop.example/polo", category="polo", color="navy",
                                    formality="smart_casual", season="warm", rain_proof=False, weight_class="midweight"))
     verdicts = shop.judge(rows, worn, [coat["piece"], polo["piece"]])
@@ -508,7 +600,7 @@ def test_the_plan_route_may_only_search_the_web(monkeypatch):
     seen = {}
 
     def run(cmd, **kw):
-        seen["cmd"] = cmd
+        seen["cmd"], seen["input"] = cmd, kw["stdin"].read().decode("utf-8")
         answer = {"prices": [{"url": "https://shop.example/coat", "price": 99.0, "currency": "USD", "available": True}]}
         return SimpleNamespace(returncode=0, stderr="", stdout=json.dumps(
             {"structured_output": answer, "usage": {"input_tokens": 10, "output_tokens": 5}}))
@@ -518,4 +610,4 @@ def test_the_plan_route_may_only_search_the_web(monkeypatch):
     assert answer.prices[0].price == 99.0
     cmd = seen["cmd"]
     assert cmd[cmd.index("--tools") + 1] == "WebSearch,WebFetch" and cmd[cmd.index("--allowedTools") + 1] == "WebSearch,WebFetch"
-    assert "https://shop.example/coat" in cmd[cmd.index("-p") + 1]
+    assert "https://shop.example/coat" in seen["input"] and not any("shop.example" in part for part in cmd)

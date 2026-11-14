@@ -79,6 +79,50 @@ def luminance(hex_: str) -> float:
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
+def contrast(a: str, b: str) -> float:
+    """The contrast ratio of two colours, as the web accessibility guidelines define it (1 to 21)."""
+    def lum(hex_):
+        return sum(w * (c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4)
+                   for w, c in zip((0.2126, 0.7152, 0.0722), _rgb(hex_)))
+    hi, lo = sorted((lum(a), lum(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+# A jacket's buttons stand at least BUTTON_CONTRAST against its cloth (the guidelines' level for large shapes);
+# its inside, shaded over the cloth, at least INSIDE_CONTRAST, or it is drawn lighter than the cloth instead.
+BUTTON_CONTRAST, INSIDE_CONTRAST = 3.0, 1.3
+
+
+def legible(hex_: str, ground: str, ratio: float) -> str:
+    """hex_ made lighter or darker, as little as needed, to stand `ratio` against ground: first away from
+    the ground's tone, then the other way; the best found if neither gets there."""
+    if contrast(hex_, ground) >= ratio:
+        return hex_
+    away = 1 if contrast("#ffffff", ground) >= contrast("#000000", ground) else -1
+    best = hex_
+    for sign in (away, -away):
+        for i in range(1, 21):
+            c = shade(hex_, sign * 0.05 * i)
+            if contrast(c, ground) >= ratio:
+                return c
+            if contrast(c, ground) > contrast(best, ground):
+                best = c
+    return best
+
+
+def _over(hex_: str, top: str, opacity: float) -> str:
+    """The colour of `top` laid over hex_ at an opacity."""
+    return _hex(tuple(a * (1 - opacity) + b * opacity for a, b in zip(_rgb(hex_), _rgb(top))))
+
+
+def inside_tint(base: str) -> tuple[str, str]:
+    """The tint laid over a jacket's cloth to show its inside: darker, or on a cloth too dark for that to
+    show (black, navy), lighter."""
+    if contrast(_over(base, "#000000", 0.22), base) >= INSIDE_CONTRAST:
+        return "#000", ".22"
+    return "#fff", ".2"
+
+
 def _defs_for_fill(fill: Fill, shape: Shape, uid: str, garment_w: float, garment_h: float) -> tuple[str, str]:
     """Return (defs markup, paint) for the fill."""
     if fill.kind == "solid":
@@ -287,6 +331,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     base = spec.fill.color
     dark_item = luminance(base) < 0.3
     tone = shade(base, 0.16 if dark_item else -0.16)
+    in_c, in_op = inside_tint(base) if shape.tailored else ("#000", ".22")   # the inside: the back, the neck
     clip = f"c{uid}"
     defs += f'<clipPath id="{clip}"><path d="{shape.outline}"/></clipPath>'
     patterned = paint.startswith("url(")
@@ -409,7 +454,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             if patterned and spec.template == "top":
                 st = spec.fill.stripes if spec.fill.kind == "stripes" else None
                 inner = turned("hn", 0 if (st is not None and st.orientation == "horizontal") else 90, ground=True)
-            return f'<path d="{d}" fill="{inner}"/><path d="{d}" fill="#000" opacity=".22"/>'
+            return f'<path d="{d}" fill="{inner}"/><path d="{d}" fill="{in_c}" opacity="{in_op}"/>'
         # a shirt cuff is the body's own cloth: no tint where a line already marks it
         op = {"trim": 0.10, "band": 0.12, "cuff": 0.0 if style == "line" else 0.06}.get(role, 0.1)
         col = "#fff" if dark_item else "#000"
@@ -509,10 +554,16 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     def button(x, y, r):
         m = f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 1.3}" fill="#fff" opacity=".45"/>' if patterned else ""
         if style == "line":
-            ring = shade(spec.button_color, 0.45) if spec.button_color and luminance(spec.button_color) < 0.08 and dark_item else INK
-            return m + f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{spec.button_color or CARD}" stroke="{ring}" stroke-width="1.1"/>'
-        if spec.button_color:
-            return m + f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{spec.button_color}" stroke="{l_stroke}" stroke-width=".8"/>'
+            fill = spec.button_color or CARD
+            if shape.tailored:   # a jacket's buttons always stand out from its cloth
+                fill = legible(fill, base, BUTTON_CONTRAST)
+            ring = shade(fill, 0.45) if luminance(fill) < 0.08 and dark_item else INK
+            return m + f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{fill}" stroke="{ring}" stroke-width="1.1"/>'
+        if spec.button_color or shape.tailored:
+            fill = spec.button_color or l_stroke
+            if shape.tailored:
+                fill = legible(fill, base, BUTTON_CONTRAST)
+            return m + f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{fill}" stroke="{l_stroke}" stroke-width=".8"/>'
         return m + f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{l_stroke}" opacity="{min(1, l_op + 0.25)}"/>'
 
     def stud(x, y, r):   # a press stud: a metal ring round a cap
@@ -595,7 +646,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
              f'<rect x="{box[0]}" y="{box[1]}" width="{box[2] - box[0]}" height="{box[3] - box[1]}" fill="#fff"/>{holes}</mask>')
     # the fronts are clear where the neck is: the inside of the back shows there, or a garment worn underneath
     cloth = f'<use href="#q{uid}" mask="url(#mh{uid})"/>'
-    inside = "".join(f'<path d="{part.d}" fill="{paint}"/><path d="{part.d}" fill="#000" opacity=".22"/>'
+    inside = "".join(f'<path d="{part.d}" fill="{paint}"/><path d="{part.d}" fill="{in_c}" opacity="{in_op}"/>'
                      for part in shape.parts if part.role == "hole")
     e_stroke, e_w = (o_stroke, o_w) if o_w else (l_stroke, l_w)
     front_edge = (f'<g clip-path="url(#{clip})"><path d="{poly(edge, close=False)}" fill="none" stroke="{e_stroke}" '
@@ -616,7 +667,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
         else:   # a button for show, on a pocket or on a cuff: it stays on its own piece
             fastenings.append(draw(*placed(+1 if x >= cx else -1, x, y), r))
 
-    back = (f'<path d="{shape.outline}" fill="{paint}"/><path d="{shape.outline}" fill="#000" opacity=".22"/>'
+    back = (f'<path d="{shape.outline}" fill="{paint}"/><path d="{shape.outline}" fill="{in_c}" opacity="{in_op}"/>'
             + (f'<path d="{shape.outline}" fill="none" stroke="{o_stroke}" stroke-width="{o_w:.2f}" stroke-linejoin="round"/>' if o_w else "")
             + "".join(behind_neck)
             # the inside of the neck follows the collar as each front swings

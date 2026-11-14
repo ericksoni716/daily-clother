@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { HangerIcon, SearchIcon, WarnIcon } from '../components/Icons';
 import { ModelBanner } from '../components/ModelBanner';
+import { Button, buttonClass, EmptyState, PageHeader, SegmentedControl } from '../components/ui';
 import { loadGridView, saveGridView, type GridView } from '../drawing';
 import { categoryPlural, label, tileCaption } from '../labels';
 import { itemPath, Link, navigate } from '../router';
@@ -51,23 +52,15 @@ export function ClosetScreen({ status, selectedId, wide }: Props) {
 
   const grid = (
     <section className="closet-main" aria-labelledby="closet-title">
-      <header className="page-header">
-        <div className="page-title-row">
-          <h1 id="closet-title">{title}</h1>
-          {list && !empty && (
-            <span className="count" data-testid="item-count">
-              {shown.length === list.length ? `${list.length} ${list.length === 1 ? 'item' : 'items'}` : `${shown.length} of ${list.length}`}
-            </span>
-          )}
-        </div>
-        <div className="row">
-          {status === 'active' && list && !empty && <Link to="/insights" className="btn btn-small">Insights</Link>}
-          <div className="segmented segmented-small" role="group" aria-label="Which clothes">
-            <Link to="/" className={status === 'active' ? 'is-on' : ''} aria-current={status === 'active' ? 'page' : undefined}>In use</Link>
-            <Link to="/archived" className={status === 'archived' ? 'is-on' : ''} aria-current={status === 'archived' ? 'page' : undefined}>Archived</Link>
+      <PageHeader title={title} titleId="closet-title" countTestId="item-count"
+        count={list && !empty && (shown.length === list.length ? `${list.length} ${list.length === 1 ? 'item' : 'items'}` : `${shown.length} of ${list.length}`)}
+        secondary={
+          <div className="row">
+            {status === 'active' && list && !empty && <Link to="/insights" className={buttonClass({ small: true })}>Insights</Link>}
+            <SegmentedControl label="Which clothes" small value={status}
+              options={[{ value: 'active', label: 'In use', to: '/' }, { value: 'archived', label: 'Archived', to: '/archived' }]} />
           </div>
-        </div>
-      </header>
+        } />
 
       {status === 'active' && <ModelBanner />}
 
@@ -76,10 +69,7 @@ export function ClosetScreen({ status, selectedId, wide }: Props) {
 
       {empty && status === 'active' && <EmptyCloset demo={profile === 'demo'} />}
       {empty && status === 'archived' && (
-        <div className="empty">
-          <p className="empty-title">Nothing archived</p>
-          <p className="muted">Clothes you archive (given away, stored for good) are kept here, out of the way.</p>
-        </div>
+        <EmptyState title="Nothing archived" body="Clothes you archive (given away, stored for good) are kept here, out of the way." />
       )}
 
       {list && !empty && (
@@ -108,12 +98,9 @@ export function ClosetScreen({ status, selectedId, wide }: Props) {
                   ))}
                 </div>
               )}
-              <div className="segmented segmented-small grid-view" role="group" aria-label="Show">
-                {([['photos', 'Photos'], ['drawings', 'Drawings']] as const).map(([value, text]) => (
-                  <button key={value} type="button" className={gridView === value ? 'is-on' : ''} aria-pressed={gridView === value}
-                    onClick={() => { setGridView(value); saveGridView(value); }}>{text}</button>
-                ))}
-              </div>
+              <SegmentedControl label="Show" small className="grid-view" value={gridView}
+                options={[{ value: 'photos', label: 'Photos' }, { value: 'drawings', label: 'Drawings' }]}
+                onChange={(value) => { setGridView(value); saveGridView(value); }} />
             </div>
           </div>
           {shown.length === 0 ? (
@@ -184,18 +171,16 @@ export function TilePicture({ item, view }: { item: ItemSummary; view: GridView 
 function EmptyCloset({ demo }: { demo: boolean }) {
   const { switchProfile, toast, offline } = useCloset();
   return (
-    <div className="empty empty-big">
-      <div className="empty-art"><HangerIcon /></div>
-      <p className="empty-title">{demo ? 'The demo closet is empty' : 'Your closet is empty'}</p>
-      <p className="muted">Take a photo of a piece of clothing and Closet will cut it out and keep it here.</p>
+    <EmptyState big icon={<HangerIcon />} title={demo ? 'The demo closet is empty' : 'Your closet is empty'}
+      body="Take a photo of a piece of clothing and Closet will cut it out and keep it here.">
       <div className="stack stack-narrow">
-        <button className="btn btn-primary btn-block" disabled={offline} onClick={() => navigate('/add')}>Add your first item</button>
+        <Button variant="primary" block disabled={offline} onClick={() => navigate('/add')}>Add your first item</Button>
         {!demo && (
-          <button className="btn btn-link" disabled={offline} onClick={() => switchProfile('demo').catch((e) => toast((e as Error).message, 'error'))}>
+          <Button variant="link" disabled={offline} onClick={() => switchProfile('demo').catch((e) => toast((e as Error).message, 'error'))}>
             or look around the demo closet
-          </button>
+          </Button>
         )}
       </div>
-    </div>
+    </EmptyState>
   );
 }

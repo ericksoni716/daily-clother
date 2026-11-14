@@ -445,8 +445,8 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
         p["weight"] = surf["weight"]
     if g.get("knit_gauge") in KNIT_GAUGES:
         p["gauge"] = g["knit_gauge"]
-    if g.get("quilting") == "baffle":
-        notes.append("puffer baffles drawn as stitched channels; the puffed silhouette is not drawn")
+    if g.get("quilting") == "baffle":   # a puffer: the outline swells between the stitched channels
+        p["quilting"] = "baffle"
     return p, extras, notes
 
 
@@ -563,10 +563,10 @@ COVERAGE: dict[str, dict[str, tuple[str, str]]] = {
         ("cutaway", (D, "points swept nearly horizontal; a wide stand shows between them")),
         ("button_down", (D, "soft roll and a small button at each point")),
         ("hidden_button_down", (A_, "drawn as a soft-roll point collar: its buttons are hidden under the points")),
-        ("club", (D, "rounded points")), ("tab", (A_, "drawn as a point collar with a strap over the top button; under a tie it would hide")),
+        ("club", (D, "rounded points")), ("tab", (D, "close-set points with a buttoned strap linking them below the collar button; under a tie it would hide")),
         ("pin", (D, "point collar with a collar bar across")), ("band", (D, "stand only, no leaves; button on the band")),
         ("camp", (D, "flat collar with no stand, open notch and small revers down to the first button")),
-        ("wing", (D, "stand with small pressed-out wing tips")),
+        ("wing", (D, "stand with pressed-out wing tips, wide enough to read at item size")),
         ("western", (D, "long sharp points; also brings the pointed western yoke")),
         ("johnny", (D, "knit spread collar over an open V with no buttons")),
         ("flat_knit", (D, "the polo's soft knit collar")),
@@ -587,7 +587,7 @@ COVERAGE: dict[str, dict[str, tuple[str, str]]] = {
         ("snap", (D, "press studs drawn as a metal ring round a cap")),
         ("zip_quarter", (D, "short zip")), ("zip_half", (D, "zip to mid-chest")), ("zip_full", (D, "")),
         ("double_breasted", (D, "front edge well past centre, two columns of buttons; on a jacket 6x2, "
-                                "the top row set wider")),
+                                "the top row set wider; told 1 or 2 buttons, those are the ones that fasten (6x1, 6x2)")),
         ("none", (D, "")),
     ),
     "cuff": _c(
@@ -625,7 +625,7 @@ COVERAGE: dict[str, dict[str, tuple[str, str]]] = {
     "hem": _c(
         ("curved_shirt_tail", (D, "")), ("straight_with_vents", (D, "small slits at the side seams with bar tacks")),
         ("straight", (D, "")), ("tennis_tail", (D, "vents, and the longer back showing below the front")),
-        ("ribbed_band", (D, "")), ("raw", (D, "no stitch line, a few loose threads")),
+        ("ribbed_band", (D, "a knit rib band; under a woven shirt collar (a trucker) a buttoned waistband with side adjusters")), ("raw", (D, "no stitch line, a few loose threads")),
     ),
 }
 
@@ -633,7 +633,7 @@ _WOVEN_NOTES = {
     "corduroy": (D, "vertical wales, spacing set by corduroy_wale; heavy"),
     "seersucker": (D, "puckered stripes between flat ones; light"),
     "herringbone": (D, "chevron columns"), "twill": (D, "fine diagonal"), "denim": (D, "steep twill with pale weft; heavy"),
-    "linen": (D, "short slub streaks; light"), "hopsack": (D, "small basket weave"), "tweed": (D, "flecks; super heavy, slight halo"),
+    "linen": (D, "sparse short slub streaks; light"), "hopsack": (D, "small basket weave"), "tweed": (D, "flecks; super heavy, slight halo"),
     "ripstop": (D, "grid of heavier threads"), "waffle_weave": (D, "waffle grid; heavy"),
     "oxford": (N_, "plain at this size: oxford cloth's fine basket weave does not show; midweight"),
     "royal_oxford": (N_, "plain at this size, like oxford"), "fresco": (A_, "drawn as a basket weave; light"),
@@ -681,9 +681,9 @@ COVERAGE["fiber"] = {
         "shearling": (D, "super heavy, sherpa curl and fuzzy edge"),
     }[v] for v in AXES["fiber"]}
 COVERAGE["weight"] = {
-    "lightweight": (D, "fine outline and inner lines, a touch narrower body"),
+    "lightweight": (D, "fine outline and inner lines, a touch narrower body, faint drape folds from the underarms and at the elbows"),
     "midweight": (D, "the reference drawing"),
-    "heavyweight": (D, "heavier outline, wider body, rounder shoulder, deeper bands, doubled hem and cuff stitching, collar topstitch"),
+    "heavyweight": (D, "heavier outline, wider body, rounder shoulder, deeper bands with a soft shade where the body meets them, doubled hem and cuff stitching, collar topstitch"),
     "super_heavy": (D, "all of heavyweight, more so"),
 }
 

@@ -173,6 +173,20 @@ have switched it on, within its monthly limit). In the demo closet only
 **describe it by hand** works, since the demo closet never sends anything to
 Claude. Checks are kept only while Closet is running.
 
+**Find some** on a wish asks Claude to search the web for up to 8 things on
+sale now that match it: what the suggestion says to look for, your note, and
+the **Price range** if you set one on the wish. It takes a minute or two. Each
+one found shows its picture, shop and price, and how it would work with your
+clothes, with the same answers and reasons as **Would this work?**. **Open in
+shop** opens the shop's page in a new tab; nothing is ever bought or opened for
+you, and **Remove** takes one off. **Check prices** looks at their prices again,
+and while Closet is running it does so by itself once a day; when a price has
+gone down the wish shows it ("Was $180.00, now $144.00"). Searching goes the
+same way as describing an item: your Claude plan first, the API key only when
+you have switched it on, and never past its monthly limit (when only the key
+can be used, the wish says what a search could cost at most). The demo closet
+never searches.
+
 To record a single item: open it and tap **Wore it today** (tap **Undo** if
 that was a mistake). The item shows how often it has been worn and when last, and lists
 the recent days, each of which can be removed. **Put in the laundry** and
@@ -253,8 +267,18 @@ program from Anthropic that uses your Claude plan, so nothing extra is charged
 per photo. An API key can be used instead, but it is billed per photo by
 Anthropic, is only used when the plan can't be, and only if you turn on
 **Allow the API key** in **Settings → Tagging**. It is off until you do.
-**Settings → Tagging** shows which of the two Closet can use right now and how
-many items are waiting to be described.
+**Settings → Tagging** shows which of the two Closet can use right now, which it
+will try first, and how many items are waiting to be described.
+
+**Which to use.** Under the API key box in **Settings → Tagging** you choose the
+order: **Use my Claude plan first, the key only if the plan can't** (the
+usual one), **Use the API key first** (if you would rather pay per photo than use
+up your plan), **Only my Claude plan**, or **Only the API key**. The two that put
+the key first can only be chosen once a key is saved, and removing the key puts
+you back on the plan first. Whatever you choose, the key is still only used once
+**Allow the API key** is on with a monthly limit. The choice applies to everything
+Closet asks Claude: describing clothes, finding where a patterned top's seams are,
+corrections you type, and "Would this work?".
 
 **Adding an API key.** Make a key in your Anthropic account (console.anthropic.com,
 **API keys**), copy it, and paste it into **Paste your API key** in **Settings →
@@ -370,6 +394,14 @@ After you answer **How you live**, the same place is also used for long-term
 weather on What's missing. That lookup sends only the coordinates and keeps
 the result for six months. Your life answers and style words stay on your
 computer, in its settings; they are not in closet backups.
+
+### Light or dark
+
+Closet follows your computer's or phone's light or dark setting. To choose
+one yourself, go to **Settings → Look** and pick **Light** or **Dark**; pick
+**Same as this device** to follow the device again. The choice is remembered
+on each device separately. Clothing pictures stay on a light background in
+dark mode, so their colours look right.
 
 ## Demo closet
 

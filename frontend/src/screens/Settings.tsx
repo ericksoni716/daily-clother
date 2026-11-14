@@ -1,21 +1,29 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { ModelProgress, modelStateText } from '../components/ModelBanner';
 import { PhoneAccess } from '../components/PhoneAccess';
 import { WhereYouAre } from '../components/WhereYouAre';
 import { LifeQuestions } from '../components/LifeQuestions';
+import { Notice, PageHeader, Section as UiSection, SegmentedControl } from '../components/ui';
 import { formatDateTime, formatSize, parsePrice } from '../labels';
 import { Link } from '../router';
-import { apiKeyLine, apiKeySavedLine, dayName, formatUsd, monthName, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
+import { apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, monthName, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
 import { useCloset } from '../store';
-import type { ModelInfo, Profile, Settings, Storage, TaggingRoute, TaggingSpend, TaggingStatus } from '../types';
+import { applyTheme, loadTheme, saveTheme, THEME_CHOICES, type Theme } from '../theme';
+import type { ModelInfo, Profile, RouteOrder, Settings, Storage, TaggingRoute, TaggingSpend, TaggingStatus } from '../types';
 
 function Section({ title, children, id }: { title: string; children: ReactNode; id: string }) {
+  return <UiSection id={id} title={title} className="settings-section">{children}</UiSection>;
+}
+
+/** Light, dark or the device's own setting; kept on this device only, so it works offline too. */
+function LookSection() {
+  const [theme, setTheme] = useState<Theme>(loadTheme);
   return (
-    <section className="settings-section" aria-labelledby={id}>
-      <h2 id={id}>{title}</h2>
-      {children}
-    </section>
+    <UiSection id="s-look" title="Look" hint="Light or dark, on this device." className="settings-section">
+      <SegmentedControl label="Look" options={THEME_CHOICES} value={theme} className="settings-look"
+        onChange={(t) => { setTheme(t); saveTheme(t); applyTheme(t); }} />
+    </UiSection>
   );
 }
 
@@ -41,8 +49,8 @@ export function SettingsScreen({ version }: { version: string }) {
 
   return (
     <div className="settings">
-      <header className="page-header"><h1>Settings</h1></header>
-      {offline && <p className="notice">You're offline, so settings can't be shown or changed right now.</p>}
+      <PageHeader title="Settings" />
+      {offline && <Notice as="p">You're offline, so settings can't be shown or changed right now.</Notice>}
       {!offline && loadError && <p className="form-error" role="alert">{loadError}</p>}
 
       <div className="settings-columns">
@@ -53,6 +61,7 @@ export function SettingsScreen({ version }: { version: string }) {
           <TaggingSection offline={offline} settings={settings} onChange={setSettings} reload={load} toast={toast} />
         </div>
         <div className="settings-col">
+          <LookSection />
           <Section title="How you live" id="s-life">
             <p className="hint">Tell What's missing about work, everyday life and time away. Change your answers whenever life changes.</p>
             {lifeOpen && settings ? (
@@ -297,7 +306,7 @@ const README_CLAUDE_CODE = 'https://github.com/ericksoni716/daily-clother#instal
 
 const ROUTE_TEXT: Record<TaggingRoute['id'], { name: string; hint: string }> = {
   plan: { name: 'Your Claude plan, through Claude Code', hint: 'Costs nothing extra; counts against your plan’s usage limits.' },
-  api: { name: 'An API key', hint: 'Billed per photo; only used when your plan can’t be, only if you allow it below, and never past your monthly limit.' },
+  api: { name: 'An API key', hint: 'Billed per photo; only used if you allow it below, and never past your monthly limit.' },
 };
 
 interface TaggingProps {
@@ -313,6 +322,7 @@ function TaggingSection({ offline, settings, onChange, reload, toast }: TaggingP
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const keySource = settings?.api_key?.source ?? null;   // a key saved or removed changes what is ready
+  const order = settings?.tagging_route_order ?? null;     // so does the order chosen below
 
   useEffect(() => {
     if (offline) return;
@@ -326,7 +336,7 @@ function TaggingSection({ offline, settings, onChange, reload, toast }: TaggingP
     return () => {
       current = false;
     };
-  }, [offline, attempt, keySource]);
+  }, [offline, attempt, keySource, order]);
 
   const checkAgain = <button className="btn" onClick={() => { setAttempt((n) => n + 1); void reload(); }}>Check again</button>;
   const apiAllowed = !!settings?.tagging_api_enabled;
@@ -347,6 +357,8 @@ function TaggingSection({ offline, settings, onChange, reload, toast }: TaggingP
     const none = !routes.some((r) => r.available && (r.id !== 'api' || apiAllowed));
     const apiOnlyOff = none && byId.get('api')?.available && !apiAllowed;
     const planMissing = byId.get('plan')?.available === false;
+    const planInOrder = status.order.includes('plan');
+    const first = firstRouteLine(status.order, status.routes, apiAllowed);
     body = (
       <>
         <p className="hint">Closet asks Claude to describe your clothes. It tries these in this order and uses the first one that works:</p>
@@ -361,7 +373,12 @@ function TaggingSection({ offline, settings, onChange, reload, toast }: TaggingP
             </li>
           ))}
         </ol>
-        {apiOnlyOff ? (
+        {first && <p className="hint" data-testid="route-first">{first}</p>}
+        {!planInOrder && none ? (
+          <p className="form-error">
+            Closet can't reach Claude yet: you chose to use only the API key, and it isn't ready. Allow it below with a monthly limit, or choose to use your Claude plan.
+          </p>
+        ) : apiOnlyOff ? (
           <p className="form-error">
             Closet can't reach Claude yet: your API key is set but not allowed below. <a href={README_CLAUDE_CODE} target="_blank" rel="noreferrer">Install Claude Code and sign in</a> to use your plan instead, or allow the key.
           </p>
@@ -484,6 +501,43 @@ function ApiKeyBox({ offline, settings, onChange, toast }: { offline: boolean; s
   );
 }
 
+/** Which route to Claude is tried first. Choices that put the key first need a key; the key is still only used once
+ * it is allowed with a monthly limit. */
+function RouteOrderChoice({ offline, settings, onChange, toast }: { offline: boolean; settings: Settings; onChange(s: Settings): void; toast(m: string, k?: 'ok' | 'error'): void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const group = useId();
+  const hasKey = settings.api_key.set;
+
+  async function choose(order: RouteOrder) {
+    setBusy(true);
+    setError(null);
+    try {
+      onChange(await api.putSettings({ tagging_route_order: order }));
+      toast('Saved');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <fieldset className="route-order" data-testid="route-order" disabled={offline || busy}>
+      <legend>Which to use</legend>
+      {ROUTE_ORDERS.map((o) => (
+        <label key={o.value} className="route-order-choice">
+          <input type="radio" name={group} value={o.value} checked={settings.tagging_route_order === o.value}
+            disabled={o.needsKey && !hasKey} onChange={() => void choose(o.value)} />
+          <span>{o.label}{o.needsKey && !hasKey && <span className="muted"> (save an API key first)</span>}</span>
+        </label>
+      ))}
+      <p className="hint">The API key is only used once you turn on Allow the API key below and set a monthly limit.</p>
+      {error && <p className="form-error" role="alert">{error}</p>}
+    </fieldset>
+  );
+}
+
 function ApiKeySpend({ offline, settings, onChange, toast }: { offline: boolean; settings: Settings; onChange(s: Settings): void; toast(m: string, k?: 'ok' | 'error'): void }) {
   const [spend, setSpend] = useState<TaggingSpend | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -530,8 +584,9 @@ function ApiKeySpend({ offline, settings, onChange, toast }: { offline: boolean;
     <div className="api-spend" data-testid="api-spend">
       {settings.tagging_api_off && <p className="form-error" role="alert">{turnedOffLine(settings.tagging_api_off)}</p>}
       <ApiKeyBox offline={offline} settings={settings} onChange={onChange} toast={toast} />
+      <RouteOrderChoice offline={offline} settings={settings} onChange={onChange} toast={toast} />
       <Toggle label="Allow the API key"
-        hint="Lets Closet use your API key when your plan can't be used. Each photo is billed to your Anthropic account, and Closet stops before this month's spending would pass the limit below."
+        hint="Lets Closet use your API key, in the order chosen above. Each photo is billed to your Anthropic account, and Closet stops before this month's spending would pass the limit below."
         checked={settings.tagging_api_enabled} disabled={offline}
         onChange={(on) => {
           if (!on) return void save({ tagging_api_enabled: false }, 'The API key will not be used');

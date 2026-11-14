@@ -1,10 +1,11 @@
 """Measuring an item's pattern in the background: when it waits, what it keeps, how its drawing changes, and that
 a failure never costs the drawing. The measuring itself is a stand-in here (`closet.patterns` has its own tests)."""
+import io
 import json
 
 import pytest
 from fastapi.testclient import TestClient
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from closet import app as app_module
 from closet import db, patjobs
@@ -160,3 +161,84 @@ def test_the_demo_closet_is_never_measured(make, cfg):
     sv, c = make(m)
     c.post("/api/profile", json={"profile": "demo"})
     assert sv.pattern_worker.drain() == 0 and m.calls == []
+
+
+# --- a graphic tee, measured for real (OpenCV) from a made-up photo ---------------------------------------------
+
+def tee_photo(logo=True) -> bytes:
+    """A white tee filling the middle of the photo (what the stand-in cutter keeps), with a chest logo if `logo`."""
+    im = Image.new("RGB", (900, 1200), (236, 236, 232))
+    d = ImageDraw.Draw(im)
+    if logo:
+        d.ellipse((390, 330, 510, 450), fill=(200, 30, 40))
+        d.rectangle((420, 360, 480, 420), fill=(30, 45, 110))
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", quality=92)
+    return buf.getvalue()
+
+
+def real_measurer():
+    from closet.patterns.measure import measure
+    return lambda cut, pattern, words, marks: measure(cut, pattern, words, marks)
+
+
+def test_a_graphic_tee_keeps_its_print_and_is_drawn_with_it(make, cfg):
+    lm = Landmarker()
+    sv, c = make(real_measurer(), lm)
+    item = upload(c, data=tee_photo(), key="g1").json()
+    sv.worker.is_ready = lambda: True
+    sv.worker.drain()
+    sv.tag_worker.drain()
+    plain = c.get(f"/api/items/{item['id']}").json()
+    assert "<image" not in plain["illustration_svg"]
+    assert c.patch(f"/api/items/{item['id']}", json={"pattern": "graphic", "category": "tee"}).status_code == 200
+    waiting = c.get(f"/api/items/{item['id']}").json()
+    assert waiting["pattern_state"] == "waiting" and any("graphic print" in n for n in waiting["drawing_notes"])
+    assert sv.pattern_worker.drain() == 1
+    assert lm.calls == 0                                    # a print needs no landmarks: Claude is not asked
+    got = c.get(f"/api/items/{item['id']}").json()
+    assert got["pattern_state"] == "done" and got["pattern_error"] is None
+    assert "<image" in got["illustration_svg"] and not any("graphic print" in n for n in got["drawing_notes"])
+    kept = json.loads(row(cfg, item["id"])["pattern_fill"])
+    assert kept["kind"] == "plain" and stored.graphic_from(kept) is not None
+    assert kept["colors"] == [] and kept["pattern"] == "graphic"   # a lifted print measures no cloth colours:
+    assert got["pattern_colors"] == [] and got["color"] == waiting["color"]   # the item keeps its colour word
+    figure = c.post("/api/outfits/figure", json={"base": item["id"]}).text
+    assert "<image" in figure                              # the outfit figure shows it too
+    c.patch(f"/api/items/{item['id']}", json={"pattern": "solid"})   # the owner says it is plain: the print goes
+    assert "<image" not in c.get(f"/api/items/{item['id']}").json()["illustration_svg"]
+    assert row(cfg, item["id"])["pattern_fill"] is None
+
+
+def test_a_print_that_cannot_be_lifted_keeps_the_plain_drawing_and_says_why(make, cfg):
+    sv, c = make(real_measurer())
+    item = upload(c, data=tee_photo(logo=False), key="g2").json()
+    sv.worker.is_ready = lambda: True
+    sv.worker.drain()
+    sv.tag_worker.drain()
+    c.patch(f"/api/items/{item['id']}", json={"pattern": "graphic", "category": "tee"})
+    sv.pattern_worker.drain()
+    got = c.get(f"/api/items/{item['id']}").json()
+    assert got["pattern_state"] == "failed" and got["pattern_error"] == patjobs.GRAPHIC_FAILED
+    assert got["illustration_svg"].startswith("<svg") and "<image" not in got["illustration_svg"]
+    assert any("graphic print" in n for n in got["drawing_notes"])
+
+
+def test_which_items_have_a_print_to_lift():
+    novelty = json.dumps({"details": {"pattern_name": "novelty"}})
+    assert patjobs.method({"category": "tee", "pattern": "graphic", "tag_answer": None}) == patjobs.GRAPHIC
+    assert patjobs.method({"category": "hoodie", "pattern": "other", "tag_answer": novelty}) == patjobs.GRAPHIC
+    assert patjobs.method({"category": "shirt", "pattern": "other", "tag_answer": None}) == "other"
+    assert patjobs.method({"category": "sneakers", "pattern": "graphic", "tag_answer": None}) is None   # tops only
+    assert patjobs.method({"category": "tee", "pattern": "solid", "tag_answer": novelty}) is None
+    assert patjobs.method({"category": "tee", "pattern": "graphic", "tag_answer": "not json"}) == patjobs.GRAPHIC
+
+
+def test_a_damaged_kept_graphic_is_not_drawn():
+    good = stored.graphic_part(Image.new("RGBA", (10, 10), (200, 0, 0, 255)), (0.3, 0.2, 0.7, 0.4))
+    assert stored.graphic_from({"version": stored.VERSION, "kind": "plain", "graphic": good}) is not None
+    for bad in ({**good, "image": "!!"}, {**good, "box": [0.5, 0.2, 0.4, 0.4]}, {**good, "box": [0, 0, 2, 1]},
+                {**good, "box": "x"}, None, "x"):
+        assert stored.graphic_from({"version": stored.VERSION, "kind": "plain", "graphic": bad}) is None
+    assert stored.graphic_from({"version": 99, "kind": "plain", "graphic": good}) is None
+    assert stored.graphic_from(STRIPES) is None and stored.graphic_from("not json") is None

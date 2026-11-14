@@ -19,7 +19,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, details, history, illustrations, items, tagjobs, vocab
+from . import db, details, history, illustrations, items, palette, tagjobs, vocab
 from .tagger.correcting import CorrectionResult
 from .tagger.schema import NAMED_HEX, ItemTags
 from .tagger.tagging import CapReached, RouteUnavailable
@@ -345,6 +345,7 @@ def undo(conn, item_id: str, change_id: int) -> dict:
         sets.update(source=json.dumps(source), confidence=json.dumps(confidence), own_details=details.dump(owner),
                     updated_at=db.now())
         conn.execute(f"UPDATE items SET {', '.join(f'{k} = ?' for k in sets)} WHERE id = ?", [*sets.values(), item_id])
+        palette.settle(conn, item_id)   # a colour given back to the tagger is the measured one, as after describing
         drawn = history.drawing_for(conn, items.get(conn, item_id))
         if drawn is not None:   # the item is as it was before some change: the drawing it had then (the demo's are made in advance)
             conn.execute("UPDATE items SET illustration_svg = ?, illustration_version = ?, illustration_notes = ? WHERE id = ?",

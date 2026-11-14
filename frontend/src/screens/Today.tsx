@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { api, ApiError } from '../api';
 import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, SunIcon, WarnIcon } from '../components/Icons';
 import { OutfitFigure } from '../components/OutfitFigure';
+import { Card, ItemThumb, Notice, SegmentedControl } from '../components/ui';
 import { useTodayView } from '../figure';
 import { label } from '../labels';
 import { Link, navigate } from '../router';
@@ -320,7 +321,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         onRetry={() => setAttempt((n) => n + 1)} />
 
       {question && (
-        <section className="worn-question" aria-label={questionFor(question, dayNow())} data-testid="worn-question">
+        <Card as="section" className="worn-question" aria-label={questionFor(question, dayNow())} data-testid="worn-question">
           <h2>{questionFor(question, dayNow())}</h2>
           <button className="btn btn-icon btn-ghost worn-question-close" aria-label="Not now"
             onClick={() => { setDismissed(dismiss(profile, question.id)); setRated(null); }}>×</button>
@@ -335,7 +336,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
               <button className="btn btn-small" onClick={() => { setDismissed(dismiss(profile, rated.id)); setRated(null); }}>Done</button>
             </div>
           )}
-        </section>
+        </Card>
       )}
     </div>
   );
@@ -535,10 +536,9 @@ function Body(props: BodyProps) {
   return (
     <>
       {savedAt && (
-        <p className="notice notice-warn today-saved" role="status">
-          <WarnIcon />
+        <Notice as="p" tone="warning" className="today-saved" role="status" icon={<WarnIcon />}>
           <span>Saved earlier today{timeOf(savedAt) ? `, at ${timeOf(savedAt)}` : ''}. You're offline, so these can't be changed or worn until Closet on your computer can be reached.</span>
-        </p>
+        </Notice>
       )}
       <Carousel {...props} outfits={answer.outfits} />
     </>
@@ -632,7 +632,7 @@ function OutfitCard({ outfit, byId, worn, busy, actions, onWear, onUndo }: Omit<
     return () => window.removeEventListener('keydown', close);
   }, [menuFor]);
   return (
-    <div className="today-card">
+    <Card className="today-card">
       {outfit.warnings.length > 0 && (
         <div className="today-warnings" role="note" aria-label="Be aware">
           <WarnIcon />
@@ -641,12 +641,9 @@ function OutfitCard({ outfit, byId, worn, busy, actions, onWear, onUndo }: Omit<
       )}
 
       <div className="today-card-pieces">
-        <div className="segmented segmented-small today-view" role="group" aria-label="Show the outfit">
-          {([['pieces', 'Pieces'], ['worn', 'As worn']] as const).map(([value, text]) => (
-            <button key={value} type="button" className={view === value ? 'is-on' : ''} aria-pressed={view === value}
-              onClick={() => { setMenuFor(null); setView(value); }}>{text}</button>
-          ))}
-        </div>
+        <SegmentedControl label="Show the outfit" small className="today-view" value={view}
+          options={[{ value: 'pieces', label: 'Pieces' }, { value: 'worn', label: 'As worn' }]}
+          onChange={(value) => { setMenuFor(null); setView(value); }} />
         {view === 'worn' && (
           <OutfitFigure pieces={outfit.pieces} alt={`The outfit as worn: ${joinWords(wornOrder(outfit.pieces).map((p) => itemName(byId.get(p.id))))}`}
             version={ids.map((id) => byId.get(id)?.illustration_url ?? '').join(' ')} />
@@ -695,7 +692,7 @@ function OutfitCard({ outfit, byId, worn, busy, actions, onWear, onUndo }: Omit<
           {outfit.reasons.map((r) => <li key={r}><CheckIcon /><span>{r}</span></li>)}
         </ul>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -706,7 +703,7 @@ function Piece({ id, place, item, isBase, open, onMore }: {
   return (
     <div className={`today-piece${isBase ? ' is-base' : ''}${open ? ' is-open' : ''}`}>
       <Link to={`/today/item/${encodeURIComponent(id)}`} className="today-piece-link" data-testid="piece">
-        <span className="today-piece-card"><Pic item={item} /></span>
+        <ItemThumb className="today-piece-card" picture={<Pic item={item} />} />
         <span className="today-piece-place">{isBase ? 'Built around' : placeLabel(place)}</span>
         <span className="today-piece-name">{name}</span>
       </Link>

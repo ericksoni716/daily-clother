@@ -29,8 +29,10 @@ export interface Backend {
  * Starts the Closet backend on a free port with a fresh, empty data folder.
  * `fakes`: stand-ins for the model and for Claude (backend/tests/e2e_backend.py), so an item is cut out and described;
  * 'api': the plan cannot be used and the API key route talks to a stand-in that reports what each request used.
+ * `tagFails`: with `fakes`, the first that many descriptions fail (see e2e_backend.py).
+ * `seed`: 'demo' starts the owner's own closet as a copy of the demo closet (see e2e_backend.py).
  */
-export async function startBackend(opts: { model?: string; fakes?: boolean | 'api' } = {}): Promise<Backend> {
+export async function startBackend(opts: { model?: string; fakes?: boolean | 'api'; tagFails?: number; seed?: 'demo' } = {}): Promise<Backend> {
   const port = await freePort();
   const dataDir = mkdtempSync(join(process.env.CLOSET_E2E_TMP || tmpdir(), 'closet-e2e-'));
   if (opts.model) {
@@ -43,7 +45,8 @@ export async function startBackend(opts: { model?: string; fakes?: boolean | 'ap
     cwd: BACKEND_DIR,
     env: {
       ...process.env, CLOSET_DATA_DIR: dataDir, CLOSET_PORT: String(port), CLOSET_NO_AUTO_DOWNLOAD: '1',
-      CLOSET_E2E_ROUTES: opts.fakes === 'api' ? 'api' : '',
+      CLOSET_E2E_ROUTES: opts.fakes === 'api' ? 'api' : '', CLOSET_E2E_TAG_FAILS: String(opts.tagFails ?? 0),
+      CLOSET_E2E_SEED: opts.seed ?? '',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

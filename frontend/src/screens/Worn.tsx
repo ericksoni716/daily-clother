@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { ChevronLeftIcon, HangerIcon, PlusIcon } from '../components/Icons';
+import { Button, Card, EmptyState, ItemThumb, PageHeader } from '../components/ui';
 import { label } from '../labels';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
@@ -92,12 +93,10 @@ export function OutfitPics({ outfit, byId }: { outfit: WornOutfit; byId: Map<str
         return (
           <li key={id}>
             {deleted ? (
-              <span className="worn-pic is-gone" title={name}><Pic item={undefined} alt={name} /></span>
+              <ItemThumb className="worn-pic is-gone" title={name} picture={<Pic item={undefined} alt={name} />} />
             ) : (
-              <Link to={item?.status === 'archived' ? `/archived/item/${encodeURIComponent(id)}` : `/today/item/${encodeURIComponent(id)}`}
-                className={`worn-pic${item?.status === 'archived' ? ' is-archived' : ''}`} title={name}>
-                <Pic item={item} alt={name} />
-              </Link>
+              <ItemThumb to={item?.status === 'archived' ? `/archived/item/${encodeURIComponent(id)}` : `/today/item/${encodeURIComponent(id)}`}
+                className={`worn-pic${item?.status === 'archived' ? ' is-archived' : ''}`} title={name} picture={<Pic item={item} alt={name} />} />
             )}
           </li>
         );
@@ -191,17 +190,12 @@ export function WornScreen() {
       <div className="detail-top">
         <Link to="/today" className="btn btn-ghost back-link"><ChevronLeftIcon /> Today</Link>
       </div>
-      <header className="page-header">
-        <div className="page-title-row">
-          <h1>Worn</h1>
-          {list && <span className="count">{list.length}{next ? '+' : ''} {list.length === 1 ? 'outfit' : 'outfits'}</span>}
-        </div>
-        {!adding && (
-          <button className="btn" disabled={offline} title={offline ? OFFLINE_TITLE : undefined} onClick={() => setAdding(true)}>
+      <PageHeader title="Worn" count={list && <>{list.length}{next ? '+' : ''} {list.length === 1 ? 'outfit' : 'outfits'}</>}
+        secondary={!adding && (
+          <Button disabled={offline} title={offline ? OFFLINE_TITLE : undefined} onClick={() => setAdding(true)}>
             <PlusIcon /> Record an outfit
-          </button>
-        )}
-      </header>
+          </Button>
+        )} />
       <p className="hint worn-intro">Outfits you wore, newest first. Say how each one went and the outfits Today offers learn from it.</p>
 
       {adding && (
@@ -218,11 +212,7 @@ export function WornScreen() {
       {error && !list && <p className={offline ? 'notice' : 'form-error'} role="alert">{error}</p>}
       {list === null && !error && <p className="muted"><span className="spinner" aria-hidden="true" /> Loading…</p>}
       {list && list.length === 0 && (
-        <div className="empty">
-          <div className="empty-art"><HangerIcon /></div>
-          <p className="empty-title">No outfits worn yet</p>
-          <p className="muted">Tap "I'm wearing this" on Today, or record one here.</p>
-        </div>
+        <EmptyState icon={<HangerIcon />} title="No outfits worn yet" body={'Tap "I\'m wearing this" on Today, or record one here.'} />
       )}
       {list && list.length > 0 && (
         <ol className="worn-list" aria-label="Worn outfits">
@@ -271,7 +261,7 @@ function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
   }
 
   return (
-    <article className="worn-card" aria-label={`Worn ${wornDay(outfit)}`} data-testid="worn-outfit">
+    <Card as="article" className="worn-card" aria-label={`Worn ${wornDay(outfit)}`} data-testid="worn-outfit">
       <div className="worn-card-head">
         <h2>{wornDay(outfit)}</h2>
         <span className={`worn-rating${outfit.rating ? ` is-${outfit.rating}` : ''}`} data-testid="worn-rating">{ratingSummary(outfit)}</span>
@@ -306,7 +296,7 @@ function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
           <button className="btn btn-small btn-ghost btn-danger-quiet" disabled={offline} title={title} onClick={() => setConfirm(true)}>Remove</button>
         )}
       </div>
-    </article>
+    </Card>
   );
 }
 
@@ -332,7 +322,7 @@ function RecordByHand({ items, onCancel, onDone }: { items: ItemSummary[]; onCan
   }
 
   return (
-    <form className="worn-record" onSubmit={submit} aria-label="Record an outfit">
+    <Card as="form" className="worn-record" onSubmit={submit} aria-label="Record an outfit">
       <h2>Record an outfit</h2>
       <p className="hint">For a day you got dressed without Closet. Choose what you wore; the wears are recorded too.</p>
       <label className="field worn-record-day">
@@ -358,7 +348,7 @@ function RecordByHand({ items, onCancel, onDone }: { items: ItemSummary[]; onCan
         </button>
         <button type="button" className="btn btn-ghost" onClick={onCancel}>Cancel</button>
       </div>
-    </form>
+    </Card>
   );
 }
 

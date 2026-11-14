@@ -13,7 +13,8 @@ call Claude with a key.
 
 Default mode:
   1. `PROGRAM selfcheck --out FILE`: exit code 0, every check ok (the
-     drawing check draws a garment), model_state == "missing".
+     drawing check draws a garment, the updater check imports the module
+     that installs new releases), model_state == "missing".
   2. `PROGRAM --no-browser --no-tray --port N`: /api/health answers within
      the startup timeout with app == "closet", model_state == "missing",
      setup_required == true; GET / is the built page (id="root") and the
@@ -60,7 +61,7 @@ from pathlib import Path
 DEMO_ITEMS = 30
 PASSPHRASE = "smoke-test-passphrase"
 MIGRATIONS = Path(__file__).resolve().parent.parent / "backend" / "closet" / "migrations"
-BASE_CHECKS = ("webp", "heic", "onnxruntime", "database", "web_page", "drawing", "model_state", "tagger")
+BASE_CHECKS = ("webp", "heic", "onnxruntime", "database", "web_page", "drawing", "model_state", "tagger", "updater")
 
 # Never route loopback requests through a proxy from the environment.
 _opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))

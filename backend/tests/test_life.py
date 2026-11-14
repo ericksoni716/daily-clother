@@ -291,3 +291,29 @@ def test_never_wear_never_suppresses_other_outerwear():
     assert remaining == similar
     wished = wishlist._hold_back(answer, hidden, {"outer-rain"}, consent)
     assert next(g for g in wished["gaps"] if g["id"] == "outer-rain") == similar
+
+
+def test_the_kind_decides_home_and_exercise_clothes():
+    def kind(category, k, **kw):
+        return {**item(k, category, formality=kw.pop("formality", "casual"), **kw), "kind": k}
+    # loungewear and soft kinds are for home whatever their name; sportswear trousers are not
+    assert life.eligible(kind("trousers", "lounge_pants", formality="smart_casual"), "lounging")
+    assert life.eligible(kind("trousers", "joggers"), "lounging")
+    assert life.eligible(kind("sweater", "fleece_pullover"), "lounging")
+    assert not life.eligible(kind("trousers", "compression_tights", formality="athletic"), "lounging")
+    assert not life.eligible(kind("trousers", "chinos", material="stretch"), "lounging")
+    # sportswear for exercise, not loungewear or chinos
+    assert life.eligible(kind("trousers", "track_pants"), "exercise")
+    assert life.eligible(kind("shorts", "running_shorts"), "exercise")
+    assert life.eligible(kind("sweater", "athletic_half_zip"), "exercise")
+    assert not life.eligible(kind("trousers", "lounge_pants", material="jersey"), "exercise")
+    assert not life.eligible(kind("shorts", "sleep_shorts"), "exercise")
+    # no kind: the old rule from the words
+    assert life.eligible(item("soft", "trousers", formality="casual", material="fleece"), "exercise")
+
+
+def test_home_and_exercise_gaps_name_kinds_to_look_for():
+    lounge = life.analyse(full_closet(), [], answers(lounging=4), climate("cold", 1))
+    assert all(g["look_for"]["kind"] for g in lounge["gaps"])
+    active = life.analyse(full_closet(), [], answers(exercise=4), climate())
+    assert all(g["look_for"]["kind"] for g in active["gaps"])

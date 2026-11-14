@@ -15,6 +15,7 @@ import { InsightsScreen } from './screens/Insights';
 import { WornScreen } from './screens/Worn';
 import { ReviewBadge, reviewCountText, ReviewIcon, ReviewScreen, useReviewCount } from './screens/Review';
 import { BagIcon, MissingScreen } from './screens/Missing';
+import { Restarting, UpdateBanner, useUpdateStatus } from './components/Updates';
 
 export function Shell({ version }: { version: string }) {
   const path = usePath();
@@ -54,8 +55,11 @@ export function Shell({ version }: { version: string }) {
 function TopBanners() {
   const { offline, profile, switchProfile, toast } = useCloset();
   const [busy, setBusy] = useState(false);
+  useUpdateStatus(offline);
   return (
     <>
+      <Restarting />
+      <UpdateBanner offline={offline} toast={toast} />
       {offline && (
         <div className="banner banner-offline" role="status">
           <CloudOffIcon />

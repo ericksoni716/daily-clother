@@ -68,7 +68,7 @@ def test_coarse_fields_use_the_colour_word_when_there_is_no_hex():
     assert item.svg_from_fields("tee", None, None, None) == expected(answer("tee"), item.DEFAULT_HEX)
 
 
-@pytest.mark.parametrize("category", ["bag", "belt", "hat", "scarf", "other", "spacesuit", None, 3, ["tee"]])
+@pytest.mark.parametrize("category", ["other", "spacesuit", None, 3, ["tee"]])
 def test_nothing_to_draw_gives_none(category):
     assert item.svg_from_fields(category, "#000000") is None
     assert item.svg_from_answer({**POLO, "category": category}) is None
@@ -123,3 +123,91 @@ def test_importing_the_drawing_code_does_not_import_opencv():
             "print('cv2' in sys.modules)")
     out = subprocess.run([sys.executable, "-c", code], cwd=BACKEND, capture_output=True, text=True, check=True)
     assert out.stdout.strip() == "False"
+
+
+# ----------------------------------------------- the owner's footwear and bottoms blocks (#149)
+def _drawn(tags: dict) -> tuple[str, dict]:
+    template, params, _, _ = drawing_for(ItemTags.model_validate(tags))
+    return template, params
+
+
+@pytest.mark.parametrize("details, want_style, want", [
+    (dict(footwear="chelsea_boot", sole="lug_commando"), "chelsea_boot", {"tread": "lug"}),
+    (dict(footwear="logger_boot"), "boot", {"hooks": 4, "tread": "lug"}),
+    (dict(footwear="desert_boot"), "boot", {"tread": "crepe"}),
+    (dict(footwear="engineer_boot"), "boot", {"strap": "engineer"}),
+    (dict(footwear="western_boot"), "boot", {"kind": "western_boot", "heel": "cuban", "laces": False}),
+    (dict(footwear="moc_toe_boot"), "boot", {"moc": True, "tread": "wedge"}),
+    (dict(footwear="canvas_high_top", footwear_height="mid"), "high_top", {"shaft": 0.44}),
+    (dict(footwear="boat_shoe"), "loafer", {"tread": "siped", "lace_collar": True}),
+    (dict(footwear="service_boot", footwear_height="boot_8in_plus"), "boot", {"shaft": 0.74}),
+    (dict(footwear="derby", lacing="monk_double"), "derby", {"strap": "double_monk", "laces": False}),
+    (dict(footwear="service_boot", sole="crepe", heel="flat", eyelets=8), "boot",
+     {"tread": "crepe", "heel": "flat", "eyelets": 8}),
+    (dict(footwear="canvas_low_top", footwear_height="high"), "high_top", {}),
+])
+def test_the_footwear_fields_choose_the_shoe_drawing(details, want_style, want):
+    template, params = _drawn(answer("boots" if "boot" in details["footwear"] else "sneakers", **details))
+    assert template == "sneaker" and params["style"] == want_style
+    assert {k: params.get(k) for k in want} == want
+
+
+@pytest.mark.parametrize("category, details, want", [
+    ("trousers", dict(trouser_front="double_pleat"), {"pleats": 2, "crease": True}),
+    ("trousers", dict(trouser_front="single_pleat", crease="none"), {"pleats": 1, "crease": False}),
+    ("trousers", dict(hem_finish="turn_up", trouser_break="full", rise="high"), {"hem": "turnup", "break": "full", "rise": "high"}),
+    ("trousers", dict(waistband="side_adjusters", fly="button", leg_shape="wide"), {"waist": "adjusters", "fly": "button", "leg": "wide"}),
+    ("jeans", dict(denim_fades=["whiskers", "train_tracks"], distressing=["knee_rip"]),
+     {"fades": ["tracks", "whiskers"], "distress": ["knee_rip"]}),
+    ("trousers", dict(trouser_pockets=["frog_mouth", "zip_pocket"], back_details=["double_knee"]),
+     {"pockets": "frog", "extra_pockets": ["zip"], "panels": ["double_knee"]}),
+    ("shorts", dict(inseam=5, trouser_break="cropped"), {"inseam": 5, "length": "short"}),
+])
+def test_the_bottoms_fields_choose_the_trouser_drawing(category, details, want):
+    template, params = _drawn(answer(category, **details))
+    assert template == "pants"
+    assert {k: params.get(k) for k in want} == want
+
+
+def test_an_answer_stored_before_the_new_fields_reads_as_nothing_told():
+    old = answer("boots", shoe_style="chelsea_boot")
+    for name in ("footwear", "eyelets", "trouser_pockets", "shade", "inseam", "denim_wash"):
+        old["details"].pop(name)
+    tags = ItemTags.model_validate(old)
+    assert tags.details.footwear == "unknown" and tags.details.eyelets == 0 and tags.details.trouser_pockets == []
+    assert tags.details.shade == "unknown" and tags.details.denim_wash == "na"
+    assert _drawn(old) == _drawn(answer("boots", shoe_style="chelsea_boot"))
+
+
+def test_the_new_fields_refuse_values_outside_the_taxonomy():
+    for bad in (dict(footwear="moon_boot"), dict(shade="ultraviolet"), dict(denim_fades=["holes"]), dict(hem_finish="lace")):
+        with pytest.raises(ValueError):
+            Details.plain(**bad)
+@pytest.mark.parametrize("category, accessory, kind, template", [
+    ("bag", "bag", "daypack", "bag"), ("belt", "belt", "western", "belt"), ("hat", "cap", "trucker_cap", "cap"),
+    ("hat", "beanie", "fisherman_beanie", "beanie"), ("hat", "brimmed_hat", "panama", "brimmed_hat"),
+    ("scarf", "scarf", "bandana", "scarf"), ("other", "tie", "bow_tie", "accessory"), ("other", "socks", "na", "accessory")])
+def test_accessories_are_drawn_by_their_own_template_from_the_taxonomy_id_and_kind(category, accessory, kind, template):
+    tags = ItemTags.model_validate({**POLO, "category": category,
+                                    "details": {**POLO["details"], "accessory": accessory, "accessory_kind": kind}})
+    assert drawing_for(tags)[0] == template
+    out = item.drawing_from_answer(tags.model_dump(mode="json"), "#7a5a3a")
+    assert out.svg and out.svg != item.svg_from_answer(POLO, "#7a5a3a")
+
+
+def test_an_accessorys_kind_changes_its_drawing_and_without_one_it_says_so():
+    bag = {**POLO, "category": "bag", "details": {**POLO["details"], "accessory": "bag"}}
+    kinds = {k: item.svg_from_answer({**bag, "details": {**bag["details"], "accessory_kind": k}}, "#333333")
+             for k in ("tote", "daypack", "briefcase")}
+    assert len(set(kinds.values())) == 3
+    plain = item.drawing_from_fields("bag", "#333333")
+    assert plain.svg and any("tote" in n for n in plain.not_drawn)
+    for category in ("belt", "hat", "scarf"):
+        assert item.svg_from_fields(category, "#333333") not in (None, item.svg_from_fields("tee", "#333333"))
+
+
+def test_an_answer_from_before_the_accessory_fields_still_draws():
+    old = json.loads(json.dumps(POLO))
+    del old["details"]["accessory"], old["details"]["accessory_kind"]
+    assert ItemTags.model_validate(old).details.accessory == "na"
+    assert item.svg_from_answer(old, "#336699") == item.svg_from_answer(POLO, "#336699")

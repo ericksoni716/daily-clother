@@ -95,7 +95,7 @@ def test_one_pair_of_smart_shoes_is_a_thin_place():
 def test_an_orphan_asks_for_the_plain_piece_that_would_bring_it_into_use():
     closet = without("jeans_dark", "jeans_black", "chinos_tan", "chinos_navy", "trousers_grey", "trousers_navy",
                      "shorts_tan", "shorts_navy")
-    closet += [item("chinos_red", "trousers", "red", "smart_casual"), item("chinos_green", "trousers", "green", "smart_casual"),
+    closet += [item("chinos_red", "trousers", "red", "smart_casual"), item("chinos_purple", "trousers", "purple", "smart_casual"),
                item("jeans_red", "jeans", "red", "casual"),
                item("shirt_loud", "shirt", "orange", "smart_casual", pattern="plaid", name="Orange plaid shirt")]
     g = next(g for g in all_gaps(closet)["gaps"] if "orphan" in g["found_by"])

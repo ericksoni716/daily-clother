@@ -55,7 +55,7 @@ def test_a_block_missing_from_the_file_keeps_the_old_rules():
     r = outfit_rules.parse({}, {})
     assert [(b.high_min, b.mid, b.outer) for b in r.bands] == [(24, "no", "no"), (9, "may", "may"), (5, "may", "must"),
                                                               (-99, "may", "must")]
-    assert r.neutrals == outfit_rules.FALLBACK_NEUTRALS
+    assert r.neutrals == taxonomy.COLOR_FAMILIES["neutral"]   # the colour families are always the owner's (#152)
     assert r.reach == 1 and not r.rain_outer_must
     assert r.place_categories("base") == ("tee", "shirt", "polo")
 

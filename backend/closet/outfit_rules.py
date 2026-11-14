@@ -107,7 +107,6 @@ FALLBACK_OUTFIT: dict = {
     "formality_rules": ["every piece within one level of the target"],
     "color_rules": ["neutrals plus at most one accent", "denim is a neutral blue"],
 }
-FALLBACK_NEUTRALS = ("black", "white", "grey", "navy", "tan", "brown", "cream", "olive", "light_blue")
 
 NUMBERS = {"a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "half": 0.5}
 
@@ -166,6 +165,7 @@ class Rules:
     athletic_with: tuple[str, ...] | None = None  # the only levels athletic pieces mix with
     texture_formality: bool = False   # smooth cloth counts dressier, rough cloth more casual
     # colour
+    families: dict = field(default_factory=dict)  # the owner's colour families: name -> app colours
     neutrals: tuple[str, ...] = ()
     brights: tuple[str, ...] = ()
     shade_lightness: dict = field(default_factory=dict)  # app colour -> 0-1, from the file's named shades
@@ -223,7 +223,7 @@ def _number(word: str) -> float | None:
 
 
 def _strings(value: object) -> list[str]:
-    return [v for v in value if isinstance(v, str)] if isinstance(value, list) else []
+    return [v for v in value if isinstance(v, str)] if isinstance(value, (list, tuple)) else []
 
 
 def _places(outfit: dict, unread: list) -> tuple[dict, tuple[str, ...]]:
@@ -443,10 +443,10 @@ def parse(outfit: dict, colors: dict | None = None) -> Rules:
         else:
             unread.append(("formality_rules", text, "not understood"))
 
-    families = colors.get("families") if isinstance(colors.get("families"), dict) else {}
-    r["neutrals"] = (tuple(c for c in _strings(families.get("neutral")) if c in vocab.COLOR)
-                     if "neutral" in families else FALLBACK_NEUTRALS)
-    r["brights"] = tuple(c for c in _strings(families.get("bright")) if c in vocab.COLOR)
+    families = colors.get("families") if isinstance(colors.get("families"), dict) else taxonomy.COLOR_FAMILIES
+    r["families"] = {f: tuple(c for c in _strings(v) if c in vocab.COLOR) for f, v in families.items()}
+    r["neutrals"] = r["families"].get("neutral", ())
+    r["brights"] = r["families"].get("bright", ())
     r["shade_lightness"] = _lightness(colors)
     pairs = []
     for pair in outfit.get("color_pairings") or []:
@@ -521,7 +521,9 @@ def parse(outfit: dict, colors: dict | None = None) -> Rules:
 
 def load() -> Rules:
     """The rules in the owner's file as it is on disk."""
-    return parse(*taxonomy.outfit_rules())
+    outfit, colors = taxonomy.outfit_rules()
+    # the colour families are taxonomy.COLOR_FAMILIES (#152), which a test keeps equal to the file
+    return parse(outfit, {**colors, "families": taxonomy.COLOR_FAMILIES})
 
 
 RULES: Rules = load()

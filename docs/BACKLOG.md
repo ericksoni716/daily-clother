@@ -45,8 +45,9 @@ Wave 4:
 
 Wave 5:
 - [x] #112 Shopping for a wish (migration 0018): "Find some" asks Claude, through the same routes and monthly limit as describing an item (with web search allowed), for up to 8 products on sale now that match the wish and its price range. Each is checked against the closet with the "Would this work?" rules and kept with the wish; links open in a new tab and nothing is bought or opened by itself. "Check prices" looks again on demand, and while Closet runs each wish with finds is checked at most once a day (never in the demo closet), with the price history kept and a drop shown. Known: the API route's answer tool together with web search has only been run against a stand-in, never against Anthropic.
+- [x] #111 Kinds of clothing from the owner's taxonomy: the tagger reports the kind (schema version 2), the item page lets the owner set it, the fleece pullover is a warm mid layer, and lounging and exercise in What's missing go by the kind when it is known. Drawn: the fleece pullover (stand collar, snap placket, flap pocket, contrast binding, colour-blocking), training tee, technical half-zip, track jacket and twelve sportswear and loungewear trousers and shorts. Open: values for colour-blocking and binding in the owner's taxonomy (asked in the pull request); robes, pyjama sets and jerseys are drawn only from their details.
 
-Next (not started): "Would this work?" taking how the owner lives into account, kinds of clothing for sportswear and loungewear.
+Next (not started): "Would this work?" taking how the owner lives into account.
 
 Design (from the design review; each builds on the first):
 - [x] #127 Design 1, a design system: one set of tokens in `frontend/src/styles.css` (four text levels, surfaces, see-through borders, a 1.25 type scale from 16px, 4px spacing, four radii, one depth for cards), no colour outside them, a Light / Dark / Same as this device choice in Settings → Look, and shared pieces in `frontend/src/components/ui/` used where the swap was mechanical. Layouts unchanged; `src/design.test.ts` keeps CSS on the scale. Known: the spacing tokens are not yet used by existing paddings, the model banner is still its own component, and a forced choice is applied once the script runs.
@@ -64,6 +65,7 @@ Fixes after 0.2.0:
 - [x] #104 A choice in Settings of which route to Claude is tried first: the plan first (as before), the API key first, only the plan, or only the key. The key-first choices need a saved key; the key is still only used once allowed with a monthly limit.
 - [x] A failed item shows why: the plain sentence, and a "Details" fold with the reason the job recorded (keys, tokens, e-mail addresses and paths outside Closet's folder taken out), written once to the log as well; "Try again" never queues a second job (`failure` in the item, no migration).
 - [x] #114 A change made just before the page is reloaded or closed is no longer lost: saves are sent so that they outlive the page, and an edit still being typed (or trip ticks waiting their turn) is sent as the page goes away. It had been parked since a browser test raced it.
+- [x] #147 A note typed just before a reload was still lost now and then (the browser test `14-leave` failed 10 times in 30): the browser dropped a save on its way through the service worker as the page went away. Saves now skip the service worker where the browser allows it.
 
 Patterns from the photo (owner's request; it had fallen out of the app):
 - [x] Plaids flattened and placed per front, madras measured whole, stripes (regular and placed bands, sleeves checked), prints quilted; OpenCV and the second background model in the app; migration 0013.
@@ -107,7 +109,8 @@ In progress (owner's corrections to the first taxonomy sheets):
 
 To do:
 - [x] Drawing faults its own author listed (#110): the tab collar has close-set points and a buttoned strap, the wing collar larger tips; lapels on dark or patterned cloth carry a facing shade; the puffer's sides and sleeves swell between its channels; the trucker jacket has a buttoned waistband with side adjusters; the vest's armhole band keeps its width to the side seam; linen texture is sparser and fainter. Before/after sheets: `docs/screenshots/drawing-faults-*.png`. Still open: at item size the tab strap and wing tips are only specks, and tab and point collars are hard to tell apart.
-- [ ] Accessories (bag, belt, hat, scarf) have categories but no drawing; today they would be drawn as a crew-neck top. They need simple shapes of their own or a neutral placeholder.
+- [x] Accessories drawn from the taxonomy's accessory ids and kinds: bags, belts, caps, beanies, brimmed hats and scarves have shapes of their own; ties, pocket squares, gloves, glasses, watches and socks a plain tag. The outfit figure wears a belt, scarf, hat and bag. Sheet: `docs/screenshots/accessories.png` (`tools/make_accessory_sheet.py`). Waiting for the owner's verdict.
+- [ ] Shapes of their own for ties, pocket squares, gloves, glasses, watches and socks (a plain tag stands in for them today), and accessories in the demo closet.
 - [ ] Shoes left after #108: a monk strap's buckles, a flip-flop's thong, apron and split toes, speed hooks and D-rings, boot kinds (chukka, western, rain), a cork footbed's grain, patent shine.
 - [ ] Trousers: the taxonomy's bottoms are a signature line each; rise, fit names and jeans washes are not tagged yet.
 - [ ] Re-run the tagging test with the tightened prompt (snaps, hip pockets and feature flags were wrong in the first run).

@@ -108,66 +108,69 @@ FOOTWEAR: dict[str, tuple[str, dict, str, str]] = {
     "brogue": ("oxford", {"brogue": "full"}, "drawn", "a wingtip with punching; derby or oxford lacing as tagged; "
                "semi (medallion and cap) or quarter when named"),
     "derby": ("derby", {}, "drawn", "open lacing: quarters on top of the vamp, the tongue between them"),
-    "monk_strap": ("derby", {}, "approximate", "drawn as a derby; no buckled strap"),
+    "monk_strap": ("derby", {"laces": False, "strap": "monk"}, "drawn", "a buckled strap across the throat, no laces"),
     "penny_loafer": ("loafer", {"strap": "penny"}, "drawn", "the saddle strap with its slot"),
     "tassel_loafer": ("loafer", {"strap": "tassel"}, "drawn", "a lace round the collar, tied at the throat, two tassels"),
     "horsebit_loafer": ("loafer", {"strap": "horsebit"}, "drawn", "a metal bit across the throat"),
-    "driving_moc": ("loafer", {"strap": "none"}, "approximate", "a plain loafer; no rubber pebbles on the sole"),
+    "driving_moc": ("loafer", {"strap": "none", "tread": "pebble", "heel": "flat"}, "drawn", "a plain loafer with rubber pebbles up the heel"),
     "chelsea_boot": ("chelsea_boot", {}, "drawn", "the chelsea boot with its elastic side"),
-    "jodhpur_boot": ("boot", {}, "approximate", "a laced boot; no strap round the ankle"),
-    "chukka": ("boot", {}, "approximate", "a laced boot, taller than a chukka's two or three eyelets"),
-    "desert_boot": ("boot", {}, "approximate", "a laced boot; no crepe sole"),
+    "jodhpur_boot": ("boot", {"laces": False, "strap": "jodhpur", "shaft": 0.5}, "drawn", "a strap round the ankle, buckled on the side"),
+    "chukka": ("boot", {"shaft": 0.42, "eyelets": 3}, "drawn", "an ankle boot with three eyelets"),
+    "desert_boot": ("boot", {"shaft": 0.42, "eyelets": 2, "tread": "crepe"}, "drawn", "two eyelets on a honey crepe sole"),
     "service_boot": ("boot", {}, "drawn", "a laced leather boot"),
-    "moc_toe_boot": ("boot", {}, "approximate", "a laced boot; no moc toe seam"),
-    "engineer_boot": ("boot", {}, "approximate", "a laced boot; no straps or buckles"),
-    "logger_boot": ("boot", {}, "approximate", "a laced boot, not as tall"),
-    "hiking_boot": ("boot", {}, "approximate", "a laced boot; no speed hooks or lug sole"),
-    "duck_boot": ("boot", {}, "approximate", "a laced boot; no rubber lower"),
-    "rain_boot": ("boot", {}, "approximate", "a laced boot; a rain boot has no laces"),
-    "western_boot": ("boot", {}, "approximate", "a laced boot; no shaft, pointed toe or heel"),
-    "combat_boot": ("boot", {}, "approximate", "a laced boot, not as tall"),
-    "snow_boot": ("boot", {}, "approximate", "a laced boot; no cuff or rubber lower"),
-    "leather_court_sneaker": ("low_sneaker", {}, "drawn", "a low sneaker"),
-    "canvas_low_top": ("low_sneaker", {}, "drawn", "a low sneaker"),
+    "moc_toe_boot": ("boot", {"moc": True, "tread": "wedge"}, "drawn", "the moc toe seam on a flat white wedge sole"),
+    "engineer_boot": ("boot", {"laces": False, "strap": "engineer", "shaft": 0.74}, "drawn", "a tall pull-on boot, buckled straps at the instep and the top"),
+    "logger_boot": ("boot", {"shaft": 0.74, "eyelets": 8, "hooks": 4, "tread": "lug", "heel": "block"}, "drawn", "tall, speed hooks above the eyelets, a lug sole and block heel"),
+    "hiking_boot": ("boot", {"shaft": 0.6, "eyelets": 6, "hooks": 3, "tread": "lug", "collar_pad": True}, "drawn", "a padded collar, speed hooks and a lug sole"),
+    "duck_boot": ("boot", {"lower": "rubber", "eyelets": 5}, "drawn", "a rubber lower round the foot in the sole colour, laced leather above"),
+    "rain_boot": ("boot", {"laces": False, "shaft": 0.82, "lower": "all", "heel": "flat"}, "drawn", "tall and laceless, rubber all over with a rim at the top"),
+    "western_boot": ("boot", {"kind": "western_boot", "laces": False, "shaft": 0.88, "toe": "pointed", "heel": "cuban", "pull_tabs": True}, "drawn", "a tall stitched shaft, a pointed toe, a sloping cuban heel and a pull tab"),
+    "combat_boot": ("boot", {"shaft": 0.74, "eyelets": 9, "tread": "lug"}, "drawn", "tall, laced high, a lug sole"),
+    "snow_boot": ("boot", {"lower": "rubber", "collar_pad": True, "tread": "lug", "shaft": 0.62}, "drawn", "a rubber lower, a padded cuff and a lug sole"),
+    "leather_court_sneaker": ("low_sneaker", {"kind": "leather_court_sneaker"}, "drawn", "a low sneaker, perforations on the toe"),
+    "canvas_low_top": ("low_sneaker", {"foxing": True, "toe_cap": "rubber"}, "drawn", "a low sneaker with a foxing stripe and rubber toe cap"),
     "canvas_high_top": ("high_top", {}, "drawn", "a high top with its rubber toe"),
-    "retro_court_shoe": ("low_sneaker", {}, "drawn", "a low sneaker"),
-    "basketball_shoe": ("high_top", {}, "approximate", "a high top; no padded collar"),
-    "skate_shoe": ("low_sneaker", {}, "approximate", "a low sneaker; no padded tongue"),
-    "retro_runner": ("runner", {}, "drawn", "a runner"),
+    "retro_court_shoe": ("low_sneaker", {"kind": "retro_court_shoe"}, "drawn", "a low sneaker, perforations and a toe overlay"),
+    "basketball_shoe": ("high_top", {"collar_pad": True, "toe_cap": "none", "foxing": False, "sole": "chunky"}, "drawn", "a high top with a padded collar"),
+    "skate_shoe": ("low_sneaker", {"tongue": "padded", "collar_pad": True}, "drawn", "a padded tongue above a padded collar"),
+    "retro_runner": ("runner", {"kind": "retro_runner"}, "drawn", "a runner with a suede toe and side overlays"),
     "running_shoe": ("runner", {}, "drawn", "a runner"),
-    "trail_runner": ("runner", {}, "approximate", "a runner; no lugs or toggle lace"),
-    "trainer": ("runner", {}, "drawn", "a runner"),
+    "trail_runner": ("runner", {"tread": "lug"}, "drawn", "a runner on a lugged sole; no toggle lace"),
+    "trainer": ("runner", {}, "approximate", "drawn as a running shoe"),
     "canvas_slip_on": ("slip_on", {}, "drawn", "a laceless canvas shoe"),
-    "cleats": ("low_sneaker", {}, "approximate", "a low sneaker; no studs"),
+    "cleats": ("low_sneaker", {"tread": "cleats"}, "drawn", "studs under the sole"),
     "chunky_sneaker": ("runner", {"sole": "chunky"}, "drawn", "a runner on a chunky sole"),
-    "boat_shoe": ("loafer", {"strap": "none"}, "approximate", "a plain loafer; no lace round the collar"),
-    "camp_moc": ("loafer", {"strap": "none"}, "approximate", "a plain loafer; no laces"),
-    "espadrille": ("slip_on", {}, "approximate", "a slip-on; no rope sole"),
+    "boat_shoe": ("loafer", {"strap": "none", "lace_collar": True, "tread": "siped"}, "drawn", "a rawhide lace round the collar, tied at the side, on a white sole"),
+    "camp_moc": ("loafer", {"strap": "none", "lace_collar": True, "tread": "siped"}, "approximate", "drawn as a boat shoe"),
+    "espadrille": ("slip_on", {"tread": "jute", "foxing": False}, "drawn", "a slip-on on a braided rope sole"),
     "sandal": ("sandal", {"sandal": "two_strap"}, "drawn", "two buckled straps over a footbed"),
     "slide": ("sandal", {"sandal": "slide"}, "drawn", "one wide strap over a footbed"),
     "flip_flop": ("sandal", {"sandal": "slide"}, "approximate", "drawn as a slide; no thong between the toes"),
-    "moccasin_slipper": ("slip_on", {}, "approximate", "a slip-on; no moc seam or fleece"),
+    "moccasin_slipper": ("slip_on", {"moc": True, "collar_pad": True, "foxing": False}, "approximate", "a moc seam and a soft collar; no fleece texture"),
     "velvet_slipper": ("loafer", {"strap": "none"}, "approximate", "a plain loafer; no velvet nap"),
-    "felt_clog": ("slip_on", {}, "approximate", "a slip-on; no clog shape"),
+    "felt_clog": ("slip_on", {"backless": True, "foxing": False}, "drawn", "open at the back above the heel"),
 }
 # the footwear block's toe treatments and lacings, in its order, and what the drawing makes of each
 FOOTWEAR_TOE_TREATMENT = {
     "plain": ({"toe_cap": "none"}, "drawn", ""), "cap_toe": ({"toe_cap": "stitched"}, "drawn", "a stitched toe cap"),
     "wingtip": ({"brogue": "full"}, "drawn", "on a derby or oxford: the wing and its punching"),
     "medallion": ({"brogue": "semi"}, "drawn", "on a derby or oxford: a punched toe and cap"),
-    "apron": ({}, "not_drawn", "no apron seam on the toe yet"),
+    "apron": ({"moc": True}, "approximate", "drawn as a moc toe's raised seam"),
     "split_toe": ({}, "not_drawn", "no split toe seam yet"),
     "rubber_toe_cap": ({"toe_cap": "rubber"}, "drawn", "the rubber toe of a canvas shoe"),
 }
 FOOTWEAR_LACING = {
     "closed_oxford": ({"style": "oxford"}, "drawn", "the facings meet under the vamp"),
     "open_derby": ({"style": "derby"}, "drawn", "the quarters on top of the vamp, the tongue between them"),
-    "speed_hooks": ({}, "not_drawn", "drawn as eyelets"), "d_rings": ({}, "not_drawn", "drawn as eyelets"),
+    "speed_hooks": ({"hooks": 3}, "drawn", "the top three lacing points are open metal hooks"),
+    "d_rings": ({}, "not_drawn", "drawn as eyelets"),
     "ghillie": ({}, "not_drawn", "drawn as eyelets"), "slip_on": ({}, "drawn", "no laces"),
-    "elastic_gussets": ({}, "approximate", "the chelsea boot's elastic side; not on other shoes"),
-    "monk_single": ({}, "not_drawn", "no buckled strap yet"), "monk_double": ({}, "not_drawn", "no buckled strap yet"),
-    "hook_and_loop": ({}, "not_drawn", "no straps yet"), "toggle_speed_lace": ({}, "not_drawn", "drawn as laces"),
-    "rawhide_around_collar": ({}, "not_drawn", "no lace round a loafer's collar"),
+    "elastic_gussets": ({"gusset": True, "laces": False}, "drawn", "an elastic side panel, no laces"),
+    "monk_single": ({"strap": "monk", "laces": False}, "drawn", "a buckled strap across the throat"),
+    "monk_double": ({"strap": "double_monk", "laces": False}, "drawn", "two buckled straps across the throat"),
+    "hook_and_loop": ({"strap": "velcro", "laces": False}, "drawn", "two straps across the instep, no laces"),
+    "toggle_speed_lace": ({}, "not_drawn", "drawn as laces"),
+    "rawhide_around_collar": ({"lace_collar": True}, "drawn", "a lace round the collar, tied at the side"),
 }
 # other words for what the drawing shows, as the tagger may put them
 _SHOE_WORDS = {
@@ -230,6 +233,238 @@ def shoe_words(style: str, words: list[str]) -> tuple[str, dict, list[str]]:
         if status == "drawn" and word not in used:
             used.append(word)
     return style, params, used
+
+# The footwear block's other attributes: what each adds to the shoe drawing (and how well it shows), in its order
+FOOTWEAR_TOE_SHAPE = {
+    "round": ({}, "drawn", ""), "almond": ({"toe": "almond"}, "drawn", "a little lower and longer"),
+    "chisel": ({"toe": "chisel"}, "approximate", "lower and longer; the flat chisel face is seen from above, not the side"),
+    "pointed": ({"toe": "pointed"}, "drawn", "a low, long toe"),
+    "moc_toe": ({"moc": True}, "drawn", "the raised U seam over the toe"),
+}
+FOOTWEAR_SOLE = {
+    "leather": ({}, "drawn", "a dark sole with a welt stitch"), "rubber_city": ({}, "approximate", "drawn as a leather sole"),
+    "studded_rubber": ({"tread": "lug"}, "approximate", "drawn as lugs"), "lug_commando": ({"tread": "lug"}, "drawn", "a thick sole cut into lugs"),
+    "crepe": ({"tread": "crepe"}, "drawn", "a flat honey sole with a wavy edge"),
+    "wedge": ({"tread": "wedge"}, "drawn", "a flat white block, no heel"),
+    "cupsole": ({}, "drawn", "a sneaker's stitched rubber sole"), "vulcanized": ({"foxing": True}, "drawn", "the foxing stripe"),
+    "eva_foam_midsole": ({}, "approximate", "a runner's sculpted midsole"),
+    "siped_deck": ({"tread": "siped"}, "drawn", "a thin white sole"), "cleats": ({"tread": "cleats"}, "drawn", "studs under the sole"),
+    "jute_rope": ({"tread": "jute"}, "drawn", "a braided rope sole"),
+    "cork_footbed": ({}, "drawn", "a sandal's cork footbed"), "molded_slide": ({}, "approximate", "drawn as a footbed"),
+}
+FOOTWEAR_HEEL = {
+    "flat": ({"heel": "flat"}, "drawn", "the sole runs flat to the back"), "low_stacked": ({"heel": "stacked"}, "drawn", "leather lifts"),
+    "block": ({"heel": "block"}, "drawn", "a deeper heel"), "cuban": ({"heel": "cuban"}, "drawn", "tall, its back sloping in"),
+}
+# how high a boot's collar comes, in shoe lengths (a service boot is a six-inch boot)
+_SHAFT = {"ankle_boot": 0.45, "boot_6in": 0.56, "boot_8in_plus": 0.74, "knee": 0.95}
+
+
+def shoe_params(style: str, d: dict) -> tuple[str, dict]:
+    """What the tagger's footwear fields add to a shoe's drawing: (style, params). The kind (`footwear`) sets the style
+    and its parts; the toe, lacing, eyelets, sole, heel and height fields refine them."""
+    params: dict = {}
+    fid = d.get("footwear")
+    if fid in FOOTWEAR:
+        app, more, _, _ = FOOTWEAR[fid]
+        style = (style if style in ("derby", "oxford") else "oxford") if fid == "brogue" else app
+        params.update(more)
+    toe = d.get("toe_treatment")
+    if toe in FOOTWEAR_TOE_TREATMENT:
+        more = dict(FOOTWEAR_TOE_TREATMENT[toe][0])
+        if more.get("toe_cap") == "stitched" and params.get("brogue") == "full":   # a brogue with a cap is semi
+            more = {"brogue": "semi"}
+        params.update(more)
+    lacing = d.get("lacing")
+    if lacing in FOOTWEAR_LACING:
+        more = dict(FOOTWEAR_LACING[lacing][0])
+        if more.get("style") and style not in ("derby", "oxford"):
+            more.pop("style")
+        style = more.pop("style", style)
+        if lacing == "slip_on" and style in ("derby", "oxford", "boot", "low_sneaker", "high_top", "runner"):
+            more["laces"] = False
+        params.update(more)
+    if isinstance(d.get("eyelets"), int) and d["eyelets"] > 0 and params.get("laces") is not False:
+        params["eyelets"] = max(2, min(10, d["eyelets"]))
+    for key, table in (("toe_shape", FOOTWEAR_TOE_SHAPE), ("sole", FOOTWEAR_SOLE), ("heel", FOOTWEAR_HEEL)):
+        if d.get(key) in table:
+            params.update(table[d[key]][0])
+    height = d.get("footwear_height")
+    if style in ("boot", "chelsea_boot") and height in _SHAFT:
+        params["shaft"] = _SHAFT[height]
+    elif style in ("low_sneaker", "high_top"):
+        if height in ("mid", "high") and style == "low_sneaker":
+            style = "high_top"
+        elif height in ("no_show", "low") and style == "high_top":
+            style = "low_sneaker"
+        if height == "mid":
+            params["shaft"] = 0.44
+    return style, params
+
+
+# The bottoms block: what each value adds to the trouser drawing (template parameters), and how well it shows
+BOTTOM_DRAWING: dict[str, dict[str, tuple[dict, str, str]]] = {
+    "waistband": {
+        "belt_loops": ({"waist": "belt"}, "drawn", "belt loops"),
+        "side_adjusters": ({"waist": "adjusters"}, "drawn", "a buckled tab each side, no loops"),
+        "extended_tab": ({"waist": "tab"}, "drawn", "a buttoned tab past the fly"),
+        "gurkha": ({"waist": "gurkha"}, "drawn", "a deep band, straps buckled each side"),
+        "elastic_drawcord": ({"waist": "drawstring"}, "drawn", "gathered, with cords"),
+        "half_elastic": ({"waist": "half_elastic"}, "drawn", "flat in front, gathered at the sides"),
+        "drawstring": ({"waist": "drawstring"}, "drawn", "gathered, with cords"),
+        "brace_buttons": ({"waist": "braces"}, "drawn", "buttons along the top of the band"),
+    },
+    "fly": {"zip": ({"fly": "zip"}, "drawn", "the J-stitch"), "button": ({"fly": "button"}, "drawn", "its buttons down the fly"),
+            "none": ({"fly": "none"}, "drawn", "a centre seam, no fly")},
+    "front": {
+        "flat": ({"pleats": 0}, "drawn", ""), "single_pleat": ({"pleats": 1}, "drawn", "one pleat each side"),
+        "double_pleat": ({"pleats": 2}, "drawn", "two pleats each side"),
+        "reverse_pleat": ({"pleats": 1, "pleat_dir": "reverse"}, "approximate", "a pleat with a small lip toward the pocket"),
+        "forward_pleat": ({"pleats": 1, "pleat_dir": "forward"}, "approximate", "a pleat with a small lip toward the fly"),
+    },
+    "rise": {"low": ({"rise": "low"}, "drawn", "a shorter fly and crotch"), "mid": ({}, "drawn", ""),
+             "high": ({"rise": "high"}, "drawn", "a longer fly and crotch")},
+    "leg": {v: ({"leg": v}, "drawn", "") for v in ("skinny", "slim", "tapered", "straight", "relaxed", "wide", "bootcut", "flare",
+                                                    "barrel")},
+    "break": {
+        "no_break": ({}, "drawn", ""), "slight": ({"break": "slight"}, "drawn", "a shallow fold above the hem"),
+        "full": ({"break": "full"}, "drawn", "a deep fold above the hem"),
+        "cropped": ({"length": "ankle"}, "drawn", "ends above the ankle"),
+        "stacked": ({"break": "stacked"}, "drawn", "three folds bunched above the hem"),
+    },
+    "hem_finish": {
+        "plain": ({"hem": "plain"}, "drawn", ""), "turn_up": ({"hem": "turnup"}, "drawn", "a turned-up cuff"),
+        "rolled_cuff": ({"hem": "rolled"}, "drawn", "rolled up twice"), "ribbed_cuff": ({"hem": "rib"}, "drawn", "a knitted cuff"),
+        "raw": ({"hem": "raw"}, "drawn", "a frayed edge"),
+        "chain_stitched": ({"hem": "chain"}, "drawn", "a row of slanting stitches above the hem"),
+        "split": ({"hem": "split"}, "drawn", "a short slit at the outer seam"),
+        "notched": ({"hem": "split"}, "approximate", "drawn as a split hem"),
+    },
+    "crease": {"pressed": ({"crease": True}, "drawn", "a line down each leg"), "none": ({"crease": False}, "drawn", "")},
+    "pockets": {
+        "slant": ({"pockets": "slant"}, "drawn", ""), "vertical_on_seam": ({"pockets": "side"}, "drawn", "an opening in the side seam"),
+        "scoop": ({"pockets": "scoop"}, "drawn", "the curved jeans pocket"),
+        "frog_mouth": ({"pockets": "frog"}, "drawn", "a horizontal opening under the band"),
+        "coin": ({"coin": True}, "drawn", "the watch pocket"),
+        "back_welt_single": ({}, "not_drawn", "on the back: the drawing shows the front"),
+        "back_welt_double": ({}, "not_drawn", "on the back: the drawing shows the front"),
+        "back_patch": ({}, "not_drawn", "on the back: the drawing shows the front"),
+        "back_flap": ({}, "not_drawn", "on the back: the drawing shows the front"),
+        "cargo": ({"cargo": True}, "drawn", "bellows pockets on the thighs"),
+        "hammer_loop": ({"extra_pockets": ["hammer"]}, "drawn", "a loop on the left side"),
+        "rule_pocket": ({"extra_pockets": ["rule"]}, "drawn", "a narrow pocket on the right thigh"),
+        "zip_pocket": ({"extra_pockets": ["zip"]}, "drawn", "a zip on each thigh"),
+    },
+    "back_details": {
+        "double_knee": ({"panels": ["double_knee"]}, "drawn", "a panel over each knee"),
+        "gusseted_crotch": ({"panels": ["gusset"]}, "drawn", "a diamond set into the crotch"),
+        "back_yoke": ({}, "not_drawn", "on the back"), "rivets": ({"coin": True}, "approximate", "the rivets at the front pockets"),
+        "back_patch_label": ({}, "not_drawn", "on the back"), "darts": ({}, "not_drawn", "on the back"),
+        "centre_back_v_loop": ({}, "not_drawn", "on the back"),
+    },
+    "denim_fades": {
+        "whiskers": ({"fades": ["whiskers"]}, "drawn", "pale creases fanning from the crotch"),
+        "honeycombs": ({}, "not_drawn", "behind the knees"), "stacks": ({"fades": ["stacks"]}, "drawn", "pale bands above the hem"),
+        "train_tracks": ({"fades": ["tracks"]}, "drawn", "pale lines down the outer seams"),
+        "roping": ({"fades": ["stacks"]}, "approximate", "drawn as pale bands at the hem"),
+        "pocket_fade": ({"fades": ["pocket"]}, "drawn", "the pocket edge worn pale"),
+        "knee_fade": ({"fades": ["knee"]}, "drawn", "a pale patch at each knee"),
+    },
+    "distressing": {
+        "knee_rip": ({"distress": ["knee_rip"]}, "drawn", "a hole with white threads across it"),
+        "frayed_hem": ({"hem": "raw"}, "drawn", "frayed threads at the hem"),
+        "abrasion": ({"distress": ["abrasion"]}, "drawn", "a pale worn patch on the thigh"),
+        "patched": ({"distress": ["patched"]}, "drawn", "a stitched patch on the thigh"),
+        "sashiko_repair": ({"distress": ["sashiko"]}, "drawn", "a patch with rows of white running stitch"),
+    },
+}
+# the bottoms field each block key is told in, on the tagger's Details
+BOTTOM_FIELDS = {"waistband": "waistband", "fly": "fly", "front": "trouser_front", "rise": "rise", "leg": "leg_shape",
+                 "break": "trouser_break", "hem_finish": "hem_finish", "crease": "crease", "pockets": "trouser_pockets",
+                 "back_details": "back_details", "denim_fades": "denim_fades", "distressing": "distressing"}
+
+
+def bottom_params(category: str, d: dict) -> dict:
+    """What the tagger's bottoms fields add to a trouser drawing (template parameters), where they were told."""
+    params: dict = {}
+    for key, field in BOTTOM_FIELDS.items():
+        told = d.get(field)
+        for value in (told if isinstance(told, list) else [told]):
+            if value not in BOTTOM_DRAWING[key]:
+                continue
+            for k, v in BOTTOM_DRAWING[key][value][0].items():
+                if category == "shorts" and k in ("length", "break"):
+                    continue
+                params[k] = sorted(set(params.get(k, [])) | set(v)) if isinstance(v, list) else v
+    if params.get("pleats") and "crease" not in params and d.get("crease") != "none":
+        params["crease"] = True
+    if category == "shorts" and isinstance(d.get("inseam"), int) and d["inseam"] > 0:
+        params["inseam"] = d["inseam"]
+    return params
+
+
+def wash_hex(wash) -> str | None:
+    """The colour a denim wash is drawn in, when no colour was measured."""
+    return shade_hex(DENIM_WASH_SHADE.get(wash)) if wash in DENIM_WASH_SHADE else None
+# The garments (kinds of clothing) of the taxonomy's `garments` block, with their taxonomy category; footwear and
+# accessories are left out (shoes have their own style field). A test keeps this equal to the JSON.
+GARMENTS: dict[str, str] = {
+    "t_shirt": "knit_top", "henley": "knit_top", "polo": "knit_top", "rugby_shirt": "knit_top",
+    "dress_shirt": "woven_shirt", "ocbd": "woven_shirt", "casual_button_up": "woven_shirt", "flannel_shirt": "woven_shirt",
+    "work_shirt": "woven_shirt", "western_shirt": "woven_shirt", "camp_collar_shirt": "woven_shirt",
+    "popover_shirt": "woven_shirt", "band_collar_shirt": "woven_shirt", "guayabera": "woven_shirt",
+    "overshirt": "woven_shirt", "tuxedo_shirt": "woven_shirt",
+    "crewneck_sweatshirt": "sweatshirt", "hoodie": "sweatshirt",
+    "pullover_sweater": "knitwear", "cardigan": "knitwear", "sweater_vest": "knitwear",
+    "chore_coat": "outerwear", "trucker_jacket": "outerwear", "bomber": "outerwear", "varsity_jacket": "outerwear",
+    "harrington": "outerwear", "field_jacket": "outerwear", "waxed_jacket": "outerwear", "peacoat": "outerwear",
+    "overcoat": "outerwear", "trench_coat": "outerwear", "parka": "outerwear", "puffer": "outerwear",
+    "quilted_jacket": "outerwear", "fleece_jacket": "outerwear", "leather_jacket": "outerwear", "barn_jacket": "outerwear",
+    "blazer": "tailoring", "sport_coat": "tailoring", "suit_jacket": "tailoring",
+    "chinos": "bottoms", "dress_trousers": "bottoms", "jeans": "bottoms", "corduroys": "bottoms", "fatigues": "bottoms",
+    "cargo_pants": "bottoms", "work_pants": "bottoms", "sweatpants": "bottoms", "shorts": "bottoms",
+    "performance_tee": "activewear", "running_long_sleeve": "activewear", "running_singlet": "activewear",
+    "compression_top": "activewear", "base_layer": "activewear", "athletic_half_zip": "activewear",
+    "track_jacket": "activewear", "windbreaker": "activewear", "softshell_jacket": "activewear", "rain_shell": "activewear",
+    "fleece_pullover": "activewear", "soccer_jersey": "activewear", "basketball_jersey": "activewear",
+    "hockey_jersey": "activewear", "baseball_jersey": "activewear", "cycling_jersey": "activewear",
+    "running_shorts": "activewear", "two_in_one_shorts": "activewear", "training_shorts": "activewear",
+    "basketball_shorts": "activewear", "compression_tights": "activewear", "track_pants": "activewear",
+    "tech_pants": "activewear", "joggers": "activewear", "open_hem_sweatpants": "activewear",
+    "pajama_set_woven": "loungewear", "pajama_set_knit": "loungewear", "sleep_shorts": "loungewear",
+    "lounge_pants": "loungewear", "lounge_knit_set": "loungewear", "lounge_sweatsuit": "loungewear", "robe": "loungewear",
+    "kimono_robe": "loungewear", "smoking_jacket": "loungewear",
+}
+SPORT_KINDS = frozenset(g for g, c in GARMENTS.items() if c == "activewear")
+LOUNGE_KINDS = frozenset(g for g, c in GARMENTS.items() if c == "loungewear")
+# The app's category for each garment: the JSON's `app_category` where it gives one (a test checks), otherwise
+# the usual one for its taxonomy category. None for a set (a pyjama set, a sweatsuit): it is a top or a bottom.
+_APP_BY_TAXONOMY = {"knit_top": "tee", "woven_shirt": "shirt", "sweatshirt": "sweater", "knitwear": "sweater",
+                    "outerwear": "jacket", "tailoring": "jacket", "bottoms": "trousers"}
+APP_CATEGORY: dict[str, str | None] = {
+    **{g: _APP_BY_TAXONOMY.get(c) for g, c in GARMENTS.items()},
+    "polo": "polo", "rugby_shirt": "polo", "hoodie": "hoodie", "peacoat": "coat", "overcoat": "coat",
+    "trench_coat": "coat", "parka": "coat",
+    "jeans": "jeans", "shorts": "shorts", "chinos": "trousers", "dress_trousers": "trousers", "corduroys": "trousers",
+    "fatigues": "trousers", "cargo_pants": "trousers", "work_pants": "trousers", "sweatpants": "trousers",
+    "performance_tee": "tee", "running_long_sleeve": "tee", "running_singlet": "tee", "compression_top": "tee",
+    "base_layer": "tee", "athletic_half_zip": "sweater", "track_jacket": "jacket", "windbreaker": "jacket",
+    "softshell_jacket": "jacket", "rain_shell": "jacket", "fleece_pullover": "sweater", "soccer_jersey": "tee",
+    "basketball_jersey": "tee", "hockey_jersey": "tee", "baseball_jersey": "shirt", "cycling_jersey": "tee",
+    "running_shorts": "shorts", "two_in_one_shorts": "shorts", "training_shorts": "shorts", "basketball_shorts": "shorts",
+    "compression_tights": "trousers", "track_pants": "trousers", "tech_pants": "trousers", "joggers": "trousers",
+    "open_hem_sweatpants": "trousers", "sleep_shorts": "shorts", "lounge_pants": "trousers",
+    "pajama_set_woven": None, "pajama_set_knit": None, "lounge_knit_set": None, "lounge_sweatsuit": None,
+    "robe": "coat", "kimono_robe": "coat", "smoking_jacket": "jacket",
+}
+_BOTTOM_APP = ("jeans", "trousers", "shorts")
+
+
+def kinds_for(category: str | None) -> tuple[str, ...]:
+    """The garments that can be an item of the app's category: a top's kinds or a bottom's (sets are both)."""
+    bottom = category in _BOTTOM_APP
+    return tuple(g for g, app in APP_CATEGORY.items() if app is None or (app in _BOTTOM_APP) == bottom)
+
 
 # Axes that decide the shape of a top. `top_drawing` reads exactly these keys (taxonomy values), plus
 # "length" (cropped | regular | long | knee), "placket_buttons" (an int, or None for the usual number),
@@ -431,6 +666,19 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
         notes.append("rugby collar drawn in white twill, the classic contrast")
     if collar == "camp" and g.get("hem") is None:
         p["hem"] = "straight"
+    # the kind of garment says what no axis does
+    kind = g.get("garment")
+    if kind in _PULLOVERS and placket == "snap":
+        p["front"] = "half"   # a pullover's snaps close a short placket, not a front that opens to the hem
+    if kind == "fleece_pullover":
+        # the classic snap-front fleece: a contrast colour (the trim colour) binds its edges, and a second
+        # colour (when one is seen) is cut into the yoke, sleeves and pocket
+        if g.get("contrast_trim"):
+            p["binding"] = True
+        if g.get("second_color"):
+            p["colorblock"] = ("yoke", "sleeves", "pocket")
+    if g.get("side_stripe") and p["sleeve"] != "none":
+        p["stripes"] = "sleeve"   # a track jacket's stripes run down the sleeves
     # notes for what is drawn as something close
     approx = {
         "hidden_button_down": "hidden button-down drawn as a soft-roll point collar (its buttons are under the points)",
@@ -454,6 +702,9 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
         p["quilting"] = "baffle"
     return p, extras, notes
 
+
+_PULLOVERS = ("fleece_pullover", "athletic_half_zip", "crewneck_sweatshirt", "hoodie", "pullover_sweater", "base_layer",
+              "running_long_sleeve", "compression_top")
 
 # Signature garments, as axis values. Outerwear and tailoring have no axis values in the taxonomy's
 # `garments` block; these say how each is drawn with the top template.
@@ -524,9 +775,129 @@ GARMENT_DRAWINGS: dict[str, dict] = {
                    hem="straight", fit="tailored", fabric="hopsack", fiber="worsted_wool", closure_material="metal_shank"),
     "sport_coat": dict(collar="notch_lapel", placket="front_placket", placket_buttons=2, pockets="hip_patch_double",
                        hem="straight", fit="tailored", fabric="tweed", closure_material="horn"),
+    "fleece_pullover": dict(garment="fleece_pullover", collar="stand", placket="snap", placket_buttons=4,
+                            pockets="chest_flap_single", hem="straight", cuff="open_hem", fabric="polar_fleece",
+                            contrast_trim=True, second_color=True),
+    "performance_tee": dict(garment="performance_tee", neckline="crew", sleeve_length="short", sleeve_construction="raglan",
+                            hem="straight", fit="slim", fabric="mesh", fiber="polyester"),
+    "athletic_half_zip": dict(garment="athletic_half_zip", neckline="quarter_zip", placket="zip_quarter",
+                              sleeve_construction="raglan", cuff="open_hem", hem="straight", fit="slim", fabric="interlock",
+                              fiber="polyester", weight="lightweight"),
+    "track_jacket": dict(garment="track_jacket", collar="stand", placket="zip_full", pockets="split_hand", cuff="rib_knit",
+                         hem="ribbed_band", fabric="interlock", fiber="polyester", side_stripe=True),
     "suit_jacket": dict(collar="peak_lapel", placket="front_placket", placket_buttons=1, pockets="welt", hem="straight",
                         fit="tailored", fabric="plain", fiber="worsted_wool", closure_material="corozo"),
 }
+
+
+# ---- the footwear block's attributes, the bottoms block and the colours, in the JSON's order (tests keep them equal)
+FOOTWEAR_AXES: dict[str, tuple[str, ...]] = {
+    "toe_shape": ("round", "almond", "chisel", "pointed", "moc_toe"),
+    "laces": ("flat_waxed", "round_waxed", "flat_cotton", "round_rope", "rawhide"),
+    "sole": ("leather", "rubber_city", "studded_rubber", "lug_commando", "crepe", "wedge", "cupsole", "vulcanized",
+             "eva_foam_midsole", "siped_deck", "cleats", "jute_rope", "cork_footbed", "molded_slide"),
+    "construction": ("goodyear_welt", "storm_welt", "blake", "stitchdown", "cemented", "vulcanized", "moccasin"),
+    "height": ("no_show", "low", "mid", "high", "ankle_boot", "boot_6in", "boot_8in_plus", "knee"),
+    "heel": ("flat", "low_stacked", "block", "cuban"),
+    "upper_material": ("smooth_calf", "pebble_grain", "suede", "roughout", "nubuck", "shell_cordovan", "patent",
+                       "oiled_pull_up", "canvas", "knit_mesh", "synthetic_leather", "waxed_canvas", "rubber", "velvet",
+                       "felt_wool", "woven_leather"),
+    "leather_colorways": ("black", "dark_brown", "mid_brown", "tan", "cognac", "oxblood", "walnut", "snuff_suede",
+                          "sand_suede", "navy_suede", "grey_suede"),
+    "sneaker_colorways": ("white", "off_white", "black", "grey", "navy", "cream_gum_sole", "multi"),
+}
+BOTTOM_AXES: dict[str, tuple[str, ...]] = {
+    "waistband": ("belt_loops", "side_adjusters", "extended_tab", "gurkha", "elastic_drawcord", "half_elastic",
+                  "drawstring", "brace_buttons"),
+    "fly": ("zip", "button", "none"),
+    "front": ("flat", "single_pleat", "double_pleat", "reverse_pleat", "forward_pleat"),
+    "rise": ("low", "mid", "high"),
+    "leg": ("skinny", "slim", "tapered", "straight", "relaxed", "wide", "bootcut", "flare", "barrel"),
+    "break": ("no_break", "slight", "full", "cropped", "stacked"),
+    "hem_finish": ("plain", "turn_up", "rolled_cuff", "ribbed_cuff", "raw", "chain_stitched", "split", "notched"),
+    "crease": ("pressed", "none"),
+    "pockets": ("slant", "vertical_on_seam", "scoop", "frog_mouth", "coin", "back_welt_single", "back_welt_double",
+                "back_patch", "back_flap", "cargo", "hammer_loop", "rule_pocket", "zip_pocket"),
+    "back_details": ("double_knee", "gusseted_crotch", "back_yoke", "rivets", "back_patch_label", "darts",
+                     "centre_back_v_loop"),
+    "denim_washes": ("raw", "rinse", "dark", "mid", "light", "bleached", "stone", "acid", "black", "washed_black", "grey",
+                     "ecru", "white", "overdyed"),
+    "denim_fades": ("whiskers", "honeycombs", "stacks", "train_tracks", "roping", "pocket_fade", "knee_fade"),
+    "distressing": ("knee_rip", "frayed_hem", "abrasion", "patched", "sashiko_repair"),
+}
+# shorts: the usual inseam (inches, low and high) of each kind
+SHORTS_INSEAM_IN: dict[str, tuple[int, int]] = {
+    "running": (3, 5), "short_chino": (5, 7), "chino": (7, 9), "denim": (7, 10), "cargo": (9, 11), "basketball": (9, 11),
+    "boardshorts": (7, 20), "swim_trunks": (3, 7), "linen_pull_on": (6, 8), "tailored": (6, 8), "sweat": (6, 9),
+}
+# the owner's named shades: name -> (hex, the app's colour word it is a shade of)
+SHADES: dict[str, tuple[str, str]] = {
+    "black": ("#1a1a1a", "black"), "faded_black": ("#2b2b2b", "black"), "charcoal": ("#36393d", "grey"),
+    "slate": ("#5a6470", "grey"), "mid_grey": ("#8a8d91", "grey"), "heather_grey": ("#a3a6a8", "grey"),
+    "light_grey": ("#c9cacc", "grey"), "stone": ("#c9bfae", "tan"), "khaki": ("#c3b091", "tan"),
+    "sand": ("#d6c4a2", "tan"), "camel": ("#b5875a", "tan"), "natural_flax": ("#cbbd9f", "tan"),
+    "tobacco": ("#7a5230", "brown"), "chocolate": ("#4a3121", "brown"), "mid_brown": ("#7b5536", "brown"),
+    "cognac": ("#9a5a2c", "brown"), "rust": ("#a4492a", "orange"), "coral": ("#e5735c", "orange"),
+    "oxblood": ("#4e1a1d", "burgundy"), "burgundy": ("#6d1f2a", "burgundy"), "brick": ("#9c3d2e", "red"),
+    "red": ("#b22a2a", "red"), "mustard": ("#c9a227", "yellow"), "butter": ("#f0e3a1", "yellow"),
+    "olive": ("#5f6b3a", "olive"), "army_green": ("#4b5320", "olive"), "sage": ("#a3ad8f", "green"),
+    "forest_green": ("#22422c", "green"), "hunter_green": ("#355e3b", "green"), "teal": ("#2a6f74", "green"),
+    "navy": ("#1f2a44", "navy"), "midnight": ("#191d2e", "navy"), "raw_indigo": ("#23304a", "navy"),
+    "royal_blue": ("#2a4ea0", "blue"), "cobalt": ("#1e4fb8", "blue"), "mid_wash_denim": ("#5b7aa3", "blue"),
+    "chambray_blue": ("#8ca5c7", "light_blue"), "oxford_blue": ("#a9c4e0", "light_blue"),
+    "sky_blue": ("#bcd4ea", "light_blue"), "light_wash_denim": ("#9bb2cf", "light_blue"),
+    "shirting_pink": ("#f1c8cf", "pink"), "dusty_rose": ("#c99a9a", "pink"), "lavender": ("#c8bfe0", "purple"),
+    "plum": ("#4b2a45", "purple"), "optic_white": ("#f7f7f5", "white"), "off_white": ("#f1eee6", "cream"),
+    "ecru": ("#e8e0cc", "cream"), "cream": ("#efe6d2", "cream"), "oatmeal": ("#d9ccb4", "cream"),
+    "bone": ("#e3dccb", "cream"),
+}
+# the owner's colour families (app colour words), which the outfit engine and What's missing match colours by
+COLOR_FAMILIES: dict[str, tuple[str, ...]] = {
+    "neutral": ("black", "white", "grey", "navy", "tan", "cream", "brown", "olive"),
+    "earth": ("olive", "orange", "brown", "yellow", "green", "burgundy", "cream"),
+    "cool": ("blue", "light_blue", "grey", "purple", "green"),
+    "warm": ("red", "orange", "yellow", "pink", "burgundy"),
+    "bright": ("blue", "red", "orange", "yellow", "pink", "purple"),
+}
+# how a cloth changes the look of its colour
+FABRIC_EFFECTS = ("denim", "black_cotton", "linen", "brushed", "corduroy_velvet", "suede", "worsted_wool",
+                  "heathered_marled", "garment_pigment_dyed", "mercerised_silk_satin", "synthetic_performance", "leather",
+                  "sun_fade")
+# the colour a denim wash is drawn in when no colour was measured: a shade's name, or a hex of its own
+DENIM_WASH_SHADE = {
+    "raw": "raw_indigo", "rinse": "#283858", "dark": "#2f4468", "mid": "mid_wash_denim", "light": "light_wash_denim",
+    "bleached": "sky_blue", "stone": "#7189ad", "acid": "#8b9db8", "black": "black", "washed_black": "faded_black",
+    "grey": "mid_grey", "ecru": "ecru", "white": "optic_white", "overdyed": None,
+}
+
+
+def shade_hex(name) -> str | None:
+    """A shade's colour: a shade of the owner's by name, or a hex given as it is."""
+    if isinstance(name, str) and name.startswith("#"):
+        return name
+    return SHADES[name][0] if name in SHADES else None
+
+
+def nearest_shade(hex_: str, color: str | None = None) -> str | None:
+    """The owner's shade closest to a colour, among the shades of the colour word `color` when one is given."""
+    try:
+        r, g, b = (int(hex_.lstrip("#")[i:i + 2], 16) for i in (0, 2, 4))
+    except (ValueError, AttributeError):
+        return None
+    best, far = None, float("inf")
+    for name, (h, app) in SHADES.items():
+        if color and app != color:
+            continue
+        r2, g2, b2 = (int(h[i:i + 2], 16) for i in (1, 3, 5))
+        d = (r - r2) ** 2 + (g - g2) ** 2 + (b - b2) ** 2
+        if d < far:
+            best, far = name, d
+    return best
+
+
+def families(color: str | None) -> tuple[str, ...]:
+    """The owner's colour families a colour word belongs to."""
+    return tuple(f for f, colors in COLOR_FAMILIES.items() if color in colors)
 
 
 def _c(*rows):
@@ -712,10 +1083,241 @@ COVERAGE["sandal"] = {
     "strap": (D, "forefoot, instep, ankle and heel straps"),
 }
 
+COVERAGE["toe_shape"] = {v: (status, note) for v, (_, status, note) in FOOTWEAR_TOE_SHAPE.items()}
+COVERAGE["sole"] = {v: (status, note) for v, (_, status, note) in FOOTWEAR_SOLE.items()}
+COVERAGE["heel"] = {v: (status, note) for v, (_, status, note) in FOOTWEAR_HEEL.items()}
+COVERAGE["height"] = {
+    "no_show": (A_, "drawn as a low shoe; the sock is not drawn"), "low": (D, "a low shoe"),
+    "mid": (D, "a sneaker's collar over the ankle bone"), "high": (D, "a high top"),
+    "ankle_boot": (D, "a short boot shaft"), "boot_6in": (D, "the six-inch boot shaft"),
+    "boot_8in_plus": (D, "a taller shaft"), "knee": (A_, "the tallest shaft the boot drawing has, below the knee"),
+}
+COVERAGE["eyelets_typical"] = {k: (D, "the eyelets counted on one side; the usual number when not told")
+                               for k in ("dress", "sneaker", "ankle_boot", "work_boot")}
+COVERAGE["laces"] = {v: (N_, "the laces are drawn in one weight whatever their kind")
+                     for v in ("flat_waxed", "round_waxed", "flat_cotton", "round_rope")}
+COVERAGE["laces"]["rawhide"] = (A_, "drawn as a lace round the collar on a boat shoe; elsewhere as any lace")
+COVERAGE["construction"] = {
+    "goodyear_welt": (A_, "the welt stitch round the sole"), "storm_welt": (A_, "the welt stitch round the sole"),
+    "blake": (N_, "inside the shoe"), "stitchdown": (N_, "too small to draw"), "cemented": (N_, "glued: nothing to see"),
+    "vulcanized": (A_, "the foxing stripe, when the kind of shoe has one"), "moccasin": (A_, "the moc seam, when the toe shape says so"),
+}
+COVERAGE["upper_material"] = {v: (N_, "the colour carries it; the drawing does not show the leather's finish") for v in (
+    "smooth_calf", "pebble_grain", "suede", "roughout", "nubuck", "shell_cordovan", "patent", "oiled_pull_up", "canvas",
+    "knit_mesh", "synthetic_leather", "waxed_canvas", "rubber", "velvet", "felt_wool", "woven_leather")}
+COVERAGE["leather_colorways"] = {v: (A_, "drawn in the item's colour") for v in (
+    "black", "dark_brown", "mid_brown", "tan", "cognac", "oxblood", "walnut", "snuff_suede", "sand_suede", "navy_suede",
+    "grey_suede")}
+COVERAGE["sneaker_colorways"] = {v: (A_, "drawn in the item's colour") for v in (
+    "white", "off_white", "black", "grey", "navy", "multi")}
+COVERAGE["sneaker_colorways"]["cream_gum_sole"] = (A_, "the item's colour, with a gum sole when the sole colour says so")
+for _key in BOTTOM_DRAWING:
+    COVERAGE["trouser_pockets" if _key == "pockets" else _key] = {
+        v: (status, note) for v, (_, status, note) in BOTTOM_DRAWING[_key].items()}
+COVERAGE["denim_washes"] = {w: (D, "the jeans drawn in the wash's colour when no colour was measured")
+                            for w in DENIM_WASH_SHADE if w != "overdyed"}
+COVERAGE["denim_washes"]["overdyed"] = (N_, "an overdye has no one colour: the measured colour is used")
+COVERAGE["shorts_inseam_in"] = {k: (D, "the shorts drawn to the inseam told, in inches") for k in SHORTS_INSEAM_IN}
+COVERAGE["shades"] = {name: (D, "the item drawn in the shade's colour") for name in SHADES}
+COVERAGE["families"] = {f: (N_, "used to match colours in outfits, not drawn") for f in COLOR_FAMILIES}
+COVERAGE["fabric_effects"] = {e: (N_, "the colour as measured is drawn; the cloth's surface comes from the fabric")
+                              for e in FABRIC_EFFECTS}
+COVERAGE["fabric_effects"]["denim"] = (A_, "the fades the tagger names are drawn on jeans")
+
 
 def coverage_counts() -> dict[str, tuple[int, int, int]]:
     """(drawn, approximate, not drawn) per axis."""
     return {ax: tuple(sum(1 for s, _ in vals.values() if s == st) for st in (D, A_, N_)) for ax, vals in COVERAGE.items()}
+
+
+# Trousers and shorts whose kind changes the drawing, as `pants` template parameters laid over the ones the
+# details give (the details still decide the rest: a drawstring, pleats, a crease).
+BOTTOM_DRAWINGS: dict[str, dict] = {
+    "sweatpants": dict(waist="drawstring", pockets="side", hem="rib", leg="tapered"),
+    "joggers": dict(waist="drawstring", pockets="side", hem="rib", leg="tapered"),
+    "open_hem_sweatpants": dict(waist="drawstring", pockets="side", hem="plain", leg="straight"),
+    "track_pants": dict(waist="elastic", pockets="side", hem="plain", leg="tapered", stripe="side"),
+    "tech_pants": dict(waist="elastic", pockets="slant", hem="plain", leg="tapered"),
+    "compression_tights": dict(waist="elastic", pockets="none", hem="plain", leg="skinny"),
+    "lounge_pants": dict(waist="drawstring", pockets="none", hem="plain", leg="straight"),
+    "running_shorts": dict(waist="drawstring", pockets="none", length="brief", hem="split"),
+    "training_shorts": dict(waist="drawstring", pockets="side", hem="plain"),
+    "basketball_shorts": dict(waist="drawstring", pockets="side", hem="plain", stripe="side"),
+    "two_in_one_shorts": dict(waist="elastic", pockets="none", length="brief", hem="split"),
+    "sleep_shorts": dict(waist="elastic", pockets="none", hem="plain"),
+}
+_KIND_NOTES = {
+    "fleece_pullover": "stand collar and a short snap placket; with a trim colour its edges are bound in it, and a "
+                       "second colour is cut into the yoke, sleeves and pocket",
+    "performance_tee": "a slim raglan tee in a fine mesh texture",
+    "athletic_half_zip": "a slim raglan top with a short zip",
+    "track_jacket": "full zip, stand collar, rib cuffs and hem; with side stripes, two stripes down each sleeve in the trim colour",
+    **{k: (("a tight leg" if v.get("leg") == "skinny" else "a short inseam and a slit hem" if v.get("hem") == "split"
+            else "an elastic or drawstring waist") + (" and a stripe down each side in the trim colour" if v.get("stripe") else "")
+           + (", ribbed ankle cuffs" if v.get("hem") == "rib" else ""))
+       for k, v in BOTTOM_DRAWINGS.items()},
+}
+# A kind is drawn when its drawing has what sets it apart; otherwise it is drawn from its details on the template
+# of its app category (a soccer jersey as a tee with its collar and stripes as seen).
+COVERAGE["garment"] = {g: (D, _KIND_NOTES[g]) if g in _KIND_NOTES else (D, "") if g in GARMENT_DRAWINGS else
+                       (A_, f"drawn from its details as a {APP_CATEGORY[g] or 'top or bottom'}") for g in GARMENTS}
+
+
+# ---- accessories
+
+# The taxonomy's accessory garments (its `garments` with category "accessory") and the app category each is
+# filed under, and the kinds of each (its `accessories` section), in the JSON's order; a test keeps both equal
+# to it. The template an accessory is drawn with is named after its garment id.
+ACCESSORY_GARMENTS: dict[str, str] = {
+    "cap": "hat", "beanie": "hat", "brimmed_hat": "hat", "belt": "belt", "tie": "other", "pocket_square": "other",
+    "scarf": "scarf", "gloves": "other", "bag": "bag", "eyewear": "other", "watch": "other", "socks": "other",
+}
+ACCESSORIES: dict[str, tuple[str, ...]] = {
+    "hats": ("baseball_cap_structured", "dad_cap", "five_panel", "trucker_cap", "beanie", "fisherman_beanie", "flat_cap",
+             "newsboy", "bucket_hat", "fedora", "trilby", "panama", "boater", "wide_brim", "cowboy_hat", "beret", "trapper"),
+    "belts": ("dress_belt", "casual_leather", "braided_leather", "canvas_web", "woven_elastic", "western", "reversible"),
+    "buckle_finish": ("brass", "nickel", "gunmetal", "matte_black"),
+    "ties": ("silk_woven", "silk_printed", "knit", "wool", "grenadine", "bow_tie"),
+    "tie_patterns": ("solid", "repp_stripe", "foulard", "paisley", "dots", "club_motif"),
+    "pocket_square_folds": ("flat", "one_point", "puff", "crown"),
+    "scarves": ("long_knit", "woven_wool", "cashmere", "silk", "bandana", "neck_gaiter"),
+    "gloves": ("leather_dress", "knit", "mittens", "fingerless", "work", "touchscreen"),
+    "bags": ("tote", "daypack", "rucksack", "roll_top", "messenger", "briefcase", "duffel", "crossbody_sling", "belt_bag",
+             "dopp_kit"),
+    "eyewear_frames": ("wayfarer", "aviator", "round", "browline", "rectangular", "sport_wrap"),
+    "eyewear_lenses": ("grey", "green", "brown", "mirrored", "gradient", "clear"),
+    "watches": ("dress", "dive", "field", "chronograph", "digital_sport"),
+    "watch_straps": ("leather", "steel_bracelet", "nato", "rubber", "canvas"),
+    "socks": ("dress_otc", "dress_mid_calf", "casual_crew", "athletic_crew", "no_show", "boot_ragg"),
+    "jewelry": ("signet_ring", "band", "chain", "beaded_bracelet", "cuff_bracelet", "cufflinks", "tie_bar", "lapel_pin"),
+    "other": ("suspenders_button", "suspenders_clip", "umbrella_stick", "umbrella_compact"),
+}
+# which group of the `accessories` section names the kinds of each accessory garment
+ACCESSORY_GROUP = {"cap": "hats", "beanie": "hats", "brimmed_hat": "hats", "belt": "belts", "tie": "ties",
+                   "pocket_square": "pocket_square_folds", "scarf": "scarves", "gloves": "gloves", "bag": "bags",
+                   "eyewear": "eyewear_frames", "watch": "watches", "socks": "socks"}
+# every kind the tagger may name (a few words are shared by two groups: "knit" ties and gloves)
+ACCESSORY_KINDS: tuple[str, ...] = tuple(dict.fromkeys(k for g in dict.fromkeys(ACCESSORY_GROUP.values()) for k in ACCESSORIES[g]))
+# the accessories with a shape of their own; the others are drawn as a plain tag (the "accessory" template)
+ACCESSORY_TEMPLATES = ("bag", "belt", "cap", "beanie", "brimmed_hat", "scarf")
+
+# kind -> (template, its style). The hats are one group in the taxonomy, so a hat's kind decides its template.
+_KIND_DRAWING = {
+    "baseball_cap_structured": ("cap", "structured"), "dad_cap": ("cap", "dad"), "five_panel": ("cap", "five_panel"),
+    "trucker_cap": ("cap", "trucker"), "beanie": ("beanie", "cuffed"), "fisherman_beanie": ("beanie", "fisherman"),
+    "beret": ("beanie", "beret"), "trapper": ("beanie", "trapper"), "flat_cap": ("brimmed_hat", "flat_cap"),
+    "newsboy": ("brimmed_hat", "newsboy"), "bucket_hat": ("brimmed_hat", "bucket"), "fedora": ("brimmed_hat", "fedora"),
+    "trilby": ("brimmed_hat", "trilby"), "panama": ("brimmed_hat", "panama"), "boater": ("brimmed_hat", "boater"),
+    "wide_brim": ("brimmed_hat", "wide_brim"), "cowboy_hat": ("brimmed_hat", "cowboy"),
+    "dress_belt": ("belt", "dress"), "casual_leather": ("belt", "casual"), "braided_leather": ("belt", "braided"),
+    "canvas_web": ("belt", "web"), "woven_elastic": ("belt", "elastic"), "western": ("belt", "western"),
+    "reversible": ("belt", "dress"),
+    "long_knit": ("scarf", "knit"), "woven_wool": ("scarf", "woven"), "cashmere": ("scarf", "woven"),
+    "silk": ("scarf", "silk"), "bandana": ("scarf", "bandana"), "neck_gaiter": ("scarf", "gaiter"),
+    "tote": ("bag", "tote"), "daypack": ("bag", "backpack"), "rucksack": ("bag", "rucksack"),
+    "roll_top": ("bag", "roll_top"), "messenger": ("bag", "messenger"), "briefcase": ("bag", "briefcase"),
+    "duffel": ("bag", "duffel"), "crossbody_sling": ("bag", "sling"), "belt_bag": ("bag", "belt_bag"),
+    "dopp_kit": ("bag", "pouch"),
+}
+# the plainest drawing of each accessory category, and of each garment id, when no kind is known
+_PLAIN_STYLE = {"cap": "structured", "beanie": "cuffed", "brimmed_hat": "fedora", "belt": "casual", "scarf": "woven",
+                "bag": "tote"}
+_UNSAID = {"bag": "which kind of bag it is was not said, so it is drawn as a tote",
+           "hat": "which kind of hat it is was not said, so it is drawn as a cap",
+           "knit_hat": "which kind of hat it is was not said; it looks knitted, so it is drawn as a beanie",
+           "belt": "which kind of belt it is was not said, so it is drawn as a plain leather belt",
+           "scarf": "which kind of scarf it is was not said, so it is drawn as a woven scarf"}
+_NOUN = {"tie": "ties have", "pocket_square": "pocket squares have", "gloves": "gloves have", "eyewear": "glasses have",
+         "watch": "watches have", "socks": "socks have"}
+
+
+def accessory_drawing(category: str, accessory: str | None = None, kind: str | None = None,
+                      cloth: dict | None = None) -> tuple[str, dict, list[str]] | None:
+    """Template, parameters and notes for an accessory, from its app category, its taxonomy garment id and its
+    kind (taxonomy words; "na" or None when not known). None when it is not an accessory (an "other" item that
+    is none of the taxonomy's accessories). An id or kind filed under another category is not used."""
+    cloth = cloth or {}
+    accessory = accessory if ACCESSORY_GARMENTS.get(accessory or "") == category else None
+    if category == "other":
+        if accessory is None:
+            return None
+        return "accessory", {"kind": accessory}, [f"{_NOUN[accessory]} no shape of their own yet, so a plain tag "
+                                                   "stands in for the drawing"]
+    if category not in ("bag", "belt", "hat", "scarf"):
+        return None
+    group = ACCESSORY_GROUP[accessory or ("cap" if category == "hat" else category)]
+    drawn = _KIND_DRAWING.get(kind) if kind in ACCESSORIES[group] else None
+    if drawn is not None and (category == "hat" or drawn[0] == (accessory or category)):
+        template, style = drawn
+        notes = []
+        if kind == "reversible":
+            notes.append("a reversible belt is drawn as a dress belt: its other side is not shown")
+        params = {"style": style}
+        if kind == "cashmere":
+            params["soft"] = True
+        return template, params, notes
+    if category == "hat":
+        if accessory is not None:
+            return accessory, {"style": _PLAIN_STYLE[accessory]}, []
+        knitted = cloth.get("fabric") in AXES["knit_structure"] and cloth.get("fabric") not in ("jersey", "mesh")
+        return ("beanie", {"style": "cuffed"}, [_UNSAID["knit_hat"]]) if knitted else \
+            ("cap", {"style": "structured"}, [_UNSAID["hat"]])
+    if category == "scarf" and (cloth.get("fabric") in AXES["knit_structure"] or cloth.get("fiber") == "silk"):
+        style = "knit" if cloth.get("fabric") in AXES["knit_structure"] else "silk"
+        return "scarf", {"style": style}, []
+    return category, {"style": _PLAIN_STYLE[category]}, [_UNSAID[category]]
+
+
+_ACCESSORY_NOTES = {
+    "baseball_cap_structured": (D, "a tall six-panel crown with a stiff front and a curved peak"),
+    "dad_cap": (D, "a lower, softer crown"),
+    "five_panel": (D, "a flat front panel and a short peak"),
+    "trucker_cap": (D, "a tall front panel and mesh sides"),
+    "beanie": (D, "a knitted crown with a turned-up cuff"),
+    "fisherman_beanie": (D, "short, sitting high, with a deep cuff"),
+    "beret": (D, "a soft flat crown leaning to one side, drawn with the beanie template"),
+    "trapper": (D, "a padded crown with ear flaps, drawn with the beanie template"),
+    "flat_cap": (D, "a low rounded crown sloping onto a short peak"),
+    "newsboy": (D, "a fuller crown in panels, with a button on top and a short peak"),
+    "bucket_hat": (D, "a round crown and a brim sloping down all round"),
+    "fedora": (D, "a pinched crown with a dent, a ribbon band and a medium brim"),
+    "trilby": (D, "a shorter pinched crown and a narrow brim"),
+    "panama": (D, "a fedora's shape in woven straw"),
+    "boater": (D, "a flat-topped crown, a stiff flat brim and a band"),
+    "wide_brim": (D, "a fedora's crown on a wide brim"),
+    "cowboy_hat": (D, "a tall dented crown and a brim curled up at the sides"),
+    "dress_belt": (D, "a narrow strap with a small buckle"),
+    "casual_leather": (D, "a wider strap with a larger buckle"),
+    "braided_leather": (D, "a braided strap with no holes"),
+    "canvas_web": (D, "a woven web strap with a slide buckle and a metal tip"),
+    "woven_elastic": (D, "a stretch strap woven in a zigzag, with no holes"),
+    "western": (D, "a wide tooled strap with a large buckle"),
+    "reversible": (A_, "drawn as a dress belt: its other side is not shown"),
+    "long_knit": (D, "ribbed, with plain ends"),
+    "woven_wool": (D, "fringed ends"),
+    "cashmere": (A_, "drawn as a woven wool scarf with a soft edge (halo)"),
+    "silk": (D, "a narrow scarf with pointed ends"),
+    "bandana": (D, "a square folded into a triangle and knotted"),
+    "neck_gaiter": (D, "a short tube"),
+    "tote": (D, "an open bag with two handles"),
+    "daypack": (D, "a rounded backpack with a grab handle and a zipped front pocket"),
+    "rucksack": (D, "a backpack with a flap held by two straps"),
+    "roll_top": (D, "a backpack whose top is rolled down and clipped"),
+    "messenger": (D, "a wide flap and a strap over the shoulder"),
+    "briefcase": (D, "a stiff case with a top handle and a clasp"),
+    "duffel": (D, "a barrel-shaped bag with two handles"),
+    "crossbody_sling": (D, "a small rounded bag on a long strap"),
+    "belt_bag": (D, "a small curved pouch with a strap out to each side"),
+    "dopp_kit": (D, "a small zipped case"),
+}
+# accessory garment ids, and the kinds of each, as the drawing shows them
+COVERAGE["accessory"] = {
+    g: ((D, f"its own template, `{g}`") if g in ACCESSORY_TEMPLATES else
+        (N_, "no shape of its own yet: a plain tag stands in for it (the `accessory` template)"))
+    for g in ACCESSORY_GARMENTS}
+for _group in dict.fromkeys(ACCESSORY_GROUP.values()):
+    COVERAGE[_group] = {k: _ACCESSORY_NOTES.get(k, (N_, "no shape of its own yet: a plain tag stands in for it"))
+                        for k in ACCESSORIES[_group]}
 
 
 # The owner's file: docs/ in a source checkout, next to this module in the packaged program (packaging/closet.spec).

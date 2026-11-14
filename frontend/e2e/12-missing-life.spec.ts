@@ -113,41 +113,45 @@ async function open(page: Page, life: Life | null = null, demo = false) {
   return state;
 }
 
-async function expandBasis(page: Page) {
-  const basis = page.getByRole('button', { name: 'See the answers behind these suggestions' });
-  if (await basis.getAttribute('aria-expanded') !== 'true') await basis.click();
-  return basis;
+/** Taps the "Based on" row, which opens How you live with what the suggestions are based on under the questions. */
+async function openLife(page: Page) {
+  const form = page.getByRole('form', { name: 'How you live' });
+  if (!await form.isVisible()) await page.getByTestId('life-basis').click();
+  await expect(form).toBeVisible();
+  return form;
 }
 
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
 });
 
-test('review 10: Based on expands details and leaves filters and first suggestion in the phone viewport', async ({ page }) => {
+test('review 10: the Based on row can be read in full, opens How you live, and leaves filters and first suggestion in the phone viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await open(page, example);
-  const basis = page.getByRole('button', { name: 'See the answers behind these suggestions' });
-  await expect(basis).toHaveAttribute('aria-expanded', 'false');
+  const basis = page.getByTestId('life-basis');
+  await expect(basis).toContainText('work 4 days a week, smart casual');
   await expect(page.getByText('Your words:', { exact: false })).not.toBeVisible();
-  await expect(page.getByRole('button', { name: 'Edit answers' })).not.toBeVisible();
-  expect(await basis.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe('nowrap');
-  expect(await basis.evaluate((el) => getComputedStyle(el).textOverflow)).toBe('ellipsis');
+  // at most two lines on the row; the whole of it is in How you live
+  expect(await basis.locator('.life-basis-text').evaluate((el) => getComputedStyle(el).webkitLineClamp)).toBe('2');
   const first = page.getByTestId('gap').first();
   for (const target of [basis, page.getByRole('group', { name: 'Suggestions for' }),
-    first.getByRole('heading', { level: 3 }), first.getByRole('list', { name: 'Why' })]) {
+    first.getByRole('heading', { level: 3 }), first.getByTestId('gap-summary')]) {
     const box = await target.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.y).toBeGreaterThanOrEqual(0);
     expect(box!.y + box!.height).toBeLessThanOrEqual(780);
   }
   await basis.click();
-  await expect(basis).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByText('Your words:', { exact: false })).toContainText(example.style_words);
-  await expect(page.getByRole('link', { name: 'Where you are in Settings' })).toBeVisible();
-  await expect(page.getByText(/Closet can't identify sleepwear/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Edit answers' })).toBeVisible();
-  await basis.click();
-  await expect(page.getByRole('button', { name: 'Edit answers' })).not.toBeVisible();
+  const dialog = page.getByRole('dialog', { name: 'How you live' });
+  await expect(dialog).toBeVisible();
+  const about = dialog.getByTestId('life-about');
+  await expect(about).toContainText('Based on: work 4 days a week, smart casual');
+  await expect(about).toContainText('vacation 3 weeks a year, warm');
+  await expect(about.getByText('Your words:', { exact: false })).toContainText(example.style_words);
+  await expect(about.getByRole('link', { name: 'Where you are in Settings' })).toBeVisible();
+  await expect(about.getByText(/Closet can't identify sleepwear/)).toBeVisible();
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toHaveCount(0);
 });
 
 test('real demo: all six situation filters and the first suggestion fit above phone navigation', async ({ page }) => {
@@ -166,13 +170,13 @@ test('real demo: all six situation filters and the first suggestion fit above ph
     }));
   expect(new Set(chips.map((chip) => chip.top)).size).toBeLessThanOrEqual(2);
   expect(chips.every((chip) => chip.width >= 44 && chip.height >= 44)).toBe(true);
-  const basis = page.getByRole('button', { name: 'See the answers behind these suggestions' });
-  await expect(basis).toHaveAttribute('aria-expanded', 'false');
+  const basis = page.getByTestId('life-basis');
+  await expect(basis).toBeVisible();
   const nav = await page.getByRole('navigation', { name: 'Main' }).boundingBox();
   expect(nav).not.toBeNull();
   const first = page.getByTestId('gap').first();
   for (const target of [basis, filters, first.getByRole('heading', { level: 3 }),
-    first.getByRole('list', { name: 'Why' }).getByRole('listitem').first()]) {
+    first.getByTestId('gap-summary')]) {
     await expect(target).toBeVisible();
     const box = await target.boundingBox();
     expect(box).not.toBeNull();
@@ -198,11 +202,8 @@ test('review 5: vacation needs positive weeks before saving and old zero-week an
   const life = structuredClone(example);
   life.vacation_weeks = 0;
   const state = await open(page, life);
-  const basis = page.getByRole('button', { name: 'See the answers behind these suggestions' });
-  await expect(basis).toContainText('vacation needs weeks away');
-  await basis.click();
-  await page.getByRole('button', { name: 'Edit answers' }).click();
-  const form = page.getByRole('form', { name: 'How you live' });
+  await expect(page.getByTestId('life-basis')).toContainText('vacation needs weeks away');
+  const form = await openLife(page);
   await form.getByRole('button', { name: 'Save my answers' }).click();
   await expect(form).toBeVisible();
   expect(state.writes).toEqual([]);
@@ -321,10 +322,13 @@ for (const [layout, viewport] of [
     await expect(questions).toHaveCount(0);
     expect(state.life).toEqual(example);
     expect(state.writes).toEqual([{ life: example, life_prompt_dismissed: true }]);
-    const basis = await expandBasis(page);
-    await expect(page.getByText('Your words:', { exact: false })).toContainText(example.style_words);
-    await expect(page.getByText('Kept as a note, not used to rank suggestions.')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Where you are in Settings' })).toBeVisible();
+    const basis = page.getByTestId('life-basis');
+    await openLife(page);
+    await expect(questions.getByText('Your words:', { exact: false })).toContainText(example.style_words);
+    await expect(questions.getByText('Kept as a note, not used to rank suggestions.')).toBeVisible();
+    await expect(questions.getByRole('link', { name: 'Where you are in Settings' })).toBeVisible();
+    await questions.getByRole('button', { name: 'Cancel' }).click();
+    await expect(questions).toHaveCount(0);
     await expect(basis).toContainText('work 4 days a week, smart casual');
     await expect(basis).toContainText('everyday 4 days a week');
     await expect(basis).toContainText('vacation 3 weeks a year, warm');
@@ -334,7 +338,6 @@ for (const [layout, viewport] of [
     await expect(filters.getByRole('button')).toHaveText(['All', 'Work', 'Everyday', 'Going out', 'Vacation']);
     await expect(page.getByTestId('gap').first().getByRole('list', { name: 'Useful for' })).toHaveText('Work');
     await expect(page.getByText('Your answers are saved', { exact: true })).toHaveCount(0, { timeout: 10_000 });
-    await basis.click();
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: resolve(screenshots, `missing-life-list-${layout}.png`) });
     await filters.getByRole('button', { name: 'Vacation' }).click();
@@ -344,8 +347,7 @@ for (const [layout, viewport] of [
     await expect(page.getByText('Nothing to look for just for everyday right now.')).toBeVisible();
     await filters.getByRole('button', { name: 'All', exact: true }).click();
     await expect(page.getByTestId('gap')).toHaveCount(2);
-    await expandBasis(page);
-    await page.getByRole('link', { name: 'Where you are in Settings' }).click();
+    await (await openLife(page)).getByRole('link', { name: 'Where you are in Settings' }).click();
     await page.getByRole('button', { name: 'Edit my answers' }).click();
     await expect(questions.getByLabel('Work frequency')).toHaveValue('4');
     await expect(questions.getByLabel('Vacation weeks per year')).toHaveValue('3');
@@ -354,11 +356,10 @@ for (const [layout, viewport] of [
     await questions.getByRole('button', { name: 'Save my answers' }).click();
     await page.goto('/missing');
     await expect(filters.getByRole('button', { name: 'Work', exact: true })).toHaveCount(0);
-    await expandBasis(page);
-    await expect(page.getByText(/Closet can't identify sleepwear/)).toBeVisible();
-    await expect(page.getByText(/not specific to a sport/)).toBeVisible();
+    await openLife(page);
+    await expect(questions.getByText(/Closet can't identify sleepwear/)).toBeVisible();
+    await expect(questions.getByText(/not specific to a sport/)).toBeVisible();
     if (layout === 'phone') {
-      await page.getByRole('button', { name: 'Edit answers' }).click();
       await expect(page.getByRole('dialog')).toBeVisible();
       await page.keyboard.press('Escape');
       await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -375,8 +376,7 @@ test('Not now is persisted; questions remain available, including after reload',
   expect(state.life).toBeNull();
   await page.reload();
   await expect(page.getByRole('button', { name: 'Not now' })).toHaveCount(0);
-  await expandBasis(page);
-  await page.getByRole('button', { name: 'Your answers' }).click();
+  await openLife(page);
   await expect(page.getByRole('form', { name: 'How you live' })).toBeVisible();
 });
 
@@ -384,9 +384,7 @@ test('non-preset frequencies survive edits; failed saves retain answers and can 
   const life = structuredClone(example);
   life.situations.work = 3.5;
   const state = await open(page, life);
-  await expandBasis(page);
-  await page.getByRole('button', { name: 'Edit answers' }).click();
-  const form = page.getByRole('form', { name: 'How you live' });
+  const form = await openLife(page);
   await expect(form.getByLabel('Work frequency')).toHaveValue('3.5');
   await form.getByLabel('My style in a few words').fill('Quiet and comfortable');
   state.failSave = true;
@@ -421,8 +419,7 @@ test('suppressed never-wear decisions remain visible and can be undone', async (
 
 test('demo questions explain the fixed example and cannot edit either closet', async ({ page }) => {
   const state = await open(page, example, true);
-  await expandBasis(page);
-  await page.getByRole('button', { name: 'Example answers' }).click();
+  await openLife(page);
   await expect(page.getByText(/The demo uses fixed example answers/)).toBeVisible();
   await expect(page.getByLabel('Work frequency')).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Save my answers' })).toHaveCount(0);
@@ -438,8 +435,7 @@ test('saved life answers are read-only offline; old saved answers still render',
   state.offline = true;
   await page.reload();
   await expect(page.getByText(/^Saved earlier/)).toBeVisible();
-  await expandBasis(page);
-  await page.getByRole('button', { name: 'Saved answers' }).click();
+  await openLife(page);
   await expect(page.getByLabel('Work frequency')).toHaveValue('4');
   await expect(page.getByLabel('Work frequency')).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Save my answers' })).toBeDisabled();
@@ -484,8 +480,7 @@ test('real settings and gaps endpoints keep the same answers across screens and 
     const gaps = await (await page.request.get('/api/gaps')).json();
     expect(gaps.context.life).toEqual(settings.life);
     await page.reload();
-    await expandBasis(page);
-    await page.getByRole('button', { name: 'Edit answers' }).click();
+    await openLife(page);
     await expect(form.getByLabel('Vacation weeks per year')).toHaveValue('1.5');
     await page.goto('/settings');
     await page.getByRole('button', { name: 'Edit my answers' }).click();

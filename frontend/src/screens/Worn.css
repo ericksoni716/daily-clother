@@ -1,18 +1,36 @@
 /* The Worn list and the rating control (also used by Today's question). Uses the tokens and shared classes in styles.css. */
 
-.worn { max-width: 48rem; min-width: 0; }
+.worn { max-width: var(--content-w); min-width: 0; }
 .worn-intro { margin: -6px 0 16px; }
 .worn-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
 .worn-card { padding: 14px; }
-.worn-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.worn-card-head { display: flex; align-items: flex-start; gap: 10px; }
+.worn-card-when { flex: 1; min-width: 0; }
 .worn-card-head h2 { margin: 0; font-size: var(--text-md); }
-.worn-rating { font-size: var(--text-sm); color: var(--ink-3); }
-.worn-rating.is-loved { color: var(--accent); font-weight: var(--weight-label); }
-.worn-rating.is-not_again { color: var(--danger); font-weight: var(--weight-label); }
 .worn-day { margin: 2px 0 0; font-size: var(--text-sm); }
 .worn-names { margin: 6px 0 10px; font-size: var(--text-sm); }
-.worn-actions { margin-top: 10px; }
-.worn-confirm { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--text-sm); }
+p.worn-rating { margin: 0; font-size: var(--text-sm); color: var(--ink-3); }
+.chip.worn-rating { gap: 6px; max-width: 100%; text-align: left; }
+.chip.worn-rating > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip.worn-rating.is-loved { color: var(--accent); border-color: var(--accent); }
+.chip.worn-rating.is-not_again { color: var(--danger); border-color: var(--danger); }
+.worn-rating-chevron { flex: none; width: 16px; height: 16px; transform: rotate(90deg); transition: transform 0.15s; }
+.chip.worn-rating[aria-expanded='true'] .worn-rating-chevron { transform: rotate(-90deg); }
+.worn-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; font-size: var(--text-sm); }
+
+/* the ⋯ menu: wear again, remove */
+.worn-menu { position: relative; flex: none; margin: -8px -8px 0 0; }
+.worn-menu-list {
+  position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; min-width: 12rem; padding: 6px; display: grid;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-hover);
+}
+.worn-menu-item {
+  min-height: var(--tap); padding: 0 12px; border: none; border-radius: var(--radius-sm); background: none; color: var(--ink);
+  font: inherit; text-align: left; cursor: pointer;
+}
+.worn-menu-item:hover:not(:disabled), .worn-menu-item:focus-visible { background: var(--surface-2); }
+.worn-menu-item:disabled { cursor: not-allowed; opacity: 0.55; }
+.worn-menu-item.is-danger { color: var(--danger); }
 .worn-more { margin-top: 16px; }
 
 /* small pictures of an outfit's pieces */
@@ -46,14 +64,15 @@
 .rate-note .field { flex: 1 1 14rem; margin: 0; }
 .rate-offline { margin: 8px 0 0; }
 
-/* Today's question about the last outfit worn */
-.worn-question {
-  position: relative; margin: 18px 0 0; padding: 14px;
-}
-.worn-question h2 { margin: 0; font-size: var(--text-md); padding-right: var(--tap); }
-.worn-question-close { position: absolute; top: 6px; right: 6px; }
-.worn-question .row { margin-top: 10px; }
-.today-worn-link { margin-left: auto; }
+/* Today's question about the last outfit worn: a slim card above the outfit */
+.worn-question { margin: 0 0 var(--space-3); padding: 10px 12px; }
+.worn-question-head { display: flex; align-items: center; gap: var(--space-2); }
+.worn-question-head h2 { margin: 0; font-size: var(--text-md); flex: 1; min-width: 0; }
+.worn-question-head .worn-pics { margin: 0; flex-wrap: nowrap; overflow: hidden; }
+.worn-question-head .worn-pic { width: 30px; height: 35px; }
+.worn-question-close { flex: none; }
+.worn-question .rate { margin-top: 6px; }
+.worn-question .row { margin-top: 6px; }
 
 .worn-pic.is-archived,
 .worn-pic.is-gone {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError, connection } from '../api';
 import { ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
-import { EmptyState, PageHeader } from '../components/ui';
+import { Card, EmptyState, PageHeader } from '../components/ui';
 import { loadGridView, type GridView } from '../drawing';
 import { label } from '../labels';
 import { SaveLine, useWhenLeaving } from '../leave';
@@ -70,6 +70,8 @@ function forgetTrip(profile: string, id: string) {
   delete details[id];
   saveTrips(profile, { list: saved.list?.filter((t) => t.id !== id) ?? null, details });
 }
+
+const TRIPS_BACK = { to: '/trips', label: 'Trips' };
 
 function BackToTrips() {
   return (
@@ -141,8 +143,8 @@ function TripCards({ title, trips }: { title: string; trips: TripSummary[] }) {
         {trips.map((t) => {
           const done = t.packed === t.lines && t.lines > 0;
           return (
-            <li key={t.id}>
-              <Link to={`/trips/${encodeURIComponent(t.id)}`} className={`card trip-card${t.past ? ' is-past' : ''}`} data-testid="trip-card">
+            <Card as="li" key={t.id} className={`trip-card-item${t.past ? ' is-past' : ''}`}>
+              <Link to={`/trips/${encodeURIComponent(t.id)}`} className="trip-card" data-testid="trip-card">
                 <span className="trip-card-icon"><SuitcaseIcon /></span>
                 <span className="trip-card-text">
                   <strong>{tripTitle(t)}</strong>
@@ -153,7 +155,7 @@ function TripCards({ title, trips }: { title: string; trips: TripSummary[] }) {
                   </span>
                 </span>
               </Link>
-            </li>
+            </Card>
           );
         })}
       </ul>
@@ -245,8 +247,7 @@ function PlanTrip() {
 
   return (
     <div className="trips trip-planning" aria-busy={asking}>
-      <BackToTrips />
-      <PageHeader title="Plan a trip" titleId="trips-title" />
+      <PageHeader title="Plan a trip" titleId="trips-title" back={TRIPS_BACK} />
       {offline && <p className="notice" role="status">You're offline. Planning a trip needs Closet on your computer to be reachable.</p>}
       <TripForm draft={draft} setDraft={(d) => { setDraft(d); setPlanned(null); }} today={today} locked={offline} asking={asking} onSubmit={submit} />
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -517,8 +518,7 @@ function SavedTrip({ id }: { id: string }) {
 
   return (
     <div className="trips trip-saved" aria-busy={busy}>
-      <BackToTrips />
-      <PageHeader className="trip-header" title={shortPlace(trip.place.name)} titleId="trips-title"
+      <PageHeader className="trip-header" title={shortPlace(trip.place.name)} titleId="trips-title" back={TRIPS_BACK}
         subtitle={<>{dateRange(trip.first_day, trip.last_day)} · {occasionLabel(trip.occasion)}{trip.can_wash ? ' · Can wash there' : ''}</>} />
 
       {locked && (
@@ -786,7 +786,7 @@ function DayCard({ day, tripOccasion, byId, view }: {
 }) {
   const o: Outfit | null = day.outfit;
   return (
-    <li className={`trip-day${day.problem || day.warning ? ' has-problem' : ''}`} data-testid="trip-day">
+    <Card as="li" className={`trip-day${day.problem || day.warning ? ' has-problem' : ''}`} data-testid="trip-day">
       <div className="trip-day-head">
         <strong>{longDate(day.date)}</strong>
         <span className="muted">{dayTemps(day.weather)}{day.weather.rain ? ' · Rain' : ''}</span>
@@ -818,6 +818,6 @@ function DayCard({ day, tripOccasion, byId, view }: {
           )}
         </>
       )}
-    </li>
+    </Card>
   );
 }

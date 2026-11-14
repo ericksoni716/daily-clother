@@ -39,15 +39,21 @@ async function checkCoat(page: Page) {
   return answer;
 }
 
-test('would this work?, described by hand in the demo closet on a computer, and put on the wishlist', async ({ page }) => {
+test('would this work?, described by hand in the demo closet on a computer, on a page of its own, and put on the wishlist', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await openMissing(page);
   await page.getByRole('link', { name: 'Would this work?' }).click();
   await expect(page).toHaveURL(/\/missing\/check$/);
   const panel = page.getByTestId('would-work');
-  // beside the list, in place of the wishlist
-  await expect(page.getByRole('complementary', { name: 'Would this work?' })).toContainText('Would this work?');
-  await expect(page.getByTestId('gap').first()).toBeVisible();
+  // a full-width page of its own: what it is on the left, the answer on the right; no suggestions, no side panel
+  await expect(page.getByRole('heading', { level: 1, name: 'Would this work?' })).toBeVisible();
+  await expect(page.getByTestId('gap')).toHaveCount(0);
+  await expect(page.getByRole('complementary')).toHaveCount(0);
+  const left = await panel.getByRole('region', { name: 'The piece' }).boundingBox();
+  const right = await panel.getByRole('region', { name: 'The answer' }).boundingBox();
+  expect(left!.x + left!.width).toBeLessThanOrEqual(right!.x);
+  expect(left!.width + right!.width).toBeGreaterThan(800);
+  await expect(panel.getByRole('region', { name: 'The answer' })).toContainText('The answer shows here');
   // the demo closet sends nothing to Claude: the photo way is off, and says why
   await expect(panel.getByRole('button', { name: 'Take a photo' })).toBeDisabled();
   await expect(panel.getByRole('button', { name: 'Choose a photo' })).toBeDisabled();
@@ -56,6 +62,9 @@ test('would this work?, described by hand in the demo closet on a computer, and 
   await expect(panel.getByRole('button', { name: 'Would it work?' })).toBeDisabled();
 
   const answer = await checkCoat(page);
+  // the description stays on the left beside the answer
+  await expect(panel.getByRole('form', { name: 'Describe it by hand' })).toBeVisible();
+  await expect(panel.getByRole('region', { name: 'The answer' }).getByTestId('would-work-answer')).toBeVisible();
   await expect(answer).toHaveAttribute('data-verdict', 'fills_gap');
   await expect(answer.getByTestId('verdict')).toHaveText('Fills a gap');
   await expect(answer).toContainText('A rain-proof outer layer');
@@ -81,9 +90,10 @@ test('would this work?, described by hand in the demo closet on a computer, and 
   // ...and it is still on the wishlist once: the button does not add it again
   await expect(panel.getByRole('button', { name: 'On your wishlist' })).toBeDisabled();
   expect((await (await page.request.get('/api/wishlist')).json()).wishes).toHaveLength(1);
-  // closing the check shows the wishlist with the new wish in it
-  await page.goto('/missing');
-  await expect(page.getByTestId('wish')).toHaveCount(1);
+  // back to What's missing: the wishlist is in the side panel, with the new wish in it
+  await panel.locator('.wouldwork-back').click();
+  await expect(page).toHaveURL(/\/missing$/);
+  await expect(page.getByRole('complementary', { name: 'Your wishlist' }).getByTestId('wish')).toHaveCount(1);
 });
 
 test('would this work?: leaving while the check is being sent and coming back picks it up', async ({ page }) => {
@@ -137,7 +147,7 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   const rain = gaps.gaps.find((g: { id: string }) => g.id === 'outer-rain');
   await page.request.post('/api/wishlist', { data: { gap_id: rain.id } });
   // back from the check, the lists are asked for again: the wish shows without reloading the page
-  await page.locator('.detail-top').getByRole('link', { name: "What's missing" }).click();
+  await page.locator('.wouldwork-back').click();
   await page.getByRole('button', { name: /^Wishlist · 1/ }).click();
   await page.getByTestId('wish').first().getByRole('button', { name: 'I found one: would it work?' }).click();
   await expect(page).toHaveURL(/\/missing\/check\/wish\//);
@@ -158,7 +168,7 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   const { wishes } = await (await page.request.get('/api/wishlist')).json();
   expect(wishes).toHaveLength(1);
   expect(wishes[0].note).toContain('keeps the rain off');
-  await page.locator('.detail-top').getByRole('link', { name: "What's missing" }).click();
+  await page.locator('.wouldwork-back').click();
   await page.getByRole('button', { name: /^Wishlist · 1/ }).click();
   await expect(page.getByTestId('wish').first().getByRole('textbox', { name: 'Note' })).toHaveValue(/keeps the rain off/);
 });
@@ -183,8 +193,7 @@ for (const [label, viewport] of [['computer', { width: 1280, height: 800 }], ['p
     await page.goto('/missing/check');
     await checkCoat(page);
     await expect.poll(() => page.locator('main img').evaluateAll((imgs) => imgs.every((i) => (i as HTMLImageElement).complete))).toBe(true);
-    if (label === 'computer') await page.getByTestId('would-work').evaluate((el) => el.closest('aside')?.scrollTo(0, 0));
-    else await page.evaluate(() => window.scrollTo(0, 0));
+    await page.evaluate(() => window.scrollTo(0, 0));
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
     const answer = page.getByTestId('would-work-answer');
     expect(await answer.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);

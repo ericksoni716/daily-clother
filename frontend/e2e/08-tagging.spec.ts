@@ -9,7 +9,7 @@ test('settings show which routes to Claude can be used, in order', async ({ page
   await useProfile(page, 'demo');
   await page.locator('nav.sidebar').getByRole('link', { name: 'Settings' }).click();
 
-  const section = page.getByRole('region', { name: 'Tagging' });
+  const section = page.getByRole('region', { name: 'Describing clothes' });
   await expect(section.getByText('tries these in this order')).toBeVisible({ timeout: 20_000 });
   const routes = section.getByRole('listitem');
   await expect(routes).toHaveCount(2);

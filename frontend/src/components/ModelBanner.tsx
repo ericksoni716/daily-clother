@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { api } from '../api';
 import { formatBytes } from '../labels';
+import { CloseIcon } from './Icons';
+import { Button, buttonClass, Notice } from './ui';
 import { Link } from '../router';
 import { useCloset } from '../store';
 import type { ModelInfo } from '../types';
@@ -27,17 +29,33 @@ export function ModelProgress({ model }: { model: ModelInfo }) {
   );
 }
 
-/** Slim banner above the grid while the background-removal model is not ready. */
+const HIDDEN_KEY = 'closet.modelNotice.hidden';
+
+function hiddenFor(): string | null {
+  try {
+    return sessionStorage.getItem(HIDDEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A notice above the closet grid while the background-removal model needs something done: download it, or try
+ * again. Hidden for this session when the owner closes it; a new problem shows it again.
+ */
 export function ModelBanner() {
   const { model, refreshModel, offline, toast } = useCloset();
   const [busy, setBusy] = useState(false);
-  if (!model || model.state === 'ready' || offline) return null;
+  const [hidden, setHidden] = useState(hiddenFor);
+  if (!model || offline || (model.state !== 'missing' && model.state !== 'failed') || hidden === model.state) return null;
+  const state = model.state;
 
   async function start() {
     setBusy(true);
     try {
       await api.downloadModel();
       await refreshModel();
+      toast('Downloading the background-removal model');
     } catch (e) {
       toast((e as Error).message, 'error');
     } finally {
@@ -45,20 +63,30 @@ export function ModelBanner() {
     }
   }
 
+  function hide() {
+    try {
+      sessionStorage.setItem(HIDDEN_KEY, state);
+    } catch {
+      /* hidden until the page is reloaded */
+    }
+    setHidden(state);
+  }
+
   return (
-    <div className={`model-banner model-${model.state}`} role="status" data-testid="model-banner">
-      <div className="model-banner-text">
-        <strong>Background removal: </strong>
-        {model.state === 'downloading' && <span>getting the model ready.</span>}
-        {model.state === 'missing' && <span>not set up yet. New photos keep their background for now.</span>}
-        {model.state === 'failed' && <span>the model download didn't work.{model.error ? ` ${model.error}` : ''}</span>}
-        {model.state === 'downloading' && <ModelProgress model={model} />}
-      </div>
-      <div className="model-banner-actions">
-        {model.state === 'failed' && <button className="btn btn-small btn-primary" disabled={busy} onClick={start}>Try again</button>}
-        {model.state === 'missing' && <button className="btn btn-small" disabled={busy} onClick={start}>Download</button>}
-        <Link to="/settings" className="btn btn-small btn-link" aria-label="Background removal settings">Settings</Link>
-      </div>
-    </div>
+    <Notice tone={state === 'failed' ? 'error' : 'info'} role="status" testId="model-banner" className="model-notice"
+      action={
+        <>
+          {state === 'failed'
+            ? <Button variant="primary" small disabled={busy} onClick={start}>Try again</Button>
+            : <Button small disabled={busy} onClick={start}>Download</Button>}
+          <Link to="/settings" className={buttonClass({ variant: 'link', small: true })} aria-label="Background removal settings">Settings</Link>
+          <Button variant="ghost" small className="notice-close" aria-label="Hide this for now" title="Hide this for now" onClick={hide}>
+            <CloseIcon />
+          </Button>
+        </>
+      }>
+      <strong>Background removal: </strong>
+      {state === 'missing' ? 'not set up yet. New photos keep their background for now.' : `the model download didn't work.${model.error ? ` ${model.error}` : ''}`}
+    </Notice>
   );
 }

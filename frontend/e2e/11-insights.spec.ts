@@ -18,14 +18,24 @@ test('insights in the demo closet: a cost per wear, and archiving a piece never 
   await expect(page).toHaveURL(/\/insights$/);
   await expect(page.locator('#insights-title')).toBeVisible();
 
+  // each card: a short label, the figure first, then one sentence that does not repeat it
   const cost = page.getByTestId('cost-per-wear');
-  await expect(cost.getByText(/\$[\d,]+\.\d\d a wear/).first()).toBeVisible();
+  await expect(cost.getByRole('heading', { level: 2 })).toHaveText('Cost per wear');
+  await expect(cost.getByTestId('insight-hero')).toHaveText(/^\$[\d,]+\.\d\d a wear$/);
+  await expect(cost.locator('.insights-sentence')).toHaveText(/^You paid \$[\d,]+ for the \d+ pieces with a price and have worn them \d+ times\.$/);
   await expect(page.getByTestId('cost-best')).toHaveText(/^Your .+ cost \$[\d,]+\.\d\d a wear over \d+ wears?\.$/);
+  // pieces not worn yet are listed once, in their own card, not again under cost per wear
+  await expect(cost.getByRole('heading', { name: 'Not worn yet' })).toHaveCount(0);
 
   const never = page.getByTestId('never-worn');
+  await expect(never.getByRole('heading', { level: 2 })).toHaveText('Not worn yet');
   const pieces = never.getByTestId('insight-piece');
   await expect(pieces.first()).toBeVisible();
   const before = await pieces.count();
+  await expect(never.getByTestId('insight-hero')).toHaveText(before === 1 ? '1 piece' : `${before} pieces`);
+  // the Archive buttons line up, whatever the length of the names above them
+  const tops = await never.getByRole('button', { name: /^Archive / }).evaluateAll((bs) => bs.map((b) => Math.round(b.getBoundingClientRect().top)));
+  expect(new Set(tops).size).toBe(1);
   const href = await pieces.first().getByRole('link').getAttribute('href');
   archived = href!.split('/').pop()!;
 
@@ -50,7 +60,7 @@ test("insights offline: one closet's saved answer is never shown as the other's"
   await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 15_000 });
   await page.goto('/insights');
   const demoSentence = await page.getByTestId('cost-per-wear').locator('.insights-sentence').innerText();
-  expect(demoSentence).toMatch(/a wear\.$/);
+  expect(demoSentence).toMatch(/^You paid \$1,527 /);
   await page.waitForLoadState('networkidle');
 
   // the demo closet's answer is shown offline, marked as saved

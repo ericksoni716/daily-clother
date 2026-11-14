@@ -25,7 +25,7 @@ test('today: switching to the outfit as worn shows it drawn, and the choice is r
 
   const asked: Record<string, unknown>[] = [];
   page.on('request', (r) => { if (r.url().endsWith('/api/outfits/figure')) asked.push(r.postDataJSON()); });
-  const show = outfit.getByRole('group', { name: 'Show the outfit' });
+  const show = page.getByRole('region', { name: "Today's outfits" }).getByRole('group', { name: 'Show the outfit' });
   await show.getByRole('button', { name: 'As worn' }).click();
   await expect(show.getByRole('button', { name: 'As worn' })).toHaveAttribute('aria-pressed', 'true');
 
@@ -49,7 +49,7 @@ test('today: switching to the outfit as worn shows it drawn, and the choice is r
   // remembered on this device
   await page.reload();
   await expect(page.getByTestId('current-outfit').getByTestId('outfit-figure').getByRole('img', { name: /^The outfit as worn: / })).toBeVisible();
-  await page.getByTestId('current-outfit').getByRole('group', { name: 'Show the outfit' }).getByRole('button', { name: 'Pieces' }).click();
+  await page.getByRole('group', { name: 'Show the outfit' }).getByRole('button', { name: 'Pieces' }).click();
   await expect(page.getByTestId('current-outfit').getByTestId('piece').first()).toBeVisible();
   await expect(page.getByTestId('current-outfit').getByTestId('outfit-figure')).toHaveCount(0);
 });

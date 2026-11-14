@@ -1,6 +1,6 @@
 /* The review queue (screens/Review.tsx). */
 
-.review { max-width: 60rem; margin: 0 auto; }
+.review { max-width: var(--content-w); }
 .review-card { display: grid; gap: 18px; }
 .review-picture { margin: 0 auto; }
 .review-skeleton { margin: 0 auto; }
@@ -41,6 +41,6 @@
   .review-keys { display: block; }
 }
 @media (min-width: 1000px) {
-  .review-card { grid-template-columns: minmax(0, 26rem) minmax(0, 1fr); align-items: start; gap: 28px; }
+  .review-card { grid-template-columns: minmax(0, 17rem) minmax(0, 1fr); align-items: start; gap: 24px; }
   .review-picture { margin: 0; position: sticky; top: 24px; }
 }

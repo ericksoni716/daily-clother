@@ -1,6 +1,6 @@
 /* The What's missing screen. Uses the tokens and shared classes in styles.css; only what is new to this screen is here. */
 
-.missing { max-width: 84rem; min-width: 0; }
+.missing { min-width: 0; }
 .missing-main { min-width: 0; max-width: 56rem; }
 .missing-header { margin-bottom: 10px; }
 /* On a phone the title and "Would this work?" share one row, so the first suggestion starts higher up:
@@ -13,17 +13,27 @@
 .missing-tabs { margin-bottom: 14px; }
 .missing-saved { align-items: center; }
 .missing-item { max-width: 40rem; margin: 0 auto; }
+.missing-check { max-width: 40rem; margin: 0 auto; min-width: 0; }
+@media (min-width: 1000px) { .missing-check { max-width: 76rem; margin: 0; } }
 .missing-panel-top { margin: -6px 0 6px -8px; }
 .missing-section-title { font-size: var(--text-lg); margin: 0 0 12px; }
 .life-basis { margin-bottom: 18px; }
-.life-basis-line { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
-.life-basis-summary { margin: 0; padding: 4px 0; min-height: 44px; width: 100%; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border: 0; background: transparent; text-align: left; font-size: var(--text-sm); color: var(--ink-3); line-height: 1.5; cursor: pointer; }
-.life-basis-summary:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
-.life-basis-line .btn { flex-shrink: 0; }
+.life-basis-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: var(--tap); margin: 0; padding: 8px 12px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink-3); text-align: left;
+  font: inherit; font-size: var(--text-sm); line-height: 1.45; cursor: pointer;
+}
+.life-basis-row:hover { border-color: var(--line-strong); color: var(--ink); }
+.life-basis-text { min-width: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.life-basis-label { color: var(--ink); font-weight: var(--weight-label); }
+.life-basis-open { flex: none; display: inline-flex; align-items: center; gap: 2px; color: var(--accent); font-weight: var(--weight-label); }
+.life-basis-open svg { width: 18px; height: 18px; }
 .life-invitation { background: var(--accent-soft); border-radius: var(--radius-md); padding: 16px; margin-top: 12px; display: grid; gap: 12px; }
 .life-invitation h2 { font-size: var(--text-md); margin: 0 0 4px; }
 .life-invitation h2 span { color: var(--ink-3); font-weight: var(--weight-body); white-space: nowrap; font-size: var(--text-sm); }
 .life-invitation p { margin: 0; font-size: var(--text-sm); }
+.life-about { margin-top: 16px; padding-top: 4px; border-top: 1px solid var(--line); }
+.life-about .life-context-note p { margin: 0 0 4px; }
 .life-context-note, .life-style-echo { margin: 9px 0 0; font-size: var(--text-sm); color: var(--ink-3); line-height: 1.5; overflow-wrap: anywhere; }
 .life-style-echo q { color: var(--ink); }
 .life-style-echo span { display: block; font-size: var(--text-xs); }
@@ -58,22 +68,34 @@
 .gap-head h3 { margin: 0; font-size: var(--text-lg); line-height: 1.25; letter-spacing: -0.015em; }
 .gap-label { margin: 0 0 6px; font-size: var(--text-xs); font-weight: var(--weight-heading); color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.04em; }
 
-/* How much it would help: four bars, filled from the left, and the words. */
-.help { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-sm); font-weight: var(--weight-label); color: var(--accent); white-space: nowrap; }
-.help-bars { display: inline-flex; align-items: flex-end; gap: 3px; height: 18px; }
-.help-bars > span { width: 7px; border-radius: var(--radius-sm); background: var(--line); }
-.help-bars > span:nth-child(1) { height: 7px; }
-.help-bars > span:nth-child(2) { height: 10px; }
-.help-bars > span:nth-child(3) { height: 14px; }
-.help-bars > span:nth-child(4) { height: 18px; }
-.help-bars > span.is-on { background: var(--accent-bg); }
-.help-1 { color: var(--ink-3); }
-.help-1 .help-bars > span.is-on { background: var(--ink-3); }
+/* How much it would help: a pill with the words, stronger the more it helps. */
+.help-pill {
+  display: inline-flex; align-items: center; min-height: 28px; padding: 2px 12px; border-radius: var(--radius-pill);
+  font-size: var(--text-sm); font-weight: var(--weight-label); white-space: nowrap; background: var(--surface-2); color: var(--ink-3);
+}
+.help-pill.help-2 { background: var(--accent-soft); color: var(--accent); }
+.help-pill.help-3, .help-pill.help-4 { background: var(--accent-bg); color: var(--accent-ink); }
 
 .gap-body { display: grid; gap: 14px; min-width: 0; }
+.gap-why-box { min-width: 0; }
+.gap-summary { margin: 0; font-size: var(--text-md); line-height: 1.45; }
+.gap-days { margin-top: 6px; }
+.gap-days summary {
+  min-height: var(--tap); display: inline-flex; align-items: center; gap: 8px; cursor: pointer; list-style: none;
+  color: var(--accent); font-size: var(--text-sm); font-weight: var(--weight-label);
+}
+.gap-days summary::-webkit-details-marker { display: none; }
+.gap-days summary::before {
+  content: ''; width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg); transition: transform 0.15s; margin: 0 2px;
+}
+.gap-days[open] summary::before { transform: rotate(45deg); }
+.gap-days > .gap-why { margin-top: 4px; font-size: var(--text-sm); }
+.gap-why p { margin: 0; }
+.gap-when { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; color: var(--ink-3); }
 .gap-why { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; line-height: 1.45; }
-.gap-why li { position: relative; padding-left: 16px; }
-.gap-why li::before { content: ''; position: absolute; left: 2px; top: 0.6em; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.gap-why > li { position: relative; padding-left: 16px; }
+.gap-why > li::before { content: ''; position: absolute; left: 2px; top: 0.6em; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 
 .look-for { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--accent-soft); min-width: 0; }
 .look-for ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-weight: var(--weight-label); }
@@ -87,6 +109,11 @@
 .gap-thumb-more { font-size: var(--text-sm); padding-left: 4px; }
 
 .gap-actions .btn svg { width: 20px; height: 20px; }
+/* A narrow card keeps both buttons on one row. */
+@container (max-width: 459px) {
+  .gap-actions { flex-wrap: nowrap; }
+  .gap-actions .btn { padding-inline: 12px; white-space: nowrap; }
+}
 .gap-hide { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
 .gap-hide fieldset { border: none; margin: 0 0 12px; padding: 0; min-width: 0; }
 .gap-hide legend { padding: 0; margin-bottom: 8px; font-weight: var(--weight-label); }
@@ -102,9 +129,12 @@
 .gap-wished svg { width: 18px; height: 18px; }
 
 /* Wide card: why on the left, what to look for on the right. */
+@container (min-width: 460px) {
+  .gap-body { grid-template-columns: minmax(0, 1fr) minmax(12rem, 15rem); column-gap: 20px; align-items: start; }
+}
 @container (min-width: 620px) {
   .gap-card { padding: 18px 20px; }
-  .gap-body { grid-template-columns: minmax(0, 1fr) minmax(14rem, 17rem); column-gap: 22px; align-items: start; }
+  .gap-body { grid-template-columns: minmax(0, 1fr) minmax(14rem, 17rem); column-gap: 22px; }
 }
 
 /* ---------------------------------------------------------------- hidden and the quieter findings */

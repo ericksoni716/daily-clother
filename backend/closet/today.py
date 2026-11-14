@@ -19,6 +19,8 @@ from .state import State
 
 CHOICES = ("occasion", "mood", "build_around", "leave_out", "count", "again")
 WEATHER_FIELDS = ("low_c", "high_c", "rain")
+# The day dressed for when no forecast can be had and no temperatures were given (DECISIONS "Today's outfits by themselves")
+MILD = {"low_c": 14.0, "high_c": 20.0, "rain": False}
 
 # A knit's gauge says how heavy it is when the tagger could not tell the weight itself.
 KNIT_GAUGE_WEIGHT = {
@@ -122,7 +124,7 @@ def suggest(conn, state: State, body: object) -> dict:
         raise outfits.ContextError(f"These are not part of today's choices: {', '.join(unknown)}.")
     given = {k: body[k] for k in WEATHER_FIELDS if body.get(k) is not None}
 
-    forecast, place, old, message = None, None, False, None
+    forecast, place, old, message, mild = None, None, False, None, False
     if len(given) < len(WEATHER_FIELDS):
         found = weather.lookup(state)
         place = found["place"]
@@ -130,12 +132,20 @@ def suggest(conn, state: State, body: object) -> dict:
             forecast, old = found["weather"], found["old"]
             message = found["message"] if old else None
         elif "low_c" not in given or "high_c" not in given:
-            if not place:
-                raise outfits.ContextError(
-                    "Choose where you are in Settings so Closet can look up the weather, or give today's low and high temperatures.")
-            raise outfits.ContextError(f"{found['message']} Give today's low and high temperatures instead.")
+            # never no outfit just because the weather is missing: dress for a mild day and say why
+            mild = True
+            message = (found["message"] if not found["weather"]
+                       else "Today's forecast could not be fetched; the last one Closet got is for an earlier day.")
 
-    day = {k: given[k] if k in given else (forecast[k] if forecast else False) for k in WEATHER_FIELDS}
+    if mild:
+        def number(v):
+            return isinstance(v, int | float) and not isinstance(v, bool)
+        low = given["low_c"] if "low_c" in given else (
+            min(MILD["low_c"], given["high_c"]) if number(given.get("high_c")) else MILD["low_c"])
+        high = given["high_c"] if "high_c" in given else (max(MILD["high_c"], low) if number(low) else MILD["high_c"])
+        day = {"low_c": low, "high_c": high, "rain": given.get("rain", MILD["rain"])}
+    else:
+        day = {k: given[k] if k in given else (forecast[k] if forecast else False) for k in WEATHER_FIELDS}
     request = {k: body[k] for k in CHOICES if body.get(k) is not None and k != "again"}
     ctx, count = outfits.parse_request({**request, **day, "worn_days_ago": worn_days_ago(conn)})
     rows = closet_rows(conn)
@@ -154,7 +164,7 @@ def suggest(conn, state: State, body: object) -> dict:
     feedback = outfits.feedback_from(worn.rated(conn), rows, ctx)
 
     from_forecast = [k for k in WEATHER_FIELDS if k not in given and forecast]
-    source = "given" if not from_forecast else ("forecast" if not given else "forecast and given")
+    source = "mild" if mild else "given" if not from_forecast else ("forecast" if not given else "forecast and given")
     context = {
         "date": forecast["date"] if forecast else wears.today().isoformat(),
         "low_c": ctx.low_c, "high_c": ctx.high_c, "rain": ctx.rain, "source": source, "old": old,

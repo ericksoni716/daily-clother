@@ -1,6 +1,6 @@
 /* The What's missing screen. Uses the tokens and shared classes in styles.css; only what is new to this screen is here. */
 
-.missing { max-width: 84rem; min-width: 0; }
+.missing { min-width: 0; }
 .missing-main { min-width: 0; max-width: 56rem; }
 .missing-header { margin-bottom: 10px; }
 /* On a phone the title and "Would this work?" share one row, so the first suggestion starts higher up:

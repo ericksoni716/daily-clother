@@ -1,6 +1,6 @@
 /* The Trips screen. Uses the tokens and shared classes in styles.css (and a few of Today's); only what is new is here. */
 
-.trips { max-width: 72rem; min-width: 0; }
+.trips { max-width: var(--content-w); min-width: 0; }
 .trips h2 { font-size: var(--text-lg); margin: 0 0 10px; }
 .trips-intro { margin: -6px 0 16px; max-width: 40rem; }
 .trips-section { margin-bottom: 20px; }
@@ -78,7 +78,6 @@
 
 /* ---------------------------------------------------------------- what to pack */
 .trip-columns { display: grid; gap: 22px; min-width: 0; }
-@media (min-width: 1000px) { .trip-columns { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start; } }
 .trip-group { margin-bottom: 14px; }
 .trip-group .chip-group-title { margin: 0 0 6px; }
 .trip-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }

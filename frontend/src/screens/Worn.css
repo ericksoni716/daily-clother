@@ -1,6 +1,6 @@
 /* The Worn list and the rating control (also used by Today's question). Uses the tokens and shared classes in styles.css. */
 
-.worn { max-width: 48rem; min-width: 0; }
+.worn { max-width: var(--content-w); min-width: 0; }
 .worn-intro { margin: -6px 0 16px; }
 .worn-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
 .worn-card { padding: 14px; }

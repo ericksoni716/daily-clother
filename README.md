@@ -70,7 +70,7 @@ lower on the item page, lists every change to the description, newest first;
 **Undo** puts one back, as long as nothing changed the same thing since. In the
 demo closet you can pick and undo, but sentences are not sent to Claude.
 
-To stop the program use **Quit Closet** in the icon's menu or in Settings.
+To stop the program use **Quit Closet** in the icon's menu or at the bottom of Settings.
 Double-clicking the program while it is already running just opens the app.
 If the copy that is running is an older version (you downloaded an update but
 the old one was still open), Closet says so and asks whether to close the old
@@ -272,11 +272,12 @@ collar, buttons and so on). It does this through **Claude Code**, a free
 program from Anthropic that uses your Claude plan, so nothing extra is charged
 per photo. An API key can be used instead, but it is billed per photo by
 Anthropic, is only used when the plan can't be, and only if you turn on
-**Allow the API key** in **Settings → Tagging**. It is off until you do.
-**Settings → Tagging** shows which of the two Closet can use right now, which it
-will try first, and how many items are waiting to be described.
+**Allow the API key** in **Settings → Describing clothes**. It is off until you do.
+**Settings → Describing clothes** shows each of the two once, with one line
+saying whether Closet can use it right now, which it will try first, and how
+many items are waiting to be described.
 
-**Which to use.** Under the API key box in **Settings → Tagging** you choose the
+**Which to use.** Under the API key box in **Settings → Describing clothes** you choose the
 order: **Use my Claude plan first, the key only if the plan can't** (the
 usual one), **Use the API key first** (if you would rather pay per photo than use
 up your plan), **Only my Claude plan**, or **Only the API key**. The two that put
@@ -288,11 +289,12 @@ corrections you type, and "Would this work?".
 
 **Adding an API key.** Make a key in your Anthropic account (console.anthropic.com,
 **API keys**), copy it, and paste it into **Paste your API key** in **Settings →
-Tagging**, then **Save key**. Closet asks Anthropic whether it accepts the key
+Describing clothes**, then **Save key**. Closet asks Anthropic whether it accepts the key
 (this costs nothing) and keeps it in your computer's own keychain (the Mac's
 keychain, or Windows Credential Manager), never in a file. It is never shown
 again; **Replace key** and **Remove key** are there when you need them. Then turn
-on **Allow the API key** and set a monthly limit. A key saved here is used instead
+on **Allow the API key** and set a monthly limit (under **Monthly limit and
+spending**, just below the switch). A key saved here is used instead
 of one set as `ANTHROPIC_API_KEY`.
 
 **What the API key costs.** At the prices Closet knows (written down on
@@ -302,7 +304,7 @@ costs well under 1¢, about $0.003 at most. To allow the API key you set a
 thousand photos. Before every request Closet adds what this month has cost so
 far to the most that request could cost, and if that would pass the limit it
 does not ask: the item waits and says the monthly limit was reached. Your plan
-is still used whenever it can be. Settings shows what this month has cost, how
+is still used whenever it can be. **Monthly limit and spending** shows what this month has cost, how
 many requests were made, what the waiting items would cost at most and the
 last few months. If Anthropic refuses the key or says the account is out of
 credit, Closet turns the API key off and says why in Settings. What Closet
@@ -333,8 +335,8 @@ your browser; sign in with your Claude account, then come back and type
 
 **Check it:** type `claude auth status` and press Enter. It says you are logged
 in (and which account) when everything is ready. Then open **Settings →
-Tagging** in Closet and press **Check again**: "Your Claude plan, through
-Claude Code" should say **ready**. If it says Claude Code is not installed,
+Describing clothes** in Closet and press **Check again**: "Your Claude plan, through
+Claude Code" should say **Ready to use**. If it says Claude Code is not installed,
 quit Closet and start it again so it sees the new program.
 
 **If an item says Anthropic turned down the account Claude Code is signed in
@@ -354,13 +356,13 @@ not touched. If an update changes the database, a copy is saved in
 `Closet\backups` first. An older program refuses to open a closet written by a
 newer one instead of damaging it.
 
-**Settings → Storage** shows how much space this folder takes: photos,
+**Settings → Your closet → Storage** shows how much space this folder takes: photos,
 cutouts, thumbnails, backups kept on this computer and the background-removal
 model, plus how much free space the disk has left.
 
 ### Backups
 
-In **Settings → Backups**, choose a folder (a cloud-synced folder is ideal).
+In **Settings → Your closet → Backups**, choose a folder (a cloud-synced folder is ideal).
 Closet backs up there once a day while it is running, catches up at the next
 start if the computer was off, and shows the date of the last good backup. It
 keeps the 14 most recent database snapshots and one copy of every image. The
@@ -387,8 +389,11 @@ new one. Your closet is untouched.
 
 If the computer cannot download the model, download
 `isnet-general-use.onnx` on another machine from the address shown in
-**Settings → Background removal**, and put it in `Closet\models`. Closet
-checks the file and starts using it. The address can be changed in Settings.
+**Settings → Advanced** (open it near the bottom of the page), and put it in
+`Closet\models`. Closet checks the file and starts using it. The address can be
+changed there too. **Settings → Your closet → Background removal** says whether
+the model is ready. **Advanced** also shows where your closet is stored and the
+version of Closet.
 
 ### Where you are
 
@@ -416,7 +421,7 @@ dark mode, so their colours look right.
 
 ## Demo closet
 
-**Settings → Demo closet** opens a sample closet of 30 items so you can try
+**Show the demo closet** in **Settings → Your closet** opens a sample closet of 30 items so you can try
 everything without your own photos, with a few outfits worn in the last two
 weeks (yesterday's not rated yet, so Today asks about it). It is kept separate from your real closet
 and is never backed up. A slim strip at the top of every screen says you are

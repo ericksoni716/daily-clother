@@ -14,26 +14,35 @@
 .insights-card {
   padding: 14px;
 }
-.insights-card h2 { margin: 0 0 4px; font-size: var(--text-sm); font-weight: var(--weight-heading); color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.04em; }
-.insights-sentence { margin: 0 0 12px; font-size: var(--text-md); font-weight: var(--weight-label); line-height: 1.4; }
+/* a card: a short label, the figure it leads with, then one sentence */
+.insights-card h2 { margin: 0 0 6px; font-size: var(--text-xs); font-weight: var(--weight-heading); color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; }
+.insights-hero {
+  margin: 0 0 4px; font-size: var(--text-2xl); font-weight: var(--weight-heading); line-height: 1.15; letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums;
+}
+.insights-sentence { margin: 0 0 12px; color: var(--ink-2); font-size: var(--text-md); line-height: 1.45; }
 .insights-card .chip-group-title { margin: 14px 0 8px; }
 .insights-detail { margin: 0 0 10px; }
 
 /* pieces as small pictures, in a row that scrolls on a phone */
 .insights-pieces {
-  list-style: none; margin: 0; padding: 0 0 4px; display: grid; grid-auto-flow: column; grid-auto-columns: 7.2rem; gap: 12px;
+  list-style: none; margin: 0; padding: 0 0 4px; display: grid; grid-auto-flow: column; grid-auto-columns: 8rem; gap: 12px;
   overflow-x: auto; overscroll-behavior-x: contain;
 }
 .insights-piece { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+/* every tile's name and caption take two lines each, so the Archive and Keep buttons line up */
 .insights-piece-link { display: flex; flex-direction: column; text-decoration: none; color: var(--ink); border-radius: var(--radius-md); }
 .insights-piece-pic { aspect-ratio: 400 / 460; border-radius: var(--radius-md); }
 .insights-piece-link:hover .insights-piece-pic { box-shadow: inset 0 0 0 1px var(--card-edge), var(--shadow-hover); }
 .insights-piece-name {
   margin-top: 6px; font-weight: var(--weight-label); font-size: var(--text-sm); line-height: 1.25; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-clamp: 2; height: calc(2 * 1.25em);
+}
+.insights-piece-caption {
+  color: var(--ink-3); font-size: var(--text-xs); line-height: 1.3; height: calc(2 * 1.3em); overflow: hidden;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-clamp: 2;
 }
-.insights-piece-caption { color: var(--ink-3); font-size: var(--text-xs); line-height: 1.3; }
-.insights-piece-actions { display: flex; gap: 4px; flex-wrap: wrap; }
+.insights-piece-actions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: auto; }
 .insights-piece-actions .btn { flex: 1; padding: 0 8px; }
 .insights-kept { margin: 10px 0 0; font-size: var(--text-sm); }
 

@@ -7,6 +7,11 @@ test('upload a photo: it shows up with its waiting badge', async ({ page }) => {
 
   await page.getByRole('link', { name: 'Add' }).first().click();
   await expect(page.getByTestId('dropzone')).toBeVisible();
+  // one column, at most 720px wide, beside the sidebar
+  const sidebar = (await page.locator('nav.sidebar').boundingBox())!;
+  const add = (await page.locator('section.add').boundingBox())!;
+  expect(add.width).toBeLessThanOrEqual(720);
+  expect(add.x - (sidebar.x + sidebar.width)).toBeLessThan(40);
   await page.getByTestId('library-input').setInputFiles(`${PHOTOS}marl-sweater.jpg`);
 
   const row = page.getByTestId('queue-row').filter({ hasText: 'marl-sweater' });

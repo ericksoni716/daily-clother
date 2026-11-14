@@ -180,7 +180,10 @@ export interface Settings {
   tagging_route_order: RouteOrder;
   /** Whether an API key is set and where it comes from; never the key itself. */
   api_key: ApiKeyInfo;
-  phone: { tailscale_installed: boolean; running: boolean; address: string | null; command: string };
+  phone: {
+    tailscale_installed: boolean; running: boolean; address: string | null; command: string;
+    stop_command: string | null; others_share: boolean;
+  };
   autostart: boolean | null;
   heic_supported: boolean;
   /** Where the owner is, for the weather: New York (`home_place`) until another place is chosen. */

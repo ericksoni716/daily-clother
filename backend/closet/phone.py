@@ -126,7 +126,7 @@ def info(port: int, runner=subprocess.run) -> dict:
         if text is not None:
             serve = parse_serve(text, port)
             out["command"] = start_command(port, serve["taken"])
-            out["others_share"] = bool(serve["taken"])
+            out["others_share"] = 443 in serve["taken"]
             if serve["closet"]:
                 host, https_port = serve["closet"]
                 out["address"] = address(host, https_port)

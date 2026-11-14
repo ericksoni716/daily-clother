@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import logging
+import sqlite3
 import threading
 import time
 from collections.abc import Callable
@@ -152,9 +153,15 @@ def run_one(conn, images_dir: Path, measurer: Measurer, landmarker: Landmarker |
         palette.settle(conn, item_id)   # the item's colour from the measured colours, unless the owner set it
         illustrations.redraw(conn, item_id)
         conn.execute("COMMIT")
-    except Exception:
+    except Exception as e:
         conn.execute("ROLLBACK")
-        raise
+        if isinstance(e, sqlite3.OperationalError):   # the closet was busy: measured again on the next round
+            raise
+        # what was measured cannot be kept or drawn: the item says why, keeps its drawing in its colour, and is not
+        # measured again (and again, ahead of every other item) until it is described again or its pattern changes
+        log.warning("keeping an item's measured pattern failed: %s", type(e).__name__, exc_info=True)
+        conn.execute("UPDATE items SET pattern_fill = NULL, pattern_state = 'failed', pattern_error = ? "
+                     "WHERE id = ? AND pattern_state = 'working'", (failed, item_id))
     return "done"
 
 

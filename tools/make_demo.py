@@ -235,6 +235,20 @@ TAGGED = [
      dict(accessory="beanie", accessory_kind="beanie", fabric="rib_2x2", fiber="merino", shade="mustard"), {}),
     ("Rust wool scarf", "scarf", "orange", "#a4492a", "casual", "cool", {},
      dict(accessory="scarf", accessory_kind="woven_wool", fiber="lambswool", shade="rust"), dict(rating="like")),
+    ("Burgundy striped tie", "other", "burgundy", "#6e2633", "business", "all", {},
+     dict(accessory="tie", accessory_kind="silk_woven", pattern_name="university_stripe", fiber="silk"),
+     dict(secondary=["navy"], pattern="stripe")),
+    ("White pocket square", "other", "white", "#f1eee6", "business", "all", {},
+     dict(accessory="pocket_square", accessory_kind="one_point", fiber="linen"), {}),
+    ("Steel dive watch", "other", "grey", "#9aa0a6", "casual", "all", {},
+     dict(accessory="watch", accessory_kind="dive", other_features=["steel bracelet"]), dict(rating="love")),
+    ("Tortoiseshell glasses", "other", "brown", "#6b4a2f", "casual", "all", {},
+     dict(accessory="eyewear", accessory_kind="round", other_features=["clear lenses"]), {}),
+    ("Green argyle socks", "other", "green", "#2e4d3a", "smart_casual", "cool", {},
+     dict(accessory="socks", accessory_kind="dress_mid_calf", pattern_name="argyle", fiber="merino"),
+     dict(secondary=["cream"], pattern="other")),
+    ("Brown leather gloves", "other", "brown", "#5a3a22", "smart_casual", "cool", {},
+     dict(accessory="gloves", accessory_kind="leather_dress", fiber="leather"), {}),
 ]
 
 # name -> days ago it was worn, days ago it was last washed (None: never), whether it is in the laundry now.
@@ -276,6 +290,11 @@ HISTORY = {
     "Olive canvas rucksack": ([4, 15], None, False),
     "Mustard beanie": ([5, 17], None, False),
     "Rust wool scarf": ([10, 17], None, False),
+    "Burgundy striped tie": ([8], None, False),
+    "Steel dive watch": ([1, 4, 8], None, False),
+    "Tortoiseshell glasses": ([1, 8], None, False),
+    "Green argyle socks": ([8], 9, False),
+    "Brown leather gloves": ([17], None, False),
 }
 
 # name -> what was paid, in cents (US dollars), so Insights has a cost per wear to show; the rest have no price.
@@ -322,7 +341,8 @@ def _day(low: int, high: int, occasion: str = "casual", rain: bool = False) -> d
 
 
 OUTFITS = [
-    dict(days_ago=1, pieces=dict(base="White tee", bottom="Dark indigo jeans", shoes="White canvas sneakers"),
+    dict(days_ago=1, pieces=dict(base="White tee", bottom="Dark indigo jeans", shoes="White canvas sneakers",
+                                 accessories=["Steel dive watch", "Tortoiseshell glasses"]),
          context=_day(9, 16), score=74, reasons=["A casual outfit for a mild day."], rating=None, rating_reasons=[]),
     dict(days_ago=2, pieces=dict(base="Blue oxford shirt", mid="Grey hoodie", bottom="Light wash jeans", shoes="White canvas sneakers"),
          context=_day(12, 18), score=68, reasons=["Two layers for a mild day."], rating="fine", rating_reasons=["too_warm"]),
@@ -344,7 +364,9 @@ OUTFITS = [
     dict(days_ago=7, pieces=dict(base="Black tee", mid="Grey hoodie", bottom="Heather grey joggers", shoes="Grey runners"),
          context=_day(6, 12, "athletic"), score=72, reasons=["Easy to move in."], rating="fine", rating_reasons=["too_cold"]),
     dict(days_ago=8, pieces=dict(base="White dress shirt", mid="Cream v-neck sweater", bottom="Grey wool trousers",
-                                 shoes="Black cap-toe oxfords"),
+                                 shoes="Black cap-toe oxfords",
+                                 accessories=["Burgundy striped tie", "Steel dive watch", "Tortoiseshell glasses",
+                                              "Green argyle socks"]),
          context=_day(7, 12, "business"), score=80, reasons=["Dressed for business.", "Quiet colours that go together."],
          rating="loved", rating_reasons=[]),
     dict(days_ago=9, pieces=dict(base="Plaid flannel shirt", bottom="Brown corduroy trousers", shoes="White canvas sneakers"),

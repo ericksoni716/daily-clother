@@ -91,6 +91,10 @@ def test_build_around_item_is_in_every_outfit():
         for ctx in (day(2), day(15), day(28)):
             ctx = outfits.Context(**{**ctx.__dict__, "build_around": target["id"]})
             result = outfits.suggest(items, ctx, 3)
+            if target.get("category") == "other":
+                # accessories (ties, watches...) have no place in an outfit yet: the owner is told so
+                assert not result["outfits"] and "no category an outfit can use" in result["missing"][0]
+                continue
             assert result["outfits"], (target["name"], ctx, result["missing"])
             for o in result["outfits"]:
                 assert target["id"] in ids_of(o)

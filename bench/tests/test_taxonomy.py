@@ -988,7 +988,10 @@ def test_an_overcoat_is_a_knee_length_coat_without_a_breast_pocket():
     assert blazer["length"] == "long" and blazer["block"] == "jacket"
     drawn, jacket = build("top", coat), build("top", blazer)
     assert drawn.anchors["hem"][1] > jacket.anchors["hem"][1] + 60
-    assert {k: v for k, v in drawn.anchors.items() if k != "hem"} == {k: v for k, v in jacket.anchors.items() if k != "hem"}
+    # the same anchors but the hem, and no breast pocket for a pocket square to stand in
+    assert "breast" in jacket.anchors and "breast" not in drawn.anchors
+    assert ({k: v for k, v in drawn.anchors.items() if k != "hem"}
+            == {k: v for k, v in jacket.anchors.items() if k not in ("hem", "breast")})
     assert {part.role for part in drawn.parts} >= {"lapel_r", "lapel_l"}
     # pockets: the blazer's two hip welts and its breast welt (read as a pocket square); the coat's hip welts only
     pockets = lambda shape: [line for line in shape.lines if line.endswith("Z")]  # noqa: E731

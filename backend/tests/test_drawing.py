@@ -229,7 +229,9 @@ def test_the_new_fields_refuse_values_outside_the_taxonomy():
 @pytest.mark.parametrize("category, accessory, kind, template", [
     ("bag", "bag", "daypack", "bag"), ("belt", "belt", "western", "belt"), ("hat", "cap", "trucker_cap", "cap"),
     ("hat", "beanie", "fisherman_beanie", "beanie"), ("hat", "brimmed_hat", "panama", "brimmed_hat"),
-    ("scarf", "scarf", "bandana", "scarf"), ("other", "tie", "bow_tie", "accessory"), ("other", "socks", "na", "accessory")])
+    ("scarf", "scarf", "bandana", "scarf"), ("other", "tie", "bow_tie", "tie"), ("other", "socks", "na", "socks"),
+    ("other", "pocket_square", "puff", "pocket_square"), ("other", "gloves", "mittens", "gloves"),
+    ("other", "eyewear", "aviator", "eyewear"), ("other", "watch", "dive", "watch")])
 def test_accessories_are_drawn_by_their_own_template_from_the_taxonomy_id_and_kind(category, accessory, kind, template):
     tags = ItemTags.model_validate({**POLO, "category": category,
                                     "details": {**POLO["details"], "accessory": accessory, "accessory_kind": kind}})
@@ -247,6 +249,45 @@ def test_an_accessorys_kind_changes_its_drawing_and_without_one_it_says_so():
     assert plain.svg and any("tote" in n for n in plain.not_drawn)
     for category in ("belt", "hat", "scarf"):
         assert item.svg_from_fields(category, "#333333") not in (None, item.svg_from_fields("tee", "#333333"))
+
+
+def _other(accessory, kind="na", colors=(), **details):
+    return {**POLO, "category": "other", "secondary_colors": list(colors),
+            "details": {**POLO["details"], "accessory": accessory, "accessory_kind": kind, **details}}
+
+
+def test_the_small_accessories_draw_their_details_from_the_pattern_and_the_taggers_words():
+    plain = item.drawing_from_answer(_other("tie", "silk_woven"), "#27344f")
+    striped = item.drawing_from_answer(_other("tie", "silk_woven", ["cream"], pattern_name="university_stripe"), "#27344f")
+    assert drawing_for(ItemTags.model_validate(_other("tie", "silk_woven", ["cream"], pattern_name="pinstripe")))[1][
+        "pattern"] == "repp_stripe"
+    assert striped.svg != plain.svg and NAMED_HEX["cream"] in striped.svg
+    assert not any("stripes" in n for n in striped.not_drawn)   # the stripes are drawn, not listed as left out
+    skinny = _other("tie", "silk_woven", other_features=["skinny tie"])
+    assert drawing_for(ItemTags.model_validate(skinny))[1]["width"] == "skinny"
+    assert item.words_drawn(skinny) == ["skinny tie"]
+    watch = _other("watch", "dress", other_features=["square case", "blue dial", "steel bracelet", "date window"])
+    template, params, _, _ = drawing_for(ItemTags.model_validate(watch))
+    assert (template, params["dial"], params["strap"], params["dial_color"]) == ("watch", "square", "steel_bracelet",
+                                                                                   NAMED_HEX["blue"])
+    assert item.words_drawn(watch) == ["square case", "blue dial", "steel bracelet"]
+    shades = _other("eyewear", "aviator", other_features=["green lenses"])
+    assert drawing_for(ItemTags.model_validate(shades))[1] == {"style": "aviator", "lens": "green"}
+    frames = _other("eyewear", "round", other_features=["green acetate"])   # a frame's colour is not a lens's
+    assert "lens" not in drawing_for(ItemTags.model_validate(frames))[1]
+    belt = {**POLO, "category": "belt", "details": {**POLO["details"], "accessory": "belt", "accessory_kind": "dress_belt",
+                                                     "other_features": ["gunmetal buckle"]}}
+    assert drawing_for(ItemTags.model_validate(belt))[1]["buckle"] == "gunmetal"
+    argyle = drawing_for(ItemTags.model_validate(_other("socks", "dress_otc", ["cream"], pattern_name="argyle")))
+    assert argyle[1]["pattern"] == "argyle" and argyle[2]["block_color"] == NAMED_HEX["cream"]
+
+
+def test_a_small_accessory_with_no_kind_draws_its_plainest_shape_and_says_so():
+    for accessory, plain in (("tie", "silk_woven"), ("pocket_square", "flat"), ("gloves", "leather_dress"),
+                             ("eyewear", "wayfarer"), ("watch", "dress"), ("socks", "casual_crew")):
+        out = item.drawing_from_answer(_other(accessory), "#555555")
+        assert out.svg == item.svg_from_answer(_other(accessory, plain), "#555555"), accessory
+        assert any("was not said" in n for n in out.not_drawn), accessory
 
 
 def test_an_answer_from_before_the_accessory_fields_still_draws():

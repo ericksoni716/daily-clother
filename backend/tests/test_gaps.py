@@ -228,7 +228,8 @@ def test_gaps_needs_login(anon):
 
 def test_gaps_answers_for_the_open_closet(client):
     assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
-    demo_ids = {i["id"] for i in client.get("/api/items").json()["items"]}
+    # every demo item but the small accessories (category "other"), which outfits leave out
+    demo_ids = {i["id"] for i in client.get("/api/items").json()["items"] if i["category"] != "other"}
     r = client.get("/api/gaps")
     assert r.status_code == 200
     body = r.json()

@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from closet.drawing import figure as fig
-from closet.drawing import fitting, illustrate
+from closet.drawing import fitting, illustrate, worn
 from closet.drawing.figure import CX, GROUND_Y, K_PX, LEG_CM, MARGIN, TOE_CM, WAIST_Y, Piece, figure, plan
 from closet.drawing.templates import PX_CM
 from closet.tagger.schema import Details, ItemTags, Silhouette
@@ -379,7 +379,7 @@ def test_each_accessory_is_placed_at_its_point_on_the_wearer():
     layout = plan(dict(base=TEE, bottom=JEANS, shoes=SNEAKERS, accessories=[BELT, HAT, SCARF, BAG, TIE]))
     got = {p.place: p for p in layout.pieces}
     assert [p for p in ("belt", "scarf", "hat", "bag") if p in got] == ["belt", "scarf", "hat", "bag"]
-    assert "other" not in got and len(layout.pieces) == 7   # a tie is not drawn in the figure
+    assert "other" not in got and len(layout.pieces) == 7   # a tie is not a placed piece: `worn` draws it
     assert got["belt"].point(got["belt"].shape.anchors["waist"]) == pytest.approx((fig.CX, fig.BELT_Y))
     assert got["scarf"].point(got["scarf"].shape.anchors["neck"]) == pytest.approx((fig.CX, fig.NECK_Y))
     hx, hy = got["hat"].point(got["hat"].shape.anchors["head"])
@@ -407,6 +407,102 @@ def test_odd_accessories_do_not_raise():
         svg = figure(dict(base=TEE, accessories=accessories))
         assert svg.startswith("<svg") and "javascript" not in svg
     assert [p.place for p in plan(dict(base=TEE, accessories=[TEE, Piece("other")])).pieces] == ["base"]
+
+
+def small(accessory: str, kind: str, color: str = "#6e2633", **details) -> Piece:
+    return Piece("other", answer("other", accessory=accessory, accessory_kind=kind, **details), color)
+
+
+SMALL = dict(tie=small("tie", "silk_woven"), watch=small("watch", "dive", "#6b4a2f"),
+             glasses=small("eyewear", "round", "#1f1f22"), square=small("pocket_square", "puff", "#b8332e"),
+             socks=small("socks", "casual_crew", "#2e7d4f"))
+BLAZER = Piece("jacket", answer("jacket", garment="sport_coat", collar="notch_lapel", placket="front_placket",
+                                pockets="hip_flap_double"), "#3a3f4a")
+LOAFERS = Piece("dress_shoes", answer("dress_shoes", shoe_style="loafer"), "#5a3a22")
+
+
+def _worn(**pieces):
+    layout = plan(pieces)
+    return worn.dress(layout, layout.accessories, "w"), layout
+
+
+def _at(markup: str) -> tuple[float, float]:
+    x, y = re.search(r'translate\((-?[\d.]+),(-?[\d.]+)\)', markup).groups()
+    return CX + float(x), float(y)
+
+
+def test_a_tie_is_worn_under_a_collar_and_only_there():
+    dressed, _ = _worn(base=SHIRT, bottom=TROUSERS, accessories=[SMALL["tie"]])
+    knot = _at(dressed.tie)
+    assert knot[0] == pytest.approx(CX) and fig.NECK_Y < knot[1] < fig.NECK_Y + 10 * K_PX   # just under the collar
+    assert 'clip-path="url(#wxtck)"' in dressed.tie   # the collar drawn again over the knot
+    svg = figure(dict(base=SHIRT, bottom=TROUSERS, accessories=[SMALL["tie"]]))
+    assert "#6e2633" in svg and svg.index("#6e2633") < svg.index(f'fill="{fig.HAIR}"')   # under the head
+    for pieces in (dict(base=TEE, bottom=TROUSERS), dict(base=BLAZER, bottom=TROUSERS), dict(bottom=TROUSERS)):
+        assert _worn(**pieces, accessories=[SMALL["tie"]])[0].tie == ""   # no collar, an open one, no top
+    # under a V-neck sweater it is drawn over the shirt and under the sweater
+    svg = figure(dict(base=SHIRT, mid=SWEATER, bottom=TROUSERS, accessories=[SMALL["tie"]]))
+    assert svg.index("#6e2633") < svg.index("#e8dfcb", svg.index("#6e2633"))
+
+
+def test_a_watch_is_worn_on_the_wrist_unless_a_sleeve_covers_it():
+    dressed, _ = _worn(base=TEE, bottom=SHORTS, accessories=[SMALL["watch"]])
+    wx, wy = fig._arm_points(+1)[2]
+    x, y = _at(dressed.over)
+    assert x == pytest.approx(wx, abs=0.1) and wy - 2 * K_PX < y < wy
+    assert _worn(base=SHIRT, bottom=SHORTS, accessories=[SMALL["watch"]])[0].over == ""
+
+
+def test_glasses_are_worn_on_the_eyes():
+    dressed, layout = _worn(base=TEE, bottom=SHORTS, accessories=[SMALL["glasses"]])
+    x, y = _at(dressed.over)
+    eyes = [fitting.points(d) for d in layout.body.eyes]
+    ey = sum(sum(q[1] for q in e) / len(e) for e in eyes) / len(eyes)
+    assert x == pytest.approx(CX) and abs(y - ey) < 1.5 * K_PX
+
+
+def test_a_pocket_square_stands_in_a_tailored_jackets_breast_pocket():
+    dressed, layout = _worn(base=SHIRT, outer=BLAZER, bottom=TROUSERS, accessories=[SMALL["square"]])
+    jacket = layout.get("outer")
+    bx, by = jacket.point(jacket.shape.anchors["breast"])
+    a, _, _, _, e, f = (float(v) for v in re.search(r"matrix\(([^)]*)\)", dressed.over).group(1).split(","))
+    x = a * CX + e   # where the square's foot lands; worn open, the front (and the pocket on it) turns to its side
+    assert f == pytest.approx(by, abs=0.1) and bx <= x < jacket.box(jacket.shape.body_box)[2] and 0.5 <= a < 1.0
+    assert _worn(base=SHIRT, outer=JACKET, accessories=[SMALL["square"]])[0].over == ""   # not tailored
+    assert _worn(base=SHIRT, accessories=[SMALL["square"]])[0].over == ""
+
+
+def test_socks_show_above_low_shoes_when_the_trousers_stop_short():
+    dressed, layout = _worn(base=TEE, bottom=SHORTS, shoes=SNEAKERS, accessories=[SMALL["socks"]])
+    assert "#2e7d4f" in dressed.legs and "#2e7d4f" in (dressed.ankle or "")
+    top = float(re.search(r'<rect x="-4000" y="([\d.]+)"', "".join(dressed.defs)).group(1))
+    assert fig._y(fig.CALF_CM) < top < GROUND_Y - 10 * K_PX   # a crew sock: up the shin, below the calf
+    svg = figure(dict(base=TEE, bottom=SHORTS, shoes=SNEAKERS, accessories=[SMALL["socks"]]))
+    assert svg.index("#2e7d4f") < svg.index("#6f7550")   # under the shorts
+    for pieces in (dict(base=TEE, bottom=TROUSERS, shoes=SNEAKERS), dict(base=TEE, bottom=SHORTS),
+                   dict(base=TEE, bottom=SHORTS, shoes=SANDALS[0])):
+        d = _worn(**pieces, accessories=[SMALL["socks"]])[0]
+        assert d.legs == "" and d.ankle is None
+    no_show = small("socks", "no_show", "#2e7d4f")
+    assert _worn(base=TEE, bottom=SHORTS, shoes=SNEAKERS, accessories=[no_show])[0].legs == ""
+    otc = _worn(base=TEE, bottom=SHORTS, shoes=SNEAKERS, accessories=[small("socks", "dress_otc", "#2e7d4f")])[0]
+    assert float(re.search(r'<rect x="-4000" y="([\d.]+)"', "".join(otc.defs)).group(1)) < fig._y(fig.CALF_CM)
+
+
+def test_every_small_accessory_worn_at_once_draws_and_odd_ones_do_not_raise():
+    pieces = dict(base=SHIRT, outer=BLAZER, bottom=SHORTS, shoes=LOAFERS, accessories=list(SMALL.values()))
+    svg = figure(pieces)
+    for colour in ("#6e2633", "#1f1f22", "#b8332e", "#2e7d4f"):
+        assert colour in svg, colour
+    assert "#6b4a2f" not in svg   # the watch is under the jacket's sleeve
+    for kind in ("bow_tie", "knit"):
+        assert figure(dict(base=SHIRT, accessories=[small("tie", kind)])).startswith("<svg")
+    for accessories in ([small("tie", "silk_woven", "url(javascript:x)")], [Piece("other", None, "#123456")],
+                        [Piece("other", answer("other", accessory="gloves", accessory_kind="knit"), "#123456")]):
+        svg = figure(dict(base=SHIRT, bottom=SHORTS, shoes=SNEAKERS, accessories=accessories))
+        assert svg.startswith("<svg") and "javascript" not in svg
+    assert worn.dress(None, [SMALL["tie"]], "w") == worn.Worn()
+    assert worn.dress(plan(dict(base=SHIRT)), "x", "w") == worn.Worn()
 
 
 def test_the_figure_route_takes_accessories(client):

@@ -285,7 +285,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .brand-mark-ok svg { width: 30px; height: 30px; stroke-width: 2.4; }
 .ready-phone { margin: 18px 0; padding: 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
 .ready-phone h2 { font-size: var(--text-md); margin-bottom: 6px; }
-.phone-qr { display: block; width: 200px; height: 200px; margin: 8px 0; background: #fff; }
+.phone-qr { display: block; width: 200px; height: 200px; margin: 8px 0; }
 .address { font-size: var(--text-md); word-break: break-all; }
 .address code { display: inline-block; padding: 6px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); user-select: all; }
 

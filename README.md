@@ -354,8 +354,9 @@ the public internet.
    (PowerShell on Windows) and run it once. Open Settings again (it can take
    half a minute to notice): **Phone access** now shows Closet's address, like
    `https://your-pc.your-tailnet.ts.net`.
-3. On the iPhone, with Tailscale connected, open that address in Safari and
-   log in with your passphrase.
+3. On the iPhone, with Tailscale connected, point the Camera app at the QR
+   code under the address in Settings and tap the link it shows (or type the
+   address into Safari). Log in with your passphrase.
 4. Tap **Share → Add to Home Screen**. Open Closet from the new icon.
 
 **If another app on this computer already uses Tailscale Serve.** Tailscale

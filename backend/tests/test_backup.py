@@ -95,19 +95,86 @@ def test_demo_closet_has_about_forty_items_and_leaves_the_real_one_alone(client,
     assert client.post("/api/profile", json={"profile": "other"}).status_code == 422
 
 
-def test_phone_address_comes_from_tailscale_when_present():
-    sample = json.dumps({"BackendState": "Running", "Self": {"DNSName": "my-pc.tail1234.ts.net."}})
-    assert phone.parse_status(sample) == {"running": True, "address": "https://my-pc.tail1234.ts.net"}
+HOST = "my-pc.example-tailnet.ts.net"
+STATUS = json.dumps({"BackendState": "Running", "Self": {"DNSName": HOST + "."}})
 
-    class R:
-        returncode, stdout = 0, sample
 
+def _serve(*shares):
+    """A hand-written `tailscale serve status --json`: (https port, path, proxy target) per share."""
+    tcp, web = {}, {}
+    for port, path, target in shares:
+        tcp[str(port)] = {"HTTPS": True}
+        web.setdefault(f"{HOST}:{port}", {"Handlers": {}})["Handlers"][path] = {"Proxy": target}
+    return json.dumps({"TCP": tcp, "Web": web}) if shares else "{}"
+
+
+def _phone_info(serve_text, status_text=STATUS, code=0):
     import closet.phone as p
+
+    def runner(args, **_):
+        class R:
+            returncode = code
+            stdout = serve_text if args[1:3] == ["serve", "status"] else status_text
+        return R()
+
     real = p.find_tailscale
     try:
         p.find_tailscale = lambda: "/usr/bin/tailscale"
-        got = phone.info(8765, runner=lambda *a, **k: R())
-        assert got["address"] == "https://my-pc.tail1234.ts.net" and got["command"] == "tailscale serve --bg 8765"
+        return phone.info(8765, runner=runner)
+    finally:
+        p.find_tailscale = real
+
+
+def test_phone_address_is_only_one_that_reaches_closet():
+    # no shares: the computer's bare name is not Closet's address
+    got = _phone_info(_serve())
+    assert got["running"] is True and got["address"] is None and got["stop_command"] is None
+    assert got["command"] == "tailscale serve --bg 8765" and got["others_share"] is False
+
+    # Closet on 443
+    got = _phone_info(_serve((443, "/", "http://127.0.0.1:8765")))
+    assert got["address"] == f"https://{HOST}" and got["stop_command"] == "tailscale serve --https=443 off"
+
+    # another app on 443, Closet on 8443 (localhost counts too)
+    got = _phone_info(_serve((443, "/", "http://127.0.0.1:3000"), (8443, "/", "http://localhost:8765")))
+    assert got["address"] == f"https://{HOST}:8443" and got["stop_command"] == "tailscale serve --https=8443 off"
+    assert got["others_share"] is True
+
+    # another app only: no address, and a command that leaves 443 to it
+    got = _phone_info(_serve((443, "/", "http://127.0.0.1:3000")))
+    assert got["address"] is None and got["stop_command"] is None
+    assert got["command"] == "tailscale serve --bg --https=8443 8765"
+
+
+def test_phone_command_skips_ports_already_taken():
+    taken = _serve((443, "/", "http://127.0.0.1:3000"), (8443, "/", "http://127.0.0.1:4000"))
+    assert _phone_info(taken)["command"] == "tailscale serve --bg --https=8444 8765"
+    assert phone.start_command(8765, [443, 8443, 8444]) == "tailscale serve --bg --https=10000 8765"
+    assert phone.start_command(8765, [443, 8443, 8444, 10000]) == "tailscale serve --bg --https=10001 8765"
+    # a share of another port of this computer, or of Closet at a path, is not Closet
+    got = _phone_info(_serve((443, "/", "http://127.0.0.1:87650"), (8443, "/closet", "http://127.0.0.1:8765")))
+    assert got["address"] is None
+    # a foreground `tailscale serve` still running counts as well
+    fg = json.dumps({"Foreground": {"abc": json.loads(_serve((443, "/", "http://127.0.0.1:8765")))}})
+    assert _phone_info(fg)["address"] == f"https://{HOST}"
+    for text in ("{}", ""):
+        assert phone.parse_serve(text, 8765) == {"closet": None, "taken": []}
+
+
+def test_phone_info_never_raises():
+    for serve_text, status_text in (("not json", "not json"), ("[1]", "[1]"), ('{"Web": {"x:443": 5}}', "{}")):
+        got = _phone_info(serve_text, status_text)
+        assert got["tailscale_installed"] is True and got["address"] is None
+    assert _phone_info(_serve((443, "/", "http://127.0.0.1:8765")), code=1)["address"] is None
+
+    import closet.phone as p
+
+    def broken(*a, **k):
+        raise OSError("no tailscale")
+    real = p.find_tailscale
+    try:
+        p.find_tailscale = lambda: "/usr/bin/tailscale"
+        assert phone.info(8765, runner=broken)["address"] is None
         p.find_tailscale = lambda: None
         assert phone.info(8765)["tailscale_installed"] is False
     finally:

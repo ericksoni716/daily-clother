@@ -11,6 +11,8 @@ import pytest
 from closet import climate, net, weather
 from closet.state import State
 
+from .conftest import REAL_FETCH
+
 PLACE = {"name": "Example town", "latitude": 40.0, "longitude": -70.0, "timezone": "America/New_York"}
 NOW = datetime(2026, 6, 1, tzinfo=UTC).timestamp()
 YEARS = [2022, 2023, 2024, 2025]
@@ -477,6 +479,7 @@ def test_fetch_has_bounded_read_timeout_and_system_certificates(monkeypatch):
 
     monkeypatch.setattr(net, "ssl_context", lambda: context)
     monkeypatch.setattr(weather.urllib.request, "urlopen", open_url)
+    monkeypatch.setattr(weather, "fetch", REAL_FETCH)   # undo conftest's stand-in: urlopen above is the stand-in here
     with pytest.raises(weather.WeatherError, match="too large"):
         weather._get(climate.ARCHIVE_URL, {})
     assert seen == {"timeout": weather.TIMEOUT_S, "context": context,

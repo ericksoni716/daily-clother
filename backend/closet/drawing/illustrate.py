@@ -13,10 +13,9 @@ import numpy as np
 from PIL import Image
 
 from . import fills
-from .templates import H, Shape, W, _x_on, build
+from .templates import CX_ROT, H, Shape, W, _x_on, build
 
 STYLES = ("flat", "line", "soft", "traced")
-CX_ROT = (200, 120)  # patterns are turned about the middle of the chest
 PLACE_AT = 0.35      # where along the centre line, from neck to hem, a placed pattern is lined up
 CARD = "#f1eee8"
 INK = "#26231f"
@@ -241,7 +240,7 @@ def _texture_tile(name: str, sc: float, lo: str, hi: str):
         return (8 * sc, h, f'<path d="M0,{h * .3:.2f}q{2 * sc:.2f},{1.6 * sc:.2f} {4 * sc:.2f},0t{4 * sc:.2f},0" stroke="{lo}" '
                            f'stroke-width="{0.9 * min(sc, 1.6):.2f}" fill="none" opacity=".2"/>')
     if name == "linen":      # slubs: short, uneven streaks
-        return (40, 9, f'<path d="M2,2H13M21,2.5H25M8,6.5H15M27,6H38M31,8.2H34" stroke="{lo}" stroke-width=".9" opacity=".12"/>')
+        return (56, 15, f'<path d="M3,3H13M31,4.5H35M14,10.5H20M40,11H50" stroke="{lo}" stroke-width=".8" opacity=".11"/>')
     if name == "basket":     # hopsack, oxford: pairs of threads over pairs
         return (6, 6, f'<path d="M.5,1.3H2.5M.5,2.3H2.5M4,3.5V5.5M5,3.5V5.5" stroke="{lo}" stroke-width=".6" opacity=".2"/>')
     if name == "tweed":      # flecks of other colours
@@ -416,7 +415,9 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     sole_c = spec.sole_color or shape.sole_default or "#f4f1ea"
 
     def part_color(key):
-        return {"trim": spec.trim_color, "lace": spec.lace_color, "sole": sole_c, "sole_line": None}.get(key, key)
+        return {"trim": spec.trim_color, "lace": spec.lace_color, "sole": sole_c, "sole_line": None,
+                "sole_dark": shade(sole_c, -0.35 if luminance(sole_c) > 0.25 else 0.2),   # an outsole under a sandal's footbed
+                "deep": shade(base, 0.14 if luminance(base) < 0.1 else -0.15)}.get(key, key)   # deep: the same leather, in shadow
 
     def overlay(d: str, role: str, color: str | None = None) -> str:
         if role == "edge":   # a line with no fill, e.g. the visible edges of a collar
@@ -432,7 +433,12 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
         if role in ("lapel_r", "lapel_l"):
             # a tailored jacket's collar and lapels: cut from the body's cloth, so they carry its surface too
             fill = spec.collar_color or spec.trim_color or turned(role[-1], -24 if role == "lapel_r" else 24)
-            return f'<path d="{d}" fill="{fill}"/>' + (f'<path d="{d}" fill="url(#t{uid})"/>' if tex_defs else "")
+            # the lapel is the facing turned back: on a dark or patterned cloth its edges alone are lost, so a
+            # shade sets it off the body (lighter on a dark plain cloth, darker on a pattern)
+            facing = (f'<path d="{d}" fill="{"#fff" if dark_item and not patterned else "#000"}" '
+                      f'opacity="{0.09 if dark_item and not patterned else 0.26}"/>') if (dark_item or patterned) else ""
+            return (f'<path d="{d}" fill="{fill}"/>' + (f'<path d="{d}" fill="url(#t{uid})"/>' if tex_defs else "")
+                    + facing)
         if role == "neckrib":   # the rib of a crew neck: only painted when it is a contrast colour
             return f'<path d="{d}" fill="{spec.trim_color}"/>' if spec.trim_color else ""
         if role == "stitch":   # topstitching in its own thread colour: dashed, never ink
@@ -440,6 +446,10 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             if color == "sole_line":
                 c = shade(sole_c, -0.25 if luminance(sole_c) > 0.25 else 0.22)
             return f'<path d="{d}" fill="none" stroke="{c}" stroke-width="1.3" stroke-dasharray="3.2 2.4" stroke-linecap="round"/>'
+        if role == "punch":    # brogue punching: a row of small holes along a seam
+            c = shade(base, 0.3 if luminance(base) < 0.3 else -0.32)   # holes show the darker lining, or catch light on black
+            return (f'<path d="{d}" fill="none" stroke="{c}" stroke-width="3.1" stroke-dasharray="0 4.8" '
+                    f'stroke-linecap="round"/>')
         if role == "inlay":    # a piece in its own colour (lace, rubber toe, contrast panel); body cloth when none is given
             c = part_color(color)
             body = f'<path d="{d}" fill="{c}"/>' if c else (f'<path d="{d}" fill="{paint}"/>'
@@ -476,6 +486,9 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     depth = DEPTH_PX[wt] if spec.template == "top" else 0
     # always a darker tone of the cloth (a lighter one reads as gloss); the darker the cloth, the more it takes to show
     d_col, d_op = "#000", (0.42 if dark_item else 0.22 if luminance(base) < 0.55 else 0.14)
+    if depth and any(part.role == "band" for part in shape.parts):   # the soft shade a thick knit casts on its rib
+        defs += (f'<filter id="r{uid}" filterUnits="userSpaceOnUse" x="-50" y="-100" width="500" height="700">'
+                 f'<feGaussianBlur stdDeviation="{depth * 0.6:.1f}"/></filter>')
     behind = "".join(overlay(part.d, part.role, part.color) for part in shape.behind)
     if not shape.fronts:
         g.append(behind)
@@ -520,6 +533,9 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
         g.append(halo(d))
     for d in shape.seams:
         g.append(thin(d))
+    for d in shape.folds:   # a light cloth's drape: finer and fainter than a seam
+        g.append(f'<path d="{d}" fill="none" stroke="{l_stroke}" stroke-width="{l_w * 0.8:.2f}" stroke-linecap="round" '
+                 f'opacity="{l_op * 0.6:.2f}"/>')
     g.append("</g>")
     top_side, behind_neck = [], []   # worn open: the top front's collar and lapel; pieces behind the neck
     for part in shape.parts:   # parts marked clip are cut by the garment's edge (laces, a rubber toe)
@@ -527,6 +543,9 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
         if depth and part.role in ("collar_r", "collar_l", "trim"):   # a thick piece stands proud of the body
             piece = (f'<g clip-path="url(#{clip})"><path d="{part.d}" transform="translate({depth * 0.35:.1f} {depth * 0.8:.1f})" '
                      f'fill="{d_col}" opacity="{d_op + 0.05:.2f}"/></g>') + piece
+        elif depth and part.role == "band":   # a thick knit blouses over its rib: a soft shade along the rib's edge
+            piece = (f'<g clip-path="url(#{clip})"><path d="{part.d}" fill="none" stroke="{d_col}" stroke-width="{depth * 2.6:.1f}" '
+                     f'stroke-linejoin="round" opacity="{min(0.5, d_op + 0.15):.2f}" filter="url(#r{uid})"/></g>') + piece
         piece = f'<g clip-path="url(#{clip})">{piece}</g>' if part.clip else piece
         if shape.fronts and part.role == "hole":   # the inside of the neck is part of the back, drawn with it
             continue

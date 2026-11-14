@@ -48,13 +48,21 @@ export function useReviewCount(): number | null {
   return count;
 }
 
-/** The number on the Review link (nothing when there is nothing to review). */
-export function ReviewBadge({ count }: { count: number | null }) {
+/** What a screen reader hears after a link that leads to the review queue. */
+export function reviewCountText(count: number): string {
+  return ` (${count} ${count === 1 ? 'item' : 'items'} to review)`;
+}
+
+/**
+ * The number beside a link that leads to the review queue (nothing when there is nothing to review).
+ * `quiet`: only shown, because another link nearby already says it.
+ */
+export function ReviewBadge({ count, quiet = false }: { count: number | null; quiet?: boolean }) {
   if (!count) return null;
   return (
     <>
       <span className="nav-badge" data-testid="review-badge" aria-hidden="true">{count > 99 ? '99+' : count}</span>
-      <span className="visually-hidden"> ({count} {count === 1 ? 'item' : 'items'} to review)</span>
+      {!quiet && <span className="visually-hidden">{reviewCountText(count)}</span>}
     </>
   );
 }

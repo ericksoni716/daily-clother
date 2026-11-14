@@ -1,6 +1,8 @@
-import { useState } from 'react';
-import { ArchiveIcon, CloudOffIcon, GearIcon, HangerIcon, PlusIcon, SuitcaseIcon, SunIcon } from './components/Icons';
+import { useState, type ReactNode } from 'react';
+import { CloudOffIcon, GearIcon, HangerIcon, PlusIcon, SuitcaseIcon, SunIcon } from './components/Icons';
 import { useLanding } from './landing';
+import { Button, buttonClass } from './components/ui';
+import { navSection, tabFor } from './nav';
 import { Link, parseRoute, usePath, useMediaQuery, WIDE } from './router';
 import { useCloset } from './store';
 import { ClosetScreen } from './screens/Closet';
@@ -11,7 +13,7 @@ import { TodayScreen } from './screens/Today';
 import { TripsScreen } from './screens/Trips';
 import { InsightsScreen } from './screens/Insights';
 import { WornScreen } from './screens/Worn';
-import { ReviewBadge, ReviewIcon, ReviewScreen, useReviewCount } from './screens/Review';
+import { ReviewBadge, reviewCountText, ReviewIcon, ReviewScreen, useReviewCount } from './screens/Review';
 import { BagIcon, MissingScreen } from './screens/Missing';
 import { Restarting, UpdateBanner, useUpdateStatus } from './components/Updates';
 
@@ -33,11 +35,9 @@ export function Shell({ version }: { version: string }) {
   else if (route.name === 'review') content = <ReviewScreen />;
   else if (route.name === 'trips') content = <TripsScreen tripId={route.tripId} />;
   else if (route.itemId && !wide) content = <ItemDetail key={route.itemId} id={route.itemId} status={route.status} />;
-  else content = <ClosetScreen status={route.status} selectedId={route.itemId} wide={wide} />;
+  else content = <ClosetScreen status={route.status} selectedId={route.itemId} wide={wide} toReview={toReview} />;
 
-  // Insights is reached from the Closet screen and Worn from Today, so those stay the highlighted sections
-  const section = route.name === 'closet' ? (route.status === 'archived' ? 'archived' : 'closet')
-    : route.name === 'insights' ? 'closet' : route.name === 'worn' ? 'today' : route.name;
+  const section = navSection(route);
 
   return (
     <div className="shell">
@@ -72,7 +72,8 @@ function TopBanners() {
       {profile === 'demo' && (
         <div className="ribbon" role="note">
           <span><strong>Demo closet</strong><span className="ribbon-more"> · sample clothes to look around with. Your own closet is safe.</span></span>
-          <button className="btn btn-small btn-on-accent" disabled={busy || offline} onClick={async () => {
+          <span className="ribbon-sep" aria-hidden="true">·</span>
+          <Button variant="link" small aria-label="Leave the demo closet" disabled={busy || offline} onClick={async () => {
             setBusy(true);
             try {
               await switchProfile('main');
@@ -80,66 +81,87 @@ function TopBanners() {
               toast((e as Error).message, 'error');
               setBusy(false);
             }
-          }}>Back to my closet</button>
+          }}>Leave</Button>
         </div>
       )}
     </>
   );
 }
 
+const ADD_OFFLINE = 'Adding photos needs Closet on your computer to be reachable';
+
 const NAV = [
   { key: 'today', to: '/today', label: 'Today', Icon: SunIcon },
   { key: 'closet', to: '/', label: 'Closet', Icon: HangerIcon },
-  { key: 'archived', to: '/archived', label: 'Archived', Icon: ArchiveIcon },
   { key: 'trips', to: '/trips', label: 'Trips', Icon: SuitcaseIcon },
-  { key: 'review', to: '/review', label: 'Review', Icon: ReviewIcon },
-  { key: 'missing', to: '/missing', label: "What's missing", short: 'Missing', Icon: BagIcon },
-  { key: 'add', to: '/add', label: 'Add', Icon: PlusIcon },
-  { key: 'settings', to: '/settings', label: 'Settings', Icon: GearIcon },
+  { key: 'missing', to: '/missing', label: "What's missing", Icon: BagIcon },
 ] as const;
 
+function NavLink({ to, active, className = 'nav-link', children }: { to: string; active: boolean; className?: string; children: ReactNode }) {
+  return <Link to={to} className={`${className}${active ? ' is-active' : ''}`} aria-current={active ? 'page' : undefined}>{children}</Link>;
+}
+
 function Sidebar({ section, offline, toReview }: { section: string; offline: boolean; toReview: number | null }) {
+  const showReview = !!toReview || section === 'review';
   return (
     <nav className="sidebar" aria-label="Main">
       <div className="sidebar-brand"><span className="brand-dot"><HangerIcon /></span> Closet</div>
+      {offline ? (
+        <span className={buttonClass({ variant: 'primary', block: true, className: 'sidebar-add is-disabled' })} aria-disabled="true" title={ADD_OFFLINE}>
+          <PlusIcon /> Add clothes
+        </span>
+      ) : (
+        <Link to="/add" className={buttonClass({ variant: 'primary', block: true, className: 'sidebar-add' })}
+          aria-current={section === 'add' ? 'page' : undefined}>
+          <PlusIcon /> Add clothes
+        </Link>
+      )}
       <ul>
         {NAV.map(({ key, to, label, Icon }) => (
           <li key={key}>
-            {key === 'add' && offline ? (
-              <span className="nav-link is-disabled" aria-disabled="true" title="Adding photos needs Closet on your computer to be reachable">
-                <Icon /> {label}
-              </span>
-            ) : (
-              <Link to={to} className={`nav-link${section === key ? ' is-active' : ''}`} aria-current={section === key ? 'page' : undefined}>
-                <Icon /> {label}{key === 'review' && <ReviewBadge count={toReview} />}
-              </Link>
+            <NavLink to={to} active={section === key}>
+              <Icon /> {label}{key === 'closet' && <ReviewBadge count={toReview} quiet />}
+            </NavLink>
+            {key === 'closet' && showReview && (
+              <NavLink to="/review" active={section === 'review'} className="nav-link nav-sublink">
+                <ReviewIcon /> Review{toReview ? <span className="visually-hidden">{reviewCountText(toReview)}</span> : null}
+              </NavLink>
             )}
           </li>
         ))}
+      </ul>
+      <ul className="sidebar-bottom">
+        <li><NavLink to="/settings" active={section === 'settings'}><GearIcon /> Settings</NavLink></li>
       </ul>
     </nav>
   );
 }
 
+const TABS = [
+  { key: 'today', to: '/today', label: 'Today', Icon: SunIcon },
+  { key: 'closet', to: '/', label: 'Closet', Icon: HangerIcon },
+  { key: 'add', to: '/add', label: 'Add', Icon: PlusIcon },
+  { key: 'missing', to: '/missing', label: 'Missing', Icon: BagIcon },
+  { key: 'settings', to: '/settings', label: 'Settings', Icon: GearIcon },
+] as const;
+
 function TabBar({ section, offline, toReview }: { section: string; offline: boolean; toReview: number | null }) {
-  // the bottom bar is full: Trips is reached from Today and Settings on the phone
-  const tabs = NAV.filter((n) => n.key !== 'archived' && n.key !== 'trips');
+  const lit = tabFor(section);
   return (
     <nav className="tabbar" aria-label="Main">
-      {tabs.map((n) => {
-        const { key, to, Icon } = n;
-        const label = 'short' in n ? n.short : n.label;
-        const active = section === key || (key === 'closet' && section === 'archived') || (key === 'today' && section === 'trips');
-        if (key === 'add' && offline) {
-          return (
-            <button key={key} className="tab" disabled title="Adding photos needs Closet on your computer to be reachable">
-              <Icon /><span>{label}</span>
-            </button>
-          );
+      {TABS.map(({ key, to, label, Icon }) => {
+        const active = lit === key;
+        const add = key === 'add';
+        const inner = add ? <><span className="tab-add-circle"><Icon /></span><span>{label}</span></> : <><Icon /><span>{label}</span></>;
+        if (add && offline) {
+          return <button key={key} type="button" className="tab tab-add" disabled title={ADD_OFFLINE}>{inner}</button>;
         }
         return (
-          <Link key={key} to={to} className={`tab${active ? ' is-active' : ''}`} aria-current={active ? 'page' : undefined}>
-            <Icon /><span>{label}</span>{key === 'review' && <ReviewBadge count={toReview} />}
+          <Link key={key} to={to} className={`tab${add ? ' tab-add' : ''}${active ? ' is-active' : ''}`} aria-current={active ? 'page' : undefined}>
+            {inner}
+            {key === 'closet' && !!toReview && (
+              <><span className="tab-dot" data-testid="review-dot" aria-hidden="true" /><span className="visually-hidden">{reviewCountText(toReview)}</span></>
+            )}
           </Link>
         );
       })}

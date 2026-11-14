@@ -105,7 +105,7 @@ export interface Help {
 }
 
 export const HELP_LEVELS = 4;
-const HELP_WORDS = ['Would help a little', 'Would help some', 'Would help a fair bit', 'Would help a lot'] as const;
+const HELP_WORDS = ['Helps a little', 'Helps some', 'Helps a fair bit', 'Helps a lot'] as const;
 // Where each level starts, on the server's 0 to 100: one basic the closet lacks is about 30-45, a gap
 // found on many days or by several ways is 60 and up.
 const HELP_FROM = [0, 25, 45, 60] as const;
@@ -121,6 +121,49 @@ export function helpOf(score: number): Help {
     }
   }
   return { level: level as Help['level'], words: HELP_WORDS[level - 1] };
+}
+
+// --------------------------------------------------------------------- why, day by day
+
+/** One kind of day a reason holds for: "Work", "most days: on the cold or cool days here, about 120 a year". */
+export interface ReasonDay {
+  occasion: string;
+  when: string;
+}
+
+/** A reason given once, with every kind of day it was given for (none when the analysis did not say). */
+export interface ReasonGroup {
+  text: string;
+  days: ReasonDay[];
+}
+
+// The server writes "For work, most days: on the cold days here, about 91 a year. <the reason>" once the owner has
+// said how they live; the part before the first full stop has none of its own.
+const DAY_PREFIX = /^For ([^,:]+), ([^:]+: [^.]+)\.\s+(.+)$/s;
+
+/**
+ * The reasons of a gap with the same sentence said once: each kind of day it was given for listed under it, in the
+ * order they came. A reason without a kind of day keeps its place and has none.
+ */
+export function groupReasons(why: string[] | null | undefined): ReasonGroup[] {
+  const groups: ReasonGroup[] = [];
+  const byText = new Map<string, ReasonGroup>();
+  for (const line of why ?? []) {
+    const m = DAY_PREFIX.exec(line.trim());
+    const text = (m ? m[3] : line).trim();
+    if (!text) continue;
+    let group = byText.get(text);
+    if (!group) {
+      group = { text, days: [] };
+      byText.set(text, group);
+      groups.push(group);
+    }
+    if (m) {
+      const occasion = m[1].trim();
+      group.days.push({ occasion: occasion.charAt(0).toUpperCase() + occasion.slice(1), when: m[2].trim() });
+    }
+  }
+  return groups;
 }
 
 // --------------------------------------------------------------------- what to look for

@@ -146,11 +146,23 @@ def sections() -> list[dict]:
              ("chunky", "chunky-sole sneaker", dict(style="low_sneaker", sole="chunky"), "#9fa3a8", {}),
              ("slip_on", "canvas slip-on", dict(style="slip_on"), "#6e2633", {}),
              ("loafer", "penny loafer", dict(style="loafer"), "#5a3a26", {}),
+             ("loafer_tassel", "tassel loafer", dict(style="loafer", strap="tassel"), "#6b3f26", {}),
+             ("loafer_horsebit", "horsebit loafer", dict(style="loafer", strap="horsebit"), "#2a2220", {}),
+             ("loafer_venetian", "venetian loafer", dict(style="loafer", strap="none"), "#4b3226", {}),
              ("derby", "derby", dict(style="derby"), "#1d1e22", {}),
+             ("derby_brogue", "derby wingtip brogue", dict(style="derby", brogue="full"), "#7a4a2a", {}),
              ("oxford", "cap-toe oxford", dict(style="oxford", toe_cap="stitched"), "#7a4a2a", {}),
+             ("oxford_plain", "plain-toe oxford, 4 eyelets", dict(style="oxford", eyelets=4), "#1d1e22", {}),
+             ("oxford_wholecut", "wholecut", dict(style="oxford", wholecut=True), "#5a2a22", {}),
+             ("oxford_quarter", "quarter brogue", dict(style="oxford", brogue="quarter"), "#5a3a26", {}),
+             ("oxford_semi", "semi brogue", dict(style="oxford", brogue="semi"), "#8a5a33", {}),
+             ("oxford_full", "full brogue (wingtip)", dict(style="oxford", brogue="full"), "#6b3f26", {}),
+             ("sandal_slide", "slide", dict(style="sandal", sandal="slide"), "#1f2024", {}),
+             ("sandal", "two-strap sandal", dict(style="sandal"), "#5a3a26", {}),
+             ("sandal_strap", "strap sandal", dict(style="sandal", sandal="strap"), "#3a2a20", {}),
              ("boot", "lace-up boot", dict(style="boot", height="high"), "#8a5a33", {}),
              ("chelsea_boot", "chelsea boot", dict(style="chelsea_boot", height="high"), "#3a2a20", {})]
-    out.append(dict(id="shoes", title="Shoes", blurb="The nine shoe shapes and their details. There is no sandal shape yet.",
+    out.append(dict(id="shoes", title="Shoes", blurb="The ten shoe shapes and their details: loafer straps, oxford and derby lacing, brogues, sandals.",
                     cards=[other_card(f"shoe.{i}", label, "sneaker", p, col, **extra) for i, label, p, col, extra in shoes]))
     return out
 

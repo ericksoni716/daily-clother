@@ -70,7 +70,7 @@ lower on the item page, lists every change to the description, newest first;
 **Undo** puts one back, as long as nothing changed the same thing since. In the
 demo closet you can pick and undo, but sentences are not sent to Claude.
 
-To stop the program use **Quit Closet** in the icon's menu or in Settings.
+To stop the program use **Quit Closet** in the icon's menu or at the bottom of Settings.
 Double-clicking the program while it is already running just opens the app.
 If the copy that is running is an older version (you downloaded an update but
 the old one was still open), Closet says so and asks whether to close the old
@@ -90,12 +90,14 @@ piece at once (**Undo** takes it back). The **⋯** on a piece leaves it out
 piece**); tap a piece to open it. **As worn**, above the pieces, draws the
 outfit as it is worn instead (the shirt under the open jacket, the trousers
 below, the shoes at the bottom); **Pieces** goes back, and your choice is
-remembered on that device. With no place saved, type today's low and
-high temperatures there instead. Offline, Today shows the outfits it last
-found that day.
+remembered on that device. Today uses the forecast for New York until you
+choose your place: tap **Change** beside the weather to search for it or tap
+**Use my location**, or to type today's low and high temperatures yourself.
+When the weather cannot be fetched, Today still dresses you, for a mild day,
+and says so. Offline, Today shows the outfits it last found that day.
 
 Closet remembers what you wore together. The morning after, Today asks **How
-was yesterday's outfit?** under the outfits: tap **Loved it**, **Fine** or
+was yesterday's outfit?** above the outfits: tap **Loved it**, **Fine** or
 **Not again**, and if you like say why (**Too warm**, **Too cold**, **Too
 dressed up**, **Got compliments** and a few more); **Not now** puts the
 question away. Your answers shape what Today offers: pieces you loved together
@@ -103,11 +105,11 @@ come up together a little more, an outfit you said **Not again** to is not
 offered again, and if you were cold on a day like today you are dressed a
 little warmer. The outfit says when a rating played a part ("You loved these
 together on 3 November"). **Worn** at the top of Today lists the outfits you
-wore, newest first: rate one or change its rating, **Wear this again** (Today
-starts from it, with what is clean), **Remove** it (the wears it recorded go
-too), or **Record an outfit** for a day you got dressed without Closet. Offline,
-the list shows what it last saw, and rating waits until Closet on your computer
-can be reached.
+wore, newest first: rate one, or tap its rating to change it; under **⋯** are
+**Wear this again** (Today starts from it, with what is clean) and **Remove**
+(the wears it recorded go too). **Record an outfit** is for a day you got
+dressed without Closet. Offline, the list shows what it last saw, and rating
+waits until Closet on your computer can be reached.
 
 **What's missing** (**Missing** in the bar at the bottom of a phone) looks at
 your closet and what you wear and suggests what to buy, the most helpful
@@ -130,8 +132,8 @@ vacation. Say how people dress at work, and roughly how many weeks you spend
 away and whether those places are warm or cold. Days can overlap: work and
 exercise can happen on the same day. **Not now** leaves the original suggestions
 unchanged. You can answer later or change your answers from **Based on…** on
-What's missing, or **Settings → How you live**. Tap **Based on…** to open the
-weather note, explanation and your style words. With every situation set to
+What's missing, or **Settings → How you live**. Tapping **Based on…** opens
+your answers, with the weather note, explanation and your style words under them. With every situation set to
 **Never**, choose some situations before asking what is missing.
 
 Once answered, common days matter more than rare ones. A saved place lets
@@ -207,7 +209,9 @@ numbers.
 
 ## Adding your clothes
 
-Open **Add**. One piece of clothing per photo works best.
+Open **Add** (the round button in the middle of the bar at the bottom of a
+phone; **Add clothes** at the top of the menu on a computer). One piece of
+clothing per photo works best.
 
 - **On the computer:** click **Choose photos** and pick as many as you like,
   click **Choose a folder**, or drag photos or whole folders onto the page.
@@ -230,10 +234,12 @@ again: it says how many photos were not added yet. Choose the same photos or
 folder again and it carries on; the ones that already went in are not added
 twice.
 
-After an import, open **Review**: it shows, one item at a time, only what
-Claude was unsure about. Tap another value if its guess is wrong, then
-**That's right**, or **Skip for now**. The number on **Review** says how many
-items are left.
+After an import, a note at the top of your closet says how many pieces need a
+quick check (on a phone, a dot on **Closet** says so too); tap **Review** in it.
+On a computer, **Review** also sits under **Closet** in the menu while there is
+anything to check, with the number beside **Closet**. It shows, one item at a
+time, only what Claude was unsure about. Tap another value if its guess is
+wrong, then **That's right**, or **Skip for now**.
 
 ## Use it from your iPhone
 
@@ -266,11 +272,12 @@ collar, buttons and so on). It does this through **Claude Code**, a free
 program from Anthropic that uses your Claude plan, so nothing extra is charged
 per photo. An API key can be used instead, but it is billed per photo by
 Anthropic, is only used when the plan can't be, and only if you turn on
-**Allow the API key** in **Settings → Tagging**. It is off until you do.
-**Settings → Tagging** shows which of the two Closet can use right now, which it
-will try first, and how many items are waiting to be described.
+**Allow the API key** in **Settings → Describing clothes**. It is off until you do.
+**Settings → Describing clothes** shows each of the two once, with one line
+saying whether Closet can use it right now, which it will try first, and how
+many items are waiting to be described.
 
-**Which to use.** Under the API key box in **Settings → Tagging** you choose the
+**Which to use.** Under the API key box in **Settings → Describing clothes** you choose the
 order: **Use my Claude plan first, the key only if the plan can't** (the
 usual one), **Use the API key first** (if you would rather pay per photo than use
 up your plan), **Only my Claude plan**, or **Only the API key**. The two that put
@@ -282,11 +289,12 @@ corrections you type, and "Would this work?".
 
 **Adding an API key.** Make a key in your Anthropic account (console.anthropic.com,
 **API keys**), copy it, and paste it into **Paste your API key** in **Settings →
-Tagging**, then **Save key**. Closet asks Anthropic whether it accepts the key
+Describing clothes**, then **Save key**. Closet asks Anthropic whether it accepts the key
 (this costs nothing) and keeps it in your computer's own keychain (the Mac's
 keychain, or Windows Credential Manager), never in a file. It is never shown
 again; **Replace key** and **Remove key** are there when you need them. Then turn
-on **Allow the API key** and set a monthly limit. A key saved here is used instead
+on **Allow the API key** and set a monthly limit (under **Monthly limit and
+spending**, just below the switch). A key saved here is used instead
 of one set as `ANTHROPIC_API_KEY`.
 
 **What the API key costs.** At the prices Closet knows (written down on
@@ -296,7 +304,7 @@ costs well under 1¢, about $0.003 at most. To allow the API key you set a
 thousand photos. Before every request Closet adds what this month has cost so
 far to the most that request could cost, and if that would pass the limit it
 does not ask: the item waits and says the monthly limit was reached. Your plan
-is still used whenever it can be. Settings shows what this month has cost, how
+is still used whenever it can be. **Monthly limit and spending** shows what this month has cost, how
 many requests were made, what the waiting items would cost at most and the
 last few months. If Anthropic refuses the key or says the account is out of
 credit, Closet turns the API key off and says why in Settings. What Closet
@@ -327,8 +335,8 @@ your browser; sign in with your Claude account, then come back and type
 
 **Check it:** type `claude auth status` and press Enter. It says you are logged
 in (and which account) when everything is ready. Then open **Settings →
-Tagging** in Closet and press **Check again**: "Your Claude plan, through
-Claude Code" should say **ready**. If it says Claude Code is not installed,
+Describing clothes** in Closet and press **Check again**: "Your Claude plan, through
+Claude Code" should say **Ready to use**. If it says Claude Code is not installed,
 quit Closet and start it again so it sees the new program.
 
 **If an item says Anthropic turned down the account Claude Code is signed in
@@ -373,13 +381,13 @@ above); this folder is not touched. If an update changes the database, a copy is
 `Closet\backups` first. An older program refuses to open a closet written by a
 newer one instead of damaging it.
 
-**Settings → Storage** shows how much space this folder takes: photos,
+**Settings → Your closet → Storage** shows how much space this folder takes: photos,
 cutouts, thumbnails, backups kept on this computer and the background-removal
 model, plus how much free space the disk has left.
 
 ### Backups
 
-In **Settings → Backups**, choose a folder (a cloud-synced folder is ideal).
+In **Settings → Your closet → Backups**, choose a folder (a cloud-synced folder is ideal).
 Closet backs up there once a day while it is running, catches up at the next
 start if the computer was off, and shows the date of the last good backup. It
 keeps the 14 most recent database snapshots and one copy of every image. The
@@ -406,15 +414,23 @@ new one. Your closet is untouched.
 
 If the computer cannot download the model, download
 `isnet-general-use.onnx` on another machine from the address shown in
-**Settings → Background removal**, and put it in `Closet\models`. Closet
-checks the file and starts using it. The address can be changed in Settings.
+**Settings → Advanced** (open it near the bottom of the page), and put it in
+`Closet\models`. Closet checks the file and starts using it. The address can be
+changed there too. **Settings → Your closet → Background removal** says whether
+the model is ready. **Advanced** also shows where your closet is stored and the
+version of Closet.
 
 ### Where you are
 
-In **Settings → Where you are**, search for your town or city and choose it
-from the list, so Closet can look up today's weather when it suggests outfits.
-Only the name you search for and the chosen place's location are sent, to the
-free weather service Open-Meteo; nothing about your clothes is.
+Closet uses New York's weather until you choose your place. In **Settings →
+Where you are** (or **Change** on Today), search for your town or city and
+choose it from the list, or tap **Use my location**. Only the name you search
+for and the chosen place's location are sent, to the free weather service
+Open-Meteo; nothing about your clothes is. **Use my location** asks your
+browser where you are only when you tap it, and sends that position, rounded
+to about a kilometre, to OpenStreetMap to find the town's name. On the phone
+over Tailscale the browser may not share its position (the address is not
+https); search by name there instead. **Back to New York** forgets your place.
 After you answer **How you live**, the same place is also used for long-term
 weather on What's missing. That lookup sends only the coordinates and keeps
 the result for six months. Your life answers and style words stay on your
@@ -430,10 +446,11 @@ dark mode, so their colours look right.
 
 ## Demo closet
 
-**Settings → Demo closet** opens a sample closet of 30 items so you can try
+**Show the demo closet** in **Settings → Your closet** opens a sample closet of 30 items so you can try
 everything without your own photos, with a few outfits worn in the last two
 weeks (yesterday's not rated yet, so Today asks about it). It is kept separate from your real closet
-and is never backed up. Photo credits are in
+and is never backed up. A slim strip at the top of every screen says you are
+in it; **Leave** takes you back to your own closet. Photo credits are in
 `backend/closet/demo_data/CREDITS.md`.
 What's missing uses fixed example life answers and seasons in the demo,
 unaffected by your own answers or place. Switch back to your own closet to
@@ -451,4 +468,4 @@ save your answers.
 
 ## Planning a trip
 
-Open **Trips** (in the sidebar; on the phone, the "Trips" link on Today or in Settings) and choose **Plan a trip**. Search for where you are going, pick the first and last day (up to 30 days), the occasion, and whether you can wash there. Closet shows the weather (the forecast, or what those dates are usually like), what to pack with how many days each piece is worn, basics like socks, and an outfit for each day. Use "Not this one" to swap a piece out and "Take something else" to insist on one. Save the trip, then tick things off as you pack, on the computer or the phone.
+Open **Trips** (in the sidebar; on the phone, the **Trips** button at the top of Today or in Settings) and choose **Plan a trip**. Search for where you are going, pick the first and last day (up to 30 days), the occasion, and whether you can wash there. Closet shows the weather (the forecast, or what those dates are usually like), what to pack with how many days each piece is worn, basics like socks, and an outfit for each day. Use "Not this one" to swap a piece out and "Take something else" to insist on one. Save the trip, then tick things off as you pack, on the computer or the phone.

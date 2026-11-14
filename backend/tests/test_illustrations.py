@@ -243,3 +243,12 @@ def test_the_migration_keeps_the_drawings_made_before_it(cfg, monkeypatch):
         assert illustrations.current(conn, rows["b"])["illustration_svg"] == draw.svg_from_fields("tee", None, uid="b")
     finally:
         conn.close()
+
+
+def test_the_shoe_words_the_drawing_shows_leave_seen_not_drawn():
+    answer = {"category": "dress_shoes", "color": "brown", "pattern": "solid",
+              "details": {"shoe_style": "loafer", "other_features": ["tassels", "contrast welt stitching"]}}
+    row = {"source": "{}", "silhouette": "{}", "tag_answer": json.dumps(answer), "category": "dress_shoes",
+           "color": "brown", "pattern": "solid", "own_details": None}
+    assert illustrations.not_drawn(row, ["tassels", "contrast welt stitching"]) == ["contrast welt stitching"]
+    assert draw.words_drawn({**answer, "category": "shirt"}) == []

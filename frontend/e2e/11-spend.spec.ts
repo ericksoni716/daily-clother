@@ -22,14 +22,16 @@ test.describe('the API key with a monthly limit', () => {
     await page.getByRole('button', { name: 'Start with my own closet' }).click();
 
     await page.goto(backend.url + '/settings');
-    const section = page.getByRole('region', { name: 'Tagging' });
+    const section = page.getByRole('region', { name: 'Describing clothes' });
     await expect(section.getByTestId('route-plan')).toContainText('not installed', { timeout: 20_000 });
     const allow = section.getByRole('switch', { name: /Allow the API key/ });
     await expect(allow).not.toBeChecked();
-    await expect(section.getByText(/^We suggest \$5\.00 a month\. At the prices written down on 3 Nov 2026/)).toBeVisible();
 
-    // the limit is asked for with the switch, and kept
+    // the limit is asked for with the switch, and kept; it and the month's spending are folded away until opened
     const limit = section.getByLabel('Monthly limit for the API key (US dollars)');
+    await expect(limit).toBeHidden();
+    await section.getByText('Monthly limit and spending').click();
+    await expect(section.getByText(/^We suggest \$5\.00 a month\. At the prices written down on 3 Nov 2026/)).toBeVisible();
     await limit.fill('0.01');
     await section.getByText('Allow the API key', { exact: true }).click();
     await expect(allow).toBeChecked();
@@ -44,6 +46,8 @@ test.describe('the API key with a monthly limit', () => {
     await expect(page.getByTestId('tile').first()).toContainText('Navy polo', { timeout: 60_000 });
 
     await page.goto(backend.url + '/settings');
+    await section.getByText('Monthly limit and spending').click();
+    await expect(section.getByText('$0.01 a month')).toBeVisible();
     await expect(section.getByTestId('spend-month')).toContainText('$0.01 of your $0.01 limit spent; 1 request to Claude with the API key.');
     await expect(section.getByTestId('spend-history')).toContainText('$0.01');
     await expect(section.getByText(/^Costs are worked out from Anthropic's prices as written down on 3 Nov 2026\. Prices change/)).toBeVisible();

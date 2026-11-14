@@ -14,12 +14,14 @@ test('edit, reload at once: the edit is there', async ({ page }) => {
   const notes = () => page.locator('.detail-panel').getByRole('textbox', { name: 'Notes', exact: true });
 
   // a chip: reload straight after the tap, without waiting for the answer
+  await panel.getByRole('button', { name: /^Formality:/ }).click();
   const formality = panel.getByRole('group', { name: 'Formality' });
   await expect(formality).toBeVisible();
   const target = (await formality.getByRole('button', { name: 'Casual', exact: true }).getAttribute('aria-pressed')) === 'true'
     ? 'Smart casual' : 'Casual';
   await formality.getByRole('button', { name: target, exact: true }).click();
   await page.reload();
+  await page.locator('.detail-panel').getByRole('button', { name: /^Formality:/ }).click();
   await expect(page.locator('.detail-panel').getByRole('group', { name: 'Formality' }).getByRole('button', { name: target, exact: true }))
     .toHaveAttribute('aria-pressed', 'true');
 

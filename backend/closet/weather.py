@@ -2,9 +2,11 @@
 
 The place (a name, latitude, longitude and time zone) lives in the program's
 settings, not in a closet, so the real and demo closets share it. Nothing is
-guessed from the network address. The only things sent to Open-Meteo are the
-words typed into the place search and the saved place's coordinates and time
-zone; nothing about the closet is.
+guessed from the network address; until one is chosen it is New York. The only
+things sent to Open-Meteo are the words typed into the place search and the
+saved place's coordinates and time zone; nothing about the closet is. When the
+owner taps "Use my location", the browser's position, rounded to about a
+kilometre, is sent to OpenStreetMap's Nominatim to name the town, and nothing else.
 
 A forecast is kept for an hour and reused. When Open-Meteo cannot be reached
 the last forecast for the same place is given back marked as old.
@@ -27,6 +29,7 @@ from .state import State
 log = logging.getLogger("closet.weather")
 
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
+REVERSE_URL = "https://nominatim.openstreetmap.org/reverse"   # names the place at a position (OpenStreetMap)
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 TIMEOUT_S = 6                # give up on Open-Meteo after this long
 KEEP_S = 3600                # a forecast is reused for this long
@@ -34,6 +37,8 @@ RAIN_CHANCE = 50             # a chance of rain (%) at or above this counts as a
 MAX_PLACES = 8               # places offered for one search
 MAX_QUERY = 100              # longest place search sent
 MAX_BYTES = 1 << 20          # longest answer read
+NEAR_DIGITS = 2              # a position from the browser is rounded to about a kilometre before it is sent or saved
+TOWN = ("city", "town", "village", "municipality", "hamlet", "suburb", "county")   # the first one found names the place
 TIMEZONE = re.compile(r"^[A-Za-z0-9_+\-/]{1,64}$")
 
 # WMO weather codes (what Open-Meteo reports) to one word.
@@ -58,24 +63,24 @@ def _now() -> float:
     return time.time()
 
 
-def _get(url: str, params: dict) -> dict:
+def _get(url: str, params: dict, service: str = "weather service") -> dict:
     try:
         raw = fetch(f"{url}?{urlencode(params)}")
         if len(raw) > MAX_BYTES:
-            raise WeatherError("The weather service gave an answer that was too large.")
+            raise WeatherError(f"The {service} gave an answer that was too large.")
         data = json.loads(raw)
     except urllib.error.HTTPError as e:
-        log.warning("weather service answered %s", e.code)
-        raise WeatherError(f"The weather service answered with an error ({e.code}).") from None
+        log.warning("%s answered %s", service, e.code)
+        raise WeatherError(f"The {service} answered with an error ({e.code}).") from None
     except (urllib.error.URLError, OSError, TimeoutError) as e:
-        log.warning("weather service not reached: %s", type(e).__name__)
+        log.warning("%s not reached: %s", service, type(e).__name__)
         if net.is_certificate_error(e):
-            raise WeatherError("The weather service's security certificate could not be checked on this computer.") from None
-        raise WeatherError("Couldn't reach the weather service. Check the internet connection.") from None
+            raise WeatherError(f"The {service}'s security certificate could not be checked on this computer.") from None
+        raise WeatherError(f"Couldn't reach the {service}. Check the internet connection.") from None
     except ValueError:
-        raise WeatherError("The weather service gave an answer Closet could not read.") from None
+        raise WeatherError(f"The {service} gave an answer Closet could not read.") from None
     if not isinstance(data, dict):
-        raise WeatherError("The weather service gave an answer Closet could not read.")
+        raise WeatherError(f"The {service} gave an answer Closet could not read.")
     return data
 
 
@@ -96,6 +101,31 @@ def search_places(query: str) -> list[dict]:
             continue
         out.append(place)
     return out[:MAX_PLACES]
+
+
+def place_near(latitude: object, longitude: object) -> dict:
+    """The town or city at a position the browser gave on the owner's tap, as it is saved.
+
+    Open-Meteo cannot name a position, so OpenStreetMap's Nominatim does: it is sent only the coordinates, rounded
+    to about a kilometre. The time zone is left to Open-Meteo ("auto"). ValueError for coordinates that are not
+    numbers on the globe; WeatherError when the service cannot be reached or names no town there.
+    """
+    for v, limit, words in ((latitude, 90, "latitude"), (longitude, 180, "longitude")):
+        if isinstance(v, bool) or not isinstance(v, int | float) or not -limit <= v <= limit:
+            raise ValueError(f"The {words} must be a number from -{limit} to {limit}.")
+    lat, lon = round(float(latitude), NEAR_DIGITS), round(float(longitude), NEAR_DIGITS)
+    data = _get(REVERSE_URL, {"lat": lat, "lon": lon, "format": "jsonv2", "zoom": 10, "accept-language": "en"},
+                service="place-name service")
+    address = data.get("address") if isinstance(data.get("address"), dict) else {}
+    town = next((address[k] for k in TOWN if isinstance(address.get(k), str) and address[k].strip()), None)
+    parts = (town, address.get("state"), address.get("country"))
+    name = ", ".join(dict.fromkeys(p.strip() for p in parts if isinstance(p, str) and p.strip()))
+    if not town or not name:
+        raise WeatherError("No town or city was found where you are. Search for your place by name instead.")
+    try:
+        return check_place({"name": name, "latitude": lat, "longitude": lon, "timezone": "auto"})
+    except ValueError:
+        raise WeatherError("No town or city was found where you are. Search for your place by name instead.") from None
 
 
 def check_place(place: object) -> dict:

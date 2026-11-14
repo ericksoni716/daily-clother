@@ -29,8 +29,14 @@ test('wear log and laundry in the demo closet: wear, undo, laundry and back', as
   await panel.getByRole('button', { name: 'Put in the laundry' }).click();
   await expect(panel.getByTestId('laundry-state')).toHaveText(/^In the laundry/);
   await expect(tile.getByTestId('laundry-mark')).toBeVisible();
+  // the laundry filter is in the Filter popover, which closes when something else is clicked
+  const filterButton = page.getByRole('button', { name: /^Filter/ });
   const filter = page.getByRole('group', { name: 'Filter by laundry' });
-  await filter.getByRole('button', { name: 'In the laundry' }).click();
+  const chooseLaundry = async (name: string) => {
+    if ((await filterButton.getAttribute('aria-expanded')) !== 'true') await filterButton.click();
+    await filter.getByRole('button', { name }).click();
+  };
+  await chooseLaundry('In the laundry');
   await expect(tile).toHaveCount(1);
   const inLaundry = await page.getByTestId('tile').count();
   expect(inLaundry).toBeLessThan(30);
@@ -40,10 +46,10 @@ test('wear log and laundry in the demo closet: wear, undo, laundry and back', as
   await panel.getByRole('button', { name: "It's clean" }).click();
   await expect(panel.getByTestId('laundry-state')).toHaveText(/^Clean/);
   await expect(tile).toHaveCount(0);
-  await filter.getByRole('button', { name: 'Clean' }).click();
+  await chooseLaundry('Clean');
   await expect(tile).toHaveCount(1);
   await expect(page.getByTestId('laundry-mark')).toHaveCount(0);
-  await filter.getByRole('button', { name: 'Clean' }).click();
+  await chooseLaundry('Clean');
   await expect(page.getByTestId('tile')).toHaveCount(30);
 });
 

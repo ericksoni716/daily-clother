@@ -41,6 +41,7 @@ test.describe('the drawing, with a stand-in for Claude', () => {
 
     // the owner's colour wins over Claude's, and the drawing follows it
     const stored = page.waitForResponse((r) => r.request().method() === 'PATCH' && r.url().includes('/api/items/') && r.ok());
+    await detail.getByRole('button', { name: /^Colour:/ }).click();
     await detail.getByRole('group', { name: 'Colour' }).getByRole('button', { name: 'Red' }).click();
     await stored;
     await expect(drawing).not.toHaveAttribute('src', before!);

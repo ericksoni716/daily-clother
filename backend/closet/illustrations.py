@@ -175,6 +175,12 @@ def notes(row) -> list[str]:
     return [n for n in out if isinstance(n, str)] if isinstance(out, list) else []
 
 
+def not_drawn(row, seen: list) -> list:
+    """What the tagger saw that no field covers, less the words the drawing now shows."""
+    drawn = set(draw.words_drawn(drawn_answer(row)))
+    return [w for w in seen if w not in drawn]
+
+
 class FigureError(ValueError):
     """The request for an outfit figure cannot be answered; the message says why, in plain words."""
 

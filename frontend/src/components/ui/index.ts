@@ -6,3 +6,4 @@ export { ItemThumb } from './ItemThumb';
 export { Notice, type NoticeTone } from './Notice';
 export { PageHeader } from './PageHeader';
 export { SegmentedControl, type Segment } from './SegmentedControl';
+export { PHONE, Sheet } from './Sheet';

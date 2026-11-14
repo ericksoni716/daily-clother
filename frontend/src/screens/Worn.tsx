@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
-import { ChevronLeftIcon, HangerIcon, PlusIcon } from '../components/Icons';
+import { ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, PlusIcon } from '../components/Icons';
 import { Button, Card, EmptyState, ItemThumb, PageHeader } from '../components/ui';
 import { label } from '../labels';
 import { Link, navigate } from '../router';
@@ -263,40 +263,99 @@ function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
   return (
     <Card as="article" className="worn-card" aria-label={`Worn ${wornDay(outfit)}`} data-testid="worn-outfit">
       <div className="worn-card-head">
-        <h2>{wornDay(outfit)}</h2>
-        <span className={`worn-rating${outfit.rating ? ` is-${outfit.rating}` : ''}`} data-testid="worn-rating">{ratingSummary(outfit)}</span>
+        <div className="worn-card-when">
+          <h2>{wornDay(outfit)}</h2>
+          {day && <p className="muted worn-day">{day}{outfit.recorded_by === 'hand' ? ' · recorded by hand' : ''}</p>}
+          {!day && outfit.recorded_by === 'hand' && <p className="muted worn-day">Recorded by hand</p>}
+        </div>
+        <OutfitMenu offline={offline}
+          onAgain={() => navigate(`/today?again=${encodeURIComponent(outfit.id)}`)}
+          onRemove={() => setConfirm(true)} />
       </div>
-      {day && <p className="muted worn-day">{day}{outfit.recorded_by === 'hand' ? ' · recorded by hand' : ''}</p>}
-      {!day && outfit.recorded_by === 'hand' && <p className="muted worn-day">Recorded by hand</p>}
       <OutfitPics outfit={outfit} byId={byId} />
       <p className="worn-names">{names.join(', ')}</p>
+      {outfit.rating ? (
+        <button type="button" className={`chip worn-rating is-${outfit.rating}`} data-testid="worn-rating" aria-expanded={rating}
+          aria-label={`${ratingSummary(outfit)}. Change rating`} onClick={() => setRating(!rating)}>
+          <span>{ratingSummary(outfit)}</span>
+          <ChevronIcon aria-hidden="true" className="worn-rating-chevron" />
+        </button>
+      ) : (
+        <p className="worn-rating" data-testid="worn-rating">{ratingSummary(outfit)}</p>
+      )}
       {rating || !outfit.rating ? (
         <RateOutfit outfit={outfit} offline={offline} onRated={(o) => {
           if (!outfit.rating) setRating(true);   // the reasons stay open after the first answer
           onRated(o);
         }} />
       ) : null}
-      <div className="row worn-actions">
-        {outfit.rating && (
-          <button className="btn btn-small" aria-expanded={rating} onClick={() => setRating(!rating)}>
-            {rating ? 'Done' : 'Change rating'}
-          </button>
-        )}
-        <button className="btn btn-small" disabled={offline} title={title}
-          onClick={() => navigate(`/today?again=${encodeURIComponent(outfit.id)}`)}>
-          Wear this again
-        </button>
-        {confirm ? (
-          <span className="worn-confirm" role="group" aria-label="Remove this outfit?">
-            <span>Remove it? The wears it recorded go too.</span>
-            <button className="btn btn-small btn-danger" disabled={busy || offline} title={title} onClick={() => void remove()}>Remove</button>
-            <button className="btn btn-small btn-ghost" onClick={() => setConfirm(false)}>Keep</button>
-          </span>
-        ) : (
-          <button className="btn btn-small btn-ghost btn-danger-quiet" disabled={offline} title={title} onClick={() => setConfirm(true)}>Remove</button>
-        )}
-      </div>
+      {confirm && (
+        <div className="worn-confirm" role="group" aria-label="Remove this outfit?">
+          <span>Remove it? The wears it recorded go too.</span>
+          <button className="btn btn-small btn-danger" disabled={busy || offline} title={title} onClick={() => void remove()}>Remove</button>
+          <button className="btn btn-small btn-ghost" onClick={() => setConfirm(false)}>Keep</button>
+        </div>
+      )}
     </Card>
+  );
+}
+
+/** The less used actions on a worn outfit, behind a ⋯ button. Escape closes the menu and puts focus back on the button. */
+function OutfitMenu({ offline, onAgain, onRemove }: { offline: boolean; onAgain(): void; onRemove(): void }) {
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const title = offline ? OFFLINE_TITLE : undefined;
+
+  useEffect(() => {
+    if (!open) return;
+    menu.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
+    const outside = (e: PointerEvent) => {
+      if (!menu.current?.contains(e.target as Node) && !button.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
+  }, [open]);
+
+  const close = () => {
+    setOpen(false);
+    button.current?.focus();
+  };
+  const choose = (act: () => void) => () => {
+    close();
+    act();
+  };
+
+  function onKey(e: ReactKeyboardEvent) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+      return;
+    }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    e.preventDefault();
+    const all = [...(menu.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])];
+    const at = all.indexOf(document.activeElement as HTMLButtonElement);
+    all[(at + (e.key === 'ArrowDown' ? 1 : all.length - 1)) % all.length]?.focus();
+  }
+
+  return (
+    <div className="worn-menu">
+      <button ref={button} type="button" className="btn btn-icon btn-ghost worn-menu-button" aria-label="More for this outfit"
+        aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <MoreIcon />
+      </button>
+      {open && (
+        <div ref={menu} className="worn-menu-list" role="menu" aria-label="This outfit" onKeyDown={onKey}>
+          <button type="button" role="menuitem" className="worn-menu-item" disabled={offline} title={title} onClick={choose(onAgain)}>
+            Wear this again
+          </button>
+          <button type="button" role="menuitem" className="worn-menu-item is-danger" disabled={offline} title={title} onClick={choose(onRemove)}>
+            Remove
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 

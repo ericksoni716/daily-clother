@@ -22,7 +22,17 @@ from functools import lru_cache
 
 from .drawing import item as draw
 from .tagger.schema import Details
-from .tagger.taxonomy import APP_CATEGORY, BOTTOM_DRAWINGS, FOOTWEAR, GARMENT_DRAWINGS, GARMENTS
+from .tagger.taxonomy import _KIND_DRAWING as ACCESSORY_TEMPLATE
+from .tagger.taxonomy import ACCESSORIES as ACCESSORY_KINDS_OF
+from .tagger.taxonomy import (
+    ACCESSORY_GARMENTS,
+    ACCESSORY_GROUP,
+    APP_CATEGORY,
+    BOTTOM_DRAWINGS,
+    FOOTWEAR,
+    GARMENT_DRAWINGS,
+    GARMENTS,
+)
 
 # every kind in the taxonomy's `garments`, in its order: its taxonomy category and its signature
 KINDS: dict[str, tuple[str, str]] = {
@@ -215,9 +225,7 @@ TOP_AXES_OF: dict[str, dict[str, tuple]] = {
     'smoking_jacket': {'collar': ('shawl',)},
 }
 # each accessory's app category, as the taxonomy gives it
-ACCESSORIES: dict[str, str] = {
-    'cap': 'hat', 'beanie': 'hat', 'brimmed_hat': 'hat', 'belt': 'belt', 'tie': 'other', 'pocket_square': 'other', 'scarf': 'scarf', 'gloves': 'other', 'bag': 'bag', 'eyewear': 'other', 'watch': 'other', 'socks': 'other'
-}
+ACCESSORIES: dict[str, str] = ACCESSORY_GARMENTS
 
 # the groups the owner chooses a kind from, each with the taxonomy categories it gathers
 GROUPS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
@@ -333,7 +341,7 @@ def catalogue() -> dict:
     """The groups and every kind in them, in the taxonomy's order, for the item page's picker and the Closet filter."""
     return {"groups": [{"id": g, "title": t} for g, t, _ in GROUPS],
             "kinds": [{"id": k, "name": name(k), "group": group(k), "category": category_for(k), "words": search_words(k),
-                       "drawn": category_for(k) in draw.DRAWN} for k in KINDS]}
+                       "drawn": category_for(k) in draw.DRAWN or k in ACCESSORIES} for k in KINDS]}
 
 
 # ------------------------------------------------------------- an item's kind
@@ -353,12 +361,14 @@ def owner_kind(row) -> str | None:
 
 
 def said_kind(answer) -> str | None:
-    """The kind in Claude's answer: its garment, or for a shoe a footwear id among the words it saw."""
+    """The kind in Claude's answer: its garment, its accessory, or for a shoe a footwear id among the words it saw."""
     found = answer.get("details") if isinstance(answer, dict) else None
     if not isinstance(found, dict):
         return None
     if found.get("garment") in KINDS:
         return found["garment"]
+    if found.get("accessory") in ACCESSORIES and ACCESSORIES[found["accessory"]] == answer.get("category"):
+        return found["accessory"]
     if answer.get("category") in draw.SHOES:
         for w in found.get("other_features") or []:
             if isinstance(w, str):
@@ -460,6 +470,14 @@ def applies(kind, name_: str) -> bool:
     return fields is None or name_ not in HIDEABLE or name_ in fields
 
 
+def _accessory_kind_fits(kind: str, value) -> bool:
+    """Whether an accessory's kind (a fedora, a tote) is one of this accessory's; a hat's kind must also be drawn
+    as this hat (a trucker cap is not a beanie)."""
+    if value not in ACCESSORY_KINDS_OF[ACCESSORY_GROUP[kind]]:
+        return False
+    return ACCESSORIES[kind] != "hat" or ACCESSORY_TEMPLATE.get(value, (kind,))[0] == kind
+
+
 def conform(found: dict, kind: str | None, said: str | None, owner: dict) -> dict:
     """The details an item is drawn from, made to fit the kind the owner chose. A shoe takes the kind's style and
     footwear id; a top that is now another kind than Claude saw keeps what Claude saw where the kind allows it and
@@ -475,8 +493,11 @@ def conform(found: dict, kind: str | None, said: str | None, owner: dict) -> dic
                   if isinstance(w, str) and not any(_say(f) in _say(w) for f in FOOTWEAR)]
         out["other_features"] = [kind.replace("_", " ")] + others
         return out
-    if kind not in GARMENTS:   # an accessory: its details say nothing about it
+    if kind not in GARMENTS:   # an accessory: drawn as the one chosen, with Claude's kind of it only if it is one
         out["garment"] = "unknown"
+        out["accessory"] = kind
+        if "accessory_kind" not in owner and not _accessory_kind_fits(kind, out.get("accessory_kind")):
+            out["accessory_kind"] = "na"
         return out
     if kind == said or not _top(kind):
         return out
@@ -498,9 +519,9 @@ def conform(found: dict, kind: str | None, said: str | None, owner: dict) -> dic
 
 @lru_cache(maxsize=512)
 def drawing(kind: str, hex_: str = TILE_HEX) -> str | None:
-    """A small drawing of a kind, in the item's colour, for the picker; None for what is not drawn (accessories)."""
+    """A small drawing of a kind, in the item's colour, for the picker; None for a colour that is not #rrggbb."""
     category = category_for(kind)
-    if category not in draw.DRAWN or not _HEX.fullmatch(hex_):
+    if not (category in draw.DRAWN or kind in ACCESSORIES) or not _HEX.fullmatch(hex_):
         return None
     found = Details.plain().model_dump(mode="json")
     if kind in GARMENTS:

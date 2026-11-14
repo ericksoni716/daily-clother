@@ -1,4 +1,7 @@
+import { resolve } from 'node:path';
 import { expect, login, test, useProfile } from './fixtures';
+
+const SHOTS = resolve(import.meta.dirname, '../../docs/screenshots');
 
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
@@ -65,12 +68,17 @@ test('in the demo closet: say what it is with the kind picker, see the drawing c
   await picker.getByRole('searchbox').fill('fleece');
   const found = picker.getByRole('region', { name: 'Kinds found' });
   await expect(found.getByRole('button', { name: 'Joggers' })).toHaveCount(0);
+  await expect(found.locator('img').first()).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  await page.screenshot({ path: `${SHOTS}/kind-picker-computer.png` });
   await found.getByRole('button', { name: 'Fleece pullover', exact: true }).click();
 
   await expect(picker).toHaveCount(0);
   await expect(row).toHaveAccessibleName('What is it?: Fleece pullover · Activewear. Set by you');
   await expect(detail.getByTestId('kind-pic')).toBeVisible();
   await expect(drawing).not.toHaveAttribute('src', before);
+  await page.waitForLoadState('networkidle');
+  await page.screenshot({ path: `${SHOTS}/kind-chosen-computer.png` });
 
   // the picker marks the kind it is now
   await row.click();

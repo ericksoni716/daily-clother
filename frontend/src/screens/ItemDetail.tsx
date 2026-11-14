@@ -429,7 +429,7 @@ function KindRow({ item, groups, disabled, onSaved, onError }: {
         data-testid="what-is-it" onClick={() => setEditing(open ? null : 'kind')}>
         <span className="detail-row-label">What is it?</span>
         <span className={`detail-row-value${item.kind ? '' : ' is-empty'}`}>
-          {item.kind && item.group !== 'accessories' && (
+          {item.kind && (
             <img className="kind-row-pic" src={kindDrawing(item.kind, item.color_hex)} alt="" data-testid="kind-pic" />
           )}
           <span className="kind-row-words">

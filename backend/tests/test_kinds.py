@@ -58,8 +58,8 @@ def test_every_kind_sets_a_category_of_its_own_sort(kind):
     for current in ("trousers", "tee", "boots"):
         again = kinds.category_for(kind, current)
         assert again == (current if kind in kinds.SET_CATEGORY and current in TOPS + BOTTOMS else category)
-    # and is drawn, unless it is an accessory
-    assert (kinds.drawing(kind) is None) == (taxonomy == "accessory")
+    # and is drawn (an accessory with no shape of its own as a plain tag)
+    assert kinds.drawing(kind) is not None
 
 
 def test_some_categories_by_name():
@@ -192,7 +192,8 @@ def test_the_catalogue_and_the_drawings(client):
     assert client.get("/api/vocab").json()["kind_groups"] == found["groups"]
     r = client.get("/api/kinds/fleece_pullover.svg?color=%23336699")
     assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg+xml") and "#336699" in r.text.lower()
-    assert client.get("/api/kinds/beanie.svg").status_code == 404
+    assert client.get("/api/kinds/beanie.svg").status_code == 200
+    assert all(k["drawn"] for k in found["kinds"])
     assert client.get("/api/kinds/toga.svg").status_code == 404
     assert client.get("/api/kinds/polo.svg?color=red").status_code == 404
 
@@ -202,3 +203,32 @@ def test_a_sentence_changing_the_category_drops_a_kind_it_no_longer_is(client, s
     client.put(f"/api/items/{item['id']}/kind", json={"kind": "henley"})
     changed = client.patch(f"/api/items/{item['id']}", json={"category": "shirt"}).json()
     assert changed["own_details"] == {} and changed["kind"] is None
+
+
+def test_an_accessorys_kind(client, services, claude, cfg):
+    item = described(client, services, claude)
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        answer = json.loads(conn.execute("SELECT tag_answer FROM items WHERE id = ?", (item["id"],)).fetchone()[0])
+        answer["category"] = "hat"
+        answer["details"].update(garment="unknown", accessory="cap", accessory_kind="trucker_cap")
+        conn.execute("UPDATE items SET tag_answer = ?, category = 'hat' WHERE id = ?", (json.dumps(answer), item["id"]))
+    finally:
+        conn.close()
+    said = client.get(f"/api/items/{item['id']}").json()
+    assert (said["kind"], said["kind_by"], said["group"]) == ("cap", "claude", "accessories")
+    cap = svg(client, said)
+    # a beanie is not drawn as Claude's trucker cap; Claude's cap comes back with undo
+    beanie = client.put(f"/api/items/{item['id']}/kind", json={"kind": "beanie"}).json()
+    assert beanie["category"] == "hat" and beanie["kind"] == "beanie"
+    assert svg(client, beanie) != cap
+    assert kinds.conform({"accessory": "cap", "accessory_kind": "trucker_cap"}, "beanie", "cap", {})["accessory_kind"] == "na"
+    assert kinds.conform({"accessory": "cap", "accessory_kind": "fisherman_beanie"}, "beanie", "cap", {})["accessory_kind"] == \
+        "fisherman_beanie"
+    # an accessory with no shape of its own is drawn as a tag, filed under "other"
+    tie = client.put(f"/api/items/{item['id']}/kind", json={"kind": "tie"}).json()
+    assert tie["category"] == "other" and tie["illustration_url"]
+    assert _rows(cfg)[item["id"]]["category"] == "other"
+    latest = history(client, item["id"])[0]
+    back = client.post(f"/api/items/{item['id']}/history/{latest['id']}/undo").json()["item"]
+    assert back["kind"] == "beanie" and back["category"] == "hat"

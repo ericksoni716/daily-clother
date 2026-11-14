@@ -31,8 +31,8 @@ Each photo: `id, kind, url, thumb_url, cutout_url, cutout_thumb_url, width, heig
 | Call | Result |
 |---|---|
 | `GET /api/vocab` | Allowed values: `category, color, pattern, formality, season, location, condition, rating` (lists), `silhouette` (object of lists) and `kind_groups` (`[{id, title}]`, the taxonomy's groups in order). |
-| `GET /api/kinds` | Every kind in the owner's taxonomy: `{groups: [{id, title}], kinds: [{id, name, group, category, words, drawn}]}`; `category` is the category choosing it sets (for a set, the default), `words` what the search matches, `drawn` false for accessories. |
-| `GET /api/kinds/{kind}.svg?color=#rrggbb` | The kind's small drawing, in that colour (grey without one). 404 for an unknown kind, an accessory or a colour that is not `#rrggbb`. |
+| `GET /api/kinds` | Every kind in the owner's taxonomy: `{groups: [{id, title}], kinds: [{id, name, group, category, words, drawn}]}`; `category` is the category choosing it sets (for a set, the default), `words` what the search matches, `drawn` whether it has a drawing (every kind, today). |
+| `GET /api/kinds/{kind}.svg?color=#rrggbb` | The kind's small drawing, in that colour (grey without one). 404 for an unknown kind or a colour that is not `#rrggbb`. |
 | `GET /api/items?status=active\|archived&category=&q=&laundry=clean\|laundry` | `{items: [ItemSummary]}`, newest first. |
 | `POST /api/items` multipart: `photo` (file), `client_key`, optional `name`, optional `photo_sha256` | 201 `Item` with `cutout_state: "pending"` and `duplicate: false`. Sending the same `client_key` again returns the first item with 200 and `duplicate: false`, so retries never duplicate. A photo already in the closet (an active or archived item, not a deleted one) is not added again: 200 with the existing item and `duplicate: true`. "The same photo" is decided by `photo_sha256`, the SHA-256 (64 hex characters) of the file as the owner chose it, before the page shrank it; without it, the hash of the bytes received. 422 if `photo_sha256` is malformed, 400 if the file is not a readable photo. |
 | `GET /api/items/{id}` | `Item` |

@@ -2194,11 +2194,13 @@ SNEAKER_DEFAULTS = dict(height="low", sole="regular")
 #   sandal   slide | two_strap | strap     (style sandal) one wide strap; two buckled straps (default); or a
 #                                         forefoot strap with an instep strap up to an ankle strap and a heel strap
 #   kind     a footwear id                 what only that kind has (a western boot's stitching, a court shoe's
-#                                         perforations, a retro runner's overlays)
+#                                         perforations, a retro runner's overlays, a trainer's flat sole and saddle)
 #   shaft    0.35..0.95                    a boot's or high top's collar height, in shoe lengths (a service boot: 0.6)
 #   toe      round | almond | chisel | pointed   a lower, longer toe for the last three
-#   moc      True | False                  a moc toe's raised seam over the toe
-#   tread    none | lug | crepe | wedge | cleats | jute | pebble | siped   what the sole is made of, as it shows
+#   moc      True | False                  a moc toe's raised seam over the toe (a loafer has one unless False)
+#   lining   shearling                     a fleece lining turned over the collar
+#   tread    none | lug | crepe | wedge | cleats | jute | pebble | siped | city | studded | eva   what the sole is
+#                                          made of, as it shows
 #   heel     flat | stacked | block | cuban   a heeled shoe's heel (default: a low stacked one, no lifts drawn)
 #   hooks    0..6                          the top eyelets of a boot are speed hooks
 #   gusset   True | False                  an elastic side panel (a chelsea always has one)
@@ -2212,10 +2214,23 @@ SNEAKER_DEFAULTS = dict(height="low", sole="regular")
 #   rings    True | False                  D-rings instead of eyelets (a work or hiking boot)
 #   toggle   True | False                  a speed lace: a cord lock above the top eyelet, the cord ends hanging
 #   shine    True | False                  patent leather: bright gloss streaks along the toe and the heel
+#   lace_kind flat_waxed | round_waxed | flat_cotton | round_rope | rawhide   wider flat laces, thinner round ones,
+#                                          a thick rope or leather lace; a waxed one has a glint, a rope one its twist
+#   welt     goodyear | storm | blake | stitchdown | cemented   how the sole is attached: a welt stitch (also on a
+#                                          sneaker or a flat sole), a storm welt's bead, none, or the upper's flange stitched down
+#   cut      regular | low                 a no-show sneaker: the collar dips well under the ankle
+#   molded   True | False                  (style sandal) a moulded slide: one piece in the item's colour, no outsole
+#   cork     True | False                  (style sandal) a cork footbed's grain, flecked through its side
+#   ghillie  True | False                  leather loops for the laces instead of eyelets, and no tongue
+#   split    True | False                  a split toe: a seam down the front of the toe (with `moc`, the apron)
+#   upper    smooth_calf | shell_cordovan | oiled_pull_up | ...   the upper's leather: a soft polish (calf), a
+#                                          deeper one with rolling creases (cordovan), paler where it flexes (pull-up);
+#                                          grain, nap and weave are a texture over the whole shoe (`Spec.texture`)
 #   sandal   + thong                       (style sandal) a flip-flop: a Y strap from a post between the toes
 
 SHOE_X0, SHOE_L, SHOE_G = 40.0, 320.0, 330.0   # toe tip x, length toe to heel, ground y
 METAL = "#c9a85c"   # a buckle or a horsebit
+SHEARLING = "#ece2cc"   # a slipper's fleece lining
 
 
 def _sp(u, v):
@@ -2287,7 +2302,8 @@ def _sandal(p, f) -> Shape:
     kind = p.get("sandal", "two_strap")
     if kind not in ("slide", "two_strap", "strap", "thong"):
         kind = "two_strap"
-    th_toe, th_heel, spring = 0.065 * f, 0.095 * f, 0.012
+    molded = p.get("molded")                      # a moulded slide: one deeper piece in the item's colour, no outsole
+    th_toe, th_heel, spring = 0.065 * f * (1.25 if molded else 1), 0.095 * f * (1.25 if molded else 1), 0.012
     top = [(0.012, spring + th_toe * 0.8), (0.06, spring * 0.4 + th_toe), (0.3, th_toe + 0.002),
            (0.6, th_toe + (th_heel - th_toe) * 0.6), (0.85, th_heel), (0.99, th_heel)]
     tf = lambda u: _poly_v(top, u)
@@ -2343,12 +2359,22 @@ def _sandal(p, f) -> Shape:
         top_v = hi(0.63) + 0.002
 
     sh = Shape(outline=" ".join([sole_d, *straps]))
-    sh.parts.append(Part(sole_d, "sole"))
-    # the outsole under the footbed, and the footbed's lining along its top
-    out_top = [(-0.05, spring + 0.03 * f), (0.06, spring * 0.4 + 0.026 * f), (0.2, 0.025 * f), (1.05, 0.025 * f)]
-    sh.parts.append(Part(_spline(out_top) + f" L {_pt(_sp(1.05, -0.02))} L {_pt(_sp(-0.05, -0.02))} Z", "inlay",
-                         color="sole_dark", clip=True))
-    sh.parts.append(Part(_spline(_shift(top[1:-1], 0, -0.01)), "edge", color="sole_line"))
+    if molded:   # the footbed and the strap are one moulded piece: the footbed in the strap's colour, its top edge a line
+        sh.parts.append(Part(sole_d, "inlay"))
+        sh.parts.append(Part(_spline(_shift(top[1:-1], 0, -0.012)), "edge"))
+    else:
+        sh.parts.append(Part(sole_d, "sole"))
+        # the outsole under the footbed, and the footbed's lining along its top
+        out_top = [(-0.05, spring + 0.03 * f), (0.06, spring * 0.4 + 0.026 * f), (0.2, 0.025 * f), (1.05, 0.025 * f)]
+        sh.parts.append(Part(_spline(out_top) + f" L {_pt(_sp(1.05, -0.02))} L {_pt(_sp(-0.05, -0.02))} Z", "inlay",
+                             color="sole_dark", clip=True))
+        sh.parts.append(Part(_spline(_shift(top[1:-1], 0, -0.01)), "edge", color="sole_line"))
+        if p.get("cork"):   # a cork footbed's grain: darker flecks through the side of the footbed
+            for i in range(19):
+                u = 0.05 + i * 0.05
+                lo, hi = 0.032 * f, tf(u) - 0.016
+                v = lo + (hi - lo) * ((i * 7) % 5 + 0.5) / 5
+                sh.parts.append(Part(_capsule(_sp(u, v), _sp(u + 0.008 * (i % 3), v), 2.4), "inlay", color="sole_dark", clip=True))
     for d in rims:
         sh.parts.append(Part(d, "edge"))
     for c in buckles:
@@ -2376,8 +2402,9 @@ def sneaker(**kw) -> Shape:
     tread = p.get("tread", "none")
     heel_kind = p.get("heel", "stacked")
     lower = p.get("lower", "none")
-    if tread in ("lug", "crepe") and p["sole"] == "regular":
-        f = 1.25 if tread == "lug" else 0.9                    # a lug sole is thicker than a city one
+    if tread in ("lug", "crepe", "eva", "city") and p["sole"] == "regular":
+        # a lug sole is thicker than a city one, a foam midsole deeper still; a rubber city sole is thin
+        f = {"lug": 1.25, "crepe": 0.9, "eva": 1.35, "city": 0.85}[tread]
     heeled = style in ("loafer", "derby", "oxford", "boot", "chelsea_boot") and tread not in ("wedge", "crepe") and heel_kind != "flat"
     laced = p.get("laces", style not in ("slip_on", "loafer", "chelsea_boot"))
     foxing = p.get("foxing", style in ("high_top", "slip_on"))
@@ -2409,12 +2436,15 @@ def sneaker(**kw) -> Shape:
         else:
             th = {"runner": 0.15, "high_top": 0.105, "slip_on": 0.09}.get(style, 0.12) * f
             tf = {"runner": 0.085, "high_top": 0.085, "slip_on": 0.075}.get(style, 0.09) * (1 + (f - 1) * 0.8)
-            spring = 0.06 if style == "runner" else 0.03
-            rock = 0.36 if style == "runner" else 0.26                  # where the toe starts to lift
-            bev = 0.02 if style == "runner" else 0.006                  # heel bevel
+            sculpted = style == "runner" and p.get("kind") != "trainer"   # a trainer stands on a flat, stable sole
+            if style == "runner" and not sculpted:
+                th = tf = 0.1 * f
+            spring = 0.06 if sculpted else 0.03
+            rock = 0.36 if sculpted else 0.26                  # where the toe starts to lift
+            bev = 0.02 if sculpted else 0.006                  # heel bevel
             top = [(0.012, spring + tf * 0.85), (0.07, spring * 0.55 + tf), (0.25, tf + 0.003),
                    (0.5, tf + (th - tf) * 0.35), (0.75, th - 0.004), (0.993, th)]
-            if style == "runner":   # a sculpted midsole: rises at the heel, dips under the arch
+            if sculpted:   # a sculpted midsole: rises at the heel, dips under the arch
                 top = [(0.012, spring + tf * 0.85), (0.07, spring * 0.5 + tf), (0.25, tf), (0.45, tf + 0.006),
                        (0.62, th * 0.8), (0.8, th * 0.95), (0.993, th)]
             under = (f"Q {_pt(_sp(-0.008, spring + tf * 0.45))} {_pt(_sp(0.01, spring))} "
@@ -2475,12 +2505,18 @@ def sneaker(**kw) -> Shape:
         k = {"almond": 0.88, "chisel": 0.8, "pointed": 0.6}[toe]
         groups[-1] = [q if q == T0 or q[0] > 0.4 else (q[0], T0[1] + (q[1] - T0[1]) * (k + (1 - k) * q[0] / 0.4))
                       for q in groups[-1]]
+    if toe == "chisel":   # the top of the toe runs on flat, then breaks at an angle into a straight, sloping face
+        g, uc = groups[-1], 0.16
+        vc = _poly_v(g, uc)
+        face = lambda u: T0[1] + (vc - T0[1]) * (u - T0[0]) / (uc - T0[0])   # noqa: E731
+        groups[-1] = [q for q in g if q[0] > uc and q != T0] + [(uc, vc), (uc, vc), (0.1, face(0.1)), (0.05, face(0.05)), T0]
     shaft = p.get("shaft")
     if shaft and style in ("boot", "chelsea_boot", "high_top"):   # a taller or shorter shaft: stretch it above the ankle
         knee, hi = 0.3, max(v for g in groups for _, v in g)
         k = (max(0.35, min(0.95, float(shaft))) - knee) / (hi - knee)
         groups = [[(u, v if v <= knee else knee + (v - knee) * k) for u, v in g] for g in groups]
-    if style == "boot" and not laced:   # a pull-on boot has no tongue: the collar runs straight across the front
+    if (style == "boot" and not laced) or (p.get("ghillie") and laced and style in ("derby", "oxford", "boot")):
+        # a pull-on boot has no tongue, nor has a ghillie: the collar runs straight across the front
         g = groups[2]
         groups[2] = [g[0], ((g[0][0] + g[-1][0]) / 2, (g[0][1] + g[-1][1]) / 2), g[-1]]
     if p.get("tongue") == "padded" and style in ("low_sneaker", "high_top", "runner", "derby", "oxford", "boot"):
@@ -2490,6 +2526,12 @@ def sneaker(**kw) -> Shape:
         mid = groups[1][-1]
         groups[0] = [(0.993, st), (0.997, st + 0.02), (0.975, st + 0.04)]
         groups[1] = [(0.975, st + 0.04), (0.88, st + 0.05), (0.78, st + 0.08), (0.7, (st + 0.08 + mid[1]) / 2), mid]
+    if p.get("cut") == "low" and style in ("low_sneaker", "runner", "slip_on"):
+        # a no-show cut: the collar dips well under the ankle bone, lowest at the sides, back to the heel and the throat
+        def dip(u, v):
+            k = max(0.0, min(1.0, (u - 0.62) / 0.14)) * max(0.0, min(1.0, (0.995 - u) / 0.08))
+            return (u, v - min(0.11 * k, v - st - 0.04)) if v > st + 0.05 else (u, v)
+        groups[:3] = [[dip(*q) for q in g] for g in groups[:3]]
     upper_d = _chain(groups)
     outline = f"{upper_d} {under} Z"
     sh = Shape(outline=outline)
@@ -2504,7 +2546,7 @@ def sneaker(**kw) -> Shape:
     sh.anchors = {"ground": (CX, SHOE_G), "toe": (SHOE_X0, SHOE_G), "heel": (SHOE_X0 + SHOE_L, SHOE_G)}
     sh.sole_default = "#3b2b21" if heeled else None
     sh.sole_default = {"crepe": "#c9a36b", "wedge": "#ece6d8", "jute": "#cdb88f", "siped": "#ece6d8",
-                       "pebble": "#4a3326"}.get(tread, sh.sole_default)
+                       "pebble": "#4a3326", "city": "#2b2b2b", "studded": "#2b2b2b"}.get(tread, sh.sole_default)
     if p.get("backless"):                                 # a clog's cork footbed
         sh.sole_default = "#b98d5e"
     if lower == "all":                                    # a rain boot: a dark rubber sole, no welt
@@ -2518,9 +2560,23 @@ def sneaker(**kw) -> Shape:
     if foxing:
         sh.parts.append(Part(_spline([(0.004, tf_at(0.01) * 0.6), (0.3, tf_at(0.3) * 0.5), (0.996, sole_top_heel[1] * 0.5)]),
                              "edge", color="sole_line"))
-    if heeled and lower != "all":
-        sh.parts.append(Part(_spline([(0.03, tf_at(0.03) - 0.012), (0.3, tf_at(0.3) - 0.012), (0.6, tf_at(0.6) - 0.012),
-                                      (0.985, sole_top_heel[1] - 0.012)]), "stitch", color="sole_line"))
+    welt = p.get("welt")
+    welt_line = [(0.03, tf_at(0.03) - 0.012), (0.3, tf_at(0.3) - 0.012), (0.6, tf_at(0.6) - 0.012), (0.985, sole_top_heel[1] - 0.012)]
+    if welt in ("goodyear", "storm") or (heeled and lower != "all" and welt not in ("blake", "cemented", "stitchdown")):
+        sh.parts.append(Part(_spline(welt_line), "stitch", color="sole_line"))
+    if welt == "storm":   # a storm welt: a raised bead of leather round the upper, just above the sole
+        bead = [(0.025, tf_at(0.025) + 0.026), (0.3, tf_at(0.3) + 0.024), (0.6, tf_at(0.6) + 0.024), (0.99, sole_top_heel[1] + 0.024)]
+        sh.parts.append(Part(_spline(bead) + f" L {_pt(_sp(0.99, sole_top_heel[1] - 0.004))} " + _spline(
+            [(0.99, sole_top_heel[1] - 0.004), (0.6, tf_at(0.6) - 0.004), (0.3, tf_at(0.3) - 0.004), (0.02, tf_at(0.02) - 0.004)],
+            start=False) + " Z", "inlay", color="deep", clip=True))
+        sh.lines.append(_spline(bead))
+    elif welt == "stitchdown":   # the upper turned out over the sole: a flange along the sole's top, stitched down
+        flange = [(0.02, tf_at(0.02) + 0.03), (0.3, tf_at(0.3) + 0.028), (0.6, tf_at(0.6) + 0.028), (0.99, sole_top_heel[1] + 0.028)]
+        sh.parts.append(Part(_spline(flange) + f" L {_pt(_sp(0.99, sole_top_heel[1] - 0.004))} " + _spline(
+            [(0.99, sole_top_heel[1] - 0.004), (0.6, tf_at(0.6) - 0.004), (0.3, tf_at(0.3) - 0.004), (0.01, tf_at(0.01) - 0.004)],
+            start=False) + " Z", "inlay", color="deep", clip=True))
+        sh.lines.append(_spline(flange))
+        sh.parts.append(Part(_spline(_shift(flange, 0, -0.015)), "stitch", color="sole_line", clip=True))
 
     # ---- what the sole is made of, as it shows from the side
     if tread == "lug":       # deep lugs: dark blocks along the bottom of the sole
@@ -2545,6 +2601,23 @@ def sneaker(**kw) -> Shape:
     elif tread == "pebble":  # a driving moc's rubber pebbles run up the back of the heel
         for u, v in ((0.94, 0.05), (0.975, 0.075), (0.99, 0.12), (0.9, 0.035), (0.86, 0.03), (0.82, 0.03), (0.955, 0.1)):
             sh.parts.append(Part(_ring(_sp(u, v), 0.016 * SHOE_L, 0.01), "inlay", color="sole"))
+    elif tread == "city":    # a thin rubber city sole: a fine tread line along its bottom
+        sh.parts.append(Part(_spline([(0.02, 0.012), (0.3, 0.008), (0.5, 0.008)]), "edge", color="sole_line"))
+        if heeled:
+            sh.parts.append(Part(f"M {_pt(_sp(0.79, 0.01))} L {_pt(_sp(0.98, 0.01))}", "edge", color="sole_line"))
+    elif tread == "studded":   # small round rubber studs along the bottom of the sole
+        for i in range(15):
+            u = 0.03 + i * 0.065
+            if heeled and 0.5 < u < 0.78:
+                continue
+            x, y = _sp(u, 0)
+            r = 0.012 * SHOE_L
+            stud = f"M {_f(x - r)},{_f(y)} A {_f(r)} {_f(r)} 0 0 1 {_f(x + r)},{_f(y)} Z"
+            sh.parts.append(Part(stud, "inlay", color="sole_lug", clip=True))
+    elif tread == "eva":     # a foam midsole over a thin, darker rubber outsole
+        out_v = 0.024
+        sh.parts.append(Part(_spline([(-0.05, out_v), (0.5, out_v), (1.05, out_v)]) + f" L {_pt(_sp(1.05, -0.02))} "
+                             f"L {_pt(_sp(-0.05, -0.02))} Z", "inlay", color="sole_dark", clip=True))
     elif tread == "siped":   # a boat shoe's thin white sole, with its siping showing as one line
         sh.parts.append(Part(_spline([(0.02, tf_at(0.02) * 0.45), (0.5, tf_at(0.5) * 0.45), (0.99, sole_top_heel[1] * 0.45)]),
                              "edge", color="sole_line"))
@@ -2607,7 +2680,9 @@ def sneaker(**kw) -> Shape:
         e0, e1 = eyelets[-1], eyelets[0]
         if style in ("low_sneaker", "high_top", "runner"):
             sh.lines.append(_spline([(e1[0] - 0.03, e1[1] - 0.028), (e0[0] + 0.015, e0[1] - 0.045), (e0[0] + 0.06, e0[1] - 0.03)]))
-        lw = 5.2 if not heeled else 3.6
+        lace_kind = p.get("lace_kind")
+        lw = (5.2 if not heeled else 3.6) * {"flat_waxed": 1.3, "flat_cotton": 1.3, "round_waxed": 0.8, "round_rope": 1.35,
+                                             "rawhide": 1.5}.get(lace_kind, 1.0)
         if style == "derby":
             # open lacing: the near facing's edge runs under the top of the shoe, and between it and the far facing
             # the tongue shows, with the laces crossing over it
@@ -2630,6 +2705,15 @@ def sneaker(**kw) -> Shape:
             if style == "oxford":   # closed lacing: the facings meet, the laces lie flat and short across them
                 tip = _sp(u - 0.024, vtop(u - 0.024) + 0.012)
             sh.parts.append(Part(_capsule((ex, ey), tip, lw), "inlay", color="lace", clip=True))
+            mid = ((ex * 0.35 + tip[0] * 0.65), (ey * 0.35 + tip[1] * 0.65))
+            if lace_kind in ("flat_waxed", "round_waxed"):   # waxed: a glint along the lace
+                g0 = (ex * 0.75 + tip[0] * 0.25, ey * 0.75 + tip[1] * 0.25)
+                sh.parts.append(Part(_capsule(g0, mid, lw * 0.4), "shine", clip=True))
+            elif lace_kind == "round_rope":   # a rope lace's twist: light strands across it
+                sh.parts.append(Part(f"M {_pt((ex, ey))} L {_pt(tip)}", "stitch", color="lace_light", clip=True))
+            if p.get("ghillie"):   # a ghillie: the lace runs through a leather loop standing up from the facing
+                sh.parts.append(Part(_ring((ex, ey + 1.5), 5.4, 2.6), "inlay", color="deep"))
+                continue
             top_ = i < int(p.get("hooks") or 0) if style == "boot" else i >= len(eyelets) - int(p.get("hooks") or 0)
             if top_:   # a speed hook (a boot's eyelets run from the top down): a metal hook open to the front
                 hx, hy = _sp(u - 0.028, v + 0.026)
@@ -2666,7 +2750,8 @@ def sneaker(**kw) -> Shape:
         # the moccasin seam round the vamp, and what lies across it
         strap = p.get("strap", "penny")
         moc = [(0.6, 0.205), (0.48, 0.2), (0.34, 0.178), (0.2, 0.148), (0.1, 0.12), (0.04, 0.09)]
-        sh.seams.append(_spline(moc[1:] if strap == "tassel" else moc))
+        if p.get("moc", True):   # a slipper's plain vamp has none
+            sh.seams.append(_spline(moc[1:] if strap == "tassel" else moc))
         if strap == "penny":   # the saddle strap across the vamp under the topline, with the slot cut in it
             band = (_spline([(0.612, 0.3), (0.606, 0.2), (0.594, 0.152)]) + " " +
                     _spline([(0.594, 0.152), (0.52, 0.14), (0.44, 0.146)], start=False) + " " +
@@ -2788,6 +2873,9 @@ def sneaker(**kw) -> Shape:
         sh.lines.append(_spline(seam))
         sh.lines.append(_spline(_shift(seam[1:-1], 0, 0.014)))   # the raised ridge's other side
         sh.parts.append(Part(_spline(_shift(seam[1:-1], 0, -0.012)), "stitch", color="deep"))
+    if p.get("split") and style != "sandal":   # a split toe: a seam stitched down the front of the toe, under the apron
+        front_seam = [(0.07, vtop(0.07) - 0.008), (0.035, (vtop(0.035) + tf_at(0.035)) / 2 + 0.01), (0.022, tf_at(0.022) + 0.006)]
+        sh.lines.append(_spline(front_seam))
     if p.get("gusset") and style != "chelsea_boot" and style in ("boot", "high_top", "slip_on", "loafer", "derby"):
         top_g = max(v for _, v in groups[1]) - 0.01
         g = (_spline([(0.735, top_g + 0.03), (0.745, top_g * 0.8), (0.77, top_g * 0.62), (0.8, top_g * 0.5)]) + " " +
@@ -2820,6 +2908,18 @@ def sneaker(**kw) -> Shape:
     if p.get("collar_pad"):   # a padded collar, or a snow boot's fleece cuff
         pad = band(_shift(groups[1], 0, 0.005), 0.05 if style != "boot" else 0.07)
         sh.parts.append(Part(pad, "band", clip=True))
+    if p.get("lining") == "shearling":   # a fleece lining turned over the collar, its edge in soft tufts
+        rim = _shift(groups[1], 0, 0.004)
+        sh.parts.append(Part(band(rim, 0.04), "inlay", color=SHEARLING, clip=True))
+        u0, u1 = min(u for u, _ in rim), max(u for u, _ in rim)
+        for i in range(1, 12):
+            u = u0 + (u1 - u0) * i / 12
+            v = _poly_v(rim, u)
+            sh.parts.append(Part(_capsule(_sp(u, v - 0.04), _sp(u, v - 0.04), 5.5), "inlay", color=SHEARLING, clip=True))
+    if kind == "trainer":   # a synthetic saddle overlay from the sole up to the lacing, holding the midfoot
+        sh.parts.append(Part(_spline([(0.4, tf_at(0.4) - 0.01), (0.44, 0.2), (0.47, vtop(0.47) - 0.02)]) + " " +
+                             _spline([(0.58, vtop(0.58) - 0.02), (0.57, 0.2), (0.54, tf_at(0.54) - 0.01)], start=False) + " Z",
+                             "inlay", color="deep", clip=True))
     if p.get("lace_collar"):   # a rawhide lace round the collar, through the vamp, tied at the side
         cord = _spline(_shift(groups[1], 0, -0.014)) + " " + _spline(_shift(groups[1][::-1], 0, -0.028), start=False) + " Z"
         sh.parts.append(Part(cord, "inlay", color="lace", clip=True))
@@ -2857,6 +2957,29 @@ def sneaker(**kw) -> Shape:
                                    (0.3, vtop(0.3) - 0.034)], 0.016), "shine", clip=True))
         sh.parts.append(Part(band([(0.8, tf_at(0.8) + 0.06), (0.86, tf_at(0.86) + 0.07), (0.93, tf_at(0.93) + 0.075)], 0.012),
                              "shine", clip=True))
+
+    # ---- the upper's leather, where it shows as more than its colour
+    upper = p.get("upper")
+    if upper in ("smooth_calf", "synthetic_leather", "shell_cordovan") and not p.get("shine"):
+        # a polished leather: a soft gloss along the top of the toe and round the heel; shell cordovan's is deeper
+        # and wider, and its vamp rolls into soft creases that catch the light
+        w = 0.03 if upper == "shell_cordovan" else 0.012
+        sh.parts.append(Part(band([(0.05, vtop(0.05) - 0.05), (0.12, vtop(0.12) - 0.04), (0.22, vtop(0.22) - 0.036),
+                                   (0.3, vtop(0.3) - 0.04)], w), "shine", color="soft", clip=True))
+        heel_v = sole_top_heel[1]
+        sh.parts.append(Part(_capsule(_sp(0.976, heel_v + 0.035), _sp(0.983, heel_v + 0.12), w * 0.9 * SHOE_L), "shine",
+                             color="soft", clip=True))
+        if upper == "shell_cordovan":
+            for u in (0.34, 0.38):
+                sh.parts.append(Part(band([(u, vtop(u) - 0.008), (u + 0.018, vtop(u) - 0.05), (u + 0.006, vtop(u) - 0.09)], 0.012),
+                                     "shine", color="soft", clip=True))
+    elif upper == "oiled_pull_up":   # oiled leather pulls paler where it flexes: across the vamp, the toe and the heel
+        for u0, u1, v0, v1 in ((0.3, 0.42, vtop(0.36) - 0.07, vtop(0.36) + 0.01), (0.02, 0.14, tf_at(0.08) + 0.01, vtop(0.08) - 0.01),
+                               (0.85, 1.0, tf_at(0.92) + 0.02, tf_at(0.92) + 0.12)):
+            cu, cv, ru, rv = (u0 + u1) / 2, (v0 + v1) / 2, (u1 - u0) / 2 * SHOE_L, (v1 - v0) / 2 * SHOE_L
+            (x, y) = _sp(cu, cv)
+            sh.parts.append(Part(f"M {_f(x - ru)},{_f(y)} A {_f(ru)} {_f(rv)} 0 1 0 {_f(x + ru)},{_f(y)} "
+                                 f"A {_f(ru)} {_f(rv)} 0 1 0 {_f(x - ru)},{_f(y)} Z", "fade", color="faint", clip=True))
 
     # ---- a contrast side panel
     if p.get("stripe", "none") == "side":

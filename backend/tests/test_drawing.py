@@ -151,11 +151,38 @@ def _drawn(tags: dict) -> tuple[str, dict]:
     (dict(footwear="derby", upper_material="patent"), "derby", {"shine": True}),
     (dict(footwear="flip_flop"), "sandal", {"sandal": "thong"}),
     (dict(footwear="service_boot", toe_treatment="apron"), "boot", {"moc": True}),
+    (dict(footwear="trainer"), "runner", {"kind": "trainer", "upper": "knit_mesh"}),
+    (dict(footwear="camp_moc"), "loafer", {"tread": "lug", "lace_collar": True}),
+    (dict(footwear="moccasin_slipper"), "slip_on", {"lining": "shearling", "moc": True, "upper": "suede"}),
+    (dict(footwear="velvet_slipper"), "loafer", {"moc": False, "upper": "velvet"}),
+    (dict(footwear="service_boot", laces="round_rope"), "boot", {"lace_kind": "round_rope"}),
+    (dict(footwear="service_boot", upper_material="roughout"), "boot", {"upper": "roughout"}),
+    (dict(footwear="service_boot", shoe_construction="storm_welt"), "boot", {"welt": "storm"}),
+    (dict(footwear="desert_boot", shoe_construction="stitchdown"), "boot", {"welt": "stitchdown", "tread": "crepe"}),
+    (dict(footwear="derby", toe_treatment="split_toe"), "derby", {"moc": True, "split": True}),
+    (dict(footwear="derby", lacing="ghillie"), "derby", {"ghillie": True}),
+    (dict(footwear="derby", sole="studded_rubber"), "derby", {"tread": "studded"}),
+    (dict(footwear="slide", sole="molded_slide"), "sandal", {"molded": True}),
+    (dict(footwear="running_shoe", footwear_height="no_show"), "runner", {"cut": "low"}),
+    (dict(footwear="plain_toe_oxford", toe_shape="chisel"), "oxford", {"toe": "chisel"}),
 ])
 def test_the_footwear_fields_choose_the_shoe_drawing(details, want_style, want):
     template, params = _drawn(answer("boots" if "boot" in details["footwear"] else "sneakers", **details))
     assert template == "sneaker" and params["style"] == want_style
     assert {k: params.get(k) for k in want} == want
+
+
+@pytest.mark.parametrize("details, want", [
+    (dict(footwear="service_boot", upper_material="suede"), {"texture": "shoe_suede"}),
+    (dict(footwear="service_boot", upper_material="waxed_canvas"), {"texture": "shoe_canvas", "sheen": True}),
+    (dict(footwear="derby", upper_material="woven_leather"), {"texture": "woven"}),
+    (dict(footwear="velvet_slipper"), {"texture": "shoe_velvet", "sheen": True}),
+    (dict(footwear="chukka", laces="rawhide"), {"lace_color": "#b48a5a"}),
+])
+def test_a_shoes_upper_and_laces_reach_the_drawing(details, want):
+    _, _, extras, _ = drawing_for(ItemTags.model_validate(answer("boots" if "boot" in details["footwear"] else "sneakers",
+                                                                  **details)))
+    assert {k: extras.get(k) for k in want} == want
 
 
 @pytest.mark.parametrize("category, details, want", [

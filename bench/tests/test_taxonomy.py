@@ -751,8 +751,8 @@ def test_the_taggers_shoe_words_choose_the_drawing(style, words, want_style, wan
 
 def test_only_what_is_drawn_leaves_the_seen_list():
     from closet_bench.taxonomy import shoe_words
-    # monk_strap is drawn now (#149), patent_oxford too (#163): velvet_slipper is a footwear id still drawn only approximately
-    assert shoe_words("derby", ["velvet_slipper", "tassels", "5 eyelets", "red sole"])[2] == ["tassels", "5 eyelets"]
+    # every footwear id is drawn now (velvet_slipper since #184); a word the drawing does not know stays out
+    assert shoe_words("derby", ["velvet_slipper", "tassels", "5 eyelets", "red sole"])[2] == ["velvet_slipper", "tassels", "5 eyelets"]
     assert shoe_words("derby", ["patent_oxford", "5 eyelets"])[2] == ["patent_oxford", "5 eyelets"]
 
 
@@ -831,6 +831,21 @@ def test_every_footwear_bottoms_and_colour_value_is_in_coverage():
     (dict(style="runner"), "toggle", [False, True]),
     (dict(style="boot"), "toggle", [False, True]),
     (dict(style="oxford"), "shine", [False, True]),
+    (dict(style="derby"), "lace_kind", [None, "flat_waxed", "round_waxed", "round_rope", "rawhide"]),
+    (dict(style="derby"), "ghillie", [False, True]),
+    (dict(style="derby", moc=True), "split", [False, True]),
+    (dict(style="boot"), "welt", [None, "storm", "blake", "stitchdown"]),
+    (dict(style="low_sneaker"), "welt", [None, "goodyear"]),
+    (dict(style="low_sneaker"), "cut", [None, "low"]),
+    (dict(style="derby"), "tread", [None, "city", "studded"]),
+    (dict(style="low_sneaker"), "tread", [None, "eva"]),
+    (dict(style="oxford"), "toe", [None, "chisel"]),
+    (dict(style="oxford"), "upper", [None, "smooth_calf", "shell_cordovan", "oiled_pull_up"]),
+    (dict(style="runner"), "kind", [None, "trainer"]),
+    (dict(style="slip_on"), "lining", [None, "shearling"]),
+    (dict(style="loafer"), "moc", [True, False]),
+    (dict(style="sandal", sandal="slide"), "molded", [False, True]),
+    (dict(style="sandal"), "cork", [False, True]),
 ])
 def test_every_footwear_part_draws_its_own_picture_on_the_same_ground(base, key, values):
     pictures = set()

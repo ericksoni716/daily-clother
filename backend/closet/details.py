@@ -21,6 +21,8 @@ FEATURES: tuple[str, ...] = get_args(Feature)
 DETAILS: tuple[str, ...] = tuple(n for n in Details.model_fields if n not in ("features", "other_features"))
 PICKABLE: tuple[str, ...] = DETAILS + FEATURES
 MAX_BUTTONS = 10
+# details whose choices are offered in words, without a drawing for each (there are too many)
+WORDED = ("garment",)
 # the item's own fields a correction by sentence may change (silhouette parts as "silhouette.<part>")
 FIELDS = ("category", "color", "pattern", "formality", "season")
 SHAPES = tuple(f"silhouette.{k}" for k in vocab.SILHOUETTE)
@@ -144,7 +146,7 @@ def words(name: str, value) -> str:
     return _WORDS.get(name, {}).get(value) or _ANY.get(value) or str(value).replace("_", " ")
 
 
-def coerce(name: str, value):
+def coerce(name: str, value, category=None):
     """The owner's value for a detail in the schema's own form, or ValueError with a sentence saying what is allowed."""
     if name in FEATURES:
         if value in (True, "yes"):
@@ -158,7 +160,7 @@ def coerce(name: str, value):
             return value
         raise ValueError(f"The number of buttons must be a whole number from 0 to {MAX_BUTTONS}.")
     elif name in DETAILS:
-        if value in values(name):
+        if value in values(name, category):
             return value
     else:
         raise ValueError(f"'{name}' is not a detail that can be changed.")

@@ -518,3 +518,15 @@ See `docs/PHASE0.md` for the results and what is still open.
 - **A replan keeps the saved weather for days a refresh cannot answer.** It says the weather could not be refreshed and does not lose a usable plan just because the weather service is down.
 - **Usual-weather answers are keyed by the exact days requested, and use only past calendar matches.** If the target day is more than a year ahead, the nearest matching date can still be in the future; the archive only has dates already passed. February 29 uses February 28 in years without a leap day.
 - A saved trip keeps the weather its plan was made for; opening it checks the forecast again and only offers "Plan again" when it changed.
+
+## The design system
+
+- **Type scale, ratio 1.25 from 16px:** 12 / 14 / 16 / 20 / 25 / 31 px (`--text-xs` to `--text-2xl`), weights 400 body, 560 labels, 650 headings. Headings of 25px and up are tightened by -0.015em and balanced over their lines. The app had about 30 sizes; `frontend/src/design.test.ts` fails on any `font-size` off the scale, a radius that is not a token, or a colour outside the token blocks (garment swatches live in `labels.ts`).
+- **Spacing on a 4px base:** `--space-1` to `--space-8` = 4, 8, 12, 16, 20, 24, 32, 48. Defined now; existing paddings move onto them in the later design issues that change layout.
+- **Radii:** 8 (inputs, small tiles), 14 (cards), 20 (dialogs and sheets), pill (chips, buttons).
+- **Colours:** four text levels (`--ink`, `--ink-2`, `--ink-3`, `--ink-4`), four surfaces (`--bg`, `--surface`, `--surface-raised`, `--inset`) and borders as see-through ink (`--line-soft`, `--line`, `--line-strong`), so they suit any surface. Dark mode keeps each hue and only changes lightness. Item tiles stay light in dark mode.
+- **Depth:** cards have a soft ring plus a small shadow in light mode; in dark mode only a 1px see-through ring, because shadows do not show on a dark canvas.
+- **Primary button in dark mode** is light green `#8fb5a5` with dark text (about 7.5:1); the old `#4d6a5f` with light text was too weak.
+- **Disabled** is a flat inset fill, a dashed edge and the faintest text, not lowered opacity, so it reads as off rather than faded. Pressed buttons shrink to 97% over 120ms, except when the device asks for reduced motion.
+- **Light or dark:** `<html data-theme="light|dark">` wins over the device; with no attribute the device's setting is followed. The choice is kept in this browser's `localStorage` (`closet.theme`), not on the server, since it is about the device; "Same as this device" removes it. It is applied as the app's script starts, so a forced choice can show the device's colours for a moment while the page loads, and the browser bar colour still follows the device.
+- **Shared pieces** (`frontend/src/components/ui/`) style themselves with `:where()`, which has no specificity, so a screen's own class can still set size and padding without fighting them.

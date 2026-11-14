@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
-import { ChipGroup } from '../components/Chips';
+import { ChipGroup } from '../components/ui/Chips';
+import { SegmentedControl } from '../components/ui';
 import { FixDetails, ItemHistory } from '../components/FixDetails';
 import { BackIcon, HangerIcon, WarnIcon } from '../components/Icons';
 import { formatPrice, label, parsePrice, ratingLabel, SWATCH } from '../labels';
@@ -439,13 +440,7 @@ function Picture({ item, busyText, fallbackThumb }: { item: Item; busyText: stri
           {busy && <span className="badge badge-busy"><span className="spinner" aria-hidden="true" />{busyText}</span>}
         </div>
         {views.length > 1 && (
-          <div className="segmented" role="group" aria-label="Picture">
-            {views.map((v) => (
-              <button key={v.key} type="button" className={view === v.key ? 'is-on' : ''} aria-pressed={view === v.key} onClick={() => setChosen(v.key)}>
-                {v.label}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl label="Picture" value={view} options={views.map((v) => ({ value: v.key, label: v.label }))} onChange={setChosen} />
         )}
       </div>
       {missing.length > 0 && (

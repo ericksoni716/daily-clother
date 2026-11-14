@@ -4,18 +4,26 @@ import { ModelProgress, modelStateText } from '../components/ModelBanner';
 import { PhoneAccess } from '../components/PhoneAccess';
 import { WhereYouAre } from '../components/WhereYouAre';
 import { LifeQuestions } from '../components/LifeQuestions';
+import { Notice, PageHeader, Section as UiSection, SegmentedControl } from '../components/ui';
 import { formatDateTime, formatSize, parsePrice } from '../labels';
 import { Link } from '../router';
 import { apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, monthName, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
 import { useCloset } from '../store';
+import { applyTheme, loadTheme, saveTheme, THEME_CHOICES, type Theme } from '../theme';
 import type { ModelInfo, Profile, RouteOrder, Settings, Storage, TaggingRoute, TaggingSpend, TaggingStatus } from '../types';
 
 function Section({ title, children, id }: { title: string; children: ReactNode; id: string }) {
+  return <UiSection id={id} title={title} className="settings-section">{children}</UiSection>;
+}
+
+/** Light, dark or the device's own setting; kept on this device only, so it works offline too. */
+function LookSection() {
+  const [theme, setTheme] = useState<Theme>(loadTheme);
   return (
-    <section className="settings-section" aria-labelledby={id}>
-      <h2 id={id}>{title}</h2>
-      {children}
-    </section>
+    <UiSection id="s-look" title="Look" hint="Light or dark, on this device." className="settings-section">
+      <SegmentedControl label="Look" options={THEME_CHOICES} value={theme} className="settings-look"
+        onChange={(t) => { setTheme(t); saveTheme(t); applyTheme(t); }} />
+    </UiSection>
   );
 }
 
@@ -41,8 +49,8 @@ export function SettingsScreen({ version }: { version: string }) {
 
   return (
     <div className="settings">
-      <header className="page-header"><h1>Settings</h1></header>
-      {offline && <p className="notice">You're offline, so settings can't be shown or changed right now.</p>}
+      <PageHeader title="Settings" />
+      {offline && <Notice as="p">You're offline, so settings can't be shown or changed right now.</Notice>}
       {!offline && loadError && <p className="form-error" role="alert">{loadError}</p>}
 
       <div className="settings-columns">
@@ -53,6 +61,7 @@ export function SettingsScreen({ version }: { version: string }) {
           <TaggingSection offline={offline} settings={settings} onChange={setSettings} reload={load} toast={toast} />
         </div>
         <div className="settings-col">
+          <LookSection />
           <Section title="How you live" id="s-life">
             <p className="hint">Tell What's missing about work, everyday life and time away. Change your answers whenever life changes.</p>
             {lifeOpen && settings ? (

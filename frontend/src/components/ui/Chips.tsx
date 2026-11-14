@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { label as labelFor, FIELD_TITLES, SWATCH } from '../labels';
+import { label as labelFor, FIELD_TITLES, swatchOf } from '../../labels';
 
 interface Props {
   field: string;
@@ -33,7 +33,7 @@ export function ChipGroup({ field, options, value, onChange, disabled, title, la
               disabled={disabled}
               onClick={() => onChange(on ? (clearable ? null : opt) : opt)}
             >
-              {swatches && <span className="swatch" style={{ background: SWATCH[opt] ?? '#ccc' }} aria-hidden="true" />}
+              {swatches && <span className="swatch" style={{ background: swatchOf(opt) }} aria-hidden="true" />}
               {labelOf ? labelOf(opt) : labelFor(field, opt)}
             </button>
           );

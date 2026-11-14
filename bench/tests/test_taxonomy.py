@@ -172,6 +172,27 @@ def test_wale_and_gauge_scale_the_texture():
     assert surface_extras({"fabric": "cable", "knit_gauge": "chunky"})["texture_scale"] > 1
 
 
+def test_every_knit_marked_drawn_has_its_own_texture():
+    # #163: moss, pointelle and terry are no longer drawn as pique or mesh
+    knit = {"neckline": "crew", "cuff": "rib_knit", "hem": "ribbed_band"}
+    drawn = [v for v, (status, _) in COVERAGE["knit_structure"].items() if status == "drawn"]
+    assert {"moss", "pointelle", "terry_towelling"} <= set(drawn)
+    textures = {v: surface_extras({"fabric": v})["texture"] for v in drawn}
+    for v in ("moss", "pointelle", "terry_towelling"):
+        assert [k for k, t in textures.items() if t == textures[v]] == [v], v
+    svgs = {v: draw({**knit, "fabric": v}) for v in drawn}
+    for v in ("moss", "pointelle", "terry_towelling"):
+        assert [k for k, svg in svgs.items() if svg == svgs[v]] == [v], v
+        valid(draw({**knit, "fabric": v, "knit_gauge": "chunky"}, "flat"))
+
+
+def test_the_hidden_button_down_shows_no_buttons():
+    shirt = CONTEXT["collar"]
+    hidden = draw({**shirt, "collar": "hidden_button_down"})
+    assert hidden != draw({**shirt, "collar": "point"}) and hidden != draw({**shirt, "collar": "button_down"})
+    assert COVERAGE["collar"]["hidden_button_down"][0] == "drawn"
+
+
 def test_surface_extras_suit_trousers():
     extras = surface_extras({"fabric": "corduroy", "corduroy_wale": "wide_wale", "fiber": "cotton"})
     for w in WEIGHT_CLASSES:
@@ -199,6 +220,7 @@ UNCHANGED = {
     "rugby_shirt": "58043fad9ef598d3",
     "dress_shirt": "c809ac4c9f65fe00",
     "ocbd": "06950d0f0cbd3c6d",
+    "casual_button_up": "9c12d14c70ade096",   # #163: new; point collar, chest pocket, vented straight hem
     "flannel_shirt": "f64ec8598d9a7f90",
     "work_shirt": "e27744a52320dbbc",
     "western_shirt": "a1ad566838687b49",
@@ -229,6 +251,10 @@ UNCHANGED = {
     "performance_tee": "af4dd6aa727dae5f",
     "athletic_half_zip": "c45b9acf7d42f45c",
     "track_jacket": "88e586d396ec8f5c",
+    "trench_coat": "61766ef34e7fc2f6",   # #163: new; self belt
+    "parka": "d5ba24eb82d51c9b",   # #163: new
+    "varsity_jacket": "23fbdbda3caf80ad",   # #163: new; sleeves in the second colour
+    "waxed_jacket": "fe4f98e0209ee993",   # #163: new; cord collar
     "pants.jeans": "b09a649969597eec",
     "pants.dress": "567a1b5f294a79cc",
     "shoe.derby": "f356f82e866763c4",   # redrawn on purpose: open lacing (#108)
@@ -580,7 +606,7 @@ def test_the_footwear_table_follows_the_taxonomy():
     ("na", ["derby"], "derby", {}),
     ("low_sneaker", ["slide"], "sandal", {"sandal": "slide"}),
     ("sandal", ["sandal", "ankle strap"], "sandal", {"sandal": "strap"}),
-    ("sandal", ["flip_flop"], "sandal", {"sandal": "slide"}),
+    ("sandal", ["flip_flop"], "sandal", {"sandal": "thong"}),
     ("runner", ["embroidered logo"], "runner", {}),
 ])
 def test_the_taggers_shoe_words_choose_the_drawing(style, words, want_style, want):
@@ -591,13 +617,14 @@ def test_the_taggers_shoe_words_choose_the_drawing(style, words, want_style, wan
 
 def test_only_what_is_drawn_leaves_the_seen_list():
     from closet_bench.taxonomy import shoe_words
-    # monk_strap is drawn now (#149): patent_oxford is a footwear id still drawn only approximately
-    assert shoe_words("derby", ["patent_oxford", "tassels", "5 eyelets", "red sole"])[2] == ["tassels", "5 eyelets"]
+    # monk_strap is drawn now (#149), patent_oxford too (#163): velvet_slipper is a footwear id still drawn only approximately
+    assert shoe_words("derby", ["velvet_slipper", "tassels", "5 eyelets", "red sole"])[2] == ["tassels", "5 eyelets"]
+    assert shoe_words("derby", ["patent_oxford", "5 eyelets"])[2] == ["patent_oxford", "5 eyelets"]
 
 
 @pytest.mark.parametrize("base, key, values", [
     (dict(style="loafer"), "strap", ["penny", "tassel", "horsebit", "none"]),
-    (dict(style="sandal"), "sandal", ["slide", "two_strap", "strap"]),
+    (dict(style="sandal"), "sandal", ["slide", "two_strap", "strap", "thong"]),
     (dict(style="derby"), "brogue", ["none", "quarter", "semi", "full"]),
     (dict(style="oxford"), "brogue", ["none", "quarter", "semi", "full"]),
     (dict(style="oxford"), "eyelets", [3, 5, 7]),
@@ -666,6 +693,10 @@ def test_every_footwear_bottoms_and_colour_value_is_in_coverage():
     (dict(style="derby", laces=False), "strap", ["monk", "double_monk"]),
     (dict(style="low_sneaker"), "tread", [None, "cleats"]),
     (dict(style="loafer"), "lace_collar", [False, True]),
+    (dict(style="boot"), "rings", [False, True]),
+    (dict(style="runner"), "toggle", [False, True]),
+    (dict(style="boot"), "toggle", [False, True]),
+    (dict(style="oxford"), "shine", [False, True]),
 ])
 def test_every_footwear_part_draws_its_own_picture_on_the_same_ground(base, key, values):
     pictures = set()
@@ -684,12 +715,14 @@ def test_every_footwear_part_draws_its_own_picture_on_the_same_ground(base, key,
     ({}, "fly", [None, "button", "none"]),
     ({}, "leg", ["skinny", "slim", "straight", "relaxed", "bootcut", "flare", "barrel"]),
     ({}, "break", [None, "slight", "full", "stacked"]),
-    ({}, "hem", [None, "turnup", "rolled", "raw", "split", "chain"]),
+    ({}, "hem", [None, "turnup", "rolled", "raw", "split", "notched", "chain"]),
     ({}, "pleat_dir", [None, "reverse", "forward"]),
-    (dict(jeans=True), "fades", [[], ["whiskers"], ["knee"], ["stacks"], ["tracks"], ["pocket"]]),
+    (dict(jeans=True), "fades", [[], ["whiskers"], ["knee"], ["stacks"], ["tracks"], ["pocket"], ["roping"]]),
     (dict(jeans=True), "distress", [[], ["knee_rip"], ["abrasion"], ["patched"], ["sashiko"]]),
     ({}, "panels", [[], ["double_knee"], ["gusset"]]),
     ({}, "extra_pockets", [[], ["zip"], ["rule"], ["hammer"]]),
+    ({}, "rivets", [None, True]),
+    (dict(pockets="scoop"), "rivets", [None, True]),
 ])
 def test_every_trouser_detail_draws_its_own_picture_from_the_same_waist_and_hem(base, key, values):
     base = {**base, **({"pleats": 1} if key == "pleat_dir" else {})}
@@ -729,6 +762,38 @@ def test_fleece_pullover_draws_its_blocks_and_binding():
     assert 'fill="#2f6db5"' in svg and 'stroke="#f2735f"' in svg
     plain = render(Spec("top", top_drawing(GARMENT_DRAWINGS["fleece_pullover"])[0], Fill("solid", "#9fdcc4")), "line")
     assert 'fill="#2f6db5"' not in plain
+
+
+def test_the_trench_coats_belt_keeps_the_anchors():
+    p, extras, _ = top_drawing(GARMENT_DRAWINGS["trench_coat"])
+    assert p["belt"]
+    for block_length in ("knee", "regular"):
+        q = {**p, "length": block_length}
+        belted, plain = build("top", q), build("top", {**q, "belt": False})
+        assert belted.anchors == plain.anchors and belted.outline == plain.outline
+        assert len(belted.parts) == len(plain.parts) + 3
+    assert draw(GARMENT_DRAWINGS["trench_coat"]) != draw({**GARMENT_DRAWINGS["trench_coat"], "garment": None})
+
+
+def test_outerwear_kinds_draw_what_sets_them_apart():
+    parka, _, _ = top_drawing({"garment": "parka", "collar": "point", "placket": None})
+    assert parka["neck"] == "hood" and "collar" not in parka and parka["front"] == "zip" and parka["length"] == "long"
+    varsity, _, _ = top_drawing({"garment": "varsity_jacket", "collar": "stand", "placket": "snap", "second_color": True})
+    assert varsity["collar"] == "rib" and varsity["fastener"] == "snap" and varsity["colorblock"] == ("sleeves",)
+    assert varsity["cuffs"] == "rib" and varsity["hem"] == "rib"
+    assert "colorblock" not in top_drawing({"garment": "varsity_jacket", "collar": "stand"})[0]
+    _, waxed, _ = top_drawing({"garment": "waxed_jacket", "collar": "point", "fabric": "unknown"})
+    assert waxed["collar_color"] == "#5a3d26" and waxed["sheen"]
+    for kind in ("trench_coat", "parka", "varsity_jacket", "waxed_jacket"):
+        assert COVERAGE["garment"][kind][0] == "drawn", kind
+
+
+def test_a_robe_is_tied_with_a_sash_and_velvet_has_a_sheen():
+    robe, _, _ = top_drawing({"garment": "robe", "collar": "shawl", "length": "regular"})
+    assert robe["belt"] == "sash" and robe["length"] == "knee" and robe["block"] == "coat"
+    sash, buckled = build("top", robe), build("top", {**robe, "belt": True})
+    assert sash.anchors == buckled.anchors and sash.parts != buckled.parts
+    assert surface_extras({"fabric": "velvet"})["sheen"] and COVERAGE["woven_structure"]["velvet"][0] == "approximate"
 
 
 def test_sport_and_lounge_bottoms_draw_apart():

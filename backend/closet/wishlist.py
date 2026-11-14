@@ -8,6 +8,7 @@ A wish keeps a copy of the gap's name and what to look for, so it stays useful i
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 import uuid
 from collections.abc import Callable
@@ -24,6 +25,8 @@ from .items import ItemError
 REASONS = ("have_one", "never_wear", "too_expensive", "other")
 NAME_MAX = 120
 NOTE_MAX = 1000
+PRICE_MAX = 1_000_000.0
+CURRENCY_DEFAULT = "USD"
 
 
 # ------------------------------------------------------------------ marking the analysis
@@ -214,8 +217,34 @@ def add_wish(conn: sqlite3.Connection, gap: dict | None, name: str | None, note:
     return get_wish(conn, wish_id), True
 
 
-def update_wish(conn: sqlite3.Connection, wish_id: str, name: str | None, note: str | None) -> dict:
-    get_wish(conn, wish_id)
+def _price_range(w: dict, changes: dict) -> tuple[float | None, float | None, str | None]:
+    """The wish's price range with `changes` (any of price_min, price_max, price_currency; None clears) laid over it."""
+    low, high = (changes[k] if k in changes else w[k] for k in ("price_min", "price_max"))
+    for value in (low, high):
+        if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
+                                  or not 0 <= value <= PRICE_MAX):
+            raise ItemError(f"A price must be a number from 0 to {PRICE_MAX:,.0f}.")
+    if low is not None and high is not None and low > high:
+        raise ItemError("The lowest price must not be more than the highest.")
+    currency = changes["price_currency"] if "price_currency" in changes else w["price_currency"]
+    if currency is not None:
+        if not isinstance(currency, str) or not re.fullmatch(r"[A-Za-z]{3}", currency.strip()):
+            raise ItemError("The currency must be a three-letter code, such as USD, EUR or GBP.")
+        currency = currency.strip().upper()
+    if low is None and high is None:
+        return None, None, None
+    return (None if low is None else round(float(low), 2), None if high is None else round(float(high), 2),
+            currency or CURRENCY_DEFAULT)
+
+
+def update_wish(conn: sqlite3.Connection, wish_id: str, name: str | None, note: str | None,
+                price: dict | None = None) -> dict:
+    """Change a wish's name, note or price range (`price`: the parts of the range sent, None clearing one)."""
+    w = get_wish(conn, wish_id)
+    if price:
+        low, high, currency = _price_range(w, price)
+        conn.execute("UPDATE wishes SET price_min = ?, price_max = ?, price_currency = ?, updated_at = ? WHERE id = ?",
+                     (low, high, currency, db.now(), wish_id))
     if name is not None:
         conn.execute("UPDATE wishes SET name = ?, updated_at = ? WHERE id = ?", (_text(name, "name", NAME_MAX, True), db.now(), wish_id))
     if note is not None:
@@ -253,6 +282,9 @@ class WishNew(BaseModel):
 class WishChange(BaseModel):
     name: str | None = None
     note: str | None = None
+    price_min: float | None = None
+    price_max: float | None = None
+    price_currency: str | None = None
     model_config = {"extra": "forbid"}
 
 
@@ -315,7 +347,8 @@ def router(conn_dep: Callable, gaps_now: Callable[[], dict], protected: list, se
 
     @r.patch("/api/wishlist/{wish_id}")
     def change_wish(wish_id: str, body: WishChange, conn=Depends(conn_dep)):
-        return update_wish(conn, wish_id, body.name, body.note)
+        price = {k: getattr(body, k) for k in ("price_min", "price_max", "price_currency") if k in body.model_fields_set}
+        return update_wish(conn, wish_id, body.name, body.note, price)
 
     @r.post("/api/wishlist/{wish_id}/bought")
     def bought(wish_id: str, conn=Depends(conn_dep)):

@@ -71,6 +71,11 @@ export interface Wish {
   name: string;
   look_for: LookFor | null;
   note: string;
+  price_min?: number | null;
+  price_max?: number | null;
+  price_currency?: string | null;
+  found_at?: string | null;
+  prices_checked_at?: string | null;
   bought_at: string | null;
   created_at: string;
   updated_at: string;

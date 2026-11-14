@@ -24,7 +24,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, failures, history, illustrations, patjobs, spend
+from . import db, failures, history, illustrations, palette, patjobs, spend
 from .config import Config
 from .state import State
 from .tagger import routes as tagger_routes
@@ -242,8 +242,9 @@ def apply_answer(conn, item_id: str, tags: ItemTags, route: str, model: str | No
                 tag_answer=json.dumps(tags.model_dump(mode="json")), tag_schema_version=SCHEMA_VERSION,
                 tag_route=route, tag_model=model, tagged_at=t, updated_at=t)
     conn.execute(f"UPDATE items SET {', '.join(f'{k} = ?' for k in sets)} WHERE id = ?", [*sets.values(), item_id])
-    illustrations.redraw(conn, item_id)   # the drawing follows the new answer (and the owner's own fields and details)
     patjobs.mark(conn, item_id)           # a patterned item is measured from its photo next
+    palette.settle(conn, item_id)         # until then, the colours measured before are laid over the new answer's
+    illustrations.redraw(conn, item_id)   # the drawing follows the new answer (and the owner's own fields and details)
     history.record(conn, row, conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone(), "claude", "answer",
                    always=True)
 

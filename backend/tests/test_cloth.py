@@ -89,13 +89,13 @@ def test_the_sleeve_comes_from_the_answer_when_the_silhouette_does_not_say():
                                     '{"details": {"weight": "very heavy", "knit_gauge": "huge", "sleeve_length": "none"}}'])
 def test_a_missing_empty_or_broken_answer_is_nothing_known(stored):
     r = row(name="Linen shirt", answer=stored)
-    assert today.cloth(r) == {"weight_class": None, "silhouette": {}}
+    assert today.cloth(r) == {"weight_class": None, "silhouette": {}, "kind": None}
     assert weight(r) == "lightweight"   # the old guess from the words
 
 
 def test_broken_source_and_silhouette_are_nothing_known():
     r = {**row(name="Flannel shirt", answer=answer(weight="lightweight")), "source": "{nope", "silhouette": "[1]"}
-    assert today.cloth(r) == {"weight_class": "lightweight", "silhouette": {}}
+    assert today.cloth(r) == {"weight_class": "lightweight", "silhouette": {}, "kind": None}
 
 
 # ------------------------------------------------------------------ the engine
@@ -187,3 +187,23 @@ def test_the_gaps_use_the_stored_answer_and_a_new_one_is_not_served_from_the_cac
         conn.close()
     assert client.get("/api/gaps").json() == before
     assert len(runs) == 3
+
+
+# ------------------------------------------------------------------ the kind of garment
+def test_the_kind_is_the_owners_choice_else_the_taggers():
+    assert today.cloth(row(answer=answer(garment="joggers")))["kind"] == "joggers"
+    assert today.cloth(row(answer=answer(garment="joggers"), own_details='{"garment": "chinos"}'))["kind"] == "chinos"
+    assert today.cloth(row(answer=answer(garment="unknown")))["kind"] is None
+    assert today.cloth(row(answer=answer(garment="nonsense"), own_details="{nope"))["kind"] is None
+
+
+@pytest.mark.parametrize(("fabric", "expected"), [("polar_fleece", "heavyweight"), ("sherpa", "super_heavy"), ("na", "heavyweight")])
+def test_a_fleece_is_as_warm_as_its_pile(fabric, expected):
+    r = row(category="sweater", name="Pullover", answer=answer(garment="fleece_pullover", fabric=fabric, weight="lightweight"))
+    assert weight(r) == expected
+
+
+def test_the_owners_words_still_win_over_a_fleece():
+    r = row(category="sweater", name="Thin pullover", material="linen", source={"material": "user"},
+            answer=answer(garment="fleece_pullover", fabric="polar_fleece"))
+    assert weight(r) == "lightweight"

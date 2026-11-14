@@ -1,7 +1,7 @@
 {
  "style": "line",
- "schema_version": 2,
- "drawing_version": 4,
+ "schema_version": 4,
+ "drawing_version": 7,
  "items": [
   {
    "id": "05cb8b7edd6a5ac983080bc0521b5248",
@@ -54,6 +54,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "short",
      "neckline": "polo_collar",
@@ -79,6 +80,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "raw_indigo",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -105,7 +109,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -158,6 +161,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "short",
      "neckline": "crew",
@@ -183,6 +187,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "black",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -209,7 +216,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -263,6 +269,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "na",
      "neckline": "na",
@@ -288,6 +295,9 @@
      "shoe_style": "low_sneaker",
      "sole_color": "white",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "unknown",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -314,7 +324,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -376,6 +385,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "long",
      "neckline": "na",
@@ -401,6 +411,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "oxford_blue",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -427,7 +440,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -480,6 +492,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "long",
      "neckline": "crew",
@@ -505,6 +518,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "raw_indigo",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -531,7 +547,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -593,6 +608,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "na",
      "neckline": "na",
@@ -618,6 +634,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "faded_black",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -648,7 +667,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -703,6 +721,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "short",
      "neckline": "crew",
@@ -728,6 +747,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "unknown",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -754,7 +776,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": [
       "paper plane print on the chest"
      ]
@@ -818,6 +839,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "long",
      "neckline": "na",
@@ -843,6 +865,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "unknown",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -869,7 +894,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -930,6 +954,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "long",
      "neckline": "crew",
@@ -955,6 +980,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "unknown",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -981,7 +1009,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -1044,6 +1071,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "na",
      "neckline": "na",
@@ -1069,6 +1097,11 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [
+      "contrast_stitching"
+     ],
      "shade": "unknown",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -1099,9 +1132,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [
-      "contrast_stitching"
-     ],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -1162,6 +1192,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "na",
      "neckline": "na",
@@ -1187,6 +1218,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "mid_brown",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -1216,7 +1250,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -1271,6 +1304,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "long",
      "neckline": "na",
@@ -1296,6 +1330,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "unknown",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -1322,7 +1359,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -1375,6 +1411,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "long",
      "neckline": "v_neck",
@@ -1400,6 +1437,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "ecru",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -1426,7 +1466,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -1479,6 +1518,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "na",
      "neckline": "na",
@@ -1504,6 +1544,9 @@
      "shoe_style": "runner",
      "sole_color": "white",
      "lace_color": "white",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "heather_grey",
      "footwear": "running_shoe",
      "toe_shape": "na",
@@ -1530,7 +1573,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -1592,6 +1634,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "oversized",
      "sleeve_length": "long",
      "neckline": "hood",
@@ -1617,6 +1660,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "mid_grey",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -1643,7 +1689,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -1710,6 +1755,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "na",
      "neckline": "na",
@@ -1735,6 +1781,9 @@
      "shoe_style": "low_sneaker",
      "sole_color": "white",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "unknown",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -1761,7 +1810,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -1813,6 +1861,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "na",
      "neckline": "na",
@@ -1838,6 +1887,9 @@
      "shoe_style": "high_top",
      "sole_color": "white",
      "lace_color": "white",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "faded_black",
      "footwear": "canvas_high_top",
      "toe_shape": "na",
@@ -1864,7 +1916,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -1917,6 +1968,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "long",
      "neckline": "crew",
@@ -1942,6 +1994,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "unknown",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -1968,7 +2023,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -2028,6 +2082,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "long",
      "neckline": "na",
@@ -2053,6 +2108,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "mid_wash_denim",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -2079,7 +2137,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -2140,6 +2197,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "na",
      "neckline": "na",
@@ -2165,6 +2223,9 @@
      "shoe_style": "boot",
      "sole_color": "black",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "tobacco",
      "footwear": "service_boot",
      "toe_shape": "na",
@@ -2191,7 +2252,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -2251,6 +2311,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "long",
      "neckline": "henley",
@@ -2276,6 +2337,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "bone",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -2302,7 +2366,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -2356,6 +2419,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "slim",
      "sleeve_length": "long",
      "neckline": "na",
@@ -2381,6 +2445,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "optic_white",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -2407,7 +2474,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -2473,6 +2539,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "na",
      "neckline": "na",
@@ -2498,6 +2565,11 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [
+      "contrast_stitching"
+     ],
      "shade": "raw_indigo",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -2528,9 +2600,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [
-      "contrast_stitching"
-     ],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -2592,6 +2661,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "long",
      "neckline": "crew",
@@ -2617,6 +2687,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "burgundy",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -2643,7 +2716,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -2705,6 +2777,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "oversized",
      "sleeve_length": "long",
      "neckline": "na",
@@ -2730,6 +2803,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "camel",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -2756,7 +2832,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -2811,6 +2886,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "long",
      "neckline": "na",
@@ -2836,6 +2912,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "faded_black",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -2862,7 +2941,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -2917,6 +2995,7 @@
     },
     "silhouette_confidence": 0.6,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "long",
      "neckline": "turtleneck",
@@ -2942,6 +3021,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "unknown",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -2968,7 +3050,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -3031,6 +3112,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "short",
      "neckline": "crew",
@@ -3056,6 +3138,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "optic_white",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -3082,7 +3167,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -3134,6 +3218,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "na",
      "neckline": "na",
@@ -3159,6 +3244,9 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [],
      "shade": "olive",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -3188,7 +3276,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [],
      "other_features": []
     },
     "details_confidence": 1.0,
@@ -3242,6 +3329,7 @@
     },
     "silhouette_confidence": 1.0,
     "details": {
+     "garment": "unknown",
      "fit_detail": "regular",
      "sleeve_length": "na",
      "neckline": "na",
@@ -3267,6 +3355,11 @@
      "shoe_style": "na",
      "sole_color": "same",
      "lace_color": "same",
+     "accessory": "na",
+     "accessory_kind": "na",
+     "features": [
+      "pleats"
+     ],
      "shade": "slate",
      "footwear": "unknown",
      "toe_shape": "na",
@@ -3296,9 +3389,6 @@
      "denim_fades": [],
      "distressing": [],
      "inseam": 0,
-     "features": [
-      "pleats"
-     ],
      "other_features": []
     },
     "details_confidence": 1.0,

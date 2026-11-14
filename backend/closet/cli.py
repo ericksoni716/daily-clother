@@ -166,6 +166,8 @@ def serve(args, cfg: config.Config) -> int:
                 pass
 
     services.on_quit = quit_program
+    if services.updater is not None:   # an update starts the new program the way this one was started
+        services.updater.launch_args = (["--no-tray"] if args.no_tray else []) + ["--no-browser", "--port", str(port)]
     thread = threading.Thread(target=server.run, name="server", daemon=True)
     thread.start()
     deadline = time.time() + 30
@@ -327,6 +329,17 @@ def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -
         claude_cli.strict_schema()
         return f"anthropic {anthropic.__version__}, tagging schema ready"
 
+    def updater():
+        import hashlib
+
+        from . import updates
+        where = updates.layout()
+        hashlib.sha256(b"closet").hexdigest()
+        asset = updates.ASSETS.get(sys.platform)
+        if asset and where is not None:
+            return f"updates install {asset} in place of {where.installed.name}"
+        return "updates are reported with a link (this computer installs them by hand)"
+
     def https():
         import urllib.request
         from urllib.parse import urlsplit
@@ -347,6 +360,7 @@ def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -
     check("drawing", drawing)
     check("model_state", model)
     check("tagger", tagger)
+    check("updater", updater)
     if with_cutout:
         check("cutout", cutout)
     if with_https:  # the same connection the model download makes; needs the internet
@@ -383,7 +397,12 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--cutout", action="store_true", help="also run a real background removal (needs the model)")
     s.add_argument("--https", action="store_true", help="also check that the model's download server can be reached securely")
     s.add_argument("--out", help="write the result to this file instead of printing it")
+    w = sub.add_parser("update-watch", help=argparse.SUPPRESS)   # run by an update: start the new program, or go back
+    w.add_argument("plan")
     args = ap.parse_args(argv)
+    if args.command == "update-watch":
+        from . import updates
+        return updates.run_watch(args.plan)
     cfg = config.load()
     if args.command == "restore":
         return cmd_restore(args, cfg)

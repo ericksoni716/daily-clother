@@ -2,17 +2,24 @@
 import { useSyncExternalStore } from 'react';
 import type { OutfitPieces } from './today';
 
-/** The item in each place of an outfit, as `POST /api/outfits/figure` takes them (accessories are not drawn). */
+/** The item in each place of an outfit, and its accessories, as `POST /api/outfits/figure` takes them. */
 export interface FigurePieces {
   base: string | null;
   mid: string | null;
   outer: string | null;
   bottom: string | null;
   shoes: string | null;
+  accessories: string[];
 }
 
+/** The server takes at most this many accessories for one figure. */
+export const MAX_ACCESSORIES = 8;
+
 export function figurePieces(p: OutfitPieces): FigurePieces {
-  return { base: p.base || null, mid: p.mid || null, outer: p.outer || null, bottom: p.bottom || null, shoes: p.shoes || null };
+  return {
+    base: p.base || null, mid: p.mid || null, outer: p.outer || null, bottom: p.bottom || null, shoes: p.shoes || null,
+    accessories: (p.accessories ?? []).filter(Boolean).slice(0, MAX_ACCESSORIES),
+  };
 }
 
 /** The drawing as something an <img> can show (an <img> never runs anything inside an SVG). */

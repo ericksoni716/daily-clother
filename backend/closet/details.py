@@ -15,6 +15,7 @@ from typing import get_args
 from . import vocab
 from .drawing.item import BOTTOMS, SHOES, TOPS
 from .tagger.schema import Color, Details, Feature, ItemTags, Pattern, Silhouette
+from .tagger.taxonomy import kinds_for
 
 FEATURES: tuple[str, ...] = get_args(Feature)
 # lists (features, the tagger's own words, a trouser's pockets and wear) are shown, not picked one by one
@@ -24,8 +25,8 @@ PICKABLE: tuple[str, ...] = DETAILS + FEATURES
 MAX_BUTTONS = 10
 # details that are a count: the most each can be
 NUMBERS = {"placket_buttons": MAX_BUTTONS, "eyelets": 10, "inseam": 20}
-# details whose choices are offered in words only: each choice draws the same picture
-WORDED = ("shade",)
+# details whose choices are offered in words, without a drawing for each (too many, or each draws the same picture)
+WORDED = ("garment", "shade")
 # the item's own fields a correction by sentence may change (silhouette parts as "silhouette.<part>")
 FIELDS = ("category", "color", "pattern", "formality", "season")
 SHAPES = tuple(f"silhouette.{k}" for k in vocab.SILHOUETTE)
@@ -35,16 +36,17 @@ GROUPS = {"shape": "Shape", "neck": "Collar and neck", "front": "Front", "sleeve
 # what can be fixed on each kind of garment, grouped, in the order the item page shows them
 BY_KIND: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
     "top": (
+        ("shape", ("garment",)),
         ("neck", ("neckline", "collar", "trim_color")),
         ("front", ("placket", "placket_buttons", "button_color", "v_insert")),
-        ("sleeves", ("sleeve_length", "cuff", "sleeve_construction")),
+        ("sleeves", ("sleeve_length", "cuff", "sleeve_construction", "side_stripe")),
         ("pockets", ("pockets",)),
         ("hem", ("hem",)),
         ("cloth", ("fit_detail", "fabric", "fiber", "weight", "knit_gauge", "corduroy_wale", "color_texture",
                    "pattern_name", "pattern_orientation", "shade")),
     ),
     "bottom": (
-        ("shape", ("leg_shape", "rise", "trouser_break", "crease", "inseam")),
+        ("shape", ("garment", "side_stripe", "leg_shape", "rise", "trouser_break", "crease", "inseam")),
         ("front", ("waistband", "fly", "trouser_front")),
         ("pockets", ("pockets",)),
         ("hem", ("hem_finish",)),
@@ -78,7 +80,7 @@ TITLES = {
     "inseam": "inseam (inches)",
     "v_insert": "V insert under the neck", "pleats": "pleats", "pressed_crease": "pressed crease",
     "contrast_stitching": "contrast stitching", "toe_cap": "toe cap", "side_stripe": "side stripe",
-    "contrast_heel_tab": "contrast heel tab", "chunky_sole": "chunky sole",
+    "contrast_heel_tab": "contrast heel tab", "chunky_sole": "chunky sole", "garment": "kind",
     "category": "kind of garment", "color": "colour", "color_hex": "colour shade", "pattern": "pattern",
     "formality": "formality", "season": "season", "silhouette": "shape", "name": "name", "material": "material",
     "silhouette.sleeve": "sleeves", "silhouette.neck": "neck", "silhouette.top_length": "length", "silhouette.fit": "fit",
@@ -133,6 +135,9 @@ _WORDS = {
     "denim_wash": {"washed_black": "washed black"},
 
     "trim_color": {"same": "same as the body"}, "button_color": {"same": "same as the cloth"},
+    "garment": {"unknown": "not said", "t_shirt": "T-shirt", "ocbd": "oxford button-down", "casual_button_up": "casual shirt",
+                "pajama_set_woven": "woven pyjama set", "pajama_set_knit": "knit pyjama set",
+                "two_in_one_shorts": "two-in-one shorts", "open_hem_sweatpants": "open-hem sweatpants"},
 }
 
 
@@ -145,8 +150,11 @@ def names_for(category) -> tuple[str, ...]:
     return tuple(n for _, names in BY_KIND.get(kind_of(category) or "", ()) for n in names)
 
 
-def values(name: str) -> tuple:
-    """The values a detail can take, in the schema's order."""
+def values(name: str, category=None) -> tuple:
+    """The values a detail can take, in the schema's order. With the item's category, the kinds of garment
+    are only those it can be (a top's kinds for a top, a bottom's for trousers or shorts)."""
+    if name == "garment" and category is not None:
+        return ("unknown",) + kinds_for(category)
     if name in FEATURES:
         return ("no", "yes")
     if name in NUMBERS:
@@ -174,7 +182,7 @@ def words(name: str, value) -> str:
     return _WORDS.get(name, {}).get(value) or _ANY.get(value) or str(value).replace("_", " ")
 
 
-def coerce(name: str, value):
+def coerce(name: str, value, category=None):
     """The owner's value for a detail in the schema's own form, or ValueError with a sentence saying what is allowed."""
     if name in FEATURES:
         if value in (True, "yes"):
@@ -188,7 +196,7 @@ def coerce(name: str, value):
             return value
         raise ValueError(f"The {title(name)} must be a whole number from 0 to {NUMBERS[name]}.")
     elif name in DETAILS:
-        if value in values(name):
+        if value in values(name, category):
             return value
     else:
         raise ValueError(f"'{name}' is not a detail that can be changed.")

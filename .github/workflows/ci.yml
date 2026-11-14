@@ -28,10 +28,76 @@ env:
 # owner's Actions storage quota is exhausted.
 
 jobs:
-  test:
-    name: Lint and tests (Linux)
+  # Three jobs side by side; the job named "Lint and tests (Linux)" at the end
+  # is the one branch protection requires, and it passes only if all three do.
+  backend:
+    name: Backend and bench
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install backend and bench dependencies
+        run: |
+          python -m pip install -r backend/requirements-dev.txt
+          python -m pip install -r bench/requirements.txt
+
+      - name: Backend lint (ruff)
+        working-directory: backend
+        run: ruff check .
+
+      - name: Backend tests (pytest, one worker per core)
+        working-directory: backend
+        run: python -m pytest -q -n auto
+
+      - name: Bench tests (pytest)
+        working-directory: bench  # tests import closet_bench from this folder
+        run: python -m pytest -q tests
+
+  web:
+    name: Web page (lint, types, unit tests, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          package-manager-cache: false  # newer setup-node caches automatically otherwise
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Frontend lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Frontend typecheck
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Frontend unit tests
+        working-directory: frontend
+        run: npm test
+
+      - name: Frontend build (into backend/closet/web)
+        working-directory: frontend
+        run: npm run build
+
+  browser:
+    name: Browser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
         with:
@@ -44,68 +110,39 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
-          package-manager-cache: false  # newer setup-node caches automatically otherwise
+          package-manager-cache: false
 
-      # ---------------------------------------------------------- backend
       - name: Install backend dependencies
         run: python -m pip install -r backend/requirements-dev.txt
 
-      - name: Backend lint (ruff)
-        working-directory: backend
-        run: ruff check .
-
-      - name: Backend tests (pytest)
-        working-directory: backend
-        run: python -m pytest -q
-
-      # ---------------------------------------------------------- bench
-      - name: Install bench dependencies
-        run: python -m pip install -r bench/requirements.txt
-
-      - name: Bench tests (pytest)
-        working-directory: bench  # tests import closet_bench from this folder
-        run: python -m pytest -q tests
-
-      # ---------------------------------------------------------- frontend
-      # frontend/ is still being written; these steps are skipped until
-      # frontend/package.json exists, and then run its npm scripts.
-      - name: Note when the frontend is missing
-        if: hashFiles('frontend/package.json') == ''
-        run: echo "::notice::frontend/package.json not found; frontend steps skipped"
-
       - name: Install frontend dependencies
-        if: hashFiles('frontend/package.json') != ''
         working-directory: frontend
         run: npm ci
 
-      - name: Frontend lint
-        if: hashFiles('frontend/package.json') != ''
-        working-directory: frontend
-        run: npm run lint
-
-      - name: Frontend typecheck
-        if: hashFiles('frontend/package.json') != ''
-        working-directory: frontend
-        run: npm run typecheck
-
-      - name: Frontend unit tests
-        if: hashFiles('frontend/package.json') != ''
-        working-directory: frontend
-        run: npm test
-
       - name: Frontend build (into backend/closet/web)
-        if: hashFiles('frontend/package.json') != ''
         working-directory: frontend
         run: npm run build
 
       - name: Install Playwright Chromium
-        if: hashFiles('frontend/package.json') != ''
         working-directory: frontend
         run: npx playwright install --with-deps chromium
 
       - name: Browser tests (Playwright, against the real backend)
-        if: hashFiles('frontend/package.json') != ''
         working-directory: frontend
         env:
           CLOSET_PYTHON: python  # the setup-python interpreter with backend deps installed
         run: npm run e2e
+
+  test:
+    name: Lint and tests (Linux)
+    if: always()
+    needs: [backend, web, browser]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: All three jobs passed
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "backend, web, browser: $RESULTS"
+          for r in $RESULTS; do [ "$r" = success ] || { echo "::error::a job did not pass ($r)"; exit 1; }; done

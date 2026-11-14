@@ -30,6 +30,7 @@ the owner once it was clear the recognition work does not depend on the app.
 | Agents are started through the `start agent` workflow so the model can be chosen | Assigning an issue with the tools the orchestrating session has cannot name a model, and GitHub then picks one itself; the first agent run landed on a model the owner does not want and was cancelled. The workflow makes the same assignment through the REST API with a `model` field. It needs a fine-grained personal access token of the owner, kept as `COPILOT_AGENT_TOKEN` in an `agents` environment limited to `main`, because the built-in token may not assign Copilot. |
 | Model ids for agents are GitHub's own, with dots: `claude-opus-5.5`, not the vendor's `claude-opus-5-5` | Found by trying: GitHub accepted the assignment with the vendor's id and then refused to start ("The selected model isn't available"); the dotted id started the agent. GitHub does not fall back silently when a model id is wrong. The ids for the other vendors' models are still to be found the same way. |
 | CI runs on every pull request and push to `main` | It was manual-only while minutes cost money. |
+| CI runs as three parallel jobs (backend and bench, web page, browser tests), with the backend tests spread over every core (`pytest-xdist`, `-n auto`); a small final job keeps the name "Lint and tests (Linux)" that branch protection requires | One job running everything in turn took about 9–10 minutes per push while many agents were pushing. Side by side it is the length of the slowest job. All 875 backend tests passed on two workers locally, in 2m20s instead of about 4m40s. Locally `python -m pytest -q` still runs them one at a time. |
 | "Phase" in older entries below means the original numbering | Phase 1 is stop A, phases 2 and 3 are mostly stop B, phase 4 is stop C, phase 5 is stop D. |
 
 ## Before phase 0 (agreed with the owner)
@@ -521,7 +522,7 @@ Facts checked in Anthropic's documentation on 2026-11-12:
 
 ### The outfit as worn
 
-`backend/closet/drawing/figure.py` (`figure`, `plan`), served by `POST /api/outfits/figure`. It only places and stacks the existing item drawings; no template, option or single-garment drawing changed.
+`backend/closet/drawing/figure.py` (`figure`, `plan`), served by `POST /api/outfits/figure`. It only places and stacks the existing item drawings.
 
 | Decision | Why |
 |---|---|
@@ -540,7 +541,15 @@ Facts checked in Anthropic's documentation on 2026-11-12:
 | It never fails: a missing place is not drawn; an item in the wrong place (shoes as the bottom) is skipped; a piece that cannot be drawn from its description is drawn as the plainest of its category; if nothing can be drawn, an empty card | An outfit with one odd item should still be shown. |
 | A sheet of figures from the demo closet is kept at `docs/screenshots/outfit-figures.png` (and `.svg`), written by `tools/make_figure_sheet.py` | So a change to the figure can be judged by looking, as the issue asked. |
 | The kind of shoe (a footwear id such as `tassel_loafer` or `cap_toe_oxford`, or a footwear word such as `wingtip`, `open_derby` or "5 eyelets") comes from the words the tagger writes in `other_features`, read by `taxonomy.shoe_words`; no schema field was added. A footwear id sets the shoe style (a brogue keeps a tagged derby lacing, otherwise oxford); its details refine it. Defaults: a loafer has a penny strap, a sandal two straps, a dress shoe five eyelets. Words the drawing shows leave the item's "seen but not drawn" list | The issue asked for no schema change, and a schema change makes every stored answer stale. The taxonomy's 47 footwear ids are listed in `COVERAGE` as drawn, approximate (drawn as the closest shape, the note says which) or not drawn. |
+| Accessories are placed by the point their template is drawn about: a belt round the trousers' waistband, the first top then tucked in under it (and under any layer worn over it); a scarf at the neck point, over every top; a hat above the neck point, where a forehead would be; a bag beside the figure on the viewer's right, its handle at the height of a hand. One of each is drawn, the first given; ties, gloves, socks and the other accessories are not drawn on the figure | A belt over an untucked top would hide it; a belt is worn to be seen. With no body drawn, a hat floats where the head would be. The sizes and heights were chosen by eye from the sheet `docs/screenshots/accessories.png` (written by `tools/make_accessory_sheet.py`), and someone could reasonably choose them differently. |
 
+### Accessories
+
+| Decision | Why |
+|---|---|
+| The tagger names an accessory by the taxonomy's accessory garment id (`accessory`: cap, beanie, brimmed_hat, belt, scarf, bag, tie, pocket_square, gloves, eyewear, watch, socks) and its kind from the taxonomy's `accessories` section (`accessory_kind`); this raised the tagging schema to version 3. Answers kept from earlier versions still load, with both fields "na" | The owner asked for templates chosen from the taxonomy's ids, not free words. The issue said "no schema change", but without these fields the drawing had nothing reliable to choose from. |
+| Bags, belts, caps, beanies, brimmed hats and scarves each have a template, and their kind picks its style (a fedora, a trucker cap, a rucksack, a web belt...). The other accessories are drawn as a plain tag in their colour, never as a top | The issue's four, with the hat split as the taxonomy splits it. A tag says "an accessory" without pretending to a shape. Every id and kind is listed in `COVERAGE`. |
+| A bag, belt, hat or scarf whose kind is not said is drawn as the plainest of its kind (a tote, a plain leather belt, a cap or, when knitted, a beanie, a woven scarf), with a note saying so | Better than no drawing; the note tells the owner why it may not look like theirs. |
 
 ## Patterns drawn from the photo
 

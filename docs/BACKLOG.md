@@ -108,7 +108,8 @@ In progress (owner's corrections to the first taxonomy sheets):
 
 To do:
 - [x] Drawing faults its own author listed (#110): the tab collar has close-set points and a buttoned strap, the wing collar larger tips; lapels on dark or patterned cloth carry a facing shade; the puffer's sides and sleeves swell between its channels; the trucker jacket has a buttoned waistband with side adjusters; the vest's armhole band keeps its width to the side seam; linen texture is sparser and fainter. Before/after sheets: `docs/screenshots/drawing-faults-*.png`. Still open: at item size the tab strap and wing tips are only specks, and tab and point collars are hard to tell apart.
-- [ ] Accessories (bag, belt, hat, scarf) have categories but no drawing; today they would be drawn as a crew-neck top. They need simple shapes of their own or a neutral placeholder.
+- [x] Accessories drawn from the taxonomy's accessory ids and kinds: bags, belts, caps, beanies, brimmed hats and scarves have shapes of their own; ties, pocket squares, gloves, glasses, watches and socks a plain tag. The outfit figure wears a belt, scarf, hat and bag. Sheet: `docs/screenshots/accessories.png` (`tools/make_accessory_sheet.py`). Waiting for the owner's verdict.
+- [ ] Shapes of their own for ties, pocket squares, gloves, glasses, watches and socks (a plain tag stands in for them today), and accessories in the demo closet.
 - [ ] Shoes left after #108: a monk strap's buckles, a flip-flop's thong, apron and split toes, speed hooks and D-rings, boot kinds (chukka, western, rain), a cork footbed's grain, patent shine.
 - [ ] Trousers: the taxonomy's bottoms are a signature line each; rise, fit names and jeans washes are not tagged yet.
 - [ ] Re-run the tagging test with the tightened prompt (snaps, hip pockets and feature flags were wrong in the first run).

@@ -220,7 +220,10 @@ def _draw(tags: ItemTags, hex_: str, uid: str, notes: list[str], fill: Fill | No
         template, params, extras, approximated = drawing_for(tags)
         svg = render(Spec(template, params, Fill("solid", hex_), **extras), STYLE, uid=uid)
         notes.extend(approximated)
-        return svg, template in ("tie", "socks") and params.get("pattern", "solid") != "solid"   # a tie's stripes
+        # a tie's or socks' stripes, dots...; a colourwork knit's pattern (Fair Isle, argyle...), in the other
+        # colours seen: drawn from its tags
+        return svg, ((template in ("tie", "socks") and params.get("pattern", "solid") != "solid")
+                     or (bool(extras.get("colorwork")) and tags.pattern in ("other", "graphic", "plaid")))
     except Exception:
         log.exception("drawing a %s failed; drawing the plainest %s instead", tags.category, tags.category)
         notes.append(FELL_BACK)

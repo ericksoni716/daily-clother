@@ -1,7 +1,6 @@
 /* "What is it?": the kind's picker (a sheet on a phone, a popover beside the row on a wider screen) */
 .kind-picker { display: grid; gap: var(--space-3); }
 .kind-search { max-width: none; }
-.kind-groups .chip { min-height: 36px; padding: 0 var(--space-3); }
 .kind-tiles { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
 .kind-tiles .fix-tile span { text-align: center; }
 .sheet-popover.kind-sheet { left: auto; right: 0; width: min(34rem, calc(100vw - 32px)); }

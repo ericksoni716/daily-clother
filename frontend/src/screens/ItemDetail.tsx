@@ -427,13 +427,13 @@ function KindRow({ item, groups, disabled, onSaved, onError }: {
       <button ref={button} type="button" className="detail-row-button" aria-expanded={open} aria-haspopup="dialog"
         aria-label={`What is it?: ${line}${who ? `. ${who}` : ''}`} disabled={disabled} title={disabled ? OFFLINE_TITLE : undefined}
         data-testid="what-is-it" onClick={() => setEditing(open ? null : 'kind')}>
-        <span className="detail-row-label">What is it?</span>
+        <span className="detail-row-label">What is it?</span>{' '}
         <span className={`detail-row-value${item.kind ? '' : ' is-empty'}`}>
           {item.kind && (
             <img className="kind-row-pic" src={kindDrawing(item.kind, item.color_hex)} alt="" data-testid="kind-pic" />
           )}
           <span className="kind-row-words">
-            <span className="detail-row-text">{line}</span>
+            <span className="detail-row-text">{line}</span>{' '}
             {who && <span className="kind-row-sure">{who}</span>}
           </span>
         </span>

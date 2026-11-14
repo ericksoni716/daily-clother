@@ -101,7 +101,7 @@ SHOE_STYLES = ("low_sneaker", "high_top", "runner", "slip_on", "loafer", "derby"
 # (the JSON's app_style; "sandals" is the sandals category), what the drawing adds to that style, and how well the
 # drawing shows it. A footwear id or one of the footwear block's words in the tagger's other_features picks these.
 FOOTWEAR: dict[str, tuple[str, dict, str, str]] = {
-    "patent_oxford": ("oxford", {"toe_cap": "none"}, "approximate", "a plain-toe oxford; no patent shine"),
+    "patent_oxford": ("oxford", {"toe_cap": "none", "shine": True}, "drawn", "a plain-toe oxford with a patent gloss"),
     "plain_toe_oxford": ("oxford", {"toe_cap": "none"}, "drawn", "closed lacing, no toe cap"),
     "cap_toe_oxford": ("oxford", {"toe_cap": "stitched"}, "drawn", "closed lacing and a stitched toe cap"),
     "wholecut": ("oxford", {"toe_cap": "none", "wholecut": True}, "drawn", "closed lacing, no vamp seam"),
@@ -135,7 +135,7 @@ FOOTWEAR: dict[str, tuple[str, dict, str, str]] = {
     "skate_shoe": ("low_sneaker", {"tongue": "padded", "collar_pad": True}, "drawn", "a padded tongue above a padded collar"),
     "retro_runner": ("runner", {"kind": "retro_runner"}, "drawn", "a runner with a suede toe and side overlays"),
     "running_shoe": ("runner", {}, "drawn", "a runner"),
-    "trail_runner": ("runner", {"tread": "lug"}, "drawn", "a runner on a lugged sole; no toggle lace"),
+    "trail_runner": ("runner", {"tread": "lug"}, "drawn", "a runner on a lugged sole (a toggle lace when the lacing says so)"),
     "trainer": ("runner", {}, "approximate", "drawn as a running shoe"),
     "canvas_slip_on": ("slip_on", {}, "drawn", "a laceless canvas shoe"),
     "cleats": ("low_sneaker", {"tread": "cleats"}, "drawn", "studs under the sole"),
@@ -145,7 +145,7 @@ FOOTWEAR: dict[str, tuple[str, dict, str, str]] = {
     "espadrille": ("slip_on", {"tread": "jute", "foxing": False}, "drawn", "a slip-on on a braided rope sole"),
     "sandal": ("sandal", {"sandal": "two_strap"}, "drawn", "two buckled straps over a footbed"),
     "slide": ("sandal", {"sandal": "slide"}, "drawn", "one wide strap over a footbed"),
-    "flip_flop": ("sandal", {"sandal": "slide"}, "approximate", "drawn as a slide; no thong between the toes"),
+    "flip_flop": ("sandal", {"sandal": "thong"}, "drawn", "a thin strap from a post between the toes, back over the foot"),
     "moccasin_slipper": ("slip_on", {"moc": True, "collar_pad": True, "foxing": False}, "approximate", "a moc seam and a soft collar; no fleece texture"),
     "velvet_slipper": ("loafer", {"strap": "none"}, "approximate", "a plain loafer; no velvet nap"),
     "felt_clog": ("slip_on", {"backless": True, "foxing": False}, "drawn", "open at the back above the heel"),
@@ -155,7 +155,7 @@ FOOTWEAR_TOE_TREATMENT = {
     "plain": ({"toe_cap": "none"}, "drawn", ""), "cap_toe": ({"toe_cap": "stitched"}, "drawn", "a stitched toe cap"),
     "wingtip": ({"brogue": "full"}, "drawn", "on a derby or oxford: the wing and its punching"),
     "medallion": ({"brogue": "semi"}, "drawn", "on a derby or oxford: a punched toe and cap"),
-    "apron": ({"moc": True}, "approximate", "drawn as a moc toe's raised seam"),
+    "apron": ({"moc": True}, "drawn", "a raised seam round the top of the toe (from the side, as a moc toe's)"),
     "split_toe": ({}, "not_drawn", "no split toe seam yet"),
     "rubber_toe_cap": ({"toe_cap": "rubber"}, "drawn", "the rubber toe of a canvas shoe"),
 }
@@ -163,13 +163,13 @@ FOOTWEAR_LACING = {
     "closed_oxford": ({"style": "oxford"}, "drawn", "the facings meet under the vamp"),
     "open_derby": ({"style": "derby"}, "drawn", "the quarters on top of the vamp, the tongue between them"),
     "speed_hooks": ({"hooks": 3}, "drawn", "the top three lacing points are open metal hooks"),
-    "d_rings": ({}, "not_drawn", "drawn as eyelets"),
+    "d_rings": ({"rings": True}, "drawn", "metal D-rings instead of eyelets"),
     "ghillie": ({}, "not_drawn", "drawn as eyelets"), "slip_on": ({}, "drawn", "no laces"),
     "elastic_gussets": ({"gusset": True, "laces": False}, "drawn", "an elastic side panel, no laces"),
     "monk_single": ({"strap": "monk", "laces": False}, "drawn", "a buckled strap across the throat"),
     "monk_double": ({"strap": "double_monk", "laces": False}, "drawn", "two buckled straps across the throat"),
     "hook_and_loop": ({"strap": "velcro", "laces": False}, "drawn", "two straps across the instep, no laces"),
-    "toggle_speed_lace": ({}, "not_drawn", "drawn as laces"),
+    "toggle_speed_lace": ({"toggle": True}, "drawn", "a cord lock above the top eyelet, the cord ends hanging"),
     "rawhide_around_collar": ({"lace_collar": True}, "drawn", "a lace round the collar, tied at the side"),
 }
 # other words for what the drawing shows, as the tagger may put them
@@ -289,6 +289,8 @@ def shoe_params(style: str, d: dict) -> tuple[str, dict]:
     for key, table in (("toe_shape", FOOTWEAR_TOE_SHAPE), ("sole", FOOTWEAR_SOLE), ("heel", FOOTWEAR_HEEL)):
         if d.get(key) in table:
             params.update(table[d[key]][0])
+    if d.get("upper_material") == "patent":
+        params["shine"] = True
     height = d.get("footwear_height")
     if style in ("boot", "chelsea_boot") and height in _SHAFT:
         params["shaft"] = _SHAFT[height]
@@ -1144,6 +1146,7 @@ COVERAGE["construction"] = {
 COVERAGE["upper_material"] = {v: (N_, "the colour carries it; the drawing does not show the leather's finish") for v in (
     "smooth_calf", "pebble_grain", "suede", "roughout", "nubuck", "shell_cordovan", "patent", "oiled_pull_up", "canvas",
     "knit_mesh", "synthetic_leather", "waxed_canvas", "rubber", "velvet", "felt_wool", "woven_leather")}
+COVERAGE["upper_material"]["patent"] = (D, "bright gloss streaks along the toe and the heel")
 COVERAGE["leather_colorways"] = {v: (A_, "drawn in the item's colour") for v in (
     "black", "dark_brown", "mid_brown", "tan", "cognac", "oxblood", "walnut", "snuff_suede", "sand_suede", "navy_suede",
     "grey_suede")}

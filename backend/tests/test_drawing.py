@@ -145,6 +145,12 @@ def _drawn(tags: dict) -> tuple[str, dict]:
     (dict(footwear="service_boot", sole="crepe", heel="flat", eyelets=8), "boot",
      {"tread": "crepe", "heel": "flat", "eyelets": 8}),
     (dict(footwear="canvas_low_top", footwear_height="high"), "high_top", {}),
+    (dict(footwear="service_boot", lacing="d_rings"), "boot", {"rings": True}),
+    (dict(footwear="trail_runner", lacing="toggle_speed_lace"), "runner", {"toggle": True, "tread": "lug"}),
+    (dict(footwear="patent_oxford"), "oxford", {"shine": True, "toe_cap": "none"}),
+    (dict(footwear="derby", upper_material="patent"), "derby", {"shine": True}),
+    (dict(footwear="flip_flop"), "sandal", {"sandal": "thong"}),
+    (dict(footwear="service_boot", toe_treatment="apron"), "boot", {"moc": True}),
 ])
 def test_the_footwear_fields_choose_the_shoe_drawing(details, want_style, want):
     template, params = _drawn(answer("boots" if "boot" in details["footwear"] else "sneakers", **details))

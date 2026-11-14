@@ -22,7 +22,7 @@ CX_ROT = (200, 120)  # patterns and a sleeve's cloth are turned about the middle
 @dataclass
 class Part:
     d: str
-    role: str  # trim | hole | sole | band | cuff | collar_r | collar_l | edge (a stroke with no fill) | inlay | stitch | fade
+    role: str  # trim | hole | sole | band | cuff | collar_r | collar_l | edge (a stroke with no fill) | inlay | stitch | fade | shine
     color: str | None = None   # inlay/stitch: "trim" | "lace" | "sole" | "sole_line" | a hex; None = the body's cloth
     clip: bool = False         # drawn inside the outline only (an inlay may be drawn oversize and cut by the edge)
 
@@ -2096,6 +2096,10 @@ SNEAKER_DEFAULTS = dict(height="low", sole="regular")
 #   lace_collar True | False               a rawhide lace round the collar, tied at the side (a boat shoe)
 #   backless True | False                  a clog: no back above the heel
 #   pull_tabs True | False                 a western boot's pull tab at the top of the shaft
+#   rings    True | False                  D-rings instead of eyelets (a work or hiking boot)
+#   toggle   True | False                  a speed lace: a cord lock above the top eyelet, the cord ends hanging
+#   shine    True | False                  patent leather: bright gloss streaks along the toe and the heel
+#   sandal   + thong                       (style sandal) a flip-flop: a Y strap from a post between the toes
 
 SHOE_X0, SHOE_L, SHOE_G = 40.0, 320.0, 330.0   # toe tip x, length toe to heel, ground y
 METAL = "#c9a85c"   # a buckle or a horsebit
@@ -2168,7 +2172,7 @@ def _sandal(p, f) -> Shape:
     Nothing is drawn of a foot, so the card shows between the straps. The straps follow the top of a foot standing
     on the footbed (a man's foot is about 2.5 cm high at the toes and 6 cm at the instep)."""
     kind = p.get("sandal", "two_strap")
-    if kind not in ("slide", "two_strap", "strap"):
+    if kind not in ("slide", "two_strap", "strap", "thong"):
         kind = "two_strap"
     th_toe, th_heel, spring = 0.065 * f, 0.095 * f, 0.012
     top = [(0.012, spring + th_toe * 0.8), (0.06, spring * 0.4 + th_toe), (0.3, th_toe + 0.002),
@@ -2198,6 +2202,12 @@ def _sandal(p, f) -> Shape:
     top_v = over(0.5)
     if kind == "slide":
         straps.append(band(0.17, 0.54, -0.01))
+    elif kind == "thong":   # a flip-flop: a thin strap from the post between the toes, back over the foot to the sole
+        w = 0.022 * SHOE_L
+        post, crest = (0.1, tf(0.1) + 0.012), (0.3, over(0.3) - 0.01)
+        straps += [_capsule(_sp(*post), _sp(*crest), w), _capsule(_sp(*crest), _sp(0.47, tf(0.47) + 0.004), w)]
+        straps.append(_capsule(_sp(0.1, tf(0.1) - 0.004), _sp(*post), w * 1.3))
+        top_v = over(0.3) + 0.004
     elif kind == "two_strap":
         straps += [band(0.2, 0.37), band(0.43, 0.6, 0.005)]
         buckles += [(0.315, over(0.315) - 0.042), (0.55, over(0.55) - 0.05)]
@@ -2513,7 +2523,17 @@ def sneaker(**kw) -> Shape:
                 sh.parts.append(Part(_capsule((ex, ey), (hx, hy), 5.0), "inlay", color=METAL))
                 sh.parts.append(Part(_ring((hx, hy), 5.0, 2.4), "inlay", color=METAL))
                 continue
+            if p.get("rings"):   # a D-ring: a metal loop stitched to the facing, the lace through it
+                sh.parts.append(Part(_ring((ex, ey), 4.6, 2.0), "inlay", color=METAL))
+                continue
             sh.dots.append((ex, ey, 2.4 if not heeled else 2.0))
+        if p.get("toggle"):   # a speed lace: one thin cord pulled through a lock above the top eyelet, its ends hanging
+            tu, tv = eyelets[0] if style == "boot" else eyelets[-1]
+            lock = _sp(tu - 0.05, tv + 0.07)
+            sh.parts.append(Part(_capsule(_sp(tu, tv), lock, 3.0), "inlay", color="lace"))
+            for end in ((tu - 0.1, tv + 0.02), (tu - 0.085, tv + 0.0)):
+                sh.parts.append(Part(_capsule(lock, _sp(*end), 2.6), "inlay", color="lace"))
+            sh.parts.append(Part(_capsule(_sp(tu - 0.054, tv + 0.085), _sp(tu - 0.046, tv + 0.055), 9.0), "inlay", color="deep"))
 
     # ---- per-style construction lines
     lift = lambda u: s_toe + (s_heel - s_toe) * u   # how far a thick sole has raised the upper here
@@ -2717,6 +2737,13 @@ def sneaker(**kw) -> Shape:
         sh.parts.append(Part(_spline([(0.08, tf_at(0.08)), (0.13, 0.16), (0.2, vtop(0.2) - 0.01)]) +
                              f" L {_pt(_sp(-0.05, 0.3))} L {_pt(_sp(-0.05, 0))} Z", "inlay", color="deep", clip=True))
         sh.lines.append(_spline([(0.4, tf_at(0.4)), (0.5, 0.16), (0.6, 0.24), (0.66, vtop(0.66) if style != "runner" else 0.3)]))
+
+    # ---- patent leather: a hard gloss, two bright streaks catching the light along the toe and the heel
+    if p.get("shine"):
+        sh.parts.append(Part(band([(0.05, vtop(0.05) - 0.045), (0.12, vtop(0.12) - 0.032), (0.22, vtop(0.22) - 0.03),
+                                   (0.3, vtop(0.3) - 0.034)], 0.016), "shine", clip=True))
+        sh.parts.append(Part(band([(0.8, tf_at(0.8) + 0.06), (0.86, tf_at(0.86) + 0.07), (0.93, tf_at(0.93) + 0.075)], 0.012),
+                             "shine", clip=True))
 
     # ---- a contrast side panel
     if p.get("stripe", "none") == "side":

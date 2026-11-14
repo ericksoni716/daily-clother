@@ -606,7 +606,7 @@ def test_the_footwear_table_follows_the_taxonomy():
     ("na", ["derby"], "derby", {}),
     ("low_sneaker", ["slide"], "sandal", {"sandal": "slide"}),
     ("sandal", ["sandal", "ankle strap"], "sandal", {"sandal": "strap"}),
-    ("sandal", ["flip_flop"], "sandal", {"sandal": "slide"}),
+    ("sandal", ["flip_flop"], "sandal", {"sandal": "thong"}),
     ("runner", ["embroidered logo"], "runner", {}),
 ])
 def test_the_taggers_shoe_words_choose_the_drawing(style, words, want_style, want):
@@ -617,13 +617,14 @@ def test_the_taggers_shoe_words_choose_the_drawing(style, words, want_style, wan
 
 def test_only_what_is_drawn_leaves_the_seen_list():
     from closet_bench.taxonomy import shoe_words
-    # monk_strap is drawn now (#149): patent_oxford is a footwear id still drawn only approximately
-    assert shoe_words("derby", ["patent_oxford", "tassels", "5 eyelets", "red sole"])[2] == ["tassels", "5 eyelets"]
+    # monk_strap is drawn now (#149), patent_oxford too (#163): velvet_slipper is a footwear id still drawn only approximately
+    assert shoe_words("derby", ["velvet_slipper", "tassels", "5 eyelets", "red sole"])[2] == ["tassels", "5 eyelets"]
+    assert shoe_words("derby", ["patent_oxford", "5 eyelets"])[2] == ["patent_oxford", "5 eyelets"]
 
 
 @pytest.mark.parametrize("base, key, values", [
     (dict(style="loafer"), "strap", ["penny", "tassel", "horsebit", "none"]),
-    (dict(style="sandal"), "sandal", ["slide", "two_strap", "strap"]),
+    (dict(style="sandal"), "sandal", ["slide", "two_strap", "strap", "thong"]),
     (dict(style="derby"), "brogue", ["none", "quarter", "semi", "full"]),
     (dict(style="oxford"), "brogue", ["none", "quarter", "semi", "full"]),
     (dict(style="oxford"), "eyelets", [3, 5, 7]),
@@ -692,6 +693,10 @@ def test_every_footwear_bottoms_and_colour_value_is_in_coverage():
     (dict(style="derby", laces=False), "strap", ["monk", "double_monk"]),
     (dict(style="low_sneaker"), "tread", [None, "cleats"]),
     (dict(style="loafer"), "lace_collar", [False, True]),
+    (dict(style="boot"), "rings", [False, True]),
+    (dict(style="runner"), "toggle", [False, True]),
+    (dict(style="boot"), "toggle", [False, True]),
+    (dict(style="oxford"), "shine", [False, True]),
 ])
 def test_every_footwear_part_draws_its_own_picture_on_the_same_ground(base, key, values):
     pictures = set()

@@ -450,13 +450,15 @@ def _flat(d: str, t=(1.0, 0.0, 0.0, 1.0, 0.0, 0.0), steps: int = 12) -> list[tup
 
 
 def _inside(pt, poly) -> bool:
+    """Inside the path as it is painted: SVG fills by the nonzero rule, so where a fitted sleeve lies over the
+    edge of its body (the two share that line) the point is inside, as it is on the picture."""
     x, y = pt
-    n, hit = len(poly), False
+    n, turns = len(poly), 0
     for i in range(n):
         (x0, y0), (x1, y1) = poly[i], poly[(i + 1) % n]
         if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
-            hit = not hit
-    return hit
+            turns += 1 if y1 > y0 else -1
+    return turns != 0
 
 
 def _clear(pt, poly, margin: float) -> bool:
@@ -579,8 +581,8 @@ def test_his_neck_is_narrower_than_his_head_and_his_shoulders_slope():
     body = plan(dict(base=TEE, bottom=SHORTS, shoes=SNEAKERS)).body
     head = [x for x, _ in _flat(body.head)]
     hw = max(head) - min(head)
-    for cm in (0.5, 2.0, 3.0):   # under the chin: about half the head's width
-        assert 0.4 <= _across(body.torso, fig.CHIN_Y + cm * K_PX) / hw <= 0.55
+    for cm in (0.5, 2.0):   # under the chin: about six tenths of the head's width
+        assert 0.55 <= _across(body.torso, fig.CHIN_Y + cm * K_PX) / hw <= 0.65
     # it flares into the slope of the shoulders: wider at its base, and the shoulder points lower than the neck's base
     assert _across(body.torso, fig.NECK_Y + 1.0 * K_PX) > 1.5 * _across(body.torso, fig.CHIN_Y + 2.0 * K_PX)
     drop = (fig.SHOULDER_Y - fig.NECK_Y) / ((fig.SHOULDER_HALF_CM - fig.NECK_HALF_CM) * K_PX)
@@ -604,7 +606,7 @@ def test_his_arms_hang_naturally_with_the_wrists_at_the_crotch():
     # the elbow is at the waist, and the arm tapers from the shoulder to the wrist
     assert fig.CHEST_CM < fig.ELBOW_CM <= fig.WAIST_CM
     length = fig._arm_length()
-    halves = [fig._arm_half(length * t) for t in (0.0, 0.25, 0.5, 1.0)]
+    halves = [fig._arm_half(length * t) for t in (0.1, 0.3, 0.5, 1.0)]   # below the round of the shoulder
     assert halves[0] >= halves[1] > halves[2] > halves[3] and halves[0] >= 1.6 * halves[3]
     # the fingertips reach the middle of the thigh
     for hand in body.hands:
@@ -623,6 +625,116 @@ def test_a_long_sleeve_bends_with_the_arm(top):
               if (y0 > elbow[1]) != (y1 > elbow[1])]
         assert (min(xs) + max(xs)) / 2 == pytest.approx(elbow[0], abs=1.5 * K_PX)
         assert max(xs) - min(xs) >= 2 * fig._arm_half(math.dist(fig._arm_points(s.side)[0], elbow)) + K_PX   # with ease
+
+
+def _sleeve_across(t, s, y: float) -> tuple[float, float]:
+    """A fitted sleeve's two edges at the height y."""
+    poly = [t.point(q) for q in s.poly]
+    xs = [x0 + (y - y0) * (x1 - x0) / (y1 - y0) for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1], strict=True)
+          if (y0 > y) != (y1 > y)]
+    return min(xs), max(xs)
+
+
+def test_a_sleeve_beside_the_body_shares_its_line():
+    """Where a sleeve hangs against the body's side the two are one line, not two heavy ones side by side: the
+    sleeve's inner edge is on the body's edge (within a pixel), from under the underarm to where the arm leaves it."""
+    t = plan(dict(base=SHIRT, bottom=JEANS)).get("base")
+    outline = _flat(t.shape.outline, t.transforms[0])
+    for s in fitting.sleeves(t.shape):
+        for cm in (62, 66, 70, 76):
+            y = fig._y(cm)
+            lo, hi = _sleeve_across(t, s, y)
+            inner = hi if s.side < 0 else lo
+            edges = [x0 + (y - y0) * (x1 - x0) / (y1 - y0) for (x0, y0), (x1, y1) in zip(outline, outline[1:] + outline[:1], strict=True)
+                     if (y0 > y) != (y1 > y)]
+            near = sorted(abs(x - inner) for x in edges)
+            assert near[0] < 0.2 and near[1] < 1.2, (cm, near[:3])   # its own edge, and the body's on it
+
+
+def test_an_oversized_hoodie_is_roomy_and_gathered_at_its_cuffs_and_hem():
+    knit = dict(neckline="hood", cuff="rib_knit", hem="ribbed_band")
+    big = Piece("hoodie", answer("hoodie", {"neck": "hood", "fit": "oversized"}, fit_detail="oversized", **knit), "#8b8e92")
+    usual = Piece("hoodie", answer("hoodie", {"neck": "hood"}, **knit), "#8b8e92")
+    loose, plain = (plan(dict(base=p, bottom=JEANS)).get("base") for p in (big, usual))
+
+    def side(t, cm):   # the body's side at a height: the nearest edge to the middle
+        y, poly = fig._y(cm), _flat(t.shape.outline, t.transforms[0])
+        return min(abs(x0 + (y - y0) * (x1 - x0) / (y1 - y0) - CX) for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1], strict=True)
+                   if (y0 > y) != (y1 > y))
+
+    hem = (loose.point(loose.shape.anchors["hem"])[1] - fig.CROWN_Y) / K_PX
+    assert side(loose, 62) == pytest.approx(side(loose, 72), abs=0.6 * K_PX)   # straight from the chest, not shaped at the waist
+    assert side(loose, 62) > side(plain, 62) + 2 * K_PX                       # and roomy
+    assert side(loose, hem - 2) < side(loose, 72) - 0.8 * K_PX                # the hem band draws it in
+    for s, r in zip(fitting.sleeves(loose.shape), fitting.sleeves(plain.shape), strict=True):
+        ex, ey = fig._arm_points(s.side)[1]
+
+        def off(t, sl, ex=ex, ey=ey, side=s.side):   # how far the sleeve's outer edge is from the middle of the elbow
+            return max(abs(x - ex) for x in _sleeve_across(t, sl, ey) if (x - ex) * side > 0)
+        assert off(loose, s) > off(plain, r) + 0.8 * K_PX                     # a fuller sleeve: further off the arm
+        cuff = math.dist(loose.point(s.outer), loose.point(s.inner))
+        assert cuff < 0.75 * 2 * off(loose, s)                                # gathered in at the cuff
+        assert loose.point(s.shoulder)[1] > plain.point(r.shoulder)[1] + K_PX   # a dropped shoulder seam
+        start, d, length = fig._arm_line(s.side)                               # and it still ends at the wrist
+        c = loose.point(s.cuff)
+        assert abs((c[0] - start[0]) * d[0] + (c[1] - start[1]) * d[1] - length) <= 1.0 * K_PX
+    # the hood lies on the shoulders behind the neck: up beside the jaw, and out past the neck
+    hood = [q for part in loose.shape.behind for q in _flat(part.d, loose.transforms[0])]
+    assert fig.CHIN_Y - 8 * K_PX < min(y for _, y in hood) < fig.CHIN_Y
+    assert max(x for x, _ in hood) - CX > 2 * fig.NECK_HALF_CM * K_PX
+
+
+SANDALS = [Piece("sandals", answer("sandals", shoe_style="sandal", other_features=[kind]), "#a87a4f") for kind in ("sandal", "slide", "flip_flop")]
+
+
+@pytest.mark.parametrize("shoes", [None] + SANDALS, ids=["bare", "two straps", "slide", "flip-flop"])
+def test_a_bare_foot_is_one_shape_with_the_leg(shoes):
+    layout = plan(dict(base=TEE, bottom=SHORTS, **({"shoes": shoes} if shoes else {})))
+    body = layout.body
+    assert len(body.foot_paths) == 2
+    svg = figure(dict(base=TEE, bottom=SHORTS, **({"shoes": shoes} if shoes else {})), uid="q")
+    group = svg[svg.index('<g id="qm">'):]
+    for leg, foot in zip(body.legs, body.foot_paths, strict=True):
+        assert f'd="{foot}" fill="none" stroke=' in group and f'd="{leg}" fill="none" stroke=' in group   # outlined together
+        lp, fp = _flat(leg), _flat(foot)
+        end = max(y for _, y in lp)
+        assert min(y for _, y in fp) < end - 3 * K_PX < end < max(y for _, y in fp)   # the leg runs on into the ankle
+        y = end - 2 * K_PX                                   # there the two are as wide as each other, and in line
+        assert _across(foot, y) == pytest.approx(_across(leg, y), abs=1.0)
+        mids = [(min(x for x, yy in pts if abs(yy - y) < 3) + max(x for x, yy in pts if abs(yy - y) < 3)) / 2 for pts in (fp, lp)]
+        assert mids[0] == pytest.approx(mids[1], abs=1.0)
+        # the ankle is the narrowest part: below it the foot widens to the ball
+        assert max(x for x, _ in fp) - min(x for x, _ in fp) > 1.25 * _across(foot, y)
+
+
+@pytest.mark.parametrize("shoes", SANDALS, ids=["two straps", "slide", "flip-flop"])
+def test_a_sandal_is_drawn_sole_then_foot_then_straps(shoes):
+    front = plan(dict(base=TEE, bottom=SHORTS, shoes=shoes)).get("shoes").front
+    drawn = fig.front_shoe(plan(dict(base=TEE, bottom=SHORTS, shoes=shoes)).get("shoes").spec, K_PX, uid="z",
+                           ankle=fig._ankle(), toes=fig.TOE_LINE)
+    body = drawn.body
+    sole, skin, strap = body.index("<path"), body.index(f'fill="{fig.SKIN}"'), body.index('fill="#a87a4f"')
+    assert sole < skin < strap
+    assert 'clip-path="url(#zf)"' in body[strap - 400:] and f'<clipPath id="zf"><path d="{drawn.foot}"/>' in drawn.defs   # straps cut to the foot
+    # the sole is under the foot and stands out round its front
+    foot, shoe = _flat(front.foot), _flat(front.outline)
+    ball = front.anchors["ball"][1]
+    toes = [q for q in foot if q[1] > ball]
+    assert toes and all(_inside(q, shoe) for q in toes)
+    assert max(y for _, y in shoe) > max(y for _, y in foot) + 1.0
+    assert min(x for x, _ in shoe) < min(x for x, _ in toes) - 1.0 and max(x for x, _ in shoe) > max(x for x, _ in toes) + 1.0
+
+
+def test_the_toes_are_a_soft_row_of_five():
+    front = plan(dict(base=TEE, bottom=SHORTS)).body.feet[0]
+    pts = _flat(front.foot)
+    ball = front.anchors["ball"]
+    reach = [math.dist(q, ball) for q in pts if q[1] > ball[1] - 1.0]
+    # five rounded toes: five places where the edge is furthest from the ball, the big toe's the furthest
+    tips = [i for i in range(1, len(reach) - 1) if reach[i - 1] < reach[i] >= reach[i + 1]]
+    assert len(tips) == 5
+    assert len(front.toes) <= 4 and all(math.dist(*_flat(d)) < 0.8 * K_PX for d in front.toes)   # faint, short lines at most
+    assert "ellipse" not in front.body and front.body.count("<path") <= 2 + len(front.toes)       # no nails, no claws
 
 
 def test_his_hands_are_as_long_as_his_face():

@@ -35,25 +35,25 @@ def warp_path(d: str, fn: Callable[[Point], Point]) -> str:
 
 def split_lines(d: str, step: float) -> str:
     """The path with every straight segment (a closing one too) longer than `step` cut into pieces of at most that,
-    so a warp that bends can bend it."""
+    so a warp that bends can bend it. The points put in are written before the segment's own end in the same L
+    command ("L a b c end"), so the last point of every L is still one of the path's own corners."""
     out: list[str] = []
     cur: Point = (0.0, 0.0)
     start: Point = cur
 
-    def line_to(q: Point) -> None:
+    def between(q: Point) -> list[str]:
         n = max(1, math.ceil(math.dist(cur, q) / step))
-        out.extend(f"L {_f(cur[0] + (q[0] - cur[0]) * i / n)},{_f(cur[1] + (q[1] - cur[1]) * i / n)}" for i in range(1, n))
+        return [f"{_f(cur[0] + (q[0] - cur[0]) * i / n)},{_f(cur[1] + (q[1] - cur[1]) * i / n)}" for i in range(1, n)]
     for cmd, args in re.findall(r"([MLQCZ])([^MLQCZ]*)", d):
         pts = [(float(a), float(b)) for a, b in PAIR.findall(args)]
         if cmd == "L":
             for q in pts:
-                line_to(q)
-                out.append(f"L {_f(q[0])},{_f(q[1])}")
+                out.append("L " + " ".join(between(q) + [f"{_f(q[0])},{_f(q[1])}"]))
                 cur = q
             continue
         if cmd == "Z":
             if math.dist(cur, start) > step:
-                line_to(start)
+                out.append("L " + " ".join(between(start)))
             out.append("Z")
             cur = start
             continue
@@ -144,31 +144,19 @@ class Sleeve:
 
 
 def sleeves(shape: Shape) -> list[Sleeve]:
+    """The sleeves of a top's Shape, flat or fitted: a fitted sleeve's straight edges may have been cut into pieces
+    (`split_lines`), and its corners are then the last point of each of its first three L commands."""
     out = []
     for d, _ in shape.sleeves:
         pairs = [(float(a), float(b)) for a, b in PAIR.findall(d)]
-        if len(pairs) < 6:
+        lines = [PAIR.findall(args) for cmd, args in re.findall(r"([MLQCZ])([^MLQCZ]*)", d) if cmd == "L"]
+        corners = [(float(pts[-1][0]), float(pts[-1][1])) for pts in lines if pts]
+        if len(pairs) < 6 or len(corners) < 3:
             continue
         poly = points(d)
         side = 1 if sum(x for x, _ in poly) / len(poly) > CX else -1
-        outer, inner, armpit = _corners(pairs[2:-3])
-        out.append(Sleeve(poly, side, pairs[0], outer, inner, armpit))
+        out.append(Sleeve(poly, side, pairs[0], *corners[:3]))
     return out
-
-
-def _corners(run: list[Point]) -> tuple[Point, Point, Point]:
-    """A sleeve's opening and its underarm, from the straight run of its path (after the shoulder's curve, up to
-    the underarm): the outer corner, the inner corner and the underarm. On a flat drawing the run is those three
-    points; on a sleeve fitted with its edges cut into pieces (`warp(split=)`) the corners are the two sharpest
-    turns in it."""
-    if len(run) <= 4:
-        return run[-3], run[-2], run[-1]
-
-    def turn(i: int) -> float:
-        (ax, ay), (bx, by), (cx, cy) = run[i - 1], run[i], run[i + 1]
-        return abs(math.atan2((bx - ax) * (cy - by) - (by - ay) * (cx - bx), (bx - ax) * (cx - bx) + (by - ay) * (cy - by)))
-    first, second = sorted(sorted(range(1, len(run) - 1), key=turn)[-2:])
-    return run[first], run[second], run[-1]
 
 
 def _bilinear(q, u: float, v: float) -> Point:

@@ -6,7 +6,8 @@ pattern. So does a top with a graphic (Claude's pattern "graphic", or "other" na
 lifted from the photo and drawn at its place. The worker takes one waiting item at a time: for a top it first asks Claude where the buttons, neck,
 hem, shoulders and underarms are (`tagger.landmarks`, through the same routes and monthly limit as describing;
 without an answer the pattern is still measured, only not placed), then measures (`patterns.measure`, which
-can take a minute or two on a large photo), keeps the result in `items.pattern_fill` and redraws the item.
+can take a minute or two on a large photo), keeps the result in `items.pattern_fill` with the colours measured from it (`palette`), lays those colours
+over the item's colour words (`palette.settle`: the owner's own colour always wins) and redraws the item.
 
 A measurement that fails never costs the item its drawing: it is drawn in its colour and says why. The demo
 closet is never measured: its drawings were made in advance.
@@ -22,7 +23,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, illustrations
+from . import db, illustrations, palette
 from .config import Config
 from .state import State
 from .tagger.tagging import RouteUnavailable
@@ -133,7 +134,7 @@ def run_one(conn, images_dir: Path, measurer: Measurer, landmarker: Landmarker |
                 except Exception:
                     log.warning("asking for an item's landmarks failed; measuring without them", exc_info=True)
         t0 = time.monotonic()
-        kept = measurer(cut, how, _words(row), marks)
+        kept = palette.keep(measurer(cut, how, _words(row), marks), row["pattern"])
         log.info("measured a %s in %.1f s", how, time.monotonic() - t0)
     except Exception as e:   # never lost: the item says why and is drawn in its colour
         log.warning("measuring an item's pattern failed: %s", type(e).__name__, exc_info=True)
@@ -148,6 +149,7 @@ def run_one(conn, images_dir: Path, measurer: Measurer, landmarker: Landmarker |
             return "done"
         conn.execute("UPDATE items SET pattern_fill = ?, pattern_state = ?, pattern_error = ? WHERE id = ?",
                      (json.dumps(kept) if kept else None, "done" if kept else "failed", error, item_id))
+        palette.settle(conn, item_id)   # the item's colour from the measured colours, unless the owner set it
         illustrations.redraw(conn, item_id)
         conn.execute("COMMIT")
     except Exception:

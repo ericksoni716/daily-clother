@@ -41,7 +41,13 @@ Wave 4:
 - [x] #85 "Would this work?": check a piece against the closet before buying it, from a photo (described by Claude through the same routes and the same monthly limit as an item; the photo is kept in memory only and never saved) or described by hand. The answer is by rule: fills a gap, works and adds something, works but you have it already, or hard to wear, with the gap it would fill, the pieces it goes with, the ones it repeats and what holds it back. Sent back once with ten faults found in review; all fixed. Known: the check compares the plain analysis with and without the piece and does not yet know how the owner lives, so it can name a gap that the weighed list ranks differently.
 - [x] #88 and #89 What's missing informed by how the owner lives: a one-minute set of questions (work, everyday, going out, lounging at home, exercise, vacation, and how often), the climate of the saved place from four past years, and taste from what is worn and rated, per kind of clothing. Each suggestion says which situations it is for and the list can be narrowed to one. Until the questions are answered the analysis is exactly as before. Given to two models; the GPT 6 Astra run was the one that finished the screen and was merged after one round of ten faults found in review. Known: lounging is told from everyday by relaxed kinds and soft-cloth words, and exercise cannot tell one sport from another; the closet has no kinds for sportswear or loungewear. Trips and this each have their own lookup of Open-Meteo's archive; they could share one.
 
-Next (not started; the owner asked for a pause after this wave and a release): shop searches for a wish with each find checked against the closet, price checks, "Would this work?" taking how the owner lives into account, kinds of clothing for sportswear and loungewear.
+Wave 5:
+- [x] #112 Shopping for a wish (migration 0018): "Find some" asks Claude, through the same routes and monthly limit as describing an item (with web search allowed), for up to 8 products on sale now that match the wish and its price range. Each is checked against the closet with the "Would this work?" rules and kept with the wish; links open in a new tab and nothing is bought or opened by itself. "Check prices" looks again on demand, and while Closet runs each wish with finds is checked at most once a day (never in the demo closet), with the price history kept and a drop shown. Known: the API route's answer tool together with web search has only been run against a stand-in, never against Anthropic.
+
+Next (not started): "Would this work?" taking how the owner lives into account, kinds of clothing for sportswear and loungewear.
+
+Design (from the design review; each builds on the first):
+- [x] #127 Design 1, a design system: one set of tokens in `frontend/src/styles.css` (four text levels, surfaces, see-through borders, a 1.25 type scale from 16px, 4px spacing, four radii, one depth for cards), no colour outside them, a Light / Dark / Same as this device choice in Settings → Look, and shared pieces in `frontend/src/components/ui/` used where the swap was mechanical. Layouts unchanged; `src/design.test.ts` keeps CSS on the scale. Known: the spacing tokens are not yet used by existing paddings, the model banner is still its own component, and a forced choice is applied once the script runs.
 
 Fixes after 0.2.0:
 - [x] A newer program that finds an older copy running says so and offers to close it and use the new one (it used to open the old one without a word). The owner's first test of 0.2.0 found it.
@@ -65,7 +71,7 @@ Patterns from the photo (owner's request; it had fallen out of the app):
 - **The app's top UI complaints**, as the brief for UI tasks. A full interface-design pass comes after more features exist.
 - **25–30 photos of the owner's own clothes** with an answer key (`bench/answer_key.template.csv`). Most useful: items that differ from the usual (a polo with one or three buttons, a henley, corduroy, fleece or heavy wool beside light cotton, a sweatshirt with a V-insert). The bench runs them through the Claude plan by default; an API key is optional.
 - Three photos for the untested hard cases: something striped, something floral or patterned, something camouflage.
-- Whether to drop the Google Drive hand-off for price checks now that the app can run them itself through the plan route while the PC is on (recommended: drop it).
+- Whether to drop the Google Drive hand-off for price checks now that the app runs them itself (#112, through the plan route while the PC is on; see DECISIONS, "Shopping for a wish"). Recommended: drop it.
 - Whether multi-item photos and video sweeps stay after the outfit builder (as planned below) or move into stop B.
 
 ## Track 1: recognition and drawing (continuous)
@@ -97,7 +103,7 @@ To do:
 - [ ] Trousers: the taxonomy's bottoms are a signature line each; rise, fit names and jeans washes are not tagged yet.
 - [ ] Re-run the tagging test with the tightened prompt (snaps, hip pockets and feature flags were wrong in the first run).
 - [ ] Striped, floral and camouflage hard cases on real photos.
-- [ ] Take the colour word for patterned items from the measured palette instead of the model.
+- [x] Take the colour word for patterned items from the measured palette instead of the model (#106).
 - [ ] One real call through the API-key route for cost and timing (deliberately last; it costs money).
 
 Rules that keep the two tracks independent:
@@ -139,7 +145,7 @@ Original phase 4 and the rating parts of phase 6. The first stop the owner uses 
 ### Stop D: what's missing, and shopping
 Original phase 5.
 - Gap analysis (counts by code, explanations by the model), shopping by web search, wishlist, "would this work?", computer layout first.
-- Price checks.
+- Price checks (#112: run by the app itself while it runs).
 
 ### After D, each its own smaller stop
 - Multi-item photos and video sweeps (bench first; decides ffmpeg bundled or downloaded on first use).

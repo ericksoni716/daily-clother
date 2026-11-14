@@ -2,45 +2,45 @@
 
 .wouldwork { min-width: 0; }
 .wouldwork-head { margin-bottom: 14px; }
-.wouldwork-head h2 { margin: 0 0 4px; font-size: 1.25rem; }
+.wouldwork-head h2 { margin: 0 0 4px; font-size: var(--text-lg); }
 .wouldwork-head p { margin: 0; line-height: 1.45; }
-.wouldwork-small { font-size: 0.88rem; line-height: 1.4; }
+.wouldwork-small { font-size: var(--text-sm); line-height: 1.4; }
 
 .wouldwork-describe { display: grid; gap: 16px; }
 .wouldwork-describe > .form-error { margin: 0; }
-.wouldwork-photo { padding: 12px 14px; border-radius: var(--radius-small); background: var(--surface-2); }
+.wouldwork-photo { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
 .wouldwork-photo .chip-group-title { margin-top: 0; }
 .wouldwork-photo p { margin: 10px 0 0; }
 .wouldwork-hand { display: grid; gap: 4px; }
-.wouldwork-or { margin: 0 0 4px; font-size: 1.02rem; }
+.wouldwork-or { margin: 0 0 4px; font-size: var(--text-md); }
 .wouldwork-rain { margin: 6px 0 12px; }
 
-.wouldwork-waiting { display: flex; align-items: center; gap: 10px; padding: 18px 14px; border-radius: var(--radius-small); background: var(--surface-2); }
+.wouldwork-waiting { display: flex; align-items: center; gap: 10px; padding: 18px 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
 .wouldwork-waiting p { margin: 0; line-height: 1.45; }
 .wouldwork-failed p { margin: 0; }
 .wouldwork-failed .row { margin-top: 10px; }
 
 .wouldwork-answer { display: grid; gap: 14px; }
-.wouldwork-verdict { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: var(--radius); background: var(--surface-2); }
+.wouldwork-verdict { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; border-radius: var(--radius-md); background: var(--surface-2); }
 .wouldwork-verdict > svg { flex: none; width: 26px; height: 26px; margin-top: 2px; }
-.wouldwork-verdict h3 { margin: 0; font-size: 1.25rem; line-height: 1.25; }
+.wouldwork-verdict h3 { margin: 0; font-size: var(--text-lg); line-height: 1.25; }
 .wouldwork-verdict.is-good { background: var(--accent-soft); }
 .wouldwork-verdict.is-good > svg { color: var(--accent); }
 .wouldwork-verdict.is-caution { background: var(--warn-soft); }
 .wouldwork-verdict.is-caution > svg { color: var(--warn); }
-.wouldwork-piece { margin: 4px 0 0; font-size: 0.9rem; color: var(--muted); line-height: 1.4; }
-.wouldwork-reasons { font-weight: 520; }
+.wouldwork-piece { margin: 4px 0 0; font-size: var(--text-sm); color: var(--ink-3); line-height: 1.4; }
+.wouldwork-reasons { font-weight: var(--weight-label); }
 
 .wouldwork-part p { margin: 0 0 8px; line-height: 1.45; }
 .wouldwork-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; line-height: 1.45; }
 .wouldwork-outfits { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.wouldwork-day { margin: 0 0 6px; font-size: 0.92rem; font-weight: 600; }
+.wouldwork-day { margin: 0 0 6px; font-size: var(--text-sm); font-weight: var(--weight-label); }
 .wouldwork-this {
-  display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.72rem; font-weight: 650; line-height: 1.1;
+  display: flex; align-items: center; justify-content: center; text-align: center; font-size: var(--text-xs); font-weight: var(--weight-heading); line-height: 1.1;
   color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent);
 }
 .wouldwork-this:hover { box-shadow: inset 0 0 0 2px var(--accent); }
 .wouldwork-repeat { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.wouldwork-worn { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
-.wouldwork-worn.is-hardly { color: var(--warn); font-weight: 600; }
+.wouldwork-worn { font-size: var(--text-xs); color: var(--ink-3); white-space: nowrap; }
+.wouldwork-worn.is-hardly { color: var(--warn); font-weight: var(--weight-label); }
 .wouldwork-actions { margin-top: 18px; }

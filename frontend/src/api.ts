@@ -5,6 +5,7 @@ import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherChe
 import type { Insights } from './insights';
 import type { OutfitSent, Rating, Reason, WornOutfit, WornPage } from './worn';
 import type { GapsAnswer, HideReason, Wish } from './gaps';
+import type { FindsAnswer } from './shop';
 import type { Life } from './life';
 import type { Check, WouldPiece } from './wouldwork';
 import type { FigurePieces } from './figure';
@@ -234,10 +235,15 @@ export const api = {
   unhideGap: (id: string) => request<void>(`/api/gaps/${encodeURIComponent(id)}/hide`, { method: 'DELETE' }),
   wishlist: () => request<{ wishes: Wish[] }>('/api/wishlist').then((r) => r.wishes),
   addWish: (wish: { gap_id: string } | { name: string; note?: string }) => request<Wish>('/api/wishlist', { method: 'POST', body: wish }),
-  changeWish: (id: string, changes: { name?: string; note?: string }) =>
+  changeWish: (id: string, changes: { name?: string; note?: string; price_min?: number | null; price_max?: number | null; price_currency?: string | null }) =>
     request<Wish>(`/api/wishlist/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes }),
   wishBought: (id: string) => request<Wish>(`/api/wishlist/${encodeURIComponent(id)}/bought`, { method: 'POST' }),
   removeWish: (id: string) => request<void>(`/api/wishlist/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  finds: (id: string) => request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/finds`),
+  findSome: (id: string) => request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/find`, { method: 'POST' }),
+  checkPrices: (id: string) => request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/prices`, { method: 'POST' }),
+  removeFind: (id: string, findId: string) =>
+    request<void>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}`, { method: 'DELETE' }),
   // Would this work?: a check starts and answers later; the photo is not kept
   checkByHand: (piece: Partial<WouldPiece>) => request<Check>('/api/would-this-work', { method: 'POST', body: { piece } }),
   checkPhoto: (photo: Blob, filename: string) => {

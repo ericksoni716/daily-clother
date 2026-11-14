@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categoryPlural, formatPrice, formatSize, humanize, label, parsePrice, ratingLabel, tileCaption } from './labels';
+import { categoryPlural, formatPrice, formatSize, humanize, label, measuredColours, parsePrice, ratingLabel, tileCaption } from './labels';
 import { messageFrom } from './api';
 import { fitWithin } from './resize';
 import { silhouetteGroups } from './silhouette';
@@ -22,6 +22,13 @@ describe('labels', () => {
   it('never shows raw field names or underscores for any known value', () => {
     const values = ['smart_casual', 'light_blue', 'dress_shoes', 'needs_repair', 'top_length', 'pant_length', 'shoe_height'];
     for (const v of values) expect(label('x', v)).not.toMatch(/_/);
+  });
+
+  it('the colours measured from a pattern, in words', () => {
+    expect(measuredColours([{ color: 'navy', share: 0.6 }, { color: 'light_blue', share: 0.3 }, { color: 'red', share: 0.1 }]))
+      .toBe('Navy 60%, light blue 30%, red 10%');
+    expect(measuredColours([])).toBe('');
+    expect(measuredColours(undefined)).toBe('');
   });
 
   it('plural categories for filter chips', () => {

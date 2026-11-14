@@ -22,14 +22,16 @@ async function openMissing(page: Page) {
   await expect(page.getByTestId('gap').first()).toBeVisible({ timeout: 30_000 });
 }
 
-/** Describes a tan rain-proof coat by hand and waits for the answer. */
+/** Describes a tan rain-proof coat by hand and waits for the answer. Heavy: the demo's check is weighed by its example
+ * answers, whose rainy days are mostly work and everyday ones, cold days among them, which a medium coat is not warm
+ * enough for. */
 async function checkCoat(page: Page) {
   const panel = page.getByTestId('would-work');
   const form = panel.getByRole('form', { name: 'Describe it by hand' });
   await form.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { name: 'Coat', exact: true }).click();
   await form.getByRole('group', { name: 'Main colour' }).getByRole('button', { name: 'Tan', exact: true }).click();
   await form.getByRole('group', { name: 'Formality' }).getByRole('button', { name: 'Smart casual', exact: true }).click();
-  await form.getByRole('group', { name: 'How heavy the cloth is' }).getByRole('button', { name: 'Medium', exact: true }).click();
+  await form.getByRole('group', { name: 'How heavy the cloth is' }).getByRole('button', { name: 'Heavy', exact: true }).click();
   await form.getByRole('switch', { name: /keeps the rain off/ }).check({ force: true });
   await form.getByRole('button', { name: 'Would it work?' }).click();
   const answer = panel.getByTestId('would-work-answer');
@@ -57,6 +59,8 @@ test('would this work?, described by hand in the demo closet on a computer, and 
   await expect(answer).toHaveAttribute('data-verdict', 'fills_gap');
   await expect(answer.getByTestId('verdict')).toHaveText('Fills a gap');
   await expect(answer).toContainText('A rain-proof outer layer');
+  // the demo's list is weighed by its example answers, and so is the check: it says when the coat would be worn
+  await expect(answer.getByTestId('would-work-situations')).toContainText('It suits work');
   await expect(answer.getByRole('list', { name: 'Your pieces it pairs with best' }).getByRole('link').first()).toBeVisible();
   await expect(answer.getByTestId('would-work-outfit').first()).toContainText('This piece');
   await expect(answer).not.toContainText(/smart_casual|fills_gap|~candidate/);

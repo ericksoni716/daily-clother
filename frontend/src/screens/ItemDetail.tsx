@@ -5,6 +5,7 @@ import { Notice, PHONE, Section, SegmentedControl, Sheet } from '../components/u
 import { FixDetails, FixDetailsButton, ItemHistory } from '../components/FixDetails';
 import { BackIcon, ChevronIcon, HangerIcon, WarnIcon } from '../components/Icons';
 import { FIELD_TITLES, formatPrice, label, parsePrice, ratingLabel, SWATCH, swatchOf, tileCaption } from '../labels';
+import { useWhenLeaving } from '../leave';
 import { Link, navigate, useMediaQuery } from '../router';
 import { silhouetteGroups } from '../silhouette';
 import { useCloset } from '../store';
@@ -200,6 +201,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           <WarnIcon />
           <div>
             <p><strong>The background couldn't be removed.</strong>{item.cutout_error ? ` ${item.cutout_error}` : ''}</p>
+            <FailureDetails item={item} stage="cutout" />
             <button className="btn btn-small" disabled={locked} onClick={async () => {
               try {
                 setItem(await api.retryCutout(id));
@@ -230,6 +232,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           <WarnIcon />
           <div>
             <p><strong>Claude couldn't describe this item.</strong>{item.tag_error ? ` ${item.tag_error}` : ''}</p>
+            <FailureDetails item={item} stage="description" />
             <button className="btn btn-small" disabled={locked} onClick={retag}>Try again</button>
           </div>
         </div>
@@ -448,6 +451,19 @@ function WearPanel({ item, disabled, onWear, onUnwear, onLaundry }: WearPanelPro
   );
 }
 
+/** What was recorded when the cutout or the description failed, folded away (keys and outside paths taken out). */
+function FailureDetails({ item, stage }: { item: Item; stage: 'cutout' | 'description' }) {
+  const details = item.failure?.stage === stage ? item.failure.details : null;
+  if (!details) return null;
+  return (
+    <details className="failure-details" data-testid="failure-details">
+      <summary>Details</summary>
+      <p>What Closet recorded, for working out what went wrong:</p>
+      <pre>{details}</pre>
+    </details>
+  );
+}
+
 function DetailTop({ inPanel, backTo }: { inPanel?: boolean; backTo: string }) {
   if (inPanel) return null;
   return (
@@ -519,6 +535,7 @@ function NameField({ value, placeholder, disabled, onSave }: { value: string | n
     const v = text.trim();
     if (v !== (value ?? '')) onSave(v || null);
   };
+  useWhenLeaving(commit);
   return (
     <span className="name-field">
       <input aria-label="Name" value={text} placeholder={placeholder} disabled={disabled} maxLength={120}
@@ -548,6 +565,7 @@ function TextField({ label: text, value, disabled, placeholder, type = 'text', m
     const t = v.trim();
     if (t !== (value ?? '')) onSave(t || null);
   };
+  useWhenLeaving(commit);
   return (
     <label className="field">
       <span>{text}</span>
@@ -573,6 +591,10 @@ function PriceField({ cents, disabled, onSave, toastError }: { cents: number | n
     }
     if (parsed !== cents) onSave(parsed);
   };
+  useWhenLeaving(() => {
+    const parsed = parsePrice(v);
+    if (parsed !== undefined && parsed !== cents) onSave(parsed);
+  });
   return (
     <label className="field">
       <span>Price</span>

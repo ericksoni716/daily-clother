@@ -13,11 +13,12 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 import time
 import urllib.error
 import urllib.request
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from urllib.parse import urlencode
 
 from . import __version__, net
@@ -188,3 +189,48 @@ def lookup(state: State) -> dict:
         state.update(weather={"key": key, "fetched": _now(), "offset": offset, "answer": answer})
     return {"place": place, "weather": answer, "old": False, "message": None,
             "is_today": answer["date"] == _place_today(offset)}
+
+
+# ---------------------------------------------------------------------- past weather
+ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+ARCHIVE_DAILY = ("temperature_2m_min", "temperature_2m_max", "precipitation_sum")
+UNREADABLE = "The weather service gave an answer Closet could not read."
+
+
+class ArchiveUnreadable(WeatherError):
+    """The archive answered, or would be asked, with something that is not a list of days."""
+
+    def __init__(self) -> None:
+        super().__init__(UNREADABLE)
+
+
+def _coordinate(value: object, limit: int) -> bool:
+    try:
+        return (isinstance(value, int | float) and not isinstance(value, bool) and math.isfinite(value)
+                and -limit <= value <= limit)
+    except OverflowError:
+        return False
+
+
+def archive_daily(place: dict, start: date, end: date, *, timezone: str,
+                  precipitation_unit: str | None = None) -> dict[str, list | None]:
+    """The one lookup of Open-Meteo's archive, shared by the home climate and the trips' usual weather.
+
+    Sends only the place's latitude and longitude, the time zone given, the dates and the daily fields; goes
+    through `_get` (the computer's certificates, a bounded wait and size, errors in the owner's words). Returns
+    the daily columns as the archive gave them: {"time": [...], "temperature_2m_min": list or None, ...}, a
+    column that is not a list being None. What a missing day or value means is the caller's to decide; each
+    keeps what it worked out in its own way. Raises WeatherError, ArchiveUnreadable when there is no list of days.
+    """
+    if not _coordinate(place.get("latitude"), 90) or not _coordinate(place.get("longitude"), 180):
+        raise ArchiveUnreadable
+    params = {"latitude": place["latitude"], "longitude": place["longitude"], "timezone": timezone,
+              "start_date": start.isoformat(), "end_date": end.isoformat(), "daily": ",".join(ARCHIVE_DAILY),
+              "temperature_unit": "celsius"}
+    if precipitation_unit:
+        params["precipitation_unit"] = precipitation_unit
+    daily = _get(ARCHIVE_URL, params).get("daily")
+    if not isinstance(daily, dict) or not isinstance(daily.get("time"), list):
+        raise ArchiveUnreadable
+    return {"time": daily["time"],
+            **{field: daily[field] if isinstance(daily.get(field), list) else None for field in ARCHIVE_DAILY}}

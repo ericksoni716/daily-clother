@@ -17,8 +17,9 @@ the card shows the piece on its own:
   leather_dress | knit | mittens | fingerless | work | touchscreen.
 - `eyewear`: glasses from the front. Anchor "eyes", between the middles of the lenses. style (frame):
   wayfarer | aviator | round | browline | rectangular | sport_wrap; lens: clear | grey | green | brown | mirrored
-  | gradient.
-- `watch`: face up, its strap running up and down from the case; worn, the strap goes across the wrist. Anchor
+  | gradient. reach: how far out the temples run (worn: to the sides of the head, where they go back over the ears).
+- `watch`: face up, its strap running up and down from the case; worn, the strap wraps the wrist (`half` either
+  side of the case), its edges bowed as a band round the arm is, seen a little from above. Anchor
   "wrist", the middle of the case. style: dress | dive | field | chronograph | digital_sport; strap: leather |
   steel_bracelet | nato | rubber | canvas; dial (its shape): round | square | rectangular | cushion; dial_color
   (a hex colour); case: steel | gold, or a hex colour.
@@ -355,7 +356,8 @@ def eyewear(**kw) -> Shape:
         th = max(top, 0.3)
         bridge = _rr(-1.0, -1.35, 1.0, -1.35 + th + 0.25, 0.15)
     xo = LENS_GAP + (2.6 if style != "aviator" else 2.65)
-    temples = _rr(xo - 0.4, -1.5, 7.3, -1.0, 0.15) + _flip(_rr(xo - 0.4, -1.5, 7.3, -1.0, 0.15))
+    reach = float(kw.get("reach", 7.3))   # worn, out to the sides of the head, where they go back over the ears
+    temples = _rr(xo - 0.4, -1.5, reach, -1.0, 0.15) + _flip(_rr(xo - 0.4, -1.5, reach, -1.0, 0.15))
     dr = _Draft(left + right + bridge + temples, anchor="eyes")
     lenses = [[(op, *[(x - LENS_GAP, y) for x, y in args]) for op, *args in inner]]
     lenses.append(_flip(lenses[0]))
@@ -393,6 +395,7 @@ _WATCHES = {   # the case's half width, whether it has a turning bezel, the stra
     "chronograph": (2.1, False, "leather"), "digital_sport": (2.1, False, "rubber"),
 }
 DIAL = {"dress": "#ece4d0", "dive": "#1f2a44", "field": "#33383a", "chronograph": "#f2f0ea", "digital_sport": "#b9c2a6"}
+WRAP_BOW = 0.8    # a worn watch's strap: how far its edges bow down in the middle, wrapping the wrist
 
 
 def _case(style: str, dial: str, r: float) -> tuple[list, list]:
@@ -417,9 +420,11 @@ def watch(**kw) -> Shape:
     metal = {"gold": GOLD, "steel": STEEL}.get(kw.get("case"), kw.get("case")) or STEEL
     dial_c = kw.get("dial_color") or DIAL.get(style, DIAL["dress"])
     case, face = _case(style, dial, r)
-    if worn:   # round the wrist: the strap across it, the case on top
+    if worn:   # round the wrist, seen a little from above: the strap's edges bow down across it, the case on top
         half = float(kw.get("half", 3.1))
-        band = _rr(-half, -sw / 2, half, sw / 2, 0.4)
+        bow = WRAP_BOW * 2
+        band = [("M", (-half, -sw / 2)), ("Q", (0, -sw / 2 + bow), (half, -sw / 2)), ("L", (half, sw / 2)),
+                ("Q", (0, sw / 2 + bow), (-half, sw / 2)), ("Z",)]
         dr = _Draft(band + case, anchor="wrist")
         dr.part(case, "inlay", metal if strap != "steel_bracelet" or kw.get("case") else None)
         dr.part(face, "inlay", dial_c)

@@ -59,8 +59,11 @@ shape=)`); the item drawings themselves do not change:
   drawn about, at K_PX: a belt is worn round the trousers' waistband, and the
   first top is then worn tucked in (its body cut off at the belt, its sleeves
   kept), so the belt shows over it and under any layer worn over it; a scarf at the neck point,
-  over every top; a hat's band at HAT_Y, on the head; a bag beside the figure on the viewer's right, its handle
-  at the height of a hand. One of each is drawn (the first given). A tie, a
+  over every top. A hat goes on his head and a bag is carried as its kind is
+  (in the hand, over the shoulder, on the back): `worn.place` places them, and
+  `worn` draws the bag with its straps; with no wearer drawn, a hat's band is at
+  HAT_Y and a bag beside the figure on the viewer's right, its handle at the
+  height of a hand. One of each is drawn (the first given). A tie, a
   pocket square, a watch, glasses and socks are drawn by `worn`, which `_svg`
   calls once; gloves, jewellery and other accessories are not drawn in the figure.
 
@@ -1187,6 +1190,9 @@ def _accessories(out: Layout, given) -> list[Placed]:
 
 
 def _place_accessory(place: str, spec: Spec, out: Layout) -> Placed:
+    on = worn.place(place, spec, out)   # a hat on his head, a bag carried: `worn` places them on him
+    if on is not None:
+        return on
     params = {**spec.params, "px": K_PX}
     if place == "belt":
         params.update(worn=True, half=BELT_HALF_CM)
@@ -1355,7 +1361,7 @@ def _svg(layout: Layout, uid: str) -> str:
             body.append(_neck_front(wearer, first, f"{uid}f", defs))
         body.append(_head_markup(wearer))
     body.append(dressed.over)
-    body += [extra[k] for k in ("scarf", "hat", "bag") if k in extra]
+    body += [extra[k] for k in ("scarf", "hat") if k in extra] + [dressed.carry or extra.get("bag", "")]
     x, y, w, h = layout.view
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x:.1f} {y:.1f} {w:.1f} {h:.1f}" '
             f'width="{w:.0f}" height="{h:.0f}"><defs>{"".join(defs)}</defs>'

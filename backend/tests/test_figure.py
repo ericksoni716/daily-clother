@@ -382,15 +382,17 @@ def test_each_accessory_is_placed_at_its_point_on_the_wearer():
     assert "other" not in got and len(layout.pieces) == 7   # a tie is not a placed piece: `worn` draws it
     assert got["belt"].point(got["belt"].shape.anchors["waist"]) == pytest.approx((fig.CX, fig.BELT_Y))
     assert got["scarf"].point(got["scarf"].shape.anchors["neck"]) == pytest.approx((fig.CX, fig.NECK_Y))
+    # the hat on his head: its band across the forehead, above the eyes, its crown over the top of his hair
+    k = K_PX * fig.HEAD_CM / 23.5
+    middle = fig.CHIN_Y - 11.75 * k
     hx, hy = got["hat"].point(got["hat"].shape.anchors["head"])
-    assert hx == pytest.approx(fig.CX) and hy == pytest.approx(fig.HAT_Y)
-    assert got["hat"].box()[3] < fig.NECK_Y   # above the collar
-    # the bag beside the figure, on the viewer's right, its handle at a hand's height
+    assert hx == pytest.approx(fig.CX) and middle - 8 * k < hy < middle - 2 * k
+    assert got["hat"].box()[1] < middle - 13.7 * k and got["hat"].box()[3] < middle   # covers the hair, not the eyes
+    # the bag carried on him, not beside him: it reaches no further out than his arms
     right = max(p.box()[2] for p in layout.pieces if p.place != "bag")
-    assert got["bag"].box()[0] > right
-    assert got["bag"].point(got["bag"].shape.anchors["hand"])[1] == pytest.approx(fig._y(fig.WRIST_CM + 4))
-    # each at the same scale as the clothes
-    assert all(got[p].px_per_cm == K_PX for p in ("belt", "scarf", "hat", "bag"))
+    assert fig.CX < got["bag"].box()[0] and got["bag"].box()[2] < right + 30 * K_PX
+    # each at the same scale as the clothes (the hat at his head's)
+    assert all(got[p].px_per_cm == K_PX for p in ("belt", "scarf", "bag")) and got["hat"].px_per_cm == pytest.approx(k)
 
 
 def test_a_belt_tucks_the_first_top_in_and_only_the_first_of_each_accessory_is_drawn():
@@ -475,7 +477,7 @@ def test_a_pocket_square_stands_in_a_tailored_jackets_breast_pocket():
 def test_socks_show_above_low_shoes_when_the_trousers_stop_short():
     dressed, layout = _worn(base=TEE, bottom=SHORTS, shoes=SNEAKERS, accessories=[SMALL["socks"]])
     assert "#2e7d4f" in dressed.legs and "#2e7d4f" in (dressed.ankle or "")
-    top = float(re.search(r'<rect x="-4000" y="([\d.]+)"', "".join(dressed.defs)).group(1))
+    top = float(re.search(r'y"><path d="M -4000,([\d.]+)', "".join(dressed.defs)).group(1))
     assert fig._y(fig.CALF_CM) < top < GROUND_Y - 10 * K_PX   # a crew sock: up the shin, below the calf
     svg = figure(dict(base=TEE, bottom=SHORTS, shoes=SNEAKERS, accessories=[SMALL["socks"]]))
     assert svg.index("#2e7d4f") < svg.index("#6f7550")   # under the shorts
@@ -486,7 +488,7 @@ def test_socks_show_above_low_shoes_when_the_trousers_stop_short():
     no_show = small("socks", "no_show", "#2e7d4f")
     assert _worn(base=TEE, bottom=SHORTS, shoes=SNEAKERS, accessories=[no_show])[0].legs == ""
     otc = _worn(base=TEE, bottom=SHORTS, shoes=SNEAKERS, accessories=[small("socks", "dress_otc", "#2e7d4f")])[0]
-    assert float(re.search(r'<rect x="-4000" y="([\d.]+)"', "".join(otc.defs)).group(1)) < fig._y(fig.CALF_CM)
+    assert float(re.search(r'y"><path d="M -4000,([\d.]+)', "".join(otc.defs)).group(1)) < fig._y(fig.CALF_CM)
 
 
 @pytest.mark.parametrize("fit", ["slim", "regular", "relaxed", "oversized"])
@@ -507,7 +509,7 @@ def test_small_accessories_sit_right_on_every_fit(fit):
                        Piece("trousers", answer("trousers", leg_shape=leg, trouser_break="cropped"), "#6f7278")):
             dressed, layout = _worn(base=_tee(fit), bottom=bottom, shoes=SNEAKERS, accessories=[SMALL["socks"]])
             assert "#2e7d4f" in dressed.legs, (leg, bottom.category)
-            top = float(re.search(r'<rect x="-4000" y="([\d.]+)"', "".join(dressed.defs)).group(1))
+            top = float(re.search(r'y"><path d="M -4000,([\d.]+)', "".join(dressed.defs)).group(1))
             hem = layout.get("bottom").box(layout.get("bottom").shape.body_box)[3]
             assert top < GROUND_Y - 10 * K_PX and (bottom.category == "trousers" or hem < top), (leg, hem, top)
 

@@ -2987,29 +2987,38 @@ def _arch(x, y, half, top, width):
 
 
 HAT_STYLES = ("structured", "dad", "five_panel", "trucker")
+WORN_PEAK_CM = 3.6   # a worn cap's peak, seen at eye level: how far its front edge falls below the band
+WORN_BRIM_CM = 2.4   # ...and a worn hat's brim, at most
 
 
 def cap(**kw) -> Shape:
-    """A peaked cap from the front: a crown of panels over a curved peak. style: structured | dad | five_panel | trucker."""
+    """A peaked cap from the front: a crown of panels over a curved peak. style: structured | dad | five_panel | trucker.
+    worn: on a head seen at eye level, the peak nearly edge on, so its front edge falls only WORN_PEAK_CM below the band."""
     style = kw.get("style", "structured")
     hc = {"structured": 12.0, "dad": 10.0, "five_panel": 11.0, "trucker": 13.0}.get(style, 12.0)
     soft = style == "dad"
     hw, bw, drop = 8.6, 9.8, (5.5 if style != "five_panel" else 4.2)
-    top = 0.62 if soft else 0.5
+    worn = bool(kw.get("worn"))
+    seam = 1.3
+    if worn:   # the crown close over the head under it; the peak pointing at us, a little wider than the crown
+        drop, bw, seam = WORN_PEAK_CM, hw + 0.5, 0.0
+        hc = {"structured": 8.6, "dad": 8.0, "five_panel": 8.3, "trucker": 9.4}.get(style, 8.6)
+    top = (0.7 if soft else 0.62) if worn else (0.62 if soft else 0.5)
     dr = _Draft([("M", (-bw, 0.4)), ("L", (-hw, 0.0)),
                  ("C", (-hw - 0.3, -hc * 0.7), (-hw * top, -hc), (0, -hc)),
                  ("C", (hw * top, -hc), (hw + 0.3, -hc * 0.7), (hw, 0.0)),
                  ("L", (bw, 0.4)), ("Q", (0, drop * 2 - 0.4), (-bw, 0.4)), ("Z",)], anchor="head")
     # the peak, its top a shade apart from the crown; the crown's seam along it
-    dr.part([("M", (-bw, 0.4)), ("Q", (0, 2.6), (bw, 0.4)), ("Q", (0, drop * 2 - 0.4), (-bw, 0.4)), ("Z",)])
-    dr.lines.append([("M", (-bw * 0.8, 1.2)), ("Q", (0, drop * 1.65), (bw * 0.8, 1.2))])   # stitching round the peak
+    dr.part([("M", (-bw, 0.4)), ("Q", (0, 0.6 if worn else 2.6), (bw, 0.4)), ("Q", (0, drop * 2 - 0.4), (-bw, 0.4)), ("Z",)],
+            *(("inlay", "deep") if worn else ()))   # worn: its underside, in its own shadow
+    dr.lines.append([("M", (-bw * 0.8, 1.2)), ("Q", (0, drop * (1.3 if worn else 1.65)), (bw * 0.8, 1.2))])   # stitching round the peak
     if style == "five_panel":   # one wide flat front panel
-        dr.lines.append([("M", (-4.2, 1.2)), ("C", (-4.4, -4), (-3.6, -hc * 0.8), (0, -hc))])
-        dr.lines.append([("M", (4.2, 1.2)), ("C", (4.4, -4), (3.6, -hc * 0.8), (0, -hc))])
+        dr.lines.append([("M", (-4.2, seam - 0.1)), ("C", (-4.4, -4), (-3.6, -hc * 0.8), (0, -hc))])
+        dr.lines.append([("M", (4.2, seam - 0.1)), ("C", (4.4, -4), (3.6, -hc * 0.8), (0, -hc))])
     else:
-        dr.line((0, -hc), (0, 1.3))
+        dr.line((0, -hc), (0, seam))
         for s in (-1, 1):
-            dr.lines.append([("M", (0, -hc)), ("C", (s * 4.5, -hc * 0.8), (s * 6.2, -hc * 0.35), (s * 6.4, 0.6))])
+            dr.lines.append([("M", (0, -hc)), ("C", (s * 4.5, -hc * 0.8), (s * 6.2, -hc * 0.35), (s * 6.4, seam - 0.7))])
             dr.dots.append((s * 4.6, -hc * 0.62, 0.28))   # eyelets
     if style == "trucker":   # mesh on the side panels
         for s in (-1, 1):
@@ -3022,7 +3031,8 @@ def cap(**kw) -> Shape:
 
 
 def beanie(**kw) -> Shape:
-    """A soft hat with no brim. style: cuffed | fisherman (short, high, deep cuff) | beret | trapper (ear flaps)."""
+    """A soft hat with no brim. style: cuffed | fisherman (short, high, deep cuff) | beret | trapper (ear flaps).
+    worn: pulled on over a head, not lying flat: lower over the crown, and a trapper's flaps hang over the ears."""
     style = kw.get("style", "cuffed")
     if style == "beret":
         dr = _Draft([("M", (-8.6, 0.0)), ("L", (-8.8, -1.6)), ("C", (-15.5, -2.2), (-14.5, -9.5), (-3, -9.8)),
@@ -3033,15 +3043,20 @@ def beanie(**kw) -> Shape:
         dr.part([("M", (-0.4, -9.8)), ("L", (-0.2, -11.3)), ("L", (0.8, -11.2)), ("L", (0.8, -9.8)), ("Z",)], "inlay")
         return _finish(dr, kw.get("px"))
     tall, cuff, hw = {"cuffed": (20.0, 6.0, 9.2), "fisherman": (13.5, 5.5, 9.4), "trapper": (17.0, 5.0, 9.6)}.get(style, (20.0, 6.0, 9.2))
+    worn = bool(kw.get("worn"))
+    if worn:
+        tall, cuff, hw = {"cuffed": (11.5, 5.0, 8.9), "fisherman": (8.6, 4.4, 8.9), "trapper": (11.2, 4.4, 9.1)}.get(style, (11.5, 5.0, 8.9))
     dome = [("M", (-hw + 0.2, 0.0)), ("L", (-hw, -cuff)),
             ("C", (-hw, -tall * 0.78), (-hw * 0.55, -tall), (0, -tall)),
             ("C", (hw * 0.55, -tall), (hw, -tall * 0.78), (hw, -cuff)), ("L", (hw - 0.2, 0.0)),
             ("Q", (0, 0.8), (-hw + 0.2, 0.0)), ("Z",)]
     outline = list(dome)
     if style == "trapper":   # ear flaps hanging from the sides, under the turned-up front
+        inner = 2.6 if worn else 4.6   # worn, the flaps cover the ears, at the sides of the face
         for s in (-1, 1):
             outline += [("M", (s * (hw - 0.4), -2.0)), ("L", (s * (hw + 0.4), 7.5)),
-                        ("Q", (s * (hw - 1.6), 11.0), (s * (hw - 4.6), 7.8)), ("L", (s * (hw - 4.2), 0.2)), ("Z",)]
+                        ("Q", (s * (hw - 1.6 + (4.6 - inner) / 3), 11.0), (s * (hw - inner), 7.8)),
+                        ("L", (s * (hw - inner + 0.4), 0.2)), ("Z",)]
     dr = _Draft(outline, anchor="head")
     dr.part([("M", (-hw + 0.2, 0.0)), ("L", (-hw, -cuff)), ("Q", (0, -cuff - 0.7), (hw, -cuff)),
              ("L", (hw - 0.2, 0.0)), ("Q", (0, 0.8), (-hw + 0.2, 0.0)), ("Z",)], "band")
@@ -3054,7 +3069,7 @@ def beanie(**kw) -> Shape:
             dr.lines.append([("M", (x * 1.15, -cuff - 0.4)), ("Q", (x * 0.85, -tall * 0.75), (x * 0.25, -tall + 0.3))])
     else:
         for s in (-1, 1):
-            dr.lines.append([("M", (s * (hw - 1.4), 1.2)), ("L", (s * (hw - 0.9), 7.2))])
+            dr.lines.append([("M", (s * (hw - 1.4 + (0.6 if worn else 0)), 1.2)), ("L", (s * (hw - 0.9 + (0.4 if worn else 0)), 7.2))])
         dr.line((0, -tall), (0, -cuff - 0.4))
     return _finish(dr, kw.get("px"))
 
@@ -3075,9 +3090,15 @@ _BRIMMED = {
 
 def brimmed_hat(**kw) -> Shape:
     """A hat with a brim or a short peak, from the front. style: fedora | trilby | panama | wide_brim | cowboy |
-    boater | bucket | flat_cap | newsboy."""
+    boater | bucket | flat_cap | newsboy. worn: on a head seen at eye level, the brim nearly edge on (its front
+    falls at most WORN_BRIM_CM below the band, a bucket's slopes less far down), and a flat cap or newsboy's crown
+    filled out by the head under it."""
     style = kw.get("style", "fedora")
     hc, tw, top, bw, tip, fall, band = _BRIMMED.get(style, _BRIMMED["fedora"])
+    worn = bool(kw.get("worn"))
+    if worn:
+        fall = min(fall, WORN_BRIM_CM)
+        hc = {"flat_cap": 8.8, "newsboy": 9.6}.get(style, hc)
     hw = 8.6
     if top == "dent":
         crown = [("C", (-hw + 0.3, -hc * 0.6), (-tw - 0.2, -hc + 1), (-tw, -hc)),
@@ -3094,13 +3115,15 @@ def brimmed_hat(**kw) -> Shape:
     else:   # a flat cap or a newsboy: a crown wider than the head, sloping forward onto the peak
         crown = [("C", (-tw - 0.4, -2.5), (-tw * 0.85, -hc), (0, -hc)), ("C", (tw * 0.85, -hc), (tw + 0.4, -2.5), (hw, -0.8))]
     if style == "bucket":   # the brim slopes down all round
+        v = 0.62 if worn else 1.0   # worn, seen from in front: the brim's slope foreshortened
+        edge, low = -0.8 + 6.4 * v, 0.4 + 9.0 * v
         outline = ([("M", (-hw - 0.2, -0.8))] + crown +
-                   [("L", (13.2, 5.6)), ("Q", (0, 9.4), (-13.2, 5.6)), ("Z",)])
+                   [("L", (13.2, edge)), ("Q", (0, low), (-13.2, edge)), ("Z",)])
         dr = _Draft(outline, anchor="head")
-        dr.part([("M", (-hw - 0.2, -0.8)), ("Q", (0, 0.4), (hw, -0.8)), ("L", (13.2, 5.6)), ("Q", (0, 9.4), (-13.2, 5.6)),
+        dr.part([("M", (-hw - 0.2, -0.8)), ("Q", (0, 0.4), (hw, -0.8)), ("L", (13.2, edge)), ("Q", (0, low), (-13.2, edge)),
                  ("Z",)])
         for f in (0.35, 0.6, 0.85):   # rows of stitching round the brim
-            dr.lines.append([("M", (-hw - 4.6 * f, -0.8 + 6.4 * f)), ("Q", (0, 0.4 + 7.6 * f), (hw + 4.6 * f, -0.8 + 6.4 * f))])
+            dr.lines.append([("M", (-hw - 4.6 * f, -0.8 + 6.4 * v * f)), ("Q", (0, 0.4 + 7.6 * v * f), (hw + 4.6 * f, -0.8 + 6.4 * v * f))])
         dr.lines.append([("M", (-hw + 0.4, -3.0)), ("Q", (0, -1.8), (hw - 0.4, -3.0))])
         return _finish(dr, kw.get("px"))
     # the brim as seen from the front: its upper edge rises from each tip to the crown, its front edge falls below
@@ -3287,15 +3310,20 @@ def scarf(**kw) -> Shape:
 
 def bag(**kw) -> Shape:
     """A bag from the front. style: tote | backpack | rucksack | roll_top | messenger | briefcase | duffel | sling |
-    belt_bag | pouch."""
+    belt_bag | pouch. worn: carried on the shoulder or across the body, its handle or strap left to whoever wears it
+    (a belt bag's strap runs out only to `half` either side, round the waist)."""
     style = kw.get("style", "tote")
+    worn = bool(kw.get("worn"))
     if style == "tote":
         dr = _Draft([("M", (-20.0, 22.0)), ("L", (20.0, 22.0)), ("L", (18.0, 58.0)), ("Q", (18.0, 60.0), (16.0, 60.0)),
                      ("L", (-16.0, 60.0)), ("Q", (-18.0, 60.0), (-18.0, 58.0)), ("Z",)], anchor="hand")
-        dr.behind.append((_arch(0, 23.0, 8.0, 0.0, 2.6), "trim", None))
+        if not worn:
+            dr.behind.append((_arch(0, 23.0, 8.0, 0.0, 2.6), "trim", None))
         dr.line((-20, 24.6), (20, 24.6))
+        tab = 1.8 if worn else 1.3   # worn, turned away from us and so drawn narrower: the handles' ends as wide as them
         for s in (-1, 1):   # the handles are sewn on down the front
-            dr.part([("M", (s * 9.3, 21.6)), ("L", (s * 6.7, 21.6)), ("L", (s * 6.7, 29.0)), ("L", (s * 9.3, 29.0)), ("Z",)], "trim")
+            dr.part([("M", (s * (8.0 + tab), 21.6)), ("L", (s * (8.0 - tab), 21.6)), ("L", (s * (8.0 - tab), 29.0)),
+                     ("L", (s * (8.0 + tab), 29.0)), ("Z",)], "trim")
         return _finish(dr, kw.get("px"))
     if style in ("backpack", "rucksack", "roll_top"):
         if style == "roll_top":
@@ -3335,7 +3363,8 @@ def bag(**kw) -> Shape:
         return _finish(dr, kw.get("px"))
     if style == "messenger":
         dr = _Draft(_rr(-19.0, 14.0, 19.0, 44.0, 2.5), anchor="hand")
-        dr.behind.append((_arch(0, 16.0, 17.0, 0.0, 3.6), "trim", None))
+        if not worn:
+            dr.behind.append((_arch(0, 16.0, 17.0, 0.0, 3.6), "trim", None))
         dr.part([("M", (-19.2, 16.0)), ("Q", (-19.2, 13.6), (-16.5, 13.6)), ("L", (16.5, 13.6)), ("Q", (19.2, 13.6), (19.2, 16.0)),
                  ("L", (19.2, 33.0)), ("Q", (19.2, 37.0), (15.0, 37.0)), ("L", (-15.0, 37.0)), ("Q", (-19.2, 37.0), (-19.2, 33.0)), ("Z",)])
         for x in (-9.0, 9.0):
@@ -3362,16 +3391,19 @@ def bag(**kw) -> Shape:
     if style == "sling":
         dr = _Draft([("M", (-12.0, 20.0)), ("Q", (0, 15.0), (12.0, 20.0)), ("C", (14.5, 24.0), (14.0, 34.0), (9.0, 35.0)),
                      ("Q", (0, 36.5), (-9.0, 35.0)), ("C", (-14.0, 34.0), (-14.5, 24.0), (-12.0, 20.0)), ("Z",)], anchor="hand")
-        dr.behind.append((_arch(0, 22.0, 8.0, 0.0, 2.4), "trim", None))
+        if not worn:
+            dr.behind.append((_arch(0, 22.0, 8.0, 0.0, 2.4), "trim", None))
         dr.lines.append([("M", (-11.0, 23.5)), ("Q", (0, 19.0), (11.0, 23.5))])
         dr.part(_rr(7.6, 21.6, 9.0, 25.6, 0.5), "inlay", BUCKLE["gunmetal"])
         return _finish(dr, kw.get("px"))
     if style == "belt_bag":
         dr = _Draft([("M", (-15.0, 3.0)), ("Q", (0, 0.0), (15.0, 3.0)), ("C", (16.0, 8.0), (14.0, 15.0), (8.0, 16.0)),
                      ("Q", (0, 17.0), (-8.0, 16.0)), ("C", (-14.0, 15.0), (-16.0, 8.0), (-15.0, 3.0)), ("Z",)], anchor="hand")
+        out = float(kw.get("half", 27.0)) if worn else 27.0
         for s in (-1, 1):   # the strap out to each side
-            dr.behind.append(([("M", (s * 14.0, 5.0)), ("L", (s * 27.0, 3.6)), ("L", (s * 27.0, 7.4)), ("L", (s * 14.0, 8.6)), ("Z",)], "trim", None))
-        dr.part(_rr(-25.5, 3.0, -21.5, 8.0, 0.6), "inlay", BUCKLE["matte_black"])
+            dr.behind.append(([("M", (s * 14.0, 5.0)), ("L", (s * out, 3.6)), ("L", (s * out, 7.4)), ("L", (s * 14.0, 8.6)), ("Z",)], "trim", None))
+        if not worn:
+            dr.part(_rr(-25.5, 3.0, -21.5, 8.0, 0.6), "inlay", BUCKLE["matte_black"])
         dr.lines.append([("M", (-13.5, 6.0)), ("Q", (0, 3.0), (13.5, 6.0))])
         dr.part(_rr(9.0, 4.4, 10.4, 8.4, 0.5), "inlay", BUCKLE["gunmetal"])
         return _finish(dr, kw.get("px"))

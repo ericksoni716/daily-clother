@@ -788,6 +788,14 @@ def test_outerwear_kinds_draw_what_sets_them_apart():
         assert COVERAGE["garment"][kind][0] == "drawn", kind
 
 
+def test_a_robe_is_tied_with_a_sash_and_velvet_has_a_sheen():
+    robe, _, _ = top_drawing({"garment": "robe", "collar": "shawl", "length": "regular"})
+    assert robe["belt"] == "sash" and robe["length"] == "knee" and robe["block"] == "coat"
+    sash, buckled = build("top", robe), build("top", {**robe, "belt": True})
+    assert sash.anchors == buckled.anchors and sash.parts != buckled.parts
+    assert surface_extras({"fabric": "velvet"})["sheen"] and COVERAGE["woven_structure"]["velvet"][0] == "approximate"
+
+
 def test_sport_and_lounge_bottoms_draw_apart():
     from closet_bench.taxonomy import BOTTOM_DRAWINGS
     svgs = {k: render(Spec("pants", dict(v), Fill("solid", "#30343c"), trim_color="#f2f2f0"), "line")

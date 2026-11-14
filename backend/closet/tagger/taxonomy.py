@@ -543,7 +543,7 @@ _FIBER_SHIFT = {"woolen_wool": 1, "shetland": 1, "yak": 1, "camel": 1, "alpaca":
 _SYNTHETIC_FABRICS = {"polar_fleece", "sherpa", "fleece_back", "ripstop", "mesh"}
 _HALO_FABRICS = {"fleece_back", "polar_fleece", "sherpa", "flannel", "brushed_twill", "tweed", "velour"}
 _HALO_FIBERS = {"mohair", "alpaca", "shetland", "yak", "cashmere", "shearling"}
-_SHEEN_FABRICS = {"satin", "sateen", "waxed_cotton"}
+_SHEEN_FABRICS = {"satin", "sateen", "waxed_cotton", "velvet"}
 _SHEEN_FIBERS = {"silk", "nylon"}
 
 
@@ -704,6 +704,12 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
             p["hem"] = "rib"
         if g.get("second_color"):
             p["colorblock"] = ("sleeves",)   # the leather sleeves, in the second colour seen
+    elif kind == "robe":   # a wrap front held by a sash, at least to the knee
+        p["belt"] = "sash"
+        if p["length"] in ("regular", "cropped", "long"):
+            p["length"] = "knee"
+            if p.get("block") == "jacket":
+                p["block"] = "coat"
     elif kind == "waxed_jacket":
         extras["collar_color"] = "#5a3d26"   # the brown corduroy collar
     g = {**g, "fabric": _KIND_FABRIC[kind]} if kind in _KIND_FABRIC and _fabric(g) in (None, "unknown") else g
@@ -1061,7 +1067,7 @@ _WOVEN_NOTES = {
     "satin": (A_, "no texture: drawn with a sheen highlight; light"), "sateen": (A_, "sheen highlight; light"),
     "waxed_cotton": (A_, "sheen highlight and heavy weight"), "melton": (A_, "no texture: drawn with the depth of a super-heavy cloth"),
     "moleskin": (A_, "no texture: the depth of a heavy cloth"), "canvas": (A_, "no texture: the depth of a heavy cloth"),
-    "velvet": (N_, "pile and its sheen are not drawn yet; drawn as a plain midweight cloth"),
+    "velvet": (A_, "a soft sheen; the pile itself is not drawn"),
 }
 _KNIT_NOTES = {
     "pique": (D, "fine honeycomb dots"), "waffle_thermal": (D, "waffle grid"), "rib_1x1": (D, "fine vertical rib"),
@@ -1216,6 +1222,7 @@ _KIND_NOTES = {
     "varsity_jacket": "a knitted collar, cuffs and hem, a snap front; with a second colour, the sleeves in it (the "
                       "chenille letters are not drawn)",
     "waxed_jacket": "the brown cord collar and a waxed cotton sheen",
+    "robe": "a knotted sash round the waist, to the knee; its collar and cloth from its details",
     **{k: (("a tight leg" if v.get("leg") == "skinny" else "a short inseam and a slit hem" if v.get("hem") == "split"
             else "an elastic or drawstring waist") + (" and a stripe down each side in the trim colour" if v.get("stripe") else "")
            + (", ribbed ankle cuffs" if v.get("hem") == "rib" else ""))

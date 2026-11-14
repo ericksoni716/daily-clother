@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 from .. import apikey
 from . import correcting
 from .schema import Category, Color, Formality, Pattern, Season
-from .tagging import CONFIG, ApiRefused, CapReached, Meter, RouteUnavailable, TaggingError
+from .tagging import CONFIG, ApiRefused, CapReached, Meter, RouteUnavailable, TaggingError, send
 from .taxonomy import WEIGHT_CLASSES
 
 MODEL = CONFIG["roles"]["tagging"]
@@ -173,8 +173,8 @@ def ask_api(client, model: str, text: str, answer_model, searches: int, meter: M
         if meter:   # the shopping meter's estimate counts web searches where tagging's counts photos
             meter.before_api_call(model, searches)
         try:
-            resp = client.messages.create(model=model, max_tokens=MAX_TOKENS, messages=messages, tools=tools,
-                                          output_config={"effort": effort})
+            resp = send(meter, client.messages.create, model=model, max_tokens=MAX_TOKENS, messages=messages,
+                        tools=tools, output_config={"effort": effort})
         except (anthropic.RateLimitError, anthropic.APIConnectionError) as e:
             last, attempts, messages = e, attempts + 1, asked
             continue

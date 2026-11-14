@@ -87,6 +87,20 @@ class Meter(Protocol):
     def api_refused(self, reason: str) -> None:
         """The API refused the key ("credit" or "key")."""
 
+    def release(self) -> None:
+        """The request checked last did not come back (optional: `send` calls it when the meter has it)."""
+
+
+def send(meter: Meter | None, request, **kwargs):
+    """Make one API request, `request(**kwargs)`. When it does not come back (an error, no connection), the meter lets
+    go of what was held against the limit for it, as no answer is billed."""
+    try:
+        return request(**kwargs)
+    except BaseException:
+        if meter is not None and hasattr(meter, "release"):
+            meter.release()
+        raise
+
 
 @dataclass
 class TagResult:
@@ -135,7 +149,8 @@ def tag_item(client, model: str, images: list[Image.Image], max_attempts: int = 
         if meter:
             meter.before_api_call(model, len(images))
         try:
-            resp = client.messages.parse(
+            resp = send(
+                meter, client.messages.parse,
                 model=model,
                 max_tokens=MAX_TOKENS,
                 messages=[{"role": "user", "content": content}],

@@ -90,6 +90,27 @@ def test_a_key_shaped_string_and_outside_paths_are_stripped_from_the_page_and_th
     assert FAKE_KEY not in caplog.text
 
 
+def test_the_reason_is_kept_in_the_database_already_cleaned(client, services, claude, cfg):
+    """The closet's database is copied into backups: the reason a job keeps holds no key, token, e-mail address or
+    path outside Closet's folder either, for a cutout and for a description."""
+    def raise_it(*_):
+        raise TaggingError(f"API Error: 401 x-api-key={FAKE_KEY} for a.person@example.com, read /home/someone/x.json")
+
+    services.worker.cutter = raise_it
+    first = upload(client, key="k1").json()
+    cut(services)
+    services.worker.cutter = fake_cutter
+    second = upload(client, key="k2").json()
+    cut(services)
+    claude.mode, services.tag_worker.tagger = "answers", raise_it
+    services.tag_worker.drain()
+    stored = [j["error"] for j in jobs_of(cfg, first["id"], "cutout") + jobs_of(cfg, second["id"], "tag")]
+    assert len(stored) == 2
+    for text in stored:
+        assert FAKE_KEY not in text and "example.com" not in text and "someone" not in text
+        assert text.startswith("API Error: 401")   # the rest of the reason is still there
+
+
 def test_the_cleaner_on_its_own(tmp_path):
     folder = tmp_path / "Closet"
     assert failures.clean(None) is None and failures.clean("") is None

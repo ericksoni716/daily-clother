@@ -73,6 +73,14 @@ describe('history lines', () => {
     expect(historyLine(entry({ kind: 'answer', by: 'claude', parts: [category, part({ target: 'answer', name: 'answer' })] })))
       .toBe('Claude described it again and changed the kind of garment from polo to tee');
   });
+
+  it('says a chosen kind without the category that follows from it', () => {
+    const category = part({ target: 'field', name: 'category', title: 'kind of garment', before_words: 'hoodie', after_words: 'sweater' });
+    const kind = part({ target: 'detail', name: 'garment', title: 'kind', before_words: 'not said', after_words: 'fleece pullover' });
+    expect(historyLine(entry({ parts: [category, kind] }))).toBe('You changed the kind from not said to fleece pullover');
+    expect(historyLine(entry({ kind: 'undo', parts: [{ ...category, after_words: 'hoodie' }, { ...kind, after_words: 'not said' }] })))
+      .toBe('You put the kind back to not said');
+  });
 });
 
 describe('confirming what Claude understood', () => {

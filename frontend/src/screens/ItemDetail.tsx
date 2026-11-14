@@ -3,6 +3,7 @@ import { api, ApiError } from '../api';
 import { ChipGroup } from '../components/ui/Chips';
 import { confirmKeys, Notice, PHONE, Section, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
 import { FixDetails, FixDetailsButton, ItemHistory } from '../components/FixDetails';
+import { KindPicker } from '../components/KindPicker';
 import { BackIcon, ChevronIcon, HangerIcon, WarnIcon } from '../components/Icons';
 import { FIELD_TITLES, formatPrice, label, shadeLabel, measuredColours, parsePrice, ratingLabel, SWATCH, swatchOf, tileCaption } from '../labels';
 import { useWhenLeaving } from '../leave';
@@ -11,6 +12,8 @@ import { silhouetteGroups } from '../silhouette';
 import { useCloset } from '../store';
 import { drawingPlaceholder, loadGridView, notInDrawing } from '../drawing';
 import { describedBy, detailLines, tagNotice } from '../tagging';
+import { kindDrawing, kindLine, type KindGroup } from '../kinds';
+import { sureText } from '../review';
 import type { Item, ItemPatch, PatternColour } from '../types';
 import { localDay, sinceWash, wearDay, wearSummary } from '../wears';
 import { busyLabel } from './Closet';
@@ -250,10 +253,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
         hint={item.tag_state === 'done' && tagText ? tagText : undefined}>
         <Editing.Provider value={{ editing, setEditing }}>
         <ul className="detail-rows">
-          <DetailRow field="category" value={label('category', item.category)} disabled={locked}>
-            {(done) => <ChipGroup field="category" options={vocab.category} value={item.category} disabled={locked}
-              onChange={(v) => { done(); void save({ category: v }); }} />}
-          </DetailRow>
+          <KindRow item={item} groups={vocab.kind_groups} disabled={locked} onSaved={fixed} onError={failed} />
           <DetailRow field="color" value={shadeLabel(label('color', item.color), item.shade)} swatch={item.color ? (item.color_hex ?? swatchOf(item.color)) : undefined} disabled={locked}>
             {(done) => <ChipGroup field="color" options={vocab.color} value={item.color} disabled={locked} swatches
               onChange={(v) => { done(); void save({ color: v, color_hex: v ? (SWATCH[v]?.startsWith('#') ? SWATCH[v] : null) : null }); }} />}
@@ -397,6 +397,67 @@ function DetailRow({ field, value, swatch, extra, extraWords, disabled, children
       {open && (
         <Sheet title={title} className="detail-editor" onClose={() => setEditing(null)}>
           <div id={editorId}>{children(done)}</div>
+        </Sheet>
+      )}
+    </li>
+  );
+}
+
+/**
+ * "What is it?": the item's kind from the owner's taxonomy, with its small drawing, and how sure Claude was when it is
+ * Claude's word. Tapping it opens the kinds to choose from: a sheet on a phone, a popover on a wider screen.
+ */
+function KindRow({ item, groups, disabled, onSaved, onError }: {
+  item: Item;
+  groups: KindGroup[] | undefined;
+  disabled: boolean;
+  onSaved(item: Item, saidAs: string): void;
+  onError(message: string): void;
+}) {
+  const { editing, setEditing } = useContext(Editing);
+  const button = useRef<HTMLButtonElement>(null);
+  const [busy, setBusy] = useState(false);
+  const open = editing === 'kind' && !disabled;
+  const line = kindLine(item, groups) || 'Not said';
+  const who = item.kind_by === 'owner' ? 'Set by you'
+    : item.kind_by === 'claude' ? `Claude's guess${item.kind_confidence != null ? ` · ${sureText(item.kind_confidence)}` : ''}`
+    : item.kind ? '' : 'Kind not said yet';
+  return (
+    <li className={`detail-row kind-row${open ? ' is-open' : ''}`}>
+      <button ref={button} type="button" className="detail-row-button" aria-expanded={open} aria-haspopup="dialog"
+        aria-label={`What is it?: ${line}${who ? `. ${who}` : ''}`} disabled={disabled} title={disabled ? OFFLINE_TITLE : undefined}
+        data-testid="what-is-it" onClick={() => setEditing(open ? null : 'kind')}>
+        <span className="detail-row-label">What is it?</span>{' '}
+        <span className={`detail-row-value${item.kind ? '' : ' is-empty'}`}>
+          {item.kind && (
+            <img className="kind-row-pic" src={kindDrawing(item.kind, item.color_hex)} alt="" data-testid="kind-pic" />
+          )}
+          <span className="kind-row-words">
+            <span className="detail-row-text">{line}</span>{' '}
+            {who && <span className="kind-row-sure">{who}</span>}
+          </span>
+        </span>
+        <ChevronIcon className="detail-row-chevron" />
+      </button>
+      {open && (
+        <Sheet title="What is it?" popover keep={button} className="detail-editor kind-sheet" testId="kind-picker"
+          onClose={() => setEditing(null)}>
+          <KindPicker item={item} busy={busy} onPick={async (kind) => {
+            if (kind.id === item.kind && item.kind_by === 'owner') {
+              setEditing(null);
+              return;
+            }
+            setBusy(true);
+            try {
+              const saved = await api.setKind(item.id, kind.id);
+              setEditing(null);
+              onSaved(saved, `What it is: ${kind.name}`);
+            } catch (e) {
+              onError((e as ApiError).message);
+            } finally {
+              setBusy(false);
+            }
+          }} />
         </Sheet>
       )}
     </li>

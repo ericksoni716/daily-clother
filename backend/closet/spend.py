@@ -9,10 +9,13 @@ The limit is in US dollars, the currency of the price table, for the calendar
 month in the computer's local time; it is kept in the program's settings with
 the switch that allows the API key. Before each API request the month's spend
 plus a careful estimate of that request is compared with the limit, and the
-request is not made if it could go over.
+request is not made if it could go over. Several workers can ask at once (describing, landmarks, the pieces in
+a photo, "Would this work?", shopping), so the estimate of each request on its way is held against the limit
+until it comes back or fails: together they cannot go over either.
 """
 from __future__ import annotations
 
+import threading
 from datetime import datetime
 
 from . import db
@@ -53,6 +56,13 @@ SEARCH_USD: float = CONFIG.get("web_search_per_1000", 10.0) / 1000
 LIMIT_REACHED = ("This month's spending limit for the API key has been reached, and your Claude plan can't be used "
                  "right now. It will be described when your plan can be used again, when the new month starts, or if "
                  "you raise the limit in Settings.")
+
+
+# What each request on its way to the API may cost, by the thread waiting for it (a thread makes one at a time),
+# taken from the room left this month until the request is recorded or has failed. One lock for the whole program,
+# so two workers cannot both see the same room.
+_lock = threading.Lock()
+_held: dict[int, float] = {}
 
 
 def _now() -> datetime:
@@ -192,20 +202,33 @@ class Meter:
     def before_api_call(self, model: str, images: int) -> None:
         if not api_allowed(self.state):   # turned off (or the limit removed) since the routes were worked out
             raise RouteUnavailable("the API key is not allowed in Settings")
-        conn = self._connect()
-        try:
-            so_far = spent(conn)
-        finally:
-            conn.close()
-        if so_far + self.estimate(images, model) > cap(self.state):
-            raise CapReached("this month's spending limit for the API key has been reached")
+        cost, me = self.estimate(images, model), threading.get_ident()
+        with _lock:
+            _held.pop(me, None)   # this thread's last request has come back or failed
+            conn = self._connect()
+            try:
+                so_far = spent(conn)
+            finally:
+                conn.close()
+            if so_far + sum(_held.values()) + cost > cap(self.state):
+                raise CapReached("this month's spending limit for the API key has been reached")
+            _held[me] = cost
 
     def record(self, route: str, model: str, input_tokens: int, output_tokens: int, searches: int = 0) -> None:
-        conn = self._connect()
-        try:
-            record(conn, route, model, input_tokens, output_tokens, self.purpose, searches)
-        finally:
-            conn.close()
+        with _lock:
+            conn = self._connect()
+            try:
+                record(conn, route, model, input_tokens, output_tokens, self.purpose, searches)
+            finally:
+                conn.close()
+                if route == "api":
+                    _held.pop(threading.get_ident(), None)   # now counted at what it cost
+
+    def release(self) -> None:
+        """The request this thread sent did not come back (an error, a refusal, no connection): nothing was billed,
+        so what it held is let go."""
+        with _lock:
+            _held.pop(threading.get_ident(), None)
 
     def api_refused(self, reason: str) -> None:
         """Anthropic turned the key away (no credit, or the key was refused): stop using it until the owner looks."""

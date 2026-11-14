@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from typing import get_args
 
-from . import vocab
+from . import kinds, vocab
 from .drawing.item import BOTTOMS, SHOES, TOPS
 from .tagger.schema import Color, Details, Feature, ItemTags, Pattern, Silhouette
 from .tagger.taxonomy import kinds_for
@@ -135,9 +135,7 @@ _WORDS = {
     "denim_wash": {"washed_black": "washed black"},
 
     "trim_color": {"same": "same as the body"}, "button_color": {"same": "same as the cloth"},
-    "garment": {"unknown": "not said", "t_shirt": "T-shirt", "ocbd": "oxford button-down", "casual_button_up": "casual shirt",
-                "pajama_set_woven": "woven pyjama set", "pajama_set_knit": "knit pyjama set",
-                "two_in_one_shorts": "two-in-one shorts", "open_hem_sweatpants": "open-hem sweatpants"},
+    "garment": {"unknown": "not said", **kinds.WORDS},
 }
 
 
@@ -146,8 +144,15 @@ def kind_of(category) -> str | None:
     return "top" if category in TOPS else "bottom" if category in BOTTOMS else "shoe" if category in SHOES else None
 
 
-def names_for(category) -> tuple[str, ...]:
-    return tuple(n for _, names in BY_KIND.get(kind_of(category) or "", ()) for n in names)
+def names_for(category, garment=None) -> tuple[str, ...]:
+    """The details that can be set on an item of this category; with the kind the owner chose (`garment`), only
+    those that kind has (`kinds.applies`): the others are hidden, not deleted."""
+    return tuple(n for _, names in BY_KIND.get(kind_of(category) or "", ()) for n in names if kinds.applies(garment, n))
+
+
+def names_of(row) -> tuple[str, ...]:
+    """`names_for` an item row: its category and the kind the owner chose."""
+    return names_for(row["category"], kinds.owner_kind(row))
 
 
 def values(name: str, category=None) -> tuple:

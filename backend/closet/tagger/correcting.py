@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field
 
 from .. import apikey
 from . import claude_cli
-from .tagging import CONFIG, ApiRefused, CapReached, Meter, PlanSignIn, RouteUnavailable, TaggingError, encode_image
+from .tagging import CONFIG, ApiRefused, CapReached, Meter, PlanSignIn, RouteUnavailable, TaggingError, encode_image, send
 
 MODEL = CONFIG["roles"]["tagging"]
 MAX_TOKENS = 2000    # the longest answer asked for: a few changes and a sentence (`spend.CORRECT_MAX_TOKENS`)
@@ -89,8 +89,9 @@ def correct_api(client, model: str, text: str, images: list[Image.Image], meter:
         if meter:
             meter.before_api_call(model, len(images))
         try:
-            resp = client.messages.parse(model=model, max_tokens=MAX_TOKENS, messages=[{"role": "user", "content": content}],
-                                         output_format=answer_model, output_config={"effort": effort})
+            resp = send(meter, client.messages.parse, model=model, max_tokens=MAX_TOKENS,
+                        messages=[{"role": "user", "content": content}], output_format=answer_model,
+                        output_config={"effort": effort})
         except (anthropic.RateLimitError, anthropic.APIConnectionError) as e:
             last = e
             continue

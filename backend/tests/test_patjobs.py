@@ -123,6 +123,29 @@ def test_a_failed_measurement_keeps_the_drawing_and_says_why(make, cfg):
     assert got["illustration_svg"].startswith("<svg")
 
 
+def test_a_measurement_that_cannot_be_kept_says_why_and_lets_the_next_item_go(make, cfg, monkeypatch):
+    """Keeping a measurement (laying its colours over the item and drawing it) can fail too. The item must say so,
+    not stay "working" and be measured again every minute ahead of every other item."""
+    m = Measurer()
+    sv, c = make(m)
+    first, second = described(sv, c, key="k1"), described(sv, c, key="k2")
+    for it in (first, second):
+        assert c.patch(f"/api/items/{it['id']}", json={"pattern": "stripe"}).status_code == 200
+    real = patjobs.illustrations.redraw
+
+    def redraw(conn, item_id):
+        if item_id == first["id"]:
+            raise ValueError("this fill cannot be drawn")
+        real(conn, item_id)
+    monkeypatch.setattr(patjobs.illustrations, "redraw", redraw)
+    assert sv.pattern_worker.drain() == 2 and len(m.calls) == 2
+    got = c.get(f"/api/items/{first['id']}").json()
+    assert got["pattern_state"] == "failed" and got["pattern_error"] == patjobs.FAILED
+    assert got["illustration_svg"].startswith("<svg") and row(cfg, first["id"])["pattern_fill"] is None
+    assert row(cfg, second["id"])["pattern_state"] == "done"
+    assert sv.pattern_worker.drain() == 0 and len(m.calls) == 2   # not measured again
+
+
 def test_the_owner_saying_plain_stops_the_pattern(make, cfg):
     sv, c = make(Measurer())
     item = described(sv, c)

@@ -5,7 +5,6 @@ import {
   type CorrectionAnswer, type DetailChoices, type DetailOptions, type HistoryEntry,
 } from '../corrections';
 import type { Item } from '../types';
-import { KindChoices } from './KindChoices';
 import './FixDetails.css';
 
 const OFFLINE = "You're offline, so the details can't be fixed right now.";
@@ -19,6 +18,13 @@ interface Props {
   disabled: boolean;
   onSaved(item: Item, saidAs: string): void;
   onError(message: string): void;
+}
+
+/** The details to fix here: the kind itself is chosen in the "What is it?" row, so it is left out. */
+function fixable(options: DetailOptions | null | undefined): DetailOptions['groups'] {
+  return (options?.groups ?? [])
+    .map((g) => ({ ...g, details: g.details.filter((d) => d.name !== 'garment') }))
+    .filter((g) => g.details.length > 0);
 }
 
 /** What changes the item as a whole: when it moves, what is shown here is asked for again. */
@@ -98,7 +104,7 @@ export function FixDetails({ item, open = false, disabled, onSaved, onError }: P
           </div>
           {loadError && <p className="notice notice-warn" role="alert">{loadError}</p>}
           {options?.message && <p className="notice">{options.message}</p>}
-          {options?.groups.map((g) => (
+          {fixable(options).map((g) => (
             <section key={g.id} className="fix-group" aria-label={g.title}>
               <h3 className="chip-group-title">{g.title}</h3>
               <ul className="fix-list">
@@ -142,9 +148,6 @@ interface ChoicesProps {
 }
 
 function Choices({ item, choices, busy, hasAnswer, onPick, onGiveBack }: ChoicesProps) {
-  if (choices.name === 'garment') {
-    return <KindChoices choices={choices} busy={busy} canGiveBack={choices.own && hasAnswer} onPick={onPick} onGiveBack={onGiveBack} />;
-  }
   const drawn = choices.choices.filter((c) => c.svg);
   const shown = drawn.length > 0;
   const worded = choices.choices.filter((c) => !c.svg && !(shown && c.current));

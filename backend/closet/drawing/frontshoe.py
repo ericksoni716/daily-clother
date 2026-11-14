@@ -194,7 +194,7 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
     dark = luminance(base) < 0.3
     sole_c = spec.sole_color or sole_default or "#f4f1ea"
     if style == "sandal" and p.get("molded"):   # a moulded slide is one piece, in its own colour
-        sole_c = spec.sole_color or base
+        sole_c = spec.sole_color or shade(base, 0.14 if dark else -0.14)   # its side a shade off its top, so it reads as deep
     line_c = shade(base, 0.42) if dark else INK
     out: list[str] = []
     defs = ""
@@ -262,11 +262,13 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         if tex:
             defs += tex
             out.append(f'<path d="{upper_d}" fill="url(#t{uid}x)"/>')
-        if spec.sheen:   # a waxed or rubber upper's soft sheen
-            defs += (f'<linearGradient id="{uid}h" x1="0" y1="0" x2="1" y2="1"><stop offset=".25" stop-color="#fff" stop-opacity="0"/>'
-                     '<stop offset=".42" stop-color="#fff" stop-opacity=".2"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/>'
-                     '</linearGradient>')
-            out.append(f'<path d="{upper_d}" fill="url(#{uid}h)"/>')
+        if spec.sheen:   # a waxed or rubber upper's soft sheen, where the light falls on its form: the toe's crown ...
+            gloss = [view(hw(u) * inset * -0.32, u, sole_t + _interp(table, u) * 0.95) for u in (0.66, 0.74, 0.82, 0.88)]
+            sheen = ln(_path(gloss, close=False), 0.9 * view.px, "#fff", 0.2)
+            if shaft:   # ... and down the lit side of a boot's shaft
+                streak = [view(ax - arx * 0.5, au + aru * 0.86 / LENGTH, h) for h in (shaft - 1.5, sole_t + 6.0)]
+                sheen += ln(_path(streak, close=False), 0.8 * view.px, "#fff", 0.2)
+            out.append(f'<g clip-path="url(#{uid}u)">{sheen}</g>')
         top = max(shaft, sole_t + max(h for _, h in table))
         leg = max(sole_t + ANKLE_CM, shaft + ANKLE_OVER_CM if shaft else 0.0)
         if style == "high_top" or p.get("toe_cap") == "rubber":   # a rubber toe in the sole's colour

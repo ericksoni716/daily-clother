@@ -1,4 +1,7 @@
+import { resolve } from 'node:path';
 import { expect, login, test, useProfile } from './fixtures';
+
+const SHOTS = resolve(import.meta.dirname, '../../docs/screenshots');
 
 const PLACE = { name: 'Lisbon, Portugal', latitude: 38.7167, longitude: -9.1333, timezone: 'Europe/Lisbon' };
 
@@ -214,3 +217,54 @@ test('the offline trip list is kept separately for the demo and real closet', as
     await page.request.post('/api/profile', { data: { profile: 'main' } });
   }
 });
+
+for (const viewport of [{ name: 'computer', width: 1280, height: 800 }, { name: 'phone', width: 390, height: 844 }]) {
+  test(`a trip's days shown as worn on ${viewport.name}, remembered with Today's choice`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await login(page);
+    await useProfile(page, 'demo');
+    const first = futureDay(9);
+    const last = futureDay(11);
+    const response = await page.request.post('/api/trips', {
+      data: { place: PLACE, first_day: first, last_day: last, weather: tripWeather(first, last) },
+    });
+    const trip = await response.json();
+    try {
+      await page.goto(`/trips/${trip.id}`);
+      const days = page.getByTestId('trip-day');
+      await expect(days).toHaveCount(3);
+      await expect(days.first().getByRole('list', { name: /^What to wear on / })).toBeVisible();
+
+      const show = page.getByRole('group', { name: "Show each day's outfit" });
+      await expect(show.getByRole('button', { name: 'Pieces' })).toHaveAttribute('aria-pressed', 'true');
+      await show.getByRole('button', { name: 'As worn' }).click();
+      await expect(show.getByRole('button', { name: 'As worn' })).toHaveAttribute('aria-pressed', 'true');
+
+      // each day's outfit drawn as worn by the server, in place of its pieces
+      for (let i = 0; i < 3; i++) {
+        const figure = days.nth(i).getByTestId('outfit-figure').getByRole('img', { name: /^What to wear on .*, as worn: / });
+        await expect(figure).toBeVisible();
+        await expect.poll(() => figure.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(100);
+        await expect(days.nth(i).getByRole('list', { name: /^What to wear on / })).toHaveCount(0);
+      }
+      const height = (await days.first().getByTestId('outfit-figure').getByRole('img').boundingBox())!.height;
+      expect(height).toBeGreaterThan(200);
+      expect(height).toBeLessThanOrEqual(311);
+      await page.getByRole('heading', { name: 'Day by day' }).evaluate((h) => { h.scrollIntoView({ block: 'start' }); window.scrollBy(0, -90); });
+      await page.screenshot({ path: `${SHOTS}/trip-as-worn-${viewport.name}.png` });
+
+      // remembered on this device, and the same choice as Today's
+      await page.reload();
+      await expect(page.getByTestId('trip-day').first().getByTestId('outfit-figure').getByRole('img')).toBeVisible();
+      await page.goto('/today');
+      const today = page.getByRole('region', { name: "Today's outfits" }).getByRole('group', { name: 'Show the outfit' });
+      await expect(today.getByRole('button', { name: 'As worn' })).toHaveAttribute('aria-pressed', 'true');
+      await today.getByRole('button', { name: 'Pieces' }).click();
+      await page.goto(`/trips/${trip.id}`);
+      await expect(page.getByTestId('trip-day').first().getByRole('list', { name: /^What to wear on / })).toBeVisible();
+      await expect(page.getByTestId('outfit-figure')).toHaveCount(0);
+    } finally {
+      await page.request.delete(`/api/trips/${trip.id}`);
+    }
+  });
+}

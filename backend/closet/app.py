@@ -499,6 +499,14 @@ def create_app(sv: Services) -> FastAPI:
         return Response(svg, media_type="image/svg+xml", headers={
             "Cache-Control": "private, max-age=31536000, immutable", "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
 
+    @app.get("/api/items/{item_id}/back.svg", dependencies=protected)
+    def get_back(item_id: str, conn=Depends(conn_dep)):
+        svg = illustrations.back(items.get(conn, item_id))
+        if svg is None:
+            raise HTTPException(404, "This item has no drawing from the back.")
+        return Response(svg, media_type="image/svg+xml", headers={
+            "Cache-Control": "private, max-age=31536000, immutable", "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
+
     @app.patch("/api/items/{item_id}", dependencies=protected)
     async def patch_item(item_id: str, request: Request, conn=Depends(conn_dep)):
         try:

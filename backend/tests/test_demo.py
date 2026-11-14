@@ -42,6 +42,14 @@ def test_the_demo_shows_what_the_app_can_do():
     assert all(not i.get("photo") for i in tiles)
 
 
+def test_the_demo_overcoat_is_drawn_as_a_coat_not_a_blazer():
+    from closet.tagger.schema import ItemTags, drawing_for
+    coat = next(i for i in data()["items"] if i["name"] == "Black overcoat")
+    assert coat["answer"]["details"]["garment"] == "overcoat"
+    _, p, _, _ = drawing_for(ItemTags.model_validate(coat["answer"]))   # what the outfit as worn draws it from
+    assert p["block"] == "coat" and p["length"] == "knee"
+
+
 def test_a_new_demo_closet_has_its_patterns_and_is_never_sent_to_claude(client, cfg):
     assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
     stored = rows(cfg, "SELECT * FROM items")

@@ -113,6 +113,8 @@ export interface Item extends ItemSummary {
   seen_not_drawn: string[];
   /** What the drawing could not show, in plain words (e.g. a pattern drawn as its colour only). */
   drawing_notes: string[];
+  /** Trousers and shorts: a small drawing from behind (back pockets, yoke, label), or null when nothing on the back is known. */
+  back_url?: string | null;
   /** Who set each field: 'user' for the owner, 'ai' for a suggestion. */
   source: Record<string, string>;
   confidence: Record<string, number>;

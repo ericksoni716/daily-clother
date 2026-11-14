@@ -70,15 +70,17 @@ def options(row) -> dict:
 
 
 def choices(row, name: str) -> dict:
-    """A detail's choices, with a small drawing of the item for each choice that changes the drawing."""
+    """A detail's choices, with a small drawing of the item for each choice that changes the drawing. The kinds
+    of garment (dozens of them) are offered in words only."""
     if name not in details.names_for(row["category"]):
         raise items.ItemError(f"The {details.title(name)} can't be set on this kind of item.", 404)
     value = _current(row)[name]
-    base = illustrations.make(row, {name: value}).svg
+    drawn = name not in details.WORDED
+    base = illustrations.make(row, {name: value}).svg if drawn else None
     out = []
-    for v in details.values(name):
+    for v in details.values(name, row["category"]):
         svg = None
-        if v != value:
+        if drawn and v != value:
             made = illustrations.make(row, {name: v}).svg
             svg = made if made and made != base else None
         out.append({"value": v, "words": details.words(name, v), "current": v == value, "svg": svg})
@@ -139,7 +141,7 @@ def apply(conn, item_id: str, changes: dict, kind: str = "detail", sentence: str
                 owner.pop(name, None)
                 continue
             try:
-                owner[name] = details.coerce(name, value)
+                owner[name] = details.coerce(name, value, row["category"])
             except ValueError as e:
                 raise items.ItemError(str(e)) from None
         if picked:
@@ -168,7 +170,7 @@ def _allowed(row) -> dict[str, list]:
     out: dict[str, list] = {f: list(vocab.ENUM_FIELDS[f]) for f in details.FIELDS}
     out.update({f"silhouette.{k}": list(v) for k, v in vocab.SILHOUETTE.items()})
     for n in details.names_for(row["category"]):
-        out[n] = [str(v) for v in details.values(n)]
+        out[n] = [str(v) for v in details.values(n, row["category"])]
     return out
 
 

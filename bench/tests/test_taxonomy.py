@@ -9,8 +9,10 @@ from pathlib import Path
 
 import pytest
 
+from closet_bench.fills import Stripes
 from closet_bench.illustrate import BUTTON_CONTRAST, INSIDE_CONTRAST, Fill, Spec, _over, contrast, layer, render
-from closet_bench.taxonomy import (AXES, CORDUROY_WALES, COVERAGE, GARMENT_DRAWINGS, KNIT_GAUGES, TOP_AXES, WEIGHT_CLASSES,
+from closet_bench.taxonomy import (ACCESSORIES, ACCESSORY_GARMENTS, ACCESSORY_GROUP, ACCESSORY_TEMPLATES, AXES, CORDUROY_WALES,
+                                   COVERAGE, GARMENT_DRAWINGS, KNIT_GAUGES, TOP_AXES, WEIGHT_CLASSES, accessory_drawing,
                                    surface_extras, top_drawing)
 from closet_bench.templates import BODY_W, BLOCKS, CX, K_PX, SLEEVE_GAP, SLEEVE_HANG, build
 
@@ -223,6 +225,10 @@ UNCHANGED = {
     "quilted_jacket": "9daae90d264d9d8d",
     "fleece_jacket": "d1ff07dded0b7647",
     "barn_jacket": "4a3332cae9f90e8b",
+    "fleece_pullover": "2ec1c00de609e68f",
+    "performance_tee": "af4dd6aa727dae5f",
+    "athletic_half_zip": "c45b9acf7d42f45c",
+    "track_jacket": "88e586d396ec8f5c",
     "pants.jeans": "b09a649969597eec",
     "pants.dress": "567a1b5f294a79cc",
     "shoe.derby": "f356f82e866763c4",   # redrawn on purpose: open lacing (#108)
@@ -585,7 +591,8 @@ def test_the_taggers_shoe_words_choose_the_drawing(style, words, want_style, wan
 
 def test_only_what_is_drawn_leaves_the_seen_list():
     from closet_bench.taxonomy import shoe_words
-    assert shoe_words("derby", ["monk_strap", "tassels", "5 eyelets", "red sole"])[2] == ["tassels", "5 eyelets"]
+    # monk_strap is drawn now (#149): patent_oxford is a footwear id still drawn only approximately
+    assert shoe_words("derby", ["patent_oxford", "tassels", "5 eyelets", "red sole"])[2] == ["tassels", "5 eyelets"]
 
 
 @pytest.mark.parametrize("base, key, values", [
@@ -610,3 +617,169 @@ def test_every_shoe_variant_draws_its_own_picture_on_the_same_ground(base, key, 
 
 def test_oxford_and_derby_lacing_differ():
     assert build("sneaker", dict(style="oxford")).parts != build("sneaker", dict(style="derby")).parts
+
+
+# ----------------------------------------------- the rest of the owner's taxonomy (#149)
+def test_the_footwear_bottoms_and_colour_tables_follow_the_taxonomy():
+    from closet_bench.taxonomy import (BOTTOM_AXES, BOTTOM_DRAWING, COLOR_FAMILIES, DENIM_WASH_SHADE, FABRIC_EFFECTS,
+                                       FOOTWEAR_AXES, FOOTWEAR_HEEL, FOOTWEAR_SOLE, FOOTWEAR_TOE_SHAPE, SHADES,
+                                       SHORTS_INSEAM_IN)
+    foot, bottoms, colors = TAXONOMY["footwear"], TAXONOMY["bottoms"], TAXONOMY["colors"]
+    for axis, values in FOOTWEAR_AXES.items():
+        assert list(values) == foot[axis], axis
+    for axis, values in BOTTOM_AXES.items():
+        assert list(values) == bottoms[axis], axis
+    assert list(FOOTWEAR_TOE_SHAPE) == foot["toe_shape"] and list(FOOTWEAR_SOLE) == foot["sole"]
+    assert list(FOOTWEAR_HEEL) == foot["heel"]
+    for key, values in BOTTOM_DRAWING.items():
+        assert list(values) == bottoms[key], key
+    assert list(DENIM_WASH_SHADE) == bottoms["denim_washes"]
+    assert {k: list(v) for k, v in SHORTS_INSEAM_IN.items()} == bottoms["shorts_inseam_in"]
+    assert {s["name"]: (s["hex"].lower(), s["app_color"]) for s in colors["shades"]} == SHADES
+    assert {k: list(v) for k, v in COLOR_FAMILIES.items()} == colors["families"]
+    assert list(FABRIC_EFFECTS) == list(colors["fabric_effects"])
+
+
+def test_every_footwear_bottoms_and_colour_value_is_in_coverage():
+    foot, bottoms, colors = TAXONOMY["footwear"], TAXONOMY["bottoms"], TAXONOMY["colors"]
+    for axis in ("toe_shape", "toe_treatment", "lacing", "laces", "sole", "construction", "height", "heel",
+                 "upper_material", "leather_colorways", "sneaker_colorways", "eyelets_typical"):
+        assert set(COVERAGE[axis]) == set(foot[axis]), axis
+    for axis in ("waistband", "fly", "front", "rise", "leg", "break", "hem_finish", "crease", "back_details",
+                 "denim_washes", "denim_fades", "distressing", "shorts_inseam_in"):
+        assert set(COVERAGE[axis]) == set(bottoms[axis]), axis
+    assert set(COVERAGE["trouser_pockets"]) == set(bottoms["pockets"])
+    assert set(COVERAGE["shades"]) == {s["name"] for s in colors["shades"]}
+    assert set(COVERAGE["families"]) == set(colors["families"])
+    assert set(COVERAGE["fabric_effects"]) == set(colors["fabric_effects"])
+
+
+@pytest.mark.parametrize("base, key, values", [
+    (dict(style="boot"), "tread", [None, "lug", "crepe", "wedge"]),
+    (dict(style="boot"), "heel", [None, "flat", "block", "cuban"]),
+    (dict(style="boot"), "shaft", [0.45, 0.56, 0.74]),
+    (dict(style="boot"), "hooks", [0, 3]),
+    (dict(style="boot", laces=False), "strap", [None, "engineer", "jodhpur"]),
+    (dict(style="boot"), "moc", [False, True]),
+    (dict(style="boot", laces=False), "gusset", [False, True]),
+    (dict(style="oxford"), "toe", [None, "almond", "pointed"]),
+    (dict(style="derby", laces=False), "strap", ["monk", "double_monk"]),
+    (dict(style="low_sneaker"), "tread", [None, "cleats"]),
+    (dict(style="loafer"), "lace_collar", [False, True]),
+])
+def test_every_footwear_part_draws_its_own_picture_on_the_same_ground(base, key, values):
+    pictures = set()
+    for v in values:
+        params = {**base, **({key: v} if v is not None else {})}
+        assert build("sneaker", params).anchors == build("sneaker", {}).anchors
+        svg = render(Spec("sneaker", params, Fill("solid", "#5a3b28")), "line")
+        xml.dom.minidom.parseString(svg)
+        pictures.add(svg)
+    assert len(pictures) == len(values)
+
+
+@pytest.mark.parametrize("base, key, values", [
+    ({}, "rise", [None, "low", "high"]),
+    ({}, "waist", ["belt", "adjusters", "gurkha", "tab", "braces", "half_elastic"]),
+    ({}, "fly", [None, "button", "none"]),
+    ({}, "leg", ["skinny", "slim", "straight", "relaxed", "bootcut", "flare", "barrel"]),
+    ({}, "break", [None, "slight", "full", "stacked"]),
+    ({}, "hem", [None, "turnup", "rolled", "raw", "split", "chain"]),
+    ({}, "pleat_dir", [None, "reverse", "forward"]),
+    (dict(jeans=True), "fades", [[], ["whiskers"], ["knee"], ["stacks"], ["tracks"], ["pocket"]]),
+    (dict(jeans=True), "distress", [[], ["knee_rip"], ["abrasion"], ["patched"], ["sashiko"]]),
+    ({}, "panels", [[], ["double_knee"], ["gusset"]]),
+    ({}, "extra_pockets", [[], ["zip"], ["rule"], ["hammer"]]),
+])
+def test_every_trouser_detail_draws_its_own_picture_from_the_same_waist_and_hem(base, key, values):
+    base = {**base, **({"pleats": 1} if key == "pleat_dir" else {})}
+    plain = build("pants", {}).anchors
+    pictures = set()
+    for v in values:
+        params = {**base, **({key: v} if v is not None else {})}
+        anchors = build("pants", params).anchors
+        assert anchors["waist"] == plain["waist"] and anchors["hem"] == plain["hem"], (key, v)
+        svg = render(Spec("pants", params, Fill("solid", "#2f4468")), "line")
+        xml.dom.minidom.parseString(svg)
+        pictures.add(svg)
+    assert len(pictures) == len(values)
+
+
+def test_shorts_are_drawn_to_their_inseam():
+    hems = [build("pants", dict(length="short", inseam=i)).anchors["hem"][1] for i in (3, 5, 7, 9, 11)]
+    assert hems == sorted(hems) and len(set(hems)) == len(hems)
+def test_garments_are_the_owners_clothing_kinds():
+    from closet_bench.taxonomy import APP_CATEGORY, BOTTOM_DRAWINGS, GARMENTS, LOUNGE_KINDS, SPORT_KINDS
+    data = TAXONOMY
+    garments = {k: v for k, v in data["garments"].items() if v["category"] not in ("footwear", "accessory")}
+    assert GARMENTS == {k: v["category"] for k, v in garments.items()}
+    assert set(APP_CATEGORY) == set(GARMENTS)
+    assert all(APP_CATEGORY[k] == v["app_category"] for k, v in garments.items() if v.get("app_category"))
+    assert set(SPORT_KINDS) == {k for k, v in garments.items() if v["category"] == "activewear"}
+    assert set(LOUNGE_KINDS) == {k for k, v in garments.items() if v["category"] == "loungewear"}
+    assert "fleece_pullover" in SPORT_KINDS and APP_CATEGORY["fleece_pullover"] == "sweater"
+    assert set(BOTTOM_DRAWINGS) <= set(GARMENTS)
+    assert set(COVERAGE["garment"]) == set(GARMENTS)
+
+
+def test_fleece_pullover_draws_its_blocks_and_binding():
+    p, extras, _ = top_drawing({**GARMENT_DRAWINGS["fleece_pullover"], "contrast_trim": True, "second_color": True})
+    assert p["binding"] and p["colorblock"]
+    svg = render(Spec("top", p, Fill("solid", "#9fdcc4"), trim_color="#f2735f", block_color="#2f6db5", **extras), "line")
+    assert 'fill="#2f6db5"' in svg and 'stroke="#f2735f"' in svg
+    plain = render(Spec("top", top_drawing(GARMENT_DRAWINGS["fleece_pullover"])[0], Fill("solid", "#9fdcc4")), "line")
+    assert 'fill="#2f6db5"' not in plain
+
+
+def test_sport_and_lounge_bottoms_draw_apart():
+    from closet_bench.taxonomy import BOTTOM_DRAWINGS
+    svgs = {k: render(Spec("pants", dict(v), Fill("solid", "#30343c"), trim_color="#f2f2f0"), "line")
+            for k, v in BOTTOM_DRAWINGS.items()}
+    assert all(s.startswith("<svg") for s in svgs.values())
+    assert len({svgs[k] for k in ("joggers", "track_pants", "compression_tights", "running_shorts", "open_hem_sweatpants")}) == 5
+
+
+def test_accessories_are_a_copy_of_the_json():
+    garments = {n: e["app_category"] for n, e in TAXONOMY["garments"].items() if e["category"] == "accessory"}
+    assert ACCESSORY_GARMENTS == garments
+    groups = {k: v for k, v in TAXONOMY["accessories"].items() if k != "app_category"}
+    assert {k: list(v) for k, v in ACCESSORIES.items()} == groups
+
+
+def test_coverage_names_every_accessory_and_every_kind():
+    assert set(COVERAGE["accessory"]) == set(ACCESSORY_GARMENTS)
+    for g, group in ACCESSORY_GROUP.items():
+        assert set(COVERAGE[group]) == set(ACCESSORIES[group]), group
+        drawn = g in ACCESSORY_TEMPLATES
+        assert (COVERAGE["accessory"][g][0] == "drawn") == drawn, g
+        if not drawn:   # nothing of an accessory with no shape of its own is claimed as drawn
+            assert all(status == "not_drawn" for status, _ in COVERAGE[group].values()), group
+
+
+STRIPED = Fill("stripes", "#27344f", stripes=Stripes("vertical", [("#27344f", 0.03), ("#ece4d0", 0.03)]))
+
+
+@pytest.mark.parametrize("garment", list(ACCESSORY_GARMENTS))
+def test_every_accessory_and_kind_draws_valid_svg_and_never_the_top(garment):
+    category = ACCESSORY_GARMENTS[garment]
+    for kind in (None, *ACCESSORIES[ACCESSORY_GROUP[garment]]):
+        made = accessory_drawing(category, garment, kind)
+        assert made is not None, (garment, kind)
+        template, params, notes = made
+        assert template != "top" and all(isinstance(n, str) and n for n in notes)
+        if category == "hat":   # a hat's kind decides which of the three hats draws it
+            assert template in ("cap", "beanie", "brimmed_hat"), (garment, kind)
+        else:
+            assert template == (garment if garment in ACCESSORY_TEMPLATES else "accessory"), (garment, kind)
+        params.pop("soft", None)
+        for fill in (Fill("solid", "#7a5a3a"), STRIPED):
+            valid(render(Spec(template, params, fill), "line", uid="acc"))
+
+
+def test_each_accessory_with_a_shape_draws_differently_by_kind():
+    for garment in ACCESSORY_TEMPLATES:
+        category = ACCESSORY_GARMENTS[garment]
+        drawn = {kind: render(Spec(*accessory_drawing(category, garment, kind)[:2], Fill("solid", "#336699")), "line")
+                 for kind, (status, _) in COVERAGE[ACCESSORY_GROUP[garment]].items() if status == "drawn"
+                 and accessory_drawing(category, garment, kind)[0] == garment}
+        assert len(set(drawn.values())) == len(drawn), garment

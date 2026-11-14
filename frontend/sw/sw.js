@@ -6,6 +6,8 @@
  *   say "Offline".
  * - Images never change at a given address, so a saved copy is used first.
  * - Nothing but GET is ever saved, and never login/setup/logout.
+ * - Saves (anything but GET) go straight to the server without passing through here, where the
+ *   browser supports it: one sent as the page is reloaded or closed was otherwise sometimes lost.
  */
 const VERSION = self.__VERSION__;
 const PRECACHE = self.__PRECACHE__;
@@ -14,7 +16,17 @@ const DATA = 'closet-data';
 const MEDIA = 'closet-media';
 const FROM_CACHE = 'x-closet-from-cache';
 
+const SAVE_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
+
+/** Sends saves to the network without waking this worker (static routing; skipped where unsupported). */
+function routeSavesPast(event) {
+  if (typeof event.addRoutes !== 'function') return Promise.resolve();
+  return event.addRoutes(SAVE_METHODS.map((requestMethod) => ({ condition: { requestMethod }, source: 'network' })))
+    .catch(() => undefined);
+}
+
 self.addEventListener('install', (event) => {
+  event.waitUntil(routeSavesPast(event));
   event.waitUntil(
     caches.open(SHELL)
       .then((cache) => cache.addAll(PRECACHE.map((url) => new Request(url, { cache: 'reload' }))))

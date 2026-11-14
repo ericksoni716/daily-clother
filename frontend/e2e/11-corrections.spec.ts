@@ -47,6 +47,24 @@ test('in the demo closet: pick the number of buttons, see the drawing change, un
   await expect(detail.getByRole('alert')).toContainText('never sent to Claude');
 });
 
+test('in the demo closet: say which kind a top is, in words, and undo it', async ({ page }) => {
+  await login(page);
+  await useProfile(page, 'demo');
+  await page.getByTestId('tile').filter({ hasText: 'Grey hoodie' }).click();
+  const detail = page.locator('.detail-panel');
+  await detail.getByRole('button', { name: 'Fix the details' }).click();
+  await detail.getByRole('button', { name: /^Kind: / }).click();
+  const kinds = detail.getByRole('group', { name: 'Which kind is it?' });
+  await expect(kinds.getByRole('button', { name: 'not said' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(kinds.getByRole('button', { name: 'joggers' })).toHaveCount(0);   // only the kinds a top can be
+  await kinds.getByRole('button', { name: 'fleece pullover', exact: true }).click();
+  await expect(detail.getByRole('button', { name: 'Kind: fleece pullover (set by you)' })).toBeVisible();
+  await detail.locator('summary', { hasText: 'History' }).click();
+  const line = 'You changed the kind from not said to fleece pullover';
+  await detail.getByRole('button', { name: `Undo: ${line}` }).click();
+  await expect(detail.getByText(`${line} (undone)`)).toBeVisible();
+});
+
 test('on a phone the details fit the screen', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);

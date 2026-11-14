@@ -72,6 +72,7 @@ describe('what to look for, in plain words', () => {
     expect(lookForLines(look({ fit: 'regular', avoid_patterns: ['plaid', 'graphic'], avoid_fits: ['extra_slim'] })))
       .toEqual(['A smart casual coat', 'Regular fit', 'Avoid plaid, graphic patterns', 'Avoid extra slim fits']);
     expect(lookForLines(look())).toEqual(['A smart casual coat']);
+    expect(lookForLines(look({ kind: 'joggers or sweatpants' }))).toEqual(['A smart casual coat', 'For example joggers or sweatpants']);
   });
 });
 

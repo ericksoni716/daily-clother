@@ -40,6 +40,12 @@ describe the item (see "Installing Claude Code" below). The name, category,
 colour, pattern, formality, season, shape and material fill in by themselves a
 little later; the item page says "Suggested by Claude" and you can change
 anything that's wrong. Claude never changes something you set yourself.
+**What is it?**, at the top of the item's details, says what kind of garment
+it is in the words of your menswear guide (an oxford shirt, a fleece pullover, a
+chelsea boot). Tap it to search ("chelsea", "jogger", "snap") or look through
+the groups, and choose another; the drawing follows, details that kind doesn't
+have are hidden, and the history can undo it. The closet's **Filter** can show
+one group or one kind.
 Once it is described the item gets its drawing: switch between **Drawing**,
 **Cutout** and **Photo** above the item. Beside the drawing, **Not in the
 drawing** lists what it can't show yet (for example a logo, or stripes drawn as

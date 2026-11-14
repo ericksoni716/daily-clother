@@ -4,14 +4,14 @@ test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
 });
 
-test('open the demo closet: 30 items, ribbon, filter by category', async ({ page }) => {
+test('open the demo closet: 30 items, the demo strip, filter by category', async ({ page }) => {
   await login(page);
   await useProfile(page, 'main');
   await page.locator('nav.sidebar').getByRole('link', { name: 'Settings' }).click();
   await page.getByText('Show the demo closet').click();
 
   await expect(page.getByText('Demo closet', { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Back to my closet' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Leave the demo closet' })).toBeVisible();
   await page.getByRole('link', { name: 'Closet', exact: true }).click();
   await expect(page.getByTestId('tile')).toHaveCount(30);
   await expect(page.getByTestId('item-count')).toHaveText('30 items');
@@ -25,8 +25,8 @@ test('open the demo closet: 30 items, ribbon, filter by category', async ({ page
   await page.getByRole('searchbox').fill('jeans');
   await expect(page.getByTestId('tile')).toHaveCount(3);
 
-  await page.getByRole('button', { name: 'Back to my closet' }).click();
-  await expect(page.getByRole('button', { name: 'Back to my closet' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Leave the demo closet' }).click();
+  await expect(page.getByRole('button', { name: 'Leave the demo closet' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Your closet' })).toBeVisible();
 });
 
@@ -130,7 +130,9 @@ test('archive and unarchive, delete with confirmation', async ({ page }) => {
   await expect(panel.getByRole('button', { name: 'Unarchive' })).toBeVisible();
   await expect(page.getByTestId('tile').filter({ hasText: 'Olive shorts' })).toHaveCount(0);
 
-  await page.getByRole('link', { name: 'Archived' }).first().click();
+  // Archived is reached from the closet's In use / Archived switch only
+  await expect(page.locator('nav.sidebar').getByRole('link', { name: 'Archived' })).toHaveCount(0);
+  await page.getByRole('group', { name: 'Which clothes' }).getByRole('link', { name: 'Archived' }).click();
   await page.getByTestId('tile').filter({ hasText: 'Olive shorts' }).click();
   await page.locator('.detail-panel').getByRole('button', { name: 'Unarchive' }).click();
   await expect(page.locator('.detail-panel').getByRole('button', { name: 'Archive', exact: true })).toBeVisible();

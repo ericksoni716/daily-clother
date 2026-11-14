@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { HangerIcon, SearchIcon, WarnIcon } from '../components/Icons';
 import { ModelBanner } from '../components/ModelBanner';
-import { Button, buttonClass, EmptyState, PageHeader, SegmentedControl } from '../components/ui';
+import { Button, buttonClass, EmptyState, Notice, PageHeader, SegmentedControl } from '../components/ui';
 import { loadGridView, saveGridView, type GridView } from '../drawing';
 import { categoryPlural, label, tileCaption } from '../labels';
 import { itemPath, Link, navigate } from '../router';
@@ -13,9 +13,11 @@ interface Props {
   status: 'active' | 'archived';
   selectedId: string | null;
   wide: boolean;
+  /** How many pieces wait in the review queue (null until known). */
+  toReview?: number | null;
 }
 
-export function ClosetScreen({ status, selectedId, wide }: Props) {
+export function ClosetScreen({ status, selectedId, wide, toReview = null }: Props) {
   const { items, loadItems, loadError, model, profile } = useCloset();
   const list = items[status];
   const [category, setCategory] = useState<string | null>(null);
@@ -62,6 +64,12 @@ export function ClosetScreen({ status, selectedId, wide }: Props) {
           </div>
         } />
 
+      {status === 'active' && !!toReview && (
+        <Notice className="review-notice" testId="review-notice"
+          action={<Link to="/review" className={buttonClass({ variant: 'link', small: true })}>Review</Link>}>
+          {toReview} {toReview === 1 ? 'piece needs' : 'pieces need'} a quick check
+        </Notice>
+      )}
       {status === 'active' && <ModelBanner />}
 
       {list === null && !loadError && <div className="grid grid-skeleton" aria-hidden="true">{Array.from({ length: 6 }, (_, i) => <div key={i} className="tile-skeleton" />)}</div>}

@@ -207,7 +207,9 @@ numbers.
 
 ## Adding your clothes
 
-Open **Add**. One piece of clothing per photo works best.
+Open **Add** (the round button in the middle of the bar at the bottom of a
+phone; **Add clothes** at the top of the menu on a computer). One piece of
+clothing per photo works best.
 
 - **On the computer:** click **Choose photos** and pick as many as you like,
   click **Choose a folder**, or drag photos or whole folders onto the page.
@@ -230,10 +232,12 @@ again: it says how many photos were not added yet. Choose the same photos or
 folder again and it carries on; the ones that already went in are not added
 twice.
 
-After an import, open **Review**: it shows, one item at a time, only what
-Claude was unsure about. Tap another value if its guess is wrong, then
-**That's right**, or **Skip for now**. The number on **Review** says how many
-items are left.
+After an import, a note at the top of your closet says how many pieces need a
+quick check (on a phone, a dot on **Closet** says so too); tap **Review** in it.
+On a computer, **Review** also sits under **Closet** in the menu while there is
+anything to check, with the number beside **Closet**. It shows, one item at a
+time, only what Claude was unsure about. Tap another value if its guess is
+wrong, then **That's right**, or **Skip for now**.
 
 ## Use it from your iPhone
 
@@ -408,7 +412,8 @@ dark mode, so their colours look right.
 **Settings → Demo closet** opens a sample closet of 30 items so you can try
 everything without your own photos, with a few outfits worn in the last two
 weeks (yesterday's not rated yet, so Today asks about it). It is kept separate from your real closet
-and is never backed up. Photo credits are in
+and is never backed up. A slim strip at the top of every screen says you are
+in it; **Leave** takes you back to your own closet. Photo credits are in
 `backend/closet/demo_data/CREDITS.md`.
 What's missing uses fixed example life answers and seasons in the demo,
 unaffected by your own answers or place. Switch back to your own closet to

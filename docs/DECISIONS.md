@@ -542,6 +542,12 @@ See `docs/PHASE0.md` for the results and what is still open.
 - **Usual-weather answers are keyed by the exact days requested, and use only past calendar matches.** If the target day is more than a year ahead, the nearest matching date can still be in the future; the archive only has dates already passed. February 29 uses February 28 in years without a leap day.
 - A saved trip keeps the weather its plan was made for; opening it checks the forecast again and only offers "Plan again" when it changed.
 
+## Navigation
+
+| Decision | Why |
+|---|---|
+| The phone's bar has five places: Today, Closet, **Add** (a round filled button in the middle), Missing, Settings. Review is not in it: a slim note at the top of the closet ("5 pieces need a quick check · Review") and a dot on Closet say when there is something to check. On a computer the menu starts with an **Add clothes** button, then Today, Closet (with the number to review beside it, and Review under it while there is anything to review), Trips and What's missing, with Settings at the foot. Archived is reached only from the closet's In use / Archived switch. The demo closet's strip is one 32px line ("Demo closet · Leave") in a quiet surface colour | From the design review (#128). Six equal tabs gave Add, the main way clothes get in, the same weight as Review, a chore queue; Archived was reachable twice; the demo strip took 48px on every phone screen in solid green and repeated what Settings and the empty closet already offer. Trips stays out of the phone's bar and Insights stays on the closet, as decided before. Open for the owner: Review can go back into the bar if the note is too easy to miss. |
+
 ## The design system
 
 - **Type scale, ratio 1.25 from 16px:** 12 / 14 / 16 / 20 / 25 / 31 px (`--text-xs` to `--text-2xl`), weights 400 body, 560 labels, 650 headings. Headings of 25px and up are tightened by -0.015em and balanced over their lines. The app had about 30 sizes; `frontend/src/design.test.ts` fails on any `font-size` off the scale, a radius that is not a token, or a colour outside the token blocks (garment swatches live in `labels.ts`).

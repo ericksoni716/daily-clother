@@ -52,3 +52,12 @@ export const MoreIcon = (p: P) => (
 export const SuitcaseIcon = (p: P) => (
   <svg {...base} {...p}><rect x="3.5" y="7" width="17" height="12.5" rx="2" /><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M8 7v12.5M16 7v12.5" /></svg>
 );
+export const FilterIcon = (p: P) => (
+  <svg {...base} {...p}><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+);
+export const DrawingIcon = (p: P) => (
+  <svg {...base} {...p}><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z" /><path d="m14.5 7.5 2 2" /></svg>
+);
+export const CloseIcon = (p: P) => (
+  <svg {...base} {...p}><path d="M6 6l12 12M18 6 6 18" /></svg>
+);

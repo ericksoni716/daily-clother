@@ -1,7 +1,7 @@
 /* Fixing an item's details and its history (components/FixDetails.tsx). */
 
 .fix { margin: 0 0 16px; }
-.fix-open { margin-bottom: 10px; }
+.fix-open { flex: none; }
 .fix-panel {
   display: grid; gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius-sm);
   background: var(--surface);

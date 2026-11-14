@@ -340,6 +340,9 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
             p["heel_tab"] = "contrast"
         p.update(told)
         p.update(words)
+        extras.update(taxonomy.upper_surface(p.get("upper")))   # the upper's grain, nap or weave, and its sheen
+        if p.get("lace_kind") == "rawhide" and not extras.get("lace_color"):
+            extras["lace_color"] = taxonomy.RAWHIDE   # leather laces are tan unless their colour was told
         return "sneaker", p, extras, []
     # a top: the details decide, in the taxonomy's words; the coarse silhouette fills in what the details leave "na"
     category_neck = {"shirt": "collar", "polo": "collar", "hoodie": "hood", "jacket": "collar", "coat": "collar"}.get(tags.category, "crew")

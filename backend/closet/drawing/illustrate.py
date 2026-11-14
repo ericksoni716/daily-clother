@@ -6,6 +6,8 @@ the fourth traces the real outline from the cutout instead.
 from __future__ import annotations
 
 import colorsys
+import math
+import random
 import re
 from dataclasses import dataclass, field
 
@@ -178,7 +180,9 @@ def _defs_for_fill(fill: Fill, shape: Shape, uid: str, garment_w: float, garment
 # wide, 1.4 = a chunkier knit); "name:scale" is accepted too.
 TEXTURES = ("corduroy", "rib_knit", "waffle", "cable_knit", "pique", "mesh", "seersucker", "herringbone", "twill",
             "denim", "fisherman_rib", "garter", "linen", "basket", "tweed", "ripstop", "sherpa", "fleece",
-            "quilt_diamond", "quilt_box", "baffle", "moss", "pointelle", "terry")
+            "quilt_diamond", "quilt_box", "baffle", "moss", "pointelle", "terry",
+            # a shoe's upper
+            "pebble", "suede", "roughout", "nubuck", "canvas", "knit_mesh", "velvet", "woven", "felt")
 
 
 def _texture_defs(texture: str | None, uid: str, dark: bool, scale: float | None = None) -> str:
@@ -277,6 +281,66 @@ def _texture_tile(name: str, sc: float, lo: str, hi: str):
         h = 32 * sc
         return (10, h, f'<path d="M0,{h * .5:.2f}H10" stroke="{hi}" stroke-width="{h * .45:.2f}" opacity=".07"/>'
                        f'<path d="M0,.8H10" stroke="{lo}" stroke-width="1.5" opacity=".42"/>')
+    shoe = _upper_tile(name, lo, hi)
+    if shoe:   # a shoe's upper: drawn at the shoe's scale, all of it stretched by sc
+        w, h, marks = shoe
+        return (w * sc, h * sc, f'<g transform="scale({sc:.3f})">{marks}</g>')
+    return None
+
+
+# A scattered surface: tile size, marks per tile, and each mark's kind and size range (all in px at the side view's
+# scale). The marks are placed by a random generator seeded with the name, so the same surface is drawn every time.
+_SCATTER = {
+    "pebble": (40, 90, "bump", (0.7, 1.2)),       # a pebbled grain: rounded bumps lit on top, shaded below
+    "suede": (48, 150, "speck", (0.35, 0.7)),     # a soft nap: fine specks, light and dark, over brushed patches
+    "nubuck": (40, 220, "speck", (0.35, 0.6)),   # a finer, shorter nap: a dense, faint stipple
+    "roughout": (48, 70, "fibre", (3.0, 5.2)),    # the flesh side out: coarse fibres lying every way
+    "felt": (44, 110, "speck", (0.5, 1.0)),       # pressed wool: a soft, uneven speckle
+}
+
+
+def _scattered(name: str, lo: str, hi: str):
+    size, n, kind, (r0, r1) = _SCATTER[name]
+    rnd = random.Random(name)
+    marks = []
+    if name == "suede":   # brushed patches: the nap lying one way here and another there
+        for _ in range(4):
+            marks.append(f'<ellipse cx="{rnd.uniform(0, size):.1f}" cy="{rnd.uniform(0, size):.1f}" rx="{rnd.uniform(5, 9):.1f}" '
+                         f'ry="{rnd.uniform(2.5, 4.5):.1f}" fill="{rnd.choice((lo, hi))}" opacity=".11"/>')
+    op = {"pebble": 0.13, "suede": 0.22, "nubuck": 0.22, "roughout": 0.36, "felt": 0.2}[name]
+    for _ in range(n):
+        x, y, r = rnd.uniform(0, size), rnd.uniform(0, size), rnd.uniform(r0, r1)
+        if kind == "bump":
+            marks.append(f'<path d="M{x - r:.1f},{y:.1f}a{r:.1f},{r * .85:.1f} 0 0 0 {2 * r:.1f},0" stroke="{lo}" opacity="{op}"/>'
+                         f'<path d="M{x - r * .8:.1f},{y - r * .3:.1f}a{r * .8:.1f},{r * .6:.1f} 0 0 1 {1.6 * r:.1f},0" '
+                         f'stroke="{hi}" opacity="{op * .75:.2f}"/>')
+        elif kind == "fibre":
+            a = rnd.uniform(0, 3.1416)
+            dx, dy = r * math.cos(a), r * math.sin(a)
+            marks.append(f'<path d="M{x:.1f},{y:.1f}l{dx:.1f},{dy:.1f}" stroke="{rnd.choice((lo, lo, hi))}" opacity="{op}"/>')
+        else:
+            marks.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.2f}" fill="{rnd.choice((lo, hi))}" opacity="{op}" stroke="none"/>')
+    return (size, size, f'<g fill="none" stroke-width=".8" stroke-linecap="round">{"".join(marks)}</g>')
+
+
+def _upper_tile(name: str, lo: str, hi: str):
+    """(width, height, marks) of one tile of a shoe upper's surface, at the side view's scale."""
+    if name in _SCATTER:     # grain and nap: marks scattered at random over a large tile, so no grid shows
+        return _scattered(name, lo, hi)
+    if name == "canvas":     # a plain weave: a fine, even grid
+        return (4.6, 4.6, f'<path d="M0,.5H4.6M.5,0V4.6" stroke="{lo}" stroke-width=".7" opacity=".1"/>'
+                          f'<path d="M2.6,2.6h.9" stroke="{hi}" stroke-width=".8" opacity=".14"/>')
+    if name == "knit_mesh":  # an engineered knit: rows of V stitches
+        return (10, 10, f'<path d="M.6,.8L2.5,4L4.4,.8M5.6,.8L7.5,4L9.4,.8M-1.9,5.8L0,9L1.9,5.8M3.1,5.8L5,9L6.9,5.8'
+                        f'M8.1,5.8L10,9L11.9,5.8" stroke="{lo}" stroke-width=".9" fill="none" stroke-linejoin="round" '
+                        f'stroke-linecap="round" opacity=".3"/>')
+    if name == "velvet":     # a fine, dense pile
+        return (3, 3, f'<circle cx="1" cy="1" r=".55" fill="{lo}" opacity=".17"/><circle cx="2.4" cy="2.3" r=".5" fill="{hi}" opacity=".14"/>')
+    if name == "woven":      # woven leather strips: a basketweave, each pair over the next pair
+        return (14, 14, f'<g stroke="{lo}" stroke-width=".8" fill="none" opacity=".34">'
+                        f'<path d="M0,.4H7M0,3.5H7M0,6.6H7"/><path d="M7.4,0V7M10.5,0V7M13.6,0V7"/>'
+                        f'<path d="M.4,7V14M3.5,7V14M6.6,7V14"/><path d="M7,7.4H14M7,10.5H14M7,13.6H14"/></g>'
+                        f'<path d="M0,2H7M8.9,0V7M2,7V14M7,12H14" stroke="{hi}" stroke-width=".8" opacity=".14"/>')
     return None
 
 
@@ -436,7 +500,9 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     bind_c = spec.trim_color or shade(base, 0.32 if dark_item else -0.32)
 
     def part_color(key):
+        lace = spec.lace_color or base
         return {"trim": spec.trim_color, "lace": spec.lace_color, "sole": sole_c, "sole_line": None,
+                "lace_light": shade(lace, 0.35 if luminance(lace) < 0.7 else -0.25),   # a rope lace's twist
                 "sole_dark": shade(sole_c, -0.35 if luminance(sole_c) > 0.25 else 0.2),   # an outsole under a sandal's footbed
                 "sole_lug": shade(sole_c, -0.62 if luminance(sole_c) > 0.25 else 0.25),   # the blocks of a lug sole
                 "deep": shade(base, 0.14 if luminance(base) < 0.1 else -0.15)}.get(key, key)   # deep: the same leather, in shadow
@@ -488,17 +554,17 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             body = f'<path d="{d}" fill="{c}"/>' if c else (f'<path d="{d}" fill="{paint}"/>'
                                                            f'<path d="{d}" fill="{"#fff" if dark_item else "#000"}" opacity=".08"/>')
             return body + f'<path d="{d}" fill="none" stroke="{l_stroke if style != "flat" else shade(c or base, -0.3)}" stroke-width="{l_w}" stroke-linejoin="round" opacity="{l_op}"/>'
-        if role == "shine":    # a hard gloss (patent leather): a bright streak, no edge
-            return f'<path d="{d}" fill="#fff" opacity=".6"/>'
+        if role == "shine":    # a hard gloss (patent leather): a bright streak, no edge; "soft": a polish, fainter
+            return f'<path d="{d}" fill="#fff" opacity="{".26" if color == "soft" else ".6"}"/>'
         if role == "fade":     # cloth worn paler (denim whiskers, a knee): a soft light wash over it, no edge
             op = 0.2 if dark_item else 0.3
-            if color == "soft":   # palest in the middle, fading out to nothing at its edge
+            if color in ("soft", "faint"):   # palest in the middle, fading out to nothing at its edge (faint: half as pale)
                 nonlocal defs
                 if f'id="f{uid}"' not in defs:
                     defs += (f'<radialGradient id="f{uid}"><stop offset="0" stop-color="#fff" stop-opacity="{op * 1.4:.2f}"/>'
                              f'<stop offset=".5" stop-color="#fff" stop-opacity="{op * 0.8:.2f}"/>'
                              f'<stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>')
-                return f'<path d="{d}" fill="url(#f{uid})"/>'
+                return f'<path d="{d}" fill="url(#f{uid})"' + (' opacity=".5"' if color == "faint" else "") + "/>"
             return f'<path d="{d}" fill="#fff" opacity="{op:.2f}"/>'
         if role == "sole":
             c = sole_c

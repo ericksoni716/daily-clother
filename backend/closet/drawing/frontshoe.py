@@ -18,13 +18,14 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from .illustrate import INK, Spec, _hex, _rgb, luminance, shade
+from .illustrate import INK, Spec, _hex, _rgb, _texture_defs, luminance, shade
 
 LENGTH = 29.5          # one shoe, toe to heel, in cm: a men's UK 9
 BALL = 0.72            # the ball of the foot, as a share of the length from the heel: the shoe is centred on it
 LOOK = 24.0            # degrees the viewer looks down at the shoes from
 TURN = 11.0            # degrees each toe is turned out
 METAL = "#c9a85c"
+TEXTURE_SCALE = 0.4    # an upper's surface (pebble grain, suede ...) at the figure's scale: a shoe here is a few cm wide
 LINING = "#3a342e"     # the inside of a shoe: a dark warm grey, a little of the shoe's colour in it
 ANKLE_CM = 13.0        # the wearer's ankle: where it is drawn up to above the sole, in a low shoe or a sandal ...
 ANKLE_OVER_CM = 3.0    # ... and above the top of a boot's shaft
@@ -162,6 +163,8 @@ def _half_width(u: float, ball: float, toe: str) -> float:
         t = (u - 0.08) / (BALL - 0.08)
         return ball * (0.68 + 0.32 * t ** 1.6)
     t = (u - BALL) / (1 - BALL)
+    if toe == "chisel":   # a squared-off end: the sides run on nearly straight, then turn in across a flat front
+        return ball * max(0.0, 1 - t ** 12) ** 0.5 * (1 - 0.4 * t ** 2)
     return ball * math.sqrt(max(0.0, 1 - t ** 2)) ** (1 + long_toe * 8)
 
 
@@ -176,7 +179,8 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         style = "low_sneaker"
     ball, sole_t, table, shaft = STYLES[style]
     sole_t *= {"thin": 0.75, "chunky": 1.6}.get(p.get("sole"), 1.0)
-    if p.get("tread") == "lug":
+    sole_t *= {"lug": 1.25, "eva": 1.35, "city": 0.85}.get(p.get("tread"), 1.0)
+    if style == "sandal" and p.get("molded"):   # a moulded slide: one deeper piece
         sole_t *= 1.25
     if shaft and p.get("shaft"):
         shaft = max(0.35, min(0.95, float(p["shaft"]))) * LENGTH
@@ -188,6 +192,8 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
     base = spec.fill.color
     dark = luminance(base) < 0.3
     sole_c = spec.sole_color or sole_default or "#f4f1ea"
+    if style == "sandal" and p.get("molded"):   # a moulded slide is one piece, in its own colour
+        sole_c = spec.sole_color or base
     line_c = shade(base, 0.42) if dark else INK
     out: list[str] = []
     defs = ""
@@ -210,7 +216,7 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
     sole_d = _path(_hull(sole_pts))
     out.append(fill(sole_d, sole_c))
     defs += f'<clipPath id="{uid}s"><path d="{sole_d}"/></clipPath>'
-    if style in TRAINERS:   # a trainer's sole: the outsole under it a shade darker, so its edge reads under a hem
+    if style in TRAINERS or p.get("tread") == "eva":   # a trainer's sole: the outsole under it a shade darker, so its edge reads under a hem
         low = [view(*q) for h in (0.0, sole_t * 0.32) for q in contour(h)]
         c = shade(sole_c, -0.22 if luminance(sole_c) > 0.25 else 0.18)
         out.append(f'<g clip-path="url(#{uid}s)">' + fill(_path(_hull(low)), c, edge=False) + "</g>")
@@ -249,6 +255,17 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         upper_d = _path(_hull(upper_pts))
         out.append(fill(upper_d, base, w=2.4))
         defs += f'<clipPath id="{uid}u"><path d="{upper_d}"/></clipPath>'
+        tex = _texture_defs(spec.texture, f"{uid}x", dark, TEXTURE_SCALE)   # the upper's grain, nap or weave ...
+        if tex and float(tex.split('width="')[1].split('"')[0]) < 2.5:   # ... unless it is too fine to show this small
+            tex = ""
+        if tex:
+            defs += tex
+            out.append(f'<path d="{upper_d}" fill="url(#t{uid}x)"/>')
+        if spec.sheen:   # a waxed or rubber upper's soft sheen
+            defs += (f'<linearGradient id="{uid}h" x1="0" y1="0" x2="1" y2="1"><stop offset=".25" stop-color="#fff" stop-opacity="0"/>'
+                     '<stop offset=".42" stop-color="#fff" stop-opacity=".2"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/>'
+                     '</linearGradient>')
+            out.append(f'<path d="{upper_d}" fill="url(#{uid}h)"/>')
         top = max(shaft, sole_t + max(h for _, h in table))
         leg = max(sole_t + ANKLE_CM, shaft + ANKLE_OVER_CM if shaft else 0.0)
         if style == "high_top" or p.get("toe_cap") == "rubber":   # a rubber toe in the sole's colour
@@ -338,12 +355,14 @@ def _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, 
     across = lambda u, w, lift=0.15: [s(u, k / 6 * w, lift) for k in range(-6, 7)]       # noqa: E731
     laced = p.get("laces", style not in ("slip_on", "loafer", "chelsea_boot"))
     lace_c = p.get("lace_color") or None
+    if p.get("moc", style == "loafer"):   # the moc apron round the top of the toe (a loafer has one unless told)
+        apron = [s(u, 0.66) for u in (0.5, 0.6, 0.7, 0.8)] + [s(0.87, 0.5), s(0.9, 0.0), s(0.87, -0.5)] + \
+                [s(u, -0.66) for u in (0.8, 0.7, 0.6, 0.5)]
+        out.append(ln(_path(apron, close=False), 1.3))
+    if p.get("split"):   # a split toe: a seam down the middle of the toe, from the apron to the sole
+        out.append(ln(_path([s(0.86, 0.0), s(0.92, 0.0), s(0.97, 0.0), s(1.0, 0.0), view(0.0, 1.0, sole_t + 0.2)], close=False), 1.6))
     if style in ("loafer",):
-        # the moc apron round the top of the toe, and the strap across the vamp
-        if p.get("moc", True):
-            apron = [s(u, 0.66) for u in (0.5, 0.6, 0.7, 0.8)] + [s(0.87, 0.5), s(0.9, 0.0), s(0.87, -0.5)] + \
-                    [s(u, -0.66) for u in (0.8, 0.7, 0.6, 0.5)]
-            out.append(ln(_path(apron, close=False), 1.3))
+        # the strap across the vamp
         strap = p.get("strap", "penny")
         if strap != "none":
             band = across(0.56, 0.86, 0.25) + list(reversed(across(0.6, 0.86, 0.25)))
@@ -359,6 +378,16 @@ def _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, 
                     x, y = s(0.6, xs, 0.3)
                     out.append(f'<path d="M {x:.1f},{y:.1f} l {-1.5 * xs:.1f},5 l {3 * xs:.1f},0 Z" fill="{shade(base, -0.2)}" '
                                f'stroke="{INK}" stroke-width=".8"/>')
+    strap = p.get("strap") if style != "loafer" else None
+    if strap in ("monk", "double_monk", "velcro"):   # straps across the instep, buckled on the outer side (-x)
+        bands = {"monk": (0.52,), "double_monk": (0.5, 0.6), "velcro": (0.53, 0.64)}[strap]
+        for u in bands:
+            band = across(u, 0.9, 0.3) + list(reversed(across(u + 0.05, 0.9, 0.3)))
+            out.append(fill(_path(band), shade(base, -0.12 if luminance(base) > 0.2 else 0.1), w=1.2))
+            if strap != "velcro":
+                x, y = s(u + 0.025, -0.62, 0.4)
+                out.append(f'<rect x="{x - 2.2:.1f}" y="{y - 2.6:.1f}" width="4.4" height="5.2" rx="1" fill="none" '
+                           f'stroke="{METAL}" stroke-width="1.4"/>')
     if style in TRAINERS:   # the overlay round the toe box, stitched on a little above the sole
         guard = [s(u, xs, 0.0) for u, xs in ((0.7, -0.98), (0.8, -0.9), (0.88, -0.7), (0.93, -0.35), (0.95, 0.0),
                                               (0.93, 0.35), (0.88, 0.7), (0.8, 0.9), (0.7, 0.98))]
@@ -372,10 +401,22 @@ def _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, 
             out.append(ln(_path([s(u, xs, 0.05) for u in (lo - 0.03, (lo + hi) / 2, hi)], close=False), 1.2))
         n = max(3, min(7, int(p.get("eyelets", 5)))) - 1
         lace = lace_c or (shade(base, -0.28) if luminance(base) > 0.75 else shade(base, 0.35 if luminance(base) < 0.3 else -0.25))
+        kind = p.get("lace_kind")
+        k = {"flat_waxed": 1.3, "flat_cotton": 1.3, "round_waxed": 0.8, "round_rope": 1.4, "rawhide": 1.3}.get(kind, 1.0)
         for i in range(n):
             u = lo + (hi - lo) * i / max(1, n - 1)
             d = _path(across(u, 0.42 if style not in TRAINERS else 0.5, 0.25), close=False)
-            out.append(ln(d, 2.8, INK, 0.9) + ln(d, 1.5, lace, 1))
+            out.append(ln(d, 1.3 + 1.5 * k, INK, 0.9) + ln(d, 1.5 * k, lace, 1))
+            if kind in ("flat_waxed", "round_waxed"):   # a waxed lace's glint
+                out.append(ln(_path(across(u, 0.24, 0.3)[3:8], close=False), 0.8, "#fff", 0.75))
+            elif kind == "round_rope":   # its twist
+                twist = shade(lace, 0.35 if luminance(lace) < 0.7 else -0.25)
+                out.append(f'<path d="{d}" fill="none" stroke="{twist}" stroke-width="{1.5 * k:.1f}" stroke-dasharray="1.2 1.4"/>')
+            if p.get("ghillie"):   # the lace runs through a leather loop on each side
+                for xs in (-0.46, 0.46):
+                    x, y = s(u, xs, 0.25)
+                    out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="1.9" fill="none" stroke="{INK}" stroke-width="2.4"/>'
+                               f'<circle cx="{x:.1f}" cy="{y:.1f}" r="1.9" fill="none" stroke="{shade(base, -0.15)}" stroke-width="1.2"/>')
         if shaft:   # a boot laces on up its shaft
             for i in range(3):
                 h = sole_t + 8.5 + i * (shaft - sole_t - 10) / 2
@@ -397,9 +438,18 @@ def _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, 
         w, h = 1.25 * view.px, 1.9 * view.px
         out.append(f'<path d="M {tx - w:.1f},{ty + 2:.1f} L {tx - w:.1f},{ty - h:.1f} Q {tx:.1f},{ty - h - w:.1f} {tx + w:.1f},{ty - h:.1f} '
                    f'L {tx + w:.1f},{ty + 2:.1f}" fill="{shade(base, -0.12)}" stroke="{INK}" stroke-width="1.2" stroke-linejoin="round"/>')
+    upper = p.get("upper")
     if p.get("shine"):
         x, y = s(0.9, -0.3, 0.2)
         out.append(f'<ellipse cx="{x:.1f}" cy="{y:.1f}" rx="{1.4 * view.px:.1f}" ry="{0.5 * view.px:.1f}" fill="#fff" opacity=".55"/>')
+    elif upper in ("smooth_calf", "synthetic_leather", "shell_cordovan"):   # a polished toe; cordovan's gloss is wider
+        k = 1.35 if upper == "shell_cordovan" else 1.0
+        x, y = s(0.88, -0.3, 0.2)
+        out.append(f'<ellipse cx="{x:.1f}" cy="{y:.1f}" rx="{1.6 * k * view.px:.1f}" ry="{0.55 * k * view.px:.1f}" fill="#fff" '
+                   f'opacity=".26"/>')
+    elif upper == "oiled_pull_up":   # paler across the vamp, where it flexes
+        x, y = s(0.72, 0.0, 0.1)
+        out.append(f'<ellipse cx="{x:.1f}" cy="{y:.1f}" rx="{2.6 * view.px:.1f}" ry="{0.9 * view.px:.1f}" fill="#fff" opacity=".2"/>')
     return out
 
 

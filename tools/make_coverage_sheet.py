@@ -2,7 +2,7 @@
 
     python tools/make_coverage_sheet.py GROUP [OUT.svg] [--png OUT.png]
 
-GROUP is one of tops, trousers, jackets, shoes, rest. Each cell is an item drawn the way the app draws it (from a
+GROUP is one of tops, trousers, jackets, shoes, shoes-uppers, shoes-laces, shoes-soles, shoes-kinds, rest. Each cell is an item drawn the way the app draws it (from a
 tagger answer, in the owner's style), at two sizes: the closet grid's and the item page's. The same command run on an
 older checkout of the code gives the "before" sheet. With `--png` the sheet is also turned into a picture by a Chrome
 or Chromium found on this computer.
@@ -90,6 +90,57 @@ CASES: dict[str, list[tuple[str, str, str, dict, dict]]] = {
         ("apron toe", "boots", "#7a5230", dict(footwear="service_boot", toe_treatment="apron"), {}),
         ("boat shoe", "dress_shoes", "#7a5230", dict(footwear="boat_shoe"), {}),
         ("camp moc", "dress_shoes", "#7a5230", dict(footwear="camp_moc"), {}),
+    ],
+    "shoes-uppers": [
+        ("smooth calf", "dress_shoes", "#5a3a26", dict(shoe_style="derby", upper_material="smooth_calf"), {}),
+        ("pebble grain", "dress_shoes", "#5a3a26", dict(shoe_style="derby", upper_material="pebble_grain"), {}),
+        ("suede", "boots", "#8a6a48", dict(footwear="chukka", upper_material="suede"), {}),
+        ("roughout", "boots", "#8a6a48", dict(footwear="service_boot", upper_material="roughout"), {}),
+        ("nubuck", "boots", "#b08a5a", dict(footwear="service_boot", upper_material="nubuck"), {}),
+        ("shell cordovan", "dress_shoes", "#4e1a1d", dict(shoe_style="oxford", upper_material="shell_cordovan"), {}),
+        ("oiled pull-up", "boots", "#7a4a2a", dict(footwear="service_boot", upper_material="oiled_pull_up"), {}),
+        ("canvas", "sneakers", "#c9bfae", dict(footwear="canvas_low_top", upper_material="canvas"), {}),
+        ("knit mesh", "sneakers", "#5a6470", dict(footwear="running_shoe", upper_material="knit_mesh"), {}),
+        ("synthetic leather", "sneakers", "#e8e4dc", dict(footwear="leather_court_sneaker", upper_material="synthetic_leather"), {}),
+        ("waxed canvas", "boots", "#4f5a3c", dict(footwear="service_boot", upper_material="waxed_canvas"), {}),
+        ("rubber", "boots", "#22422c", dict(footwear="rain_boot", upper_material="rubber"), {}),
+        ("velvet", "dress_shoes", "#1f2a44", dict(shoe_style="loafer", upper_material="velvet"), {}),
+        ("felt wool", "sneakers", "#8a8d91", dict(footwear="felt_clog", upper_material="felt_wool"), {}),
+        ("woven leather", "dress_shoes", "#9a5a2c", dict(shoe_style="loafer", upper_material="woven_leather"), {}),
+    ],
+    "shoes-laces": [
+        ("flat waxed laces", "boots", "#6b4a2f", dict(footwear="service_boot", laces="flat_waxed"), {}),
+        ("round waxed laces", "dress_shoes", "#1d1e22", dict(footwear="plain_toe_oxford", laces="round_waxed"), {}),
+        ("flat cotton laces", "sneakers", "#e8e4dc", dict(footwear="canvas_low_top", laces="flat_cotton"), {}),
+        ("round rope laces", "boots", "#6b4a2f", dict(footwear="hiking_boot", laces="round_rope"), {}),
+        ("rawhide laces", "boots", "#6b4a2f", dict(footwear="chukka", laces="rawhide"), {}),
+        ("ghillie lacing", "dress_shoes", "#5a3a26", dict(shoe_style="derby", lacing="ghillie"), {}),
+        ("split toe", "dress_shoes", "#7a5230", dict(shoe_style="derby", toe_treatment="split_toe"), {}),
+        ("chisel toe", "dress_shoes", "#1d1e22", dict(shoe_style="oxford", toe_shape="chisel"), {}),
+        ("monk strap", "dress_shoes", "#5a3a26", dict(footwear="monk_strap"), {}),
+    ],
+    "shoes-soles": [
+        ("city rubber sole", "dress_shoes", "#5a3a26", dict(shoe_style="derby", sole="rubber_city"), {}),
+        ("studded rubber sole", "dress_shoes", "#5a3a26", dict(shoe_style="derby", sole="studded_rubber"), {}),
+        ("foam midsole", "sneakers", "#5a6470", dict(shoe_style="low_sneaker", sole="eva_foam_midsole"), {}),
+        ("molded slide", "sandals", "#1d1e22", dict(footwear="slide", sole="molded_slide"), {}),
+        ("goodyear welt", "boots", "#6b4a2f", dict(footwear="service_boot", shoe_construction="goodyear_welt"), {}),
+        ("storm welt", "boots", "#6b4a2f", dict(footwear="service_boot", shoe_construction="storm_welt"), {}),
+        ("blake", "dress_shoes", "#1d1e22", dict(footwear="plain_toe_oxford", shoe_construction="blake"), {}),
+        ("stitchdown", "boots", "#7a5230", dict(footwear="desert_boot", shoe_construction="stitchdown"), {}),
+        ("cemented", "sneakers", "#e8e4dc", dict(footwear="leather_court_sneaker", shoe_construction="cemented"), {}),
+        ("vulcanized", "sneakers", "#2a4ea0", dict(shoe_style="low_sneaker", shoe_construction="vulcanized"), {}),
+        ("moccasin", "dress_shoes", "#7a5230", dict(shoe_style="derby", shoe_construction="moccasin"), {}),
+        ("no-show height", "sneakers", "#e8e4dc", dict(shoe_style="low_sneaker", footwear_height="no_show"), {}),
+        ("knee height", "boots", "#22422c", dict(footwear="rain_boot", footwear_height="knee"), {}),
+    ],
+    "shoes-kinds": [
+        ("trainer", "sneakers", "#5a6470", dict(footwear="trainer"), {}),
+        ("running shoe (as before)", "sneakers", "#5a6470", dict(footwear="running_shoe"), {}),
+        ("camp moc", "dress_shoes", "#7a5230", dict(footwear="camp_moc"), {}),
+        ("boat shoe (as before)", "dress_shoes", "#7a5230", dict(footwear="boat_shoe"), {}),
+        ("moccasin slipper", "dress_shoes", "#7a5230", dict(footwear="moccasin_slipper"), {}),
+        ("velvet slipper", "dress_shoes", "#22422c", dict(footwear="velvet_slipper"), {}),
     ],
     "rest": [
         ("robe", "coat", "#2a4ea0", dict(garment="robe", collar="shawl", fabric="terry_towelling"), dict(top_length="long")),

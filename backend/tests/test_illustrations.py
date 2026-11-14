@@ -63,6 +63,30 @@ def test_a_drawing_is_made_when_tagging_finishes(client, services, claude, cfg):
     assert body["seen_not_drawn"] == ["embroidered chest logo"] and isinstance(body["drawing_notes"], list)
 
 
+def test_trousers_with_something_on_the_back_get_a_drawing_from_the_back(client, services, claude, cfg):
+    body = tagged(client, services, claude)
+    assert body["back_url"] is None   # a polo: the item page shows no back view
+    assert client.get(f"/api/items/{body['id']}/back.svg").status_code == 404
+
+    def answer(garment, **said):
+        return json.dumps({**ANSWER_JSON, "category": "trousers",
+                           "details": {**ANSWER_JSON["details"], "garment": garment, **said}})
+
+    set_columns(cfg, body["id"], tag_answer=answer("sweatpants"), category="trousers")
+    assert client.get(f"/api/items/{body['id']}").json()["back_url"] is None   # nothing known on the back
+
+    set_columns(cfg, body["id"], tag_answer=answer("chinos"))
+    chinos = client.get(f"/api/items/{body['id']}").json()["back_url"]   # chinos: welt pockets
+    assert chinos.startswith(f"/api/items/{body['id']}/back.svg?v=")
+    r = client.get(chinos)
+    assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg+xml") and "immutable" in r.headers["cache-control"]
+    assert r.text.startswith("<svg") and r.text != client.get(f"/api/items/{body['id']}").json()["illustration_svg"]
+
+    set_columns(cfg, body["id"], tag_answer=answer("chinos", trouser_pockets=["slant", "back_flap"], back_details=["darts"]))
+    told = client.get(f"/api/items/{body['id']}").json()["back_url"]
+    assert told != chinos and client.get(told).text != r.text   # the told pockets and darts, not the kind's own
+
+
 def test_it_changes_with_a_field_it_shows_and_not_with_one_it_does_not(client, services, claude):
     body = tagged(client, services, claude)
     url, svg = body["illustration_url"], body["illustration_svg"]

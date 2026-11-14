@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { appendFileSync, copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -52,6 +52,7 @@ export async function startBackend(opts: { model?: string; fakes?: boolean | 'ap
   });
   let log = '';
   child.stdout?.on('data', (d) => (log += d));
+  child.stderr?.on('data', (d) => appendFileSync('/tmp/backend.log', d));
   child.stderr?.on('data', (d) => (log += d));
   const url = `http://127.0.0.1:${port}`;
   const deadline = Date.now() + 60_000;

@@ -432,6 +432,8 @@ def create_app(sv: Services) -> FastAPI:
 
     @app.get("/api/items/{item_id}", dependencies=protected)
     def get_item(item_id: str, conn=Depends(conn_dep)):
+        import logging as _l, time as _t
+        _l.getLogger("dbg").warning("GET item %s %s", _t.time() % 1000, state.get("profile"))
         return items.detail(conn, items.get(conn, item_id))
 
     @app.get("/api/items/{item_id}/illustration.svg", dependencies=protected)
@@ -445,8 +447,11 @@ def create_app(sv: Services) -> FastAPI:
 
     @app.patch("/api/items/{item_id}", dependencies=protected)
     async def patch_item(item_id: str, request: Request, conn=Depends(conn_dep)):
+        import logging as _l, time as _t
+        _l.getLogger("dbg").warning("PATCH start %s %s", _t.time() % 1000, request.headers.get("content-length"))
         try:
             changes = await request.json()
+            _l.getLogger("dbg").warning("PATCH body %s %s %s", _t.time() % 1000, changes, state.get("profile"))
         except ValueError:
             raise HTTPException(400, "The request was not valid JSON.")
         if not isinstance(changes, dict):

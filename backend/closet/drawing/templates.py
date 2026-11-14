@@ -98,7 +98,8 @@ TOP_DEFAULTS = dict(
 #   binding   False | True             a contrast strip wrapped over the edges: the collar's top, the placket, the
 #             sleeve ends and the hem (role "binding" inside the garment, "binding_edge" on its outline)
 #   colorblock  a tuple of parts cut in the second colour: yoke | sleeves | collar | pocket
-#   stripes   none | sleeve            two stripes down the outside of each sleeve (a track jacket), in the trim colour
+#   stripes   none | sleeve | hoops    two stripes down the outside of each sleeve (a track jacket), or stripes round
+#             the arms and the body above the hem (a hockey jersey); in the trim colour
 #   belt      False | True | sash      a self belt buckled round the waist (a trench coat); a robe's knotted sash
 # Finer pocket values: chest-flap | chest-patch-two | pencil | western | welt | split | slash | chore |
 #   chest-flap-two | guayabera | bellows | utility | hip-patch | hip-flap
@@ -522,7 +523,7 @@ def top(**kw) -> Shape:
         puff, puff_in = [], []   # a puffer's sleeve swells between its channels on both edges, down to the cuff
         if p.get("quilting") == "baffle":
             amp = 3.2 + bulk * 0.3
-            cuff_d = {"rib": 17 * bs, "button": 22 + bulk, "button2": 22 + bulk, "mitred": 22 + bulk, "french": 28 + bulk,
+            cuff_d = {"rib": 17 * bs, "button": 22 + bulk, "button2": 22 + bulk, "convertible": 22 + bulk, "mitred": 22 + bulk, "french": 28 + bulk,
                       "snap3": 31 + bulk}.get(cuffs, 0) if kind in ("long", "three-quarter") else 0
             end = (Co[0] - d[0] * cuff_d, Co[1] - d[1] * cuff_d)
             puff = _scallop_run(P1, end, 32.0, amp, math.degrees(thr), (d[1], -d[0])) + [end]
@@ -853,16 +854,34 @@ def top(**kw) -> Shape:
                      (a1[0] + q[0] * o1, a1[1] + q[1] * o1), (a0[0] + q[0] * o1, a0[1] + q[1] * o1)]
             for m in (lambda v: v, _mirror):
                 sh.parts.append(Part(_poly([m(v) for v in strip]), "inlay", color="trim", clip=True))
+    # ---- stripes round the arms and the body above the hem (a hockey jersey)
+    if p.get("stripes") == "hoops":
+        bands = []
+        if cuff:
+            Co, Ci, d = cuff
+            q_ = _unit((Ci[0] - Co[0], Ci[1] - Co[1]))
+            span = (((24, 31), (37, 44)) if sleeve in ("long", "three-quarter") else ((12, 18),))
+            for a, b in span:
+                bands.append([(Co[0] - d[0] * a - q_[0] * 6, Co[1] - d[1] * a - q_[1] * 6),
+                              (Ci[0] - d[0] * a + q_[0] * 3, Ci[1] - d[1] * a + q_[1] * 3),
+                              (Ci[0] - d[0] * b + q_[0] * 3, Ci[1] - d[1] * b + q_[1] * 3),
+                              (Co[0] - d[0] * b - q_[0] * 6, Co[1] - d[1] * b - q_[1] * 6)])
+        for band in bands:
+            for m in (lambda v: v, _mirror):
+                sh.parts.append(Part(_poly([m(v) for v in band]), "inlay", color="trim", clip=True))
+        for a, b in ((44, 36), (30, 22)):
+            band = [(CX - hh - 4, hy - a), (CX + hh + 4, hy - a), (CX + hh + 4, hy - b), (CX - hh - 4, hy - b)]
+            sh.parts.append(Part(_poly(band), "inlay", color="trim", clip=True))
 
     # ---- cuffs
     if cuff:
         Co, Ci, d = cuff
         din = _unit((A[0] - Ci[0], A[1] - Ci[1]))   # up the sleeve's inner edge
         long_cuff = sleeve in ("long", "three-quarter") and cuffs not in ("rolled", "roll-tab")
-        depth = {"rib": 17 * bs, "button": 22, "button2": 22, "mitred": 22, "french": 28, "snap3": 31}.get(cuffs)
+        depth = {"rib": 17 * bs, "button": 22, "button2": 22, "convertible": 22, "mitred": 22, "french": 28, "snap3": 31}.get(cuffs)
         if cuffs == "rib" and not long_cuff:
             depth = 11 * bs     # a polo's ribbed armband
-        if depth and (long_cuff or cuffs == "rib") and cuffs in ("rib", "button", "button2", "mitred", "french", "snap3"):
+        if depth and (long_cuff or cuffs == "rib") and cuffs in ("rib", "button", "button2", "convertible", "mitred", "french", "snap3"):
             depth += bulk if cuffs != "rib" else 0
             Bo = (Co[0] - d[0] * depth, Co[1] - d[1] * depth)
             Bi = (Ci[0] + din[0] * depth, Ci[1] + din[1] * depth)
@@ -872,6 +891,9 @@ def top(**kw) -> Shape:
                 sh.parts.append(Part(_poly(band), "band" if cuffs == "rib" else "cuff", color=on_sleeve))
                 if cuffs in ("button", "mitred"):   # the button sits in the middle of the cuff's depth, clear of its edges
                     fasten(*m(at(0.34 if cuffs == "button" else 0.36, 0.5)), 2.6)
+                elif cuffs == "convertible":        # a button, and beside it the spare buttonhole for a cufflink
+                    fasten(*m(at(0.34, 0.5)), 2.6)
+                    sh.parts.append(Part(_poly([m(at(0.1, 0.5)), m(at(0.24, 0.5))], close=False), "edge"))
                 elif cuffs == "button2":            # two buttons side by side
                     fasten(*m(at(0.24, 0.5)), 2.5)
                     fasten(*m(at(0.44, 0.5)), 2.5)
@@ -1787,7 +1809,9 @@ def pants(**kw) -> Shape:
     xmin = min(Ho[0], Hp[0]) - 2
     sh.bbox = (xmin, wy - 3, 2 * CX - xmin, hy + 4)
     sh.body_box = (CX - hh, wy, CX + hh, hy)
-    sh.anchors = {"waist": (CX, wy), "crotch": (CX, cy), "hem": (CX, hy)}
+    # the middle of each leg's opening (the viewer's left leg, then the right)
+    sh.anchors = {"waist": (CX, wy), "crotch": (CX, cy), "hem": (CX, hy), "leg_l": (hc, hy), "leg_r": (2 * CX - hc, hy),
+                  "hem_out": Ho, "hem_in": Hi}   # the viewer's left leg's opening, outer and inner corner
 
     def side_x(y):
         """x of the left outer seam at height y (above the hip)."""

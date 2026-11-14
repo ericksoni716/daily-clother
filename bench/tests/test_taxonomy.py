@@ -11,7 +11,7 @@ import pytest
 
 from closet_bench.fills import Stripes
 from closet_bench.illustrate import BUTTON_CONTRAST, INSIDE_CONTRAST, Fill, Spec, _over, contrast, layer, render
-from closet_bench.taxonomy import (ACCESSORIES, ACCESSORY_GARMENTS, ACCESSORY_GROUP, ACCESSORY_TEMPLATES, AXES, CORDUROY_WALES,
+from closet_bench.taxonomy import (_KIND_TOP, ACCESSORIES, COLORWORK, ACCESSORY_GARMENTS, ACCESSORY_GROUP, ACCESSORY_TEMPLATES, AXES, CORDUROY_WALES,
                                    COVERAGE, GARMENT_DRAWINGS, KNIT_GAUGES, TOP_AXES, WEIGHT_CLASSES, accessory_drawing,
                                    surface_extras, top_drawing)
 from closet_bench.templates import BODY_W, BLOCKS, CX, K_PX, SLEEVE_GAP, SLEEVE_HANG, build
@@ -186,6 +186,140 @@ def test_every_knit_marked_drawn_has_its_own_texture():
         valid(draw({**knit, "fabric": v, "knit_gauge": "chunky"}, "flat"))
 
 
+# #182: the plain weaves, shirtings, smooth cloths and jerseys that used to read as plain cloth
+PLAIN_CLOTHS = ("plain", "poplin", "broadcloth", "oxford", "pinpoint_oxford", "royal_oxford", "end_on_end", "chambray",
+                "dobby", "jacquard", "madras", "voile", "challis", "crepe", "satin", "sateen", "flannel", "brushed_twill",
+                "moleskin", "canvas", "gabardine", "cavalry_twill", "whipcord", "fresco", "velvet", "melton", "waxed_cotton",
+                "jersey", "slub_jersey", "interlock", "flat_knit", "french_terry", "velour", "shaker")
+
+
+def test_every_plain_cloth_has_a_surface_of_its_own():
+    shirt = CONTEXT["collar"]
+    assert all(COVERAGE["woven_structure"][v][0] == "drawn" for v in AXES["woven_structure"])
+    coverage = {**COVERAGE["woven_structure"], **COVERAGE["knit_structure"]}
+    assert all(coverage[v][0] == "drawn" for v in PLAIN_CLOTHS)
+    textures = {v: surface_extras({"fabric": v})["texture"] for v in PLAIN_CLOTHS}
+    assert all(textures.values()) and len(set(textures.values())) == len(PLAIN_CLOTHS)
+    others = {surface_extras({"fabric": v})["texture"] for v in coverage if v not in PLAIN_CLOTHS and v not in COLORWORK}
+    assert not others & set(textures.values())
+    svgs = {v: draw({**shirt, "fabric": v}) for v in PLAIN_CLOTHS}
+    assert len(set(svgs.values())) == len(PLAIN_CLOTHS)
+    for v in PLAIN_CLOTHS:
+        valid(svgs[v])
+        valid(draw({**shirt, "fabric": v}, "flat"))
+    assert draw({**shirt, "fabric": "shaker", "knit_gauge": "chunky"}) != svgs["shaker"]
+    assert draw({**shirt, "fabric": "flat_knit", "knit_gauge": "chunky"}) != svgs["flat_knit"]
+
+
+@pytest.mark.parametrize("cloth", ("#d9cbb0", "#27344f", "#1f1f22", "#f6f5f2"))
+def test_colourwork_knits_are_drawn_where_the_garment_carries_them(cloth):
+    # #182: Fair Isle, Nordic, argyle, intarsia, jacquard knit, Cowichan and guernsey are knitted in, not plain
+    knit = {"neckline": "crew", "cuff": "rib_knit", "hem": "ribbed_band", "sleeve_length": "long"}
+    plain = draw({**knit, "fabric": "flat_knit"}, color=cloth)
+    svgs = {}
+    for v in COLORWORK:
+        assert COVERAGE["knit_structure"][v][0] == "drawn"
+        p, extras, _ = top_drawing({**knit, "fabric": v})
+        assert extras["colorwork"] == COLORWORK[v] and build("top", p).anchors == build("top", top_drawing(knit)[0]).anchors
+        svgs[v] = draw({**knit, "fabric": v}, color=cloth)
+        valid(svgs[v])
+        valid(draw({**knit, "fabric": v}, "flat", color=cloth))
+    assert plain not in svgs.values() and len(set(svgs.values())) == len(COLORWORK)
+    # in the other colours seen, where they stand out from the cloth
+    seen = render(Spec("top", top_drawing(knit)[0], Fill("solid", cloth), colorwork="fair_isle",
+                       motif_colors=("#b8332e", "#3f7d4f")), "line")
+    assert "#b8332e" in seen and "#3f7d4f" in seen
+    # a photo's fill already carries the pattern: it is not drawn twice
+    striped = Fill("stripes", cloth, stripes=Stripes("horizontal", [(cloth, 0.03), ("#b8332e", 0.03)]))
+    assert (render(Spec("top", top_drawing(knit)[0], striped, colorwork="fair_isle"), "line")
+            == render(Spec("top", top_drawing(knit)[0], striped), "line"))
+
+
+def test_a_pattern_named_fair_isle_nordic_or_argyle_is_drawn_as_colourwork():
+    knit = {"neckline": "crew", "cuff": "rib_knit", "hem": "ribbed_band"}
+    for name in ("fair_isle", "nordic", "argyle"):
+        assert top_drawing({**knit, "pattern_name": name})[1]["colorwork"] == name
+    assert "colorwork" not in top_drawing({**knit, "pattern_name": "gingham"})[1]
+
+
+def test_a_colourwork_cardigan_worn_open_keeps_its_pattern():
+    p, extras, _ = top_drawing({"neckline": "v_neck", "placket": "front_placket", "cuff": "rib_knit",
+                                "hem": "ribbed_band", "fabric": "argyle"})
+    over = Spec("top", {**p, "state": "open"}, Fill("solid", "#7a8a5c"), **extras)
+    plain = Spec("top", {**p, "state": "open"}, Fill("solid", "#7a8a5c"), **{**extras, "colorwork": None})
+    under = Spec("top", top_drawing(GARMENT_DRAWINGS["ocbd"])[0], Fill("solid", "#f4f3ee"))
+    worn = layer(under, over, "line")
+    valid(worn)
+    assert worn != layer(under, plain, "line")
+
+
+def test_a_tops_fibre_shows_where_no_fabric_says_otherwise():
+    # #182: leather, suede, worsted, lambswool and merino each change a top's drawing
+    tee = {"neckline": "crew", "sleeve_length": "long", "hem": "straight"}
+    plain = draw(tee)
+    svgs = {f: draw({**tee, "fiber": f}) for f in ("leather", "suede", "worsted_wool", "lambswool")}
+    assert plain not in svgs.values() and len(set(svgs.values())) == 4
+    assert top_drawing({**tee, "fiber": "leather"})[1]["sheen"]
+    assert top_drawing({**tee, "fiber": "leather", "fabric": "jersey"})[1]["texture"] == "jersey"   # the fabric wins
+    knit = {**tee, "fabric": "flat_knit"}
+    assert draw({**knit, "fiber": "merino"}) != draw(knit)
+    assert draw({**knit, "fiber": "merino", "knit_gauge": "chunky"}) == draw({**knit, "knit_gauge": "chunky"})
+    for f in ("leather", "suede", "worsted_wool", "lambswool", "merino", "hemp", "cotton"):
+        assert COVERAGE["fiber"][f][0] == "drawn", f
+    assert COVERAGE["fiber"]["acrylic"][0] == "approximate"
+
+
+def test_a_convertible_cuff_shows_its_spare_buttonhole_and_cargo_pockets_are_drawn_on_a_top():
+    shirt = CONTEXT["collar"]
+    barrel, convertible = (build("top", top_drawing({**shirt, "cuff": c})[0]) for c in ("barrel_1", "convertible"))
+    assert convertible.anchors == barrel.anchors
+    assert len(convertible.parts) == len(barrel.parts) + 2   # a buttonhole on each cuff
+    p, _, notes = top_drawing({**shirt, "cuff": "convertible", "pockets": "cargo"})
+    assert p["cuffs"] == "convertible" and p["pockets"] == "bellows" and not notes
+    assert COVERAGE["cuff"]["convertible"][0] == COVERAGE["pockets"]["cargo"][0] == "drawn"
+
+
+# what drawing_for passes for a top when the tagger told only the kind: every axis at its quiet value
+QUIET_TOP = dict(fit="regular", sleeve_length="short", collar="none", neckline="crew", placket="none", cuff="none",
+                 pockets="none", hem="straight", fabric="unknown", length="regular", contrast_trim=False,
+                 second_color=False)
+
+
+@pytest.mark.parametrize("kind", sorted(_KIND_TOP))
+def test_each_kind_of_top_is_drawn_with_its_look(kind):
+    p, extras, _ = top_drawing({**QUIET_TOP, "garment": kind, "contrast_trim": True})
+    plain, plain_extras, _ = top_drawing(QUIET_TOP)
+    assert (p, extras) != (plain, plain_extras)
+    shape = build("top", p)
+    assert shape.anchors.keys() == build("top", plain).anchors.keys()
+    valid(render(Spec("top", p, Fill("solid", "#3f6fb0"), trim_color="#f4f1ea", **extras), "line"))
+    assert COVERAGE["garment"][kind][0] == "drawn"
+
+
+def test_a_kinds_look_gives_way_to_what_was_told():
+    told = {**QUIET_TOP, "garment": "windbreaker", "placket": "snap", "cuff": "open_hem"}
+    p, _, _ = top_drawing(told)
+    assert p["front"] != "zip" and p["cuffs"] != "rib"
+    # binding only with a contrast colour; a hockey jersey's stripes whatever was told
+    assert not top_drawing({**QUIET_TOP, "garment": "soccer_jersey"})[0].get("binding")
+    assert top_drawing({**QUIET_TOP, "garment": "soccer_jersey", "contrast_trim": True})[0]["binding"]
+    hockey = top_drawing({**QUIET_TOP, "garment": "hockey_jersey", "neckline": "crew", "fit": "slim"})[0]
+    assert hockey["stripes"] == "hoops" and hockey["fit"] == "slim"
+    hooped = build("top", hockey)
+    assert sum(part.role == "inlay" for part in hooped.parts) == 2 + 2   # a band round each short sleeve, two above the hem
+    leather = top_drawing({**QUIET_TOP, "garment": "leather_jacket"})[1]
+    assert leather["texture"] == "leather" and leather["sheen"]
+
+
+def test_a_heathered_or_marled_top_is_flecked():
+    tee = {**QUIET_TOP, "fabric": "jersey"}
+    assert top_drawing({**tee, "color_texture": "heathered"})[1]["texture"] == "marl"
+    assert top_drawing({**tee, "color_texture": "marled", "fabric": "unknown"})[1]["texture"] == "marl"
+    assert top_drawing({**tee, "color_texture": "heathered", "fabric": "cable"})[1]["texture"] == "cable_knit"
+    assert top_drawing(tee)[1]["texture"] == "jersey"
+    assert COVERAGE["fabric_effects"]["heathered_marled"][0] == "drawn"
+
+
 def test_the_hidden_button_down_shows_no_buttons():
     shirt = CONTEXT["collar"]
     hidden = draw({**shirt, "collar": "hidden_button_down"})
@@ -214,47 +348,47 @@ JACKETS = ("blazer", "sport_coat", "suit_jacket", "overcoat", "peacoat")
 # Recorded again for #110 (drawing faults) where a drawing changed on purpose: the cause is noted on each line.
 # Every lightweight garment also gained drape folds, and every heavy one with a rib band its soft shade.
 UNCHANGED = {
-    "t_shirt": "7ec599596bc532fc",
+    "t_shirt": "e6bb331568c7e3a5",   # #182: jersey surface
     "henley": "4c2da65dd3332fd4",
     "polo": "ffed94ccace3764e",
-    "rugby_shirt": "58043fad9ef598d3",
-    "dress_shirt": "c809ac4c9f65fe00",
-    "ocbd": "06950d0f0cbd3c6d",
-    "casual_button_up": "9c12d14c70ade096",   # #163: new; point collar, chest pocket, vented straight hem
-    "flannel_shirt": "f64ec8598d9a7f90",
-    "work_shirt": "e27744a52320dbbc",
+    "rugby_shirt": "fc35361d2bcb0d26",   # #182: jersey surface
+    "dress_shirt": "e1c480d8a22c7920",   # #182: poplin surface
+    "ocbd": "6cea0cb02a91e64c",   # #182: oxford surface
+    "casual_button_up": "cb7328824233b49f",   # #163: new; point collar, chest pocket, vented straight hem; #182: poplin surface
+    "flannel_shirt": "b491a4ccf6438fcd",   # #182: flannel surface
+    "work_shirt": "6b8cfd2cc051a566",   # #182: chambray surface
     "western_shirt": "a1ad566838687b49",
-    "camp_collar_shirt": "33fe64a35259670c",
-    "popover_shirt": "cac441662b38341d",
+    "camp_collar_shirt": "dc86cea5286cd6a8",   # #182: challis surface
+    "popover_shirt": "4c7b47805a7989a1",   # #182: oxford surface
     "band_collar_shirt": "e36611ed2e43240f",   # #110: calmer linen
     "guayabera": "8635571b38df9032",   # #110: calmer linen
-    "overshirt": "dd3a6290ec43cc3a",
-    "tuxedo_shirt": "1da8831867f6be24",   # #110: larger wing tips
-    "crewneck_sweatshirt": "1832fa04fb176c8c",
+    "overshirt": "06f6e4cb356be6b1",   # #182: flannel surface
+    "tuxedo_shirt": "28b78081b6194afd",   # #110: larger wing tips; #182: poplin surface
+    "crewneck_sweatshirt": "8ef1ba5c1c7c3579",   # #182: french terry surface
     "hoodie": "d94a19965cb06860",
     "zip_hoodie": "8893ac4861061caa",
-    "pullover_sweater": "725e485e6f2ba239",
-    "cardigan": "7adab43828f8f794",
-    "shawl_cardigan": "0bc8de3347821e13",
-    "sweater_vest": "2525fdb5d88de43f",   # #110: armhole band keeps its width
-    "quarter_zip": "a6c19157293b4d69",
-    "chore_coat": "55f95cedffe81d08",
+    "pullover_sweater": "ab9e46737cb8df6d",   # #182: lambswool's soft edge
+    "cardigan": "5a7ef550bc921053",   # #182: flat knit surface, merino's fine gauge
+    "shawl_cardigan": "8dadaebcd226c9ce",   # #182: shaker surface, lambswool's soft edge
+    "sweater_vest": "e3a185d363c7fcfe",   # #110: armhole band keeps its width; #182: lambswool's soft edge
+    "quarter_zip": "27bc1f5d9a22353b",   # #182: flat knit surface, merino's fine gauge
+    "chore_coat": "f82ceba2e738d934",   # #182: canvas surface
     "trucker_jacket": "1fd21e47f12d94f2",   # #110: buttoned waistband, not a rib
-    "bomber": "edb93b35920fe310",
-    "harrington": "85c603c5ff653c7a",
-    "field_jacket": "1eab41a1382a9c74",
+    "bomber": "6cc6616e2a294223",   # #182: plain surface
+    "harrington": "db90f35e110582b6",   # #182: gabardine surface
+    "field_jacket": "01c0c23d4cbcab72",   # #182: sateen surface
     "puffer": "ea68fbbdd4556bf6",   # #110: outline swells between channels
     "quilted_jacket": "9daae90d264d9d8d",
     "fleece_jacket": "d1ff07dded0b7647",
-    "barn_jacket": "4a3332cae9f90e8b",
+    "barn_jacket": "f9404968c3a48ca1",   # #182: canvas surface
     "fleece_pullover": "2ec1c00de609e68f",
     "performance_tee": "af4dd6aa727dae5f",
-    "athletic_half_zip": "c45b9acf7d42f45c",
-    "track_jacket": "88e586d396ec8f5c",
-    "trench_coat": "61766ef34e7fc2f6",   # #163: new; self belt
+    "athletic_half_zip": "ab1080303aaa8474",   # #182: interlock surface
+    "track_jacket": "afa6a0b587a04703",   # #182: interlock surface
+    "trench_coat": "5478e9ffe311f812",   # #163: new; self belt; #182: gabardine surface
     "parka": "d5ba24eb82d51c9b",   # #163: new
-    "varsity_jacket": "23fbdbda3caf80ad",   # #163: new; sleeves in the second colour
-    "waxed_jacket": "fe4f98e0209ee993",   # #163: new; cord collar
+    "varsity_jacket": "59fea13692466334",   # #163: new; sleeves in the second colour; #182: melton surface
+    "waxed_jacket": "99d299876a55bb61",   # #163: new; cord collar; #182: waxed surface
     "pants.jeans": "b09a649969597eec",
     "pants.dress": "567a1b5f294a79cc",
     "shoe.derby": "f356f82e866763c4",   # redrawn on purpose: open lacing (#108)
@@ -809,7 +943,9 @@ def test_a_robe_is_tied_with_a_sash_and_velvet_has_a_sheen():
     assert robe["belt"] == "sash" and robe["length"] == "knee" and robe["block"] == "coat"
     sash, buckled = build("top", robe), build("top", {**robe, "belt": True})
     assert sash.anchors == buckled.anchors and sash.parts != buckled.parts
-    assert surface_extras({"fabric": "velvet"})["sheen"] and COVERAGE["woven_structure"]["velvet"][0] == "approximate"
+    # #182: velvet's pile is now drawn as a surface of its own, so it is no longer only approximate
+    velvet = surface_extras({"fabric": "velvet"})
+    assert velvet["sheen"] and velvet["texture"] == "velvet" and COVERAGE["woven_structure"]["velvet"][0] == "drawn"
 
 
 def test_sport_and_lounge_bottoms_draw_apart():

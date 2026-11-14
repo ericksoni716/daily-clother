@@ -37,6 +37,7 @@ async function stubTripWeather(page: import('@playwright/test').Page) {
 }
 
 test.afterEach(async ({ page }) => {
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
   await page.context().setOffline(false);
   await page.request.post('/api/profile', { data: { profile: 'main' } });
 });

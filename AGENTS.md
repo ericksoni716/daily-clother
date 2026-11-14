@@ -67,7 +67,45 @@ The `ci` workflow runs the same checks on every pull request and must be green.
 - Garment drawings: templates keep the same anchor points (neck, shoulders,
   waist, hem, ground) whatever else changes; every taxonomy value is listed in
   `COVERAGE` as drawn, approximate or not drawn; look at a rendered image before
-  calling a drawing done.
+  calling a drawing done. See "Drawing in 3D" below.
+
+## Drawing in 3D
+
+The owner's rule for every drawing (garments, shoes, accessories and the As
+worn figure): **think of each item as a 3D object, flattened into the view.**
+Never treat a drawing as a flat shape to paste on top of the figure.
+
+- **A garment is a shell around a body.** It has a front and a back, and ease
+  (distance from the body) all the way round.
+  - A sleeve is a tube around the arm: the arm goes in at the shoulder and comes
+    out of the opening.
+  - A trouser leg is a tube around the leg.
+  - A collar wraps the neck; its back shows behind it.
+  - A hood sits behind the head and neck.
+- **Paint in depth order, back to front:**
+  1. the back of garments where it shows (inside of the collar, back of the
+     hem, hood);
+  2. the sides and back of loose garment bodies;
+  3. the body;
+  4. garment fronts, inner layers before outer;
+  5. the arms;
+  6. sleeves, wrapped around the arms;
+  7. hands and accessories.
+
+  In a front view, the arms hang beside the torso, so a loose garment's sides
+  are **behind** the arms and only its front panel is in front.
+- **Fit and length come from the 3D shape.**
+  - An oversized tee has a dropped shoulder, a wide sleeve ending near the
+    elbow with the forearm showing, and a roomy body falling straight.
+  - An open coat shows the layers between its fronts.
+  - A shoe has a front, a side and a sole, and the foot sits inside it.
+- **Check it by looking at the render**, at phone size and close up, and ask:
+  would a real garment sit like this on a real person? Any part that hides
+  what it should not (a body covering the arms, a sleeve that does not wrap the
+  arm, a strap through a foot) is wrong, even if the tests pass.
+- The flat-lay item drawings follow the same idea: draw the garment as it
+  would lie or hang in 3D, then flatten it, so the closet tile and the figure
+  read as the same object.
 - Write for the owner, who does not install Python: plain words in the UI and
   docs, no jargon they have not been shown.
 

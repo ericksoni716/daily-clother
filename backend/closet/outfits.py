@@ -5,15 +5,21 @@ count)` takes the closet's items (as `GET /api/items/{id}` returns them) and
 the day, and returns ranked outfits with a score and reasons in plain words.
 The same inputs always give the same outfits in the same order.
 
+The owner's outfit rules (places, layering, temperature bands, rain, formality, colour, pattern and
+proportion) are read from `docs/menswear-taxonomy.json` by `closet/outfit_rules.py`; `rules()` is the one
+place they are looked up, so editing that file changes the outfits. The constants below are the engine's
+own choices where the owner's file is silent (warmth points, seasons, scores).
+
 How it works: every usable item is offered for the places it can fill (base
 top, mid layer, outer layer, bottom, shoes). Pieces that break a rule for the
 day (a hoodie on a business day, shorts at 5°C) are left out; the best few
 for each place are combined; combinations that break a rule between pieces
-(layering order, formality spread, two strong colours, two loud patterns) are
+(layering order, formality spread, competing colours, clashing patterns) are
 dropped; the rest are scored and the best that differ from each other are
 offered, with accessories added last. If the strict rules leave nothing, the
 search is run again with the rules turned into penalties and a warning for
-each one broken, so a small closet still gets an answer.
+each one broken, so a small closet still gets an answer; a rule the owner's file says is never
+broken stays a rule in that second search too.
 """
 from __future__ import annotations
 
@@ -21,21 +27,31 @@ import colorsys
 import itertools
 import math
 import re
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 
-from . import vocab
+from . import outfit_rules, vocab
+
+
+def rules() -> outfit_rules.Rules:
+    """The owner's outfit rules in force (tests swap them with outfit_rules.use)."""
+    return outfit_rules.RULES
+
 
 # ------------------------------------------------------------------ temperature
 DESIGN_TEMP_SHARE = 0.3      # the temperature dressed for: the low plus this share of the way to the high (a layer is easier to take off than to find)
-HOT_C = 24                   # at or above: no mid or outer layer, no cool-season pieces, no heavy tops
-COLD_C = 8                   # at or below: an outer layer whenever the closet has one; warm-season pieces only as a covered base
+# Which layers a day needs or forbids, the weights it prefers, its accessories, shoes and bottoms come from the
+# owner's temperature bands, chosen by the day's high (see _band). The band that is "base only" is the hot one:
+# no mid or outer layer, no cool-season pieces, no heavy tops. A band whose outer layer is required is a cold one:
+# an outer layer whenever the closet has one, warm-season pieces only as a covered base.
 WARM_SEASON_MIN_C = 14       # below this, warm-season pieces cost SEASON_PENALTY (half when they are a covered base)
 COOL_SEASON_MAX_C = 20       # above this, cool-season pieces cost SEASON_PENALTY
 SHORTS_MIN_C = 18            # no shorts below this
 SANDALS_MIN_C = 20           # no sandals below this (nor in rain)
-SCARF_MAX_C = 8              # a scarf is added at or below this
-HAT_MAX_C = 4                # a hat is added at or below this
+BAND_WEIGHT_PENALTY = 2      # per weight class a mid or outer layer is outside what the day's band asks for
+BAND_PREFERRED_BONUS = 2     # shoes or bottoms the day's band names
+FABRIC_BONUS = 1             # a heavy piece on a band that asks for heavier fabrics (a light one when it asks for lighter)
+MID_MISSING_PENALTY = 10     # only when nothing else works: no mid layer on a band that requires one
 
 # How warm an outfit should be, in "warmth points" (a midweight tee is 1, a heavy overcoat 5):
 # target = WARMTH_TARGET_AT_0C - WARMTH_TARGET_PER_C * temperature, never below WARMTH_TARGET_MIN.
@@ -45,7 +61,7 @@ WARMTH_TARGET_MIN = 1.0      # a light tee and shorts
 WARMTH_TOLERANCE = 1.0       # this far either side of the target costs nothing
 WARMTH_SHORT_PER_POINT = 5   # score lost per point too cold beyond the tolerance
 WARMTH_EXCESS_PER_POINT = 3  # score lost per point too warm beyond the tolerance (layers come off; cold is worse)
-HOT_EXCESS_PER_POINT = 8     # the same at or above HOT_C, where nothing can come off
+HOT_EXCESS_PER_POINT = 8     # the same in the "base only" band, where nothing can come off
 WARMTH_NOTE_GAP = 2.0        # beyond the tolerance by more than this, the owner is told
 
 # Warmth points by place and weight class (lightweight, midweight, heavyweight, super_heavy).
@@ -56,7 +72,7 @@ WARMTH = {
     "bottom": (0.5, 1.0, 1.5, 2.0),
 }
 LONG_SLEEVE_WARMTH = 1.0     # added for a long-sleeved base top
-HOT_LONG_SLEEVE_PENALTY = 4  # a long-sleeved base top at or above HOT_C
+HOT_LONG_SLEEVE_PENALTY = 4  # a long-sleeved base top in the "base only" band
 SHORTS_WARMTH = 0.0          # shorts, whatever their cloth
 ACCESSORY_WARMTH = {"scarf": 1.0, "hat": 0.5}
 
@@ -84,15 +100,57 @@ OVERSIZED_BULK = 1           # an oversized fit counts as this many classes bulk
 BASE_UNDER_ANYTHING_MAX = 1  # a base top this light (weight 0-1: midweight or lighter) and not oversized goes under anything
 
 # ------------------------------------------------------------------ places
-PLACES = ("base", "mid", "outer", "bottom", "shoes")
-PLACE_CATEGORIES = {
-    "base": ("tee", "shirt", "polo"),
-    "mid": ("sweater", "hoodie", "shirt", "jacket"),  # a shirt only over a tee; a jacket only under a coat
-    "outer": ("jacket", "coat"),
-    "bottom": ("jeans", "trousers", "shorts"),
-    "shoes": ("sneakers", "boots", "dress_shoes", "sandals"),
-}
-ACCESSORY_CATEGORIES = ("belt", "scarf", "hat", "bag")
+PLACES = outfit_rules.PLACES
+
+
+class _LivePlaces(Mapping):
+    """place -> the app categories the owner's file allows there (read live, so a swapped file is followed)."""
+
+    def __getitem__(self, place: str) -> tuple[str, ...]:
+        if place not in PLACES:
+            raise KeyError(place)
+        return rules().place_categories(place)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(PLACES)
+
+    def __len__(self) -> int:
+        return len(PLACES)
+
+
+class _LiveTuple(Sequence):
+    """A tuple of the owner's rules (accessories, neutrals), read live."""
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+
+    def _get(self) -> tuple[str, ...]:
+        return getattr(rules(), self._name)
+
+    def __getitem__(self, i):  # type: ignore[override]
+        return self._get()[i]
+
+    def __len__(self) -> int:
+        return len(self._get())
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._get())
+
+    def __contains__(self, value: object) -> bool:
+        return value in self._get()
+
+    def __add__(self, other: Sequence) -> tuple:
+        return self._get() + tuple(other)
+
+    def __radd__(self, other: Sequence) -> tuple:
+        return tuple(other) + self._get()
+
+    def __repr__(self) -> str:
+        return repr(self._get())
+
+
+PLACE_CATEGORIES = _LivePlaces()                    # the file's `outfit.places`
+ACCESSORY_CATEGORIES = _LiveTuple("accessories")    # the file's `outfit.places.accessories`
 CANDIDATES_PER_PLACE = 6     # the best this many pieces per place are combined (plus the warmest and lightest)
 
 # ------------------------------------------------------------------ formality
@@ -108,24 +166,41 @@ OCCASION_BANNED = {
     "business": ("hoodie", "sneakers", "sandals", "shorts"),
     "formal": ("hoodie", "sneakers", "sandals", "shorts", "tee", "polo", "jeans"),
 }
-OCCASION_REACH = 1           # each piece sits within this many steps of the occasion
-FORMALITY_SPREAD = 1         # and within this many steps of each other
-OUTER_REACH = 2              # an outer layer may sit this far from the occasion and the rest (a good coat goes over jeans)
+OCCASION_REACH = 1           # each piece sits within this many steps of the occasion, unless the owner's file gives a number
+TOP_CATEGORIES = ("tee", "shirt", "polo", "sweater", "hoodie", "jacket", "coat")  # the "one dressier piece" is one of these
+FORMALITY_SPREAD = 1         # and within this many steps of each other (the file's exceptions allow one more)
+IMPRESSION_WEIGHT = 1.5      # formality distance counts this much more for the places the file says set the impression
+TEXTURE_STEP = 0.5           # smooth cloth counts this much dressier, rough cloth this much more casual
 MOODS = {"usual": 0.0, "sharp": 0.5, "relaxed": -0.5}  # how far the mood moves the formality aimed for
 FORMALITY_PER_STEP = 4       # score lost per step a piece is from the formality aimed for
 
 # ------------------------------------------------------------------ colour and pattern
-NEUTRALS = ("black", "white", "grey", "navy", "tan", "brown", "cream", "olive", "light_blue")
-DENIM_CATEGORIES = ("jeans",)  # blue jeans count as neutral
+NEUTRALS = _LiveTuple("neutrals")   # the file's `colors.families.neutral`
+DENIM_CATEGORIES = ("jeans",)  # denim, with "denim" in the name or material (the file: denim is a neutral blue)
+DENIM_COLORS = ("blue", "light_blue", "navy")
 COLOR_FAMILY = {"red": "red", "burgundy": "red", "pink": "red", "orange": "orange", "yellow": "yellow",
                 "green": "green", "olive": "green", "blue": "blue", "light_blue": "blue", "navy": "blue",
                 "purple": "purple"}
 TONAL_HUE_DEGREES = 25       # two strong colours whose stored hues are this close count as tonal
-LOUD_PATTERNS = ("plaid", "floral", "camo", "graphic", "other")
-MAX_PATTERNED = 2            # at most this many patterned pieces (of which at most one loud)
+LOUD_PATTERNS = outfit_rules.LOUD_PRINTS
+MAX_PATTERNED = 2            # at most this many patterned pieces when the file says nothing about it
 ACCENT_BONUS = 2             # neutrals with exactly one colour
 ALL_NEUTRAL_BONUS = 1        # all neutrals
 BELT_MATCH_BONUS = 2         # a belt the colour of the shoes
+PAIRING_BONUS = 2            # per pairing from the owner's list worn together
+PAIRING_MAX = 4              # at most this much in all
+LIGHT_OVER_DARK_BONUS = 1    # the outer top clearly lighter than the bottom
+LIGHT_OVER_DARK_GAP = 0.25   # lightness (0 black to 1 white) the top must be above the bottom
+NEAR_SHADE_PENALTY = 3       # two pieces next to each other in nearly, not exactly, the same shade
+NEAR_SHADE_RANGE = (0.02, 0.10)  # how far apart two hexes are (0 to 1) to count as nearly the same
+DENIM_WASH_GAP = 0.15        # double denim: lightness apart for clearly different washes
+TONAL_FLAT_PENALTY = 2       # a tonal outfit with every piece the same surface
+
+# ------------------------------------------------------------------ proportion (score only, never a rule)
+PROPORTION_BONUS = 1         # a top and trouser leg that suit each other; shoes that suit the leg
+PROPORTION_PENALTY = 3       # a top and trouser leg that fight (a roomy top on a tapered leg)
+CROPPED_TAPERED_PENALTY = 2  # a cropped top over tapered trousers (the file: higher-rise, straighter trousers)
+SHORT_JACKET_PENALTY = 2     # a short jacket over a long top
 
 # ------------------------------------------------------------------ preference and variety
 SEASON_PENALTY = 6           # a piece out of its season (see WARM_SEASON_MIN_C and COOL_SEASON_MAX_C)
@@ -137,9 +212,8 @@ STORAGE_PENALTY = 2          # a piece put away in storage has to be got out fir
 MIN_PIECES_DIFFERENT = 2     # outfits offered differ by at least this many pieces where the closet allows
 OVERLAP_PENALTY = 4          # when choosing the next outfit to offer, per piece it shares with one already offered
 
-# ------------------------------------------------------------------ rain
-RAIN_UNFRIENDLY_WORDS = ("suede", "canvas", "linen", "silk")  # shoes or outer layers that soak or stain
-RAIN_FRIENDLY_WORDS = ("waxed", "rain", "raincoat", "mac", "trench", "parka", "nylon", "shell", "waterproof", "gore")
+# ------------------------------------------------------------------ rain (which outer layers shed water and which
+# shoes to avoid are the file's `outfit.rain`)
 RAIN_UNFRIENDLY_PENALTY = 8
 RAIN_BOOTS_BONUS = 2
 RAIN_OUTER_BONUS = 2         # any outer layer in rain
@@ -149,7 +223,7 @@ RAIN_FRIENDLY_BONUS = 3      # an outer layer that sheds water
 SCORE_START = 80             # an outfit that breaks nothing and has nothing special scores this
 PIECE_PROBLEM_PENALTY = 20   # only when the strict rules left nothing: per piece that breaks a rule for the day
 OUTFIT_PROBLEM_PENALTY = 15  # likewise, per rule broken between pieces
-OUTER_MISSING_PENALTY = 10   # likewise, no outer layer in the cold when one exists
+OUTER_MISSING_PENALTY = 10   # likewise, no outer layer when the day's band requires one and the closet has one
 
 # ------------------------------------------------------------------ what the owner said about outfits worn (see Feedback)
 OUTFIT_RATINGS = ("loved", "fine", "not_again")
@@ -278,6 +352,13 @@ class Piece:
     rating: str | None
     in_storage: bool
     words: tuple[str, ...]     # material and name, as lower-case words
+    neck: str | None = None    # the silhouette, where the tags give it
+    fit: str | None = None
+    leg: str | None = None
+    top_length: str | None = None
+    pant_length: str | None = None
+    sleeveless: bool = False
+    rgb: tuple[float, float, float] | None = None   # from color_hex, 0-1
 
 
 def _words(text: object) -> tuple[str, ...]:
@@ -294,12 +375,19 @@ def _label(item: dict) -> str:
     return name
 
 
-def _hue(hex_value: object) -> float | None:
+def _rgb(hex_value: object) -> tuple[float, float, float] | None:
     if not isinstance(hex_value, str) or not re.fullmatch(r"#?[0-9a-fA-F]{6}", hex_value.strip()):
         return None
     h = hex_value.strip().lstrip("#")
     r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
-    hue, light, sat = colorsys.rgb_to_hls(r, g, b)
+    return r, g, b
+
+
+def _hue(hex_value: object) -> float | None:
+    rgb = _rgb(hex_value)
+    if rgb is None:
+        return None
+    hue, light, sat = colorsys.rgb_to_hls(*rgb)
     return hue * 360 if sat > 0.2 and 0.1 < light < 0.9 else None
 
 
@@ -333,13 +421,25 @@ def _piece(item: dict) -> Piece | None:
     formality = item.get("formality") if item.get("formality") in FORMALITY else CATEGORY_FORMALITY.get(category, "casual")
     sleeve = sil.get("sleeve")
     long_sleeve = sleeve == "long" if sleeve else category in ("shirt", "sweater", "hoodie", "jacket", "coat")
+
+    def shape(key: str) -> str | None:
+        v = sil.get(key)
+        return v if v in vocab.SILHOUETTE.get(key, ()) else None
+
     return Piece(
         id=str(item["id"]), label=_label(item), category=category,
         color=item.get("color") if item.get("color") in vocab.COLOR else None, hue=_hue(item.get("color_hex")),
         pattern=item.get("pattern") if item.get("pattern") in vocab.PATTERN else "solid",
-        formality=FORMALITY.index(formality), season=item.get("season") if item.get("season") in vocab.SEASON else "all",
+        formality=_level(formality), season=item.get("season") if item.get("season") in vocab.SEASON else "all",
         weight=weight, bulk=weight + (OVERSIZED_BULK if sil.get("fit") == "oversized" else 0), long_sleeve=long_sleeve,
-        rating=item.get("rating") if item.get("rating") in vocab.RATING else None, in_storage=item.get("location") == "storage", words=mat + name)
+        rating=item.get("rating") if item.get("rating") in vocab.RATING else None, in_storage=item.get("location") == "storage", words=mat + name,
+        neck=shape("neck"), fit=shape("fit"), leg=shape("leg"), top_length=shape("top_length"),
+        pant_length=shape("pant_length"), sleeveless=sleeve == "none", rgb=_rgb(item.get("color_hex")))
+
+
+def _level(formality: str) -> int:
+    """A formality as a number, in the owner's order of levels."""
+    return rules().levels.index(formality)
 
 
 # ====================================================================== words
@@ -389,10 +489,109 @@ def _warmth(p: Piece, place: str) -> float:
     return ACCESSORY_WARMTH.get(p.category, 0.0)
 
 
+def _band(ctx: Context) -> outfit_rules.Band:
+    """The owner's temperature band for the day, chosen by its high (the file's `high_min`)."""
+    return rules().band(ctx.high_c)
+
+
+def bare(ctx: Context) -> bool:
+    """The day is in the owner's "base only" band: nothing over the base top."""
+    return _band(ctx).bare
+
+
+def needs_outer(ctx: Context) -> bool:
+    """The owner's band for the day requires an outer layer."""
+    return _band(ctx).outer == "must"
+
+
+def _reach() -> int:
+    r = rules().reach
+    return OCCASION_REACH if r is None else r
+
+
+# ---------------------------------------------------------------- what a piece is (the file's words are finer than
+# the app's categories; its name, material and silhouette say which)
+def _turtle(p: Piece) -> bool:
+    return p.neck == "turtle" or any(w in p.words for w in ("turtleneck", "rollneck", "mockneck"))
+
+
+def _collared(p: Piece) -> bool:
+    return p.neck == "collar" or p.category in ("shirt", "polo")
+
+
+def _hoodie(p: Piece) -> bool:
+    return p.category == "hoodie" or p.neck == "hood" or "hoodie" in p.words
+
+
+def _is_kind(p: Piece, kind: str | None) -> bool:
+    if kind is None:
+        return True
+    w = p.words
+    if kind == "long_sleeve":
+        return p.long_sleeve
+    if kind == "tank":
+        return p.sleeveless or any(x in w for x in outfit_rules.KIND_WORDS["tank"])
+    if kind == "fine_turtleneck":
+        return _turtle(p) and (p.weight == 0 or any(x in w for x in outfit_rules.FINE_KNIT_WORDS))
+    if kind == "light":
+        return p.weight <= 1
+    if kind == "sport_coat":
+        return "sportcoat" in w or ("sport" in w and "coat" in w)
+    if kind == "overshirt":
+        return any(x in w for x in outfit_rules.KIND_WORDS["overshirt"]) or ("shirt" in w and "jacket" in w)
+    return any(x in w for x in outfit_rules.KIND_WORDS.get(kind, (kind,)))
+
+
+def _blazer(p: Piece) -> bool:
+    return p.category == "jacket" and (_is_kind(p, "blazer") or _is_kind(p, "sport_coat"))
+
+
+def _needs(p: Piece, place: str) -> frozenset[str] | None:
+    """None if the owner's places do not put this piece here; empty if it goes here as it is; otherwise what it
+    must be worn with there (any one of them)."""
+    needs = set()
+    for slot in rules().slots(place, p.category):
+        if _is_kind(p, slot.kind):
+            if slot.needs is None:
+                return frozenset()
+            needs.add(slot.needs)
+    return frozenset(needs) if needs else None
+
+
+def _fits(p: Piece, place: str) -> bool:
+    return _needs(p, place) is not None
+
+
+def _need_met(need: str, base: Piece, outer: Piece | None) -> bool:
+    if need == "over_tee":
+        return base.category == "tee"
+    if need == "under_coat":
+        return outer is not None and outer.category == "coat"
+    return False
+
+
+def _texture(p: Piece) -> int:
+    """1 for smooth cloth (dressier), -1 for rough (more casual), 0 when the words say neither."""
+    if any(w in p.words for w in outfit_rules.ROUGH_WORDS):
+        return -1
+    return 1 if any(w in p.words for w in outfit_rules.SMOOTH_WORDS) else 0
+
+
+def _textured(p: Piece) -> bool:
+    return p.pattern == "solid" and any(w in p.words for w in outfit_rules.TEXTURED_WORDS)
+
+
+def _lightness(p: Piece) -> float | None:
+    if p.rgb is not None:
+        return (max(p.rgb) + min(p.rgb)) / 2
+    return rules().shade_lightness.get(p.color or "")
+
+
+# ---------------------------------------------------------------- one piece, the day
 def _formality_off(p: Piece, place: str, occasion: str) -> int:
     """-1 if the piece is too casual for the occasion, 1 if too dressy, 0 if it fits."""
-    occ = FORMALITY.index(occasion)
-    reach = OUTER_REACH if place == "outer" else OCCASION_REACH
+    occ = _level(occasion)
+    reach = _reach()
     if p.category in OCCASION_BANNED.get(occasion, ()) or p.formality < occ - reach:
         return -1
     return 1 if p.formality > occ + reach else 0
@@ -411,27 +610,31 @@ def _piece_problem(p: Piece, place: str, ctx: Context, t: float) -> str | None:
         return "Sandals are no good in the rain."
     if p.category == "sandals" and t < SANDALS_MIN_C:
         return f"It is too cold for sandals at {_temp_words(ctx)}."
-    if t >= HOT_C and p.season == "cool":
+    band = _band(ctx)
+    if band.bare and p.season == "cool":
         return f"{_the(p, True)} is made for cooler days than {_temp_words(ctx)}."
-    if t >= HOT_C and place == "base" and p.weight >= 2:
+    if band.bare and place == "base" and p.weight >= 2:
         return f"{_the(p, True)} is too heavy for {_temp_words(ctx)}."
-    if t <= COLD_C and p.season == "warm" and place != "base":
+    if band.outer == "must" and p.season == "warm" and place != "base":
         return f"{_the(p, True)} is made for warmer days than {_temp_words(ctx)}."
     return None
 
 
 def _rain_unfriendly(p: Piece) -> str | None:
-    return next((w for w in RAIN_UNFRIENDLY_WORDS if w in p.words), None)
+    """The word that says these shoes should stay home in the rain (the file: avoid suede shoes)."""
+    return next((w for w in rules().rain_avoid_shoes if w in p.words), None)
 
 
 def _rain_friendly(p: Piece) -> bool:
-    return any(w in p.words for w in RAIN_FRIENDLY_WORDS)
+    return any(w in p.words for w in rules().rain_words)
 
 
 def _piece_score(p: Piece, place: str, ctx: Context, t: float) -> float:
     """Everything about a piece that does not depend on the rest of the outfit."""
-    target = FORMALITY.index(ctx.occasion) + MOODS[ctx.mood]
-    s = -FORMALITY_PER_STEP * abs(p.formality - target)
+    R = rules()
+    target = _level(ctx.occasion) + MOODS[ctx.mood]
+    level = p.formality + (TEXTURE_STEP * _texture(p) if R.texture_formality else 0)
+    s = -FORMALITY_PER_STEP * (IMPRESSION_WEIGHT if place in R.impression else 1) * abs(level - target)
     s += RATING_SCORE.get(p.rating or "", 0)
     days = ctx.worn_days_ago.get(p.id)
     if days is not None and days < RECENT_WEAR_DAYS:
@@ -443,10 +646,21 @@ def _piece_score(p: Piece, place: str, ctx: Context, t: float) -> float:
         s -= SEASON_PENALTY
     if p.in_storage:
         s -= STORAGE_PENALTY
-    if place == "base" and p.long_sleeve and t >= HOT_C:
+    band = _band(ctx)
+    if place == "base" and p.long_sleeve and band.bare:
         s -= HOT_LONG_SLEEVE_PENALTY
+    if place in band.weights:
+        lo, hi = band.weights[place]
+        s -= BAND_WEIGHT_PENALTY * max(lo - p.weight, p.weight - hi, 0)
+    if band.fabrics and place in ("base", "mid", "outer", "bottom") and (
+            p.weight >= 2 if band.fabrics > 0 else p.weight == 0):
+        s += FABRIC_BONUS
+    if place == "shoes" and any(c == p.category and _is_kind(p, k) for c, k in band.shoes):
+        s += BAND_PREFERRED_BONUS
+    if place == "bottom" and any(c == p.category and (h is None or p.weight <= h) for c, h in band.bottoms):
+        s += BAND_PREFERRED_BONUS
     if ctx.rain and place in ("shoes", "outer"):
-        if _rain_unfriendly(p):
+        if place == "shoes" and _rain_unfriendly(p):
             s -= RAIN_UNFRIENDLY_PENALTY
         if place == "shoes" and p.category == "boots":
             s += RAIN_BOOTS_BONUS
@@ -455,20 +669,46 @@ def _piece_score(p: Piece, place: str, ctx: Context, t: float) -> float:
     return s
 
 
+# ---------------------------------------------------------------- pieces together
+class _Hard(str):
+    """A problem between pieces that the owner's file says is never done: no search, strict or not, offers it."""
+
+
 def _layers_ok(base: Piece, mid: Piece | None, outer: Piece | None) -> bool:
-    """Nothing is worn over something heavier or bulkier than itself."""
-    if mid is not None:
-        if mid.category == "shirt" and base.category != "tee":
+    """The owner's layering rules: each piece in a place the file allows (a shirt as a mid layer only over a tee,
+    a light jacket only under a coat), nothing collared under a turtleneck, a sweater vest only over a shirt,
+    nothing long under a cropped jacket, and nothing worn over something heavier or bulkier than itself."""
+    R = rules()
+    for p, place in ((mid, "mid"), (outer, "outer")):
+        if p is None:
+            continue
+        needs = _needs(p, place)
+        if needs is None or (needs and not any(_need_met(n, base, outer) for n in needs)):
             return False
-        if mid.category == "jacket" and (outer is None or outer.category != "coat"):
+    if mid is not None:
+        if R.vest_over_shirt and mid.category == "sweater" and _is_kind(mid, "vest") and base.category != "shirt":
+            return False
+        if R.collar_turtle and _turtle(mid) and _collared(base):
             return False
     stack = [p for p in (base, mid, outer) if p is not None]
+    if R.long_under_short:
+        for i, inner in enumerate(stack):
+            if inner.top_length == "long" and any(
+                    o.category in ("jacket", "coat") and o.top_length == "cropped" for o in stack[i + 1:]):
+                return False
+    if not R.layer_order:
+        return True
     return all(a.weight <= b.weight and a.bulk <= b.bulk for a, b in itertools.pairwise(stack)
                if not (a is base and base.weight <= BASE_UNDER_ANYTHING_MAX and base.bulk == base.weight))
 
 
+def _denim(p: Piece) -> bool:
+    return (p.category in DENIM_CATEGORIES or "denim" in p.words) and p.color in DENIM_COLORS
+
+
 def _neutral(p: Piece) -> bool:
-    return p.color is None or p.color in NEUTRALS or (p.category in DENIM_CATEGORIES and p.color == "blue")
+    R = rules()
+    return p.color is None or p.color in R.neutrals or (R.denim_neutral and _denim(p))
 
 
 def _tonal(a: Piece, b: Piece) -> bool:
@@ -482,40 +722,234 @@ def _tonal(a: Piece, b: Piece) -> bool:
     return False
 
 
-def _formality_clash(clothes: list[Piece], outer: Piece | None) -> tuple[Piece, Piece] | None:
-    """Two pieces too far apart in formality (the outer layer is allowed further), or None."""
-    lo = min(clothes, key=lambda p: (p.formality, p.id))
-    hi = max(clothes, key=lambda p: (p.formality, p.id))
-    if hi.formality - lo.formality > FORMALITY_SPREAD:
-        return hi, lo
-    if outer is not None:
-        for p in clothes:
-            if abs(outer.formality - p.formality) > OUTER_REACH:
-                return (outer, p) if outer.formality > p.formality else (p, outer)
-    return None
+def _paired(a: Piece, b: Piece) -> bool:
+    """The owner lists these two colours as a pairing."""
+    pair = (a.color, b.color)
+    return any(pair == x or pair == x[::-1] for x in rules().pairings)
 
 
-def _outfit_problems(pieces: list[Piece], clothes: list[Piece], outer: Piece | None = None) -> list[str]:
-    """Rules between pieces: formality spread, colour, pattern. Sentences; empty when all is well.
+def _colour_words(c: str | None) -> str:
+    return "a mix of colours" if c == "multi" else (c or "").replace("_", " ")
 
-    `clothes` are the pieces under the outer layer (and the shoes), whose formality must sit close together.
+
+def _accent_groups(accents: list[Piece]) -> list[list[Piece]]:
+    """Accent pieces grouped where they are tonal or a listed pairing: each group is one accent."""
+    groups: list[list[Piece]] = []
+    for p in accents:
+        home = next((g for g in groups if any(_tonal(p, q) or _paired(p, q) for q in g)), None)
+        if home is None:
+            groups.append([p])
+        else:
+            home.append(p)
+    return groups
+
+
+def _share_colour(a: Piece, b: Piece) -> bool:
+    return (a.color is None or b.color is None or a.color == b.color or "multi" in (a.color, b.color)
+            or _tonal(a, b))
+
+
+def _formality_clash(clothes: list[Piece], outer: Piece | None, occasion: str | None = None) -> tuple[Piece, Piece] | None:
+    """Two pieces too far apart in formality, or None. The owner's exceptions: one dressier piece on top (the file's
+    example is a blazer over a tee and jeans) may sit a level further above the rest, and on the occasions the file
+    names the shoes may sit a level further below."""
+    pieces = list(clothes) + ([outer] if outer is not None and outer not in clothes else [])
+    if len(pieces) < 2:
+        return None
+    lo = min(pieces, key=lambda p: (p.formality, p.id))
+    hi = max(pieces, key=lambda p: (p.formality, p.id))
+    if hi.formality - lo.formality <= FORMALITY_SPREAD:
+        return None
+    R = rules()
+    ups: list[Piece | None] = [None]
+    tops = [p for p in pieces if p.formality == hi.formality]
+    if R.one_dressier and len(tops) == 1 and tops[0].category in TOP_CATEGORIES:
+        ups.append(tops[0])
+    downs: list[Piece | None] = [None]
+    lows = [p for p in pieces if p.formality == lo.formality]
+    if occasion in R.down_in_shoes and len(lows) == 1 and lows[0].category in outfit_rules.SHOE_CATEGORIES:
+        downs.append(lows[0])
+    for up, down in itertools.product(ups, downs):
+        if up is None and down is None:
+            continue
+        rest = [p for p in pieces if p is not up and p is not down]
+        if not rest:
+            return None
+        rlo, rhi = min(p.formality for p in rest), max(p.formality for p in rest)
+        if rhi - rlo > FORMALITY_SPREAD:
+            continue
+        if up is not None and up.formality - rlo > FORMALITY_SPREAD + 1:
+            continue
+        if down is not None and rhi - down.formality > FORMALITY_SPREAD + 1:
+            continue
+        return None
+    return hi, lo
+
+
+def _outfit_problems(pieces: list[Piece], clothes: list[Piece], outer: Piece | None = None,
+                     occasion: str | None = None) -> list[str]:
+    """The owner's rules between pieces (formality, colour, pattern), as sentences; empty when all is well.
+
+    `clothes` are the pieces under the outer layer (and the shoes), whose formality must sit close together;
+    `pieces` are all the pieces whose colours and patterns are checked. A sentence that is a `_Hard` breaks a
+    rule the owner's file says is never broken.
     """
-    out = []
-    clash = _formality_clash(clothes, outer) if clothes else None
-    if clash:
-        out.append(f"{_the(clash[0], True)} is a lot dressier than {_the(clash[1])}.")
-    strong = [p for p in pieces if not _neutral(p)]
-    for a, b in itertools.combinations(strong, 2):
-        if not _tonal(a, b):
-            out.append(f"{_the(a, True)} and {_the(b)} are two strong colours that compete.")
-            break
-    loud = [p for p in pieces if p.pattern in LOUD_PATTERNS]
+    R = rules()
+    out: list[str] = []
+    if clothes:
+        clash = _formality_clash(clothes, outer, occasion)
+        if clash:
+            out.append(f"{_the(clash[0], True)} is a lot dressier than {_the(clash[1])}.")
+        if R.athletic_with is not None:
+            every = list(clothes) + ([outer] if outer is not None else [])
+            sporty = [p for p in every if R.levels[p.formality] == "athletic"]
+            other = [p for p in every if R.levels[p.formality] not in R.athletic_with]
+            if sporty and other:
+                out.append(_Hard(f"{_the(sporty[0], True)} is sporty and {_the(other[0])} is "
+                                 f"{LEVEL_WORDS[R.levels[other[0].formality]]}: sporty pieces only go with "
+                                 f"{_join([LEVEL_WORDS[x] for x in R.athletic_with if x != 'athletic'])} ones."))
+        if R.hoodie_blazer and occasion not in (None, "athletic", "casual") and outer is not None and _blazer(outer) \
+                and any(_hoodie(p) for p in clothes):
+            out.append(f"A hoodie under {_the(outer)} is streetwear, not {OCCASION_WORDS[occasion]}.")
+
+    accents = [p for p in pieces if not _neutral(p)]
+    groups = _accent_groups(accents)
+    limit = R.max_accents if R.max_accents is not None else 1
+    if len(groups) > limit:
+        a, b = groups[0][0], groups[1][0] if len(groups) > 1 else groups[0][-1]
+        out.append(f"{_the(a, True)} and {_the(b)} are two strong colours that compete; "
+                   f"build on neutrals with {'no accent' if limit == 0 else 'one accent'}.")
+    elif R.max_brights is not None and occasion != "athletic":
+        bright = list({p.color: p for p in accents if p.color in R.brights}.values())
+        if len(bright) > R.max_brights:
+            out.append(f"{_the(bright[0], True)} and {_the(bright[1])} are two bright colours; "
+                       "one is the most outside sportswear.")
+    if R.double_denim:
+        for a, b in itertools.combinations([p for p in pieces if _denim(p)], 2):
+            if a.rgb and b.rgb:
+                apart = abs((_lightness(a) or 0) - (_lightness(b) or 0)) >= DENIM_WASH_GAP
+            else:
+                apart = a.color != b.color
+            if not apart:
+                out.append(f"{_the(a, True)} and {_the(b)} are double denim in washes too alike.")
+                break
+    shoes = [p for p in pieces if p.category == "dress_shoes" and p.color]
+    bottoms = [p for p in pieces if p.category in ("trousers", "jeans", "shorts") and p.color]
+    for s, b in itertools.product(shoes, bottoms):
+        for colour, only, never in R.shoe_colours:
+            if s.color == colour and (b.color in never or (only and b.color not in only)):
+                rule = (f"{colour} shoes go with everything but {_join(list(never))}" if never
+                        else f"{colour} shoes go with {_join([_colour_words(c) for c in only])}")
+                out.append(f"{_the(s, True)} and {_the(b)} do not go together: {rule}.")
+
     patterned = [p for p in pieces if p.pattern != "solid"]
+    loud = [p for p in patterned if p.pattern in LOUD_PATTERNS]
     if len(loud) > 1:
-        out.append(f"{_the(loud[0], True)} and {_the(loud[1])} are two bold patterns together.")
-    elif len(patterned) > MAX_PATTERNED:
-        out.append(f"{_join([_the(p) for p in patterned]).capitalize()} are too many patterns at once.")
+        out.append(f"{_the(loud[0], True)} and {_the(loud[1])} are two loud patterns together.")
+    elif loud and R.loud_focus:
+        other = next((p for p in pieces if p is not loud[0] and (p.pattern != "solid" or not _neutral(p))), None)
+        if other is not None:
+            out.append(f"{_the(loud[0], True)} is a loud print, so the rest should be plain and neutral; "
+                       f"{_the(other)} is not.")
+    else:
+        if R.same_type_never:
+            same = next(((a, b) for a, b in itertools.combinations(patterned, 2) if a.pattern == b.pattern), None)
+            if same:
+                out.append(_Hard(f"{_the(same[0], True)} and {_the(same[1])} are two {same[0].pattern} patterns "
+                                 "side by side."))
+        if R.two_shared_colour:
+            apart = next(((a, b) for a, b in itertools.combinations(patterned, 2) if not _share_colour(a, b)), None)
+            if apart:
+                out.append(f"{_the(apart[0], True)} and {_the(apart[1])} are two patterns with no colour in common.")
+        count = len(patterned) + R.textured_weight * sum(1 for p in pieces if _textured(p))
+        cap = (3 if occasion in outfit_rules.TAILORING else 2) if R.tailoring_three else MAX_PATTERNED
+        if len(patterned) > 1 and count > cap:
+            out.append(f"{_join([_the(p) for p in patterned]).capitalize()} are too many patterns at once.")
     return out
+
+
+def _style(base: Piece | None, mid: Piece | None, outer: Piece | None, bottom: Piece | None, shoes: Piece | None,
+           explain: bool = False) -> tuple[float, list[str], list[str]]:
+    """What the owner's colour and proportion rules add to or take off an outfit (never a reason to drop it), and,
+    when `explain`, the reasons and warnings that say so."""
+    R = rules()
+    s = 0.0
+    reasons: list[str] = []
+    warnings: list[str] = []
+    pieces = [p for p in (base, mid, outer, bottom, shoes) if p is not None]
+    accents = [p for p in pieces if not _neutral(p)]
+    if not accents:
+        s += ALL_NEUTRAL_BONUS
+    elif len(accents) == 1:
+        s += ACCENT_BONUS
+    if R.pairings:
+        found = []
+        for a, b in itertools.combinations(pieces, 2):
+            if a.color != b.color and _paired(a, b):
+                pair = frozenset((a.color, b.color))
+                if pair not in found:
+                    found.append(pair)
+        s += min(PAIRING_MAX, PAIRING_BONUS * len(found))
+        if explain and found:
+            first = next(x for x in R.pairings if frozenset(x) == found[0])
+            reasons.append(f"{_colour_words(first[0]).capitalize()} and {_colour_words(first[1])} go together.")
+    top = mid or base
+    if R.light_over_dark and top is not None and bottom is not None:
+        lt, lb = _lightness(top), _lightness(bottom)
+        if lt is not None and lb is not None and lt - lb >= LIGHT_OVER_DARK_GAP:
+            s += LIGHT_OVER_DARK_BONUS
+            if explain:
+                reasons.append(f"A light top over darker {bottom.category}, the usual contrast.")
+    if R.near_shades:
+        for a, b in ((base, mid), (mid, outer), (top, bottom)):
+            if a is None or b is None or a.rgb is None or b.rgb is None or a.color != b.color:
+                continue
+            d = math.dist(a.rgb, b.rgb) / math.sqrt(3)
+            if NEAR_SHADE_RANGE[0] < d < NEAR_SHADE_RANGE[1]:
+                s -= NEAR_SHADE_PENALTY
+                if explain:
+                    warnings.append(f"{_the(a, True)} and {_the(b)} are nearly, but not quite, the same "
+                                    f"{_colour_words(a.color)}, which looks like a mistake.")
+                break
+    if R.tonal_texture and len(accents) >= 2 and all(_tonal(a, b) for a, b in itertools.combinations(accents, 2)):
+        if len({(_texture(p), _textured(p)) for p in accents}) == 1:
+            s -= TONAL_FLAT_PENALTY
+            if explain:
+                warnings.append("A tonal outfit needs a mix of textures, and these pieces are all the same surface.")
+        elif explain:
+            reasons.append("Tonal, with a mix of textures to keep it interesting.")
+    # proportions: score only
+    shape = outer if outer is not None and outer.category in ("jacket", "coat") else top
+    if bottom is not None and bottom.leg and shape is not None:
+        roomy = shape.fit == "oversized" or any(w in shape.words for w in ("relaxed", "boxy", "oversized"))
+        kind = "roomy" if roomy else "slim" if shape.fit == "slim" else None
+        suits = R.fit_legs.get(kind or "")
+        if suits:
+            if bottom.leg in suits:
+                s += PROPORTION_BONUS
+            else:
+                s -= PROPORTION_PENALTY
+                if explain:
+                    warnings.append(f"{_the(shape, True)} is {'roomy' if roomy else 'slim'} and "
+                                    f"{_the(bottom)} {'are' if bottom.category in ('jeans', 'trousers', 'shorts') else 'is'} "
+                                    f"{bottom.leg}: the proportions fight a little.")
+        if R.cropped_straight and shape.top_length == "cropped" and bottom.leg == "tapered":
+            s -= CROPPED_TAPERED_PENALTY
+    if R.short_jacket and outer is not None and outer.category == "jacket" and outer.top_length == "cropped" and any(
+            p.top_length == "long" for p in (base, mid) if p is not None):
+        s -= SHORT_JACKET_PENALTY
+    if shoes is not None and bottom is not None:
+        if R.shoe_legs and bottom.leg:
+            chunky = shoes.category == "boots" or _is_kind(shoes, "chunky")
+            sleek = shoes.category == "dress_shoes" or _is_kind(shoes, "loafer")
+            if (chunky and bottom.leg == "wide") or (sleek and bottom.leg == "tapered"):
+                s += PROPORTION_BONUS
+        if R.shoe_break and bottom.pant_length:
+            ideal = ("ankle" if shoes.category == "sneakers" or _is_kind(shoes, "loafer")
+                     else "full" if shoes.category in ("dress_shoes", "boots") else None)
+            if ideal == bottom.pant_length:
+                s += PROPORTION_BONUS
+    return s, reasons, warnings
 
 
 # ====================================================================== search
@@ -550,7 +984,7 @@ def _options(pool: list[Piece], place: str, ctx: Context, t: float, forced: tupl
              strict: bool) -> list[_Option]:
     out = []
     for p in pool:
-        if p.category not in PLACE_CATEGORIES[place]:
+        if not _fits(p, place):
             continue
         if forced is not None:
             if forced[0].id == p.id and forced[1] != place:
@@ -561,7 +995,7 @@ def _options(pool: list[Piece], place: str, ctx: Context, t: float, forced: tupl
         problem = None if is_forced else _piece_problem(p, place, ctx, t)
         if problem and strict:
             continue
-        if place in ("mid", "outer") and t >= HOT_C and not is_forced:
+        if place in ("mid", "outer") and getattr(_band(ctx), place) == "no" and not is_forced:
             continue
         score = _piece_score(p, place, ctx, t) - (PIECE_PROBLEM_PENALTY if problem else 0)
         out.append(_Option(p, place, score, _warmth(p, place), problem))
@@ -577,16 +1011,26 @@ def _options(pool: list[Piece], place: str, ctx: Context, t: float, forced: tupl
 
 def _search(pool: list[Piece], ctx: Context, t: float, forced: tuple[Piece, str] | None, strict: bool,
             warmth_shift: float = 0.0) -> list[_Outfit]:
+    """Every outfit the pool makes for the day. `strict`: no rule broken. Otherwise rules become penalties, and a
+    layer the day's band requires is left out only when no outfit can have it. A `_Hard` problem is never offered."""
     opts = {place: _options(pool, place, ctx, t, forced, strict) for place in PLACES}
     if not opts["base"] or not opts["bottom"] or not opts["shoes"]:
         return []
     target = _warmth_target(t) + warmth_shift
     mids: list[_Option | None] = list(opts["mid"])
     outers: list[_Option | None] = list(opts["outer"])
-    if not (forced and forced[1] == "mid"):
+    band = _band(ctx)
+    need_mid = band.mid == "must" and any(_fits(p, "mid") for p in pool)
+    need_outer = band.outer == "must" and any(_fits(p, "outer") for p in pool)
+    if ctx.rain and rules().rain_outer_must and not band.bare:
+        # the owner: in rain the outer layer must be water-resistant. With one in the closet that suits the day it is
+        # worn; without, any outer layer may be, with the warning to take an umbrella
+        dry = [o for o in outers if o is not None and _rain_friendly(o.piece)]
+        if dry:
+            outers, need_outer = list(dry), True
+    if not (forced and forced[1] == "mid") and not (need_mid and strict):
         mids.append(None)
-    cold_needs_outer = t <= COLD_C and any(p.category in PLACE_CATEGORIES["outer"] for p in pool)
-    if not (forced and forced[1] == "outer") and not (cold_needs_outer and (strict or outers)):
+    if not (forced and forced[1] == "outer") and not (need_outer and strict):
         outers.append(None)
     found = []
     for base, mid, outer in itertools.product(opts["base"], mids, outers):
@@ -598,33 +1042,33 @@ def _search(pool: list[Piece], ctx: Context, t: float, forced: tuple[Piece, str]
         for bottom, shoes in itertools.product(opts["bottom"], opts["shoes"]):
             core = [o for o in (base, mid, outer, bottom, shoes) if o is not None]
             clothes = [o.piece for o in core]
-            problems = _outfit_problems(clothes, [o.piece for o in core if o is not outer], outer.piece if outer else None)
-            if problems and strict:
+            problems = _outfit_problems(clothes, [o.piece for o in core if o is not outer], outer.piece if outer else None,
+                                        ctx.occasion)
+            if problems and (strict or any(isinstance(x, _Hard) for x in problems)):
                 continue
             warmth = sum(o.warmth for o in core)
-            raw = sum(o.score for o in core) - _warmth_penalty(warmth, target, t)
+            raw = sum(o.score for o in core) - _warmth_penalty(warmth, target, band.bare)
             raw -= OUTFIT_PROBLEM_PENALTY * len(problems)
-            if not strict and cold_needs_outer and outer is None:
+            if not strict and need_outer and outer is None:
                 raw -= OUTER_MISSING_PENALTY
-            raw += _colour_bonus(clothes)
+            if not strict and need_mid and mid is None:
+                raw -= MID_MISSING_PENALTY
+            raw += _style(base.piece, mid.piece if mid else None, outer.piece if outer else None, bottom.piece,
+                          shoes.piece)[0]
             found.append(_Outfit(base, mid, outer, bottom, shoes, raw, problems))
+    for place, needed in (("outer", need_outer), ("mid", need_mid)):
+        if needed and any(getattr(o, place) is not None for o in found):
+            found = [o for o in found if getattr(o, place) is not None]
     return found
 
 
-def _warmth_penalty(warmth: float, target: float, t: float) -> float:
+def _warmth_penalty(warmth: float, target: float, hot: bool) -> float:
     gap = warmth - target
     if gap < -WARMTH_TOLERANCE:
         return WARMTH_SHORT_PER_POINT * (-gap - WARMTH_TOLERANCE)
     if gap > WARMTH_TOLERANCE:
-        return (HOT_EXCESS_PER_POINT if t >= HOT_C else WARMTH_EXCESS_PER_POINT) * (gap - WARMTH_TOLERANCE)
+        return (HOT_EXCESS_PER_POINT if hot else WARMTH_EXCESS_PER_POINT) * (gap - WARMTH_TOLERANCE)
     return 0.0
-
-
-def _colour_bonus(pieces: list[Piece]) -> float:
-    strong = [p for p in pieces if not _neutral(p)]
-    if not strong:
-        return ALL_NEUTRAL_BONUS
-    return ACCENT_BONUS if len(strong) == 1 else 0.0
 
 
 def _shared(a: _Outfit, b: _Outfit) -> int:
@@ -656,22 +1100,26 @@ def _pick(found: list[_Outfit], count: int) -> list[_Outfit]:
 
 def _add_accessories(o: _Outfit, pool: list[Piece], ctx: Context, t: float, forced: tuple[Piece, str] | None) -> None:
     clothes = [x.piece for x in o.core()]
-    for category in ACCESSORY_CATEGORIES:
+    R = rules()
+    band = _band(ctx)
+    for category in R.accessories:
         if forced and forced[1] == "accessory" and forced[0].category == category:
             o.accessories.append(_Option(forced[0], "accessory", _piece_score(forced[0], "accessory", ctx, t),
                                          _warmth(forced[0], "accessory"), None))
             clothes.append(forced[0])
             continue
-        wanted = ((category == "scarf" and t <= SCARF_MAX_C) or (category == "hat" and t <= HAT_MAX_C)
-                  or (category == "belt" and o.bottom.piece.category in ("trousers", "jeans")))
+        wanted = (category in band.accessories
+                  or (category == "belt" and R.belt_with_loops and o.bottom.piece.category in ("trousers", "jeans")))
         if not wanted:
             continue
         best = None
         for p in pool:
             if p.category != category or (forced and forced[0].id == p.id):
                 continue
-            if _piece_problem(p, "accessory", ctx, t) or _outfit_problems(clothes + [p], []):
+            if _piece_problem(p, "accessory", ctx, t) or _outfit_problems(clothes + [p], [], None, ctx.occasion):
                 continue
+            if category == "belt" and ctx.occasion in R.belt_match_on and p.color != o.shoes.piece.color:
+                continue   # the owner: the belt matches the shoes on these days, so no belt rather than the wrong one
             score = _piece_score(p, "accessory", ctx, t)
             if category == "belt" and p.color == o.shoes.piece.color:
                 score += BELT_MATCH_BONUS
@@ -701,7 +1149,9 @@ def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | Non
     target = _warmth_target(t) + (feedback.warmth_shift if feedback else 0.0)
     warmth = sum(x.warmth for x in every)
     tops = [x.piece for x in (o.base, o.mid, o.outer) if x is not None]
-    if len(tops) == 1 and t >= HOT_C:
+    band = _band(ctx)
+    R = rules()
+    if len(tops) == 1 and band.bare:
         reasons.append(f"One light layer for {_temp_words(ctx)}.")
     elif len(tops) > 1:
         heavier_out = all(a.weight <= b.weight for a, b in itertools.pairwise(tops))
@@ -720,18 +1170,23 @@ def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | Non
             warnings.append(f"This is lighter than {_temp_words(ctx)} calls for; take another layer if you will be out long.")
     elif warmth > target + WARMTH_TOLERANCE + WARMTH_NOTE_GAP:
         warnings.append(f"This is warmer than {_temp_words(ctx)} calls for; nothing lighter suited the rest.")
+    if band.mid == "must" and o.mid is None:
+        warnings.append(f"A high of {_deg(ctx.high_c)} calls for a middle layer too, such as a sweater, and none "
+                        "went with the rest.")
+    elif band.outer == "must" and o.outer is None and closet_outers:
+        warnings.append(f"A high of {_deg(ctx.high_c)} calls for a coat or jacket, and none went with the rest.")
 
     under = [x.piece for x in core if x is not o.outer]
     levels = sorted({p.formality for p in under})
-    clean = not _formality_clash(under, o.outer.piece if o.outer else None) and not any(
+    clean = not _formality_clash(under, o.outer.piece if o.outer else None, ctx.occasion) and not any(
         _formality_off(x.piece, x.place, ctx.occasion) for x in core)
     if clean:
         occasion = OCCASION_WORDS[ctx.occasion]
         if len(levels) == 1:
-            reasons.append(f"Everything is {LEVEL_WORDS[FORMALITY[levels[0]]]}, right for {occasion}.")
+            reasons.append(f"Everything is {LEVEL_WORDS[R.levels[levels[0]]]}, right for {occasion}.")
         else:
-            reasons.append(f"Everything sits between {LEVEL_WORDS[FORMALITY[levels[0]]]} and "
-                           f"{LEVEL_WORDS[FORMALITY[levels[-1]]]}, right for {occasion}.")
+            reasons.append(f"Everything sits between {LEVEL_WORDS[R.levels[levels[0]]]} and "
+                           f"{LEVEL_WORDS[R.levels[levels[-1]]]}, right for {occasion}.")
     if o.outer is not None and clean and levels and o.outer.piece.formality > levels[-1]:
         reasons.append(f"{_the(o.outer.piece, True)} is dressier than the rest, which is fine for the layer on top.")
     if ctx.mood != "usual":
@@ -752,7 +1207,16 @@ def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | Non
     if len(loud) == 1 and len(patterned) == 1:
         reasons.append(f"{_the(loud[0], True)} is the only pattern; everything else is plain.")
     elif len(patterned) == 1:
-        reasons.append(f"The {patterned[0].pattern} of {_the(patterned[0])} is the only pattern.")
+        reasons.append(f"The {patterned[0].pattern} of {_the(patterned[0])} is the only pattern"
+                       f"{', always safe' if R.one_pattern_safe else ''}.")
+    _, style_reasons, style_warnings = _style(*(x.piece if x else None for x in (o.base, o.mid, o.outer, o.bottom, o.shoes)),
+                                              explain=True)
+    reasons += style_reasons
+    warnings += style_warnings
+    if R.turtle_for_tie and o.outer is not None and (o.outer.piece.category == "coat" or _blazer(o.outer.piece)):
+        turtle = next((x.piece for x in (o.base, o.mid) if x is not None and _turtle(x.piece)), None)
+        if turtle is not None:
+            reasons.append(f"{_the(turtle, True)} stands in for a shirt and tie under {_the(o.outer.piece)}.")
 
     loved = [x.piece for x in every if x.piece.rating == "love"]
     if loved:
@@ -770,9 +1234,8 @@ def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | Non
             reasons.append(f"{_the(o.outer.piece, True)} keeps the rain off.")
         else:
             warnings.append("Rain is expected and nothing here keeps it off; take an umbrella.")
-        for x in (o.outer, o.shoes):
-            if x is not None and (word := _rain_unfriendly(x.piece)):
-                warnings.append(f"{_the(x.piece, True)} is {word} and may not like the rain.")
+        if word := _rain_unfriendly(o.shoes.piece):
+            warnings.append(f"{_the(o.shoes.piece, True)} are {word}, which the rain spoils.")
 
     for x in every:
         if x.problem and not (forced and x.piece.id == forced[0].id):
@@ -788,7 +1251,7 @@ def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | Non
             warnings.append(f"{_the(x.piece, True)} is in storage; get it out first.")
 
     raw = o.raw + sum(x.score for x in o.accessories)
-    raw += _warmth_penalty(sum(x.warmth for x in core), target, t) - _warmth_penalty(warmth, target, t)
+    raw += _warmth_penalty(sum(x.warmth for x in core), target, band.bare) - _warmth_penalty(warmth, target, band.bare)
     score = max(0, min(100, round(SCORE_START + raw)))
     return score, reasons, warnings
 
@@ -987,7 +1450,7 @@ def suggest(items: list[dict], context: Context | dict, count: int = DEFAULT_COU
         if forced_piece.category in ACCESSORY_CATEGORIES:
             forced_places = ["accessory"]
         else:
-            forced_places = [pl for pl in PLACES if forced_piece.category in PLACE_CATEGORIES[pl]]
+            forced_places = [pl for pl in PLACES if _fits(forced_piece, pl)]
 
     pool = [p for p, it in everything if not _unavailable(it, ctx) or (forced_piece and p.id == forced_piece.id)]
     missing = [m for place in ("base", "bottom", "shoes") if (m := _missing_place(place, everything, pool, ctx))]
@@ -1031,7 +1494,7 @@ def suggest(items: list[dict], context: Context | dict, count: int = DEFAULT_COU
         what = f"goes with {_the(forced_piece)}" if forced_piece else "works together today"
         return {"outfits": [], "missing": [f"Nothing in the closet {what}."]}
     forced_of = {id(o): f for o, f in found}
-    closet_outers = [p for p in pool if p.category in PLACE_CATEGORIES["outer"]]
+    closet_outers = [p for p in pool if _fits(p, "outer")]
     result = []
     for rank, o in enumerate(_pick([o for o, _ in found], count)):
         forced = forced_of[id(o)]

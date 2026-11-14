@@ -200,15 +200,16 @@ def _place(p: outfits.Piece) -> str:
 
 
 def _places(p: outfits.Piece) -> list[str]:
-    return [pl for pl in outfits.PLACES if p.category in outfits.PLACE_CATEGORIES[pl]] or ["accessory"]
+    return [pl for pl in outfits.PLACES if outfits._fits(p, pl)] or ["accessory"]
 
 
 def _suits(p: outfits.Piece, ctx: outfits.Context, t: float) -> bool:
     """The piece itself is right for the day in one of its places, whatever it is worn with."""
-    if p.category == "scarf" and t > outfits.SCARF_MAX_C or p.category == "hat" and t > outfits.HAT_MAX_C:
+    band = outfits._band(ctx)
+    if p.category in ("scarf", "hat") and p.category not in band.accessories:
         return False
     for place in _places(p):
-        if place in ("mid", "outer") and t >= outfits.HOT_C:
+        if place in ("mid", "outer") and getattr(band, place) == "no":
             continue
         if not outfits._piece_problem(p, place, ctx, t):
             return True
@@ -230,9 +231,9 @@ def _problems(outfit: dict, cand: outfits.Piece, by_id: Mapping[str, outfits.Pie
         out.append(s)
     outer = core.get("outer")
     clothes = list(core.values())
-    out += outfits._outfit_problems(clothes, [q for q in clothes if q is not outer], outer)
+    out += outfits._outfit_problems(clothes, [q for q in clothes if q is not outer], outer, ctx.occasion)
     if cand in accessories:
-        out += outfits._outfit_problems(clothes + [cand], [])
+        out += outfits._outfit_problems(clothes + [cand], [], None, ctx.occasion)
     warmth = sum(outfits._warmth(q, pl) for pl, q in core.items()) + sum(outfits._warmth(q, "accessory") for q in accessories)
     target = outfits._warmth_target(t)
     if warmth < target - outfits.WARMTH_TOLERANCE - outfits.WARMTH_NOTE_GAP:
@@ -497,10 +498,10 @@ def _holds_back(c: gaps._Closet, cand: outfits.Piece, tried: list[dict], fills: 
     over = {"base": ("mid", "outer"), "mid": ("outer",)}.get(place, ())
 
     def shape_allows(q: outfits.Piece, pl: str) -> bool:
-        # the engine's rules about which kinds go over which, which are not about weight
-        if pl == "mid" and q.category == "shirt" and cand.category != "tee":
-            return False
-        return not (pl == "mid" and q.category == "jacket")
+        # the owner's rules about which kinds go over which, which are not about weight: a shirt as a mid layer
+        # only over a tee, a light jacket only under a coat
+        needs = outfits._needs(q, pl)
+        return needs is not None and (not needs or ("over_tee" in needs and cand.category == "tee"))
 
     layers = [(q, pl) for q in owned for pl in over if gaps._fills(q, pl) and shape_allows(q, pl)]
 

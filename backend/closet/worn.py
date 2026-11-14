@@ -245,7 +245,7 @@ def place_pieces(rows: list) -> dict:
     if len(tops) == 3:
         pieces["mid"], pieces["outer"] = tops[1]["id"], tops[2]["id"]
     elif len(tops) == 2:
-        pieces["outer" if tops[1]["category"] in outfits.PLACE_CATEGORIES["outer"] else "mid"] = tops[1]["id"]
+        pieces["outer" if tops[1]["category"] in ("jacket", "coat") else "mid"] = tops[1]["id"]
     return pieces
 
 

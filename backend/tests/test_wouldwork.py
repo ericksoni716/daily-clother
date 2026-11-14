@@ -91,7 +91,10 @@ def test_the_very_trousers_a_gap_asks_for_fill_it():
 
 def test_the_very_coat_a_gap_asks_for_fills_it():
     items, wears = demo()
-    a = wouldwork.check(without(items, "coat"), wears, {"category": "coat", "color": "navy", "weight_class": "heavyweight"})
+    # business: the owner's rules keep every piece, the coat too, within one level of the occasion, so a smart casual
+    # coat no longer covers formal days
+    a = wouldwork.check(without(items, "coat"), wears, {"category": "coat", "color": "navy", "weight_class": "heavyweight",
+                                                        "formality": "business"})
     assert a["verdict"] == "fills_gap"
     assert gap_in(a, "outer-warm")["gone"] and "A warm winter coat" in a["reasons"][0]
 
@@ -131,7 +134,8 @@ def test_what_partners_lack_is_said_of_as_many_as_it_is_true_of(closet):
     a = check(closet, {"category": "trousers", "color": "purple", "formality": "formal", "pattern": "plaid"})
     tops = next(h for h in a["holds_back"] if "tops go" in h)
     # several reasons, each counted: never "they are all ..." of the commonest reason alone
-    assert "they are all" not in tops and "three have a strong colour" in tops
+    # five: the owner's neutrals do not include light blue, so the light blue shirts count as a colour
+    assert "they are all" not in tops and "five have a strong colour" in tops
 
 
 def test_the_days_it_would_cover_are_days_it_makes_a_good_outfit_on(closet):

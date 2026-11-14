@@ -23,9 +23,9 @@ def climate(band=None, wet=0.3):
 def test_unanswered_demo_is_the_original_analysis_exactly():
     original = gaps.find_gaps(demo_items(), options={"max_gaps": 100})
     assert [(g["id"], g["score"]) for g in original["gaps"]] == [
-        ("outer-rain", 71), ("dress_shoes-business", 65), ("outer-warm", 35),
-        ("trousers-business", 34), ("shirt-business", 26), ("belt-smart_casual", 20),
-        ("trousers-business-light", 16), ("sweater-business-warm", 5)]
+        ("outer-rain", 71), ("dress_shoes-business", 65), ("outer", 35), ("outer-warm", 35),
+        ("trousers-business", 31), ("shirt-business-light", 28), ("shirt-business", 26), ("belt-smart_casual", 20),
+        ("trousers-business-light", 16), ("sweater-business", 5)]
     personalized = life.analyse(demo_items(), [], None, climate("hot"))
     assert personalized.pop("taste") == {"used": False, "summary": None}
     for gap in personalized["gaps"]:

@@ -13,7 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from closet import app as app_module
-from closet import db, images, spend, wouldjobs
+from closet import db, images, life, spend, wouldjobs
 from closet.tagger import routes as tagger_routes
 from closet.tagger.tagging import RouteUnavailable
 
@@ -89,6 +89,22 @@ def test_by_hand_in_the_demo_closet_starts_then_answers(client):
     assert answer["verdict"] == "fills_gap" and answer["fills"][0]["gap_id"] == "outer-rain"
     demo_ids = {i["id"] for i in client.get("/api/items").json()["items"]}
     assert answer["goes_with"]["items"] and set(answer["goes_with"]["items"]) <= demo_ids
+
+
+def test_the_check_is_weighed_once_the_owner_has_said_how_they_live(client):
+    def answer():
+        return wait(client, client.post("/api/would-this-work", json={"piece": COAT}).json()["id"])["answer"]
+
+    plain = answer()
+    assert plain["weighed"] is False and plain["situations"] == [] and plain["situations_text"] is None
+    assert client.put("/api/settings", json={"life": life.example()[0]}).status_code == 200
+    assert answer()["weighed"] is True
+    # the demo closet's list is weighed by its example answers, and so is its check
+    client.post("/api/profile", json={"profile": "demo"})
+    demo = answer()
+    assert demo["weighed"] is True and demo["verdict"] == "fills_gap"
+    assert demo["fills"][0]["gap_id"] == "outer-rain" and demo["fills"][0]["situations"]
+    assert demo["situations"] and demo["situations_text"].startswith("It suits ")
 
 
 def test_nothing_is_added_to_the_closet(client):

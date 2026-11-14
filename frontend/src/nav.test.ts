@@ -28,6 +28,7 @@ describe('the lit navigation link', () => {
     ['/missing/check', 'missing', 'missing'],
     ['/missing/check/wish/w1', 'missing', 'missing'],
     ['/add', 'add', 'add'],
+    ['/add/several/s1', 'add', 'add'],
     ['/settings', 'settings', 'settings'],
   ])('%s lights %s in the sidebar and %s on the phone', (path, sidebar, tab) => {
     expect(lit(path)).toEqual({ sidebar, tab });

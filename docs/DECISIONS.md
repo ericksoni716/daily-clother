@@ -190,6 +190,24 @@ The rules live in `backend/closet/outfits.py`; every number is a named constant 
 | Scores start at 80 for an outfit that breaks nothing; loved pieces, one accent colour and rain-ready pieces add, distance from the formality aimed for and warmth off target subtract | So that 100 is rare and a relaxed-pass outfit is visibly lower. |
 | The API answers 422 for a build-around id not in the open closet; the engine on its own answers with a `missing` sentence | A wrong id from the screen is a bug to show; the engine itself never raises for a closet's contents. `suggest` takes `worn_days_ago` from the request; `today` fills it from the wear log. |
 
+### The owner's outfit rules (#150)
+
+The engine now reads its places, layering, temperature bands, rain, formality, colour, pattern and proportion rules from the `outfit` and `colors` blocks of `docs/menswear-taxonomy.json` (`backend/closet/outfit_rules.py` turns the owner's sentences into rules; restart the app after editing the file). Where the table above disagrees with the owner's file, the file wins; the rows "Bands", "Places", "Layering", "Formality", "Colour", "Pattern", "Rain" and the scarf and hat thresholds of "Accessories" are now the owner's, not hand-written constants.
+
+| Decision | Why |
+|---|---|
+| A whole block missing from the file is read from the old hand-written rules (written in the file's own words in `FALLBACK_OUTFIT`); an empty block means no rule | Deleting a block by mistake should not leave the engine with no rules at all. |
+| The band is chosen by the day's high; the warmth target is still the low plus 30% of the way to the high | The file's bands are named by `high_min`. Within a band the warmth points still pick the pieces. |
+| A layer the band says "must" be worn is required only when some outfit in the closet can have it | A small closet still gets an answer, with a warning that the layer is missing. |
+| In rain, "outer must be water-resistant" restricts the outer layer to ones whose name or material sheds water only when the closet has one; otherwise any outer is offered with a warning | Otherwise a closet without a raincoat would get nothing on a cold rainy day. |
+| Never-break rules (the file says "never" or "only"): two patterns of the same type side by side, athletic pieces with dressier ones, and the layering order are excluded even from the relaxed pass; ratings never override them | The issue asks hard rules to stay hard. |
+| "One dressier piece is fine" applies to a top piece (tee, shirt, polo, sweater, hoodie, jacket, coat) only | The file's example is a blazer; dressy trousers with a tee are not what it means. |
+| Every piece, the outer layer too, sits within the file's reach of the occasion; the old two-step outer reach is gone | The file says "every piece within one level". A smart casual coat therefore no longer covers formal days. |
+| Colour families are #152's `taxonomy.COLOR_FAMILIES` (kept equal to the file by a test), read through the rules: neutrals and brights from it, and strong colours that are tonal, share an earth, cool or warm family (not two brights) or are a listed pairing count as one accent; light blue is no longer neutral | One mapping of the owner's families for the whole app; "two neutrals plus at most one accent" then means one accent colour family. |
+| Shoe colour rules apply to dress shoes; belt-matches-shoes picks no belt rather than a wrong colour | Sneakers and boots are casual and the file's rule is about tailoring. |
+| Proportion rules only add or take points, with a warning; they never exclude | The issue says so. |
+| Not read (listed in `Rules.unread`): watch, eyewear and gloves (no app category), the tuck rule (the app does not record tucking), pattern scale (not tagged) | The engine cannot express them yet. |
+
 ### Today's outfits by themselves
 
 `POST /api/outfits/today` fills the day for the engine: the weather (`backend/closet/weather.py`), the wear log and the laundry (`backend/closet/today.py`). The engine itself is unchanged; it already read the laundry state as the wear log stores it (`clean` or `laundry`).
@@ -560,6 +578,24 @@ owner's own and other real photos (bench/experiments/patterns, with notes there)
 | Each measured colour gets the nearest colour word (the drawn shade plus two more shades per word); Claude's word is kept when it is at most ΔE 12 further away | Claude's words stay where the photo agrees with them; the limits are starting values to tune on the owner's photos. |
 | The item's main colour becomes the largest measured colour unless Claude's main colour covers at least ¾ as much, and its shade becomes the measured one; both stay the tagger's (confidence 0.9) and a colour or shade the owner set is never changed | The outfit engine and What's missing read `color` as before, so matching improves with no change there. The measured colour is part of Claude's side like the drawing, not an entry in the history; it is laid over again after describing again or undoing. |
 | The measured colours are kept inside `items.pattern_fill` with the pattern they were measured for, and used only while the item still has that pattern; the item page shows them as swatches beside the pattern word | No schema change. Items measured before this are not measured again for it: they get colours the next time they are described or their pattern changes. |
+
+## Several items from one photo
+
+The owner photographs several pieces laid out together and gets one item per piece (#151). Video sweeps are out
+(the owner's decision).
+
+| Decision | Why |
+|---|---|
+| Claude finds the pieces (`tagger/garments.py`): one box per separate piece, in pixels of the photo shrunk to 1024, turned into fractions; the larger model, as for landmarks; same routes, same monthly limit, purpose `find_garments`, an estimate checked before each API request | The issue preferred this to a new detection model, and no dependency is added. Placing edges on a photo is where the tagging model was weakest. At the prices written down one photo costs at most about 8¢ with the API key. |
+| The boxes are tidied before the owner sees them: cut to the photo, under 3% of a side dropped, two overlapping 80% or more (shared area over joint area) joined, at most 20 | Claude sometimes boxes the same piece twice; a suit's jacket over its trousers overlaps far less than that, so stays two pieces. The thresholds are starting values to tune on the owner's photos. |
+| The owner checks every box before anything is added: remove, join two, move or resize by the corners (pointer events, so touch works), add one; nothing is guessed at "Add" | Claude's boxes on a cluttered bed are not known to be right; checking costs seconds and a wrong item costs more. |
+| The photo is kept once, in `source_photos` and `images/sources/<id>/` (migration 0022); each item is an ordinary item whose photo is its box cut out of it with 2% of the photo around it, and remembers the photo and box (`items.source_photo_id`, `items.source_box`) | Each item is then cut out, described, drawn and pattern-measured by the existing queue with no special case. The margin keeps a piece's edges when Claude's box is tight. |
+| Each item's photo carries the source file's hash; a photo already kept, or already in the closet as an item, is not kept again, as in bulk import | The same file sent twice, or once as one piece and once as several, never adds pieces twice. |
+| Any change by the owner ends the wait for Claude: a later answer is dropped (`UPDATE … WHERE state = 'finding'`) | An answer must never overwrite boxes the owner has started on. |
+| The cutouts beside the boxes are made by the same models, on demand, and kept until the items are added; while the model is not ready the page shows the box's part of the photo | The owner sees what each item will be; nothing is made for a box that moves again. |
+| The photo goes with the last of its items deleted; a photo not added can be forgotten | Nothing is kept for nothing; an archived item keeps it. |
+| Bulk import marks a whole choice (files or a folder) as "several items per photo" with the same switch on Add | One switch for one photo and for a folder; a mixed folder is imported in two goes. |
+| The demo closet never asks Claude: its photos wait for the owner to draw the boxes | As for describing: the demo never sends photos to Claude. |
 
 ## Phase 0 findings
 

@@ -388,7 +388,8 @@ def test_colour_families_come_from_the_owners_taxonomy():
     from closet.tagger.taxonomy import COLOR_FAMILIES
     taxonomy = json.loads((Path(__file__).resolve().parents[2] / "docs" / "menswear-taxonomy.json").read_text())
     assert {k: list(v) for k, v in COLOR_FAMILIES.items()} == taxonomy["colors"]["families"]
-    assert outfits.NEUTRALS == COLOR_FAMILIES["neutral"] and outfits.BRIGHTS == COLOR_FAMILIES["bright"]
+    # read live from the owner's rules (outfit_rules), so compared as tuples
+    assert tuple(outfits.NEUTRALS) == COLOR_FAMILIES["neutral"] and tuple(outfits.BRIGHTS) == COLOR_FAMILIES["bright"]
     def piece(c):
         return outfits._piece(item(c, "tee", c, "casual"))
     # earth tones go together; so do cool colours; two brights compete even in one family; no shared family competes

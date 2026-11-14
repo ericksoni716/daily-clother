@@ -1,13 +1,23 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type DragEvent } from 'react';
 import { api } from '../api';
 import { CameraIcon, CheckIcon, CloudOffIcon, ImagesIcon, WarnIcon } from '../components/Icons';
-import { Notice, PageHeader } from '../components/ui';
+import { Card, Notice, PageHeader, SegmentedControl } from '../components/ui';
 import { filesFromDrop, splitPhotos } from '../resize';
-import { Link, useMediaQuery } from '../router';
-import { importLine } from '../spend';
+import { Link, navigate, useMediaQuery } from '../router';
+import { sourceLine } from '../several';
+import { aboutUsd, importLine } from '../spend';
 import { useCloset } from '../store';
 import { countEntries, type QueueEntry, type UploadStatus } from '../uploadQueue';
 import { addFiles, cancelImport, clearFinished, previewOf, uploads } from '../uploads';
+import type { SourcePhoto } from '../types';
+import './Several.css';
+
+type Mode = 'one' | 'several';
+const MODES = [
+  { value: 'one', label: 'One item per photo' },
+  { value: 'several', label: 'Several items per photo' },
+] as const;
+const OPEN_POLL_MS = 3000;
 
 const STATUS_TEXT: Record<UploadStatus, string> = {
   waiting: 'Waiting',
@@ -96,14 +106,49 @@ export function AddScreen() {
 
   // what the photos could cost to describe with the API key, shown only when the owner allows the key
   const [perPhotoUsd, setPerPhotoUsd] = useState<number | null>(null);
+  const [perFindUsd, setPerFindUsd] = useState<number | null>(null);
   useEffect(() => {
     if (offline || profile === 'demo') return;
     let current = true;
-    api.tagSpend().then((s) => current && setPerPhotoUsd(s.allowed ? s.per_photo_usd : null), () => undefined);
+    api.tagSpend().then((s) => {
+      if (!current) return;
+      setPerPhotoUsd(s.allowed ? s.per_photo_usd : null);
+      setPerFindUsd(s.allowed ? s.per_find_usd : null);
+    }, () => undefined);
     return () => {
       current = false;
     };
   }, [offline, profile]);
+
+  const [mode, setMode] = useState<Mode>('one');
+  const several = mode === 'several';
+  // one photo of several pieces sent on its own: its pieces are checked as soon as it is in
+  const [follow, setFollow] = useState<string | null>(null);
+  useEffect(() => {
+    if (!follow) return;
+    const entry = queue.find((e) => e.id === follow);
+    if (entry && ['waiting', 'resizing', 'uploading'].includes(entry.status)) return;
+    setFollow(null);
+    if (entry?.sourceId && (entry.status === 'done' || entry.status === 'duplicate')) {
+      navigate(`/add/several/${encodeURIComponent(entry.sourceId)}`);
+    }
+  }, [follow, queue]);
+
+  // the photos of several pieces whose pieces are not added yet
+  const [open, setOpen] = useState<SourcePhoto[]>([]);
+  const sentSeveral = queue.filter((e) => e.sourceId).length;
+  const looking = open.some((s) => s.state === 'finding' && !s.note);
+  useEffect(() => {
+    if (offline) return;
+    let current = true;
+    const look = () => api.sources().then((list) => current && setOpen(list), () => undefined);
+    void look();
+    const t = looking ? window.setInterval(look, OPEN_POLL_MS) : undefined;
+    return () => {
+      current = false;
+      if (t) window.clearInterval(t);
+    };
+  }, [offline, profile, sentSeveral, looking]);
 
   const counts = countEntries(queue);
   const pending = counts.waiting + counts.uploading;
@@ -114,8 +159,9 @@ export function AddScreen() {
     const files = Array.from(list ?? []);
     if (!files.length) return;
     const { photos, skipped } = splitPhotos(files);
-    const alreadyListed = photos.length ? addFiles(photos) : 0;
+    const { ids, skipped: alreadyListed } = photos.length ? addFiles(photos, several) : { ids: [], skipped: 0 };
     setNote(describeAdded(photos.length - alreadyListed, alreadyListed, skipped));
+    if (several && photos.length === 1 && ids.length === 1) setFollow(ids[0]);
   }
 
   async function onDrop(e: DragEvent) {
@@ -151,7 +197,20 @@ export function AddScreen() {
         </div>
       ) : (
         <>
-          <p className="muted add-intro">One piece of clothing per photo works best: lay it flat or hang it against a plain wall. Closet removes the background for you. Photos already in your closet are recognised and not added twice.</p>
+          <SegmentedControl label="What each photo holds" options={MODES} value={mode} onChange={setMode} className="add-mode" />
+          {several ? (
+            <>
+              <p className="muted add-intro" data-testid="several-intro">Lay several pieces out with a little space between them, on the bed or the floor, and take one photo.
+                {profile === 'demo' ? ' You draw a box around each piece' : ' Claude finds each piece'}, you check the boxes, and each becomes an item of its own.
+                {desktop ? ' A folder chosen now is treated the same way: every photo in it holds several pieces.' : ''}</p>
+              {profile === 'demo' && <Notice as="p">The demo closet never sends photos to Claude, so you draw the boxes yourself.</Notice>}
+              {profile !== 'demo' && perFindUsd !== null && (
+                <p className="muted small" data-testid="several-cost">Finding the pieces costs {aboutUsd(perFindUsd)} a photo at most with the API key, if your plan can't be used; then each piece is described like any other photo{perPhotoUsd !== null ? ` (${aboutUsd(perPhotoUsd)} each at most)` : ''}.</p>
+              )}
+            </>
+          ) : (
+            <p className="muted add-intro">One piece of clothing per photo works best: lay it flat or hang it against a plain wall. Closet removes the background for you. Photos already in your closet are recognised and not added twice.</p>
+          )}
 
           {counts.missing > 0 && (
             <div className="notice notice-warn resume" data-testid="resume">
@@ -202,6 +261,24 @@ export function AddScreen() {
 
       {note && <p className="notice import-note" role="status" data-testid="import-note">{note}</p>}
 
+      {open.length > 0 && !offline && (
+        <section className="several-open" aria-labelledby="several-open-title">
+          <h2 id="several-open-title">Photos of several pieces to check</h2>
+          <Card>
+            {open.map((s) => (
+              <Link key={s.id} to={`/add/several/${encodeURIComponent(s.id)}`} className="several-open-row" data-testid="several-open">
+                <img src={s.thumb_url} alt="" loading="lazy" />
+                <span className="several-open-text">
+                  <span>{sourceLine(s.state, s.boxes.length, s.note)}</span>
+                  <span className="muted small">{s.note && s.state === 'finding' ? s.note : 'Check the boxes, then add the items.'}</span>
+                </span>
+                <span className="btn btn-small">Check</span>
+              </Link>
+            ))}
+          </Card>
+        </section>
+      )}
+
       {longBatch && !paused && !offline && (
         <p className="notice">Keep this screen on until the uploads finish. {pending} photos to go.</p>
       )}
@@ -231,7 +308,7 @@ export function AddScreen() {
           </ul>
           {!pending && counts.missing === 0 && (
             <div className="row queue-done">
-              {counts.done > 0 && <Link to="/" className="btn btn-primary">See them in your closet</Link>}
+              {queue.some((e) => e.status === 'done' && !e.sourceId) && <Link to="/" className="btn btn-primary">See them in your closet</Link>}
               {counts.failed > 1 && <button className="btn" onClick={() => uploads.retryFailed()}>Retry all that didn't work</button>}
               <button className="btn btn-ghost" onClick={clearFinished}>Clear list</button>
             </div>
@@ -262,6 +339,9 @@ function QueueRow({ entry }: { entry: QueueEntry }) {
         {entry.error && <span className={entry.status === 'failed' ? 'queue-error' : 'queue-note'} data-testid="queue-error">{entry.error}</span>}
       </div>
       {entry.status === 'failed' && <button className="btn btn-small" onClick={() => uploads.retry(entry.id)}>Retry</button>}
+      {entry.sourceId && (entry.status === 'done' || entry.status === 'duplicate') && (
+        <Link to={`/add/several/${encodeURIComponent(entry.sourceId)}`} className="btn btn-small">Check the pieces</Link>
+      )}
     </li>
   );
 }

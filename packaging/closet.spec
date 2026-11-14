@@ -96,6 +96,10 @@ for required in ("web/index.html", "demo_data/items.json", "demo_data/tiny.heic"
 TAGGER = os.path.join(PKG, "tagger")
 if not os.path.isfile(os.path.join(TAGGER, "models.json")):
     fail("backend/closet/tagger/models.json is missing")
+# the owner's outfit rules are read from the taxonomy file: <_MEIPASS>/closet/tagger/menswear-taxonomy.json
+TAXONOMY = os.path.join(REPO, "docs", "menswear-taxonomy.json")
+if not os.path.isfile(TAXONOMY):
+    fail("docs/menswear-taxonomy.json is missing")
 
 migrations = tree(os.path.join(PKG, "migrations"), os.path.join("closet", "migrations"), suffixes=(".sql",))
 if not migrations:
@@ -106,6 +110,7 @@ datas = (
     + tree(os.path.join(PKG, "demo_data"), os.path.join("closet", "demo_data"))
     + tree(os.path.join(PKG, "web"), os.path.join("closet", "web"))
     + [(os.path.join(TAGGER, "models.json"), os.path.join("closet", "tagger"))]
+    + [(TAXONOMY, os.path.join("closet", "tagger"))]
 )
 
 # --- native libraries -----------------------------------------------------

@@ -249,7 +249,9 @@ def test_a_find_can_be_removed_and_goes_with_its_wish(client, cfg):
 def test_the_finds_are_checked_against_the_closet_with_the_would_this_work_rules(cfg):
     demo.ensure(cfg)
     rows, worn = app_module.closet_inputs(cfg, "demo")
-    coat = shop.clean_find(product())
+    # heavyweight: under the owner's bands (#150) a midweight mac is short of warm on the cold rainy days, and a smart
+    # casual coat is too far from sport and formal days, so a midweight one covers too few of the rain gap's days
+    coat = shop.clean_find(product(weight_class="heavyweight"))
     polo = shop.clean_find(product(name="Navy polo", url="https://shop.example/polo", category="polo", color="navy",
                                    formality="smart_casual", season="warm", rain_proof=False, weight_class="midweight"))
     verdicts = shop.judge(rows, worn, [coat["piece"], polo["piece"]])

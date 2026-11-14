@@ -65,15 +65,16 @@ SLEEPWEAR_NIGHTS = 7         # one set of sleepwear for every this many nights (
 GLOVES_MAX_C = 2             # gloves when a day is dressed for at or below this (°C)
 
 # ------------------------------------------------------------------ what to pack, grouped
-# The outfit engine's places: a shirt worn over a tee is still a top, a jacket under a coat still outer.
-_PLACE = outfits.PLACE_CATEGORIES
+# Each closet category in one group, by its kind of clothing (KINDS, from the taxonomy), whatever place the outfit
+# engine puts it in: a shirt worn over a tee or as an overshirt is still a top, a jacket under a coat still outer.
+_KIND_CATEGORIES = {kind: tuple(c for c, k in KIND_OF.items() if k == kind) for kind in KIND_KEYS}
 GROUPS = (
-    ("tops", _PLACE["base"]),
-    ("layers", tuple(c for c in _PLACE["mid"] if c not in _PLACE["base"] + _PLACE["outer"])),
-    ("bottoms", _PLACE["bottom"]),
-    ("shoes", _PLACE["shoes"]),
-    ("outer", _PLACE["outer"]),
-    ("accessories", outfits.ACCESSORY_CATEGORIES),
+    ("tops", _KIND_CATEGORIES["tops"]),
+    ("layers", _KIND_CATEGORIES["knits"]),
+    ("bottoms", _KIND_CATEGORIES["bottoms"]),
+    ("shoes", tuple(outfits.PLACE_CATEGORIES["shoes"])),
+    ("outer", _KIND_CATEGORIES["outer"]),
+    ("accessories", tuple(outfits.ACCESSORY_CATEGORIES)),
 )
 GROUP_OF = {c: g for g, cats in GROUPS for c in cats}
 GROUP_ORDER = [g for g, _ in GROUPS]
@@ -193,7 +194,7 @@ def _flags(o: outfits._Outfit, ctx: outfits.Context, t: float) -> frozenset[str]
     if ctx.rain:
         if outfits._rain_unfriendly(o.shoes.piece):
             out.add("wet_shoes")
-        if t < outfits.HOT_C and not (o.outer is not None and outfits._rain_friendly(o.outer.piece)):
+        if not outfits.bare(ctx) and not (o.outer is not None and outfits._rain_friendly(o.outer.piece)):
             out.add("rain")
     return frozenset(out)
 
@@ -341,7 +342,7 @@ class _Planner:
         self.used: dict[str, int] = {}
         self.acc_used: dict[str, int] = {}
         self.packed: dict[str, outfits.Piece] = {pid: self.by_id[pid] for pid in opts.pin if pid in self.by_id}
-        self.outers = [p for p in pool if p.category in outfits.PLACE_CATEGORIES["outer"]]
+        self.outers = [p for p in pool if outfits._fits(p, "outer")]
         self._refs: dict[tuple, _Reference | str] = {}
 
     # ------------------------------------------------------------ re-wearing
@@ -374,7 +375,7 @@ class _Planner:
                 word = outfits._rain_unfriendly(best.shoes.piece)
                 problem = (f"Nothing rain-proof to wear on your feet: the shoes that suit the day are {word} "
                            "and will soak through. The outfit below is the best there is.")
-            ref = _Reference(best.raw, _flags(best, d.ctx, d.t), d.t <= outfits.COLD_C and bool(self.outers), problem)
+            ref = _Reference(best.raw, _flags(best, d.ctx, d.t), outfits.needs_outer(d.ctx) and bool(self.outers), problem)
         self._refs[key] = ref
         return ref
 
@@ -415,7 +416,7 @@ class _Planner:
         packed = [p for p in free if p.id in self.packed]
         pools = [packed]
         for place in outfits.PLACES:
-            opened = packed + [p for p in free if p.id not in self.packed and p.category in outfits.PLACE_CATEGORIES[place]]
+            opened = packed + [p for p in free if p.id not in self.packed and outfits._fits(p, place)]
             if len(opened) > len(packed):
                 pools.append(opened)
         best = None
@@ -540,7 +541,7 @@ class _Planner:
         if nights:
             sleep = 1 if self.washes else math.ceil(nights / SLEEPWEAR_NIGHTS)
             out.append({"key": "sleepwear", "name": "Sleepwear", "count": sleep})
-        rainy = [d for d in order if d.ctx.rain and d.t < outfits.HOT_C]
+        rainy = [d for d in order if d.ctx.rain and not outfits.bare(d.ctx)]
         if any(d.outfit is None or d.outfit.outer is None or not outfits._rain_friendly(d.outfit.outer.piece) for d in rainy):
             out.append({"key": "umbrella", "name": "Umbrella", "count": 1})
         if any(d.t <= GLOVES_MAX_C for d in order):

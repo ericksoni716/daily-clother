@@ -179,7 +179,7 @@ def _serves(f: gaps._Finding, d: gaps.Day) -> bool:
     p = gaps._probe(f.want, None)
     ctx = outfits.Context(d.low_c, d.high_c, d.rain, d.occasion)
     temperature = outfits._design_temp(ctx)
-    if temperature >= outfits.HOT_C and f.place in ("mid", "outer"):
+    if f.place in ("mid", "outer") and getattr(outfits._band(ctx), f.place) == "no":
         return False
     return not outfits._piece_problem(p, f.place, ctx, temperature)
 

@@ -229,6 +229,29 @@ A photo that is already in your closet (the same file, even under another name,
 even if that item is archived) is not added again; its row says **Already in
 your closet**. A photo of an item you deleted can be added again.
 
+### Several pieces in one photo
+
+To add a pile at once, lay the pieces out with a little space between them (on
+the bed or the floor), choose **Several items per photo** at the top of
+**Add**, and take or choose the photo. Claude draws a numbered box around each
+piece; this takes a few seconds, and goes through your Claude plan or the API
+key exactly as describing does (the page says what one photo can cost with the
+key). Then check the boxes, with each piece's cutout beside its box:
+
+- **Remove** a box that is not a piece of clothing.
+- **Join with…** puts two boxes together when one piece was split in two (a
+  suit's jacket and trousers stay two items).
+- Tap a box to choose it, then drag it or its round corners to fit the piece
+  (by finger on the phone, or the arrow keys on a computer). **Add a box** adds
+  one for a piece Claude missed.
+
+**Add these N items** adds them: each becomes an item of its own, cut out,
+described and drawn like any other photo. Photos still to check are listed on
+**Add** until you add their pieces or **Forget this photo**. On a computer, a
+folder chosen while **Several items per photo** is on is treated the same way:
+every photo in it holds several pieces. The same photo is not added twice. The
+demo closet never sends photos to Claude, so there you draw the boxes yourself.
+
 If the page is closed or the computer restarts during an import, open **Add**
 again: it says how many photos were not added yet. Choose the same photos or
 folder again and it carries on; the ones that already went in are not added

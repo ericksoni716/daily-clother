@@ -5,10 +5,15 @@ equal to the JSON file, so an edit to the taxonomy shows up as a failing test, n
 silently undrawn garment. `COVERAGE` says, for every value, whether the drawing shows
 it exactly, approximately (and as what), or not yet. `top_drawing` turns taxonomy
 values into template parameters.
+
+`outfit_rules` reads the JSON itself (not a frozen copy): its `outfit` and `colors` blocks are the owner's
+outfit rules, so editing the file changes how outfits are chosen (see `closet/outfit_rules.py`).
 """
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
 
 AXES: dict[str, tuple[str, ...]] = {
     "fit": (
@@ -1320,3 +1325,25 @@ COVERAGE["accessory"] = {
 for _group in dict.fromkeys(ACCESSORY_GROUP.values()):
     COVERAGE[_group] = {k: _ACCESSORY_NOTES.get(k, (N_, "no shape of its own yet: a plain tag stands in for it"))
                         for k in ACCESSORIES[_group]}
+
+
+# The owner's file: docs/ in a source checkout, next to this module in the packaged program (packaging/closet.spec).
+_HERE = Path(__file__).resolve().parent
+TAXONOMY_FILES = tuple(folder / "menswear-taxonomy.json"
+                       for folder in ([_HERE.parents[2] / "docs"] if len(_HERE.parents) > 2 else []) + [_HERE])
+
+
+def load(path: Path | None = None) -> dict:
+    """The whole taxonomy file as a dict. Raises FileNotFoundError when neither copy is there."""
+    for candidate in (path,) if path else TAXONOMY_FILES:
+        if candidate.is_file():
+            return json.loads(candidate.read_text(encoding="utf-8"))
+    raise FileNotFoundError(f"The menswear taxonomy is missing: looked for {', '.join(str(p) for p in TAXONOMY_FILES)}.")
+
+
+def outfit_rules(taxonomy: dict | None = None) -> tuple[dict, dict]:
+    """The owner's outfit rules: the file's `outfit` block and its `colors` block (empty dicts where missing)."""
+    data = load() if taxonomy is None else taxonomy
+    outfit = data.get("outfit") if isinstance(data.get("outfit"), dict) else {}
+    colors = data.get("colors") if isinstance(data.get("colors"), dict) else {}
+    return outfit, colors

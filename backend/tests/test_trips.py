@@ -133,7 +133,7 @@ def test_a_day_that_cannot_be_covered_says_why():
 
 def test_a_rainy_day_with_an_outfit_warning_is_not_counted_as_uncovered():
     items = [i for i in basic_closet() if i["category"] not in ("sneakers", "dress_shoes")]
-    items.append(item("canvas1", "sneakers", "white", "casual", material="canvas"))
+    items.append(item("suede1", "sneakers", "white", "casual", material="suede"))
     result = trips.plan(items, days(3, rain_every=2), rewear=TOPS_TWICE)  # two shirts and a tee for three days
     rainy = [d for d in result["days"] if d["weather"]["rain"]]
     dry = [d for d in result["days"] if not d["weather"]["rain"]]

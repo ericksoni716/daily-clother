@@ -17,6 +17,8 @@ Wave 1 (landed):
 - [x] #23 Outfit engine: the rules that choose today's outfits, with an API and no screen. The same task went to two models (#23, #24); the Opus 5.5 result was merged.
 - [x] #21 Bulk import of single-item photos, with duplicates caught and resume (migration 0005).
 
+- [x] #150 Outfits follow the owner's outfit rules: the engine reads them from `docs/menswear-taxonomy.json`; watch, eyewear, gloves and tucking are not used yet.
+
 Wave 2 (landed):
 - [x] #33 Tagging in the app, part 2: each item is described after its cutout and the whole answer is kept (migration 0006). The API key is only used when switched on in Settings; the demo closet is never sent to Claude.
 - [x] #34 Today's outfits by themselves: the weather lookup for a saved place, and the wear log and laundry feeding the engine (`POST /api/outfits/today`).
@@ -159,7 +161,7 @@ Original phase 5.
 - Price checks (#112: run by the app itself while it runs).
 
 ### After D, each its own smaller stop
-- Multi-item photos and video sweeps (bench first; decides ffmpeg bundled or downloaded on first use).
+- Multi-item photos: done in #151 (Claude finds the pieces, the owner checks the boxes; see DECISIONS, "Several items from one photo"). Video sweeps are out (owner's decision). Still to learn: how well Claude boxes a cluttered bed.
 - Taste learning analytics, cost per wear, never worn (rest of original phase 6).
 - Trip packing (historical weather beyond the 16-day forecast, count-only basics).
 - Extras: calendar-aware suggestions, offline edit queue. Cut: resale suggestions, seasonal storage rotation.

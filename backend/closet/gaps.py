@@ -364,7 +364,7 @@ def _pick(place: str, occasion: str, band: str) -> tuple[str, str | None, str | 
 def _family(want: tuple[str, str | None, str | None]) -> tuple[str, str | None]:
     """Purchases of one family are merged when one piece can serve all of them."""
     category, _formality, tag = want
-    if category in outfits.PLACE_CATEGORIES["outer"]:
+    if HOME_PLACE.get(category) == "outer":
         return ("outer", tag)  # one smart casual outer layer does for every occasion, so only what it is for matters
     return (category, tag)
 
@@ -397,7 +397,7 @@ def _pair_problems(a: outfits.Piece, a_place: str, b: outfits.Piece, b_place: st
 
 
 def _fills(p: outfits.Piece, place: str) -> bool:
-    return p.category in outfits.PLACE_CATEGORIES.get(place, ())
+    return place in outfits.PLACES and outfits._fits(p, place)
 
 
 # ====================================================================== the closet
@@ -455,10 +455,13 @@ def _reason(p: outfits.Piece, place: str, ctx: outfits.Context, t: float) -> str
         return "no good in the rain"
     if p.category in ("shorts", "sandals") and t < (outfits.SHORTS_MIN_C if p.category == "shorts" else outfits.SANDALS_MIN_C):
         return "too light for the cold"
-    if t >= outfits.HOT_C and p.season == "cool":
+    bare = outfits.bare(ctx)
+    if bare and p.season == "cool":
         return "made for cooler days"
-    if t >= outfits.HOT_C and place == "base" and p.weight >= 2:
+    if bare and place == "base" and p.weight >= 2:
         return "too heavy for the heat"
+    if outfits.needs_outer(ctx) and p.season == "warm" and place != "base":
+        return "made for warmer days"
     return "made for warmer days"
 
 
@@ -519,11 +522,11 @@ def _run_grid(c: _Closet, days: list[Day] | None = None) -> tuple[list[_DayFailu
         outer = core["outer"]
         clothes = [p for p in core.values() if p is not None]
         under = [p for p in clothes if p is not outer]
-        problems = outfits._outfit_problems(clothes, under, outer)
+        problems = outfits._outfit_problems(clothes, under, outer, d.occasion)
         if problems:
-            clash = outfits._formality_clash(under, outer)
+            clash = outfits._formality_clash(under, outer, d.occasion)
             if clash:
-                occ = vocab.FORMALITY.index(d.occasion)
+                occ = outfits._level(d.occasion)
                 culprit = max(clash, key=lambda p: (abs(p.formality - occ), p.id))
             else:
                 loud = [p for p in clothes if p.pattern in outfits.LOUD_PATTERNS or not outfits._neutral(p)]
@@ -538,7 +541,7 @@ def _run_grid(c: _Closet, days: list[Day] | None = None) -> tuple[list[_DayFailu
         target = outfits._warmth_target(t)
         if warmth < target - outfits.WARMTH_TOLERANCE - outfits.WARMTH_NOTE_GAP:
             # the layer missing from the outfit: a coat on a cold day without one, else a sweater, else a warmer coat
-            place = "outer" if (outer is None and t <= outfits.COLD_C) or core["mid"] is not None else "mid"
+            place = "outer" if (outer is None and outfits.needs_outer(ctx)) or core["mid"] is not None else "mid"
             warmest = max(outers_owned, key=lambda p: (outfits._warmth(p, "outer"), p.id), default=None)
             want = _pick("outer", d.occasion, "cold") if place == "outer" else ("sweater", PIECE_FORMALITY[d.occasion], "warm")
             failures.append(_DayFailure("cold", place, want, d, [warmest] if warmest else [], ids))
@@ -547,12 +550,12 @@ def _run_grid(c: _Closet, days: list[Day] | None = None) -> tuple[list[_DayFailu
             place, p = max(heavy, key=lambda x: (outfits._warmth(x[1], x[0]) - outfits.WARMTH[x[0]][0], x[0]))
             failures.append(_DayFailure("warm", place, _pick(place, d.occasion, "hot"), d, [p], rest(p)))
 
-        if d.rain and t < outfits.HOT_C:
+        if d.rain and not outfits.bare(ctx):
             # a day fails for rain only when none of the outfits offered keeps it off: the owner can pick the second one
             offered_outers = [c.by_id.get(o["pieces"]["outer"]) for o in offered if o["pieces"]["outer"]]
             if not any(p is not None and outfits._rain_friendly(p) for p in offered_outers):
                 friendly = [p for p in outers_owned if outfits._rain_friendly(p)]
-                tag = "rainwarm" if friendly and t <= outfits.COLD_C else "rain"
+                tag = "rainwarm" if friendly and outfits.needs_outer(ctx) else "rain"
                 failures.append(_DayFailure("rain", "outer", ("coat", OUTER_FORMALITY, tag), d, friendly, rest(outer)))
             shoes = core["shoes"]
             if shoes is not None and (word := outfits._rain_unfriendly(shoes)):
@@ -561,14 +564,14 @@ def _run_grid(c: _Closet, days: list[Day] | None = None) -> tuple[list[_DayFailu
 
         n = _differing(offered)
         if n < DAY_OUTFITS:
-            needed = ["base", "bottom", "shoes"] + (["outer"] if t <= outfits.COLD_C and outers_owned else [])
+            needed = ["base", "bottom", "shoes"] + (["outer"] if outfits.needs_outer(ctx) and outers_owned else [])
             place = min(needed, key=lambda pl: (len(strict[pl]), needed.index(pl)))
             if strict[place]:  # with nothing that suits at all, the day is already a "settle" failure
                 failures.append(_DayFailure("few", place, _pick(place, d.occasion, d.band), d, strict[place],
                                             [i for i in ids if i not in {p.id for p in strict[place]}], count=n))
 
         for place in ("base", "bottom", "shoes", "outer"):
-            if place == "outer" and t > outfits.COLD_C:
+            if place == "outer" and not outfits.needs_outer(ctx):
                 continue
             chosen = {o["pieces"][place] for o in offered}
             if len(chosen) != 1 or None in chosen:
@@ -700,7 +703,7 @@ def _orphan_findings(c: _Closet, used: dict[str, int]) -> list[_Finding]:
             words = {"formality": "too far from it in formality",
                      "colour": "a strong colour that competes with it",
                      "pattern": "patterned, and the two patterns fight"}[reason]
-            occasion = vocab.FORMALITY[p.formality]
+            occasion = outfits.rules().levels[p.formality]
             band = "hot" if p.season == "warm" and need == "bottom" else "mild"
             want = _pick(need, occasion, band)
             plain = "plain " if reason != "formality" else ""
@@ -733,7 +736,7 @@ def _wear_findings(c: _Closet) -> tuple[list[_Finding], list[dict]]:
         tag = None
         if place == "outer":
             tag = "warm" if p.category == "coat" and p.weight >= 2 else "rain" if outfits._rain_friendly(p) else None
-        formality = OUTER_FORMALITY if place == "outer" else vocab.FORMALITY[p.formality]
+        formality = OUTER_FORMALITY if place == "outer" else outfits.rules().levels[p.formality]
         want = (p.category, formality, tag)
         kind = p.category.replace("_", " ")
         if others:
@@ -761,7 +764,7 @@ def _wear_findings(c: _Closet) -> tuple[list[_Finding], list[dict]]:
 # ====================================================================== basics
 def _basic_matches(b: Basic, p: outfits.Piece) -> bool:
     return (p.category in b.categories and (not b.colors or p.color in b.colors)
-            and (b.min_formality is None or p.formality >= vocab.FORMALITY.index(b.min_formality))
+            and (b.min_formality is None or p.formality >= outfits._level(b.min_formality))
             and (not b.solid or p.pattern == "solid") and (not b.rain or outfits._rain_friendly(p))
             and (b.min_weight is None or p.weight >= b.min_weight))
 
@@ -776,7 +779,7 @@ def _basic_findings(c: _Closet) -> list[_Finding]:
         if disliked:
             why = [f"{b.why} The only one you have, {_your(disliked[0])}, is rated dislike."]
         place = HOME_PLACE.get(b.want[0], "accessory")
-        out.append(_Finding("basic", b.want, place, why, b.score, (vocab.FORMALITY.index(b.want[1] or "casual"),),
+        out.append(_Finding("basic", b.want, place, why, b.score, (outfits._level(b.want[1] or "casual"),),
                             name=b.name))
     return out
 
@@ -791,7 +794,7 @@ def _unique_pieces(pieces: Iterable[outfits.Piece]) -> list[outfits.Piece]:
 
 
 def _levels(days: Iterable[Day]) -> tuple[int, ...]:
-    return tuple(sorted({vocab.FORMALITY.index(d.occasion) for d in days}))
+    return tuple(sorted({outfits._level(d.occasion) for d in days}))
 
 
 def _order(f: _Finding) -> tuple:
@@ -802,13 +805,13 @@ def _groups(findings: list[_Finding]) -> list[tuple[tuple[str, str | None, str |
     """Findings that one purchase would meet, with that purchase.
 
     Within a family (category and tag), findings are grouped while one formality can serve every occasion
-    they are needed for: within OCCASION_REACH of each, as the engine asks. The best finding is placed first.
+    they are needed for: within the owner's reach of each (outfits._reach), as the engine asks. The best finding is placed first.
     """
     families: dict[tuple, list[_Finding]] = {}
     for f in findings:
         families.setdefault(_family(f.want), []).append(f)
     out = []
-    reach = outfits.OCCASION_REACH
+    reach = outfits._reach()
     for family in sorted(families, key=str):
         fs = sorted(families[family], key=_order)
         if family[0] == "outer":
@@ -825,9 +828,9 @@ def _groups(findings: list[_Finding]) -> list[tuple[tuple[str, str | None, str |
             else:
                 clusters.append((set(f.occasions), [f]))
         for levels, members in clusters:
-            top = vocab.FORMALITY.index(members[0].want[1] or "casual")
+            top = outfits._level(members[0].want[1] or "casual")
             level = min(max(top, max(levels) - reach), min(levels) + reach)
-            out.append(((family[0], vocab.FORMALITY[level], family[1]), members))
+            out.append(((family[0], outfits.rules().levels[level], family[1]), members))
     return out
 
 
@@ -840,7 +843,7 @@ def _merge(findings: list[_Finding], c: _Closet) -> list[dict]:
         days = sorted({d for f in fs for d in f.days}, key=_day_order)
         items = [i for i in _unique(i for f in fs for i in f.items) if i in c.by_id]
         category, formality, tag = want
-        key = _family(want) if category in outfits.PLACE_CATEGORIES["outer"] else want
+        key = _family(want) if HOME_PLACE.get(category) == "outer" else want
         place = top.place
         first_color = next((f.first_color for f in fs if f.first_color), None)
         colors = _colors(want, place, [c.by_id[i] for i in items], c, first_color)

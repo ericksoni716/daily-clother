@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import type { Page, Route } from '@playwright/test';
 import { axeViolations, sideways, smallTargets } from './a11y';
-import { expect, login, test, useProfile } from './fixtures';
+import { ensureSetUp, expect, login, test, useProfile } from './fixtures';
 
 /**
  * Accessibility over the main screens of the demo closet, on a phone and a computer, in light and dark: axe-core
@@ -111,3 +111,96 @@ for (const [layout, use] of LAYOUTS) {
     });
   }
 }
+
+test.describe('on a phone', () => {
+  test.use(LAYOUTS[0][1]);
+
+  test('the login screen passes the accessibility checks', async ({ page }) => {
+    await ensureSetUp(page);
+    await page.context().clearCookies();
+    await page.goto('/');
+    await expect(page.getByLabel('Passphrase')).toBeVisible();
+    await check(page, 'login', true, 'phone-light');
+  });
+
+  test('a long item name wraps instead of running off the screen', async ({ page }) => {
+    await login(page);
+    await useProfile(page, 'demo');
+    await page.getByTestId('tile').first().click();
+    const field = page.getByRole('textbox', { name: 'Name' });
+    await expect(field).toBeVisible();
+    const id = new URL(page.url()).pathname.split('/').pop();
+    const before = await field.inputValue();
+    const long = 'Heavyweight brushed-cotton double-pocket overshirt with horn buttons and a corduroy-lined collar';
+    try {
+      expect((await page.request.patch(`/api/items/${id}`, { data: { name: long } })).ok()).toBe(true);
+      await page.reload();
+      await expect(field).toHaveValue(long);
+      expect(await sideways(page)).toEqual([]);
+      // every line of the name shows: the box grows instead of hiding the end
+      const fits = await field.evaluate((el) => el.scrollHeight <= el.clientHeight + 1 && el.clientHeight > 50);
+      expect(fits).toBe(true);
+    } finally {
+      await page.request.patch(`/api/items/${id}`, { data: { name: before } });
+    }
+  });
+});
+
+test.describe('by keyboard', () => {
+  test.use(LAYOUTS[1][1]);
+
+  test('a sheet keeps focus inside, closes on Escape and gives focus back', async ({ page }) => {
+    await login(page);
+    await useProfile(page, 'demo');
+    const filter = page.getByRole('button', { name: /^Filter/ });
+    await filter.focus();
+    await page.keyboard.press('Enter');
+    const sheet = page.getByRole('dialog', { name: 'Filter' });
+    await expect(sheet).toBeVisible();
+    for (let i = 0; i < 40; i++) {
+      await page.keyboard.press(i % 2 ? 'Tab' : 'Shift+Tab');
+      await page.keyboard.press('Tab');
+      expect(await sheet.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+    }
+    // focus can be seen: an outline or a ring
+    const seen = await page.evaluate(() => {
+      const s = getComputedStyle(document.activeElement!);
+      return (s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) >= 2) || s.boxShadow !== 'none';
+    });
+    expect(seen).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(sheet).toHaveCount(0);
+    await expect(filter).toBeFocused();
+  });
+
+  test('the ⋯ menu keeps focus inside and Escape returns it to the button', async ({ page }) => {
+    await login(page);
+    await useProfile(page, 'demo');
+    await page.goto('/today/worn');
+    const more = page.getByRole('button', { name: 'More for this outfit' }).first();
+    await more.focus();
+    await page.keyboard.press('Enter');
+    const menu = page.getByRole('menu', { name: 'This outfit' });
+    await expect(menu).toBeVisible();
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press('Tab');
+      expect(await menu.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+    }
+    await page.keyboard.press('Escape');
+    await expect(menu).toHaveCount(0);
+    await expect(more).toBeFocused();
+  });
+
+  test('with reduced motion asked for, nothing slides or fades', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await login(page);
+    await useProfile(page, 'demo');
+    await page.getByRole('button', { name: /^Filter/ }).click();
+    await expect(page.getByRole('dialog', { name: 'Filter' })).toBeVisible();
+    const moving = await page.evaluate(() => document.getAnimations()
+      .filter((a) => a.playState === 'running' && a.effect?.getComputedTiming().iterations !== Infinity)
+      .map((a) => `${(a as CSSAnimation).animationName ?? 'transition'} ${String(a.effect?.getComputedTiming().duration)}`)
+      .filter((w) => parseFloat(w.split(' ').pop() ?? '0') > 1));
+    expect(moving).toEqual([]);
+  });
+});

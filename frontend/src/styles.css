@@ -5,7 +5,7 @@
   --ink: #26231f;
   --ink-2: #57524a;
   --ink-3: #6b655b;
-  --ink-4: #968e81;
+  --ink-4: #968e81;   /* decoration only (chevrons): too faint for text, which needs 4.5:1 */
   --bg: #f6f2ea;
   --surface: #fffdf9;
   --surface-raised: #ffffff;

@@ -61,6 +61,13 @@ describe('design tokens', () => {
     expect(forced).toEqual(device);
   });
 
+  it('keeps the faintest ink for decoration, never for words', () => {
+    // --ink-4 is under 4.5:1 on the surfaces (WCAG AA for text), so only icons may use it
+    const found = rules.flatMap((f) => [...f.text.matchAll(/([^{}]*)\{[^}]*(?<![\w-])color:\s*var\(--ink-4\)/g)]
+      .map((m) => m[1].trim()).filter((sel) => !/chevron|icon|svg/.test(sel)).map((sel) => `${f.name}: ${sel}`));
+    expect(found).toEqual([]);
+  });
+
   it('defines every token it uses', () => {
     const defined = new Set([...styles.matchAll(/(--[\w-]+):/g)].map((m) => m[1]));
     const used = new Set(files.flatMap((f) => [...f.text.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1])));

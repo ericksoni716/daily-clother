@@ -195,6 +195,15 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: var(--radius-sm); }
 
+/* Less motion when the device asks for it: nothing slides, fades or pulses; a spinner still turns, slowly. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important; animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+  }
+  .spinner { animation-duration: 3s !important; animation-iteration-count: infinite !important; }
+}
+
 .visually-hidden {
   position: absolute !important; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
   clip: rect(0 0 0 0); white-space: nowrap; border: 0;
@@ -223,14 +232,16 @@ button, input, textarea, select { font: inherit; color: inherit; }
 @media (prefers-reduced-motion: reduce) { .btn:active:not(:disabled, .is-disabled) { transform: none; } }
 /* Not usable: a flat inset fill, a dashed edge and faint text, so it never reads as a slow page. */
 .btn:disabled, .btn.is-disabled, .btn-primary:disabled, .btn-primary.is-disabled, .btn-danger:disabled {
-  background: var(--inset); border: 1px dashed var(--line-strong); color: var(--ink-4); cursor: not-allowed; filter: none;
+  background: var(--inset); border: 1px dashed var(--line-strong); color: var(--ink-3); cursor: not-allowed; filter: none;
 }
 .btn-ghost:disabled, .btn-link:disabled { background: transparent; border-color: transparent; }
 .btn svg { width: 20px; height: 20px; }
 .btn-primary { background: var(--accent-bg); border-color: var(--accent-bg); color: var(--accent-ink); }
 .btn-primary:hover:not(:disabled) { filter: brightness(1.08); border-color: var(--accent-bg); }
 .btn-block { width: 100%; }
-.btn-small { min-height: 36px; padding: 0 14px; font-size: var(--text-sm); }
+.btn-small { min-height: 36px; padding: 0 14px; font-size: var(--text-sm); position: relative; }
+/* a taller hit area than it looks (44px), as the chips have */
+.btn-small::after { content: ''; position: absolute; inset: -4px 0; }
 .btn-ghost { background: transparent; border-color: transparent; }
 .btn-ghost:hover:not(:disabled) { background: var(--surface-2); border-color: transparent; }
 .btn-link { background: none; border: none; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; padding: 0 8px; }
@@ -243,13 +254,13 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* ---------------------------------------------------------------- forms */
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; min-width: 0; }
 .field > span:first-child { font-size: var(--text-sm); font-weight: var(--weight-label); color: var(--ink-3); }
-.field input, .field textarea, .name-field input, .search input {
+.field input, .field textarea, .name-field textarea, .search input {
   width: 100%; min-height: var(--tap); padding: 10px 12px; border-radius: var(--radius-sm);
   border: 1px solid var(--line); background: var(--inset); color: var(--ink);
 }
 .field textarea { resize: vertical; min-height: 88px; }
-.field input:disabled, .field textarea:disabled, .name-field input:disabled { color: var(--ink-4); border-style: dashed; }
-.field input:focus, .field textarea:focus, .name-field input:focus, .search input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.field input:disabled, .field textarea:disabled, .name-field textarea:disabled { color: var(--ink-3); border-style: dashed; }
+.field input:focus, .field textarea:focus, .name-field textarea:focus, .search input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .input-prefix { position: relative; display: block; }
 .input-prefix > span { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--ink-3); }
 .input-prefix input { padding-left: 26px; }
@@ -298,7 +309,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .tab svg { width: 26px; height: 26px; }
 .tab.is-active { color: var(--accent); }
-.tab:disabled { opacity: 0.4; cursor: not-allowed; }
+.tab:disabled { color: var(--ink-3); cursor: not-allowed; }
 /* Add, the main way clothes get in, sits in the middle as a filled round button */
 .tab-add { color: var(--ink-2); }
 .tab-add-circle {
@@ -308,7 +319,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .tab-add .tab-add-circle svg { width: 24px; height: 24px; stroke-width: 2.4; }
 .tab-add.is-active { color: var(--accent); }
 .tab-add.is-active .tab-add-circle { box-shadow: 0 0 0 3px var(--accent-soft); }
-.tab-add:disabled .tab-add-circle { background: var(--inset); color: var(--ink-4); border: 1px dashed var(--line-strong); box-shadow: none; }
+.tab-add:disabled .tab-add-circle { background: var(--inset); color: var(--ink-3); border: 1px dashed var(--line-strong); box-shadow: none; }
 /* something waits in the review queue */
 .tab-dot {
   position: absolute; top: 9px; left: calc(50% + 9px); width: 9px; height: 9px; border-radius: var(--radius-pill);
@@ -318,7 +329,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .banner { display: flex; gap: 10px; align-items: flex-start; padding: 10px var(--gutter); font-size: var(--text-sm); }
 .banner svg { flex: none; width: 22px; height: 22px; margin-top: 1px; }
 .banner-offline { background: var(--warn-soft); color: var(--warn); border-bottom: 1px solid var(--line); }
-.banner-offline span { color: var(--ink); opacity: 0.85; }
+.banner-offline span { color: var(--ink-2); }
 /* The demo closet: one quiet line, so it costs little room on every screen */
 .ribbon {
   display: flex; align-items: center; gap: var(--space-1); min-height: 32px;
@@ -327,6 +338,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .ribbon strong { color: var(--ink); }
 .ribbon .btn { min-height: 32px; flex: none; padding: 0 var(--space-1); }
+.ribbon .btn::after { inset: -6px 0; }
 .ribbon-sep { color: var(--ink-3); }
 @media (max-width: 559px) { .ribbon-more { display: none; } }
 @media (min-width: 560px) { .ribbon { justify-content: space-between; gap: var(--space-3); } .ribbon-sep { display: none; } }
@@ -347,7 +359,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .update-release > * { margin: 0; }
 .update-notes {
   white-space: pre-line; padding: var(--space-3) var(--space-3); border-radius: var(--radius-sm); background: var(--inset);
-  font-size: var(--text-sm); width: 100%;
+  font-size: var(--text-sm); width: 100%; overflow-wrap: anywhere;
 }
 
 @media (min-width: 1000px) {
@@ -375,7 +387,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
   .nav-link:hover { background: var(--surface-2); }
   .nav-link.is-active { background: var(--accent-soft); color: var(--accent); }
   .nav-link.is-active svg { color: var(--accent); }
-  .nav-link.is-disabled { opacity: 0.45; cursor: not-allowed; }
   .banner, .ribbon { padding-left: 32px; padding-right: 32px; }
 }
 
@@ -391,6 +402,10 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .segmented > .is-on { background: var(--surface-raised); color: var(--ink); box-shadow: var(--shadow-lift); }
 .segmented-small > * { min-height: 34px; padding: 0 14px; }
+/* each choice can be tapped across the control's whole height, 44px or more */
+.segmented > * { position: relative; min-width: var(--tap); justify-content: center; }
+.segmented > *::after { content: ''; position: absolute; inset: -4px 0; }
+.segmented-small > *::after { inset: -5px 0; }
 
 /* ---------------------------------------------------------------- closet toolbar & filters */
 .closet-toolbar {
@@ -433,8 +448,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .chip::after { content: ''; position: absolute; inset: -3px 0; } /* taller hit area: 46px */
 .chip:hover:not(:disabled) { border-color: var(--line-strong); }
 .chip.is-on { background: var(--accent-bg); border-color: var(--accent-bg); color: var(--accent-ink); }
-.chip:disabled { cursor: not-allowed; opacity: 0.55; }
-.chip.is-on:disabled { opacity: 0.8; }
+.chip:disabled { cursor: not-allowed; background: var(--inset); border-style: dashed; border-color: var(--line-strong); color: var(--ink-3); }
+.chip.is-on:disabled { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .swatch { width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--swatch-ring); flex: none; }
 
 /* ---------------------------------------------------------------- grid & tiles */
@@ -501,7 +516,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 
 /* ---------------------------------------------------------------- model notice, progress & notices */
 .model-notice .notice-action { align-items: center; gap: var(--space-1); margin-left: auto; }
-.notice-close { padding: 0 10px; }
+.notice-close { padding: 0 10px; min-width: var(--tap); }
 .progress-wrap { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
 .progress { flex: 1; height: 8px; appearance: none; border: none; border-radius: var(--radius-pill); background: var(--surface-2); overflow: hidden; max-width: 24rem; }
 .progress::-webkit-progress-bar { background: var(--surface-2); border-radius: var(--radius-pill); }
@@ -515,7 +530,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .notice-warn { background: var(--warn-soft); }
 .notice-warn > svg { color: var(--warn); }
 .failure-details { margin: 0 0 8px; }
-.failure-details summary { cursor: pointer; }
+.failure-details summary { cursor: pointer; padding: var(--space-3) 0; font-weight: var(--weight-label); }
 .failure-details pre { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--text-sm); }
 
 .notice-error { background: var(--danger-soft); }
@@ -610,12 +625,13 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .detail-title { font-size: var(--text-xl); font-weight: var(--weight-heading); letter-spacing: -0.015em; }
 .detail-meta { margin: var(--space-1) 0 0; color: var(--ink-3); font-size: var(--text-sm); }
 .name-field { display: block; }
-.name-field input {
-  font-size: var(--text-xl); font-weight: inherit; letter-spacing: inherit; border-color: transparent; background: transparent;
-  min-height: 0; padding: 2px 10px; margin-left: -10px; width: calc(100% + 10px); text-overflow: ellipsis;
+.name-field textarea {
+  display: block; font-size: var(--text-xl); font-weight: inherit; letter-spacing: inherit; line-height: 1.25; border-color: transparent;
+  background: transparent; min-height: var(--tap); padding: 4px 10px; margin-left: -10px; width: calc(100% + 10px);
+  resize: none; overflow: hidden; overflow-wrap: anywhere; field-sizing: content;
 }
-.name-field input:hover:not(:disabled) { border-color: var(--line); }
-.name-field input:disabled { color: var(--ink); border-color: transparent; }
+.name-field textarea:hover:not(:disabled) { border-color: var(--line); }
+.name-field textarea:disabled { color: var(--ink); border-color: transparent; }
 
 /* Details: every field as a label and its value; tapping one opens its choices */
 .detail-fields { margin: 0 0 var(--space-5); padding: var(--space-3) var(--space-4) var(--space-2); gap: var(--space-1); }
@@ -628,7 +644,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .detail-row-label { flex: none; width: 40%; max-width: 10rem; color: var(--ink-3); font-size: var(--text-sm); font-weight: var(--weight-label); }
 .detail-row-value { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-2); }
 .detail-row-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.detail-row-value.is-empty { color: var(--ink-4); }
+.detail-row-value.is-empty { color: var(--ink-3); }
 .detail-row-chevron { width: 18px; height: 18px; flex: none; color: var(--ink-4); transition: transform 0.15s; }
 .detail-row-button:hover:not(:disabled) .detail-row-chevron { color: var(--ink-2); }
 .detail-row.is-open .detail-row-chevron { transform: rotate(90deg); }
@@ -724,7 +740,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .queue-done { margin-top: 14px; }
 
 /* ---------------------------------------------------------------- settings */
-.settings { max-width: var(--content-w); }
+.settings { max-width: var(--content-w); overflow-wrap: break-word; }
+/* long values (addresses, paths, commands) wrap rather than run off a phone's screen */
+.settings code, .facts dd, .address code { overflow-wrap: anywhere; }
 .settings-groups { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .settings-section { padding: 18px; gap: 10px; }
 /* a part of a group, under a smaller heading and a line */
@@ -784,7 +802,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .api-key .field-row-inline, .api-key p { margin: 0; }
 .route-order { border: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .route-order legend { font-size: var(--text-sm); font-weight: var(--weight-label); color: var(--ink-3); padding: 0; margin-bottom: 4px; }
-.route-order-choice { display: flex; gap: 8px; align-items: baseline; }
+.route-order-choice { display: flex; gap: 8px; align-items: center; min-height: var(--tap); cursor: pointer; }
+.route-order-choice input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--accent-bg); }
 .route-order .hint { margin: 2px 0 0; }
 
 .toggle { display: flex; align-items: center; gap: 14px; cursor: pointer; position: relative; min-height: var(--tap); }

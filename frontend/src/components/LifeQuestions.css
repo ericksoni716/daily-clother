@@ -6,7 +6,7 @@
 .life-intro { color: var(--ink-3); font-size: var(--text-md); margin: 10px 0 16px; }
 .life-questions fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .life-questions select { min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--ink); max-width: 100%; }
-.life-questions select:disabled { opacity: .7; }
+.life-questions select:disabled { color: var(--ink-3); border-style: dashed; }
 .life-frequencies { display: grid; gap: 0 20px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .life-frequency { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); font-weight: var(--weight-label); font-size: var(--text-sm); }
 .life-frequency select { width: 10rem; min-height: 44px; font-size: var(--text-sm); }

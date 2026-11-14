@@ -5,7 +5,7 @@ import { PhoneAccess } from '../components/PhoneAccess';
 import { WhereYouAre } from '../components/WhereYouAre';
 import { LifeQuestions } from '../components/LifeQuestions';
 import { UpdatesSection } from '../components/Updates';
-import { Notice, PageHeader, Section as UiSection, SegmentedControl } from '../components/ui';
+import { confirmKeys, Notice, PageHeader, Section as UiSection, SegmentedControl, useConfirmFocus } from '../components/ui';
 import { formatDateTime, formatSize, parsePrice } from '../labels';
 import { Link } from '../router';
 import { apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, monthName, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
@@ -725,9 +725,10 @@ function Toggle({ label, hint, checked, disabled, onChange }: { label: string; h
 
 function QuitButton({ onQuit, disabled, toast }: { onQuit(): Promise<void>; disabled: boolean; toast(m: string, k?: 'ok' | 'error'): void }) {
   const [confirming, setConfirming] = useState(false);
-  if (!confirming) return <button className="btn btn-block btn-danger-quiet" disabled={disabled} onClick={() => setConfirming(true)}>Quit Closet</button>;
+  const back = useConfirmFocus(confirming);
+  if (!confirming) return <button ref={back} className="btn btn-block btn-danger-quiet" disabled={disabled} onClick={() => setConfirming(true)}>Quit Closet</button>;
   return (
-    <div className="confirm" role="alertdialog" aria-labelledby="quit-q">
+    <div className="confirm" role="alertdialog" aria-labelledby="quit-q" onKeyDown={confirmKeys(() => setConfirming(false))}>
       <p id="quit-q"><strong>Quit Closet?</strong> Your phone won't be able to reach it until you start it again on this computer.</p>
       <div className="row">
         <button className="btn btn-danger" autoFocus onClick={() => onQuit().catch((e) => toast((e as Error).message, 'error'))}>Quit</button>

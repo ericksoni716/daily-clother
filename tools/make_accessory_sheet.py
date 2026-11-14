@@ -2,9 +2,9 @@
 
     python tools/make_accessory_sheet.py [OUT.svg] [--png OUT.png]
 
-Every kind of bag, belt, hat and scarf the taxonomy names, drawn alone the way an item's page draws it, then the
-accessories that have no shape of their own yet (a plain tag stands in), then a few outfits worn with accessories,
-the way `POST /api/outfits/figure` draws them. With `--png` the sheet is also turned into a picture by a Chrome or
+Every kind of accessory the taxonomy names (bags, belts, hats, scarves, ties, pocket squares, gloves, glasses,
+watches, socks), drawn alone the way an item's page draws it, then a few outfits worn with accessories, the way
+`POST /api/outfits/figure` draws them. With `--worn OUT.png` the outfits alone are also written as a picture. With `--png` the sheet is also turned into a picture by a Chrome or
 Chromium found on this computer.
 """
 from __future__ import annotations
@@ -36,7 +36,12 @@ HATS = {k: g for g, kinds in (("cap", ("baseball_cap_structured", "dad_cap", "fi
                               ("beanie", ("beanie", "fisherman_beanie", "beret", "trapper")))
         for k in kinds}
 
-# caption, then the demo items by name for each place, then the accessories as (garment id, kind)
+# a tailored jacket, which the demo closet does not have, to wear a pocket square in
+BLAZER = dict(category="jacket", color="#3a3f4a",
+              details=dict(garment="sport_coat", collar="notch_lapel", placket="front_placket", pockets="hip_flap_double"))
+
+# caption, then the demo items by name (or a dict as BLAZER) for each place, then the accessories as (garment id,
+# kind) or (garment id, kind, the tagger's pattern name)
 OUTFITS = [
     ("Cold: overcoat, knit scarf, beanie, rucksack",
      dict(base="Blue oxford shirt", mid="Burgundy cable sweater", outer="Black overcoat",
@@ -48,22 +53,38 @@ OUTFITS = [
     ("Hot: tee, web belt, cap, tote",
      dict(base="White tee", bottom="Olive shorts", shoes="White canvas sneakers"),
      [("belt", "canvas_web"), ("cap", "dad_cap"), ("bag", "tote")]),
+    ("Office: dress shirt, repp tie, belt, watch, glasses",
+     dict(base="White dress shirt", bottom="Stone pleated chinos", shoes="Black cap-toe oxfords"),
+     [("belt", "dress_belt"), ("tie", "silk_woven", "university_stripe"), ("watch", "dress"), ("eyewear", "browline")]),
+    ("Tailored: blazer, knit tie, puff pocket square",
+     dict(base="Blue oxford shirt", outer=BLAZER, bottom="Grey wool trousers", shoes="Burgundy penny loafers"),
+     [("tie", "knit"), ("pocket_square", "puff"), ("socks", "dress_mid_calf", "argyle")]),
+    ("Weekend: tee, shorts, crew socks, watch, sunglasses",
+     dict(base="White tee", bottom="Olive shorts", shoes="White canvas sneakers"),
+     [("socks", "casual_crew", "rugby_hoops"), ("watch", "dive"), ("eyewear", "wayfarer")]),
 ]
+SECOND = "cream"   # a patterned accessory's second colour
 
 CELL, CAPTION, COLUMNS = 150, 34, 8
 FIG_W, FIG_H = 300, 470
+FIGURES_ACROSS = 3
 
 
 def category(accessory: str) -> str:
     return taxonomy.ACCESSORY_GARMENTS[accessory]
 
 
-def answer(accessory: str, kind: str) -> dict:
+def answer(accessory: str, kind: str, pattern: str | None = None) -> dict:
+    return tags(category(accessory), dict(accessory=accessory, accessory_kind=kind),
+                dict(pattern_name=pattern) if pattern else {}, [SECOND] if pattern else [])
+
+
+def tags(cat: str, details: dict, more: dict | None = None, second: list | None = None) -> dict:
     return ItemTags(
-        category=category(accessory), category_confidence=0.9, color="navy", color_confidence=0.9,
-        secondary_colors=[], pattern="solid", pattern_confidence=0.9, formality="casual", formality_confidence=0.9,
+        category=cat, category_confidence=0.9, color="navy", color_confidence=0.9,
+        secondary_colors=second or [], pattern="solid", pattern_confidence=0.9, formality="casual", formality_confidence=0.9,
         season="all", season_confidence=0.9, silhouette=Silhouette.of(), silhouette_confidence=0.9,
-        details=Details.plain(accessory=accessory, accessory_kind=kind), details_confidence=0.9, brand=None,
+        details=Details.plain(**details, **(more or {})), details_confidence=0.9, brand=None,
         size=None, material=None, needs_shot=None).model_dump(mode="json")
 
 
@@ -75,12 +96,11 @@ def garment(kind: str, group: str) -> str:
 
 def singles() -> list[tuple[str, str]]:
     out = []
-    for group in ("hats", "belts", "scarves", "bags"):
+    for group in ("hats", "belts", "scarves", "bags", "ties", "pocket_square_folds", "gloves", "eyewear_frames",
+                  "watches", "socks"):
         for kind in taxonomy.ACCESSORIES[group]:
             g = garment(kind, group)
             out.append((kind.replace("_", " "), (g, kind)))
-    for g in ("tie", "pocket_square", "gloves", "eyewear", "watch", "socks"):
-        out.append((g.replace("_", " ") + " (tag)", (g, taxonomy.ACCESSORIES[taxonomy.ACCESSORY_GROUP[g]][0])))
     return [(caption, item.svg_from_answer(answer(g, kind), COLORS[g], uid=f"s{n}") or "")
             for n, (caption, (g, kind)) in enumerate(out)]
 
@@ -89,8 +109,10 @@ def figures() -> list[tuple[str, str]]:
     rows = demo_rows()
     out = []
     for n, (caption, names, worn) in enumerate(OUTFITS):
-        pieces: dict = {place: describe(rows[name]) for place, name in names.items()}
-        pieces["accessories"] = [Piece(category(g), answer(g, kind), COLORS[g]) for g, kind in worn]
+        pieces: dict = {place: describe(rows[name]) if isinstance(name, str) else
+                        Piece(name["category"], tags(name["category"], name["details"]), name["color"])
+                        for place, name in names.items()}
+        pieces["accessories"] = [Piece(category(a[0]), answer(*a), COLORS[a[0]]) for a in worn]
         out.append((caption, figure(pieces, uid="g" + chr(ord("a") + n))))
     return out
 
@@ -108,16 +130,17 @@ def sheet(small: list[tuple[str, str]], large: list[tuple[str, str]]) -> str:
     rows = (len(small) + COLUMNS - 1) // COLUMNS
     w = COLUMNS * CELL
     top = rows * (CELL + CAPTION)
-    h = top + FIG_H + 40
+    across = min(len(large), FIGURES_ACROSS) or 1
+    h = top + (len(large) + across - 1) // across * (FIG_H + 40)
     cells = []
     for i, (caption, svg) in enumerate(small):
         x, y = (i % COLUMNS) * CELL, (i // COLUMNS) * (CELL + CAPTION)
         cells.append(_place(svg, x + 8, y + 6, CELL - 16, CELL - 6) + _caption(caption, x + CELL / 2, y + CELL + 20, 13))
-    gap = (w - len(large) * FIG_W) / (len(large) + 1)
+    gap = (w - across * FIG_W) / (across + 1)
     for i, (caption, svg) in enumerate(large):
-        x = gap + i * (FIG_W + gap)
-        cells.append(_place(svg, x + 10, top + 6, FIG_W - 20, FIG_H - 6) + _caption(caption, x + FIG_W / 2,
-                                                                                    top + FIG_H + 22, 15))
+        x, y = gap + (i % across) * (FIG_W + gap), top + (i // across) * (FIG_H + 40)
+        cells.append(_place(svg, x + 10, y + 6, FIG_W - 20, FIG_H - 6) + _caption(caption, x + FIG_W / 2,
+                                                                                  y + FIG_H + 22, 15))
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="{w}" height="{h}">'
             f'<rect width="{w}" height="{h}" fill="#ffffff"/>{"".join(cells)}</svg>')
 
@@ -126,8 +149,10 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("out", nargs="?", type=Path, default=OUT)
     ap.add_argument("--png", type=Path, help="also write the sheet as a PNG picture")
+    ap.add_argument("--worn", type=Path, help="also write the outfits alone as a PNG picture")
     args = ap.parse_args()
-    svg = sheet(singles(), figures())
+    large = figures()
+    svg = sheet(singles(), large)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(svg, encoding="utf-8")
     print(f"wrote {args.out}")
@@ -135,6 +160,14 @@ def main() -> None:
         w, h = (int(v) for v in re.search(r'width="(\d+)" height="(\d+)"', svg).groups())
         to_png(args.out, args.png, (w, h))
         print(f"wrote {args.png}")
+    if args.worn:
+        worn = sheet([], large)
+        tmp = args.worn.with_suffix(".svg")
+        tmp.write_text(worn, encoding="utf-8")
+        w, h = (int(v) for v in re.search(r'width="(\d+)" height="(\d+)"', worn).groups())
+        to_png(tmp, args.worn, (w, h))
+        tmp.unlink()
+        print(f"wrote {args.worn}")
 
 
 if __name__ == "__main__":

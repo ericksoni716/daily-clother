@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 NAME = "Closet"
+RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"   # Windows: this user's programs started at login
 
 
 def program() -> str | None:
@@ -26,7 +27,7 @@ def is_enabled(platform: str = sys.platform, home: Path | None = None) -> bool:
     if platform == "win32":
         import winreg
         try:
-            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run") as k:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as k:
                 winreg.QueryValueEx(k, NAME)
                 return True
         except OSError:
@@ -43,7 +44,7 @@ def set_enabled(enabled: bool, exe: str | None = None, platform: str = sys.platf
         raise RuntimeError("Start at login is only available in the downloaded program, not when running from source.")
     if platform == "win32":
         import winreg
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Run", 0, winreg.KEY_SET_VALUE) as k:
+        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
             if enabled:
                 winreg.SetValueEx(k, NAME, 0, winreg.REG_SZ, f'"{exe}" --no-browser')
             else:

@@ -61,7 +61,7 @@ Design (from the design review; each builds on the first):
 Fixes after 0.2.0:
 - [x] A newer program that finds an older copy running says so and offers to close it and use the new one (it used to open the old one without a word). The owner's first test of 0.2.0 found it.
 - [x] The owner's first item in 0.2.0 failed to be described after three tries. The cause: Claude Code on the owner's Mac was still signed in to a work account that had been turned off, so Anthropic refused its key ("Not a valid API key for this workspace"), and Closet took that for a bad answer. Now a refused sign-in keeps items waiting with a note saying what to do, and they go ahead by themselves once Claude Code is signed in with the plan.
-- [x] A box in Settings to paste the API key, kept in the computer's keychain (Mac keychain, Windows Credential Manager) and checked with Anthropic first; replace and remove. Not yet run on a real Mac or Windows keychain.
+- [x] A box in Settings to paste the API key, kept in the computer's keychain (Mac keychain, Windows Credential Manager) and checked with Anthropic first; replace and remove. Run against Windows Credential Manager in the CI's Windows job (#164); not yet on a real Mac keychain or the owner's PC.
 - [x] #104 A choice in Settings of which route to Claude is tried first: the plan first (as before), the API key first, only the plan, or only the key. The key-first choices need a saved key; the key is still only used once allowed with a monthly limit.
 - [x] A failed item shows why: the plain sentence, and a "Details" fold with the reason the job recorded (keys, tokens, e-mail addresses and paths outside Closet's folder taken out), written once to the log as well; "Try again" never queues a second job (`failure` in the item, no migration).
 - [x] #114 A change made just before the page is reloaded or closed is no longer lost: saves are sent so that they outlive the page, and an edit still being typed (or trip ticks waiting their turn) is sent as the page goes away. It had been parked since a browser test raced it.
@@ -132,6 +132,7 @@ Original phase 1.
 - [x] Packaged build, smoke test (plus a real-cutout mode), CI and release workflows. Passes on Linux, including a browser run against the packaged program.
 - [x] First packaged build on macOS (0.1.0). The owner tried it: passphrase, browser, demo closet and uploads (including AVIF) work; the model download failed and is fixed in 0.1.1.
 - [ ] First packaged build on Windows.
+- [x] #164 Ready for the Windows hub: a step-by-step Windows setup guide in the README; the Windows-only code reviewed (the plan route could not have started on Windows: describing an item made a command line longer than Windows allows; now the prompt goes on standard input, in UTF-8, and `claude.exe` is found before an npm `claude.cmd`; `taskkill` no longer flashes a console; typed Windows calls for "is it still running" and the message box); the backend tests run on Windows in CI, with real Credential Manager, start-at-login, tray and rename-while-running tests.
 - [ ] Owner tries it on a real Windows PC and iPhone. Not yet exercised: tray icon, start at login, the Tailscale address, camera capture, home-screen install, HEIC from the phone, the model download progress bar, dropping a folder of photos.
 - [ ] Pin the macOS-only tray dependencies after the first Mac build.
 
@@ -146,7 +147,7 @@ Original phase 2 and the single-photo parts of phase 3.
 - Bulk import of single-item photos, with dedupe and resume.
 - Cost estimate and spend cap (API route only), item rating chip.
 - The app's stored vocabulary (`backend/closet/vocab.py`, the frontend labels) moves to the taxonomy.
-- README: installing Claude Code on Windows and checking it is signed in.
+- README: installing Claude Code on Windows and checking it is signed in (done in #164, "Setting up Closet on a Windows PC").
 - The bench as a `bench` command in the packaged program, so the owner's photos never leave the PC.
 
 ### Stop C: today's outfit

@@ -43,7 +43,8 @@ def info(port: int, runner=subprocess.run) -> dict:
     out["tailscale_installed"] = True
     try:
         kwargs = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
-        r = runner([exe, "status", "--json"], capture_output=True, text=True, timeout=4, **kwargs)
+        r = runner([exe, "status", "--json"], capture_output=True, encoding="utf-8", errors="replace", timeout=4,
+                   **kwargs)
         if r.returncode == 0:
             out.update(parse_status(r.stdout))
     except (OSError, subprocess.SubprocessError, ValueError):

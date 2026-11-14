@@ -1,4 +1,5 @@
 import io
+import sys
 import urllib.error
 import zlib
 from types import SimpleNamespace
@@ -17,6 +18,11 @@ from closet.tagger.tagging import RouteUnavailable, TaggingError, TagResult
 
 PASSPHRASE = "correct horse battery"
 REAL_FETCH = weather.fetch   # for the tests of the request itself, which stop urlopen instead
+
+
+def pytest_runtest_setup(item):
+    if item.get_closest_marker("windows") and sys.platform != "win32":
+        pytest.skip("Windows only")
 
 
 @pytest.fixture(autouse=True)

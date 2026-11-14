@@ -45,12 +45,67 @@ def sign_in_problem(text: str) -> str | None:
     return None
 
 
-def find_claude() -> str | None:
-    found = shutil.which("claude")
+CREATE_NO_WINDOW = 0x08000000   # Windows: start a console program without a console window flashing up
+# The most characters a command line can have on Windows (CreateProcess), the program's own path included
+WINDOWS_COMMAND_LIMIT = 32_767
+
+
+def find_claude(platform: str | None = None, which=None, home: Path | None = None,
+                env: dict | None = None) -> str | None:
+    """Where Claude Code is. On Windows `claude.exe` (the PowerShell install, or winget) comes before an npm
+    `claude.cmd`, which Windows can only start through cmd.exe, and the usual install folders are looked in too,
+    for a Closet started before Claude Code was installed."""
+    platform, which = platform or sys.platform, which or shutil.which
+    home = home or Path.home()
+    env = os.environ if env is None else env
+    if platform == "win32":
+        found = which("claude.exe")
+        if found:
+            return found
+        places = [home / ".local" / "bin" / "claude.exe"]
+        if env.get("LOCALAPPDATA"):
+            places.append(Path(env["LOCALAPPDATA"]) / "Microsoft" / "WinGet" / "Links" / "claude.exe")
+        for place in places:
+            if place.is_file():
+                return str(place)
+        return which("claude")
+    found = which("claude")
     if found:
         return found
-    candidate = Path.home() / ".local" / "bin" / ("claude.exe" if sys.platform == "win32" else "claude")
+    candidate = home / ".local" / "bin" / "claude"
     return str(candidate) if candidate.exists() else None
+
+
+def run_options(platform: str | None = None) -> dict:
+    """How a `claude -p` call is started: UTF-8 both ways whatever the computer's language (Windows would otherwise
+    use its own code page), and on Windows with no console window."""
+    options: dict = {"encoding": "utf-8", "errors": "replace"}
+    if (platform or sys.platform) == "win32":
+        options["creationflags"] = CREATE_NO_WINDOW
+    return options
+
+
+def print_command(exe: str, model: str, effort: str, schema: dict, tools: str, system: str,
+                  platform: str | None = None) -> list[str]:
+    """`claude -p` with everything but the prompt, which is handed over on standard input: with the prompt and the
+    schema both on it, the command line for describing an item was longer than Windows allows. The schema is
+    written without spaces for the same reason."""
+    cmd = [exe, "-p", "--model", model, "--effort", effort, "--output-format", "json",
+           "--json-schema", json.dumps(schema, separators=(",", ":")), "--tools", tools, "--allowedTools", tools,
+           "--strict-mcp-config", "--no-session-persistence", "--system-prompt", system]
+    if (platform or sys.platform) == "win32" and len(subprocess.list2cmdline(cmd)) >= WINDOWS_COMMAND_LIMIT:
+        raise TaggingError("the request is too long for Windows to start Claude Code with")
+    return cmd
+
+
+def prompt_file(prompt: str):
+    """The prompt, in UTF-8, as a file to hand Claude Code on standard input (deleted when closed). A file and not a
+    pipe: on Windows writing to a pipe does not respect the timeout, so a Claude Code that never read its input would
+    hold Closet up for good."""
+    f = tempfile.TemporaryFile()
+    f.write(prompt.encode("utf-8"))
+    f.seek(0)
+    return f
 
 
 STATUS_TIMEOUT = 5.0   # seconds; `claude auth status` only reads the local login
@@ -68,7 +123,7 @@ def plan_status(exe: str | None = None, timeout: float | None = None) -> tuple[b
     if not exe:
         return False, "Claude Code is not installed on this computer."
     env = {k: v for k, v in os.environ.items() if k not in _SCRUB}
-    kwargs = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
+    kwargs = {"creationflags": CREATE_NO_WINDOW} if sys.platform == "win32" else {}
     try:   # the output is never read, so no pipes: a grandchild left holding one can't outlast the timeout (Windows)
         proc = subprocess.run([exe, "auth", "status"], env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                               stderr=subprocess.DEVNULL, timeout=STATUS_TIMEOUT if timeout is None else timeout, **kwargs)
@@ -106,7 +161,9 @@ def tag_item_cli(model: str, images: list[Image.Image], exe: str | None = None, 
     env = {k: v for k, v in os.environ.items() if k not in _SCRUB}
     t0 = time.time()
     last: Exception | None = None
-    with tempfile.TemporaryDirectory(prefix="closet-tag-") as tmp:
+    # ignore_cleanup_errors: on Windows a file still held open for a moment cannot be removed; that must not turn
+    # an answer into a failure
+    with tempfile.TemporaryDirectory(prefix="closet-tag-", ignore_cleanup_errors=True) as tmp:
         names = []
         for i, im in enumerate(images, 1):
             name = f"photo-{i}.jpg"
@@ -115,14 +172,12 @@ def tag_item_cli(model: str, images: list[Image.Image], exe: str | None = None, 
         listing = ", ".join(names)
         prompt = (f"{PROMPT}\n\nThe image file{'s are' if len(names) > 1 else ' is'} in the current folder: {listing}. "
                   "Open each with the Read tool, then give your answer.")
-        cmd = [exe, "-p", prompt, "--model", model, "--effort", effort, "--output-format", "json",
-               "--json-schema", json.dumps(strict_schema()), "--tools", "Read", "--allowedTools", "Read",
-               "--strict-mcp-config", "--no-session-persistence", "--system-prompt", SYSTEM]
-        kwargs = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
+        cmd = print_command(exe, model, effort, strict_schema(), "Read", SYSTEM)
         for attempt in range(1, max_attempts + 1):
             try:
-                proc = subprocess.run(cmd, cwd=tmp, env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                                      timeout=timeout, **kwargs)
+                with prompt_file(prompt) as stdin:
+                    proc = subprocess.run(cmd, cwd=tmp, env=env, stdin=stdin, capture_output=True, timeout=timeout,
+                                          **run_options())
             except subprocess.TimeoutExpired:
                 last = TaggingError(f"{model} through Claude Code did not answer within {timeout:.0f} seconds")
                 continue

@@ -20,7 +20,8 @@ page. There is nothing else to install.
 **Windows:** double-click `Closet.exe`. The first time, Windows shows
 "Windows protected your PC": click **More info**, then **Run anyway**.
 Starting takes a few seconds; there is no window, only a coat-hanger icon near
-the clock.
+the clock. Setting up a Windows PC to be the hub your phone reaches, step by
+step, is in "Setting up Closet on a Windows PC (the hub)" below.
 
 **Mac (Apple Silicon):** unzip `Closet-mac-arm64.zip` and double-click
 **Closet**. The first time, macOS says it cannot verify the app: click **Done**,
@@ -263,6 +264,75 @@ On a computer, **Review** also sits under **Closet** in the menu while there is
 anything to check, with the number beside **Closet**. It shows, one item at a
 time, only what Claude was unsure about. Tap another value if its guess is
 wrong, then **That's right**, or **Skip for now**.
+
+## Setting up Closet on a Windows PC (the hub)
+
+The PC that keeps your closet and that the phone reaches is the "hub". Do these
+steps once, in this order. Each says what you should see.
+
+**1. Install Claude Code and sign in with your plan.** Follow "Installing
+Claude Code" below (the PowerShell line). When `claude` asks how to sign in,
+choose your **Claude account with subscription** (your Pro or Max plan), not an
+Anthropic Console account: the Console one is billed per use. Then type
+`claude auth status` and press Enter: it should say you are logged in, with your
+own e-mail address. Use the PowerShell line rather than `npm`: Closet looks for
+`claude.exe`, which that line (and `winget`) installs.
+
+**2. Put Closet in a folder of its own.** Download `Closet.exe` from the
+**Releases** page. In File Explorer make a folder such as
+`C:\Users\you\Apps\Closet` and move `Closet.exe` into it. Not in **Program
+Files**: Closet replaces itself when it updates, and Windows only lets it do that
+in a folder of your own. Not in **Downloads** either, so it is not tidied away.
+
+**3. Open it the first time.** Double-click `Closet.exe`.
+- If your browser said "Closet.exe isn't commonly downloaded", click **⋯** beside
+  it, then **Keep**, then **Show more → Keep anyway**.
+- Windows then shows "Windows protected your PC" ("unknown publisher"): click
+  **More info**, then **Run anyway**. It asks only this once. (Closet is not
+  signed with a paid certificate, which is all this message means.)
+- If Windows says **Smart App Control** blocked it, there is no **Run anyway**:
+  Smart App Control only allows signed programs. Tell whoever looks after Closet
+  rather than turning it off.
+
+A few seconds later the coat-hanger icon appears near the clock (if not, click
+the **^** beside the clock: it may be hidden there) and your browser opens
+Closet at `http://127.0.0.1:8765`. Choose your passphrase; the
+background-removal model starts downloading.
+
+**4. The firewall.** Closet only listens on this PC itself (127.0.0.1), never on
+the network, so Windows normally asks nothing. If a "Windows Security" window
+about Closet and **Private** or **Public** networks appears anyway, click
+**Cancel**: nothing needs to be let through. The phone comes in through
+Tailscale, which runs on this PC and passes the phone's requests to Closet here.
+
+**5. Check that Claude can be reached.** In Closet open **Settings → Describing
+clothes**. Under **Your Claude plan, through Claude Code** it should say **Ready
+to use.** If it says Claude Code is not installed, quit Closet (the icon's menu,
+**Quit Closet**) and open it again so it sees the new program; if it says
+installed but not signed in, do step 1's `claude` sign-in again, then press
+**Check again**.
+
+**6. Start at login.** Right-click the coat-hanger icon and click **Start when I
+log in**; a tick appears beside it. From then on Closet starts by itself when
+you sign in to Windows, with no browser window (open it from the icon, or go to
+`http://127.0.0.1:8765`). To keep the icon always in view: **Settings →
+Personalization → Taskbar → Other system tray icons**, turn **Closet** on. If you
+ever move `Closet.exe`, click **Start when I log in** twice (off, then on) so it
+points to the new place.
+
+**7. Reach it from the iPhone.** Install Tailscale on the PC (tailscale.com,
+**Download**, Windows) and on the iPhone (App Store), and sign in to both with
+the same account. Then follow "Use it from your iPhone" below: the PowerShell
+command `tailscale serve --bg 8765`, then open the address it prints in Safari
+on the phone. **Settings → Phone access** shows the same address.
+
+**8. Where your closet is kept.** Everything is in the `Closet` folder in your
+user folder, `C:\Users\you\Closet` (to open it: press Windows+R, type
+`%USERPROFILE%\Closet` and press Enter). Its `logs\closet.log` is what to send if
+something goes wrong. Choose a backup folder in **Settings → Your closet →
+Backups** (a OneDrive folder is ideal). An API key, if you save one, is kept in
+**Windows Credential Manager** (Control Panel → Credential Manager → Windows
+Credentials, as `Closet/anthropic-api-key`), not in that folder.
 
 ## Use it from your iPhone
 

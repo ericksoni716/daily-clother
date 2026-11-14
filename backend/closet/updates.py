@@ -345,7 +345,9 @@ def start_program(where: Layout, args: list[str]):
 
 def _kill(pid: int) -> None:
     if os.name == "nt":
-        subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, check=False)
+        # CREATE_NO_WINDOW: the helper has no console, so taskkill would otherwise flash one up
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, check=False,
+                       creationflags=0x08000000)
         return
     try:
         os.kill(pid, signal.SIGTERM)

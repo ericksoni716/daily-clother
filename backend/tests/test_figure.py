@@ -158,19 +158,22 @@ def test_every_kind_of_shoe_is_drawn_from_the_front(style, extra):
                 "derby": "dress_shoes", "oxford": "dress_shoes"}.get(style, "sneakers")
     shoes = Piece(category, answer(category, shoe_style=style, **extra), "#6b4a32")
     for bottom in (TROUSERS, SHORTS):
-        for limbs in (False, True):
-            layout = plan(dict(base=TEE, bottom=bottom, shoes=shoes), limbs=limbs)
+        for face in (False, True):
+            layout = plan(dict(base=TEE, bottom=bottom, shoes=shoes))
             placed = layout.get("shoes")
             assert placed.front is not None and placed.front.body and placed.front.outline.startswith("M ")
-            svg = figure(dict(base=TEE, bottom=bottom, shoes=shoes), limbs=limbs)
+            assert placed.front.ankle                                # the wearer's ankle (a bare foot in a sandal) in it
+            svg = figure(dict(base=TEE, bottom=bottom, shoes=shoes), face=face)
             assert all(f'<g transform="{fig._matrix(t)}"><path' in svg for t in placed.transforms)   # the pair, as drawn
+            if style == "sandal":   # skin in the sandal: the bare foot
+                assert fig.SKIN in placed.front.body.split("<path", 2)[2]
 
 
 @pytest.mark.parametrize("name", list(OUTFITS))
 def test_the_figure_fits_its_canvas_with_even_margins(name):
     layout = plan(OUTFITS[name])
     vx, vy, vw, vh = layout.view
-    boxes = [p.box() for p in layout.pieces] + [layout.form.box]
+    boxes = [p.box() for p in layout.pieces] + [layout.body.box]
     assert min(b[0] for b in boxes) - vx == pytest.approx(MARGIN)
     assert min(b[1] for b in boxes) - vy == pytest.approx(MARGIN)
     assert vx + vw - max(b[2] for b in boxes) == pytest.approx(MARGIN)
@@ -381,56 +384,154 @@ def test_the_figure_route_takes_accessories(client):
         assert client.post("/api/outfits/figure", json={"base": a["id"], "accessories": bad}).status_code == 422, bad
 
 
-def test_the_form_is_drawn_first_behind_every_garment():
+def _flat(d: str, t=(1.0, 0.0, 0.0, 1.0, 0.0, 0.0), steps: int = 12) -> list[tuple[float, float]]:
+    """The points along a path of absolute M, L, Q, C and Z commands, curves sampled, mapped by the matrix t."""
+    a, b, c, dd, e, f = t
+    out, cur = [], (0.0, 0.0)
+    for cmd, args in re.findall(r"([MLQCZ])([^MLQCZ]*)", d):
+        nums = [float(v) for v in re.findall(r"-?[\d.]+", args)]
+        pts = list(zip(nums[0::2], nums[1::2], strict=True))
+        if cmd in "ML":
+            out += pts
+        elif cmd == "Q":
+            for i in range(0, len(pts), 2):
+                p1, p2 = pts[i], pts[i + 1]
+                out += [((1 - u) ** 2 * cur[0] + 2 * (1 - u) * u * p1[0] + u * u * p2[0],
+                         (1 - u) ** 2 * cur[1] + 2 * (1 - u) * u * p1[1] + u * u * p2[1]) for u in (k / steps for k in range(1, steps + 1))]
+                cur = p2
+            continue
+        elif cmd == "C":
+            for i in range(0, len(pts), 3):
+                p1, p2, p3 = pts[i:i + 3]
+                out += [tuple((1 - u) ** 3 * q0 + 3 * (1 - u) ** 2 * u * q1 + 3 * (1 - u) * u * u * q2 + u ** 3 * q3
+                              for q0, q1, q2, q3 in zip(cur, p1, p2, p3, strict=True)) for u in (k / steps for k in range(1, steps + 1))]
+                cur = p3
+            continue
+        if pts:
+            cur = pts[-1]
+    return [(a * x + c * y + e, b * x + dd * y + f) for x, y in out]
+
+
+def _inside(pt, poly) -> bool:
+    x, y = pt
+    n, hit = len(poly), False
+    for i in range(n):
+        (x0, y0), (x1, y1) = poly[i], poly[(i + 1) % n]
+        if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
+            hit = not hit
+    return hit
+
+
+def _clear(pt, poly, margin: float) -> bool:
+    """Inside poly, at least `margin` from its edge."""
+    return _inside(pt, poly) and all(_inside((pt[0] + dx, pt[1] + dy), poly)
+                                     for dx, dy in ((margin, 0), (-margin, 0), (0, margin), (0, -margin)))
+
+
+def test_the_wearer_is_drawn_first_behind_every_garment():
     for name, pieces in OUTFITS.items():
         svg = figure(pieces, uid="q")
         body = svg[svg.index("</defs>"):]
         first = re.search(r'rx="18" fill="[^"]+"/>(<[^>]+>)', body).group(1)
         assert first == '<g id="qm">', name
-    assert 'id="qm"' not in figure(dict(shoes=SNEAKERS), uid="q")   # shoes alone: nothing to stand on
+        group = body[body.index('<g id="qm">'):]
+        assert group.index(f'fill="{fig.SKIN}"') < group.index(pieces["bottom"].color_hex)   # skin, then the clothes
+    assert 'id="qm"' not in figure(dict(shoes=SNEAKERS), uid="q")   # shoes alone: nobody to wear them
 
 
-def test_the_form_has_no_head_hands_or_feet_and_shows_no_limb_by_default():
+def test_the_wearer_is_a_person_about_seven_and_a_half_heads_tall():
     layout = plan(dict(base=TEE, bottom=SHORTS, shoes=SNEAKERS))
-    form, b = layout.form, layout.get("bottom")
-    assert form.limbs == [] and not form.ankles
-    assert form.box[3] < b.point(b.shape.anchors["crotch"])[1]     # it ends inside the trousers, above the crotch
-    tee = layout.get("base")
-    assert form.box[1] < tee.box()[1]                               # the neck stub stands above the collar ...
-    assert form.box[1] > tee.box()[1] - 13 * K_PX                   # ... a little: there is no head
-    for p in (SHIRT, COAT, HOODIE):                                  # above every collar, and never a head's height
-        layout = plan(dict(base=p))
-        cut = fig.NECK_Y - fig.NECK_MAX_CM * K_PX - fig.NECK_HALF_CM * K_PX * 0.3   # the cap, seen from a little above
-        assert layout.form.box[1] < layout.get("base").box()[1] or layout.form.box[1] == pytest.approx(cut, abs=0.2)
-        assert layout.form.box[1] >= cut - 0.2
+    body = layout.body
+    assert body.head and body.hair and len(body.ears) == 2 and len(body.arms) == 2 and len(body.hands) == 2
+    assert len(body.legs) == 2
+    head = _flat(body.head)
+    top, chin = min(y for _, y in head + _flat(body.hair)), max(y for _, y in head)   # crown of the hair to the chin
+    assert chin < fig.NECK_Y and chin < layout.get("base").box()[1]   # the chin above the collar
+    heads = (GROUND_Y - top) / (chin - top)
+    assert 7.0 <= heads <= 8.0
+    # the hands hang beside the thighs, clear of the trousers
+    b = layout.get("bottom")
+    for hand in body.hands:
+        xs = [x for x, _ in _flat(hand)]
+        assert min(xs) > b.box()[2] or max(xs) < b.box()[0]
 
 
-def test_with_limbs_only_short_sleeves_and_shorts_show_one_and_it_stops_at_the_elbow_or_knee():
-    layout = plan(dict(base=TEE, bottom=SHORTS, shoes=SNEAKERS), limbs=True)
-    form, b = layout.form, layout.get("bottom")
-    assert len(form.limbs) == 4 and form.ankles                     # two arms, two legs
+def test_both_heads_draw_and_the_face_is_optional():
+    with_face, plain = figure(OUTFITS["tee, shorts and sneakers"], uid="q"), figure(OUTFITS["tee, shorts and sneakers"], uid="q", face=False)
+    assert fig.FACE and f'fill="{fig.EYE}"' in with_face and f'fill="{fig.EYE}"' not in plain
+    assert fig.HAIR in with_face and fig.HAIR in plain
+    # the head is drawn over the tops, before a scarf or a hat
+    assert plain.rindex(fig.HAIR) > plain.index(TEE.color_hex)
+
+
+def test_the_skin_colour_is_read_from_one_place(monkeypatch):
+    monkeypatch.setattr(fig, "SKIN", "#123456")
+    svg = figure(dict(base=TEE, bottom=SHORTS, shoes=Piece("sandals", answer("sandals", shoe_style="sandal"), "#6b4a32")), uid="q")
+    assert "#123456" in svg and "#c68e6a" not in svg
+
+
+@pytest.mark.parametrize("name", list(OUTFITS))
+def test_the_shoes_are_on_the_feet(name):
+    layout = plan(OUTFITS[name])
+    shoes, body = layout.get("shoes"), layout.body
+    ankle, edge = shoes.front.anchors["ankle"], shoes.front.anchors["ankle_r"]
+    x0, _, x1, _ = shoes.front.bbox
+    for copy, leg in enumerate(body.legs):
+        end = shoes.point(ankle, copy)
+        pts = _flat(leg)
+        foot = [p for p in pts if p[1] > max(y for _, y in pts) - 0.5]   # the leg's end, across the ankle
+        assert (min(x for x, _ in foot) + max(x for x, _ in foot)) / 2 == pytest.approx(end[0], abs=0.6)
+        assert max(x for x, _ in foot) - min(x for x, _ in foot) == pytest.approx(2 * (edge[0] - ankle[0]), abs=0.6)
+        assert min(shoes.point((x0, 0), copy)[0], shoes.point((x1, 0), copy)[0]) < end[0] < max(
+            shoes.point((x0, 0), copy)[0], shoes.point((x1, 0), copy)[0])   # inside the shoe, across
+        assert end[1] > shoes.point((0.0, shoes.front.bbox[1]), copy)[1]   # below the top of the shoe
+    # no shoes: bare feet, drawn as the shoes would stand
+    bare = plan(dict(base=TEE, bottom=SHORTS)).body
+    assert bare.feet is not None and len(bare.feet[1]) == 2
+    assert fig.SKIN in figure(dict(base=TEE, bottom=SHORTS), uid="q").split('<g id="qm">')[1]
+
+
+@pytest.mark.parametrize("top", [SHIRT, COAT, JACKET, SWEATER], ids=["shirt", "coat", "jacket", "sweater"])
+@pytest.mark.parametrize("bottom", [TROUSERS, JEANS], ids=["trousers", "jeans"])
+def test_no_skin_shows_where_a_garment_covers_it(top, bottom):
+    """The skin is drawn first and its outline LINE outside its paths; a garment's own outline reaches half its width
+    outside the garment. So under a garment every point of the skin's paths lies at least that much inside it."""
+    layout = plan(dict(base=top, bottom=bottom, shoes=SNEAKERS))
+    body, t, b = layout.body, layout.get("base"), layout.get("bottom")
+    margin = fig.LINE - 1.9
+    cover = _flat(t.shape.outline, t.transforms[0])
+    for arm in body.arms:   # a long sleeve covers the arm to the wrist; the hand comes out of the cuff
+        for p in _flat(arm):
+            assert _clear(p, cover, margin), (p, "arm")
+    trousers = _flat(b.shape.outline, b.transforms[0])
     hem = b.point(b.shape.anchors["hem"])[1]
-    knee = WAIST_Y + fig.KNEE_BELOW_WAIST_CM * K_PX
-    nums = lambda d: [(float(x), float(y)) for x, y in re.findall(r"(-?[\d.]+),(-?[\d.]+)", d)]   # noqa: E731
-    legs = [d for d, _ in form.limbs if min(y for _, y in nums(d)) > WAIST_Y]
-    assert len(legs) == 2 and all(max(y for _, y in nums(d)) <= knee + 0.5 for d in legs)
-    assert all(min(y for _, y in nums(d)) < hem for d in legs)     # from under the shorts
-    shoulder = layout.get("base").point(layout.get("base").shape.anchors["shoulder_l"])
-    for d, _ in form.limbs:
-        if d not in legs:
-            far = max(((x - shoulder[0]) ** 2 + (y - shoulder[1]) ** 2) ** 0.5 for x, y in nums(d))
-            far = min(far, max(((x - (2 * CX - shoulder[0])) ** 2 + (y - shoulder[1]) ** 2) ** 0.5 for x, y in nums(d)))
-            assert far <= (fig.ELBOW_CM + fig.ARM_HALF_CM) * K_PX + 1
-    # long sleeves and full-length trousers cover the limbs: nothing shows past a cuff or a hem
-    covered = plan(dict(base=SHIRT, bottom=TROUSERS, shoes=SNEAKERS), limbs=True).form
-    assert covered.limbs == []
-    assert "<path" not in figure(dict(base=SHIRT, bottom=TROUSERS, shoes=SNEAKERS), uid="q", limbs=True).split('<g id="qm">')[1].split("</g>")[0].split("/>", 2)[2]
+    for leg in body.legs:   # full-length trousers cover the legs down to the hem
+        for p in _flat(leg):
+            if p[1] < hem - margin:
+                assert _clear(p, trousers, margin) or _clear(p, cover, margin), (p, "leg")
+    for p in _flat(body.torso):   # the torso below the collar: under the top, or under the trousers below it
+        if p[1] > fig.NECK_Y + 6 * K_PX:
+            assert _clear(p, cover, margin) or _clear(p, trousers, margin), (p, "torso")
 
 
-def test_the_form_shows_in_an_open_top_worn_on_its_own():
+def test_skin_shows_below_a_short_sleeve_and_shorts():
+    layout = plan(dict(base=TEE, bottom=SHORTS, shoes=SNEAKERS))
+    body, t, b = layout.body, layout.get("base"), layout.get("bottom")
+    tee = _flat(t.shape.outline, t.transforms[0])
+    for arm in body.arms:   # the forearm hangs out of the sleeve; the top of the arm is inside it
+        pts = _flat(arm)
+        assert any(not _inside(p, tee) for p in pts) and any(_inside(p, tee) for p in pts)
+    hem = b.point(b.shape.anchors["hem"])[1]
+    for leg in body.legs:
+        assert max(y for _, y in _flat(leg)) > hem + 30 * K_PX
+
+
+def test_the_chest_shows_in_an_open_top_worn_on_its_own():
     svg = figure(dict(mid=OVERSHIRT.__class__("shirt", answer("shirt", collar="point", placket="front_placket"), "#a9c3e0"),
                       bottom=JEANS), uid="q")
-    assert '<use href="#qm"/>' in svg and '<use href="#qw"/>' in svg   # the form in the opening, the trousers over it
+    body = svg[svg.index("</defs>"):]
+    back = body.index('fill="#a9c3e0"')
+    assert f'fill="{fig.SKIN}"' in body[back:] and '<use href="#qw"/>' in body[back:]   # skin in the opening, trousers over it
 
 
 def test_the_figure_does_not_change_the_items_drawings():

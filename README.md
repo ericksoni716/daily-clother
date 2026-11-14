@@ -95,7 +95,7 @@ out for, such as rain. Tap **I'm wearing this** to record a wear for every
 piece at once (**Undo** takes it back). The **⋯** on a piece leaves it out
 (**Not this piece**) or builds every outfit around it (**Start from this
 piece**); tap a piece to open it. **As worn**, above the pieces, draws the
-outfit as it is worn on a plain dress form instead (the shirt under the open
+outfit as it is worn by a drawn person instead (the shirt under the open
 jacket, the trousers below, the shoes under them); **Pieces** goes back, and your choice is
 remembered on that device. Today uses the forecast for New York until you
 choose your place: tap **Change** beside the weather to search for it or tap

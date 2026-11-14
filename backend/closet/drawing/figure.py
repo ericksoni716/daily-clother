@@ -1,12 +1,16 @@
 """An outfit drawn as worn: the layered figure.
 
-One front view of a whole outfit, worn on a quiet dress form: a headless
-torso with a short neck stub, in one soft tone close to the card, drawn behind
-everything (`_form`). It has no head, arms, hands, legs or feet; with LIMBS it
-shows a short tonal arm below a short sleeve and a leg below shorts. Each piece
-is drawn by the same templates and renderer as the item drawings, from the same
-description, and placed by the points on the wearer every template keeps; the
-form is placed by the same points:
+One front view of a whole outfit, worn by a person drawn in the garments' own
+flat style (`_body`): head, neck, arms, hands, legs and feet, about 7.5 heads
+tall, standing front-on with the arms a little away from the body. The skin is
+one colour, SKIN, read from this one place; it is drawn first, behind every
+garment, so it shows only where nothing covers it: the face and neck, the hands
+below the cuffs, the forearms below short sleeves, the legs below shorts, the
+ankles in low shoes and the feet in sandals. The head has a simple face (eyes,
+brows, a hint of nose and mouth) or, with face=False, only hair and its shape.
+Each piece is drawn by the same templates and renderer as the item drawings,
+from the same description, and placed by the points on the wearer every
+template keeps; the body is placed by the same points:
 
 - Tops share the neck and shoulder points, so they are drawn where they are on
   their own card. The base top is closed. A mid or outer layer that opens all
@@ -55,8 +59,8 @@ from dataclasses import dataclass, field, replace
 
 from . import item
 from .fills import Graphic
-from .frontshoe import FrontShoe, front_shoe
-from .illustrate import CARD, INK, Fill, Spec, _draw
+from .frontshoe import FrontShoe, bare_feet, front_shoe
+from .illustrate import CARD, INK, Fill, Spec, _draw, shade
 from .templates import BODY_W, CX, K_PX, PX_CM, Shape, build
 
 log = logging.getLogger("closet.drawing")
@@ -81,20 +85,29 @@ TOE_CM = 5.0                  # seen a little from above, the toes stand forward
 LEG_CM = 12.5 * BOTTOM_W      # the middle of each leg, from the middle of the figure: where a straight leg's hem is
 MARGIN = 18.0                 # the same space on every side of the figure
 
-# the form: a dress form behind the clothes, one quiet tone a little darker than the card, with a faint edge
-FORM = "#e4dfd5"
-FORM_EDGE = "#cfc7b9"
-FORM_CUT = "#ece8e0"          # the cut top of its neck stub, and the cut end of a tonal limb
-LIMBS = False                 # whether a short tonal arm shows below a short sleeve and a leg below shorts
-NECK_HALF_CM = 5.8            # half the neck stub's width
-NECK_STUB_CM = 6.5            # how far the neck stub stands above the base of the neck, at least ...
-NECK_OVER_CM = 3.0            # ... and above the highest collar, so it is seen ...
-NECK_MAX_CM = 12.0            # ... up to this (a hood or a high collar hides it)
-ELBOW_CM = 32.0               # from the shoulder point to the elbow, along the sleeve
+# the wearer: a man about 7.5 heads tall, standing front-on, drawn in the garments' own line and flat fills
+SKIN = "#c68e6a"              # the skin's colour: the one place it is read from (a Settings choice can set it later)
+SKIN_LINE = shade(SKIN, -0.32)   # the lines drawn on skin: fingers, ears, toes, nose and mouth
+TOE_LINE = SKIN_LINE
+HAIR = "#3b2e27"
+EYE = "#2b211c"
+FACE = True                   # a simple face (eyes, brows, a hint of nose and mouth); False: only hair and head shape
+LINE = 3.8                    # the body's outline, as wide as a garment's (illustrate's "line" style)
+HEAD_H_CM, HEAD_W_CM = 23.5, 15.6   # crown to chin, and across the cheeks
+CHIN_CM = 7.5                 # the chin, above the base of the neck
+NECK_HALF_CM = 5.8            # half the neck's width
+NECK_IN_CM = 4.5              # how far the neck is drawn on down inside a top's neck opening, over its back
+SHOULDER_IN_CM = 4.5          # the top of the arm, in from a top's shoulder point and down from it
+ELBOW_CM, WRIST_CM = 29.0, 54.0   # from the top of the arm, along it
+ARM_HALF_CM, ELBOW_HALF_CM, WRIST_HALF_CM = 4.9, 3.8, 2.7
+FOREARM_DEG = 9.0             # below a short sleeve the forearm hangs this far out from straight down
+BARE_ARM_DEG = 14.0           # an arm with no sleeve over it, from straight down
+HIP_CM, HIP_DOWN_CM = 8.5, 12.0   # the top of each leg (hidden in the trousers), from the middle and under the waist
+THIGH_HALF_CM, KNEE_HALF_CM, CALF_HALF_CM = 8.0, 5.2, 5.0
 KNEE_BELOW_WAIST_CM = 60.0    # the trousers template's knee
-ARM_HALF_CM, THIGH_HALF_CM, KNEE_HALF_CM = 4.6, 7.2, 5.6
+CALF_BELOW_KNEE_CM = 13.0
 
-HAT_ABOVE_NECK_CM = 21.0      # the middle of a hat's band, at the forehead, above the base of the neck
+HAT_ABOVE_NECK_CM = CHIN_CM + HEAD_H_CM - 9.0   # where a hat sits on the head, above the base of the neck
 HAND_BELOW_WAIST_CM = 22.0    # where a hand hangs holding a bag's handle, under the waist
 BAG_GAP_CM = 5.0              # between the bag and the figure
 BELT_HALF_CM = 20.5 * BOTTOM_W - 0.3   # a worn belt, either side of its buckle: the trousers' waist as drawn
@@ -144,14 +157,25 @@ class Placed:
 
 
 @dataclass
-class Form:
-    """The dress form the clothes are worn on, in the figure's coordinates: a torso with shoulders and a short neck
-    stub (no head, arms, hands, legs or feet), and, with LIMBS, short tonal limbs (paths ending at the elbow or the
-    knee) where a short sleeve or shorts would leave them showing."""
+class Body:
+    """The wearer, in the figure's coordinates: paths for the torso (with the neck, up under the chin), the arms,
+    the hands, the legs (down into the shoes), the ears, the head and the hair, and the detail lines (fingers, ears,
+    and the face's features). Garments are drawn over it from the same anchors, so skin shows only where none
+    covers it. `feet` are bare feet, when there are trousers but no shoes."""
     torso: str
-    cap: str                                  # the cut top of the neck stub
-    limbs: list[tuple[str, str]] = field(default_factory=list)   # (a limb, its cut end)
-    ankles: bool = False                      # the shoes show the form's tonal ankle in their opening
+    arms: list[str] = field(default_factory=list)
+    hands: list[str] = field(default_factory=list)
+    fingers: list[str] = field(default_factory=list)
+    legs: list[str] = field(default_factory=list)
+    ears: list[str] = field(default_factory=list)
+    ear_lines: list[str] = field(default_factory=list)
+    head: str = ""
+    hair: str = ""
+    hair_lines: list[str] = field(default_factory=list)
+    face: list[tuple[str, str, float]] = field(default_factory=list)   # (path, colour, width); eyes are filled
+    eyes: list[str] = field(default_factory=list)
+    cut: float | None = None    # with no trousers, the torso is not drawn below this
+    feet: tuple[FrontShoe, list] | None = None
     box: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
 
 
@@ -159,11 +183,11 @@ class Form:
 class Layout:
     pieces: list[Placed] = field(default_factory=list)
     view: tuple[float, float, float, float] = (0.0, 0.0, 400.0, 600.0)   # x, y, width, height
-    form: Form | None = None
+    body: Body | None = None
 
     def fit(self) -> None:
         """The canvas: everything drawn, with MARGIN on every side."""
-        boxes = [p.box() for p in self.pieces] + ([self.form.box] if self.form else [])
+        boxes = [p.box() for p in self.pieces] + ([self.body.box] if self.body else [])
         boxes = boxes or [(CX - 100, NECK_Y, CX + 100, GROUND_Y)]
         x0, y0 = min(b[0] for b in boxes) - MARGIN, min(b[1] for b in boxes) - MARGIN
         x1, y1 = max(b[2] for b in boxes) + MARGIN, max(b[3] for b in boxes) + MARGIN
@@ -173,19 +197,19 @@ class Layout:
         return next((p for p in self.pieces if p.place == place), None)
 
 
-def figure(pieces: Mapping[str, Piece | None] | None, *, uid: str = "f", limbs: bool = LIMBS) -> str:
+def figure(pieces: Mapping[str, Piece | None] | None, *, uid: str = "f", face: bool = FACE) -> str:
     """The outfit as worn, as one SVG. `pieces` maps places (base, mid, outer, bottom, shoes) to pieces, and
-    "accessories" to a list of pieces; a place that is missing or None is not drawn. With `limbs`, the form shows
-    short tonal limbs below short sleeves and shorts. Never raises."""
+    "accessories" to a list of pieces; a place that is missing or None is not drawn. With `face` the wearer's
+    face has simple features; without, only the head's shape and hair. Never raises."""
     uid = item._uid(uid)
     try:
-        return _svg(plan(pieces, limbs=limbs), uid)
+        return _svg(plan(pieces), uid, face)
     except Exception:
         log.exception("could not draw an outfit as worn")
         return _empty()
 
 
-def plan(pieces: Mapping[str, Piece | None] | None, *, limbs: bool = LIMBS) -> Layout:
+def plan(pieces: Mapping[str, Piece | None] | None) -> Layout:
     """Where each piece goes: the figure's geometry, without drawing it."""
     out = Layout()
     pieces = pieces if isinstance(pieces, Mapping) else {}
@@ -195,11 +219,6 @@ def plan(pieces: Mapping[str, Piece | None] | None, *, limbs: bool = LIMBS) -> L
         made = _placed(place, pieces.get(place))
         if made is not None:
             out.pieces.append(made)
-    if any(p.place in TOP_PLACES or p.place == "bottom" for p in out.pieces):
-        try:
-            out.form = _form(out, limbs)
-        except Exception:
-            log.exception("placing the form for an outfit failed")
     made = _placed("shoes", pieces.get("shoes"))
     if made is not None:
         try:
@@ -207,6 +226,11 @@ def plan(pieces: Mapping[str, Piece | None] | None, *, limbs: bool = LIMBS) -> L
             out.pieces.append(made)
         except Exception:
             log.exception("placing the shoes for an outfit failed")
+    if any(p.place in TOP_PLACES or p.place == "bottom" for p in out.pieces):
+        try:
+            out.body = _body(out)
+        except Exception:
+            log.exception("placing the wearer for an outfit failed")
     accessories = pieces.get("accessories")
     if isinstance(accessories, (list, tuple)):
         for made in _accessories(out, accessories):
@@ -284,7 +308,7 @@ def _place(place: str, spec: Spec) -> Placed:
 def _legs(layout: Layout) -> tuple[float, float, bool]:
     """Where the middle of each leg is (the viewer's left, then right) at the ground, and whether the trousers
     reach the shoes. Full-length and ankle trousers: under the middle of each leg's opening. Shorts, or no
-    trousers: under the legs of the form, where a straight leg's hem would be."""
+    trousers: under the wearer's legs, where a straight leg's hem would be."""
     b = layout.get("bottom")
     left, right = CX - LEG_CM * K_PX, CX + LEG_CM * K_PX
     if b is None or b.spec.params.get("length", "full") not in ("full", "ankle"):
@@ -308,43 +332,42 @@ def _inside_legs(layout: Layout) -> str:
 
 def _stand(shoes: Placed, layout: Layout) -> Placed:
     """The pair, each shoe centred under its leg, the toes on the ground and turned out; the viewer's right shoe
-    is the left one mirrored. Without full-length trousers the form's ankle stands in each shoe (with LIMBS)."""
-    left, right, covered = _legs(layout)
-    ankle = layout.form is not None and layout.form.ankles and not covered
-    if ankle:
-        shoes.front = front_shoe(shoes.spec, K_PX, sole_default=shoes.shape.sole_default, ankle=_ankle())
+    is the left one mirrored. With trousers on, the wearer's ankle stands in each shoe (a bare foot in a sandal)."""
+    left, right, _ = _legs(layout)
+    if layout.get("bottom") is not None:
+        shoes.front = front_shoe(shoes.spec, K_PX, sole_default=shoes.shape.sole_default, ankle=_ankle(), toes=TOE_LINE)
         shoes.shape = Shape(outline=shoes.front.outline, bbox=shoes.front.bbox, body_box=shoes.front.bbox,
                             anchors=dict(shoes.front.anchors), sole_default=shoes.shape.sole_default)
-    bx = (shoes.shape.bbox[0] + shoes.shape.bbox[2]) / 2
-    y = GROUND_Y + TOE_CM * K_PX
-    shoes.transforms = [(1.0, 0.0, 0.0, 1.0, left - bx, y), (-1.0, 0.0, 0.0, 1.0, right + bx, y)]
+    shoes.transforms = _pair(shoes.shape.bbox, left, right)
     return shoes
 
 
+def _pair(bbox, left: float, right: float) -> list[tuple[float, float, float, float, float, float]]:
+    bx = (bbox[0] + bbox[2]) / 2
+    y = GROUND_Y + TOE_CM * K_PX
+    return [(1.0, 0.0, 0.0, 1.0, left - bx, y), (-1.0, 0.0, 0.0, 1.0, right + bx, y)]
+
+
 def _ankle() -> str:
-    return f'<path d="{{d}}" fill="{FORM}" stroke="{FORM_EDGE}" stroke-width="1.2" stroke-linejoin="round"/>'
+    """Skin in a shoe, drawn as the body is: its outline under its fill."""
+    return (f'<path d="{{d}}" fill="none" stroke="{INK}" stroke-width="{2 * LINE}" stroke-linejoin="round"/>'
+            f'<path d="{{d}}" fill="{SKIN}"/>')
 
 
-# ------------------------------------------------------------------ the form
+# ------------------------------------------------------------------ the wearer
 
 def _f(v: float) -> str:
     return f"{v:.1f}"
 
 
-def _neck_top(layout: Layout) -> float:
-    """Where the neck stub is cut: above the highest collar among the tops, so it shows over a shirt's collar too."""
-    stub = NECK_STUB_CM * K_PX
-    tops = [p for p in layout.pieces if p.place in TOP_PLACES]
-    if tops:
-        collar = min(p.box()[1] for p in tops)
-        stub = max(stub, min(NECK_Y - collar + NECK_OVER_CM * K_PX, NECK_MAX_CM * K_PX))
-    return NECK_Y - stub
+def _pt(q) -> str:
+    return f"{_f(q[0])},{_f(q[1])}"
 
 
-def _torso(top: float) -> str:
-    """The form's torso, neck stub (cut at `top`) to hips: the shoulders just inside every top's, the waist as
-    wide as a worn belt (so a top tucked in under one shows nothing behind it), and it ends above the trousers'
-    crotch."""
+def _torso(top: float, short: bool = False) -> str:
+    """The torso, from the neck (cut at `top`, under the chin) to the hips: the shoulders just inside every top's,
+    the waist as wide as a worn belt (so a top tucked in under one shows nothing behind it), and it ends above the
+    trousers' crotch. `short`: it ends at the waist, for a figure with no trousers."""
     k, n, w = K_PX, NECK_Y, WAIST_Y
     nw = NECK_HALF_CM * k
     waist = BELT_HALF_CM * k
@@ -353,128 +376,317 @@ def _torso(top: float) -> str:
              ("C", (CX + 17 * k, n + 30 * k), (CX + waist, w - 9 * k), (CX + waist, w)),     # down the side to the waist
              ("C", (CX + waist, w + 6 * k), (CX + 17.9 * k, w + 10 * k), (CX + 17.7 * k, w + 15 * k)),   # the hip
              ("C", (CX + 17.5 * k, w + 19 * k), (CX + 9 * k, w + 23.5 * k), (CX, w + 23.5 * k))]   # round under it
+    if short:
+        right = right[:3]
 
     def mirror(q):
         return (2 * CX - q[0], q[1])
 
     d = f"M {_f(CX + nw)},{_f(top)} L {_f(CX + nw)},{_f(n - 2)} "
-    d += " ".join(f"C {_f(a[0])},{_f(a[1])} {_f(b[0])},{_f(b[1])} {_f(c[0])},{_f(c[1])}" for _, a, b, c in right)
+    d += " ".join(f"C {_pt(a)} {_pt(b)} {_pt(c)}" for _, a, b, c in right)
+    d += f" L {_pt(mirror(right[-1][3]))}"
     starts = [(CX + nw, n - 2)] + [seg[3] for seg in right[:-1]]
     for (_, a, b, _c), st in zip(reversed(right), reversed(starts), strict=True):
         a, b, st = mirror(b), mirror(a), mirror(st)
-        d += f" C {_f(a[0])},{_f(a[1])} {_f(b[0])},{_f(b[1])} {_f(st[0])},{_f(st[1])}"
+        d += f" C {_pt(a)} {_pt(b)} {_pt(st)}"
     return d + f" L {_f(CX - nw)},{_f(top)} Z"
 
 
 def _ellipse(cx: float, cy: float, rx: float, ry: float, deg: float = 0.0) -> str:
     pts = []
+    c, s_ = math.cos(math.radians(deg)), math.sin(math.radians(deg))
     for i in range(24):
         a = 2 * math.pi * i / 24
         x, y = rx * math.cos(a), ry * math.sin(a)
-        c, s_ = math.cos(math.radians(deg)), math.sin(math.radians(deg))
         pts.append((cx + x * c - y * s_, cy + x * s_ + y * c))
-    return "M " + " L ".join(f"{_f(x)},{_f(y)}" for x, y in pts) + " Z"
-
-
-def _limb(a: tuple[float, float], b: tuple[float, float], ra: float, rb: float) -> tuple[str, str]:
-    """A tonal limb from a (hidden under the cloth) to b, ra and rb wide either side of its middle there, cut
-    straight across at b; and the cut end, an ellipse seen a little from above."""
-    dx, dy = b[0] - a[0], b[1] - a[1]
-    n = math.hypot(dx, dy) or 1.0
-    px, py = -dy / n, dx / n
-    pts = [(a[0] + px * ra, a[1] + py * ra), (b[0] + px * rb, b[1] + py * rb),
-           (b[0] - px * rb, b[1] - py * rb), (a[0] - px * ra, a[1] - py * ra)]
-    body = "M " + " L ".join(f"{_f(x)},{_f(y)}" for x, y in pts) + " Z"
-    return body, _ellipse(b[0], b[1], rb, rb * 0.32, math.degrees(math.atan2(py, px)))
+    return "M " + " L ".join(_pt(q) for q in pts) + " Z"
 
 
 def _numbers(d: str) -> list[tuple[float, float]]:
     return [(float(x), float(y)) for x, y in re.findall(r"(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)", d)]
 
 
-def _arms(layout: Layout) -> list[tuple[str, str]]:
-    """Short tonal arms, from inside each sleeve to the elbow, along the sleeve: only when every top has short or
-    elbow sleeves (a sleeveless top shows no arm: the form has none). Drawn no wider than the sleeve's opening."""
-    tops = [p for p in layout.pieces if p.place in TOP_PLACES]
-    ranks = [SLEEVE_RANK.get(p.spec.params.get("sleeve", "long"), 4) for p in tops]
-    if not tops or not all(r in (1, 2) for r in ranks):
-        return []
-    top = max(reversed(tops), key=lambda p: SLEEVE_RANK.get(p.spec.params.get("sleeve", "long"), 4))
-    out = []
+def _mirror(d: str) -> str:
+    """A path of absolute points, mirrored about the middle of the figure."""
+    return re.sub(r"(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)", lambda m: f"{_f(2 * CX - float(m[1]))},{m[2]}", d)
+
+
+def _curve(pts, closed: bool = False) -> str:
+    """A smooth curve through the points (Catmull-Rom, as cubic Béziers)."""
+    n = len(pts)
+    out = f"M {_pt(pts[0])}"
+    for i in range(n if closed else n - 1):
+        p0, p1 = pts[(i - 1) % n if closed else max(i - 1, 0)], pts[i]
+        p2, p3 = pts[(i + 1) % n], pts[(i + 2) % n if closed else min(i + 2, n - 1)]
+        c1 = (p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6)
+        c2 = (p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6)
+        out += f" C {_pt(c1)} {_pt(c2)} {_pt(p2)}"
+    return out + (" Z" if closed else "")
+
+
+def _tube(centres, halves, steps: int = 8) -> str:
+    """A limb along the points `centres`, `halves` wide either side of them, rounded at its start (which is hidden
+    in a garment or the torso) and cut straight across at its end (a hand or a shoe covers it)."""
+    pts, hs = [], []
+    for i in range(len(centres) - 1):
+        (x0, y0), (x1, y1) = centres[i], centres[i + 1]
+        for j in range(steps):
+            t = j / steps
+            pts.append((x0 + (x1 - x0) * t, y0 + (y1 - y0) * t))
+            hs.append(halves[i] + (halves[i + 1] - halves[i]) * t)
+    pts.append(centres[-1])
+    hs.append(halves[-1])
+    left, right, normals = [], [], []
+    for j, (x, y) in enumerate(pts):
+        a, b = pts[max(j - 1, 0)], pts[min(j + 1, len(pts) - 1)]
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        m = math.hypot(dx, dy) or 1.0
+        nx, ny = -dy / m, dx / m
+        normals.append((nx, ny, dx / m, dy / m))
+        left.append((x + nx * hs[j], y + ny * hs[j]))
+        right.append((x - nx * hs[j], y - ny * hs[j]))
+    nx, ny, dx, dy = normals[0]
+    (x, y), h = pts[0], hs[0]
+    cap = [(x + h * (-nx * math.cos(a) - dx * math.sin(a)), y + h * (-ny * math.cos(a) - dy * math.sin(a)))
+           for a in (math.pi * i / 8 for i in range(1, 8))]
+    return "M " + " L ".join(_pt(q) for q in left + right[::-1] + cap) + " Z"
+
+
+def _unit(dx: float, dy: float) -> tuple[float, float]:
+    m = math.hypot(dx, dy) or 1.0
+    return dx / m, dy / m
+
+
+@dataclass
+class _Sleeve:
+    shoulder: tuple[float, float]
+    down: tuple[float, float]       # along the sleeve, away from the shoulder
+    out: tuple[float, float]        # across it, towards its upper (outer) edge
+    reach: float                    # how far it reaches along `down` from the shoulder point
+    cuff: tuple[float, float]       # the middle of its opening
+    half: float                     # half the opening's width
+
+
+def _sleeve(top: Placed) -> _Sleeve | None:
+    """The sleeve on the viewer's left of `top`, in the figure."""
+    if "shoulder_l" not in top.shape.anchors:
+        return None
+    sh = top.point(top.shape.anchors["shoulder_l"])
     for path, deg in top.shape.sleeves:
         pts = [top.point(q) for q in _numbers(path)]
-        if not pts:
+        if not pts or sum(x for x, _ in pts) / len(pts) >= CX:
             continue
-        side = 1 if sum(x for x, _ in pts) / len(pts) > CX else -1
-        sh = top.point(top.shape.anchors["shoulder_r" if side > 0 else "shoulder_l"])
         t = math.radians(abs(deg))
-        ux, uy = side * math.sin(t), math.cos(t)          # down the sleeve
+        ux, uy = -math.sin(t), math.cos(t)
         vx, vy = -uy, ux
         along = [((x - sh[0]) * ux + (y - sh[1]) * uy, (x - sh[0]) * vx + (y - sh[1]) * vy) for x, y in pts]
         reach = max(a for a, _ in along)
         cuff = [c for a, c in along if a > reach - 6]
         mid, half = (min(cuff) + max(cuff)) / 2, (max(cuff) - min(cuff)) / 2
-        elbow = ELBOW_CM * K_PX
-        if elbow <= reach + 4:
-            continue
-        r = min(ARM_HALF_CM * K_PX, half * 0.78)
-        a = (sh[0] + ux * (reach - 30) + vx * mid, sh[1] + uy * (reach - 30) + vy * mid)
-        b = (sh[0] + ux * elbow + vx * mid, sh[1] + uy * elbow + vy * mid)
-        out.append(_limb(a, b, r, r * 0.88))
-    return out
+        return _Sleeve(sh, (ux, uy), (vx, vy), reach, (sh[0] + ux * reach + vx * mid, sh[1] + uy * reach + vy * mid), half)
+    return None
 
 
-def _thighs(layout: Layout) -> list[tuple[str, str]]:
-    """Short tonal legs below shorts, to the knee, under the legs' middles."""
-    b = layout.get("bottom")
-    if b is None or b.spec.params.get("length") not in ("short", "brief"):
-        return []
-    hem = b.point(b.shape.anchors["hem"])[1]
-    knee = WAIST_Y + KNEE_BELOW_WAIST_CM * K_PX
-    if knee <= hem + 4:
-        return []
+def _rank(p: Placed) -> int:
+    return SLEEVE_RANK.get(p.spec.params.get("sleeve", "long"), 4)
+
+
+# a relaxed hand hanging from the wrist (0, 0) down its length (+y), its thumb towards the body (+x), in cm
+HAND = [(-2.5, 0.0), (-3.0, 3.0), (-3.4, 6.4), (-3.3, 10.0), (-2.8, 13.8), (-1.3, 15.9), (0.7, 16.0), (2.1, 14.2),
+        (2.6, 11.4), (3.2, 11.2), (3.7, 10.0), (3.5, 7.6), (2.9, 5.0), (2.5, 2.6), (2.5, 0.0)]
+FINGERS = [[(-1.3, 10.6), (-1.4, 13.0), (-1.2, 15.2)], [(0.6, 10.8), (0.6, 13.1), (0.8, 15.3)], [(1.9, 7.8), (2.3, 9.6), (2.6, 11.3)]]
+
+
+def _arm(layout: Layout) -> tuple[str, str, list[str]]:
+    """The viewer's left arm with its hand, and the hand's finger lines. It follows the sleeve of the outermost top
+    with the longest sleeves: down its middle to the cuff (the hand comes out of it), or, below a short sleeve, to
+    the elbow inside it and then hanging nearly straight down. With no sleeve it hangs a little out from the body."""
+    k = K_PX
+    tops = [p for p in layout.pieces if p.place in TOP_PLACES]
+    sleeve = None
+    sh = (CX - 23 * k, 80.0 + TOP_DY)
+    if tops:
+        best = max(_rank(p) for p in tops)
+        top = [p for p in tops if _rank(p) == best][-1]
+        sleeve = _sleeve(top) if best > 0 else None
+        if "shoulder_l" in top.shape.anchors:
+            sh = top.point(top.shape.anchors["shoulder_l"])
+    a = (sh[0] + SHOULDER_IN_CM * k, sh[1] + SHOULDER_IN_CM * k)
+    ra, re_, rw = ARM_HALF_CM * k, ELBOW_HALF_CM * k, WRIST_HALF_CM * k
+    if sleeve is not None and sleeve.reach >= (ELBOW_CM - 2) * k:
+        c = sleeve.cuff
+        length = math.hypot(c[0] - a[0], c[1] - a[1])
+        d = _unit(c[0] - a[0], c[1] - a[1])
+        wl = max(length - 1.0 * k, WRIST_CM * k)
+        if wl <= length:   # the wrist in the cuff: no wider than it
+            rw = min(rw, sleeve.half * 0.75)
+            re_ = min(re_, max(rw, sleeve.half * 0.9))
+        el = min(ELBOW_CM * k, wl * 0.55)
+        e = (a[0] + d[0] * el, a[1] + d[1] * el)
+        w = (a[0] + d[0] * wl, a[1] + d[1] * wl)
+        f = d
+    else:
+        if sleeve is not None:   # aim for the underside of the opening, so the arm hangs as low as the sleeve lets it
+            shift = max(0.0, sleeve.half - re_ - 1.5 * k) * 0.5
+            tx, ty = sleeve.cuff[0] - sleeve.out[0] * shift, sleeve.cuff[1] - sleeve.out[1] * shift
+            d = _unit(tx - a[0], ty - a[1])
+        else:
+            d = (-math.sin(math.radians(BARE_ARM_DEG)), math.cos(math.radians(BARE_ARM_DEG)))
+        e = (a[0] + d[0] * ELBOW_CM * k, a[1] + d[1] * ELBOW_CM * k)
+        f = (-math.sin(math.radians(FOREARM_DEG)), math.cos(math.radians(FOREARM_DEG)))
+        w = (e[0] + f[0] * (WRIST_CM - ELBOW_CM) * k, e[1] + f[1] * (WRIST_CM - ELBOW_CM) * k)
+    arm = _tube([a, e, w], [ra, re_, rw])
+    h = _unit(f[0] * 0.7, f[1] * 0.7 + 0.3)        # the hand hangs a little straighter than the forearm
+    p = (h[1], -h[0])
+
+    def put(q):
+        return (w[0] + (q[0] * p[0] + q[1] * h[0]) * k, w[1] + (q[0] * p[1] + q[1] * h[1]) * k)
+
+    hand = _curve([put(q) for q in HAND], closed=True)
+    fingers = [_curve([put(q) for q in line]) for line in FINGERS]
+    return arm, hand, fingers
+
+
+def _leg_paths(ends) -> list[str]:
+    """The legs, from the hips (inside the trousers) down to each ankle in its shoe: `ends` are the ankles' middles
+    and half widths, the viewer's left one first."""
+    k = K_PX
     out = []
-    for side in (-1, 1):
-        x = CX + side * LEG_CM * K_PX
-        out.append(_limb((x, hem - 30), (x, knee), THIGH_HALF_CM * K_PX, KNEE_HALF_CM * K_PX))
+    for side, (end, rend) in zip((-1, 1), ends, strict=True):
+        top = (CX + side * HIP_CM * k, WAIST_Y + HIP_DOWN_CM * k)
+
+        def at(y, top=top, end=end):
+            t = (y - top[1]) / ((end[1] - top[1]) or 1.0)
+            return (top[0] + (end[0] - top[0]) * t, y)
+
+        knee = WAIST_Y + KNEE_BELOW_WAIST_CM * k
+        calf = knee + CALF_BELOW_KNEE_CM * k
+        low = end[1] - 6 * k
+        cs, hs = [top], [THIGH_HALF_CM * k]
+        for y, r in ((knee, KNEE_HALF_CM * k), (calf, CALF_HALF_CM * k), (low, rend)):
+            if top[1] < y < end[1] and y > cs[-1][1]:
+                cs.append(at(y))
+                hs.append(r)
+        out.append(_tube(cs + [end], hs + [rend]))
     return out
 
 
-def _form(layout: Layout, limbs: bool) -> Form:
-    nw, top = NECK_HALF_CM * K_PX, _neck_top(layout)
-    torso = _torso(top)
-    form = Form(torso, _ellipse(CX, top, nw, nw * 0.3))
-    if limbs:
-        form.limbs = _arms(layout) + _thighs(layout)
-        form.ankles = True
-    pts = _numbers(torso) + [q for d, c in form.limbs for q in _numbers(d) + _numbers(c)] + [(CX, top - nw * 0.3)]
-    form.box = (min(x for x, _ in pts), min(y for _, y in pts), max(x for x, _ in pts), max(y for _, y in pts))
-    return form
+# the head, in cm from its middle (y down): its shape, the hair, the ears and the face's features
+HEAD = [(0.0, -11.75), (5.4, -10.4), (7.5, -6.2), (7.8, -1.5), (7.4, 3.0), (6.3, 6.9), (4.3, 9.9), (1.9, 11.6)]
+HAIR_TOP = [(7.7, -2.2), (8.3, -5.6), (7.8, -9.6), (4.9, -12.7), (0.4, -13.7), (-4.6, -13.0), (-7.9, -9.9),
+            (-8.4, -5.6), (-7.7, -2.2)]
+HAIRLINE = [(-7.0, -2.6), (-6.8, -5.6), (-4.6, -7.4), (-1.6, -7.9), (0.9, -7.0), (3.4, -7.8), (6.0, -7.0),
+            (7.0, -5.4), (7.0, -2.6)]
+HAIR_LINES = [[(-1.6, -7.9), (-2.6, -10.2), (-2.2, -12.6)], [(0.9, -7.0), (1.6, -9.6), (3.4, -12.0)],
+              [(-4.6, -7.4), (-6.0, -9.4), (-6.2, -11.0)]]
 
 
-def _neck_front(form: Form, first: Placed, cid: str, defs: list[str]) -> str:
-    """The neck stub again over the tops, above the innermost top's neck opening and no wider than the neck: what
-    is drawn there is the back of a collar, which is behind the neck."""
-    holes = [q for part in first.shape.parts if part.role == "hole" for q in _numbers(part.d)]
+def _head(body: Body, chin: float) -> None:
+    k = K_PX
+    cy = chin - HEAD_H_CM / 2 * k
+
+    def at(q):
+        return (CX + q[0] * k, cy + q[1] * k)
+
+    shape = HEAD + [(-x, y) for x, y in reversed(HEAD[1:])]
+    shape = [q for q in shape if q != (0.0, 11.75)]
+    body.head = _curve([at(q) for q in shape], closed=True)
+    body.hair = _curve([at(q) for q in HAIR_TOP]) + " L" + _curve([at(q) for q in HAIRLINE])[1:] + " Z"
+    body.hair_lines = [_curve([at(q) for q in line]) for line in HAIR_LINES]
+    for s in (-1, 1):
+        ex, ey = at((s * 7.5, 0.6))
+        body.ears.append(_ellipse(ex, ey, 1.25 * k, 2.7 * k, -s * 8))
+        body.ear_lines.append(_curve([at((s * 7.8, -1.0)), at((s * 8.3, 0.5)), at((s * 7.8, 2.2))]))
+        x, y = at((s * 3.0, -0.3))
+        body.eyes.append(_ellipse(x, y, 0.55 * k, 0.75 * k))
+        body.face.append((_curve([at((s * 1.7, -2.5)), at((s * 3.0, -3.1)), at((s * 4.5, -2.6))]), HAIR, 2.2))
+    body.face.append((_curve([at((0.3, 0.9)), at((0.9, 3.3)), at((0.4, 4.0)), at((-0.7, 4.0))]), SKIN_LINE, 1.5))
+    body.face.append((_curve([at((-2.1, 6.6)), at((0.0, 7.3)), at((2.1, 6.6))]), SKIN_LINE, 1.8))
+
+
+def _body(layout: Layout) -> Body:
+    """The wearer, placed from the same points as the clothes."""
+    k = K_PX
+    chin = NECK_Y - CHIN_CM * k
+    bottom = layout.get("bottom")
+    body = Body(_torso(chin - 2 * k, short=bottom is None))
+    arm, hand, fingers = _arm(layout)
+    body.arms, body.hands = [arm, _mirror(arm)], [hand, _mirror(hand)]
+    body.fingers = fingers + [_mirror(d) for d in fingers]
+    _head(body, chin)
+    pts = []
+    if bottom is not None:
+        shoes = layout.get("shoes")
+        if shoes is not None and shoes.front is not None:
+            fs, tr = shoes.front, shoes.transforms
+        else:   # no shoes: bare feet
+            fs = bare_feet(k, ankle=_ankle(), toes=TOE_LINE)
+            tr = _pair(fs.bbox, *_legs(layout)[:2])
+            body.feet = (fs, tr)
+            x0, y0, x1, y1 = fs.bbox
+            pts += [(t[0] * x + t[4], y + t[5]) for t in tr for x in (x0, x1) for y in (y0, y1)]
+        half = abs(fs.anchors["ankle_r"][0] - fs.anchors["ankle"][0])
+        ends = []
+        for t in tr:
+            x, y = fs.anchors["ankle"]
+            ends.append(((t[0] * x + t[4], y + t[5]), half))
+        body.legs = _leg_paths(ends)
+    for d in [body.torso, body.head, body.hair] + body.arms + body.hands + body.legs + body.ears:
+        pts += _numbers(d)
+    body.box = (min(x for x, _ in pts) - LINE, min(y for _, y in pts) - LINE,
+                max(x for x, _ in pts) + LINE, max(y for _, y in pts) + LINE)
+    return body
+
+
+def _skin(paths: list[str]) -> str:
+    """Skin, as one outline round all of `paths` together: every outline first, then every fill over them."""
+    return ("".join(f'<path d="{d}" fill="none" stroke="{INK}" stroke-width="{2 * LINE}" stroke-linejoin="round"/>' for d in paths)
+            + "".join(f'<path d="{d}" fill="{SKIN}"/>' for d in paths))
+
+
+def _lines(paths: list[str], colour: str = SKIN_LINE, width: float = 1.5) -> str:
+    return "".join(f'<path d="{d}" fill="none" stroke="{colour}" stroke-width="{width}" stroke-linecap="round"/>' for d in paths)
+
+
+def _body_markup(body: Body) -> str:
+    """Everything of the wearer but the head, drawn before the clothes: the legs, the arms and hands, the torso;
+    and bare feet."""
+    out = _skin(body.legs + body.arms + body.hands + [body.torso]) + _lines(body.fingers)
+    if body.feet is not None:
+        fs, tr = body.feet
+        out += "".join(f'<g transform="{_matrix(t)}">{fs.body}</g>' for t in tr)
+    return out
+
+
+def _head_markup(body: Body, face: bool) -> str:
+    """The head, drawn over the clothes (a hood or a collar at the back is behind it): ears, head, hair, and with
+    `face` the eyes, brows, nose and mouth."""
+    out = _skin(body.ears + [body.head]) + _lines(body.ear_lines, width=1.4)
+    out += f'<path d="{body.hair}" fill="{HAIR}" stroke="{INK}" stroke-width="2.4" stroke-linejoin="round"/>'
+    out += _lines(body.hair_lines, shade(HAIR, 0.3), 1.3)
+    if face:
+        out += "".join(f'<path d="{d}" fill="{EYE}"/>' for d in body.eyes)
+        out += "".join(_lines([d], c, w) for d, c, w in body.face)
+    return out
+
+
+def _neck_front(body: Body, first: Placed, cid: str, defs: list[str]) -> str:
+    """The neck again over the tops, no wider than the neck (with its outline): above the innermost top's neck
+    opening, and on down inside the opening a little way. What is drawn there is the back of a neckline or of a
+    collar's band, which is behind the neck."""
+    holes = [part.d for part in first.shape.parts if part.role == "hole"]
     if not holes:
         return ""
-    cut = min(first.point(q)[1] for q in holes) + 1.5
-    nw = NECK_HALF_CM * K_PX + 1.0
-    top = min(y for _, y in _numbers(form.cap)) - 2
+    cut = min(first.point(q)[1] for d in holes for q in _numbers(d)) + LINE + 1.0
+    nw = NECK_HALF_CM * K_PX + LINE + 0.5
+    top = NECK_Y - CHIN_CM * K_PX - 4 * K_PX
     if cut <= top:
         return ""
-    defs.append(f'<clipPath id="{cid}"><rect x="{CX - nw:.1f}" y="{top:.1f}" width="{2 * nw:.1f}" height="{cut - top:.1f}"/></clipPath>')
-    return f'<g clip-path="url(#{cid})">{_form_markup(form, limbs=False)}</g>'
-
-
-def _form_markup(form: Form, *, limbs: bool = True) -> str:
-    """The form, one quiet tone with a faint edge; the cut ends a shade lighter."""
-    edge = f'stroke="{FORM_EDGE}" stroke-width="1.2" stroke-linejoin="round"'
-    out = [f'<path d="{form.torso}" fill="{FORM}" {edge}/>', f'<path d="{form.cap}" fill="{FORM_CUT}" {edge}/>']
-    if limbs:
-        for d, cut in form.limbs:
-            out += [f'<path d="{d}" fill="{FORM}" {edge}/>', f'<path d="{cut}" fill="{FORM_CUT}" {edge}/>']
-    return "".join(out)
+    low = cut + NECK_IN_CM * K_PX
+    defs.append(f'<clipPath id="{cid}"><rect x="{CX - nw:.1f}" y="{top:.1f}" width="{2 * nw:.1f}" height="{low - top:.1f}"/></clipPath>')
+    defs.append(f'<clipPath id="{cid}h"><rect x="{CX - nw:.1f}" y="{top:.1f}" width="{2 * nw:.1f}" height="{cut - top:.1f}"/>'
+                + "".join(f'<path d="{d}" transform="{_matrix(first.transforms[0])}"/>' for d in holes) + "</clipPath>")
+    return f'<g clip-path="url(#{cid})"><g clip-path="url(#{cid}h)">{_skin([body.torso])}</g></g>'
 
 
 def _accessories(out: Layout, given) -> list[Placed]:
@@ -574,16 +786,16 @@ def _clip(cid: str, paths: list[str], t) -> str:
     return f'<clipPath id="{cid}">' + "".join(f'<path d="{d}" transform="{_matrix(t)}"/>' for d in paths) + "</clipPath>"
 
 
-def _svg(layout: Layout, uid: str) -> str:
+def _svg(layout: Layout, uid: str, face: bool = FACE) -> str:
     defs: list[str] = []
     body: list[str] = []
-    form = layout.form
-    if form is not None:   # the form first, behind everything
-        body.append(f'<g id="{uid}m">{_form_markup(form)}</g>')
+    wearer = layout.body
+    if wearer is not None:   # the wearer first, behind everything
+        body.append(f'<g id="{uid}m">{_body_markup(wearer)}</g>')
     shoes, bottom = layout.get("shoes"), layout.get("bottom")
     if shoes is not None:
         front = front_shoe(shoes.spec, K_PX, sole_default=shoes.shape.sole_default, uid=f"{uid}s",
-                           ankle=_ankle() if shoes.front is not None and shoes.front.ankle else None)
+                           ankle=_ankle() if shoes.front is not None and shoes.front.ankle else None, toes=TOE_LINE)
         defs.append(front.defs)
         pair = "".join(f'<g transform="{_matrix(t)}">{front.body}</g>' for t in shoes.transforms)
         legs = _inside_legs(layout)
@@ -610,14 +822,15 @@ def _svg(layout: Layout, uid: str) -> str:
         belt = ""
     if lower:
         body.append(f'<g id="{uid}w">{lower}</g>')
-    # what the form shows inside the neck of the innermost top: its neck and the top of its chest, in the top's
+    # what the wearer shows inside the neck of the innermost top: the neck and the top of the chest, in the top's
     # own coordinates
-    neck = chest = ""
-    if form is not None:
+    neck = chest = torso = ""
+    if wearer is not None:
+        torso = _skin([wearer.torso])
         cut = f"{uid}c"
         defs.append(f'<clipPath id="{cut}"><rect x="-4000" y="-4000" width="8000" '
                     f'height="{4000 + NECK_Y + 30 * K_PX:.1f}"/></clipPath>')
-        chest = f'<g clip-path="url(#{cut})">{_form_markup(form, limbs=False)}</g>'
+        chest = f'<g clip-path="url(#{cut})">{torso}</g>'
         neck = f'<g transform="translate(0 {-TOP_DY:.1f})">{chest}</g>'
     stack, under = "", []
     for n, p in enumerate(q for q in layout.pieces if q.place in TOP_PLACES):
@@ -636,9 +849,9 @@ def _svg(layout: Layout, uid: str) -> str:
             seen = f'<g clip-path="url(#v{tid})">{stack}</g>'
         if p.open and isinstance(b, tuple):
             back, fronts = b
-            if not stack and form is not None:   # nothing under it: the form shows in the opening, the trousers over it
-                seen = f'<use href="#{uid}m"/>' + (f'<use href="#{uid}w"/>' if lower else "")
-            else:   # the form's neck stands in front of this one's collar at the back, behind what is under it
+            if not stack and wearer is not None:   # nothing under it: the chest shows in the opening, the trousers over it
+                seen = torso + (f'<use href="#{uid}w"/>' if lower else "")
+            else:   # the neck stands in front of this one's collar at the back, behind what is under it
                 seen = chest + seen
             stack = back + seen + fronts
         else:
@@ -649,8 +862,10 @@ def _svg(layout: Layout, uid: str) -> str:
                 stack += f'<g clip-path="url(#n{tid})">{chest}{seen}</g>'
         under.append(p)
     body.append(stack)
-    if form is not None and first is not None:
-        body.append(_neck_front(form, first, f"{uid}f", defs))
+    if wearer is not None:
+        if first is not None:
+            body.append(_neck_front(wearer, first, f"{uid}f", defs))
+        body.append(_head_markup(wearer, face))
     body += [extra[k] for k in ("scarf", "hat", "bag") if k in extra]
     x, y, w, h = layout.view
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x:.1f} {y:.1f} {w:.1f} {h:.1f}" '

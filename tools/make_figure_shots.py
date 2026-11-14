@@ -1,13 +1,13 @@
 """Phone-sized pictures of outfits as worn, in the light and the dark theme (developer tool; not shipped).
 
-    python tools/make_figure_shots.py NAME [--limbs] [--out DIR]
+    python tools/make_figure_shots.py NAME [--plain] [--out DIR]
 
 Draws four outfits with `closet.drawing.figure` (from the demo closet's items, plus a pair of sandals the demo
 closet does not have) and puts each one in a page laid out like the Today card on a 390 x 844 phone, in the light
 and the dark theme, then takes a picture of the page with a Chrome or Chromium found on this computer. The
 pictures are written as DIR/figure-<outfit>-<light|dark>-NAME.png (DIR is docs/screenshots by default), so the
-same outfits can be compared before and after a change to the figure. With `--limbs` the form shows a short tonal
-arm below a short sleeve and a leg below shorts (see `figure`).
+same outfits can be compared before and after a change to the figure. With `--plain` the wearer's head has no
+face drawn on it, only its shape and hair (see `figure`).
 """
 from __future__ import annotations
 
@@ -106,11 +106,11 @@ def shoot(markup: str, png: Path) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("name", help="the end of each file name, such as before or after")
-    ap.add_argument("--limbs", action="store_true", help="draw the form's short tonal arms and legs")
+    ap.add_argument("--plain", action="store_true", help="draw the head without a face")
     ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
-    extra = {"limbs": True} if args.limbs and "limbs" in inspect.signature(figure).parameters else {}
+    extra = {"face": False} if args.plain and "face" in inspect.signature(figure).parameters else {}
     for key, caption, names in OUTFITS:
         svg = figure(pieces_for(names), uid="s" + key[:2], **extra)
         for theme in THEMES:

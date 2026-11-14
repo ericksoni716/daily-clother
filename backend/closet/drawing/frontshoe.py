@@ -26,7 +26,10 @@ LOOK = 24.0            # degrees the viewer looks down at the shoes from
 TURN = 11.0            # degrees each toe is turned out
 METAL = "#c9a85c"
 LINING = "#3a342e"     # the inside of a shoe: a dark warm grey, a little of the shoe's colour in it
-FORM_ANKLE_CM = 13.0   # how far the form's tonal ankle stands above the sole, when it is drawn
+ANKLE_CM = 13.0        # the wearer's ankle: where it is drawn up to above the sole, in a low shoe or a sandal ...
+ANKLE_OVER_CM = 3.0    # ... and above the top of a boot's shaft
+ANKLE_U = 0.22         # its middle, as a share of the length from the heel
+ANKLE_HALF_CM, ANKLE_DEPTH_CM = 3.4, 3.8   # half its width, and half its depth from front to back
 
 # per style: half width at the ball, sole thickness, how the upper's top rises from the toe (share of the length
 # from the heel, height above the sole in cm), and how high the collar of a boot or high top stands (cm above the
@@ -59,7 +62,7 @@ class FrontShoe:
     anchors: dict[str, tuple[float, float]] = field(default_factory=dict)
     body: str = ""
     defs: str = ""
-    ankle: bool = False   # the form's ankle is drawn in it
+    ankle: bool = False   # the wearer's ankle (or bare foot) is drawn in it
 
 
 def _interp(table, u: float) -> float:
@@ -135,9 +138,10 @@ def _half_width(u: float, ball: float, toe: str) -> float:
 
 
 def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: str = "fs",
-               ankle: str | None = None) -> FrontShoe:
-    """The shoe of `spec` from the front, scaled by `px`. With `ankle` (a fill), the form's tonal ankle stands in
-    the shoe's opening (FORM_ANKLE_CM above the sole), for a figure whose trousers leave the ankle showing."""
+               ankle: str | None = None, toes: str | None = None) -> FrontShoe:
+    """The shoe of `spec` from the front, scaled by `px`. With `ankle` (markup for skin, with "{d}" for its path),
+    the wearer's ankle stands in the shoe's opening, and a sandal holds a bare foot (`toes`: the colour of the
+    lines between its toes). The anchor "ankle" is where the leg above it ends, "ankle_r" its right edge there."""
     p = {**spec.params, "lace_color": spec.lace_color}
     style = p.get("style") or ("high_top" if p.get("height") == "high" else "low_sneaker")
     if style not in STYLES:
@@ -187,9 +191,10 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         out.append(f'<g clip-path="url(#{uid}s)">' + fill(_path(_hull(low)), c, edge=False) + "</g>")
 
     if style == "sandal":
-        out += _sandal(p, view, hw, sole_t, base, sole_c, uid)
+        out += _sandal(p, view, hw, sole_t, base, sole_c, uid, ankle, toes)
         outline_pts = sole_pts + _sandal_points(p, view, hw, sole_t)
         top = sole_t + 4
+        leg = sole_t + ANKLE_CM
     else:
         # the upper: a half ellipse across the foot at every step from heel to toe, up to the top line
         inset = 0.93 if style in ("loafer", "derby", "oxford") else 0.97
@@ -199,7 +204,7 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
             for k in range(13):
                 a = math.pi * k / 12
                 upper_pts.append(view(w * math.cos(a), u, sole_t + h * math.sin(a)))
-        ax, au, arx, aru = 0.0, 0.2, 4.7, 5.2        # the ankle: a boot's shaft, the form's ankle
+        ax, au, arx, aru = 0.0, 0.2, 4.7, 5.2        # the ankle: a boot's shaft, the wearer's ankle
         if shaft:
             for h in (sole_t + 4.0, shaft):
                 for k in range(24):
@@ -209,20 +214,19 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         out.append(fill(upper_d, base, w=2.4))
         defs += f'<clipPath id="{uid}u"><path d="{upper_d}"/></clipPath>'
         top = max(shaft, sole_t + max(h for _, h in table))
+        leg = max(sole_t + ANKLE_CM, shaft + ANKLE_OVER_CM if shaft else 0.0)
         if style == "high_top" or p.get("toe_cap") == "rubber":   # a rubber toe in the sole's colour
             cap = [view(hw(u) * inset * math.cos(math.pi * k / 12), u, sole_t + _interp(table, u) * math.sin(math.pi * k / 12))
                    for u in us if u >= 0.87 for k in range(13)]
             cap += [view(x, u, sole_t) for x, u, _ in contour(0, inset) if u >= 0.8]
             out.append(f'<g clip-path="url(#{uid}u)">' + fill(_path(_hull(cap)), sole_c, w=1.3) + "</g>")
-        out += _opening(p, style, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid)
+        out += _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg)
         out += _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill)
         outline_pts = sole_pts + upper_pts
     hull = _hull(outline_pts)
     xs, ys = [x for x, _ in hull], [y for _, y in hull]
-    if ankle is not None:
-        ys.append(view(0.0, 0.2, FORM_ANKLE_CM + sole_t)[1])
     anchors = {"ball": (0.0, view(0.0, BALL, 0.0)[1]), "toe": view(0.0, 1.0, 0.0), "heel": view(0.0, 0.0, 0.0),
-               "ground": (0.0, 0.0), "top": (0.0, view(0.0, 0.2, top)[1])}
+               "ground": (0.0, 0.0), "top": (0.0, view(0.0, 0.2, top)[1]), **_ankle_anchors(view, leg)}
     return FrontShoe(_path(hull), (min(xs) - 2, min(ys) - 2, max(xs) + 2, max(ys) + 2), anchors, "".join(out), defs,
                      ankle is not None)
 
@@ -234,9 +238,31 @@ def _surface(view, hw, inset, table, sole_t, u, x_share, lift=0.0):
     return view(w * x_share, u, sole_t + h * math.sin(a) + lift)
 
 
-def _opening(p, style, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid):
+def _ankle_anchors(view, leg: float) -> dict[str, tuple[float, float]]:
+    """Where the leg above a shoe ends (a little below where the ankle drawn in the shoe is cut off), and its right
+    edge there: the ankle seen turned and from above is a little wider than it is."""
+    x, y = view(0.0, ANKLE_U, leg - 4.0)
+    half = math.hypot(ANKLE_HALF_CM * view.ct, ANKLE_DEPTH_CM * view.st) * view.px
+    return {"ankle": (x, y), "ankle_r": (x + half, y)}
+
+
+def _column(view, h0: float, h1: float):
+    """The ankle, as an upright cylinder from h0 to h1 above the ground."""
+    return [view(ANKLE_HALF_CM * math.cos(2 * math.pi * k / 24),
+                 ANKLE_U + ANKLE_DEPTH_CM * math.sin(2 * math.pi * k / 24) / LENGTH, h)
+            for h in (h0, h1) for k in range(24)]
+
+
+def _below(view, leg: float, uid: str) -> tuple[str, str]:
+    """A clip path showing only what is below where the ankle is cut off: under the round of its top, so the leg
+    drawn above runs on into it without a line across."""
+    y = view(0.0, ANKLE_U + ANKLE_DEPTH_CM / LENGTH, leg)[1] + 1.5
+    return f"{uid}b", f'<clipPath id="{uid}b"><rect x="-4000" y="{y:.1f}" width="8000" height="8000"/></clipPath>'
+
+
+def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg):
     """The way in: the collar of a low shoe, or the top of a boot's shaft, with the dark lining inside; and the
-    form's ankle standing in it when asked for."""
+    wearer's ankle standing in it when asked for, up to where the leg drawn above it takes over."""
     out = []
     lining = _mix(base, LINING, 0.82)
     if shaft:
@@ -253,19 +279,14 @@ def _opening(p, style, view, hw, inset, table, sole_t, shaft, base, ankle, upper
     rim_d = _path(rim)
     out.append(f'<path d="{rim_d}" fill="{lining}" stroke="{INK}" stroke-width="1.4" stroke-linejoin="round"/>')
     if ankle is not None:
-        top = sole_t + FORM_ANKLE_CM
-        if top > (shaft or 0):
-            pts = [view(3.4 * math.cos(2 * math.pi * k / 24), 0.22 + 3.8 * math.sin(2 * math.pi * k / 24) / LENGTH, h)
-                   for h in (sole_t + 2.0, top) for k in range(24)]
-            cap = [view(3.4 * math.cos(2 * math.pi * k / 24), 0.22 + 3.8 * math.sin(2 * math.pi * k / 24) / LENGTH, top)
-                   for k in range(24)]
-            # it shows inside the opening and above the shoe, never over the shoe's front
-            far = 4000
-            out.append(f'<clipPath id="{uid}a"><path d="{rim_d}"/>'
-                       f'<path clip-rule="evenodd" d="M {-far},{-far} L {far},{-far} L {far},{far} L {-far},{far} Z {upper_d}"/>'
-                       f'</clipPath>')
-            out.append(f'<g clip-path="url(#{uid}a)">' + ankle.replace("{d}", _path(_hull(pts))) + "</g>")
-            out.append(ankle.replace("{d}", _path(_hull(cap))))
+        pts = _column(view, sole_t + 2.0, leg)
+        # it shows inside the opening and above the shoe, never over the shoe's front
+        far = 4000
+        cid, below = _below(view, leg, uid)
+        out.append(f'<clipPath id="{uid}a"><path d="{rim_d}"/>'
+                   f'<path clip-rule="evenodd" d="M {-far},{-far} L {far},{-far} L {far},{far} L {-far},{far} Z {upper_d}"/>'
+                   f'</clipPath>{below}')
+        out.append(f'<g clip-path="url(#{uid}a)"><g clip-path="url(#{cid})">' + ankle.replace("{d}", _path(_hull(pts))) + "</g></g>")
     return out
 
 
@@ -371,12 +392,47 @@ def _sandal_points(p, view, hw, sole_t):
     return pts
 
 
-def _sandal(p, view, hw, sole_t, base, sole_c, uid):
-    """A footbed seen from above at the front, and straps arching over where a foot would be: no foot is drawn."""
+def _foot(view, hw, sole_t, ankle: str, toes: str | None, uid: str) -> list[str]:
+    """A bare foot on the footbed, and the ankle above it up to where the leg takes over; lines between the toes,
+    the big toe on the inner side (+x)."""
+    us = [i / 40 for i in range(41)]
+    pts = [view(hw(u) * 0.9 * math.cos(math.pi * k / 12), u, sole_t + 0.2 + _foot_top(u) * math.sin(math.pi * k / 12))
+           for u in us for k in range(13)]
+    leg = sole_t + ANKLE_CM
+    pts += _column(view, sole_t + 3.0, leg)
+    cid, below = _below(view, leg, uid)
+    out = [below, f'<g clip-path="url(#{cid})">' + ankle.replace("{d}", _path(_hull(pts))) + "</g>"]
+    if toes:
+        for xs in (0.36, 0.05, -0.27, -0.56):
+            line = [view(hw(u) * 0.9 * xs, u, sole_t + 0.25 + _foot_top(u) * math.sqrt(1 - xs * xs)) for u in (0.9, 0.95, 0.99)]
+            out.append(f'<path d="{_path(line, close=False)}" fill="none" stroke="{toes}" stroke-width="1.2" stroke-linecap="round"/>')
+    return out
+
+
+def bare_feet(px: float, *, ankle: str, toes: str | None = None, uid: str = "fb") -> FrontShoe:
+    """A bare foot from the front, placed as a shoe is (the toe on the ground line, the ball at x = 0), for a
+    figure with trousers but no shoes."""
+    ball = STYLES["sandal"][0]
+    view = _View(px)
+    hw = lambda u: _half_width(u, ball, "round")   # noqa: E731
+    body = "".join(_foot(view, hw, 0.0, ankle, toes, uid))
+    pts = [view(hw(u) * 0.9 * math.cos(math.pi * k / 12), u, 0.2 + _foot_top(u) * math.sin(math.pi * k / 12))
+           for u in (i / 40 for i in range(41)) for k in range(13)]
+    hull = _hull(pts)
+    xs, ys = [x for x, _ in hull], [y for _, y in hull]
+    anchors = {"ball": (0.0, view(0.0, BALL, 0.0)[1]), "toe": view(0.0, 1.0, 0.0), "heel": view(0.0, 0.0, 0.0),
+               "ground": (0.0, 0.0), "top": (0.0, view(0.0, 0.2, 7.5)[1]), **_ankle_anchors(view, ANKLE_CM)}
+    return FrontShoe(_path(hull), (min(xs) - 2, min(ys) - 2, max(xs) + 2, max(ys) + 2), anchors, body, "", True)
+
+
+def _sandal(p, view, hw, sole_t, base, sole_c, uid, ankle=None, toes=None):
+    """A footbed seen from above at the front, and straps arching over the foot: a bare foot with `ankle`."""
     out = []
     bed = [view(hw(u) * 0.94 * s, u, sole_t) for s in (1, -1) for u in ([i / 40 for i in range(41)] if s > 0 else
                                                                          [1 - i / 40 for i in range(41)])]
     out.append(f'<path d="{_path(bed)}" fill="{shade(sole_c, 0.12)}" stroke="{shade(sole_c, -0.25)}" stroke-width="1"/>')
+    if ankle is not None:
+        out += _foot(view, hw, sole_t, ankle, toes, uid)
     for u0, u1 in _sandal_bands(p):
         out.append(f'<path d="{_path(_strap(view, hw, sole_t, u0, u1))}" fill="{base}" stroke="{INK}" stroke-width="2" '
                    f'stroke-linejoin="round"/>')

@@ -28,6 +28,7 @@ from . import db, failures, history, illustrations, palette, patjobs, spend
 from .config import Config
 from .state import State
 from .tagger import routes as tagger_routes
+from .tagger import taxonomy
 from .tagger.schema import NAMED_HEX, SCHEMA_VERSION, ItemTags
 from .tagger.tagging import CONFIG, CapReached, Meter, PlanSignIn, RouteUnavailable, TagResult
 
@@ -183,10 +184,19 @@ def suggest_name(tags: ItemTags) -> str:
     return text[:1].upper() + text[1:]
 
 
+def color_hex(tags: ItemTags) -> str | None:
+    """The colour an item is drawn in from its answer: the owner's shade the tagger named, or the denim wash's,
+    when it is a shade of the answer's colour word; otherwise the word's own colour."""
+    for shade in (tags.details.shade, taxonomy.DENIM_WASH_SHADE.get(tags.details.denim_wash)):
+        if shade in taxonomy.SHADES and taxonomy.SHADES[shade][1] == tags.color:
+            return taxonomy.SHADES[shade][0]
+    return NAMED_HEX.get(tags.color)
+
+
 def suggested_fields(tags: ItemTags) -> dict:
     """What the answer says each of the item's own fields should be (None: nothing to say)."""
     return {
-        "name": suggest_name(tags), "category": tags.category, "color": tags.color, "color_hex": NAMED_HEX.get(tags.color),
+        "name": suggest_name(tags), "category": tags.category, "color": tags.color, "color_hex": color_hex(tags),
         "pattern": tags.pattern, "formality": tags.formality, "season": tags.season,
         "silhouette": {k: v for k, v in tags.silhouette.model_dump().items() if v is not None},
         "material": tags.material,

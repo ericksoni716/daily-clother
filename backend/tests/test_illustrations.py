@@ -119,8 +119,8 @@ def test_an_item_without_an_answer_is_drawn_from_its_fields(client):
                                                           "silhouette": {"leg": "wide"}}).json()
     assert body["tag_state"] == "none"
     assert body["illustration_svg"] == draw.svg_from_fields("jeans", "#4a6fa5", None, {"leg": "wide"}, uid=item["id"][:8])
-    bag = client.patch(f"/api/items/{item['id']}", json={"category": "bag"}).json()
-    assert bag["illustration_svg"] is None and bag["illustration_url"] is None   # no shape for it: the photo shows it
+    other = client.patch(f"/api/items/{item['id']}", json={"category": "other"}).json()
+    assert other["illustration_svg"] is None and other["illustration_url"] is None   # no shape for it: the photo shows it
 
 
 def test_an_older_drawing_is_made_again_when_asked_for_and_not_before(client, services, claude, cfg):

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categoryPlural, formatPrice, formatSize, humanize, label, measuredColours, parsePrice, ratingLabel, tileCaption } from './labels';
+import { categoryPlural, formatPrice, formatSize, humanize, label, measuredColours, parsePrice, ratingLabel, shadeLabel, tileCaption } from './labels';
 import { messageFrom } from './api';
 import { fitWithin } from './resize';
 import { silhouetteGroups } from './silhouette';
@@ -17,6 +17,13 @@ describe('labels', () => {
     expect(label('color', 'multi')).toBe('Multicolour');
     expect(label('color', null)).toBe('');
     expect(humanize('some_new_value')).toBe('Some new value');
+  });
+
+  it("names the owner's shade beside the colour", () => {
+    expect(shadeLabel('Grey', 'charcoal')).toBe('Grey (charcoal)');
+    expect(shadeLabel('Navy', 'raw_indigo')).toBe('Navy (raw indigo)');
+    expect(shadeLabel('Navy', 'navy')).toBe('Navy');
+    expect(shadeLabel('Navy', null)).toBe('Navy');
   });
 
   it('never shows raw field names or underscores for any known value', () => {

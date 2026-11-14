@@ -1,6 +1,7 @@
 import itertools
 import json
 import random
+from pathlib import Path
 
 import pytest
 
@@ -250,7 +251,9 @@ def test_at_most_one_strong_colour_unless_tonal_and_one_loud_pattern():
         for o in outfits.suggest(items, ctx, 10)["outfits"]:
             chosen = [by_id[i] for i in ids_of(o)]
             strong = {i["color"] for i in chosen if i["color"] in ("red", "green", "yellow", "burgundy")}
-            assert strong <= {"red", "burgundy"} or len(strong) <= 1, strong
+            # the owner's families: red with green shares none, red with yellow is two brights; earth tones
+            # (green, yellow, burgundy) go together
+            assert not {"red", "green"} <= strong and not {"red", "yellow"} <= strong, strong
             assert sum(i["pattern"] in ("plaid", "camo") for i in chosen) <= 1
     # red under burgundy is tonal and allowed
     tonal = outfits.suggest(items, day(14, build_around="burg"), 10)["outfits"]
@@ -379,3 +382,22 @@ def test_demo_and_main_closets_are_separate(client):
     assert r["outfits"] and all(main_item["id"] not in ids_of(o) for o in r["outfits"])
     r = client.post("/api/outfits/suggest", json={**DAY, "build_around": main_item["id"]})
     assert r.status_code == 422
+
+
+def test_colour_families_come_from_the_owners_taxonomy():
+    from closet.tagger.taxonomy import COLOR_FAMILIES
+    taxonomy = json.loads((Path(__file__).resolve().parents[2] / "docs" / "menswear-taxonomy.json").read_text())
+    assert {k: list(v) for k, v in COLOR_FAMILIES.items()} == taxonomy["colors"]["families"]
+    assert outfits.NEUTRALS == COLOR_FAMILIES["neutral"] and outfits.BRIGHTS == COLOR_FAMILIES["bright"]
+    def piece(c):
+        return outfits._piece(item(c, "tee", c, "casual"))
+    # earth tones go together; so do cool colours; two brights compete even in one family; no shared family competes
+    assert outfits._go_together(piece("green"), piece("yellow"))
+    assert outfits._go_together(piece("light_blue"), piece("purple"))
+    assert not outfits._go_together(piece("red"), piece("yellow"))
+    assert not outfits._go_together(piece("red"), piece("green"))
+    # the reason names the owner's family
+    items = [item("rust", "tee", "orange", "casual"), item("forest", "trousers", "green", "casual"),
+             item("shoes", "sneakers", "white", "casual")]
+    o = outfits.suggest(items, day(22, build_around="rust"), 1)["outfits"][0]
+    assert any(r.startswith("Earth tones together") for r in o["reasons"]), o["reasons"]

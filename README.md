@@ -347,12 +347,37 @@ then `/login`, sign in with your own Claude subscription, then `/exit`. Your ite
 themselves within a minute or two; an item that already says Claude couldn't
 describe it needs **Try again**.
 
+### Updates
+
+From the version after the one that added this, Closet updates itself. Once a
+day while it runs (and whenever you press **Check now** in **Settings →
+Updates**) it asks GitHub whether a newer release is out; it sends nothing
+about you or your clothes. In **Settings → Updates** choose:
+
+- **Ask me first** (the standard choice): Closet downloads the new version and
+  checks it, then a slim bar at the top says "Closet 0.3.0 is ready ·
+  Install". Settings shows the version and what's new. Nothing changes until
+  you press **Install**.
+- **Install updates by themselves**: the same, without asking.
+- **Never check**: Closet only looks when you press **Check now**.
+
+Installing backs up every closet first (into `Closet\backups`, and into your
+backup folder if you chose one), replaces the program, and starts the new
+version on the same address; the page says Closet is restarting and
+reconnects by itself. If the new version does not start within a minute, the
+old one is put back and Settings says why. A download that does not match
+GitHub's checksum is never installed.
+
+The version that first has this has to be installed by hand, as before: quit
+Closet, replace the program, open it. On Linux, or when Closet runs from
+source, it only tells you a new version is out, with a link.
+
 ## Your data
 
 Everything lives in a folder called `Closet` in your home folder (for example
 `C:\Users\you\Closet`): the database, images, settings, logs and the
-downloaded model. Updating means replacing the program file; this folder is
-not touched. If an update changes the database, a copy is saved in
+downloaded model. Updating replaces only the program file (see "Updates"
+above); this folder is not touched. If an update changes the database, a copy is saved in
 `Closet\backups` first. An older program refuses to open a closet written by a
 newer one instead of damaging it.
 

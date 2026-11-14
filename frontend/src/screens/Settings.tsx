@@ -4,6 +4,7 @@ import { ModelProgress, modelStateText } from '../components/ModelBanner';
 import { PhoneAccess } from '../components/PhoneAccess';
 import { WhereYouAre } from '../components/WhereYouAre';
 import { LifeQuestions } from '../components/LifeQuestions';
+import { UpdatesSection } from '../components/Updates';
 import { Notice, PageHeader, Section as UiSection, SegmentedControl } from '../components/ui';
 import { formatDateTime, formatSize, parsePrice } from '../labels';
 import { Link } from '../router';
@@ -109,6 +110,10 @@ export function SettingsScreen({ version }: { version: string }) {
         <LookSection />
 
         <TaggingSection offline={offline} settings={settings} onChange={setSettings} reload={load} toast={toast} />
+
+        <Section title="Updates" id="s-updates" hint="New versions of Closet, from its GitHub releases.">
+          <UpdatesSection offline={offline} toast={toast} />
+        </Section>
 
         {settings && (
           <Section title="Phone access" id="s-phone">

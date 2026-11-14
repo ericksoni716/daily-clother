@@ -36,6 +36,13 @@ export function humanize(value: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+/** A colour word with the owner's shade name beside it, e.g. "Grey (charcoal)"; the word alone when no shade differs. */
+export function shadeLabel(colour: string, shade: string | null | undefined): string {
+  if (!colour || !shade) return colour;
+  const words = shade.replace(/_/g, ' ').trim();
+  return words.toLowerCase() === colour.toLowerCase() ? colour : `${colour} (${words})`;
+}
+
 /** The label for a value of a field (field is a vocab key or a silhouette key). */
 export function label(field: string, value: string | null | undefined): string {
   if (!value) return '';

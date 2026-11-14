@@ -48,6 +48,7 @@ from . import (
     storage,
     tagjobs,
     trips,
+    updates,
     vocab,
     wears,
     wishlist,
@@ -87,6 +88,7 @@ class Services:
     shopper: shop.Shopper | None = None           # searches shops for a wish and looks prices up again
     price_checks: shop.PriceScheduler | None = None   # looks prices up once a day while the program runs
     on_quit: Callable[[], None] = lambda: None
+    updater: updates.Updater | None = None   # new releases: checked once a day, installed when the owner says
     _phone_cache: tuple[float, dict] | None = field(default=None, repr=False)
 
     def start(self) -> None:
@@ -100,6 +102,8 @@ class Services:
         if self.second_model is not None and not self.second_model.ready and self.cfg.auto_download_model:
             self.second_model.start_download()
         self.scheduler.start()
+        if self.updater is not None:
+            self.updater.start()
         if self.price_checks:
             self.price_checks.start()
 
@@ -113,6 +117,8 @@ class Services:
 
     def stop(self) -> None:
         self.scheduler.stop()
+        if self.updater is not None:
+            self.updater.stop()
         if self.price_checks:
             self.price_checks.stop()
         if self.tag_worker:
@@ -211,7 +217,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     return Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker,
                     pattern_worker=pattern_worker, second_model=second if cutter is None else None,
                     corrector=corrector or real_corrector,
-                    check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper))
+                    check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper),
+                    updater=updates.Updater(cfg, state))
 
 
 def closet_inputs(cfg: Config, profile: str) -> tuple[list[dict], list[dict]]:
@@ -314,6 +321,11 @@ class Confirm(BaseModel):
 
 class ApiKeyBody(BaseModel):
     key: str
+    model_config = {"extra": "forbid"}
+
+
+class UpdateChoice(BaseModel):
+    mode: str
     model_config = {"extra": "forbid"}
 
 
@@ -1008,6 +1020,31 @@ def create_app(sv: Services) -> FastAPI:
         if not result["ok"]:
             return JSONResponse(result, status_code=409)
         return result
+
+    # -------------------------------------------------------------- updates
+    @app.get("/api/updates", dependencies=protected)
+    def get_updates():
+        return sv.updater.status()
+
+    @app.put("/api/updates", dependencies=protected)
+    def put_updates(body: UpdateChoice):
+        try:
+            sv.updater.set_mode(body.mode)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        return sv.updater.status()
+
+    @app.post("/api/updates/check", dependencies=protected)
+    async def check_updates():
+        # asks GitHub (a few seconds at most), so keep it off the event loop
+        return await run_in_threadpool(sv.updater.check)
+
+    @app.post("/api/updates/install", status_code=202, dependencies=protected)
+    def install_update():
+        try:
+            return sv.updater.install_now()
+        except updates.UpdateError as e:
+            raise HTTPException(409, str(e))
 
     @app.post("/api/profile", dependencies=protected)
     def set_profile(body: ProfileChoice):

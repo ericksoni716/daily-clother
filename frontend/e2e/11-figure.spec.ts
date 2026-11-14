@@ -34,7 +34,7 @@ test('today: switching to the outfit as worn shows it drawn, and the choice is r
   await expect(figure).toBeVisible();
   await expect(outfit.getByTestId('piece').first()).toBeHidden();
   await expect.poll(() => figure.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(100);
-  const drawn = Object.values(asked[0] ?? {}).filter(Boolean);
+  const drawn = Object.values(asked[0] ?? {}).flat().filter(Boolean);
   expect(drawn.length).toBeGreaterThanOrEqual(3);
   expect(ids).toEqual(expect.arrayContaining(drawn as string[]));
   // tall enough to read, and "I'm wearing this" still on the first screen

@@ -2,8 +2,8 @@
 
 Holds what is not part of a closet: the passphrase hash, login sessions, the
 backup folder, the model download URL, which closet (real or demo) is
-open, and where the owner is (New York until another place is chosen; with the last forecast for it, and the weather
-looked up for trips). Never holds the Anthropic API key.
+open, where the owner is (New York until another place is chosen; with the last forecast for it, and the weather
+looked up for trips), and what is known about new releases. Never holds the Anthropic API key.
 """
 from __future__ import annotations
 
@@ -39,6 +39,11 @@ DEFAULTS: dict[str, Any] = {
     "life_prompt_dismissed": False,
     "life_gap_hides": {},     # per-profile hide consent: id -> {hidden_at, situations}
     "climate": None,          # years of home weather, kept for months, not part of a closet
+    "update_mode": "ask",     # new releases: "auto" (install by themselves), "ask" (ask first) or "never" (never check)
+    "update_check": None,     # the last check: {"at", "ok", "error", "latest", "available": the newer release or None}
+    "update_ready": None,     # a newer release downloaded and checked: {"version", "path", "sha256", "at"}
+    "update_problem": None,   # why the last download or install of a release stopped: {"version", "at", "note"}
+    "update_install": None,   # how the last update went, as the helper saw it: {"at", "from", "to", "ok", "note"}
 }
 
 

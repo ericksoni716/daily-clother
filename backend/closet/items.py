@@ -10,6 +10,7 @@ import zlib
 from pathlib import Path
 
 from . import db, details, failures, history, illustrations, images, jobs, palette, patjobs, tagjobs, vocab
+from .tagger.taxonomy import SHADES, nearest_shade
 
 TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "acquired_on", "notes", "rating_reason", "color_hex")
 ENUM_FIELDS = tuple(vocab.ENUM_FIELDS)
@@ -71,6 +72,7 @@ def detail(conn, row) -> dict:
     out["seen_not_drawn"] = illustrations.not_drawn(row, said.pop("other_features", None) or [])
     out["details"] = said or None
     out["own_details"] = details.own(row)   # the details the owner has set, laid over Claude's when drawn
+    out["shade"] = shade_of(row, {**said, **out["own_details"]})
     out["drawing_notes"] = illustrations.notes(row)
     out["photos"] = [{
         "id": p["id"], "kind": p["kind"], "url": _media(p["original_path"]), "thumb_url": _media(p["thumb_path"]),
@@ -80,6 +82,15 @@ def detail(conn, row) -> dict:
     out["recent_wears"] = [r[0] for r in conn.execute(
         "SELECT worn_on FROM wears WHERE item_id = ? ORDER BY worn_on DESC LIMIT ?", (row["id"], RECENT_WEARS))]
     return out
+
+
+def shade_of(row, said: dict) -> str | None:
+    """The owner's name for the item's shade (docs/menswear-taxonomy.json, colors.shades): the one the owner or the
+    tagger named when it is a shade of the item's colour, else the nearest to its measured colour."""
+    color = row["color"]
+    if said.get("shade") in SHADES and SHADES[said["shade"]][1] == color:
+        return said["shade"]
+    return nearest_shade(row["color_hex"], color) if row["color_hex"] and color in {c for _, c in SHADES.values()} else None
 
 
 def get(conn, item_id: str):

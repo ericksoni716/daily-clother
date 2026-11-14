@@ -14,6 +14,7 @@ export interface LookFor {
   fit?: string | null;
   avoid_patterns?: string[];
   avoid_fits?: string[];
+  kind?: string | null;
 }
 
 export type GapState = 'open' | 'hidden' | 'wished' | 'held_back';
@@ -219,6 +220,7 @@ export function lookForLines(look: LookFor | null | undefined): string[] {
   if (look.pattern === 'solid') lines.push('Plain, no pattern');
   else if (look.pattern) lines.push(`${label('pattern', look.pattern)} pattern`);
   if (look.material) lines.push(look.material.charAt(0).toUpperCase() + look.material.slice(1));
+  if (look.kind) lines.push(`For example ${look.kind}`);
   if (look.fit) lines.push(`${plainWords(look.fit)} fit`);
   if (look.avoid_patterns?.length) lines.push(`Avoid ${look.avoid_patterns.map((p) => label('pattern', p).toLowerCase()).join(', ')} patterns`);
   if (look.avoid_fits?.length) lines.push(`Avoid ${look.avoid_fits.map((f) => plainWords(f).toLowerCase()).join(', ')} fits`);

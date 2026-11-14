@@ -5,6 +5,7 @@ import {
   type CorrectionAnswer, type DetailChoices, type DetailOptions, type HistoryEntry,
 } from '../corrections';
 import type { Item } from '../types';
+import { KindChoices } from './KindChoices';
 import './FixDetails.css';
 
 const OFFLINE = "You're offline, so the details can't be fixed right now.";
@@ -141,6 +142,9 @@ interface ChoicesProps {
 }
 
 function Choices({ item, choices, busy, hasAnswer, onPick, onGiveBack }: ChoicesProps) {
+  if (choices.name === 'garment') {
+    return <KindChoices choices={choices} busy={busy} canGiveBack={choices.own && hasAnswer} onPick={onPick} onGiveBack={onGiveBack} />;
+  }
   const drawn = choices.choices.filter((c) => c.svg);
   const shown = drawn.length > 0;
   const worded = choices.choices.filter((c) => !c.svg && !(shown && c.current));

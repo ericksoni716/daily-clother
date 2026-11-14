@@ -28,6 +28,14 @@ placed by the points on the wearer every template keeps:
   above it. The shoes stand on it as a pair: the side-view shoe twice, the
   viewer's right one mirrored, each with its toe turned out and foreshortened
   as a shoe turned partly toward the viewer, under the legs.
+- Accessories (`pieces["accessories"]`, a list) go by the point each template is
+  drawn about, at K_PX: a belt is worn round the trousers' waistband, and the
+  first top is then worn tucked in (its body cut off at the belt, its sleeves
+  kept), so the belt shows over it and under any layer worn over it; a scarf at the neck point,
+  over every top; a hat's band HAT_ABOVE_NECK_CM above the neck point, where a
+  forehead would be; a bag beside the figure on the viewer's right, its handle
+  at the height of a hand. One of each is drawn (the first given); the other
+  accessories (ties, gloves, socks...) are not drawn in the figure.
 
 `figure(pieces)` never raises: a missing place is not drawn, a piece of the
 wrong kind for its place is left out, a piece that cannot be drawn falls back
@@ -41,12 +49,14 @@ from dataclasses import dataclass, field, replace
 
 from . import item
 from .fills import Graphic
-from .illustrate import CARD, Fill, Spec, _draw
+from .illustrate import CARD, INK, Fill, Spec, _draw
 from .templates import BODY_W, CX, K_PX, PX_CM, SHOE_G, SHOE_L, Shape, build
 
 log = logging.getLogger("closet.drawing")
 
 PLACES = ("base", "mid", "outer", "bottom", "shoes")
+ACCESSORY_PLACE = {"belt": "belt", "scarf": "scarf", "bag": "bag", "cap": "hat", "beanie": "hat", "brimmed_hat": "hat"}
+ACCESSORY_ORDER = ("belt", "scarf", "hat", "bag")
 TOP_PLACES = ("base", "mid", "outer")
 PLACE_TEMPLATE = {"base": "top", "mid": "top", "outer": "top", "bottom": "pants", "shoes": "sneaker"}
 PLACE_CATEGORIES = {"base": item.TOPS, "mid": item.TOPS, "outer": item.TOPS, "bottom": item.BOTTOMS, "shoes": item.SHOES}
@@ -65,8 +75,16 @@ SHOE_TURN = 0.7               # the side view foreshortened to this share of its
 FOOT_CM = 5.0                 # where each heel sits, from the middle of the figure
 MARGIN = 18.0                 # the same space on every side of the figure
 
+HAT_ABOVE_NECK_CM = 21.0      # the middle of a hat's band, at the forehead, above the base of the neck
+HAND_BELOW_WAIST_CM = 22.0    # where a hand hangs holding a bag's handle, under the waist
+BAG_GAP_CM = 5.0              # between the bag and the figure
+BELT_HALF_CM = 20.5 * BOTTOM_W - 0.3   # a worn belt, either side of its buckle: the trousers' waist as drawn
+EDGE = 2.5                    # half the drawn outline's width, in pixels: a body's edge is drawn this far outside it
+TUCK_CM = 9.0                 # a top tucked in is drawn in to the belt's width over this much above the belt
+
 WAIST_Y = NECK_Y + WAIST_BELOW_NECK_CM * K_PX
 GROUND_Y = WAIST_Y + (RISE_CM + INSEAM_CM + BREAK_CM) * K_PX
+BELT_Y = WAIST_Y + 2.0 * K_PX   # the middle of the waistband
 
 
 @dataclass(frozen=True)
@@ -122,8 +140,8 @@ class Layout:
 
 
 def figure(pieces: Mapping[str, Piece | None] | None, *, uid: str = "f") -> str:
-    """The outfit as worn, as one SVG. `pieces` maps places (base, mid, outer, bottom, shoes) to pieces;
-    a place that is missing or None is not drawn. Never raises."""
+    """The outfit as worn, as one SVG. `pieces` maps places (base, mid, outer, bottom, shoes) to pieces, and
+    "accessories" to a list of pieces; a place that is missing or None is not drawn. Never raises."""
     uid = item._uid(uid)
     try:
         return _svg(plan(pieces), uid)
@@ -139,6 +157,10 @@ def plan(pieces: Mapping[str, Piece | None] | None) -> Layout:
     for place in PLACES:
         made = _placed(place, pieces.get(place))
         if made is not None:
+            out.pieces.append(made)
+    accessories = pieces.get("accessories")
+    if isinstance(accessories, (list, tuple)):
+        for made in _accessories(out, accessories):
             out.pieces.append(made)
     out.fit()
     return out
@@ -211,6 +233,53 @@ def _place(place: str, spec: Spec) -> Placed:
     return Placed(place, spec, shape, [left, right], SHOE_L / SHOE_CM * s)
 
 
+def _accessories(out: Layout, given) -> list[Placed]:
+    """The first belt, scarf, hat and bag among `given`, placed on the figure."""
+    specs: dict[str, Spec] = {}
+    for piece in given:
+        if not isinstance(piece, Piece) or piece.category not in item.ACCESSORIES:
+            continue
+        for make in (_spec, _plainest):
+            try:
+                spec = make(piece)
+            except Exception:
+                log.exception("drawing a %s for an outfit failed", piece.category)
+                continue
+            place = ACCESSORY_PLACE.get(spec.template)
+            if place is not None:
+                specs.setdefault(place, spec)
+                break
+    placed = []
+    for place in ACCESSORY_ORDER:
+        if place not in specs:
+            continue
+        try:
+            placed.append(_place_accessory(place, specs[place], out))
+        except Exception:
+            log.exception("placing a %s in an outfit failed", place)
+    return placed
+
+
+def _place_accessory(place: str, spec: Spec, out: Layout) -> Placed:
+    params = {**spec.params, "px": K_PX}
+    if place == "belt":
+        params.update(worn=True, half=BELT_HALF_CM)
+    spec = replace(spec, params=params)
+    shape = _shape(spec)
+    _draw(spec, "line", "probe", dy=0.0)
+    if place == "belt":
+        x, y = CX, BELT_Y
+    elif place == "scarf":
+        x, y = CX, NECK_Y
+    elif place == "hat":
+        x, y = CX, NECK_Y - HAT_ABOVE_NECK_CM * K_PX
+    else:
+        boxes = [p.box() for p in out.pieces] or [(CX - 25 * K_PX, NECK_Y, CX + 25 * K_PX, GROUND_Y)]
+        x = max(b[2] for b in boxes) + BAG_GAP_CM * K_PX + (CX - shape.bbox[0])
+        y = WAIST_Y + HAND_BELOW_WAIST_CM * K_PX
+    return Placed(place, spec, shape, [(1.0, 0.0, 0.0, 1.0, x - CX, y)], K_PX)
+
+
 # ------------------------------------------------------------------ drawing
 
 def _matrix(t) -> str:
@@ -238,6 +307,25 @@ def _shows(p: Placed, under: list[Placed]) -> list[str] | None:
             poly([(CX - 48, -far), (CX + 48, -far), (CX + 48, sh_y + 12), (CX - 48, sh_y + 12)])]
 
 
+def _tucked(p: Placed) -> tuple[list[str], str]:
+    """A top worn tucked in: where it shows (paths in the figure: above the belt, its body drawn in from the width
+    of its body to the belt's over the last TUCK_CM, and beside its body, where the sleeves hang), and the
+    drawn-in sides as ink lines. Beside the body is taken from just past its drawn edge, so the body's own sides do
+    not show below the belt."""
+    x0, _, x1, _ = p.box(p.shape.body_box)
+    bx0, bx1 = CX - BELT_HALF_CM * K_PX, CX + BELT_HALF_CM * K_PX
+    ty = BELT_Y - TUCK_CM * K_PX
+    far = 4000.0
+    shows = [f"M {-far:.1f},{-far:.1f} L {far:.1f},{-far:.1f} L {far:.1f},{ty:.1f} L {x1:.1f},{ty:.1f} "
+             f"Q {x1:.1f},{BELT_Y - 2 * K_PX:.1f} {bx1:.1f},{BELT_Y:.1f} L {bx0:.1f},{BELT_Y:.1f} "
+             f"Q {x0:.1f},{BELT_Y - 2 * K_PX:.1f} {x0:.1f},{ty:.1f} L {-far:.1f},{ty:.1f} Z",
+             f"M {-far:.1f},{ty:.1f} L {x0 - EDGE:.1f},{ty:.1f} L {x0 - EDGE:.1f},{far:.1f} L {-far:.1f},{far:.1f} Z",
+             f"M {x1 + EDGE:.1f},{ty:.1f} L {far:.1f},{ty:.1f} L {far:.1f},{far:.1f} L {x1 + EDGE:.1f},{far:.1f} Z"]
+    sides = "".join(f'<path d="M {x:.1f},{ty:.1f} Q {x:.1f},{BELT_Y - 2 * K_PX:.1f} {bx:.1f},{BELT_Y:.1f}" fill="none" '
+                    f'stroke="{INK}" stroke-width="2.6" stroke-linecap="round"/>' for x, bx in ((x0, bx0), (x1, bx1)))
+    return shows, sides
+
+
 def _clip(cid: str, paths: list[str], t) -> str:
     return f'<clipPath id="{cid}">' + "".join(f'<path d="{d}" transform="{_matrix(t)}"/>' for d in paths) + "</clipPath>"
 
@@ -253,11 +341,27 @@ def _svg(layout: Layout, uid: str) -> str:
         defs.append(d)
         body += [f'<g transform="{_matrix(t)}">{b}</g>' for t in p.transforms]
     # the tops, from the inside out: each one over everything under it
+    extra = {}
+    for p in layout.pieces:
+        if p.place in ACCESSORY_ORDER:
+            d, b, _, _ = _draw(p.spec, "line", f"{uid}{p.place[0]}", dy=0.0)
+            defs.append(d)
+            extra[p.place] = f'<g transform="{_matrix(p.transforms[0])}">{b}</g>'
+    belt = extra.get("belt", "")
+    first = next((q for q in layout.pieces if q.place in TOP_PLACES), None)
+    if belt and (first is None or first.open):   # nothing to tuck in: the belt is seen on the trousers
+        body.append(belt)
+        belt = ""
     stack, under = "", []
     for n, p in enumerate(q for q in layout.pieces if q.place in TOP_PLACES):
         tid = f"{uid}t{n}"
         d, b, _, _ = _draw(p.spec, "line", tid, layered=True, dy=TOP_DY)
         defs.append(d)
+        if belt and isinstance(b, str):   # tucked in: its body ends at the belt, its sleeves hang beside it
+            shows, sides = _tucked(p)
+            defs.append(_clip(f"k{tid}", shows, (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)))
+            b = f'<g clip-path="url(#k{tid})">{b}</g>' + sides + belt
+            belt = ""
         shows = _shows(p, under) if stack else None
         seen = stack
         if stack and shows is not None:
@@ -274,6 +378,7 @@ def _svg(layout: Layout, uid: str) -> str:
                 stack += f'<g clip-path="url(#n{tid})">{seen}</g>'
         under.append(p)
     body.append(stack)
+    body += [extra[k] for k in ("scarf", "hat", "bag") if k in extra]
     x, y, w, h = layout.view
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x:.1f} {y:.1f} {w:.1f} {h:.1f}" '
             f'width="{w:.0f}" height="{h:.0f}"><defs>{"".join(defs)}</defs>'

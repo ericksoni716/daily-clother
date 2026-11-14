@@ -5,7 +5,7 @@ import { confirmKeys, Notice, PHONE, Section, SegmentedControl, Sheet, useConfir
 import { FixDetails, FixDetailsButton, ItemHistory } from '../components/FixDetails';
 import { KindPicker } from '../components/KindPicker';
 import { BackIcon, ChevronIcon, HangerIcon, WarnIcon } from '../components/Icons';
-import { FIELD_TITLES, formatPrice, label, shadeLabel, measuredColours, parsePrice, ratingLabel, SWATCH, swatchOf, tileCaption } from '../labels';
+import { FIELD_TITLES, formatPrice, label, shadeLabel, measuredColours, parsePrice, ratingLabel, SWATCH, swatchOf, tileCaption, wornWords } from '../labels';
 import { useWhenLeaving } from '../leave';
 import { Link, navigate, useMediaQuery } from '../router';
 import { silhouetteGroups } from '../silhouette';
@@ -45,6 +45,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   const [item, setItem] = useState<Item | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fixing, setFixing] = useState(false);
+  const [focus, setFocus] = useState<{ field: string; at: number } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const inflight = useRef(0);
   const backTo = status === 'archived' ? '/archived' : '/';
@@ -188,8 +189,11 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       {locked && <Notice as="p">You're offline, so this item can't be changed right now.</Notice>}
 
       <Picture item={item} busyText={busyLabel(model)}
-        fix={<FixDetailsButton open={fixing} disabled={locked} onToggle={() => setFixing((f) => !f)} />} />
-      <FixDetails item={item} open={fixing} disabled={locked} onSaved={fixed} onError={failed} />
+        fix={<FixDetailsButton open={fixing} disabled={locked} onToggle={() => {
+          setFixing((f) => !f);
+          setFocus(null);
+        }} />} />
+      <FixDetails item={item} open={fixing} focus={focus} disabled={locked} onSaved={fixed} onError={failed} />
 
       {measuring && (
         <p className="notice" role="status" data-testid="pattern-measuring">
@@ -223,6 +227,10 @@ export function ItemDetail({ id, status, inPanel }: Props) {
             onSave={(name) => save({ name })} />
         </h2>
         {tileCaption(item.category, item.color) && <p className="detail-meta">{tileCaption(item.category, item.color)}</p>}
+        <WornLine item={item} disabled={locked} onPick={(field) => {
+          setFixing(true);
+          setFocus({ field, at: Date.now() });
+        }} />
       </header>
 
       <WearPanel item={item} disabled={locked}
@@ -723,6 +731,24 @@ function Actions({ item, disabled, onArchive, onDelete }: { item: Item; disabled
 }
 
 /** The colours measured from the pattern, as small swatches beside the pattern word. */
+/** How it sits on the outfit figure, in a short line under its name ("Relaxed fit · hip length · long sleeves"): each
+ * word opens its detail in "Fix the details", where the owner can correct it and the figure is drawn again. */
+function WornLine({ item, disabled, onPick }: { item: Item; disabled: boolean; onPick(field: string): void }) {
+  const words = wornWords(item.as_worn);
+  if (!words.length) return null;
+  return (
+    <p className="detail-worn" data-testid="worn-line" aria-label="How it is worn">
+      {words.map((w, i) => (
+        <span key={w.part}>
+          {i > 0 && <span aria-hidden="true"> · </span>}
+          <button type="button" className="btn-link detail-worn-word" disabled={disabled}
+            title={`Fix the ${w.text.toLowerCase()} in the details`} onClick={() => onPick(w.field)}>{w.text}</button>
+        </span>
+      ))}
+    </p>
+  );
+}
+
 function MeasuredColours({ colours }: { colours?: PatternColour[] }) {
   if (!colours?.length) return null;
   const words = `Colours measured from the photo: ${measuredColours(colours)}`;

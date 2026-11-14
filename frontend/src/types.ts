@@ -113,6 +113,9 @@ export interface Item extends ItemSummary {
   seen_not_drawn: string[];
   /** What the drawing could not show, in plain words (e.g. a pattern drawn as its colour only). */
   drawing_notes: string[];
+  /** How it sits on the outfit figure (its fit, length, sleeves or leg), each with the detail that corrects it;
+   * what was not told is left out. */
+  as_worn?: WornPart[];
   /** Who set each field: 'user' for the owner, 'ai' for a suggestion. */
   source: Record<string, string>;
   confidence: Record<string, number>;
@@ -122,6 +125,13 @@ export interface Item extends ItemSummary {
   recent_wears: string[];
   /** The photo of several pieces this item was cut from, and its box in it; null for a photo of its own. */
   source_photo?: { id: string; photo_url: string; box: BoxEdges | null } | null;
+}
+
+export interface WornPart {
+  part: 'fit' | 'length' | 'sleeve' | 'leg';
+  value: string;
+  /** The detail that corrects it in "Fix the details". */
+  field: string;
 }
 
 export type ItemPatch = Partial<Omit<Item, 'silhouette'>> & { silhouette?: Record<string, string | null> };

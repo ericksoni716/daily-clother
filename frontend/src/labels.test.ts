@@ -1,10 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { categoryPlural, formatPrice, formatSize, humanize, label, measuredColours, parsePrice, ratingLabel, shadeLabel, tileCaption } from './labels';
+import { categoryPlural, formatPrice, formatSize, humanize, label, measuredColours, parsePrice, ratingLabel, shadeLabel, tileCaption, wornWords } from './labels';
 import { messageFrom } from './api';
 import { fitWithin } from './resize';
 import { silhouetteGroups } from './silhouette';
 
 describe('labels', () => {
+  it('says how an item sits in short plain words, the first capitalised, each with the detail that fixes it', () => {
+    const words = wornWords([
+      { part: 'fit', value: 'relaxed', field: 'fit_detail' }, { part: 'length', value: 'hip', field: 'fit_detail' },
+      { part: 'sleeve', value: 'long', field: 'sleeve_length' }, { part: 'leg', value: 'unheard_of', field: 'leg_shape' },
+    ]);
+    expect(words.map((w) => w.text).join(' · ')).toBe('Relaxed fit · hip length · long sleeves');
+    expect(words.map((w) => w.field)).toEqual(['fit_detail', 'fit_detail', 'sleeve_length']);
+    expect(wornWords([{ part: 'leg', value: 'wide', field: 'leg_shape' }, { part: 'length', value: 'ankle', field: 'trouser_break' }])
+      .map((w) => w.text)).toEqual(['Wide leg', 'ankle length']);
+    expect(wornWords(undefined)).toEqual([]);
+  });
+
   it('turns vocabulary values into plain words', () => {
     expect(label('formality', 'smart_casual')).toBe('Smart casual');
     expect(label('color', 'light_blue')).toBe('Light blue');

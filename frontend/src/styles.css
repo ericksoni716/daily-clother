@@ -626,6 +626,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .detail-head { margin: var(--space-2) 0 var(--space-4); }
 .detail-title { font-size: var(--text-xl); font-weight: var(--weight-heading); letter-spacing: -0.015em; }
 .detail-meta { margin: var(--space-1) 0 0; color: var(--ink-3); font-size: var(--text-sm); }
+.detail-worn { margin: var(--space-1) 0 0; color: var(--ink-3); font-size: var(--text-sm); }
+.detail-worn .detail-worn-word { padding: 0; min-height: 0; font-size: var(--text-sm); color: var(--ink-2); text-decoration-color: var(--ink-3); }
 .name-field { display: block; }
 .name-field textarea {
   display: block; font-size: var(--text-xl); font-weight: inherit; letter-spacing: inherit; line-height: 1.25; border-color: transparent;

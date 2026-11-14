@@ -34,13 +34,17 @@ async function gapNames(page: Page): Promise<string[]> {
 test("what's missing shows the gaps, best first, with the reasons and what to look for", async ({ page }) => {
   await openMissing(page);
   const first = page.getByTestId('gap').first();
+  // one sentence for why; the rest, day by day, behind a disclosure
+  await expect(first.getByTestId('gap-summary')).toBeVisible();
+  await expect(first.getByRole('list', { name: 'Why' })).toBeHidden();
+  await first.getByText(/^Why, day by day \(\d+\)$/).click();
   await expect(first.getByRole('list', { name: 'Why' }).getByRole('listitem').first()).toBeVisible();
   await expect(first.getByTestId('look-for')).toContainText(/Look for/i);
   // the first one helps at least as much as the last
   const levels = await page.getByTestId('help').evaluateAll((els) => els.map((e) => Number((e as HTMLElement).dataset.level)));
   expect(levels.length).toBeGreaterThan(2);
   expect(levels[0]).toBeGreaterThanOrEqual(levels[levels.length - 1]);
-  await expect(first.getByTestId('help')).toContainText(/Would help/);
+  await expect(first.getByTestId('help')).toHaveText(/^Helps (a little|some|a fair bit|a lot)$/);
   // no field names or numbers out of 100
   await expect(first).not.toContainText(/smart_casual|dress_shoes|score/);
   // the quieter findings
@@ -54,6 +58,19 @@ test("what's missing shows the gaps, best first, with the reasons and what to lo
   await expect(page.getByRole('link', { name: 'Back to the wishlist' })).toBeVisible();
   await page.getByRole('link', { name: 'Back to the wishlist' }).click();
   await expect(page.getByTestId('wishlist')).toBeVisible();
+});
+
+test('a reason given for several kinds of day is said once, with the days listed under it', async ({ page }) => {
+  await openMissing(page);
+  const belt = gap(page, 'A leather belt');
+  const sentence = 'A leather belt finishes trousers and jeans; the engine adds one to every outfit that has them. You have none.';
+  await expect(belt.getByTestId('gap-summary')).toHaveText(sentence);
+  // the card is no longer a wall of the same sentence
+  expect(await belt.evaluate((el) => el.getBoundingClientRect().height)).toBeLessThan(600);
+  await belt.getByText('Why, day by day (4)').click();
+  const why = belt.getByRole('list', { name: 'Why' });
+  await expect(why.getByText(sentence, { exact: true })).toHaveCount(1);
+  await expect(why.getByRole('list', { name: 'For' }).getByRole('listitem').locator('strong')).toHaveText(['Work', 'Everyday', 'Going out', 'Vacation']);
 });
 
 test("\"I'll look for this\" puts a gap on the wishlist; the note is kept; it can be removed", async ({ page }) => {

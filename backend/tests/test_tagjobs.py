@@ -229,7 +229,7 @@ def test_every_demo_answer_is_a_valid_answer_in_the_current_schema():
 
 # Recorded with SCHEMA_VERSION. When this fails, the tagging schema changed: raise SCHEMA_VERSION in
 # closet/tagger/schema.py, record the new fingerprint here, and rewrite the demo answers.
-SCHEMA_FINGERPRINTS = {1: "1edcb5f6851e", 2: "46ac146bd830"}
+SCHEMA_FINGERPRINTS = {1: "1edcb5f6851e", 2: "655281317a64", 3: "87ca160a8092"}
 
 
 def test_the_schema_version_is_raised_when_the_schema_changes():
@@ -490,3 +490,33 @@ def test_the_sign_in_note_and_the_limit_note_replace_each_other_but_not_other_re
         assert row(cfg, item["id"])["tag_error"] == "something else"
     finally:
         conn.close()
+
+
+def _demo_answer(name):
+    data = json.loads((bundle_dir() / "demo_data" / "items.json").read_text(encoding="utf-8"))
+    return next(it["answer"] for it in data["items"] if it["name"] == name)
+
+
+def test_an_answer_stored_before_the_kind_was_asked_still_reads():
+    from closet.tagger.schema import ItemTags
+    old = _demo_answer("Grey hoodie")
+    old["details"].pop("garment")
+    assert ItemTags.model_validate(old).details.garment == "unknown"
+
+
+def test_a_fleece_pullover_is_drawn_with_its_second_colour_and_bound_edges():
+    from closet.tagger.schema import NAMED_HEX, ItemTags, drawing_for
+    answer = _demo_answer("Grey hoodie")
+    answer = {**answer, "category": "sweater", "color": "green", "secondary_colors": ["blue"],
+              "details": {**answer["details"], "garment": "fleece_pullover", "trim_color": "red", "placket": "snap"}}
+    template, params, extras, _ = drawing_for(ItemTags.model_validate(answer))
+    assert template == "top" and params["front"] == "half" and params["binding"] and params["colorblock"]
+    assert extras["block_color"] == NAMED_HEX["blue"] and extras["trim_color"] == NAMED_HEX["red"]
+
+
+def test_track_trousers_are_drawn_with_a_side_stripe():
+    from closet.tagger.schema import ItemTags, drawing_for
+    answer = _demo_answer("Grey wool trousers")
+    answer = {**answer, "details": {**answer["details"], "garment": "track_pants"}}
+    template, params, _, _ = drawing_for(ItemTags.model_validate(answer))
+    assert template == "pants" and params["stripe"] == "side" and params["waist"] == "elastic"

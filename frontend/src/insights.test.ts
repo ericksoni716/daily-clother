@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { forgetSaved } from './today';
 import {
-  addDays, loadSavedInsights, saveInsights, type Insights, barWidth, costCaption, forgetKept, groupLabel, keepPiece, keptPieces, KEEP_DAYS, money, perWear, plural, shortDate,
-  unwornCaption, wears, windowLabel,
+  addDays, loadSavedInsights, saveInsights, type Insights, barWidth, costCaption, costHero, costSentence, forgetKept, groupLabel, keepPiece,
+  keptPieces, KEEP_DAYS, makeupHero, money, perWear, plural, shortDate, spreadHero, unwornCaption, unwornHero, wears, windowLabel,
+  wornMostHero, type CategorySpread, type CostPerWear,
 } from './insights';
 
 class MemoryStorage {
@@ -75,6 +76,49 @@ describe('captions', () => {
     expect(barWidth(1, 1000)).toBe(4);
     expect(barWidth(0, 10)).toBe(0);
     expect(barWidth(3, 0)).toBe(0);
+  });
+});
+
+describe('the figure each card leads with', () => {
+  const cost = (closet: CostPerWear['closet'], sentence = 'Add what you paid.'): CostPerWear =>
+    ({ title: 'Cost per wear', enough: !!closet, sentence, closet, best: [], worst: [], not_worn: [] });
+
+  it('leads cost per wear with the closet figure and leaves it out of the sentence', () => {
+    const f = cost({ pieces: 13, spent_cents: 152700, wears: 25, per_wear_cents: 6108 });
+    expect(costHero(f)).toBe('$61.08 a wear');
+    expect(costSentence(f)).toBe('You paid $1,527 for the 13 pieces with a price and have worn them 25 times.');
+    const one = cost({ pieces: 1, spent_cents: 4500, wears: 1, per_wear_cents: 4500 });
+    expect(costSentence(one)).toBe('You paid $45 for the one piece with a price and have worn it 1 time.');
+  });
+
+  it('has no figure while the sentence says why there is none', () => {
+    const f = cost(null);
+    expect(costHero(f)).toBeNull();
+    expect(costSentence(f)).toBe('Add what you paid.');
+  });
+
+  it('counts the pieces not being worn, only when there is something to list', () => {
+    const f = { title: 'Not worn yet', enough: true, sentence: '', items: [] };
+    expect(unwornHero(f, 3)).toBe('3 pieces');
+    expect(unwornHero(f, 1)).toBe('1 piece');
+    expect(unwornHero(f, 0)).toBeNull();
+    expect(unwornHero({ ...f, enough: false }, 3)).toBeNull();
+  });
+
+  it('counts the wears of the window, the kinds a few pieces carry and the pieces in use', () => {
+    expect(wornMostHero({ title: '', enough: true, sentence: '', days: 30, wears: 25, items: [] })).toBe('25 wears');
+    expect(wornMostHero({ title: '', enough: false, sentence: '', days: 30, wears: 0, items: [] })).toBeNull();
+
+    const kind = (k: 'few' | 'even') => ({ category: 'shirt', pieces: 4, wears: 10, doing_most: 1, share: 80, kind: k, sentence: '', items: [] }) as CategorySpread;
+    const spread = { title: '', enough: true, sentence: '', days: 90, categories: [kind('few'), kind('even'), kind('few')] };
+    expect(spreadHero(spread)).toBe('2 of 3 kinds');
+    expect(spreadHero({ ...spread, categories: [kind('even')] })).toBe('Fairly even');
+    expect(spreadHero({ ...spread, enough: false })).toBeNull();
+
+    const by = { category: [], color: [], formality: [], season: [] };
+    expect(makeupHero({ title: '', enough: true, sentence: '', pieces: 30, worn: 18, days: 90, by })).toBe('18 of 30 worn');
+    expect(makeupHero({ title: '', enough: false, sentence: '', pieces: 30, worn: null, days: 90, by })).toBe('30 pieces');
+    expect(makeupHero({ title: '', enough: false, sentence: '', pieces: 0, worn: null, days: 90, by })).toBeNull();
   });
 });
 

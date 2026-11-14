@@ -14,6 +14,13 @@ export interface Session {
   profile: Profile;
 }
 
+/** One colour of a measured pattern: its colour word, its shade and how much of the pattern it covers (0..1). */
+export interface PatternColour {
+  color: string;
+  hex: string;
+  share: number;
+}
+
 export interface ItemSummary {
   id: string;
   name: string | null;
@@ -77,6 +84,8 @@ export interface Item extends ItemSummary {
   /** The pattern measured from the photo: null (nothing to measure), waiting, working, done or failed. */
   pattern_state: 'waiting' | 'working' | 'done' | 'failed' | null;
   pattern_error: string | null;
+  /** The colours measured from the pattern, largest first (empty when it has not been measured). */
+  pattern_colors?: PatternColour[];
   /** Why its cutout or its description failed: a plain sentence, and the stored reason with keys and outside paths
    * taken out (null when nothing was recorded). Null when nothing has failed. */
   failure: Failure | null;
@@ -159,8 +168,10 @@ export interface Settings {
   phone: { tailscale_installed: boolean; running: boolean; address: string | null; command: string };
   autostart: boolean | null;
   heic_supported: boolean;
-  /** Where the owner is, for the weather; null until chosen. */
+  /** Where the owner is, for the weather: New York (`home_place`) until another place is chosen. */
   place: Place | null;
+  /** The place used until one is chosen, and again when the chosen one is removed. */
+  home_place?: Place;
   life: Life | null;
   life_prompt_dismissed: boolean;
 }

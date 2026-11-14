@@ -5,9 +5,11 @@ import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherChe
 import type { Insights } from './insights';
 import type { OutfitSent, Rating, Reason, WornOutfit, WornPage } from './worn';
 import type { GapsAnswer, HideReason, Wish } from './gaps';
+import type { FindsAnswer } from './shop';
 import type { Life } from './life';
 import type { Check, WouldPiece } from './wouldwork';
 import type { FigurePieces } from './figure';
+import type { UpdateMode, UpdateStatus } from './updates';
 
 /** An error with a sentence the owner can read. status 0 means the server could not be reached. */
 export class ApiError extends Error {
@@ -213,6 +215,9 @@ export const api = {
   tagging: () => request<TaggingStatus>('/api/tagging'),
   tagSpend: () => request<TaggingSpend>('/api/tagging/spend'),
   places: (q: string) => request<{ places: Place[] }>(`/api/places?q=${encodeURIComponent(q)}`).then((r) => r.places),
+  /** The town at a position from the browser ("Use my location"); not saved until put in the settings. */
+  placeNear: (latitude: number, longitude: number) =>
+    request<{ place: Place }>(`/api/places/near?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}`).then((r) => r.place),
   weather: () => request<WeatherLookup>('/api/weather'),
   today: (choices: TodayRequest, signal?: AbortSignal) =>
     request<TodayAnswer>('/api/outfits/today', { method: 'POST', body: choices, signal }),
@@ -234,10 +239,15 @@ export const api = {
   unhideGap: (id: string) => request<void>(`/api/gaps/${encodeURIComponent(id)}/hide`, { method: 'DELETE' }),
   wishlist: () => request<{ wishes: Wish[] }>('/api/wishlist').then((r) => r.wishes),
   addWish: (wish: { gap_id: string } | { name: string; note?: string }) => request<Wish>('/api/wishlist', { method: 'POST', body: wish }),
-  changeWish: (id: string, changes: { name?: string; note?: string }) =>
+  changeWish: (id: string, changes: { name?: string; note?: string; price_min?: number | null; price_max?: number | null; price_currency?: string | null }) =>
     request<Wish>(`/api/wishlist/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes }),
   wishBought: (id: string) => request<Wish>(`/api/wishlist/${encodeURIComponent(id)}/bought`, { method: 'POST' }),
   removeWish: (id: string) => request<void>(`/api/wishlist/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  finds: (id: string) => request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/finds`),
+  findSome: (id: string) => request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/find`, { method: 'POST' }),
+  checkPrices: (id: string) => request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/prices`, { method: 'POST' }),
+  removeFind: (id: string, findId: string) =>
+    request<void>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}`, { method: 'DELETE' }),
   // Would this work?: a check starts and answers later; the photo is not kept
   checkByHand: (piece: Partial<WouldPiece>) => request<Check>('/api/would-this-work', { method: 'POST', body: { piece } }),
   checkPhoto: (photo: Blob, filename: string) => {
@@ -249,6 +259,11 @@ export const api = {
   outfitFigure: (pieces: FigurePieces, signal?: AbortSignal) =>
     request<string>('/api/outfits/figure', { method: 'POST', body: pieces, signal, text: true }),
   backup: () => request<BackupRecord>('/api/backup', { method: 'POST' }),
+  // New versions of Closet
+  updates: () => request<UpdateStatus>('/api/updates'),
+  setUpdateMode: (mode: UpdateMode) => request<UpdateStatus>('/api/updates', { method: 'PUT', body: { mode } }),
+  checkUpdates: () => request<UpdateStatus>('/api/updates/check', { method: 'POST' }),
+  installUpdate: () => request<UpdateStatus>('/api/updates/install', { method: 'POST' }),
   setProfile: (profile: Profile) => request<{ profile: Profile }>('/api/profile', { method: 'POST', body: { profile } }),
   quit: () => request<void>('/api/quit', { method: 'POST' }),
 };

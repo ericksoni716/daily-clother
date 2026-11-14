@@ -2,8 +2,8 @@
 
 Holds what is not part of a closet: the passphrase hash, login sessions, the
 backup folder, the model download URL, which closet (real or demo) is
-open, and where the owner is (with the last forecast for it, and the weather
-looked up for trips). Never holds the Anthropic API key.
+open, where the owner is (New York until another place is chosen; with the last forecast for it, and the weather
+looked up for trips), and what is known about new releases. Never holds the Anthropic API key.
 """
 from __future__ import annotations
 
@@ -13,6 +13,11 @@ import threading
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
+
+# New York City, the owner's home (DECISIONS "Home is New York City"): the place used until the owner chooses one,
+# so Today has real weather from the first open. Named as the place search names it.
+HOME_PLACE: dict[str, Any] = {"name": "New York, United States", "latitude": 40.7143, "longitude": -74.006,
+                              "timezone": "America/New_York"}
 
 DEFAULTS: dict[str, Any] = {
     "passphrase": None,       # {"salt", "hash", "n", "r", "p"}
@@ -26,13 +31,18 @@ DEFAULTS: dict[str, Any] = {
     "tagging_api_cap_usd": None,   # the API key's monthly spending limit in US dollars; needed to turn the key on
     "tagging_api_off": None,       # {"at", "reason": "credit" | "key"} when Anthropic refused the key and it was switched off
     "tagging_route_order": "auto", # which route to Claude is tried first: a key of tagger.routes.ORDERS
-    "place": None,            # {"name", "latitude", "longitude", "timezone"}, chosen in Settings
+    "place": HOME_PLACE,      # {"name", "latitude", "longitude", "timezone"}: New York until one is chosen
     "weather": None,          # the last forecast for the place: {"key", "fetched", "offset", "answer"}
     "trip_weather": None,     # forecasts and usual weather looked up for trips: {"forecast": {...}, "usual": {...}}
     "life": None,             # the optional situations and style line for What's missing
     "life_prompt_dismissed": False,
     "life_gap_hides": {},     # per-profile hide consent: id -> {hidden_at, situations}
     "climate": None,          # years of home weather, kept for months, not part of a closet
+    "update_mode": "ask",     # new releases: "auto" (install by themselves), "ask" (ask first) or "never" (never check)
+    "update_check": None,     # the last check: {"at", "ok", "error", "latest", "available": the newer release or None}
+    "update_ready": None,     # a newer release downloaded and checked: {"version", "path", "sha256", "at"}
+    "update_problem": None,   # why the last download or install of a release stopped: {"version", "at", "note"}
+    "update_install": None,   # how the last update went, as the helper saw it: {"at", "from", "to", "ok", "note"}
 }
 
 
@@ -49,6 +59,8 @@ class State:
                     f"The settings file {path} cannot be read ({e}). Move it aside to start with fresh settings; "
                     "your closet database is separate and is not affected.") from e
             self._data.update({k: v for k, v in loaded.items() if k in DEFAULTS})
+        if self._data["place"] is None:   # never chosen (older settings saved none): New York; a chosen place is kept
+            self._data["place"] = deepcopy(HOME_PLACE)
 
     def get(self, key: str) -> Any:
         with self._lock:

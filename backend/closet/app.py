@@ -43,9 +43,11 @@ from . import (
     phone,
     review,
     savedtrips,
+    shop,
     spend,
     storage,
     tagjobs,
+    updates,
     vocab,
     wears,
     wishlist,
@@ -56,12 +58,12 @@ from .config import PROFILES, Config, bundle_dir
 from .cutout import make_cutout, predict_mask
 from .insights import find_insights
 from .modelstore import MODEL, SECOND_MODEL, ModelStore
-from .state import State
+from .state import HOME_PLACE, State
 from .tagger import correcting
 from .tagger import routes as tagger_routes
 from .today import closet_rows
 from .today import suggest as suggest_today
-from .weather import WeatherError, check_place, lookup, search_places
+from .weather import WeatherError, check_place, lookup, place_near, search_places
 
 log = logging.getLogger("closet.app")
 
@@ -82,7 +84,10 @@ class Services:
     second_model: ModelStore | None = None   # asked as well when the first leaves a patterned item see-through
     corrector: corrections.Corrector = correcting.correct
     check_tagger: tagjobs.Tagger | None = None   # describes a photo for "Would this work?", recorded as its own purpose
+    shopper: shop.Shopper | None = None           # searches shops for a wish and looks prices up again
+    price_checks: shop.PriceScheduler | None = None   # looks prices up once a day while the program runs
     on_quit: Callable[[], None] = lambda: None
+    updater: updates.Updater | None = None   # new releases: checked once a day, installed when the owner says
     _phone_cache: tuple[float, dict] | None = field(default=None, repr=False)
 
     def start(self) -> None:
@@ -96,6 +101,10 @@ class Services:
         if self.second_model is not None and not self.second_model.ready and self.cfg.auto_download_model:
             self.second_model.start_download()
         self.scheduler.start()
+        if self.updater is not None:
+            self.updater.start()
+        if self.price_checks:
+            self.price_checks.start()
 
     def wake(self) -> None:
         """Nudge both queues (a new item, another closet opened)."""
@@ -107,6 +116,10 @@ class Services:
 
     def stop(self) -> None:
         self.scheduler.stop()
+        if self.updater is not None:
+            self.updater.stop()
+        if self.price_checks:
+            self.price_checks.stop()
         if self.tag_worker:
             self.tag_worker.stop()
         if self.pattern_worker:
@@ -127,13 +140,14 @@ class Services:
 def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path | str | None = "bundled",
                    tagger: tagjobs.Tagger | None = None, routes: tagjobs.Routes | None = None, api_client=None,
                    corrector: corrections.Corrector | None = None, measurer: patjobs.Measurer | None = None,
-                   landmarker: patjobs.Landmarker | None = None) -> Services:
+                   landmarker: patjobs.Landmarker | None = None, shop_asker: shop.Asker | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
     with the program, None serves no page (tests), or give a folder. `tagger`,
     `routes` and `corrector` stand in for Claude in tests; by default the real routes are used, each call recorded and
     the API key kept under its monthly limit. `api_client` stands in for the API alone (tests), behind that same limit.
+    `shop_asker` stands in for Claude searching shops and looking up prices (tests).
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
@@ -197,10 +211,25 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
         web_dir = candidate if (candidate / "index.html").exists() else None
     second.refresh()
     tag_worker.on_described = pattern_worker.wake if pattern_worker else (lambda: None)
+    shopper = shop.Shopper(cfg, state, lambda profile: closet_inputs(cfg, profile), tag_worker.routes,
+                           shop_asker or shop.ClaudeAsker(cfg, state, client=api_client))
     return Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker,
                     pattern_worker=pattern_worker, second_model=second if cutter is None else None,
                     corrector=corrector or real_corrector,
-                    check_tagger=tagger or check_tagger)
+                    check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper),
+                    updater=updates.Updater(cfg, state))
+
+
+def closet_inputs(cfg: Config, profile: str) -> tuple[list[dict], list[dict]]:
+    """A closet's item rows and wear log, as the gap analysis and "Would this work?" read them."""
+    conn = db.connect(cfg.db_path(profile))
+    try:
+        rows = closet_rows(conn)
+        worn = [{"item_id": r["item_id"], "worn_on": r["worn_on"]}
+                for r in conn.execute("SELECT item_id, worn_on FROM wears ORDER BY item_id, worn_on")]
+    finally:
+        conn.close()
+    return rows, worn
 
 
 class Passphrase(BaseModel):
@@ -291,6 +320,11 @@ class Confirm(BaseModel):
 
 class ApiKeyBody(BaseModel):
     key: str
+    model_config = {"extra": "forbid"}
+
+
+class UpdateChoice(BaseModel):
+    mode: str
     model_config = {"extra": "forbid"}
 
 
@@ -657,15 +691,7 @@ def create_app(sv: Services) -> FastAPI:
     gaps_cache: dict[str, tuple[str, dict]] = {}  # profile -> (what the closet and wear log were, the answer)
 
     def gap_inputs(profile: str) -> tuple[list[dict], list[dict]]:
-        """A closet's item rows and wear log, as the gap analysis reads them."""
-        conn = db.connect(cfg.db_path(profile))
-        try:
-            rows = closet_rows(conn)
-            worn = [{"item_id": r["item_id"], "worn_on": r["worn_on"]}
-                    for r in conn.execute("SELECT item_id, worn_on FROM wears ORDER BY item_id, worn_on")]
-        finally:
-            conn.close()
-        return rows, worn
+        return closet_inputs(cfg, profile)
 
     def gap_analysis(profile: str | None = None, inputs: tuple[list[dict], list[dict]] | None = None) -> dict:
         """The open closet's gaps, all of them (cut to the list's length when marked); slow the first time."""
@@ -737,12 +763,23 @@ def create_app(sv: Services) -> FastAPI:
     checks = wouldjobs.Checks(cfg, state, closet_for_check, sv.tag_worker.routes, sv.check_tagger,
                               sv.worker.cutter, sv.worker.is_ready)
     app.include_router(wouldjobs.router(checks, protected))
+    assert sv.shopper, "build_services wires it"
+    app.include_router(shop.router(sv.shopper, state, conn_dep, protected))
 
     # ---------------------------------------------------------------- weather
     @app.get("/api/places", dependencies=protected)
     async def find_places(q: str = ""):
         try:
             return {"places": await run_in_threadpool(search_places, q)}
+        except WeatherError as e:
+            raise HTTPException(502, str(e))
+
+    @app.get("/api/places/near", dependencies=protected)
+    async def find_place_near(latitude: float, longitude: float):
+        try:
+            return {"place": await run_in_threadpool(place_near, latitude, longitude)}
+        except ValueError as e:
+            raise HTTPException(422, str(e))
         except WeatherError as e:
             raise HTTPException(502, str(e))
 
@@ -841,6 +878,7 @@ def create_app(sv: Services) -> FastAPI:
             "tagging_api_cap_usd": spend.cap(state), "tagging_api_off": state.get("tagging_api_off"),
             "tagging_route_order": tagjobs.route_order(state), "api_key": apikey.info(),
             "phone": sv.phone_info(), "autostart": auto, "heic_supported": images.HEIC, "place": state.get("place"),
+            "home_place": HOME_PLACE,
             "life": life.example()[0] if state.get("profile") == "demo" else state.get("life"),
             "life_prompt_dismissed": True if state.get("profile") == "demo" else state.get("life_prompt_dismissed"),
         }
@@ -877,7 +915,7 @@ def create_app(sv: Services) -> FastAPI:
                 state.update(backup_folder=None)
         if "place" in sent:
             try:
-                place = check_place(body.place) if body.place is not None else None
+                place = check_place(body.place) if body.place is not None else dict(HOME_PLACE)   # no place: back to New York
             except ValueError as e:
                 raise HTTPException(422, str(e))
             if place != state.get("place"):
@@ -968,6 +1006,31 @@ def create_app(sv: Services) -> FastAPI:
         if not result["ok"]:
             return JSONResponse(result, status_code=409)
         return result
+
+    # -------------------------------------------------------------- updates
+    @app.get("/api/updates", dependencies=protected)
+    def get_updates():
+        return sv.updater.status()
+
+    @app.put("/api/updates", dependencies=protected)
+    def put_updates(body: UpdateChoice):
+        try:
+            sv.updater.set_mode(body.mode)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        return sv.updater.status()
+
+    @app.post("/api/updates/check", dependencies=protected)
+    async def check_updates():
+        # asks GitHub (a few seconds at most), so keep it off the event loop
+        return await run_in_threadpool(sv.updater.check)
+
+    @app.post("/api/updates/install", status_code=202, dependencies=protected)
+    def install_update():
+        try:
+            return sv.updater.install_now()
+        except updates.UpdateError as e:
+            raise HTTPException(409, str(e))
 
     @app.post("/api/profile", dependencies=protected)
     def set_profile(body: ProfileChoice):

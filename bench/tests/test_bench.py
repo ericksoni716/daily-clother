@@ -44,9 +44,10 @@ def garment(size=(400, 500), color=(200, 60, 60)):
                    pleats=[0, 1, 2], crease=[False, True], hem=["stitched", "plain", "turnup", "rib"], coin=[False, True],
                    stitch=["tonal", "contrast"])),
     ("sneaker", dict(height=["low", "high"], sole=["thin", "regular", "chunky"],
-                     style=["low_sneaker", "high_top", "runner", "slip_on", "loafer", "derby", "oxford", "boot", "chelsea_boot"],
+                     style=["low_sneaker", "high_top", "runner", "slip_on", "loafer", "derby", "oxford", "boot", "chelsea_boot", "sandal"],
                      toe_cap=["none", "stitched", "rubber"], stripe=["none", "side"], heel_tab=["none", "contrast"],
-                     foxing=[False, True], laces=[False, True])),
+                     foxing=[False, True], laces=[False, True], eyelets=[2, 5, 10], strap=["penny", "tassel", "horsebit", "none"],
+                     brogue=["none", "quarter", "semi", "full"], wholecut=[False, True], sandal=["slide", "two_strap", "strap"])),
 ])
 def test_every_parameter_value_draws_valid_svg(template, options):
     for name, values in options.items():
@@ -257,7 +258,7 @@ def test_pants_and_shoe_details_reach_the_drawing():
     assert (extras["sole_color"], extras["lace_color"], extras["trim_color"]) == ("#f6f5f2", "#b8332e", "#27344f")
     # every shoe style and every length of leg stays on the canvas
     import re
-    for template, key, values in (("sneaker", "style", ["low_sneaker", "high_top", "runner", "slip_on", "loafer", "derby", "oxford", "boot", "chelsea_boot"]),
+    for template, key, values in (("sneaker", "style", ["low_sneaker", "high_top", "runner", "slip_on", "loafer", "derby", "oxford", "boot", "chelsea_boot", "sandal"]),
                                   ("pants", "leg", ["tapered", "straight", "wide"])):
         for v in values:
             for extra in ({}, {"sole": "chunky"} if template == "sneaker" else {"length": "short"}):

@@ -5,6 +5,7 @@ import {
   type CorrectionAnswer, type DetailChoices, type DetailOptions, type HistoryEntry,
 } from '../corrections';
 import type { Item } from '../types';
+import { KindChoices } from './KindChoices';
 import './FixDetails.css';
 
 const OFFLINE = "You're offline, so the details can't be fixed right now.";
@@ -12,6 +13,8 @@ const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
 
 interface Props {
   item: Item;
+  /** "Fix the details" only: whether its panel is open (its button is FixDetailsButton, beside the picture). */
+  open?: boolean;
   /** Offline: nothing can be changed. */
   disabled: boolean;
   onSaved(item: Item, saidAs: string): void;
@@ -30,9 +33,18 @@ function useLatest<T>(value: T) {
   return ref;
 }
 
+/** The button that opens and closes "Fix the details"; it sits beside the picture's switch. */
+export function FixDetailsButton({ open, disabled, onToggle }: { open: boolean; disabled: boolean; onToggle(): void }) {
+  return (
+    <button type="button" className="btn btn-small fix-open" aria-expanded={open} disabled={disabled}
+      title={disabled ? OFFLINE_TITLE : undefined} onClick={onToggle}>
+      {open ? 'Close the details' : 'Fix the details'}
+    </button>
+  );
+}
+
 /** "Fix the details": the details for this kind of garment, picked by looking, or said in a sentence. */
-export function FixDetails({ item, disabled, onSaved, onError }: Props) {
-  const [open, setOpen] = useState(false);
+export function FixDetails({ item, open = false, disabled, onSaved, onError }: Props) {
   const [options, setOptions] = useState<DetailOptions | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [picking, setPicking] = useState<string | null>(null);
@@ -72,12 +84,9 @@ export function FixDetails({ item, disabled, onSaved, onError }: Props) {
   };
 
   const alt = item.name || 'Item';
+  if (!open) return null;
   return (
     <section className="fix" aria-label="Fix the details">
-      <button type="button" className="btn btn-small fix-open" aria-expanded={open} disabled={disabled}
-        title={disabled ? OFFLINE_TITLE : undefined} onClick={() => setOpen((o) => !o)}>
-        {open ? 'Close the details' : 'Fix the details'}
-      </button>
       {disabled && open && <p className="muted">{OFFLINE}</p>}
       {open && !disabled && (
         <div className="fix-panel">
@@ -133,6 +142,9 @@ interface ChoicesProps {
 }
 
 function Choices({ item, choices, busy, hasAnswer, onPick, onGiveBack }: ChoicesProps) {
+  if (choices.name === 'garment') {
+    return <KindChoices choices={choices} busy={busy} canGiveBack={choices.own && hasAnswer} onPick={onPick} onGiveBack={onGiveBack} />;
+  }
   const drawn = choices.choices.filter((c) => c.svg);
   const shown = drawn.length > 0;
   const worded = choices.choices.filter((c) => !c.svg && !(shown && c.current));

@@ -201,6 +201,8 @@ def test_a_graphic_tee_keeps_its_print_and_is_drawn_with_it(make, cfg):
     assert "<image" in got["illustration_svg"] and not any("graphic print" in n for n in got["drawing_notes"])
     kept = json.loads(row(cfg, item["id"])["pattern_fill"])
     assert kept["kind"] == "plain" and stored.graphic_from(kept) is not None
+    assert kept["colors"] == [] and kept["pattern"] == "graphic"   # a lifted print measures no cloth colours:
+    assert got["pattern_colors"] == [] and got["color"] == waiting["color"]   # the item keeps its colour word
     figure = c.post("/api/outfits/figure", json={"base": item["id"]}).text
     assert "<image" in figure                              # the outfit figure shows it too
     c.patch(f"/api/items/{item['id']}", json={"pattern": "solid"})   # the owner says it is plain: the print goes

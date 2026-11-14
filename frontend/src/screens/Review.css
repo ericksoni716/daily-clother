@@ -1,21 +1,21 @@
 /* The review queue (screens/Review.tsx). */
 
-.review { max-width: 60rem; margin: 0 auto; }
+.review { max-width: var(--content-w); }
 .review-card { display: grid; gap: 18px; }
 .review-picture { margin: 0 auto; }
 .review-skeleton { margin: 0 auto; }
-.review-name { font-size: 1.4rem; margin: 0 0 4px; }
+.review-name { font-size: var(--text-lg); margin: 0 0 4px; }
 .review-body > .muted { margin: 0 0 14px; }
 .review-fields { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
-.review-field { padding: 10px 12px; border-radius: var(--radius-small); border: 1px solid transparent; }
+.review-field { padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid transparent; }
 .review-field.is-active { border-color: var(--line); background: var(--surface); }
 .review-field .chip:first-child:not(.is-on) { border-style: dashed; }
-.review-sure { margin: 8px 0 0; font-size: 0.85rem; color: var(--muted); }
+.review-sure { margin: 8px 0 0; font-size: var(--text-sm); color: var(--ink-3); }
 .review-actions { gap: 10px; flex-wrap: wrap; }
 .review-actions .btn { min-width: 9rem; }
-.review-keys { font-size: 0.85rem; margin-top: 14px; display: none; }
+.review-keys { font-size: var(--text-sm); margin-top: 14px; display: none; }
 .review-keys kbd {
-  font: inherit; font-size: 0.8rem; padding: 1px 6px; border-radius: 5px; border: 1px solid var(--line); background: var(--surface);
+  font: inherit; font-size: var(--text-xs); padding: 1px 6px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface);
 }
 .review-others { margin-top: 18px; text-align: left; display: inline-block; }
 .review-others p { margin: 0 0 8px; }
@@ -23,11 +23,11 @@
 .review-others a { color: var(--accent); }
 
 .nav-badge {
-  margin-left: auto; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; display: inline-grid; place-items: center;
-  background: var(--accent-bg); color: var(--accent-ink); font-size: 0.75rem; font-weight: 700; line-height: 1;
+  margin-left: auto; min-width: 22px; height: 22px; padding: 0 7px; border-radius: var(--radius-pill); display: inline-grid; place-items: center;
+  background: var(--accent-bg); color: var(--accent-ink); font-size: var(--text-xs); font-weight: var(--weight-heading); line-height: 1;
 }
 .tab { position: relative; }
-.tab .nav-badge { position: absolute; top: 6px; left: calc(50% + 6px); margin: 0; min-width: 18px; height: 18px; padding: 0 5px; font-size: 0.68rem; }
+.tab .nav-badge { position: absolute; top: 6px; left: calc(50% + 6px); margin: 0; min-width: 18px; height: 18px; padding: 0 5px; font-size: var(--text-xs); }
 
 @media (max-width: 999px) {
   /* the two answers stay in reach while scrolling through a long list of colours */
@@ -41,6 +41,6 @@
   .review-keys { display: block; }
 }
 @media (min-width: 1000px) {
-  .review-card { grid-template-columns: minmax(0, 26rem) minmax(0, 1fr); align-items: start; gap: 28px; }
+  .review-card { grid-template-columns: minmax(0, 17rem) minmax(0, 1fr); align-items: start; gap: 24px; }
   .review-picture { margin: 0; position: sticky; top: 24px; }
 }

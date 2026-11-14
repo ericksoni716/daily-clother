@@ -4,18 +4,38 @@ import { ModelProgress, modelStateText } from '../components/ModelBanner';
 import { PhoneAccess } from '../components/PhoneAccess';
 import { WhereYouAre } from '../components/WhereYouAre';
 import { LifeQuestions } from '../components/LifeQuestions';
+import { UpdatesSection } from '../components/Updates';
+import { Notice, PageHeader, Section as UiSection, SegmentedControl } from '../components/ui';
 import { formatDateTime, formatSize, parsePrice } from '../labels';
 import { Link } from '../router';
 import { apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, monthName, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
 import { useCloset } from '../store';
+import { applyTheme, loadTheme, saveTheme, THEME_CHOICES, type Theme } from '../theme';
 import type { ModelInfo, Profile, RouteOrder, Settings, Storage, TaggingRoute, TaggingSpend, TaggingStatus } from '../types';
 
-function Section({ title, children, id }: { title: string; children: ReactNode; id: string }) {
+/** One group of settings: a card with a heading. */
+function Section({ title, hint, children, id }: { title: string; hint?: string; children: ReactNode; id: string }) {
+  return <UiSection id={id} title={title} hint={hint} className="settings-section">{children}</UiSection>;
+}
+
+/** A part of a group, under its own smaller heading. */
+function Sub({ title, children, id }: { title: string; children: ReactNode; id: string }) {
   return (
-    <section className="settings-section" aria-labelledby={id}>
-      <h2 id={id}>{title}</h2>
+    <section className="settings-sub" aria-labelledby={id}>
+      <h3 id={id}>{title}</h3>
       {children}
     </section>
+  );
+}
+
+/** Light, dark or the device's own setting; kept on this device only, so it works offline too. */
+function LookSection() {
+  const [theme, setTheme] = useState<Theme>(loadTheme);
+  return (
+    <UiSection id="s-look" title="Look" hint="Light or dark, on this device." className="settings-section">
+      <SegmentedControl label="Look" options={THEME_CHOICES} value={theme} className="settings-look"
+        onChange={(t) => { setTheme(t); saveTheme(t); applyTheme(t); }} />
+    </UiSection>
   );
 }
 
@@ -41,76 +61,80 @@ export function SettingsScreen({ version }: { version: string }) {
 
   return (
     <div className="settings">
-      <header className="page-header"><h1>Settings</h1></header>
-      {offline && <p className="notice">You're offline, so settings can't be shown or changed right now.</p>}
+      <PageHeader title="Settings" />
+      {offline && <Notice as="p">You're offline, so settings can't be shown or changed right now.</Notice>}
       {!offline && loadError && <p className="form-error" role="alert">{loadError}</p>}
 
-      <div className="settings-columns">
-        <div className="settings-col">
+      <div className="settings-groups">
+        <Section title="Your closet" id="s-closet">
+          <Toggle
+            label="Show the demo closet"
+            hint="About 30 sample clothes to try things out with. Your own closet is kept separately and is not touched."
+            checked={profile === 'demo'}
+            disabled={offline}
+            onChange={(on) => switchProfile(on ? 'demo' : 'main').catch((e) => toast((e as Error).message, 'error'))}
+          />
+          {settings && settings.autostart !== null && (
+            <Toggle label="Start Closet when I log in" hint="Closet opens quietly in the background when you sign in to this computer."
+              checked={settings.autostart} disabled={offline}
+              onChange={async (on) => {
+                try {
+                  setSettings(await api.putSettings({ autostart: on }));
+                  toast('Saved');
+                } catch (e) {
+                  toast((e as Error).message, 'error');
+                }
+              }} />
+          )}
           {model && <ModelSection model={model} refresh={refreshModel} toast={toast} disabled={offline} />}
           {settings && <BackupSection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
           <StorageSection offline={offline} profile={profile} />
-          <TaggingSection offline={offline} settings={settings} onChange={setSettings} reload={load} toast={toast} />
-        </div>
-        <div className="settings-col">
-          <Section title="How you live" id="s-life">
-            <p className="hint">Tell What's missing about work, everyday life and time away. Change your answers whenever life changes.</p>
-            {lifeOpen && settings ? (
-              <LifeQuestions initial={settings.life ?? null} locked={offline} demo={profile === 'demo'}
-                onSaved={(saved) => { setSettings(saved); toast('Your answers are saved'); }} onClose={() => setLifeOpen(false)} />
-            ) : <button className="btn" disabled={!settings || offline} onClick={() => setLifeOpen(true)}>
-              {profile === 'demo' ? 'See example answers' : settings?.life ? 'Edit my answers' : 'Tell it how you live'}
-            </button>}
-          </Section>
-          <Section title="Where you are" id="s-place">
-            <WhereYouAre place={settings ? settings.place : undefined} offline={offline} onChange={setSettings} toast={toast} />
-            <p className="hint">Going away? <Link to="/trips">Plan a trip</Link> and Closet says what to pack for the weather there.</p>
-          </Section>
-          {settings && (
-            <Section title="Phone access" id="s-phone">
-              <PhoneAccess phone={settings.phone} />
-            </Section>
-          )}
-          <Section title="Demo closet" id="s-demo">
-            <Toggle
-              label="Show the demo closet"
-              hint="About 30 sample clothes to try things out with. Your own closet is kept separately and is not touched."
-              checked={profile === 'demo'}
-              disabled={offline}
-              onChange={(on) => switchProfile(on ? 'demo' : 'main').catch((e) => toast((e as Error).message, 'error'))}
-            />
-          </Section>
+        </Section>
 
-          {settings && settings.autostart !== null && (
-            <Section title="Starting up" id="s-start">
-              <Toggle label="Start Closet when I log in" hint="Closet opens quietly in the background when you sign in to this computer."
-                checked={settings.autostart} disabled={offline}
-                onChange={async (on) => {
-                  try {
-                    setSettings(await api.putSettings({ autostart: on }));
-                    toast('Saved');
-                  } catch (e) {
-                    toast((e as Error).message, 'error');
-                  }
-                }} />
-            </Section>
-          )}
+        <Section title="Where you are" id="s-place">
+          <WhereYouAre place={settings ? settings.place : undefined} home={settings?.home_place} offline={offline} onChange={setSettings} toast={toast} />
+          <p className="hint">Going away? <Link to="/trips">Plan a trip</Link> and Closet says what to pack for the weather there.</p>
+        </Section>
+        <Section title="How you live" id="s-life">
+          <p className="hint">Tell What's missing about work, everyday life and time away. Change your answers whenever life changes.</p>
+          {lifeOpen && settings ? (
+            <LifeQuestions initial={settings.life ?? null} locked={offline} demo={profile === 'demo'}
+              onSaved={(saved) => { setSettings(saved); toast('Your answers are saved'); }} onClose={() => setLifeOpen(false)} />
+          ) : <button className="btn" disabled={!settings || offline} onClick={() => setLifeOpen(true)}>
+            {profile === 'demo' ? 'See example answers' : settings?.life ? 'Edit my answers' : 'Tell it how you live'}
+          </button>}
+        </Section>
 
-          <Section title="About" id="s-about">
+        <LookSection />
+
+        <TaggingSection offline={offline} settings={settings} onChange={setSettings} reload={load} toast={toast} />
+
+        <Section title="Updates" id="s-updates" hint="New versions of Closet, from its GitHub releases.">
+          <UpdatesSection offline={offline} toast={toast} />
+        </Section>
+
+        {settings && (
+          <Section title="Phone access" id="s-phone">
+            <PhoneAccess phone={settings.phone} />
+          </Section>
+        )}
+
+        <details className="card settings-advanced" id="s-advanced">
+          <summary>Advanced</summary>
+          <div className="settings-advanced-body">
+            {model && <ModelAddress model={model} refresh={refreshModel} toast={toast} disabled={offline} />}
             <dl className="facts">
               <dt>Your closet is stored in</dt>
               <dd><code className="path">{settings?.data_dir ?? '…'}</code></dd>
               <dt>Version</dt>
               <dd>{settings?.version ?? version}</dd>
             </dl>
-          </Section>
+          </div>
+        </details>
 
-          <Section title="Leave" id="s-leave">
-            <div className="stack">
-              <button className="btn btn-block" onClick={() => void logout()}>Log out</button>
-              <QuitButton onQuit={quit} disabled={offline} toast={toast} />
-            </div>
-          </Section>
+        <div className="settings-leave" role="group" aria-label="Leave">
+          <button className="btn" onClick={() => void logout()}>Log out</button>
+          <QuitButton onQuit={quit} disabled={offline} toast={toast} />
         </div>
       </div>
     </div>
@@ -118,9 +142,7 @@ export function SettingsScreen({ version }: { version: string }) {
 }
 
 function ModelSection({ model, refresh, toast, disabled }: { model: ModelInfo; refresh(): Promise<void>; toast(m: string, k?: 'ok' | 'error'): void; disabled: boolean }) {
-  const [url, setUrl] = useState(model.url);
   const [busy, setBusy] = useState(false);
-  useEffect(() => setUrl(model.url), [model.url]);
 
   async function download() {
     setBusy(true);
@@ -133,6 +155,25 @@ function ModelSection({ model, refresh, toast, disabled }: { model: ModelInfo; r
       setBusy(false);
     }
   }
+
+  return (
+    <Sub title="Background removal" id="s-model">
+      <p className={`state-line state-${model.state}`}><span className="state-dot" aria-hidden="true" />{modelStateText(model)}</p>
+      {model.state === 'failed' && model.error && <p className="form-error">{model.error}</p>}
+      {model.state === 'downloading' && <ModelProgress model={model} />}
+      {model.state !== 'ready' && model.state !== 'downloading' && (
+        <button className="btn btn-primary" disabled={busy || disabled} onClick={download}>
+          {model.state === 'failed' ? 'Try the download again' : 'Download the model'}
+        </button>
+      )}
+    </Sub>
+  );
+}
+
+/** Where the background-removal model is downloaded from, and where to put it by hand. */
+function ModelAddress({ model, refresh, toast, disabled }: { model: ModelInfo; refresh(): Promise<void>; toast(m: string, k?: 'ok' | 'error'): void; disabled: boolean }) {
+  const [url, setUrl] = useState(model.url);
+  useEffect(() => setUrl(model.url), [model.url]);
 
   async function saveUrl(e: FormEvent | null, value: string) {
     e?.preventDefault();
@@ -147,15 +188,7 @@ function ModelSection({ model, refresh, toast, disabled }: { model: ModelInfo; r
   }
 
   return (
-    <Section title="Background removal" id="s-model">
-      <p className={`state-line state-${model.state}`}><span className="state-dot" aria-hidden="true" />{modelStateText(model)}</p>
-      {model.state === 'failed' && model.error && <p className="form-error">{model.error}</p>}
-      {model.state === 'downloading' && <ModelProgress model={model} />}
-      {model.state !== 'ready' && model.state !== 'downloading' && (
-        <button className="btn btn-primary" disabled={busy || disabled} onClick={download}>
-          {model.state === 'failed' ? 'Try the download again' : 'Download the model'}
-        </button>
-      )}
+    <Sub title="Background-removal model" id="s-model-address">
       <form className="field-row" onSubmit={(e) => saveUrl(e, url)}>
         <label className="field">
           <span>Download address</span>
@@ -168,7 +201,7 @@ function ModelSection({ model, refresh, toast, disabled }: { model: ModelInfo; r
       </form>
       <p className="hint">Can't download here? Get the file from that address on another computer and put it here, then come back to this page:</p>
       <p><code className="path">{model.path}</code></p>
-    </Section>
+    </Sub>
   );
 }
 
@@ -205,7 +238,7 @@ function BackupSection({ settings, onChange, toast, disabled }: { settings: Sett
   }
 
   return (
-    <Section title="Backups" id="s-backup">
+    <Sub title="Backups" id="s-backup">
       <p className="hint">Closet copies your clothes and photos to a folder you choose, such as a USB drive or a synced folder (OneDrive, iCloud Drive, Dropbox). The demo closet is never backed up.</p>
       <form className="field-row field-row-inline" onSubmit={saveFolder}>
         <label className="field">
@@ -223,7 +256,7 @@ function BackupSection({ settings, onChange, toast, disabled }: { settings: Sett
         {busy ? 'Backing up…' : 'Back up now'}
       </button>
       {!settings.backup_folder && <p className="hint">Choose a backup folder first.</p>}
-    </Section>
+    </Sub>
   );
 }
 
@@ -287,9 +320,9 @@ function StorageSection({ offline, profile }: { offline: boolean; profile: Profi
   }
 
   return (
-    <Section title="Storage" id="s-storage">
+    <Sub title="Storage" id="s-storage">
       {body}
-    </Section>
+    </Sub>
   );
 }
 
@@ -313,7 +346,7 @@ function TaggingSection({ offline, settings, onChange, reload, toast }: TaggingP
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const keySource = settings?.api_key?.source ?? null;   // a key saved or removed changes what is ready
-  const order = settings?.tagging_route_order ?? null;     // so does the order chosen below
+  const chosenOrder = settings?.tagging_route_order ?? null;     // so does the order chosen below
 
   useEffect(() => {
     if (offline) return;
@@ -327,43 +360,30 @@ function TaggingSection({ offline, settings, onChange, reload, toast }: TaggingP
     return () => {
       current = false;
     };
-  }, [offline, attempt, keySource, order]);
+  }, [offline, attempt, keySource, chosenOrder]);
 
   const checkAgain = <button className="btn" onClick={() => { setAttempt((n) => n + 1); void reload(); }}>Check again</button>;
   const apiAllowed = !!settings?.tagging_api_enabled;
   const waiting = settings?.pending_tags ?? 0;
-  let body: ReactNode;
-  if (offline) body = <p className="hint">Tagging details aren't available while you're offline.</p>;
-  else if (error) {
-    body = (
+  const byId = new Map((status?.routes ?? []).map((r) => [r.id, r]));
+  const order: TaggingRoute['id'][] = status?.order ?? ['plan', 'api'];
+  let routeState: ReactNode = null;
+  if (error) {
+    routeState = (
       <>
         <p className="form-error" role="alert">Couldn't check how Closet can reach Claude: {error}</p>
         <button className="btn" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
       </>
     );
-  } else if (!status) body = <p className="hint">Checking how Closet can reach Claude…</p>;
-  else {
-    const byId = new Map(status.routes.map((r) => [r.id, r]));
-    const routes = status.order.map((id) => byId.get(id)).filter((r): r is TaggingRoute => !!r);
+  } else if (status) {
+    const routes = order.map((id) => byId.get(id)).filter((r): r is TaggingRoute => !!r);
     const none = !routes.some((r) => r.available && (r.id !== 'api' || apiAllowed));
     const apiOnlyOff = none && byId.get('api')?.available && !apiAllowed;
     const planMissing = byId.get('plan')?.available === false;
     const planInOrder = status.order.includes('plan');
     const first = firstRouteLine(status.order, status.routes, apiAllowed);
-    body = (
+    routeState = (
       <>
-        <p className="hint">Closet asks Claude to describe your clothes. It tries these in this order and uses the first one that works:</p>
-        <ol className="route-list">
-          {routes.map((r) => (
-            <li key={r.id} data-testid={`route-${r.id}`}>
-              <p className={`state-line ${r.available ? 'state-ready' : 'state-missing'}`}>
-                <span className="state-dot" aria-hidden="true" />
-                <span><strong>{ROUTE_TEXT[r.id]?.name ?? r.id}</strong>: {r.available ? 'ready' : r.detail || 'not available'}</span>
-              </p>
-              <p className="hint">{ROUTE_TEXT[r.id]?.hint}</p>
-            </li>
-          ))}
-        </ol>
         {first && <p className="hint" data-testid="route-first">{first}</p>}
         {!planInOrder && none ? (
           <p className="form-error">
@@ -387,9 +407,45 @@ function TaggingSection({ offline, settings, onChange, reload, toast }: TaggingP
     );
   }
 
+  /** Each route once, with one line saying whether it can be used: the plan as Claude Code reports it, the key as it is kept. */
+  function routeLine(id: TaggingRoute['id']): ReactNode {
+    if (id === 'api' && settings) {
+      return <ApiKeyBox offline={offline} settings={settings} onChange={onChange} toast={toast} />;
+    }
+    const r = byId.get(id);
+    const text = error ? 'Not checked' : !r ? 'Checking…' : r.available ? 'Ready to use.' : r.detail || 'Not available.';
+    return (
+      <p className={`state-line ${r?.available ? 'state-ready' : r ? 'state-missing' : ''}`}>
+        <span className="state-dot" aria-hidden="true" />
+        <span>{text}</span>
+      </p>
+    );
+  }
+
   return (
-    <Section title="Tagging" id="s-tagging">
-      {body}
+    <Section title="Describing clothes" id="s-tagging">
+      {offline ? <p className="hint">How Closet reaches Claude can't be checked while you're offline.</p> : (
+        <>
+          <p className="hint">Closet asks Claude to describe your clothes. It tries these in this order and uses the first one that works:</p>
+          <ol className="route-list">
+            {order.map((id) => (
+              <li key={id} data-testid={`route-${id}`}>
+                <h3 className="route-name">{ROUTE_TEXT[id]?.name ?? id}</h3>
+                {routeLine(id)}
+                <p className="hint">{ROUTE_TEXT[id]?.hint}</p>
+              </li>
+            ))}
+          </ol>
+          {settings && !order.includes('api') && (
+            <div className="route-unused" data-testid="route-api-unused">
+              <h3 className="route-name">{ROUTE_TEXT.api.name}</h3>
+              <ApiKeyBox offline={offline} settings={settings} onChange={onChange} toast={toast} />
+              <p className="hint">Not used: you chose to use only your Claude plan.</p>
+            </div>
+          )}
+          {routeState}
+        </>
+      )}
       {settings && (
         <>
           <p className="hint" data-testid="tags-waiting">
@@ -534,6 +590,7 @@ function ApiKeySpend({ offline, settings, onChange, toast }: { offline: boolean;
   const [loadError, setLoadError] = useState<string | null>(null);
   const [cap, setCap] = useState(settings.tagging_api_cap_usd !== null ? String(settings.tagging_api_cap_usd) : '');
   const [capError, setCapError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
   const saved = settings.tagging_api_cap_usd;
 
   useEffect(() => {
@@ -553,6 +610,7 @@ function ApiKeySpend({ offline, settings, onChange, toast }: { offline: boolean;
   function typedCap(): number | null {
     const cents = parsePrice(cap);
     if (cents === null || cents === undefined || cents <= 0) {
+      setOpen(true);
       setCapError('Type a monthly limit in dollars, such as 5 or 2.50.');
       return null;
     }
@@ -574,7 +632,6 @@ function ApiKeySpend({ offline, settings, onChange, toast }: { offline: boolean;
   return (
     <div className="api-spend" data-testid="api-spend">
       {settings.tagging_api_off && <p className="form-error" role="alert">{turnedOffLine(settings.tagging_api_off)}</p>}
-      <ApiKeyBox offline={offline} settings={settings} onChange={onChange} toast={toast} />
       <RouteOrderChoice offline={offline} settings={settings} onChange={onChange} toast={toast} />
       <Toggle label="Allow the API key"
         hint="Lets Closet use your API key, in the order chosen above. Each photo is billed to your Anthropic account, and Closet stops before this month's spending would pass the limit below."
@@ -584,63 +641,71 @@ function ApiKeySpend({ offline, settings, onChange, toast }: { offline: boolean;
           const limit = typedCap();
           if (limit !== null) void save({ tagging_api_enabled: true, tagging_api_cap_usd: limit }, `The API key may be used, up to ${formatUsd(limit)} a month`);
         }} />
-      <form className="field-row field-row-inline" onSubmit={(e) => {
-        e.preventDefault();
-        const limit = typedCap();
-        if (limit !== null) void save({ tagging_api_cap_usd: limit }, 'Saved');
-      }}>
-        <label className="field">
-          <span>Monthly limit for the API key (US dollars)</span>
-          <input inputMode="decimal" value={cap} placeholder={placeholder} disabled={offline}
-            onChange={(e) => setCap(e.target.value)} />
-        </label>
-        <button className="btn" type="submit" disabled={offline || cap.trim() === '' || parsePrice(cap) === Math.round((saved ?? -1) * 100)}>Save limit</button>
-      </form>
-      {capError && <p className="form-error" role="alert">{capError}</p>}
-      {loadError && <p className="form-error">Couldn't work out what the API key has cost: {loadError}</p>}
-      {spend && (
-        <>
-          {saved === null && <p className="hint">{suggestionLine(spend.suggested_cap_usd, spend.per_photo_usd, spend.prices_checked)}</p>}
-          <p className="state-line" data-testid="spend-month"><span><strong>{monthName(spend.month)}:</strong> {spentLine(spend)}</span></p>
-          {spend.allowed && spend.reached && (
-            <p className="notice" role="status">
-              This month's limit is reached, so the API key won't be used again until next month or until you raise the limit. Your plan is still used whenever it can be.
-            </p>
-          )}
-          {waitingLine(spend.waiting) && <p className="hint" data-testid="spend-waiting">{waitingLine(spend.waiting)}</p>}
-          {spend.history.length > 0 && (
-            <dl className="storage-list" aria-label="Spent with the API key, by month" data-testid="spend-history">
-              {spend.history.map((m) => (
-                <div key={m.month}>
-                  <dt>{monthName(m.month)}</dt>
-                  <dd>{formatUsd(m.spent_usd)}</dd>
+      <details className="more settings-spend" open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+        <summary>
+          <span>Monthly limit and spending</span>
+          {saved !== null && <span className="muted settings-spend-cap">{formatUsd(saved)} a month</span>}
+        </summary>
+        <div className="settings-spend-body">
+          <form className="field-row field-row-inline" onSubmit={(e) => {
+            e.preventDefault();
+            const limit = typedCap();
+            if (limit !== null) void save({ tagging_api_cap_usd: limit }, 'Saved');
+          }}>
+            <label className="field">
+              <span>Monthly limit for the API key (US dollars)</span>
+              <input inputMode="decimal" value={cap} placeholder={placeholder} disabled={offline}
+                onChange={(e) => setCap(e.target.value)} />
+            </label>
+            <button className="btn" type="submit" disabled={offline || cap.trim() === '' || parsePrice(cap) === Math.round((saved ?? -1) * 100)}>Save limit</button>
+          </form>
+          {loadError && <p className="form-error">Couldn't work out what the API key has cost: {loadError}</p>}
+          {spend && (
+            <>
+              {saved === null && <p className="hint">{suggestionLine(spend.suggested_cap_usd, spend.per_photo_usd, spend.prices_checked)}</p>}
+              <p className="state-line" data-testid="spend-month"><span><strong>{monthName(spend.month)}:</strong> {spentLine(spend)}</span></p>
+              {spend.history.length > 0 && (
+                <dl className="storage-list" aria-label="Spent with the API key, by month" data-testid="spend-history">
+                  {spend.history.map((m) => (
+                    <div key={m.month}>
+                      <dt>{monthName(m.month)}</dt>
+                      <dd>{formatUsd(m.spent_usd)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+              <p className="hint">
+                Costs are worked out from Anthropic's prices as written down on {dayName(spend.prices_checked)}. Prices change, so check them on Anthropic's pricing page before relying on these figures; your Anthropic account shows what was really charged.
+              </p>
+              <details className="more">
+                <summary>Details</summary>
+                <div className="tag-body">
+                  <dl className="storage-list">
+                    <div><dt>Model</dt><dd>{spend.model}</dd></div>
+                    <div><dt>Sent this month (tokens)</dt><dd>{spend.input_tokens.toLocaleString('en-US')}</dd></div>
+                    <div><dt>Received this month (tokens)</dt><dd>{spend.output_tokens.toLocaleString('en-US')}</dd></div>
+                    <div><dt>Most one photo should cost</dt><dd>${spend.per_photo_usd.toFixed(4)}</dd></div>
+                    {spend.left_usd !== null && <div><dt>Left this month</dt><dd>{formatUsd(spend.left_usd)}</dd></div>}
+                    {spend.history.map((m) => (
+                      <div key={m.month}>
+                        <dt>{monthName(m.month)}</dt>
+                        <dd>{`${m.api_calls} with the key (${m.input_tokens.toLocaleString('en-US')} in, ${m.output_tokens.toLocaleString('en-US')} out), ${m.plan_calls} with your plan`}</dd>
+                      </div>
+                    ))}
+                  </dl>
                 </div>
-              ))}
-            </dl>
+              </details>
+            </>
           )}
-          <p className="hint">
-            Costs are worked out from Anthropic's prices as written down on {dayName(spend.prices_checked)}. Prices change, so check them on Anthropic's pricing page before relying on these figures; your Anthropic account shows what was really charged.
-          </p>
-          <details className="more">
-            <summary>Details</summary>
-            <div className="tag-body">
-              <dl className="storage-list">
-                <div><dt>Model</dt><dd>{spend.model}</dd></div>
-                <div><dt>Sent this month (tokens)</dt><dd>{spend.input_tokens.toLocaleString('en-US')}</dd></div>
-                <div><dt>Received this month (tokens)</dt><dd>{spend.output_tokens.toLocaleString('en-US')}</dd></div>
-                <div><dt>Most one photo should cost</dt><dd>${spend.per_photo_usd.toFixed(4)}</dd></div>
-                {spend.left_usd !== null && <div><dt>Left this month</dt><dd>{formatUsd(spend.left_usd)}</dd></div>}
-                {spend.history.map((m) => (
-                  <div key={m.month}>
-                    <dt>{monthName(m.month)}</dt>
-                    <dd>{`${m.api_calls} with the key (${m.input_tokens.toLocaleString('en-US')} in, ${m.output_tokens.toLocaleString('en-US')} out), ${m.plan_calls} with your plan`}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          </details>
-        </>
+        </div>
+      </details>
+      {capError && <p className="form-error" role="alert">{capError}</p>}
+      {spend?.allowed && spend.reached && (
+        <p className="notice" role="status">
+          This month's limit is reached, so the API key won't be used again until next month or until you raise the limit. Your plan is still used whenever it can be.
+        </p>
       )}
+      {spend && waitingLine(spend.waiting) && <p className="hint" data-testid="spend-waiting">{waitingLine(spend.waiting)}</p>}
     </div>
   );
 }

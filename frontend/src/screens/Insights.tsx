@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
-import { BackIcon, HangerIcon, WarnIcon } from '../components/Icons';
+import { HangerIcon, WarnIcon } from '../components/Icons';
+import { Card as UiCard, ItemThumb, PageHeader, SegmentedControl } from '../components/ui';
 import { loadGridView, type GridView } from '../drawing';
 import {
-  barWidth, costCaption, FIELD_WORDS, forgetKept, groupLabel, keepPiece, keptPieces, loadSavedInsights, MAKEUP_FIELDS, plural,
-  saveInsights, shortDate, unwornCaption, windowLabel, type CostPiece, type Counted, type Insights, type MakeupField, type Unworn,
+  barWidth, costCaption, costHero, costSentence, FIELD_WORDS, forgetKept, groupLabel, keepPiece, keptPieces, loadSavedInsights,
+  MAKEUP_FIELDS, makeupHero, plural, saveInsights, shortDate, spreadHero, unwornCaption, unwornHero, windowLabel, wornMostHero, type CostPiece, type Counted, type Insights, type MakeupField, type Unworn,
   type UnwornPiece,
 } from '../insights';
 import { categoryPlural, label } from '../labels';
@@ -115,13 +116,9 @@ export function InsightsScreen() {
 
   return (
     <section className="insights" aria-labelledby="insights-title">
-      <header className="page-header insights-header">
-        <div>
-          <Link to="/" className="btn btn-ghost btn-small insights-back"><BackIcon /> Closet</Link>
-          <h1 id="insights-title">Insights</h1>
-          <p className="muted insights-lede">How your clothes are being used, from what you have recorded as worn.</p>
-        </div>
-      </header>
+      <PageHeader className="insights-header" title="Insights" titleId="insights-title"
+        back={{ to: '/', label: 'Closet', className: 'insights-back' }}
+        subtitle="How your clothes are being used, from what you have recorded as worn." />
 
       {phase.kind === 'loading' && (
         <div className="insights-grid" aria-hidden="true">{Array.from({ length: 4 }, (_, i) => <div key={i} className="insights-skeleton" />)}</div>
@@ -158,14 +155,18 @@ export function InsightsScreen() {
 
 type ById = Map<string, ItemSummary>;
 
-function Card({ title, sentence, testid, wide, children }: { title: string; sentence: string; testid: string; wide?: boolean; children?: ReactNode }) {
+/** A finding: a short label, the one figure it leads with (when there is one) and one sentence that says what it means. */
+function Card({ title, hero, sentence, testid, wide, children }: {
+  title: string; hero: string | null; sentence: string; testid: string; wide?: boolean; children?: ReactNode;
+}) {
   const id = `insights-${testid}`;
   return (
-    <section className={`insights-card${wide ? ' is-wide' : ''}`} aria-labelledby={id} data-testid={testid}>
+    <UiCard as="section" className={`insights-card${wide ? ' is-wide' : ''}`} aria-labelledby={id} data-testid={testid}>
       <h2 id={id}>{title}</h2>
+      {hero && <p className="insights-hero" data-testid="insight-hero">{hero}</p>}
       <p className="insights-sentence">{sentence}</p>
       {children}
-    </section>
+    </UiCard>
   );
 }
 
@@ -187,7 +188,7 @@ function Piece({ id, byId, caption, title, children }: { id: string; byId: ById;
   return (
     <li className="insights-piece" data-testid="insight-piece">
       <Link to={itemPath(id, 'active')} className="insights-piece-link" title={title}>
-        <span className="insights-piece-pic"><Picture item={item} /></span>
+        <ItemThumb className="insights-piece-pic" picture={<Picture item={item} />} />
         <span className="insights-piece-name">{nameOf(item)}</span>
         <span className="insights-piece-caption">{caption}</span>
       </Link>
@@ -196,11 +197,12 @@ function Piece({ id, byId, caption, title, children }: { id: string; byId: ById;
   );
 }
 
-function CostRow({ heading, pieces, byId }: { heading: string; pieces: CostPiece[]; byId: ById }) {
+function CostRow({ heading, detail, pieces, byId }: { heading: string; detail?: ReactNode; pieces: CostPiece[]; byId: ById }) {
   if (!pieces.length) return null;
   return (
     <>
       <h3 className="chip-group-title">{heading}</h3>
+      {detail}
       <ul className="insights-pieces">
         {pieces.map((p) => <Piece key={p.id} id={p.id} byId={byId} caption={costCaption(p)} title={p.sentence} />)}
       </ul>
@@ -211,11 +213,10 @@ function CostRow({ heading, pieces, byId }: { heading: string; pieces: CostPiece
 function CostCard({ answer, byId }: { answer: Insights; byId: ById }) {
   const f = answer.cost_per_wear;
   return (
-    <Card title={f.title} sentence={f.sentence} testid="cost-per-wear" wide>
-      {f.best[0] && <p className="insights-detail" data-testid="cost-best">{f.best[0].sentence}</p>}
-      <CostRow heading="Best value" pieces={f.best} byId={byId} />
+    <Card title={f.title} hero={costHero(f)} sentence={costSentence(f)} testid="cost-per-wear" wide>
+      <CostRow heading="Best value" pieces={f.best} byId={byId}
+        detail={f.best[0] && <p className="insights-detail muted small" data-testid="cost-best">{f.best[0].sentence}</p>} />
       <CostRow heading="Most per wear" pieces={f.worst} byId={byId} />
-      <CostRow heading="Not worn yet" pieces={f.not_worn} byId={byId} />
     </Card>
   );
 }
@@ -238,7 +239,7 @@ function UnwornCard({ finding, testid, byId, kept, gone, offline, archiving, onA
   const shown = listed.filter((p) => !kept[p.id]);
   const hidden = listed.length - shown.length;
   return (
-    <Card title={finding.title} sentence={finding.sentence} testid={testid} wide>
+    <Card title={finding.title} hero={unwornHero(finding, listed.length)} sentence={finding.sentence} testid={testid} wide>
       {shown.length > 0 && (
         <ul className="insights-pieces">
           {shown.map((p: UnwornPiece) => (
@@ -271,7 +272,7 @@ function Bars({ rows, byId }: { rows: Counted[]; byId: ById }) {
       {rows.map((r) => (
         <li key={r.id}>
           <Link to={itemPath(r.id, 'active')} className="insights-bar-row">
-            <span className="insights-bar-pic"><Picture item={byId.get(r.id)} /></span>
+            <ItemThumb className="insights-bar-pic" picture={<Picture item={byId.get(r.id)} />} />
             <span className="insights-bar-text">
               <span className="insights-bar-name">{nameOf(byId.get(r.id))}</span>
               <span className="insights-bar" aria-hidden="true"><span style={{ width: `${barWidth(r.wears, max)}%` }} /></span>
@@ -289,14 +290,10 @@ function WornMostCard({ answer, byId }: { answer: Insights; byId: ById }) {
   const [index, setIndex] = useState(() => Math.max(0, windows.findIndex((w) => w.enough)));
   const w = windows[Math.min(index, windows.length - 1)];
   return (
-    <Card title={answer.worn_most.title} sentence={w.sentence} testid="worn-most">
-      <div className="segmented segmented-small insights-windows" role="group" aria-label="Over">
-        {windows.map((x, i) => (
-          <button key={String(x.days)} className={i === index ? 'is-on' : ''} aria-pressed={i === index} onClick={() => setIndex(i)}>
-            {windowLabel(x.days)}
-          </button>
-        ))}
-      </div>
+    <Card title={answer.worn_most.title} hero={wornMostHero(w)} sentence={w.sentence} testid="worn-most">
+      <SegmentedControl label="Over" small className="insights-windows" value={String(index)}
+        options={windows.map((x, i) => ({ value: String(i), label: windowLabel(x.days) }))}
+        onChange={(i) => setIndex(Number(i))} />
       {w.items.length > 0 && <Bars rows={w.items} byId={byId} />}
     </Card>
   );
@@ -305,7 +302,7 @@ function WornMostCard({ answer, byId }: { answer: Insights; byId: ById }) {
 function SpreadCard({ answer, byId }: { answer: Insights; byId: ById }) {
   const f = answer.spread;
   return (
-    <Card title={f.title} sentence={f.sentence} testid="spread">
+    <Card title={f.title} hero={spreadHero(f)} sentence={f.sentence} testid="spread">
       {f.categories.map((c) => (
         <details key={c.category} className="insights-spread" open={c.kind === 'few'}>
           <summary>
@@ -326,14 +323,11 @@ function MakeupCard({ answer }: { answer: Insights }) {
   const groups = f.by[field] ?? [];
   const max = Math.max(0, ...groups.map((g) => g.count));
   return (
-    <Card title={f.title} sentence={f.sentence} testid="makeup">
+    <Card title={f.title} hero={makeupHero(f)} sentence={f.sentence} testid="makeup">
       {f.pieces > 0 && (
         <>
-          <div className="segmented segmented-small insights-windows" role="group" aria-label="Count by">
-            {MAKEUP_FIELDS.map((k) => (
-              <button key={k} className={k === field ? 'is-on' : ''} aria-pressed={k === field} onClick={() => setField(k)}>{FIELD_WORDS[k]}</button>
-            ))}
-          </div>
+          <SegmentedControl label="Count by" small className="insights-windows" value={field}
+            options={MAKEUP_FIELDS.map((k) => ({ value: k, label: FIELD_WORDS[k] }))} onChange={setField} />
           <ul className="insights-bars">
             {groups.map((g) => (
               <li key={g.value ?? ''} className="insights-bar-row is-static">

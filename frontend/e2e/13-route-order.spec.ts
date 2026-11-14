@@ -23,7 +23,7 @@ test.describe('choosing which route to Claude is tried first', () => {
     await page.getByRole('button', { name: 'Start with my own closet' }).click();
 
     await page.goto(backend.url + '/settings');
-    const section = page.getByRole('region', { name: 'Tagging' });
+    const section = page.getByRole('region', { name: 'Describing clothes' });
     const choice = section.getByTestId('route-order');
     const planFirst = choice.getByRole('radio', { name: "Use my Claude plan first, the key only if the plan can't" });
     const keyFirst = choice.getByRole('radio', { name: /^Use the API key first/ });
@@ -49,6 +49,7 @@ test.describe('choosing which route to Claude is tried first', () => {
     await expect(routes.nth(0)).toContainText('An API key', { timeout: 20_000 });
     await expect(routes.nth(1)).toContainText('Your Claude plan');
     await expect(section.getByTestId('route-first')).toHaveCount(0);   // the plan isn't set up and the key isn't allowed yet
+    await section.getByText('Monthly limit and spending').click();   // the limit sits under its own disclosure
     await section.getByLabel('Monthly limit for the API key (US dollars)').fill('2');
     await section.getByText('Allow the API key', { exact: true }).click();
     await expect(section.getByTestId('route-first')).toHaveText('Closet will try your API key first.', { timeout: 20_000 });
@@ -62,6 +63,8 @@ test.describe('choosing which route to Claude is tried first', () => {
     await expect(onlyPlan).toBeChecked();
     await expect(routes).toHaveCount(1, { timeout: 20_000 });
     await expect(routes.nth(0)).toContainText('Your Claude plan');
+    await expect(section.getByTestId('route-api-unused')).toContainText('Not used: you chose to use only your Claude plan.');
+    await expect(box).toContainText("Your API key is saved in this Mac's keychain.");   // the key can still be replaced or removed
 
     // only the key, then remove the key: back to the plan first
     await onlyKey.click();

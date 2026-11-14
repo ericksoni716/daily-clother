@@ -118,8 +118,9 @@ def correct_api(client, model: str, text: str, images: list[Image.Image], meter:
 
 
 def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | None = None, timeout: float = 120,
-                answer_model=CorrectionAnswer, system: str = SYSTEM) -> CorrectionResult:
-    """Through the Claude plan (`claude -p`); the photo, if any, is saved in a folder of its own for it to read."""
+                answer_model=CorrectionAnswer, system: str = SYSTEM, tools: str = "Read") -> CorrectionResult:
+    """Through the Claude plan (`claude -p`); the photo, if any, is saved in a folder of its own for it to read.
+    `tools`: the only Claude Code tools it may use, comma-separated (searching shops allows the web ones)."""
     from anthropic.lib._parse._transform import transform_schema
 
     exe = exe or claude_cli.find_claude()
@@ -133,7 +134,7 @@ def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | Non
             claude_cli._save(images[0], Path(tmp) / "item.jpg")
             text += "\n\nThe image file is in the current folder: item.jpg. Open it with the Read tool, then answer."
         cmd = [exe, "-p", text, "--model", model, "--effort", effort, "--output-format", "json",
-               "--json-schema", json.dumps(transform_schema(answer_model)), "--tools", "Read", "--allowedTools", "Read",
+               "--json-schema", json.dumps(transform_schema(answer_model)), "--tools", tools, "--allowedTools", tools,
                "--strict-mcp-config", "--no-session-persistence", "--system-prompt", system]
         kwargs = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
         for _ in range(MAX_ATTEMPTS):

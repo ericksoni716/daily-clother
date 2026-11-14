@@ -489,6 +489,29 @@ def test_socks_show_above_low_shoes_when_the_trousers_stop_short():
     assert float(re.search(r'<rect x="-4000" y="([\d.]+)"', "".join(otc.defs)).group(1)) < fig._y(fig.CALF_CM)
 
 
+@pytest.mark.parametrize("fit", ["slim", "regular", "relaxed", "oversized"])
+def test_small_accessories_sit_right_on_every_fit(fit):
+    # a tie under the collar and ending above the belt, a watch at the wrist below a short sleeve, socks above low
+    # shoes below shorts or cropped trousers, however the garments are fitted to him
+    shirt = Piece("shirt", answer("shirt", collar="point", placket="front_placket", cuff="barrel_1", fit_detail=fit),
+                  "#a9c3e0")
+    dressed, _ = _worn(base=shirt, bottom=TROUSERS, accessories=[SMALL["tie"]])
+    knot = _at(dressed.tie)
+    assert knot[0] == pytest.approx(CX) and fig.NECK_Y < knot[1] < fig.NECK_Y + 10 * K_PX
+    dressed, _ = _worn(base=_tee(fit), bottom=SHORTS, accessories=[SMALL["watch"]])
+    wx, wy = fig._arm_points(+1)[2]
+    x, y = _at(dressed.over)
+    assert x == pytest.approx(wx, abs=0.1) and wy - 2 * K_PX < y < wy
+    for leg in ("slim", "straight", "wide"):
+        for bottom in (Piece("shorts", answer("shorts", {"pant_length": "short"}, leg_shape=leg), "#6f7550"),
+                       Piece("trousers", answer("trousers", leg_shape=leg, trouser_break="cropped"), "#6f7278")):
+            dressed, layout = _worn(base=_tee(fit), bottom=bottom, shoes=SNEAKERS, accessories=[SMALL["socks"]])
+            assert "#2e7d4f" in dressed.legs, (leg, bottom.category)
+            top = float(re.search(r'<rect x="-4000" y="([\d.]+)"', "".join(dressed.defs)).group(1))
+            hem = layout.get("bottom").box(layout.get("bottom").shape.body_box)[3]
+            assert top < GROUND_Y - 10 * K_PX and (bottom.category == "trousers" or hem < top), (leg, hem, top)
+
+
 def test_every_small_accessory_worn_at_once_draws_and_odd_ones_do_not_raise():
     pieces = dict(base=SHIRT, outer=BLAZER, bottom=SHORTS, shoes=LOAFERS, accessories=list(SMALL.values()))
     svg = figure(pieces)

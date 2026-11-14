@@ -178,7 +178,24 @@ def _defs_for_fill(fill: Fill, shape: Shape, uid: str, garment_w: float, garment
 # wide, 1.4 = a chunkier knit); "name:scale" is accepted too.
 TEXTURES = ("corduroy", "rib_knit", "waffle", "cable_knit", "pique", "mesh", "seersucker", "herringbone", "twill",
             "denim", "fisherman_rib", "garter", "linen", "basket", "tweed", "ripstop", "sherpa", "fleece",
-            "quilt_diamond", "quilt_box", "baffle", "moss", "pointelle", "terry")
+            "quilt_diamond", "quilt_box", "baffle", "moss", "pointelle", "terry",
+            # plain weaves and shirtings, each with a faint surface of its own
+            "plain", "poplin", "broadcloth", "oxford", "pinpoint", "royal_oxford", "end_on_end", "chambray", "dobby",
+            "jacquard", "madras", "voile", "challis", "crepe",
+            # the other woven cloths
+            "satin", "sateen", "flannel", "brushed_twill", "moleskin", "canvas", "gabardine", "cavalry_twill",
+            "whipcord", "fresco", "velvet", "melton", "waxed",
+            # jerseys and plain knits
+            "jersey", "interlock", "flat_knit", "slub_jersey", "french_terry", "velour", "shaker",
+            # leather and suede
+            "leather", "suede")
+
+
+def _stitches(w: float, h: float, cols: int, rows: int, x0: float = 0.0, y0: float = 0.0) -> str:
+    """Path data for a block of knit stitches, each a small V, `cols` across and `rows` down a w x h tile."""
+    sw, sh_ = w / cols, h / rows
+    return "".join(f"M{x0 + i * sw + sw * .16:.2f},{y0 + j * sh_ + sh_ * .22:.2f}l{sw * .34:.2f},{sh_ * .6:.2f}"
+                   f"l{sw * .34:.2f},{-sh_ * .6:.2f}" for i in range(cols) for j in range(rows))
 
 
 def _texture_defs(texture: str | None, uid: str, dark: bool, scale: float | None = None) -> str:
@@ -277,6 +294,127 @@ def _texture_tile(name: str, sc: float, lo: str, hi: str):
         h = 32 * sc
         return (10, h, f'<path d="M0,{h * .5:.2f}H10" stroke="{hi}" stroke-width="{h * .45:.2f}" opacity=".07"/>'
                        f'<path d="M0,.8H10" stroke="{lo}" stroke-width="1.5" opacity=".42"/>')
+    return _cloth_tile(name, sc, lo, hi)
+
+
+def _cloth_tile(name: str, sc: float, lo: str, hi: str):
+    """The plain weaves, shirtings, jerseys and the smooth cloths: each a faint surface of its own, big enough
+    to show on a closet tile, faint enough that the cloth still reads as plain cloth. White marks are light
+    caught by the cloth (a float, a pale weft, a nap) on any colour; `lo` marks are its shade."""
+    # ---- plain weaves and shirtings
+    if name == "plain":      # one over, one under: a faint check of short dashes
+        return (6, 6, f'<path d="M.7,1.5H2.7M3.7,4.5H5.7M4.5,.7V2.7M1.5,3.7V5.7" stroke="{lo}" stroke-width=".7" opacity=".14"/>')
+    if name == "poplin":     # fine crosswise cords, broken where the threads cross
+        return (10, 5, f'<path d="M0,1.3H4.2M5.4,1.3H10M2.6,3.8H7.8" stroke="{lo}" stroke-width=".7" opacity=".13"/>')
+    if name == "broadcloth":  # denser and smoother than poplin: unbroken fine cords and a soft band of lustre
+        return (20, 12, f'<path d="M0,1H20M0,4H20M0,7H20M0,10H20" stroke="{lo}" stroke-width=".45" opacity=".1"/>'
+                        f'<path d="M0,5.5H20" stroke="#fff" stroke-width="2.2" opacity=".09"/>')
+    if name == "oxford":     # a coloured warp over a pale weft, two by two: paired pale flecks, a darker tick between
+        return (12, 10, f'<g stroke-width=".9" stroke-linecap="round"><path d="M1,1.5H5M1,3H5M7,6.5H11M7,8H11" '
+                        f'stroke="#fff" opacity=".3"/><path d="M8.5,1V3.6M2.5,6V8.6" stroke="{lo}" opacity=".14"/></g>')
+    if name == "pinpoint":   # an oxford woven fine: single pale points in a half-drop, a shaded point between
+        return (7, 7, f'<g fill="#fff" opacity=".3"><circle cx="1.5" cy="1.5" r=".75"/><circle cx="5" cy="5" r=".75"/></g>'
+                      f'<g fill="{lo}" opacity=".12"><circle cx="5" cy="1.5" r=".6"/><circle cx="1.5" cy="5" r=".6"/></g>')
+    if name == "royal_oxford":   # a bolder basket with a lustre: pale blocks, a deeper tick between
+        return (10, 10, f'<g fill="#fff" opacity=".27"><rect x="1" y="1" width="3.6" height="2.6" rx=".7"/>'
+                        f'<rect x="6" y="6" width="3.6" height="2.6" rx=".7"/></g>'
+                        f'<path d="M7.8,1V4M2.8,6V9" stroke="{lo}" stroke-width="1" opacity=".15"/>')
+    if name == "end_on_end":   # coloured and white warp ends side by side: a fine upright streak, pale and dark
+        return (5, 16, f'<path d="M1.2,1V9M3.7,9V15" stroke="#fff" stroke-width=".9" stroke-linecap="round" opacity=".24"/>'
+                       f'<path d="M3.7,1V7M1.2,11V15" stroke="{lo}" stroke-width=".7" opacity=".11"/>')
+    if name == "chambray":   # a coloured warp and a white weft in a plain weave: a frosty scatter of pale flecks
+        return (12, 8, f'<path d="M1,1.5H4M7,2.2H10.5M3,5.5H6.5M8.6,6.6H11" stroke="#fff" stroke-width=".85" '
+                       f'stroke-linecap="round" opacity=".26"/><path d="M5,4H6.2M10.6,4.4H11.6" stroke="{lo}" stroke-width=".7" opacity=".12"/>')
+    if name == "dobby":      # a small figure woven into the cloth: a tiny diamond with a dot between
+        return (12, 12, f'<path d="M6,3L9,6L6,9L3,6Z" fill="none" stroke="{lo}" stroke-width=".7" opacity=".2"/>'
+                        f'<g fill="{lo}" opacity=".18"><circle cx="0" cy="0" r=".8"/><circle cx="12" cy="0" r=".8"/>'
+                        f'<circle cx="0" cy="12" r=".8"/><circle cx="12" cy="12" r=".8"/></g>')
+    if name == "jacquard":   # a larger figure woven tone on tone: leaves in a half-drop
+        return (30, 30, f'<g fill="{lo}" opacity=".1"><path d="M8,3C12.5,6 12.5,11 8,14C3.5,11 3.5,6 8,3Z"/>'
+                        f'<path d="M23,18C27.5,21 27.5,26 23,29C18.5,26 18.5,21 23,18Z"/></g>'
+                        f'<path d="M8,4.5V12.5M23,19.5V27.5" stroke="#fff" stroke-width=".8" opacity=".18"/>')
+    if name == "madras":     # a soft check whose bands bleed into each other (the colours come from the photo)
+        return (26, 26, f'<g opacity=".1"><rect width="7" height="26" fill="{lo}"/><rect width="26" height="7" fill="{lo}"/></g>'
+                        f'<g fill="#fff" opacity=".13"><rect x="14" width="3" height="26"/><rect y="14" width="26" height="3"/></g>'
+                        f'<path d="M20.5,0V26M0,20.5H26" stroke="{lo}" stroke-width=".6" opacity=".12"/>')
+    if name == "voile":      # sheer: a pale veil over the colour, the odd thicker thread showing through
+        return (24, 18, f'<rect width="24" height="18" fill="#fff" opacity=".13"/>'
+                        f'<path d="M0,5H24M15,0V18" stroke="{lo}" stroke-width=".5" opacity=".1"/>')
+    if name == "challis":    # soft and matte: short fibres lying every way (its print comes from the photo)
+        return (11, 10, f'<path d="M1,2l1.7,.6M6.5,1.2l1.3,1M3.5,6.6l1.6,-.5M8.4,7.6l1.4,.7" stroke="{lo}" stroke-width=".75" '
+                        f'stroke-linecap="round" opacity=".15"/>')
+    if name == "crepe":      # a crinkled, pebbly face
+        return (10, 9, f'<path d="M1,2.5q1,-1.4 2,0t2,0M5.5,7q1,-1.4 2,0t2,0M6.5,2.2l1.2,1M1.5,6.2l1.1,-.9" stroke="{lo}" '
+                       f'stroke-width=".75" fill="none" stroke-linecap="round" opacity=".19"/>')
+    # ---- the other woven cloths
+    if name == "satin":      # long bright floats running down the cloth
+        return (9, 26, '<path d="M2,1V15M6.5,12V25" stroke="#fff" stroke-width="1" stroke-linecap="round" opacity=".17"/>')
+    if name == "sateen":     # the floats run across, softer than satin's
+        return (26, 8, f'<path d="M1,2H14M12,6H25" stroke="#fff" stroke-width=".9" stroke-linecap="round" opacity=".14"/>'
+                       f'<path d="M17,2H22M3,6H7" stroke="{lo}" stroke-width=".6" opacity=".08"/>')
+    if name == "flannel":    # a brushed nap: a soft, cloudy mottle
+        return (18, 16, f'<g fill="{lo}" opacity=".07"><ellipse cx="4" cy="4" rx="4" ry="2.6"/><ellipse cx="13" cy="11.5" rx="4.5" ry="2.8"/></g>'
+                        f'<g fill="#fff" opacity=".09"><ellipse cx="13" cy="3" rx="3" ry="1.8"/><ellipse cx="5" cy="12" rx="3" ry="1.8"/></g>')
+    if name == "brushed_twill":   # a twill whose lines the brushing has softened, with a little nap
+        return (7, 7, f'<path d="M-1,1L1,-1M0,7L7,0M6,8L8,6" stroke="{lo}" stroke-width="1.5" opacity=".08"/>'
+                      f'<circle cx="2" cy="2.4" r=".7" fill="#fff" opacity=".13"/>')
+    if name == "moleskin":   # a dense, sueded face: soft pale brushing and a fine stipple
+        return (10, 8, f'<path d="M1,2h3M6,6h3" stroke="#fff" stroke-width="1.7" stroke-linecap="round" opacity=".08"/>'
+                       f'<g fill="{lo}" opacity=".12"><circle cx="7" cy="1.6" r=".55"/><circle cx="2.5" cy="5.6" r=".55"/></g>')
+    if name == "canvas":     # a coarse plain weave: thick threads over and under
+        return (11, 11, f'<path d="M1.2,2.7H4.4M6.7,8.2H9.9" stroke="{lo}" stroke-width="1.8" stroke-linecap="round" opacity=".15"/>'
+                        f'<path d="M8.2,1.2V4.4M2.7,6.7V9.9" stroke="{lo}" stroke-width="1.8" stroke-linecap="round" opacity=".09"/>')
+    if name == "gabardine":   # a fine, steep twill, tightly packed
+        return (4, 8, f'<path d="M0,8L4,0M-1,2L1,-2M3,10L5,6" stroke="{lo}" stroke-width=".7" opacity=".16"/>')
+    if name == "cavalry_twill":   # a steep double cord: pairs of lines with a groove between the pairs
+        return (10, 10, f'<path d="M0,10L5,0M2.3,10L7.3,0" stroke="{lo}" stroke-width="1" opacity=".16"/>')
+    if name == "whipcord":   # one bold steep cord, lit along its edge
+        return (8, 12, f'<path d="M0,12L6,0" stroke="{lo}" stroke-width="1.7" opacity=".14"/>'
+                       f'<path d="M2,12L8,0" stroke="#fff" stroke-width=".8" opacity=".14"/>')
+    if name == "fresco":     # an open, porous weave: small gaps between crisp, twisted threads
+        return (12, 12, f'<g fill="{lo}" opacity=".16"><rect x="2" y="2" width="2.6" height="2.6"/>'
+                        f'<rect x="8" y="8" width="2.6" height="2.6"/></g>'
+                        f'<path d="M0,6.3H12M6.3,0V12" stroke="#fff" stroke-width=".8" opacity=".12"/>')
+    if name == "velvet":     # the pile catching the light in soft patches
+        return (16, 14, f'<g fill="#fff" opacity=".07"><ellipse cx="4" cy="3.5" rx="3.4" ry="2"/><ellipse cx="12" cy="10.5" rx="3.4" ry="2"/></g>'
+                        f'<g fill="{lo}" opacity=".08"><ellipse cx="12" cy="3" rx="2.6" ry="1.6"/><ellipse cx="4" cy="11" rx="2.6" ry="1.6"/></g>')
+    if name == "melton":     # felted: no weave to see, only a faint, even stipple
+        return (11, 10, f'<g fill="{lo}" opacity=".12"><circle cx="2" cy="2" r=".7"/><circle cx="8" cy="4" r=".7"/>'
+                        f'<circle cx="4" cy="8" r=".7"/></g>')
+    if name == "waxed":      # waxed cotton: pale creases where the wax has cracked
+        return (36, 30, '<path d="M3,6l7,3l5,-2M20,18l6,4l6,-3M8,24l5,-1M26,4l4,3" stroke="#fff" stroke-width="1" fill="none" '
+                        'stroke-linecap="round" stroke-linejoin="round" opacity=".15"/>'
+                        f'<path d="M3,7l7,3l5,-2M20,19l6,4l6,-3" stroke="{lo}" stroke-width=".6" fill="none" opacity=".08"/>')
+    # ---- jerseys and plain knits: knit stitches, each a small V, in columns
+    if name == "jersey":
+        return (6, 5, f'<path d="{_stitches(6, 5, 1, 1)}" stroke="{lo}" stroke-width=".7" fill="none" opacity=".14"/>')
+    if name == "interlock":   # a smooth double knit: the stitches of the second face sit between the first's
+        return (10, 7, f'<path d="{_stitches(10, 7, 1, 1)}" stroke="{lo}" stroke-width=".55" fill="none" opacity=".1"/>'
+                       f'<path d="M8.6,.5V6.5" stroke="#fff" stroke-width="1.2" opacity=".1"/>')
+    if name == "flat_knit":   # a sweater's plain knitting: bigger stitches, scaled by the gauge
+        w, h = 8 * sc, 7 * sc
+        return (w, h, f'<path d="{_stitches(w, h, 1, 1)}" stroke="{lo}" stroke-width="{0.85 * min(sc, 1.5):.2f}" fill="none" opacity=".15"/>')
+    if name == "slub_jersey":   # jersey with thicker, uneven slubs here and there
+        return (30, 20, f'<path d="{_stitches(30, 20, 5, 4)}" stroke="{lo}" stroke-width=".6" fill="none" opacity=".1"/>'
+                        f'<path d="M2,4.5H9M17,14.5H21" stroke="{lo}" stroke-width="1.4" stroke-linecap="round" opacity=".12"/>')
+    if name == "french_terry":   # the smooth jersey face of a heavier cloth (its loops are on the inside)
+        return (7, 6, f'<path d="{_stitches(7, 6, 1, 1)}" stroke="{lo}" stroke-width=".75" fill="none" opacity=".13"/>')
+    if name == "velour":     # a plush knitted pile: soft upright brush marks
+        return (14, 12, f'<path d="M3,1.5v4M10,7.5v3.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity=".08"/>'
+                        f'<path d="M10,1.5v2.5M3,8v3" stroke="{lo}" stroke-width="2" stroke-linecap="round" opacity=".07"/>')
+    if name == "shaker":     # plump ribs, each stitch tucked: a rib with a short bar across it
+        w, h = 10 * sc, 6 * sc
+        return (w, h, f'<path d="M1.2,0V{h:.2f}" stroke="{lo}" stroke-width="{1.6 * min(sc, 1.6):.2f}" opacity=".18"/>'
+                      f'<path d="M{w * .42:.2f},{h * .5:.2f}h{w * .34:.2f}" stroke="{lo}" stroke-width="{0.9 * min(sc, 1.6):.2f}" '
+                      f'stroke-linecap="round" opacity=".14"/>')
+    # ---- leather and suede
+    if name == "leather":    # smooth hide: soft creases where it flexes
+        return (40, 34, '<path d="M4,8q5,-3 10,0M24,24q5,-3 9,1M28,6q3,2 6,1M6,26q3,-2 6,0" stroke="#fff" stroke-width="1.1" '
+                        'fill="none" stroke-linecap="round" opacity=".12"/>'
+                        f'<path d="M4,9q5,-3 10,0M24,25q5,-3 9,1" stroke="{lo}" stroke-width=".6" fill="none" opacity=".08"/>')
+    if name == "suede":      # a nap: paler where it is brushed one way, darker the other
+        return (24, 20, f'<g fill="#fff" opacity=".09"><ellipse cx="6" cy="5" rx="5.5" ry="3"/><ellipse cx="18" cy="15" rx="5" ry="3"/></g>'
+                        f'<g fill="{lo}" opacity=".08"><ellipse cx="18" cy="4.5" rx="4" ry="2.4"/><ellipse cx="6" cy="15.5" rx="4" ry="2.4"/></g>')
     return None
 
 

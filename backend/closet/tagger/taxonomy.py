@@ -516,13 +516,21 @@ _SHIRT_COLLARS = ("point", "semi_spread", "spread", "cutaway", "button_down", "h
 # ---- cloth: what a fabric or fibre does to the drawing
 _TEXTURE = {   # fabric (woven or knit structure) -> tone-on-tone surface; scaled by wale or gauge where it has one
     "corduroy": "corduroy", "cable": "cable_knit", "aran": "cable_knit", "rib_1x1": "rib_knit", "rib_2x2": "rib_knit",
-    "shaker": "rib_knit", "fisherman_rib": "fisherman_rib", "waffle_thermal": "waffle", "waffle_weave": "waffle",
+    "fisherman_rib": "fisherman_rib", "waffle_thermal": "waffle", "waffle_weave": "waffle",
     "pique": "pique", "moss": "moss", "terry_towelling": "terry", "mesh": "mesh", "pointelle": "pointelle",
-    "seersucker": "seersucker", "herringbone": "herringbone", "twill": "twill", "brushed_twill": "twill",
-    "gabardine": "twill", "cavalry_twill": "twill", "whipcord": "twill", "denim": "denim", "garter": "garter",
-    "guernsey": "garter", "linen": "linen", "slub_jersey": "linen", "hopsack": "basket",
-    "fresco": "basket", "tweed": "tweed", "ripstop": "ripstop", "sherpa": "sherpa",
+    "seersucker": "seersucker", "herringbone": "herringbone", "twill": "twill", "brushed_twill": "brushed_twill",
+    "gabardine": "gabardine", "cavalry_twill": "cavalry_twill", "whipcord": "whipcord", "denim": "denim", "garter": "garter",
+    "guernsey": "garter", "linen": "linen", "slub_jersey": "slub_jersey", "hopsack": "basket",
+    "fresco": "fresco", "tweed": "tweed", "ripstop": "ripstop", "sherpa": "sherpa",
     "polar_fleece": "fleece", "fleece_back": "fleece",
+    # the plain weaves, shirtings and smooth cloths, and the jerseys (#182): each a faint surface of its own
+    "plain": "plain", "poplin": "poplin", "broadcloth": "broadcloth", "oxford": "oxford", "pinpoint_oxford": "pinpoint",
+    "royal_oxford": "royal_oxford", "end_on_end": "end_on_end", "chambray": "chambray", "dobby": "dobby",
+    "jacquard": "jacquard", "madras": "madras", "voile": "voile", "challis": "challis", "crepe": "crepe",
+    "satin": "satin", "sateen": "sateen", "flannel": "flannel", "moleskin": "moleskin", "canvas": "canvas",
+    "velvet": "velvet", "melton": "melton", "waxed_cotton": "waxed",
+    "jersey": "jersey", "interlock": "interlock", "flat_knit": "flat_knit", "french_terry": "french_terry",
+    "velour": "velour", "shaker": "shaker",
 }
 _WALE_SCALE = {"needlecord": 0.55, "standard": 1.0, "mid": 1.4, "wide_wale": 1.9, "jumbo": 2.6}
 _GAUGE_SCALE = {"extra_fine": 0.7, "fine": 0.85, "medium": 1.0, "chunky": 1.3, "super_chunky": 1.65}
@@ -580,7 +588,7 @@ def surface_extras(g: dict) -> dict:
     scale = None
     if tex == "corduroy" and wale in _WALE_SCALE and wale != "standard":
         scale = _WALE_SCALE[wale]
-    elif tex in ("cable_knit", "rib_knit", "fisherman_rib", "waffle", "garter", "moss"):
+    elif tex in ("cable_knit", "rib_knit", "fisherman_rib", "waffle", "garter", "moss", "flat_knit", "shaker"):
         scale = _GAUGE_SCALE.get(gauge) or (1.25 if fabric == "aran" else 0.75 if fabric == "rib_1x1" else None)
         if scale == 1.0:
             scale = None
@@ -1065,16 +1073,33 @@ _WOVEN_NOTES = {
     "herringbone": (D, "chevron columns"), "twill": (D, "fine diagonal"), "denim": (D, "steep twill with pale weft; heavy"),
     "linen": (D, "sparse short slub streaks; light"), "hopsack": (D, "small basket weave"), "tweed": (D, "flecks; super heavy, slight halo"),
     "ripstop": (D, "grid of heavier threads"), "waffle_weave": (D, "waffle grid; heavy"),
-    "oxford": (N_, "plain at this size: oxford cloth's fine basket weave does not show; midweight"),
-    "royal_oxford": (N_, "plain at this size, like oxford"), "fresco": (A_, "drawn as a basket weave; light"),
-    "brushed_twill": (A_, "twill lines plus a soft edge (halo); heavy"),
-    "gabardine": (A_, "drawn as a twill"), "cavalry_twill": (A_, "drawn as a single twill, not its double cord"),
-    "whipcord": (A_, "drawn as a twill"),
-    "flannel": (A_, "no texture of its own: heavy weight and a fuzzy edge (halo); wool fibre makes it heavier"),
-    "satin": (A_, "no texture: drawn with a sheen highlight; light"), "sateen": (A_, "sheen highlight; light"),
-    "waxed_cotton": (A_, "sheen highlight and heavy weight"), "melton": (A_, "no texture: drawn with the depth of a super-heavy cloth"),
-    "moleskin": (A_, "no texture: the depth of a heavy cloth"), "canvas": (A_, "no texture: the depth of a heavy cloth"),
-    "velvet": (A_, "a soft sheen; the pile itself is not drawn"),
+    "plain": (D, "the faintest check of short dashes, one over and one under"),
+    "poplin": (D, "fine crosswise cords, broken where the threads cross"),
+    "broadcloth": (D, "unbroken fine crosswise cords and a soft band of lustre: smoother than poplin"),
+    "oxford": (D, "paired pale flecks of the white weft, two by two, with a shaded tick between; midweight"),
+    "pinpoint_oxford": (D, "single pale points in a half-drop: an oxford woven fine"),
+    "royal_oxford": (D, "bolder pale blocks with a deeper tick between: a basket with a lustre"),
+    "end_on_end": (D, "a fine upright streak of pale and coloured ends"),
+    "chambray": (D, "a frosty scatter of pale weft flecks"),
+    "dobby": (D, "small woven diamonds with a dot between, tone on tone"),
+    "jacquard": (D, "a larger woven figure (leaves in a half-drop), tone on tone"),
+    "madras": (D, "a soft bleeding check over the cloth; its colours come from the photo"),
+    "voile": (D, "sheer: a pale veil over the colour, the odd thicker thread; light"),
+    "challis": (D, "soft short fibres lying every way; its print comes from the photo; light"),
+    "crepe": (D, "a crinkled, pebbly face"),
+    "fresco": (D, "an open, porous weave: small gaps between crisp threads; light"),
+    "brushed_twill": (D, "twill lines softened by brushing, a little nap, and a soft edge (halo); heavy"),
+    "gabardine": (D, "a fine, steep, tightly packed twill"),
+    "cavalry_twill": (D, "a steep double cord: pairs of lines with a groove between"),
+    "whipcord": (D, "one bold steep cord, lit along its edge"),
+    "flannel": (D, "a soft cloudy mottle of brushed nap, a fuzzy edge (halo) and heavy weight; wool fibre makes it heavier"),
+    "satin": (D, "long bright floats running down the cloth and a sheen highlight; light"),
+    "sateen": (D, "softer floats running across and a sheen highlight; light"),
+    "waxed_cotton": (D, "pale cracked creases in the wax, a sheen highlight and heavy weight"),
+    "melton": (D, "felted: no weave, only a faint even stipple and the depth of a super-heavy cloth"),
+    "moleskin": (D, "a dense sueded face: soft pale brushing and a fine stipple; heavy"),
+    "canvas": (D, "a coarse plain weave of thick threads; heavy"),
+    "velvet": (D, "the pile catching the light in soft patches, and a soft sheen"),
 }
 _KNIT_NOTES = {
     "pique": (D, "fine honeycomb dots"), "waffle_thermal": (D, "waffle grid"), "rib_1x1": (D, "fine vertical rib"),
@@ -1082,18 +1107,21 @@ _KNIT_NOTES = {
     "cable": (D, "cables, scaled by knit_gauge; heavy"), "aran": (D, "chunky cables; super heavy"),
     "mesh": (D, "open holes"), "garter": (D, "ridged rows"), "sherpa": (D, "curly pile and fuzzy edge; super heavy"),
     "polar_fleece": (D, "soft nap and fuzzy edge; heavy"), "fleece_back": (D, "soft nap and fuzzy edge (worn fuzzy side out); heavy"),
-    "shaker": (A_, "drawn as a rib; heavy"), "moss": (D, "seed-stitch bumps, each row set over from the last"),
-    "pointelle": (D, "eyelets spaced in a diamond lattice, plain knit between"), "terry_towelling": (D, "a pile of small loops"), "slub_jersey": (A_, "slubs drawn as linen streaks"),
-    "guernsey": (A_, "drawn as garter ridges; heavy"), "velour": (A_, "no texture: soft edge (halo)"),
-    "french_terry": (A_, "smooth face: the depth of a heavy cloth only"),
+    "shaker": (D, "plump tucked ribs, a short bar across each, scaled by knit_gauge; heavy"),
+    "moss": (D, "seed-stitch bumps, each row set over from the last"),
+    "pointelle": (D, "eyelets spaced in a diamond lattice, plain knit between"), "terry_towelling": (D, "a pile of small loops"),
+    "jersey": (D, "small knit stitches (Vs) in columns"),
+    "slub_jersey": (D, "jersey stitches with thicker, uneven slubs here and there"),
+    "interlock": (D, "a smooth double knit: fine stitches with the second face's wale between"),
+    "flat_knit": (D, "a sweater's plain knitting: bigger stitches, scaled by knit_gauge"),
+    "french_terry": (D, "the jersey face of a heavier cloth: larger, firmer stitches; heavy"),
+    "velour": (D, "a plush pile in soft upright brush marks and a soft edge (halo)"),
+    "guernsey": (A_, "drawn as garter ridges; heavy"),
 }
 COVERAGE["woven_structure"] = {
-    v: _WOVEN_NOTES.get(v, (N_, "fabric/colour/pattern carry it: no visible surface at this size" if v not in ("dobby", "jacquard", "madras", "chambray")
-                            else "its look is a pattern or colour effect, carried by the photo's fill"))
-    for v in AXES["woven_structure"]}
+    v: _WOVEN_NOTES[v] for v in AXES["woven_structure"]}
 COVERAGE["knit_structure"] = {
-    v: _KNIT_NOTES.get(v, (N_, "a smooth face: shows only as weight" if v in ("jersey", "interlock", "flat_knit")
-                           else "a colour pattern: carried by the photo's fill, not drawn"))
+    v: _KNIT_NOTES.get(v, (N_, "a colour pattern: carried by the photo's fill, not drawn"))
     for v in AXES["knit_structure"]}
 COVERAGE["fiber"] = {
     v: {

@@ -186,6 +186,31 @@ def test_every_knit_marked_drawn_has_its_own_texture():
         valid(draw({**knit, "fabric": v, "knit_gauge": "chunky"}, "flat"))
 
 
+# #182: the plain weaves, shirtings, smooth cloths and jerseys that used to read as plain cloth
+PLAIN_CLOTHS = ("plain", "poplin", "broadcloth", "oxford", "pinpoint_oxford", "royal_oxford", "end_on_end", "chambray",
+                "dobby", "jacquard", "madras", "voile", "challis", "crepe", "satin", "sateen", "flannel", "brushed_twill",
+                "moleskin", "canvas", "gabardine", "cavalry_twill", "whipcord", "fresco", "velvet", "melton", "waxed_cotton",
+                "jersey", "slub_jersey", "interlock", "flat_knit", "french_terry", "velour", "shaker")
+
+
+def test_every_plain_cloth_has_a_surface_of_its_own():
+    shirt = CONTEXT["collar"]
+    assert all(COVERAGE["woven_structure"][v][0] == "drawn" for v in AXES["woven_structure"])
+    coverage = {**COVERAGE["woven_structure"], **COVERAGE["knit_structure"]}
+    assert all(coverage[v][0] == "drawn" for v in PLAIN_CLOTHS)
+    textures = {v: surface_extras({"fabric": v})["texture"] for v in PLAIN_CLOTHS}
+    assert all(textures.values()) and len(set(textures.values())) == len(PLAIN_CLOTHS)
+    others = {surface_extras({"fabric": v})["texture"] for v in coverage if v not in PLAIN_CLOTHS}
+    assert not others & set(textures.values())
+    svgs = {v: draw({**shirt, "fabric": v}) for v in PLAIN_CLOTHS}
+    assert len(set(svgs.values())) == len(PLAIN_CLOTHS)
+    for v in PLAIN_CLOTHS:
+        valid(svgs[v])
+        valid(draw({**shirt, "fabric": v}, "flat"))
+    assert draw({**shirt, "fabric": "shaker", "knit_gauge": "chunky"}) != svgs["shaker"]
+    assert draw({**shirt, "fabric": "flat_knit", "knit_gauge": "chunky"}) != svgs["flat_knit"]
+
+
 def test_the_hidden_button_down_shows_no_buttons():
     shirt = CONTEXT["collar"]
     hidden = draw({**shirt, "collar": "hidden_button_down"})
@@ -214,47 +239,47 @@ JACKETS = ("blazer", "sport_coat", "suit_jacket", "overcoat", "peacoat")
 # Recorded again for #110 (drawing faults) where a drawing changed on purpose: the cause is noted on each line.
 # Every lightweight garment also gained drape folds, and every heavy one with a rib band its soft shade.
 UNCHANGED = {
-    "t_shirt": "7ec599596bc532fc",
+    "t_shirt": "e6bb331568c7e3a5",   # #182: jersey surface
     "henley": "4c2da65dd3332fd4",
     "polo": "ffed94ccace3764e",
-    "rugby_shirt": "58043fad9ef598d3",
-    "dress_shirt": "c809ac4c9f65fe00",
-    "ocbd": "06950d0f0cbd3c6d",
-    "casual_button_up": "9c12d14c70ade096",   # #163: new; point collar, chest pocket, vented straight hem
-    "flannel_shirt": "f64ec8598d9a7f90",
-    "work_shirt": "e27744a52320dbbc",
+    "rugby_shirt": "fc35361d2bcb0d26",   # #182: jersey surface
+    "dress_shirt": "e1c480d8a22c7920",   # #182: poplin surface
+    "ocbd": "6cea0cb02a91e64c",   # #182: oxford surface
+    "casual_button_up": "cb7328824233b49f",   # #163: new; point collar, chest pocket, vented straight hem; #182: poplin surface
+    "flannel_shirt": "b491a4ccf6438fcd",   # #182: flannel surface
+    "work_shirt": "6b8cfd2cc051a566",   # #182: chambray surface
     "western_shirt": "a1ad566838687b49",
-    "camp_collar_shirt": "33fe64a35259670c",
-    "popover_shirt": "cac441662b38341d",
+    "camp_collar_shirt": "dc86cea5286cd6a8",   # #182: challis surface
+    "popover_shirt": "4c7b47805a7989a1",   # #182: oxford surface
     "band_collar_shirt": "e36611ed2e43240f",   # #110: calmer linen
     "guayabera": "8635571b38df9032",   # #110: calmer linen
-    "overshirt": "dd3a6290ec43cc3a",
-    "tuxedo_shirt": "1da8831867f6be24",   # #110: larger wing tips
-    "crewneck_sweatshirt": "1832fa04fb176c8c",
+    "overshirt": "06f6e4cb356be6b1",   # #182: flannel surface
+    "tuxedo_shirt": "28b78081b6194afd",   # #110: larger wing tips; #182: poplin surface
+    "crewneck_sweatshirt": "8ef1ba5c1c7c3579",   # #182: french terry surface
     "hoodie": "d94a19965cb06860",
     "zip_hoodie": "8893ac4861061caa",
     "pullover_sweater": "725e485e6f2ba239",
-    "cardigan": "7adab43828f8f794",
-    "shawl_cardigan": "0bc8de3347821e13",
+    "cardigan": "be363c4f1293246e",   # #182: flat knit surface
+    "shawl_cardigan": "4de220b078e04c61",   # #182: shaker surface
     "sweater_vest": "2525fdb5d88de43f",   # #110: armhole band keeps its width
-    "quarter_zip": "a6c19157293b4d69",
-    "chore_coat": "55f95cedffe81d08",
+    "quarter_zip": "a7cd9c247a6fe55d",   # #182: flat knit surface
+    "chore_coat": "f82ceba2e738d934",   # #182: canvas surface
     "trucker_jacket": "1fd21e47f12d94f2",   # #110: buttoned waistband, not a rib
-    "bomber": "edb93b35920fe310",
-    "harrington": "85c603c5ff653c7a",
-    "field_jacket": "1eab41a1382a9c74",
+    "bomber": "6cc6616e2a294223",   # #182: plain surface
+    "harrington": "db90f35e110582b6",   # #182: gabardine surface
+    "field_jacket": "01c0c23d4cbcab72",   # #182: sateen surface
     "puffer": "ea68fbbdd4556bf6",   # #110: outline swells between channels
     "quilted_jacket": "9daae90d264d9d8d",
     "fleece_jacket": "d1ff07dded0b7647",
-    "barn_jacket": "4a3332cae9f90e8b",
+    "barn_jacket": "f9404968c3a48ca1",   # #182: canvas surface
     "fleece_pullover": "2ec1c00de609e68f",
     "performance_tee": "af4dd6aa727dae5f",
-    "athletic_half_zip": "c45b9acf7d42f45c",
-    "track_jacket": "88e586d396ec8f5c",
-    "trench_coat": "61766ef34e7fc2f6",   # #163: new; self belt
+    "athletic_half_zip": "ab1080303aaa8474",   # #182: interlock surface
+    "track_jacket": "afa6a0b587a04703",   # #182: interlock surface
+    "trench_coat": "5478e9ffe311f812",   # #163: new; self belt; #182: gabardine surface
     "parka": "d5ba24eb82d51c9b",   # #163: new
-    "varsity_jacket": "23fbdbda3caf80ad",   # #163: new; sleeves in the second colour
-    "waxed_jacket": "fe4f98e0209ee993",   # #163: new; cord collar
+    "varsity_jacket": "59fea13692466334",   # #163: new; sleeves in the second colour; #182: melton surface
+    "waxed_jacket": "99d299876a55bb61",   # #163: new; cord collar; #182: waxed surface
     "pants.jeans": "b09a649969597eec",
     "pants.dress": "567a1b5f294a79cc",
     "shoe.derby": "f356f82e866763c4",   # redrawn on purpose: open lacing (#108)
@@ -793,7 +818,9 @@ def test_a_robe_is_tied_with_a_sash_and_velvet_has_a_sheen():
     assert robe["belt"] == "sash" and robe["length"] == "knee" and robe["block"] == "coat"
     sash, buckled = build("top", robe), build("top", {**robe, "belt": True})
     assert sash.anchors == buckled.anchors and sash.parts != buckled.parts
-    assert surface_extras({"fabric": "velvet"})["sheen"] and COVERAGE["woven_structure"]["velvet"][0] == "approximate"
+    # #182: velvet's pile is now drawn as a surface of its own, so it is no longer only approximate
+    velvet = surface_extras({"fabric": "velvet"})
+    assert velvet["sheen"] and velvet["texture"] == "velvet" and COVERAGE["woven_structure"]["velvet"][0] == "drawn"
 
 
 def test_sport_and_lounge_bottoms_draw_apart():

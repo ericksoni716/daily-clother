@@ -39,7 +39,7 @@ test('wear log and laundry in the demo closet: wear, undo, laundry and back', as
   await chooseLaundry('In the laundry');
   await expect(tile).toHaveCount(1);
   const inLaundry = await page.getByTestId('tile').count();
-  expect(inLaundry).toBeLessThan(30);
+  expect(inLaundry).toBeLessThan(43);
   await expect(page.getByTestId('laundry-mark')).toHaveCount(inLaundry);
 
   // and back
@@ -50,7 +50,7 @@ test('wear log and laundry in the demo closet: wear, undo, laundry and back', as
   await expect(tile).toHaveCount(1);
   await expect(page.getByTestId('laundry-mark')).toHaveCount(0);
   await chooseLaundry('Clean');
-  await expect(page.getByTestId('tile')).toHaveCount(30);
+  await expect(page.getByTestId('tile')).toHaveCount(43);
 });
 
 test('offline: the wear and laundry buttons are disabled and say why', async ({ page, context }) => {

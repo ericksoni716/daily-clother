@@ -53,7 +53,7 @@ def test_demo_and_main_closets_report_separately(client, cfg):
     main = client.get("/api/storage").json()
     assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
     demo = client.get("/api/storage").json()
-    assert demo["items"] == 30 and main["items"] == 1
+    assert demo["items"] == 43 and main["items"] == 1
     assert demo["cutouts_bytes"] > 0 and main["cutouts_bytes"] == 0
     assert demo["photos_bytes"] != main["photos_bytes"] and demo["database_bytes"] != main["database_bytes"]
     assert demo["photos_bytes"] == storage.image_bytes(cfg.images_dir("demo"))["photos_bytes"]

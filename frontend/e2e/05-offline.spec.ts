@@ -11,7 +11,7 @@ test('offline: the saved closet still opens, read-only, with a banner', async ({
   await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 15_000 });
   // load once while the service worker is in charge so the data and pictures are saved
   await page.reload();
-  await expect(page.getByTestId('tile')).toHaveCount(30);
+  await expect(page.getByTestId('tile')).toHaveCount(43);
   // open one item while online, so its full details are saved too
   await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
   await expect(page.locator('.detail-panel').getByRole('button', { name: /^What is it\?:/ })).toBeVisible();
@@ -20,7 +20,7 @@ test('offline: the saved closet still opens, read-only, with a banner', async ({
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByText('Offline: showing your saved closet')).toBeVisible();
-  await expect(page.getByTestId('tile')).toHaveCount(30);
+  await expect(page.getByTestId('tile')).toHaveCount(43);
   // pictures came from the saved copy
   const loaded = await page.locator('.tile img').first().evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0);
   expect(loaded).toBe(true);

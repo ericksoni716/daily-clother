@@ -21,7 +21,7 @@ Default mode:
      scripts and styles it links to are served with the right types;
      POST /api/setup -> 204 + session cookie; GET /api/items -> 200;
      GET /api/tagging -> 200 with the plan route then the API route;
-     POST /api/profile demo -> GET /api/items has 30 items, and a demo
+     POST /api/profile demo -> GET /api/items has 43 items, and a demo
      item's drawing is served;
      POST /api/quit -> the process exits with code 0 within 30 s; the data
      folder then has closet.db and no closet.lock.
@@ -58,7 +58,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-DEMO_ITEMS = 30
+DEMO_ITEMS = 43
 PASSPHRASE = "smoke-test-passphrase"
 MIGRATIONS = Path(__file__).resolve().parent.parent / "backend" / "closet" / "migrations"
 BASE_CHECKS = ("webp", "heic", "onnxruntime", "database", "web_page", "drawing", "model_state", "tagger", "updater")

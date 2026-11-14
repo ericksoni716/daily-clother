@@ -267,8 +267,8 @@ def test_the_list_is_newest_first_and_comes_in_pages(client):
 def test_ratings_shape_today_and_wear_again_keeps_the_clean_pieces(client):
     client.post("/api/profile", json={"profile": "demo"})
     listed = client.get("/api/outfits/worn").json()["outfits"]
-    assert len(listed) == 5 and listed[0]["worn_on"] == days_ago(1) and listed[0]["rating"] is None
-    assert sum(o["rating"] is not None for o in listed) == 4
+    assert len(listed) == 16 and listed[0]["worn_on"] == days_ago(1) and listed[0]["rating"] is None
+    assert sum(o["rating"] is not None for o in listed) == 15
     by_name = {i["name"]: i["id"] for i in client.get("/api/items").json()["items"]}
 
     # the loved outfit of six days ago: its pieces are clean, so they come back in their places
@@ -299,7 +299,7 @@ def test_demo_and_main_closets_keep_their_own_worn_outfits(client):
     mine = client.post("/api/outfits/worn", json={"item_ids": [ids["tee"], ids["jeans"]]}).json()
     client.post("/api/profile", json={"profile": "demo"})
     demo_ids = {o["id"] for o in client.get("/api/outfits/worn").json()["outfits"]}
-    assert mine["id"] not in demo_ids and len(demo_ids) == 5
+    assert mine["id"] not in demo_ids and len(demo_ids) == 16
     assert client.put(f"/api/outfits/worn/{mine['id']}/rating", json={"rating": "fine"}).status_code == 404
     client.post("/api/profile", json={"profile": "main"})
     assert [o["id"] for o in client.get("/api/outfits/worn").json()["outfits"]] == [mine["id"]]
@@ -308,7 +308,7 @@ def test_demo_and_main_closets_keep_their_own_worn_outfits(client):
 def test_the_demo_outfits_match_its_wears(client):
     client.post("/api/profile", json={"profile": "demo"})
     for o in client.get("/api/outfits/worn").json()["outfits"]:
-        for pid in [v for k, v in o["pieces"].items() if k != "accessories" and v]:
+        for pid in [v for k, v in o["pieces"].items() if k != "accessories" and v] + o["pieces"]["accessories"]:
             assert o["worn_on"] in [w["worn_on"] for w in client.get(f"/api/items/{pid}/wears").json()["wears"]]
 
 

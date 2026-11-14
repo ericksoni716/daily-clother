@@ -60,7 +60,7 @@ test("insights offline: one closet's saved answer is never shown as the other's"
   await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 15_000 });
   await page.goto('/insights');
   const demoSentence = await page.getByTestId('cost-per-wear').locator('.insights-sentence').innerText();
-  expect(demoSentence).toMatch(/^You paid \$1,527 /);
+  expect(demoSentence).toMatch(/^You paid \$2,859 /);
   await page.waitForLoadState('networkidle');
 
   // the demo closet's answer is shown offline, marked as saved

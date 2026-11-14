@@ -545,7 +545,7 @@ dark mode, so their colours look right.
 
 ## Demo closet
 
-**Show the demo closet** in **Settings → Your closet** opens a sample closet of 30 items so you can try
+**Show the demo closet** in **Settings → Your closet** opens a sample closet of about 40 items (with worn outfits, two wishes with made-up shop finds and a saved trip) so you can try
 everything without your own photos, with a few outfits worn in the last two
 weeks (yesterday's not rated yet, so Today asks about it). It is kept separate from your real closet
 and is never backed up. A slim strip at the top of every screen says you are

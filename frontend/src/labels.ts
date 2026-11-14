@@ -13,6 +13,37 @@ const SPECIAL: Record<string, Record<string, string>> = {
   shoe_height: { low: 'Low', high: 'High' },
 };
 
+/** How an item sits on the outfit figure (Item.as_worn), in short plain words, by part and value. */
+const WORN: Record<string, Record<string, string>> = {
+  fit: {
+    slim: 'slim fit', tailored: 'tailored fit', regular: 'regular fit', relaxed: 'relaxed fit', boxy: 'boxy fit',
+    oversized: 'oversized fit',
+  },
+  length: {
+    waist: 'waist length', hip: 'hip length', below_hip: 'below the hip', thigh: 'thigh length', knee: 'knee length',
+    full: 'full length', ankle: 'ankle length', short: 'above the knee', brief: 'short shorts',
+  },
+  sleeve: {
+    none: 'sleeveless', short: 'short sleeves', elbow: 'elbow sleeves', 'three-quarter': 'three-quarter sleeves',
+    long: 'long sleeves',
+  },
+  leg: {
+    skinny: 'skinny leg', slim: 'slim leg', tapered: 'tapered leg', straight: 'straight leg', relaxed: 'relaxed leg',
+    wide: 'wide leg', bootcut: 'bootcut leg', flare: 'flared leg', barrel: 'barrel leg',
+  },
+};
+
+/** The words for how an item sits ("Relaxed fit", "hip length", "long sleeves"), the first one capitalised, each with
+ * the detail that corrects it. A value without words is left out. */
+export function wornWords(worn: { part: string; value: string; field: string }[] | null | undefined): { text: string; field: string; part: string }[] {
+  return (worn ?? [])
+    .filter((w) => WORN[w.part]?.[w.value])
+    .map((w, i) => {
+      const text = WORN[w.part][w.value];
+      return { text: i ? text : text.charAt(0).toUpperCase() + text.slice(1), field: w.field, part: w.part };
+    });
+}
+
 const PLURAL: Record<string, string> = {
   tee: 'T-shirts', shirt: 'Shirts', polo: 'Polos', sweater: 'Sweaters', hoodie: 'Hoodies', jacket: 'Jackets',
   coat: 'Coats', jeans: 'Jeans', trousers: 'Trousers', shorts: 'Shorts', sneakers: 'Sneakers', boots: 'Boots',

@@ -8,7 +8,7 @@ import pytest
 
 from closet.drawing import item
 from closet.drawing.illustrate import Fill, Spec, render
-from closet.tagger.schema import Details, ItemTags, Silhouette, drawing_for
+from closet.tagger.schema import NAMED_HEX, Details, ItemTags, Silhouette, drawing_for
 
 BACKEND = Path(__file__).resolve().parents[1]
 
@@ -178,13 +178,14 @@ def test_the_bottoms_fields_choose_the_trouser_drawing(category, details, want):
 
 
 @pytest.mark.parametrize("category, kind, want, fabric", [
-    ("trousers", "chinos", {"pockets": "slant", "hem": "plain"}, "twill"),
-    ("trousers", "dress_trousers", {"crease": True, "hem": "plain"}, None),
+    ("trousers", "chinos", {"pockets": "slant", "hem": "plain", "back_pockets": ["welt"]}, "twill"),
+    ("trousers", "dress_trousers", {"crease": True, "hem": "plain", "back_pockets": ["jetted"]}, None),
     ("trousers", "jeans", {"jeans": True}, None),
-    ("trousers", "corduroys", {"pockets": "slant"}, "corduroy"),
-    ("trousers", "fatigues", {"fly": "button"}, "sateen"),
-    ("trousers", "cargo_pants", {"cargo": True}, None),
-    ("trousers", "work_pants", {"panels": ["double_knee"], "extra_pockets": ["hammer", "rule"]}, "canvas"),
+    ("trousers", "corduroys", {"pockets": "slant", "back_pockets": ["welt"]}, "corduroy"),
+    ("trousers", "fatigues", {"fly": "button", "back_pockets": ["flap"]}, "twill"),   # back sateen: a sheen looked glossy
+    ("trousers", "cargo_pants", {"cargo": True, "back_pockets": ["flap"]}, None),
+    ("trousers", "work_pants", {"panels": ["double_knee"], "extra_pockets": ["hammer", "rule"], "back_pockets": ["patch"]},
+     "canvas"),
 ])
 def test_an_everyday_trouser_kind_draws_its_own_look(category, kind, want, fabric):
     tags = ItemTags.model_validate(answer(category, garment=kind))
@@ -193,6 +194,15 @@ def test_an_everyday_trouser_kind_draws_its_own_look(category, kind, want, fabri
     from closet.tagger.taxonomy import surface_extras
     assert extras.get("texture") == (surface_extras({"fabric": fabric})["texture"] if fabric else None)
     assert item.svg_from_answer(answer(category, garment=kind)) != item.svg_from_answer(answer(category))
+
+
+@pytest.mark.parametrize("category, kind, like", [
+    ("trousers", "pajama_set_woven", "lounge_pants"), ("shorts", "pajama_set_knit", "sleep_shorts"),
+    ("trousers", "lounge_knit_set", "joggers"), ("trousers", "lounge_sweatsuit", "sweatpants"),
+    ("shorts", "lounge_sweatsuit", "training_shorts"),
+])
+def test_a_sets_bottom_is_drawn_as_the_bottom_it_is_cut_like(category, kind, like):
+    assert _drawn(answer(category, garment=kind)) == _drawn(answer(category, garment=like))
 
 
 def test_a_told_detail_wins_over_the_kinds_look():
@@ -244,3 +254,29 @@ def test_an_answer_from_before_the_accessory_fields_still_draws():
     del old["details"]["accessory"], old["details"]["accessory_kind"]
     assert ItemTags.model_validate(old).details.accessory == "na"
     assert item.svg_from_answer(old, "#336699") == item.svg_from_answer(POLO, "#336699")
+
+
+def test_a_fair_isle_sweater_is_drawn_in_its_other_colours_and_its_pattern_is_not_listed_as_missing():
+    # #182: colourwork knits are drawn from their tags, in the other colours seen
+    sweater = {**answer("sweater", {"sleeve": "long"}, neckline="crew", cuff="rib_knit", hem="ribbed_band",
+                        fabric="fair_isle"), "pattern": "other", "secondary_colors": ["navy", "red"]}
+    out = item.drawing_from_answer(sweater, "#d9cbb0")
+    assert "#27344f" in out.svg and "#b8332e" in out.svg
+    assert not any("pattern" in n for n in out.not_drawn)
+    told = {**sweater, "details": {**sweater["details"], "fabric": "unknown", "pattern_name": "nordic"}}
+    assert drawing_for(ItemTags.model_validate(told))[2]["colorwork"] == "nordic"
+    striped = {**sweater, "pattern": "stripe"}   # a stripe is not what the colourwork draws
+    assert any("stripes" in n for n in item.drawing_from_answer(striped, "#d9cbb0").not_drawn)
+
+
+def test_a_kind_of_top_told_alone_is_drawn_with_its_look():
+    # #182: a hockey jersey's stripes in the other colour seen, its long sleeves; a smoking jacket's shawl collar
+    hockey = {**answer("tee", {}, garment="hockey_jersey"), "secondary_colors": ["white"]}
+    template, p, extras, _ = drawing_for(ItemTags.model_validate(hockey))
+    assert p["stripes"] == "hoops" and p["sleeve"] == "long" and extras["trim_color"] == NAMED_HEX["white"]
+    assert NAMED_HEX["white"] in item.drawing_from_answer(hockey, "#27344f").svg
+    smoking = answer("jacket", {}, garment="smoking_jacket")
+    _, p, extras, _ = drawing_for(ItemTags.model_validate(smoking))
+    assert p["collar"] == "shawl" and p["belt"] == "sash" and extras["texture"] == "velvet"
+    told = answer("jacket", {}, garment="smoking_jacket", collar="peak_lapel")
+    assert drawing_for(ItemTags.model_validate(told))[1]["collar"] == "peak"

@@ -157,6 +157,19 @@ def make(row, extra: dict | None = None) -> draw.Drawing:
         return draw.Drawing(None, (draw.NOT_MADE,))
 
 
+def back(row) -> str | None:
+    """The item page's small drawing of a pair of trousers or shorts from behind, made from the same answer and
+    fill as its drawing; None when nothing on its back is known (or with no answer to draw it from). Never raises."""
+    try:
+        piece = describe(row)
+        if piece.answer is None:
+            return None
+        return draw.back_from_answer(piece.answer, piece.color_hex, uid=row["id"][:8] + "b", fill=piece.fill)
+    except Exception:
+        log.exception("could not draw the back of an item")
+        return None
+
+
 def _store(conn, item_id: str, made: draw.Drawing) -> None:
     conn.execute("UPDATE items SET illustration_svg = ?, illustration_version = ?, illustration_notes = ? WHERE id = ?",
                  (made.svg, drawing.DRAWING_VERSION, json.dumps(list(made.not_drawn)) if made.not_drawn else None, item_id))

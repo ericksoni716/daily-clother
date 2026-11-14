@@ -90,6 +90,25 @@ test('item detail: switch pictures, change a chip, it persists', async ({ page }
   await expect(page.getByLabel('Why? (optional)')).toHaveValue('Warmest shirt I own');
 });
 
+test('trousers: the drawing comes with a small one from the back', async ({ page }) => {
+  await login(page);
+  await useProfile(page, 'demo');
+  await page.getByTestId('tile').filter({ hasText: 'Black jeans' }).click();
+  const panel = page.locator('.detail-panel');
+  await expect(panel.getByRole('img', { name: 'Black jeans, drawing', exact: true })).toBeVisible();   // no photo: the drawing
+  const back = panel.getByRole('img', { name: 'Black jeans, drawing from the back' });
+  await expect(back).toBeVisible();
+  await expect(panel.getByText('From the back')).toBeVisible();
+  const svg = await page.request.get((await back.getAttribute('src'))!);
+  expect(svg.ok() && (await svg.text()).startsWith('<svg')).toBe(true);
+
+  // a top has none
+  await page.getByTestId('tile').filter({ hasText: 'Plaid flannel shirt' }).click();
+  await panel.getByRole('group', { name: 'Picture' }).getByRole('button', { name: 'Drawing' }).click();
+  await expect(panel.getByRole('img', { name: 'Plaid flannel shirt, drawing', exact: true })).toBeVisible();
+  await expect(panel.getByText('From the back')).toHaveCount(0);
+});
+
 test('a rejected change is undone and the server message shown', async ({ page }) => {
   await login(page);
   await useProfile(page, 'demo');

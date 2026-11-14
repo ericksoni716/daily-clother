@@ -116,6 +116,8 @@ export interface Item extends ItemSummary {
   /** How it sits on the outfit figure (its fit, length, sleeves or leg), each with the detail that corrects it;
    * what was not told is left out. */
   as_worn?: WornPart[];
+  /** Trousers and shorts: a small drawing from behind (back pockets, yoke, label), or null when nothing on the back is known. */
+  back_url?: string | null;
   /** Who set each field: 'user' for the owner, 'ai' for a suggestion. */
   source: Record<string, string>;
   confidence: Record<string, number>;

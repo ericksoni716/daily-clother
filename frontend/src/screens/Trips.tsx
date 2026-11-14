@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError, connection } from '../api';
 import { ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
+import { OutfitFigure } from '../components/OutfitFigure';
 import { Card, EmptyState, PageHeader, SegmentedControl } from '../components/ui';
 import { loadGridView, type GridView } from '../drawing';
+import { useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
 import { SaveLine, useWhenLeaving } from '../leave';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
-import { longDate, occasionLabel, OCCASIONS, placeLabel, shortPlace, wornOrder, type Outfit } from '../today';
+import { joinWords, longDate, occasionLabel, OCCASIONS, outfitIds, placeLabel, shortPlace, wornOrder, type Outfit } from '../today';
 import {
   addDays, basicLine, checkDates, dateRange, dayCount, dayRain, dayTemps, fitLaundry, groupPacked, itemLine, laundryDays,
   laundryEvery, laundryMode, laundryWords, progress, shortDay, sourceRuns, startLaundry, tripDays, loadSavedTrips, saveTrips,
@@ -630,6 +632,7 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
   trip: PlannedTrip; byId: Map<string, ItemSummary>; changes: Changes; asking: boolean; ticks?: Ticks;
 }) {
   const view = useMemo<GridView>(loadGridView, []);
+  const [shown, setShown] = useTodayView();
   const plan = trip.plan;
   const [menuFor, setMenuFor] = useState<string | null>(null);
   const packedIds = new Set(plan.packed.map((x) => x.id));
@@ -755,9 +758,14 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
         </section>
 
         <section className="trip-days" aria-labelledby="days-title">
-          <h2 id="days-title">Day by day</h2>
+          <div className="trip-days-head">
+            <h2 id="days-title">Day by day</h2>
+            {plan.days.some((d) => d.outfit) && (
+              <SegmentedControl label="Show each day's outfit" small className="today-view" value={shown} options={VIEW_OPTIONS} onChange={setShown} />
+            )}
+          </div>
           <ol className="trip-day-list">
-            {plan.days.map((d) => <DayCard key={d.date} day={d} tripOccasion={trip.occasion} byId={byId} view={view} />)}
+            {plan.days.map((d) => <DayCard key={d.date} day={d} tripOccasion={trip.occasion} byId={byId} view={view} shown={shown} />)}
           </ol>
         </section>
       </div>
@@ -827,8 +835,8 @@ function WeatherStrip({ days }: { days: TripDay[] }) {
   );
 }
 
-function DayCard({ day, tripOccasion, byId, view }: {
-  day: PlannedTrip['plan']['days'][number]; tripOccasion: string; byId: Map<string, ItemSummary>; view: GridView;
+function DayCard({ day, tripOccasion, byId, view, shown }: {
+  day: PlannedTrip['plan']['days'][number]; tripOccasion: string; byId: Map<string, ItemSummary>; view: GridView; shown: TodayView;
 }) {
   const o: Outfit | null = day.outfit;
   return (
@@ -843,19 +851,25 @@ function DayCard({ day, tripOccasion, byId, view }: {
       {day.warning && !o?.warnings.includes(day.warning) && <p className="trip-day-problem"><WarnIcon className="inline-icon" /> {day.warning}</p>}
       {o && (
         <>
-          <ul className="trip-day-pieces" aria-label={`What to wear on ${longDate(day.date)}`}>
-            {wornOrder(o.pieces).map((p) => {
-              const item = byId.get(p.id);
-              return (
-                <li key={p.id} title={`${placeLabel(p.place)}: ${itemName(item)}`}>
-                  <span className="trip-day-pic">{item ? <TilePicture item={item} view={view} /> : <span className="pic-placeholder"><HangerIcon /></span>}</span>
-                  <span className="trip-day-name">
-                    {itemName(item)}{item?.status === 'archived' ? ' · Archived' : !item ? ' · No longer in your closet' : ''}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+          {shown === 'worn' ? (
+            <OutfitFigure pieces={o.pieces}
+              alt={`What to wear on ${longDate(day.date)}, as worn: ${joinWords(wornOrder(o.pieces).map((p) => itemName(byId.get(p.id))))}`}
+              version={outfitIds(o.pieces).map((id) => byId.get(id)?.illustration_url ?? '').join(' ')} />
+          ) : (
+            <ul className="trip-day-pieces" aria-label={`What to wear on ${longDate(day.date)}`}>
+              {wornOrder(o.pieces).map((p) => {
+                const item = byId.get(p.id);
+                return (
+                  <li key={p.id} title={`${placeLabel(p.place)}: ${itemName(item)}`}>
+                    <span className="trip-day-pic">{item ? <TilePicture item={item} view={view} /> : <span className="pic-placeholder"><HangerIcon /></span>}</span>
+                    <span className="trip-day-name">
+                      {itemName(item)}{item?.status === 'archived' ? ' · Archived' : !item ? ' · No longer in your closet' : ''}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
           {o.warnings.length > 0 && <ul className="trip-day-warnings">{o.warnings.map((w) => <li key={w}>{w}</li>)}</ul>}
           {o.reasons.length > 0 && (
             <details className="trip-day-why">

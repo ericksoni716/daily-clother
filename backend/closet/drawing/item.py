@@ -95,6 +95,25 @@ def drawing_from_answer(answer, color_hex: str | None = None, *, uid: str = "a",
         return Drawing(None, _notes(notes + [NOT_MADE]))
 
 
+def back_from_answer(answer, color_hex: str | None = None, *, uid: str = "b", fill: Fill | None = None) -> str | None:
+    """The small drawing of a pair of trousers or shorts from behind, for the item page only: the same outline as
+    the drawing, with the back pockets, yoke, label, darts, V loop and honeycombs that the front cannot show. None
+    when the item is not a bottom or nothing on its back is known (a plain pull-on), and when it cannot be drawn."""
+    try:
+        tags = _tags(answer)
+        if tags is None or tags.category not in BOTTOMS:
+            return None
+        template, params, extras, _ = drawing_for(tags)
+        if not (params.get("jeans") or params.get("back_pockets") or params.get("back")
+                or "honeycombs" in (params.get("fades") or ())):
+            return None
+        return render(Spec(template, {**params, "view": "back"}, fill or Fill("solid", _color(color_hex, tags.color)),
+                           **extras), STYLE, uid=_uid(uid))
+    except Exception:   # never raise: the item page opens without its back view
+        log.exception("could not draw the back of an item")
+        return None
+
+
 def drawing_from_fields(category, color_hex: str | None = None, pattern=None, silhouette=None, *,
                         color: str | None = None, uid: str = "a", fill: Fill | None = None,
                         graphic: Graphic | None = None) -> Drawing:
@@ -218,7 +237,8 @@ def _draw(tags: ItemTags, hex_: str, uid: str, notes: list[str], fill: Fill | No
         template, params, extras, approximated = drawing_for(tags)
         svg = render(Spec(template, params, Fill("solid", hex_), **extras), STYLE, uid=uid)
         notes.extend(approximated)
-        return svg, False
+        # a colourwork knit's pattern (Fair Isle, argyle...) is drawn from its tags, in the other colours seen
+        return svg, bool(extras.get("colorwork")) and tags.pattern in ("other", "graphic", "plaid")
     except Exception:
         log.exception("drawing a %s failed; drawing the plainest %s instead", tags.category, tags.category)
         notes.append(FELL_BACK)

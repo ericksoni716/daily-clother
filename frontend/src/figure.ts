@@ -29,7 +29,12 @@ export function svgSource(svg: string): string {
 
 export type TodayView = 'pieces' | 'worn';
 
-/** Where this device remembers whether Today lays the pieces out or shows the outfit as worn. */
+/** The switch's two choices, the same wherever outfits are shown (Today, a trip's days). */
+export const VIEW_OPTIONS: readonly { value: TodayView; label: string }[] = [
+  { value: 'pieces', label: 'Pieces' }, { value: 'worn', label: 'As worn' },
+];
+
+/** Where this device remembers whether outfits (on Today and a trip's days) are laid out as pieces or shown as worn. */
 export const TODAY_VIEW_KEY = 'closet.todayView';
 
 export function loadTodayView(): TodayView {
@@ -60,7 +65,7 @@ function subscribe(l: () => void) {
   };
 }
 
-/** The choice, shared by every outfit card on the screen: switching one switches them all. */
+/** The choice, shared by every outfit on Today and on a trip: switching one switches them all. */
 export function useTodayView(): [TodayView, (view: TodayView) => void] {
   const view = useSyncExternalStore(subscribe, () => (current ??= loadTodayView()));
   return [view, saveTodayView];

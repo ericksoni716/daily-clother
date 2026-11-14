@@ -90,12 +90,14 @@ piece at once (**Undo** takes it back). The **⋯** on a piece leaves it out
 piece**); tap a piece to open it. **As worn**, above the pieces, draws the
 outfit as it is worn instead (the shirt under the open jacket, the trousers
 below, the shoes at the bottom); **Pieces** goes back, and your choice is
-remembered on that device. With no place saved, type today's low and
-high temperatures there instead. Offline, Today shows the outfits it last
-found that day.
+remembered on that device. Today uses the forecast for New York until you
+choose your place: tap **Change** beside the weather to search for it or tap
+**Use my location**, or to type today's low and high temperatures yourself.
+When the weather cannot be fetched, Today still dresses you, for a mild day,
+and says so. Offline, Today shows the outfits it last found that day.
 
 Closet remembers what you wore together. The morning after, Today asks **How
-was yesterday's outfit?** under the outfits: tap **Loved it**, **Fine** or
+was yesterday's outfit?** above the outfits: tap **Loved it**, **Fine** or
 **Not again**, and if you like say why (**Too warm**, **Too cold**, **Too
 dressed up**, **Got compliments** and a few more); **Not now** puts the
 question away. Your answers shape what Today offers: pieces you loved together
@@ -103,11 +105,11 @@ come up together a little more, an outfit you said **Not again** to is not
 offered again, and if you were cold on a day like today you are dressed a
 little warmer. The outfit says when a rating played a part ("You loved these
 together on 3 November"). **Worn** at the top of Today lists the outfits you
-wore, newest first: rate one or change its rating, **Wear this again** (Today
-starts from it, with what is clean), **Remove** it (the wears it recorded go
-too), or **Record an outfit** for a day you got dressed without Closet. Offline,
-the list shows what it last saw, and rating waits until Closet on your computer
-can be reached.
+wore, newest first: rate one, or tap its rating to change it; under **⋯** are
+**Wear this again** (Today starts from it, with what is clean) and **Remove**
+(the wears it recorded go too). **Record an outfit** is for a day you got
+dressed without Closet. Offline, the list shows what it last saw, and rating
+waits until Closet on your computer can be reached.
 
 **What's missing** (**Missing** in the bar at the bottom of a phone) looks at
 your closet and what you wear and suggests what to buy, the most helpful
@@ -362,10 +364,15 @@ checks the file and starts using it. The address can be changed in Settings.
 
 ### Where you are
 
-In **Settings → Where you are**, search for your town or city and choose it
-from the list, so Closet can look up today's weather when it suggests outfits.
-Only the name you search for and the chosen place's location are sent, to the
-free weather service Open-Meteo; nothing about your clothes is.
+Closet uses New York's weather until you choose your place. In **Settings →
+Where you are** (or **Change** on Today), search for your town or city and
+choose it from the list, or tap **Use my location**. Only the name you search
+for and the chosen place's location are sent, to the free weather service
+Open-Meteo; nothing about your clothes is. **Use my location** asks your
+browser where you are only when you tap it, and sends that position, rounded
+to about a kilometre, to OpenStreetMap to find the town's name. On the phone
+over Tailscale the browser may not share its position (the address is not
+https); search by name there instead. **Back to New York** forgets your place.
 After you answer **How you live**, the same place is also used for long-term
 weather on What's missing. That lookup sends only the coordinates and keeps
 the result for six months. Your life answers and style words stay on your
@@ -402,4 +409,4 @@ save your answers.
 
 ## Planning a trip
 
-Open **Trips** (in the sidebar; on the phone, the "Trips" link on Today or in Settings) and choose **Plan a trip**. Search for where you are going, pick the first and last day (up to 30 days), the occasion, and whether you can wash there. Closet shows the weather (the forecast, or what those dates are usually like), what to pack with how many days each piece is worn, basics like socks, and an outfit for each day. Use "Not this one" to swap a piece out and "Take something else" to insist on one. Save the trip, then tick things off as you pack, on the computer or the phone.
+Open **Trips** (in the sidebar; on the phone, the **Trips** button at the top of Today or in Settings) and choose **Plan a trip**. Search for where you are going, pick the first and last day (up to 30 days), the occasion, and whether you can wash there. Closet shows the weather (the forecast, or what those dates are usually like), what to pack with how many days each piece is worn, basics like socks, and an outfit for each day. Use "Not this one" to swap a piece out and "Take something else" to insist on one. Save the trip, then tick things off as you pack, on the computer or the phone.

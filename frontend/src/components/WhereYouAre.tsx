@@ -73,7 +73,7 @@ export function WhereYouAre({ place, home, offline, onChange, toast, inline }: {
   let saved: ReactNode;
   if (offline) saved = <p className="hint">Where you are can't be seen or changed while you're offline.</p>;
   else if (place === undefined) saved = null;
-  else if (place === null) saved = <p className="hint">No place saved yet. Until you choose one, today's outfits need the day's temperatures given by hand.</p>;
+  else if (place === null) saved = <p className="hint">No place saved yet, so Closet uses New York.</p>;
   else {
     const isHome = samePlace(place, home);
     saved = (

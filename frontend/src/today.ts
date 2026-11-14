@@ -142,8 +142,8 @@ export function tempRange(low: number, high: number): string {
  * forecast, "your temperatures" when they were typed in, or "a mild day" when no forecast could be had.
  */
 export function dayParts(c: DayContext): string[] {
-  const chance = c.rain_chance === null || c.rain_chance === undefined ? '' : ` (${c.rain_chance}%)`;
-  const parts = [tempRange(c.low_c, c.high_c), c.rain ? `rain likely${chance}` : 'no rain'];
+  const known = c.rain_chance !== null && c.rain_chance !== undefined;
+  const parts = [tempRange(c.low_c, c.high_c), c.rain ? (known ? `rain ${c.rain_chance}%` : 'rain likely') : 'no rain'];
   if (c.source === 'mild') parts.push('a mild day');
   else if (c.place) parts.push(shortPlace(c.place));
   else if (c.source === 'given') parts.push('your temperatures');

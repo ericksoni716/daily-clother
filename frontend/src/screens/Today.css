@@ -1,11 +1,17 @@
 /* The Today screen. Uses the tokens and shared classes in styles.css; only what is new to this screen is here. */
 
 .today { max-width: 72rem; min-width: 0; }
-.today-header { margin-bottom: var(--space-2); flex-wrap: nowrap; }
+.page-header.today-header { margin-bottom: var(--space-2); flex-wrap: nowrap; }
 .today-header .page-title-row { min-width: 0; flex-wrap: wrap; column-gap: var(--space-2); }
 .today-links { display: flex; gap: var(--space-2); flex: none; }
 .today-links .btn { padding: 0 var(--space-3); gap: 6px; }
 .today-links .btn svg { width: 18px; height: 18px; color: var(--ink-3); }
+/* on a phone the date goes under the title, so Worn and Trips fit beside it */
+@media (max-width: 599px) {
+  .today-header .page-title-row { flex-direction: column; align-items: flex-start; gap: 0; }
+  .today-day-line, .today-day-change .btn-link { font-size: var(--text-sm); }
+  .today-outfits-head h2 { font-size: var(--text-sm); }
+}
 .today-item { max-width: 40rem; margin: 0 auto; }
 .today-panel-top { margin: -6px 0 6px -8px; }
 .inline-icon { width: 1.15em; height: 1.15em; vertical-align: -0.25em; }
@@ -16,7 +22,7 @@
   margin: 0; min-height: var(--tap); display: flex; flex-wrap: wrap; align-items: center; row-gap: 0;
   font-size: var(--text-md); font-weight: var(--weight-label);
 }
-.today-day-line > span + span::before { content: '·'; color: var(--ink-3); padding: 0 0.5em; font-weight: var(--weight-body); }
+.today-day-line > span + span::before { content: '·'; color: var(--ink-3); padding: 0 0.4em; font-weight: var(--weight-body); }
 .today-day-change .btn-link { min-height: var(--tap); padding: 0 4px; font-size: var(--text-md); }
 .today-day-old { margin: 0 0 var(--space-2); color: var(--warn); font-size: var(--text-sm); }
 
@@ -34,7 +40,7 @@
 .today-day-panel .hint .btn-link { padding: 0; min-height: 0; }
 
 /* occasion and mood: one row of chips that scrolls sideways on a phone */
-.today-choices { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-4); min-width: 0; }
+.chips-scroll.today-choices { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); min-width: 0; }
 .today-choice { display: flex; gap: var(--space-2); flex: none; }
 .today-choices-sep { flex: none; width: 1px; height: 24px; background: var(--line); margin: 0 var(--space-1); }
 @media (min-width: 1000px) {
@@ -95,7 +101,7 @@
 
 /* "I'm wearing this", straight under the pieces */
 .today-wear { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
-.today-wear-button { min-height: 52px; font-size: var(--text-md); }
+.today-wear-button { font-size: var(--text-md); }
 .today-worn {
   flex: 1; min-width: 12rem; display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 12px; min-height: var(--tap);
   border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent); font-weight: var(--weight-heading);
@@ -125,6 +131,14 @@
   .today-wear { grid-area: wear; align-self: start; }
   .today-card-why { grid-area: why; }
   .today-pieces { grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 18px 12px; }
+}
+/* Narrow card (a phone): square pictures and the name only (the place is still read out), so the button stays on the first screen. */
+@container (max-width: 639px) {
+  .today-piece-card { aspect-ratio: 1; }
+  .today-piece-place {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+  .today-piece-name { margin-top: 4px; }
 }
 
 /* the way to the other outfits: clear arrows either side of the dots */

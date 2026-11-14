@@ -65,7 +65,8 @@ describe('the pieces of an outfit', () => {
 
 describe('the day at a glance', () => {
   it('gives the temperatures, the rain and where the day came from, in one short line', () => {
-    expect(dayParts(day())).toEqual(['3–10°C', 'rain likely (70%)', 'Brooklyn']);
+    expect(dayParts(day())).toEqual(['3–10°C', 'rain 70%', 'Brooklyn']);
+    expect(dayParts(day({ rain_chance: null }))).toEqual(['3–10°C', 'rain likely', 'Brooklyn']);
     expect(dayParts(day({ place: null, source: 'given', rain: false, rain_chance: null })))
       .toEqual(['3–10°C', 'no rain', 'your temperatures']);
     expect(dayParts(day({ low_c: 21.6, high_c: 22.4, rain: false, rain_chance: 10 }))).toEqual(['About 22°C', 'no rain', 'Brooklyn']);

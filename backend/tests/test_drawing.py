@@ -68,7 +68,7 @@ def test_coarse_fields_use_the_colour_word_when_there_is_no_hex():
     assert item.svg_from_fields("tee", None, None, None) == expected(answer("tee"), item.DEFAULT_HEX)
 
 
-@pytest.mark.parametrize("category", ["bag", "belt", "hat", "scarf", "other", "spacesuit", None, 3, ["tee"]])
+@pytest.mark.parametrize("category", ["other", "spacesuit", None, 3, ["tee"]])
 def test_nothing_to_draw_gives_none(category):
     assert item.svg_from_fields(category, "#000000") is None
     assert item.svg_from_answer({**POLO, "category": category}) is None
@@ -123,3 +123,33 @@ def test_importing_the_drawing_code_does_not_import_opencv():
             "print('cv2' in sys.modules)")
     out = subprocess.run([sys.executable, "-c", code], cwd=BACKEND, capture_output=True, text=True, check=True)
     assert out.stdout.strip() == "False"
+
+
+@pytest.mark.parametrize("category, accessory, kind, template", [
+    ("bag", "bag", "daypack", "bag"), ("belt", "belt", "western", "belt"), ("hat", "cap", "trucker_cap", "cap"),
+    ("hat", "beanie", "fisherman_beanie", "beanie"), ("hat", "brimmed_hat", "panama", "brimmed_hat"),
+    ("scarf", "scarf", "bandana", "scarf"), ("other", "tie", "bow_tie", "accessory"), ("other", "socks", "na", "accessory")])
+def test_accessories_are_drawn_by_their_own_template_from_the_taxonomy_id_and_kind(category, accessory, kind, template):
+    tags = ItemTags.model_validate({**POLO, "category": category,
+                                    "details": {**POLO["details"], "accessory": accessory, "accessory_kind": kind}})
+    assert drawing_for(tags)[0] == template
+    out = item.drawing_from_answer(tags.model_dump(mode="json"), "#7a5a3a")
+    assert out.svg and out.svg != item.svg_from_answer(POLO, "#7a5a3a")
+
+
+def test_an_accessorys_kind_changes_its_drawing_and_without_one_it_says_so():
+    bag = {**POLO, "category": "bag", "details": {**POLO["details"], "accessory": "bag"}}
+    kinds = {k: item.svg_from_answer({**bag, "details": {**bag["details"], "accessory_kind": k}}, "#333333")
+             for k in ("tote", "daypack", "briefcase")}
+    assert len(set(kinds.values())) == 3
+    plain = item.drawing_from_fields("bag", "#333333")
+    assert plain.svg and any("tote" in n for n in plain.not_drawn)
+    for category in ("belt", "hat", "scarf"):
+        assert item.svg_from_fields(category, "#333333") not in (None, item.svg_from_fields("tee", "#333333"))
+
+
+def test_an_answer_from_before_the_accessory_fields_still_draws():
+    old = json.loads(json.dumps(POLO))
+    del old["details"]["accessory"], old["details"]["accessory_kind"]
+    assert ItemTags.model_validate(old).details.accessory == "na"
+    assert item.svg_from_answer(old, "#336699") == item.svg_from_answer(POLO, "#336699")

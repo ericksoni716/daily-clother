@@ -1,12 +1,18 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { figurePieces, loadTodayView, saveTodayView, svgSource, TODAY_VIEW_KEY } from './figure';
+import { figurePieces, loadTodayView, MAX_ACCESSORIES, saveTodayView, svgSource, TODAY_VIEW_KEY } from './figure';
 
 describe('the outfit as worn', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('asks for every place but the accessories, missing ones as null', () => {
-    expect(figurePieces({ base: 'a', mid: null, outer: 'c', bottom: 'd', shoes: 'e', accessories: ['f'] }))
-      .toEqual({ base: 'a', mid: null, outer: 'c', bottom: 'd', shoes: 'e' });
+  it('asks for every place and the accessories, missing ones as null', () => {
+    expect(figurePieces({ base: 'a', mid: null, outer: 'c', bottom: 'd', shoes: 'e', accessories: ['f', 'g'] }))
+      .toEqual({ base: 'a', mid: null, outer: 'c', bottom: 'd', shoes: 'e', accessories: ['f', 'g'] });
+  });
+
+  it('asks for at most as many accessories as the server takes', () => {
+    const many = Array.from({ length: 12 }, (_, i) => `x${i}`);
+    expect(figurePieces({ base: 'a', mid: '', outer: '', bottom: '', shoes: '', accessories: many }).accessories)
+      .toHaveLength(MAX_ACCESSORIES);
   });
 
   it('shows the drawing through an image source, never as markup on the page', () => {

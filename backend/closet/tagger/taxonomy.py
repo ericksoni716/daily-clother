@@ -136,18 +136,22 @@ FOOTWEAR: dict[str, tuple[str, dict, str, str]] = {
     "retro_runner": ("runner", {"kind": "retro_runner"}, "drawn", "a runner with a suede toe and side overlays"),
     "running_shoe": ("runner", {}, "drawn", "a runner"),
     "trail_runner": ("runner", {"tread": "lug"}, "drawn", "a runner on a lugged sole (a toggle lace when the lacing says so)"),
-    "trainer": ("runner", {}, "approximate", "drawn as a running shoe"),
+    "trainer": ("runner", {"kind": "trainer", "upper": "knit_mesh"}, "drawn",
+                "a runner on a flat, stable sole, a mesh upper and a saddle overlay holding the midfoot"),
     "canvas_slip_on": ("slip_on", {}, "drawn", "a laceless canvas shoe"),
     "cleats": ("low_sneaker", {"tread": "cleats"}, "drawn", "studs under the sole"),
     "chunky_sneaker": ("runner", {"sole": "chunky"}, "drawn", "a runner on a chunky sole"),
     "boat_shoe": ("loafer", {"strap": "none", "lace_collar": True, "tread": "siped"}, "drawn", "a rawhide lace round the collar, tied at the side, on a white sole"),
-    "camp_moc": ("loafer", {"strap": "none", "lace_collar": True, "tread": "siped"}, "approximate", "drawn as a boat shoe"),
+    "camp_moc": ("loafer", {"strap": "none", "lace_collar": True, "tread": "lug"}, "drawn",
+                 "a boat shoe's lace round the collar and two eyelets, on a lug sole"),
     "espadrille": ("slip_on", {"tread": "jute", "foxing": False}, "drawn", "a slip-on on a braided rope sole"),
     "sandal": ("sandal", {"sandal": "two_strap"}, "drawn", "two buckled straps over a footbed"),
     "slide": ("sandal", {"sandal": "slide"}, "drawn", "one wide strap over a footbed"),
     "flip_flop": ("sandal", {"sandal": "thong"}, "drawn", "a thin strap from a post between the toes, back over the foot"),
-    "moccasin_slipper": ("slip_on", {"moc": True, "collar_pad": True, "foxing": False}, "approximate", "a moc seam and a soft collar; no fleece texture"),
-    "velvet_slipper": ("loafer", {"strap": "none"}, "approximate", "a plain loafer; no velvet nap"),
+    "moccasin_slipper": ("slip_on", {"moc": True, "lining": "shearling", "foxing": False, "upper": "suede"}, "drawn",
+                         "a suede slip-on with a moc seam and a fleece lining turned over the collar"),
+    "velvet_slipper": ("loafer", {"strap": "none", "moc": False, "upper": "velvet"}, "drawn",
+                       "a plain-vamp slipper in velvet with its sheen (an embroidered crest is not drawn)"),
     "felt_clog": ("slip_on", {"backless": True, "foxing": False}, "drawn", "open at the back above the heel"),
 }
 # the footwear block's toe treatments and lacings, in its order, and what the drawing makes of each
@@ -253,7 +257,7 @@ FOOTWEAR_SOLE = {
     "eva_foam_midsole": ({"tread": "eva"}, "drawn", "a deeper foam midsole over a thin, darker rubber outsole"),
     "siped_deck": ({"tread": "siped"}, "drawn", "a thin white sole"), "cleats": ({"tread": "cleats"}, "drawn", "studs under the sole"),
     "jute_rope": ({"tread": "jute"}, "drawn", "a braided rope sole"),
-    "cork_footbed": ({}, "drawn", "a sandal's cork footbed"),
+    "cork_footbed": ({"cork": True}, "drawn", "a sandal's cork footbed, its grain flecked through the side"),
     "molded_slide": ({"molded": True}, "drawn", "one moulded piece in the slide's colour: a deeper footbed, no outsole"),
 }
 FOOTWEAR_HEEL = {
@@ -1209,12 +1213,15 @@ COVERAGE["eyelets_typical"] = {k: (D, "the eyelets counted on one side; the usua
 COVERAGE["laces"] = {v: (status, note) for v, (_, status, note) in FOOTWEAR_LACES.items()}
 COVERAGE["construction"] = {v: (status, note) for v, (_, status, note) in FOOTWEAR_CONSTRUCTION.items()}
 COVERAGE["upper_material"] = {v: (status, note) for v, (_, _, status, note) in FOOTWEAR_UPPER.items()}
-COVERAGE["leather_colorways"] = {v: (A_, "drawn in the item's colour") for v in (
-    "black", "dark_brown", "mid_brown", "tan", "cognac", "oxblood", "walnut", "snuff_suede", "sand_suede", "navy_suede",
-    "grey_suede")}
-COVERAGE["sneaker_colorways"] = {v: (A_, "drawn in the item's colour") for v in (
-    "white", "off_white", "black", "grey", "navy", "multi")}
-COVERAGE["sneaker_colorways"]["cream_gum_sole"] = (A_, "the item's colour, with a gum sole when the sole colour says so")
+# a colourway is the shoe's colour, and the drawing paints the colour measured from the photo
+COVERAGE["leather_colorways"] = {v: (D, "the shoe drawn in its measured colour") for v in (
+    "black", "dark_brown", "mid_brown", "tan", "cognac", "oxblood", "walnut")}
+COVERAGE["leather_colorways"].update({v: (D, "the measured colour, with the suede's nap when the upper is tagged suede")
+                                      for v in ("snuff_suede", "sand_suede", "navy_suede", "grey_suede")})
+COVERAGE["sneaker_colorways"] = {v: (D, "the shoe drawn in its measured colour") for v in (
+    "white", "off_white", "black", "grey", "navy")}
+COVERAGE["sneaker_colorways"]["cream_gum_sole"] = (D, "the measured colour, on a gum sole in the sole's measured colour")
+COVERAGE["sneaker_colorways"]["multi"] = (A_, "the main colour, and a second one on the trim when measured: not every colour")
 for _key in BOTTOM_DRAWING:
     COVERAGE["trouser_pockets" if _key == "pockets" else _key] = {
         v: (status, note) for v, (_, status, note) in BOTTOM_DRAWING[_key].items()}

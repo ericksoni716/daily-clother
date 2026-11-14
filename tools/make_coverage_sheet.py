@@ -2,8 +2,9 @@
 
     python tools/make_coverage_sheet.py GROUP [OUT.svg] [--png OUT.png]
 
-GROUP is one of tops, trousers, jackets, shoes, shoes-uppers, shoes-laces, shoes-soles, shoes-kinds, rest. Each cell is an item drawn the way the app draws it (from a
-tagger answer, in the owner's style), at two sizes: the closet grid's and the item page's. The same command run on an
+GROUP is one of tops, trousers, jackets, shoes, shoes-uppers, shoes-laces, shoes-soles, shoes-kinds, rest. Each cell
+is an item drawn the way the app draws it (from a tagger answer, in the owner's style), at two sizes: the closet grid's
+and the item page's. The same command run on an
 older checkout of the code gives the "before" sheet. With `--png` the sheet is also turned into a picture by a Chrome
 or Chromium found on this computer.
 """
@@ -123,6 +124,7 @@ CASES: dict[str, list[tuple[str, str, str, dict, dict]]] = {
         ("city rubber sole", "dress_shoes", "#5a3a26", dict(shoe_style="derby", sole="rubber_city"), {}),
         ("studded rubber sole", "dress_shoes", "#5a3a26", dict(shoe_style="derby", sole="studded_rubber"), {}),
         ("foam midsole", "sneakers", "#5a6470", dict(shoe_style="low_sneaker", sole="eva_foam_midsole"), {}),
+        ("cork footbed", "sandals", "#5a3a26", dict(footwear="sandal", sole="cork_footbed"), {}),
         ("molded slide", "sandals", "#1d1e22", dict(footwear="slide", sole="molded_slide"), {}),
         ("goodyear welt", "boots", "#6b4a2f", dict(footwear="service_boot", shoe_construction="goodyear_welt"), {}),
         ("storm welt", "boots", "#6b4a2f", dict(footwear="service_boot", shoe_construction="storm_welt"), {}),

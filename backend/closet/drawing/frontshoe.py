@@ -26,6 +26,7 @@ LOOK = 24.0            # degrees the viewer looks down at the shoes from
 TURN = 11.0            # degrees each toe is turned out
 METAL = "#c9a85c"
 TEXTURE_SCALE = 0.4    # an upper's surface (pebble grain, suede ...) at the figure's scale: a shoe here is a few cm wide
+SHEARLING = "#ece2cc"   # a slipper's fleece lining
 LINING = "#3a342e"     # the inside of a shoe: a dark warm grey, a little of the shoe's colour in it
 ANKLE_CM = 13.0        # the wearer's ankle: where it is drawn up to above the sole, in a low shoe or a sandal ...
 ANKLE_OVER_CM = 3.0    # ... and above the top of a boot's shaft
@@ -323,7 +324,7 @@ def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid
     """The way in: the collar of a low shoe, or the top of a boot's shaft, with the dark lining inside; and the
     wearer's ankle standing in it when asked for, up to where the leg drawn above it takes over."""
     out = []
-    lining = _mix(base, LINING, 0.82)
+    lining = SHEARLING if p.get("lining") == "shearling" else _mix(base, LINING, 0.82)
     if shaft:
         rim = [view(4.7 * math.cos(2 * math.pi * k / 32) * 0.9, 0.2 + 5.2 * 0.9 * math.sin(2 * math.pi * k / 32) / LENGTH,
                     shaft) for k in range(32)]
@@ -336,6 +337,9 @@ def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid
             h = sole_t + _interp(table, 0.04) - 0.5 + (0.6 if math.sin(a) > 0 else 0) * math.sin(a)
             rim.append(view(x, u, h))
     rim_d = _path(rim)
+    if p.get("lining") == "shearling":   # the fleece turned over the collar, a soft cream rim round the opening
+        out.append(f'<path d="{rim_d}" fill="none" stroke="{INK}" stroke-width="5.4" stroke-linejoin="round"/>'
+                   f'<path d="{rim_d}" fill="none" stroke="{SHEARLING}" stroke-width="3.6" stroke-linejoin="round"/>')
     out.append(f'<path d="{rim_d}" fill="{lining}" stroke="{INK}" stroke-width="1.4" stroke-linejoin="round"/>')
     if ankle is not None:
         pts = _column(view, sole_t + 2.0, leg)

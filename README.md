@@ -255,8 +255,18 @@ program from Anthropic that uses your Claude plan, so nothing extra is charged
 per photo. An API key can be used instead, but it is billed per photo by
 Anthropic, is only used when the plan can't be, and only if you turn on
 **Allow the API key** in **Settings → Tagging**. It is off until you do.
-**Settings → Tagging** shows which of the two Closet can use right now and how
-many items are waiting to be described.
+**Settings → Tagging** shows which of the two Closet can use right now, which it
+will try first, and how many items are waiting to be described.
+
+**Which to use.** Under the API key box in **Settings → Tagging** you choose the
+order: **Use my Claude plan first, the key only if the plan can't** (the
+usual one), **Use the API key first** (if you would rather pay per photo than use
+up your plan), **Only my Claude plan**, or **Only the API key**. The two that put
+the key first can only be chosen once a key is saved, and removing the key puts
+you back on the plan first. Whatever you choose, the key is still only used once
+**Allow the API key** is on with a monthly limit. The choice applies to everything
+Closet asks Claude: describing clothes, finding where a patterned top's seams are,
+corrections you type, and "Would this work?".
 
 **Adding an API key.** Make a key in your Anthropic account (console.anthropic.com,
 **API keys**), copy it, and paste it into **Paste your API key** in **Settings →

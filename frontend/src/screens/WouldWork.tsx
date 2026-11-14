@@ -9,7 +9,7 @@ import { useCloset } from '../store';
 import { placeLabel, wornOrder } from '../today';
 import type { ItemSummary } from '../types';
 import {
-  CANDIDATE_ID, type Check, checkKinds, fillWords, isDone, noteFor, pieceFromLook, pieceToSend, POLL_MS, stillToChoose, verdictTone, waitingWords,
+  CANDIDATE_ID, type Check, checkKinds, fillNote, fillWords, isDone, noteFor, pieceFromLook, pieceToSend, POLL_MS, stillToChoose, verdictTone, waitingWords,
   WEIGHTS, weightLabel, wishFrom, type WouldAnswer, type WouldPiece, wornWords,
 } from '../wouldwork';
 import './WouldWork.css';
@@ -324,10 +324,18 @@ function Answer({ check, answer, byId }: { check: Check; answer: WouldAnswer; by
               <ul className="wouldwork-list">
                 {counted.map((f) => (
                   <li key={f.gap_id}><strong>{f.name}</strong>: {fillWords(f)}
+                    {fillNote(f) && <span className="muted"> · {fillNote(f)}</span>}
                     {f.days.length > 0 && <span className="muted"> · {f.days.length} kind{f.days.length === 1 ? '' : 's'} of day nothing covers now</span>}
                   </li>
                 ))}
               </ul>
+            </section>
+          )}
+
+          {answer.situations_text && (
+            <section className="wouldwork-part" aria-label="When you would wear it">
+              <h4 className="gap-label">When you would wear it</h4>
+              <p data-testid="would-work-situations">{answer.situations_text}</p>
             </section>
           )}
 

@@ -14,6 +14,11 @@ The kept data (`items.pattern_fill`, version 1):
    "phase": [u, v] | null, "phase_right": [u, v] | null}
   a repeat (a flattened plaid) or a whole-garment tile (a madras, a pieced print); with a phase it is lined up
   with the buttons, each front on its own (`fills.Swatch`).
+- {"kind": "plain"}: the cloth itself is drawn in the item's colour (a graphic tee); kept for its graphic.
+Any of these may carry a print lifted from the photo (a logo, a chest print), drawn over the cloth at its place:
+  "graphic": {"image": "<base64 WebP with transparency>", "box": [x0, y0, x1, y1]}
+  the box in fractions of the garment's width and height (its outline in the photo, sleeves included). Data
+  without it reads as before, so the version stays 1.
 """
 from __future__ import annotations
 
@@ -59,6 +64,45 @@ def tile_text(img: Image.Image, quality: int = 88) -> str:
     buf = io.BytesIO()
     img.convert("RGB").save(buf, "WEBP", quality=quality, method=4)
     return base64.b64encode(buf.getvalue()).decode()
+
+
+def image_text(img: Image.Image, max_edge: int = 480, quality: int = 88) -> str:
+    """A lifted graphic as kept: WebP with its transparency, base64, at most `max_edge` px on its longer side."""
+    im = img.convert("RGBA")
+    im.thumbnail((max_edge, max_edge), Image.LANCZOS)
+    buf = io.BytesIO()
+    im.save(buf, "WEBP", quality=quality, method=4)
+    return base64.b64encode(buf.getvalue()).decode()
+
+
+def graphic_part(img: Image.Image, box) -> dict:
+    """The kept `graphic` part for a print lifted from the photo, `box` in fractions of the garment."""
+    return {"image": image_text(img), "box": [round(float(v), 4) for v in box]}
+
+
+def graphic_from(data) -> fills.Graphic | None:
+    """The graphic kept with an item (a dict or its JSON text), ready to draw, or None when there is none or it
+    cannot be used (an older version, a damaged image, a box outside the garment)."""
+    try:
+        if isinstance(data, str):
+            data = json.loads(data)
+        if not isinstance(data, dict) or data.get("version") != VERSION:
+            return None
+        part = data.get("graphic")
+        if not isinstance(part, dict):
+            return None
+        raw, box = part.get("image"), part.get("box")
+        if not isinstance(raw, str) or len(raw) > MAX_IMAGE or not isinstance(box, list) or len(box) != 4:
+            return None
+        x0, y0, x1, y1 = (float(v) for v in box)
+        if not (0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1):
+            return None
+        with Image.open(io.BytesIO(base64.b64decode(raw, validate=True))) as im:
+            im.load()
+            img = im.convert("RGBA")
+        return fills.Graphic(img, (x0 + x1) / 2, y0, x1 - x0, (0, 0, img.width, img.height))
+    except (ValueError, TypeError, OSError, Image.DecompressionBombError):
+        return None
 
 
 def fill_from(data, base_color: str) -> Fill | None:

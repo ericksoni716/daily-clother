@@ -20,6 +20,9 @@ exactly one. Corrections by sentence
 are read by the same stand-in the backend tests use (or, with CLOSET_E2E_ROUTES=api, by the
 real API route talking to `conftest.FakeApi`).
 
+With CLOSET_E2E_TAG_FAILS=N the first N descriptions fail with a reason Closet does not recognise, which quotes
+something shaped like a key and a file outside Closet's folder (both made up), so the page can show a failed item.
+
 The API key box keeps keys in a stand-in keychain (never the computer's), and the check with Anthropic is a
 stand-in too: a key ending in "refused" is turned down, any other well-formed key is accepted.
 """
@@ -30,22 +33,29 @@ import urllib.error
 
 from closet import apikey, app, cli, weather
 from closet.tagger import routes as tagger_routes
-from closet.tagger.tagging import TagResult
+from closet.tagger.tagging import TaggingError, TagResult
 
 from .conftest import ANSWER, FakeApi, FakeClaude, MemoryKeychain, fake_cutter
 
 _real_build = app.build_services
 
 
+_failing = {"left": int(os.environ.get("CLOSET_E2E_TAG_FAILS") or 0)}
+
+
 def fake_claude(images, routes):
     time.sleep(1)   # long enough for the page to show it being described
+    if _failing["left"] > 0:
+        _failing["left"] -= 1
+        raise TaggingError("the stand-in was told to fail: key sk-ant-api03-" + "Zz9" * 12
+                           + " refused, see /home/someone/.claude/session.json")
     return TagResult(ANSWER, "fake-claude", 0.0, 0, 0, 0.0, 1, route=routes[0])
 
 
 def api_only_status(order="auto", claude_exe=None):
-    return {"order": ["plan", "api"], "routes": [
-        {"id": "plan", "available": False, "detail": "Claude Code is not installed on this computer."},
-        {"id": "api", "available": True, "detail": ""}]}
+    routes = {"plan": {"id": "plan", "available": False, "detail": "Claude Code is not installed on this computer."},
+              "api": {"id": "api", "available": True, "detail": ""}}
+    return {"order": list(tagger_routes.ORDERS[order]), "routes": [routes[r] for r in tagger_routes.ORDERS[order]]}
 
 
 def no_weather_service(url):

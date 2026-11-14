@@ -99,6 +99,7 @@ TOP_DEFAULTS = dict(
 #             sleeve ends and the hem (role "binding" inside the garment, "binding_edge" on its outline)
 #   colorblock  a tuple of parts cut in the second colour: yoke | sleeves | collar | pocket
 #   stripes   none | sleeve            two stripes down the outside of each sleeve (a track jacket), in the trim colour
+#   belt      False | True             a self belt buckled round the waist (a trench coat)
 # Finer pocket values: chest-flap | chest-patch-two | pencil | western | welt | split | slash | chore |
 #   chest-flap-two | guayabera | bellows | utility | hip-patch | hip-flap
 
@@ -1108,7 +1109,21 @@ def top(**kw) -> Shape:
         elif front in ("buttons", "french", "hidden", "double", "zip"):
             x = CX - {"zip": 0, "double": 30}.get(front, 7)     # how far the top front reaches past the centre
             sh.fronts = ([(x, front_bottom), (x, hy + 20)], "horizontal" if front == "double" else "vertical")
+    if p.get("belt"):
+        _belt(sh, wy, hh)
     return sh
+
+
+def _belt(sh, y, half):
+    """A self belt round the waist (a trench coat's): a band of the cloth across the body, clipped to its edges,
+    buckled a little off centre, its loose end hanging from the buckle."""
+    h = 9.0
+    band = [(CX - half - 40, y - h / 2), (CX + half + 40, y - h / 2), (CX + half + 40, y + h / 2), (CX - half - 40, y + h / 2)]
+    sh.parts.append(Part(_poly(band), "trim", clip=True))
+    bx = CX - 16
+    sh.parts.append(Part(f"M {_pt((bx - 2, y + 2))} L {_pt((bx - 9, y + 30))} L {_pt((bx - 1, y + 32))} L {_pt((bx + 5, y + 4))} Z",
+                         "trim"))
+    sh.parts.append(Part(_frame((bx, y), 13, h + 5, 2.6), "inlay", color="deep"))
 
 
 def _tailored(p, block) -> Shape:
@@ -1415,6 +1430,8 @@ def _tailored(p, block) -> Shape:
     xs = [float(x) for x, _ in re.findall(r"(-?[\d.]+),(-?[\d.]+)", sh.outline)]
     xmax = max(max(xs), 2 * CX - min(xs))
     sh.bbox = (2 * CX - xmax, (Tt[1] + top_c) / 2 - 2, xmax, hy + 2)
+    if p.get("belt"):
+        _belt(sh, wy, hh)
     if p.get("state") == "open" and p["front"] != "none":   # the top front's edge: the roll line, then the front
         sh.fronts = ([Rt] + front_run + [(front_run[-1][0], hy + 20)], "horizontal")
     return sh

@@ -63,8 +63,7 @@ CASES: dict[str, list[tuple[str, str, str, dict, dict]]] = {
     "jackets": [
         ("trench coat", "coat", "#c3b091", dict(garment="trench_coat", collar="notch_lapel", placket="double_breasted",
                                                placket_buttons=6, fabric="gabardine"), dict(top_length="long")),
-        ("parka", "coat", "#4b5320", dict(garment="parka", neckline="hood", placket="zip_full", pockets="bellows",
-                                          cuff="rib_knit"), dict(top_length="long")),
+        ("parka, only its kind told", "coat", "#4b5320", dict(garment="parka", placket="zip_full", pockets="bellows"), {}),
         ("varsity jacket", "jacket", "#1f2a44", dict(garment="varsity_jacket", collar="stand", placket="snap",
                                                      placket_buttons=5, cuff="rib_knit", hem="ribbed_band",
                                                      pockets="slash", fiber="woolen_wool"), {}),

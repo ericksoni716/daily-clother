@@ -251,6 +251,10 @@ UNCHANGED = {
     "performance_tee": "af4dd6aa727dae5f",
     "athletic_half_zip": "c45b9acf7d42f45c",
     "track_jacket": "88e586d396ec8f5c",
+    "trench_coat": "61766ef34e7fc2f6",   # #163: new; self belt
+    "parka": "d5ba24eb82d51c9b",   # #163: new
+    "varsity_jacket": "23fbdbda3caf80ad",   # #163: new; sleeves in the second colour
+    "waxed_jacket": "fe4f98e0209ee993",   # #163: new; cord collar
     "pants.jeans": "b09a649969597eec",
     "pants.dress": "567a1b5f294a79cc",
     "shoe.derby": "f356f82e866763c4",   # redrawn on purpose: open lacing (#108)
@@ -753,6 +757,30 @@ def test_fleece_pullover_draws_its_blocks_and_binding():
     assert 'fill="#2f6db5"' in svg and 'stroke="#f2735f"' in svg
     plain = render(Spec("top", top_drawing(GARMENT_DRAWINGS["fleece_pullover"])[0], Fill("solid", "#9fdcc4")), "line")
     assert 'fill="#2f6db5"' not in plain
+
+
+def test_the_trench_coats_belt_keeps_the_anchors():
+    p, extras, _ = top_drawing(GARMENT_DRAWINGS["trench_coat"])
+    assert p["belt"]
+    for block_length in ("knee", "regular"):
+        q = {**p, "length": block_length}
+        belted, plain = build("top", q), build("top", {**q, "belt": False})
+        assert belted.anchors == plain.anchors and belted.outline == plain.outline
+        assert len(belted.parts) == len(plain.parts) + 3
+    assert draw(GARMENT_DRAWINGS["trench_coat"]) != draw({**GARMENT_DRAWINGS["trench_coat"], "garment": None})
+
+
+def test_outerwear_kinds_draw_what_sets_them_apart():
+    parka, _, _ = top_drawing({"garment": "parka", "collar": "point", "placket": None})
+    assert parka["neck"] == "hood" and "collar" not in parka and parka["front"] == "zip" and parka["length"] == "long"
+    varsity, _, _ = top_drawing({"garment": "varsity_jacket", "collar": "stand", "placket": "snap", "second_color": True})
+    assert varsity["collar"] == "rib" and varsity["fastener"] == "snap" and varsity["colorblock"] == ("sleeves",)
+    assert varsity["cuffs"] == "rib" and varsity["hem"] == "rib"
+    assert "colorblock" not in top_drawing({"garment": "varsity_jacket", "collar": "stand"})[0]
+    _, waxed, _ = top_drawing({"garment": "waxed_jacket", "collar": "point", "fabric": "unknown"})
+    assert waxed["collar_color"] == "#5a3d26" and waxed["sheen"]
+    for kind in ("trench_coat", "parka", "varsity_jacket", "waxed_jacket"):
+        assert COVERAGE["garment"][kind][0] == "drawn", kind
 
 
 def test_sport_and_lounge_bottoms_draw_apart():

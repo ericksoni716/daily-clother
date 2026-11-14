@@ -679,6 +679,32 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
             p["binding"] = True
         if g.get("second_color"):
             p["colorblock"] = ("yoke", "sleeves", "pocket")
+    if kind == "trench_coat":
+        p["belt"] = True   # the self belt buckled round the waist
+    elif kind == "parka":   # long and hooded: the hood replaces a collar, a zip closes a front left open
+        if p.get("collar") not in ("notch", "peak", "shawl"):
+            p["neck"] = "hood"
+            p.pop("collar", None)
+            if p["front"] == "none" or (placket is None and p["front"] == "buttons"):
+                p["front"] = "zip"
+                p.pop("buttons", None)
+        if p["length"] in ("regular", "cropped"):
+            p["length"] = "long"
+    elif kind == "varsity_jacket":
+        if collar in ("stand", "none") and neckline != "hood":
+            p["neck"], p["collar"] = "collar", "rib"   # the knitted collar, as on a bomber
+            p["front"] = "zip" if placket == "zip_full" else "buttons"
+            if placket != "zip_full":
+                p["fastener"] = "snap"
+        if g.get("cuff") is None:
+            p["cuffs"] = "rib"
+        if g.get("hem") is None:
+            p["hem"] = "rib"
+        if g.get("second_color"):
+            p["colorblock"] = ("sleeves",)   # the leather sleeves, in the second colour seen
+    elif kind == "waxed_jacket":
+        extras["collar_color"] = "#5a3d26"   # the brown corduroy collar
+    g = {**g, "fabric": _KIND_FABRIC[kind]} if kind in _KIND_FABRIC and _fabric(g) in (None, "unknown") else g
     if g.get("side_stripe") and p["sleeve"] != "none":
         p["stripes"] = "sleeve"   # a track jacket's stripes run down the sleeves
     # notes for what is drawn as something close
@@ -702,6 +728,9 @@ def top_drawing(g: dict) -> tuple[dict, dict, list[str]]:
         p["quilting"] = "baffle"
     return p, extras, notes
 
+
+# the cloth a kind of top is drawn in when none was seen
+_KIND_FABRIC = {"trench_coat": "gabardine", "varsity_jacket": "melton", "waxed_jacket": "waxed_cotton"}
 
 _PULLOVERS = ("fleece_pullover", "athletic_half_zip", "crewneck_sweatshirt", "hoodie", "pullover_sweater", "base_layer",
               "running_long_sleeve", "compression_top")
@@ -787,6 +816,14 @@ GARMENT_DRAWINGS: dict[str, dict] = {
                               fiber="polyester", weight="lightweight"),
     "track_jacket": dict(garment="track_jacket", collar="stand", placket="zip_full", pockets="split_hand", cuff="rib_knit",
                          hem="ribbed_band", fabric="interlock", fiber="polyester", side_stripe=True),
+    "trench_coat": dict(garment="trench_coat", collar="notch_lapel", placket="double_breasted", placket_buttons=6,
+                        pockets="slash", hem="straight", fabric="gabardine", length="knee"),
+    "parka": dict(garment="parka", neckline="hood", placket="zip_full", pockets="bellows", hem="straight", cuff="rib_knit",
+                  fit="relaxed", fabric="ripstop", length="long", weight="heavyweight"),
+    "varsity_jacket": dict(garment="varsity_jacket", collar="stand", placket="snap", placket_buttons=5, pockets="slash",
+                           cuff="rib_knit", hem="ribbed_band", fabric="melton", second_color=True),
+    "waxed_jacket": dict(garment="waxed_jacket", collar="point", placket="zip_full", pockets="hip_flap_double",
+                         hem="straight", cuff="barrel_1", fabric="waxed_cotton"),
     "suit_jacket": dict(collar="peak_lapel", placket="front_placket", placket_buttons=1, pockets="welt", hem="straight",
                         fit="tailored", fabric="plain", fiber="worsted_wool", closure_material="corozo"),
 }
@@ -1171,6 +1208,11 @@ _KIND_NOTES = {
     "performance_tee": "a slim raglan tee in a fine mesh texture",
     "athletic_half_zip": "a slim raglan top with a short zip",
     "track_jacket": "full zip, stand collar, rib cuffs and hem; with side stripes, two stripes down each sleeve in the trim colour",
+    "trench_coat": "a self belt buckled round the waist; double-breasted at knee length when told",
+    "parka": "a hood and a long length, whatever else was told",
+    "varsity_jacket": "a knitted collar, cuffs and hem, a snap front; with a second colour, the sleeves in it (the "
+                      "chenille letters are not drawn)",
+    "waxed_jacket": "the brown cord collar and a waxed cotton sheen",
     **{k: (("a tight leg" if v.get("leg") == "skinny" else "a short inseam and a slit hem" if v.get("hem") == "split"
             else "an elastic or drawstring waist") + (" and a stripe down each side in the trim colour" if v.get("stripe") else "")
            + (", ribbed ankle cuffs" if v.get("hem") == "rib" else ""))

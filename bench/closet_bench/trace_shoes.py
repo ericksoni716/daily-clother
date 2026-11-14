@@ -52,6 +52,7 @@ PHOTO_TYPES = (".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif")
 WORK = 480            # the shoe's longer side, in px, while it is traced and scored
 PAD = 0.06            # background kept round the shoe, as a share of its longer side
 MERGE_DE = 10.0       # two colours closer than this (CIE76 ΔE) are one colour of the shoe
+SHADE_L = 25.0        # a colour and the same colour this much darker or lighter are one colour, in light and shade
 SPECK = 0.0015        # a patch smaller than this share of the shoe is a speck and joins its neighbour
 SOLE_MAX = 0.35       # the sole is at most this share of the shoe's height
 CORNER = 60.0         # a traced outline turning more sharply than this (degrees) keeps a corner there
@@ -300,32 +301,60 @@ def prefilter(rgb: np.ndarray, mask: np.ndarray, a: Approach) -> np.ndarray:
     return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
 
 
-def quantise(feat: np.ndarray, real: np.ndarray, k: int) -> tuple[np.ndarray, list[np.ndarray]]:
-    """k-means on `feat` (N x 3 Lab), then clusters closer than MERGE_DE merged. Returns labels and the
-    clusters' real colours (the mean of `real`, the unfiltered photo, over each cluster)."""
+def same_but_shaded(a, b) -> bool:
+    """Whether two Lab colours are one colour in light and in shade: the same hue, a similar share of colour,
+    and lighter or darker by no more than SHADE_L (two greys of the same family count too)."""
+    if abs(a[0] - b[0]) > SHADE_L:
+        return False
+    ca, cb = float(np.hypot(a[1], a[2])), float(np.hypot(b[1], b[2]))
+    if max(ca, cb) < 8:
+        return True
+    if min(ca, cb) < 8 or min(ca, cb) / max(ca, cb) < 0.55:
+        return False
+    cos = (a[1] * b[1] + a[2] * b[2]) / (ca * cb)
+    return float(np.degrees(np.arccos(np.clip(cos, -1, 1)))) < 12
+
+
+def quantise(feat: np.ndarray, real: np.ndarray, k: int, shades: bool = True) -> tuple[np.ndarray, list[np.ndarray]]:
+    """k-means on `feat` (N x 3 Lab); then clusters closer than MERGE_DE merged and, with `shades`, a colour and
+    the same colour in shade. Returns labels and each cluster's real colour (from `real`, the unfiltered photo):
+    for a colour seen in light and in shade, the lit end, as the template drawing does (PHASE0.md, finding 2)."""
     k = max(1, min(k, len(feat)))
     cv2.setRNGSeed(0)
     crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.5)
     _, labels, _ = cv2.kmeans(feat.astype(np.float32), k, None, crit, 3, cv2.KMEANS_PP_CENTERS)
     labels = labels.ravel()
-    while True:
-        ids = [i for i in np.unique(labels)]
-        cols = {i: real[labels == i].mean(axis=0) for i in ids}
-        pair, best = None, MERGE_DE
-        for ai, i in enumerate(ids):
-            for j in ids[ai + 1:]:
-                d = delta_e(cols[i], cols[j])
-                if d < best:
-                    pair, best = (i, j), d
-        if pair is None:
-            break
-        labels[labels == pair[1]] = pair[0]
+    first = labels.copy()
+
+    def merge(close) -> None:
+        while True:
+            ids = list(np.unique(labels))
+            cols = {i: real[labels == i].mean(axis=0) for i in ids}
+            pair, best = None, np.inf
+            for ai, i in enumerate(ids):
+                for j in ids[ai + 1:]:
+                    d = delta_e(cols[i], cols[j])
+                    if d < best and close(cols[i], cols[j]):
+                        pair, best = (i, j), d
+            if pair is None:
+                return
+            labels[labels == pair[1]] = pair[0]
+
+    merge(lambda a, b: delta_e(a, b) < MERGE_DE)
+    if shades:
+        merge(same_but_shaded)
     ids = list(np.unique(labels))
     remap = np.zeros(int(labels.max()) + 1, np.int32)
     for n, i in enumerate(ids):
         remap[i] = n
     labels = remap[labels]
-    return labels, [real[labels == n].mean(axis=0) for n in range(len(ids))]
+    colors = []
+    for n in range(len(ids)):
+        sel = labels == n
+        # the clusters k-means found inside this colour that hold at least a fifth of it; the lightest is the lit end
+        big = [real[sel & (first == f)].mean(axis=0) for f in np.unique(first[sel]) if (sel & (first == f)).sum() >= 0.2 * sel.sum()]
+        colors.append(max(big, key=lambda c: c[0]) if len(big) > 1 else real[sel].mean(axis=0))
+    return labels, colors
 
 
 def smooth_labels(lmap: np.ndarray, region: np.ndarray, n: int, sigma: float) -> np.ndarray:
@@ -382,7 +411,10 @@ def sole_region(lab: np.ndarray, mask: np.ndarray, labels: np.ndarray) -> np.nda
     same = np.bincount(bottom_label[bottom_label >= 0]).argmax() == main if (bottom_label >= 0).any() else True
     run = np.full(w, np.nan)
     if not same:
+        sole_label = np.bincount(bottom_label[bottom_label >= 0]).argmax()
         for x, bl in zip(xs, bottom_label, strict=True):
+            if bl != sole_label:   # the sole is missing from the cut-out here, or hidden: the neighbours decide
+                continue
             y, gap, limit = bottom[x] - 2, 0, min(cap, 0.8 * (bottom[x] - top[x]))
             while y > bottom[x] - limit and gap <= 2:
                 gap = 0 if labels[y, x] == bl else gap + 1
@@ -481,7 +513,7 @@ def trace(rgb: np.ndarray, mask: np.ndarray, a: Approach) -> Trace:
         sub = smooth_labels(sub, region, len(cols), a.blur)
         sub = remove_specks(sub, region, min_area)
         ids = [i for i in range(len(cols)) if ((sub == i) & (region > 0)).any()]
-        cols = [real[(sub == i) & sel].mean(axis=0) if ((sub == i) & sel).any() else cols[i] for i in ids]
+        cols = [cols[i] for i in ids]
         remap = np.full(int(sub.max()) + 2, -1, np.int32)
         for n, i in enumerate(ids):
             remap[i] = n
@@ -629,7 +661,7 @@ class Scores:
 
 def combined(iou: float, de: float, paths: int, marks: float | None) -> float:
     clamp = lambda v: float(min(1.0, max(0.0, v)))   # noqa: E731
-    parts = [(0.4, clamp((iou - 0.8) / 0.2)), (0.25, clamp(1 - de / 25)), (0.15, clamp(1 - (paths - 3) / 40))]
+    parts = [(0.35, clamp((iou - 0.8) / 0.2)), (0.25, clamp(1 - de / 25)), (0.2, clamp(1 - (paths - 3) / 25))]
     if marks is not None:
         parts.append((0.2, marks))
     return sum(w * v for w, v in parts) / sum(w for w, _ in parts)
@@ -748,6 +780,7 @@ class Result:
     template_svg: str | None
     seconds: float
     best: str | None = None
+    answer: bool = False                                          # the template was drawn from a saved tagger answer
     mask: np.ndarray | None = field(default=None, repr=False)   # the cleaned cut-out mask, the photo's size
 
 
@@ -789,7 +822,7 @@ def trace_photo(img: Image.Image, cutout: str = "auto", model: str = "isnet-gene
     best = max(variants, key=lambda v: v.scores.score)
     signals["trace_iou"] = max(v.scores.iou for v in variants)
     tmpl = template_svg(answer, best.trace.regions[0].color, o.aspect, f"{uid}t")
-    return Result(img, cut, by, o, variants, gate(signals), tmpl, time.time() - t0, best.approach.name, mask)
+    return Result(img, cut, by, o, variants, gate(signals), tmpl, time.time() - t0, best.approach.name, answer is not None, mask)
 
 
 # ------------------------------------------------------------------ the sheet
@@ -823,13 +856,15 @@ def sheet(r: Result, number: int) -> str:
     m, gap = 24, 16
     cw, ch = ITEM_PX, ITEM_PX * CARD_H // CARD_W
     tw, th = TILE_PX, TILE_PX * CARD_H // CARD_W
-    cols: list[tuple[str, list[str], str]] = [("Photo", [], "photo"), ("Cut-out", [f"by {r.cutout_by}"], "cut")]
+    found = f"by {r.cutout_by}" + ("" if r.cutout is not None else ": no shoe found")
+    cols: list[tuple[str, list[str], str]] = [("Photo", [], "photo"), ("Cut-out", [found], "cut")]
     for v in r.variants:
         sc = v.scores
         lines = [f"IoU {sc.iou:.3f} · ΔE {sc.delta_e:.1f}", f"{sc.colors} colours · {sc.paths} paths",
                  ("marks " + ("none in photo" if sc.marks is None else f"{sc.marks:.2f}")) + f" · score {sc.score:.3f}"]
         cols.append(((" ★ " if v.approach.name == r.best else "") + v.approach.name, lines, v.approach.name))
-    cols.append(("Today's template", ["drawn from tags" if r.template_svg else "no drawing"], "template"))
+    if r.template_svg:
+        cols.append(("Today's template", ["drawn from tags" if r.answer else "from the measured colour and height"], "template"))
     width = 2 * m + len(cols) * (cw + gap) - gap
     head_h = 70 + 20 * len(r.gate.reasons)
     y_item = m + head_h
@@ -933,8 +968,8 @@ def _index(results: list[Result], files: list[str], summ: dict, note: str) -> st
         p.append(f"<tr><td>{'★ ' if name == rec else ''}{html.escape(name)} <span class='mut'>{html.escape(row['label'])}</span></td>"
                  f"<td>{row['score']:.3f}</td><td>{row['iou']:.3f}</td><td>{row['delta_e']:.1f}</td><td>{row['colors']:.1f}</td>"
                  f"<td>{row['paths']:.1f}</td><td>{marks}</td><td>{row['best_on']}</td></tr>")
-    p.append("</table><p class='mut'>Score = 0.4 × silhouette IoU (0.8 → 0, 1 → 1) + 0.25 × colour (ΔE 25 → 0, 0 → 1) "
-             "+ 0.15 × cleanliness (3 paths → 1, 43 → 0) + 0.2 × marks kept; without marks in the photo the other weights "
+    p.append("</table><p class='mut'>Score = 0.35 × silhouette IoU (0.8 → 0, 1 → 1) + 0.25 × colour (ΔE 25 → 0, 0 → 1) "
+             "+ 0.2 × cleanliness (3 paths → 1, 28 → 0) + 0.2 × marks kept; without marks in the photo the other weights "
              "are scaled up.</p></section>")
     p.append("<section><h2>Quality gate</h2><table><tr><th>Shoe</th><th>Verdict</th><th>Why</th></tr>")
     for n, r in enumerate(results, 1):
@@ -999,7 +1034,8 @@ def run(photos: Path, out: Path, cutout: str = "auto", model: str = "isnet-gener
             f"{', '.join(sorted({r.cutout_by for r in results}))}.")
     (out / "index.html").write_text(_index(results, files, summ, note), encoding="utf-8")
     if not quiet:
-        print(f"recommended approach: {summ['recommended']}")
+        print(f"recommended approach: {summ['recommended']}"
+              + ("" if summ["passed"] else " (no photo passed the gate: scored on all of them)"))
     return out / "index.html"
 
 

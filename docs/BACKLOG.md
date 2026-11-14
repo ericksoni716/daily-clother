@@ -17,6 +17,8 @@ Wave 1 (landed):
 - [x] #23 Outfit engine: the rules that choose today's outfits, with an API and no screen. The same task went to two models (#23, #24); the Opus 5.5 result was merged.
 - [x] #21 Bulk import of single-item photos, with duplicates caught and resume (migration 0005).
 
+- [x] #150 Outfits follow the owner's outfit rules: the engine reads them from `docs/menswear-taxonomy.json`; watch, eyewear, gloves and tucking are not used yet.
+
 Wave 2 (landed):
 - [x] #33 Tagging in the app, part 2: each item is described after its cutout and the whole answer is kept (migration 0006). The API key is only used when switched on in Settings; the demo closet is never sent to Claude.
 - [x] #34 Today's outfits by themselves: the weather lookup for a saved place, and the wear log and laundry feeding the engine (`POST /api/outfits/today`).

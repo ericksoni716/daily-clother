@@ -190,6 +190,24 @@ The rules live in `backend/closet/outfits.py`; every number is a named constant 
 | Scores start at 80 for an outfit that breaks nothing; loved pieces, one accent colour and rain-ready pieces add, distance from the formality aimed for and warmth off target subtract | So that 100 is rare and a relaxed-pass outfit is visibly lower. |
 | The API answers 422 for a build-around id not in the open closet; the engine on its own answers with a `missing` sentence | A wrong id from the screen is a bug to show; the engine itself never raises for a closet's contents. `suggest` takes `worn_days_ago` from the request; `today` fills it from the wear log. |
 
+### The owner's outfit rules (#150)
+
+The engine now reads its places, layering, temperature bands, rain, formality, colour, pattern and proportion rules from the `outfit` and `colors` blocks of `docs/menswear-taxonomy.json` (`backend/closet/outfit_rules.py` turns the owner's sentences into rules; restart the app after editing the file). Where the table above disagrees with the owner's file, the file wins; the rows "Bands", "Places", "Layering", "Formality", "Colour", "Pattern", "Rain" and the scarf and hat thresholds of "Accessories" are now the owner's, not hand-written constants.
+
+| Decision | Why |
+|---|---|
+| A whole block missing from the file is read from the old hand-written rules (written in the file's own words in `FALLBACK_OUTFIT`); an empty block means no rule | Deleting a block by mistake should not leave the engine with no rules at all. |
+| The band is chosen by the day's high; the warmth target is still the low plus 30% of the way to the high | The file's bands are named by `high_min`. Within a band the warmth points still pick the pieces. |
+| A layer the band says "must" be worn is required only when some outfit in the closet can have it | A small closet still gets an answer, with a warning that the layer is missing. |
+| In rain, "outer must be water-resistant" restricts the outer layer to ones whose name or material sheds water only when the closet has one; otherwise any outer is offered with a warning | Otherwise a closet without a raincoat would get nothing on a cold rainy day. |
+| Never-break rules (the file says "never" or "only"): two patterns of the same type side by side, athletic pieces with dressier ones, and the layering order are excluded even from the relaxed pass; ratings never override them | The issue asks hard rules to stay hard. |
+| "One dressier piece is fine" applies to a top piece (tee, shirt, polo, sweater, hoodie, jacket, coat) only | The file's example is a blazer; dressy trousers with a tee are not what it means. |
+| Every piece, the outer layer too, sits within the file's reach of the occasion; the old two-step outer reach is gone | The file says "every piece within one level". A smart casual coat therefore no longer covers formal days. |
+| Colour families are #152's `taxonomy.COLOR_FAMILIES` (kept equal to the file by a test), read through the rules: neutrals and brights from it, and strong colours that are tonal, share an earth, cool or warm family (not two brights) or are a listed pairing count as one accent; light blue is no longer neutral | One mapping of the owner's families for the whole app; "two neutrals plus at most one accent" then means one accent colour family. |
+| Shoe colour rules apply to dress shoes; belt-matches-shoes picks no belt rather than a wrong colour | Sneakers and boots are casual and the file's rule is about tailoring. |
+| Proportion rules only add or take points, with a warning; they never exclude | The issue says so. |
+| Not read (listed in `Rules.unread`): watch, eyewear and gloves (no app category), the tuck rule (the app does not record tucking), pattern scale (not tagged) | The engine cannot express them yet. |
+
 ### Today's outfits by themselves
 
 `POST /api/outfits/today` fills the day for the engine: the weather (`backend/closet/weather.py`), the wear log and the laundry (`backend/closet/today.py`). The engine itself is unchanged; it already read the laundry state as the wear log stores it (`clean` or `laundry`).

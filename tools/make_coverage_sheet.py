@@ -4,7 +4,8 @@
 
 GROUP is one of tops, trousers, jackets, shoes, rest. Each cell is an item drawn the way the app draws it (from a
 tagger answer, in the owner's style), at two sizes: the closet grid's and the item page's. The same command run on an
-older checkout of the code gives the "before" sheet. With `--png` the sheet is also turned into a picture by a Chrome
+older checkout of the code gives the "before" sheet. A case marked `{"_back": True}` is the item page's small
+drawing from the back (an older checkout without one draws the front). With `--png` the sheet is also turned into a picture by a Chrome
 or Chromium found on this computer.
 """
 from __future__ import annotations

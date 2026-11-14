@@ -490,3 +490,21 @@ def test_the_sign_in_note_and_the_limit_note_replace_each_other_but_not_other_re
         assert row(cfg, item["id"])["tag_error"] == "something else"
     finally:
         conn.close()
+
+
+def test_the_owners_shade_or_denim_wash_sets_the_drawn_colour():
+    from closet import items, tagjobs
+    from closet.tagger.schema import NAMED_HEX, ItemTags
+
+    from .test_drawing import answer
+    grey = answer("trousers", shade="charcoal")
+    grey["color"] = "grey"
+    assert tagjobs.color_hex(ItemTags.model_validate(grey)) == "#36393d"
+    # a shade of another colour word is not used: the word's own colour is
+    assert tagjobs.color_hex(ItemTags.model_validate(answer("trousers", shade="charcoal"))) == NAMED_HEX["navy"]
+    jeans = answer("jeans", denim_wash="raw")
+    assert tagjobs.color_hex(ItemTags.model_validate(jeans)) == "#23304a"   # raw indigo, a shade of navy
+    # the item page names the shade: the one told, else the nearest to the measured colour
+    assert items.shade_of({"color": "grey", "color_hex": "#8a8d91"}, {"shade": "charcoal"}) == "charcoal"
+    assert items.shade_of({"color": "grey", "color_hex": "#8a8d91"}, {}) == "mid_grey"
+    assert items.shade_of({"color": "multi", "color_hex": None}, {}) is None

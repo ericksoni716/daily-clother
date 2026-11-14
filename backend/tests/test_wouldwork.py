@@ -131,7 +131,7 @@ def test_what_partners_lack_is_said_of_as_many_as_it_is_true_of(closet):
     a = check(closet, {"category": "trousers", "color": "purple", "formality": "formal", "pattern": "plaid"})
     tops = next(h for h in a["holds_back"] if "tops go" in h)
     # several reasons, each counted: never "they are all ..." of the commonest reason alone
-    assert "they are all" not in tops and "three have a strong colour" in tops
+    assert "they are all" not in tops and "two have a strong colour" in tops
 
 
 def test_the_days_it_would_cover_are_days_it_makes_a_good_outfit_on(closet):

@@ -1849,11 +1849,12 @@ def pants(**kw) -> Shape:
         sh.parts.append(Part(f"M {_pt((CX, cy - 22))} L {_pt((CX + 9, cy - 4))} L {_pt((CX, cy + 4))} L {_pt((CX - 9, cy - 4))} Z",
                              "trim", clip=True))
     def soft(c, rx, ry):   # a worn patch: paler toward its middle, with no edge
-        for f_ in (1.0, 0.66, 0.33):
-            x, y = c
-            a_, b_ = rx * f_, ry * f_
-            sh.parts.append(Part(f"M {_f(x - a_)},{_f(y)} A {_f(a_)} {_f(b_)} 0 1 0 {_f(x + a_)},{_f(y)} "
-                                 f"A {_f(a_)} {_f(b_)} 0 1 0 {_f(x - a_)},{_f(y)} Z", "fade", color="soft", clip=True))
+        (x, y), a_, b_ = c, rx * 1.3, ry * 1.3
+        sh.parts.append(Part(f"M {_f(x - a_)},{_f(y)} A {_f(a_)} {_f(b_)} 0 1 0 {_f(x + a_)},{_f(y)} "
+                             f"A {_f(a_)} {_f(b_)} 0 1 0 {_f(x - a_)},{_f(y)} Z", "fade", color="soft", clip=True))
+    def softline(a_, b_, w):   # a pale line with soft sides
+        for f_ in (2.0, 0.8):
+            sh.parts.append(Part(_capsule(a_, b_, w * f_), "fade", color="soft", clip=True))
     fades = set(p.get("fades") or ())
     if fades:
         for mm in (lambda q: q, m):
@@ -1861,34 +1862,35 @@ def pants(**kw) -> Shape:
                 for i in range(5):
                     y = cy - 10 + i * 9
                     a_, b_ = mm((CX - 12, y + 2)), mm((CX - 0.42 * hh + i * 4, y - 10))
-                    sh.parts.append(Part(_capsule(a_, b_, 3.0 - i * 0.35), "fade", clip=True))
+                    softline(a_, b_, 3.0 - i * 0.35)
             if "knee" in fades and Ko:
                 kx = (leg_x(knee_y) + leg_x(knee_y, True)) / 2
                 soft(mm((kx, knee_y - 10)), kn * 0.36, kn * 0.6)
             if "pocket" in fades:   # the front pocket's edge, worn pale
-                sh.parts.append(Part(_capsule(mm((mouth_x, bb + 2)), mm((sm[0] + 6, sm[1] - 2)), 6), "fade", clip=True))
+                softline(mm((mouth_x, bb + 2)), mm((sm[0] + 6, sm[1] - 2)), 6)
             if "tracks" in fades and Ko:   # pale lines along the outer seams
-                sh.parts.append(Part(_capsule(mm((leg_x(cy + 20) + 2, cy + 20)), mm((Ho[0] + 3, hy - 12)), 3.4), "fade", clip=True))
+                softline(mm((leg_x(cy + 20) + 3, cy + 20)), mm((Ho[0] + 4, hy - 12)), 4.0)
             if "stacks" in fades and Ko:   # pale bands where the hem bunches
                 for i in range(3):
                     y = hy - 14 - i * 16
-                    sh.parts.append(Part(_capsule(mm((leg_x(y) + 3, y)), mm((leg_x(y, True) - 3, y - 4)), 2.6), "fade", clip=True))
+                    softline(mm((leg_x(y) + 3, y)), mm((leg_x(y, True) - 3, y - 4)), 2.8)
     distress = set(p.get("distress") or ())
     for n_leg, mm in enumerate((lambda q: q, m)):
         if Ko and distress & {"knee_rip", "abrasion"}:
             kx = (leg_x(knee_y) + leg_x(knee_y, True)) / 2
-            if "abrasion" in distress:
+            if "abrasion" in distress and n_leg == 1:   # on one thigh
                 soft(mm((kx, cy + 50)), kn * 0.3, kn * 0.45)
             if "knee_rip" in distress:   # a torn hole, its white weft threads left across it
                 w_ = kn * 0.32
                 sh.parts.append(Part(f"M {_pt(mm((kx - w_, knee_y - 14)))} Q {_pt(mm((kx, knee_y - 22)))} {_pt(mm((kx + w_, knee_y - 14)))} "
                                      f"L {_pt(mm((kx + w_, knee_y + 2)))} Q {_pt(mm((kx, knee_y + 8)))} {_pt(mm((kx - w_, knee_y + 2)))} Z",
-                                     "inlay", color="#ece7dc"))
+                                     "inlay", color="deep"))
                 for j in range(4):
                     y = knee_y - 13 + j * 5
-                    sh.parts.append(Part(f"M {_pt(mm((kx - w_ + 2, y)))} L {_pt(mm((kx + w_ - 2, y)))}", "edge"))
+                    sh.parts.append(Part(f"M {_pt(mm((kx - w_ + 1, y)))} Q {_pt(mm((kx, y + 1.5)))} {_pt(mm((kx + w_ - 1, y)))}",
+                                         "stitch", color="#f2efe6"))
         if Ko and distress & {"patched", "sashiko"} and n_leg == 0:   # on one thigh   # a patch on the thigh; sashiko: rows of white running stitch
-            x0 = leg_x(cy + 30) + 10
+            x0 = leg_x(cy + 30) + 16
             pts = [(x0, cy + 30), (x0 + 30, cy + 28), (x0 + 31, cy + 62), (x0 + 1, cy + 63)]
             sh.parts.append(Part("M " + " L ".join(_pt(mm(q)) for q in pts) + " Z", "trim", clip=True))
             rows = range(5) if "sashiko" in distress else ()
@@ -1901,7 +1903,7 @@ def pants(**kw) -> Shape:
     # ---- the break: folds where the hem meets the shoe
     brk = p.get("break", "none")
     if Ko and brk in ("slight", "full", "stacked"):
-        n_ = {"slight": 1, "full": 1, "stacked": 3}[brk]
+        n_ = {"slight": 1, "full": 2, "stacked": 3}[brk]
         for mm in (lambda q: q, m):
             for i in range(n_):
                 y = hy - (7 if brk == "slight" else 13) - i * 15
@@ -1937,11 +1939,12 @@ def pants(**kw) -> Shape:
         elif hem_kind in ("split", "chain"):
             sh.lines.append(f"M {_pt(mm((a[0] - 1, a[1] - 2.2 * k)))} L {_pt(mm((b[0] + 1, b[1] - 2.2 * k)))}")
             if hem_kind == "split":   # a short slit up the outer seam
-                sh.lines.append(f"M {_pt(mm((a[0] + 2, a[1])))} L {_pt(mm((a[0] + 3.5, a[1] - 8 * k)))}")
+                sh.lines.append(f"M {_pt(mm((a[0] + 1, a[1])))} L {_pt(mm((a[0] + 4.5, a[1] - 12 * k)))} "
+                                f"L {_pt(mm((a[0] + 8, a[1])))}")
             else:                     # chain stitch: the hem's roping, a row of slanting twists
-                for j in range(8):
-                    x = a[0] + 2 + (b[0] - a[0] - 4) * j / 7
-                    sh.parts.append(Part(f"M {_pt(mm((x, a[1] - 2.2 * k + 3)))} L {_pt(mm((x + 3, a[1] - 2.2 * k - 2)))}", "stitch"))
+                for j in range(7):
+                    x = a[0] + 2 + (b[0] - a[0] - 8) * j / 6
+                    sh.parts.append(Part(f"M {_pt(mm((x, a[1] - 2.2 * k - 3)))} L {_pt(mm((x + 5, a[1] - 2.2 * k - 10)))}", "stitch"))
     if stitch == "contrast":
         for d in stitch_lines:
             sh.parts.append(Part(d, "stitch"))
@@ -2292,7 +2295,7 @@ def sneaker(**kw) -> Shape:
             if heeled and 0.48 < u < 0.79:
                 continue
             lug = (f"M {_pt(_sp(u, 0))} L {_pt(_sp(u, 0.026))} L {_pt(_sp(u + 0.04, 0.026))} L {_pt(_sp(u + 0.04, 0))} Z")
-            sh.parts.append(Part(lug, "inlay", color="sole_dark", clip=True))
+            sh.parts.append(Part(lug, "inlay", color="sole_lug", clip=True))
     elif tread == "crepe":   # a crepe sole's soft, wavy edge
         sh.parts.append(Part(_spline([(0.02 + i * 0.07, 0.02 + (0.006 if i % 2 else 0)) for i in range(14)]),
                              "edge", color="sole_line"))
@@ -2556,7 +2559,7 @@ def sneaker(**kw) -> Shape:
     def band(pts, w):
         return _spline(pts) + " " + _spline(_shift(pts[::-1], 0, -w), start=False) + " Z"
     if strap == "engineer":   # a strap over the instep and one round the top of the shaft, each buckled
-        buckled(band([(0.5, vtop(0.5) + 0.05), (0.58, 0.25), (0.67, 0.16), (0.76, tf_at(0.76) - 0.01)], 0.065), (0.6, 0.22), 0.05)
+        buckled(band([(0.5, vtop(0.5) + 0.05), (0.58, 0.25), (0.67, 0.16), (0.75, tf_at(0.75) + 0.035)], 0.065), (0.6, 0.22), 0.05)
         t = max(v for _, v in groups[1])
         buckled(band([(0.6, t - 0.04), (0.8, t - 0.035), (1.03, t - 0.035)], 0.045), (0.86, t - 0.06), 0.045)
     elif strap == "jodhpur":   # a strap from the back round the ankle, buckled on the outer side

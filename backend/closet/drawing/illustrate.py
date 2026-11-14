@@ -423,6 +423,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     def part_color(key):
         return {"trim": spec.trim_color, "lace": spec.lace_color, "sole": sole_c, "sole_line": None,
                 "sole_dark": shade(sole_c, -0.35 if luminance(sole_c) > 0.25 else 0.2),   # an outsole under a sandal's footbed
+                "sole_lug": shade(sole_c, -0.62 if luminance(sole_c) > 0.25 else 0.25),   # the blocks of a lug sole
                 "deep": shade(base, 0.14 if luminance(base) < 0.1 else -0.15)}.get(key, key)   # deep: the same leather, in shadow
 
     def overlay(d: str, role: str, color: str | None = None) -> str:
@@ -472,6 +473,16 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             body = f'<path d="{d}" fill="{c}"/>' if c else (f'<path d="{d}" fill="{paint}"/>'
                                                            f'<path d="{d}" fill="{"#fff" if dark_item else "#000"}" opacity=".08"/>')
             return body + f'<path d="{d}" fill="none" stroke="{l_stroke if style != "flat" else shade(c or base, -0.3)}" stroke-width="{l_w}" stroke-linejoin="round" opacity="{l_op}"/>'
+        if role == "fade":     # cloth worn paler (denim whiskers, a knee): a soft light wash over it, no edge
+            op = 0.2 if dark_item else 0.3
+            if color == "soft":   # palest in the middle, fading out to nothing at its edge
+                nonlocal defs
+                if f'id="f{uid}"' not in defs:
+                    defs += (f'<radialGradient id="f{uid}"><stop offset="0" stop-color="#fff" stop-opacity="{op * 1.4:.2f}"/>'
+                             f'<stop offset=".5" stop-color="#fff" stop-opacity="{op * 0.8:.2f}"/>'
+                             f'<stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>')
+                return f'<path d="{d}" fill="url(#f{uid})"/>'
+            return f'<path d="{d}" fill="#fff" opacity="{op:.2f}"/>'
         if role == "sole":
             c = sole_c
             return f'<path d="{d}" fill="{c}"/>' + (f'<path d="{d}" fill="#000" opacity=".06"/>' if style != "line" else "")

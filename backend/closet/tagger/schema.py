@@ -25,10 +25,16 @@ from .taxonomy import (
     ACCESSORY_GARMENTS,
     ACCESSORY_KINDS,
     AXES,
+    BOTTOM_AXES,
     BOTTOM_DRAWINGS,
     CORDUROY_WALES,
+    FOOTWEAR,
+    FOOTWEAR_AXES,
+    FOOTWEAR_LACING,
+    FOOTWEAR_TOE_TREATMENT,
     GARMENTS,
     KNIT_GAUGES,
+    SHADES,
     SHOE_STYLES,
     WEIGHT_CLASSES,
     top_drawing,
@@ -88,17 +94,46 @@ _KINDS_HELP = "; ".join(f"{name}: {', '.join(ACCESSORIES[group])}" for name, gro
     ("Hats", "hats"), ("Belts", "belts"), ("Scarves", "scarves"), ("Bags", "bags"), ("Ties", "ties"),
     ("Pocket squares (the fold)", "pocket_square_folds"), ("Gloves", "gloves"), ("Eyewear (the frame)", "eyewear_frames"),
     ("Watches", "watches"), ("Socks", "socks")))
+# shoes: the owner's footwear kinds and attributes; trousers and shorts: the bottoms block; any item: a named shade
+Footwear = Literal[("unknown",) + tuple(FOOTWEAR)]
+ToeShape = Literal[("na",) + FOOTWEAR_AXES["toe_shape"]]
+ToeTreatment = Literal[("na",) + tuple(FOOTWEAR_TOE_TREATMENT)]
+Lacing = Literal[("na",) + tuple(FOOTWEAR_LACING)]
+Laces = Literal[("na",) + FOOTWEAR_AXES["laces"]]
+ShoeSole = Literal[("na",) + FOOTWEAR_AXES["sole"]]
+ShoeConstruction = Literal[("na",) + FOOTWEAR_AXES["construction"]]
+FootwearHeight = Literal[("na",) + FOOTWEAR_AXES["height"]]
+Heel = Literal[("na",) + FOOTWEAR_AXES["heel"]]
+UpperMaterial = Literal[("na",) + FOOTWEAR_AXES["upper_material"]]
+Waistband = Literal[("na",) + BOTTOM_AXES["waistband"]]
+Fly = Literal[("na",) + BOTTOM_AXES["fly"]]
+TrouserFront = Literal[("na",) + BOTTOM_AXES["front"]]
+Rise = Literal[("na",) + BOTTOM_AXES["rise"]]
+LegShape = Literal[("na",) + BOTTOM_AXES["leg"]]
+TrouserBreak = Literal[("na",) + BOTTOM_AXES["break"]]
+HemFinish = Literal[("na",) + BOTTOM_AXES["hem_finish"]]
+Crease = Literal[("na",) + BOTTOM_AXES["crease"]]
+TrouserPocket = Literal[BOTTOM_AXES["pockets"]]
+BackDetail = Literal[BOTTOM_AXES["back_details"]]
+DenimWash = Literal[("na",) + BOTTOM_AXES["denim_washes"]]
+DenimFade = Literal[BOTTOM_AXES["denim_fades"]]
+Distressing = Literal[BOTTOM_AXES["distressing"]]
+Shade = Literal[("unknown",) + tuple(SHADES)]
 Feature = Literal["v_insert", "pleats", "pressed_crease", "contrast_stitching", "toe_cap", "side_stripe",
                   "contrast_heel_tab", "chunky_sole"]
 
 # Stored with every answer the app keeps. Raise it whenever `ItemTags` changes shape or vocabulary, so stored
 # answers can be told apart (a test holds a fingerprint of the schema and fails until this is raised).
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 FIELDS = ("category", "color", "pattern", "formality", "season")
 DETAIL_FIELDS = ("garment", "fit_detail", "sleeve_length", "neckline", "collar", "placket", "placket_buttons", "button_color", "cuff",
                  "sleeve_construction", "pockets", "hem", "fabric", "fiber", "weight", "knit_gauge", "corduroy_wale", "color_texture", "pattern_name", "pattern_orientation",
-                 "trim_color", "waist", "pant_hem", "shoe_style", "sole_color", "lace_color", "accessory", "accessory_kind")
+                 "trim_color", "waist", "pant_hem", "shoe_style", "sole_color", "lace_color", "accessory", "accessory_kind",
+                 "shade", "footwear", "toe_shape", "toe_treatment", "lacing", "eyelets", "laces", "sole", "shoe_construction",
+                 "footwear_height", "heel", "upper_material",
+                 "waistband", "fly", "trouser_front", "rise", "leg_shape", "trouser_break", "hem_finish", "crease",
+                 "trouser_pockets", "back_details", "denim_wash", "denim_fades", "distressing", "inseam")
 SILHOUETTE_FIELDS = ("sleeve", "neck", "top_length", "fit", "leg", "pant_length", "shoe_height")
 
 
@@ -121,6 +156,11 @@ class Silhouette(BaseModel):
 # Fields added since version 1, with the value an older stored answer is read with.
 ADDED_IN_2 = {"garment": "unknown"}
 ADDED_IN_3 = {"accessory": "na", "accessory_kind": "na"}
+ADDED_IN_4 = {"shade": "unknown", "footwear": "unknown", "toe_shape": "na", "toe_treatment": "na", "lacing": "na",
+              "eyelets": 0, "laces": "na", "sole": "na", "shoe_construction": "na", "footwear_height": "na", "heel": "na",
+              "upper_material": "na", "waistband": "na", "fly": "na", "trouser_front": "na", "rise": "na", "leg_shape": "na",
+              "trouser_break": "na", "hem_finish": "na", "crease": "na", "trouser_pockets": [], "back_details": [],
+              "denim_wash": "na", "denim_fades": [], "distressing": [], "inseam": 0}
 
 
 class Details(BaseModel):
@@ -153,13 +193,40 @@ class Details(BaseModel):
     accessory: Accessory = Field(description="Accessories only: which one it is (cap, beanie and brimmed_hat are hats; tie, pocket_square, gloves, eyewear, watch and socks are filed as category 'other'). 'na' for clothes and shoes.")
     accessory_kind: AccessoryKind = Field(description="Accessories only: its kind, from the list for what it is. " + _KINDS_HELP + ". 'na' when it does not apply or you cannot tell.")
     features: list[Feature] = Field(description="Any of these that are present; empty if none. v_insert = the stitched triangle under a sweatshirt's neck; contrast_stitching = topstitching in a thread colour that stands out, as on most blue jeans; side_stripe = a contrast panel or stripe on the side of a shoe, or stripes down the sleeves of a track jacket or the sides of track trousers or shorts.")
+    shade: Shade = Field(description="The owner's name for the main colour's shade, one of the shades of the main colour word (navy: navy, midnight or raw_indigo; tan: stone, khaki, sand, camel or natural_flax; ...); 'unknown' when none is close.")
+    footwear: Footwear = Field(description="Shoes only: the kind of shoe or boot, when you can tell (chukka, desert_boot, service_boot, moc_toe_boot, engineer_boot, logger_boot, combat_boot, hiking_boot, western_boot, jodhpur_boot, rain_boot, snow_boot, duck_boot, canvas_low_top, canvas_high_top, leather_court_sneaker, retro_runner, trail_runner, chunky_sneaker, skate_shoe, basketball_shoe, boat_shoe, penny_loafer, cap_toe_oxford ...); 'unknown' otherwise.")
+    toe_shape: ToeShape = Field(description="Shoes: the toe's shape seen from above and the side; moc_toe = a raised U-shaped seam over the toe. 'na' otherwise.")
+    toe_treatment: ToeTreatment = Field(description="Shoes: what is on the toe (a cap, a wingtip, a medallion, an apron or split-toe seam, a rubber toe cap); 'na' otherwise.")
+    lacing: Lacing = Field(description="Shoes: how it fastens: closed_oxford, open_derby, speed_hooks (open hooks at the top of a boot), d_rings, elastic_gussets (a chelsea), monk_single / monk_double (buckled straps), hook_and_loop, toggle_speed_lace, rawhide_around_collar (a boat shoe), slip_on; 'na' otherwise.")
+    eyelets: int = Field(description="Shoes: the eyelets (and hooks) you can count on one side of the lacing; 0 when none or not a shoe.")
+    laces: Laces = Field(description="Shoes: the kind of laces; 'na' when none or not a shoe.")
+    sole: ShoeSole = Field(description="Shoes: the sole: leather, rubber_city, lug_commando (deep lugs), crepe (honey, wavy), wedge (a flat white block, no heel), cupsole, vulcanized (a canvas shoe's), cleats, jute_rope (an espadrille) ...; 'na' otherwise.")
+    shoe_construction: ShoeConstruction = Field(description="Shoes: how the sole is attached, when the welt or stitching shows; 'na' otherwise.")
+    footwear_height: FootwearHeight = Field(description="Shoes: how high it comes: low, mid or high (sneakers), ankle_boot, boot_6in, boot_8in_plus, knee; 'na' otherwise.")
+    heel: Heel = Field(description="Shoes: the heel: flat, low_stacked, block, cuban (tall and angled, as on a western boot); 'na' otherwise.")
+    upper_material: UpperMaterial = Field(description="Shoes: what the upper is made of; 'na' otherwise.")
+    waistband: Waistband = Field(description="Trousers and shorts: how the waist is held: belt_loops, side_adjusters (buckled tabs at the sides), extended_tab, gurkha (a wide wrapped band with buckles), elastic_drawcord, half_elastic, drawstring, brace_buttons; 'na' otherwise.")
+    fly: Fly = Field(description="Trousers and shorts: zip, button (a button fly) or none (a pull-on); 'na' otherwise.")
+    trouser_front: TrouserFront = Field(description="Trousers and shorts: flat or pleated: single_pleat, double_pleat, reverse_pleat (opening toward the pockets), forward_pleat (opening toward the fly); 'na' otherwise.")
+    rise: Rise = Field(description="Trousers and shorts: where the waist sits: low (on the hips), mid, high (at the natural waist); 'na' otherwise.")
+    leg_shape: LegShape = Field(description="Trousers: the leg's shape from hip to hem; 'na' otherwise.")
+    trouser_break: TrouserBreak = Field(description="Trousers: how the hem meets the shoe: no_break, slight, full, cropped (above the ankle), stacked (bunched folds); 'na' otherwise.")
+    hem_finish: HemFinish = Field(description="Trousers and shorts: the hem: plain, turn_up (a pressed cuff), rolled_cuff (rolled up), ribbed_cuff (joggers), raw, chain_stitched (roping on jeans), split, notched; 'na' otherwise.")
+    crease: Crease = Field(description="Trousers: pressed = a sharp crease down the front of each leg; none otherwise; 'na' when not trousers.")
+    trouser_pockets: list[TrouserPocket] = Field(description="Trousers and shorts: the pockets you can see, front and back; empty otherwise.")
+    back_details: list[BackDetail] = Field(description="Trousers and shorts: what is on the back or the build (double_knee, back_yoke, rivets, back_patch_label, darts ...); empty otherwise.")
+    denim_wash: DenimWash = Field(description="Jeans and other denim: the wash, from raw (unwashed, near navy) through rinse, dark, mid and light to bleached; stone, acid, black, washed_black, grey, ecru, white, overdyed. 'na' when not denim.")
+    denim_fades: list[DenimFade] = Field(description="Denim: the fades you can see: whiskers (at the hips), honeycombs (behind the knees), stacks (at the hem), train_tracks (along the side seams), roping (at the hem), pocket_fade, knee_fade; empty otherwise.")
+    distressing: list[Distressing] = Field(description="Trousers and shorts: knee_rip, frayed_hem, abrasion, patched, sashiko_repair; empty when none.")
+    inseam: int = Field(description="Shorts only: the inseam in inches as it looks (running shorts 3-5, chino shorts 7-9, cargo and basketball shorts 9-11); 0 otherwise.")
+    features: list[Feature] = Field(description="Any of these that are present; empty if none. v_insert = the stitched triangle under a sweatshirt's neck; contrast_stitching = topstitching in a thread colour that stands out, as on most blue jeans; side_stripe = a contrast panel or stripe on the side of a shoe.")
     other_features: list[str] = Field(description="Up to four distinctive details nothing above covers, a few words each, e.g. 'embroidered chest logo', 'elbow patches'. Empty if none.")
 
     @model_validator(mode="before")
     @classmethod
     def _older(cls, data):
         """An answer stored before a field was added reads as if it had said the field's 'nothing'."""
-        return {**ADDED_IN_2, **ADDED_IN_3, **data} if isinstance(data, dict) else data
+        return {**ADDED_IN_2, **ADDED_IN_3, **ADDED_IN_4, **data} if isinstance(data, dict) else data
 
     @classmethod
     def plain(cls, **known) -> Details:
@@ -169,7 +236,7 @@ class Details(BaseModel):
                     fiber="unknown", weight="unknown", knit_gauge="na", corduroy_wale="na",
                     color_texture="solid", pattern_name="solid", pattern_orientation="all_over", trim_color="same",
                     waist="na", pant_hem="na", shoe_style="na", sole_color="same", lace_color="same",
-                    accessory="na", accessory_kind="na", features=[], other_features=[])
+                    accessory="na", accessory_kind="na", **ADDED_IN_4, features=[], other_features=[])
         return cls(**{**base, **known})
 
 
@@ -246,6 +313,8 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
             p["hem"] = {"turn_up": "turnup", "ribbed": "rib"}[d.pant_hem]
         if "contrast_stitching" in d.features:
             p["stitch"] = "contrast"
+        p.update(taxonomy.bottom_params(tags.category, d.model_dump()))   # the owner's bottoms block, where told
+        p.update(BOTTOM_DRAWINGS.get(d.garment, {}))   # the kind's own look wins over a told detail
         if "side_stripe" in d.features:
             p["stripe"] = "side"
         extras.update(taxonomy.surface_extras(cloth))
@@ -254,6 +323,7 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
         by_category = ({"boots": "boot", "dress_shoes": "derby", "sandals": "sandal"}.get(tags.category)
                        or ("high_top" if s.shoe_height == "high" else "low_sneaker"))
         style = d.shoe_style if d.shoe_style in SHOE_STYLES else by_category
+        style, told = taxonomy.shoe_params(style, d.model_dump())   # the footwear kind and attributes, where told
         style, words, _ = taxonomy.shoe_words(style, d.other_features)   # a footwear id or detail the tagger named
         p = {"height": "high" if style in ("high_top", "boot", "chelsea_boot") else "low", "style": style}
         if "chunky_sole" in d.features:
@@ -264,6 +334,7 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
             p["stripe"] = "side"
         if "contrast_heel_tab" in d.features:
             p["heel_tab"] = "contrast"
+        p.update(told)
         p.update(words)
         return "sneaker", p, extras, []
     # a top: the details decide, in the taxonomy's words; the coarse silhouette fills in what the details leave "na"

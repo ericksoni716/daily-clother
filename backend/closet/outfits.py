@@ -25,6 +25,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from . import vocab
+from .tagger.taxonomy import COLOR_FAMILIES
 
 # ------------------------------------------------------------------ temperature
 DESIGN_TEMP_SHARE = 0.3      # the temperature dressed for: the low plus this share of the way to the high (a layer is easier to take off than to find)
@@ -115,8 +116,13 @@ MOODS = {"usual": 0.0, "sharp": 0.5, "relaxed": -0.5}  # how far the mood moves 
 FORMALITY_PER_STEP = 4       # score lost per step a piece is from the formality aimed for
 
 # ------------------------------------------------------------------ colour and pattern
-NEUTRALS = ("black", "white", "grey", "navy", "tan", "brown", "cream", "olive", "light_blue")
+# The owner's colour families (docs/menswear-taxonomy.json, colors.families): neutrals pair with anything; two strong
+# colours go together when they share an earth, cool or warm family, unless both are brights (one bright per outfit)
+NEUTRALS = COLOR_FAMILIES["neutral"]
+HARMONIES = ("earth", "cool", "warm")
+BRIGHTS = COLOR_FAMILIES["bright"]
 DENIM_CATEGORIES = ("jeans",)  # blue jeans count as neutral
+# shades of one colour (tonal), whatever their families
 COLOR_FAMILY = {"red": "red", "burgundy": "red", "pink": "red", "orange": "orange", "yellow": "yellow",
                 "green": "green", "olive": "green", "blue": "blue", "light_blue": "blue", "navy": "blue",
                 "purple": "purple"}
@@ -349,6 +355,7 @@ LEVEL_WORDS = {"athletic": "sporty", "casual": "casual", "smart_casual": "smart 
                "formal": "formal"}
 FAMILY_WORDS = {"red": "reds", "orange": "oranges", "yellow": "yellows", "green": "greens", "blue": "blues",
                 "purple": "purples"}
+HARMONY_WORDS = {"earth": "Earth tones", "cool": "Cool colours", "warm": "Warm colours"}
 NUMBER_WORDS = {2: "Two", 3: "Three", 4: "Four"}
 
 
@@ -482,6 +489,20 @@ def _tonal(a: Piece, b: Piece) -> bool:
     return False
 
 
+def _shared_family(pieces: list[Piece]) -> str | None:
+    """The owner's earth, cool or warm family every piece's colour is in, or None."""
+    return next((f for f in HARMONIES if all(p.color in COLOR_FAMILIES[f] for p in pieces)), None)
+
+
+def _go_together(a: Piece, b: Piece) -> bool:
+    """Two strong colours: shades of one colour, or of one of the owner's families but not two brights."""
+    if _tonal(a, b):
+        return True
+    if a.color == "multi" or b.color == "multi":
+        return False
+    return _shared_family([a, b]) is not None and not (a.color in BRIGHTS and b.color in BRIGHTS)
+
+
 def _formality_clash(clothes: list[Piece], outer: Piece | None) -> tuple[Piece, Piece] | None:
     """Two pieces too far apart in formality (the outer layer is allowed further), or None."""
     lo = min(clothes, key=lambda p: (p.formality, p.id))
@@ -506,7 +527,7 @@ def _outfit_problems(pieces: list[Piece], clothes: list[Piece], outer: Piece | N
         out.append(f"{_the(clash[0], True)} is a lot dressier than {_the(clash[1])}.")
     strong = [p for p in pieces if not _neutral(p)]
     for a, b in itertools.combinations(strong, 2):
-        if not _tonal(a, b):
+        if not _go_together(a, b):
             out.append(f"{_the(a, True)} and {_the(b)} are two strong colours that compete.")
             break
     loud = [p for p in pieces if p.pattern in LOUD_PATTERNS]
@@ -747,6 +768,8 @@ def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | Non
     elif all(_tonal(a, b) for a, b in itertools.combinations(strong, 2)):
         family = FAMILY_WORDS.get(COLOR_FAMILY.get(strong[0].color or "", ""), "shades of one colour")
         reasons.append(f"Tonal {family}: {_join([_the(p) for p in strong])}.")
+    elif all(_go_together(a, b) for a, b in itertools.combinations(strong, 2)) and _shared_family(strong):
+        reasons.append(f"{HARMONY_WORDS[_shared_family(strong)]} together: {_join([_the(p) for p in strong])}.")
     loud = [p for p in pieces if p.pattern in LOUD_PATTERNS]
     patterned = [p for p in pieces if p.pattern != "solid"]
     if len(loud) == 1 and len(patterned) == 1:

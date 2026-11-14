@@ -125,6 +125,64 @@ def test_importing_the_drawing_code_does_not_import_opencv():
     assert out.stdout.strip() == "False"
 
 
+# ----------------------------------------------- the owner's footwear and bottoms blocks (#149)
+def _drawn(tags: dict) -> tuple[str, dict]:
+    template, params, _, _ = drawing_for(ItemTags.model_validate(tags))
+    return template, params
+
+
+@pytest.mark.parametrize("details, want_style, want", [
+    (dict(footwear="chelsea_boot", sole="lug_commando"), "chelsea_boot", {"tread": "lug"}),
+    (dict(footwear="logger_boot"), "boot", {"hooks": 4, "tread": "lug"}),
+    (dict(footwear="desert_boot"), "boot", {"tread": "crepe"}),
+    (dict(footwear="engineer_boot"), "boot", {"strap": "engineer"}),
+    (dict(footwear="western_boot"), "boot", {"kind": "western_boot", "heel": "cuban", "laces": False}),
+    (dict(footwear="moc_toe_boot"), "boot", {"moc": True, "tread": "wedge"}),
+    (dict(footwear="canvas_high_top", footwear_height="mid"), "high_top", {"shaft": 0.44}),
+    (dict(footwear="boat_shoe"), "loafer", {"tread": "siped", "lace_collar": True}),
+    (dict(footwear="service_boot", footwear_height="boot_8in_plus"), "boot", {"shaft": 0.74}),
+    (dict(footwear="derby", lacing="monk_double"), "derby", {"strap": "double_monk", "laces": False}),
+    (dict(footwear="service_boot", sole="crepe", heel="flat", eyelets=8), "boot",
+     {"tread": "crepe", "heel": "flat", "eyelets": 8}),
+    (dict(footwear="canvas_low_top", footwear_height="high"), "high_top", {}),
+])
+def test_the_footwear_fields_choose_the_shoe_drawing(details, want_style, want):
+    template, params = _drawn(answer("boots" if "boot" in details["footwear"] else "sneakers", **details))
+    assert template == "sneaker" and params["style"] == want_style
+    assert {k: params.get(k) for k in want} == want
+
+
+@pytest.mark.parametrize("category, details, want", [
+    ("trousers", dict(trouser_front="double_pleat"), {"pleats": 2, "crease": True}),
+    ("trousers", dict(trouser_front="single_pleat", crease="none"), {"pleats": 1, "crease": False}),
+    ("trousers", dict(hem_finish="turn_up", trouser_break="full", rise="high"), {"hem": "turnup", "break": "full", "rise": "high"}),
+    ("trousers", dict(waistband="side_adjusters", fly="button", leg_shape="wide"), {"waist": "adjusters", "fly": "button", "leg": "wide"}),
+    ("jeans", dict(denim_fades=["whiskers", "train_tracks"], distressing=["knee_rip"]),
+     {"fades": ["tracks", "whiskers"], "distress": ["knee_rip"]}),
+    ("trousers", dict(trouser_pockets=["frog_mouth", "zip_pocket"], back_details=["double_knee"]),
+     {"pockets": "frog", "extra_pockets": ["zip"], "panels": ["double_knee"]}),
+    ("shorts", dict(inseam=5, trouser_break="cropped"), {"inseam": 5, "length": "short"}),
+])
+def test_the_bottoms_fields_choose_the_trouser_drawing(category, details, want):
+    template, params = _drawn(answer(category, **details))
+    assert template == "pants"
+    assert {k: params.get(k) for k in want} == want
+
+
+def test_an_answer_stored_before_the_new_fields_reads_as_nothing_told():
+    old = answer("boots", shoe_style="chelsea_boot")
+    for name in ("footwear", "eyelets", "trouser_pockets", "shade", "inseam", "denim_wash"):
+        old["details"].pop(name)
+    tags = ItemTags.model_validate(old)
+    assert tags.details.footwear == "unknown" and tags.details.eyelets == 0 and tags.details.trouser_pockets == []
+    assert tags.details.shade == "unknown" and tags.details.denim_wash == "na"
+    assert _drawn(old) == _drawn(answer("boots", shoe_style="chelsea_boot"))
+
+
+def test_the_new_fields_refuse_values_outside_the_taxonomy():
+    for bad in (dict(footwear="moon_boot"), dict(shade="ultraviolet"), dict(denim_fades=["holes"]), dict(hem_finish="lace")):
+        with pytest.raises(ValueError):
+            Details.plain(**bad)
 @pytest.mark.parametrize("category, accessory, kind, template", [
     ("bag", "bag", "daypack", "bag"), ("belt", "belt", "western", "belt"), ("hat", "cap", "trucker_cap", "cap"),
     ("hat", "beanie", "fisherman_beanie", "beanie"), ("hat", "brimmed_hat", "panama", "brimmed_hat"),

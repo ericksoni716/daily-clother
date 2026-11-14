@@ -229,7 +229,7 @@ def test_every_demo_answer_is_a_valid_answer_in_the_current_schema():
 
 # Recorded with SCHEMA_VERSION. When this fails, the tagging schema changed: raise SCHEMA_VERSION in
 # closet/tagger/schema.py, record the new fingerprint here, and rewrite the demo answers.
-SCHEMA_FINGERPRINTS = {1: "1edcb5f6851e", 2: "655281317a64", 3: "87ca160a8092"}
+SCHEMA_FINGERPRINTS = {1: "1edcb5f6851e", 2: "655281317a64", 3: "87ca160a8092", 4: "aa280d512c79"}
 
 
 def test_the_schema_version_is_raised_when_the_schema_changes():
@@ -520,3 +520,19 @@ def test_track_trousers_are_drawn_with_a_side_stripe():
     answer = {**answer, "details": {**answer["details"], "garment": "track_pants"}}
     template, params, _, _ = drawing_for(ItemTags.model_validate(answer))
     assert template == "pants" and params["stripe"] == "side" and params["waist"] == "elastic"
+def test_the_owners_shade_or_denim_wash_sets_the_drawn_colour():
+    from closet import items, tagjobs
+    from closet.tagger.schema import NAMED_HEX, ItemTags
+
+    from .test_drawing import answer
+    grey = answer("trousers", shade="charcoal")
+    grey["color"] = "grey"
+    assert tagjobs.color_hex(ItemTags.model_validate(grey)) == "#36393d"
+    # a shade of another colour word is not used: the word's own colour is
+    assert tagjobs.color_hex(ItemTags.model_validate(answer("trousers", shade="charcoal"))) == NAMED_HEX["navy"]
+    jeans = answer("jeans", denim_wash="raw")
+    assert tagjobs.color_hex(ItemTags.model_validate(jeans)) == "#23304a"   # raw indigo, a shade of navy
+    # the item page names the shade: the one told, else the nearest to the measured colour
+    assert items.shade_of({"color": "grey", "color_hex": "#8a8d91"}, {"shade": "charcoal"}) == "charcoal"
+    assert items.shade_of({"color": "grey", "color_hex": "#8a8d91"}, {}) == "mid_grey"
+    assert items.shade_of({"color": "multi", "color_hex": None}, {}) is None

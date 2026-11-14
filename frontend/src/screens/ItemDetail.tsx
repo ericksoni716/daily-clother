@@ -4,7 +4,7 @@ import { ChipGroup } from '../components/ui/Chips';
 import { Notice, PHONE, Section, SegmentedControl, Sheet } from '../components/ui';
 import { FixDetails, FixDetailsButton, ItemHistory } from '../components/FixDetails';
 import { BackIcon, ChevronIcon, HangerIcon, WarnIcon } from '../components/Icons';
-import { FIELD_TITLES, formatPrice, label, measuredColours, parsePrice, ratingLabel, SWATCH, swatchOf, tileCaption } from '../labels';
+import { FIELD_TITLES, formatPrice, label, shadeLabel, measuredColours, parsePrice, ratingLabel, SWATCH, swatchOf, tileCaption } from '../labels';
 import { useWhenLeaving } from '../leave';
 import { Link, navigate, useMediaQuery } from '../router';
 import { silhouetteGroups } from '../silhouette';
@@ -254,7 +254,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
             {(done) => <ChipGroup field="category" options={vocab.category} value={item.category} disabled={locked}
               onChange={(v) => { done(); void save({ category: v }); }} />}
           </DetailRow>
-          <DetailRow field="color" value={label('color', item.color)} swatch={item.color ? (item.color_hex ?? swatchOf(item.color)) : undefined} disabled={locked}>
+          <DetailRow field="color" value={shadeLabel(label('color', item.color), item.shade)} swatch={item.color ? (item.color_hex ?? swatchOf(item.color)) : undefined} disabled={locked}>
             {(done) => <ChipGroup field="color" options={vocab.color} value={item.color} disabled={locked} swatches
               onChange={(v) => { done(); void save({ color: v, color_hex: v ? (SWATCH[v]?.startsWith('#') ? SWATCH[v] : null) : null }); }} />}
           </DetailRow>

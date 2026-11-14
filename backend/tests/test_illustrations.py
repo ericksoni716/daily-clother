@@ -252,3 +252,13 @@ def test_the_shoe_words_the_drawing_shows_leave_seen_not_drawn():
            "color": "brown", "pattern": "solid", "own_details": None}
     assert illustrations.not_drawn(row, ["tassels", "contrast welt stitching"]) == ["contrast welt stitching"]
     assert draw.words_drawn({**answer, "category": "shirt"}) == []
+
+
+def test_the_item_says_how_it_is_worn_and_a_detail_picked_changes_it(client, services, claude):
+    body = tagged(client, services, claude)   # a regular polo with short sleeves
+    assert body["as_worn"] == [{"part": "fit", "value": "regular", "field": "fit_detail"},
+                               {"part": "sleeve", "value": "short", "field": "sleeve_length"}]
+    after = client.put(f"/api/items/{body['id']}/details", json={"details": {"fit_detail": "longline"}}).json()
+    assert {"part": "length", "value": "below_hip", "field": "fit_detail"} in after["as_worn"]
+    plain = upload(client, key="k2").json()
+    assert client.get(f"/api/items/{plain['id']}").json()["as_worn"] == []

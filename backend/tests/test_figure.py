@@ -937,3 +937,23 @@ def test_cropped_trousers_show_the_ankle():
     hem = lambda b: (b.point(b.shape.anchors["hem_out"])[1] - fig.CROWN_Y) / K_PX   # noqa: E731
     assert hem(full) == pytest.approx(fig.GROUND_CM - fig.BREAK_CM, abs=0.5)
     assert fig.CALF_CM < hem(ankle) < fig.GROUND_CM - 10.0
+
+
+def test_as_worn_tells_fit_length_and_sleeves_and_leaves_out_what_was_not_told():
+    worn = fig.as_worn(_tee("cropped"))
+    assert worn == [{"part": "fit", "value": "regular", "field": "fit_detail"},
+                    {"part": "length", "value": "waist", "field": "fit_detail"},
+                    {"part": "sleeve", "value": "short", "field": "sleeve_length"}]
+    assert fig.as_worn(_tee("oversized"))[0]["value"] == "oversized"
+    assert [w["part"] for w in fig.as_worn(_tee("relaxed"))] == ["fit", "sleeve"]   # its length was not told
+    assert fig.as_worn(Piece("tee", None, "#888888")) == []   # nothing told: drawn regular, nothing said
+    assert fig.as_worn(Piece("tee", None, "#888888", silhouette={"sleeve": "long"})) == [
+        {"part": "sleeve", "value": "long", "field": "sleeve_length"}]
+    coat = Piece("coat", answer("coat", {"top_length": "long"}, collar="notch_lapel", placket="front_placket"), "#232326")
+    assert {"part": "length", "value": "thigh", "field": "fit_detail"} in fig.as_worn(coat)
+    trousers = Piece("trousers", answer("trousers", leg_shape="slim", trouser_break="cropped"), "#6f7278")
+    assert fig.as_worn(trousers) == [{"part": "leg", "value": "slim", "field": "leg_shape"},
+                                     {"part": "length", "value": "ankle", "field": "trouser_break"}]
+    assert fig.as_worn(Piece("shorts", answer("shorts", inseam=7), "#6f7550")) == [
+        {"part": "length", "value": "short", "field": "inseam"}]
+    assert fig.as_worn(SNEAKERS) == [] and fig.as_worn(Piece("hat", None, "#222222")) == []

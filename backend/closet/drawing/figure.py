@@ -411,6 +411,39 @@ def _spec(piece: Piece) -> Spec:
                 graphic=piece.graphic if template == "top" else None, **extras)
 
 
+def as_worn(piece: Piece) -> list[dict]:
+    """How the piece sits on the wearer, in the words the item page shows under its name: for a top its fit, the
+    landmark its hem goes to (a key of HEM_AT) and its sleeve length; for trousers their leg and their length. Each
+    is {"part", "value", "field"}, `field` being the detail the owner corrects it with in "Fix the details". A part
+    nothing was told about is left out (it is drawn regular). Never raises."""
+    try:
+        spec = _spec(piece)
+        tags = item._tags(piece.answer) if piece.answer is not None else None
+        if tags is not None and tags.category != piece.category:
+            tags = None
+        s = tags.silhouette if tags else item._plain(piece.category, item._known_silhouette(piece.silhouette), {}).silhouette
+        d = tags.details if tags else None
+        p, out = spec.params, []
+        if spec.template == "top":
+            fit = d.fit_detail if d else None
+            if d or s.fit:
+                out.append({"part": "fit", "value": p.get("fit", "regular"), "field": "fit_detail"})
+            if s.top_length or fit in ("cropped", "longline") or p.get("length", "regular") != "regular":
+                out.append({"part": "length", "value": reaches(p, None, piece.category), "field": "fit_detail"})
+            if (d and d.sleeve_length != "na") or s.sleeve:
+                out.append({"part": "sleeve", "value": p.get("sleeve", "long"), "field": "sleeve_length"})
+        elif spec.template == "pants":
+            if (d and d.leg_shape != "na") or s.leg:
+                out.append({"part": "leg", "value": p.get("leg", "straight"), "field": "leg_shape"})
+            short = p.get("length") in ("short", "brief")
+            if (short and d and d.inseam) or (not short and ((d and d.trouser_break != "na") or s.pant_length)):
+                out.append({"part": "length", "value": p.get("length", "full"), "field": "inseam" if short else "trouser_break"})
+        return out
+    except Exception:
+        log.exception("telling how a %s is worn failed", piece.category)
+        return []
+
+
 def _plainest(piece: Piece) -> Spec:
     template, params, extras, _ = item.drawing_for(item._plain(piece.category, {}, {}))
     return Spec(template, dict(params), Fill("solid", item._color(piece.color_hex, piece.color)), **extras)

@@ -79,6 +79,8 @@ def detail(conn, row) -> dict:
     out["kind_by"], out["kind_confidence"] = kind["by"], kind["confidence"]
     out["kind_alternatives"] = kinds.alternatives(row, kind["kind"])
     out["drawing_notes"] = illustrations.notes(row)
+    # how it sits on the outfit figure: its fit, length and sleeves (or leg), each with the detail that corrects it
+    out["as_worn"] = illustrations.worn(row)
     out["photos"] = [{
         "id": p["id"], "kind": p["kind"], "url": _media(p["original_path"]), "thumb_url": _media(p["thumb_path"]),
         "cutout_url": _media(p["cutout_path"]), "cutout_thumb_url": _media(p["cutout_thumb_path"]),

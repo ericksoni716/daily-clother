@@ -242,12 +242,14 @@ function LifeBasis({ context, locked, busy, onOpen, onDismiss }: {
 }) {
   if (!context) return null;
   const { life, demo } = context;
+  // the row can show two lines of it at most, so its name says it all
+  const openWord = demo ? 'Example answers' : locked ? 'Saved answers' : life ? 'Edit' : 'Your answers';
   return (
     <section className="life-basis" aria-label="What these suggestions are based on">
       <button type="button" className="life-basis-row" data-testid="life-basis" onClick={onOpen}
-        aria-label={`How you live. Based on: ${basisWords(context)}.`}>
+        aria-label={`Based on ${basisWords(context)}. ${openWord}: How you live`}>
         <span className="life-basis-text"><span className="life-basis-label">Based on</span> {basisWords(context)}.</span>
-        <span className="life-basis-open">{demo ? 'Example answers' : locked ? 'Saved answers' : life ? 'Edit' : 'Your answers'}<ChevronIcon /></span>
+        {' '}<span className="life-basis-open">{openWord}<ChevronIcon /></span>
       </button>
       {!life && !context.prompt_dismissed && !demo && !locked && (
         <div className="life-invitation">

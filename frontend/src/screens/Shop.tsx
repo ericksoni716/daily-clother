@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../api';
 import { SearchIcon } from '../components/Icons';
+import { Button, buttonClass, Card, Notice } from '../components/ui';
 import type { Wish } from '../gaps';
 import { dropWords, type Find, type FindsAnswer, priceWords, rangeWords, SHOP_POLL_MS, typedPrice, webLink } from '../shop';
 import { aboutUsd } from '../spend';
@@ -80,12 +81,12 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
     <section className="wish-shop" aria-label={`Shopping for ${wish.name}`}>
       <PriceRange wish={wish} locked={locked} onPrice={onPrice} />
       <div className="row wish-shop-actions">
-        <button className="btn btn-small" data-testid="find-some" disabled={disabled} title={title} onClick={() => void start('find')}>
+        <Button small data-testid="find-some" disabled={disabled} title={title} onClick={() => void start('find')}>
           <SearchIcon /> {finds.length ? 'Find more' : 'Find some'}
-        </button>
+        </Button>
         {finds.length > 0 && (
-          <button className="btn btn-small btn-ghost" data-testid="check-prices" disabled={disabled} title={title}
-            onClick={() => void start('prices')}>Check prices</button>
+          <Button variant="ghost" small data-testid="check-prices" disabled={disabled} title={title}
+            onClick={() => void start('prices')}>Check prices</Button>
         )}
       </div>
       {demo && <p className="muted wish-shop-line">The demo closet never searches shops. Open your own closet to look for this.</p>}
@@ -96,12 +97,14 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
         </p>
       )}
       {running && (
-        <p className="muted wish-shop-line" role="status">
-          <span className="spinner" aria-hidden="true" /> {run!.kind === 'find' ? 'Claude is searching shops. This can take a few minutes…' : 'Claude is checking the prices…'}
-        </p>
+        <Notice as="p" role="status" className="wish-shop-notice" icon={<span className="spinner" aria-hidden="true" />}>
+          {run!.kind === 'find' ? 'Claude is searching shops. This can take a few minutes…' : 'Claude is checking the prices…'}
+        </Notice>
       )}
-      {!running && run?.message && <p className={run.state === 'failed' ? 'form-error wish-shop-line' : 'muted wish-shop-line'} role="status">{run.message}</p>}
-      {error && <p className="form-error wish-shop-line" role="alert">{error}</p>}
+      {!running && run?.message && (run.state === 'failed'
+        ? <Notice as="p" tone="error" role="status" className="wish-shop-notice">{run.message}</Notice>
+        : <p className="muted wish-shop-line" role="status">{run.message}</p>)}
+      {error && <Notice as="p" tone="error" role="alert" className="wish-shop-notice">{error}</Notice>}
       {finds.length > 0 && (
         <>
           <ul className="find-list" aria-label="Found in shops">
@@ -120,7 +123,7 @@ function FindCard({ find, locked, onRemove }: { find: Find; locked: boolean; onR
   const image = webLink(find.image_url);
   const tone = find.verdict ? verdictTone(find.verdict) : 'plain';
   return (
-    <article className="find-card" data-testid="find" aria-label={find.name} data-verdict={find.verdict ?? ''}>
+    <Card as="article" className="find-card" data-testid="find" aria-label={find.name} data-verdict={find.verdict ?? ''}>
       {image && <img className="find-image" src={image} alt="" loading="lazy" referrerPolicy="no-referrer" />}
       <div className="find-body">
         <h4>{find.name}</h4>
@@ -137,11 +140,11 @@ function FindCard({ find, locked, onRemove }: { find: Find; locked: boolean; onR
         )}
         {find.piece_words && <p className="muted find-piece">Claude saw: {find.piece_words}</p>}
         <div className="row">
-          {link && <a className="btn btn-small" href={link} target="_blank" rel="noopener noreferrer">Open in shop</a>}
-          <button className="btn btn-small btn-ghost" disabled={locked} onClick={onRemove}>Remove</button>
+          {link && <a className={buttonClass({ small: true })} href={link} target="_blank" rel="noopener noreferrer">Open in shop</a>}
+          <Button variant="ghost" small disabled={locked} onClick={onRemove}>Remove</Button>
         </div>
       </div>
-    </article>
+    </Card>
   );
 }
 
@@ -178,7 +181,7 @@ function PriceRange({ wish, locked, onPrice }: { wish: Wish; locked: boolean; on
     return (
       <p className="wish-price">
         <span className="muted">Price range: </span>{words || <span className="muted">any</span>}{' '}
-        <button className="btn-link" disabled={locked} onClick={edit}>{words ? 'Change' : 'Set one'}</button>
+        <Button variant="link" small disabled={locked} onClick={edit}>{words ? 'Change' : 'Set one'}</Button>
       </p>
     );
   }
@@ -198,8 +201,8 @@ function PriceRange({ wish, locked, onPrice }: { wish: Wish; locked: boolean; on
       </label>
       {problem && <p className="form-error" role="alert">{problem}</p>}
       <div className="row">
-        <button className="btn btn-small btn-primary" type="submit" disabled={locked}>Save price range</button>
-        <button className="btn btn-small btn-ghost" type="button" onClick={() => setOpen(false)}>Cancel</button>
+        <Button variant="primary" small type="submit" disabled={locked}>Save price range</Button>
+        <Button variant="ghost" small onClick={() => setOpen(false)}>Cancel</Button>
       </div>
     </form>
   );

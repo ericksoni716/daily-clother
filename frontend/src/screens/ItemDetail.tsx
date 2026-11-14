@@ -1,7 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { ChipGroup } from '../components/ui/Chips';
-import { Notice, PHONE, Section, SegmentedControl, Sheet } from '../components/ui';
+import { confirmKeys, Notice, PHONE, Section, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
 import { FixDetails, FixDetailsButton, ItemHistory } from '../components/FixDetails';
 import { BackIcon, ChevronIcon, HangerIcon, WarnIcon } from '../components/Icons';
 import { FIELD_TITLES, formatPrice, label, shadeLabel, measuredColours, parsePrice, ratingLabel, SWATCH, swatchOf, tileCaption } from '../labels';
@@ -386,7 +386,7 @@ function DetailRow({ field, value, swatch, extra, extraWords, disabled, children
       <button type="button" className="detail-row-button" aria-expanded={open} aria-controls={open ? editorId : undefined}
         aria-label={`${title}: ${shown}${extraWords ? `. ${extraWords}` : ''}`} disabled={disabled} title={disabled ? OFFLINE_TITLE : undefined}
         onClick={() => setEditing(open ? null : field)}>
-        <span className="detail-row-label">{title}</span>
+        <span className="detail-row-label">{title}</span>{' '}
         <span className={`detail-row-value${value ? '' : ' is-empty'}`}>
           {swatch && <span className="swatch" style={{ background: swatch }} aria-hidden="true" />}
           <span className="detail-row-text">{shown}</span>
@@ -550,12 +550,28 @@ function NameField({ value, placeholder, disabled, onSave }: { value: string | n
     if (v !== (value ?? '')) onSave(v || null);
   };
   useWhenLeaving(commit);
+  // a long name wraps onto more lines rather than running out of sight: the box grows with it
+  const box = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el || CSS.supports?.('field-sizing', 'content')) return;
+    const fit = () => {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+    };
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [text]);
   return (
     <span className="name-field">
-      <input aria-label="Name" value={text} placeholder={placeholder} disabled={disabled} maxLength={120}
-        onChange={(e) => setText(e.target.value)} onBlur={commit}
+      <textarea ref={box} aria-label="Name" value={text} placeholder={placeholder} disabled={disabled} maxLength={120} rows={1}
+        onChange={(e) => setText(e.target.value.replace(/\s*\n\s*/g, ' '))} onBlur={commit}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
           if (e.key === 'Escape') setText(value ?? '');
         }} />
     </span>
@@ -623,16 +639,17 @@ function PriceField({ cents, disabled, onSave, toastError }: { cents: number | n
 
 function Actions({ item, disabled, onArchive, onDelete }: { item: Item; disabled: boolean; onArchive(a: boolean): Promise<void>; onDelete(): Promise<void> }) {
   const [confirming, setConfirming] = useState(false);
+  const back = useConfirmFocus(confirming);
   const archived = item.status === 'archived';
   return (
     <div className="detail-actions">
       {!confirming ? (
         <div className="row">
           <button className="btn" disabled={disabled} onClick={() => onArchive(!archived)}>{archived ? 'Unarchive' : 'Archive'}</button>
-          <button className="btn btn-danger-quiet" disabled={disabled} onClick={() => setConfirming(true)}>Delete</button>
+          <button ref={back} className="btn btn-danger-quiet" disabled={disabled} onClick={() => setConfirming(true)}>Delete</button>
         </div>
       ) : (
-        <div className="confirm" role="alertdialog" aria-labelledby="del-q">
+        <div className="confirm" role="alertdialog" aria-labelledby="del-q" onKeyDown={confirmKeys(() => setConfirming(false))}>
           <p id="del-q"><strong>Delete this item for good?</strong> Its photos are removed too. To just put it away, archive it instead.</p>
           <div className="row">
             <button className="btn btn-danger" onClick={onDelete} autoFocus>Delete</button>

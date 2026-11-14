@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = ["windows: runs only on Windows (the CI's Windows job); skipped on other computers"]
 
 [tool.ruff]
 line-length = 130

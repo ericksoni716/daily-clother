@@ -67,6 +67,7 @@ LIMIT = (spend.LIMIT_REACHED.split(" It will be described")[0] + " Try again whe
 NOTHING = "Claude found nothing on sale that matches. Try again later, or say more in the note."
 NOT_UNDERSTOOD = "Claude's answer could not be used. Try again in a while."
 FAILED = "Something went wrong while looking. Try again."
+NOT_SAVED = "Closet found some but could not keep them: your closet was busy saving something else. Try again."
 BUSY = "Closet is already looking for this one. Wait for it to finish."
 NO_FINDS = "There is nothing to check yet: find some first."
 
@@ -231,7 +232,7 @@ def save_finds(conn: sqlite3.Connection, wish_id: str, finds: list[dict], verdic
     page) is brought up to date instead of kept twice. Returns how many are new."""
     t = db.now()
     added = 0
-    conn.execute("BEGIN")
+    conn.execute("BEGIN IMMEDIATE")
     try:
         for f, v in zip(finds, verdicts, strict=True):
             old = conn.execute("SELECT id FROM finds WHERE wish_id = ? AND url = ?", (wish_id, f["url"])).fetchone()
@@ -272,7 +273,7 @@ def save_prices(conn: sqlite3.Connection, wish_id: str, finds: list[dict], seen:
     by_url = {f["url"]: f for f in finds}
     t = db.now()
     done = set()
-    conn.execute("BEGIN")
+    conn.execute("BEGIN IMMEDIATE")
     try:
         for raw in seen:
             p = raw.model_dump() if hasattr(raw, "model_dump") else raw
@@ -459,7 +460,12 @@ class Shopper:
         conn = db.connect(self.cfg.db_path(profile))
         try:
             wishlist.get_wish(conn, wish_id)   # still on the list (it may have been removed meanwhile)
-            added = save_finds(conn, wish_id, found, verdicts)
+            try:
+                added = save_finds(conn, wish_id, found, verdicts)
+            except sqlite3.OperationalError:   # waited db.connect's timeout for another writer, in vain
+                log.error("the finds of a search could not be kept\n%s", traceback.format_exc())
+                self._end(profile, wish_id, "failed", NOT_SAVED)
+                return 0
         finally:
             conn.close()
         self._end(profile, wish_id, "done", None, added)
@@ -572,9 +578,10 @@ def router(shopper: Shopper, state: State, conn_dep: Callable, protected: list) 
     r = APIRouter(dependencies=protected)
 
     def payload(conn, profile: str, wish_id: str) -> dict:
+        run = shopper.run(profile, wish_id)   # first: a run is only over once its finds are saved, so they are read
         wish = wishlist.get_wish(conn, wish_id)
         finds = list_finds(conn, wish_id)
-        return {"wish_id": wish_id, "finds": finds, "run": shopper.run(profile, wish_id), "found_at": wish["found_at"],
+        return {"wish_id": wish_id, "finds": finds, "run": run, "found_at": wish["found_at"],
                 "prices_checked_at": wish["prices_checked_at"], "demo": profile == "demo",
                 "estimate": shopper.estimate(min(len(finds), PRICE_FINDS_MAX))}
 

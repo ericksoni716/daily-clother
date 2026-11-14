@@ -144,7 +144,7 @@ export function UpdatesSection({ offline, toast }: { offline: boolean; toast: To
       {availableLine(status) && <p className="state-line" data-testid="update-available"><strong>{availableLine(status)}</strong></p>}
       {release && (
         <div className="update-release" data-testid="update-release">
-          {release.notes && <p className="update-notes" aria-label={`What's new in ${release.version}`}>{release.notes}</p>}
+          {release.notes && <div className="update-notes" role="note" aria-label={`What's new in ${release.version}`}>{release.notes}</div>}
           <p className="hint">
             <a href={release.page} target="_blank" rel="noreferrer noopener">The release page</a>
             {status.download_size && status.can_install ? ` · ${formatSize(status.download_size)} download` : ''}

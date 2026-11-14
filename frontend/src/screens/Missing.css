@@ -7,7 +7,7 @@
    the count of pieces and wears is left out there and the button is a size smaller. */
 @media (max-width: 699px) {
   .missing-header .count { display: none; }
-  .missing-header .btn { min-height: 40px; padding: 0 12px; font-size: var(--text-sm); white-space: nowrap; }
+  .missing-header .btn { padding: 0 12px; font-size: var(--text-sm); white-space: nowrap; }
 }
 .missing-asking { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); }
 .missing-tabs { margin-bottom: 14px; }
@@ -175,7 +175,8 @@
 .wish-shop-actions .btn svg { width: 16px; height: 16px; }
 .wish-shop-line { margin: 4px 0; font-size: var(--text-sm); line-height: 1.45; }
 .find-list { list-style: none; margin: 10px 0 6px; padding: 0; display: grid; gap: 10px; }
-.find-card { display: flex; gap: 12px; padding: 10px; border-radius: var(--radius-sm); background: var(--surface-2); }
+.find-card { display: flex; gap: var(--space-3); padding: var(--space-3); }
+.wish-shop-notice { margin: var(--space-1) 0; }
 .find-image { flex: none; width: 76px; height: 96px; object-fit: cover; border-radius: var(--radius-sm); background: var(--surface); }
 .find-body { min-width: 0; flex: 1; }
 .find-body h4 { margin: 0 0 2px; font-size: var(--text-md); overflow-wrap: anywhere; }

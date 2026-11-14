@@ -1,3 +1,4 @@
+import { axeViolations } from './a11y';
 import { expect, PASS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
@@ -57,6 +58,7 @@ test.describe('shopping for a wish', () => {
     await expect(open).toHaveAttribute('target', '_blank');
     await expect(open).toHaveAttribute('rel', 'noopener noreferrer');
     expect(page.context().pages()).toHaveLength(1);
+    expect(await axeViolations(page)).toEqual([]);
 
     // a price check sees every price lower: the drop is shown
     await wish.getByTestId('check-prices').click();

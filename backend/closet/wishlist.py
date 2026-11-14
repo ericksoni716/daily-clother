@@ -204,7 +204,7 @@ def add_wish(conn: sqlite3.Connection, gap: dict | None, name: str | None, note:
     else:
         name_text, look = _text(name, "name", NAME_MAX, required=True), None
     wish_id, t = uuid.uuid4().hex, db.now()
-    conn.execute("BEGIN")
+    conn.execute("BEGIN IMMEDIATE")
     try:
         if gap is not None:   # deciding to look for it brings a hidden gap back
             conn.execute("DELETE FROM hidden_gaps WHERE gap_id = ?", (gap["id"],))

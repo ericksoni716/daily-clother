@@ -37,7 +37,7 @@
 .fix-say form { display: grid; gap: 6px; }
 .fix-say-row { display: flex; gap: 8px; }
 .fix-say-row input {
-  flex: 1; min-width: 0; min-height: 40px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  flex: 1; min-width: 0; min-height: var(--tap); padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-sm);
   background: var(--bg); color: var(--ink); font: inherit;
 }
 .fix-note { margin: 0; font-size: var(--text-sm); }

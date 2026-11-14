@@ -300,6 +300,10 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
         jeans = tags.category == "jeans" or d.pockets == "five_pocket_jean"
         p = {"leg": s.leg or "straight", "length": "short" if tags.category == "shorts" else (s.pant_length or "full"),
              "jeans": jeans}
+        kind, kind_fabric, _, _ = taxonomy.BOTTOM_KINDS.get(d.garment, ({}, None, "", ""))
+        p.update({k: list(v) if isinstance(v, list) else v for k, v in kind.items()})   # the kind's look, under the details
+        if kind_fabric and cloth["fabric"] == "unknown":
+            cloth["fabric"] = kind_fabric
         p.update(BOTTOM_DRAWINGS.get(d.garment, {}))   # what sets the kind apart: a tight leg, a slit hem, a stripe
         if d.waist in ("drawstring", "elastic"):
             p["waist"] = d.waist

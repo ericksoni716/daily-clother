@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, PlusIcon } from '../components/Icons';
-import { Button, Card, EmptyState, ItemThumb, PageHeader } from '../components/ui';
+import { Button, Card, EmptyState, ItemThumb, PageHeader, trapTab } from '../components/ui';
 import { label } from '../labels';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
@@ -82,7 +82,8 @@ export function RateOutfit({ outfit, offline, onRated, compact }: {
   );
 }
 
-export function OutfitPics({ outfit, byId }: { outfit: WornOutfit; byId: Map<string, ItemSummary> }) {
+/** The pieces of a worn outfit, each opening its item unless `linked` is false (a small preview, as on Today's question). */
+export function OutfitPics({ outfit, byId, linked = true }: { outfit: WornOutfit; byId: Map<string, ItemSummary>; linked?: boolean }) {
   const ids = wornIds(outfit.pieces);
   return (
     <ul className="worn-pics" aria-label="Pieces">
@@ -92,8 +93,9 @@ export function OutfitPics({ outfit, byId }: { outfit: WornOutfit; byId: Map<str
         const name = nameOf(item, deleted);
         return (
           <li key={id}>
-            {deleted ? (
-              <ItemThumb className="worn-pic is-gone" title={name} picture={<Pic item={undefined} alt={name} />} />
+            {deleted || !linked ? (
+              <ItemThumb className={`worn-pic${deleted ? ' is-gone' : item?.status === 'archived' ? ' is-archived' : ''}`} title={name}
+                picture={<Pic item={deleted ? undefined : item} alt={name} />} />
             ) : (
               <ItemThumb to={item?.status === 'archived' ? `/archived/item/${encodeURIComponent(id)}` : `/today/item/${encodeURIComponent(id)}`}
                 className={`worn-pic${item?.status === 'archived' ? ' is-archived' : ''}`} title={name} picture={<Pic item={item} alt={name} />} />
@@ -309,7 +311,8 @@ function OutfitMenu({ offline, onAgain, onRemove }: { offline: boolean; onAgain(
 
   useEffect(() => {
     if (!open) return;
-    menu.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')?.focus();
+    // the first thing that can be chosen; the menu itself when nothing can (offline), so Escape still closes it
+    (menu.current?.querySelector<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? menu.current)?.focus();
     const outside = (e: PointerEvent) => {
       if (!menu.current?.contains(e.target as Node) && !button.current?.contains(e.target as Node)) setOpen(false);
     };
@@ -332,9 +335,14 @@ function OutfitMenu({ offline, onAgain, onRemove }: { offline: boolean; onAgain(
       close();
       return;
     }
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    // Tab stays in the menu, as in a dialog
+    trapTab(e, menu.current);
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
     e.preventDefault();
     const all = [...(menu.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)') ?? [])];
+    if (!all.length) return;
+    if (e.key === 'Home') return all[0].focus();
+    if (e.key === 'End') return all[all.length - 1].focus();
     const at = all.indexOf(document.activeElement as HTMLButtonElement);
     all[(at + (e.key === 'ArrowDown' ? 1 : all.length - 1)) % all.length]?.focus();
   }
@@ -346,7 +354,7 @@ function OutfitMenu({ offline, onAgain, onRemove }: { offline: boolean; onAgain(
         <MoreIcon />
       </button>
       {open && (
-        <div ref={menu} className="worn-menu-list" role="menu" aria-label="This outfit" onKeyDown={onKey}>
+        <div ref={menu} className="worn-menu-list" role="menu" aria-label="This outfit" tabIndex={-1} onKeyDown={onKey}>
           <button type="button" role="menuitem" className="worn-menu-item" disabled={offline} title={title} onClick={choose(onAgain)}>
             Wear this again
           </button>

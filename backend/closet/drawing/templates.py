@@ -22,7 +22,7 @@ CX_ROT = (200, 120)  # patterns and a sleeve's cloth are turned about the middle
 @dataclass
 class Part:
     d: str
-    role: str  # trim | hole | sole | band | cuff | collar_r | collar_l | edge (a stroke with no fill) | inlay | stitch | fade
+    role: str  # trim | hole | sole | band | cuff | collar_r | collar_l | edge (a stroke with no fill) | inlay | stitch | fade | shine
     color: str | None = None   # inlay/stitch: "trim" | "lace" | "sole" | "sole_line" | a hex; None = the body's cloth
     clip: bool = False         # drawn inside the outline only (an inlay may be drawn oversize and cut by the edge)
 
@@ -99,6 +99,7 @@ TOP_DEFAULTS = dict(
 #             sleeve ends and the hem (role "binding" inside the garment, "binding_edge" on its outline)
 #   colorblock  a tuple of parts cut in the second colour: yoke | sleeves | collar | pocket
 #   stripes   none | sleeve            two stripes down the outside of each sleeve (a track jacket), in the trim colour
+#   belt      False | True | sash      a self belt buckled round the waist (a trench coat); a robe's knotted sash
 # Finer pocket values: chest-flap | chest-patch-two | pencil | western | welt | split | slash | chore |
 #   chest-flap-two | guayabera | bellows | utility | hip-patch | hip-flap
 
@@ -1108,7 +1109,29 @@ def top(**kw) -> Shape:
         elif front in ("buttons", "french", "hidden", "double", "zip"):
             x = CX - {"zip": 0, "double": 30}.get(front, 7)     # how far the top front reaches past the centre
             sh.fronts = ([(x, front_bottom), (x, hy + 20)], "horizontal" if front == "double" else "vertical")
+    if p.get("belt"):
+        _belt(sh, wy, hh, p["belt"])
     return sh
+
+
+def _belt(sh, y, half, kind=True):
+    """A self belt round the waist: a band of the cloth across the body, clipped to its edges. A trench coat's is
+    buckled a little off centre, its loose end hanging from the buckle; a robe's sash (kind "sash") is knotted,
+    its two ends hanging."""
+    h = 9.0
+    band = [(CX - half - 40, y - h / 2), (CX + half + 40, y - h / 2), (CX + half + 40, y + h / 2), (CX - half - 40, y + h / 2)]
+    sh.parts.append(Part(_poly(band), "trim", clip=True))
+    bx = CX - 16
+    if kind == "sash":
+        for dx_, ln in ((-7, 46), (5, 38)):
+            sh.parts.append(Part(f"M {_pt((bx + dx_ - 3, y + 3))} L {_pt((bx + dx_ * 2 - 4, y + ln))} "
+                                 f"L {_pt((bx + dx_ * 2 + 4, y + ln + 1))} L {_pt((bx + dx_ + 4, y + 3))} Z", "trim"))
+        sh.parts.append(Part(_poly([(bx - 6, y - h / 2 - 2), (bx + 6, y - h / 2 - 2), (bx + 5, y + h / 2 + 3),
+                                    (bx - 5, y + h / 2 + 3)]), "trim"))
+        return
+    sh.parts.append(Part(f"M {_pt((bx - 2, y + 2))} L {_pt((bx - 9, y + 30))} L {_pt((bx - 1, y + 32))} L {_pt((bx + 5, y + 4))} Z",
+                         "trim"))
+    sh.parts.append(Part(_frame((bx, y), 13, h + 5, 2.6), "inlay", color="deep"))
 
 
 def _tailored(p, block) -> Shape:
@@ -1415,6 +1438,8 @@ def _tailored(p, block) -> Shape:
     xs = [float(x) for x, _ in re.findall(r"(-?[\d.]+),(-?[\d.]+)", sh.outline)]
     xmax = max(max(xs), 2 * CX - min(xs))
     sh.bbox = (2 * CX - xmax, (Tt[1] + top_c) / 2 - 2, xmax, hy + 2)
+    if p.get("belt"):
+        _belt(sh, wy, hh, p["belt"])
     if p.get("state") == "open" and p["front"] != "none":   # the top front's edge: the roll line, then the front
         sh.fronts = ([Rt] + front_run + [(front_run[-1][0], hy + 20)], "horizontal")
     return sh
@@ -1634,6 +1659,7 @@ PANTS_DEFAULTS = dict(leg="straight", length="full", jeans=False)
 #   stripe  none | side                      a stripe down each outer seam (track trousers), in the trim colour
 # leg also takes skinny (compression tights) and length brief (running shorts: a short inseam).
 #   coin    True | False                     jeans' watch pocket and rivets
+#   rivets  True | False                     rivets at the front pocket corners (default: with the watch pocket)
 #   stitch  tonal | contrast                 jeans' topstitch drawn in gold thread as well
 # The owner's bottoms block adds (each optional; the defaults draw what the lines above draw):
 #   waist   + adjusters | gurkha | tab | braces | half_elastic   only a belt waist has loops
@@ -1642,11 +1668,12 @@ PANTS_DEFAULTS = dict(leg="straight", length="full", jeans=False)
 #   leg     + skinny | slim | relaxed | bootcut | flare | barrel
 #   pleat_dir reverse | forward              which way a pleat opens (toward the pocket, or toward the fly)
 #   break   none | slight | full | stacked   folds where the hem meets the shoe
-#   hem     + rolled | raw | split | chain   a rolled cuff, a frayed edge, a side slit, chain-stitched roping
+#   hem     + rolled | raw | split | notched | chain   a rolled cuff, a frayed edge, a side slit, a V notch at the
+#           outer seam, chain-stitched roping
 #   pockets + side | frog | none             on the side seam; a horizontal frog-mouth opening
 #   extra_pockets [zip, rule, hammer]        a zipped thigh pocket, a carpenter's rule pocket and hammer loop
 #   panels  [double_knee, gusset]            a work trouser's knee panels, a gusseted crotch
-#   fades   [whiskers, knee, stacks, tracks, pocket]   lighter cloth where denim wears
+#   fades   [whiskers, knee, stacks, tracks, pocket, roping]   lighter cloth where denim wears
 #   distress [knee_rip, abrasion, patched, sashiko, frayed]
 
 PX_CM = 3.92   # canvas px per cm: a 105 cm outseam fills 412 px
@@ -1681,6 +1708,7 @@ def pants(**kw) -> Shape:
     crease = bool(p.get("crease", pleats > 0))
     cargo = bool(p.get("cargo", False))
     coin = bool(p.get("coin", jeans))
+    rivets = bool(p.get("rivets", coin))
     stitch = p.get("stitch", "tonal")
     leg, length = p["leg"], p["length"]
     wt = WEIGHT_LEVEL.get(p.get("weight"), 1)   # a heavy cloth: a deeper waistband, a doubled hem
@@ -1842,11 +1870,14 @@ def pants(**kw) -> Shape:
             d = f"M {_pt(mm((mouth_x, bb)))} C {_pt(mm((mouth_x - 4, bb + 26)))} {_pt(mm((sm[0] + 20, sm[1] + 1)))} {_pt(mm(sm))}"
             sh.lines.append(d)
             stitch_lines.append(f"M {_pt(mm((mouth_x - 4, bb)))} C {_pt(mm((mouth_x - 8, bb + 22)))} {_pt(mm((sm[0] + 18, sm[1] - 3)))} {_pt(mm((sm[0], sm[1] - 4)))}")
-            if coin:
+            if rivets:
                 sh.dots.append((*mm((mouth_x - 1, bb + 3)), 1.9))
                 sh.dots.append((*mm((sm[0] + 4, sm[1] - 2)), 1.9))
         elif pocket == "slant":
             sh.lines.append(f"M {_pt(mm((mouth_x, bb)))} L {_pt(mm(sm))}")
+            if rivets:   # a work trouser's rivets at the corners of its pocket mouth
+                sh.dots.append((*mm((mouth_x - 2, bb + 3)), 1.9))
+                sh.dots.append((*mm((sm[0] + 4, sm[1] - 3)), 1.9))
         elif pocket == "side":
             sh.lines.append(f"M {_pt(mm((sm[0] + 4, bb + 4)))} L {_pt(mm((sm[0] + 2, sm[1] + 20)))}")
         elif pocket == "frog":   # a horizontal opening just under the waistband
@@ -1944,6 +1975,10 @@ def pants(**kw) -> Shape:
                 softline(mm((mouth_x, bb + 2)), mm((sm[0] + 6, sm[1] - 2)), 6)
             if "tracks" in fades and Ko:   # pale lines along the outer seams
                 softline(mm((leg_x(cy + 20) + 3, cy + 20)), mm((Ho[0] + 4, hy - 12)), 4.0)
+            if "roping" in fades and Ko:   # the chain-stitched hem twisted pale: slanting streaks along it
+                for j in range(6):
+                    x = Ho[0] + 4 + (Hi[0] - Ho[0] - 12) * j / 5
+                    softline(mm((x, hy - 3)), mm((x + 5, hy - 12)), 2.2)
             if "stacks" in fades and Ko:   # pale bands where the hem bunches
                 for i in range(3):
                     y = hy - 14 - i * 16
@@ -2013,6 +2048,10 @@ def pants(**kw) -> Shape:
         elif hem_kind == "split":   # a side slit at the outer seam, the hem turned up either side of it
             sh.lines.append(f"M {_pt(mm((a[0] + 2, a[1] - 0.5)))} Q {_pt(mm((a[0] + 9, a[1] - 9)))} {_pt(mm((a[0] + 5, a[1] - 18)))}")
             sh.lines.append(f"M {_pt(mm((a[0] + 9, a[1] - 2.2 * k)))} L {_pt(mm((b[0] + 1, b[1] - 2.2 * k)))}")
+        elif hem_kind == "notched":   # a small V cut up into the hem at the outer seam
+            sh.lines.append(f"M {_pt(mm((a[0] + 1.5, a[1] - 0.5)))} L {_pt(mm((a[0] + 7.5, a[1] - 12)))} "
+                            f"L {_pt(mm((a[0] + 13.5, a[1] - 0.5)))}")
+            sh.lines.append(f"M {_pt(mm((a[0] + 12.4, a[1] - 2.2 * k)))} L {_pt(mm((b[0] + 1, b[1] - 2.2 * k)))}")
         elif hem_kind == "chain":   # chain stitch: the hem's roping, a row of slanting twists
             sh.lines.append(f"M {_pt(mm((a[0] - 1, a[1] - 2.2 * k)))} L {_pt(mm((b[0] + 1, b[1] - 2.2 * k)))}")
             for j in range(7):
@@ -2065,6 +2104,10 @@ SNEAKER_DEFAULTS = dict(height="low", sole="regular")
 #   lace_collar True | False               a rawhide lace round the collar, tied at the side (a boat shoe)
 #   backless True | False                  a clog: no back above the heel
 #   pull_tabs True | False                 a western boot's pull tab at the top of the shaft
+#   rings    True | False                  D-rings instead of eyelets (a work or hiking boot)
+#   toggle   True | False                  a speed lace: a cord lock above the top eyelet, the cord ends hanging
+#   shine    True | False                  patent leather: bright gloss streaks along the toe and the heel
+#   sandal   + thong                       (style sandal) a flip-flop: a Y strap from a post between the toes
 
 SHOE_X0, SHOE_L, SHOE_G = 40.0, 320.0, 330.0   # toe tip x, length toe to heel, ground y
 METAL = "#c9a85c"   # a buckle or a horsebit
@@ -2137,7 +2180,7 @@ def _sandal(p, f) -> Shape:
     Nothing is drawn of a foot, so the card shows between the straps. The straps follow the top of a foot standing
     on the footbed (a man's foot is about 2.5 cm high at the toes and 6 cm at the instep)."""
     kind = p.get("sandal", "two_strap")
-    if kind not in ("slide", "two_strap", "strap"):
+    if kind not in ("slide", "two_strap", "strap", "thong"):
         kind = "two_strap"
     th_toe, th_heel, spring = 0.065 * f, 0.095 * f, 0.012
     top = [(0.012, spring + th_toe * 0.8), (0.06, spring * 0.4 + th_toe), (0.3, th_toe + 0.002),
@@ -2167,6 +2210,12 @@ def _sandal(p, f) -> Shape:
     top_v = over(0.5)
     if kind == "slide":
         straps.append(band(0.17, 0.54, -0.01))
+    elif kind == "thong":   # a flip-flop: a thin strap from the post between the toes, back over the foot to the sole
+        w = 0.022 * SHOE_L
+        post, crest = (0.1, tf(0.1) + 0.012), (0.3, over(0.3) - 0.01)
+        straps += [_capsule(_sp(*post), _sp(*crest), w), _capsule(_sp(*crest), _sp(0.47, tf(0.47) + 0.004), w)]
+        straps.append(_capsule(_sp(0.1, tf(0.1) - 0.004), _sp(*post), w * 1.3))
+        top_v = over(0.3) + 0.004
     elif kind == "two_strap":
         straps += [band(0.2, 0.37), band(0.43, 0.6, 0.005)]
         buckles += [(0.315, over(0.315) - 0.042), (0.55, over(0.55) - 0.05)]
@@ -2482,7 +2531,17 @@ def sneaker(**kw) -> Shape:
                 sh.parts.append(Part(_capsule((ex, ey), (hx, hy), 5.0), "inlay", color=METAL))
                 sh.parts.append(Part(_ring((hx, hy), 5.0, 2.4), "inlay", color=METAL))
                 continue
+            if p.get("rings"):   # a D-ring: a metal loop stitched to the facing, the lace through it
+                sh.parts.append(Part(_ring((ex, ey), 4.6, 2.0), "inlay", color=METAL))
+                continue
             sh.dots.append((ex, ey, 2.4 if not heeled else 2.0))
+        if p.get("toggle"):   # a speed lace: one thin cord pulled through a lock above the top eyelet, its ends hanging
+            tu, tv = eyelets[0] if style == "boot" else eyelets[-1]
+            lock = _sp(tu - 0.05, tv + 0.07)
+            sh.parts.append(Part(_capsule(_sp(tu, tv), lock, 3.0), "inlay", color="lace"))
+            for end in ((tu - 0.1, tv + 0.02), (tu - 0.085, tv + 0.0)):
+                sh.parts.append(Part(_capsule(lock, _sp(*end), 2.6), "inlay", color="lace"))
+            sh.parts.append(Part(_capsule(_sp(tu - 0.054, tv + 0.085), _sp(tu - 0.046, tv + 0.055), 9.0), "inlay", color="deep"))
 
     # ---- per-style construction lines
     lift = lambda u: s_toe + (s_heel - s_toe) * u   # how far a thick sole has raised the upper here
@@ -2686,6 +2745,13 @@ def sneaker(**kw) -> Shape:
         sh.parts.append(Part(_spline([(0.08, tf_at(0.08)), (0.13, 0.16), (0.2, vtop(0.2) - 0.01)]) +
                              f" L {_pt(_sp(-0.05, 0.3))} L {_pt(_sp(-0.05, 0))} Z", "inlay", color="deep", clip=True))
         sh.lines.append(_spline([(0.4, tf_at(0.4)), (0.5, 0.16), (0.6, 0.24), (0.66, vtop(0.66) if style != "runner" else 0.3)]))
+
+    # ---- patent leather: a hard gloss, two bright streaks catching the light along the toe and the heel
+    if p.get("shine"):
+        sh.parts.append(Part(band([(0.05, vtop(0.05) - 0.045), (0.12, vtop(0.12) - 0.032), (0.22, vtop(0.22) - 0.03),
+                                   (0.3, vtop(0.3) - 0.034)], 0.016), "shine", clip=True))
+        sh.parts.append(Part(band([(0.8, tf_at(0.8) + 0.06), (0.86, tf_at(0.86) + 0.07), (0.93, tf_at(0.93) + 0.075)], 0.012),
+                             "shine", clip=True))
 
     # ---- a contrast side panel
     if p.get("stripe", "none") == "side":

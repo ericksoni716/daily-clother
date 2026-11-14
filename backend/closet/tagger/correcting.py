@@ -15,7 +15,6 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -130,18 +129,17 @@ def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | Non
     effort = CONFIG["models"].get(model, {}).get("effort", "low")
     env = {k: v for k, v in os.environ.items() if k not in claude_cli._SCRUB}
     last: Exception | None = None
-    with tempfile.TemporaryDirectory(prefix="closet-correct-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="closet-correct-", ignore_cleanup_errors=True) as tmp:
         if images:
             claude_cli._save(images[0], Path(tmp) / "item.jpg")
             text += "\n\nThe image file is in the current folder: item.jpg. Open it with the Read tool, then answer."
-        cmd = [exe, "-p", text, "--model", model, "--effort", effort, "--output-format", "json",
-               "--json-schema", json.dumps(transform_schema(answer_model)), "--tools", tools, "--allowedTools", tools,
-               "--strict-mcp-config", "--no-session-persistence", "--system-prompt", system]
-        kwargs = {"creationflags": 0x08000000} if sys.platform == "win32" else {}
+        # the owner's words go on standard input, never on a command line
+        cmd = claude_cli.print_command(exe, model, effort, transform_schema(answer_model), tools, system)
         for _ in range(MAX_ATTEMPTS):
             try:
-                proc = subprocess.run(cmd, cwd=tmp, env=env, stdin=subprocess.DEVNULL, capture_output=True, text=True,
-                                      timeout=timeout, **kwargs)
+                with claude_cli.prompt_file(text) as stdin:
+                    proc = subprocess.run(cmd, cwd=tmp, env=env, stdin=stdin, capture_output=True, timeout=timeout,
+                                          **claude_cli.run_options())
             except subprocess.TimeoutExpired:
                 last = TaggingError(f"{model} through Claude Code did not answer within {timeout:.0f} seconds")
                 continue

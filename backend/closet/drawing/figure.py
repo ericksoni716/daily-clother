@@ -28,7 +28,8 @@ shape=)`); the item drawings themselves do not change:
   cropped top still over the waistband). A fuller fit stays fuller (FIT_GAIN)
   and its shoulder falls over the top of the arm; a slimmer one hugs, but no
   top is narrower than he is (BODY_EASE_CM, MIN_HIP_EASE_CM). Each sleeve goes
-  round the arm and bends with it (`_on_arm`), with ease: a long sleeve ends
+  round the arm and bends with it (`_on_arm`), with ease by its fit
+  (SLEEVE_EASE), narrowing to the cuff: a long sleeve ends
   round the wrist (a jacket's or coat's PAST_WRIST_CM past it), a shorter one
   as far down the arm as it is down a long one. Where a sleeve hangs against
   the body's side the two share one line (SLEEVE_SHARE_CM). An oversized top
@@ -128,15 +129,16 @@ LEG_INTO_CM = 1.5             # the leg runs this far on past the ankle, into th
 
 # fitting a garment's flat drawing onto him
 WORN_W = 0.68                 # a garment's front, worn, is this share of its flat width (the rest wraps round)
-SLEEVE_ACROSS = 0.85          # a long sleeve's opening, worn, as a share of its drawn width
-SHORT_ACROSS = 0.5            # and a short one's (a share of the way between for one between)
+# a sleeve's width is the arm's and some ease, by the top's fit (not the width its flat drawing has): how far it
+# stands off the arm either side (cm) at the upper arm, and at a long sleeve's cuff; it tapers from one to the other
+SLEEVE_EASE = {"slim": (0.7, 0.6), "regular": (1.2, 0.65), "outer": (1.8, 1.0), "coat": (2.3, 1.3), "roomy": (2.8, 1.0)}
+SHORT_SLEEVE_MORE_CM = 0.4    # a short sleeve's opening stands this much further off the arm than its top
 SHORT_SHARE = 0.55            # a sleeve shorter than this share of a long one is a short sleeve: it stops where it stops
-SLEEVE_EASE_CM = 1.0          # a sleeve's opening stands at least this far off the arm, either side
 CUFF_FROM, CUFF_TO = 0.8, 0.9   # a roomy sleeve is gathered in between these shares of its length; the cuff is below
 SLEEVE_SHARE_CM = 2.4         # a sleeve closer to the body's side than this is drawn on it: one line, not two (0: never)
+HEAD_SHARE = 0.25             # the round of a sleeve's head, wider than the sleeve, is kept this share of the way down
 CAP_SHARE = 0.15              # a sleeve's outer edge is off the arm by its full ease this share of the way down it
 SHARE_IN = 0.6                # ...just inside it (px), so nothing shows between the two
-SLEEVE_TOP_EASE_CM = 1.5      # ...and the top of the sleeve this far, at least
 FIT_GAIN = 1.0                # a fuller fit than regular is drawn this much fuller again (as a power of how much fuller)
 HIP_EASE_CM = 1.8             # how far a regular top's body stands off his hips at its hem
 EASE_PER_FIT = 13.0           # ...less by this for each unit narrower its fit is on the flat drawing, to MIN_HIP_EASE_CM
@@ -146,11 +148,9 @@ HOOD_SHOWS = 80.0             # how far either side of the middle a hood shows a
 HOOD_WIDE = 1.25              # ...and lies this much wider, out over the shoulders behind the neck
 HEM_GATHER = 0.07             # a roomy top's ribbed hem band draws its body in this much
 HEM_GATHER_CM = 7.0           # ...over this much of its length above the band (and the band is this deep)
-ROOMY_SLEEVE_CM = 2.6         # a roomy top's sleeve stands this far off the arm, down to where its ribbed cuff gathers it in
-UNDERARM_IN = 0.83            # a top's body, from the underarm down, is drawn this much narrower than its shoulders
+UNDERARM_IN = 0.86            # a top's body, from the underarm down, is drawn this much narrower than its shoulders
 BODY_EASE_CM = 1.0            # the least a top's sides stand off his, below the underarm
 DROP_ACROSS, DROP_DOWN = 0.55, 0.8   # a shoulder seam past his shoulder point: this much of the way out, and down
-WAIST_IN = 0.045              # a regular or slimmer top's body is drawn in this much at his waist
 PAST_WRIST_CM = 1.5           # a jacket's or coat's sleeve runs this far past the wrist
 SLEEVE_SPLIT = 7.0            # a top's straight edges are cut into pieces this long (px), so a sleeve bends at the elbow
 OUTER_BLOCKS = ("outer", "bomber", "jacket", "coat")
@@ -399,13 +399,13 @@ def _placed(place: str, piece) -> Placed | None:
         try:
             spec = make(piece)
             if spec.template == PLACE_TEMPLATE[place]:
-                return _place(place, spec)
+                return _place(place, spec, piece.category)
         except Exception:
             log.exception("drawing a %s for an outfit failed", piece.category)
     return None
 
 
-def _place(place: str, spec: Spec) -> Placed:
+def _place(place: str, spec: Spec, category: str | None = None) -> Placed:
     if spec.template == "top":
         spec.params.pop("state", None)
         opened = False
@@ -414,7 +414,7 @@ def _place(place: str, spec: Spec) -> Placed:
             shape = _shape(worn_open)
             if shape.fronts:
                 spec, opened = worn_open, True
-        shape, sx = _fit_top(spec, _shape(spec))
+        shape, sx = _fit_top(spec, _shape(spec), place, category)
         _draw(spec, "line", "probe", dy=0.0, shape=shape)   # fails here, not halfway through the figure
         return Placed(place, spec, shape, [IDENTITY], K_PX, opened, scale=sx)
     shape = _shape(spec)
@@ -443,14 +443,15 @@ def _between(table: list[tuple[float, float]], v: float) -> float:
     return v
 
 
-def _fit_top(spec: Spec, shape: Shape) -> tuple[Shape, float]:
+def _fit_top(spec: Spec, shape: Shape, place: str = "base", category: str | None = None) -> tuple[Shape, float]:
     """The top fitted to the wearer, and how much narrower its neck and shoulders are drawn. Its body is scaled
     about the middle so a regular top's shoulder seam lands on his shoulder point and its underarm UNDERARM_IN
-    narrower (a fuller or slimmer fit stays fuller or slimmer by as much as it is on its flat drawing, a regular
-    or slimmer one is drawn in a little at his waist, and none is narrower than he is), and moved down him by
-    TOP_LENGTH. Each sleeve goes round the arm (`_on_arm`), from the shoulder point and the underarm (ARMPIT_CM)
-    to its opening, bent at the elbow as the arm is: a long sleeve ends round the wrist (a jacket's or coat's
-    PAST_WRIST_CM past it), a shorter one as far down the arm as it is down a long one."""
+    narrower (a fuller or slimmer fit stays fuller or slimmer by as much as it is on its flat drawing, and none is
+    narrower than he is), and moved down him by TOP_LENGTH. Each sleeve goes round the arm (`_on_arm`), from the
+    shoulder point and the underarm (ARMPIT_CM) to its opening, bent at the elbow as the arm is: a long sleeve
+    ends round the wrist (a jacket's or coat's PAST_WRIST_CM past it), a shorter one as far down the arm as it is
+    down a long one. A sleeve is as wide as the arm and some ease (SLEEVE_EASE), by the top's fit and, for an outer
+    layer, by what it is (`category`) and where it is worn (`place`); the width of the sleeve on the flat drawing is not used."""
     params = spec.params if not spec.weight or "weight" in spec.params else {**spec.params, "weight": spec.weight}
     params = {k: v for k, v in params.items() if k != "state"}
     block = _block_for({**TOP_DEFAULTS, **params})
@@ -469,13 +470,21 @@ def _fit_top(spec: Spec, shape: Shape) -> tuple[Shape, float]:
     # shows beside it)
     room = HIP_HALF_CM + max(MIN_HIP_EASE_CM, HIP_EASE_CM + (fuller - 1.0) * EASE_PER_FIT)
     ease = room * K_PX / (own_half * sx * UNDERARM_IN)
-    shaped = WAIST_IN
     if fuller > 1.02 or block == "coat":   # a fuller fit, or a coat to the knee, hangs straight down from the chest
-        ease, shaped = max(1.0, ease), 0.0
+        ease = max(1.0, ease)
     hem_y = shape.anchors.get("hem", (CX, shape.body_box[3]))[1]
     hood = params.get("neck") == "hood"
     above = HOOD_ABOVE if hood else 0.85   # a hood lies back on the shoulders
     roomy = fuller > 1.02 and block != "coat"   # an oversized top: its ribbed hem and cuffs gather it in
+    # how full its sleeves are: by its fit, and for an outer layer by what it is
+    if roomy:
+        fit = "roomy"
+    elif block == "coat" or category == "coat" or (place == "outer" and (block in OUTER_BLOCKS or category == "jacket")):
+        fit = "coat"      # worn over other layers
+    elif block in OUTER_BLOCKS or category == "jacket" or params.get("weight") == "heavyweight":
+        fit = "outer"     # a jacket, a chore coat, an overshirt
+    else:
+        fit = "slim" if fuller < 0.97 else "regular"
     gather = HEM_GATHER if roomy and params.get("hem") == "rib" else 0.0
     table = [(-40.0, -40.0 * above), (0.0, 0.0), ((sh[1] - ny) / K_PX, SHOULDER_CM - NECK_CM)] + TOP_LENGTH[1:]
 
@@ -483,8 +492,7 @@ def _fit_top(spec: Spec, shape: Shape) -> tuple[Shape, float]:
         t = max(0.0, min(1.0, (q[1] - sh[1]) / (pit_y - sh[1])))
         low = max(0.0, min(1.0, (q[1] - pit_y) / ((hem_y - pit_y) or 1.0)))
         cm = NECK_CM + _between(table, (q[1] - ny) / K_PX)
-        waist = shaped * max(0.0, 1 - ((cm - WAIST_CM + 2.0) / 14.0) ** 2)   # drawn in a little at the waist
-        across = sx * (1 - (1 - UNDERARM_IN) * t) * (1 + (ease - 1) * low) * (1 - waist)
+        across = sx * (1 - (1 - UNDERARM_IN) * t) * (1 + (ease - 1) * low)
         if cm > ARMPIT_CM:   # never narrower than him: its sides stand off his by BODY_EASE_CM at least
             across = max(across, (_torso_half(cm) + BODY_EASE_CM) * K_PX / own_half)
         if gather:   # falls straight to the hem band, which draws it in
@@ -525,15 +533,17 @@ def _fit_top(spec: Spec, shape: Shape) -> tuple[Shape, float]:
         side = own.side
         length = _arm_length(side)
         share = math.dist(own.shoulder, own.outer) / (math.dist(r.shoulder, r.outer) or 1.0)
-        across = SHORT_ACROSS + (SLEEVE_ACROSS - SHORT_ACROSS) * min(1.0, share)
         # as far down the arm as it is down a long sleeve
         reach = length * min(share, 1.15) + (PAST_WRIST_CM * K_PX if share >= SHORT_SHARE and block in OUTER_BLOCKS else 0.0)
         s2, a2 = body(own.shoulder), body(own.armpit)
         a2 = (a2[0], min(a2[1], _y(ARMPIT_CM)))
-        full = ROOMY_SLEEVE_CM * K_PX if roomy and share >= SHORT_SHARE and params.get("cuffs") == "rib" else 0.0
-        if full:   # its cuff holds it at the wrist, however long or short it is on the flat drawing
+        upper, cuff = (v * K_PX for v in SLEEVE_EASE[fit])
+        if share < SHORT_SHARE:
+            cuff = upper + SHORT_SLEEVE_MORE_CM * K_PX
+        gathered = roomy and share >= SHORT_SHARE and params.get("cuffs") == "rib"
+        if gathered:   # its cuff holds it at the wrist, however long or short it is on the flat drawing
             reach = length
-        on = _on_arm(side, s2, a2, reach, max(own.half * across, _arm_half(reach) + SLEEVE_EASE_CM * K_PX), full, beside)
+        on = _on_arm(side, s2, a2, reach, upper, cuff, gathered, beside)
         parts.append((own.poly, fitting.sleeve_map(own, on)))
         c = on(1.0, 0.5)
         angle = math.degrees(math.atan2(abs(c[0] - s2[0]), c[1] - s2[1]))
@@ -541,23 +551,23 @@ def _fit_top(spec: Spec, shape: Shape) -> tuple[Shape, float]:
     return fitting.warp(shape, fn, lambda a: math.copysign(angle, a), radius=0.85, box=body, split=SLEEVE_SPLIT), sx
 
 
-def _on_arm(side: int, shoulder, armpit, reach: float, half: float, full: float = 0.0, beside=None):
+def _on_arm(side: int, shoulder, armpit, reach: float, upper: float, cuff: float, gathered: bool = False, beside=None):
     """Where a sleeve's cloth goes on the arm: a point `u` of the way from its armhole (0) to its opening (1) and
     `v` across it from its outer edge (0) to its inner one (1). The sleeve goes round the arm, bent at the elbow as
-    the arm is: its opening is `reach` px down the arm from the shoulder joint, square to the arm and `half` wide
-    either side of it; its outer edge starts on the shoulder point and its inner one at the underarm. With `full`
-    (px) the sleeve is roomy: it stands that far off the arm all the way down, and its cuff gathers it in to the
-    opening. `beside(y)` is how far the top's body reaches from the middle at a height (None below its hem): where a
-    full body is out past the arm, the sleeve's inner edge runs down the body's side, not inside it."""
-    e1 = half - _arm_half(reach)
-    e0 = max(e1, SLEEVE_TOP_EASE_CM * K_PX, full)
+    the arm is: its opening is `reach` px down the arm from the shoulder joint and square to the arm; its outer
+    edge starts on the shoulder point and its inner one at the underarm. It stands `upper` px off the arm either
+    side at its top and `cuff` px at its opening, narrowing from one to the other as the arm itself does; a
+    `gathered` sleeve stays as full as at its top all the way down, and its cuff gathers it in. `beside(y)` is how
+    far the top's body reaches from the middle at a height (None below its hem): a sleeve close to the body's side
+    is drawn on it, never inside it."""
+    e0, e1 = upper, cuff
     j, e, _ = _arm_points(side)
     d = _unit(e[0] - j[0], e[1] - j[1])
     pit = max(0.0, min(reach * 0.8, (armpit[0] - j[0]) * d[0] + (armpit[1] - j[1]) * d[1]))   # the underarm, down the arm
 
     def ease(u: float) -> float:
         u = max(0.0, min(1.0, u))
-        if not full:
+        if not gathered:
             return e0 + (e1 - e0) * u
         t = max(0.0, min(1.0, (u - CUFF_FROM) / (CUFF_TO - CUFF_FROM)))   # roomy down to the cuff, which gathers it in
         return e0 + (e1 - e0) * t * t * (3 - 2 * t)
@@ -574,6 +584,8 @@ def _on_arm(side: int, shoulder, armpit, reach: float, half: float, full: float 
     def fn(u: float, v: float):
         if v > 1:   # past the inner edge is the body beside the underarm: it stays close to the sleeve's edge there
             v = 1 + (v - 1) * 0.25
+        elif v < 0:   # past the outer edge is the round of the sleeve's head on the flat drawing: only at its top
+            v *= max(0.0, 1 - max(0.0, u) / HEAD_SHARE)
         o, i = edge(up + u * (reach - up), u, 1), edge(pit + u * (reach - pit), u, -1)
         f = (1 - max(0.0, u)) ** 2 if u < 1 else 0.0   # from the shoulder point and the underarm onto the arm
         fo = (1 - max(0.0, u) / CAP_SHARE) ** 2 if u < CAP_SHARE else 0.0   # ...sooner on the outside: over the shoulder's cap

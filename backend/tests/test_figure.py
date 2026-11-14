@@ -651,6 +651,32 @@ def test_a_sleeve_beside_the_body_shares_its_line():
             assert near[0] < 0.2 and near[1] < 1.2, (cm, near[:3])   # its own edge, and the body's on it
 
 
+def test_a_sleeve_is_as_wide_as_the_arm_and_an_ease_by_fit():
+    """The sleeve's width comes from the arm and the top's fit, not from the flat drawing: at the middle of the upper
+    arm a slim top's sleeve stands closest to the arm, then a regular one, a jacket, a jacket worn as the outer
+    layer, an oversized top; and every long sleeve is narrower at its cuff than at the upper arm."""
+    knit = dict(neckline="hood", cuff="rib_knit", hem="ribbed_band")
+    tops = [("base", Piece("shirt", None, "#a9c3e0", silhouette={"fit": "slim"})), ("base", SHIRT), ("base", JACKET),
+            ("outer", JACKET),
+            ("base", Piece("hoodie", answer("hoodie", {"neck": "hood", "fit": "oversized"}, fit_detail="oversized", **knit), "#8b8e92"))]
+    eases = []
+    for place, piece in tops:
+        t = plan({place: piece, "bottom": JEANS}).get(place)
+        for s in fitting.sleeves(t.shape):
+            joint, elbow, _ = fig._arm_points(s.side)
+            mid = ((joint[0] + elbow[0]) / 2, (joint[1] + elbow[1]) / 2)
+            along = math.dist(joint, mid)
+            lo, hi = _sleeve_across(t, s, mid[1])
+            off = (hi - mid[0]) if s.side > 0 else (mid[0] - lo)          # the outer edge, from the middle of the arm
+            ease = off - fig._arm_half(along)
+            cuff = math.dist(t.point(s.outer), t.point(s.inner))
+            assert cuff < 2 * off - K_PX, (place, piece.category)           # narrower at the cuff than at the upper arm
+            assert cuff < 2 * (fig.ARM_HALVES[-1][1] + 1.5) * K_PX          # and close to the wrist
+        eases.append(ease / K_PX)
+    assert all(a + 0.3 < b for a, b in zip(eases, eases[1:], strict=False)), eases
+    assert 0.4 <= eases[0] <= 0.9 and 0.9 <= eases[1] <= 1.6 and 1.4 <= eases[2] <= 2.1 and 1.9 <= eases[3] <= 2.6 and eases[4] >= 2.5
+
+
 def test_an_oversized_hoodie_is_roomy_and_gathered_at_its_cuffs_and_hem():
     knit = dict(neckline="hood", cuff="rib_knit", hem="ribbed_band")
     big = Piece("hoodie", answer("hoodie", {"neck": "hood", "fit": "oversized"}, fit_detail="oversized", **knit), "#8b8e92")

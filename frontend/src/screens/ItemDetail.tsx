@@ -739,8 +739,8 @@ function WornLine({ item, disabled, onPick }: { item: Item; disabled: boolean; o
   return (
     <p className="detail-worn" data-testid="worn-line" aria-label="How it is worn">
       {words.map((w, i) => (
-        <span key={w.part}>
-          {i > 0 && <span aria-hidden="true"> · </span>}
+        <span key={w.part} className="detail-worn-item">
+          {i > 0 && <span className="detail-worn-sep" aria-hidden="true"> · </span>}
           <button type="button" className="btn-link detail-worn-word" disabled={disabled}
             title={`Fix the ${w.text.toLowerCase()} in the details`} onClick={() => onPick(w.field)}>{w.text}</button>
         </span>

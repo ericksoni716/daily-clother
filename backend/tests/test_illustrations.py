@@ -233,13 +233,12 @@ def test_the_migration_keeps_the_drawings_made_before_it(cfg, monkeypatch):
     conn = db.connect(path)
     try:
         rows = {r["id"]: r for r in conn.execute("SELECT * FROM items")}
+        # the drawings made before the migration were made by drawing code version 1, the version they are marked with
         assert rows["a"]["illustration_version"] == 1 and rows["b"]["illustration_version"] is None
-        # the migration stamps them as drawn by version 1, so a program drawing with version 1 keeps them...
-        monkeypatch.setattr(drawing, "DRAWING_VERSION", 1)
-        assert illustrations.current(conn, rows["a"])["illustration_svg"] == "<svg>made in advance</svg>"   # kept
-        monkeypatch.undo()
-        # ...and a later drawing version draws them again
-        if drawing.DRAWING_VERSION > 1:
+        with monkeypatch.context() as m:   # kept while the drawing code is still the one they were made with
+            m.setattr(drawing, "DRAWING_VERSION", 1)
+            assert illustrations.current(conn, rows["a"])["illustration_svg"] == "<svg>made in advance</svg>"
+        if drawing.DRAWING_VERSION > 1:   # drawn again, like any other old drawing, once the drawing code changed
             assert illustrations.current(conn, rows["a"])["illustration_svg"] != "<svg>made in advance</svg>"
         assert illustrations.current(conn, rows["b"])["illustration_svg"] == draw.svg_from_fields("tee", None, uid="b")
     finally:

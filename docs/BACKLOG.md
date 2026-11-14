@@ -47,14 +47,16 @@ Fixes after 0.2.0:
 - [x] A newer program that finds an older copy running says so and offers to close it and use the new one (it used to open the old one without a word). The owner's first test of 0.2.0 found it.
 - [x] The owner's first item in 0.2.0 failed to be described after three tries. The cause: Claude Code on the owner's Mac was still signed in to a work account that had been turned off, so Anthropic refused its key ("Not a valid API key for this workspace"), and Closet took that for a bad answer. Now a refused sign-in keeps items waiting with a note saying what to do, and they go ahead by themselves once Claude Code is signed in with the plan.
 - [x] A box in Settings to paste the API key, kept in the computer's keychain (Mac keychain, Windows Credential Manager) and checked with Anthropic first; replace and remove. Not yet run on a real Mac or Windows keychain.
-- [ ] A choice of "API key first" for owners who would rather pay per photo than use their plan (the route order exists in the code, `api-first`, but is not offered).
-- [ ] Other failures still keep their real reason only in the `jobs` table. Showing it on a failed item (and in the log) would make the next unknown failure diagnosable without a terminal.
+- [x] #104 A choice in Settings of which route to Claude is tried first: the plan first (as before), the API key first, only the plan, or only the key. The key-first choices need a saved key; the key is still only used once allowed with a monthly limit.
+- [x] A failed item shows why: the plain sentence, and a "Details" fold with the reason the job recorded (keys, tokens, e-mail addresses and paths outside Closet's folder taken out), written once to the log as well; "Try again" never queues a second job (`failure` in the item, no migration).
+- [x] #114 A change made just before the page is reloaded or closed is no longer lost: saves are sent so that they outlive the page, and an edit still being typed (or trip ticks waiting their turn) is sent as the page goes away. It had been parked since a browser test raced it.
 
 Patterns from the photo (owner's request; it had fallen out of the app):
 - [x] Plaids flattened and placed per front, madras measured whole, stripes (regular and placed bands, sleeves checked), prints quilted; OpenCV and the second background model in the app; migration 0013.
 - [ ] Florals placed motif by motif on a good photo (now pieced from the whole garment).
 - [ ] Very fine stripes on small photos (a 285 px polo loses its 1–2 px pink lines).
-- [ ] Graphic prints on tops are still drawn plain in the app (the bench lifts them).
+- [x] #105 Graphic prints on tops: a top Claude calls graphic (or a novelty print) has its print lifted from the cutout in the background and drawn at its place, on its own drawing and in the outfit figure; a print that cannot be lifted leaves it plain with a note. Known: the tagging schema does not yet ask for the taxonomy's `graphic_technique` and `graphic_placement`, so a back print or a sleeve print is not told apart, and only the front photo is read.
+- [ ] Graphic prints on the back or sleeves (needs `graphic_placement` in the tagging schema and a photo of the back).
 
 ## Waiting on the owner
 - **Garment review**: the owner called the drawings good enough for now (after round 7). Marks and notes in the review gallery are still read when they appear; drawing work is parked until asked for.
@@ -84,7 +86,7 @@ Done:
 In progress (owner's corrections to the first taxonomy sheets):
 - [x] Fits recalibrated from real garment measurements: everything was drawn slim.
 - [x] Tailored jackets (blazer, sport coat, suit jacket, coats with lapels) rebuilt as their own construction (by a Copilot agent, #12; drawn at the same 84% body width as every top). Waiting for the owner's verdict in the gallery (round 5).
-- [ ] Jacket faults left from that work: sleeves splay wide and the strokes merge into a dark wedge under the arm; a double-breasted jacket that is told "2 buttons" shows one row of two instead of the usual six; lapels do not grow with an oversized fit; cuff buttons are tiny; three-roll-two draws as two-button; low-contrast buttons on some cloths; the jacket's inside barely shows on black or navy.
+- [x] Jacket faults left from that work (#109): sleeves splay wide and the strokes merge into a dark wedge under the arm; a double-breasted jacket that is told "2 buttons" shows one row of two instead of the usual six; lapels do not grow with an oversized fit; cuff buttons are tiny; three-roll-two draws as two-button; low-contrast buttons on some cloths; the jacket's inside barely shows on black or navy. All seven fixed, each with a test (before/after: `docs/screenshots/jacket-faults-before.png`, `jacket-faults-after.png`); waiting for the owner's verdict in the gallery.
 - [ ] Weight shown much more strongly, as thickness and bulk and not only a heavier line. Done, waiting for the owner's verdict in the gallery (round 4): a heavy cloth is drawn with depth (shade inside its edges, sunken seams, a collar and pockets that stand proud). Light cloth now shows faint drape folds from the underarms and at the elbows, and a heavy knit a soft shade where the body meets its rib bands (#110). Still to do: midweight plain knits (t-shirt, cardigan, quarter zip) are still flat inside.
 - [x] A worn-open state for jackets, cardigans, overshirts and zip hoodies, with a proof that an open layer lines up over a shirt (`state="open"` on a top; `layer(under, over)` in the renderer; gallery section "Worn open"). Rebuilt as layers after the owner rejected the first version: two equal fronts, buttons on one and buttonholes on the other, the garment underneath drawn whole. Waiting for the owner's verdict (round 7).
 
@@ -150,7 +152,6 @@ Tests pass, the packaged build is green in CI, demo mode works, docs are updated
 
 ## Parked
 - Browser tests in `08-wears` timed out twice in local full runs (once each test in the file), both times while reviewers were also running on the machine: the demo closet's tiles were missing or kept being replaced for a minute. Not reproduced in five further runs, three of them under deliberate heavy load, and never on GitHub. Cause not found. If it comes back: run with `--trace retain-on-failure` and look at what keeps re-rendering the grid after a profile switch.
-- A change made a moment before the page is reloaded or closed can be lost, because the save is still on its way. Sending saves so that they outlive the page (a keep-alive request) would close that gap. Found when a browser test raced it.
 - Batches API as an opt-in "economy" mode for very large imports.
 - Server-side refusal fallback for the stronger model (beta); tagging currently fails clearly on a refusal.
 - Sneaker side logos and other prints on shoes are not carried onto the illustration.

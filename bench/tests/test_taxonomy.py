@@ -9,10 +9,10 @@ from pathlib import Path
 
 import pytest
 
-from closet_bench.illustrate import Fill, Spec, render
+from closet_bench.illustrate import BUTTON_CONTRAST, INSIDE_CONTRAST, Fill, Spec, _over, contrast, layer, render
 from closet_bench.taxonomy import (AXES, CORDUROY_WALES, COVERAGE, GARMENT_DRAWINGS, KNIT_GAUGES, TOP_AXES, WEIGHT_CLASSES,
                                    surface_extras, top_drawing)
-from closet_bench.templates import build
+from closet_bench.templates import BODY_W, BLOCKS, CX, K_PX, SLEEVE_GAP, SLEEVE_HANG, build
 
 TAXONOMY = json.loads((Path(__file__).resolve().parents[2] / "docs" / "menswear-taxonomy.json").read_text())
 
@@ -397,3 +397,151 @@ def test_a_heavy_knit_shades_where_the_body_meets_its_rib():
     mid = draw({**GARMENT_DRAWINGS["crewneck_sweatshirt"], "weight": "midweight"})
     heavy = draw({**GARMENT_DRAWINGS["crewneck_sweatshirt"], "weight": "heavyweight"})
     assert "feGaussianBlur" in heavy and "feGaussianBlur" not in mid
+
+
+# ---- the faults left in the tailored jacket (#109)
+
+def _flatten(d, n=16):
+    """The points along an SVG path made of M, L, Q, C and Z, the curves sampled."""
+    toks = re.findall(r"[MLQCZ]|-?[\d.]+,-?[\d.]+", d)
+    pts, cmd, args = [], None, []
+    pt = lambda s_: tuple(float(v) for v in s_.split(","))
+    for tk in toks + ["Z"]:
+        if tk in "MLQCZ":
+            if cmd in ("M", "L"):
+                pts += [pt(a) for a in args]
+            elif cmd == "Q":
+                for i in range(0, len(args), 2):
+                    p0, c, p1 = pts[-1], pt(args[i]), pt(args[i + 1])
+                    pts += [tuple((1 - t) ** 2 * p0[k] + 2 * (1 - t) * t * c[k] + t * t * p1[k] for k in (0, 1))
+                            for t in (j / n for j in range(1, n + 1))]
+            elif cmd == "C":
+                for i in range(0, len(args), 3):
+                    p0, c1, c2, p1 = pts[-1], pt(args[i]), pt(args[i + 1]), pt(args[i + 2])
+                    pts += [tuple((1 - t) ** 3 * p0[k] + 3 * (1 - t) ** 2 * t * c1[k] + 3 * (1 - t) * t * t * c2[k]
+                                  + t ** 3 * p1[k] for k in (0, 1)) for t in (j / n for j in range(1, n + 1))]
+            cmd, args = tk, []
+        else:
+            args.append(tk)
+    return pts
+
+
+def _crossings(poly, y):
+    xs = []
+    for a, b in zip(poly, poly[1:] + poly[:1]):
+        if (a[1] - y) * (b[1] - y) < 0:
+            xs.append(a[0] + (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]))
+    return sorted(xs)
+
+
+def _underarm_gap(sh, y):
+    """How wide the card shows between the body's right side and the right sleeve at height y (0 where they meet)."""
+    xs = [x for x in _crossings(_flatten(sh.outline), y) if x > CX]
+    return xs[1] - xs[0] if len(xs) >= 3 else 0.0
+
+
+@pytest.mark.parametrize("name", JACKETS)
+def test_jacket_sleeves_hang_close_and_part_cleanly_from_the_body(name):
+    for fit in ("slim", "tailored", "regular", "relaxed", "boxy", "oversized"):
+        for weight in WEIGHT_CLASSES:
+            _, sh = _jacket(name, fit=fit, weight=weight)
+            assert -sh.sleeves[0][1] <= SLEEVE_HANG + 1, (fit, weight)   # hanging, not splayed out
+            # the two outlines (3.8 px wide) part within a few px of where they meet, so no dark wedge forms
+            # (with a sharp underarm they ran together for 5 to 11 px)
+            top = next(y for y in (sh.body_box[1] + 60 + i * 0.25 for i in range(600)) if _underarm_gap(sh, y) > 0)
+            assert _underarm_gap(sh, top + 4) > 3.8, (fit, weight)
+            sleeve = [(float(x), float(y)) for x, y in re.findall(r"(-?[\d.]+),(-?[\d.]+)", sh.sleeves[0][0])]
+            Ci = sleeve[4]
+            assert _underarm_gap(sh, Ci[1] - 1) >= SLEEVE_GAP - 1, (fit, weight)   # the card shows by the cuff
+
+
+def _front_buttons(sh):
+    return sorted((round(x, 1), round(y, 1)) for x, y, r in sh.dots if abs(x - CX) < 60)
+
+
+def test_a_double_breasted_jacket_told_one_or_two_buttons_shows_six():
+    for told in (1, 2, None, 6):
+        _, sh = _jacket("blazer", collar="peak_lapel", placket="double_breasted", placket_buttons=told)
+        buttons = _front_buttons(sh)
+        assert len(buttons) == 6 and len({y for _, y in buttons}) == 3, told   # 6x1, 6x2: three rows of two
+    # told one, it fastens on the bottom row: the lapels roll lower than on a 6x2
+    one, two = (_jacket("blazer", collar="peak_lapel", placket="double_breasted", placket_buttons=n)[1] for n in (1, 2))
+    lapel_low = lambda sh: max(y for part in sh.parts if part.role == "lapel_r" for _, y in _flatten(part.d))
+    assert lapel_low(one) > lapel_low(two) + 10
+    _, eight = _jacket("blazer", collar="peak_lapel", placket="double_breasted", placket_buttons=8)
+    assert len(_front_buttons(eight)) == 8
+
+
+def _lapel_reach(sh):
+    """How far the top lapel reaches out from the centre, halfway down it."""
+    lapel = max((_flatten(p_.d) for p_ in sh.parts if p_.role == "lapel_r"), key=lambda pts: max(y for _, y in pts))
+    ys = [y for _, y in lapel]
+    return _crossings(lapel, (min(ys) + max(ys)) / 2 + 0.01)[-1] - CX
+
+
+@pytest.mark.parametrize("collar", ("notch_lapel", "peak_lapel", "shawl"))
+def test_lapels_grow_with_the_fit(collar):
+    reach = [_lapel_reach(_jacket("blazer", collar=collar, fit=f)[1]) for f in ("regular", "relaxed", "oversized")]
+    assert reach[0] < reach[1] < reach[2] and reach[2] - reach[0] >= 4, reach
+
+
+def test_cuff_buttons_are_three_quarters_the_front_buttons():
+    for name in JACKETS:
+        for weight in WEIGHT_CLASSES:
+            _, sh = _jacket(name, weight=weight)
+            cuff = sorted(((x, y, r) for x, y, r in sh.dots if x > sh.body_box[2]), key=lambda d: d[1])
+            front = [r for x, y, r in sh.dots if abs(x - CX) < 60]
+            assert len(cuff) == 4 and cuff[0][2] >= 0.7 * front[0], (name, weight)   # was about half
+            assert all(math.dist(a[:2], b[:2]) > a[2] + b[2] for a, b in zip(cuff, cuff[1:])), (name, weight)
+
+
+def test_three_roll_two_shows_the_top_buttonhole_on_the_lapel_roll():
+    _, two = _jacket("sport_coat", placket_buttons=2)
+    _, three = _jacket("sport_coat", placket_buttons=3)
+    assert _front_buttons(three) == _front_buttons(two) and len(_front_buttons(three)) == 2   # the top button is hidden
+    extra = [d for d in three.lines if d not in two.lines and " A " in d]
+    assert len(extra) == 1 and not [d for d in two.lines if " A " in d]
+    hole = [tuple(float(v) for v in p_.split(",")) for p_ in re.findall(r"-?[\d.]+,-?[\d.]+", extra[0])]
+    y = hole[0][1] + 0.01
+    assert y < min(y_ for _, y_ in _front_buttons(three))   # above the buttons that fasten
+    # on the top lapel: between its roll line and its edge, at that height
+    lapel = max((_flatten(p_.d) for p_ in three.parts if p_.role == "lapel_r"), key=lambda pts: max(y_ for _, y_ in pts))
+    xs = _crossings(lapel, y)
+    assert len(xs) >= 2 and xs[0] - 0.5 <= min(x for x, _ in hole) and max(x for x, _ in hole) <= xs[-1]
+
+
+def _button_fills(svg):
+    return re.findall(r'<circle cx="[\d.]+" cy="[\d.]+" r="[\d.]+" fill="(#[0-9a-f]{6})"', svg)
+
+
+@pytest.mark.parametrize("cloth", ("#1f2a44", "#151515", "#e8e0cf", "#c2a878", "#4e3a2b", "#8b9098", "#8a6e4b", "#f4f3ee"))
+def test_jacket_buttons_stand_out_from_the_cloth(cloth):
+    for material in (None, "horn", "metal_shank", "corozo", "wood"):
+        for name in ("blazer", "peacoat"):
+            g = {**GARMENT_DRAWINGS[name], "closure_material": material}
+            fills = _button_fills(draw(g, color=cloth))
+            assert len(fills) >= 10, (name, material)   # the front's and the cuffs'
+            assert all(contrast(f, cloth) >= BUTTON_CONTRAST for f in fills), (name, material, fills)
+            p, extras, _ = top_drawing(g)
+            over = Spec("top", {**p, "state": "open"}, Fill("solid", cloth), **extras)
+            fills = _button_fills(render(over, "line"))   # worn open: the buttons on one front
+            assert fills and all(contrast(f, cloth) >= BUTTON_CONTRAST for f in fills), (name, material, fills)
+            valid(layer(Spec("top", top_drawing(GARMENT_DRAWINGS["ocbd"])[0], Fill("solid", "#f4f3ee")), over, "line"))
+
+
+@pytest.mark.parametrize("cloth", ("#151515", "#1f2a44", "#000000", "#8b9098", "#e8e0cf"))
+def test_a_jacket_inside_shows_on_any_cloth(cloth):
+    for state in ("closed", "open"):
+        p, extras, _ = top_drawing(GARMENT_DRAWINGS["blazer"])
+        svg = render(Spec("top", {**p, "state": state}, Fill("solid", cloth), **extras), "line")
+        tints = re.findall(r'fill="(#000|#fff)" opacity="(\.2|\.22)"', svg)
+        assert tints, state
+        for c, op in tints:
+            inside = _over(cloth, "#000000" if c == "#000" else "#ffffff", float(op))
+            assert contrast(inside, cloth) >= INSIDE_CONTRAST, (state, c, op)
+
+
+def test_the_jacket_body_keeps_its_width():
+    for name in JACKETS:
+        p, sh = _jacket(name, fit="tailored", weight="midweight")
+        assert sh.body_box[2] - CX == pytest.approx(BLOCKS[p["block"]]["chest"] / 2 * K_PX * BODY_W)

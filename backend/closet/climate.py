@@ -1,7 +1,8 @@
 """Recent full years of home weather, without sending anything about the closet.
 
-The archive reader is independent of settings so other historical-weather uses
-can share its validation and the forecast module's bounded, trusted HTTPS.
+The archive is asked through `weather.archive_daily`, the one lookup the trips'
+usual weather uses too; `archive` adds this module's stricter reading of it
+(every day and every value, or nothing).
 """
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ from datetime import UTC, date, datetime, timedelta
 from . import weather
 from .state import State
 
-ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
+ARCHIVE_URL = weather.ARCHIVE_URL
 YEARS = 4
 # Open-Meteo's archive can lag about five days. Allow seven complete UTC days
 # after New Year: the newly finished year is first requested on January 8.
@@ -56,19 +57,13 @@ def archive(place: dict, start: date, end: date) -> list[dict]:
     """
     if start > end:
         raise ValueError("The first archive day must not follow the last.")
-    if any(not _finite(place.get(field)) or not -limit <= place[field] <= limit
-           for field, limit in (("latitude", 90), ("longitude", 180))):
-        raise weather.WeatherError(INVALID)
-    data = weather._get(ARCHIVE_URL, {
-        "latitude": place["latitude"], "longitude": place["longitude"], "timezone": "auto",
-        "start_date": start.isoformat(), "end_date": end.isoformat(),
-        "daily": "temperature_2m_min,temperature_2m_max,precipitation_sum",
-        "temperature_unit": "celsius", "precipitation_unit": "mm",
-    })
-    daily = data.get("daily")
-    fields = ("time", "temperature_2m_min", "temperature_2m_max", "precipitation_sum")
+    try:
+        daily = weather.archive_daily(place, start, end, timezone="auto", precipitation_unit="mm")
+    except weather.ArchiveUnreadable:
+        raise weather.WeatherError(INVALID) from None
+    fields = ("time", *weather.ARCHIVE_DAILY)
     count = (end - start).days + 1
-    if not isinstance(daily, dict) or any(not isinstance(daily.get(field), list) for field in fields):
+    if any(daily[field] is None for field in fields):
         raise weather.WeatherError(INVALID)
     lengths = {len(daily[field]) for field in fields}
     if max(lengths) > count:

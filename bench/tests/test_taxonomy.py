@@ -172,6 +172,27 @@ def test_wale_and_gauge_scale_the_texture():
     assert surface_extras({"fabric": "cable", "knit_gauge": "chunky"})["texture_scale"] > 1
 
 
+def test_every_knit_marked_drawn_has_its_own_texture():
+    # #163: moss, pointelle and terry are no longer drawn as pique or mesh
+    knit = {"neckline": "crew", "cuff": "rib_knit", "hem": "ribbed_band"}
+    drawn = [v for v, (status, _) in COVERAGE["knit_structure"].items() if status == "drawn"]
+    assert {"moss", "pointelle", "terry_towelling"} <= set(drawn)
+    textures = {v: surface_extras({"fabric": v})["texture"] for v in drawn}
+    for v in ("moss", "pointelle", "terry_towelling"):
+        assert [k for k, t in textures.items() if t == textures[v]] == [v], v
+    svgs = {v: draw({**knit, "fabric": v}) for v in drawn}
+    for v in ("moss", "pointelle", "terry_towelling"):
+        assert [k for k, svg in svgs.items() if svg == svgs[v]] == [v], v
+        valid(draw({**knit, "fabric": v, "knit_gauge": "chunky"}, "flat"))
+
+
+def test_the_hidden_button_down_shows_no_buttons():
+    shirt = CONTEXT["collar"]
+    hidden = draw({**shirt, "collar": "hidden_button_down"})
+    assert hidden != draw({**shirt, "collar": "point"}) and hidden != draw({**shirt, "collar": "button_down"})
+    assert COVERAGE["collar"]["hidden_button_down"][0] == "drawn"
+
+
 def test_surface_extras_suit_trousers():
     extras = surface_extras({"fabric": "corduroy", "corduroy_wale": "wide_wale", "fiber": "cotton"})
     for w in WEIGHT_CLASSES:
@@ -199,6 +220,7 @@ UNCHANGED = {
     "rugby_shirt": "58043fad9ef598d3",
     "dress_shirt": "c809ac4c9f65fe00",
     "ocbd": "06950d0f0cbd3c6d",
+    "casual_button_up": "9c12d14c70ade096",   # #163: new; point collar, chest pocket, vented straight hem
     "flannel_shirt": "f64ec8598d9a7f90",
     "work_shirt": "e27744a52320dbbc",
     "western_shirt": "a1ad566838687b49",
@@ -684,12 +706,14 @@ def test_every_footwear_part_draws_its_own_picture_on_the_same_ground(base, key,
     ({}, "fly", [None, "button", "none"]),
     ({}, "leg", ["skinny", "slim", "straight", "relaxed", "bootcut", "flare", "barrel"]),
     ({}, "break", [None, "slight", "full", "stacked"]),
-    ({}, "hem", [None, "turnup", "rolled", "raw", "split", "chain"]),
+    ({}, "hem", [None, "turnup", "rolled", "raw", "split", "notched", "chain"]),
     ({}, "pleat_dir", [None, "reverse", "forward"]),
-    (dict(jeans=True), "fades", [[], ["whiskers"], ["knee"], ["stacks"], ["tracks"], ["pocket"]]),
+    (dict(jeans=True), "fades", [[], ["whiskers"], ["knee"], ["stacks"], ["tracks"], ["pocket"], ["roping"]]),
     (dict(jeans=True), "distress", [[], ["knee_rip"], ["abrasion"], ["patched"], ["sashiko"]]),
     ({}, "panels", [[], ["double_knee"], ["gusset"]]),
     ({}, "extra_pockets", [[], ["zip"], ["rule"], ["hammer"]]),
+    ({}, "rivets", [None, True]),
+    (dict(pockets="scoop"), "rivets", [None, True]),
 ])
 def test_every_trouser_detail_draws_its_own_picture_from_the_same_waist_and_hem(base, key, values):
     base = {**base, **({"pleats": 1} if key == "pleat_dir" else {})}

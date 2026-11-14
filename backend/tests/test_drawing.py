@@ -162,11 +162,38 @@ def test_the_footwear_fields_choose_the_shoe_drawing(details, want_style, want):
     ("trousers", dict(trouser_pockets=["frog_mouth", "zip_pocket"], back_details=["double_knee"]),
      {"pockets": "frog", "extra_pockets": ["zip"], "panels": ["double_knee"]}),
     ("shorts", dict(inseam=5, trouser_break="cropped"), {"inseam": 5, "length": "short"}),
+    ("trousers", dict(hem_finish="notched", back_details=["rivets"]), {"hem": "notched", "rivets": True}),
+    ("jeans", dict(denim_fades=["roping"]), {"fades": ["roping"]}),
 ])
 def test_the_bottoms_fields_choose_the_trouser_drawing(category, details, want):
     template, params = _drawn(answer(category, **details))
     assert template == "pants"
     assert {k: params.get(k) for k in want} == want
+
+
+@pytest.mark.parametrize("category, kind, want, fabric", [
+    ("trousers", "chinos", {"pockets": "slant", "hem": "plain"}, "twill"),
+    ("trousers", "dress_trousers", {"crease": True, "hem": "plain"}, None),
+    ("trousers", "jeans", {"jeans": True}, None),
+    ("trousers", "corduroys", {"pockets": "slant"}, "corduroy"),
+    ("trousers", "fatigues", {"fly": "button"}, "sateen"),
+    ("trousers", "cargo_pants", {"cargo": True}, None),
+    ("trousers", "work_pants", {"panels": ["double_knee"], "extra_pockets": ["hammer", "rule"]}, "canvas"),
+])
+def test_an_everyday_trouser_kind_draws_its_own_look(category, kind, want, fabric):
+    tags = ItemTags.model_validate(answer(category, garment=kind))
+    template, params, extras, _ = drawing_for(tags)
+    assert template == "pants" and {k: params.get(k) for k in want} == want
+    from closet.tagger.taxonomy import surface_extras
+    assert extras.get("texture") == (surface_extras({"fabric": fabric})["texture"] if fabric else None)
+    assert item.svg_from_answer(answer(category, garment=kind)) != item.svg_from_answer(answer(category))
+
+
+def test_a_told_detail_wins_over_the_kinds_look():
+    _, params = _drawn(answer("trousers", garment="dress_trousers", crease="none", hem_finish="turn_up"))
+    assert params["crease"] is False and params["hem"] == "turnup"
+    _, _, extras, _ = drawing_for(ItemTags.model_validate(answer("trousers", garment="chinos", fabric="corduroy")))
+    assert extras["texture"] == "corduroy"
 
 
 def test_an_answer_stored_before_the_new_fields_reads_as_nothing_told():

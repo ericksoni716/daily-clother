@@ -178,7 +178,7 @@ def _defs_for_fill(fill: Fill, shape: Shape, uid: str, garment_w: float, garment
 # wide, 1.4 = a chunkier knit); "name:scale" is accepted too.
 TEXTURES = ("corduroy", "rib_knit", "waffle", "cable_knit", "pique", "mesh", "seersucker", "herringbone", "twill",
             "denim", "fisherman_rib", "garter", "linen", "basket", "tweed", "ripstop", "sherpa", "fleece",
-            "quilt_diamond", "quilt_box", "baffle")
+            "quilt_diamond", "quilt_box", "baffle", "moss", "pointelle", "terry")
 
 
 def _texture_defs(texture: str | None, uid: str, dark: bool, scale: float | None = None) -> str:
@@ -217,6 +217,16 @@ def _texture_tile(name: str, sc: float, lo: str, hi: str):
                                   '<path d="M23,0C23,8 11,4 11,12C11,20 23,16 23,24"/></g>')
     if name == "pique":      # a fine honeycomb of dimples
         return (4, 4, f'<g fill="{lo}" opacity=".2"><circle cx="1" cy="1" r=".75"/><circle cx="3" cy="3" r=".75"/></g>')
+    if name == "moss":       # seed stitch: little purl bumps, each row set half a stitch over from the last
+        w = 6 * sc
+        return (w, w, f'<path d="M{w * .08:.2f},{w * .25:.2f}h{w * .34:.2f}M{w * .58:.2f},{w * .75:.2f}h{w * .34:.2f}" '
+                      f'stroke="{lo}" stroke-width="{1.1 * min(sc, 1.6):.2f}" stroke-linecap="round" opacity=".24"/>')
+    if name == "pointelle":  # eyelets set in a lattice of diamonds with plain knit between them
+        return (14, 12, f'<g fill="none" stroke="{lo}" stroke-width=".8" opacity=".34"><circle cx="3.5" cy="3" r="1.3"/>'
+                        f'<circle cx="10.5" cy="9" r="1.3"/></g>')
+    if name == "terry":      # a pile of small loops, row on row
+        return (5, 4, f'<path d="M.6,1.6a.95,.95 0 1 1 1.9,0M3.1,3.6a.95,.95 0 1 1 1.9,0" stroke="{lo}" stroke-width=".7" '
+                      f'fill="none" opacity=".26"/>')
     if name == "mesh":       # open holes
         return (5, 5, f'<circle cx="2.5" cy="2.5" r="1.1" fill="none" stroke="{lo}" stroke-width=".8" opacity=".3"/>')
     if name == "seersucker":  # puckered stripes between flat ones

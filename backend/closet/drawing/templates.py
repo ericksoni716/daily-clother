@@ -1634,6 +1634,7 @@ PANTS_DEFAULTS = dict(leg="straight", length="full", jeans=False)
 #   stripe  none | side                      a stripe down each outer seam (track trousers), in the trim colour
 # leg also takes skinny (compression tights) and length brief (running shorts: a short inseam).
 #   coin    True | False                     jeans' watch pocket and rivets
+#   rivets  True | False                     rivets at the front pocket corners (default: with the watch pocket)
 #   stitch  tonal | contrast                 jeans' topstitch drawn in gold thread as well
 # The owner's bottoms block adds (each optional; the defaults draw what the lines above draw):
 #   waist   + adjusters | gurkha | tab | braces | half_elastic   only a belt waist has loops
@@ -1642,11 +1643,12 @@ PANTS_DEFAULTS = dict(leg="straight", length="full", jeans=False)
 #   leg     + skinny | slim | relaxed | bootcut | flare | barrel
 #   pleat_dir reverse | forward              which way a pleat opens (toward the pocket, or toward the fly)
 #   break   none | slight | full | stacked   folds where the hem meets the shoe
-#   hem     + rolled | raw | split | chain   a rolled cuff, a frayed edge, a side slit, chain-stitched roping
+#   hem     + rolled | raw | split | notched | chain   a rolled cuff, a frayed edge, a side slit, a V notch at the
+#           outer seam, chain-stitched roping
 #   pockets + side | frog | none             on the side seam; a horizontal frog-mouth opening
 #   extra_pockets [zip, rule, hammer]        a zipped thigh pocket, a carpenter's rule pocket and hammer loop
 #   panels  [double_knee, gusset]            a work trouser's knee panels, a gusseted crotch
-#   fades   [whiskers, knee, stacks, tracks, pocket]   lighter cloth where denim wears
+#   fades   [whiskers, knee, stacks, tracks, pocket, roping]   lighter cloth where denim wears
 #   distress [knee_rip, abrasion, patched, sashiko, frayed]
 
 PX_CM = 3.92   # canvas px per cm: a 105 cm outseam fills 412 px
@@ -1681,6 +1683,7 @@ def pants(**kw) -> Shape:
     crease = bool(p.get("crease", pleats > 0))
     cargo = bool(p.get("cargo", False))
     coin = bool(p.get("coin", jeans))
+    rivets = bool(p.get("rivets", coin))
     stitch = p.get("stitch", "tonal")
     leg, length = p["leg"], p["length"]
     wt = WEIGHT_LEVEL.get(p.get("weight"), 1)   # a heavy cloth: a deeper waistband, a doubled hem
@@ -1842,11 +1845,14 @@ def pants(**kw) -> Shape:
             d = f"M {_pt(mm((mouth_x, bb)))} C {_pt(mm((mouth_x - 4, bb + 26)))} {_pt(mm((sm[0] + 20, sm[1] + 1)))} {_pt(mm(sm))}"
             sh.lines.append(d)
             stitch_lines.append(f"M {_pt(mm((mouth_x - 4, bb)))} C {_pt(mm((mouth_x - 8, bb + 22)))} {_pt(mm((sm[0] + 18, sm[1] - 3)))} {_pt(mm((sm[0], sm[1] - 4)))}")
-            if coin:
+            if rivets:
                 sh.dots.append((*mm((mouth_x - 1, bb + 3)), 1.9))
                 sh.dots.append((*mm((sm[0] + 4, sm[1] - 2)), 1.9))
         elif pocket == "slant":
             sh.lines.append(f"M {_pt(mm((mouth_x, bb)))} L {_pt(mm(sm))}")
+            if rivets:   # a work trouser's rivets at the corners of its pocket mouth
+                sh.dots.append((*mm((mouth_x - 2, bb + 3)), 1.9))
+                sh.dots.append((*mm((sm[0] + 4, sm[1] - 3)), 1.9))
         elif pocket == "side":
             sh.lines.append(f"M {_pt(mm((sm[0] + 4, bb + 4)))} L {_pt(mm((sm[0] + 2, sm[1] + 20)))}")
         elif pocket == "frog":   # a horizontal opening just under the waistband
@@ -1944,6 +1950,10 @@ def pants(**kw) -> Shape:
                 softline(mm((mouth_x, bb + 2)), mm((sm[0] + 6, sm[1] - 2)), 6)
             if "tracks" in fades and Ko:   # pale lines along the outer seams
                 softline(mm((leg_x(cy + 20) + 3, cy + 20)), mm((Ho[0] + 4, hy - 12)), 4.0)
+            if "roping" in fades and Ko:   # the chain-stitched hem twisted pale: slanting streaks along it
+                for j in range(6):
+                    x = Ho[0] + 4 + (Hi[0] - Ho[0] - 12) * j / 5
+                    softline(mm((x, hy - 3)), mm((x + 5, hy - 12)), 2.2)
             if "stacks" in fades and Ko:   # pale bands where the hem bunches
                 for i in range(3):
                     y = hy - 14 - i * 16
@@ -2013,6 +2023,10 @@ def pants(**kw) -> Shape:
         elif hem_kind == "split":   # a side slit at the outer seam, the hem turned up either side of it
             sh.lines.append(f"M {_pt(mm((a[0] + 2, a[1] - 0.5)))} Q {_pt(mm((a[0] + 9, a[1] - 9)))} {_pt(mm((a[0] + 5, a[1] - 18)))}")
             sh.lines.append(f"M {_pt(mm((a[0] + 9, a[1] - 2.2 * k)))} L {_pt(mm((b[0] + 1, b[1] - 2.2 * k)))}")
+        elif hem_kind == "notched":   # a small V cut up into the hem at the outer seam
+            sh.lines.append(f"M {_pt(mm((a[0] + 1.5, a[1] - 0.5)))} L {_pt(mm((a[0] + 7.5, a[1] - 12)))} "
+                            f"L {_pt(mm((a[0] + 13.5, a[1] - 0.5)))}")
+            sh.lines.append(f"M {_pt(mm((a[0] + 12.4, a[1] - 2.2 * k)))} L {_pt(mm((b[0] + 1, b[1] - 2.2 * k)))}")
         elif hem_kind == "chain":   # chain stitch: the hem's roping, a row of slanting twists
             sh.lines.append(f"M {_pt(mm((a[0] - 1, a[1] - 2.2 * k)))} L {_pt(mm((b[0] + 1, b[1] - 2.2 * k)))}")
             for j in range(7):

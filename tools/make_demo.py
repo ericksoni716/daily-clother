@@ -34,6 +34,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 from closet.drawing import DRAWING_VERSION, fills  # noqa: E402
 from closet.drawing.illustrate import Fill, Spec, render  # noqa: E402
 from closet.tagger.schema import NAMED_HEX, SCHEMA_VERSION, Details, ItemTags, Silhouette  # noqa: E402
+from closet.tagger.taxonomy import FOOTWEAR, nearest_shade  # noqa: E402
 from closet_bench import cutout as C  # noqa: E402
 from closet_bench.hardcases import build_spec  # noqa: E402
 
@@ -85,10 +86,10 @@ DRAWN = [
     ("Grey wool trousers", "trousers", "grey", "#6f7278", "pants", dict(leg="tapered", length="ankle", pleats=1), dict(leg="tapered", pant_length="ankle"), "business", "cool", {}),
     ("Olive shorts", "shorts", "olive", "#6f7550", "pants", dict(length="short", waist="drawstring"), dict(pant_length="short"), "casual", "warm", dict(location="drawer")),
     ("Black high-tops", "sneakers", "black", "#222326", "sneaker", dict(height="high", style="high_top"), dict(shoe_height="high"), "casual", "all",
-     dict(spec=dict(lace_color="#f4f1ea"))),
-    ("Brown boots", "boots", "brown", "#6b4a32", "sneaker", dict(height="high", style="boot"), dict(shoe_height="high"), "smart_casual", "cool", dict(sole="#3a2c22")),
+     dict(spec=dict(lace_color="#f4f1ea"), footwear="canvas_high_top")),
+    ("Brown boots", "boots", "brown", "#6b4a32", "sneaker", dict(height="high", style="boot"), dict(shoe_height="high"), "smart_casual", "cool", dict(sole="#3a2c22", footwear="service_boot")),
     ("Grey runners", "sneakers", "grey", "#a3a7ab", "sneaker", dict(style="runner"), dict(shoe_height="low"), "athletic", "all",
-     dict(spec=dict(trim_color="#d9772b", lace_color="#f4f1ea"))),
+     dict(spec=dict(trim_color="#d9772b", lace_color="#f4f1ea"), footwear="running_shoe")),
 ]
 
 # id in bench/hardcases/cases.json -> name, category, colour word, pattern, silhouette, formality, season, extras
@@ -192,7 +193,7 @@ PATTERN_NAME = {"stripe": "multi_stripe", "plaid": "tartan", "graphic": "novelty
 
 
 def demo_answer(name: str, category: str, color: str, pattern: str, sil: dict, formality: str, season: str,
-                template: str, params: dict, extra: dict) -> dict:
+                template: str, params: dict, extra: dict, hex_: str | None = None) -> dict:
     """The tagging answer for a demo item, as Claude would give it, built from what this file knows about the item.
 
     Validated against the tagger's schema, so the demo closet's stored answers are always well formed.
@@ -201,7 +202,8 @@ def demo_answer(name: str, category: str, color: str, pattern: str, sil: dict, f
     d: dict = dict(fabric=TEXTURE.get(spec.get("texture"), "unknown"),
                    pattern_name=PATTERN_NAME.get(pattern, "solid"),
                    pattern_orientation="horizontal" if pattern == "stripe" else ("placed" if pattern == "graphic" else "all_over"),
-                   trim_color=_named(spec.get("trim_color")))
+                   trim_color=_named(spec.get("trim_color")),
+                   shade=(nearest_shade(hex_, color) if hex_ else None) or "unknown")
     if template == "top":
         neck = params.get("neck", sil.get("neck", "crew"))
         sleeve = params.get("sleeve", sil.get("sleeve", "long"))
@@ -229,12 +231,20 @@ def demo_answer(name: str, category: str, color: str, pattern: str, sil: dict, f
         d.update(waist=params.get("waist") or "belt_loops", pant_hem="plain",
                  pockets="five_pocket_jean" if jeans else "slash",
                  features=(["pleats"] if params.get("pleats") else []) + (["contrast_stitching"] if params.get("stitch") == "contrast" else []))
+        d.update(waistband="drawstring" if params.get("waist") == "drawstring" else "belt_loops",
+                 fly="none" if params.get("waist") == "drawstring" else "zip",
+                 trouser_front={0: "flat", 1: "single_pleat", 2: "double_pleat"}[params.get("pleats", 0)],
+                 crease="pressed" if params.get("pleats") else "none", hem_finish="plain",
+                 leg_shape=params.get("leg", "straight") if category != "shorts" else "na",
+                 trouser_pockets=["scoop", "coin", "back_patch"] if jeans else ["slant", "back_welt_single"])
         if jeans:
-            d.update(fabric="denim", fiber="cotton", weight="heavyweight")
+            d.update(fabric="denim", fiber="cotton", weight="heavyweight",
+                     denim_wash={"navy": "dark", "black": "black", "blue": "mid", "light_blue": "light"}.get(color, "mid"))
     else:   # shoes
         style = params.get("style") or ("high_top" if sil.get("shoe_height") == "high" else "low_sneaker")
         d.update(shoe_style=style, sole_color=_named(extra.get("sole")) if extra.get("sole") else "white",
                  lace_color=_named(spec.get("lace_color")) if style != "boot" else "same")
+        d["footwear"] = next((w for w in extra.get("seen", []) if w in FOOTWEAR), None) or extra.get("footwear", "unknown")
         if "canvas" in name.lower():
             d.update(fabric="canvas", fiber="cotton")
         elif "leather" in name.lower() or category == "boots":
@@ -257,8 +267,9 @@ def answers(cases: dict) -> dict[str, dict]:
     for cid, (name, category, color, pattern, sil, formality, season, extra) in PHOTOS.items():
         case = cases[cid]
         out[name] = demo_answer(name, category, color, pattern, sil, formality, season, case["template"], case.get("params", {}), extra)
-    for name, category, color, _paint, template, params, sil, formality, season, extra in DRAWN:
-        out[name] = demo_answer(name, category, color, extra.get("pattern", "solid"), sil, formality, season, template, params, extra)
+    for name, category, color, paint, template, params, sil, formality, season, extra in DRAWN:
+        out[name] = demo_answer(name, category, color, extra.get("pattern", "solid"), sil, formality, season, template, params, extra,
+                                paint if isinstance(paint, str) else None)   # a patterned one has no one shade
     return out
 
 

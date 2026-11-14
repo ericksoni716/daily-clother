@@ -78,7 +78,7 @@ def choices(row, name: str) -> dict:
     out = []
     for v in details.values(name):
         svg = None
-        if v != value:
+        if v != value and name not in details.WORDED:
             made = illustrations.make(row, {name: v}).svg
             svg = made if made and made != base else None
         out.append({"value": v, "words": details.words(name, v), "current": v == value, "svg": svg})

@@ -455,6 +455,9 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             body = f'<path d="{d}" fill="{c}"/>' if c else (f'<path d="{d}" fill="{paint}"/>'
                                                            f'<path d="{d}" fill="{"#fff" if dark_item else "#000"}" opacity=".08"/>')
             return body + f'<path d="{d}" fill="none" stroke="{l_stroke if style != "flat" else shade(c or base, -0.3)}" stroke-width="{l_w}" stroke-linejoin="round" opacity="{l_op}"/>'
+        if role == "fade":     # cloth worn paler (denim whiskers, a knee): a soft light wash over it, no edge
+            op = (0.2 if dark_item else 0.3) * (0.4 if color == "soft" else 1)   # soft: one of several stacked rings
+            return f'<path d="{d}" fill="#fff" opacity="{op:.2f}"/>'
         if role == "sole":
             c = sole_c
             return f'<path d="{d}" fill="{c}"/>' + (f'<path d="{d}" fill="#000" opacity=".06"/>' if style != "line" else "")

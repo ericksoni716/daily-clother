@@ -128,7 +128,8 @@ def test_the_options_are_the_ones_for_the_kind_of_garment_and_each_drawing_diffe
     if kind == "top":
         assert "collar" in names and "placket_buttons" in names and "pleats" not in names
     if kind == "bottom":
-        assert "pleats" in names and "waist" in names and "collar" not in names
+        # the owner's bottoms block took the place of the older pleats, crease, waist and hem flags
+        assert "trouser_front" in names and "waistband" in names and "collar" not in names and "pleats" not in names
     if kind == "shoe":
         assert "sole_color" in names and "toe_cap" in names and "placket" not in names
 

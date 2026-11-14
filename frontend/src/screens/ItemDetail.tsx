@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
-import { ChipGroup } from '../components/Chips';
+import { ChipGroup } from '../components/ui/Chips';
+import { SegmentedControl } from '../components/ui';
 import { FixDetails, ItemHistory } from '../components/FixDetails';
 import { BackIcon, HangerIcon, WarnIcon } from '../components/Icons';
-import { formatPrice, label, parsePrice, ratingLabel, SWATCH } from '../labels';
+import { formatPrice, label, measuredColours, parsePrice, ratingLabel, SWATCH } from '../labels';
+import { useWhenLeaving } from '../leave';
 import { Link, navigate } from '../router';
 import { silhouetteGroups } from '../silhouette';
 import { useCloset } from '../store';
 import { drawingPlaceholder, loadGridView, notInDrawing } from '../drawing';
 import { describedBy, detailLines, tagNotice } from '../tagging';
-import type { Item, ItemPatch } from '../types';
+import type { Item, ItemPatch, PatternColour } from '../types';
 import { localDay, sinceWash, wearDay, wearSummary } from '../wears';
 import { busyLabel } from './Closet';
 
@@ -189,6 +191,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           <WarnIcon />
           <div>
             <p><strong>The background couldn't be removed.</strong>{item.cutout_error ? ` ${item.cutout_error}` : ''}</p>
+            <FailureDetails item={item} stage="cutout" />
             <button className="btn btn-small" disabled={locked} onClick={async () => {
               try {
                 setItem(await api.retryCutout(id));
@@ -206,6 +209,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           <WarnIcon />
           <div>
             <p><strong>Claude couldn't describe this item.</strong>{item.tag_error ? ` ${item.tag_error}` : ''}</p>
+            <FailureDetails item={item} stage="description" />
             <button className="btn btn-small" disabled={locked} onClick={retag}>Try again</button>
           </div>
         </div>
@@ -239,7 +243,8 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           onChange={(v) => save({ category: v })} />
         <ChipGroup field="color" options={vocab.color} value={item.color} disabled={locked} swatches
           onChange={(v) => save({ color: v, color_hex: v ? (SWATCH[v]?.startsWith('#') ? SWATCH[v] : null) : null })} />
-        <ChipGroup field="pattern" options={vocab.pattern} value={item.pattern} disabled={locked} onChange={(v) => save({ pattern: v })} />
+        <ChipGroup field="pattern" options={vocab.pattern} value={item.pattern} disabled={locked} onChange={(v) => save({ pattern: v })}
+          beside={<MeasuredColours colours={item.pattern_colors} />} />
         <ChipGroup field="formality" options={vocab.formality} value={item.formality} disabled={locked} onChange={(v) => save({ formality: v })} />
         <ChipGroup field="season" options={vocab.season} value={item.season} disabled={locked} onChange={(v) => save({ season: v })} />
         <ChipGroup field="location" options={vocab.location} value={item.location} disabled={locked} onChange={(v) => save({ location: v })} />
@@ -377,6 +382,19 @@ function WearPanel({ item, disabled, onWear, onUnwear, onLaundry }: WearPanelPro
   );
 }
 
+/** What was recorded when the cutout or the description failed, folded away (keys and outside paths taken out). */
+function FailureDetails({ item, stage }: { item: Item; stage: 'cutout' | 'description' }) {
+  const details = item.failure?.stage === stage ? item.failure.details : null;
+  if (!details) return null;
+  return (
+    <details className="failure-details" data-testid="failure-details">
+      <summary>Details</summary>
+      <p>What Closet recorded, for working out what went wrong:</p>
+      <pre>{details}</pre>
+    </details>
+  );
+}
+
 function DetailTop({ inPanel, backTo }: { inPanel?: boolean; backTo: string }) {
   if (inPanel) return null;
   return (
@@ -423,13 +441,7 @@ function Picture({ item, busyText, fallbackThumb }: { item: Item; busyText: stri
           {busy && <span className="badge badge-busy"><span className="spinner" aria-hidden="true" />{busyText}</span>}
         </div>
         {views.length > 1 && (
-          <div className="segmented" role="group" aria-label="Picture">
-            {views.map((v) => (
-              <button key={v.key} type="button" className={view === v.key ? 'is-on' : ''} aria-pressed={view === v.key} onClick={() => setChosen(v.key)}>
-                {v.label}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl label="Picture" value={view} options={views.map((v) => ({ value: v.key, label: v.label }))} onChange={setChosen} />
         )}
       </div>
       {missing.length > 0 && (
@@ -449,6 +461,7 @@ function NameField({ value, placeholder, disabled, onSave }: { value: string | n
     const v = text.trim();
     if (v !== (value ?? '')) onSave(v || null);
   };
+  useWhenLeaving(commit);
   return (
     <label className="name-field">
       <span className="visually-hidden">Name</span>
@@ -479,6 +492,7 @@ function TextField({ label: text, value, disabled, placeholder, type = 'text', m
     const t = v.trim();
     if (t !== (value ?? '')) onSave(t || null);
   };
+  useWhenLeaving(commit);
   return (
     <label className="field">
       <span>{text}</span>
@@ -504,6 +518,10 @@ function PriceField({ cents, disabled, onSave, toastError }: { cents: number | n
     }
     if (parsed !== cents) onSave(parsed);
   };
+  useWhenLeaving(() => {
+    const parsed = parsePrice(v);
+    if (parsed !== undefined && parsed !== cents) onSave(parsed);
+  });
   return (
     <label className="field">
       <span>Price</span>
@@ -536,6 +554,17 @@ function Actions({ item, disabled, onArchive, onDelete }: { item: Item; disabled
         </div>
       )}
     </div>
+  );
+}
+
+/** The colours measured from the pattern, as small swatches beside the pattern word. */
+function MeasuredColours({ colours }: { colours?: PatternColour[] }) {
+  if (!colours?.length) return null;
+  const words = `Colours measured from the photo: ${measuredColours(colours)}`;
+  return (
+    <span className="measured-colours" role="img" aria-label={words} title={words} data-testid="pattern-colours">
+      {colours.map((c) => <span key={c.color} className="swatch" style={{ background: c.hex }} />)}
+    </span>
   );
 }
 

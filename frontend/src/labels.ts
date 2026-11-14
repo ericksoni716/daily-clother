@@ -20,6 +20,16 @@ const PLURAL: Record<string, string> = {
   other: 'Other',
 };
 
+/** The colours measured from a pattern in words, largest first: "Navy 60%, white 40%". */
+export function measuredColours(colours: { color: string; share: number }[] | null | undefined): string {
+  return (colours ?? [])
+    .map((c, i) => {
+      const word = label('color', c.color);
+      return `${i ? word.toLowerCase() : word} ${Math.round(c.share * 100)}%`;
+    })
+    .join(', ');
+}
+
 /** "smart_casual" -> "Smart casual". */
 export function humanize(value: string): string {
   const words = value.replace(/_/g, ' ').trim();
@@ -62,6 +72,11 @@ export const SWATCH: Record<string, string> = {
   burgundy: '#6d1f2c', pink: '#e6a1b3', orange: '#e07b2e', yellow: '#e9c547', purple: '#6d4c8f',
   multi: 'conic-gradient(#b8322e, #e9c547, #3f7a4c, #3c69b0, #6d4c8f, #b8322e)',
 };
+
+/** The swatch colour for a garment colour, grey for one without a swatch. */
+export function swatchOf(color: string): string {
+  return SWATCH[color] ?? '#cccccc';
+}
 
 const RATING_WORDS: Record<string, string> = { love: 'Love', like: 'Like', meh: 'Meh', dislike: 'Dislike' };
 export function ratingLabel(value: string): string {

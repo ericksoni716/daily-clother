@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
-import { BackIcon, HangerIcon, WarnIcon } from '../components/Icons';
+import { HangerIcon, WarnIcon } from '../components/Icons';
+import { Card as UiCard, ItemThumb, PageHeader, SegmentedControl } from '../components/ui';
 import { loadGridView, type GridView } from '../drawing';
 import {
   barWidth, costCaption, FIELD_WORDS, forgetKept, groupLabel, keepPiece, keptPieces, loadSavedInsights, MAKEUP_FIELDS, plural,
@@ -115,13 +116,9 @@ export function InsightsScreen() {
 
   return (
     <section className="insights" aria-labelledby="insights-title">
-      <header className="page-header insights-header">
-        <div>
-          <Link to="/" className="btn btn-ghost btn-small insights-back"><BackIcon /> Closet</Link>
-          <h1 id="insights-title">Insights</h1>
-          <p className="muted insights-lede">How your clothes are being used, from what you have recorded as worn.</p>
-        </div>
-      </header>
+      <PageHeader className="insights-header" title="Insights" titleId="insights-title"
+        back={{ to: '/', label: 'Closet', className: 'insights-back' }}
+        subtitle="How your clothes are being used, from what you have recorded as worn." />
 
       {phase.kind === 'loading' && (
         <div className="insights-grid" aria-hidden="true">{Array.from({ length: 4 }, (_, i) => <div key={i} className="insights-skeleton" />)}</div>
@@ -161,11 +158,11 @@ type ById = Map<string, ItemSummary>;
 function Card({ title, sentence, testid, wide, children }: { title: string; sentence: string; testid: string; wide?: boolean; children?: ReactNode }) {
   const id = `insights-${testid}`;
   return (
-    <section className={`insights-card${wide ? ' is-wide' : ''}`} aria-labelledby={id} data-testid={testid}>
+    <UiCard as="section" className={`insights-card${wide ? ' is-wide' : ''}`} aria-labelledby={id} data-testid={testid}>
       <h2 id={id}>{title}</h2>
       <p className="insights-sentence">{sentence}</p>
       {children}
-    </section>
+    </UiCard>
   );
 }
 
@@ -187,7 +184,7 @@ function Piece({ id, byId, caption, title, children }: { id: string; byId: ById;
   return (
     <li className="insights-piece" data-testid="insight-piece">
       <Link to={itemPath(id, 'active')} className="insights-piece-link" title={title}>
-        <span className="insights-piece-pic"><Picture item={item} /></span>
+        <ItemThumb className="insights-piece-pic" picture={<Picture item={item} />} />
         <span className="insights-piece-name">{nameOf(item)}</span>
         <span className="insights-piece-caption">{caption}</span>
       </Link>
@@ -271,7 +268,7 @@ function Bars({ rows, byId }: { rows: Counted[]; byId: ById }) {
       {rows.map((r) => (
         <li key={r.id}>
           <Link to={itemPath(r.id, 'active')} className="insights-bar-row">
-            <span className="insights-bar-pic"><Picture item={byId.get(r.id)} /></span>
+            <ItemThumb className="insights-bar-pic" picture={<Picture item={byId.get(r.id)} />} />
             <span className="insights-bar-text">
               <span className="insights-bar-name">{nameOf(byId.get(r.id))}</span>
               <span className="insights-bar" aria-hidden="true"><span style={{ width: `${barWidth(r.wears, max)}%` }} /></span>
@@ -290,13 +287,9 @@ function WornMostCard({ answer, byId }: { answer: Insights; byId: ById }) {
   const w = windows[Math.min(index, windows.length - 1)];
   return (
     <Card title={answer.worn_most.title} sentence={w.sentence} testid="worn-most">
-      <div className="segmented segmented-small insights-windows" role="group" aria-label="Over">
-        {windows.map((x, i) => (
-          <button key={String(x.days)} className={i === index ? 'is-on' : ''} aria-pressed={i === index} onClick={() => setIndex(i)}>
-            {windowLabel(x.days)}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl label="Over" small className="insights-windows" value={String(index)}
+        options={windows.map((x, i) => ({ value: String(i), label: windowLabel(x.days) }))}
+        onChange={(i) => setIndex(Number(i))} />
       {w.items.length > 0 && <Bars rows={w.items} byId={byId} />}
     </Card>
   );
@@ -329,11 +322,8 @@ function MakeupCard({ answer }: { answer: Insights }) {
     <Card title={f.title} sentence={f.sentence} testid="makeup">
       {f.pieces > 0 && (
         <>
-          <div className="segmented segmented-small insights-windows" role="group" aria-label="Count by">
-            {MAKEUP_FIELDS.map((k) => (
-              <button key={k} className={k === field ? 'is-on' : ''} aria-pressed={k === field} onClick={() => setField(k)}>{FIELD_WORDS[k]}</button>
-            ))}
-          </div>
+          <SegmentedControl label="Count by" small className="insights-windows" value={field}
+            options={MAKEUP_FIELDS.map((k) => ({ value: k, label: FIELD_WORDS[k] }))} onChange={setField} />
           <ul className="insights-bars">
             {groups.map((g) => (
               <li key={g.value ?? ''} className="insights-bar-row is-static">

@@ -1,10 +1,11 @@
-import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue } from './types';
+import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder } from './types';
 import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
 import type { Insights } from './insights';
 import type { OutfitSent, Rating, Reason, WornOutfit, WornPage } from './worn';
 import type { GapsAnswer, HideReason, Wish } from './gaps';
+import type { FindsAnswer } from './shop';
 import type { Life } from './life';
 import type { Check, WouldPiece } from './wouldwork';
 import type { FigurePieces } from './figure';
@@ -67,7 +68,7 @@ function fallbackMessage(status: number): string {
   return 'That did not work. Try again.';
 }
 
-interface Options {
+export interface Options {
   method?: string;
   body?: unknown;
   form?: FormData;
@@ -78,12 +79,37 @@ interface Options {
   text?: boolean;
 }
 
+/**
+ * Browsers allow 64 KiB of bodies for all `keepalive` requests still on their way together, and
+ * refuse one that would go over. Closet keeps its own count and stays under it, with room to spare.
+ */
+export const KEEPALIVE_BUDGET = 48 * 1024;
+let keepaliveBytes = 0;
+
+/**
+ * Saves are sent with `keepalive` so that they reach Closet even if the page is closed or reloaded
+ * a moment later. Not for photos (too large), not for questions the app can call off (they have a
+ * signal), and not when earlier saves still on their way use up the browser's allowance.
+ * Returns the body's size when it is sent that way, null otherwise.
+ */
+export function keepaliveSize(method: string, body: string | undefined, opts: Options, inFlight: number): number | null {
+  if (method === 'GET' || opts.form || opts.signal) return null;
+  const size = new TextEncoder().encode(body ?? '').length;
+  return inFlight + size <= KEEPALIVE_BUDGET ? size : null;
+}
+
 async function request<T>(path: string, opts: Options = {}): Promise<T> {
-  const init: RequestInit = { method: opts.method ?? 'GET', credentials: 'same-origin', signal: opts.signal };
+  const method = opts.method ?? 'GET';
+  const init: RequestInit = { method, credentials: 'same-origin', signal: opts.signal };
   if (opts.form) init.body = opts.form;
   else if (opts.body !== undefined) {
     init.body = JSON.stringify(opts.body);
     init.headers = { 'Content-Type': 'application/json' };
+  }
+  const kept = keepaliveSize(method, init.body as string | undefined, opts, keepaliveBytes);
+  if (kept !== null) {
+    init.keepalive = true;
+    keepaliveBytes += kept;
   }
   let res: Response;
   try {
@@ -92,6 +118,8 @@ async function request<T>(path: string, opts: Options = {}): Promise<T> {
     if ((e as Error)?.name === 'AbortError') throw e;
     setOffline(true);
     throw new ApiError(0, UNREACHABLE);
+  } finally {
+    if (kept !== null) keepaliveBytes -= kept;
   }
   setOffline(res.headers.get(FROM_CACHE_HEADER) === '1');
   if (res.status === 204) return undefined as T;
@@ -179,7 +207,7 @@ export const api = {
   downloadModel: () => request<ModelInfo>('/api/model/download', { method: 'POST' }),
   setModelUrl: (url: string) => request<ModelInfo>('/api/model/url', { method: 'PUT', body: { url } }),
   settings: () => request<Settings>('/api/settings'),
-  putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean; tagging_api_cap_usd?: number | null; life?: Life | null; life_prompt_dismissed?: boolean }) =>
+  putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean; tagging_api_cap_usd?: number | null; tagging_route_order?: RouteOrder; life?: Life | null; life_prompt_dismissed?: boolean }) =>
     request<Settings>('/api/settings', { method: 'PUT', body: changes }),
   storage: () => request<Storage>('/api/storage'),
   saveApiKey: (key: string) => request<Settings>('/api/settings/api-key', { method: 'PUT', body: { key } }),
@@ -208,10 +236,15 @@ export const api = {
   unhideGap: (id: string) => request<void>(`/api/gaps/${encodeURIComponent(id)}/hide`, { method: 'DELETE' }),
   wishlist: () => request<{ wishes: Wish[] }>('/api/wishlist').then((r) => r.wishes),
   addWish: (wish: { gap_id: string } | { name: string; note?: string }) => request<Wish>('/api/wishlist', { method: 'POST', body: wish }),
-  changeWish: (id: string, changes: { name?: string; note?: string }) =>
+  changeWish: (id: string, changes: { name?: string; note?: string; price_min?: number | null; price_max?: number | null; price_currency?: string | null }) =>
     request<Wish>(`/api/wishlist/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes }),
   wishBought: (id: string) => request<Wish>(`/api/wishlist/${encodeURIComponent(id)}/bought`, { method: 'POST' }),
   removeWish: (id: string) => request<void>(`/api/wishlist/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  finds: (id: string) => request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/finds`),
+  findSome: (id: string) => request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/find`, { method: 'POST' }),
+  checkPrices: (id: string) => request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/prices`, { method: 'POST' }),
+  removeFind: (id: string, findId: string) =>
+    request<void>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}`, { method: 'DELETE' }),
   // Would this work?: a check starts and answers later; the photo is not kept
   checkByHand: (piece: Partial<WouldPiece>) => request<Check>('/api/would-this-work', { method: 'POST', body: { piece } }),
   checkPhoto: (photo: Blob, filename: string) => {

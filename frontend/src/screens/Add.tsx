@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type DragEvent } from 'react';
 import { api } from '../api';
 import { CameraIcon, CheckIcon, CloudOffIcon, ImagesIcon, WarnIcon } from '../components/Icons';
+import { Notice, PageHeader } from '../components/ui';
 import { filesFromDrop, splitPhotos } from '../resize';
 import { Link, useMediaQuery } from '../router';
 import { importLine } from '../spend';
@@ -137,10 +138,8 @@ export function AddScreen() {
 
   return (
     <section className="add" aria-labelledby="add-title">
-      <header className="page-header">
-        <h1 id="add-title">Add clothes</h1>
-      </header>
-      {profile === 'demo' && <p className="notice">You're in the demo closet, so new photos are added to the demo. Use "Back to my closet" above to add to your own.</p>}
+      <PageHeader title="Add clothes" titleId="add-title" />
+      {profile === 'demo' && <Notice as="p">You're in the demo closet, so new photos are added to the demo. Use "Back to my closet" above to add to your own.</Notice>}
 
       {offline ? (
         <div className="notice notice-warn" data-testid="import-offline">

@@ -41,20 +41,28 @@ Wave 4:
 - [x] #85 "Would this work?": check a piece against the closet before buying it, from a photo (described by Claude through the same routes and the same monthly limit as an item; the photo is kept in memory only and never saved) or described by hand. The answer is by rule: fills a gap, works and adds something, works but you have it already, or hard to wear, with the gap it would fill, the pieces it goes with, the ones it repeats and what holds it back. Sent back once with ten faults found in review; all fixed. Known: the check compares the plain analysis with and without the piece and does not yet know how the owner lives, so it can name a gap that the weighed list ranks differently.
 - [x] #88 and #89 What's missing informed by how the owner lives: a one-minute set of questions (work, everyday, going out, lounging at home, exercise, vacation, and how often), the climate of the saved place from four past years, and taste from what is worn and rated, per kind of clothing. Each suggestion says which situations it is for and the list can be narrowed to one. Until the questions are answered the analysis is exactly as before. Given to two models; the GPT 6 Astra run was the one that finished the screen and was merged after one round of ten faults found in review. Known: lounging is told from everyday by relaxed kinds and soft-cloth words, and exercise cannot tell one sport from another; the closet has no kinds for sportswear or loungewear. Trips and this each have their own lookup of Open-Meteo's archive; they could share one.
 
-Next (not started; the owner asked for a pause after this wave and a release): shop searches for a wish with each find checked against the closet, price checks, "Would this work?" taking how the owner lives into account, kinds of clothing for sportswear and loungewear.
+Wave 5:
+- [x] #112 Shopping for a wish (migration 0018): "Find some" asks Claude, through the same routes and monthly limit as describing an item (with web search allowed), for up to 8 products on sale now that match the wish and its price range. Each is checked against the closet with the "Would this work?" rules and kept with the wish; links open in a new tab and nothing is bought or opened by itself. "Check prices" looks again on demand, and while Closet runs each wish with finds is checked at most once a day (never in the demo closet), with the price history kept and a drop shown. Known: the API route's answer tool together with web search has only been run against a stand-in, never against Anthropic.
+
+Next (not started): "Would this work?" taking how the owner lives into account, kinds of clothing for sportswear and loungewear.
+
+Design (from the design review; each builds on the first):
+- [x] #127 Design 1, a design system: one set of tokens in `frontend/src/styles.css` (four text levels, surfaces, see-through borders, a 1.25 type scale from 16px, 4px spacing, four radii, one depth for cards), no colour outside them, a Light / Dark / Same as this device choice in Settings → Look, and shared pieces in `frontend/src/components/ui/` used where the swap was mechanical. Layouts unchanged; `src/design.test.ts` keeps CSS on the scale. Known: the spacing tokens are not yet used by existing paddings, the model banner is still its own component, and a forced choice is applied once the script runs.
 
 Fixes after 0.2.0:
 - [x] A newer program that finds an older copy running says so and offers to close it and use the new one (it used to open the old one without a word). The owner's first test of 0.2.0 found it.
 - [x] The owner's first item in 0.2.0 failed to be described after three tries. The cause: Claude Code on the owner's Mac was still signed in to a work account that had been turned off, so Anthropic refused its key ("Not a valid API key for this workspace"), and Closet took that for a bad answer. Now a refused sign-in keeps items waiting with a note saying what to do, and they go ahead by themselves once Claude Code is signed in with the plan.
 - [x] A box in Settings to paste the API key, kept in the computer's keychain (Mac keychain, Windows Credential Manager) and checked with Anthropic first; replace and remove. Not yet run on a real Mac or Windows keychain.
-- [ ] A choice of "API key first" for owners who would rather pay per photo than use their plan (the route order exists in the code, `api-first`, but is not offered).
-- [ ] Other failures still keep their real reason only in the `jobs` table. Showing it on a failed item (and in the log) would make the next unknown failure diagnosable without a terminal.
+- [x] #104 A choice in Settings of which route to Claude is tried first: the plan first (as before), the API key first, only the plan, or only the key. The key-first choices need a saved key; the key is still only used once allowed with a monthly limit.
+- [x] A failed item shows why: the plain sentence, and a "Details" fold with the reason the job recorded (keys, tokens, e-mail addresses and paths outside Closet's folder taken out), written once to the log as well; "Try again" never queues a second job (`failure` in the item, no migration).
+- [x] #114 A change made just before the page is reloaded or closed is no longer lost: saves are sent so that they outlive the page, and an edit still being typed (or trip ticks waiting their turn) is sent as the page goes away. It had been parked since a browser test raced it.
 
 Patterns from the photo (owner's request; it had fallen out of the app):
 - [x] Plaids flattened and placed per front, madras measured whole, stripes (regular and placed bands, sleeves checked), prints quilted; OpenCV and the second background model in the app; migration 0013.
 - [ ] Florals placed motif by motif on a good photo (now pieced from the whole garment).
 - [ ] Very fine stripes on small photos (a 285 px polo loses its 1–2 px pink lines).
-- [ ] Graphic prints on tops are still drawn plain in the app (the bench lifts them).
+- [x] #105 Graphic prints on tops: a top Claude calls graphic (or a novelty print) has its print lifted from the cutout in the background and drawn at its place, on its own drawing and in the outfit figure; a print that cannot be lifted leaves it plain with a note. Known: the tagging schema does not yet ask for the taxonomy's `graphic_technique` and `graphic_placement`, so a back print or a sleeve print is not told apart, and only the front photo is read.
+- [ ] Graphic prints on the back or sleeves (needs `graphic_placement` in the tagging schema and a photo of the back).
 
 ## Waiting on the owner
 - **Garment review**: the owner called the drawings good enough for now (after round 7). Marks and notes in the review gallery are still read when they appear; drawing work is parked until asked for.
@@ -63,7 +71,7 @@ Patterns from the photo (owner's request; it had fallen out of the app):
 - **The app's top UI complaints**, as the brief for UI tasks. A full interface-design pass comes after more features exist.
 - **25–30 photos of the owner's own clothes** with an answer key (`bench/answer_key.template.csv`). Most useful: items that differ from the usual (a polo with one or three buttons, a henley, corduroy, fleece or heavy wool beside light cotton, a sweatshirt with a V-insert). The bench runs them through the Claude plan by default; an API key is optional.
 - Three photos for the untested hard cases: something striped, something floral or patterned, something camouflage.
-- Whether to drop the Google Drive hand-off for price checks now that the app can run them itself through the plan route while the PC is on (recommended: drop it).
+- Whether to drop the Google Drive hand-off for price checks now that the app runs them itself (#112, through the plan route while the PC is on; see DECISIONS, "Shopping for a wish"). Recommended: drop it.
 - Whether multi-item photos and video sweeps stay after the outfit builder (as planned below) or move into stop B.
 
 ## Track 1: recognition and drawing (continuous)
@@ -84,7 +92,7 @@ Done:
 In progress (owner's corrections to the first taxonomy sheets):
 - [x] Fits recalibrated from real garment measurements: everything was drawn slim.
 - [x] Tailored jackets (blazer, sport coat, suit jacket, coats with lapels) rebuilt as their own construction (by a Copilot agent, #12; drawn at the same 84% body width as every top). Waiting for the owner's verdict in the gallery (round 5).
-- [ ] Jacket faults left from that work: sleeves splay wide and the strokes merge into a dark wedge under the arm; a double-breasted jacket that is told "2 buttons" shows one row of two instead of the usual six; lapels do not grow with an oversized fit; cuff buttons are tiny; three-roll-two draws as two-button; low-contrast buttons on some cloths; the jacket's inside barely shows on black or navy.
+- [x] Jacket faults left from that work (#109): sleeves splay wide and the strokes merge into a dark wedge under the arm; a double-breasted jacket that is told "2 buttons" shows one row of two instead of the usual six; lapels do not grow with an oversized fit; cuff buttons are tiny; three-roll-two draws as two-button; low-contrast buttons on some cloths; the jacket's inside barely shows on black or navy. All seven fixed, each with a test (before/after: `docs/screenshots/jacket-faults-before.png`, `jacket-faults-after.png`); waiting for the owner's verdict in the gallery.
 - [ ] Weight shown much more strongly, as thickness and bulk and not only a heavier line. Done, waiting for the owner's verdict in the gallery (round 4): a heavy cloth is drawn with depth (shade inside its edges, sunken seams, a collar and pockets that stand proud). Still to do: a sign of its own for light cloth (drape wrinkles), and more depth on plain knits, which have few seams to show it.
 - [x] A worn-open state for jackets, cardigans, overshirts and zip hoodies, with a proof that an open layer lines up over a shirt (`state="open"` on a top; `layer(under, over)` in the renderer; gallery section "Worn open"). Rebuilt as layers after the owner rejected the first version: two equal fronts, buttons on one and buttonholes on the other, the garment underneath drawn whole. Waiting for the owner's verdict (round 7).
 
@@ -95,7 +103,7 @@ To do:
 - [ ] Trousers: the taxonomy's bottoms are a signature line each; rise, fit names and jeans washes are not tagged yet.
 - [ ] Re-run the tagging test with the tightened prompt (snaps, hip pockets and feature flags were wrong in the first run).
 - [ ] Striped, floral and camouflage hard cases on real photos.
-- [ ] Take the colour word for patterned items from the measured palette instead of the model.
+- [x] Take the colour word for patterned items from the measured palette instead of the model (#106).
 - [ ] One real call through the API-key route for cost and timing (deliberately last; it costs money).
 
 Rules that keep the two tracks independent:
@@ -137,7 +145,7 @@ Original phase 4 and the rating parts of phase 6. The first stop the owner uses 
 ### Stop D: what's missing, and shopping
 Original phase 5.
 - Gap analysis (counts by code, explanations by the model), shopping by web search, wishlist, "would this work?", computer layout first.
-- Price checks.
+- Price checks (#112: run by the app itself while it runs).
 
 ### After D, each its own smaller stop
 - Multi-item photos and video sweeps (bench first; decides ffmpeg bundled or downloaded on first use).
@@ -150,7 +158,6 @@ Tests pass, the packaged build is green in CI, demo mode works, docs are updated
 
 ## Parked
 - Browser tests in `08-wears` timed out twice in local full runs (once each test in the file), both times while reviewers were also running on the machine: the demo closet's tiles were missing or kept being replaced for a minute. Not reproduced in five further runs, three of them under deliberate heavy load, and never on GitHub. Cause not found. If it comes back: run with `--trace retain-on-failure` and look at what keeps re-rendering the grid after a profile switch.
-- A change made a moment before the page is reloaded or closed can be lost, because the save is still on its way. Sending saves so that they outlive the page (a keep-alive request) would close that gap. Found when a browser test raced it.
 - Batches API as an opt-in "economy" mode for very large imports.
 - Server-side refusal fallback for the stronger model (beta); tagging currently fails clearly on a refusal.
 - Sneaker side logos and other prints on shoes are not carried onto the illustration.

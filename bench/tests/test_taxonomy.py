@@ -610,3 +610,17 @@ def test_every_shoe_variant_draws_its_own_picture_on_the_same_ground(base, key, 
 
 def test_oxford_and_derby_lacing_differ():
     assert build("sneaker", dict(style="oxford")).parts != build("sneaker", dict(style="derby")).parts
+
+
+def test_the_closet_categories_of_each_kind_of_clothing_follow_the_taxonomy():
+    from closet.vocab import CATEGORY
+    from closet_bench.taxonomy import GARMENT_CATEGORIES
+    garments = TAXONOMY["garments"].values()
+    # every category of everyday clothing; footwear, accessories, activewear and loungewear are not kinds a trip counts
+    clothing = {g["category"] for g in garments} - {"footwear", "accessory", "activewear", "loungewear"}
+    assert set(GARMENT_CATEGORIES) == clothing
+    for category, closet in GARMENT_CATEGORIES.items():
+        assert closet and set(closet) <= set(CATEGORY), category
+        given = {g["app_category"] for g in garments if g["category"] == category and "app_category" in g}
+        assert given <= set(closet), category
+    assert set(GARMENT_CATEGORIES["bottoms"]) == {g["app_category"] for g in garments if g["category"] == "bottoms"}

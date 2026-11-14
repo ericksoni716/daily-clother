@@ -89,6 +89,20 @@ AXES: dict[str, tuple[str, ...]] = {
 WEIGHT_CLASSES = ("lightweight", "midweight", "heavyweight", "super_heavy")
 KNIT_GAUGES = ("extra_fine", "fine", "medium", "chunky", "super_chunky")
 CORDUROY_WALES = ("needlecord", "standard", "mid", "wide_wale", "jumbo")
+# The taxonomy's categories of clothing (its `garments`' "category") and the closet categories (`vocab.CATEGORY`)
+# their garments are kept as: a garment's `app_category` where the taxonomy gives one, otherwise the closet's
+# nearest word (a henley is a tee, a rugby shirt a polo, a blazer a jacket). Trip packing reads its kinds of
+# clothing from these; a test keeps them in step with the JSON.
+GARMENT_CATEGORIES: dict[str, tuple[str, ...]] = {
+    "knit_top": ("tee", "polo"),
+    "woven_shirt": ("shirt",),
+    "sweatshirt": ("hoodie", "sweater"),
+    "knitwear": ("sweater",),
+    "outerwear": ("jacket", "coat"),
+    "tailoring": ("jacket",),
+    "bottoms": ("jeans", "trousers", "shorts"),
+}
+
 # the shoe styles the drawing has a shape for
 SHOE_STYLES = ("low_sneaker", "high_top", "runner", "slip_on", "loafer", "derby", "oxford", "boot", "chelsea_boot", "sandal")
 

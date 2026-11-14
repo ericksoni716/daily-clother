@@ -41,9 +41,14 @@ def big_closet(n=300, seed=1):
                  rnd.choice(["all", "warm", "cool"]), rnd.choice(["solid"] * 4 + ["stripe", "plaid"])) for i in range(n)]
 
 
+# The demo closet has 11 tops; at the default of one wear each, ten cool days (some with a shirt over a tee) need
+# more than that without laundry. Tests about something else allow tops two wears, as the old fixed rules did.
+TOPS_TWICE = {"tops": 2}
+
+
 # ---------------------------------------------------------------------- the plan
 def test_every_day_is_dressed_from_packed_pieces_only():
-    result = trips.plan(demo_items(), days(10))
+    result = trips.plan(demo_items(), days(10), rewear=TOPS_TWICE)
     packed = {p["id"] for p in result["packed"]}
     assert result["uncovered"] == [] and len(result["days"]) == 10
     for d in result["days"]:
@@ -54,25 +59,30 @@ def test_every_day_is_dressed_from_packed_pieces_only():
 
 
 def test_fewer_pieces_than_a_fresh_outfit_a_day():
-    result = trips.plan(demo_items(), days(10))
+    result = trips.plan(demo_items(), days(10), rewear=TOPS_TWICE)
     slots = sum(len(core_worn(d)) for d in result["days"])
     assert len(result["packed"]) < slots / 2
 
 
 def test_pieces_are_grouped_and_worn_no_more_than_the_rewear_rules_allow():
     by_id = {i["id"]: i for i in demo_items()}
-    for can_wash in (False, True):
-        result = trips.plan(demo_items(), days(10), {"can_wash": can_wash})
+    for laundry in (None, {"day": 5}, {"every": 3}):
+        result = trips.plan(demo_items(), days(10), {"laundry": laundry}, TOPS_TWICE)
+        assert result["uncovered"] == []
+        washes = {w - 1 for w in trips.wash_days(trips.check_laundry(laundry, 10), 10)}
         for p in result["packed"]:
             category = by_id[p["id"]]["category"]
             assert p["group"] == trips.GROUP_OF[category]
-            limit = trips.REWEAR_DAYS.get(category)
+            kind = trips.KIND_OF.get(category)
+            limit = trips.check_rewear(TOPS_TWICE).get(kind) if kind else None
             if limit:
-                assert p["days"] <= limit * (trips.WASH_FACTOR if can_wash else 1)
+                worn_on = {i for i, d in enumerate(result["days"]) if p["id"] in worn(d)}
+                assert trips._fits(worn_on, limit, washes, [False] * 10, kind in trips.NEXT_TO_SKIN), (p, laundry)
         groups = [p["group"] for p in result["packed"]]
         assert groups == sorted(groups, key=trips.GROUP_ORDER.index)
         assert groups.count("outer") <= trips.MAX_OUTER and groups.count("shoes") <= trips.MAX_SHOES
-    assert len(trips.plan(demo_items(), days(10), {"can_wash": True})["packed"]) < len(trips.plan(demo_items(), days(10))["packed"])
+    washed = trips.plan(demo_items(), days(10), {"laundry": {"every": 3}}, TOPS_TWICE)
+    assert len(washed["packed"]) < len(trips.plan(demo_items(), days(10), rewear=TOPS_TWICE)["packed"])
 
 
 def test_laundry_and_archived_pieces_are_left_out():
@@ -124,7 +134,7 @@ def test_a_day_that_cannot_be_covered_says_why():
 def test_a_rainy_day_with_an_outfit_warning_is_not_counted_as_uncovered():
     items = [i for i in basic_closet() if i["category"] not in ("sneakers", "dress_shoes")]
     items.append(item("canvas1", "sneakers", "white", "casual", material="canvas"))
-    result = trips.plan(items, days(3, rain_every=2))
+    result = trips.plan(items, days(3, rain_every=2), rewear=TOPS_TWICE)  # two shirts and a tee for three days
     rainy = [d for d in result["days"] if d["weather"]["rain"]]
     dry = [d for d in result["days"] if not d["weather"]["rain"]]
     assert all(d["warning"] and "Nothing rain-proof" in d["warning"] and d["outfit"] for d in rainy)
@@ -157,8 +167,8 @@ def test_basics_by_count():
     basics = {b["key"]: b["count"] for b in result["basics"]}
     assert basics["underwear"] == basics["socks"] == 10 + trips.SPARE
     assert basics["sleepwear"] == 2 and basics["umbrella"] == 1 and basics["gloves"] == 1
-    washed = {b["key"]: b["count"] for b in trips.plan(demo_items(), days(10), {"can_wash": True})["basics"]}
-    assert washed["socks"] == trips.WASH_CYCLE_DAYS + trips.SPARE and washed["sleepwear"] == 1
+    washed = {b["key"]: b["count"] for b in trips.plan(demo_items(), days(10), {"laundry": {"every": 3}})["basics"]}
+    assert washed["socks"] == 4 + trips.SPARE and washed["sleepwear"] == 1  # days 1-4, then again after each wash
     assert "gloves" not in washed
     assert trips.lines(result)[-len(result["basics"]):] == [f"basic:{k}" for k in basics]
 
@@ -186,7 +196,142 @@ def test_odd_input_never_crashes():
     with pytest.raises(trips.PlanError):
         trips.plan(demo_items(), days(1), {"leave_out": "everything"})
     with pytest.raises(trips.PlanError):
-        trips.plan(demo_items(), days(1), {"can_wash": "yes"})
+        trips.plan(demo_items(), days(3), {"laundry": "yes"})
+
+
+# ---------------------------------------------------------------------- re-wear, weather and laundry
+def mild(n, high=21, **kw):
+    return [{"date": (FIRST + timedelta(days=i)).isoformat(), "low_c": 15, "high_c": high, "rain": False,
+             "rain_chance": None, "summary": None, "source": "usual", **kw} for i in range(n)]
+
+
+def shirt_closet(n=10, category="shirt"):
+    return ([item(f"{category}{i}", category, c, "casual", silhouette={"sleeve": "short"})
+             for i, c in zip(range(n), ["white", "navy", "grey", "light_blue", "black", "olive", "tan", "cream",
+                                        "blue", "brown"], strict=False)]
+            + [item(f"trousers{i}", "trousers", c, "casual") for i, c in enumerate(["grey", "navy", "tan"])]
+            + [item("sneakers1", "sneakers", "white", "casual")])
+
+
+def packed_of(result, category):
+    return [p for p in result["packed"] if p["id"].startswith(category)]
+
+
+def test_a_week_of_shirts_worn_once_needs_seven_without_laundry_and_four_with_laundry_on_day_four():
+    result = trips.plan(shirt_closet(), mild(7))
+    assert result["uncovered"] == [] and len(packed_of(result, "shirt")) == 7
+    assert "7 shirts: one a day" in [c["words"] for c in result["counts"]]
+    assert result["washes"] == [] and not any(d["laundry"] for d in result["days"])
+
+    washed = trips.plan(shirt_closet(), mild(7), {"laundry": {"day": 4}})
+    assert washed["uncovered"] == [] and len(packed_of(washed, "shirt")) == 4
+    assert "4 shirts: one a day, laundry on day 4" in [c["words"] for c in washed["counts"]]
+    assert [d["laundry"] for d in washed["days"]] == [False, False, False, True, False, False, False]
+    words = washed["washes"][0]["words"]
+    assert words.startswith("Wash on day 4: the shirts") and "from days 1\u20133 are worn again from day 5" in words
+    # the shirt worn on day 4 is not in that wash: days 5-7 wear the shirts of days 1-3
+    by_day = [next(x for x in core_worn(d) if x.startswith("shirt")) for d in washed["days"]]
+    assert by_day[3] not in by_day[4:] and set(by_day[4:]) <= set(by_day[:3])
+    basics = {b["key"]: b for b in washed["basics"]}
+    assert basics["underwear"]["count"] == 4 + trips.SPARE and "laundry on day 4" in basics["underwear"]["why"]
+    assert {b["key"]: b["count"] for b in result["basics"]}["socks"] == 7 + trips.SPARE
+
+
+def test_laundry_every_few_days():
+    assert trips.wash_days(("every", 3), 10) == [4, 7]
+    assert trips.wash_days(("every", 1), 4) == [2, 3]
+    assert trips.wash_days(("day", 4), 7) == [4]
+    result = trips.plan(shirt_closet(), mild(10), {"laundry": {"every": 3}})
+    assert result["uncovered"] == [] and len(packed_of(result, "shirt")) == 4
+    assert [w["day"] for w in result["washes"]] == [4, 7]
+    assert "4 shirts: one a day, laundry every 3 days" in [c["words"] for c in result["counts"]]
+
+
+@pytest.mark.parametrize("laundry, words", [
+    ({"day": 1}, "from day 2 to day 6"),
+    ({"day": 7}, "from day 2 to day 6"),
+    ({"every": 6}, "does not come round"),
+    ({"day": 4, "every": 2}, "Laundry must be"),
+    ({"day": "4"}, "Laundry must be"),
+    ({"every": True}, "Laundry must be"),
+])
+def test_a_laundry_day_that_frees_nothing_is_refused(laundry, words):
+    with pytest.raises(trips.PlanError, match=words):
+        trips.plan(shirt_closet(), mild(7), {"laundry": laundry})
+    with pytest.raises(trips.PlanError, match="no day for laundry"):
+        trips.plan(shirt_closet(), mild(2), {"laundry": {"day": 1}})
+
+
+def test_a_hot_or_humid_day_wears_a_knit_tee_once_even_when_the_owner_allows_two():
+    closet = shirt_closet(6, "tee")
+    twice = {"tops": 2}
+    assert len(packed_of(trips.plan(closet, mild(4), rewear=twice), "tee")) == 2
+    hot = trips.plan(closet, mild(4, high=trips.SWEATY_C + 4), rewear=twice)
+    assert hot["uncovered"] == [] and len(packed_of(hot, "tee")) == 4
+    assert all(p["days"] == 1 for p in packed_of(hot, "tee"))
+    assert "4 tees: one a day, as every day is hot or humid" in [c["words"] for c in hot["counts"]]
+    humid = trips.plan(closet, mild(4, feels_high_c=trips.SWEATY_C + 2), rewear=twice)  # 21°C that feels like 26°C
+    assert len(packed_of(humid, "tee")) == 4
+    # one hot day among cool ones: the tee worn on it is not worn again, the others twice
+    mixed = mild(4)
+    mixed[1]["high_c"] = trips.SWEATY_C + 4
+    result = trips.plan(closet, mixed, rewear=twice)
+    assert len(packed_of(result, "tee")) == 3
+    hot_tee = next(x for x in core_worn(result["days"][1]) if x.startswith("tee"))
+    assert sum(hot_tee in core_worn(d) for d in result["days"]) == 1
+    assert "3 tees: worn up to 2 times each, once on a hot or humid day" in [c["words"] for c in result["counts"]]
+    # the trousers are not next to the skin: the owner's three wears hold on hot days
+    assert max(p["days"] for p in packed_of(hot, "trousers")) == 3
+    assert {b["key"]: b["count"] for b in hot["basics"]}["underwear"] == 4 + trips.SPARE
+
+
+def test_a_rain_day_keeps_the_rain_rules_and_does_not_change_rewear():
+    rainy = mild(4, rain=True)
+    result = trips.plan(shirt_closet(6, "tee"), rainy, rewear={"tops": 2})
+    assert len(packed_of(result, "tee")) == 2
+    assert {b["key"] for b in result["basics"]} >= {"umbrella"}
+
+
+def test_jackets_and_coats_cover_the_whole_trip():
+    result = trips.plan(demo_items(), days(10, lows=(2, 4)), rewear={"tops": 30, "knits": 30, "bottoms": 30})
+    assert result["uncovered"] == []
+    outer = [p for p in result["packed"] if p["group"] == "outer"]
+    assert len(outer) == 1 and outer[0]["days"] == 10
+    assert any(c["kind"] == "outer" and c["words"].endswith(": one for the whole trip") for c in result["counts"])
+
+
+def test_cool_days_use_the_owners_full_count_for_sweaters_and_trousers():
+    closet = big_closet()
+    category = {i["id"]: i["category"] for i in closet}
+    result = trips.plan(closet, days(8, lows=(0, 3), rain_every=99), rewear={"tops": 8, "knits": 3, "bottoms": 3})
+    knits = [p for p in result["packed"] if trips.KIND_OF.get(category[p["id"]]) == "knits"]
+    assert knits and max(p["days"] for p in knits) == 3
+    words = next(c["words"] for c in result["counts"] if c["kind"] == "knits")
+    assert "cool days, worn up to 3 times each" in words
+    bottoms = [p for p in result["packed"] if trips.KIND_OF.get(category[p["id"]]) == "bottoms"]
+    assert max(p["days"] for p in bottoms) == 3
+
+
+def test_the_kinds_are_read_from_the_taxonomy_and_never_name_jeans():
+    import inspect
+
+    from closet import savedtrips
+    clothing = {c for place in ("base", "mid", "outer", "bottom") for c in outfits.PLACE_CATEGORIES[place]}
+    assert set(trips.KIND_OF) == clothing  # every piece of clothing has one kind
+    assert trips.KIND_OF["jeans"] == trips.KIND_OF["trousers"] == "bottoms"
+    for module in (trips, savedtrips):
+        assert "jeans" not in inspect.getsource(module)
+    assert set(trips.REWEAR_DEFAULTS) == set(trips.KIND_KEYS)
+    assert trips.REWEAR_DEFAULTS == {"tops": 1, "knits": 3, "bottoms": 3, "outer": None, "basics": 1}
+
+
+def test_the_rewear_setting_is_checked():
+    assert trips.check_rewear(None) == trips.REWEAR_DEFAULTS
+    assert trips.check_rewear({"tops": 2})["tops"] == 2
+    for bad, words in (({"jeans": 2}, "not kinds of clothing"), ({"tops": 0}, "whole number"), ({"tops": 2.5}, "whole number"),
+                       ({"tops": True}, "whole number"), ([1], "Say how often")):
+        with pytest.raises(trips.PlanError, match=words):
+            trips.check_rewear(bad)
 
 
 def test_the_engine_is_called_not_changed():
@@ -236,14 +381,15 @@ def test_planning_saves_nothing_and_saving_keeps_the_trip(client, clock):
     assert plan["lines"] == trips.lines(plan["plan"])
     assert client.get("/api/trips").json() == {"trips": []}
 
-    r = client.post("/api/trips", json=body(occasion="smart_casual", can_wash=True))
+    r = client.post("/api/trips", json=body(occasion="smart_casual", laundry={"day": 3}))
     assert r.status_code == 201, r.text
     trip = r.json()
-    assert trip["occasion"] == "smart_casual" and trip["can_wash"] is True and trip["packed"] == []
+    assert trip["occasion"] == "smart_casual" and trip["laundry"] == {"day": 3} and trip["packed"] == []
+    assert trip["plan"]["laundry"] == {"day": 3} and trip["plan"]["washes"][0]["day"] == 3
     assert client.get(f"/api/trips/{trip['id']}").json() == trip
     listed = client.get("/api/trips").json()["trips"]
     assert listed == [{"id": trip["id"], "place": NYC, "first_day": trip["first_day"], "last_day": trip["last_day"],
-                       "occasion": "smart_casual", "can_wash": True, "lines": len(trip["lines"]), "packed": 0,
+                       "occasion": "smart_casual", "laundry": {"day": 3}, "lines": len(trip["lines"]), "packed": 0,
                        "uncovered": len(trip["plan"]["uncovered"]), "warnings": len(trip["plan"]["warnings"]), "past": False}]
 
 
@@ -395,3 +541,52 @@ def test_a_saved_trip_notices_when_the_forecast_changes_but_keeps_its_plan(clien
     assert client.get(f"/api/trips/{trip['id']}").json()["weather"] == trip["weather"]  # not changed behind the owner's back
     again = client.patch(f"/api/trips/{trip['id']}", json={"replan": True}).json()
     assert "forecast" in [d["source"] for d in again["weather"]] and again["planned_at"] >= trip["planned_at"]
+
+
+def test_the_rewear_setting_is_kept_in_settings_and_used_by_trips(client, clock):
+    assert client.get("/api/settings").json()["rewear"] == trips.REWEAR_DEFAULTS
+    r = client.put("/api/settings", json={"rewear": {"tops": 2}})
+    assert r.status_code == 200 and r.json()["rewear"] == {**trips.REWEAR_DEFAULTS, "tops": 2}
+    r = client.put("/api/settings", json={"rewear": {"outer": 4}})
+    assert r.json()["rewear"] == {**trips.REWEAR_DEFAULTS, "tops": 2, "outer": 4}  # one kind at a time
+    for bad in ({"tops": 0}, {"shoes": 2}, [2]):
+        r = client.put("/api/settings", json={"rewear": bad})
+        assert r.status_code == 422, bad
+    client.post("/api/profile", json={"profile": "demo"})
+    plan = client.post("/api/trips/plan", json=body(4)).json()["plan"]
+    tops = next(c for c in plan["counts"] if c["kind"] == "tops")
+    assert "up to 2 times each" in tops["words"]
+    assert client.put("/api/settings", json={"rewear": None}).json()["rewear"] == trips.REWEAR_DEFAULTS
+
+
+def test_laundry_on_a_saved_trip_can_be_changed(client, clock):
+    client.post("/api/profile", json={"profile": "demo"})
+    trip = client.post("/api/trips", json=body(7)).json()
+    assert trip["laundry"] is None and trip["plan"]["washes"] == []
+    r = client.patch(f"/api/trips/{trip['id']}", json={"laundry": {"every": 2}})
+    assert r.status_code == 200, r.text
+    assert r.json()["laundry"] == {"every": 2} and [w["day"] for w in r.json()["plan"]["washes"]] == [3, 5]
+    r = client.patch(f"/api/trips/{trip['id']}", json={"laundry": {"day": 9}})
+    assert r.status_code == 422 and "from day 2 to day 6" in r.json()["detail"]
+    assert client.patch(f"/api/trips/{trip['id']}", json={"laundry": None}).json()["laundry"] is None
+    assert client.post("/api/trips/plan", json=body(can_wash=True)).status_code == 422  # replaced by laundry
+
+
+def test_migration_0023_keeps_i_can_wash_there_as_laundry_every_three_days(tmp_path):
+    path = tmp_path / "closet.db"
+    conn = db.connect(path)
+    for version, migration in db.migration_files():
+        if version < 23:
+            conn.executescript(migration.read_text(encoding="utf-8"))
+            conn.execute(f"PRAGMA user_version = {version}")
+    for trip_id, wash in (("washing", 1), ("not", 0)):
+        conn.execute("INSERT INTO trips (id, place, first_day, last_day, can_wash, plan, planned_at, created_at, updated_at)"
+                     " VALUES (?, '{}', '2026-12-01', '2026-12-07', ?, '{}', '', '', '')", (trip_id, wash))
+    conn.commit()
+    conn.close()
+    result = db.migrate(path, tmp_path / "backups")
+    assert 23 in result["applied"]
+    conn = db.connect(path)
+    rows = dict(conn.execute("SELECT id, laundry FROM trips").fetchall())
+    assert rows == {"washing": '{"every": 3}', "not": None}
+    conn.close()

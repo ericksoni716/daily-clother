@@ -2,7 +2,8 @@
 
 One front view of a whole outfit, worn by a person drawn in the garments' own
 flat style (`_body`): head, neck, arms, hands, legs and feet, about 7.5 heads
-tall (HEAD_CM), shoulders about two head widths apart, standing front-on with
+tall (HEAD_CM), an average build (shoulders 2.3 head widths apart, hips 1.65),
+standing front-on with
 the arms a little away from the body and the wrists at mid-thigh. The skin is
 one colour, SKIN, read from this one place; it is drawn first, behind every
 garment, so it shows only where nothing covers it: the face and neck, the hands

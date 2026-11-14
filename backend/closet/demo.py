@@ -42,7 +42,7 @@ def ensure(cfg: Config) -> int:
             return 0
         dest = cfg.images_dir("demo")
         added = 0
-        conn.execute("BEGIN")
+        conn.execute("BEGIN IMMEDIATE")
         for n, it in enumerate(data["items"]):
             # spread created_at so the grid has a stable, sensible order
             created = f"2026-01-{28 - n % 28:02d}T12:{n % 60:02d}:00.000000Z"
@@ -90,7 +90,7 @@ def _answers(conn, data: dict) -> None:
     How sure each answer is goes onto the fields the demo still fills (not those the owner has set), so the
     review queue shows the few the answers are unsure of; an older demo closet gets them too.
     """
-    conn.execute("BEGIN")
+    conn.execute("BEGIN IMMEDIATE")
     for it in data["items"]:
         answer = it.get("answer")
         if not answer:
@@ -112,7 +112,7 @@ def _prices(conn, data: dict) -> None:
     """Give a demo closet made before its items had prices the prices, once: only when no item has one."""
     if conn.execute("SELECT 1 FROM items WHERE price_cents IS NOT NULL LIMIT 1").fetchone():
         return
-    conn.execute("BEGIN")
+    conn.execute("BEGIN IMMEDIATE")
     for it in data["items"]:
         if it.get("price_cents") is not None:
             conn.execute("UPDATE items SET price_cents = ? WHERE id = ?", (it["price_cents"], it["id"]))
@@ -144,7 +144,7 @@ def _outfits(conn, data: dict) -> None:
         return
     known = {r[0] for r in conn.execute("SELECT id FROM items")}
     today = wears.today()
-    conn.execute("BEGIN")
+    conn.execute("BEGIN IMMEDIATE")
     for o in data.get("outfits", []):
         ids = [v for k, v in o["pieces"].items() if k != "accessories" and v] + list(o["pieces"].get("accessories") or [])
         if not set(ids) <= known:

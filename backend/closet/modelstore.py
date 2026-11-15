@@ -121,6 +121,14 @@ class ModelStore:
             self._status, self._error = "failed", message
 
     def _download(self) -> None:
+        try:
+            self._download_file()
+        except (OSError, ValueError) as e:
+            log.warning("model download could not finish: %s", type(e).__name__)
+            self._fail("The model download could not finish. Check that the data folder is writable and has "
+                       "enough free space, then try again.")
+
+    def _download_file(self) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
         have = self._part.stat().st_size if self._part.exists() else 0
         req = urllib.request.Request(self.url, headers={"User-Agent": USER_AGENT})

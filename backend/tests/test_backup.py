@@ -117,6 +117,38 @@ def test_interrupted_image_refresh_preserves_the_previous_backup(client, service
     assert saved.read_bytes() == previous
 
 
+def test_item_deleted_during_backup_cannot_produce_a_successful_incomplete_snapshot(
+        client, services, cfg, tmp_path, monkeypatch):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    item = upload(client).json()
+    snapshot = db.snapshot
+
+    def snapshot_then_delete(src, dest):
+        snapshot(src, dest)
+        assert client.delete(f"/api/items/{item['id']}").status_code == 204
+
+    monkeypatch.setattr(db, "snapshot", snapshot_then_delete)
+    result = backup.run_backup(cfg, services.state, folder=folder)
+    assert not result["ok"]
+    assert not list((folder / backup.SUBFOLDER / "db").glob("closet-*.sqlite"))
+
+
+def test_restore_refuses_missing_images_without_changing_the_live_closet(client, services, cfg, tmp_path):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    item = upload(client).json()
+    assert backup.run_backup(cfg, services.state, folder=folder)["ok"]
+    rel = item["photos"][0]["url"].removeprefix("/media/")
+    (folder / backup.SUBFOLDER / "images" / rel).unlink()
+    upload(client, key="later", name="Not backed up")
+    services.stop()
+    with pytest.raises(backup.BackupError, match="image"):
+        backup.restore(cfg, folder)
+    assert len(client.get("/api/items").json()["items"]) == 2
+    assert (cfg.images_dir("main") / rel).is_file()
+
+
 @pytest.mark.parametrize("failure", ["database", "images", "migration", "install"])
 def test_failed_restore_leaves_the_live_closet_in_place(client, services, cfg, tmp_path, monkeypatch, failure):
     folder = tmp_path / "Synced"

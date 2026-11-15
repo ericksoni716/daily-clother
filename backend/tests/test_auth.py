@@ -1,4 +1,8 @@
 import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
+
+from fastapi.testclient import TestClient
 
 from closet import auth
 
@@ -16,6 +20,31 @@ def test_first_run_requires_a_passphrase_then_logs_in(anon):
     assert anon.get("/api/session").json()["authenticated"] is True
     assert anon.get("/api/items").status_code == 200
     assert anon.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 409
+
+
+def test_concurrent_setup_keeps_the_first_passphrase_and_session(anon, services, monkeypatch):
+    hashing = Barrier(2)
+    real_hash = auth._hash
+
+    def together(*args):
+        hashing.wait(timeout=10)
+        return real_hash(*args)
+
+    def setup(passphrase):
+        browser = TestClient(anon.app)
+        response = browser.post("/api/setup", json={"passphrase": passphrase})
+        return passphrase, response, browser
+
+    with monkeypatch.context() as patch:
+        patch.setattr(auth, "_hash", together)
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(setup, (PASSPHRASE, "another synthetic passphrase")))
+
+    assert sorted(response.status_code for _, response, _ in results) == [204, 409]
+    passphrase, _, browser = next(result for result in results if result[1].status_code == 204)
+    assert browser.get("/api/session").json()["authenticated"] is True
+    assert len(services.state.get("sessions")) == 1
+    assert browser.post("/api/login", json={"passphrase": passphrase}).status_code == 204
 
 
 def test_cookie_is_marked_secure_behind_https(anon):

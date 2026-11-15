@@ -41,9 +41,15 @@ def set_passphrase(state: State, passphrase: str) -> None:
     if len(passphrase) < MIN_LENGTH:
         raise AuthError(f"Choose a passphrase of at least {MIN_LENGTH} characters.", 422)
     salt = os.urandom(16)
-    state.update(passphrase={
+    stored = {
         "salt": base64.b64encode(salt).decode(), "hash": base64.b64encode(_hash(passphrase, salt, _N, _R, _P)).decode(),
-        "n": _N, "r": _R, "p": _P}, sessions={}, failed_logins=[])
+        "n": _N, "r": _R, "p": _P}
+
+    def install(data):
+        if data["passphrase"] is not None:
+            raise AuthError("A passphrase is already set. Log in instead.", 409)
+        data.update(passphrase=stored, sessions={}, failed_logins=[])
+    state.mutate(install)
 
 
 def clear_passphrase(state: State) -> None:

@@ -277,7 +277,7 @@ def in_forecast(days: list[dict], today: date) -> bool:
 
 def changed(before: list[dict], after: list[dict]) -> bool:
     """True when a day's weather moved enough to plan again: it became known or forecast, its rain flipped,
-    or its low or high moved by CHANGE_C or more. A day that became unknown is not a change."""
+    or its low, high or feels-like high moved by CHANGE_C or more. A day that became unknown is not a change."""
     old = {d.get("date"): d for d in before}
     for new in after:
         prev = old.get(new.get("date"))
@@ -285,8 +285,10 @@ def changed(before: list[dict], after: list[dict]) -> bool:
             continue
         if prev.get("source") != new.get("source") or prev.get("rain") != new.get("rain"):
             return True
-        for k in ("low_c", "high_c"):
+        for k in ("low_c", "high_c", "feels_high_c"):
             a, b = _number(prev.get(k)), _number(new.get(k))
+            if k == "feels_high_c" and a is None and b is None:
+                continue
             if a is None or b is None or abs(a - b) >= CHANGE_C:
                 return True
     return False

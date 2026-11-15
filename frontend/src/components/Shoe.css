@@ -37,3 +37,14 @@
 .shoe-reasons { margin: 4px 0 0; padding-left: 1.2rem; display: grid; gap: 4px; }
 .shoe-add .row { gap: 8px; flex-wrap: wrap; }
 .shoe-add .row > .btn { flex: 1 1 auto; justify-content: center; }
+
+/* A traced shoe's two front views on the outfit figure, side by side (issue 205). */
+.shoe-front { display: grid; gap: 8px; }
+.shoe-front-views { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.shoe-front-view {
+  display: grid; justify-items: center; gap: 4px; padding: 8px; min-height: 44px; text-align: center;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg); color: inherit; font: inherit; cursor: pointer;
+}
+.shoe-front-view img { width: 100%; max-width: 120px; aspect-ratio: 1; object-fit: contain; background: var(--card-figure); border-radius: var(--radius-sm); }
+.shoe-front-view.is-on { border: 2px solid var(--accent); background: var(--accent-soft); }
+.shoe-front-title { font-weight: var(--weight-label); }

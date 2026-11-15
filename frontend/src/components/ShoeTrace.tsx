@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
 import { preparePhoto } from '../resize';
-import { NUDGES, nudgeLabel, traceNotice } from '../shoe';
+import { FRONT_VIEWS, frontPreviewUrl, NUDGES, nudgeLabel, traceNotice } from '../shoe';
 import type { Item, TraceFix } from '../types';
 import { sha256 } from '../uploads';
 import { CameraIcon, WarnIcon } from './Icons';
@@ -86,6 +86,63 @@ function PartColour({ title, color, own, busy, onPick, onReset }: {
   );
 }
 
+/** A second photo of the shoe, from the front, read for its front view on the outfit figure. */
+function FrontPhotoButton({ item, disabled, onSaved, onError }: Props) {
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const has = Boolean(item.trace?.front?.photo);
+  const take = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const [prepared, hash] = await Promise.all([preparePhoto(file), sha256(file).catch(() => null)]);
+      onSaved(await api.addShoeView(item.id, prepared.blob, prepared.filename, 'front', hash),
+        'Front photo added; the shoe is traced again with it');
+    } catch (e) {
+      onError((e as ApiError).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <input ref={input} className="visually-hidden" type="file" accept="image/*" capture="environment" tabIndex={-1}
+        aria-hidden="true" data-testid="front-photo-input" onChange={(e) => { void take(e.target.files?.[0]); e.target.value = ''; }} />
+      <button type="button" className="btn btn-small" disabled={disabled || busy} onClick={() => input.current?.click()}>
+        <CameraIcon />{busy ? 'Sending the photo…' : has ? 'Retake the front photo' : 'Add a front photo'}
+      </button>
+    </>
+  );
+}
+
+/** The shoe on the outfit figure: its two front views side by side, the one drawn marked, and a front photo. */
+function FrontChoice({ item, disabled, onSaved, onError, run }: Props & { run(call: () => Promise<Item>, saidAs: string): void }) {
+  const front = item.trace?.front;
+  if (!front) return null;
+  return (
+    <div className="shoe-front" role="group" aria-label="On the outfit figure" data-testid="shoe-front">
+      <p className="muted small">On the outfit figure, from the front:</p>
+      <div className="shoe-front-views">
+        {FRONT_VIEWS.map((v) => {
+          const on = front.kind === v.kind;
+          return (
+            <button key={v.kind} type="button" className={`shoe-front-view${on ? ' is-on' : ''}`} aria-pressed={on}
+              disabled={disabled} onClick={() => { if (!on) run(() => api.setShoeFront(item.id, v.kind), `Drawn ${v.title.toLowerCase()} on the figure`); }}>
+              <img src={frontPreviewUrl(item, v.kind)} alt="" />
+              <span className="shoe-front-title">{v.title}</span>
+              <span className="muted small">{v.about}</span>
+            </button>
+          );
+        })}
+      </div>
+      {!front.photo && <p className="muted small">A photo from the front helps “From your photo” get the toe, laces and marks right.</p>}
+      <div className="row shoe-fix-actions">
+        <FrontPhotoButton item={item} disabled={disabled} onSaved={onSaved} onError={onError} />
+      </div>
+    </div>
+  );
+}
+
 /** "Fix the details" for a shoe drawn from its photo: its colours, its marks, tracing it again, or the plain drawing. */
 export function ShoeDrawingFix({ item, disabled, onSaved, onError }: Props) {
   const trace = item.trace;
@@ -145,6 +202,7 @@ export function ShoeDrawingFix({ item, disabled, onSaved, onError }: Props) {
               ))}
             </ul>
           )}
+          <FrontChoice item={item} disabled={off} onSaved={onSaved} onError={onError} run={(call, saidAs) => void run(call, saidAs)} />
         </>
       )}
       <div className="row shoe-fix-actions">

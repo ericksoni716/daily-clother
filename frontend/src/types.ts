@@ -147,6 +147,18 @@ export interface ShoeTrace {
   fixed: boolean;
   parts: TracePart[];
   marks: TraceMark[];
+  /** The shoe's front view on the outfit figure, when it is drawn from its trace. */
+  front?: ShoeFront | null;
+}
+
+/** Which of a traced shoe's two front views the figure draws. */
+export interface ShoeFront {
+  /** The one drawn: shape, the template for its style in the traced colours; photo, turned from its photos. */
+  kind: 'shape' | 'photo';
+  /** The owner's choice; null: the default (photo when a front photo was read, else shape). */
+  chosen: 'shape' | 'photo' | null;
+  /** A photo from the front was read for it. */
+  photo: boolean;
 }
 
 export interface TracePart {

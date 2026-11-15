@@ -206,6 +206,9 @@ export const api = {
     request<Item>(`/api/items/${encodeURIComponent(id)}/trace/fix`, { method: 'POST', body: fix }),
   setTracePlain: (id: string, plain: boolean) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}/trace/plain`, { method: 'PUT', body: { plain } }),
+  /** Which front view the outfit figure draws for a traced shoe; null goes back to the default. */
+  setShoeFront: (id: string, kind: 'shape' | 'photo' | null) =>
+    request<Item>(`/api/items/${encodeURIComponent(id)}/trace/front`, { method: 'PUT', body: { kind } }),
   retrace: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/retrace`, { method: 'POST' }),
   /** A new photo of a shoe in place of its photo ("Retake the photo"). */
   replacePhoto: (id: string, photo: Blob, filename: string, sha256?: string | null) => {

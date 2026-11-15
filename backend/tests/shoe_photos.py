@@ -29,7 +29,12 @@ class Shoe:
     heel_counter: tuple | None = None
     collar: tuple | None = None           # a padded collar: a band this colour along the top from the heel to the throat
     mudguard: tuple | None = None         # a panel along the upper's foot from u 0.55 round the toe, 40% of its height
+    vamp: tuple | None = None             # the front of the upper, from u 0.45 to the toe, this colour (a two-colour upper)
+    camo: tuple = ()                      # a busy upper: blotches of these colours scattered over it (the same every time)
+    camo_count: int = 70                  # ... this many
     stripes: tuple | None = None          # three slanted stripes on the quarter
+    stripe_cm: float = 0.85               # ... this wide
+    stripe_gap: float = 0.055             # ... this far apart (a share of the length)
     laces: tuple | None = None
     eyelets: tuple | None = None
     stitching: tuple | None = None        # a dashed line along the toe cap's edge
@@ -47,6 +52,7 @@ class Shoe:
     gloss: bool = False                   # glossy leather: a highlight along the top edge
     lace_style: str = "bars"              # bars: one bar per lace; cross: the laces criss-cross, touching
     lace_count: int = 5
+    toe_mark: tuple | None = None         # a round mark on the toe box, seen only from the front (`front_photo`)
 
     def bottom(self, u):
         """The sole's underside, cm above the ground."""
@@ -69,6 +75,40 @@ class Shoe:
         if self.shaft_cm:
             out = np.maximum(out, np.where(u < 0.42, self.shaft_cm - 1.5 * u, 0.0))
         return out
+
+
+# shoes the front view from a trace once got wrong (#205): their words for `Shoe`
+BLACK, SUEDE, WHEAT, DARK_BROWN = (24, 24, 26), (150, 110, 75), (196, 150, 80), (50, 34, 24)
+# black quarters, a red front, a black mudguard round the toe; a white midsole on a red outsole, a red air window
+RED_BLACK_RUNNER = dict(upper=BLACK, vamp=RED, mudguard=BLACK, heel_counter=BLACK, laces=RED, midsole=WHITE, outsole=RED,
+                        window=RED, sole_cm=3.6, sole_toe_cm=2.4, toe_spring_cm=1.0)
+# a suede chukka whose collar stands a little lower than the tracing's boot threshold
+LOW_CHUKKA = dict(upper=SUEDE, midsole=(70, 50, 35), outsole=None, top=list(frontshoe._BOOT), shaft_cm=11.5, sole_cm=1.8,
+                  sole_toe_cm=1.5, laces=DARK_BROWN, eyelets=DARK_BROWN, lace_count=3)
+# a wheat work boot with a dark padded collar and a lug sole
+WORK_BOOT = dict(upper=WHEAT, midsole=(40, 34, 30), outsole=None, collar=DARK_BROWN, top=list(frontshoe._BOOT),
+                 shaft_cm=16.5, sole_cm=3.0, sole_toe_cm=2.6, lugs_cm=0.5, laces=DARK_BROWN, eyelets=(180, 170, 150))
+# a red and black runner on a thin white midsole, a red air window in it, over a thick black outsole
+AIR_RUNNER = dict(upper=BLACK, vamp=RED, mudguard=BLACK, heel_counter=BLACK, laces=RED, midsole=WHITE, outsole=BLACK,
+                  window=RED, sole_cm=3.6, sole_toe_cm=2.8, outsole_cm=2.6, toe_spring_cm=1.0)
+# a navy derby sneaker, its laces navy too (they do not stand out in the photo, its eyelets do), a brown heel and collar
+NAVY_DERBY = dict(upper=NAVY, heel_counter=(120, 80, 45), collar=(120, 80, 45), midsole=WHITE, outsole=(120, 80, 45),
+                  laces=NAVY, eyelets=(120, 80, 45), sole_cm=2.6, sole_toe_cm=2.0, lace_count=4)
+# a six-inch service boot laced to the top: its traced front stands as high as its collar (the tongue)
+SERVICE_BOOT = dict(WORK_BOOT, shaft_cm=0.0, top=[(0.0, 15.0), (0.12, 15.2), (0.3, 15.2), (0.45, 16.4), (0.56, 15.8),
+                                                  (0.63, 12.4), (0.7, 8.4), (0.85, 4.6), (0.95, 3.1), (1.0, 1.1)])
+# a grey camouflage runner: many small blotches in three greys
+BUSY_RUNNER = dict(upper=(128, 128, 130), camo=((70, 70, 72), (176, 176, 178), (32, 32, 34)), midsole=WHITE,
+                   outsole=(40, 40, 42), laces=(30, 30, 32), sole_cm=3.4, sole_toe_cm=2.3)
+
+# a light leather sneaker with a black heel counter and a black padded collar running along the top to the throat
+DARK_COLLAR = dict(upper=(226, 226, 222), heel_counter=BLACK, collar=BLACK, laces=WHITE, midsole=WHITE,
+                   outsole=(60, 60, 60), sole_cm=2.6, sole_toe_cm=2.2)
+# a white court shoe with three red stripes and white laces: the stripes' ends cross the lacing's row in the photo
+STRIPED_COURT = dict(upper=WHITE, midsole=WHITE, outsole=(214, 210, 200), stripes=(196, 30, 40), laces=WHITE,
+                     sole_cm=2.6, sole_toe_cm=2.2)
+# the same with three bold stripes, each just under a panel's size but together much of the side
+BOLD_STRIPES = dict(STRIPED_COURT, stripe_cm=1.8, stripe_gap=0.105)
 
 
 def _ground_rest(shoe: Shoe, us):
@@ -123,6 +163,18 @@ def draw(shoe: Shoe | None = None, *, px_per_cm: float = 26.0, size=(1000, 560),
             d.polygon(tab, fill=c(shoe.upper))
         md.polygon(outline, fill=255)
         d.polygon(outline, fill=c(shoe.upper))
+        if shoe.vamp:
+            d.polygon([p(u, t + 0.1) for u, t in zip(us, top, strict=True) if u >= 0.45]
+                      + [p(1.0, 0), p(0.45, sole_top[int(0.45 * 240)])], fill=c(shoe.vamp))
+        if shoe.camo:   # blotches 1-3 cm across, each a few overlapping blobs, kept inside the upper by the mask
+            rng = np.random.default_rng(11)
+            for i in range(shoe.camo_count):
+                u0 = float(rng.uniform(0.02, 0.97))
+                h0 = float(rng.uniform(np.interp(u0, us, sole_top), np.interp(u0, us, top)))
+                for _ in range(3):
+                    du, dh, r = rng.normal(0, 0.5, 2).tolist() + [float(rng.uniform(0.5, 1.2))]
+                    (xa, ya), (xb, yb) = p(u0 + (du - r) / L, h0 + dh + r * 0.7), p(u0 + (du + r) / L, h0 + dh - r * 0.7)
+                    d.ellipse((min(xa, xb), ya, max(xa, xb), yb), fill=c(shoe.camo[i % len(shoe.camo)]))
         if shoe.heel_counter:
             band = [p(u, s + 0.62 * (t - s)) for u, s, t in zip(us, sole_top, top, strict=True) if u <= 0.2]
             d.polygon([p(0, sole_top[0])] + band + [p(0.2, sole_top[48])], fill=c(shoe.heel_counter))
@@ -141,9 +193,9 @@ def draw(shoe: Shoe | None = None, *, px_per_cm: float = 26.0, size=(1000, 560),
                 d.line([p(0.79, hh), p(0.79, min(hh + 0.32, top[j] - 0.3))], fill=c(shoe.stitching), width=max(1, int(0.13 * k)))
         if shoe.stripes:
             for i in range(3):
-                u0 = 0.25 + i * 0.055
+                u0 = 0.25 + i * shoe.stripe_gap
                 d.line([p(u0, sole_top[int(u0 * 240)] + 0.2), p(u0 + 0.09, top[int((u0 + 0.09) * 240)] - 1.6)],
-                       fill=c(shoe.stripes), width=int(0.85 * k))
+                       fill=c(shoe.stripes), width=int(shoe.stripe_cm * k))
         if shoe.laces and shoe.lace_style == "cross":   # each crossing an X, the Xs touching end to end
             step = 0.3 / shoe.lace_count
             for i in range(shoe.lace_count):
@@ -219,3 +271,60 @@ def front_view(size=(600, 600)) -> Image.Image:
     d.rounded_rectangle((220, 150, 380, 470), 60, fill=NAVY)
     d.rectangle((210, 440, 390, 480), fill=WHITE)
     return img
+
+
+def front_photo(shoe: Shoe | None = None, *, px_per_cm: float = 30.0, size=(600, 640), ground=GROUND):
+    """The same shoe seen from the front, toe nearest the camera (a second photo, #205): its sole across the
+    bottom, the toe box rounded over it, the instep and its lacing rising behind to the opening (or a boot's
+    shaft). Returns the photo and its true mask (0/1)."""
+    shoe = shoe or Shoe()
+    img = Image.new("RGB", size, ground)
+    mask = Image.new("L", size, 0)
+    d, m = ImageDraw.Draw(img), ImageDraw.Draw(mask)
+    k, cx, yg = px_per_cm, size[0] / 2, size[1] - 70
+    w = 5.0 * k
+    sole_top = yg - shoe.sole_toe_cm * k
+    upper = shoe.vamp or shoe.upper
+    throat = sole_top - (shoe.shaft_cm - shoe.sole_cm if shoe.shaft_cm else 8.0) * k
+    neck = 3.4 * k
+
+    def both(kind, xy, colour, **kw):
+        getattr(d, kind)(xy, fill=colour, **kw)
+        getattr(m, kind)(xy, fill=255, **kw)
+
+    # the instep and the shaft, behind the toe box; the opening at its top
+    both("polygon", [(cx - w + 0.5 * k, sole_top), (cx - neck, throat), (cx + neck, throat), (cx + w - 0.5 * k, sole_top)],
+         shoe.upper if shoe.shaft_cm else upper)
+    if shoe.collar:
+        both("rounded_rectangle", (cx - neck, throat - 0.6 * k, cx + neck, throat + 1.2 * k), shoe.collar, radius=0.6 * k)
+    both("ellipse", (cx - neck + 0.5 * k, throat - 0.6 * k, cx + neck - 0.5 * k, throat + 0.9 * k), (40, 34, 30))
+    # the lacing up the middle of the instep
+    lace_top, lace_bottom = throat + 1.6 * k, sole_top - 4.2 * k
+    if shoe.laces and lace_bottom > lace_top:
+        n = shoe.lace_count
+        for i in range(n):
+            y = lace_top + (lace_bottom - lace_top) * i / max(1, n - 1)
+            d.rectangle((cx - 1.3 * k, y - 0.22 * k, cx + 1.3 * k, y + 0.22 * k), fill=shoe.laces)
+    # the toe box, nearest: its lower band a mudguard's colour, when it has one
+    box = (cx - w + 0.3 * k, sole_top - 5.0 * k, cx + w - 0.3 * k, sole_top + 4.0 * k)
+    both("ellipse", box, shoe.toe_cap or upper)
+    if shoe.mudguard:
+        band = Image.new("L", size, 0)
+        ImageDraw.Draw(band).rectangle((0, sole_top - 1.6 * k, size[0], size[1]), fill=255)
+        toe = Image.new("L", size, 0)
+        ImageDraw.Draw(toe).ellipse(box, fill=255)
+        img.paste(shoe.mudguard, (0, 0), Image.fromarray(np.minimum(np.asarray(band), np.asarray(toe))))
+    if shoe.toe_mark:   # a round mark on the toe box, a little to one side
+        d.ellipse((cx + 0.6 * k, sole_top - 3.0 * k, cx + 2.2 * k, sole_top - 1.9 * k), fill=shoe.toe_mark)
+    if shoe.stripes:   # three slanted stripes on each side of the front, near its edges
+        for side in (-1, 1):
+            for j in range(3):
+                x = cx + side * (w - 1.3 * k - j * 0.7 * k)
+                d.polygon([(x - 0.2 * k, sole_top - 0.3 * k), (x + 0.2 * k, sole_top - 0.3 * k),
+                           (x + 0.2 * k + side * 0.6 * k, sole_top - 3.2 * k), (x - 0.2 * k + side * 0.6 * k, sole_top - 3.2 * k)],
+                          fill=shoe.stripes)
+    # the sole across the bottom: the outsole under the midsole
+    both("rounded_rectangle", (cx - w, sole_top, cx + w, yg), shoe.midsole, radius=0.8 * k)
+    if shoe.outsole is not None:
+        d.rounded_rectangle((cx - w, yg - shoe.outsole_cm * k, cx + w, yg), fill=shoe.outsole, radius=0.6 * k)
+    return img, (np.asarray(mask) > 127).astype(np.uint8)

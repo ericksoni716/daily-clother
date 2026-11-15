@@ -30,3 +30,15 @@ export function nudgeLabel(title: string, dir: Nudge): string {
 export function checkHeadline(check: ShoeCheck): string {
   return check.ok ? 'This photo should trace well.' : 'This photo may not trace well.';
 }
+
+export type FrontKind = 'shape' | 'photo';
+/** The two front views of a traced shoe on the outfit figure, in the owner's words. */
+export const FRONT_VIEWS: { kind: FrontKind; title: string; about: string }[] = [
+  { kind: 'shape', title: "From the shoe's shape", about: 'Its style, in the colours from your photo. Always neat.' },
+  { kind: 'photo', title: 'From your photo', about: 'Turned from your photo, so it looks more like your shoe.' },
+];
+
+/** The small drawing of a traced shoe from the front, as the figure would draw it with `kind`. */
+export function frontPreviewUrl(item: { id: string; updated_at: string }, kind: FrontKind): string {
+  return `/api/items/${encodeURIComponent(item.id)}/trace/front.svg?kind=${kind}&v=${encodeURIComponent(item.updated_at)}`;
+}

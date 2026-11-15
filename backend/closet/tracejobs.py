@@ -102,13 +102,18 @@ def shown(row) -> dict | None:
     state: null (not traced), waiting, working, done, refused (the photo would not trace well) or failed.
     message: what is happening or why the shoe is drawn from its details, in plain words.
     drawn: the item's drawing is the traced one. plain: the owner chose the plain drawing.
-    parts and marks: what Fix the details can change, when the shoe is traced."""
+    parts and marks: what Fix the details can change, when the shoe is traced.
+    front: when it is drawn from its trace, its front view on the figure: kind ("shape" or "photo", the one drawn),
+    chosen (the owner's choice, null for the default) and photo (a front photo was read for it)."""
     if not wanted(row["category"]):
         return None
     state = row["trace_state"]
     message = STATES.get(state) or (row["trace_error"] if state in ("refused", "failed") else None)
+    chosen = illustrations.front_of(row)
     out = {"state": state, "message": message, "drawn": illustrations.traced(row) is not None,
-           "plain": bool(row["trace_plain"]), "parts": [], "marks": [], "fixed": False}
+           "plain": bool(row["trace_plain"]), "parts": [], "marks": [], "fixed": False,
+           "front": {"kind": chosen.kind, "chosen": row["shoe_front"], "photo": bool(row["front_look"])}
+           if chosen is not None else None}
     shoe = shoe_of(row) if state == "done" else None
     if shoe is None:
         return out
@@ -219,7 +224,7 @@ def run_one(conn, images_dir, tracer: Tracer) -> str:
     item_id = row["id"]
     conn.execute("UPDATE items SET trace_state = 'working' WHERE id = ?", (item_id,))
     conn.execute("COMMIT")
-    shoe, state, error = None, "failed", FAILED
+    shoe, state, error, look = None, "failed", FAILED, None
     try:
         photo = _front(conn, item_id)
         if photo is None:
@@ -230,6 +235,7 @@ def run_one(conn, images_dir, tracer: Tracer) -> str:
             shoe, reasons = tracer(img, told(row, photo))
             if shoe is not None and shoe.gate.get("ok"):
                 state, error = "done", None
+                look = _look(conn, images_dir, item_id, shoe, tracer)
             elif reasons:
                 state, error = "refused", plain(reasons)
     except Exception as e:   # never lost: the item says why and keeps its template drawing
@@ -241,8 +247,9 @@ def run_one(conn, images_dir, tracer: Tracer) -> str:
         if now is None or now["trace_state"] != "working":
             conn.execute("COMMIT")   # deleted, its photo replaced or asked to be traced again meanwhile
             return "done"
-        conn.execute("UPDATE items SET trace = ?, trace_version = ?, trace_state = ?, trace_error = ? WHERE id = ?",
-                     (shoe.to_json() if shoe is not None else None, TRACING_VERSION, state, error, item_id))
+        conn.execute("UPDATE items SET trace = ?, trace_version = ?, trace_state = ?, trace_error = ?, front_look = ? "
+                     "WHERE id = ?", (shoe.to_json() if shoe is not None else None, TRACING_VERSION, state, error,
+                                      json.dumps(look) if look else None, item_id))
         illustrations.redraw(conn, item_id)
         conn.execute("COMMIT")
     except Exception:
@@ -250,6 +257,24 @@ def run_one(conn, images_dir, tracer: Tracer) -> str:
             conn.execute("ROLLBACK")
         raise
     return "done"
+
+
+def _look(conn, images_dir, item_id: str, shoe: TracedShoe, tracer: Tracer) -> dict | None:
+    """What the shoe's second photo, from the front or from above, shows for its front view (`drawing.frontlook`),
+    when it has one and the tracer can read it (`tracer.look`); None otherwise. A photo that cannot be read leaves
+    the front view to the side photo."""
+    looker = getattr(tracer, "look", None)
+    photo = conn.execute("SELECT * FROM photos WHERE item_id = ? AND view IS NOT NULL ORDER BY created_at DESC LIMIT 1",
+                         (item_id,)).fetchone()
+    if looker is None or photo is None:
+        return None
+    from .drawing import frontlook
+    try:
+        with Image.open(images_dir / photo["original_path"]) as im:
+            return looker(im.convert("RGB"), frontlook.sole_share(shoe))
+    except Exception as e:
+        log.warning("reading a shoe's front photo failed: %s", type(e).__name__, exc_info=True)
+        return None
 
 
 def _keys(reasons: list[str]) -> list[str]:
@@ -315,4 +340,10 @@ def tracer(model: Masker | None = None) -> Tracer:
         maskers = ([("model", model)] if model else []) + [("grabcut", T.grabcut_mask)]
         reading = T.trace_photo(img, maskers, told=told_)
         return traced.traced_shoe(reading), list(reading.gate.reasons)
+
+    def look(img: Image.Image, sole: float):
+        from .drawing import frontlook
+        from .drawing import trace as T
+        return frontlook.measure(img, ([("model", model)] if model else []) + [("grabcut", T.grabcut_mask)], sole)
+    run.look = look   # the second photo, from the front: read for the front view
     return run

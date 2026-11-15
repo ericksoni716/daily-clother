@@ -242,14 +242,20 @@ Choose **A shoe** at the top of Add for the closest drawing of a shoe. Take one
 shoe on its own (not the pair), from the side with the toe to the left, filling
 the outline shown. Closet checks the photo straight away and says if it will not
 draw well, and why, so you can take it again (or add it anyway). You can then
-add a second photo, from the front or from above; it is kept for later.
+add a second photo, from the front or from above; it helps draw the shoe from
+the front on the outfit figure.
 
 Closet draws the shoe from its photo a moment after it is added. If the photo
 does not work for that (it shows the pair, or the shoe from the front, say),
 the item page says so and the shoe keeps its plain drawing; **Retake** replaces
 the photo. In **Fix the details** you can change a colour of the drawing,
 remove or move a stripe or logo, **Re-trace** it, or **Use the plain drawing**.
-Your fixes stay when the shoe is drawn again.
+Your fixes stay when the shoe is drawn again. Fix the details also shows the
+shoe from the front, as the outfit figure wears it, in two ways side by side:
+**From the shoe's shape** and **From your photo**. Tap the one that looks more
+like your shoe. **Add a front photo** there helps **From your photo** get the
+toe, laces and logos right; once you add one, that view is used unless you
+chose otherwise.
 
 ### Several pieces in one photo
 

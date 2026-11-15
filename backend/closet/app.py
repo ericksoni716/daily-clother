@@ -46,6 +46,7 @@ from . import (
     review,
     savedtrips,
     shoes,
+    shoeviews,
     shop,
     sources,
     spend,
@@ -94,6 +95,7 @@ class Services:
     shopper: shop.Shopper | None = None           # searches shops for a wish and looks prices up again
     price_checks: shop.PriceScheduler | None = None   # looks prices up once a day while the program runs
     finder: sources.Worker | None = None          # asks where each piece is in a photo of several
+    views: shoeviews.Worker | None = None         # sorts a shoe's photos into views
     on_quit: Callable[[], None] = lambda: None
     updater: updates.Updater | None = None   # new releases: checked once a day, installed when the owner says
     check_maskers: list = field(default_factory=list)   # the cut-outs Add's instant check of a shoe photo tries, in order
@@ -109,6 +111,8 @@ class Services:
             self.pattern_worker.start()
         if self.finder:
             self.finder.start()
+        if self.views:
+            self.views.start()
         if self.second_model is not None and not self.second_model.ready and self.cfg.auto_download_model:
             self.second_model.start_download()
         self.scheduler.start()
@@ -126,6 +130,8 @@ class Services:
             self.pattern_worker.wake()
         if self.finder:
             self.finder.wake()
+        if self.views:
+            self.views.wake()
 
     def stop(self) -> None:
         self.scheduler.stop()
@@ -139,6 +145,8 @@ class Services:
             self.pattern_worker.stop()
         if self.finder:
             self.finder.stop()
+        if self.views:
+            self.views.stop()
         self.worker.stop()
         self.model.stop()
         if self.second_model is not None:
@@ -156,7 +164,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                    tagger: tagjobs.Tagger | None = None, routes: tagjobs.Routes | None = None, api_client=None,
                    corrector: corrections.Corrector | None = None, measurer: patjobs.Measurer | None = None,
                    landmarker: patjobs.Landmarker | None = None, shop_asker: shop.Asker | None = None,
-                   finder: sources.Finder | None = None, tracer: tracejobs.Tracer | None = None) -> Services:
+                   finder: sources.Finder | None = None, tracer: tracejobs.Tracer | None = None,
+                   sorter: shoeviews.Sorter | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
@@ -165,7 +174,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     the API key kept under its monthly limit. `api_client` stands in for the API alone (tests), behind that same limit.
     `shop_asker` stands in for Claude searching shops and looking up prices (tests), `finder` for Claude finding
     the pieces in a photo of several (tests). `tracer` traces shoes from their photos; tests standing in for Claude
-    trace none unless they give one.
+    trace none unless they give one. `sorter` stands in for Claude sorting a shoe's photos into views (tests); tests
+    standing in for Claude sort none unless they give one.
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
@@ -236,10 +246,23 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
         candidate = bundle_dir() / "web"
         web_dir = candidate if (candidate / "index.html").exists() else None
     second.refresh()
-    def described() -> None:   # patterns are measured and shoes traced next
+    views_meter = spend.Meter(cfg, state, spend.PURPOSE_VIEWS, spend.estimate_views)
+
+    def real_sorter(photos: list[Image.Image], usable: tuple[str, ...]):
+        from .tagger import views
+        return views.ask(photos, usable, client=api_client, meter=views_meter)
+
+    def no_sorter(photos: list[Image.Image], usable: tuple[str, ...]):
+        raise RouteUnavailable("tests standing in for Claude sort no photos unless they ask to")
+
+    views_worker = shoeviews.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)),
+                                    sorter or (no_sorter if tagger is not None else real_sorter))
+
+    def described() -> None:   # patterns are measured, shoes traced and their photos sorted next
         worker.wake()
         if pattern_worker:
             pattern_worker.wake()
+        views_worker.wake()
 
     tag_worker.on_described = described
     finding_meter = spend.Meter(cfg, state, spend.PURPOSE_GARMENTS, spend.estimate_garments)
@@ -259,7 +282,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                     pattern_worker=pattern_worker, second_model=second if cutter is None else None,
                     corrector=corrector or real_corrector,
                     check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper),
-                    finder=finding, updater=updates.Updater(cfg, state), check_maskers=maskers)
+                    finder=finding, views=views_worker, updater=updates.Updater(cfg, state), check_maskers=maskers)
 
 
 def closet_inputs(cfg: Config, profile: str) -> tuple[list[dict], list[dict]]:
@@ -509,9 +532,11 @@ def create_app(sv: Services) -> FastAPI:
 
     @app.post("/api/items", dependencies=protected)
     async def create_item(response: Response, photo: UploadFile = File(...), client_key: str | None = Form(None),
-                          name: str | None = Form(None), photo_sha256: str | None = Form(None), conn=Depends(conn_dep)):
+                          name: str | None = Form(None), photo_sha256: str | None = Form(None), shoe: bool = Form(False),
+                          conn=Depends(conn_dep)):
         data = await photo.read(images.MAX_UPLOAD_BYTES + 1)
-        item, created = items.create_from_photo(conn, images_dir(), data, client_key, name, photo_sha256 or None)
+        item, created = items.create_from_photo(conn, images_dir(), data, client_key, name, photo_sha256 or None,
+                                                shoe=shoe, demo=state.get("profile") == "demo")
         response.status_code = 201 if created else 200
         sv.worker.wake()
         return item
@@ -540,9 +565,12 @@ def create_app(sv: Services) -> FastAPI:
             "Cache-Control": cache, "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
 
     def _traced_soon(item) -> None:
-        """An item just said to be a shoe waits to be traced: the queue need not wait for its next round."""
+        """An item just said to be a shoe waits to be traced (and its photos to be sorted): the queues need not wait
+        for their next round."""
         if isinstance(item, dict) and (item.get("trace") or {}).get("state") == "waiting":
             sv.worker.wake()
+        if isinstance(item, dict) and (item.get("views") or {}).get("state") == "waiting" and sv.views:
+            sv.views.wake()
 
     @app.patch("/api/items/{item_id}", dependencies=protected)
     async def patch_item(item_id: str, request: Request, conn=Depends(conn_dep)):
@@ -604,20 +632,43 @@ def create_app(sv: Services) -> FastAPI:
         sv.worker.wake()
         return item
 
+    def views_soon() -> None:
+        """A shoe's photos changed: traced again when the photo read for its front view changed, and sorted again."""
+        sv.worker.wake()
+        if sv.views:
+            sv.views.wake()
+
     @app.post("/api/items/{item_id}/photo", dependencies=protected)
     async def replace_photo(item_id: str, photo: UploadFile = File(...), photo_sha256: str | None = Form(None),
                             conn=Depends(conn_dep)):
         data = await photo.read(images.MAX_UPLOAD_BYTES + 1)
-        item = shoes.replace_photo(conn, images_dir(), item_id, data, photo_sha256 or None)
-        sv.worker.wake()
+        item = shoes.replace_photo(conn, images_dir(), item_id, data, photo_sha256 or None,
+                                   demo=state.get("profile") == "demo")
+        views_soon()
         return item
 
     @app.post("/api/items/{item_id}/photos", status_code=201, dependencies=protected)
-    async def add_view(item_id: str, photo: UploadFile = File(...), view: str = Form(...),
-                       photo_sha256: str | None = Form(None), conn=Depends(conn_dep)):
+    async def add_photo(item_id: str, photo: UploadFile = File(...), view: str | None = Form(None),
+                        photo_sha256: str | None = Form(None), conn=Depends(conn_dep)):
         data = await photo.read(images.MAX_UPLOAD_BYTES + 1)
-        item = shoes.add_view(conn, images_dir(), item_id, data, view, photo_sha256 or None)
-        sv.worker.wake()   # traced again, the new photo read for the front view
+        item = shoes.add_photo(conn, images_dir(), item_id, data, view or None, photo_sha256 or None,
+                               demo=state.get("profile") == "demo")
+        views_soon()
+        return item
+
+    @app.delete("/api/items/{item_id}/photos/{photo_id}", dependencies=protected)
+    def remove_photo(item_id: str, photo_id: str, conn=Depends(conn_dep)):
+        item = shoes.remove_photo(conn, images_dir(), item_id, photo_id, demo=state.get("profile") == "demo")
+        views_soon()
+        return item
+
+    @app.put("/api/items/{item_id}/photos/{photo_id}/view", dependencies=protected)
+    async def set_photo_view(item_id: str, photo_id: str, request: Request, conn=Depends(conn_dep)):
+        body = await shoe_body(request)
+        if not isinstance(body, dict) or "view" not in body:
+            raise HTTPException(422, "Send the view as {\"view\": \"outer\"} (or inner, top, front, back, sole, other).")
+        item = shoes.set_view(conn, item_id, photo_id, body["view"])
+        sv.worker.wake()   # traced again when the photo read for the front view changed
         return item
 
     @app.post("/api/shoes/check", dependencies=protected)

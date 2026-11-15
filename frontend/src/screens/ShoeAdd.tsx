@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
-import { CameraIcon, ImagesIcon, WarnIcon } from '../components/Icons';
+import { CameraIcon, CloseIcon, ImagesIcon, WarnIcon } from '../components/Icons';
 import { ShoeGuide } from '../components/ShoeGuide';
+import { notFitting, sendShoePhotos } from '../components/ShoePhotos';
 import { Link } from '../router';
 import { preparePhoto } from '../resize';
-import { checkHeadline } from '../shoe';
-import type { ShoeCheck } from '../types';
+import { checkHeadline, extraPhotos, MAX_EXTRA_PHOTOS, photoRoom } from '../shoe';
+import type { Item, ShoeCheck } from '../types';
 import { sha256 } from '../uploads';
 import '../components/Shoe.css';
 
@@ -15,8 +16,8 @@ type Step =
   | { at: 'checking'; file: File; preview: string }
   | { at: 'checked'; file: File; preview: string; check: ShoeCheck | null; error?: string }
   | { at: 'adding'; file: File; preview: string }
-  | { at: 'second'; itemId: string; error?: string; sending?: boolean }
-  | { at: 'done'; itemId: string; second: boolean; duplicate: boolean };
+  | { at: 'more'; item: Item; error?: string; sending?: boolean }
+  | { at: 'done'; itemId: string; more: number; duplicate: boolean };
 
 const newKey = () => (typeof crypto.randomUUID === 'function' ? crypto.randomUUID()
   : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`);
@@ -25,13 +26,14 @@ const newKey = () => (typeof crypto.randomUUID === 'function' ? crypto.randomUUI
 const liveCamera = () => typeof window !== 'undefined' && window.isSecureContext && !!navigator.mediaDevices?.getUserMedia;
 
 /** Add a shoe: one shoe, side-on, toe to the left, with the outline to place it in; Closet checks the photo at once
- * and says if it will not trace well, and why; then an optional second photo from the front or from above. */
+ * and says if it will not trace well, and why; then up to five more photos of it, in any order, which Closet sorts
+ * into views itself. */
 export function ShoeAdd() {
   const [step, setStep] = useState<Step>({ at: 'start' });
   const camera = useRef<HTMLInputElement>(null);
   const library = useRef<HTMLInputElement>(null);
-  const second = useRef<HTMLInputElement>(null);
-  const [view, setView] = useState<'front' | 'top'>('front');
+  const moreCamera = useRef<HTMLInputElement>(null);
+  const moreLibrary = useRef<HTMLInputElement>(null);
   const video = useRef<HTMLVideoElement>(null);
   const stream = useRef<MediaStream | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -93,23 +95,35 @@ export function ShoeAdd() {
     setStep({ at: 'adding', file, preview: shown });
     try {
       const [prepared, hash] = await Promise.all([preparePhoto(file), sha256(file).catch(() => null)]);
-      const item = await api.upload(prepared.blob, prepared.filename, newKey(), hash);
-      if (item.duplicate) setStep({ at: 'done', itemId: item.id, second: false, duplicate: true });
-      else setStep({ at: 'second', itemId: item.id });
+      const item = await api.upload(prepared.blob, prepared.filename, newKey(), hash, undefined, true);
+      if (item.duplicate) setStep({ at: 'done', itemId: item.id, more: 0, duplicate: true });
+      else setStep({ at: 'more', item });
     } catch (e) {
       setStep({ at: 'checked', file, preview: shown, check: null, error: (e as ApiError).message });
     }
   }
 
-  async function addSecond(itemId: string, file: File | undefined) {
-    if (!file) return;
-    setStep({ at: 'second', itemId, sending: true });
+  async function addMore(item: Item, files: File[]) {
+    if (!files.length) return;
+    let latest = item;
+    setStep({ at: 'more', item, sending: true });
     try {
-      const [prepared, hash] = await Promise.all([preparePhoto(file), sha256(file).catch(() => null)]);
-      await api.addShoeView(itemId, prepared.blob, prepared.filename, view, hash);
-      setStep({ at: 'done', itemId, second: true, duplicate: false });
+      const { left } = await sendShoePhotos(item.id, files, photoRoom(item), (it) => {
+        latest = it;
+        setStep({ at: 'more', item: it, sending: true });
+      });
+      setStep({ at: 'more', item: latest, error: left ? notFitting(left) : undefined });
     } catch (e) {
-      setStep({ at: 'second', itemId, error: (e as ApiError).message });
+      setStep({ at: 'more', item: latest, error: (e as ApiError).message });
+    }
+  }
+
+  async function removeMore(item: Item, photoId: string) {
+    setStep({ at: 'more', item, sending: true });
+    try {
+      setStep({ at: 'more', item: await api.removeShoePhoto(item.id, photoId) });
+    } catch (e) {
+      setStep({ at: 'more', item, error: (e as ApiError).message });
     }
   }
 
@@ -214,33 +228,56 @@ export function ShoeAdd() {
     );
   }
 
-  if (step.at === 'second') {
+  if (step.at === 'more') {
+    const { item } = step;
+    const extras = extraPhotos(item);
+    const room = photoRoom(item);
     return (
       <div className="shoe-add" data-testid="shoe-add">
         <p className="notice" role="status">The shoe is added. Its background is removed and it's drawn from its photo in a moment.</p>
-        <p>A second photo, from the front or from above, helps draw the shoe from the front later. You can skip it.</p>
-        <fieldset className="row" disabled={step.sending}>
-          <legend className="visually-hidden">Where the second photo is taken from</legend>
-          {(['front', 'top'] as const).map((v) => (
-            <label key={v} className="chip-label">
-              <input type="radio" name="shoe-view" value={v} checked={view === v} onChange={() => setView(v)} />
-              {v === 'front' ? ' From the front' : ' From above'}
-            </label>
-          ))}
-        </fieldset>
+        <p>
+          Add more photos of this shoe — from above, the front, the back and the other side, in any order (up
+          to {MAX_EXTRA_PHOTOS}). Closet works out which is which. You can skip this.
+        </p>
+        {extras.length > 0 && (
+          <ul className="shoe-photo-row" aria-label="Photos added">
+            {extras.map((p, i) => (
+              <li key={p.id} className="shoe-photo">
+                <img src={p.thumb_url ?? p.url ?? ''} alt={`Photo ${i + 2}`} />
+                <button type="button" className="btn btn-ghost btn-small shoe-photo-remove" disabled={step.sending}
+                  aria-label={`Remove photo ${i + 2}`} title="Remove this photo" onClick={() => void removeMore(item, p.id)}>
+                  <CloseIcon />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {step.sending && <p className="notice" role="status">Sending the photos…</p>}
         {step.error && <p className="notice notice-warn" role="alert">{step.error}</p>}
+        {room === 0 && <p className="muted small">That's the most a shoe can have.</p>}
         <div className="row">
-          <button type="button" className="btn btn-primary" disabled={step.sending} onClick={() => second.current?.click()}>
-            <CameraIcon />{step.sending ? 'Sending the photo…' : 'Take the second photo'}
+          <button type="button" className="btn" disabled={step.sending || room === 0} onClick={() => moreCamera.current?.click()}>
+            <CameraIcon />Take a photo
           </button>
-          <button type="button" className="btn btn-ghost" disabled={step.sending}
-            onClick={() => setStep({ at: 'done', itemId: step.itemId, second: false, duplicate: false })}>Skip</button>
+          <button type="button" className="btn" disabled={step.sending || room === 0} onClick={() => moreLibrary.current?.click()}>
+            <ImagesIcon />Choose photos
+          </button>
         </div>
-        <input ref={second} className="visually-hidden" type="file" accept="image/*" capture="environment" tabIndex={-1}
-          aria-hidden="true" data-testid="shoe-second-input" onChange={(e) => {
-            const f = e.target.files?.[0];
+        <div className="row">
+          <button type="button" className="btn btn-primary" disabled={step.sending}
+            onClick={() => setStep({ at: 'done', itemId: item.id, more: extras.length, duplicate: false })}>Done</button>
+        </div>
+        <input ref={moreCamera} className="visually-hidden" type="file" accept="image/*" capture="environment" tabIndex={-1}
+          aria-hidden="true" data-testid="shoe-more-camera" onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
             e.target.value = '';
-            void addSecond(step.itemId, f);
+            void addMore(item, files);
+          }} />
+        <input ref={moreLibrary} className="visually-hidden" type="file" accept="image/*" multiple tabIndex={-1}
+          aria-hidden="true" data-testid="shoe-more-input" onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            e.target.value = '';
+            void addMore(item, files);
           }} />
       </div>
     );
@@ -250,7 +287,8 @@ export function ShoeAdd() {
     <div className="shoe-add" data-testid="shoe-add">
       <p className="notice" role="status">
         {step.duplicate ? 'This photo is already in your closet.'
-          : step.second ? 'The shoe and its second photo are added.' : 'The shoe is added.'}
+          : step.more ? `The shoe and ${step.more === 1 ? 'one more photo' : `${step.more} more photos`} are added. Closet sorts out which is which.`
+            : 'The shoe is added.'}
       </p>
       <div className="row">
         <Link to={`/item/${encodeURIComponent(step.itemId)}`} className="btn btn-primary">See the shoe</Link>

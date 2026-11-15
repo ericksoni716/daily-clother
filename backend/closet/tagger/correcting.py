@@ -119,8 +119,10 @@ def correct_api(client, model: str, text: str, images: list[Image.Image], meter:
 
 def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | None = None, timeout: float = 120,
                 answer_model=CorrectionAnswer, system: str = SYSTEM, tools: str = "Read") -> CorrectionResult:
-    """Through the Claude plan (`claude -p`); the photo, if any, is saved in a folder of its own for it to read.
-    `tools`: the only Claude Code tools it may use, comma-separated (searching shops allows the web ones)."""
+    """Through the Claude plan (`claude -p`); the photos, if any, are saved in a folder of its own for it to read:
+    one photo as `item.jpg`, several as `photo-1.jpg`, `photo-2.jpg`, ... in their order, and the prompt says
+    their names. `tools`: the only Claude Code tools it may use, comma-separated (searching shops allows the web
+    ones)."""
     from anthropic.lib._parse._transform import transform_schema
 
     exe = exe or claude_cli.find_claude()
@@ -130,9 +132,15 @@ def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | Non
     env = {k: v for k, v in os.environ.items() if k not in claude_cli._SCRUB}
     last: Exception | None = None
     with tempfile.TemporaryDirectory(prefix="closet-correct-", ignore_cleanup_errors=True) as tmp:
-        if images:
+        if len(images) == 1:
             claude_cli._save(images[0], Path(tmp) / "item.jpg")
             text += "\n\nThe image file is in the current folder: item.jpg. Open it with the Read tool, then answer."
+        elif images:
+            names = [f"photo-{i}.jpg" for i in range(1, len(images) + 1)]
+            for im, name in zip(images, names, strict=True):
+                claude_cli._save(im, Path(tmp) / name)
+            text += (f"\n\nThe image files are in the current folder, in order: {', '.join(names)} (photo-1.jpg is "
+                     "photo 1, and so on). Open each with the Read tool, then answer.")
         # the owner's words go on standard input, never on a command line
         cmd = claude_cli.print_command(exe, model, effort, transform_schema(answer_model), tools, system)
         for _ in range(MAX_ATTEMPTS):

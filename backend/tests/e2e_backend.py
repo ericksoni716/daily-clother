@@ -28,6 +28,11 @@ found is checked against a closet with something in it (the demo closet itself n
 Finding the pieces in a photo of several is a stand-in too: after a second it gives the boxes of
 `conftest.GARMENT_BOXES` (a red piece left, a blue one in the middle, a green one right), whatever the photo.
 
+Sorting a shoe's photos into views is a stand-in too (`conftest.views_answer`): after a second it says the photos
+show, in the order sent, the outer side, from above, the inner side, the front, the back and the sole, with the two
+sides unsure and looking different once both are there, so the page asks which photo shows the outside. With
+CLOSET_E2E_ROUTES=api the real API route asks `conftest.FakeApi`, which answers the same.
+
 With CLOSET_E2E_TAG_FAILS=N the first N descriptions fail with a reason Closet does not recognise, which quotes
 something shaped like a key and a file outside Closet's folder (both made up), so the page can show a failed item.
 
@@ -46,7 +51,7 @@ from closet.tagger import routes as tagger_routes
 from closet.tagger.shopping import Found, PriceAnswer, PriceSeen, ShopAnswer
 from closet.tagger.tagging import TaggingError, TagResult
 
-from .conftest import ANSWER, GARMENT_BOXES, FakeApi, FakeClaude, MemoryKeychain, fake_cutter
+from .conftest import ANSWER, GARMENT_BOXES, FakeApi, FakeClaude, MemoryKeychain, fake_cutter, views_answer
 
 _real_build = app.build_services
 
@@ -66,6 +71,11 @@ def fake_claude(images, routes):
 def fake_finder(photo, routes):
     time.sleep(1)   # long enough for the page to show it looking
     return [dict(b) for b in GARMENT_BOXES]
+
+
+def fake_sorter(photos, routes):
+    time.sleep(1)   # long enough for the page to show it sorting
+    return views_answer(len(photos))
 
 
 def api_only_status(order="auto", claude_exe=None):
@@ -134,7 +144,7 @@ def build_services(cfg, **kwargs):
         reader = FakeClaude()
         reader.mode = "answers"
         sv = _real_build(cfg, cutter=fake_cutter, tagger=fake_claude, routes=lambda: ("plan",), corrector=reader.correct,
-                         finder=fake_finder, **kwargs)
+                         finder=fake_finder, sorter=fake_sorter, **kwargs)
     sv.worker.is_ready = lambda: True
     return sv
 

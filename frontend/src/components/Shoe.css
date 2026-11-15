@@ -48,3 +48,35 @@
 .shoe-front-view img { width: 100%; max-width: 120px; aspect-ratio: 1; object-fit: contain; background: var(--card-figure); border-radius: var(--radius-sm); }
 .shoe-front-view.is-on { border: 2px solid var(--accent); background: var(--accent-soft); }
 .shoe-front-title { font-weight: var(--weight-label); }
+
+/* A shoe's photos, each with the view Closet sorted it into, and the question about the outside (components/
+   ShoePhotos.tsx); the same row of photos on Add's "more photos" step. */
+.shoe-photos { display: grid; gap: 8px; margin: 0 0 14px; }
+.shoe-photos p { margin: 0; }
+.shoe-photo-row {
+  list-style: none; margin: 0; padding: 0; display: grid; gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+}
+.shoe-photo { position: relative; display: grid; gap: 4px; justify-items: center; min-width: 0; }
+.shoe-photo img {
+  width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.shoe-photo-label { font-size: var(--text-sm); text-align: center; min-height: 1.3em; overflow-wrap: anywhere; }
+.shoe-photo .shoe-photo-remove {
+  position: absolute; top: 2px; right: 2px; min-width: 36px; padding: 0 6px; background: var(--bg);
+  border: 1px solid var(--line); border-radius: var(--radius-pill);
+}
+.shoe-photo .shoe-photo-remove svg { width: 16px; height: 16px; }
+.shoe-ask { display: block; }
+.shoe-ask-body { display: grid; gap: 10px; }
+.shoe-ask-photo { width: 100%; max-width: 280px; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-sm); }
+.shoe-ask .row { gap: 8px; flex-wrap: wrap; }
+.shoe-ask .row > .btn { flex: 1 1 8rem; justify-content: center; }
+.shoe-ask-choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.shoe-ask-choice {
+  display: grid; gap: 4px; justify-items: center; padding: 6px; min-height: 44px; border: 2px solid var(--line);
+  border-radius: var(--radius-sm); background: var(--bg); color: inherit; font: inherit; cursor: pointer;
+}
+.shoe-ask-choice:hover:not(:disabled), .shoe-ask-choice:focus-visible { border-color: var(--accent); background: var(--accent-soft); }
+.shoe-ask-choice img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-sm); }

@@ -51,11 +51,20 @@ export interface ItemSummary {
   group?: string | null;
 }
 
+/** What a photo of a shoe shows: its outer or inner side, from above, the front (toe towards the camera), the back
+ * (heel towards the camera), the sole, or something else. */
+export type ShoeView = 'outer' | 'inner' | 'top' | 'front' | 'back' | 'sole' | 'other';
+
 export interface Photo {
   id: string;
+  /** 'front' is the item's main photo (whatever view it shows); a shoe's other photos are 'detail'. */
   kind: string;
-  /** A shoe's second photo: taken from the front or from above (null for any other photo). */
-  view?: 'front' | 'top' | null;
+  /** A shoe's photo: the view it shows (null: not sorted yet, and for any other item's photo). */
+  view?: ShoeView | null;
+  /** Whether that view is sure (null: not sorted). */
+  view_sure?: boolean | null;
+  /** Who said the view: Claude sorting the photos ('model') or the owner. */
+  view_by?: 'model' | 'owner' | null;
   url: string | null;
   thumb_url: string | null;
   cutout_url: string | null;
@@ -131,6 +140,19 @@ export interface Item extends ItemSummary {
   source_photo?: { id: string; photo_url: string; box: BoxEdges | null } | null;
   /** A shoe traced from its side-on photo; null for anything that is not a shoe. */
   trace?: ShoeTrace | null;
+  /** A shoe's photos sorted into views; null for anything that is not a shoe. */
+  views?: ShoeViews | null;
+}
+
+/** A shoe's photos sorted into views by Claude, so the owner never has to say which is which. */
+export interface ShoeViews {
+  /** null: nothing to sort (a shoe kept from before, or the demo closet); asking: the owner is asked which photo
+   * shows the outside. */
+  state: 'waiting' | 'sorting' | 'asking' | 'sorted' | 'failed' | null;
+  /** What is happening, or why the photos are not sorted, in plain words. */
+  message: string | null;
+  /** While asking: the photos to choose the outside from (ids, the main photo first). */
+  asking: string[] | null;
 }
 
 /** A shoe's trace from its photo, and what "Fix the details" can change on the traced drawing. */

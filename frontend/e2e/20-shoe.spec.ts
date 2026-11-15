@@ -29,6 +29,24 @@ async function frontOnPhoto(page: Page): Promise<Buffer> {
   return Buffer.from(base64, 'base64');
 }
 
+/** Made-up photos of a shoe from other sides (a plain shape in each colour), made in the page. */
+async function otherPhotos(page: Page, colours: string[]): Promise<Buffer[]> {
+  const shots = await page.evaluate((cs) => cs.map((colour, i) => {
+    const c = document.createElement('canvas');
+    c.width = 640;
+    c.height = 480;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#d6d0c4';
+    g.fillRect(0, 0, 640, 480);
+    g.fillStyle = colour;
+    g.beginPath();
+    g.ellipse(320, 250, 220 - i * 40, 110 + i * 30, 0, 0, Math.PI * 2);
+    g.fill();
+    return c.toDataURL('image/png').split(',')[1];
+  }), colours);
+  return shots.map((b) => Buffer.from(b, 'base64'));
+}
+
 /** The demo closet's id for an item (tools/make_demo.py keeps them in items.json). */
 function demoId(name: string): string {
   const data = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../backend/closet/demo_data/items.json'), 'utf8'));
@@ -47,8 +65,8 @@ test.describe('a shoe drawn from its photo', () => {
     await backend?.stop();
   });
 
-  test('Add guides the photo, says at once why it will not trace, and the item page falls back', async ({ page }) => {
-    test.setTimeout(150_000);
+  test('Add guides the photo, says at once why it will not trace, takes more photos, and the item page sorts them and falls back', async ({ page }) => {
+    test.setTimeout(180_000);
     mkdirSync(SCREENSHOTS, { recursive: true });
     await page.goto(backend.url + '/');
     await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
@@ -81,20 +99,57 @@ test.describe('a shoe drawn from its photo', () => {
     await page.getByRole('button', { name: 'Retake' }).click();
     await expect(page.getByTestId('shoe-guide')).toBeVisible();
     await page.getByTestId('shoe-library-input').setInputFiles({ name: 'front.png', mimeType: 'image/png', buffer: photo });
+    const created = page.waitForResponse((res) => new URL(res.url()).pathname === '/api/items' && res.request().method() === 'POST');
     await page.getByRole('button', { name: 'Add it anyway' }).click({ timeout: 30_000 });
+    const id: string = (await (await created).json()).id;
 
-    // the optional second photo, from the front or from above
-    await expect(add).toContainText('A second photo, from the front or from above');
-    expect(await axeViolations(page)).toEqual([]);
-    await page.getByRole('button', { name: 'Skip' }).click();
-    await page.getByRole('link', { name: 'See the shoe' }).click();
-    await expect(page).toHaveURL(/\/item\//);
-    const id = decodeURIComponent(page.url().split('/item/')[1]);
-
-    // the stand-in Claude says it is a polo; the owner says it is a sneaker (and names it), so it is traced, and turned down
+    // the stand-in Claude would say it is a polo; the owner says it is a sneaker (and names it), so it is traced, and
+    // its photos are sorted into views
     const r = await page.request.patch(`${backend.url}/api/items/${encodeURIComponent(id)}`, { data: { category: 'sneakers', name: 'Navy sneaker' } });
     expect(r.ok()).toBe(true);
-    await page.reload();
+
+    // more photos of the shoe, in any order: two chosen at once, one removed again, one more
+    await expect(add).toContainText('Add more photos of this shoe');
+    expect(await axeViolations(page)).toEqual([]);
+    const others = await otherPhotos(page, ['#2b6f9e', '#9e2b52', '#7a5230']);
+    const file = (name: string, buffer: Buffer) => ({ name, mimeType: 'image/png', buffer });
+    await page.getByTestId('shoe-more-input').setInputFiles([file('top.png', others[0]), file('wrong.png', others[1])]);
+    const added = add.getByRole('list', { name: 'Photos added' }).getByRole('listitem');
+    await expect(added).toHaveCount(2);
+    await add.getByRole('button', { name: 'Remove photo 3' }).click();
+    await expect(added).toHaveCount(1);
+    await page.getByTestId('shoe-more-input').setInputFiles([file('side.png', others[2])]);
+    await expect(added).toHaveCount(2);
+    expect(await sideways(page)).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
+    await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-add-more.png') });
+    await page.getByRole('button', { name: 'Done' }).click();
+    await expect(add).toContainText('The shoe and 2 more photos are added.');
+    await page.getByRole('link', { name: 'See the shoe' }).click();
+    await expect(page).toHaveURL(/\/item\//);
+
+    // the item page sorts the photos by itself: the stand-in says outer side (unsure), from above, inner side (unsure),
+    // with a mark on one side only, so it asks which photo shows the outside
+    const row = page.getByTestId('shoe-photos');
+    await expect(row.getByRole('listitem')).toHaveCount(3);
+    const ask = page.getByTestId('shoe-ask');
+    await expect(ask).toContainText('Which photo shows the outside of the shoe?', { timeout: 45_000 });
+    await expect(ask).toContainText('the outside faces away from the other shoe');
+    expect(await sideways(page)).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
+    await ask.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-ask-outside.png') });
+    await ask.getByRole('button', { name: 'Photo 3 shows the outside' }).click();
+    await expect(ask).toHaveCount(0);
+    await expect(row.getByRole('img', { name: 'Photo 3: outer side' })).toBeVisible();
+    await expect(row.getByRole('img', { name: 'Photo 1: inner side' })).toBeVisible();   // the other side follows
+    await expect(row.getByRole('img', { name: 'Photo 2: from above' })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Remove photo 1' })).toHaveCount(0);   // never the main photo
+    await expect(row.getByRole('button', { name: 'Add photos' })).toBeEnabled();
+    await expect(page.locator('.toast')).toHaveCount(0, { timeout: 15_000 });
+    await row.screenshot({ path: resolve(SCREENSHOTS, 'shoe-photos-sorted.png') });
+
+    // the trace: the photo from the front is turned down
     const fallback = page.getByTestId('shoe-fallback');
     await expect(fallback).toContainText("so it's drawn from its details instead", { timeout: 60_000 });
     await expect(fallback.getByRole('button', { name: 'Retake' })).toBeVisible();

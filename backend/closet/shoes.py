@@ -2,9 +2,10 @@
 
 The owner's fixes to the traced drawing (`fix`), choosing
 the plain drawing for a shoe (`set_plain`), tracing it again (`retrace`), a new photo in place of the old one
-(`replace_photo`, the item page's "Retake the photo"), the optional second photo from the front or from above,
-read for the shoe's front view (`add_view`), and which front view the figure draws (`set_front`). The tracing
-itself runs in the cut-out queue (`tracejobs`).
+(`replace_photo`, the item page's "Retake the photo"), the shoe's other photos (`add_photo`, `remove_photo`: up to
+five, sorted into views by Claude in the background, `shoeviews`), the owner's word on which view a photo shows
+(`set_view`), and which front view the figure draws (`set_front`). The tracing itself runs in the cut-out queue
+(`tracejobs`).
 """
 from __future__ import annotations
 
@@ -12,10 +13,10 @@ import json
 import uuid
 from pathlib import Path
 
-from . import db, illustrations, images, items, jobs, tracejobs
+from . import db, illustrations, images, items, jobs, shoeviews, tracejobs
 from .drawing import sideshoe
+from .tagger.views import VIEWS
 
-VIEWS = ("front", "top")   # the second photo of a shoe: from the front, or from above
 FRONTS = ("shape", "photo")   # the shoe's front view on the figure (`drawing.frontshoe`'s FROM_SHAPE, FROM_PHOTO)
 MAX_MARK_FIXES = 40
 
@@ -166,17 +167,18 @@ def _elsewhere(conn, item_id: str, source_sha256: str) -> None:
         raise items.ItemError("This photo is already in the closet, as another item.", 409)
 
 
-def replace_photo(conn, images_dir: Path, item_id: str, data: bytes, source_sha256: str | None = None) -> dict:
+def replace_photo(conn, images_dir: Path, item_id: str, data: bytes, source_sha256: str | None = None,
+                  demo: bool = False) -> dict:
     """A new photo of the shoe in place of the old one (the item page's "Retake the photo"): the background is
     removed again, Claude describes it again (not in the demo closet) and the shoe is traced again. The old trace
-    goes, the owner's fixes stay."""
+    goes, the owner's fixes stay. Photos sorted into views (or waiting to be) are sorted again, with the new one."""
     source_sha256 = items.photo_hash(data, source_sha256)
     _traced_row(conn, item_id)
     photo_id, stored = _store(images_dir, item_id, data)
     old: list = []
 
     def work():
-        _traced_row(conn, item_id)
+        row = _traced_row(conn, item_id)
         if conn.execute("SELECT 1 FROM jobs WHERE kind = 'cutout' AND item_id = ? AND state = 'running'",
                         (item_id,)).fetchone():
             raise items.ItemError("The photo is still being cut out; try again in a moment.", 409)
@@ -189,6 +191,8 @@ def replace_photo(conn, images_dir: Path, item_id: str, data: bytes, source_sha2
                      (photo_id, item_id, stored.original_path, stored.thumb_path, stored.width, stored.height,
                       stored.bytes, stored.sha256, source_sha256, db.now()))
         tracejobs.forget(conn, item_id)
+        if row["views_state"] is not None or row["views_error"] is not None:   # its photos were sorted, or meant to be
+            shoeviews.changed(conn, item_id, demo)
         jobs.enqueue_cutout(conn, item_id, photo_id)
         illustrations.redraw(conn, item_id)
 
@@ -203,26 +207,55 @@ def replace_photo(conn, images_dir: Path, item_id: str, data: bytes, source_sha2
     return items.detail(conn, items.get(conn, item_id))
 
 
-def add_view(conn, images_dir: Path, item_id: str, data: bytes, view, source_sha256: str | None = None) -> dict:
-    """The shoe's second photo, from the front or from above, kept for its front view; it replaces an earlier one."""
-    if view not in VIEWS:
-        raise items.ItemError("Say where the photo is taken from: front or top.")
+SAME_PHOTO = "This photo is already one of this shoe's photos."
+TOO_MANY = (f"A shoe can have at most {shoeviews.MAX_EXTRA} more photos besides its main one. Remove one first.")
+NOT_A_SHOE = "Only a shoe can have more photos."
+MAIN_PHOTO = "The main photo can't be removed. Use \u201cRetake the photo\u201d to replace it."
+NO_SUCH_PHOTO = "That photo is not one of this item's photos."
+
+
+def _photo_row(conn, item_id: str):
+    row = items.get(conn, item_id)
+    if not shoeviews.may_have_photos(row["category"]):
+        raise items.ItemError(NOT_A_SHOE, 409)
+    return row
+
+
+def add_photo(conn, images_dir: Path, item_id: str, data: bytes, view=None, source_sha256: str | None = None,
+              demo: bool = False) -> dict:
+    """Another photo of the shoe, besides its main one (at most `shoeviews.MAX_EXTRA`). Without `view` it is sorted
+    into its view with the others, in the background (`shoeviews`). With `view` (front or top, the second photo of
+    before) that is the owner's word, kept as theirs, and it replaces only an earlier photo the owner named the same.
+    A shoe Claude has not described yet (just added from "A shoe" on Add) can have photos added too."""
+    if view is not None and view not in shoeviews.OWNER_VIEWS:
+        raise items.ItemError("Say where the photo is taken from: front or top, or leave it out and Closet sorts it.")
     source_sha256 = items.photo_hash(data, source_sha256)
-    _traced_row(conn, item_id)
+    _photo_row(conn, item_id)
     photo_id, stored = _store(images_dir, item_id, data)
     old: list = []
 
     def work():
-        _traced_row(conn, item_id)
+        _photo_row(conn, item_id)
         _elsewhere(conn, item_id, source_sha256)
-        old.extend(conn.execute("SELECT * FROM photos WHERE item_id = ? AND view IS NOT NULL", (item_id,)).fetchall())
-        conn.execute("DELETE FROM photos WHERE item_id = ? AND view IS NOT NULL", (item_id,))
-        conn.execute("INSERT INTO photos (id, item_id, kind, view, original_path, thumb_path, width, height, bytes, sha256, "
-                     "source_sha256, created_at) VALUES (?, ?, 'detail', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                     (photo_id, item_id, view, stored.original_path, stored.thumb_path, stored.width, stored.height,
-                      stored.bytes, stored.sha256, source_sha256, db.now()))
-        conn.execute("UPDATE items SET updated_at = ?, front_look = NULL WHERE id = ?", (db.now(), item_id))
-        tracejobs.mark(conn, item_id)   # traced again, with the new photo read for the front view
+        replaced = conn.execute("SELECT * FROM photos WHERE item_id = ? AND kind != 'front' AND view = ? "
+                                "AND view_by = 'owner'", (item_id, view)).fetchall() if view else []
+        gone = {p["id"] for p in replaced}
+        if any(r["id"] not in gone for r in conn.execute("SELECT id FROM photos WHERE item_id = ? AND source_sha256 = ?",
+                                                          (item_id, source_sha256))):
+            raise items.ItemError(SAME_PHOTO, 409)
+        extra = conn.execute("SELECT COUNT(*) FROM photos WHERE item_id = ? AND kind != 'front'", (item_id,)).fetchone()[0]
+        if extra - len(gone) >= shoeviews.MAX_EXTRA:
+            raise items.ItemError(TOO_MANY, 409)
+        before = shoeviews.look_id(conn, item_id)
+        old.extend(replaced)
+        conn.executemany("DELETE FROM photos WHERE id = ?", [(p,) for p in gone])
+        conn.execute("INSERT INTO photos (id, item_id, kind, view, view_sure, view_by, original_path, thumb_path, width, "
+                     "height, bytes, sha256, source_sha256, created_at) VALUES (?, ?, 'detail', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                     (photo_id, item_id, view, 1 if view else None, "owner" if view else None, stored.original_path,
+                      stored.thumb_path, stored.width, stored.height, stored.bytes, stored.sha256, source_sha256, db.now()))
+        conn.execute("UPDATE items SET updated_at = ? WHERE id = ?", (db.now(), item_id))
+        shoeviews.changed(conn, item_id, demo)       # sorted again, with the new photo
+        shoeviews.look_moved(conn, item_id, before)  # a new photo from the front is read for the front view
 
     try:
         _locked(conn, work)
@@ -234,3 +267,45 @@ def add_view(conn, images_dir: Path, item_id: str, data: bytes, view, source_sha
         _remove_files(images_dir, p)
     return items.detail(conn, items.get(conn, item_id))
 
+
+def remove_photo(conn, images_dir: Path, item_id: str, photo_id: str, demo: bool = False) -> dict:
+    """One of the shoe's other photos goes, with its files (never the main photo: that is retaken instead). The rest
+    are sorted again."""
+    gone: list = []
+
+    def work():
+        row = items.get(conn, item_id)
+        photo = conn.execute("SELECT * FROM photos WHERE id = ? AND item_id = ?", (photo_id, item_id)).fetchone()
+        if photo is None:
+            raise items.ItemError(NO_SUCH_PHOTO, 404)
+        if photo["kind"] == "front":
+            raise items.ItemError(MAIN_PHOTO, 409)
+        before = shoeviews.look_id(conn, item_id)
+        conn.execute("DELETE FROM photos WHERE id = ?", (photo_id,))
+        conn.execute("UPDATE items SET updated_at = ? WHERE id = ?", (db.now(), item_id))
+        if shoeviews.may_have_photos(row["category"]):
+            shoeviews.changed(conn, item_id, demo)
+        shoeviews.look_moved(conn, item_id, before)   # the photo read for the front view went: the next one is read
+        gone.append(photo)
+
+    _locked(conn, work)
+    for p in gone:
+        _remove_files(images_dir, p)
+    return items.detail(conn, items.get(conn, item_id))
+
+
+def set_view(conn, item_id: str, photo_id: str, view) -> dict:
+    """The owner says which view a photo of the shoe shows (the item page's question about the outside): kept as
+    theirs and never changed by sorting again (`shoeviews.answer`)."""
+    if view not in VIEWS:
+        raise items.ItemError(f"Choose the view: {', '.join(VIEWS)}.")
+
+    def work():
+        if not tracejobs.wanted(items.get(conn, item_id)["category"]):
+            raise items.ItemError("Only a shoe's photos are sorted into views.", 409)
+        if conn.execute("SELECT 1 FROM photos WHERE id = ? AND item_id = ?", (photo_id, item_id)).fetchone() is None:
+            raise items.ItemError(NO_SUCH_PHOTO, 404)
+        shoeviews.answer(conn, item_id, photo_id, view)
+
+    _locked(conn, work)
+    return items.detail(conn, items.get(conn, item_id))

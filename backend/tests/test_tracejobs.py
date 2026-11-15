@@ -433,7 +433,9 @@ def test_a_new_photo_is_cut_out_and_traced_again_and_the_fixes_stay(cfg, make, s
     assert r.status_code == 409 and other["id"]
 
 
-def test_a_second_photo_from_the_front_or_top_is_kept(make, shoe):
+def test_a_photo_from_the_front_or_top_is_kept_and_replaces_only_one_named_the_same(make, shoe):
+    # A shoe can now have up to five more photos (sorted into views, test_shoeviews.py), so a photo the owner names
+    # replaces only an earlier one named the same, no longer every other photo.
     sv, c = make(Tracer(shoe))
     item = a_shoe(sv, c)
     url = f"/api/items/{item['id']}/photos"
@@ -442,7 +444,11 @@ def test_a_second_photo_from_the_front_or_top_is_kept(make, shoe):
     assert [(p["kind"], p["view"]) for p in r.json()["photos"]] == [("front", None), ("detail", "front")]
     top = S.front_view(size=(640, 600))
     r = c.post(url, files={"photo": ("t.jpg", jpeg(top), "image/jpeg")}, data={"view": "top"})
-    assert [(p["kind"], p["view"]) for p in r.json()["photos"]] == [("front", None), ("detail", "top")]   # replaced
+    assert [(p["kind"], p["view"]) for p in r.json()["photos"]] == [("front", None), ("detail", "front"), ("detail", "top")]
+    r = c.post(url, files={"photo": ("t2.jpg", jpeg(S.front_view(size=(600, 640))), "image/jpeg")}, data={"view": "top"})
+    got = r.json()["photos"]
+    assert [(p["kind"], p["view"]) for p in got] == [("front", None), ("detail", "front"), ("detail", "top")]   # replaced
+    assert all(p["view_by"] == "owner" and p["view_sure"] is True for p in got[1:])
     r = c.post(url, files={"photo": ("t.jpg", jpeg(top), "image/jpeg")}, data={"view": "side"})
     assert r.status_code == 422
     sv.worker.drain()

@@ -1,4 +1,4 @@
-import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear } from './types';
+import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeCheck, TraceFix } from './types';
 import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
@@ -201,6 +201,33 @@ export const api = {
   confirm: (id: string, fields: ReviewField['field'][]) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}/confirm`, { method: 'POST', body: { fields } }),
   retryCutout: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/retry-cutout`, { method: 'POST' }),
+  /** A shoe traced from its photo: a fix to its drawing, the plain drawing, tracing it again. */
+  fixTrace: (id: string, fix: TraceFix) =>
+    request<Item>(`/api/items/${encodeURIComponent(id)}/trace/fix`, { method: 'POST', body: fix }),
+  setTracePlain: (id: string, plain: boolean) =>
+    request<Item>(`/api/items/${encodeURIComponent(id)}/trace/plain`, { method: 'PUT', body: { plain } }),
+  retrace: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/retrace`, { method: 'POST' }),
+  /** A new photo of a shoe in place of its photo ("Retake the photo"). */
+  replacePhoto: (id: string, photo: Blob, filename: string, sha256?: string | null) => {
+    const form = new FormData();
+    form.append('photo', photo, filename);
+    if (sha256) form.append('photo_sha256', sha256);
+    return request<Item>(`/api/items/${encodeURIComponent(id)}/photo`, { method: 'POST', form });
+  },
+  /** A shoe's optional second photo, from the front or from above. */
+  addShoeView: (id: string, photo: Blob, filename: string, view: 'front' | 'top', sha256?: string | null) => {
+    const form = new FormData();
+    form.append('photo', photo, filename);
+    form.append('view', view);
+    if (sha256) form.append('photo_sha256', sha256);
+    return request<Item>(`/api/items/${encodeURIComponent(id)}/photos`, { method: 'POST', form });
+  },
+  /** Add's instant check: will this shoe photo trace well? Nothing is kept. */
+  checkShoe: (photo: Blob, filename: string, signal?: AbortSignal) => {
+    const form = new FormData();
+    form.append('photo', photo, filename);
+    return request<ShoeCheck>('/api/shoes/check', { method: 'POST', form, signal });
+  },
   /** `duplicate` is true when the photo was already in the closet; the item returned is the one it is in. */
   upload: (photo: Blob, filename: string, clientKey: string, sha256?: string | null, signal?: AbortSignal) => {
     const form = new FormData();

@@ -41,7 +41,7 @@ import sys
 import time
 import urllib.error
 
-from closet import apikey, app, cli, demo, weather
+from closet import apikey, app, cli, demo, tracejobs, weather
 from closet.tagger import routes as tagger_routes
 from closet.tagger.shopping import Found, PriceAnswer, PriceSeen, ShopAnswer
 from closet.tagger.tagging import TaggingError, TagResult
@@ -124,6 +124,7 @@ def build_services(cfg, **kwargs):
     if os.environ.get("CLOSET_E2E_SEED") == "demo":
         seed_from_demo(cfg)
     kwargs.setdefault("shop_asker", FakeShop())
+    kwargs.setdefault("tracer", tracejobs.tracer())   # shoes are traced with GrabCut alone, as without the model
     apikey.use_store(MemoryKeychain())
     apikey.check = lambda key: "refused" if key.endswith("refused") else None
     if os.environ.get("CLOSET_E2E_ROUTES") == "api":

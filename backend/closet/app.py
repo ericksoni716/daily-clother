@@ -44,11 +44,13 @@ from . import (
     phone,
     review,
     savedtrips,
+    shoes,
     shop,
     sources,
     spend,
     storage,
     tagjobs,
+    tracejobs,
     trips,
     updates,
     vocab,
@@ -93,6 +95,7 @@ class Services:
     finder: sources.Worker | None = None          # asks where each piece is in a photo of several
     on_quit: Callable[[], None] = lambda: None
     updater: updates.Updater | None = None   # new releases: checked once a day, installed when the owner says
+    check_maskers: list = field(default_factory=list)   # the cut-outs Add's instant check of a shoe photo tries, in order
     _phone_cache: tuple[float, dict] | None = field(default=None, repr=False)
 
     def start(self) -> None:
@@ -152,7 +155,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                    tagger: tagjobs.Tagger | None = None, routes: tagjobs.Routes | None = None, api_client=None,
                    corrector: corrections.Corrector | None = None, measurer: patjobs.Measurer | None = None,
                    landmarker: patjobs.Landmarker | None = None, shop_asker: shop.Asker | None = None,
-                   finder: sources.Finder | None = None) -> Services:
+                   finder: sources.Finder | None = None, tracer: tracejobs.Tracer | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
@@ -160,7 +163,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     `routes` and `corrector` stand in for Claude in tests; by default the real routes are used, each call recorded and
     the API key kept under its monthly limit. `api_client` stands in for the API alone (tests), behind that same limit.
     `shop_asker` stands in for Claude searching shops and looking up prices (tests), `finder` for Claude finding
-    the pieces in a photo of several (tests).
+    the pieces in a photo of several (tests). `tracer` traces shoes from their photos; tests standing in for Claude
+    trace none unless they give one.
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
@@ -200,8 +204,15 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     def check_tagger(images: list[Image.Image], usable: tuple[str, ...]):
         return tagjobs.claude_tagger(images, usable, meter=check_meter, client=api_client)
 
+    def model_mask(img: Image.Image):
+        return np.asarray(predict_mask(img, MODEL, model.path)) if model.ready else None
+
+    from .drawing.trace import grabcut_mask  # no OpenCV until it runs
+    maskers = ([("model", model_mask)] if cutter is None else []) + [("grabcut", grabcut_mask)]
+    if tracer is None and tagger is None:
+        tracer = tracejobs.tracer(model_mask if cutter is None else None)
     tag_worker = tagjobs.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)), tagger or real_tagger)
-    worker = jobs.Worker(cfg, state, lambda: model.ready, cutter or real_cutter, on_done=tag_worker.wake)
+    worker = jobs.Worker(cfg, state, lambda: model.ready, cutter or real_cutter, on_done=tag_worker.wake, tracer=tracer)
     holder["worker"] = worker
     landmark_meter = spend.Meter(cfg, state, spend.PURPOSE_LANDMARKS, spend.estimate_landmarks)
 
@@ -223,7 +234,12 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
         candidate = bundle_dir() / "web"
         web_dir = candidate if (candidate / "index.html").exists() else None
     second.refresh()
-    tag_worker.on_described = pattern_worker.wake if pattern_worker else (lambda: None)
+    def described() -> None:   # patterns are measured and shoes traced next
+        worker.wake()
+        if pattern_worker:
+            pattern_worker.wake()
+
+    tag_worker.on_described = described
     finding_meter = spend.Meter(cfg, state, spend.PURPOSE_GARMENTS, spend.estimate_garments)
 
     def real_finder(photo: Image.Image, usable: tuple[str, ...]) -> list[dict]:
@@ -241,7 +257,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                     pattern_worker=pattern_worker, second_model=second if cutter is None else None,
                     corrector=corrector or real_corrector,
                     check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper),
-                    finder=finding, updater=updates.Updater(cfg, state))
+                    finder=finding, updater=updates.Updater(cfg, state), check_maskers=maskers)
 
 
 def closet_inputs(cfg: Config, profile: str) -> tuple[list[dict], list[dict]]:
@@ -531,6 +547,47 @@ def create_app(sv: Services) -> FastAPI:
         item = items.retry_cutout(conn, item_id)
         sv.worker.wake()
         return item
+
+    # ---------------------------------------------- a shoe traced from its photo
+    async def shoe_body(request: Request):
+        try:
+            return await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+
+    @app.post("/api/items/{item_id}/trace/fix", dependencies=protected)
+    async def fix_trace(item_id: str, request: Request, conn=Depends(conn_dep)):
+        return shoes.fix(conn, item_id, await shoe_body(request))
+
+    @app.put("/api/items/{item_id}/trace/plain", dependencies=protected)
+    async def plain_trace(item_id: str, request: Request, conn=Depends(conn_dep)):
+        body = await shoe_body(request)
+        return shoes.set_plain(conn, item_id, body.get("plain") if isinstance(body, dict) else None)
+
+    @app.post("/api/items/{item_id}/retrace", status_code=202, dependencies=protected)
+    def retrace(item_id: str, conn=Depends(conn_dep)):
+        item = shoes.retrace(conn, item_id)
+        sv.worker.wake()
+        return item
+
+    @app.post("/api/items/{item_id}/photo", dependencies=protected)
+    async def replace_photo(item_id: str, photo: UploadFile = File(...), photo_sha256: str | None = Form(None),
+                            conn=Depends(conn_dep)):
+        data = await photo.read(images.MAX_UPLOAD_BYTES + 1)
+        item = shoes.replace_photo(conn, images_dir(), item_id, data, photo_sha256 or None)
+        sv.worker.wake()
+        return item
+
+    @app.post("/api/items/{item_id}/photos", status_code=201, dependencies=protected)
+    async def add_view(item_id: str, photo: UploadFile = File(...), view: str = Form(...),
+                       photo_sha256: str | None = Form(None), conn=Depends(conn_dep)):
+        data = await photo.read(images.MAX_UPLOAD_BYTES + 1)
+        return shoes.add_view(conn, images_dir(), item_id, data, view, photo_sha256 or None)
+
+    @app.post("/api/shoes/check", dependencies=protected)
+    def check_shoe(photo: UploadFile = File(...)):
+        data = photo.file.read(images.MAX_UPLOAD_BYTES + 1)
+        return tracejobs.check(images.decode(data), sv.check_maskers)
 
     @app.post("/api/items/{item_id}/retag", status_code=202, dependencies=protected)
     def retag(item_id: str, conn=Depends(conn_dep)):

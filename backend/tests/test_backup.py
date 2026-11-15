@@ -346,6 +346,17 @@ def test_start_at_login_writes_and_removes_its_entry(tmp_path):
     assert not autostart.is_enabled("linux", tmp_path)
 
 
+def test_mac_start_at_login_preserves_the_program_path(tmp_path):
+    import plistlib
+
+    exe = '/Applications/Closet & café <test>/Closet.app/Contents/MacOS/Closet'
+    autostart.set_enabled(True, exe=exe, platform="darwin", home=tmp_path)
+    entry = plistlib.loads((tmp_path / "Library" / "LaunchAgents" / "app.closet.plist").read_bytes())
+    assert entry == {"Label": "app.closet", "ProgramArguments": [exe, "--no-browser"], "RunAtLoad": True}
+    autostart.set_enabled(False, platform="darwin", home=tmp_path)
+    assert not autostart.is_enabled("darwin", tmp_path)
+
+
 def test_only_one_copy_runs_per_data_folder(cfg):
     assert instance.running_instance(cfg) is None
     instance.write_lock(cfg, 1)  # stale lock: nothing answers on that port

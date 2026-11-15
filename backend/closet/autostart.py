@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import plistlib
 import sys
 from pathlib import Path
 
@@ -59,14 +60,11 @@ def set_enabled(enabled: bool, exe: str | None = None, platform: str = sys.platf
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     if platform == "darwin":
-        path.write_text(
-            '<?xml version="1.0" encoding="UTF-8"?>\n'
-            '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
-            '<plist version="1.0"><dict>\n'
-            '  <key>Label</key><string>app.closet</string>\n'
-            f'  <key>ProgramArguments</key><array><string>{exe}</string><string>--no-browser</string></array>\n'
-            '  <key>RunAtLoad</key><true/>\n'
-            '</dict></plist>\n')
+        path.write_bytes(plistlib.dumps({
+            "Label": "app.closet",
+            "ProgramArguments": [exe, "--no-browser"],
+            "RunAtLoad": True,
+        }))
     else:
         path.write_text(f"[Desktop Entry]\nType=Application\nName={NAME}\nExec=\"{exe}\" --no-browser\nX-GNOME-Autostart-enabled=true\n")
         os.chmod(path, 0o644)

@@ -341,6 +341,30 @@ def test_a_helper_that_cannot_start_puts_the_old_program_back(updater, github):
     assert not Path(updater.executable).with_name("Closet.old.exe").exists()
 
 
+@pytest.mark.parametrize("failure", ["plan", "outcome"])
+def test_failed_handover_files_put_the_old_program_back(updater, github, monkeypatch, failure):
+    updater.check()
+    write_text, unlink = Path.write_text, Path.unlink
+
+    def fail_plan(path, *args, **kwargs):
+        if path == updates.plan_path(updater.cfg):
+            raise OSError("disk full")
+        return write_text(path, *args, **kwargs)
+
+    def fail_outcome(path, *args, **kwargs):
+        if path == updates.outcome_path(updater.cfg):
+            raise PermissionError("file is locked")
+        return unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text" if failure == "plan" else "unlink",
+                        fail_plan if failure == "plan" else fail_outcome)
+    with pytest.raises(updates.UpdateError, match="put this one back"):
+        updater.install(updater.available())
+    assert Path(updater.executable).read_bytes() == OLD_EXE
+    assert not updater.where.old.exists()
+    assert not updater.spawned
+
+
 def test_install_from_the_page(updater, github, client):
     client.post("/api/updates/check")
     status = client.get("/api/updates").json()
@@ -366,6 +390,38 @@ def test_a_bad_download_is_reported_on_the_page(updater, github, client):
     status = client.get("/api/updates").json()
     assert "did not match the checksum" in status["problem"] and status["busy"] is None
     assert Path(updater.executable).read_bytes() == OLD_EXE and not updater.spawned
+
+
+@pytest.mark.parametrize("during_restart", ["install", "check", "tick"])
+def test_restart_keeps_the_old_program_until_the_helper_finishes(updater, github, during_restart):
+    updater.set_mode("auto")
+    updater.check()
+    updater.install_now()
+    wait_idle(updater)
+    assert updater.busy == "restarting"
+    if during_restart == "check":
+        updater.check()
+    elif during_restart == "tick":
+        updater.tick()
+    with pytest.raises(updates.UpdateError, match="already"):
+        updater.install_now()
+    assert updater.busy == "restarting"
+    assert len(updater.spawned) == 1
+    assert Path(updater.executable).with_name("Closet.old.exe").read_bytes() == OLD_EXE
+
+
+def test_a_failed_handover_allows_the_owner_to_retry(updater, github):
+    updater.check()
+    updater.install_now()
+    wait_idle(updater)
+    assert updates.restore(updater.where)
+    updates._write_outcome(updater.cfg, {"to": "0.3.0", "ok": False, "note": "The old copy kept running."})
+    assert updater.status()["busy"] is None
+    updater.install_now()
+    wait_idle(updater)
+    assert len(updater.spawned) == 2
+    assert updater.busy == "restarting"
+    assert updater.where.old.read_bytes() == OLD_EXE
 
 
 # ------------------------------------------------------------------ by itself, and when it must not

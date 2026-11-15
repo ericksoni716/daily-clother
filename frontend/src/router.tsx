@@ -1,7 +1,11 @@
 import { useEffect, useState, useSyncExternalStore, type AnchorHTMLAttributes, type MouseEvent } from 'react';
+import { flushSaves } from './leave';
 
 const listeners = new Set<() => void>();
-const notify = () => listeners.forEach((l) => l());
+const notify = () => {
+  flushSaves(false);
+  listeners.forEach((l) => l());
+};
 window.addEventListener('popstate', notify);
 
 export function navigate(to: string, opts: { replace?: boolean } = {}) {

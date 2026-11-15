@@ -1,11 +1,12 @@
 import hashlib
 import http.server
+import sqlite3
 import threading
 import time
 
 import pytest
 
-from closet import db, jobs
+from closet import db, jobs, tagjobs
 from closet.modelstore import ModelStore
 from closet.state import State
 
@@ -59,6 +60,64 @@ def test_work_interrupted_by_a_shutdown_resumes_on_the_next_start(client, servic
     services.worker.is_ready = lambda: True
     assert drain(services) == 1
     assert client.get(f"/api/items/{item['id']}").json()["cutout_state"] == "ready"
+
+
+@pytest.mark.parametrize("kind", ["cutout", "tag"])
+def test_startup_fails_interrupted_jobs_that_used_all_attempts(client, services, cfg, claude, kind):
+    item = upload(client).json()
+    services.worker.is_ready = lambda: True
+    if kind == "tag":
+        assert drain(services) == 1
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        conn.execute("UPDATE jobs SET state = 'running', attempts = 3 WHERE kind = ?", (kind,))
+        conn.execute(f"UPDATE items SET {kind}_state = ?", ("processing" if kind == "cutout" else "working",))
+        assert jobs.requeue_interrupted(conn) == 1
+        job = conn.execute("SELECT state, attempts FROM jobs WHERE kind = ?", (kind,)).fetchone()
+        assert (job["state"], job["attempts"]) == ("failed", 3)
+    finally:
+        conn.close()
+    claude.mode = "answers"
+    assert drain(services) == 0
+    assert services.tag_worker.drain() == 0
+    body = client.get(f"/api/items/{item['id']}").json()
+    assert body[f"{kind}_state"] == "failed"
+    assert "try again" in body[f"{kind}_error"].lower()
+    assert claude.calls == []
+
+
+@pytest.mark.parametrize("failures", [1, 3])
+def test_cutout_save_failure_is_recovered_on_the_next_round(client, services, cfg, monkeypatch, failures):
+    item = upload(client).json()
+    services.worker.is_ready = lambda: True
+    enqueue = tagjobs.enqueue
+
+    def busy(conn, item_id):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(tagjobs, "enqueue", busy)
+    for _ in range(failures):
+        with pytest.raises(sqlite3.OperationalError):
+            drain(services)
+    monkeypatch.setattr(tagjobs, "enqueue", enqueue)
+    assert drain(services) == (1 if failures < jobs.MAX_ATTEMPTS else 0)
+    body = client.get(f"/api/items/{item['id']}").json()
+    assert body["cutout_state"] == ("ready" if failures < jobs.MAX_ATTEMPTS else "failed")
+
+
+def test_cutout_recovery_leaves_the_running_tagger_alone(client, services, cfg):
+    item = upload(client).json()
+    services.worker.is_ready = lambda: True
+    assert drain(services) == 1
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        conn.execute("UPDATE jobs SET state = 'running', attempts = 1 WHERE kind = 'tag'")
+        conn.execute("UPDATE items SET tag_state = 'working'")
+        assert drain(services) == 0
+        assert conn.execute("SELECT state FROM jobs WHERE kind = 'tag'").fetchone()[0] == "running"
+        assert conn.execute("SELECT tag_state FROM items WHERE id = ?", (item["id"],)).fetchone()[0] == "working"
+    finally:
+        conn.close()
 
 
 def test_deleting_an_item_drops_its_queued_job(client, services):
@@ -157,6 +216,29 @@ def test_a_wrong_file_is_discarded_with_a_clear_message(tmp_path, server):
     info = m.info()
     assert info["state"] == "failed" and "checksum" in info["error"] and info["downloaded_bytes"] == 0
     assert not m.path.exists()
+
+
+@pytest.mark.parametrize("operation", ["mkdir", "replace", "write_text"])
+def test_model_download_disk_failures_allow_retry(tmp_path, server, monkeypatch, operation):
+    from pathlib import Path
+
+    m = store(tmp_path, server)
+    original = getattr(Path, operation)
+
+    def unavailable(path, *args, **kwargs):
+        if path in (m.dir, m._part, m._marker):
+            raise PermissionError("cannot write model file")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, operation, unavailable)
+    assert m.start_download()
+    m.wait(10)
+    assert m.info()["state"] == "failed"
+    assert m.info()["error"] and not m.ready
+    monkeypatch.setattr(Path, operation, original)
+    assert m.start_download()
+    m.wait(10)
+    assert m.ready
 
 
 def test_offline_gives_a_clear_message_and_uploads_still_work(tmp_path):

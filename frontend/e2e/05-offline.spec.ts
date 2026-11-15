@@ -44,6 +44,20 @@ test('offline: the saved closet still opens, read-only, with a banner', async ({
   // back online: the banner goes away by itself
   await context.setOffline(false);
   await expect(page.getByText('Offline: showing your saved closet')).toBeHidden({ timeout: 15_000 });
+  await expect(panel.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('Grey hoodie');
+  await expect(panel.getByRole('button', { name: 'Archive', exact: true })).toBeEnabled();
+});
+
+test('settings opened offline recover when the computer is reachable again', async ({ page, context }) => {
+  await login(page);
+  await useProfile(page, 'demo');
+  await page.waitForLoadState('networkidle');
+  await context.setOffline(true);
+  await page.locator('nav.sidebar').getByRole('link', { name: 'Settings', exact: true }).click();
+  await expect(page.getByText("You're offline, so settings can't be shown or changed right now.")).toBeVisible();
+  await context.setOffline(false);
+  await expect(page.getByText('Offline: showing your saved closet')).toBeHidden({ timeout: 15_000 });
+  await expect(page.getByRole('textbox', { name: 'Backup folder', exact: true })).toBeEnabled();
 });
 
 test('logging out clears the saved closet', async ({ page }) => {

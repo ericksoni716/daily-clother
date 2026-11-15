@@ -8,10 +8,11 @@ import { useEffect, useRef } from 'react';
 type Flush = () => void;
 
 const flushers = new Set<Flush>();
+const pageFlushers = new Set<Flush>();
 
 /** Runs every registered flush now. One that fails does not stop the others. */
-export function flushSaves(): void {
-  for (const flush of [...flushers]) {
+export function flushSaves(leavingPage = true): void {
+  for (const flush of [...flushers, ...(leavingPage ? pageFlushers : [])]) {
     try {
       flush();
     } catch {
@@ -20,10 +21,11 @@ export function flushSaves(): void {
   }
 }
 
-/** Registers something to run when the page goes away; returns a function that removes it. */
-export function whenLeaving(flush: Flush): () => void {
-  flushers.add(flush);
-  return () => void flushers.delete(flush);
+/** Registers a save; `pageOnly` skips internal navigation, which need not force queued requests to start. */
+export function whenLeaving(flush: Flush, pageOnly = false): () => void {
+  const list = pageOnly ? pageFlushers : flushers;
+  list.add(flush);
+  return () => void list.delete(flush);
 }
 
 type Target = Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
@@ -57,12 +59,15 @@ export function useWhenLeaving(flush: Flush): void {
 /**
  * Sends saves one at a time, in the order they were made (each waits for the one before). When
  * the page goes away, `flush` starts the ones still waiting at once, in order, so none is lost.
+ * A pending queue stays registered even after its screen is gone.
  */
 export class SaveLine {
   private tail: Promise<unknown> = Promise.resolve();
   private waiting: (() => unknown)[] = [];
+  private unlisten: (() => void) | null = null;
 
   add<T>(send: () => Promise<T>): Promise<T> {
+    this.unlisten ??= whenLeaving(() => this.flush(), true);
     let started: Promise<T> | null = null;
     const start = () => (started ??= send());
     this.waiting.push(start);
@@ -71,12 +76,19 @@ export class SaveLine {
       return start();
     });
     this.tail = run.catch(() => undefined);
+    const tail = this.tail;
+    void tail.then(() => {
+      if (this.tail !== tail) return;
+      this.unlisten?.();
+      this.unlisten = null;
+    });
     return run;
   }
 
   flush(): void {
     const waiting = this.waiting;
     this.waiting = [];
-    waiting.forEach((start) => start());
+    // The caller still receives the error through `run`, even while an earlier save holds it up.
+    waiting.forEach((start) => { void Promise.resolve(start()).catch(() => undefined); });
   }
 }

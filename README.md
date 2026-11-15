@@ -242,8 +242,15 @@ Choose **A shoe** at the top of Add for the closest drawing of a shoe. Take one
 shoe on its own (not the pair), from the side with the toe to the left, filling
 the outline shown. Closet checks the photo straight away and says if it will not
 draw well, and why, so you can take it again (or add it anyway). You can then
-add a second photo, from the front or from above; it helps draw the shoe from
-the front on the outfit figure.
+add up to five more photos of the shoe: from above, the front, the back and the
+other side, in any order. You don't have to say which photo is which: Closet
+sorts them itself a few seconds after the last one, and shows what each photo
+is under it on the shoe's page (outer side, inner side, from above, front, back,
+sole). If a shoe has a logo or stripe on one side only and Closet can't tell the
+outside from the inside, the shoe's page asks you which photo shows the outside
+(the outside is the side that faces away from the other shoe when you wear
+them); tap it. On the shoe's page you can also add more photos (**Add photos**)
+or remove one with its **×**; the main photo is replaced with **Retake** instead.
 
 Closet draws the shoe from its photo a moment after it is added. If the photo
 does not work for that (it shows the pair, or the shoe from the front, say),

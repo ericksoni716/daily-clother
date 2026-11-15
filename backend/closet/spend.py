@@ -10,8 +10,8 @@ month in the computer's local time; it is kept in the program's settings with
 the switch that allows the API key. Before each API request the month's spend
 plus a careful estimate of that request is compared with the limit, and the
 request is not made if it could go over. Several workers can ask at once (describing, landmarks, the pieces in
-a photo, "Would this work?", shopping), so the estimate of each request on its way is held against the limit
-until it comes back or fails: together they cannot go over either.
+a photo, a shoe's photos sorted into views, "Would this work?", shopping), so the estimate of each request on its
+way is held against the limit until it comes back or fails: together they cannot go over either.
 """
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ from .tagger.correcting import MAX_TOKENS as CORRECT_MAX_TOKENS
 from .tagger.garments import MODEL as GARMENTS_MODEL
 from .tagger.shopping import MAX_TOKENS as SHOP_MAX_TOKENS
 from .tagger.tagging import CONFIG, MAX_TOKENS, CapReached, RouteUnavailable
+from .tagger.views import MODEL as VIEWS_MODEL
 
 PURPOSE_TAG = "tag_item"
 PURPOSE_CORRECT = "correct_item"   # reading the owner's sentence about an item (`tagger/correcting.py`)
@@ -32,6 +33,7 @@ PURPOSE_LANDMARKS = "item_landmarks"   # where a patterned top's buttons, neck, 
 PURPOSE_SHOP = "shop_find"            # searching shops for a wish (`tagger/shopping.py`)
 PURPOSE_PRICES = "shop_prices"        # looking up the prices of a wish's finds again
 PURPOSE_GARMENTS = "find_garments"    # where each piece is in a photo of several (`tagger/garments.py`)
+PURPOSE_VIEWS = "sort_views"          # which view each photo of a shoe shows (`tagger/views.py`)
 PRICES_CHECKED: str = CONFIG.get("prices_checked", "")
 TAGGING_MODEL: str = CONFIG["roles"]["tagging"]
 SUGGESTED_CAP_USD = 5.0     # see DECISIONS, "Spend cap for the API key"
@@ -47,6 +49,10 @@ IMAGE_TOKENS = 1600
 # value it may take, about 7,000 characters with the schema; counted at 1 token for every character pair, then the
 # whole doubled), a photo when one is sent, and the longest answer the request allows (`correcting.MAX_TOKENS`).
 CORRECT_TEXT_TOKENS = 9000
+# Sorting a shoe's photos into views: the prompt with the answer's schema (about 3,000 characters, counted at 1 token
+# for every character pair, then the whole doubled and rounded up), each photo at no more than 1024 px a side, and the
+# longest answer the request allows (`correcting.MAX_TOKENS`; the answer itself is a few lines).
+VIEWS_TEXT_TOKENS = 4000
 # Searching shops: Claude reads the pages its web searches bring back, and reads them again at each step of its
 # search, so a request takes in far more than its prompt. A careful upper bound: 300,000 tokens in, the longest
 # answer the request allows, and every web search it may make, at the price per search in the price table.
@@ -99,6 +105,12 @@ def estimate_garments(photos: int, model: str = GARMENTS_MODEL) -> float:
     """The most one request for the boxes around the pieces in a photo should cost: a short prompt and schema, the
     photo, and the longest answer allowed (about twenty boxes fit in it)."""
     return cost_usd(model, CORRECT_TEXT_TOKENS + IMAGE_TOKENS * max(1, photos), CORRECT_MAX_TOKENS)
+
+
+def estimate_views(photos: int, model: str = VIEWS_MODEL) -> float:
+    """The most one request to sort a shoe's photos into views should cost: a short prompt and schema, every photo of
+    the shoe (one to six), and the longest answer allowed."""
+    return cost_usd(model, VIEWS_TEXT_TOKENS + IMAGE_TOKENS * max(1, photos), CORRECT_MAX_TOKENS)
 
 
 def estimate_correction(photos: int, model: str = TAGGING_MODEL) -> float:

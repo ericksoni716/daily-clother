@@ -15,6 +15,7 @@ from closet.tagger.correcting import Change, CorrectionAnswer, CorrectionResult
 from closet.tagger.garments import Garment, Garments
 from closet.tagger.schema import Details, ItemTags, Silhouette
 from closet.tagger.tagging import RouteUnavailable, TaggingError, TagResult
+from closet.tagger.views import PhotoView, ShoeViews
 
 PASSPHRASE = "correct horse battery"
 REAL_FETCH = weather.fetch   # for the tests of the request itself, which stop urlopen instead
@@ -98,6 +99,17 @@ ANSWER = ItemTags(
     details_confidence=0.8, brand=None, size=None, material="100% cotton", needs_shot=None)
 
 
+# How the stand-ins sort a shoe's photos into views, by their place in the order sent: the outer side, from above, the
+# inner side, the front, the back, the sole. The two sides are unsure, and look different once both are there, so
+# the owner is asked which photo shows the outside.
+VIEW_ORDER = ("outer", "top", "inner", "front", "back", "sole")
+
+
+def views_answer(count: int) -> ShoeViews:
+    return ShoeViews(photos=[PhotoView(photo=n, view=VIEW_ORDER[n - 1], sure=VIEW_ORDER[n - 1] not in ("outer", "inner"))
+                             for n in range(1, count + 1)], sides_differ=count >= 3)
+
+
 # what the stand-in understands in a correction by sentence: sentence -> (changes, not understood, needs the photo)
 SENTENCES = {
     "it has three buttons": ([("placket_buttons", "3")], "", False),
@@ -153,8 +165,9 @@ class FakeClaude:
 class FakeApi:
     """Stands in for the Anthropic API behind the API-key route (its `messages.parse`); no test reaches the real one.
 
-    Answers ANSWER (or, asked to read a correction, `correction`: two buttons) and reports token counts as the real
-    API does; `error` makes the next calls raise it instead. `requests` keeps what each call was sent.
+    Answers ANSWER (or, asked to read a correction, `correction`: two buttons; asked to sort a shoe's photos, `views`,
+    else `views_answer` for the photos sent) and reports token counts as the real API does; `error` makes the next
+    calls raise it instead. `requests` keeps what each call was sent.
     """
 
     def __init__(self, input_tokens: int = 2000, output_tokens: int = 400):
@@ -168,6 +181,7 @@ class FakeApi:
         # asked where the pieces are in a 1024-pixel-wide pile photo: GARMENT_BOXES, in its pixels
         self.garments = Garments(garments=[Garment(name=b["label"], x0=b["x0"] * 1024, y0=b["y0"] * 768,
                                                    x1=b["x1"] * 1024, y1=b["y1"] * 768) for b in GARMENT_BOXES])
+        self.views: ShoeViews | None = None
 
     def parse(self, **kw):
         self.calls += 1
@@ -176,6 +190,9 @@ class FakeApi:
             raise self.error
         usage = SimpleNamespace(input_tokens=self.input_tokens, output_tokens=self.output_tokens)
         answer = {CorrectionAnswer: self.correction, Garments: self.garments}.get(kw.get("output_format"), ANSWER)
+        if kw.get("output_format") is ShoeViews:
+            sent = kw["messages"][0]["content"]
+            answer = self.views or views_answer(sum(1 for part in sent if part.get("type") == "image"))
         return SimpleNamespace(parsed_output=answer, stop_reason="end_turn", usage=usage)
 
 

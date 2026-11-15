@@ -200,6 +200,14 @@ def _front(conn, item_id: str):
                         (item_id,)).fetchone()
 
 
+def look_photo(conn, item_id: str):
+    """The photo read for the shoe's front view: the newest one from the front (toe towards the camera), else the
+    newest one from above, whoever said so (the owner, or Claude sorting the photos); never the main photo. None when
+    the shoe has neither."""
+    return conn.execute("SELECT * FROM photos WHERE item_id = ? AND kind != 'front' AND view IN ('front', 'top') "
+                        "ORDER BY view = 'front' DESC, created_at DESC, id LIMIT 1", (item_id,)).fetchone()
+
+
 def told(row, photo) -> dict:
     """The tagger's word on the photo (how many shoes, from where), when its answer was given for this photo: an
     answer older than the photo (it was replaced and is being described again) says nothing about it."""
@@ -260,12 +268,11 @@ def run_one(conn, images_dir, tracer: Tracer) -> str:
 
 
 def _look(conn, images_dir, item_id: str, shoe: TracedShoe, tracer: Tracer) -> dict | None:
-    """What the shoe's second photo, from the front or from above, shows for its front view (`drawing.frontlook`),
+    """What the shoe's photo from the front or from above (`look_photo`) shows for its front view (`drawing.frontlook`),
     when it has one and the tracer can read it (`tracer.look`); None otherwise. A photo that cannot be read leaves
     the front view to the side photo."""
     looker = getattr(tracer, "look", None)
-    photo = conn.execute("SELECT * FROM photos WHERE item_id = ? AND view IS NOT NULL ORDER BY created_at DESC LIMIT 1",
-                         (item_id,)).fetchone()
+    photo = look_photo(conn, item_id)
     if looker is None or photo is None:
         return None
     from .drawing import frontlook

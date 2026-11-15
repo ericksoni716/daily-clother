@@ -92,3 +92,35 @@ describe('saves outlive the page', () => {
     waiting[2]();
   });
 });
+
+describe("a shoe's photos", () => {
+  function recording() {
+    const calls: { path: string; init: RequestInit }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (path: string, init: RequestInit) => {
+      calls.push({ path, init });
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }));
+    return calls;
+  }
+
+  it('marks a shoe added from "A shoe", so its photos are sorted into views', async () => {
+    const calls = recording();
+    await api.upload(new Blob(['x']), 'x.jpg', 'k', null, undefined, true);
+    await api.upload(new Blob(['x']), 'x.jpg', 'k2');
+    expect((calls[0].init.body as FormData).get('shoe')).toBe('true');
+    expect((calls[1].init.body as FormData).get('shoe')).toBeNull();
+  });
+
+  it('adds a photo without saying its view, removes one, and gives the owner\'s answer', async () => {
+    const calls = recording();
+    await api.addShoePhoto('a b', new Blob(['x']), 'x.jpg', 'f'.repeat(64));
+    await api.removeShoePhoto('a b', 'p/1');
+    await api.setPhotoView('a b', 'p1', 'outer');
+    expect(calls.map((c) => [c.init.method, c.path])).toEqual([
+      ['POST', '/api/items/a%20b/photos'], ['DELETE', '/api/items/a%20b/photos/p%2F1'], ['PUT', '/api/items/a%20b/photos/p1/view']]);
+    const form = calls[0].init.body as FormData;
+    expect(form.get('view')).toBeNull();
+    expect(form.get('photo_sha256')).toBe('f'.repeat(64));
+    expect(JSON.parse(calls[2].init.body as string)).toEqual({ view: 'outer' });
+  });
+});

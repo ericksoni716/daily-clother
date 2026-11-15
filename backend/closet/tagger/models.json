@@ -3,7 +3,8 @@
   "prices_checked": "2026-11-03",
   "roles": {
     "tagging": "claude-haiku-5-5",
-    "reasoning": "claude-opus-5-5"
+    "reasoning": "claude-opus-5-5",
+    "sorting": "claude-sonnet-5-5"
   },
   "bench_models": ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"],
   "models": {

@@ -8,7 +8,22 @@ import shutil
 import uuid
 from pathlib import Path
 
-from . import db, details, failures, history, illustrations, images, jobs, kinds, palette, patjobs, tagjobs, tracejobs, vocab
+from . import (
+    db,
+    details,
+    failures,
+    history,
+    illustrations,
+    images,
+    jobs,
+    kinds,
+    palette,
+    patjobs,
+    shoeviews,
+    tagjobs,
+    tracejobs,
+    vocab,
+)
 from .tagger.taxonomy import SHADES, nearest_shade
 
 TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "acquired_on", "notes", "rating_reason", "color_hex")
@@ -86,8 +101,15 @@ def detail(conn, row) -> dict:
     out["photos"] = [{
         "id": p["id"], "kind": p["kind"], "url": _media(p["original_path"]), "thumb_url": _media(p["thumb_path"]),
         "cutout_url": _media(p["cutout_path"]), "cutout_thumb_url": _media(p["cutout_thumb_path"]),
-        "width": p["width"], "height": p["height"], "view": p["view"],
-    } for p in conn.execute("SELECT * FROM photos WHERE item_id = ? ORDER BY kind = 'front' DESC, created_at", (row["id"],))]
+        "width": p["width"], "height": p["height"],
+        # a shoe's photos: the view each shows (outer, inner, top, front, back, sole or other; null: not sorted), whether
+        # that is sure, and who said so (model or owner)
+        "view": p["view"], "view_sure": None if p["view_sure"] is None else bool(p["view_sure"]), "view_by": p["view_by"],
+    } for p in conn.execute("SELECT * FROM photos WHERE item_id = ? ORDER BY kind = 'front' DESC, created_at, id",
+                            (row["id"],))]
+    # a shoe's photos sorted into views: its state, a plain message, and the photos to choose the outside from (null:
+    # not a shoe)
+    out["views"] = shoeviews.shown(conn, row)
     # a shoe's trace from its photo: its state, why it was turned down, and what Fix the details can change (null: not a shoe)
     out["trace"] = tracejobs.shown(row)
     out["recent_wears"] = [r[0] for r in conn.execute(
@@ -157,8 +179,11 @@ def _duplicate(conn, row) -> dict:
 
 
 def create_from_photo(conn, images_dir: Path, data: bytes, client_key: str | None, name: str | None = None,
-                      source_sha256: str | None = None) -> tuple[dict, bool]:
+                      source_sha256: str | None = None, shoe: bool = False, demo: bool = False) -> tuple[dict, bool]:
     """Add an item from one front photo. Returns (item, created).
+
+    `shoe`: added from "A shoe" on Add, so its photos are sorted into views once Claude has said it is a shoe
+    (`shoeviews`; in the demo closet, never).
 
     A repeated `client_key` returns the item made the first time, so an upload
     retried after a dropped connection never creates a duplicate.
@@ -196,6 +221,8 @@ def create_from_photo(conn, images_dir: Path, data: bytes, client_key: str | Non
                      (photo_id, item_id, stored.original_path, stored.thumb_path, stored.width, stored.height,
                       stored.bytes, stored.sha256, source_sha256, t))
         jobs.enqueue_cutout(conn, item_id, photo_id)
+        if shoe:
+            shoeviews.changed(conn, item_id, demo)
         conn.execute("COMMIT")
     except Exception:
         if conn.in_transaction:

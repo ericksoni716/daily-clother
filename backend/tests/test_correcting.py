@@ -101,6 +101,14 @@ def test_the_plan_route_is_given_the_photo_as_a_file(cli):
     assert cli["files"][0] == ["item.jpg"] and "item.jpg" in cli["inputs"][0]
 
 
+def test_the_plan_route_is_given_every_photo_as_a_file_named_in_the_prompt(cli):
+    photos = [Image.new("RGB", (40, 60), (20 * n, 30, 90)) for n in range(3)]
+    correcting.ask("Which view does each photo show?", photos, ("plan",), exe="claude")
+    assert cli["files"][0] == ["photo-1.jpg", "photo-2.jpg", "photo-3.jpg"]
+    assert "in order: photo-1.jpg, photo-2.jpg, photo-3.jpg" in cli["inputs"][0]
+    assert "item.jpg" not in cli["inputs"][0]
+
+
 def test_a_plan_at_its_limit_falls_back_to_the_api_key(cli):
     cli["reply"] = SimpleNamespace(returncode=1, stdout=json.dumps({"is_error": True, "result": "You've hit your limit"}),
                                    stderr="")

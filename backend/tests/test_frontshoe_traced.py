@@ -447,6 +447,24 @@ RULE_STYLES = {"RED_BLACK_RUNNER": ("sneakers", "runner"), "LOW_CHUKKA": ("boots
                "BUSY_RUNNER": ("sneakers", "runner")}
 
 
+# the shoes given a synthetic front photo too (`shoe_photos.front_photo`): what it adds that the side cannot show
+FRONT_PHOTOS = {"RED_BLACK_RUNNER": {"laces": (242, 240, 234), "toe_mark": (242, 240, 234)}, "WORK_BOOT": {},
+                "SERVICE_BOOT": {}}
+_LOOKS: dict = {}
+
+
+def front_look(name: str) -> dict:
+    """What `frontlook.measure` reads from the synthetic front photo of one of `shoe_photos`' shoes."""
+    if name not in _LOOKS:
+        from closet.drawing import frontlook
+
+        from . import shoe_photos as S
+        img, mask = S.front_photo(S.Shoe(**{**getattr(S, name), **FRONT_PHOTOS[name]}))
+        _LOOKS[name] = frontlook.measure(img, [("true", lambda _: mask * 255)],
+                                         frontlook.sole_share(traced_photo(name, (1000, 700) if "BOOT" in name else (1000, 560))))
+    return _LOOKS[name]
+
+
 def every_front_shoe():
     """(name, the shoe from the front with the wearer's ankle in it) for every synthetic traced shoe, A and B, and
     every untraced template but the sandal."""
@@ -455,6 +473,8 @@ def every_front_shoe():
         spec = spec_of(*RULE_STYLES[name])
         for kind in (frontshoe.FROM_SHAPE, frontshoe.FROM_PHOTO):
             yield f"{name} {kind}", front(t, spec, kind=kind)
+        if name in FRONT_PHOTOS:   # B with a second photo, from the front
+            yield f"{name} photo+front", front(frontshoe.Chosen(t, frontshoe.FROM_PHOTO, front_look(name)), spec)
     for c, s in UNTRACED[:-1]:
         yield s, front(None, spec_of(c, s))
 

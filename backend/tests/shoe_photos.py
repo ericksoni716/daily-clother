@@ -49,6 +49,7 @@ class Shoe:
     gloss: bool = False                   # glossy leather: a highlight along the top edge
     lace_style: str = "bars"              # bars: one bar per lace; cross: the laces criss-cross, touching
     lace_count: int = 5
+    toe_mark: tuple | None = None         # a round mark on the toe box, seen only from the front (`front_photo`)
 
     def bottom(self, u):
         """The sole's underside, cm above the ground."""
@@ -258,3 +259,60 @@ def front_view(size=(600, 600)) -> Image.Image:
     d.rounded_rectangle((220, 150, 380, 470), 60, fill=NAVY)
     d.rectangle((210, 440, 390, 480), fill=WHITE)
     return img
+
+
+def front_photo(shoe: Shoe | None = None, *, px_per_cm: float = 30.0, size=(600, 640), ground=GROUND):
+    """The same shoe seen from the front, toe nearest the camera (a second photo, #205): its sole across the
+    bottom, the toe box rounded over it, the instep and its lacing rising behind to the opening (or a boot's
+    shaft). Returns the photo and its true mask (0/1)."""
+    shoe = shoe or Shoe()
+    img = Image.new("RGB", size, ground)
+    mask = Image.new("L", size, 0)
+    d, m = ImageDraw.Draw(img), ImageDraw.Draw(mask)
+    k, cx, yg = px_per_cm, size[0] / 2, size[1] - 70
+    w = 5.0 * k
+    sole_top = yg - shoe.sole_toe_cm * k
+    upper = shoe.vamp or shoe.upper
+    throat = sole_top - (shoe.shaft_cm - shoe.sole_cm if shoe.shaft_cm else 8.0) * k
+    neck = 3.4 * k
+
+    def both(kind, xy, colour, **kw):
+        getattr(d, kind)(xy, fill=colour, **kw)
+        getattr(m, kind)(xy, fill=255, **kw)
+
+    # the instep and the shaft, behind the toe box; the opening at its top
+    both("polygon", [(cx - w + 0.5 * k, sole_top), (cx - neck, throat), (cx + neck, throat), (cx + w - 0.5 * k, sole_top)],
+         shoe.upper if shoe.shaft_cm else upper)
+    if shoe.collar:
+        both("rounded_rectangle", (cx - neck, throat - 0.6 * k, cx + neck, throat + 1.2 * k), shoe.collar, radius=0.6 * k)
+    both("ellipse", (cx - neck + 0.5 * k, throat - 0.6 * k, cx + neck - 0.5 * k, throat + 0.9 * k), (40, 34, 30))
+    # the lacing up the middle of the instep
+    lace_top, lace_bottom = throat + 1.6 * k, sole_top - 4.2 * k
+    if shoe.laces and lace_bottom > lace_top:
+        n = shoe.lace_count
+        for i in range(n):
+            y = lace_top + (lace_bottom - lace_top) * i / max(1, n - 1)
+            d.rectangle((cx - 1.3 * k, y - 0.22 * k, cx + 1.3 * k, y + 0.22 * k), fill=shoe.laces)
+    # the toe box, nearest: its lower band a mudguard's colour, when it has one
+    box = (cx - w + 0.3 * k, sole_top - 5.0 * k, cx + w - 0.3 * k, sole_top + 4.0 * k)
+    both("ellipse", box, shoe.toe_cap or upper)
+    if shoe.mudguard:
+        band = Image.new("L", size, 0)
+        ImageDraw.Draw(band).rectangle((0, sole_top - 1.6 * k, size[0], size[1]), fill=255)
+        toe = Image.new("L", size, 0)
+        ImageDraw.Draw(toe).ellipse(box, fill=255)
+        img.paste(shoe.mudguard, (0, 0), Image.fromarray(np.minimum(np.asarray(band), np.asarray(toe))))
+    if shoe.toe_mark:   # a round mark on the toe box, a little to one side
+        d.ellipse((cx + 0.6 * k, sole_top - 3.0 * k, cx + 2.2 * k, sole_top - 1.9 * k), fill=shoe.toe_mark)
+    if shoe.stripes:   # three slanted stripes on each side of the front, near its edges
+        for side in (-1, 1):
+            for j in range(3):
+                x = cx + side * (w - 1.3 * k - j * 0.7 * k)
+                d.polygon([(x - 0.2 * k, sole_top - 0.3 * k), (x + 0.2 * k, sole_top - 0.3 * k),
+                           (x + 0.2 * k + side * 0.6 * k, sole_top - 3.2 * k), (x - 0.2 * k + side * 0.6 * k, sole_top - 3.2 * k)],
+                          fill=shoe.stripes)
+    # the sole across the bottom: the outsole under the midsole
+    both("rounded_rectangle", (cx - w, sole_top, cx + w, yg), shoe.midsole, radius=0.8 * k)
+    if shoe.outsole is not None:
+        d.rounded_rectangle((cx - w, yg - shoe.outsole_cm * k, cx + w, yg), fill=shoe.outsole, radius=0.6 * k)
+    return img, (np.asarray(mask) > 127).astype(np.uint8)

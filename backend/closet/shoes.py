@@ -2,8 +2,9 @@
 
 The owner's fixes to the traced drawing (`fix`), choosing
 the plain drawing for a shoe (`set_plain`), tracing it again (`retrace`), a new photo in place of the old one
-(`replace_photo`, the item page's "Retake the photo"), and the optional second photo from the front or from above,
-kept for the shoe's front view (`add_view`). The tracing itself runs in the cut-out queue (`tracejobs`).
+(`replace_photo`, the item page's "Retake the photo"), the optional second photo from the front or from above,
+read for the shoe's front view (`add_view`), and which front view the figure draws (`set_front`). The tracing
+itself runs in the cut-out queue (`tracejobs`).
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ from . import db, illustrations, images, items, jobs, tracejobs
 from .drawing import sideshoe
 
 VIEWS = ("front", "top")   # the second photo of a shoe: from the front, or from above
+FRONTS = ("shape", "photo")   # the shoe's front view on the figure (`drawing.frontshoe`'s FROM_SHAPE, FROM_PHOTO)
 MAX_MARK_FIXES = 40
 
 def _traced_row(conn, item_id: str):
@@ -125,6 +127,16 @@ def set_plain(conn, item_id: str, plain) -> dict:
     return items.detail(conn, items.get(conn, item_id))
 
 
+def set_front(conn, item_id: str, kind) -> dict:
+    """The owner chooses the shoe's front view on the outfit figure: "shape" (the template for its style, in the
+    traced colours), "photo" (turned from its photos), or null (the default: "photo" when a front photo was
+    measured, otherwise "shape")."""
+    if kind is not None and kind not in FRONTS:
+        raise items.ItemError("Choose the front view: shape or photo (or null for the default).")
+    _locked(conn, lambda: (_traced_row(conn, item_id), _save(conn, item_id, {"shoe_front": kind})))
+    return items.detail(conn, items.get(conn, item_id))
+
+
 def retrace(conn, item_id: str) -> dict:
     """Trace the shoe from its photo again, in the background; the owner's fixes are kept."""
     def work():
@@ -209,7 +221,8 @@ def add_view(conn, images_dir: Path, item_id: str, data: bytes, view, source_sha
                      "source_sha256, created_at) VALUES (?, ?, 'detail', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                      (photo_id, item_id, view, stored.original_path, stored.thumb_path, stored.width, stored.height,
                       stored.bytes, stored.sha256, source_sha256, db.now()))
-        conn.execute("UPDATE items SET updated_at = ? WHERE id = ?", (db.now(), item_id))
+        conn.execute("UPDATE items SET updated_at = ?, front_look = NULL WHERE id = ?", (db.now(), item_id))
+        tracejobs.mark(conn, item_id)   # traced again, with the new photo read for the front view
 
     try:
         _locked(conn, work)

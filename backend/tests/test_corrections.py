@@ -94,6 +94,18 @@ def test_patch_preserves_concurrent_owner_color(client, services, claude, cfg):
     assert client.get(f"/api/items/{item_id}").json()["color"] == "green"
 
 
+def test_confirm_checks_current_value_under_lock(client, services, claude, cfg):
+    item_id = described(client, services, claude)["id"]
+    with closing(db.connect(cfg.db_path("main"))) as a, closing(db.connect(cfg.db_path("main"))) as b:
+        delayed = BeforeBegin(a, lambda: corrections.apply(b, item_id, {"placket_buttons": 4}))
+        with pytest.raises(items.ItemError) as exc:
+            corrections.confirm(delayed, item_id, "two buttons",
+                                [{"name": "placket_buttons", "before": 3, "value": 2}])
+        assert exc.value.status == 409
+        assert json.loads(items.get(a, item_id)["own_details"])["placket_buttons"] == 4
+        assert not a.in_transaction
+
+
 # ---- by picking
 
 def test_a_picked_detail_changes_the_drawing_and_survives_describe_it_again(client, services, claude, cfg):

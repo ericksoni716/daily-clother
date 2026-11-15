@@ -122,7 +122,8 @@ def _split(row, changes: dict, fields_allowed: bool) -> tuple[dict, dict]:
     return coarse, picked
 
 
-def apply(conn, item_id: str, changes: dict, kind: str = "detail", sentence: str | None = None) -> dict:
+def apply(conn, item_id: str, changes: dict, kind: str = "detail", sentence: str | None = None,
+          expected: dict | None = None) -> dict:
     """Set details (a value of None gives the detail back to Claude's answer) and, for a correction by sentence,
     the item's fields; draw the item again and keep the whole change as one entry in its history."""
     if not isinstance(changes, dict) or not changes:
@@ -130,6 +131,10 @@ def apply(conn, item_id: str, changes: dict, kind: str = "detail", sentence: str
     conn.execute("BEGIN IMMEDIATE")
     try:
         before = items.get(conn, item_id)
+        if expected:
+            now = _description(before)
+            if any(now.get(name, _UNSET) != was for name, was in expected.items()):
+                raise items.ItemError(CHANGED, 409)
         coarse, picked = _split(before, changes, kind == "sentence")
         if coarse:
             items.update(conn, item_id, coarse, record=False)
@@ -292,11 +297,7 @@ def confirm(conn, item_id: str, sentence, changes) -> dict:
         if "before" in c:
             _plain_value(c["name"], c["before"])
             before[c["name"]] = c["before"]
-    if before:
-        now = _description(items.get(conn, item_id))
-        if any(now.get(name, _UNSET) != was for name, was in before.items()):
-            raise items.ItemError(CHANGED, 409)
-    return apply(conn, item_id, picked, kind="sentence", sentence=text)
+    return apply(conn, item_id, picked, kind="sentence", sentence=text, expected=before)
 
 
 # --------------------------------------------------------------- undoing

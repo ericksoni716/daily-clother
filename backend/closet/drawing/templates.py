@@ -780,7 +780,17 @@ def top(**kw) -> Shape:
         yb, ov = lapel_front[1], lapel_front[2]
         yoke_start = _lerp(N, (CX + 24, ny + 26), 0.4)
         front_bottom = yb
-    if neck == "hood":
+    if neck == "hood" and p.get("hood") == "down":   # lying on the shoulders behind the neck, sewn to the collar
+        hood = (f"M {_pt((Nl[0] - 30, ny + 18))} C {_pt((CX - 60, ny - 2))} {_pt((CX - 42, ny - 20))} {_pt((CX, ny - 21))} "
+                f"C {_pt((CX + 42, ny - 20))} {_pt((CX + 60, ny - 2))} {_pt((N[0] + 30, ny + 18))} Z")
+        sh.behind.append(Part(hood, "trim"))
+        # its opening, folded down: the inside of the hood, a crescent just above the collar seam
+        rim = (f"M {_pt((Nl[0] - 4, ny + 4))} C {_pt((CX - 40, ny - 6))} {_pt((CX - 26, ny - 13))} {_pt((CX, ny - 13))} "
+               f"C {_pt((CX + 26, ny - 13))} {_pt((CX + 40, ny - 6))} {_pt((N[0] + 4, ny + 4))} Z")
+        sh.behind.append(Part(rim, "shade"))
+        sh.lines.append(f"M {_pt((CX - 9, front_bottom + 4))} L {_pt((CX - 11, front_bottom + 52))}")
+        sh.lines.append(f"M {_pt((CX + 9, front_bottom + 4))} L {_pt((CX + 11, front_bottom + 52))}")
+    elif neck == "hood":
         hood = (f"M {_pt((Nl[0] - 14, ny + 8))} C {_pt((CX - 70, ny - 60))} {_pt((CX - 38, ny - 84))} {_pt((CX, ny - 84))} "
                 f"C {_pt((CX + 38, ny - 84))} {_pt((CX + 70, ny - 60))} {_pt((N[0] + 14, ny + 8))} Z")
         sh.behind.append(Part(hood, "trim"))
@@ -3385,6 +3395,8 @@ def scarf(**kw) -> Shape:
         for y in (-2.0, 2.0, 5.6):   # it bunches round the neck
             dr.lines.append([("M", (-9.4, y)), ("Q", (-4.5, y + 1.4), (0, y + 0.3)), ("Q", (4.5, y - 0.9), (9.4, y + 0.6))])
         return _finish(dr, kw.get("px"))
+    if kw.get("worn") and style in ("woven", "knit", "silk"):
+        return _worn_scarf(style, kw.get("layer", "front"), kw.get("px"))
     loop = [("M", (-9.5, -2.0)), ("C", (-8.0, -8.5), (8.0, -8.5), (9.5, -2.0))]
     if style == "bandana":   # a square folded into a triangle, tied behind the neck
         dr = _Draft(loop + [("L", (0.6, 19.0)), ("L", (-0.6, 19.0)), ("Z",)], anchor="neck")
@@ -3429,6 +3441,91 @@ def scarf(**kw) -> Shape:
                 dr.part([("M", (x, ln)), ("L", (x + 0.1, ln + 3.2))], "edge")
             dr.line((a, ln - 1.4), (b, ln - 1.4))
     return _finish(dr, kw.get("px"))
+
+
+SCARF_LAYERS = ("back", "under", "front", "over")   # a worn scarf's pieces, back to front
+
+
+def _worn_scarf(style: str, layer: str, px=None) -> Shape:
+    """A woven, knit or silk scarf as worn on the figure, one of its SCARF_LAYERS at a time, about the base of his
+    neck (0, 0): it is a band wrapped once round the neck, not a flat ring. `back` is the part going round behind
+    his neck, seen at either side of it (drawn before his neck and head); `front` the band across his throat,
+    resting on the base of the neck and the top of his collar; `under` and `over` the two ends, hanging from where
+    the scarf crosses at the front, the one behind the other, overlapping and tapering (fringed when woven). A silk
+    one is thinner and tied in a knot at the front, its ends narrow and pointed."""
+    silk, knit = style == "silk", style == "knit"
+    top, low, half = (-0.6, 3.4, 7.0) if silk else (-0.2, 5.4, 8.6) if knit else (0.0, 5.0, 8.2)
+    if layer == "back":   # behind the neck, a little higher than the front: it goes round the back of it
+        out = half + 1.4
+        dr = _Draft([("M", (-out, 2.0)), ("C", (-out - 0.4, -3.0), (-5.0, top - 4.6), (0, top - 4.6)),
+                     ("C", (5.0, top - 4.6), (out + 0.4, -3.0), (out, 2.0)), ("L", (4.0, 2.0)),
+                     ("C", (4.0, -1.6), (-4.0, -1.6), (-4.0, 2.0)), ("Z",)], anchor="neck")
+        dr.part([("M", (-out + 0.7, 1.4)), ("C", (-out + 0.2, -2.2), (-5.0, top - 3.6), (0, top - 3.6)),
+                 ("C", (5.0, top - 3.6), (out - 0.2, -2.2), (out - 0.7, 1.4)), ("L", (4.0, 1.4)),
+                 ("C", (4.0, -1.0), (-4.0, -1.0), (-4.0, 1.4)), ("Z",)], "shade")   # its inside, in shadow
+        return _finish(dr, px)
+    if layer == "front":   # across the throat, sagging a little at the front, its sides rising round the neck
+        sag = 1.2 if silk else 2.4 if knit else 1.8
+        dr = _Draft([("M", (-half + 0.8, top - 1.4)), ("C", (-4.5, top + sag), (4.5, top + sag), (half - 0.8, top - 1.4)),
+                     ("C", (half + 0.4, top - 0.4), (half + 1.0, low - 2.8), (half + 0.6, low - 1.6)),
+                     ("C", (4.5, low + sag + 0.6), (-4.5, low + sag + 0.6), (-half - 0.6, low - 1.6)),
+                     ("C", (-half - 1.0, low - 2.8), (-half - 0.4, top - 0.4), (-half + 0.8, top - 1.4)), ("Z",)], anchor="neck")
+        if knit:
+            for x in (-5.4, -2.7, 0.0, 2.7, 5.4):   # its rib running round the neck, following the sag
+                dy = sag * (1 - (x / half) ** 2)
+                dr.line((x * 1.04, top + 0.4 + dy - abs(x) * 0.15), (x * 1.08, low - 0.4 + dy - abs(x) * 0.2))
+        else:
+            mid = (top + low) / 2
+            dr.lines.append([("M", (-half + 1.2, mid - 0.6)), ("Q", (0, mid + sag + 0.8), (half - 1.2, mid - 0.6))])   # a fold
+        return _finish(dr, px)
+    # the ends: from where the scarf crosses at the front, a little to his right (the viewer's left). `under` hangs
+    # behind the band's lower edge; `over` comes over it, folded, from the crossing
+    under = layer == "under"
+    if silk:
+        x0, x1, ln, drift, w_end = (-3.2, 0.0, 18.5, -1.6, 2.2) if under else (-2.0, 1.6, 20.5, 1.0, 2.2)
+    else:
+        wide = 7.0 if knit else 6.4
+        x0, x1, ln, drift = (-4.6, -4.6 + wide, 53.0, -0.8) if under else (-4.6 + 0.42 * wide, -4.6 + 1.42 * wide, 48.0, 0.4)
+        w_end = wide * 0.55
+    y0 = low - 1.6 if under or silk else (top + low) / 2 + 0.6
+    cx_end = (x0 + x1) / 2 + drift
+    a, b = cx_end - w_end / 2, cx_end + w_end / 2
+    if silk:   # a pointed end
+        bottom = [("L", (b, ln)), ("L", ((a + b) / 2, ln + 3.0)), ("L", (a, ln))]
+    else:
+        bottom = [("L", (b, ln)), ("L", (a, ln))]
+    head = ([("M", (x0, y0)), ("L", (x1, y0))] if under or silk else
+            [("M", (x0, y0 + 0.6)), ("C", (x0 + 1.0, y0 - 0.8), (x1 - 1.6, y0 - 1.0), (x1, y0 + 0.2))])   # the fold at the crossing
+    def at(p, q, t):
+        return p + (q - p) * t
+    if silk:
+        right = [("C", (x1 + 0.4, y0 + 10.0), (b + 0.3, ln - 12.0), (b, ln))]
+        left = [("C", (a - 0.3, ln - 12.0), (x0 - 0.4, y0 + 10.0), head[0][1])]
+    else:   # a long end narrowing evenly all the way down
+        right = [("C", (at(x1, b, 0.25) + 0.3, at(y0, ln, 0.33)), (at(x1, b, 0.7), at(y0, ln, 0.7)), (b, ln))]
+        left = [("C", (at(x0, a, 0.7), at(y0, ln, 0.7)), (at(x0, a, 0.25) - 0.3, at(y0, ln, 0.33)), head[0][1])]
+    dr = _Draft(head + right + bottom[1:] + left + [("Z",)], anchor="neck")
+    if silk and not under:   # the knot, a little off the middle, over the band and the tops of both ends
+        k, ky = -1.0, low + 0.4
+        dr.part([("M", (k - 2.6, ky - 1.0)), ("C", (k - 2.4, ky - 2.6), (k + 2.2, ky - 2.8), (k + 2.6, ky - 1.2)),
+                 ("C", (k + 3.0, ky + 0.8), (k + 1.0, ky + 2.4), (k - 0.4, ky + 2.2)),
+                 ("C", (k - 2.2, ky + 2.0), (k - 2.9, ky + 0.6), (k - 2.6, ky - 1.0)), ("Z",)])
+        for dx, dy in ((-4.4, -1.6), (4.2, -1.8)):   # the folds running into it
+            dr.line((k + dx * 0.55, ky + dy * 0.55), (k + dx, ky + dy - 0.4))
+        dr.line((k - 1.4, ky - 0.2), (k + 1.2, ky + 0.6))
+    elif not under:   # the shadow under the fold
+        dr.lines.append([("M", (x0 + 0.6, y0 + 1.6)), ("Q", ((x0 + x1) / 2, y0 + 0.6), (x1 - 0.4, y0 + 1.4))])
+    if knit:   # rib down the end, and its band at the bottom
+        for f in (0.2, 0.4, 0.6, 0.8):
+            dr.line((x0 + (x1 - x0) * f, y0 + 2.0), (a + (b - a) * f, ln - 3.0))
+        dr.line((a + 0.1, ln - 3.0), (b - 0.1, ln - 3.0))
+    elif not silk:   # woven: a fringe at the end
+        n = int((b - a) / 0.55)
+        for i in range(n + 1):
+            x = a + 0.2 + i * (b - a - 0.4) / max(n, 1)
+            dr.part([("M", (x, ln)), ("L", (x + 0.1, ln + 4.2))], "edge")
+        dr.line((a + 0.1, ln - 1.4), (b - 0.1, ln - 1.4))
+    return _finish(dr, px)
 
 
 def bag(**kw) -> Shape:

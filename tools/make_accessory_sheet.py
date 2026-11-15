@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from make_figure_sheet import demo_rows, to_png  # noqa: E402
 
+from closet.drawing import figure as fig  # noqa: E402
 from closet.drawing import item  # noqa: E402
 from closet.drawing.figure import Piece, figure  # noqa: E402
 from closet.illustrations import describe  # noqa: E402
@@ -41,12 +42,20 @@ BLAZER = dict(category="jacket", color="#3a3f4a",
               details=dict(garment="sport_coat", collar="notch_lapel", placket="front_placket", pockets="hip_flap_double"))
 
 # caption, then the demo items by name (or a dict as BLAZER) for each place, then the accessories as (garment id,
-# kind) or (garment id, kind, the tagger's pattern name)
+# kind) or (garment id, kind, the tagger's pattern name). closed=True: the layers drawn closed (the figure wears a
+# coat that opens open over other layers; this shows a scarf over one buttoned up)
 OUTFITS = [
     ("Cold: overcoat, knit scarf, beanie, rucksack",
      dict(base="Blue oxford shirt", mid="Burgundy cable sweater", outer="Black overcoat",
           bottom="Brown corduroy trousers", shoes="Brown boots"),
      [("scarf", "long_knit"), ("beanie", "beanie"), ("bag", "rucksack")]),
+    ("Cold, coat closed: the same, buttoned",
+     dict(base="Blue oxford shirt", mid="Burgundy cable sweater", outer="Black overcoat",
+          bottom="Brown corduroy trousers", shoes="Brown boots", closed=True),
+     [("scarf", "long_knit"), ("beanie", "beanie"), ("bag", "rucksack")]),
+    ("Cool: sweater, knit scarf, rucksack, no coat",
+     dict(base="Blue oxford shirt", mid="Burgundy cable sweater", bottom="Brown corduroy trousers", shoes="Brown boots"),
+     [("scarf", "long_knit"), ("bag", "rucksack")]),
     ("Mild: shirt, dress belt, fedora, briefcase",
      dict(base="White dress shirt", bottom="Grey wool trousers", shoes="White leather sneakers"),
      [("belt", "dress_belt"), ("brimmed_hat", "fedora"), ("bag", "briefcase")]),
@@ -109,11 +118,18 @@ def figures() -> list[tuple[str, str]]:
     rows = demo_rows()
     out = []
     for n, (caption, names, worn) in enumerate(OUTFITS):
+        names = dict(names)
+        closed = names.pop("closed", False)
         pieces: dict = {place: describe(rows[name]) if isinstance(name, str) else
                         Piece(name["category"], tags(name["category"], name["details"]), name["color"])
                         for place, name in names.items()}
         pieces["accessories"] = [Piece(category(a[0]), answer(*a), COLORS[a[0]]) for a in worn]
-        out.append((caption, figure(pieces, uid="g" + chr(ord("a") + n))))
+        opens = fig.OPENS
+        fig.OPENS = () if closed else opens
+        try:
+            out.append((caption, figure(pieces, uid="g" + chr(ord("a") + n))))
+        finally:
+            fig.OPENS = opens
     return out
 
 

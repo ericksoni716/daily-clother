@@ -3,7 +3,7 @@
     python tools/make_figure_shots.py NAME [--out DIR]
     python tools/make_figure_shots.py NAME --shoes [--out DIR]
 
-Draws five outfits with `closet.drawing.figure` (from the demo closet's items, plus a pair of sandals the demo
+Draws six outfits with `closet.drawing.figure` (from the demo closet's items, plus a pair of sandals the demo
 closet does not have, and its corduroy trousers drawn with a relaxed leg) and puts each one in a page laid out like the Today card on a 390 x 844 phone, in the light
 and the dark theme, then takes a picture of the page with a Chrome or Chromium found on this computer. The
 pictures are written as DIR/figure-<outfit>-<light|dark>-NAME.png (DIR is docs/screenshots by default), so the
@@ -80,11 +80,22 @@ OUTFITS = [
           shoes="Brown boots")),
     ("hoodie-relaxed", "Oversized hoodie, relaxed trousers, sneakers",
      dict(base="Grey hoodie", bottom="Brown corduroy trousers", shoes="Grey runners")),
+    ("oversized-tee", "Oversized tee: the arms beside it, the forearm below its wide sleeve",
+     dict(base="White tee", bottom="Dark indigo jeans", shoes="White leather sneakers")),
 ]
 RELAXED = {"Brown corduroy trousers"}
+OVERSIZED = {"oversized-tee"}   # the tee drawn oversized, as if the tagger had said so
 
 
-def pieces_for(names: dict) -> dict:
+def oversized(piece: Piece) -> Piece:
+    """The tee oversized with short sleeves, as if the tagger had said so: the demo closet has none."""
+    answer = copy.deepcopy(piece.answer)
+    answer["details"]["fit_detail"] = "oversized"
+    answer["details"]["sleeve_length"] = "short"
+    return dataclasses.replace(piece, answer=answer)
+
+
+def pieces_for(names: dict, key: str = "") -> dict:
     rows = demo_rows()
     out = {}
     for place, name in names.items():
@@ -94,6 +105,8 @@ def pieces_for(names: dict) -> dict:
             out[place] = describe(rows[name]) if name else sandals()
             if name in RELAXED:
                 out[place] = relaxed(out[place])
+            if key in OVERSIZED and place == "base":
+                out[place] = oversized(out[place])
     return out
 
 
@@ -170,7 +183,7 @@ def main() -> None:
         print(f"wrote {png}")
         return
     for key, caption, names in OUTFITS:
-        svg = figure(pieces_for(names), uid="s" + key[:2])
+        svg = figure(pieces_for(names, key), uid="s" + key[:2])
         for theme in THEMES:
             png = args.out / f"figure-{key}-{theme}-{args.name}.png"
             shoot(page(svg, caption, theme), png)

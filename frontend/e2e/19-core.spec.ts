@@ -85,6 +85,7 @@ test('a delayed save cannot roll back a newer edit of the same field', async ({ 
     if (hold) await waiting;
     await route.fulfill({ response });
   });
+
   const name = page.getByRole('textbox', { name: 'Name', exact: true });
   try {
     await name.fill('First edit');
@@ -106,3 +107,78 @@ test('a delayed save cannot roll back a newer edit of the same field', async ({ 
     await page.request.patch(`/api/items/${id}`, { data: { name: original.name } });
   }
 });
+
+test('slow polling makes progress even while a newer poll is pending', async ({ page }) => {
+  await login(page);
+  await useProfile(page, 'demo');
+  await expect(page.getByTestId('tile').first()).toBeVisible();
+  const list = await (await page.request.get('/api/items')).json();
+  list.items[0] = { ...list.items[0], name: 'Slow poll initial', tag_state: 'working' };
+  let first = true;
+  const pending: (() => void)[] = [];
+  await page.route('**/api/items?status=active', async (route) => {
+    if (!first) await new Promise<void>((resolve) => pending.push(resolve));
+    const name = first ? 'Slow poll initial' : 'Slow poll refreshed';
+    first = false;
+    await route.fulfill({ json: { items: [{ ...list.items[0], name }, ...list.items.slice(1)] } });
+  });
+  await page.clock.install();
+  try {
+    await page.locator('nav.sidebar').getByRole('link', { name: 'Settings', exact: true }).click();
+    await page.locator('nav.sidebar').getByRole('link', { name: /^Closet/ }).click();
+    await expect(page.getByTestId('tile').filter({ hasText: 'Slow poll initial' })).toBeVisible();
+    await page.clock.fastForward(2000);
+    await expect.poll(() => pending.length).toBe(1);
+    await page.clock.fastForward(2000);
+    await expect.poll(() => pending.length).toBe(2);
+    pending[0]();
+    await expect(page.getByTestId('tile').filter({ hasText: 'Slow poll refreshed' })).toBeVisible();
+  } finally {
+    pending.forEach((release) => release());
+  }
+});
+
+for (const saved of [false, true]) {
+  test(`a late reconnect response preserves a newer ${saved ? 'saved edit' : 'unsaved draft'}`, async ({ page, context }) => {
+    await login(page);
+    await useProfile(page, 'demo');
+    await page.getByTestId('tile').filter({ hasText: 'Oatmeal henley' }).click();
+    const id = new URL(page.url()).pathname.split('/').at(-1)!;
+    const original = await (await page.request.get(`/api/items/${id}`)).json();
+    const name = page.getByRole('textbox', { name: 'Name', exact: true });
+    let release!: () => void;
+    const waiting = new Promise<void>((resolve) => { release = resolve; });
+    try {
+      await context.setOffline(true);
+      await name.fill('Unavailable edit');
+      await name.press('Enter');
+      await expect(page.getByText('Offline: showing your saved closet')).toBeVisible();
+      await page.request.patch(`/api/items/${id}`, { data: { name: 'Background update' } });
+      const snapshot = await (await page.request.get(`/api/items/${id}`)).json();
+      await page.route(`**/api/items/${id}`, async (route) => {
+        if (route.request().method() !== 'GET') return route.continue();
+        await waiting;
+        await route.fulfill({ json: snapshot });
+      });
+      const requested = page.waitForRequest((request) => request.method() === 'GET' && request.url().endsWith(`/api/items/${id}`));
+      await context.setOffline(false);
+      await requested;
+      await expect(page.getByText('Offline: showing your saved closet')).toBeHidden();
+      await name.fill('Newest edit');
+      if (saved) {
+        const answer = page.waitForResponse((response) => response.request().method() === 'PATCH' && response.ok());
+        await name.press('Enter');
+        await answer;
+      }
+      const answered = page.waitForResponse((response) => response.request().method() === 'GET' && response.url().endsWith(`/api/items/${id}`));
+      release();
+      await answered;
+      await page.waitForLoadState('networkidle');
+      await expect(name).toHaveValue('Newest edit');
+    } finally {
+      await context.setOffline(false);
+      release();
+      await page.request.patch(`/api/items/${id}`, { data: { name: original.name } });
+    }
+  });
+}

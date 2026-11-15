@@ -48,16 +48,21 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   const [focus, setFocus] = useState<{ field: string; at: number } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const inflight = useRef(0);
+  const editVersion = useRef(0);
   const saves = useRef(new SaveLine());
   useWhenLeaving(() => saves.current.flush(), true);
   const backTo = status === 'archived' ? '/archived' : '/';
 
   const load = useCallback(async () => {
+    if (inflight.current) return;
+    const version = editVersion.current;
     try {
       const it = await api.item(id);
+      if (version !== editVersion.current || inflight.current) return;
       setItem(it);
       setError(null);
     } catch (e) {
+      if (version !== editVersion.current || inflight.current) return;
       setError((e as ApiError).message);
     }
   }, [id]);
@@ -83,9 +88,10 @@ export function ItemDetail({ id, status, inPanel }: Props) {
     if (!(busy || describing || awaiting || measuring) || offline) return;
     const t = window.setInterval(async () => {
       if (inflight.current) return;
+      const version = editVersion.current;
       try {
         const fresh = await api.item(id);
-        if (inflight.current) return;
+        if (inflight.current || version !== editVersion.current) return;
         setItem(fresh);
         const states = `${fresh.cutout_state}/${fresh.tag_state}/${fresh.pattern_state}`;
         if (states !== followed.current) upsert(fresh);
@@ -98,6 +104,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   }, [busy, describing, awaiting, measuring, offline, id, upsert]);
 
   const retag = useCallback(async () => {
+    editVersion.current++;
     try {
       const saved = await api.retag(id);
       setItem(saved);
@@ -110,6 +117,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
 
   const save = useCallback(async (changes: ItemPatch, saidAs = 'Saved') => {
     if (!item) return;
+    editVersion.current++;
     const before = item;
     setItem((cur) => (cur ? applyPatch(cur, changes) : cur));
     inflight.current++;
@@ -131,6 +139,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
 
   // Wears and the laundry are changed through their own calls, each answering with the whole item.
   const act = useCallback(async (call: () => Promise<Item>, saidAs: string): Promise<Item | undefined> => {
+    editVersion.current++;
     inflight.current++;
     try {
       const saved = await call();
@@ -187,6 +196,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   const canRetag = profile !== 'demo' && item.cutout_state === 'ready' && item.has_photo &&
     (item.tag_state === 'done' || item.tag_state === 'none');
   const fixed = (saved: Item, saidAs: string) => {
+    editVersion.current++;
     setItem(saved);
     upsert(saved);
     toast(saidAs);
@@ -220,6 +230,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
             <p><strong>The background couldn't be removed.</strong>{item.cutout_error ? ` ${item.cutout_error}` : ''}</p>
             <FailureDetails item={item} stage="cutout" />
             <button className="btn btn-small" disabled={locked} onClick={async () => {
+              editVersion.current++;
               try {
                 setItem(await api.retryCutout(id));
                 toast('Trying the cutout again');
@@ -627,9 +638,20 @@ function Picture({ item, busyText, fallbackThumb, fix }: { item: Item; busyText:
   );
 }
 
+/** Fresh data may update an untouched field, but must not replace text still being typed. */
+function useFieldText(value: string) {
+  const [text, setText] = useState(value);
+  const previous = useRef(value);
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = value;
+    setText((current) => current === before ? value : current);
+  }, [value]);
+  return [text, setText] as const;
+}
+
 function NameField({ value, placeholder, disabled, onSave }: { value: string | null; placeholder: string; disabled: boolean; onSave(v: string | null): void }) {
-  const [text, setText] = useState(value ?? '');
-  useEffect(() => setText(value ?? ''), [value]);
+  const [text, setText] = useFieldText(value ?? '');
   const commit = () => {
     const v = text.trim();
     if (v !== (value ?? '')) onSave(v || null);
@@ -674,8 +696,7 @@ interface TextFieldProps {
 }
 
 function TextField({ label: text, value, disabled, placeholder, type = 'text', multiline, onSave }: TextFieldProps) {
-  const [v, setV] = useState(value ?? '');
-  useEffect(() => setV(value ?? ''), [value]);
+  const [v, setV] = useFieldText(value ?? '');
   const commit = () => {
     const t = v.trim();
     if (t !== (value ?? '')) onSave(t || null);
@@ -695,8 +716,7 @@ function TextField({ label: text, value, disabled, placeholder, type = 'text', m
 }
 
 function PriceField({ cents, disabled, onSave, toastError }: { cents: number | null; disabled: boolean; onSave(c: number | null): void; toastError(m: string): void }) {
-  const [v, setV] = useState(formatPrice(cents));
-  useEffect(() => setV(formatPrice(cents)), [cents]);
+  const [v, setV] = useFieldText(formatPrice(cents));
   const commit = () => {
     const parsed = parsePrice(v);
     if (parsed === undefined) {

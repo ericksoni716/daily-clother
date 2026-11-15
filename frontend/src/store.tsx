@@ -64,6 +64,7 @@ export function ClosetProvider({ profile, onProfile, onLogout, onQuit, toast, ch
   const [loadError, setLoadError] = useState<string | null>(null);
   const generation = useRef(0);
   const reads = useRef({ active: 0, archived: 0 });
+  const applied = useRef({ active: 0, archived: 0 });
   const changes = useRef(0);
 
   const loadItems = useCallback(async (status: Status): Promise<void> => {
@@ -72,15 +73,16 @@ export function ClosetProvider({ profile, onProfile, onLogout, onQuit, toast, ch
     const revision = changes.current;
     try {
       const list = await api.items(status);
-      if (gen !== generation.current || read !== reads.current[status]) return;
+      if (gen !== generation.current || read < applied.current[status]) return;
       if (revision !== changes.current) {
         void loadItems(status);
         return;
       }
+      applied.current[status] = read;
       setItems((prev) => ({ ...prev, [status]: list }));
       setLoadError(null);
     } catch (e) {
-      if (gen !== generation.current || read !== reads.current[status]) return;
+      if (gen !== generation.current || read < applied.current[status]) return;
       setLoadError((e as Error).message);
     }
   }, []);

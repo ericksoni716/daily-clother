@@ -31,6 +31,7 @@ from . import (
     corrections,
     db,
     demo,
+    gate,
     history,
     illustrations,
     images,
@@ -378,9 +379,17 @@ def create_app(sv: Services) -> FastAPI:
     def token(request: Request) -> str | None:
         return request.cookies.get(auth.COOKIE)
 
+    def refusal(session: str | None) -> str | None:
+        if auth.session_valid(state, session):
+            return None
+        return "Log in to continue." if auth.is_set_up(state) else "Set a passphrase to get started."
+
     def require_auth(request: Request) -> None:
-        if not auth.session_valid(state, token(request)):
-            raise HTTPException(401, "Log in to continue." if auth.is_set_up(state) else "Set a passphrase to get started.")
+        if (refused := refusal(token(request))) is not None:
+            raise HTTPException(401, refused)
+
+    # the login and the size limits, checked before any request body is read
+    app.add_middleware(gate.Gate, cookie=auth.COOKIE, refusal=refusal)
 
     def conn_dep():
         conn = db.connect(cfg.db_path(state.get("profile")))

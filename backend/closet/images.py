@@ -13,6 +13,8 @@ from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from . import limits
+
 try:  # HEIC from iPhones; optional so a missing library degrades to a clear message
     import pillow_heif
     pillow_heif.register_heif_opener()
@@ -22,7 +24,7 @@ except Exception:  # pragma: no cover - depends on the platform build
 
 MAX_EDGE = 1600
 THUMB_EDGE = 480
-MAX_UPLOAD_BYTES = 60 * 1024 * 1024
+MAX_UPLOAD_BYTES = limits.PHOTO_BYTES
 
 
 class ImageError(ValueError):

@@ -61,6 +61,30 @@ def test_work_interrupted_by_a_shutdown_resumes_on_the_next_start(client, servic
     assert client.get(f"/api/items/{item['id']}").json()["cutout_state"] == "ready"
 
 
+@pytest.mark.parametrize("kind", ["cutout", "tag"])
+def test_startup_fails_interrupted_jobs_that_used_all_attempts(client, services, cfg, claude, kind):
+    item = upload(client).json()
+    services.worker.is_ready = lambda: True
+    if kind == "tag":
+        assert drain(services) == 1
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        conn.execute("UPDATE jobs SET state = 'running', attempts = 3 WHERE kind = ?", (kind,))
+        conn.execute(f"UPDATE items SET {kind}_state = ?", ("processing" if kind == "cutout" else "working",))
+        assert jobs.requeue_interrupted(conn) == 1
+        job = conn.execute("SELECT state, attempts FROM jobs WHERE kind = ?", (kind,)).fetchone()
+        assert (job["state"], job["attempts"]) == ("failed", 3)
+    finally:
+        conn.close()
+    claude.mode = "answers"
+    assert drain(services) == 0
+    assert services.tag_worker.drain() == 0
+    body = client.get(f"/api/items/{item['id']}").json()
+    assert body[f"{kind}_state"] == "failed"
+    assert "try again" in body[f"{kind}_error"].lower()
+    assert claude.calls == []
+
+
 def test_deleting_an_item_drops_its_queued_job(client, services):
     item = upload(client).json()
     client.delete(f"/api/items/{item['id']}")

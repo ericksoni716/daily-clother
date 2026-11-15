@@ -415,9 +415,12 @@ def _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, 
         lace = lace_c or (shade(base, -0.28) if luminance(base) > 0.75 else shade(base, 0.35 if luminance(base) < 0.3 else -0.25))
         kind = p.get("lace_kind")
         k = {"flat_waxed": 1.3, "flat_cotton": 1.3, "round_waxed": 0.8, "round_rope": 1.4, "rawhide": 1.3}.get(kind, 1.0)
+        rows = []
         for i in range(n):
             u = lo + (hi - lo) * i / max(1, n - 1)
-            d = _path(across(u, 0.42 if style not in TRAINERS else 0.5, 0.25), close=False)
+            width = 0.42 if style not in TRAINERS else 0.5
+            rows.append([s(u, -width, 0.25), s(u, width, 0.25)])
+            d = _path(across(u, width, 0.25), close=False)
             out.append(ln(d, 1.3 + 1.5 * k, INK, 0.9) + ln(d, 1.5 * k, lace, 1))
             if kind in ("flat_waxed", "round_waxed"):   # a waxed lace's glint
                 out.append(ln(_path(across(u, 0.24, 0.3)[3:8], close=False), 0.8, "#fff", 0.75))
@@ -433,7 +436,25 @@ def _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, 
             for i in range(3):
                 h = sole_t + 8.5 + i * (shaft - sole_t - 10) / 2
                 d = _path([view(1.8 * k / 3, 0.2 + 5.2 / LENGTH, h) for k in range(-3, 4)], close=False)
+                rows.append([view(x, 0.2 + 5.2 / LENGTH, h) for x in (-1.8, 1.8)])
                 out.append(ln(d, 2.8, INK, 0.9) + ln(d, 1.5, lace, 1))
+        # Hooks replace the highest pairs, continuing onto the vamp when there are more than three.
+        for i, row in enumerate(sorted(rows, key=lambda row: sum(y for _, y in row))):
+            hook = i < int(p.get("hooks") or 0)
+            if not hook and not p.get("rings"):
+                continue
+            for x, y in row:
+                angles = [math.radians(-130 + j * 260 / 12) if hook else j * math.pi / 8 for j in range(17 if not hook else 13)]
+                d = _path([(x + 0.55 * view.px * math.cos(a), y + 0.65 * view.px * math.sin(a)) for a in angles],
+                          close=not hook)
+                out.append(ln(d, 3.0, INK, 1) + ln(d, 1.5, METAL, 1))
+        if p.get("toggle"):
+            x, y = s(lo - 0.015, 0.0, 0.3)
+            for side in (-1, 1):
+                d = _path([(x, y), s(lo + 0.05, side * 0.15, 0.3), s(lo + 0.15, side * 0.1, 0.3)], close=False)
+                out.append(ln(d, 2.8, INK, 1) + ln(d, 1.5, lace, 1))
+            out.append(f'<rect x="{x - 0.8 * view.px:.1f}" y="{y - 0.65 * view.px:.1f}" width="{1.6 * view.px:.1f}" '
+                       f'height="{1.3 * view.px:.1f}" rx="1" fill="{INK}"/>')
     if p.get("toe_cap") == "stitched" or p.get("brogue") in ("quarter", "semi"):
         out.append(ln(_path(across(0.83, 1.0, 0.0), close=False), 1.3))
     if p.get("brogue") == "full":   # a wingtip: the wing's point on the toe

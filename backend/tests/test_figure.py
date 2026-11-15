@@ -3,6 +3,7 @@ import math
 import re
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -881,6 +882,39 @@ def test_a_sandal_is_drawn_sole_then_foot_then_straps(shoes):
 LOW_SHOES = [Piece(c, answer(c, shoe_style=s), "#5a3a22") for c, s in
              (("sneakers", "low_sneaker"), ("sneakers", "runner"), ("sneakers", "slip_on"), ("dress_shoes", "loafer"),
               ("dress_shoes", "derby"), ("dress_shoes", "oxford"))]
+
+
+@pytest.mark.parametrize("footwear,lacing,pairs", [
+    ("service_boot", "d_rings", 7),
+    ("service_boot", "speed_hooks", 3),
+    ("logger_boot", "na", 4),
+])
+def test_front_shoes_draw_lacing_hardware_on_the_upper(footwear, lacing, pairs):
+    spec = fig._spec(Piece("boots", answer("boots", footwear=footwear, lacing=lacing), "#765432"))
+    plain = replace(spec, params={k: v for k, v in spec.params.items() if k not in ("rings", "hooks")})
+    drawn = fig.front_shoe(spec, K_PX, uid="z", ankle=fig._ankle())
+    assert drawn.body != fig.front_shoe(plain, K_PX, uid="z", ankle=fig._ankle()).body
+    hardware = re.findall(r'<path d="([^"]+)" fill="none" stroke="' + frontshoe.METAL + '"', drawn.body)
+    assert len(hardware) == 2 * pairs
+    assert all(_inside(point, _flat(drawn.outline)) for path in hardware for point in _flat(path))
+    assert drawn.body.index('clip-path="url(#za)"') < drawn.body.index(f'stroke="{frontshoe.METAL}"')
+
+
+def test_front_shoes_draw_a_toggle_and_its_two_cord_ends():
+    spec = fig._spec(Piece("sneakers", answer("sneakers", footwear="trail_runner", lacing="toggle_speed_lace"), "#765432"))
+    plain = replace(spec, params={k: v for k, v in spec.params.items() if k != "toggle"})
+    drawn = fig.front_shoe(spec, K_PX, uid="z", ankle=fig._ankle())
+    assert drawn.body != fig.front_shoe(plain, K_PX, uid="z", ankle=fig._ankle()).body
+    lock = re.search(r'<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)" rx="1" fill="' + illustrate.INK, drawn.body)
+    assert lock is not None
+    x, y, w, h = map(float, lock.groups())
+    assert all(_inside(p, _flat(drawn.outline)) for p in ((x, y), (x + w, y + h)))
+    tails = re.findall(r'<path d="([^"]+)" fill="none" stroke="[^"]+" stroke-width="1.5"[^>]*>', drawn.body[:lock.start()])
+    assert len(tails) >= 2
+    for tail in tails[-2:]:
+        points = _flat(tail)
+        assert len(points) >= 2 and points[-1][1] > points[0][1]
+        assert all(_inside(p, _flat(drawn.outline)) for p in points)
 
 
 @pytest.mark.parametrize("shoes", LOW_SHOES, ids=lambda p: p.answer["details"]["shoe_style"])

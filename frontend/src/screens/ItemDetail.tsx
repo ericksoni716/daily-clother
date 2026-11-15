@@ -64,6 +64,12 @@ export function ItemDetail({ id, status, inPanel }: Props) {
     void load();
   }, [load]);
 
+  const wasOffline = useRef(offline);
+  useEffect(() => {
+    if (wasOffline.current && !offline) void load();
+    wasOffline.current = offline;
+  }, [offline, load]);
+
   // Follow the cutout while it is being made, and the description while it is waited for or being written
   // (slowly while it waits: nothing changes until Claude can be reached). The closet grid follows along.
   const busy = item?.cutout_state === 'pending' || item?.cutout_state === 'processing';

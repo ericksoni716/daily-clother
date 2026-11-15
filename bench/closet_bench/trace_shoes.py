@@ -1,4 +1,4 @@
-"""Trace shoe photos into the flat drawing style, and find out whether it works (#192, stage 1).
+"""Trace shoe photos into the flat drawing style, and find out whether it works (#192, stages 1 and 2a).
 
     python -m closet_bench.trace_shoes [--photos private/shoes] [--out out/trace_shoes]
                                        [--cutout auto|model|grabcut] [--model isnet-general-use] [--no-png]
@@ -19,7 +19,10 @@ For every photo in the folder (side-on photos of one shoe each; `private/` is gi
 
 It writes one comparison sheet per photo (`shoe-NN.sheet.svg`, and `.png` when Chrome or Chromium is on the
 PATH): the photo, the cut-out, every trace and today's template drawing, at item size and at grid-tile
-size; an `index.html` with the scores, the gate and the recommended approach; and `results.json`.
+size, the traced shoe as data drawn back over it, and what the pair checks saw; an `index.html` with the
+scores, the gate (how many passed, and why the others did not) and the recommended approach; and
+`results.json`, with each shoe's traced data. The tracing and the gate are the app's
+(`closet.drawing.trace`, `closet.drawing.traced`); when the model's cut-out fails the gate, GrabCut is tried.
 
 The template drawing is drawn from a tagger answer saved beside the photo as `<photo name>.json`, when
 there is one; otherwise from the measured colour and a sneaker of the measured height. Photos are listed

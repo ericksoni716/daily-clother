@@ -290,6 +290,17 @@ def test_the_sole_is_drawn_in_its_traced_bands():
     assert f'fill="{red}"' in body and f'fill="{white}"' in body
 
 
+def test_a_thin_midsole_broken_by_a_window_keeps_its_band():
+    from . import shoe_photos as S
+    t = traced_photo("AIR_RUNNER")
+    tr = frontshoe._Traced.of(t)
+    (lo, mid, black), (_, hi, white) = tr.bands[0], tr.bands[-1]
+    assert near(black, S.BLACK, 40) and near(white, S.WHITE, 50) and lo == 0.0 and hi == 1.0
+    assert 0.5 <= mid <= 0.75   # the outsole's share: 2.6 of 3.6 cm
+    body = front(t).body
+    assert f'fill="{black}"' in body and f'fill="{white}"' in body
+
+
 def test_a_window_in_the_sole_is_not_a_band():
     sole = [traced.Region("#f4f4f0", "sole", [[rect(0.0, 1.0, 0.0, 2.0)]], ["midsole"]),
             traced.Region("#cc2222", "sole", [[rect(0.1, 0.3, 0.6, 1.6)]], ["outsole"])]

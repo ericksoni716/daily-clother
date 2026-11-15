@@ -84,6 +84,9 @@ LOW_CHUKKA = dict(upper=SUEDE, midsole=(70, 50, 35), outsole=None, top=list(fron
 # a wheat work boot with a dark padded collar and a lug sole
 WORK_BOOT = dict(upper=WHEAT, midsole=(40, 34, 30), outsole=None, collar=DARK_BROWN, top=list(frontshoe._BOOT),
                  shaft_cm=16.5, sole_cm=3.0, sole_toe_cm=2.6, lugs_cm=0.5, laces=DARK_BROWN, eyelets=(180, 170, 150))
+# a red and black runner on a thin white midsole, a red air window in it, over a thick black outsole
+AIR_RUNNER = dict(upper=BLACK, vamp=RED, mudguard=BLACK, heel_counter=BLACK, laces=RED, midsole=WHITE, outsole=BLACK,
+                  window=RED, sole_cm=3.6, sole_toe_cm=2.8, outsole_cm=2.6, toe_spring_cm=1.0)
 # a grey camouflage runner: many small blotches in three greys
 BUSY_RUNNER = dict(upper=(128, 128, 130), camo=((70, 70, 72), (176, 176, 178), (32, 32, 34)), midsole=WHITE,
                    outsole=(40, 40, 42), laces=(30, 30, 32), sole_cm=3.4, sole_toe_cm=2.3)

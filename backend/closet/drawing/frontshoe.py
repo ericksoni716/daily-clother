@@ -1030,7 +1030,10 @@ class _Traced:
             if rel:
                 outsole_c, out_frac = outs.color, min(0.7, max(0.12, rel[int(0.8 * (len(rel) - 1))]))
         bands = _sole_bands(t, us, bottom, sole)
-        if bands:
+        if len({c for _, _, c in bands}) < 2 and outsole_c:
+            # one colour all along, but a midsole of its own was traced (a thin one, broken by a window): its band
+            bands = [(0.0, out_frac, outsole_c), (out_frac, 1.0, sole_c)]
+        elif bands:
             sole_c = bands[-1][2]
         elif outsole_c:
             bands = [(0.0, out_frac, outsole_c), (out_frac, 1.0, sole_c)]

@@ -90,6 +90,9 @@ AIR_RUNNER = dict(upper=BLACK, vamp=RED, mudguard=BLACK, heel_counter=BLACK, lac
 # a navy derby sneaker, its laces navy too (they do not stand out in the photo, its eyelets do), a brown heel and collar
 NAVY_DERBY = dict(upper=NAVY, heel_counter=(120, 80, 45), collar=(120, 80, 45), midsole=WHITE, outsole=(120, 80, 45),
                   laces=NAVY, eyelets=(120, 80, 45), sole_cm=2.6, sole_toe_cm=2.0, lace_count=4)
+# a six-inch service boot laced to the top: its traced front stands as high as its collar (the tongue)
+SERVICE_BOOT = dict(WORK_BOOT, shaft_cm=0.0, top=[(0.0, 15.0), (0.12, 15.2), (0.3, 15.2), (0.45, 16.4), (0.56, 15.8),
+                                                  (0.63, 12.4), (0.7, 8.4), (0.85, 4.6), (0.95, 3.1), (1.0, 1.1)])
 # a grey camouflage runner: many small blotches in three greys
 BUSY_RUNNER = dict(upper=(128, 128, 130), camo=((70, 70, 72), (176, 176, 178), (32, 32, 34)), midsole=WHITE,
                    outsole=(40, 40, 42), laces=(30, 30, 32), sole_cm=3.4, sole_toe_cm=2.3)

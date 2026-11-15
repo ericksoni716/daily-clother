@@ -330,11 +330,19 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
                     a = 2 * math.pi * k / 24
                     upper_pts.append(view(ax + arx * math.cos(a), au + aru * math.sin(a) / LENGTH, h))
         upper_d = _path(_hull(upper_pts))
-        collar_seen = None
+        collar_seen = tongue = None
         if ankle is not None and style in (*TRAINERS, "boot"):
-            ring = _collar_ring(hw, inset, table, sole_t, shaft, tr.rim if tr is not None else None)
+            ring = [view(*q) for q in _collar_ring(hw, inset, table, sole_t, shaft, tr.rim if tr is not None else None,
+                                                   snug=tr is not None)]
             vamp_top = min(y for _, y in vamp_pts) if shaft else None
-            upper_d, collar_seen = _collar_front(_hull(upper_pts), [view(*q) for q in ring], px, vamp_top)
+            if tr is not None and shaft:
+                # a traced boot's collar is a padded ring round the leg, its front on the ring's front however high
+                # the trace's front stands: that is the tongue, drawn on its own in front of the leg (lifting the
+                # collar's front to it showed the lining in a V each side of the tongue)
+                vamp_top = None
+                low, sides = max(ring, key=lambda q: q[1]), min(min(ring)[1], max(ring)[1])
+                tongue = (low[0], low[1] - 0.4 * px, sides)
+            upper_d, collar_seen = _collar_front(_hull(upper_pts), ring, px, vamp_top)
         out.append(fill(upper_d, base, w=2.4))
         defs += f'<clipPath id="{uid}u"><path d="{upper_d}"/></clipPath>'
         if tr is not None:   # the traced colour panels and marks, on the solid, then its outline again over their edges
@@ -362,6 +370,8 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
             out.append(f'<g clip-path="url(#{uid}u)">' + fill(_path(_hull(cap)), sole_c, w=1.3) + "</g>")
         out += _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg, ankle_path, collar_seen,
                         rim_cm=tr.rim if tr is not None else None, behind=tr is not None)
+        if tongue is not None:
+            out.append(_tongue(tongue, px, tr.tongue_c or base))
         if tr is not None and tr.laced:   # the traced laces instead of the style's
             out += _details({**p, "laces": False}, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill, traced=True)
             out += tr.lacing(view, hw, inset, ln, p.get("lace_color") or _lace_shade(base))
@@ -444,9 +454,11 @@ def _shoulder(top: float, sole_t: float, w: float, rx: float, x: float) -> float
     return sole_t + (top - sole_t) * math.sqrt(1 - s * s)
 
 
-def _collar_ring(hw, inset, table, sole_t, shaft, rim_cm=None):
+def _collar_ring(hw, inset, table, sole_t, shaft, rim_cm=None, snug=False):
+    """The opening's edge. `snug`: a boot's padded collar, hugging the leg (a traced boot)."""
     if shaft:
-        ring = [(4.7 * math.cos(2 * math.pi * k / 32) * 0.9, 0.2 + 5.2 * 0.9 * math.sin(2 * math.pi * k / 32) / LENGTH,
+        rx, ru = (ANKLE_HALF_CM + SNUG_CM, ANKLE_DEPTH_CM + SNUG_CM) if snug else (4.7 * 0.9, 5.2 * 0.9)
+        ring = [(rx * math.cos(2 * math.pi * k / 32), 0.2 + ru * math.sin(2 * math.pi * k / 32) / LENGTH,
                  shaft) for k in range(32)]
     else:
         ring = []
@@ -465,7 +477,7 @@ def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid
     wearer's ankle standing in it when asked for, up to where the leg drawn above it takes over."""
     out = []
     lining = SHEARLING if p.get("lining") == "shearling" else _mix(base, LINING, 0.82)
-    ring = _collar_ring(hw, inset, table, sole_t, shaft, rim_cm)
+    ring = _collar_ring(hw, inset, table, sole_t, shaft, rim_cm, snug=behind)
     rim = [view(*q) for q in ring]
     rim_d = _path(rim)
     # where the ankle is seen: in the opening, and above the back half of the collar, which is behind it (the
@@ -494,11 +506,30 @@ def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid
         if ankle_path is not None:
             # Continue the wearer's own leg through the opening, in front of the back rim but behind the front.
             skin, below = _below(ankle, ankle_path, min(y for _, y in rim) - 3.0, uid)
-        out.append(f'<clipPath id="{uid}a"><path d="{seen_d}"/>'
+        # a traced boot's padded collar hugs the leg: the leg fills all of the opening
+        snug = f'<path d="{rim_d}"/>' if behind and shaft else ""
+        out.append(f'<clipPath id="{uid}a"><path d="{seen_d}"/>{snug}'
                    f'<path clip-rule="evenodd" d="M {-far},{-far} L {far},{-far} L {far},{far} L {-far},{far} Z {upper_d}"/>'
                    f'</clipPath>{below}')
         out.append(f'<g clip-path="url(#{uid}a)">{skin}</g>')
     return out
+
+
+def _tongue(front: tuple[float, float, float], px: float, colour: str) -> str:
+    """A boot's tongue: a padded tab with a rounded top, inside the lacing at the front of the collar (`front`: the
+    lowest point of the collar's front edge, and the height of its sides), filling the front between the collar's
+    two sides, rising above its front nearly to its sides, and running down under the laces."""
+    x, y, sides = front
+    w, r = 2.0 * px, 1.3 * px
+    top = min(y - 1.1 * px, sides + 0.5 * px)
+    bottom = y + 3.6 * px
+    d = (f"M {x - w:.1f},{bottom:.1f} L {x - w:.1f},{top + r:.1f} "
+         f"C {x - w:.1f},{top + 0.2 * r:.1f} {x - 0.55 * w:.1f},{top:.1f} {x:.1f},{top:.1f} "
+         f"C {x + 0.55 * w:.1f},{top:.1f} {x + w:.1f},{top + 0.2 * r:.1f} {x + w:.1f},{top + r:.1f} "
+         f"L {x + w:.1f},{bottom:.1f}")
+    # its lower end runs on under the laces: no edge drawn across it
+    return (f'<path d="{d} Z" fill="{colour}"/>'
+            f'<path d="{d}" fill="none" stroke="{INK}" stroke-width="1.6" stroke-linejoin="round"/>')
 
 
 def _lace_shade(base: str) -> str:
@@ -791,6 +822,7 @@ def _sandal(p, view, hw, sole_t, base, sole_c, uid, ankle=None, toes=None, foot_
 # a pair's marks are on both sides, and the toe-out turn shows more of the inner one, so marks go on both too.
 
 PAINT_STEP_CM = 0.3          # a traced outline is cut into steps this long before it is bent onto the solid
+SNUG_CM = 0.3                # a traced boot's padded collar stands this far off the leg
 SHAFT_AX, SHAFT_AU, SHAFT_RX, SHAFT_RU = 0.0, 0.2, 4.7, 5.2   # a boot's shaft (as `front_shoe` draws it)
 MARK_NEAR_CM = 0.6           # a colour piece whose middle is this near a mark's is that mark (drawn as a mark)
 DETAILS = ("laces", "eyelets", "stitching", "midsole", "outsole")
@@ -1098,6 +1130,12 @@ class _Traced:
     @property
     def eyelets(self):
         return self.t.eyelets
+
+    @property
+    def tongue_c(self) -> str | None:
+        """The tongue's traced colour, when the photo showed it."""
+        part = self.t.part("tongue")
+        return part.color if part is not None and part.measured else None
 
     @property
     def laced(self) -> bool:

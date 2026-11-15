@@ -50,7 +50,11 @@ SHOES = [
     ("chukka, low collar", S.Shoe(**S.LOW_CHUKKA), (1000, 640), ("boots", "boot", "#966e4b", {})),
     ("work boot, padded collar", S.Shoe(**S.WORK_BOOT), (1000, 700),
      ("boots", "boot", "#c3954f", {"shoe_height": "high", "tread": "lug"})),
+    ("service boot, laced high", S.Shoe(**S.SERVICE_BOOT), (1000, 700),
+     ("boots", "boot", "#c3954f", {"shoe_height": "high", "tread": "lug"})),
     ("busy runner", S.Shoe(**S.BUSY_RUNNER), (1000, 560), ("sneakers", "runner", "#808082", {})),
+    ("runner, thin white midsole", S.Shoe(**S.AIR_RUNNER), (1000, 560), ("sneakers", "runner", "#bd1f24", {})),
+    ("navy derby, navy laces", S.Shoe(**S.NAVY_DERBY), (1000, 560), ("sneakers", "derby", "#223478", {})),
 ]
 GROUNDS = {"white on white sneaker": {"ground": (230, 230, 228), "shade_edge": 10}}
 

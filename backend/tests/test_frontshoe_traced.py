@@ -378,3 +378,21 @@ def test_a_traced_boots_shaft_top_is_the_rounded_collar_with_the_leg_in_front_of
     # the leg is seen above the collar's rounded lip (#214), which runs on up out of the drawing behind it
     clip = re.search(r'<clipPath id="fsa"><path d="([^"]+)"', traced_boot.defs + traced_boot.body).group(1)
     assert " C " in clip and "-4000" in clip
+
+
+def test_a_boot_laced_high_has_a_round_collar_and_a_rounded_tongue(monkeypatch):
+    t = traced_photo("SERVICE_BOOT", (1000, 700))
+    seen = []
+    real = frontshoe._collar_front
+
+    def spy(upper, rim, px, vamp_top=None):
+        seen.append((rim, vamp_top))
+        return real(upper, rim, px, vamp_top)
+    monkeypatch.setattr(frontshoe, "_collar_front", spy)
+    body = frontshoe.front_shoe(spec_of("boots", "boot"), K_PX, ankle='<path d="{d}"/>', traced=t).body
+    rim, vamp_top = seen[-1]
+    assert vamp_top is None   # the collar's front is not lifted to the tongue: no point, no lining in a V
+    xs = [x for x, _ in rim]
+    assert max(xs) - min(xs) <= 2 * (frontshoe.ANKLE_HALF_CM + frontshoe.SNUG_CM) * K_PX * 1.01   # it hugs the leg
+    tongue = re.search(r'<path d="(M [^"]+ C [^"]+)" fill="none" stroke="#[0-9a-f]+" stroke-width="1.6"', body)
+    assert tongue and tongue.group(1).count(" C ") == 2   # a rounded top

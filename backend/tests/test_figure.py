@@ -878,6 +878,34 @@ def test_a_sandal_is_drawn_sole_then_foot_then_straps(shoes):
     assert min(x for x, _ in shoe) < min(x for x, _ in toes) - 1.0 and max(x for x, _ in shoe) > max(x for x, _ in toes) + 1.0
 
 
+LOW_SHOES = [Piece(c, answer(c, shoe_style=s), "#5a3a22") for c, s in
+             (("sneakers", "low_sneaker"), ("sneakers", "runner"), ("sneakers", "slip_on"), ("dress_shoes", "loafer"),
+              ("dress_shoes", "derby"), ("dress_shoes", "oxford"))]
+
+
+@pytest.mark.parametrize("shoes", LOW_SHOES, ids=lambda p: p.answer["details"]["shoe_style"])
+@pytest.mark.parametrize("socks", [None, "no_show", "casual_crew"])
+def test_the_back_of_a_low_shoes_collar_is_behind_the_ankle(shoes, socks):
+    """Seen from the front and a little above, the top of a low shoe's heel counter stands up behind the ankle: it
+    is drawn first, the ankle (or sock) over it, and only the collar's sides show beside the ankle."""
+    accessories = [small("socks", socks)] if socks else []
+    spec = plan(dict(base=TEE, bottom=SHORTS, shoes=shoes, accessories=accessories)).get("shoes").spec
+    drawn = fig.front_shoe(spec, K_PX, uid="z", ankle=fig._ankle(), toes=fig.TOE_LINE)
+    body = drawn.body
+    upper, ankle = body.index(f'fill="{spec.fill.color}"'), body.index('clip-path="url(#za)"')
+    assert upper < ankle   # the shoe, back of the collar and all, then the ankle
+    style = spec.params["style"]
+    _, sole_t, table, _ = frontshoe.STYLES[style]
+    view = frontshoe._View(K_PX)
+    back = view(0.0, 0.0, sole_t + frontshoe._interp(table, 0.0) - 0.6)   # the top of the heel counter, at the back
+    seen = _flat(body.split('<clipPath id="za"><path d="')[1].split('"')[0])
+    assert _inside(back, seen)   # the ankle is drawn over it ...
+    column = _flat(frontshoe._path(frontshoe._hull(frontshoe._column(view, sole_t + 2.0, sole_t + frontshoe.ANKLE_CM))))
+    assert _inside(back, column)   # ... and there is ankle there
+    toe = view(0.0, 0.6, sole_t + frontshoe._interp(table, 0.6) - 0.3)   # the vamp is still in front of it
+    assert not _inside(toe, seen)
+
+
 def test_the_toes_are_a_soft_row_of_five():
     front = plan(dict(base=TEE, bottom=SHORTS)).body.feet[0]
     pts = _flat(front.foot)

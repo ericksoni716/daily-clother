@@ -483,6 +483,17 @@ def _socks(fig, layout, spec: Spec, uid: str, out: Worn) -> None:
                 + f'<g clip-path="url(#{uid}l)">{inside}</g></g>')
     out.ankle = (f'<path d="{{d}}" fill="none" stroke="{INK}" stroke-width="{line}" stroke-linejoin="round"/>'
                  f'<path d="{{d}}" fill="{colour}"/>')
+    if pattern in ("stripes", "dots", "argyle"):
+        # The shoe redraws the ankle in its own coordinates. Keep the sock's pattern
+        # there too; a solid patch would leave only a row of diamond tips below a hem.
+        tx, ty = shoes.transforms[0][-2:]
+        out.ankle += (f'<clipPath id="{uid}a"><path d="{{d}}"/></clipPath>'
+                     f'<g clip-path="url(#{uid}a)"><g transform="translate({-tx:.4f} {-ty:.4f})">'
+                     f'{inside}</g></g>')
+    # A tall boot can meet bare calf above a short sock: keep the sock's real top in this redraw too.
+    tx, ty = shoes.transforms[0][-2:]
+    out.ankle = (fig._ankle() + f'<g transform="translate({-tx:.4f} {-ty:.4f})"><g clip-path="url(#{uid}y)">'
+                 f'<g transform="translate({tx:.4f} {ty:.4f})">{out.ankle}</g></g></g>')
 
 
 def _spans(paths: list[str], y: float) -> list[tuple[float, float]]:

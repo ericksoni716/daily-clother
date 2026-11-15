@@ -67,7 +67,7 @@ UNTRACED = [("sneakers", "low_sneaker"), ("sneakers", "runner"), ("sneakers", "s
             ("dress_shoes", "loafer"), ("dress_shoes", "derby"), ("dress_shoes", "oxford"), ("boots", "boot"),
             ("boots", "chelsea_boot"), ("sandals", "sandal")]
 # taken before stage 2c; change it only with a change meant to redraw untraced shoes, and say so in the pull request
-UNTRACED_DIGEST = "e8991667064d4dbc9438c0f7fb9f6999a23374b2915ebd718f3077c0e61ddf11"
+UNTRACED_DIGEST = "8e1804b788d67f0311a1b89856a72ac34fea537a1b2f47cb37827ab747658efe"
 
 
 def test_an_untraced_shoe_is_drawn_exactly_as_before():
@@ -350,11 +350,10 @@ def test_a_traced_low_shoes_collar_rounds_down_beside_its_opening():
     assert beside == sorted(beside, reverse=True) and beside[-1] == 2.0 and beside[0] > 9.0   # then down to the sole
 
 
-def test_a_traced_boots_leg_stands_in_front_of_the_back_of_its_shaft():
+def test_a_traced_boots_shaft_top_is_the_rounded_collar_with_the_leg_in_front_of_its_back():
     t = traced_photo("WORK_BOOT", (1000, 700))
     skin = '<path d="{d}" fill="none"/><path d="{d}" fill="#e0b090"/>'
     traced_boot = frontshoe.front_shoe(spec_of("boots", "boot"), K_PX, ankle=skin, traced=t)
-    plain = frontshoe.front_shoe(spec_of("boots", "boot"), K_PX, ankle=skin)
-    clip = lambda f: re.search(r'<clipPath id="fsa"><path d="([^"]+)"', f.defs + f.body).group(1)   # noqa: E731
-    top = lambda d: min(y for _, y in _flat(d))   # noqa: E731
-    assert top(clip(traced_boot)) < top(clip(plain)) - 10.0
+    # the leg is seen above the collar's rounded lip (#214), which runs on up out of the drawing behind it
+    clip = re.search(r'<clipPath id="fsa"><path d="([^"]+)"', traced_boot.defs + traced_boot.body).group(1)
+    assert " C " in clip and "-4000" in clip

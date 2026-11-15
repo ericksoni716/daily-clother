@@ -7,15 +7,17 @@ import { Link, navigate, useMediaQuery } from '../router';
 import { sourceLine } from '../several';
 import { aboutUsd, importLine } from '../spend';
 import { useCloset } from '../store';
+import { ShoeAdd } from './ShoeAdd';
 import { countEntries, type QueueEntry, type UploadStatus } from '../uploadQueue';
 import { addFiles, cancelImport, clearFinished, previewOf, uploads } from '../uploads';
 import type { SourcePhoto } from '../types';
 import './Several.css';
 
-type Mode = 'one' | 'several';
+type Mode = 'one' | 'several' | 'shoe';
 const MODES = [
   { value: 'one', label: 'One item per photo' },
   { value: 'several', label: 'Several items per photo' },
+  { value: 'shoe', label: 'A shoe' },
 ] as const;
 const OPEN_POLL_MS = 3000;
 
@@ -198,6 +200,7 @@ export function AddScreen() {
       ) : (
         <>
           <SegmentedControl label="What each photo holds" options={MODES} value={mode} onChange={setMode} className="add-mode" />
+          {mode === 'shoe' ? <ShoeAdd /> : (<>
           {several ? (
             <>
               <p className="muted add-intro" data-testid="several-intro">Lay several pieces out with a little space between them, on the bed or the floor, and take one photo.
@@ -256,6 +259,7 @@ export function AddScreen() {
           )}
 
           {pickers}
+          </>)}
         </>
       )}
 

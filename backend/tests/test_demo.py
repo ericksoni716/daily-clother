@@ -128,3 +128,54 @@ def test_an_older_demo_closet_is_given_the_new_items_once(cfg, tmp_path, monkeyp
     conn.close()
     assert demo.ensure(cfg) == 0
     assert len(rows(cfg, "SELECT id FROM items")) == len(full["items"]) - 1 and not rows(cfg, "SELECT id FROM trips")
+
+
+def test_two_demo_shoes_are_drawn_from_made_up_traces(client, cfg):
+    traced = [i for i in data()["items"] if i.get("trace")]
+    assert {i["name"] for i in traced} == {"Grey runners", "Brown boots"}
+    assert all(not i.get("photo") for i in traced)   # traced from made-up photos, none kept
+    assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
+    for it in traced:
+        shown = client.get(f"/api/items/{it['id']}").json()
+        assert shown["trace"]["state"] == "done" and shown["trace"]["drawn"] and shown["trace"]["parts"]
+        assert 'id="traced-' in shown["illustration_svg"]
+        # the drawing kept is the one the app makes from the trace now
+        r = rows(cfg, "SELECT * FROM items WHERE id = ?", it["id"])[0]
+        assert illustrations.make(r).svg == r["illustration_svg"] == it["illustration_svg"]
+    runners = next(i for i in traced if i["name"] == "Grey runners")
+    assert client.get(f"/api/items/{runners['id']}").json()["trace"]["marks"]   # the stripes, to fix
+    # a fix works on a demo shoe as on any traced shoe
+    r = client.post(f"/api/items/{runners['id']}/trace/fix", json={"mark": 0, "hide": True})
+    assert r.status_code == 200 and r.json()["trace"]["marks"][0]["hidden"]
+    # a shoe with no photo has nothing to trace: said to be boots, it is not left waiting to be traced
+    tops = next(i for i in data()["items"] if i["name"] == "Black high-tops")
+    shown = client.patch(f"/api/items/{tops['id']}", json={"category": "boots"}).json()
+    assert shown["trace"]["state"] is None and shown["trace"]["message"] is None
+
+
+def test_an_older_demo_closet_is_given_its_traced_shoes_once(cfg, tmp_path, monkeypatch):
+    full = data()
+    older = {**full, "items": [{k: v for k, v in i.items() if k not in ("trace", "trace_version")} for i in full["items"]]}
+    old_bundle = tmp_path / "bundle"
+    (old_bundle / "demo_data").mkdir(parents=True)
+    (old_bundle / "demo_data" / "items.json").write_text(json.dumps(older), encoding="utf-8")
+    shutil.copytree(bundle_dir() / "demo_data" / "images", old_bundle / "demo_data" / "images")
+    monkeypatch.setattr(demo, "bundle_dir", lambda: old_bundle)
+    demo.ensure(cfg)
+    assert not rows(cfg, "SELECT id FROM items WHERE trace IS NOT NULL")
+    boots = next(i for i in full["items"] if i["name"] == "Brown boots")
+    conn = db.connect(cfg.db_path("demo"))
+    conn.execute("UPDATE items SET trace_plain = 1 WHERE id = ?", (boots["id"],))   # the owner chose the plain drawing
+    conn.close()
+
+    monkeypatch.undo()
+    demo.ensure(cfg)
+    got = rows(cfg, "SELECT * FROM items WHERE trace IS NOT NULL")
+    assert [r["name"] for r in got] == ["Grey runners"] and got[0]["trace_state"] == "done"
+    assert 'id="traced-' in got[0]["illustration_svg"]
+    conn = db.connect(cfg.db_path("demo"))
+    conn.execute("UPDATE items SET trace_state = NULL, trace = NULL WHERE id = ?", (got[0]["id"],))
+    conn.execute("UPDATE items SET trace_state = 'refused' WHERE id = ?", (got[0]["id"],))
+    conn.close()
+    demo.ensure(cfg)   # once: a shoe the demo has done something with since is left as it is
+    assert not rows(cfg, "SELECT id FROM items WHERE trace IS NOT NULL")

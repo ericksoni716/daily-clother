@@ -111,6 +111,47 @@ def _path(pts, close=True) -> str:
     return "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in pts) + (" Z" if close else "")
 
 
+def _collar_front(upper, rim, px, vamp_top=None):
+    """Round the wall over the front of the opening, rather than leaving the
+    convex solid's rear crown sticking up beside the wearer's ankle."""
+    left, right = min(rim), max(rim)
+    bottom = max(rim, key=lambda p: p[1])
+    cut = bottom[1]
+    bottom = (bottom[0], bottom[1] - 0.4 * px)
+    if vamp_top is not None:
+        # A short shaft can sit below the instep on a thick sole. Its front
+        # cannot be cut down to the opening: the raised vamp is in front of it.
+        bottom = (bottom[0], min(bottom[1], vamp_top - 0.4 * px))
+    lower = []
+    for a, b in zip(upper, upper[1:] + upper[:1], strict=True):
+        if a[1] >= cut:
+            lower.append(a)
+        if (a[1] < cut) != (b[1] < cut):
+            t = (cut - a[1]) / (b[1] - a[1])
+            lower.append((a[0] + t * (b[0] - a[0]), cut))
+    ends = sorted(p for p in lower if abs(p[1] - cut) < 0.001)
+    start, end = ends[0], ends[-1]
+    # The collar is a rounded lip in section: rise up its outside, turn over,
+    # then follow the bowed front. Both shoulders meet the bow tangentially.
+    lc, rc = left[1] - 0.35 * px, right[1] - 0.35 * px
+    ly, ry = (bottom[1] - lc) / 3, (bottom[1] - rc) / 3
+    lx, rx = (bottom[0] - left[0] - px) / 3, (right[0] - px - bottom[0]) / 3
+    d = (f"M {start[0]:.1f},{cut:.1f} "
+         f"C {start[0]:.1f},{lc:.1f} {left[0]:.1f},{lc:.1f} {left[0] + px:.1f},{lc + ly:.1f} "
+         f"C {left[0] + 2 * px:.1f},{lc + 2 * ly:.1f} {bottom[0] - lx:.1f},{bottom[1]:.1f} "
+         f"{bottom[0]:.1f},{bottom[1]:.1f} "
+         f"C {bottom[0] + rx:.1f},{bottom[1]:.1f} {right[0] - 2 * px:.1f},{rc + 2 * ry:.1f} "
+         f"{right[0] - px:.1f},{rc + ry:.1f} "
+         f"C {right[0]:.1f},{rc:.1f} {end[0]:.1f},{rc:.1f} {end[0]:.1f},{cut:.1f} ")
+    # Walk the untouched lower hull from the right shoulder back to the left.
+    i = lower.index(end)
+    lower = lower[i:] + lower[:i]
+    if lower[1][0] < end[0] and lower[1][1] == cut:
+        lower = [lower[0]] + list(reversed(lower[1:]))
+    seen = d + f"L {end[0]:.1f},-4000 L {start[0]:.1f},-4000 Z"
+    return d + " ".join(f"L {x:.1f},{y:.1f}" for x, y in lower[1:]) + " Z", seen
+
+
 class _View:
     """Turns points on the shoe (x across, u from heel 0 to toe 1, h above the ground, in cm) into the drawing.
     `warp` (u, h) -> h, when given, moves heights along the shoe before it is seen (a traced sole's thickness and
@@ -177,10 +218,12 @@ def _half_width(u: float, ball: float, toe: str) -> float:
 
 
 def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: str = "fs",
-               ankle: str | None = None, toes: str | None = None, traced=None) -> FrontShoe:
+               ankle: str | None = None, toes: str | None = None, ankle_path: str | None = None,
+               traced=None) -> FrontShoe:
     """The shoe of `spec` from the front, scaled by `px`. With `ankle` (markup for skin, with "{d}" for its path),
     the wearer's ankle stands in the shoe's opening, and a sandal holds a bare foot (`toes`: the colour of the
-    lines between its toes). The anchor "ankle" is where the leg above it ends, "ankle_r" its right edge there.
+    lines between its toes). `ankle_path` keeps the figure's own leg contour through the opening, in shoe
+    coordinates. The anchor "ankle" is where the leg above it ends, "ankle_r" its right edge there.
     With `traced` (a `traced.TracedShoe`, or its JSON) whose photo passed the quality gate, the shoe's shape,
     colour panels, marks and laces come from the trace (`_Traced`); otherwise it is drawn from its style words."""
     p = {**spec.params, "lace_color": spec.lace_color}
@@ -267,6 +310,7 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         # the upper: a half ellipse across the foot at every step from heel to toe, up to the top line
         inset = 0.93 if style in ("loafer", "derby", "oxford") else 0.97
         upper_pts = []
+        vamp_pts = []
         cap = _collar_cap(tr.rim, sole_t, tr.lift) if tr is not None and not shaft else None
         for u in us:
             w, h = hw(u) * inset, _interp(table, u)
@@ -275,7 +319,10 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
                 hh = sole_t + h * math.sin(a)
                 if cap:
                     hh = min(hh, _shoulder(cap(u), sole_t, w, _ring_half(w, u), w * math.cos(a)))
-                upper_pts.append(view(w * math.cos(a), u, hh))
+                point = view(w * math.cos(a), u, hh)
+                upper_pts.append(point)
+                if u >= ANKLE_U:
+                    vamp_pts.append(point)
         ax, au, arx, aru = 0.0, 0.2, 4.7, 5.2        # the ankle: a boot's shaft, the wearer's ankle
         if shaft:
             for h in (sole_t + 4.0, shaft):
@@ -283,6 +330,11 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
                     a = 2 * math.pi * k / 24
                     upper_pts.append(view(ax + arx * math.cos(a), au + aru * math.sin(a) / LENGTH, h))
         upper_d = _path(_hull(upper_pts))
+        collar_seen = None
+        if ankle is not None and style in (*TRAINERS, "boot"):
+            ring = _collar_ring(hw, inset, table, sole_t, shaft, tr.rim if tr is not None else None)
+            vamp_top = min(y for _, y in vamp_pts) if shaft else None
+            upper_d, collar_seen = _collar_front(_hull(upper_pts), [view(*q) for q in ring], px, vamp_top)
         out.append(fill(upper_d, base, w=2.4))
         defs += f'<clipPath id="{uid}u"><path d="{upper_d}"/></clipPath>'
         if tr is not None:   # the traced colour panels and marks, on the solid, then its outline again over their edges
@@ -308,7 +360,7 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
                    for u in us if u >= 0.87 for k in range(13)]
             cap += [view(x, u, sole_t) for x, u, _ in contour(0, inset) if u >= 0.8]
             out.append(f'<g clip-path="url(#{uid}u)">' + fill(_path(_hull(cap)), sole_c, w=1.3) + "</g>")
-        out += _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg,
+        out += _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg, ankle_path, collar_seen,
                         rim_cm=tr.rim if tr is not None else None, behind=tr is not None)
         if tr is not None and tr.laced:   # the traced laces instead of the style's
             out += _details({**p, "laces": False}, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill, traced=True)
@@ -319,7 +371,7 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
     hull = _hull(outline_pts)
     xs, ys = [x for x, _ in hull], [y for _, y in hull]
     anchors = {"ball": (0.0, view(0.0, BALL, 0.0)[1]), "toe": view(0.0, 1.0, 0.0), "heel": view(0.0, 0.0, 0.0),
-               "ground": (0.0, 0.0), "top": (0.0, view(0.0, 0.2, top)[1]), **_ankle_anchors(view, leg)}
+               "ground": (0.0, 0.0), "top": (0.0, view(0.0, 0.2, top)[1]), **_ankle_anchors(view, sole_t + ANKLE_CM)}
     shoe = FrontShoe(_path(hull), (min(xs) - 2, min(ys) - 2, max(xs) + 2, max(ys) + 2), anchors, "".join(out), defs,
                      ankle is not None)
     if style == "sandal" and ankle is not None:
@@ -392,11 +444,7 @@ def _shoulder(top: float, sole_t: float, w: float, rx: float, x: float) -> float
     return sole_t + (top - sole_t) * math.sqrt(1 - s * s)
 
 
-def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg, rim_cm=None, behind=False):
-    """The way in: the collar of a low shoe, or the top of a boot's shaft, with the dark lining inside; and the
-    wearer's ankle standing in it when asked for, up to where the leg drawn above it takes over."""
-    out = []
-    lining = SHEARLING if p.get("lining") == "shearling" else _mix(base, LINING, 0.82)
+def _collar_ring(hw, inset, table, sole_t, shaft, rim_cm=None):
     if shaft:
         ring = [(4.7 * math.cos(2 * math.pi * k / 32) * 0.9, 0.2 + 5.2 * 0.9 * math.sin(2 * math.pi * k / 32) / LENGTH,
                  shaft) for k in range(32)]
@@ -408,6 +456,16 @@ def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid
             x = hw(u) * inset * 0.82 * math.cos(a)
             h = sole_t + (_interp(table, 0.04) if rim_cm is None else rim_cm) - 0.5 + (0.6 if math.sin(a) > 0 else 0) * math.sin(a)
             ring.append((x, u, h))
+    return ring
+
+
+def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg, ankle_path=None, collar_seen=None,
+             rim_cm=None, behind=False):
+    """The way in: the collar of a low shoe, or the top of a boot's shaft, with the dark lining inside; and the
+    wearer's ankle standing in it when asked for, up to where the leg drawn above it takes over."""
+    out = []
+    lining = SHEARLING if p.get("lining") == "shearling" else _mix(base, LINING, 0.82)
+    ring = _collar_ring(hw, inset, table, sole_t, shaft, rim_cm)
     rim = [view(*q) for q in ring]
     rim_d = _path(rim)
     # where the ankle is seen: in the opening, and above the back half of the collar, which is behind it (the
@@ -415,8 +473,8 @@ def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid
     # it, are in front of it)
     # (a traced shoe's ankle also stands in front of all that is behind it above the rim: the back of a boot's
     # shaft, and the heel's top beside the ankle, turned out from behind it)
-    if shaft and not behind:
-        seen_d = rim_d
+    if collar_seen:
+        seen_d = collar_seen
     else:
         seen = rim + [view(x, u, h + BEHIND_CM) for x, u, h in ring if u <= (0.2 if shaft else 0.27)]
         if behind:
@@ -426,11 +484,16 @@ def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid
         out.append(f'<path d="{rim_d}" fill="none" stroke="{INK}" stroke-width="5.4" stroke-linejoin="round"/>'
                    f'<path d="{rim_d}" fill="none" stroke="{SHEARLING}" stroke-width="3.6" stroke-linejoin="round"/>')
     out.append(f'<path d="{rim_d}" fill="{lining}" stroke="{INK}" stroke-width="1.4" stroke-linejoin="round"/>')
+    if collar_seen is not None:
+        out = [f'<g clip-path="url(#{uid}u)">{"".join(out)}</g>']
     if ankle is not None:
         pts = _column(view, sole_t + 2.0, leg)
         # it shows inside the opening and above the shoe, never over the shoe's front
         far = 4000
         skin, below = _below(ankle, _path(_hull(pts)), view(0.0, ANKLE_U + ANKLE_DEPTH_CM / LENGTH, leg)[1] + 1.5, uid)
+        if ankle_path is not None:
+            # Continue the wearer's own leg through the opening, in front of the back rim but behind the front.
+            skin, below = _below(ankle, ankle_path, min(y for _, y in rim) - 3.0, uid)
         out.append(f'<clipPath id="{uid}a"><path d="{seen_d}"/>'
                    f'<path clip-rule="evenodd" d="M {-far},{-far} L {far},{-far} L {far},{far} L {-far},{far} Z {upper_d}"/>'
                    f'</clipPath>{below}')
@@ -492,9 +555,12 @@ def _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, 
         lace = lace_c or (shade(base, -0.28) if luminance(base) > 0.75 else shade(base, 0.35 if luminance(base) < 0.3 else -0.25))
         kind = p.get("lace_kind")
         k = {"flat_waxed": 1.3, "flat_cotton": 1.3, "round_waxed": 0.8, "round_rope": 1.4, "rawhide": 1.3}.get(kind, 1.0)
+        rows = []
         for i in range(n):
             u = lo + (hi - lo) * i / max(1, n - 1)
-            d = _path(across(u, 0.42 if style not in TRAINERS else 0.5, 0.25), close=False)
+            width = 0.42 if style not in TRAINERS else 0.5
+            rows.append([s(u, -width, 0.25), s(u, width, 0.25)])
+            d = _path(across(u, width, 0.25), close=False)
             out.append(ln(d, 1.3 + 1.5 * k, INK, 0.9) + ln(d, 1.5 * k, lace, 1))
             if kind in ("flat_waxed", "round_waxed"):   # a waxed lace's glint
                 out.append(ln(_path(across(u, 0.24, 0.3)[3:8], close=False), 0.8, "#fff", 0.75))
@@ -510,7 +576,29 @@ def _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, 
             for i in range(3):
                 h = sole_t + 8.5 + i * (shaft - sole_t - 10) / 2
                 d = _path([view(1.8 * k / 3, 0.2 + 5.2 / LENGTH, h) for k in range(-3, 4)], close=False)
+                rows.append([view(x, 0.2 + 5.2 / LENGTH, h) for x in (-1.8, 1.8)])
                 out.append(ln(d, 2.8, INK, 0.9) + ln(d, 1.5, lace, 1))
+        # Hooks replace the highest pairs, continuing onto the vamp when there are more than three.
+        for i, row in enumerate(sorted(rows, key=lambda row: sum(y for _, y in row))):
+            hook = i < int(p.get("hooks") or 0)
+            if not hook and not p.get("rings"):
+                continue
+            for side, (x, y) in enumerate(row):
+                # Include ordinary eyelet rows when sizing the lowest hook; its outline needs clearance too.
+                gap = min(abs(y - other[side][1]) for other in rows if other is not row)
+                r = min(0.55 * view.px, gap * 0.2, abs(row[1][0] - row[0][0]) * 0.15)
+                angles = [math.radians(-130 + j * 260 / 12) if hook else -math.pi / 2 + j * math.pi / 12 for j in range(13)]
+                # The ring's straight side faces the lacing; the rounded half sits outside it.
+                d = _path([(x + (2 * side - 1) * r * math.cos(a), y + r * math.sin(a)) for a in angles],
+                          close=not hook)
+                out.append(ln(d, min(3.0, r * 0.8), INK, 1) + ln(d, min(1.5, r * 0.4), METAL, 1))
+        if p.get("toggle"):
+            x, y = s(lo - 0.015, 0.0, 0.3)
+            for side in (-1, 1):
+                d = _path([(x, y), s(lo + 0.05, side * 0.15, 0.3), s(lo + 0.15, side * 0.1, 0.3)], close=False)
+                out.append(ln(d, 2.8, INK, 1) + ln(d, 1.5, lace, 1))
+            out.append(f'<rect x="{x - 0.8 * view.px:.1f}" y="{y - 0.65 * view.px:.1f}" width="{1.6 * view.px:.1f}" '
+                       f'height="{1.3 * view.px:.1f}" rx="1" fill="{INK}"/>')
     if p.get("toe_cap") == "stitched" or p.get("brogue") in ("quarter", "semi"):
         out.append(ln(_path(across(0.83, 1.0, 0.0), close=False), 1.3))
     if p.get("brogue") == "full":   # a wingtip: the wing's point on the toe

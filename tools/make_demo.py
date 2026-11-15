@@ -20,6 +20,12 @@ those answers (no model needed):
 
     python tools/make_demo.py --answers-only
 
+Two shoes (TRACED) are drawn from a trace of a made-up side-on photo, as a shoe
+photographed side-on is; after a change to the tracing, rewrite just those
+(no model needed):
+
+    python tools/make_demo.py --traces-only
+
 Some items carry a price (PRICES) so Insights has a cost per wear to show;
 after changing them, rewrite just the prices (no model needed):
 
@@ -104,6 +110,18 @@ DRAWN = [
     ("Grey runners", "sneakers", "grey", "#a3a7ab", "sneaker", dict(style="runner"), dict(shoe_height="low"), "athletic", "all",
      dict(spec=dict(trim_color="#d9772b", lace_color="#f4f1ea"), footwear="running_shoe")),
 ]
+
+# The two demo shoes drawn from a trace, as a shoe photographed side-on is: traced here from made-up side-on photos
+# drawn by the tracing tests' generator (backend/tests/shoe_photos.py, no real photo), with the colours of the item.
+# name -> the shoe drawn (shoe_photos.Shoe's arguments; `top` names one of frontshoe's top lines)
+TRACED = {
+    "Grey runners": dict(upper=(163, 167, 171), midsole=(242, 240, 234), outsole=(70, 72, 76), stripes=(217, 119, 43),
+                         laces=(244, 241, 234), sole_cm=3.4, sole_toe_cm=2.4, toe_spring_cm=1.6, rocker_cm=0.3,
+                         heel_bevel_cm=0.8),
+    "Brown boots": dict(upper=(107, 74, 50), midsole=(58, 44, 34), outsole=(58, 44, 34), heel_counter=(84, 58, 40),
+                        laces=(200, 170, 90), eyelets=(196, 198, 204), top="_BOOT", shaft_cm=16, sole_cm=3.0,
+                        sole_toe_cm=2.4, toe_spring_cm=1.0),
+}
 
 # id in bench/hardcases/cases.json -> name, category, colour word, pattern, silhouette, formality, season, extras
 PHOTOS = {
@@ -647,12 +665,36 @@ def add_verdicts() -> None:
     (OUT / "items.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
+def add_traces(items: list[dict]) -> None:
+    """Trace the TRACED shoes from their made-up photos and draw them from the trace, as the app does."""
+    from closet import tracejobs
+    from closet.drawing import frontshoe, sideshoe
+    from closet.drawing.traced import TracedShoe
+    from tests import shoe_photos
+    run = tracejobs.tracer()
+    for it in items:
+        it.pop("trace", None)
+        it.pop("trace_version", None)
+        spec = TRACED.get(it["name"])
+        if spec is None:
+            continue
+        spec = {**spec, **({"top": list(getattr(frontshoe, spec["top"]))} if "top" in spec else {})}
+        photo = shoe_photos.draw(shoe_photos.Shoe(**spec), noise=2)[0]
+        shoe, reasons = run(photo, {"shoes_in_photo": 1, "shoe_view": "side"})
+        assert shoe is not None and not reasons, (it["name"], reasons)
+        shoe = TracedShoe.from_json(shoe.to_json())   # drawn from what is kept, as the app draws it
+        it["illustration_svg"] = sideshoe.drawing(shoe, None, uid=it["id"][:8])
+        it["trace"] = json.loads(shoe.to_json())
+        it["trace_version"] = tracejobs.TRACING_VERSION
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--models-dir", type=Path, default=ROOT / "bench" / "models")
     ap.add_argument("--answers-only", action="store_true", help="only rewrite the stored tagging answers in items.json")
     ap.add_argument("--prices-only", action="store_true", help="only rewrite the prices in items.json")
     ap.add_argument("--history-only", action="store_true", help="only rewrite the wear history and worn outfits in items.json")
+    ap.add_argument("--traces-only", action="store_true", help="only rewrite the traced shoes in items.json")
     a = ap.parse_args()
     cases = {c["id"]: c for c in json.loads((ROOT / "bench" / "hardcases" / "cases.json").read_text())["cases"]}
     if a.prices_only:
@@ -662,6 +704,12 @@ def main() -> None:
         add_prices(data["items"])
         (OUT / "items.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"prices written for {sum('price_cents' in it for it in data['items'])} items")
+        return
+    if a.traces_only:
+        data = json.loads((OUT / "items.json").read_text(encoding="utf-8"))
+        add_traces(data["items"])
+        (OUT / "items.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"traces written for {sum('trace' in it for it in data['items'])} shoes")
         return
     if a.answers_only or a.history_only:
         data = json.loads((OUT / "items.json").read_text(encoding="utf-8"))
@@ -716,6 +764,7 @@ def main() -> None:
     by_name = answers(cases)
     for it in items:
         it["answer"] = by_name[it["name"]]
+    add_traces(items)
     assert set(HISTORY) | set(PRICES) | set(UNSURE) <= {it["name"] for it in items}
     # interleave so the grid mixes photographed and drawn items
     items.sort(key=lambda it: it["id"])

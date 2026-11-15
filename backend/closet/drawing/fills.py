@@ -299,6 +299,7 @@ def measure_stripes(cutout: Image.Image, orientation: str = "horizontal", n_colo
     prof = cv2.GaussianBlur(prof[None], (0, 0), 1.2)[0]
     lab = _lab(prof[None])[0]
     crit = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.5)
+    cv2.setRNGSeed(0)
     _, labels, _ = cv2.kmeans(lab, n_colors, None, crit, 3, cv2.KMEANS_PP_CENTERS)
     labels = labels.ravel()
     colors = {i: _hex(np.median(prof[labels == i], axis=0)) for i in range(n_colors) if (labels == i).any()}

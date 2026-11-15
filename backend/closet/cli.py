@@ -240,8 +240,11 @@ def cmd_restore(args, cfg: config.Config) -> int:
         _say(f"{APP_NAME} is running. Quit it first (tray icon or Settings), then restore.")
         return 1
     try:
+        earlier = backup.recover(cfg)   # a restore cut short before is put right first
+        if earlier:
+            _say(earlier["message"])
         result = backup.restore(cfg, Path(args.folder).expanduser(), args.snapshot)
-    except backup.BackupError as e:
+    except (backup.BackupError, backup.RecoveryError) as e:
         _say(str(e))
         return 1
     msg = f"Restored {result['items']} items from {result['snapshot']}."

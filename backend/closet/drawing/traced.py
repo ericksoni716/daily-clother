@@ -263,8 +263,10 @@ def _bits(o: T.Oriented, sole_work: np.ndarray, f: _Frame) -> list[_Bit]:
         u, h = hf.uh([[cx + 0.5, cy + 0.5]])[0]
         cs, _ = cv2.findContours((labels == i).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         c = max(cs, key=cv2.contourArea)[:, 0, :] + 0.5
-        out.append(_Bit(float(u), float(h), a * hf.cm, b * hf.cm, area / (a * b), lab[ys, xs].mean(axis=0),
-                        hf.uh(c)))
+        # its colour away from its edge, where it blends with what is round it
+        core = cv2.erode((labels == i).astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+        colour = np.median(lab[core] if core.sum() >= 0.2 * area else lab[ys, xs], axis=0)
+        out.append(_Bit(float(u), float(h), a * hf.cm, b * hf.cm, area / (a * b), colour, hf.uh(c)))
     return out
 
 
@@ -525,12 +527,14 @@ def _mark(kind: str, group: list[dict]) -> Mark:
 
 # ------------------------------------------------------------------ the record
 
-def traced_shoe(reading: T.Reading) -> TracedShoe | None:
-    """The traced shoe of one photo, from the trace the gate's reading kept; None when no shoe was found."""
+def traced_shoe(reading: T.Reading, approach: str | None = None) -> TracedShoe | None:
+    """The traced shoe of one photo, from the reading's trace by `approach` (the best one when not given);
+    None when no shoe was found."""
     o = reading.oriented
     if o is None or not reading.variants:
         return None
-    best = next((v for v in reading.variants if v.approach.name == reading.best), reading.variants[0])
+    name = approach or reading.best
+    best = next((v for v in reading.variants if v.approach.name == name), reading.variants[0])
     t = best.trace
     ras = T.raster(t)
     shoe = ras >= 0

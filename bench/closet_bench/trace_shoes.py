@@ -48,12 +48,14 @@ from closet.drawing.trace import (  # noqa: F401  (the tracing lives in the app;
     SHOE_X0,
     WORK,
     Approach,
+    Attempt,
     Gate,
     Oriented,
     Scores,
     Trace,
     clean_mask,
     delta_e,
+    end_notch,
     gate,
     grabcut_mask,
     mark_mask,
@@ -67,6 +69,7 @@ from closet.drawing.trace import (  # noqa: F401  (the tracing lives in the app;
     trace,
 )
 from closet.drawing.trace import trace_photo as read_photo
+from closet.drawing.traced import LENGTH, TracedShoe, traced_shoe
 from PIL import Image
 
 from . import cutout as C
@@ -119,6 +122,8 @@ class Result:
     best: str | None = None
     answer: bool = False                                          # the template was drawn from a saved tagger answer
     mask: np.ndarray | None = field(default=None, repr=False)   # the cleaned cut-out mask, the photo's size
+    traced: TracedShoe | None = None                              # the app's approach's trace, as data
+    attempts: list[Attempt] = field(default_factory=list)         # every cut-out tried, in order
 
 
 def template_svg(answer, color_hex: str, aspect: float, uid: str) -> str | None:
@@ -149,12 +154,14 @@ def trace_photo(img: Image.Image, cutout: str = "auto", model: str = "isnet-gene
                 approaches: tuple[Approach, ...] = APPROACHES) -> Result:
     rd = read_photo(img, cutters(cutout, model, models_dir), approaches)
     if rd.oriented is None:
-        return Result(img, None, rd.cutout_by, None, [], rd.gate, None, rd.seconds, mask=rd.mask)
+        return Result(img, None, rd.cutout_by, None, [], rd.gate, None, rd.seconds, mask=rd.mask, attempts=rd.attempts)
     cut, _ = C.make_cutout(img, Image.fromarray(rd.mask * 255))
     variants = [Variant(v.approach, v.trace, v.scores, to_svg(v.trace, f"{uid}v{n}")) for n, v in enumerate(rd.variants)]
     best = next(v for v in variants if v.approach.name == rd.best)
     tmpl = template_svg(answer, best.trace.regions[0].color, rd.oriented.aspect, f"{uid}t")
-    return Result(img, cut, rd.cutout_by, rd.oriented, variants, rd.gate, tmpl, rd.seconds, rd.best, answer is not None, rd.mask)
+    app = APPROACH.name if any(v.approach.name == APPROACH.name for v in rd.variants) else None
+    return Result(img, cut, rd.cutout_by, rd.oriented, variants, rd.gate, tmpl, rd.seconds, rd.best, answer is not None, rd.mask,
+                  traced_shoe(rd, app), rd.attempts)
 
 
 # ------------------------------------------------------------------ the sheet
@@ -183,6 +190,93 @@ def _text(x: float, y: float, s: str, size: int = 15, weight: str = "normal", co
             f'fill="{color}">{html.escape(s, quote=False)}</text>')
 
 
+PART_INK = {"toe_cap": "#e6194b", "vamp": "#2f9e44", "quarter": "#4263eb", "heel_counter": "#f76707",
+            "collar": "#9c36b5", "tongue": "#0c8599", "midsole": "#a07800", "outsole": "#5c940d",
+            "laces": "#d6336c", "eyelets": "#1098ad", "stitching": "#9a6324"}
+
+
+def _xy(u: float, h: float) -> tuple[float, float]:
+    """A point of the traced data, (u, cm), on the templates' card: toe at SHOE_X0, on the ground at SHOE_G."""
+    s = SHOE_L / LENGTH
+    return SHOE_X0 + (1 - u) * LENGTH * s, SHOE_G - h * s
+
+
+def _poly(pts, close: bool = True) -> str:
+    xy = [_xy(u, h) for u, h in pts]
+    return "M" + " L".join(f"{x:.1f},{y:.1f}" for x, y in xy) + ("Z" if close else "")
+
+
+def overlay_svg(ts: TracedShoe) -> str:
+    """The traced shoe drawn back from its data: the colour regions faded, the profile lines, every part
+    outlined in its own colour (dashed when inferred), the marks numbered, and laces, eyelets and stitching dotted."""
+    out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {CARD_W} {CARD_H}" width="{CARD_W}" height="{CARD_H}">',
+           f'<rect width="{CARD_W}" height="{CARD_H}" rx="18" fill="{CARD}"/>']
+    for r in ts.regions:
+        for piece in r.paths:
+            d = "".join(_poly(ring) for ring in piece)
+            out.append(f'<path d="{d}" fill="{r.color}" fill-rule="evenodd" opacity=".45"/>')
+    p = ts.profile
+    sole_top = [(u, b + t) for u, b, t in zip(p.u, p.bottom, p.sole, strict=True)]
+    for line, dash in ((list(zip(p.u, p.top, strict=True)), ""), (list(zip(p.u, p.bottom, strict=True)), ""), (sole_top, "4 3")):
+        out.append(f'<path d="{_poly(line, False)}" fill="none" stroke="#26231f" stroke-width="1.2"'
+                   + (f' stroke-dasharray="{dash}"' if dash else "") + "/>")
+    for part in ts.parts:
+        ink = PART_INK.get(part.name, "#000")
+        for ring in part.region:
+            out.append(f'<path d="{_poly(ring)}" fill="none" stroke="{ink}" stroke-width="2"'
+                       + ("" if part.measured else ' stroke-dasharray="5 4"') + ' stroke-linejoin="round"/>')
+    for row, ink in ((ts.laces, PART_INK["laces"]), (ts.eyelets, PART_INK["eyelets"]), (ts.stitching, PART_INK["stitching"])):
+        for u, h in (row.points if row else []):
+            x, y = _xy(u, h)
+            out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3" fill="{ink}" stroke="#fff" stroke-width="1"/>')
+    for n, m in enumerate(ts.marks, 1):
+        for ring in m.path:
+            out.append(f'<path d="{_poly(ring)}" fill="none" stroke="#111" stroke-width="1.4" stroke-dasharray="3 2"/>')
+        x, y = _xy(m.u, m.h)
+        out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="9" fill="#111"/>'
+                   f'<text x="{x:.1f}" y="{y + 4:.1f}" text-anchor="middle" font-family="system-ui,sans-serif" '
+                   f'font-size="12" font-weight="700" fill="#fff">{n}</text>')
+    names = [n for n in PART_INK if ts.part(n)]
+    for i, name in enumerate(names):
+        part = ts.part(name)
+        x, y = 16 + (i % 3) * 128, 24 + (i // 3) * 17
+        out.append(f'<rect x="{x}" y="{y - 9}" width="10" height="10" fill="{part.color}" stroke="{PART_INK[name]}" stroke-width="2"/>'
+                   + _text(x + 14, y, name.replace("_", " ") + ("" if part.measured else " (inferred)"), 11,
+                           color=PART_INK[name]))
+    out.append("</svg>")
+    return "".join(out)
+
+
+def overlay_lines(ts: TracedShoe | None) -> list[str]:
+    if ts is None:
+        return ["no traced data"]
+    rows = " · ".join(f"{name} {row.count}" for name, row in (("laces", ts.laces), ("eyelets", ts.eyelets),
+                                                             ("stitches", ts.stitching)) if row) or "no laces, eyelets or stitching"
+    marks = ", ".join(f"{n} {m.kind}" + (f" ×{m.count}" if m.count > 1 else "") for n, m in enumerate(ts.marks, 1)) or "none"
+    return [f"style {ts.style} · confidence {ts.confidence:.2f}", rows, f"marks: {marks}"]
+
+
+def pairs_cell(r: Result) -> tuple[Image.Image | None, list[str]]:
+    """The turned cut-out, with the place where a second toe or heel shows ringed: what the pair checks see."""
+    sp = r.gate.signals.get("second_piece")
+    en = r.gate.signals.get("end_notch")
+    lines = [f"second piece {sp:.3f} (limit {GATE['second_piece'][0]:g})" if sp is not None else "second piece –",
+             f"second toe or heel {en:.3f} (limit {GATE['end_notch'][0]:g})" if en is not None else "second toe or heel –"]
+    many = (sp or 0) > GATE["second_piece"][0] or (en or 0) > GATE["end_notch"][0]
+    lines.append("more than one shoe" if many else "one shoe")
+    o = r.oriented
+    if o is None:
+        return None, lines
+    from PIL import ImageDraw
+    img = Image.fromarray(np.where(o.mask[..., None] > 0, np.array([70, 66, 60], np.uint8), np.array([250, 248, 243], np.uint8)))
+    _, at = end_notch(o.mask)
+    if at is not None and (en or 0) > GATE["end_notch"][0]:
+        d = ImageDraw.Draw(img)
+        rad = max(6, o.mask.shape[1] // 30)
+        d.ellipse((at[0] - rad, at[1] - rad, at[0] + rad, at[1] + rad), outline=(214, 40, 40), width=max(2, rad // 3))
+    return img, lines
+
+
 def sheet(r: Result, number: int) -> str:
     """The comparison sheet: photo | cut-out | each trace | today's template, at item size and at tile size."""
     m, gap = 24, 16
@@ -197,8 +291,17 @@ def sheet(r: Result, number: int) -> str:
         cols.append(((" ★ " if v.approach.name == r.best else "") + v.approach.name, lines, v.approach.name))
     if r.template_svg:
         cols.append(("Today's template", ["drawn from tags" if r.answer else "from the measured colour and height"], "template"))
+    if r.traced is not None:
+        cols.append(("Traced data (" + r.traced.approach + ")", overlay_lines(r.traced), "data"))
+    pair_img, pair_lines = pairs_cell(r)
+    cols.append(("Pairs", pair_lines, "pairs"))
+    tried = ""
+    if len(r.attempts) > 1:
+        tried = "cut-outs tried: " + "; ".join(
+            f"{a.cutout_by} " + ("(used)" if n == len(r.attempts) - 1 else f"(turned down: {len(a.reasons)} reasons)")
+            for n, a in enumerate(r.attempts))
     width = 2 * m + len(cols) * (cw + gap) - gap
-    head_h = 70 + 20 * len(r.gate.reasons)
+    head_h = 70 + 20 * len(r.gate.reasons) + (20 if tried else 0)
     y_item = m + head_h
     y_cap = y_item + ch + 22
     y_tile = y_cap + 3 * 19 + 26
@@ -216,6 +319,8 @@ def sheet(r: Result, number: int) -> str:
                             f"bottom row at grid-tile size ({TILE_PX} px)", 15, color="#6d675d")]
     for i, why in enumerate(r.gate.reasons):
         out.append(_text(m, m + 72 + 20 * i, "• " + why, 15, color="#b3372f"))
+    if tried:
+        out.append(_text(m, m + 72 + 20 * len(r.gate.reasons), tried, 15, color="#6d675d"))
     for i, (title, lines, key) in enumerate(cols):
         x = m + i * (cw + gap)
         for y, w, h in ((y_item, cw, ch), (y_tile, tw, th)):
@@ -227,6 +332,11 @@ def sheet(r: Result, number: int) -> str:
             elif key == "template":
                 if r.template_svg:
                     out.append(_place(_prefix_ids(r.template_svg, "i" if h == ch else "s"), x, y, w, h))
+            elif key == "data":
+                out.append(_place(overlay_svg(r.traced), x, y, w, h))
+            elif key == "pairs":
+                if pair_img is not None:
+                    out.append(_image_cell(pair_img, x, y, w, h, False, "PNG"))
             else:
                 v = next(v for v in r.variants if v.approach.name == key)
                 out.append(_place(_prefix_ids(v.svg, "i" if h == ch else "s"), x, y, w, h))
@@ -274,6 +384,34 @@ def summary(results: list[Result]) -> dict:
             "approaches": table, "recommended": pick}
 
 
+def why_turned_down(results: list[Result]) -> dict[str, int]:
+    """How many photos each reason turned down (a photo can have more than one), most common first."""
+    counts: dict[str, int] = {}
+    for r in results:
+        for why in {x.split(" (")[0] for x in r.gate.reasons}:
+            counts[why] = counts.get(why, 0) + 1
+    return dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
+
+
+def gate_report(results: list[Result]) -> str:
+    """How many photos passed, and why the others did not, in plain words."""
+    passed = sum(1 for r in results if r.gate.ok)
+    lines = [f"{passed} of {len(results)} photos pass the quality gate."]
+    why = why_turned_down(results)
+    if why:
+        lines.append("The others were turned down because:")
+        lines += [f"  {n:3d} × {reason}" for reason, n in why.items()]
+    fell_back = sum(1 for r in results if len(r.attempts) > 1)
+    if fell_back:
+        lines.append(f"{fell_back} needed the other cut-out after the first was turned down"
+                     f" ({sum(1 for r in results if len(r.attempts) > 1 and r.gate.ok)} of them then passed).")
+    used = {}
+    for r in results:
+        used[r.cutout_by] = used.get(r.cutout_by, 0) + 1
+    lines.append("Cut out by: " + ", ".join(f"{k} {v}" for k, v in sorted(used.items())) + ".")
+    return "\n".join(lines)
+
+
 def _index(results: list[Result], files: list[str], summ: dict, note: str) -> str:
     css = """
     :root{color-scheme:light dark;--bg:#fbfaf7;--fg:#22201c;--mut:#6d675d;--card:#fff;--line:#e3ded4}
@@ -303,7 +441,9 @@ def _index(results: list[Result], files: list[str], summ: dict, note: str) -> st
     p.append("</table><p class='mut'>Score = 0.35 × silhouette IoU (0.8 → 0, 1 → 1) + 0.25 × colour (ΔE 25 → 0, 0 → 1) "
              "+ 0.2 × cleanliness (3 paths → 1, 28 → 0) + 0.2 × marks kept; without marks in the photo the other weights "
              "are scaled up.</p></section>")
-    p.append("<section><h2>Quality gate</h2><table><tr><th>Shoe</th><th>Verdict</th><th>Why</th></tr>")
+    p.append("<section><h2>Quality gate</h2>")
+    p.append("<pre>" + html.escape(gate_report(results)) + "</pre>")
+    p.append("<table><tr><th>Shoe</th><th>Verdict</th><th>Why</th></tr>")
     for n, r in enumerate(results, 1):
         why = "<br>".join(html.escape(x) for x in r.gate.reasons) or "–"
         p.append(f"<tr><td>{n}</td><td class='{'ok' if r.gate.ok else 'bad'}'>{'traceable' if r.gate.ok else 'too poor'}</td>"
@@ -327,7 +467,9 @@ def _result_json(r: Result) -> dict:
             "turned": None if o is None else {"angle": round(o.angle, 2), "flipped": o.flipped},
             "variants": {v.approach.name: {"iou": v.scores.iou, "delta_e": v.scores.delta_e, "colors": v.scores.colors,
                                            "paths": v.scores.paths, "marks": v.scores.marks, "score": v.scores.score,
-                                           "palette": [rg.color for rg in v.trace.regions]} for v in r.variants}}
+                                           "palette": [rg.color for rg in v.trace.regions]} for v in r.variants},
+            "attempts": [{"cutout_by": a.cutout_by, "reasons": a.reasons} for a in r.attempts],
+            "traced": None if r.traced is None else json.loads(r.traced.to_json())}
 
 
 def photos_in(folder: Path) -> list[Path]:
@@ -360,12 +502,14 @@ def run(photos: Path, out: Path, cutout: str = "auto", model: str = "isnet-gener
             print(f"shoe {n:2d}: {'traceable ' if r.gate.ok else 'too poor  '} best {r.best or '-':20s} "
                   f"{r.seconds:5.1f}s  " + ("; ".join(r.gate.reasons) or ""))
     summ = summary(results)
+    summ["turned_down"] = why_turned_down(results)
     (out / "results.json").write_text(json.dumps({"summary": summ, "shoes": [_result_json(r) for r in results]},
                                                  indent=2, default=float), encoding="utf-8")
     note = (f"Photos from {photos.name}/, listed by number in name order. Cut-outs by "
             f"{', '.join(sorted({r.cutout_by for r in results}))}.")
     (out / "index.html").write_text(_index(results, files, summ, note), encoding="utf-8")
     if not quiet:
+        print(gate_report(results))
         print(f"recommended approach: {summ['recommended']}"
               + ("" if summ["passed"] else " (no photo passed the gate: scored on all of them)"))
     return out / "index.html"

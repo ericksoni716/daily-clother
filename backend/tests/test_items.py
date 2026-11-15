@@ -1,5 +1,6 @@
 import io
 
+import pytest
 from PIL import Image
 
 from closet import db, images, vocab
@@ -24,6 +25,27 @@ def test_stored_photo_is_at_most_1600px_and_the_upload_is_not_kept(client, cfg):
     assert len(files) == 2 and all(f.endswith(".webp") for f in files)
     with Image.open(cfg.images_dir("main") / item["photos"][0]["url"].removeprefix("/media/")) as im:
         assert max(im.size) == images.MAX_EDGE
+
+
+@pytest.mark.parametrize("failed_save", [1, 2])
+def test_failed_photo_save_leaves_no_orphan_files(client, cfg, monkeypatch, failed_save):
+    save = images.save_webp
+    calls = 0
+
+    def disk_full(img, path, quality):
+        nonlocal calls
+        calls += 1
+        if calls == failed_save:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.with_suffix(".part").write_bytes(b"partial")
+            raise OSError("disk full")
+        return save(img, path, quality)
+
+    monkeypatch.setattr(images, "save_webp", disk_full)
+    with pytest.raises(OSError, match="disk full"):
+        upload(client)
+    assert client.get("/api/items").json()["items"] == []
+    assert not list(cfg.images_dir("main").glob("*"))
 
 
 def test_retried_upload_with_the_same_key_makes_no_duplicate(client):

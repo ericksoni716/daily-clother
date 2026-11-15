@@ -177,9 +177,9 @@ def create_from_photo(conn, images_dir: Path, data: bytes, client_key: str | Non
         return _duplicate(conn, same), False
     _refuse_waiting_source(conn, source_sha256)
     item_id, photo_id = uuid.uuid4().hex, uuid.uuid4().hex
-    stored = images.store_upload(data, images_dir, item_id, photo_id)
     t = db.now()
     try:
+        stored = images.store_upload(data, images_dir, item_id, photo_id)
         conn.execute("BEGIN IMMEDIATE")
         # checked again now that the database is locked, in case the same photo arrived meanwhile
         same = _same_photo(conn, source_sha256)

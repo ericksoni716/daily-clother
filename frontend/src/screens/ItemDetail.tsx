@@ -49,7 +49,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   const [editing, setEditing] = useState<string | null>(null);
   const inflight = useRef(0);
   const saves = useRef(new SaveLine());
-  useWhenLeaving(() => saves.current.flush());
+  useWhenLeaving(() => saves.current.flush(), true);
   const backTo = status === 'archived' ? '/archived' : '/';
 
   const load = useCallback(async () => {

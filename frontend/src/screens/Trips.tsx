@@ -403,7 +403,7 @@ function SavedTrip({ id }: { id: string }) {
   const [newWeather, setNewWeather] = useState(false);
   const pending = useRef(0);
   const ticks = useRef(new SaveLine());
-  useWhenLeaving(() => ticks.current.flush());
+  useWhenLeaving(() => ticks.current.flush(), true);
 
   useEffect(() => {
     let current = true;

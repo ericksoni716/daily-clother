@@ -131,4 +131,21 @@ describe('SaveLine', () => {
     expect(await a).toBe('A');
     await rejected;
   });
+
+  it('commits dirty fields on internal navigation without force-starting queued saves', async () => {
+    const line = new SaveLine();
+    const first = held();
+    const sent: string[] = [];
+    const a = line.add(() => (sent.push('a'), first.promise));
+    await Promise.resolve();
+    let b!: Promise<string>;
+    cleanups.push(whenLeaving(() => { b = line.add(async () => (sent.push('b'), 'B')); }));
+    cleanups.push(whenLeaving(() => line.flush(), true));
+    flushSaves(false);
+    expect(sent).toEqual(['a']);
+    first.release('A');
+    expect(await a).toBe('A');
+    expect(await b).toBe('B');
+    expect(sent).toEqual(['a', 'b']);
+  });
 });

@@ -8,10 +8,11 @@ import { useEffect, useRef } from 'react';
 type Flush = () => void;
 
 const flushers = new Set<Flush>();
+const pageFlushers = new Set<Flush>();
 
 /** Runs every registered flush now. One that fails does not stop the others. */
-export function flushSaves(): void {
-  for (const flush of [...flushers]) {
+export function flushSaves(leavingPage = true): void {
+  for (const flush of [...flushers, ...(leavingPage ? pageFlushers : [])]) {
     try {
       flush();
     } catch {
@@ -20,10 +21,11 @@ export function flushSaves(): void {
   }
 }
 
-/** Registers something to run when the page goes away; returns a function that removes it. */
-export function whenLeaving(flush: Flush): () => void {
-  flushers.add(flush);
-  return () => void flushers.delete(flush);
+/** Registers a save; `pageOnly` skips internal navigation, which need not force queued requests to start. */
+export function whenLeaving(flush: Flush, pageOnly = false): () => void {
+  const list = pageOnly ? pageFlushers : flushers;
+  list.add(flush);
+  return () => void list.delete(flush);
 }
 
 type Target = Pick<EventTarget, 'addEventListener' | 'removeEventListener'>;
@@ -46,12 +48,12 @@ export function listenForLeaving(win: Target, doc: Target & { visibilityState: s
 }
 
 /** Runs the latest `flush` given when the page goes away, for as long as the component is shown. */
-export function useWhenLeaving(flush: Flush): void {
+export function useWhenLeaving(flush: Flush, pageOnly = false): void {
   const latest = useRef(flush);
   useEffect(() => {
     latest.current = flush;
   });
-  useEffect(() => whenLeaving(() => latest.current()), []);
+  useEffect(() => whenLeaving(() => latest.current(), pageOnly), [pageOnly]);
 }
 
 /**

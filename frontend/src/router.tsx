@@ -3,7 +3,7 @@ import { flushSaves } from './leave';
 
 const listeners = new Set<() => void>();
 const notify = () => {
-  flushSaves();
+  flushSaves(false);
   listeners.forEach((l) => l());
 };
 window.addEventListener('popstate', notify);

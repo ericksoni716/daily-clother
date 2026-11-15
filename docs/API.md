@@ -86,6 +86,11 @@ A shoe waits to be traced once its cutout is ready and it is known to be a shoe 
 | `GET /api/items/{id}/back.svg` | Trousers and shorts: the small drawing from behind (back pockets, yoke, label, darts, V loop, honeycombs) as `image/svg+xml`, drawn from the same answer and fill as the drawing; 404 when the item has none (not a bottom, nothing on its back known, or no answer). |
 | `GET /media/{path}` | A WebP image; cacheable forever (paths never change content). |
 
+Drawing URLs include `?v=` with the SVG's SHA-256. Front and back drawings are
+cached as immutable only when that version matches the returned SVG. A stale
+or missing version still returns the current drawing, with `Cache-Control:
+no-store`, so a late request cannot save new content under an old address.
+
 ### Several items from one photo
 A photo of several pieces laid out together is kept once (`backend/closet/sources.py`, under `images/sources/<id>/`). Claude is asked for a box around each piece (`tagger/garments.py`), through the same routes as describing: the plan first, the API key only when switched on, each request checked against the monthly limit before it is made and recorded with purpose `find_garments` (`GET /api/tagging/spend` gives the most one photo should cost as `per_find_usd`). The owner checks the boxes; then each becomes an ordinary item whose photo is its box cut out of this one (with a little of the photo around it), queued for its cutout and then described, drawn and pattern-measured like any upload. The demo closet never asks Claude: there its photos wait for the owner to draw the boxes.
 

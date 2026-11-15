@@ -3,6 +3,7 @@ import math
 import re
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -881,6 +882,97 @@ def test_a_sandal_is_drawn_sole_then_foot_then_straps(shoes):
 LOW_SHOES = [Piece(c, answer(c, shoe_style=s), "#5a3a22") for c, s in
              (("sneakers", "low_sneaker"), ("sneakers", "runner"), ("sneakers", "slip_on"), ("dress_shoes", "loafer"),
               ("dress_shoes", "derby"), ("dress_shoes", "oxford"))]
+
+
+@pytest.mark.parametrize("footwear,lacing,pairs", [
+    ("service_boot", "d_rings", 7),
+    ("service_boot", "speed_hooks", 3),
+    ("logger_boot", "na", 4),
+])
+def test_front_shoes_draw_lacing_hardware_on_the_upper(footwear, lacing, pairs):
+    spec = fig._spec(Piece("boots", answer("boots", footwear=footwear, lacing=lacing), "#765432"))
+    plain = replace(spec, params={k: v for k, v in spec.params.items() if k not in ("rings", "hooks")})
+    drawn = fig.front_shoe(spec, K_PX, uid="z", ankle=fig._ankle())
+    assert drawn.body != fig.front_shoe(plain, K_PX, uid="z", ankle=fig._ankle()).body
+    hardware = re.findall(r'<path d="([^"]+)" fill="none" stroke="' + frontshoe.METAL + '"', drawn.body)
+    assert len(hardware) == 2 * pairs
+    assert all(_inside(point, _flat(drawn.outline)) for path in hardware for point in _flat(path))
+    assert drawn.body.index('clip-path="url(#za)"') < drawn.body.index(f'stroke="{frontshoe.METAL}"')
+
+
+@pytest.mark.parametrize("footwear,lacing", [
+    ("service_boot", "d_rings"),
+    ("service_boot", "speed_hooks"),
+    ("logger_boot", "na"),
+])
+@pytest.mark.parametrize("eyelets", [3, 5, 8])
+def test_front_shoe_hardware_does_not_overlap_even_with_its_outline(footwear, lacing, eyelets):
+    spec = fig._spec(Piece("boots", answer("boots", footwear=footwear, lacing=lacing), "#765432"))
+    spec = replace(spec, params={**spec.params, "eyelets": eyelets})
+    drawn = fig.front_shoe(spec, K_PX, uid="z", ankle=fig._ankle())
+    paths = re.findall(r'<path d="([^"]+)" fill="none" stroke="([^"]+)" stroke-width="([^"]+)"', drawn.body)
+    boxes = []
+    for i, (path, colour, _) in enumerate(paths):
+        if colour != frontshoe.METAL:
+            continue
+        assert paths[i - 1][0] == path and paths[i - 1][1] == illustrate.INK
+        pad = float(paths[i - 1][2]) / 2   # the dark outline counts as hardware too
+        points = _flat(path)
+        boxes.append((min(x for x, _ in points) - pad, min(y for _, y in points) - pad,
+                      max(x for x, _ in points) + pad, max(y for _, y in points) + pad))
+    assert boxes
+    for i, (x0, y0, x1, y1) in enumerate(boxes):
+        for a0, b0, a1, b1 in boxes[i + 1:]:
+            assert x1 < a0 or a1 < x0 or y1 < b0 or b1 < y0
+    laces = [_flat(path) for i, (path, colour, width) in enumerate(paths[:-1])
+             if colour == illustrate.INK and float(width) == 2.8
+             and paths[i + 1][0] == path and float(paths[i + 1][2]) == 1.5]
+    assert len(laces) == max(3, min(7, eyelets)) - 1 + 3
+    for i, (_, y0, x1, y1) in enumerate(boxes):
+        ends = [lace[0 if i % 2 == 0 else -1] for lace in laces]
+        own = min(range(len(ends)), key=lambda j: abs(ends[j][1] - (y0 + y1) / 2))
+        if lacing == "speed_hooks":
+            assert own >= len(laces) - 3   # all three hooks belong to the shaft, not the vamp
+        for j, (_, y) in enumerate(ends):
+            if j != own:   # also clear the ordinary eyelet rows below the lowest logger hook
+                assert y1 < y - 1.4 or y0 > y + 1.4
+        if i % 2 == 0:
+            # The middle half of every lace crossing remains clear of both pieces of hardware.
+            left, right = laces[own][0][0], laces[own][-1][0]
+            assert x1 < left + (right - left) / 4
+            assert boxes[i + 1][0] > right - (right - left) / 4
+
+
+def test_front_shoe_d_rings_have_a_flat_side_towards_the_lace():
+    spec = fig._spec(Piece("boots", answer("boots", footwear="service_boot", lacing="d_rings"), "#765432"))
+    drawn = fig.front_shoe(spec, K_PX)
+    rings = re.findall(r'<path d="([^"]+)" fill="none" stroke="' + frontshoe.METAL + '"', drawn.body)
+    assert len(rings) == 14
+    for i in range(0, len(rings), 2):
+        for side, path in zip((-1, 1), rings[i:i + 2], strict=True):
+            points = _flat(path)
+            # Closing the outer semicircle makes the straight, inward-facing side of the D.
+            assert path.endswith("Z")
+            assert points[0][0] == points[-1][0]
+            assert points[0][1] < points[-1][1]
+            assert all(side * (x - points[0][0]) >= -0.01 for x, _ in points)
+
+
+def test_front_shoes_draw_a_toggle_and_its_two_cord_ends():
+    spec = fig._spec(Piece("sneakers", answer("sneakers", footwear="trail_runner", lacing="toggle_speed_lace"), "#765432"))
+    plain = replace(spec, params={k: v for k, v in spec.params.items() if k != "toggle"})
+    drawn = fig.front_shoe(spec, K_PX, uid="z", ankle=fig._ankle())
+    assert drawn.body != fig.front_shoe(plain, K_PX, uid="z", ankle=fig._ankle()).body
+    lock = re.search(r'<rect x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)" rx="1" fill="' + illustrate.INK, drawn.body)
+    assert lock is not None
+    x, y, w, h = map(float, lock.groups())
+    assert all(_inside(p, _flat(drawn.outline)) for p in ((x, y), (x + w, y + h)))
+    tails = re.findall(r'<path d="([^"]+)" fill="none" stroke="[^"]+" stroke-width="1.5"[^>]*>', drawn.body[:lock.start()])
+    assert len(tails) >= 2
+    for tail in tails[-2:]:
+        points = _flat(tail)
+        assert len(points) >= 2 and points[-1][1] > points[0][1]
+        assert all(_inside(p, _flat(drawn.outline)) for p in points)
 
 
 @pytest.mark.parametrize("shoes", LOW_SHOES, ids=lambda p: p.answer["details"]["shoe_style"])

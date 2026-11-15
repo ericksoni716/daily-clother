@@ -4,11 +4,14 @@ import type { Page } from '@playwright/test';
 /**
  * Accessibility checks shared by the browser tests (see 17-accessibility.spec.ts).
  * axe-core checks the page against WCAG 2.2 A and AA: contrast, names and roles, text alternatives.
+ * `include` (a CSS selector) checks only that part of the page.
  */
-export async function axeViolations(page: Page): Promise<string[]> {
+export async function axeViolations(page: Page, include?: string): Promise<string[]> {
   // a sheet fading in would be measured half-transparent
   await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => undefined))));
-  const result = await new AxeBuilder({ page })
+  const builder = new AxeBuilder({ page });
+  if (include) builder.include(include);
+  const result = await builder
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .analyze();
   return result.violations.flatMap((v) => v.nodes.map((n) => `${v.id}: ${n.target.join(' ')} — ${n.failureSummary?.split('\n').slice(1).join(' ').trim()}`));

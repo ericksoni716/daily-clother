@@ -17,7 +17,7 @@ const store = {
 };
 
 /** SHA-256 of the file as chosen, before it is shrunk; null where the browser cannot work it out. */
-async function sha256(file: File): Promise<string | null> {
+export async function sha256(file: File): Promise<string | null> {
   if (!globalThis.crypto?.subtle) return null;
   const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer());
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');

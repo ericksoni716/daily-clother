@@ -9,7 +9,7 @@ import uuid
 import zlib
 from pathlib import Path
 
-from . import db, details, failures, history, illustrations, images, jobs, kinds, palette, patjobs, tagjobs, vocab
+from . import db, details, failures, history, illustrations, images, jobs, kinds, palette, patjobs, tagjobs, tracejobs, vocab
 from .tagger.taxonomy import SHADES, nearest_shade
 
 TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "acquired_on", "notes", "rating_reason", "color_hex")
@@ -87,8 +87,10 @@ def detail(conn, row) -> dict:
     out["photos"] = [{
         "id": p["id"], "kind": p["kind"], "url": _media(p["original_path"]), "thumb_url": _media(p["thumb_path"]),
         "cutout_url": _media(p["cutout_path"]), "cutout_thumb_url": _media(p["cutout_thumb_path"]),
-        "width": p["width"], "height": p["height"],
+        "width": p["width"], "height": p["height"], "view": p["view"],
     } for p in conn.execute("SELECT * FROM photos WHERE item_id = ? ORDER BY kind = 'front' DESC, created_at", (row["id"],))]
+    # a shoe's trace from its photo: its state, why it was turned down, and what Fix the details can change (null: not a shoe)
+    out["trace"] = tracejobs.shown(row)
     out["recent_wears"] = [r[0] for r in conn.execute(
         "SELECT worn_on FROM wears WHERE item_id = ? ORDER BY worn_on DESC LIMIT ?", (row["id"], RECENT_WEARS))]
     # the photo of several pieces this item was cut from, and its box in it (fractions); null for a photo of its own
@@ -296,6 +298,8 @@ def _update(conn, item_id: str, changes: dict, record: bool) -> dict:
         conn.execute(f"UPDATE items SET {', '.join(sets)} WHERE id = ?", args)
         if "pattern" in changes:
             patjobs.mark(conn, item_id)   # measured again (or no longer drawn) before it is redrawn
+        if "category" in changes:
+            tracejobs.mark(conn, item_id, again=False)   # said to be a shoe: traced from its photo, if it never was
         if illustrations.SHOWN & changes.keys():
             illustrations.redraw(conn, item_id)
         if record:

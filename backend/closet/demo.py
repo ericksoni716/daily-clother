@@ -11,7 +11,9 @@ made-up pattern tiles for the items drawn from their tags) and are kept as they
 are while the drawing code's version is the one they were made with. Outfits
 worn in the last three weeks, most of them rated, two wishes with stand-in
 finds from made-up shops (one has dropped in price) and a saved trip planned
-for weather given in advance come with it too: nothing is looked up.
+for weather given in advance come with it too: nothing is looked up. Two of
+its shoes are drawn from traces made in advance of made-up side-on photos, so
+a traced shoe can be seen and its drawing fixed; they are never traced again.
 """
 from __future__ import annotations
 
@@ -21,7 +23,7 @@ from datetime import timedelta
 
 from PIL import Image
 
-from . import db, images, savedtrips, wears, wouldwork
+from . import db, illustrations, images, savedtrips, tracejobs, wears, wouldwork
 from .config import Config, bundle_dir
 
 FIELDS = ("name", "category", "color", "color_hex", "pattern", "formality", "season", "brand", "size", "material",
@@ -40,6 +42,7 @@ def ensure(cfg: Config) -> int:
         if conn.execute("SELECT COUNT(*) FROM items").fetchone()[0]:
             _answers(conn, data)   # a demo closet made before the answers existed gets them now
             _prices(conn, data)    # and one made before the demo had prices gets those
+            _traces(conn, data)    # and one made before shoes were traced gets the traced shoes
             if WORN_OUTFITS_MIGRATION in applied:
                 _outfits(conn, data)   # and one made before worn outfits were remembered gets those, once
             return _grow(cfg, conn, data)   # and one made before the demo had about 40 items gets the rest, once
@@ -100,6 +103,9 @@ def _add_items(cfg: Config, conn, data: dict, chosen: list[dict]) -> int:
                 "VALUES (?, ?, 'front', ?, ?, ?, ?, ?, ?, ?, ?)",
                 (pid, it["id"], f"{it['id']}/{pid}.webp", f"{it['id']}/{pid}.t.webp", f"{it['id']}/{pid}.cut.webp",
                  f"{it['id']}/{pid}.cut.t.webp", w, h, (folder / f"{pid}.webp").stat().st_size, created))
+        if it.get("trace"):   # a shoe drawn from a trace made in advance (of a made-up photo), kept as a traced shoe's is
+            conn.execute("UPDATE items SET trace = ?, trace_version = ?, trace_state = 'done' WHERE id = ?",
+                         (json.dumps(it["trace"]), it.get("trace_version"), it["id"]))
         _history(conn, it)
         # the drawing was made in advance with the drawing code of this version; kept until it is raised
         if it.get("illustration_svg"):
@@ -127,6 +133,19 @@ def _grow(cfg: Config, conn, data: dict) -> int:
     _wishes(conn, data)
     _trip(conn, data)
     return added
+
+
+def _traces(conn, data: dict) -> None:
+    """Give a demo closet made before shoes were traced its traced shoes, once: only a shoe still in it, never
+    traced and not set to the plain drawing; drawn again from the trace."""
+    for it in data["items"]:
+        if not it.get("trace"):
+            continue
+        done = conn.execute(f"UPDATE items SET trace = ?, trace_version = ?, trace_state = 'done' WHERE id = ? "
+                            f"AND trace IS NULL AND trace_state IS NULL AND trace_plain = 0 AND category IN {tracejobs.SHOES}",
+                            (json.dumps(it["trace"]), it.get("trace_version"), it["id"])).rowcount
+        if done:
+            illustrations.redraw(conn, it["id"])
 
 
 def _answers(conn, data: dict) -> None:

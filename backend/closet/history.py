@@ -61,6 +61,9 @@ def drawn_state(row) -> str:
                  "answer": _json(row["tag_answer"], None), "details": details.own(row)}
     if row["pattern_fill"]:   # keep older fingerprints valid for drawings without a measured pattern
         made_from["pattern_fill"] = _json(row["pattern_fill"], None)
+    shoe = illustrations.traced(row)
+    if shoe is not None:   # a shoe drawn from its trace (and only then, so other fingerprints stay as they were)
+        made_from["trace"] = [shoe[0], _json(shoe[1], None)]
     return hashlib.sha256(json.dumps(made_from, sort_keys=True).encode()).hexdigest()
 
 

@@ -4,6 +4,7 @@ import { ChipGroup } from '../components/ui/Chips';
 import { confirmKeys, Notice, PHONE, Section, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
 import { FixDetails, FixDetailsButton, ItemHistory } from '../components/FixDetails';
 import { KindPicker } from '../components/KindPicker';
+import { TraceNotice } from '../components/ShoeTrace';
 import { BackIcon, ChevronIcon, HangerIcon, WarnIcon } from '../components/Icons';
 import { FIELD_TITLES, formatPrice, label, shadeLabel, measuredColours, parsePrice, ratingLabel, SWATCH, swatchOf, tileCaption, wornWords } from '../labels';
 import { SaveLine, useWhenLeaving } from '../leave';
@@ -14,6 +15,7 @@ import { drawingPlaceholder, loadGridView, notInDrawing } from '../drawing';
 import { describedBy, detailLines, tagNotice } from '../tagging';
 import { kindDrawing, kindLine, type KindGroup } from '../kinds';
 import { sureText } from '../review';
+import { tracing } from '../shoe';
 import type { Item, ItemPatch, PatternColour } from '../types';
 import { localDay, sinceWash, wearDay, wearSummary } from '../wears';
 import { busyLabel } from './Closet';
@@ -82,9 +84,10 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   const describing = item?.tag_state === 'working';
   const awaiting = item?.tag_state === 'waiting';
   const measuring = item?.pattern_state === 'waiting' || item?.pattern_state === 'working';
+  const traced = tracing(item?.trace);
   const followed = useRef('');
   useEffect(() => {
-    if (!(busy || describing || awaiting || measuring) || offline) return;
+    if (!(busy || describing || awaiting || measuring || traced) || offline) return;
     const t = window.setInterval(async () => {
       if (inflight.current) return;
       const version = editVersion.current;
@@ -92,15 +95,15 @@ export function ItemDetail({ id, status, inPanel }: Props) {
         const fresh = await api.item(id);
         if (inflight.current || version !== editVersion.current) return;
         setItem(fresh);
-        const states = `${fresh.cutout_state}/${fresh.tag_state}/${fresh.pattern_state}`;
+        const states = `${fresh.cutout_state}/${fresh.tag_state}/${fresh.pattern_state}/${fresh.trace?.state ?? ''}`;
         if (states !== followed.current) upsert(fresh);
         followed.current = states;
       } catch {
         /* the next tick tries again */
       }
-    }, busy || describing ? 2000 : measuring ? 5000 : 10_000);
+    }, busy || describing || traced ? 2000 : measuring ? 5000 : 10_000);
     return () => window.clearInterval(t);
-  }, [busy, describing, awaiting, measuring, offline, id, upsert]);
+  }, [busy, describing, awaiting, measuring, traced, offline, id, upsert]);
 
   const retag = useCallback(async () => {
     editVersion.current++;
@@ -213,6 +216,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           setFocus(null);
         }} />} />
       <FixDetails item={item} open={fixing} focus={focus} disabled={locked} onSaved={fixed} onError={failed} />
+      <TraceNotice item={item} disabled={locked} onSaved={fixed} onError={failed} />
 
       {measuring && (
         <p className="notice" role="status" data-testid="pattern-measuring">

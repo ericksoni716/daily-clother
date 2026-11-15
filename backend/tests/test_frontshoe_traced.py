@@ -3,6 +3,7 @@
 The traced shoes here are built by hand (or traced from a photo drawn by `shoe_photos`; no real photos), so where
 each panel, mark and lace should land is known.
 """
+import copy
 import hashlib
 import math
 import re
@@ -440,11 +441,13 @@ def test_view_a_and_b_are_each_the_same_every_time():
 # ---- rules every front shoe keeps: A, B and the untraced templates
 
 LIP_CM = 1.5   # the collar's padded front, rounding up to its sides, stands this far above the opening's front edge
-RULE_SHOES = ["RED_BLACK_RUNNER", "LOW_CHUKKA", "WORK_BOOT", "AIR_RUNNER", "NAVY_DERBY", "SERVICE_BOOT", "BUSY_RUNNER"]
+RULE_SHOES = ["RED_BLACK_RUNNER", "LOW_CHUKKA", "WORK_BOOT", "AIR_RUNNER", "NAVY_DERBY", "SERVICE_BOOT", "BUSY_RUNNER",
+              "DARK_COLLAR", "STRIPED_COURT"]
 RULE_STYLES = {"RED_BLACK_RUNNER": ("sneakers", "runner"), "LOW_CHUKKA": ("boots", "boot"),
                "WORK_BOOT": ("boots", "boot"), "AIR_RUNNER": ("sneakers", "runner"),
                "NAVY_DERBY": ("sneakers", "derby"), "SERVICE_BOOT": ("boots", "boot"),
-               "BUSY_RUNNER": ("sneakers", "runner")}
+               "BUSY_RUNNER": ("sneakers", "runner"), "DARK_COLLAR": ("sneakers", "low_sneaker"),
+               "STRIPED_COURT": ("sneakers", "low_sneaker")}
 
 
 # the shoes given a synthetic front photo too (`shoe_photos.front_photo`): what it adds that the side cannot show
@@ -544,17 +547,112 @@ def test_every_detail_lies_on_the_shoe():
             assert not off, (name, el[:80], off[:3])
 
 
-def test_a_traced_toe_is_rounded_as_the_templates():
-    """B's toe follows the style's curve, whatever the trace's top line does there (a boxy toe in the photo)."""
-    t = made(taller=0.0)
+@pytest.mark.parametrize("taller", [0.0, 3.0])
+def test_a_traced_toe_is_the_templates_toe(taller):
+    """B's toe is the style's, as A draws it, whatever the trace's top line does there (a tall, boxy toe in the
+    photo): its height from TOE_U on, the footprint's width, and a sole no thicker at the toe than at the ball."""
+    t = made(taller=taller, sole=3.0)
     for i, u in enumerate(US):
-        if u > 0.8:
-            t.profile.top[i] = t.profile.top[[j for j, v in enumerate(US) if v <= 0.8][-1]]
+        if u > 0.75:   # a boxy toe: the top line stays up to the end
+            t.profile.top[i] = t.profile.top[[j for j, v in enumerate(US) if v <= 0.75][-1]]
+        if u > 0.9:    # and a bumper that the trace took for sole
+            t.profile.sole[i] = 4.5
     tr = frontshoe._Traced.of(t)
-    style = frontshoe.STYLES["low_sneaker"][2]
-    k = frontshoe._interp(tr.table, 0.8) / frontshoe._interp(style, 0.8)
-    for u in (0.85, 0.9, 0.95, 1.0):
-        assert frontshoe._interp(tr.table, u) == pytest.approx(max(frontshoe._interp(style, u) * k, 0.8), rel=0.02)
+    ball, _, style, _ = frontshoe.STYLES["low_sneaker"]
+    for u in (0.8, 0.85, 0.9, 0.95, 1.0):
+        assert frontshoe._interp(tr.table, u) == pytest.approx(max(frontshoe._interp(style, u), 0.8), rel=0.02)
+    assert tr.ball == ball
+    assert max(s for u, s in zip(tr.us, tr.sole, strict=True) if u > 0.8) <= frontshoe._lerp(tr.us, tr.sole, 0.8) + 1e-9
+    a, b = front(t, kind=frontshoe.FROM_SHAPE), front(t)
+    tip = lambda s: [q for q in _flat(s.outline) if q[1] > s.anchors["ball"][1]]   # noqa: E731
+    wa, wb = (max(x for x, _ in tip(s)) - min(x for x, _ in tip(s)) for s in (a, b))
+    assert wb == pytest.approx(wa, rel=0.03)   # the toe as wide as A's: not a wide box
+
+
+def block_sizes(tr) -> list[tuple[int, bool]]:
+    """Each block of one colour among the upper's cells: its size, and whether another colour borders it."""
+    grid = {(s, i, j, p): c for s, i, j, c, _, p in tr.cells()}
+    seen, out = set(), []
+    for key in grid:
+        if key in seen:
+            continue
+        todo, n, edge = [key], 0, False
+        seen.add(key)
+        while todo:
+            s, i, j, p = todo.pop()
+            n += 1
+            for q in ((s, i + 1, j, p), (s, i - 1, j, p), (s, i, j + 1, p), (s, i, j - 1, p)):
+                if q in grid and grid[q] != grid[key]:
+                    edge = True
+                elif q in grid and q not in seen:
+                    seen.add(q)
+                    todo.append(q)
+        out.append((n, edge))
+    return out
+
+
+def test_the_upper_is_painted_in_a_few_clean_blocks():
+    """No speck or sliver of colour between panels: every block of one colour beside another is at least
+    MIN_BLOCK_CELLS cells, in B and in A; a busy upper comes out as a handful of blocks."""
+    for name in RULE_SHOES:
+        t = traced_photo(name, (1000, 700) if "BOOT" in name or "CHUKKA" in name else (1000, 560))
+        tr = frontshoe._Traced.of(t, "round", RULE_STYLES[name][1])
+        tpl = tr.on_template(*frontshoe.STYLES["low_sneaker"][:4], 0.97, "round")
+        for which in (tr, tpl):
+            assert all(n >= frontshoe.MIN_BLOCK_CELLS for n, edge in block_sizes(which) if edge), name
+    busy = frontshoe._Traced.of(traced_photo("BUSY_RUNNER"), "round", "runner")
+    assert len(block_sizes(busy)) <= 12
+
+
+def test_the_collar_never_lies_across_the_throat():
+    """A light shoe with a black heel counter and collar along the top to the throat: from the front the collar
+    is behind the leg; in front of the leg the crest is the throat, in the upper's colour, in A and in B."""
+    t = traced_photo("DARK_COLLAR")
+    tr = frontshoe._Traced.of(t, "round", "low_sneaker")
+    tpl = tr.on_template(*frontshoe.STYLES["low_sneaker"][:4], 0.97, "round")
+    for which in (tr, tpl):
+        cells = [(i, c) for _, i, _, c, _, part in which.cells() if part == "foot"]
+        assert any(near(c, (24, 24, 26)) for i, c in cells if (i + 0.5) / frontshoe.GRID_U < frontshoe.THROAT_U)
+        assert not [i for i, c in cells if (i + 0.5) / frontshoe.GRID_U > frontshoe.THROAT_U and near(c, (24, 24, 26))]
+    for kind in (frontshoe.FROM_SHAPE, frontshoe.FROM_PHOTO):
+        shoe = front(t, kind=kind)
+        black = [c for c in set(re.findall(r'fill="(#[0-9a-f]{6})"', shoe.body)) if near(c, (24, 24, 26))]
+        rim = _flat(shoe.rim)
+        front_y = max(y for _, y in rim)
+        ankle_x = shoe.anchors["ankle"][0]
+        across = [q for c in black for ring in painted(shoe.body, c) for q in ring
+                  if q[1] > front_y + 2 and abs(q[0] - ankle_x) < frontshoe.ANKLE_HALF_CM * K_PX * 0.6]
+        assert not across, (kind, across[:3])
+
+
+def test_view_a_takes_the_toe_box_and_vamp_from_the_top_surface():
+    """A red upper with a black mudguard low round the toe (traced as the vamp's part colour): A's toe box and
+    vamp are red, as B samples them, not the mudguard's black."""
+    guard = [[0.55, 2.0], [1.0, 2.0], [1.0, 3.6], [0.55, 4.6]]
+    t = made(panels=[("#141414", guard, "vamp")])
+    t.regions[0] = traced.Region("#c01818", "silhouette", t.regions[0].paths, ["upper"])
+    t.parts += [traced.Part("vamp", "#141414", True)]
+    tr = frontshoe._Traced.of(t)
+    tpl = tr.on_template(*frontshoe.STYLES["low_sneaker"][:4], 0.97, "round")
+    assert tpl.zones["vamp"] == "#c01818"
+    assert tpl.zones.get("toe_cap", "#c01818") == "#c01818"
+
+
+def test_view_a_keeps_the_laces_colour_and_draws_the_stripes():
+    """A white court shoe, white laces, three red stripes whose ends cross the lacing's row: A's laces are not
+    red, and the stripes are drawn on its side, even when the trace took them for lettering."""
+    t = copy.deepcopy(traced_photo("STRIPED_COURT"))
+    tr = frontshoe._Traced.of(t, "round", "low_sneaker")
+    assert "lace_color" not in tr.template_words() or not near(tr.template_words()["lace_color"], (196, 30, 40))
+    for kinds in (None, "text"):
+        if kinds:
+            for m in t.marks:
+                m.kind = kinds
+        body = front(t, kind=frontshoe.FROM_SHAPE).body
+        red = [c for c in set(re.findall(r'fill="(#[0-9a-f]{6})"', body)) if near(c, (196, 30, 40))]
+        assert sum(area(ring) for c in red for ring in painted(body, c)) > 5
+        assert not [c for c in set(re.findall(r'stroke="(#[0-9a-f]{6})" stroke-width="[\d.]+" stroke-linecap', body))
+                    if near(c, (196, 30, 40))]   # no red lace strokes
 
 
 

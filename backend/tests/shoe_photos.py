@@ -98,6 +98,13 @@ SERVICE_BOOT = dict(WORK_BOOT, shaft_cm=0.0, top=[(0.0, 15.0), (0.12, 15.2), (0.
 BUSY_RUNNER = dict(upper=(128, 128, 130), camo=((70, 70, 72), (176, 176, 178), (32, 32, 34)), midsole=WHITE,
                    outsole=(40, 40, 42), laces=(30, 30, 32), sole_cm=3.4, sole_toe_cm=2.3)
 
+# a light leather sneaker with a black heel counter and a black padded collar running along the top to the throat
+DARK_COLLAR = dict(upper=(226, 226, 222), heel_counter=BLACK, collar=BLACK, laces=WHITE, midsole=WHITE,
+                   outsole=(60, 60, 60), sole_cm=2.6, sole_toe_cm=2.2)
+# a white court shoe with three red stripes and white laces: the stripes' ends cross the lacing's row in the photo
+STRIPED_COURT = dict(upper=WHITE, midsole=WHITE, outsole=(214, 210, 200), stripes=(196, 30, 40), laces=WHITE,
+                     sole_cm=2.6, sole_toe_cm=2.2)
+
 
 def _ground_rest(shoe: Shoe, us):
     """The bottom line shifted so its lowest point touches the ground (the lugs' gaps raised above it)."""

@@ -860,7 +860,9 @@ MARK_NEAR_CM = 0.6           # a colour piece whose middle is this near a mark's
 DETAILS = ("laces", "eyelets", "stitching", "midsole", "outsole")
 LACES_MIN = 3                # a traced row of laces or eyelets with fewer than this is not trusted
 THIN_CM = 0.3                # a colour piece thinner than this (a highlight, a seam) is not a panel
-MIN_PANEL_CM2 = 6.0          # a colour piece smaller than this (a lace, a blotch of camouflage) is not a panel either
+MIN_PANEL_CM2 = 12.0         # a colour piece smaller than this (a lace, a blotch of camouflage) is not a panel either
+MIN_BLOCK_CELLS = 10         # a block of one colour smaller than this many cells takes the colour round it
+SOLE_SPREAD = 1.6            # how much thicker (or thinner) a traced sole may be anywhere than along its middle
 PATTERN_SHARE = 0.15         # small pieces covering this share of the upper are its pattern, mixed into its colour
 RIM_CM = 0.6                 # the band just under the top line (its edge in shade) is not what the crest is
 NOSE_U = 0.92                # past this the photo sees the toe's end edge on: the nose takes the colours here
@@ -871,9 +873,11 @@ SOLE_LEVELS = 20            # the sole is read at this many heights through it
 GRID_U, GRID_A = 72, 16      # the upper is painted in this many steps along it and up each side
 SHAFT_STEP_CM = 0.8          # ... and a boot's shaft in steps this tall
 FRONT_ASPECT = 1.15          # a front photo's shoe, width over height, as the styles' fronts are on average
-TOE_U = 0.8                  # from here to the toe, the upper's height follows the style's curve (scaled): a round toe
+TOE_U = 0.8                  # from here to the toe, the upper's height is the style's: its round toe, as A's
+TOE_FROM = 0.6               # ... reached from the traced height over the stretch from here
+THROAT_U = ANKLE_U + ANKLE_DEPTH_CM / LENGTH   # in front of this the upper is in front of the leg: no collar there
 LACE_FROM, LACE_TO = 0.53, 0.88   # the lacing stays on the vamp, in front of the opening, behind the toe box
-MAIN_MARKS = ("stripes", "curve", "panel")   # the marks drawn on the template (A); lettering and specks are not
+MIN_MARK_CM2 = 1.0           # a mark smaller than this (a speck) is not drawn on the template (A)
 FROM_SHAPE, FROM_PHOTO = "shape", "photo"    # the two front views of a traced shoe: A and B
 
 
@@ -1032,6 +1036,40 @@ class _Raster:
         return self.colours[v - 1] if v else None
 
 
+def _merge_small(cells: list) -> list:
+    """The upper's cells with each block of one colour smaller than MIN_BLOCK_CELLS (a speck, a sliver along a
+    panel's edge) given the colour most common round it, so the upper reads as a few clean blocks of colour."""
+    grid = {(side, i, j, part): c for side, i, j, c, _, part in cells}
+    for _ in range(4):
+        seen: set = set()
+        changed = False
+        for key in sorted(grid):
+            if key in seen:
+                continue
+            c, block, todo, edge = grid[key], [], [key], {}
+            seen.add(key)
+            while todo:
+                side, i, j, part = todo.pop()
+                block.append((side, i, j, part))
+                for q in ((side, i + 1, j, part), (side, i - 1, j, part), (side, i, j + 1, part), (side, i, j - 1, part)):
+                    if q not in grid:
+                        continue
+                    if grid[q] == c:
+                        if q not in seen:
+                            seen.add(q)
+                            todo.append(q)
+                    else:
+                        edge[grid[q]] = edge.get(grid[q], 0) + 1
+            if len(block) < MIN_BLOCK_CELLS and edge:
+                other = max(edge, key=lambda k: (edge[k], k))
+                for q in block:
+                    grid[q] = other
+                changed = True
+        if not changed:
+            break
+    return [(side, i, j, grid[(side, i, j, part)], g, part) for side, i, j, _, g, part in cells]
+
+
 def _sole_bands(t, us, bottom, sole) -> list[tuple[float, float, str]]:
     """The sole's colour bands from the ground up, as the photo shows them: at each of SOLE_LEVELS heights through
     the sole, the colour most of its length shows (so a window or a logo in it does not count), then runs of one
@@ -1127,7 +1165,10 @@ class _Traced:
                 style = words
         ball, style_sole, style_table, style_shaft = STYLES[style]
         sole_t = min(7.0, max(0.5, _median(mid) if mid else style_sole))
-        sole5 = _median5([min(8.0, max(0.4, s if s > 0 else sole_t)) for s in sole_raw])
+        # a sole thinner or thicker than its own middle by much is a trace's slip (a white midsole under a white upper
+        # read only where a stripe comes down to it), not a wedge: the front view keeps it within SOLE_SPREAD
+        lo, hi = sole_t / SOLE_SPREAD, sole_t * SOLE_SPREAD
+        sole5 = _median5([min(hi, max(lo, 0.4, s if s > 0 else sole_t)) for s in sole_raw])
         sole = _mean7(sole5)
         above = _median5([max(0.0, float(tp) - b - s) for tp, b, s in zip(P.top, bottom, sole, strict=True)])
         table = [(u, max(a, 0.8 if u >= 0.95 else 1.5)) for u, a in zip(us, above, strict=True)]
@@ -1138,14 +1179,17 @@ class _Traced:
             shaft = min(0.95 * LENGTH, max(sole_t + 6.0, collar - lift))
             k = _interp(table, 0.56) / max(_interp(style_table, 0.56), 0.1)
             table = [(u, min(h, _interp(style_table, u) * k)) if u < 0.56 else (u, h) for u, h in table]
-        # the toe is the style's, rounded: the trace may make it taller or lower, not square it off
-        k = _interp(table, TOE_U) / max(_interp(style_table, TOE_U), 0.1)
-        table = [(u, max(_interp(style_table, u) * k, 0.8)) if u > TOE_U else (u, h) for u, h in table]
-        # the width at the ball: the style's, a little fuller for a taller forefoot or a thicker sole
-        fore = [h for u, h in table if 0.6 <= u <= 0.9]
-        want = [_interp(style_table, u) for u, _ in table if 0.6 <= u <= 0.9]
-        tall = (sum(fore) / max(sum(want), 0.1)) if fore else 1.0
-        ball *= min(1.08, max(0.94, tall ** 0.25)) * min(1.06, max(0.96, 1 + 0.025 * (sole_t - style_sole)))
+        # the toe is the style's, as A draws it: the trace's height runs into the style's curve from TOE_FROM, so
+        # a tall or boxy toe in the photo does not square it off; the footprint (the width) is the style's too
+        def toe(u, h):
+            if u <= TOE_FROM:
+                return h
+            t = min(1.0, (u - TOE_FROM) / (TOE_U - TOE_FROM))
+            return max((1 - t) * h + t * _interp(style_table, u), 0.8)
+        table = [(u, toe(u, h)) for u, h in table]
+        # nor is the sole thicker at the toe than across the ball (a bumper wrapping up the toe is not sole)
+        cap = _lerp(us, sole, TOE_U)
+        sole = [min(s, cap) if u > TOE_U else s for u, s in zip(us, sole, strict=True)]
         base = t.regions[0].color if t.regions else (t.part("vamp").color if t.part("vamp") else "#808080")
         mids, outs = t.part("midsole"), t.part("outsole")
         sole_c = mids.color if mids and mids.measured else outs.color if outs and outs.measured else None
@@ -1169,6 +1213,7 @@ class _Traced:
         # big enough to be a panel (a smaller piece, or a smaller hole in one, takes the colour round it)
         layers = [(r.color, [ring for piece in r.paths for ring in piece[:1] if len(ring) >= 3]) for r in t.regions[:1]]
         specks: dict[str, float] = {}   # the small pieces' area, by colour
+        pieces: list = []               # the panels kept: (colour, label, outline)
         sole_area = 0.0
         for r in t.regions[1:]:
             for k, piece in enumerate(r.paths):
@@ -1188,6 +1233,7 @@ class _Traced:
                     continue   # a mark: drawn with the marks
                 layers.append((r.color, [ring for i, ring in enumerate(piece)
                                          if len(ring) >= 3 and (i == 0 or _area(ring) >= MIN_PANEL_CM2)]))
+                pieces.append((r.color, label, piece[0]))
         if layers and layers[0][1]:
             # a busy upper (camouflage, a print): so many small pieces that together they are much of what the eye
             # sees; the upper's own colour is then their mix with it, as they blur together seen from afar
@@ -1200,6 +1246,10 @@ class _Traced:
                 mixed = _hex(tuple(sum(_rgb(c)[i] * w for c, w in weights) / total for i in range(3)))
                 layers[0] = (mixed, layers[0][1])
         tr = cls(t, style, ball, sole_t, table, shaft, "#808080", sole_c, bands, us, bottom, sole, _Raster(layers), marks)
+        tr.pieces = pieces
+        # the collar's and the heel counter's pieces: at the back, behind the leg, never across the throat
+        back = [(c, [ring]) for c, label, ring in pieces if label in ("collar", "heel_counter")]
+        tr.back = _Raster(back) if back else None
         # the collar's height at the back: the traced top line's middle over the heel (not its very end, where
         # the trace's corner is rounded off)
         tr.rim = _median([h for u, h in table if 0.03 <= u <= 0.25]) or _interp(table, 0.04)
@@ -1240,16 +1290,31 @@ class _Traced:
         # the upper's own colour as B sees it under its panels (a busy upper's mixed colour)
         upper = self.side.colours[0] if self.side is not None and self.side.colours else self.base
         zones = {"upper": upper, **parts}
+        # the toe box and the vamp as B sees them: the upper's top surface (a mudguard low round the toe is not it)
+        for name, u0, u1 in (("vamp", 0.5, 0.8), ("toe_cap", 0.84, 0.92)):
+            seen = [self._side_colour(u0 + (u1 - u0) * i / 6, 0.6 + 0.4 * j / 4) for i in range(7) for j in range(5)]
+            seen = [c for c in seen if c]
+            if seen:
+                zones[name] = max(set(seen), key=lambda c: (seen.count(c), c))
+        if zones.get("toe_cap") == zones.get("vamp", upper):
+            zones.pop("toe_cap", None)
         tpl = _Traced(self.t, self.style, ball, sole_t, list(table), shaft, self.base, self.sole_c, self.bands,
                       [0.0, 1.0], [0.0, 0.0], [sole_t, sole_t], self.side, [], inset, lambda u: _half_width(u, ball, toe),
                       self.rim)
         tpl.zones = zones
-        for m in self.t.marks:
-            if m.kind not in MAIN_MARKS:
-                continue
+        for m in self.t.marks:   # every mark B shows (stripes found as a row of small pieces are "text"), not specks
             for ring in m.path:
-                if len(ring) >= 3:
+                if len(ring) >= 3 and _area(ring) >= MIN_MARK_CM2:
                     tpl.marks.append((m.color, [self._onto(tpl, u, h) for u, h in ring]))
+        for c, label, ring in self.pieces:
+            # a panel on the side (stripes, an overlay) in a colour A's parts do not show there: drawn at the same
+            # place on the template's side, as B shows it
+            u, _ = _centre(ring)
+            if label in ("collar", "heel_counter") or c == tpl._zone(u, 0.3) or c == tpl._zone(u, 0.95):
+                continue
+            if label in ("vamp", "toe_cap") and u >= 0.5:
+                continue
+            tpl.marks.append((c, [self._onto(tpl, uu, h) for uu, h in ring]))
         seen: dict[str, float] = {}
         for _, _, _, c, g, _ in tpl.cells():
             seen[c] = seen.get(c, 0.0) + g
@@ -1266,8 +1331,9 @@ class _Traced:
     def template_words(self) -> dict:
         """A's laces, eyelets and lace colour, from the trace."""
         out = {}
-        c = (self.laces.color if self.laces is not None else None) or next(
-            (q.color for q in self.t.parts if q.name == "laces" and q.measured), None)
+        # the colour of a row of laces counted (a shorter row is a collar's edge or a stripe's end: its colour is
+        # not the laces'); else the tagger's, or the style's
+        c = self.laces.color if self.laces is not None and self.laces.count >= LACES_MIN else None
         if c:
             out["lace_color"] = c
         if self.eyelets is not None and self.eyelets.count >= LACES_MIN:
@@ -1388,6 +1454,8 @@ class _Traced:
         return (lo + hi) / 2
 
     zones: dict | None = None      # A: the traced parts' colours, painted where the template has those parts
+    pieces: list = field(default_factory=list)   # the traced panels: (colour, label, outline)
+    back: _Raster | None = None    # where the collar's and heel counter's pieces are, side on
     front: FrontLook | None = None  # B: what a front photo showed
 
     def shaft_colour(self, u: float, h: float) -> str | None:
@@ -1405,7 +1473,7 @@ class _Traced:
             return z.get("vamp", z["upper"])
         if u < 0.16 and "heel_counter" in z:
             return z["heel_counter"]
-        if sa > 0.8 and "collar" in z:
+        if sa > 0.8 and "collar" in z and u < THROAT_U:   # the collar: behind the leg, not across the throat
             return z["collar"]
         return z.get("quarter", z["upper"])
 
@@ -1426,8 +1494,16 @@ class _Traced:
         (a mudguard) stays low on the front."""
         u = min(u, NOSE_U)
         H = _interp(self.table, u)
-        hp = _lerp(self.us, self.bottom, u) + _lerp(self.us, self.sole, u) + sa * (H - min(RIM_CM, 0.3 * H))
-        return self.side.at(u, hp)
+        lo = _lerp(self.us, self.bottom, u) + _lerp(self.us, self.sole, u)
+        hp = lo + sa * (H - min(RIM_CM, 0.3 * H))
+        c = self.side.at(u, hp)
+        if u > THROAT_U and self.back is not None and c is not None and self.back.at(u, hp) == c:
+            # the collar's band along the top line, in front of the leg: seen from the front that is the throat
+            # (the tongue and the lacing), not the collar, which stays behind the leg: the colour below the band
+            while hp > lo and self.back.at(u, hp) == c:
+                hp -= 0.2
+            c = self.side.at(u, hp) or c
+        return c
 
     def cells(self):
         """The upper's surface in small cells, each facing the viewer: (side, i, j, colour, facing, part), where
@@ -1460,8 +1536,8 @@ class _Traced:
                         c = self.shaft_colour(u, h)
                         if c is not None:
                             out.append((side, i, j, c, g, "shaft"))
-        self._cells = out
-        return out
+        self._cells = _merge_small(out)
+        return self._cells
 
     def _shaft_rows(self) -> int:
         return max(1, math.ceil((self.shaft - self.sole_t - 4.0) / SHAFT_STEP_CM))

@@ -35,6 +35,8 @@ class Shoe:
     stripes: tuple | None = None          # three slanted stripes on the quarter
     stripe_cm: float = 0.85               # ... this wide
     stripe_gap: float = 0.055             # ... this far apart (a share of the length)
+    stripe_taper: float = 0.0             # ... narrower at the top by this share (a real stripe tapers to the lacing)
+    stripe_top_cm: float = 1.6            # ... ending this far below the top line
     laces: tuple | None = None
     eyelets: tuple | None = None
     stitching: tuple | None = None        # a dashed line along the toe cap's edge
@@ -109,6 +111,11 @@ STRIPED_COURT = dict(upper=WHITE, midsole=WHITE, outsole=(214, 210, 200), stripe
                      sole_cm=2.6, sole_toe_cm=2.2)
 # the same with three bold stripes, each just under a panel's size but together much of the side
 BOLD_STRIPES = dict(STRIPED_COURT, stripe_cm=1.8, stripe_gap=0.105)
+# as a real one is: a light grey court shoe, three thin stripes tapering up to the lacing, a black heel tab, laces
+# in the upper's colour (drawn with noise, the stripes' edges blending into the upper)
+REAL_STRIPES = dict(upper=(217, 217, 221), midsole=(210, 211, 213), outsole=(196, 196, 200), stripes=(177, 57, 67),
+                    stripe_cm=0.8, stripe_taper=0.35, stripe_gap=0.06, stripe_top_cm=0.9, heel_counter=(40, 40, 43),
+                    laces=(217, 217, 221), sole_cm=2.6, sole_toe_cm=2.2)
 
 
 def _ground_rest(shoe: Shoe, us):
@@ -194,8 +201,14 @@ def draw(shoe: Shoe | None = None, *, px_per_cm: float = 26.0, size=(1000, 560),
         if shoe.stripes:
             for i in range(3):
                 u0 = 0.25 + i * shoe.stripe_gap
-                d.line([p(u0, sole_top[int(u0 * 240)] + 0.2), p(u0 + 0.09, top[int((u0 + 0.09) * 240)] - 1.6)],
-                       fill=c(shoe.stripes), width=int(shoe.stripe_cm * k))
+                a, b = p(u0, sole_top[int(u0 * 240)] + 0.2), p(u0 + 0.09, top[int((u0 + 0.09) * 240)] - shoe.stripe_top_cm)
+                if not shoe.stripe_taper:
+                    d.line([a, b], fill=c(shoe.stripes), width=int(shoe.stripe_cm * k))
+                    continue
+                n = np.array([b[1] - a[1], a[0] - b[0]]) / np.hypot(b[0] - a[0], b[1] - a[1])
+                wa, wb = shoe.stripe_cm * k / 2, shoe.stripe_cm * (1 - shoe.stripe_taper) * k / 2
+                d.polygon([tuple(np.add(a, n * wa)), tuple(np.add(b, n * wb)), tuple(np.subtract(b, n * wb)),
+                           tuple(np.subtract(a, n * wa))], fill=c(shoe.stripes))
         if shoe.laces and shoe.lace_style == "cross":   # each crossing an X, the Xs touching end to end
             step = 0.3 / shoe.lace_count
             for i in range(shoe.lace_count):

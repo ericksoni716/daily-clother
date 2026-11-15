@@ -36,6 +36,9 @@ INSTEP_U = 0.47        # the instep, at the front of a low shoe's opening (or wh
 COLLAR_RIM = 0.82      # a low shoe's opening is this share of the upper's width at the collar ...
 SHAFT_RIM = 0.9        # ... and a boot's this share of its shaft's
 BEHIND_CM = 20.0       # how far above a low shoe's collar the ankle is still in front of the collar's back
+NO_SHOW_CM = 2.0       # a no-show cut (`cut` low) stands its collar this much lower, behind the throat ...
+NO_SHOW_DIP_CM = 0.6   # ... and dips its opening this much more at the sides, under the ankle bones
+CUT_STYLES = ("low_sneaker", "runner", "slip_on")
 
 # per style: half width at the ball, sole thickness, how the upper's top rises from the toe (share of the length
 # from the heel, height above the sole in cm), and how high the collar of a boot or high top stands (cm above the
@@ -274,6 +277,9 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
     # the shape is always the template's for the tagger's style: A and B have the same outline, opening and toe;
     # they differ only in how the trace's colours are painted on it
     ball, sole_t, table, shaft = STYLES[style]
+    dip = 0.0
+    if p.get("cut") == "low" and style in CUT_STYLES:   # a no-show cut: the collar and the opening lower
+        table, dip = _cut_low(table), NO_SHOW_DIP_CM
     sole_t *= {"thin": 0.75, "chunky": 1.6}.get(p.get("sole"), 1.0)
     sole_t *= {"lug": 1.25, "eva": 1.35, "city": 0.85}.get(p.get("tread"), 1.0)
     if style == "sandal" and p.get("molded"):   # a moulded slide: one deeper piece
@@ -372,7 +378,7 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         upper_d = _path(_hull(upper_pts))
         collar_seen = None
         if ankle is not None and style in (*TRAINERS, *LOW_COLLARED, "boot"):
-            ring = [view(*q) for q in _collar_ring(hw, inset, table, sole_t, shaft)]
+            ring = [view(*q) for q in _collar_ring(hw, inset, table, sole_t, shaft, dip)]
             vamp_top = min(y for _, y in vamp_pts) if shaft else None
             upper_d, collar_seen = _collar_front(_hull(upper_pts), ring, px, vamp_top)
         out.append(fill(upper_d, base, w=2.4))
@@ -403,7 +409,7 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         if style == "chelsea_boot" or p.get("gusset"):   # its pull tab is at the back: behind the leg
             out.append(_pull_tab(view, shaft or sole_t + 9, base))
         out += _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg, ankle_path, collar_seen,
-                        behind=tr is not None, keep=seen_by)
+                        behind=tr is not None, keep=seen_by, dip=dip)
         if tr is not None and not shaped and tr.laced:   # B: the traced laces instead of the style's
             out += _details({**p, "laces": False}, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill, traced=True)
             out += tr.lacing(view, hw, inset, ln, p.get("lace_color") or _lace_shade(base))
@@ -412,7 +418,7 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         outline_pts = sole_pts + upper_pts
         # where a trouser hem meets it: the front and the back of the opening (a low shoe's collar, the top of a
         # boot's shaft), the instep in front of it, and how wide the solid is round the opening
-        ring = _collar_ring(hw, inset, table, sole_t, shaft)
+        ring = _collar_ring(hw, inset, table, sole_t, shaft, dip)
         rim_pts = [view(*q) for q in ring]
         opening = {"opening": max(rim_pts, key=lambda q: q[1]), "opening_back": min(rim_pts, key=lambda q: q[1]),
                    "instep": view(0.0, INSTEP_U, sole_t + _interp(table, INSTEP_U))}
@@ -464,8 +470,16 @@ def _below(ankle: str, d: str, y: float, uid: str) -> tuple[str, str]:
     return f'<g clip-path="url(#{uid}b)">{line}/></g><g clip-path="url(#{uid}c)">{fill}</g>', defs
 
 
-def _collar_ring(hw, inset, table, sole_t, shaft):
-    """The opening's edge."""
+def _cut_low(table):
+    """A style's top line cut no-show: lower by NO_SHOW_CM behind the throat (the collar, round the ankle), easing
+    back to the style's own line at the tongue."""
+    def drop(u):
+        return NO_SHOW_CM * max(0.0, min(1.0, (0.46 - u) / 0.16))
+    return [(u, h - drop(u)) for u, h in table]
+
+
+def _collar_ring(hw, inset, table, sole_t, shaft, dip=0.0):
+    """The opening's edge (a no-show cut's `dip`s that much more at the sides)."""
     if shaft:
         rx, ru = 4.7 * SHAFT_RIM, 5.2 * SHAFT_RIM
         ring = [(rx * math.cos(2 * math.pi * k / 32), 0.2 + ru * math.sin(2 * math.pi * k / 32) / LENGTH,
@@ -476,18 +490,18 @@ def _collar_ring(hw, inset, table, sole_t, shaft):
             a = 2 * math.pi * k / 32
             u = 0.27 + 0.2 * math.sin(a)                     # from just inside the heel to the throat
             x = hw(u) * inset * COLLAR_RIM * math.cos(a)
-            h = sole_t + _interp(table, 0.04) - 0.5 + (0.6 if math.sin(a) > 0 else 0) * math.sin(a)
+            h = sole_t + _interp(table, 0.04) - 0.5 + (0.6 if math.sin(a) > 0 else 0) * math.sin(a) - dip * math.cos(a) ** 2
             ring.append((x, u, h))
     return ring
 
 
 def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg, ankle_path=None, collar_seen=None,
-             behind=False, keep=None):
+             behind=False, keep=None, dip=0.0):
     """The way in: the collar of a low shoe, or the top of a boot's shaft, with the dark lining inside; and the
     wearer's ankle standing in it when asked for, up to where the leg drawn above it takes over."""
     out = []
     lining = SHEARLING if p.get("lining") == "shearling" else _mix(base, LINING, 0.82)
-    ring = _collar_ring(hw, inset, table, sole_t, shaft)
+    ring = _collar_ring(hw, inset, table, sole_t, shaft, dip)
     rim = [view(*q) for q in ring]
     rim_d = _path(rim)
     # where the ankle is seen: in the opening, and above the back half of the collar, which is behind it (the
@@ -844,6 +858,9 @@ TOE_FROM = 0.6               # ... reached from the traced height over the stret
 THROAT_U = ANKLE_U + ANKLE_DEPTH_CM / LENGTH   # in front of this the upper is in front of the leg: no collar there
 LACE_FROM, LACE_TO = 0.53, 0.88   # the lacing stays on the vamp, in front of the opening, behind the toe box
 MIN_MARK_CM2 = 1.0           # a mark smaller than this (a speck) is not drawn on the template (A)
+MARK_SEEN_CM = 0.5           # a mark on the side, seen nearly edge on, is drawn at least this wide on the drawing ...
+MARK_WIDEN = 2.5             # ... widened round its middle line on the shoe by at most this much ...
+MARK_ROOM = 0.35             # ... and into at most this share of the gap to the next mark (stripes stay apart)
 FROM_SHAPE, FROM_PHOTO = "shape", "photo"    # the two front views of a traced shoe: A and B
 
 
@@ -957,6 +974,15 @@ def _thickness(ring) -> float:
     return 2 * area / (sum(math.dist(a, b) for a, b in zip(pts, nxt, strict=True)) or 1.0)
 
 
+def _screen_area(pts) -> float:
+    return abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(pts, pts[1:] + pts[:1], strict=True))) / 2
+
+
+def _screen_thickness(pts) -> float:
+    """How thick an outline on the drawing is: twice its area over its length round."""
+    return 2 * _screen_area(pts) / (sum(math.dist(a, b) for a, b in zip(pts, pts[1:] + pts[:1], strict=True)) or 1.0)
+
+
 def _near(a: str, b: str, tol: float = MARK_COLOUR) -> bool:
     return math.dist(_rgb(a), _rgb(b)) * 255 <= tol
 
@@ -974,6 +1000,16 @@ def _over(a, b, pad: float = MARK_NEAR_CM) -> bool:
 
 def _centre(ring) -> tuple[float, float]:
     return sum(q[0] for q in ring) / len(ring), sum(q[1] for q in ring) / len(ring)
+
+
+def _within(pt, ring) -> bool:
+    """Whether a point lies inside an outline (any units, the same for both)."""
+    x, y = pt
+    inside = False
+    for (x0, y0), (x1, y1) in zip(ring, ring[1:] + ring[:1], strict=True):
+        if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
+            inside = not inside
+    return inside
 
 
 def _area(ring) -> float:
@@ -1224,7 +1260,8 @@ class _Traced:
                     continue   # a line of light or stitching along the side, not a panel of the upper
                 if is_mark(r.color, piece[0]):
                     # drawn with the marks; the piece itself when the trace's mark kept only a bit of it
-                    if not any(_near(r.color, c) and _over(piece[0], m) and _area(m) >= 0.6 * _area(piece[0])
+                    # (the mark over its middle, not only over its box: slanted stripes side by side overlap in box)
+                    if not any(_near(r.color, c) and _within(_centre(piece[0]), m) and _area(m) >= 0.6 * _area(piece[0])
                                for c, m in strong):
                         masked.append((r.color, piece[0]))
                     continue
@@ -1572,7 +1609,7 @@ class _Traced:
     def paint(self, view, line_c: str) -> list[str]:
         """The traced colours on the solid, cell by cell where it faces the viewer (runs of one colour joined into
         one outline), the back of the foot first, then a boot's shaft, then the front; then the marks, on both
-        sides, each where it is seen."""
+        sides, each where it is seen (one seen only nearly edge on, as a band wide enough to read: `_band`)."""
         runs: dict = {}
         for side, i, j, c, _, part in self.cells():
             runs.setdefault((part, side, i), []).append((j, c))
@@ -1608,11 +1645,19 @@ class _Traced:
             for c, ds in sorted(groups[where].items()):
                 out.append(f'<path d="{" ".join(ds)}" fill="{c}" stroke="{c}" stroke-width=".6" stroke-linejoin="round"/>')
         hw, inset = self.hw, self.inset
-        for colour, ring in self.marks:
-            for side in (1, -1):
-                seen = self.seen_part(hw, inset, [tuple(q) for q in ring], side)
-                if len(seen) >= 3:
-                    out.append(f'<path d="{_path([view(*q) for q in seen])}" fill="{colour}"/>')
+        rings = [(colour, [tuple(q) for q in ring]) for colour, ring in self.marks]
+        for colour, ring in rings:
+            # each side's part facing the viewer; a sliver too thin to read (a stripe on the side, seen nearly
+            # edge on) is not drawn, and a mark only seen so is drawn as a band round its middle line instead
+            seen = {side: [view(*q) for q in self.seen_part(hw, inset, ring, side)] for side in (1, -1)}
+            seen = {side: pts for side, pts in seen.items() if len(pts) >= 3}
+            shown = [pts for pts in seen.values() if _screen_thickness(pts) >= MARK_SEEN_CM * view.px]
+            if seen and not shown:
+                side = max(seen, key=lambda s: (_screen_area(seen[s]), s))
+                shown = [self._band(view, ring, side, [r for c, r in rings if r is not ring and _near(c, colour)])]
+            for pts in shown:
+                if len(pts) >= 3:
+                    out.append(f'<path d="{_path(pts)}" fill="{colour}"/>')
         for colour, x, v, size in (self.front.marks if self.front is not None else []):
             # a mark the front photo saw on the toe or the vamp: an oval on the surface there
             u = 0.55 + 0.4 * min(1.0, max(0.0, float(v)))
@@ -1622,6 +1667,61 @@ class _Traced:
             pts = [_surface(view, hw, inset, self.table, self.sole_t, uu, max(-0.95, min(0.95, xs)), 0.05)
                    for xs, uu in ring]
             out.append(f'<path d="{_path(pts)}" fill="{colour}"/>')
+        return out
+
+    def _band(self, view, ring, side: int, others) -> list[tuple[float, float]]:
+        """A mark seen nearly edge on (a stripe down the side, a small curve), as a band on the solid's `side`: its
+        middle line (along its length, following a curve), widened across it on the shoe until the part facing the
+        viewer is MARK_SEEN_CM wide on the drawing, by no more than MARK_WIDEN times and into no more than MARK_ROOM
+        of the gap to the next mark of its colour (`others`). Its slant and its foreshortening are the turn's."""
+        hw, inset = self.hw, self.inset
+        pts = []   # the outline cut into short steps, on the side's plane (cm along the shoe, cm up)
+        for (u0, h0), (u1, h1) in zip(ring, ring[1:] + ring[:1], strict=True):
+            n = max(1, math.ceil(math.hypot((u1 - u0) * LENGTH, h1 - h0) / PAINT_STEP_CM))
+            pts += [((u0 + (u1 - u0) * i / n) * LENGTH, h0 + (h1 - h0) * i / n) for i in range(n)]
+        mz, mh = sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts)
+        szz = sum((p[0] - mz) ** 2 for p in pts)
+        shh = sum((p[1] - mh) ** 2 for p in pts)
+        szh = sum((p[0] - mz) * (p[1] - mh) for p in pts)
+        a = 0.5 * math.atan2(2 * szh, szz - shh)   # the mark's length runs this way
+        e1, e2 = (math.cos(a), math.sin(a)), (-math.sin(a), math.cos(a))
+        along = [((p[0] - mz) * e1[0] + (p[1] - mh) * e1[1], (p[0] - mz) * e2[0] + (p[1] - mh) * e2[1]) for p in pts]
+        t0, t1 = min(t for t, _ in along), max(t for t, _ in along)
+        if t1 - t0 < 1e-6:
+            return []
+        n = max(2, min(12, math.ceil((t1 - t0) / 0.5)))
+        mid = []   # its middle line: the middle of the outline across it, step by step along it
+        for k in range(n + 1):
+            tk = t0 + (t1 - t0) * k / n
+            across = [s for t, s in along if abs(t - tk) <= (t1 - t0) / (2 * n) + 1e-9]
+            if across:
+                s = (min(across) + max(across)) / 2
+                mid.append((mz + tk * e1[0] + s * e2[0], mh + tk * e1[1] + s * e2[1]))
+        if len(mid) < 2:
+            return []
+        half = _area(ring) / (t1 - t0) / 2   # half its width, as traced
+        # the room each side: the nearest other mark's outline from the middle line, less its own half width
+        room = min((math.dist(c, (u * LENGTH, h)) for r in others for u, h in r for c in mid), default=math.inf) - half
+        most = half * MARK_WIDEN if room == math.inf else min(half * MARK_WIDEN, half + max(0.0, room) * MARK_ROOM)
+
+        def drawn(w):
+            normals = []
+            for i in range(len(mid)):
+                p, q = mid[max(0, i - 1)], mid[min(len(mid) - 1, i + 1)]
+                d = math.hypot(q[0] - p[0], q[1] - p[1]) or 1.0
+                normals.append((-(q[1] - p[1]) / d, (q[0] - p[0]) / d))
+            band = ([((c[0] + nz * w) / LENGTH, c[1] + nh * w) for c, (nz, nh) in zip(mid, normals, strict=True)]
+                    + [((c[0] - nz * w) / LENGTH, c[1] - nh * w) for c, (nz, nh) in reversed(list(zip(mid, normals, strict=True)))])
+            return [view(*q) for q in self.seen_part(hw, inset, band, side)]
+
+        w = half
+        out = drawn(w)
+        for _ in range(4):   # wider until it reads (or as wide as it may be)
+            thick = _screen_thickness(out) if len(out) >= 3 else 0.0
+            if thick >= MARK_SEEN_CM * view.px or w >= most:
+                break
+            w = min(most, w * min(2.0, MARK_SEEN_CM * view.px / thick if thick else 2.0))
+            out = drawn(w)
         return out
 
     def lacing(self, view, hw, inset: float, ln, lace_c: str = INK) -> list[str]:

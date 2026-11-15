@@ -43,8 +43,8 @@ def made(style="low_sneaker", sole=2.0, spring=0.8, taller=0.0, panels=(), marks
         gate={"ok": ok, "reasons": [] if ok else ["blurred"], "notes": [], "told": {}, "signals": {}}, regions=regions)
 
 
-def spec_of(category="sneakers", style="low_sneaker", bottom=SHORTS):
-    shoes = Piece(category, answer(category, shoe_style=style), "#5a3a22")
+def spec_of(category="sneakers", style="low_sneaker", bottom=SHORTS, **details):
+    shoes = Piece(category, answer(category, shoe_style=style, **details), "#5a3a22")
     return plan(dict(base=TEE, bottom=bottom, shoes=shoes)).get("shoes").spec
 
 
@@ -445,6 +445,10 @@ def every_front_shoe():
             yield f"{name} photo+front", front(frontshoe.Chosen(t, frontshoe.FROM_PHOTO, front_look(name)), spec)
     for c, s in UNTRACED[:-1]:
         yield s, front(None, spec_of(c, s))
+    for s in frontshoe.CUT_STYLES:   # cut no-show: the collar and the opening lower
+        yield f"{s} no_show", front(None, spec_of("sneakers", s, footwear_height="no_show"))
+    yield "STRIPED_COURT no_show", front(traced_photo("STRIPED_COURT"), spec_of(footwear_height="no_show"),
+                                         kind=frontshoe.FROM_SHAPE)
 
 
 def after_the_leg(shoe) -> list[tuple[str, list[tuple[float, float]]]]:
@@ -706,6 +710,60 @@ def test_view_a_keeps_the_laces_colour_and_draws_the_stripes():
                     if near(c, (196, 30, 40))]   # no red lace strokes
 
 
+def thickness(pts) -> float:
+    return 2 * area(pts) / sum(math.dist(a, b) for a, b in zip(pts, pts[1:] + pts[:1], strict=True))
+
+
+def on_the_shoe(shoe, pts) -> bool:
+    outline = _flat(shoe.outline)
+    return all(any(_inside((q[0] + dx, q[1] + dy), outline) for dx in (-1.5, 0, 1.5) for dy in (-1.5, 0, 1.5))
+               for q in pts)
+
+
+@pytest.mark.parametrize("name", ["STRIPED_COURT", "BOLD_STRIPES", "REAL_STRIPES"])
+def test_a_white_shoes_three_red_stripes_are_three_bands_in_a_and_b(name):
+    """A white court shoe with three red stripes on its side: A and B each draw three marks, one band for each
+    stripe, slanted and foreshortened by the turn but wide enough to see (no slivers of the side turned away), on
+    the shoe and under its laces; the upper stays white. A stripe the trace took for a colour piece beside two
+    marks (its box overlapping theirs) was once dropped, and the side walls showed only thin slivers. REAL_STRIPES
+    has thin, tapered, soft-edged stripes, as a photo shows them: one was once taken for the laces."""
+    from . import shoe_photos as S
+    spec = getattr(S, name)
+    t = traced_photo(name)
+    for kind in (frontshoe.FROM_SHAPE, frontshoe.FROM_PHOTO):
+        shoe = front(t, kind=kind)
+        red = [ring for c in set(re.findall(r'fill="(#[0-9a-f]{6})"/>', shoe.body)) if near(c, spec["stripes"])
+               for ring in painted(shoe.body, c)]
+        assert len(red) == 3, kind
+        assert all(area(ring) > 5 and thickness(ring) > 0.2 * K_PX for ring in red), kind
+        assert all(on_the_shoe(shoe, ring) for ring in red), kind
+        reds = {c for c in re.findall(r'fill="(#[0-9a-f]{6})"/>', shoe.body) if near(c, spec["stripes"])}
+        last_mark = max(m.start() for c in reds for m in re.finditer(rf'fill="{c}"/>', shoe.body))
+        assert last_mark < shoe.body.index('stroke-linecap="round"'), kind   # the laces are painted over them
+        cells = frontshoe._Traced.of(t, "round", "low_sneaker").on_template(
+            *frontshoe.STYLES["low_sneaker"][:4], 0.97, "round", sampled=kind == frontshoe.FROM_PHOTO).cells()
+        own = [spec["upper"]] + ([spec["heel_counter"]] if spec.get("heel_counter") else [])   # a dark heel tab
+        assert all(min(math.dist(lab(c), lab(rgb)) for rgb in own) <= 5 for _, _, _, c, _, _ in cells), kind
+        laces = [c for c in re.findall(r'stroke="(#[0-9a-f]{6})" stroke-width="[\d.]+" stroke-linecap="round"', shoe.body)
+                 if c != frontshoe.INK]
+        assert laces and not any(near(c, spec["stripes"]) for c in laces), kind   # the laces are not the stripes' red
+
+
+def test_a_small_black_curve_is_one_curved_mark_in_a_and_b():
+    """A white sneaker with a small black curve on its side (a swoosh): one curved mark in A and in B, wide enough
+    to see though the side is seen nearly edge on, and on the shoe."""
+    t = made(marks=[("#111111", [[0.3, 3.0], [0.42, 3.4], [0.52, 4.4], [0.5, 4.8], [0.4, 3.9], [0.3, 3.6]])])
+    t.regions[0].color, t.marks[0].kind = "#f2f0ea", "curve"
+    for kind in (frontshoe.FROM_SHAPE, frontshoe.FROM_PHOTO):
+        shoe = front(t, kind=kind)
+        marks = painted(shoe.body, "#111111")
+        assert len(marks) == 1, kind
+        mark = marks[0]
+        assert thickness(mark) >= 0.4 * K_PX, kind
+        assert area(mark) < 0.9 * area(frontshoe._hull(mark)), kind   # it bends: a curve, not a straight band
+        assert on_the_shoe(shoe, mark), kind
+
+
 
 def turns(pts, step: float = 1.0) -> list[float]:
     """How sharply a closed outline turns, in degrees, at each `step` px along it (so a point's sharpness does not
@@ -723,6 +781,30 @@ def turns(pts, step: float = 1.0) -> list[float]:
         t = math.degrees(math.atan2(c[1] - b[1], c[0] - b[0]) - math.atan2(b[1] - a[1], b[0] - a[0]))
         out.append(abs((t + 180) % 360 - 180))
     return out
+
+
+@pytest.mark.parametrize("style", ["low_sneaker", "runner", "slip_on"])
+def test_a_no_show_cut_lowers_the_collar_and_the_opening(style):
+    """`footwear_height=no_show` (a low-cut runner or slip-on): the collar stands lower round the ankle, and the
+    opening dips further below the ankle bones, lowest at its sides, so more of the ankle shows above it. The
+    shoe's front (the toe, the laces) stays where it was."""
+    plain = front(None, spec_of("sneakers", style))
+    cut = front(None, spec_of("sneakers", style, footwear_height="no_show"))
+    rim, low = _flat(plain.rim), _flat(cut.rim)
+    # every point of the opening's edge is lower on the drawing (y down), its sides the most
+    assert all(b[1] > a[1] + 0.8 * K_PX for a, b in zip(rim, low, strict=True))
+    sides = [i for i, q in enumerate(rim) if q[0] in (min(x for x, _ in rim), max(x for x, _ in rim))]
+    assert all(low[i][1] - rim[i][1] > min(b[1] - a[1] for a, b in zip(rim, low, strict=True)) for i in sides)
+    # the top of the shoe beside the ankle is lower too; its toe and sole are not
+    assert min(y for _, y in _flat(cut.upper)) > min(y for _, y in _flat(plain.upper)) + 0.8 * K_PX
+    # a trouser hem meets the opening where it now is, lower; every other anchor stays
+    moved = ("opening", "opening_back")
+    assert {k: v for k, v in cut.anchors.items() if k not in moved} == {k: v for k, v in plain.anchors.items() if k not in moved}
+    assert all(cut.anchors[k][1] > plain.anchors[k][1] + 0.8 * K_PX for k in moved)
+    toe = lambda s: [q for q in _flat(s.outline) if q[1] > s.anchors["ball"][1]]   # noqa: E731
+    assert toe(cut) == toe(plain)
+    # the leg is seen down to the lower opening: more of the ankle shows
+    assert max(y for d in cut.seen for _, y in _flat(d)) > max(y for d in plain.seen for _, y in _flat(d))
 
 
 def test_the_shoes_outline_has_no_points_or_horns():

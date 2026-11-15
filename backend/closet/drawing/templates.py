@@ -2005,6 +2005,14 @@ def pants(**kw) -> Shape:
         x0 = leg_x(y0) + 6
         sh.parts.append(Part(f"M {_pt((x0, y0))} L {_pt((x0 + 22, y0))} L {_pt((x0 + 24, y0 + 30 * k))} L {_pt((x0 + 2, y0 + 30 * k))} Z",
                              "trim", clip=True))
+    elif "rule" in extra:   # on shorts: as wide, as short as the leg allows (3 cm clear of the hem), along the flared seam
+        y0 = cy + 6
+        if hy - 3 * k - y0 < 12 * k:   # a short inseam: the pocket starts higher, over the top of the thigh
+            y0 = max(hy - 15 * k, hip_y + 6)
+        y1 = min(y0 + 30 * k, hy - 3 * k)
+        x0, x1 = leg_x(y0) + 6, leg_x(y1) + 6
+        sh.parts.append(Part(f"M {_pt((x0, y0))} L {_pt((x0 + 22, y0))} L {_pt((x1 + 22, y1))} L {_pt((x1, y1))} Z",
+                             "trim", clip=True))
     if "hammer" in extra:   # a hammer loop on the wearer's left (the viewer's right) side
         y0 = cy + 20
         xr = 2 * CX - leg_x(y0)

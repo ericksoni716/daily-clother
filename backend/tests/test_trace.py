@@ -417,6 +417,25 @@ def test_the_stripes_are_a_mark(rich):
     assert all(m.kind == "stripes" for m in rich.marks)
 
 
+@pytest.mark.parametrize("noise", [2, 4])
+def test_thin_tapered_stripes_are_one_set_and_not_the_laces(noise):
+    """A light court shoe with three thin (0.8 cm), tapered, soft-edged red stripes from near its top edge down
+    to the sole, and white laces, as a photo shows it: the three pieces are one stripe set, and their red is
+    never the laces' (their ends reach into the lacing). With no lace colour of their own, the shoe has no laces
+    row, and the front view gives its laces a shade of the upper's colour."""
+    spec = S.REAL_STRIPES
+    t = traced.traced_shoe(read(S.draw(S.Shoe(**spec), size=(1000, 560), noise=noise)[0]))
+    stripes = [m for m in t.marks if m.kind == "stripes"]
+    assert len(stripes) == 1, t.marks
+    assert stripes[0].count == 3 and len(stripes[0].path) == 3
+    assert colour_close(stripes[0].color, spec["stripes"], 12)
+    assert all(m.kind == "stripes" or not colour_close(m.color, spec["stripes"], 20) for m in t.marks)
+    red = [p for p in t.parts if colour_close(p.color, spec["stripes"], 20)]
+    assert not red, red
+    assert t.laces is None or not colour_close(t.laces.color, spec["stripes"], 20), t.laces
+    assert not any(lab == "laces" for r in t.regions if colour_close(r.color, spec["stripes"], 20) for lab in r.labels)
+
+
 def test_the_style_hint_follows_the_profile(rich):
     assert rich.style in frontshoe.TRAINERS
     dress = S.Shoe(upper=(70, 40, 30), midsole=(40, 30, 25), outsole=None, top=list(frontshoe._DRESS), sole_cm=1.2,

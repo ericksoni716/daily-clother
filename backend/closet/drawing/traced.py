@@ -321,13 +321,15 @@ def _peaks(sig: np.ndarray, apart: int) -> list[int]:
     return peaks
 
 
-def lace_row_of(v: _View | None, upper_lab, eyelets: Row | None = None) -> Row | None:
+def lace_row_of(v: _View | None, upper_lab, eyelets: Row | None = None, away: np.ndarray | None = None) -> Row | None:
     """The laces, counted along the lacing rather than piece by piece: laces that cross or touch join into one
     piece, and the pieces are lost. Along the throat (40 to 88% of the length from the heel, up to 3 cm below
     the top edge), in each of the four commonest colours there that are not the upper's, the line the laces run
     along is found (their middle depth below the top, smoothed); each lace, or each crossing, meets it once.
     Of the colours whose peaks along that line repeat regularly, the one that covers most of the line is the
-    laces' (unless its peaks fall on the eyelets)."""
+    laces' (unless its peaks fall on the eyelets). With a row of eyelets, only the band down to them is looked
+    at (the laces run between the eyelet rows). The stripes of a set (`away`, the view's size) are not looked at:
+    their ends reach into the lacing, and their colour is not the laces'."""
     import cv2
     if v is None:
         return None
@@ -340,9 +342,16 @@ def lace_row_of(v: _View | None, upper_lab, eyelets: Row | None = None) -> Row |
     if x1 - x0 < 3 * px:
         return None
     cols = np.arange(x0, x1)
-    depth = np.arange(round(0.15 * px), round(3.0 * px))
+    deep = 3.0 * px
+    if eyelets:   # the lacing band: down to the eyelets, and a little below them
+        ey = [(hf.x(u), hf.y_ground - h / hf.cm) for u, h in eyelets.points]
+        below = [y - top[int(min(W - 1, max(0, x)))] for x, y in ey]
+        deep = min(deep, max(below) + 1.0 * px)
+    depth = np.arange(round(0.15 * px), max(round(0.15 * px) + 2, round(deep)))
     ys = (top[cols][None, :] + depth[:, None]).clip(0, v.mask.shape[0] - 1)
     inside = v.upper[ys, cols[None, :]]
+    if away is not None:
+        inside = inside & ~away[ys, cols[None, :]]
     band = v.lab[ys, cols[None, :]]
     off = (np.linalg.norm(band - np.asarray(upper_lab, np.float32), axis=-1) >= DETAIL_DE) & inside
     if off.sum() < 0.2 * px * px:
@@ -528,11 +537,13 @@ def _zone_map(f: _Frame, upper: np.ndarray) -> np.ndarray:
     return out
 
 
-def _pieces(t: T.Trace, ras: np.ndarray, upper: np.ndarray, zones: np.ndarray) -> list[_Piece]:
+def _pieces(t: T.Trace, ras: np.ndarray, upper: np.ndarray, zones: np.ndarray, marked: np.ndarray | None = None
+            ) -> list[_Piece]:
     """The traced colour regions on the upper, piece by piece, each labelled with the part it mostly lies in.
     A piece belongs to a part (rather than being a mark on it) when it is the upper's base colour, when it meets
     the outline or the sole along a quarter of its edge or more (a heel counter, a toe cap, a mudguard, an
-    eyestay along the top), or when it is large and not long and thin. Nothing is cut: a piece keeps its shape."""
+    eyestay along the top), or when it is large and not long and thin; never when it is a stripe of a set
+    (`marked`), which often runs from the lacing down to the sole. Nothing is cut: a piece keeps its shape."""
     import cv2
     names = list(ZONES)
     area = max(int(upper.sum()), 1)
@@ -558,12 +569,13 @@ def _pieces(t: T.Trace, ras: np.ndarray, upper: np.ndarray, zones: np.ndarray) -
             _, (w, h), _ = cv2.minAreaRect(np.stack([xs, ys], -1).astype(np.float32))
             long_thin = max(w, h) + 1 >= 2.5 * (min(w, h) + 1)
             big = a >= 0.4 * zone_area[label] and not long_thin
-            out.append(_Piece(idx, px, label, contact >= 0.25 or big))
+            stripe = marked is not None and marked[px].mean() > 0.5
+            out.append(_Piece(idx, px, label, (contact >= 0.25 or big) and not stripe))
     return out
 
 
-def _parts(t: T.Trace, f: _Frame, ras: np.ndarray, sole: np.ndarray, band: np.ndarray, band_idx: int
-           ) -> tuple[list[Part], list[_Piece], dict[int, str]]:
+def _parts(t: T.Trace, f: _Frame, ras: np.ndarray, sole: np.ndarray, band: np.ndarray, band_idx: int,
+           marked: np.ndarray | None = None) -> tuple[list[Part], list[_Piece], dict[int, str]]:
     """Each part of the shoe from the traced colour regions: its colour is that of the part piece that covers
     most of where the part sits. When that piece is labelled with the part, the part takes its outline (all its
     pieces so labelled, in that colour); when it is another's (a heel counter reaching into the quarter, or the
@@ -573,7 +585,7 @@ def _parts(t: T.Trace, f: _Frame, ras: np.ndarray, sole: np.ndarray, band: np.nd
     shoe = ras >= 0
     upper = shoe & (sole == 0)
     zones = _zone_map(f, upper)
-    pieces = _pieces(t, ras, upper, zones)
+    pieces = _pieces(t, ras, upper, zones, marked)
     main_color = t.regions[0].color
     area = int(upper.sum())
     parts: list[Part] = []
@@ -642,14 +654,105 @@ def _angle(du_cm: float, dh: float) -> float:
     return round(a, 1)
 
 
-def _marks(t: T.Trace, f: _Frame, ras: np.ndarray, sole: np.ndarray, taken: np.ndarray,
-           skip: list[tuple[float, float]], laces: Row | None) -> list[Mark]:
-    """The marks on the upper: the pieces of the trace's colours that are not the upper's own and not a part's,
-    grouped into stripe sets and text blocks, the rest told apart by shape. Laces, eyelets and stitching found
-    by the detail pass are not marks (a lace the detail pass missed, in the laces' colour by the row, neither)."""
+def _found(f: _Frame, idx: int, color: str, px: np.ndarray, a: int, cent) -> dict:
+    """One piece of a traced colour on the upper: where it is, its size, how much of its box it fills, its angle."""
+    import cv2
+    (cu, ch), = f.uh([np.asarray(cent) + 0.5])
+    ys, xs = np.nonzero(px)
+    (_, _), (w, h), _ = cv2.minAreaRect(np.stack([xs, ys], -1).astype(np.float32))
+    pts = np.stack([xs, ys], -1).astype(np.float64)
+    centred = pts - pts.mean(axis=0)
+    evals, evecs = np.linalg.eigh(np.cov(centred.T))
+    d = evecs[:, -1]
+    length, width = (max(w, h) + 1) * f.cm, (min(w, h) + 1) * f.cm
+    return dict(idx=idx, color=color, u=float(cu), h=float(ch), length=length, width=width,
+                fill=a / ((max(w, h) + 1) * (min(w, h) + 1)), angle=_angle(-d[0], -d[1]), area=int(a),
+                path=_outlines(f, px), px=px)
+
+
+STRIPE_SET = (2, 4)          # a stripe set has this many stripes, at fewest and most
+STRIPE_ZONE = (0.15, 0.75)   # ... each with its middle on the quarter or midfoot (u from the heel)
+STRIPE_MAX = 0.06            # ... each at most this share of the upper
+STRIPE_BELOW_TOP_CM = 1.5    # ... its middle at least this far below the top edge (laces and eyestays lie along it)
+
+
+def _parallel(a: float, b: float, tol: float = 15.0) -> bool:
+    return abs(((a - b + 90) % 180) - 90) < tol
+
+
+def _evenly_spaced(group: list[dict]) -> bool:
+    """Side by side and evenly spaced: the middles, measured across the set's angle, apart by gaps of about one
+    size, none of them overlapping, and the stripes of about one length."""
+    a = math.radians(float(np.median([g["angle"] for g in group])))
+    across = sorted(-math.sin(a) * g["u"] * LENGTH + math.cos(a) * g["h"] for g in group)
+    gaps = np.diff(across)
+    lengths = [g["length"] for g in group]
+    return (bool(gaps.min() >= 0.3) and float(gaps.max()) <= 3.5 and max(lengths) <= 2.5 * min(lengths)
+            and (len(gaps) < 2 or float(np.std(gaps)) <= 0.35 * float(np.mean(gaps))))
+
+
+def _stripe_sets(t: T.Trace, f: _Frame, ras: np.ndarray, sole: np.ndarray, top_at) -> list[list[dict]]:
+    """The stripe sets: in one traced colour, two to four long pieces side by side at one angle and evenly spaced,
+    each small beside the upper, on the quarter or midfoot and reaching below the lacing. Thin, tapered stripes
+    with soft edges fill little of their box, and one running down to the sole meets the outline: neither stops
+    them being a set. Found before the laces, so a stripe's colour is never taken for the laces'."""
     import cv2
     upper = (ras >= 0) & (sole == 0)
     area = max(int(upper.sum()), 1)
+    sets = []
+    for idx, r in enumerate(t.regions):
+        if idx == 0 or r.part != "upper":
+            continue
+        n, labels, stats, cent = cv2.connectedComponentsWithStats(((ras == idx) & upper).astype(np.uint8), 8)
+        cand = []
+        for i in range(1, n):
+            a = int(stats[i, cv2.CC_STAT_AREA])
+            if a < 0.002 * area or a > STRIPE_MAX * area:
+                continue
+            m = _found(f, idx, r.color, labels == i, a, cent[i])
+            if (STRIPE_ZONE[0] <= m["u"] <= STRIPE_ZONE[1] and m["length"] >= 1.2 and m["length"] >= 2.0 * m["width"]
+                    and top_at(m["u"]) - m["h"] >= STRIPE_BELOW_TOP_CM):
+                cand.append(m)
+        best: list[dict] = []
+        for m in cand:
+            group = [s for s in cand if _parallel(s["angle"], m["angle"])]
+            if STRIPE_SET[0] <= len(group) <= STRIPE_SET[1] and len(group) > len(best) and _evenly_spaced(group):
+                best = group
+        if best:
+            sets.append(sorted(best, key=lambda g: g["u"]))
+    return sets
+
+
+def _away(v: _View | None, marked: np.ndarray) -> np.ndarray | None:
+    """The stripe sets' pixels at the detail view's size, a little wider (their soft edges), or None."""
+    import cv2
+    if v is None or not marked.any():
+        return None
+    H, W = v.mask.shape
+    m = cv2.resize(marked.astype(np.uint8), (W, H), interpolation=cv2.INTER_NEAREST)
+    k = max(3, int(0.3 / v.f.cm) | 1)
+    return cv2.dilate(m, np.ones((k, k), np.uint8)) > 0
+
+
+def _at(f: _Frame, u: float, h: float, shape) -> tuple[int, int]:
+    """The pixel (row, column) at (u, cm), kept inside an image of `shape`."""
+    x, y = f.x(u), f.y_ground - h / f.cm
+    return int(min(shape[0] - 1, max(0, y))), int(min(shape[1] - 1, max(0, x)))
+
+
+def _marks(t: T.Trace, f: _Frame, ras: np.ndarray, sole: np.ndarray, taken: np.ndarray,
+           skip: list[tuple[float, float]], laces: Row | None, sets: list[list[dict]] = ()) -> list[Mark]:
+    """The marks on the upper: the stripe sets found first (`sets`), then the pieces of the trace's colours that
+    are not the upper's own and not a part's, grouped into stripe sets and text blocks, the rest told apart by
+    shape. Laces, eyelets and stitching found by the detail pass are not marks (a lace the detail pass missed, in
+    the laces' colour by the row, neither)."""
+    import cv2
+    upper = (ras >= 0) & (sole == 0)
+    area = max(int(upper.sum()), 1)
+    in_set = np.zeros(ras.shape, bool)
+    for group in sets:
+        for g in group:
+            in_set |= g["px"]
     found = []
     for idx, r in enumerate(t.regions):
         if idx == 0 or r.part != "upper":
@@ -657,7 +760,7 @@ def _marks(t: T.Trace, f: _Frame, ras: np.ndarray, sole: np.ndarray, taken: np.n
         n, labels, stats, cent = cv2.connectedComponentsWithStats(((ras == idx) & upper).astype(np.uint8), 8)
         for i in range(1, n):
             a = stats[i, cv2.CC_STAT_AREA]
-            if a < 0.002 * area or taken[labels == i].mean() > 0.5:
+            if a < 0.002 * area or taken[labels == i].mean() > 0.5 or in_set[labels == i].mean() > 0.5:
                 continue
             (cu, ch), = f.uh([cent[i] + 0.5])
             if any(abs(cu - su) * LENGTH < 0.8 and abs(ch - sh) < 0.8 for su, sh in skip):
@@ -667,17 +770,8 @@ def _marks(t: T.Trace, f: _Frame, ras: np.ndarray, sole: np.ndarray, taken: np.n
                 reach = 1.5 * laces.spacing_cm / LENGTH
                 if lu.min() - reach <= cu <= lu.max() + reach and abs(ch - np.interp(cu, lu, lh)) < 2.0:
                     continue
-            ys, xs = np.nonzero(labels == i)
-            (_, _), (w, h), _ = cv2.minAreaRect(np.stack([xs, ys], -1).astype(np.float32))
-            pts = np.stack([xs, ys], -1).astype(np.float64)
-            centred = pts - pts.mean(axis=0)
-            evals, evecs = np.linalg.eigh(np.cov(centred.T))
-            d = evecs[:, -1]
-            length, width = (max(w, h) + 1) * f.cm, (min(w, h) + 1) * f.cm
-            found.append(dict(idx=idx, color=r.color, u=float(cu), h=float(ch), length=length, width=width,
-                              fill=a / ((max(w, h) + 1) * (min(w, h) + 1)), angle=_angle(-d[0], -d[1]),
-                              area=a, path=_outlines(f, labels == i)))
-    marks: list[Mark] = []
+            found.append(_found(f, idx, r.color, labels == i, a, cent[i]))
+    marks: list[Mark] = [_mark("stripes", group) for group in sets]
     left = list(found)
     # stripe sets: two or more straight bands of one colour, side by side at one angle
     straight = [m for m in left if m["length"] / max(m["width"], 1e-6) >= 2.5 and m["fill"] >= 0.6]
@@ -767,9 +861,18 @@ def traced_shoe(reading: T.Reading, approach: str | None = None) -> TracedShoe |
     profile = _profile(f, shoe, sole)
     view = _view(o, sole, f)
     bits = _bits(view)
-    pieces, eyelet_row, stitch_row = details(bits, lambda u: float(np.interp(u, profile.u, profile.top)), t.regions[0].lab)
-    lace_row = lace_row_of(view, t.regions[0].lab, eyelet_row) or pieces
-    parts, pieces, sole_labels = _parts(t, f, ras, sole, band, band_idx)
+    top_at = lambda u: float(np.interp(u, profile.u, profile.top))   # noqa: E731
+    sets = _stripe_sets(t, f, ras, sole, top_at)
+    marked = np.zeros(ras.shape, bool)
+    for group in sets:
+        for g in group:
+            marked |= g["px"]
+    away = _away(view, marked)
+    if away is not None:   # a stripe's end is not a lace, an eyelet or a stitch
+        bits = [b for b in bits if not away[_at(view.f, b.u, b.h, away.shape)]]
+    pieces, eyelet_row, stitch_row = details(bits, top_at, t.regions[0].lab)
+    lace_row = lace_row_of(view, t.regions[0].lab, eyelet_row, away) or pieces
+    parts, pieces, sole_labels = _parts(t, f, ras, sole, band, band_idx, marked)
     for name, row in (("laces", lace_row), ("eyelets", eyelet_row), ("stitching", stitch_row)):
         if row:
             near = [b.pts for b in bits if any(abs(b.u - p[0]) < 1e-3 and abs(b.h - p[1]) < 1e-2 for p in row.points)]
@@ -783,7 +886,7 @@ def traced_shoe(reading: T.Reading, approach: str | None = None) -> TracedShoe |
     for p in pieces:
         if p.part:
             taken |= p.pixels
-    marks = _marks(t, f, ras, sole, taken, skip, lace_row)
+    marks = _marks(t, f, ras, sole, taken, skip, lace_row, sets)
     regions = []
     for idx, r in enumerate(t.regions):
         paths = [[_path(f, p) for p in piece] for piece in r.paths]

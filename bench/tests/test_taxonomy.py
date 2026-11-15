@@ -947,6 +947,27 @@ def test_the_back_view_leaves_out_what_is_on_the_front():
 def test_shorts_are_drawn_to_their_inseam():
     hems = [build("pants", dict(length="short", inseam=i)).anchors["hem"][1] for i in (3, 5, 7, 9, 11)]
     assert hems == sorted(hems) and len(set(hems)) == len(hems)
+
+
+@pytest.mark.parametrize("length, inseam", [("short", None), ("brief", None), ("short", 3), ("short", 7), ("short", 11)])
+def test_shorts_show_a_rule_pocket_sized_for_the_short_leg(length, inseam):
+    """A rule pocket on shorts: the trousers' narrow pocket on the wearer's right thigh (the viewer's left), as wide,
+    along the leg's outer seam, and ending 3 cm clear of the hem whatever the inseam."""
+    from closet_bench.templates import PX_CM
+    base = dict(length=length, **({"inseam": inseam} if inseam else {}))
+    plain, ruled = build("pants", base), build("pants", {**base, "extra_pockets": ["rule"]})
+    assert ruled.outline == plain.outline and ruled.anchors == plain.anchors
+    new = [p for p in ruled.parts if p not in plain.parts]
+    assert len(new) == 1 and new[0].role == "trim" and new[0].clip
+    xs, ys = _numbers(new[0].d)[::2], _numbers(new[0].d)[1::2]
+    hem, (out_x, _) = ruled.anchors["hem"][1], ruled.anchors["hem_out"]
+    top, bottom = min(ys), max(ys)
+    assert 7 * PX_CM <= bottom - top <= 30 * PX_CM + 0.1
+    assert bottom <= hem - 3 * PX_CM + 0.1
+    assert max(xs) < CX and min(xs) > out_x   # on the viewer's left leg, inside its outer seam
+    assert max(xs[:2]) - min(xs[:2]) == pytest.approx(22, abs=0.2)   # as wide as on trousers
+
+
 def test_garments_are_the_owners_clothing_kinds():
     from closet_bench.taxonomy import APP_CATEGORY, BOTTOM_DRAWINGS, GARMENTS, LOUNGE_KINDS, SPORT_KINDS
     data = TAXONOMY

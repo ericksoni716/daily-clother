@@ -19,6 +19,7 @@ from . import (
     kinds,
     palette,
     patjobs,
+    shoedraw,
     shoeviews,
     tagjobs,
     tracejobs,
@@ -110,6 +111,9 @@ def detail(conn, row) -> dict:
     # a shoe's photos sorted into views: its state, a plain message, and the photos to choose the outside from (null:
     # not a shoe)
     out["views"] = shoeviews.shown(conn, row)
+    # a shoe drawn by Claude from its photos for the outfit figure: its state, a plain message, the drawing's address
+    # and what it took (null: not a shoe)
+    out["drawn"] = shoedraw.shown(conn, row)
     # a shoe's trace from its photo: its state, why it was turned down, and what Fix the details can change (null: not a shoe)
     out["trace"] = tracejobs.shown(row)
     out["recent_wears"] = [r[0] for r in conn.execute(

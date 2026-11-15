@@ -123,4 +123,10 @@ describe("a shoe's photos", () => {
     expect(form.get('photo_sha256')).toBe('f'.repeat(64));
     expect(JSON.parse(calls[2].init.body as string)).toEqual({ view: 'outer' });
   });
+
+  it('asks for a shoe to be drawn from its photos again', async () => {
+    const calls = recording();
+    await api.drawShoe('a b');
+    expect(calls.map((c) => [c.init.method, c.path])).toEqual([['POST', '/api/items/a%20b/drawn']]);
+  });
 });

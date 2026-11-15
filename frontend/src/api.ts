@@ -238,6 +238,8 @@ export const api = {
   /** The owner says which view a photo of a shoe shows (the question about the outside). */
   setPhotoView: (id: string, photoId: string, view: ShoeView) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}/photos/${encodeURIComponent(photoId)}/view`, { method: 'PUT', body: { view } }),
+  /** Draws a shoe from its photos (again): the drawing it has stays until the new one is done. */
+  drawShoe: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/drawn`, { method: 'POST' }),
   /** Add's instant check: will this shoe photo trace well? Nothing is kept. */
   checkShoe: (photo: Blob, filename: string, signal?: AbortSignal) => {
     const form = new FormData();

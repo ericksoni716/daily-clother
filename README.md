@@ -264,6 +264,23 @@ like your shoe. **Add a front photo** there helps **From your photo** get the
 toe, laces and logos right; once you add one, that view is used unless you
 chose otherwise.
 
+Once the photos are sorted (and you have answered the question about the
+outside, if Closet asked it), Claude also draws the shoe from them, from the
+front, for the outfit figure: it notes what kind of shoe it is, its colours and
+parts, draws it, and checks the drawing against your photos up to three times.
+This takes about two minutes and happens once, by itself. **Drawn for the
+outfit figure** on the shoe's page shows the drawing on two legs, how long it
+took, how often it was checked, and what it cost (on your Claude plan nothing
+is billed; the page says what it would cost on the API key). The outfit figure
+does not use the drawing yet. Adding or removing photos never draws the shoe
+again: the page says **The photos changed since this drawing**. To draw it
+again, tap **Draw again**; it asks first, and the old drawing stays until the
+new one is done. A shoe added before this version is drawn when you tap **Draw
+it** (its photos are sorted first if they never were), or by itself once you
+add or remove one of its photos. If drawing fails, the
+page says why and offers **Try again**. The demo closet's shoes are never sent
+to Claude.
+
 ### Several pieces in one photo
 
 To add a pile at once, lay the pieces out with a little space between them (on

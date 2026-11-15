@@ -33,6 +33,11 @@ show, in the order sent, the outer side, from above, the inner side, the front, 
 sides unsure and looking different once both are there, so the page asks which photo shows the outside. With
 CLOSET_E2E_ROUTES=api the real API route asks `conftest.FakeApi`, which answers the same.
 
+Drawing a shoe from its photos runs the real steps (the drawing made safe, rendered and checked) with a stand-in for
+Claude's answers: after a second each, the drawing is the dress shoe the owner liked (`conftest.draw_answer`) and the
+first check says it is good, as if on the Claude plan, with made-up token counts. With CLOSET_E2E_ROUTES=api the real
+API route asks `conftest.FakeApi`, which answers the same.
+
 With CLOSET_E2E_TAG_FAILS=N the first N descriptions fail with a reason Closet does not recognise, which quotes
 something shaped like a key and a file outside Closet's folder (both made up), so the page can show a failed item.
 
@@ -48,10 +53,22 @@ import urllib.error
 
 from closet import apikey, app, cli, demo, tracejobs, weather
 from closet.tagger import routes as tagger_routes
+from closet.tagger import shoedrawing
+from closet.tagger.correcting import CorrectionResult
 from closet.tagger.shopping import Found, PriceAnswer, PriceSeen, ShopAnswer
 from closet.tagger.tagging import TaggingError, TagResult
 
-from .conftest import ANSWER, GARMENT_BOXES, FakeApi, FakeClaude, MemoryKeychain, fake_cutter, views_answer
+from .conftest import (
+    ANSWER,
+    GARMENT_BOXES,
+    FakeApi,
+    FakeClaude,
+    MemoryKeychain,
+    check_answer,
+    draw_answer,
+    fake_cutter,
+    views_answer,
+)
 
 _real_build = app.build_services
 
@@ -76,6 +93,17 @@ def fake_finder(photo, routes):
 def fake_sorter(photos, routes):
     time.sleep(1)   # long enough for the page to show it sorting
     return views_answer(len(photos))
+
+
+def fake_asker(text, images, routes, answer_model=None, model="", **kw):
+    """Claude's answers to the drawing and its check, after a second each: the dress shoe, said to be good."""
+    time.sleep(1)   # long enough for the page to show it drawing
+    answer = draw_answer() if answer_model is shoedrawing.DrawAnswer else check_answer()
+    return CorrectionResult(answer, routes[0], model, 42_000, 6_500, 12_000)
+
+
+def fake_drawer(photos, routes):
+    return shoedrawing.draw(photos, routes, asker=fake_asker)
 
 
 def api_only_status(order="auto", claude_exe=None):
@@ -144,7 +172,7 @@ def build_services(cfg, **kwargs):
         reader = FakeClaude()
         reader.mode = "answers"
         sv = _real_build(cfg, cutter=fake_cutter, tagger=fake_claude, routes=lambda: ("plan",), corrector=reader.correct,
-                         finder=fake_finder, sorter=fake_sorter, **kwargs)
+                         finder=fake_finder, sorter=fake_sorter, drawer=fake_drawer, **kwargs)
     sv.worker.is_ready = lambda: True
     return sv
 

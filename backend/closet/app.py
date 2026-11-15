@@ -45,6 +45,7 @@ from . import (
     phone,
     review,
     savedtrips,
+    shoedraw,
     shoes,
     shoeviews,
     shop,
@@ -96,6 +97,7 @@ class Services:
     price_checks: shop.PriceScheduler | None = None   # looks prices up once a day while the program runs
     finder: sources.Worker | None = None          # asks where each piece is in a photo of several
     views: shoeviews.Worker | None = None         # sorts a shoe's photos into views
+    draws: shoedraw.Worker | None = None          # draws a shoe from its sorted photos
     on_quit: Callable[[], None] = lambda: None
     updater: updates.Updater | None = None   # new releases: checked once a day, installed when the owner says
     check_maskers: list = field(default_factory=list)   # the cut-outs Add's instant check of a shoe photo tries, in order
@@ -113,6 +115,8 @@ class Services:
             self.finder.start()
         if self.views:
             self.views.start()
+        if self.draws:
+            self.draws.start()
         if self.second_model is not None and not self.second_model.ready and self.cfg.auto_download_model:
             self.second_model.start_download()
         self.scheduler.start()
@@ -132,6 +136,8 @@ class Services:
             self.finder.wake()
         if self.views:
             self.views.wake()
+        if self.draws:
+            self.draws.wake()
 
     def stop(self) -> None:
         self.scheduler.stop()
@@ -147,6 +153,8 @@ class Services:
             self.finder.stop()
         if self.views:
             self.views.stop()
+        if self.draws:
+            self.draws.stop()
         self.worker.stop()
         self.model.stop()
         if self.second_model is not None:
@@ -165,7 +173,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                    corrector: corrections.Corrector | None = None, measurer: patjobs.Measurer | None = None,
                    landmarker: patjobs.Landmarker | None = None, shop_asker: shop.Asker | None = None,
                    finder: sources.Finder | None = None, tracer: tracejobs.Tracer | None = None,
-                   sorter: shoeviews.Sorter | None = None) -> Services:
+                   sorter: shoeviews.Sorter | None = None, drawer: shoedraw.Drawer | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
@@ -175,7 +183,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     `shop_asker` stands in for Claude searching shops and looking up prices (tests), `finder` for Claude finding
     the pieces in a photo of several (tests). `tracer` traces shoes from their photos; tests standing in for Claude
     trace none unless they give one. `sorter` stands in for Claude sorting a shoe's photos into views (tests); tests
-    standing in for Claude sort none unless they give one.
+    standing in for Claude sort none unless they give one. `drawer` stands in for Claude drawing a shoe from its
+    sorted photos (tests); tests standing in for Claude draw none unless they give one.
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
@@ -257,6 +266,18 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
 
     views_worker = shoeviews.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)),
                                     sorter or (no_sorter if tagger is not None else real_sorter))
+    draw_meter = spend.Meter(cfg, state, spend.PURPOSE_DRAW, spend.estimate_draw)
+
+    def real_drawer(photos: list, usable: tuple[str, ...]):
+        from .tagger import shoedrawing
+        return shoedrawing.draw(photos, usable, client=api_client, meter=draw_meter)
+
+    def no_drawer(photos: list, usable: tuple[str, ...]):
+        raise RouteUnavailable("tests standing in for Claude draw no shoes unless they ask to")
+
+    draw_worker = shoedraw.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)),
+                                  drawer or (no_drawer if tagger is not None else real_drawer))
+    views_worker.on_sorted = draw_worker.wake   # a shoe sorted for the first time is drawn next
 
     def described() -> None:   # patterns are measured, shoes traced and their photos sorted next
         worker.wake()
@@ -282,7 +303,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                     pattern_worker=pattern_worker, second_model=second if cutter is None else None,
                     corrector=corrector or real_corrector,
                     check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper),
-                    finder=finding, views=views_worker, updater=updates.Updater(cfg, state), check_maskers=maskers)
+                    finder=finding, views=views_worker, draws=draw_worker, updater=updates.Updater(cfg, state),
+                    check_maskers=maskers)
 
 
 def closet_inputs(cfg: Config, profile: str) -> tuple[list[dict], list[dict]]:
@@ -669,7 +691,41 @@ def create_app(sv: Services) -> FastAPI:
             raise HTTPException(422, "Send the view as {\"view\": \"outer\"} (or inner, top, front, back, sole, other).")
         item = shoes.set_view(conn, item_id, photo_id, body["view"])
         sv.worker.wake()   # traced again when the photo read for the front view changed
+        if sv.draws:
+            sv.draws.wake()   # the answer may have settled the views: a shoe sorted for the first time is drawn next
         return item
+
+    # ---------------------------------------------- a shoe drawn by Claude from its photos
+    @app.post("/api/items/{item_id}/drawn", status_code=202, dependencies=protected)
+    def draw_again(item_id: str, conn=Depends(conn_dep)):
+        demo_closet = state.get("profile") == "demo"
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            shoedraw.ask(conn, item_id, demo_closet)
+            conn.execute("COMMIT")
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        if sv.views:
+            sv.views.wake()   # photos never sorted are sorted first
+        if sv.draws:
+            sv.draws.wake()
+        return items.detail(conn, items.get(conn, item_id))
+
+    @app.get("/api/items/{item_id}/drawn.svg", dependencies=protected)
+    def drawn_preview(item_id: str, conn=Depends(conn_dep)):
+        from .drawing import drawn
+
+        made = shoedraw.stored(items.get(conn, item_id))
+        if made is None:
+            raise HTTPException(404, "This shoe has not been drawn from its photos.")
+        try:
+            svg = drawn.preview_svg(made["left"], made.get("right"))
+        except drawn.DrawingError:
+            raise HTTPException(404, "This shoe's drawing can't be shown.")
+        return Response(svg, media_type="image/svg+xml", headers={
+            "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
 
     @app.post("/api/shoes/check", dependencies=protected)
     def check_shoe(photo: UploadFile = File(...)):

@@ -14,6 +14,7 @@ truststore==0.10.5       # HTTPS with the computer's own trusted certificates (a
 certifi==2026.10.23      # fallback certificate bundle
 anthropic==2.8.0         # the API-key route to Claude for tagging (and the schema the plan route sends)
 opencv-python-headless==5.0.0.93   # measuring an item's pattern from its photo (closet/patterns); the drawing itself never imports it
+resvg-py==0.5.0          # renders a shoe Claude drew to PNG, so Claude can look at its drawing (closet/drawing/drawn.py); MIT, wheels for Windows and macOS, no other dependencies
 
 # transitive
 annotated-doc==0.0.6

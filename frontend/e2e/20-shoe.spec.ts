@@ -65,7 +65,7 @@ test.describe('a shoe drawn from its photo', () => {
     await backend?.stop();
   });
 
-  test('Add guides the photo, says at once why it will not trace, takes more photos, and the item page sorts them and falls back', async ({ page }) => {
+  test('Add guides the photo, says at once why it will not trace, takes more photos, and the item page sorts them, falls back and draws the shoe', async ({ page }) => {
     test.setTimeout(180_000);
     mkdirSync(SCREENSHOTS, { recursive: true });
     await page.goto(backend.url + '/');
@@ -157,6 +157,43 @@ test.describe('a shoe drawn from its photo', () => {
     expect(await axeViolations(page)).toEqual([]);
     await fallback.scrollIntoViewIfNeeded();
     await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-item-fallback.png') });
+
+    // drawn for the outfit figure: once the photos are sorted, Claude (a stand-in answering with the dress shoe the
+    // owner liked) draws the shoe and checks it once against the photos
+    const drawnSection = page.getByTestId('shoe-drawn');
+    await expect(drawnSection.getByTestId('shoe-drawn-line')).toContainText('checked once against the photos', { timeout: 60_000 });
+    await expect(drawnSection).toContainText('on your Claude plan');
+    await expect(drawnSection).toContainText('if drawn on the API key');
+    const picture = drawnSection.getByRole('img', { name: /as Claude drew it from its photos/ });
+    await expect.poll(() => picture.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
+    await expect(drawnSection).not.toContainText('The photos changed');
+    expect(await sideways(page)).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
+    await drawnSection.scrollIntoViewIfNeeded();
+    await expect(page.locator('.toast')).toHaveCount(0, { timeout: 15_000 });
+    await drawnSection.screenshot({ path: resolve(SCREENSHOTS, 'shoe-drawn.png') });
+
+    // "Draw again" asks first, saying what it does, how long it takes and roughly what it costs
+    await drawnSection.getByRole('button', { name: 'Draw again' }).click();
+    const question = drawnSection.getByRole('alertdialog');
+    await expect(question).toContainText('replaces this one when it is done');
+    await expect(question).toContainText('about two minutes');
+    await expect(question).toContainText('on the API key');
+    expect(await axeViolations(page)).toEqual([]);
+    await question.getByRole('button', { name: 'Keep this drawing' }).click();
+    await expect(question).toHaveCount(0);
+    await drawnSection.getByRole('button', { name: 'Draw again' }).click();
+    await question.getByRole('button', { name: 'Draw it again' }).click();
+    // the old drawing stays shown until the new one is done
+    await expect(drawnSection.getByRole('status')).toBeVisible();
+    await expect(picture).toBeVisible();
+    await expect(drawnSection.getByRole('status')).toHaveCount(0, { timeout: 30_000 });
+    await expect(drawnSection.getByRole('button', { name: 'Draw again' })).toBeVisible();
+
+    // a photo removed: the shoe is not drawn again, and the page says the photos changed since the drawing
+    await row.getByRole('button', { name: 'Remove photo 2' }).click();
+    await expect(drawnSection).toContainText('The photos changed since this drawing.');
+    await expect(drawnSection.getByRole('status')).toHaveCount(0);
   });
 
   test("a traced shoe's drawing, fixed in Fix the details", async ({ page }) => {

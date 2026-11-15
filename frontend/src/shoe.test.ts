@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-  checkHeadline, extraPhotos, FRONT_VIEWS, frontPreviewUrl, MAX_EXTRA_PHOTOS, NUDGE_CM, NUDGES, nudgeLabel, outsideQuestion,
-  photoRoom, sortingViews, traceNotice, tracing, VIEW_WORDS, viewLabel,
+  checkHeadline, dollars, DRAWN_DEMO, drawingShoe, drawnLine, drawnOffer, drawnTime, drawQuestion, extraPhotos, FRONT_VIEWS,
+  frontPreviewUrl, MAX_EXTRA_PHOTOS, NUDGE_CM, NUDGES, nudgeLabel, outsideQuestion, photoRoom, sortingViews, traceNotice,
+  tracing, VIEW_WORDS, viewLabel,
 } from './shoe';
-import type { Photo, ShoeTrace, ShoeViews } from './types';
+import type { Photo, ShoeDrawn, ShoeTrace, ShoeViews } from './types';
 
 const trace = (state: ShoeTrace['state'], message: string | null): ShoeTrace => ({
   state, message, drawn: false, plain: false, fixed: false, parts: [], marks: [],
@@ -110,5 +111,62 @@ describe("a shoe's photos sorted into views", () => {
     expect(outsideQuestion({ photos, views: views('sorted', ['m']) })).toBeNull();
     expect(outsideQuestion({ photos, views: views('asking', ['gone']) })).toBeNull();
     expect(outsideQuestion({ photos, views: null })).toBeNull();
+  });
+});
+
+const drawn = (state: ShoeDrawn['state'], over: Partial<ShoeDrawn> = {}): ShoeDrawn => ({
+  state, message: null, url: null, rounds: null, seconds: null, cost_usd: null, route: null, made_at: null,
+  photos_changed: false, about_usd: 0.6, ...over,
+});
+const done = (over: Partial<ShoeDrawn> = {}) => drawn('done', {
+  url: '/api/items/x/drawn.svg?v=1', rounds: 2, seconds: 112.4, cost_usd: 0.6149, route: 'plan', ...over,
+});
+
+describe('a shoe drawn from its photos', () => {
+  it('follows the drawing while it waits and while it is drawn', () => {
+    expect(drawingShoe(drawn('waiting'))).toBe(true);
+    expect(drawingShoe(drawn('drawing'))).toBe(true);
+    for (const state of ['done', 'failed', null] as const) expect(drawingShoe(drawn(state))).toBe(false);
+    expect(drawingShoe(null)).toBe(false);
+    expect(drawingShoe(undefined)).toBe(false);
+  });
+
+  it('says how long it took, how often it was checked and what it costs, by the way it was drawn', () => {
+    expect(drawnTime(48.4)).toBe('48 s');
+    expect(drawnTime(112.4)).toBe('1 min 52 s');
+    expect(drawnTime(60)).toBe('1 min 0 s');
+    expect(dollars(0.6149)).toBe('$0.61');
+    expect(drawnLine(done())).toBe(
+      'Drawn in 1 min 52 s on your Claude plan, checked 2 times against the photos · about $0.61 if drawn on the API key');
+    expect(drawnLine(done({ route: 'api', rounds: 1 }))).toBe(
+      'Drawn in 1 min 52 s, checked once against the photos · $0.61 on the API key');
+    expect(drawnLine(done({ rounds: 0 }))).toContain('not checked against the photos');
+    expect(drawnLine(drawn('waiting'))).toBeNull();
+    expect(drawnLine(null)).toBeNull();
+  });
+
+  it('offers to draw it, draw it again or try again, never while it is drawn or in the demo closet', () => {
+    const sorted = views('sorted');
+    expect(drawnOffer({ drawn: drawn(null), views: null }, false)).toBe('draw');
+    expect(drawnOffer({ drawn: drawn(null), views: sorted }, false)).toBe('draw');
+    expect(drawnOffer({ drawn: drawn(null), views: views('waiting') }, false)).toBeNull();   // drawn by itself once sorted
+    expect(drawnOffer({ drawn: done(), views: sorted }, false)).toBe('again');
+    expect(drawnOffer({ drawn: drawn('failed'), views: sorted }, false)).toBe('retry');
+    expect(drawnOffer({ drawn: drawn('failed', { url: '/x' }), views: sorted }, false)).toBe('retry');
+    expect(drawnOffer({ drawn: drawn('waiting', { url: '/x' }), views: sorted }, false)).toBeNull();
+    expect(drawnOffer({ drawn: drawn('drawing'), views: sorted }, false)).toBeNull();
+    expect(drawnOffer({ drawn: done(), views: sorted }, true)).toBeNull();
+    expect(drawnOffer({ drawn: null, views: null }, false)).toBeNull();
+    expect(DRAWN_DEMO).toContain('never sent to Claude');
+  });
+
+  it('asks before drawing, saying it replaces the drawing, takes about two minutes and roughly what it costs', () => {
+    const again = drawQuestion(done({ about_usd: 0.61 }), true);
+    expect(again).toContain('replaces this one when it is done');
+    expect(again).toContain('about two minutes');
+    expect(again).toContain('roughly $0.61 on the API key');
+    expect(again).toContain('nothing extra on your Claude plan');
+    expect(drawQuestion(drawn(null), false)).toContain('roughly $0.60');
+    expect(drawQuestion(drawn(null), false)).not.toContain('replaces');
   });
 });

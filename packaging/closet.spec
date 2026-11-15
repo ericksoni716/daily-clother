@@ -96,6 +96,12 @@ for required in ("web/index.html", "demo_data/items.json", "demo_data/tiny.heic"
 TAGGER = os.path.join(PKG, "tagger")
 if not os.path.isfile(os.path.join(TAGGER, "models.json")):
     fail("backend/closet/tagger/models.json is missing")
+# a shoe drawn by Claude is shown the drawings the owner liked, read next to the drawing code:
+# <_MEIPASS>/closet/drawing/shoe_examples/*.svg
+SHOE_EXAMPLES = os.path.join(PKG, "drawing", "shoe_examples")
+for name in ("trainer.svg", "dress-shoe.svg", "boat-shoe.svg"):
+    if not os.path.isfile(os.path.join(SHOE_EXAMPLES, name)):
+        fail(f"backend/closet/drawing/shoe_examples/{name} is missing")
 # the owner's outfit rules are read from the taxonomy file: <_MEIPASS>/closet/tagger/menswear-taxonomy.json
 TAXONOMY = os.path.join(REPO, "docs", "menswear-taxonomy.json")
 if not os.path.isfile(TAXONOMY):
@@ -110,6 +116,7 @@ datas = (
     + tree(os.path.join(PKG, "demo_data"), os.path.join("closet", "demo_data"))
     + tree(os.path.join(PKG, "web"), os.path.join("closet", "web"))
     + [(os.path.join(TAGGER, "models.json"), os.path.join("closet", "tagger"))]
+    + tree(SHOE_EXAMPLES, os.path.join("closet", "drawing", "shoe_examples"), suffixes=(".svg",))
     + [(TAXONOMY, os.path.join("closet", "tagger"))]
 )
 
@@ -156,7 +163,8 @@ else:
     tray_imports = ["pystray._xorg", "pystray._appindicator", "pystray._gtk"]
 
 hiddenimports = closet_modules + ["_pillow_heif", "pystray", "pystray._dummy", "truststore", "certifi",
-                                   "anthropic", "anthropic.lib._parse._transform", "cv2"] + tray_imports
+                                   "anthropic", "anthropic.lib._parse._transform", "cv2",
+                                   "resvg_py"] + tray_imports   # resvg_py: imported only when a drawing is rendered
 
 excludes = [
     "tkinter",

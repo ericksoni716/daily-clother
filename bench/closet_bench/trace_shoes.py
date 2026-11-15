@@ -42,6 +42,7 @@ from pathlib import Path
 
 import numpy as np
 from closet.drawing.trace import (  # noqa: F401  (the tracing lives in the app; these names are the bench's too)
+    ADVICE,
     APPROACH,
     CARD_H,
     CARD_W,
@@ -269,13 +270,18 @@ def pairs_cell(r: Result) -> tuple[Image.Image | None, list[str]]:
     edge drawn where it runs inside the outline."""
     sig = r.gate.signals
 
+    limits = {**GATE, **ADVICE}
+
     def line(key: str, label: str, fmt: str) -> str:
         v = sig.get(key)
-        return f"{label} {v:{fmt}} (limit {GATE[key][0]:g})" if v is not None else f"{label} –"
+        kind = "advice " if key in ADVICE else "limit "
+        return f"{label} {v:{fmt}} ({kind}{limits[key][0]:g})" if v is not None else f"{label} –"
 
-    over = {k: (sig.get(k) or 0) > GATE[k][0] for k in ("second_piece", "second_sole", "second_top")}
+    over = {k: (sig.get(k) or 0) > limits[k][0] for k in ("second_piece", "second_sole", "second_top")}
+    verdict = ("more than one thing: turned down" if over["second_piece"]
+               else "maybe two shoes (advice only)" if over["second_sole"] or over["second_top"] else "one shoe")
     lines = [line("second_piece", "second piece", ".3f"), line("second_sole", "second sole, cm", ".2f"),
-             line("second_top", "second top edge", ".2f"), "more than one shoe" if any(over.values()) else "one shoe"]
+             line("second_top", "second top edge", ".2f"), verdict]
     o = r.oriented
     if o is None:
         return None, lines
@@ -318,7 +324,8 @@ def sheet(r: Result, number: int) -> str:
             f"{a.cutout_by} " + ("(used)" if n == len(r.attempts) - 1 else f"(turned down: {len(a.reasons)} reasons)")
             for n, a in enumerate(r.attempts))
     width = 2 * m + len(cols) * (cw + gap) - gap
-    head_h = 70 + 20 * len(r.gate.reasons) + (20 if tried else 0)
+    said = r.gate.reasons + [f"advice: {x}" for x in r.gate.notes]
+    head_h = 70 + 20 * len(said) + (20 if tried else 0)
     y_item = m + head_h
     y_cap = y_item + ch + 22
     y_tile = y_cap + 3 * 19 + 26
@@ -334,10 +341,10 @@ def sheet(r: Result, number: int) -> str:
            _text(m, m + 24, f"Shoe {number}: {verdict}", 24, "600", "#2e7d4f" if r.gate.ok else "#b3372f"),
            _text(m, m + 50, f"{turned} · {r.seconds:.1f} s · top row at item size ({ITEM_PX} px), "
                             f"bottom row at grid-tile size ({TILE_PX} px)", 15, color="#6d675d")]
-    for i, why in enumerate(r.gate.reasons):
-        out.append(_text(m, m + 72 + 20 * i, "• " + why, 15, color="#b3372f"))
+    for i, why in enumerate(said):
+        out.append(_text(m, m + 72 + 20 * i, "• " + why, 15, color="#b3372f" if i < len(r.gate.reasons) else "#9a6b12"))
     if tried:
-        out.append(_text(m, m + 72 + 20 * len(r.gate.reasons), tried, 15, color="#6d675d"))
+        out.append(_text(m, m + 72 + 20 * len(said), tried, 15, color="#6d675d"))
     for i, (title, lines, key) in enumerate(cols):
         x = m + i * (cw + gap)
         for y, w, h in ((y_item, cw, ch), (y_tile, tw, th)):
@@ -418,6 +425,9 @@ def gate_report(results: list[Result]) -> str:
     if why:
         lines.append("The others were turned down because:")
         lines += [f"  {n:3d} × {reason}" for reason, n in why.items()]
+    advised = sum(1 for r in results if r.gate.notes)
+    if advised:
+        lines.append(f"{advised} had advice from the pair checks (shown on their sheets; it turns nothing down).")
     fell_back = sum(1 for r in results if len(r.attempts) > 1)
     if fell_back:
         lines.append(f"{fell_back} needed the other cut-out after the first was turned down"
@@ -462,11 +472,13 @@ def _index(results: list[Result], files: list[str], summ: dict, note: str) -> st
     p.append("<pre>" + html.escape(gate_report(results)) + "</pre>")
     p.append("<table><tr><th>Shoe</th><th>Verdict</th><th>Why</th></tr>")
     for n, r in enumerate(results, 1):
-        why = "<br>".join(html.escape(x) for x in r.gate.reasons) or "–"
+        why = "<br>".join([html.escape(x) for x in r.gate.reasons]
+                          + [f"<span class='mut'>advice: {html.escape(x)}</span>" for x in r.gate.notes]) or "–"
         p.append(f"<tr><td>{n}</td><td class='{'ok' if r.gate.ok else 'bad'}'>{'traceable' if r.gate.ok else 'too poor'}</td>"
                  f"<td>{why}</td></tr>")
     p.append("</table><p class='mut'>Signals and limits: " + html.escape("; ".join(
-        f"{k} {'≥' if way == 'below' else '≤'} {lim:g}" for k, (lim, way, _) in GATE.items())) + "</p></section>")
+        f"{k} {'≥' if way == 'below' else '≤'} {lim:g}" for k, (lim, way, _) in GATE.items())) + "; advice only: " + html.escape("; ".join(
+        f"{k} {'≥' if way == 'below' else '≤'} {lim:g}" for k, (lim, way, _) in ADVICE.items())) + "</p></section>")
     for n, (r, f) in enumerate(zip(results, files, strict=True), 1):
         p.append(f"<section><h2>Shoe {n} <span class='{'ok' if r.gate.ok else 'bad'}'>"
                  f"{'traceable' if r.gate.ok else 'too poor to trace'}</span></h2>")
@@ -479,7 +491,7 @@ def _index(results: list[Result], files: list[str], summ: dict, note: str) -> st
 
 def _result_json(r: Result) -> dict:
     o = r.oriented
-    return {"gate": {"ok": r.gate.ok, "reasons": r.gate.reasons, "signals": r.gate.signals},
+    return {"gate": {"ok": r.gate.ok, "reasons": r.gate.reasons, "notes": r.gate.notes, "signals": r.gate.signals},
             "cutout_by": r.cutout_by, "seconds": round(r.seconds, 2), "best": r.best,
             "turned": None if o is None else {"angle": round(o.angle, 2), "flipped": o.flipped},
             "variants": {v.approach.name: {"iou": v.scores.iou, "delta_e": v.scores.delta_e, "colors": v.scores.colors,

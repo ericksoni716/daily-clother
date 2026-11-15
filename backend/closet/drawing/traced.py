@@ -804,4 +804,5 @@ def traced_shoe(reading: T.Reading, approach: str | None = None) -> TracedShoe |
     confidence = best.scores.score * (1.0 if reading.gate.ok else 0.5)
     return TracedShoe(VERSION, t.approach.name, reading.cutout_by, profile, parts, marks, lace_row, eyelet_row, stitch_row,
                       style_hint(profile, lace_row is not None or eyelet_row is not None), round(float(confidence), 3),
-                      {"ok": reading.gate.ok, "reasons": list(reading.gate.reasons), "signals": signals}, regions)
+                      {"ok": reading.gate.ok, "reasons": list(reading.gate.reasons), "notes": list(reading.gate.notes),
+                       "signals": signals}, regions)

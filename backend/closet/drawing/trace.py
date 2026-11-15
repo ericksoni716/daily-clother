@@ -66,13 +66,20 @@ GATE = {
     "clipped": (0.35, "above", "too much of the shoe is pure white or pure black (over- or under-exposed)"),
     "edge_touch": (0.03, "above", "the shoe runs off the edge of the photo"),
     "second_piece": (0.15, "above", "there is more than one thing in the photo (two shoes, or a hand)"),
-    "second_sole": (0.85, "above", "two shoes: a second sole shows beyond one end of the first"),
-    "second_top": (0.65, "above", "two shoes: a second top edge runs along inside the outline"),
     "solidity": (0.80, "below", "the outline is broken up: something covers the shoe, or background got into the cut-out"),
     "aspect": (0.9, "below", "not side-on: the shoe is taller than it is long"),
     "sole_lift": (0.035, "above", "not side-on: the sole does not rest on its heel and its ball"),
     "toe_heel": (0.06, "below", "toe and heel look alike: probably taken from the front, back or top"),
     "trace_iou": (0.9, "below", "even the best trace strays from the cut-out"),
+}
+
+# Signals that only advise: recorded and shown, never a reason to turn a photo down. On the owner's 30 photos
+# the outline's shape did not tell a pair from one shoe (lug soles, heel tabs, collars and shadows give the same
+# readings), so a pair is turned down only on unambiguous evidence: two pieces apart (`second_piece`), or the
+# tagger saying so (`TOLD`).
+ADVICE = {
+    "second_sole": (0.85, "above", "maybe two shoes: something like a second sole shows beyond one end"),
+    "second_top": (0.65, "above", "maybe two shoes: something like a second top edge runs inside the outline"),
 }
 
 
@@ -931,17 +938,23 @@ class Gate:
     ok: bool
     reasons: list[str]
     signals: dict[str, float]
+    notes: list[str] = field(default_factory=list)      # what the advisory signals saw; never turns a photo down
 
 
-def gate(signals: dict[str, float]) -> Gate:
-    reasons = []
-    for name, (limit, way, why) in GATE.items():
+def _over(table: dict, signals: dict[str, float]) -> list[str]:
+    out = []
+    for name, (limit, way, why) in table.items():
         v = signals.get(name)
         if v is None:
             continue
         if (way == "below" and v < limit) or (way == "above" and v > limit):
-            reasons.append(f"{why} ({name} {v:.3g}, limit {limit:g})")
-    return Gate(not reasons, reasons, signals)
+            out.append(f"{why} ({name} {v:.3g}, limit {limit:g})")
+    return out
+
+
+def gate(signals: dict[str, float]) -> Gate:
+    reasons = _over(GATE, signals)
+    return Gate(not reasons, reasons, signals, _over(ADVICE, signals))
 
 
 # ------------------------------------------------------------------ one photo

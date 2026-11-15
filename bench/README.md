@@ -46,7 +46,8 @@ outlined (dashed when inferred; the key says "in upper" for a part that is just
 the shoe's base colour), the profile lines, laces, eyelets and stitching dotted, and the
 marks numbered; and a "Pairs" column with the turned cut-out, a second sole
 ringed where it shows beyond one end, and a second top edge drawn where it
-runs inside the outline. At the end the command prints how many
+runs inside the outline. These two pair checks only advise: they are listed
+under the reasons as "advice" and never turn a photo down. At the end the command prints how many
 photos passed and how many were turned down for each reason (also in
 `index.html`), and `results.json` holds each shoe's traced data.
 

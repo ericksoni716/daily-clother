@@ -88,10 +88,17 @@ def test_a_sole_resting_on_neither_heel_nor_ball_is_not_side_on():
 
 
 @pytest.mark.parametrize("pair", [(0.12, 0.1), (0.02, 0.25), (-0.10, 0.12)], ids=["behind", "in-depth", "heel-back"])
-def test_a_pair_is_caught(pair):
+def test_a_pair_overlapping_is_only_advice_from_the_outline(pair):
+    # the outline's shape does not tell a pair from one shoe on real photos, so it advises and turns nothing down
     r = read(S.draw(S.Shoe(), pair=pair, noise=3)[0])
-    assert not r.gate.ok
-    assert "two shoes" in reasons(r) or "more than one thing" in reasons(r)
+    assert r.gate.notes and all("maybe two shoes" in x for x in r.gate.notes), r.gate.notes
+    assert not any("two shoes" in x for x in r.gate.reasons)
+
+
+def test_the_pair_signals_never_turn_a_photo_down():
+    g = T.gate({"second_sole": 9.0, "second_top": 1.0})
+    assert g.ok and g.reasons == [] and len(g.notes) == 2
+    assert not set(T.ADVICE) & set(T.GATE)
 
 
 def test_two_shoes_apart_are_caught():
@@ -120,15 +127,14 @@ GLOSSY_BLACK = S.Shoe(upper=(28, 28, 32), midsole=(30, 30, 34), outsole=(20, 20,
 def test_one_shoe_is_one_shoe(shoe, size):
     r = read(S.draw(shoe, size=size, noise=3)[0])
     assert r.gate.ok, reasons(r)
-    assert r.gate.signals["second_sole"] < T.GATE["second_sole"][0] * 0.6
-    assert r.gate.signals["second_top"] < T.GATE["second_top"][0] * 0.7
+    assert r.gate.signals["second_sole"] < T.ADVICE["second_sole"][0] * 0.6
+    assert r.gate.signals["second_top"] < T.ADVICE["second_top"][0] * 0.7
 
 
 @pytest.mark.parametrize("pair", [(0.04, 0.12), (0.0, 0.12)], ids=["offset-along-and-in-depth", "straight-behind"])
-def test_a_glossy_pair_side_by_side_offset_in_depth_is_caught(pair):
+def test_a_glossy_pair_side_by_side_offset_in_depth_is_advised(pair):
     r = read(S.draw(GLOSSY_BLACK, pair=pair, noise=3)[0])
-    assert not r.gate.ok
-    assert "two shoes: a second top edge runs along inside the outline" in reasons(r)
+    assert any("second top edge" in x for x in r.gate.notes), r.gate.notes
 
 
 def test_a_white_shoe_on_a_light_grey_ground_passes():
@@ -386,7 +392,7 @@ def test_a_newer_record_is_refused(rich):
 
 
 def test_a_turned_down_photo_keeps_its_reasons_and_less_confidence():
-    r = read(S.draw(S.Shoe(), pair=(0.12, 0.1), noise=3)[0])
+    r = read(S.draw(S.Shoe(), blur=10, noise=2)[0])
     t = traced.traced_shoe(r)
     assert t.gate["ok"] is False and t.gate["reasons"]
     assert t.confidence <= 0.5

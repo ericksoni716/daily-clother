@@ -84,6 +84,25 @@ def test_a_plain_item_is_never_measured(make, cfg):
     assert row(cfg, item["id"])["pattern_state"] is None
 
 
+def test_undo_pattern_restores_or_requeues_measurement(make, cfg):
+    sv, client = make(Measurer())
+    item = described(sv, client)
+    url = f"/api/items/{item['id']}"
+    assert client.patch(url, json={"pattern": "stripe"}).status_code == 200
+    assert sv.pattern_worker.drain() == 1
+    assert client.patch(url, json={"pattern": "solid"}).status_code == 200
+    change_id = client.get(url + "/history").json()[0]["id"]
+
+    assert client.post(f"{url}/history/{change_id}/undo").status_code == 200
+    kept = row(cfg, item["id"])
+    assert kept["pattern"] == "stripe"
+    assert kept["pattern_fill"] or kept["pattern_state"] == "waiting"
+    sv.pattern_worker.drain()
+    assert client.put(url + "/details", json={"details": {"placket_buttons": 2}}).status_code == 200
+    assert row(cfg, item["id"])["pattern_fill"]
+    assert "#1b2a49" in client.get(url).json()["illustration_svg"]
+
+
 def test_a_patterned_item_is_measured_kept_and_drawn(make, cfg):
     m, lm = Measurer(), Landmarker()
     sv, c = make(m, lm)

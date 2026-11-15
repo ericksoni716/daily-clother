@@ -247,6 +247,26 @@ def test_a_find_can_be_removed_and_goes_with_its_wish(client, cfg):
     conn.close()
 
 
+def test_removing_a_find_during_a_price_check_keeps_the_other_prices(client, fake_shop, monkeypatch):
+    wid = wish(client)
+    first, second = find_some(client, wid)["finds"]
+    real = fake_shop.prices
+
+    def prices_after_removal(finds, routes):
+        assert client.delete(f"/api/wishlist/{wid}/finds/{first['id']}").status_code == 204
+        return real(finds, routes)
+
+    monkeypatch.setattr(fake_shop, "prices", prices_after_removal)
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    body = settle(client, wid)
+    assert body["run"]["state"] == "done"
+    assert body["run"]["added"] == 1
+    remaining, = body["finds"]
+    assert remaining["id"] == second["id"]
+    assert remaining["price"] == second["price"] * 0.8
+    assert len(remaining["history"]) == 2 and body["prices_checked_at"]
+
+
 def hold_write_lock(cfg, wish_id: str) -> sqlite3.Connection:
     """Another connection in the middle of writing to the closet, as a worker or a request would be."""
     other = db.connect(cfg.db_path("main"))

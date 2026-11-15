@@ -134,11 +134,12 @@ def _json(text):
 
 
 def mark(conn, item_id: str, again: bool = True) -> None:
-    """A shoe waits to be traced (again, unless `again` is False and it already was), inside the caller's
-    transaction. Anything else is left as it is: an item that stops being a shoe keeps its trace and the owner's
+    """A shoe with a photo waits to be traced (again, unless `again` is False and it already was), inside the
+    caller's transaction. Anything else is left as it is: an item that stops being a shoe keeps its trace and the owner's
     fixes, unused (`illustrations.traced`), and is drawn from them again if it is said to be a shoe again."""
     row = conn.execute("SELECT category, trace_state FROM items WHERE id = ?", (item_id,)).fetchone()
-    if row is not None and wanted(row["category"]) and (again or row["trace_state"] is None):
+    if (row is not None and wanted(row["category"]) and (again or row["trace_state"] is None)
+            and _front(conn, item_id) is not None):   # a shoe with no photo has nothing to trace
         conn.execute("UPDATE items SET trace_state = 'waiting', trace_error = NULL WHERE id = ?", (item_id,))
 
 

@@ -192,19 +192,32 @@ def _profile(f: _Frame, shoe: np.ndarray, sole: np.ndarray) -> Profile:
 
 # ------------------------------------------------------------------ the style hint
 
+SHAFT_CM = 12.0             # a collar this high above the ground (the median along the back 30%) is a shaft ...
+SHAFT_ABOVE_SOLE_CM = 9.0   # ... when it is also this high above the sole (a thick-soled runner's collar is not)
+
+
 def style_hint(p: Profile, laced: bool) -> str:
-    """The nearest of `frontshoe.STYLES` to the measured profile: the upper's rise along the length, the sole's
-    thickness and the collar's height. A shoe with laces is never a loafer, slip-on or Chelsea boot."""
+    """The nearest of `frontshoe.STYLES` to the measured profile. The collar's height (its median along the back
+    30% of the length, so that a heel tab or a pull loop does not count), above the ground and above the sole,
+    first decides between a shoe with a shaft (a boot or a high-top) and one without. Then the nearest style is the one whose top line, standing
+    on the measured sole, runs closest to the measured top, with a little weight on the sole's thickness. A
+    shoe with laces is never a loafer, slip-on or Chelsea boot."""
     mid = [i for i, u in enumerate(p.u) if 0.1 <= u <= 0.9]
     sole = float(np.median([p.sole[i] for i in mid]))
-    collar = max(t for u, t in zip(p.u, p.top, strict=True) if u <= 0.3)
-    best, best_d = "low_sneaker", math.inf
+    collar = float(np.median([t for u, t in zip(p.u, p.top, strict=True) if u <= 0.3]))
+    heel_sole = float(np.median([t for u, t in zip(p.u, p.sole, strict=True) if u <= 0.3]))
+    shafted = collar >= SHAFT_CM and collar - heel_sole >= SHAFT_ABOVE_SOLE_CM
+    along = [(u, t, b) for u, t, b in zip(p.u, p.top, p.bottom, strict=True) if 0.05 <= u <= 0.95]
+    best, best_d = "boot" if shafted else "low_sneaker", math.inf
     for name, (_, sole_t, table, shaft) in frontshoe.STYLES.items():
-        if table is None or (laced and name not in LACE_STYLES):
+        if table is None or (laced and name not in LACE_STYLES) or bool(shaft) != shafted:
             continue
-        rise = np.sqrt(np.mean([(p.top_above_sole(u) - v) ** 2 for u, v in table if 0.05 <= u <= 0.95]))
-        want_collar = shaft if shaft else sole_t + frontshoe._interp(table, 0.12)
-        d = rise + 0.8 * abs(sole - sole_t) + 0.5 * abs(collar - want_collar)
+
+        def want(u: float, b: float, sole_t=sole_t, table=table, shaft=shaft) -> float:
+            t = b + sole_t + frontshoe._interp(table, u)
+            return max(t, shaft - 1.5 * u) if shaft and u < 0.42 else t
+
+        d = float(np.sqrt(np.mean([(t - want(u, b)) ** 2 for u, t, b in along]))) + 0.3 * abs(sole - sole_t)
         if d < best_d:
             best, best_d = name, d
     return best

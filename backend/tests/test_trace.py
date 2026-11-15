@@ -299,6 +299,19 @@ def test_the_style_hint_follows_the_profile(rich):
     assert traced.traced_shoe(read(S.draw(boot, noise=1)[0])).style in ("boot", "high_top", "chelsea_boot")
 
 
+@pytest.mark.parametrize("shoe", [
+    RUNNER,
+    S.Shoe(upper=(30, 30, 30), midsole=(240, 240, 240), outsole=(200, 30, 30), heel_tab_cm=2.5, sole_cm=4.0,
+           sole_toe_cm=2.4, toe_spring_cm=1.8, laces=(240, 240, 240)),
+    GLOSSY_BLACK,
+], ids=["runner-heel-tab", "thick-sole-big-tab", "glossy-low"])
+def test_a_low_shoe_with_a_heel_tab_or_a_thick_sole_is_not_a_boot(shoe):
+    t = traced.traced_shoe(read(S.draw(shoe, noise=2)[0]))
+    assert t.style not in ("boot", "high_top", "chelsea_boot"), t.style
+    if shoe.laces:
+        assert t.style in frontshoe.TRAINERS
+
+
 def test_the_record_round_trips_through_json(rich):
     text = rich.to_json()
     back = traced.TracedShoe.from_json(text)

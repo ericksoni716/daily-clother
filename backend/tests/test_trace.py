@@ -178,6 +178,27 @@ def test_one_shoe_is_one_shoe(shoe, size):
     assert r.gate.signals["second_top"] < T.ADVICE["second_top"][0] * 0.7
 
 
+# Shaped like the clean single shoes the pair checks once turned down on the owner's photos (s04, s13, s22, s27, s28)
+WORK_BOOT = S.Shoe(upper=(110, 75, 45), midsole=(35, 30, 28), outsole=(35, 30, 28), top=list(frontshoe._BOOT), shaft_cm=17,
+                   sole_cm=3.6, sole_toe_cm=3.0, lugs_cm=1.0, laces=(200, 170, 90), toe_spring_cm=1.2, heel_bevel_cm=0.2)
+HIGH_COLLAR_BOOT = S.Shoe(upper=(60, 40, 30), midsole=(30, 25, 22), outsole=(30, 25, 22), top=list(frontshoe._BOOT), shaft_cm=22,
+                          sole_cm=2.8, sole_toe_cm=2.2, heel_counter=(90, 60, 40), collar=(150, 110, 80), laces=(30, 30, 30),
+                          toe_spring_cm=1.0)
+PULL_TAB_RUNNER = S.Shoe(upper=(40, 40, 45), midsole=(245, 245, 245), outsole=(30, 30, 30), heel_counter=(220, 60, 40),
+                         collar=(70, 70, 78), heel_tab_cm=2.6, window=(120, 135, 150), laces=(240, 240, 240), sole_cm=3.8,
+                         sole_toe_cm=2.2, toe_spring_cm=1.8, heel_bevel_cm=1.0)
+
+
+@pytest.mark.parametrize("shoe,size", [(WORK_BOOT, (1000, 760)), (HIGH_COLLAR_BOOT, (1000, 900)), (PULL_TAB_RUNNER, (1000, 560))],
+                         ids=["deep-lug-work-boot", "high-collar-boot", "runner-heel-pull-tab"])
+def test_clean_single_shoes_like_the_ones_once_turned_down_pass(shoe, size):
+    img = S.draw(shoe, size=size, noise=3)[0]
+    for told in (None, T.told_from(answer(shoes_in_photo="one", shoe_view="side"))):
+        r = T.trace_photo(img, None, told=told)
+        assert r.gate.ok, reasons(r)
+        assert not any("shoe" in x and "two" in x for x in r.gate.reasons)
+
+
 @pytest.mark.parametrize("pair", [(0.04, 0.12), (0.0, 0.12)], ids=["offset-along-and-in-depth", "straight-behind"])
 def test_a_glossy_pair_side_by_side_offset_in_depth_is_advised(pair):
     r = read(S.draw(GLOSSY_BLACK, pair=pair, noise=3)[0])

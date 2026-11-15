@@ -1,11 +1,12 @@
 import hashlib
 import http.server
+import sqlite3
 import threading
 import time
 
 import pytest
 
-from closet import db, jobs
+from closet import db, jobs, tagjobs
 from closet.modelstore import ModelStore
 from closet.state import State
 
@@ -83,6 +84,40 @@ def test_startup_fails_interrupted_jobs_that_used_all_attempts(client, services,
     assert body[f"{kind}_state"] == "failed"
     assert "try again" in body[f"{kind}_error"].lower()
     assert claude.calls == []
+
+
+@pytest.mark.parametrize("failures", [1, 3])
+def test_cutout_save_failure_is_recovered_on_the_next_round(client, services, cfg, monkeypatch, failures):
+    item = upload(client).json()
+    services.worker.is_ready = lambda: True
+    enqueue = tagjobs.enqueue
+
+    def busy(conn, item_id):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(tagjobs, "enqueue", busy)
+    for _ in range(failures):
+        with pytest.raises(sqlite3.OperationalError):
+            drain(services)
+    monkeypatch.setattr(tagjobs, "enqueue", enqueue)
+    assert drain(services) == (1 if failures < jobs.MAX_ATTEMPTS else 0)
+    body = client.get(f"/api/items/{item['id']}").json()
+    assert body["cutout_state"] == ("ready" if failures < jobs.MAX_ATTEMPTS else "failed")
+
+
+def test_cutout_recovery_leaves_the_running_tagger_alone(client, services, cfg):
+    item = upload(client).json()
+    services.worker.is_ready = lambda: True
+    assert drain(services) == 1
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        conn.execute("UPDATE jobs SET state = 'running', attempts = 1 WHERE kind = 'tag'")
+        conn.execute("UPDATE items SET tag_state = 'working'")
+        assert drain(services) == 0
+        assert conn.execute("SELECT state FROM jobs WHERE kind = 'tag'").fetchone()[0] == "running"
+        assert conn.execute("SELECT tag_state FROM items WHERE id = ?", (item["id"],)).fetchone()[0] == "working"
+    finally:
+        conn.close()
 
 
 def test_deleting_an_item_drops_its_queued_job(client, services):

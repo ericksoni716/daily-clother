@@ -154,6 +154,7 @@ class Worker:
             return done
         conn = db.connect(path)
         try:
+            recover(conn)
             while not self._stop.is_set() and self.is_ready() and run_one(conn, self.cfg.images_dir(profile), self.cutter,
                                                                           tag=profile != "demo"):
                 done += 1

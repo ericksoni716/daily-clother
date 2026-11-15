@@ -57,18 +57,20 @@ function requestFor(choice: Choice, buildAround: string | null, leaveOut: string
 
 export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boolean }) {
   const { profile, items, loadItems, offline, upsert, toast } = useCloset();
-  const today = localDay();
+  const [today, setToday] = useState(localDay);
   const kept = useMemo(() => keptFor(profile), [profile]);
   const remembered = memory && memory.profile === profile && memory.day === today ? memory : null;
 
   const [choice, setChoice] = useState<Choice>(() => loadChoice());
   const [buildAround, setBuildAround] = useState<string | null>(remembered?.buildAround ?? null);
   const [leaveOut, setLeaveOut] = useState<string[]>(remembered?.leaveOut ?? []);
-  const [typed, setTyped] = useState<TypedDay | null>(() => kept.typed(today));
+  const [typedOnDay, setTyped] = useState<TypedDay | null>(() => kept.typed(today));
+  const typed = typedOnDay?.day === today ? typedOnDay : null;
   const [phase, setPhase] = useState<Phase>(remembered?.phase ?? { kind: 'loading' });
   const [asking, setAsking] = useState(false);
   const [index, setIndex] = useState(remembered?.index ?? 0);
-  const [worn, setWorn] = useState<WornToday | null>(() => kept.worn(today));
+  const [wornOnDay, setWorn] = useState<WornToday | null>(() => kept.worn(today));
+  const worn = wornOnDay?.day === today ? wornOnDay : null;
   const [busy, setBusy] = useState(false);
   const [editDay, setEditDay] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -76,6 +78,19 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const [recent, setRecent] = useState<WornOutfit[] | null>(null);
   const [dismissed, setDismissed] = useState<string[]>(() => loadDismissed(profile));
   const [rated, setRated] = useState<WornOutfit | null>(null);
+  const [loadingItems, setLoadingItems] = useState(items.active === null);
+
+  useEffect(() => {
+    const updateDay = () => setToday(localDay());
+    const timer = window.setInterval(updateDay, 60_000);
+    window.addEventListener('focus', updateDay);
+    document.addEventListener('visibilitychange', updateDay);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', updateDay);
+      document.removeEventListener('visibilitychange', updateDay);
+    };
+  }, []);
 
   useEffect(() => {
     if (window.location.search) navigate('/today', { replace: true });
@@ -95,7 +110,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const closetKey = useMemo(() => items.active === null ? null : JSON.stringify(items.active.map(
     (i) => JSON.stringify([i.id, i.category, i.status, i.laundry, i.rating]),
   ).sort()), [items.active]);
-  const key = JSON.stringify([request, closetKey]);
+  const key = JSON.stringify([today, request, closetKey]);
   const requestRef = useRef(request);
   requestRef.current = request;
   // What was last asked: the same choices are not asked again when coming back to the screen.
@@ -105,11 +120,11 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const answered = useRef(answeredKey);
 
   useEffect(() => {
-    if (items.active === null) void loadItems('active');
+    if (items.active === null) void loadItems('active').finally(() => setLoadingItems(false));
   }, [items.active, loadItems]);
 
   useEffect(() => {
-    if (closetKey === null) return;
+    if (loadingItems) return;
     if (asked.current.key === key && asked.current.attempt === attempt) return;
     asked.current = { key, attempt };
     const req = requestRef.current;
@@ -135,7 +150,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
           const saved = kept.outfits(localDay());
           if (saved) {
             const r = saved.request;
-            const savedKey = JSON.stringify([requestFor({ occasion: r.occasion, mood: r.mood }, r.build_around ?? null, r.leave_out ?? [], typedOf(r)), closetKey]);
+            const savedKey = JSON.stringify([today, requestFor({ occasion: r.occasion, mood: r.mood }, r.build_around ?? null, r.leave_out ?? [], typedOf(r)), closetKey]);
             asked.current = { key: savedKey, attempt };
             answered.current = savedKey;
             setPhase({ kind: 'ready', answer: saved.answer, savedAt: saved.saved_at });
@@ -160,7 +175,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
       // not answered: ask again when the screen shows these choices next
       if (!done) asked.current = { key: '', attempt: -1 };
     };
-  }, [key, attempt, kept, closetKey]);
+  }, [key, attempt, kept, closetKey, today, loadingItems]);
 
   // Back online after showing a saved copy (or nothing): ask again.
   const showingSaved = (phase.kind === 'ready' && phase.savedAt !== null) || (phase.kind === 'error' && phase.offline);
@@ -185,10 +200,12 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const locked = offline || (phase.kind === 'ready' && phase.savedAt !== null);
 
   async function wear(o: Outfit) {
+    const day = localDay();
+    setToday(day);
     const ids = outfitIds(o.pieces);
     setBusy(true);
     try {
-      if (worn && !sameOutfit(worn.ids, ids) && (worn.recorded.length || worn.outfit_id)) {
+      if (worn && worn.day === day && !sameOutfit(worn.ids, ids) && (worn.recorded.length || worn.outfit_id)) {
         const undone = await api.unwearMany(worn.recorded, worn.worn_on, worn.outfit_id);
         undone.items.forEach(upsert);
         kept.setWorn(null);
@@ -200,7 +217,8 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         context: { low_c: ctx?.low_c ?? null, high_c: ctx?.high_c ?? null, rain: ctx?.rain ?? null, occasion: choice.occasion, mood: choice.mood },
       });
       r.items.forEach(upsert);
-      const record: WornToday = { day: localDay(), worn_on: r.worn_on, ids, recorded: r.recorded ?? [], outfit: o, outfit_id: r.outfit?.id };
+      setToday(localDay());
+      const record: WornToday = { day, worn_on: r.worn_on, ids, recorded: r.recorded ?? [], outfit: o, outfit_id: r.outfit?.id };
       loadRecent();
       kept.setWorn(record);
       setWorn(record);
@@ -214,6 +232,10 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
 
   async function undo() {
     if (!worn) return;
+    if (worn.day !== localDay()) {
+      setToday(localDay());
+      return;
+    }
     setBusy(true);
     try {
       if (worn.recorded.length || worn.outfit_id) (await api.unwearMany(worn.recorded, worn.worn_on, worn.outfit_id)).items.forEach(upsert);

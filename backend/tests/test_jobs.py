@@ -218,6 +218,29 @@ def test_a_wrong_file_is_discarded_with_a_clear_message(tmp_path, server):
     assert not m.path.exists()
 
 
+@pytest.mark.parametrize("operation", ["mkdir", "replace", "write_text"])
+def test_model_download_disk_failures_allow_retry(tmp_path, server, monkeypatch, operation):
+    from pathlib import Path
+
+    m = store(tmp_path, server)
+    original = getattr(Path, operation)
+
+    def unavailable(path, *args, **kwargs):
+        if path in (m.dir, m._part, m._marker):
+            raise PermissionError("cannot write model file")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, operation, unavailable)
+    assert m.start_download()
+    m.wait(10)
+    assert m.info()["state"] == "failed"
+    assert m.info()["error"] and not m.ready
+    monkeypatch.setattr(Path, operation, original)
+    assert m.start_download()
+    m.wait(10)
+    assert m.ready
+
+
 def test_offline_gives_a_clear_message_and_uploads_still_work(tmp_path):
     m = store(tmp_path, "http://127.0.0.1:9/none")
     m.start_download()

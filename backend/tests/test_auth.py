@@ -1,3 +1,4 @@
+import json
 import time
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
@@ -108,6 +109,29 @@ def test_concurrent_wrong_guesses_obey_and_persist_the_limit(client, services, m
 def test_passphrase_is_never_stored_in_the_clear(client, cfg):
     text = cfg.state_path.read_text()
     assert PASSPHRASE not in text and "hash" in text
+
+
+@pytest.mark.parametrize("path", ["/api/setup", "/api/login"])
+@pytest.mark.parametrize("body", [
+    {"passphrase": [PASSPHRASE]},
+    {"passphrase": {"nested": PASSPHRASE}},
+    {"wrong_field": PASSPHRASE},
+    [PASSPHRASE],
+])
+def test_invalid_passphrase_requests_do_not_echo_inputs(anon, path, body, caplog):
+    response = anon.post(path, json=body)
+    assert response.status_code == 422
+    assert PASSPHRASE not in response.text + caplog.text
+    assert isinstance(response.json()["detail"], str)
+
+
+@pytest.mark.parametrize("path", ["/api/setup", "/api/login"])
+def test_malformed_passphrase_json_does_not_echo_inputs(anon, path, caplog):
+    response = anon.post(path, content=json.dumps({"passphrase": PASSPHRASE})[:-1],
+                         headers={"content-type": "application/json"})
+    assert response.status_code == 422
+    assert isinstance(response.json()["detail"], str)
+    assert PASSPHRASE not in response.text + caplog.text
 
 
 def test_expired_and_unknown_sessions_are_refused(services):

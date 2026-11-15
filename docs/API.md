@@ -6,6 +6,10 @@ read"}` with a matching status code. Everything except `health`, `session`,
 `setup` and `login` needs the session cookie (set by `setup` or `login`,
 HttpOnly, SameSite=Strict); without it the answer is 401.
 
+Malformed requests to `POST /api/setup`, `POST /api/login` and
+`PUT /api/settings/api-key` return 422 with a fixed sentence, never the
+submitted passphrase, key, field names or values.
+
 ## Session
 | Call | Result |
 |---|---|

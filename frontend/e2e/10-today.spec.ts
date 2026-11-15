@@ -181,6 +181,29 @@ test('today on a phone: swipe to another outfit, open a piece, and come back to 
   expect(overflow).toBeLessThanOrEqual(0);
 });
 
+
+test('today refreshes suggestions when a piece is put in the laundry', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const asked = await fakeWeather(page);
+  await openToday(page);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  const [id] = await pieceIds(page);
+  const before = asked.length;
+
+  try {
+    await current(page).getByTestId('piece').first().click();
+    await page.getByRole('button', { name: 'Put in the laundry' }).click();
+    await expect(page.getByTestId('laundry-state')).toHaveText(/^In the laundry/);
+    await page.getByRole('link', { name: 'Today', exact: true }).first().click();
+    await expect(current(page).getByTestId('piece').first()).toBeVisible();
+    await expect(page.locator(`.today-track a[data-testid="piece"][href$="/${id}"]`)).toHaveCount(0);
+    expect(asked.length).toBeGreaterThan(before);
+  } finally {
+    await page.request.post(`/api/items/${id}/laundry`, { data: { state: 'clean' } });
+  }
+});
+
+
 test('today when the forecast cannot be fetched: an outfit for a mild day, a notice, and typed temperatures behind it', async ({ page }) => {
   // no faked weather: the test backend never reaches the weather service, so the forecast for New York fails
   await openToday(page);

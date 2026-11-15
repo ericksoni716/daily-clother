@@ -91,7 +91,11 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const question = rated ?? pendingQuestion(recent, dismissed, dayNow());
 
   const request = useMemo(() => requestFor(choice, buildAround, leaveOut, typed, again), [choice, buildAround, leaveOut, typed, again]);
-  const key = JSON.stringify(request);
+  // Returning from an item keeps the outfit only if its pieces still have the same places and availability.
+  const closetKey = useMemo(() => items.active === null ? null : JSON.stringify(items.active.map(
+    (i) => JSON.stringify([i.id, i.category, i.status, i.laundry, i.rating]),
+  ).sort()), [items.active]);
+  const key = JSON.stringify([request, closetKey]);
   const requestRef = useRef(request);
   requestRef.current = request;
   // What was last asked: the same choices are not asked again when coming back to the screen.
@@ -105,6 +109,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   }, [items.active, loadItems]);
 
   useEffect(() => {
+    if (closetKey === null) return;
     if (asked.current.key === key && asked.current.attempt === attempt) return;
     asked.current = { key, attempt };
     const req = requestRef.current;
@@ -130,7 +135,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
           const saved = kept.outfits(localDay());
           if (saved) {
             const r = saved.request;
-            const savedKey = JSON.stringify(requestFor({ occasion: r.occasion, mood: r.mood }, r.build_around ?? null, r.leave_out ?? [], typedOf(r)));
+            const savedKey = JSON.stringify([requestFor({ occasion: r.occasion, mood: r.mood }, r.build_around ?? null, r.leave_out ?? [], typedOf(r)), closetKey]);
             asked.current = { key: savedKey, attempt };
             answered.current = savedKey;
             setPhase({ kind: 'ready', answer: saved.answer, savedAt: saved.saved_at });
@@ -155,7 +160,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
       // not answered: ask again when the screen shows these choices next
       if (!done) asked.current = { key: '', attempt: -1 };
     };
-  }, [key, attempt, kept]);
+  }, [key, attempt, kept, closetKey]);
 
   // Back online after showing a saved copy (or nothing): ask again.
   const showingSaved = (phase.kind === 'ready' && phase.savedAt !== null) || (phase.kind === 'error' && phase.offline);

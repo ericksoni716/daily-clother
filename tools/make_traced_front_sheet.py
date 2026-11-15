@@ -3,8 +3,10 @@
     python tools/make_traced_front_sheet.py [--out docs/screenshots] [--svg-only]
 
 For each synthetic shoe (drawn by `backend/tests/shoe_photos.py`, never a real photo), one row: the side trace (the
-traced shoe drawn back from its data), today's front shoe (from its style words), the new front shoe (from the
-trace), and the same shoe on the figure with shorts and a crew sock, then under trousers resting on it. Each sheet is
+traced shoe drawn back from its data), today's front shoe (from its style words), the two front views the owner
+chooses between (A "From the shoe's shape": the style's drawing in the trace's colours; B "From your photo": turned
+from the trace), B again with a synthetic second photo from the front when the row has one, the same three on the
+figure with shorts and a crew sock, then the default view under trousers resting on it. Each sheet is
 written at phone size (the figure as a phone shows it, about 0.8 px a unit) and at 2x, in the light and the dark
 theme (the figure keeps its own card in both; the page round it changes), and once close up (light):
 DIR/traced-front-{phone,2x}-{light,dark}.png and DIR/traced-front-closeup.png. PNGs need Chrome or Chromium.
@@ -12,6 +14,7 @@ DIR/traced-front-{phone,2x}-{light,dark}.png and DIR/traced-front-closeup.png. P
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import re
 import sys
 from pathlib import Path
@@ -20,7 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(ROOT / "tools"))
 
-from closet.drawing import frontshoe, traced
+from closet.drawing import frontlook, frontshoe, traced
 from closet.drawing import trace as T
 from closet.drawing.figure import K_PX, Piece, figure, plan
 from closet.drawing.illustrate import CARD, INK
@@ -57,6 +60,9 @@ SHOES = [
     ("navy derby, navy laces", S.Shoe(**S.NAVY_DERBY), (1000, 560), ("sneakers", "derby", "#223478", {})),
 ]
 GROUNDS = {"white on white sneaker": {"ground": (230, 230, 228), "shade_edge": 10}}
+# the rows with a synthetic second photo, from the front: what that photo changes on the shoe (as the tests' FRONT_PHOTOS)
+FRONTS = {"runner, three stripes": {}, "red and black runner": {"laces": (242, 240, 234), "toe_mark": (242, 240, 234)},
+          "chukka boot": {}, "dress shoe, toe cap": {}, "work boot, padded collar": {}, "service boot, laced high": {}}
 
 THEMES = {"light": ("#fbfaf7", "#26231f"), "dark": ("#1b1916", "#eeeae3")}
 SIDE_W, SIDE_H = 120, 60        # the side trace's cell, in figure units
@@ -129,43 +135,79 @@ def outfit(shoes: Piece, case: str) -> dict:
     return {"base": tee, "bottom": trousers, "shoes": shoes}
 
 
-def rows() -> list[tuple[str, traced.TracedShoe, Piece, Piece]]:
+def look_of(shoe: S.Shoe, t: traced.TracedShoe, name: str) -> dict | None:
+    """What the synthetic front photo of the row's shoe shows, read as the app reads the owner's; None without one."""
+    if name not in FRONTS:
+        return None
+    img, mask = S.front_photo(dataclasses.replace(shoe, **FRONTS[name]))
+    look = frontlook.measure(img, [("true", lambda _: mask * 255)], frontlook.sole_share(t))
+    if look is None:
+        print(f"{name}: the front photo could not be read")
+    return look
+
+
+def rows() -> list[tuple[str, traced.TracedShoe, Piece, dict | None]]:
     out = []
     for name, shoe, size, (category, style, colour, details) in SHOES:
         t = trace_of(shoe, size, name)
-        ans = answer(category, style, **details)
-        out.append((name, t, Piece(category, ans, colour), Piece(category, ans, colour, traced=t)))
+        out.append((name, t, Piece(category, answer(category, style, **details), colour), look_of(shoe, t, name)))
     return out
+
+
+def chosen(t: traced.TracedShoe, kind: str, look: dict | None) -> frontshoe.Chosen:
+    return frontshoe.Chosen(t, kind, look if kind == frontshoe.FROM_PHOTO else None)
 
 
 def sheet(data, scale: float, theme: str) -> str:
     bg, ink = THEMES[theme]
     pad, head = 8, 22
-    cols = [("side trace", SIDE_W, SIDE_H), ("today", SHOE_W, SHOE_H), ("from the trace", SHOE_W, SHOE_H),
-            ("figure: shorts, crew sock", FEET_W, FEET_H), ("figure: trousers", FEET_W, FEET_H)]
+    A, B = frontshoe.FROM_SHAPE, frontshoe.FROM_PHOTO
+    # (title, width, height, what is drawn: None the side trace, "today", or (front view, with the front photo, where))
+    cols = [("side trace", SIDE_W, SIDE_H, None), ("today", SHOE_W, SHOE_H, "today"),
+            ("A: shape", SHOE_W, SHOE_H, (A, False, "shoe")), ("B: photo", SHOE_W, SHOE_H, (B, False, "shoe")),
+            ("B + front photo", SHOE_W, SHOE_H, (B, True, "shoe")),
+            ("A, shorts + crew sock", FEET_W, FEET_H, (A, False, "shorts")),
+            ("B, shorts + crew sock", FEET_W, FEET_H, (B, False, "shorts")),
+            ("B + front, shorts", FEET_W, FEET_H, (B, True, "shorts")),
+            ("default, trousers", FEET_W, FEET_H, ("default", True, "trousers"))]
     row_h = max(c[2] for c in cols) + pad
     W = LABEL_W + sum(c[1] + pad for c in cols) + pad
     H = head + len(data) * row_h + pad
     out = [f'<rect width="{W}" height="{H}" fill="{bg}"/>']
     x = LABEL_W
-    for title, w, _ in cols:
+    for title, w, _, _ in cols:
         out.append(f'<text x="{x + w / 2}" y="15" text-anchor="middle" font-family="system-ui,sans-serif" font-size="9" fill="{ink}">{title}</text>')
         x += w + pad
-    for r, (name, t, plain, worn) in enumerate(data):
+    for r, (name, t, plain, look) in enumerate(data):
         y = head + r * row_h
         out.append(f'<text x="{pad}" y="{y + row_h / 2}" font-family="system-ui,sans-serif" font-size="9" fill="{ink}">{name}</text>')
         x = LABEL_W
-        for c, (_, w, h) in enumerate(cols):
+        for c, (_, w, h, what) in enumerate(cols):
             out.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="5" fill="{CARD}"/>')
             uid = f"r{r}c{c}"
-            if c == 0:
+            if what is None:
                 out.append(side_svg(t, x, y, w, h))
-            elif c in (1, 2):
+            elif what == "today" or what[2] == "shoe":
+                if what != "today" and what[1] and look is None:
+                    out.append(f'<text x="{x + w / 2}" y="{y + h / 2}" text-anchor="middle" font-family="system-ui,sans-serif" '
+                               f'font-size="7" fill="{INK}">no front photo</text>')
+                    x += w + pad
+                    continue
                 spec = plan({"shoes": plain}).get("shoes")
-                shoe = frontshoe.front_shoe(spec.spec, K_PX, sole_default=spec.shape.sole_default, traced=t if c == 2 else None)
+                pick = None if what == "today" else chosen(t, what[0], look if what[1] else None)
+                shoe = frontshoe.front_shoe(spec.spec, K_PX, sole_default=spec.shape.sole_default, traced=pick)
                 out.append(front_svg(shoe, uid, x, y, w, h))
             else:
-                out.append(feet_svg(outfit(worn, "shorts" if c == 3 else "trousers"), uid, x, y, w, h))
+                kind, with_front, case = what
+                if kind == "default":   # as the app picks it: B when there is a front photo, A otherwise
+                    kind = B if look is not None else A
+                elif with_front and look is None:
+                    out.append(f'<text x="{x + w / 2}" y="{y + h / 2}" text-anchor="middle" font-family="system-ui,sans-serif" '
+                               f'font-size="7" fill="{INK}">no front photo</text>')
+                    x += w + pad
+                    continue
+                worn = dataclasses.replace(plain, traced=chosen(t, kind, look if with_front else None))
+                out.append(feet_svg(outfit(worn, case), uid, x, y, w, h))
             x += w + pad
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W * scale:.0f}" height="{H * scale:.0f}">'
             + "".join(out) + "</svg>")

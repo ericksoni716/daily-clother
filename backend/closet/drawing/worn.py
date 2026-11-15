@@ -490,6 +490,10 @@ def _socks(fig, layout, spec: Spec, uid: str, out: Worn) -> None:
         out.ankle += (f'<clipPath id="{uid}a"><path d="{{d}}"/></clipPath>'
                      f'<g clip-path="url(#{uid}a)"><g transform="translate({-tx:.4f} {-ty:.4f})">'
                      f'{inside}</g></g>')
+    # A tall boot can meet bare calf above a short sock: keep the sock's real top in this redraw too.
+    tx, ty = shoes.transforms[0][-2:]
+    out.ankle = (fig._ankle() + f'<g transform="translate({-tx:.4f} {-ty:.4f})"><g clip-path="url(#{uid}y)">'
+                 f'<g transform="translate({tx:.4f} {ty:.4f})">{out.ankle}</g></g></g>')
 
 
 def _spans(paths: list[str], y: float) -> list[tuple[float, float]]:

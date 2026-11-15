@@ -171,10 +171,11 @@ def _half_width(u: float, ball: float, toe: str) -> float:
 
 
 def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: str = "fs",
-               ankle: str | None = None, toes: str | None = None) -> FrontShoe:
+               ankle: str | None = None, toes: str | None = None, ankle_path: str | None = None) -> FrontShoe:
     """The shoe of `spec` from the front, scaled by `px`. With `ankle` (markup for skin, with "{d}" for its path),
     the wearer's ankle stands in the shoe's opening, and a sandal holds a bare foot (`toes`: the colour of the
-    lines between its toes). The anchor "ankle" is where the leg above it ends, "ankle_r" its right edge there."""
+    lines between its toes). `ankle_path` keeps the figure's own leg contour through the opening, in shoe
+    coordinates. The anchor "ankle" is where the leg above it ends, "ankle_r" its right edge there."""
     p = {**spec.params, "lace_color": spec.lace_color}
     style = p.get("style") or ("high_top" if p.get("height") == "high" else "low_sneaker")
     if style not in STYLES:
@@ -277,13 +278,13 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
                    for u in us if u >= 0.87 for k in range(13)]
             cap += [view(x, u, sole_t) for x, u, _ in contour(0, inset) if u >= 0.8]
             out.append(f'<g clip-path="url(#{uid}u)">' + fill(_path(_hull(cap)), sole_c, w=1.3) + "</g>")
-        out += _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg)
+        out += _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg, ankle_path)
         out += _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill)
         outline_pts = sole_pts + upper_pts
     hull = _hull(outline_pts)
     xs, ys = [x for x, _ in hull], [y for _, y in hull]
     anchors = {"ball": (0.0, view(0.0, BALL, 0.0)[1]), "toe": view(0.0, 1.0, 0.0), "heel": view(0.0, 0.0, 0.0),
-               "ground": (0.0, 0.0), "top": (0.0, view(0.0, 0.2, top)[1]), **_ankle_anchors(view, leg)}
+               "ground": (0.0, 0.0), "top": (0.0, view(0.0, 0.2, top)[1]), **_ankle_anchors(view, sole_t + ANKLE_CM)}
     shoe = FrontShoe(_path(hull), (min(xs) - 2, min(ys) - 2, max(xs) + 2, max(ys) + 2), anchors, "".join(out), defs,
                      ankle is not None)
     if style == "sandal" and ankle is not None:
@@ -323,7 +324,7 @@ def _below(ankle: str, d: str, y: float, uid: str) -> tuple[str, str]:
     return f'<g clip-path="url(#{uid}b)">{line}/></g><g clip-path="url(#{uid}c)">{fill}</g>', defs
 
 
-def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg):
+def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg, ankle_path=None):
     """The way in: the collar of a low shoe, or the top of a boot's shaft, with the dark lining inside; and the
     wearer's ankle standing in it when asked for, up to where the leg drawn above it takes over."""
     out = []
@@ -344,7 +345,7 @@ def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid
     # where the ankle is seen: in the opening, and above the back half of the collar, which is behind it (the
     # heel counter's top, seen from above, stands up behind the ankle; only the collar's sides, curving round
     # it, are in front of it)
-    seen_d = rim_d if shaft else _path(_hull(rim + [view(x, u, h + BEHIND_CM) for x, u, h in ring if u <= 0.27]))
+    seen_d = _path(_hull(rim + [view(x, u, h + BEHIND_CM) for x, u, h in ring if u <= (0.2 if shaft else 0.27)]))
     if p.get("lining") == "shearling":   # the fleece turned over the collar, a soft cream rim round the opening
         out.append(f'<path d="{rim_d}" fill="none" stroke="{INK}" stroke-width="5.4" stroke-linejoin="round"/>'
                    f'<path d="{rim_d}" fill="none" stroke="{SHEARLING}" stroke-width="3.6" stroke-linejoin="round"/>')
@@ -354,6 +355,9 @@ def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid
         # it shows inside the opening and above the shoe, never over the shoe's front
         far = 4000
         skin, below = _below(ankle, _path(_hull(pts)), view(0.0, ANKLE_U + ANKLE_DEPTH_CM / LENGTH, leg)[1] + 1.5, uid)
+        if ankle_path is not None:
+            # Continue the wearer's own leg through the opening, in front of the back rim but behind the front.
+            skin, below = _below(ankle, ankle_path, min(y for _, y in rim) - 3.0, uid)
         out.append(f'<clipPath id="{uid}a"><path d="{seen_d}"/>'
                    f'<path clip-rule="evenodd" d="M {-far},{-far} L {far},{-far} L {far},{far} L {-far},{far} Z {upper_d}"/>'
                    f'</clipPath>{below}')

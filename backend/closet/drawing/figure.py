@@ -1048,6 +1048,21 @@ def _leg_paths(ends, layout: Layout) -> list[str]:
     and half widths, the viewer's left one first. Inside trousers a leg is never wider than the trouser leg."""
     k = K_PX
     out = []
+    shoes = layout.get("shoes")
+    into = 6.0 if shoes is not None and shoes.front is not None and not shoes.front.foot else LEG_INTO_CM
+
+    def edge(points):
+        # Interpolate x by height: uneven calf/ankle spacing must not make the curve double back.
+        slopes = [(x1 - x0) / (y1 - y0) for (x0, y0), (x1, y1) in zip(points, points[1:], strict=False)]
+        tangents = [slopes[0]] + [0.0 if a * b <= 0 else 2 * a * b / (a + b)
+                                  for a, b in zip(slopes, slopes[1:], strict=False)] + [slopes[-1]]
+        path = f"M {_pt(points[0])}"
+        for i, ((x0, y0), (x1, y1)) in enumerate(zip(points, points[1:], strict=False)):
+            third = (y1 - y0) / 3
+            path += f" C {_pt((x0 + tangents[i] * third, y0 + third))}"
+            path += f" {_pt((x1 - tangents[i + 1] * third, y1 - third))} {_pt((x1, y1))}"
+        return path
+
     for side, (end, rend) in zip((-1, 1), ends, strict=True):
         top = (CX + side * LEG_TOP_HALF_CM * k, _y(HIP_CM - 2))
 
@@ -1055,10 +1070,10 @@ def _leg_paths(ends, layout: Layout) -> list[str]:
             t = (y - top[1]) / ((end[1] - top[1]) or 1.0)
             return (top[0] + (end[0] - top[0]) * t, y)
 
-        low = end[1] - 6 * k
+        low = end[1] - 2 * k
         cs, hs = [top], [THIGH_HALF_CM * k]
         for y, r in ((_y(CROTCH_CM + 6), THIGH_HALF_CM * k), (_y(KNEE_CM), KNEE_HALF_CM * k),
-                     (_y(CALF_CM), CALF_HALF_CM * k), (low, rend)):
+                     (_y(CALF_CM), CALF_HALF_CM * k), (low, rend * 1.04)):
             if top[1] < y < end[1] and y > cs[-1][1]:
                 cs.append(at(y))
                 hs.append(r)
@@ -1066,8 +1081,12 @@ def _leg_paths(ends, layout: Layout) -> list[str]:
             room = _room(layout, c[1], c[0])
             if room is not None and i > 0:
                 hs[i] = max(min(hs[i], room - LINE - 1.5), rend)
-        # on down into the foot or the shoe a little, so the leg's cut end is under the ankle drawn there
-        out.append(_tube(cs + [end, (end[0], end[1] + LEG_INTO_CM * k)], hs + [rend, rend]))
+        # The cut end is below the collar's front in a closed shoe, or inside the bare foot in a sandal.
+        cs += [end, (end[0], end[1] + into * k)]
+        hs += [rend, rend]
+        left = [(x - h, y) for (x, y), h in zip(cs, hs, strict=True)]
+        right = [(x + h, y) for (x, y), h in zip(cs, hs, strict=True)]
+        out.append(edge(left) + " L " + edge(right[::-1])[2:] + " Z")
     return out
 
 
@@ -1379,8 +1398,13 @@ def _svg(layout: Layout, uid: str) -> str:
         body.append(f'<g id="{uid}m">{_body_markup(wearer)}</g>{dressed.legs}')
     shoes, bottom = layout.get("shoes"), layout.get("bottom")
     if shoes is not None:
+        ankle_path = None
+        if wearer is not None and wearer.legs:
+            t = shoes.transforms[0]
+            ankle_path = _moved(wearer.legs[0], (t[0], 0.0, 0.0, 1.0, -t[0] * t[4], -t[5]))
         front = front_shoe(shoes.spec, K_PX, sole_default=shoes.shape.sole_default, uid=f"{uid}s",
-                           ankle=(dressed.ankle or _ankle()) if shoes.front is not None and shoes.front.ankle else None, toes=TOE_LINE)
+                           ankle=(dressed.ankle or _ankle()) if shoes.front is not None and shoes.front.ankle else None,
+                           ankle_path=ankle_path, toes=TOE_LINE)
         defs.append(front.defs)
         pair = "".join(f'<g transform="{_matrix(t)}">{front.body}</g>' for t in shoes.transforms)
         legs = _inside_legs(layout)
@@ -1492,5 +1516,3 @@ def _empty() -> str:
     w, h = 400.0, 600.0
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w:.0f} {h:.0f}" width="{w:.0f}" height="{h:.0f}">'
             f'<rect width="{w:.0f}" height="{h:.0f}" rx="18" fill="{CARD}"/></svg>')
-
-

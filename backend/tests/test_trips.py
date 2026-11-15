@@ -473,6 +473,17 @@ def test_wrong_input_is_answered_in_plain_words(client, clock, change, words):
     assert r.status_code == 422 and words in r.json()["detail"], r.text
 
 
+@pytest.mark.parametrize("path", ["/api/trips/plan", "/api/trips"])
+@pytest.mark.parametrize("invalid", [{"date": []}, {"date": {}}, {"low_c": 10**400}])
+def test_malformed_given_weather_is_rejected_without_saving(client, clock, path, invalid):
+    request = body(1)
+    request["weather"][0].update(invalid)
+    response = client.post(path, json=request)
+    assert response.status_code == 422
+    assert response.json()["detail"]
+    assert client.get("/api/trips").json()["trips"] == []
+
+
 def test_unknown_trips_and_bad_json(client, clock):
     assert client.get("/api/trips/nope").json()["detail"] == "That trip is not in this closet."
     assert client.patch("/api/trips/nope", json={"ticks": {}}).status_code == 404

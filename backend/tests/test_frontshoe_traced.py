@@ -43,8 +43,8 @@ def made(style="low_sneaker", sole=2.0, spring=0.8, taller=0.0, panels=(), marks
         gate={"ok": ok, "reasons": [] if ok else ["blurred"], "notes": [], "told": {}, "signals": {}}, regions=regions)
 
 
-def spec_of(category="sneakers", style="low_sneaker", bottom=SHORTS):
-    shoes = Piece(category, answer(category, shoe_style=style), "#5a3a22")
+def spec_of(category="sneakers", style="low_sneaker", bottom=SHORTS, **details):
+    shoes = Piece(category, answer(category, shoe_style=style, **details), "#5a3a22")
     return plan(dict(base=TEE, bottom=bottom, shoes=shoes)).get("shoes").spec
 
 
@@ -442,6 +442,10 @@ def every_front_shoe():
             yield f"{name} photo+front", front(frontshoe.Chosen(t, frontshoe.FROM_PHOTO, front_look(name)), spec)
     for c, s in UNTRACED[:-1]:
         yield s, front(None, spec_of(c, s))
+    for s in frontshoe.CUT_STYLES:   # cut no-show: the collar and the opening lower
+        yield f"{s} no_show", front(None, spec_of("sneakers", s, footwear_height="no_show"))
+    yield "STRIPED_COURT no_show", front(traced_photo("STRIPED_COURT"), spec_of(footwear_height="no_show"),
+                                         kind=frontshoe.FROM_SHAPE)
 
 
 def after_the_leg(shoe) -> list[tuple[str, list[tuple[float, float]]]]:
@@ -720,6 +724,27 @@ def turns(pts, step: float = 1.0) -> list[float]:
         t = math.degrees(math.atan2(c[1] - b[1], c[0] - b[0]) - math.atan2(b[1] - a[1], b[0] - a[0]))
         out.append(abs((t + 180) % 360 - 180))
     return out
+
+
+@pytest.mark.parametrize("style", ["low_sneaker", "runner", "slip_on"])
+def test_a_no_show_cut_lowers_the_collar_and_the_opening(style):
+    """`footwear_height=no_show` (a low-cut runner or slip-on): the collar stands lower round the ankle, and the
+    opening dips further below the ankle bones, lowest at its sides, so more of the ankle shows above it. The
+    shoe's front (the toe, the laces) stays where it was."""
+    plain = front(None, spec_of("sneakers", style))
+    cut = front(None, spec_of("sneakers", style, footwear_height="no_show"))
+    rim, low = _flat(plain.rim), _flat(cut.rim)
+    # every point of the opening's edge is lower on the drawing (y down), its sides the most
+    assert all(b[1] > a[1] + 0.8 * K_PX for a, b in zip(rim, low, strict=True))
+    sides = [i for i, q in enumerate(rim) if q[0] in (min(x for x, _ in rim), max(x for x, _ in rim))]
+    assert all(low[i][1] - rim[i][1] > min(b[1] - a[1] for a, b in zip(rim, low, strict=True)) for i in sides)
+    # the top of the shoe beside the ankle is lower too; its toe and sole are not
+    assert min(y for _, y in _flat(cut.upper)) > min(y for _, y in _flat(plain.upper)) + 0.8 * K_PX
+    assert cut.anchors == plain.anchors
+    toe = lambda s: [q for q in _flat(s.outline) if q[1] > s.anchors["ball"][1]]   # noqa: E731
+    assert toe(cut) == toe(plain)
+    # the leg is seen down to the lower opening: more of the ankle shows
+    assert max(y for d in cut.seen for _, y in _flat(d)) > max(y for d in plain.seen for _, y in _flat(d))
 
 
 def test_the_shoes_outline_has_no_points_or_horns():

@@ -33,6 +33,9 @@ ANKLE_OVER_CM = 3.0    # ... and above the top of a boot's shaft
 ANKLE_U = 0.22         # its middle, as a share of the length from the heel
 ANKLE_HALF_CM, ANKLE_DEPTH_CM = 3.4, 3.8   # half its width, and half its depth from front to back
 BEHIND_CM = 20.0       # how far above a low shoe's collar the ankle is still in front of the collar's back
+NO_SHOW_CM = 2.0       # a no-show cut (`cut` low) stands its collar this much lower, behind the throat ...
+NO_SHOW_DIP_CM = 0.6   # ... and dips its opening this much more at the sides, under the ankle bones
+CUT_STYLES = ("low_sneaker", "runner", "slip_on")
 
 # per style: half width at the ball, sole thickness, how the upper's top rises from the toe (share of the length
 # from the heel, height above the sole in cm), and how high the collar of a boot or high top stands (cm above the
@@ -248,6 +251,9 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
     # the shape is always the template's for the tagger's style: A and B have the same outline, opening and toe;
     # they differ only in how the trace's colours are painted on it
     ball, sole_t, table, shaft = STYLES[style]
+    dip = 0.0
+    if p.get("cut") == "low" and style in CUT_STYLES:   # a no-show cut: the collar and the opening lower
+        table, dip = _cut_low(table), NO_SHOW_DIP_CM
     sole_t *= {"thin": 0.75, "chunky": 1.6}.get(p.get("sole"), 1.0)
     sole_t *= {"lug": 1.25, "eva": 1.35, "city": 0.85}.get(p.get("tread"), 1.0)
     if style == "sandal" and p.get("molded"):   # a moulded slide: one deeper piece
@@ -346,7 +352,7 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         upper_d = _path(_hull(upper_pts))
         collar_seen = None
         if ankle is not None and style in (*TRAINERS, "boot"):
-            ring = [view(*q) for q in _collar_ring(hw, inset, table, sole_t, shaft)]
+            ring = [view(*q) for q in _collar_ring(hw, inset, table, sole_t, shaft, dip)]
             vamp_top = min(y for _, y in vamp_pts) if shaft else None
             upper_d, collar_seen = _collar_front(_hull(upper_pts), ring, px, vamp_top)
         out.append(fill(upper_d, base, w=2.4))
@@ -377,7 +383,7 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         if style == "chelsea_boot" or p.get("gusset"):   # its pull tab is at the back: behind the leg
             out.append(_pull_tab(view, shaft or sole_t + 9, base))
         out += _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg, ankle_path, collar_seen,
-                        behind=tr is not None, keep=seen_by)
+                        behind=tr is not None, keep=seen_by, dip=dip)
         if tr is not None and not shaped and tr.laced:   # B: the traced laces instead of the style's
             out += _details({**p, "laces": False}, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill, traced=True)
             out += tr.lacing(view, hw, inset, ln, p.get("lace_color") or _lace_shade(base))
@@ -429,8 +435,16 @@ def _below(ankle: str, d: str, y: float, uid: str) -> tuple[str, str]:
     return f'<g clip-path="url(#{uid}b)">{line}/></g><g clip-path="url(#{uid}c)">{fill}</g>', defs
 
 
-def _collar_ring(hw, inset, table, sole_t, shaft):
-    """The opening's edge."""
+def _cut_low(table):
+    """A style's top line cut no-show: lower by NO_SHOW_CM behind the throat (the collar, round the ankle), easing
+    back to the style's own line at the tongue."""
+    def drop(u):
+        return NO_SHOW_CM * max(0.0, min(1.0, (0.46 - u) / 0.16))
+    return [(u, h - drop(u)) for u, h in table]
+
+
+def _collar_ring(hw, inset, table, sole_t, shaft, dip=0.0):
+    """The opening's edge (a no-show cut's `dip`s that much more at the sides)."""
     if shaft:
         rx, ru = 4.7 * 0.9, 5.2 * 0.9
         ring = [(rx * math.cos(2 * math.pi * k / 32), 0.2 + ru * math.sin(2 * math.pi * k / 32) / LENGTH,
@@ -441,18 +455,18 @@ def _collar_ring(hw, inset, table, sole_t, shaft):
             a = 2 * math.pi * k / 32
             u = 0.27 + 0.2 * math.sin(a)                     # from just inside the heel to the throat
             x = hw(u) * inset * 0.82 * math.cos(a)
-            h = sole_t + _interp(table, 0.04) - 0.5 + (0.6 if math.sin(a) > 0 else 0) * math.sin(a)
+            h = sole_t + _interp(table, 0.04) - 0.5 + (0.6 if math.sin(a) > 0 else 0) * math.sin(a) - dip * math.cos(a) ** 2
             ring.append((x, u, h))
     return ring
 
 
 def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg, ankle_path=None, collar_seen=None,
-             behind=False, keep=None):
+             behind=False, keep=None, dip=0.0):
     """The way in: the collar of a low shoe, or the top of a boot's shaft, with the dark lining inside; and the
     wearer's ankle standing in it when asked for, up to where the leg drawn above it takes over."""
     out = []
     lining = SHEARLING if p.get("lining") == "shearling" else _mix(base, LINING, 0.82)
-    ring = _collar_ring(hw, inset, table, sole_t, shaft)
+    ring = _collar_ring(hw, inset, table, sole_t, shaft, dip)
     rim = [view(*q) for q in ring]
     rim_d = _path(rim)
     # where the ankle is seen: in the opening, and above the back half of the collar, which is behind it (the

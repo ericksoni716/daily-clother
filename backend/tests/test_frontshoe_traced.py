@@ -68,8 +68,9 @@ UNTRACED = [("sneakers", "low_sneaker"), ("sneakers", "runner"), ("sneakers", "s
             ("dress_shoes", "loafer"), ("dress_shoes", "derby"), ("dress_shoes", "oxford"), ("boots", "boot"),
             ("boots", "chelsea_boot"), ("sandals", "sandal")]
 # taken before stage 2c; change it only with a change meant to redraw untraced shoes, and say so in the pull request
-# (changed once: a Chelsea boot's pull tab, at the back of its shaft, is drawn behind the leg, not over it)
-UNTRACED_DIGEST = "67d97fa3f531603b8dbf311d6e8f23373dd2092b455f169410c5afd253ad0403"
+# (changed once: a Chelsea boot's pull tab, at the back of its shaft, is drawn behind the leg, not over it; and once
+# when the trousers' hem moved onto the shoe: the shoes themselves, and the figures in shorts, are byte for byte the same)
+UNTRACED_DIGEST = "1bbf16a53af015a6fd901ed76f8b9f06786ce2e6e1cc67e8604eada8e2b5866a"
 
 
 def test_an_untraced_shoe_is_drawn_exactly_as_before():

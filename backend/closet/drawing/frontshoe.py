@@ -32,6 +32,9 @@ ANKLE_CM = 13.0        # the wearer's ankle: where it is drawn up to above the s
 ANKLE_OVER_CM = 3.0    # ... and above the top of a boot's shaft
 ANKLE_U = 0.22         # its middle, as a share of the length from the heel
 ANKLE_HALF_CM, ANKLE_DEPTH_CM = 3.4, 3.8   # half its width, and half its depth from front to back
+INSTEP_U = 0.47        # the instep, at the front of a low shoe's opening (or where a boot's shaft meets its vamp)
+COLLAR_RIM = 0.82      # a low shoe's opening is this share of the upper's width at the collar ...
+SHAFT_RIM = 0.9        # ... and a boot's this share of its shaft's
 BEHIND_CM = 20.0       # how far above a low shoe's collar the ankle is still in front of the collar's back
 
 # per style: half width at the ball, sole thickness, how the upper's top rises from the toe (share of the length
@@ -72,6 +75,7 @@ class FrontShoe:
     upper: str = ""       # the upper's outline, and where the leg shows through it (the opening, and above the
     seen: list[str] = field(default_factory=list)   # collar's back): for checking that nothing hides the leg
     rim: str = ""         # the opening's edge
+    width: float = 0.0    # how wide (cm) the solid is round its opening: a low shoe's collar, a boot's shaft (0: a sandal)
 
 
 def _interp(table, u: float) -> float:
@@ -384,12 +388,21 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         else:
             out += _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill, traced=tr is not None)
         outline_pts = sole_pts + upper_pts
+        # where a trouser hem meets it: the front and the back of the opening (a low shoe's collar, the top of a
+        # boot's shaft), the instep in front of it, and how wide the solid is round the opening
+        ring = _collar_ring(hw, inset, table, sole_t, shaft)
+        rim_pts = [view(*q) for q in ring]
+        opening = {"opening": max(rim_pts, key=lambda q: q[1]), "opening_back": min(rim_pts, key=lambda q: q[1]),
+                   "instep": view(0.0, INSTEP_U, sole_t + _interp(table, INSTEP_U))}
+        width = 2 * max(abs(x) for x, _, _ in ring) / (SHAFT_RIM if shaft else COLLAR_RIM)
     hull = _hull(outline_pts)
     xs, ys = [x for x, _ in hull], [y for _, y in hull]
     anchors = {"ball": (0.0, view(0.0, BALL, 0.0)[1]), "toe": view(0.0, 1.0, 0.0), "heel": view(0.0, 0.0, 0.0),
                "ground": (0.0, 0.0), "top": (0.0, view(0.0, 0.2, top)[1]), **_ankle_anchors(view, sole_t + ANKLE_CM)}
+    if style != "sandal":
+        anchors.update(opening)
     shoe = FrontShoe(_path(hull), (min(xs) - 2, min(ys) - 2, max(xs) + 2, max(ys) + 2), anchors, "".join(out), defs,
-                     ankle is not None)
+                     ankle is not None, width=width if style != "sandal" else 0.0)
     if style == "sandal" and ankle is not None:
         shoe.foot, shoe.toes = foot_d, toe_lines
     elif style != "sandal":
@@ -432,7 +445,7 @@ def _below(ankle: str, d: str, y: float, uid: str) -> tuple[str, str]:
 def _collar_ring(hw, inset, table, sole_t, shaft):
     """The opening's edge."""
     if shaft:
-        rx, ru = 4.7 * 0.9, 5.2 * 0.9
+        rx, ru = 4.7 * SHAFT_RIM, 5.2 * SHAFT_RIM
         ring = [(rx * math.cos(2 * math.pi * k / 32), 0.2 + ru * math.sin(2 * math.pi * k / 32) / LENGTH,
                  shaft) for k in range(32)]
     else:
@@ -440,7 +453,7 @@ def _collar_ring(hw, inset, table, sole_t, shaft):
         for k in range(32):
             a = 2 * math.pi * k / 32
             u = 0.27 + 0.2 * math.sin(a)                     # from just inside the heel to the throat
-            x = hw(u) * inset * 0.82 * math.cos(a)
+            x = hw(u) * inset * COLLAR_RIM * math.cos(a)
             h = sole_t + _interp(table, 0.04) - 0.5 + (0.6 if math.sin(a) > 0 else 0) * math.sin(a)
             ring.append((x, u, h))
     return ring

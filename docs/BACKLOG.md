@@ -11,6 +11,8 @@ owner; see `DECISIONS.md`, "How the work is organised").
 
 ## In progress (Copilot agents)
 
+- [x] #202 Adversarial review of frontend core: fixed interrupted-response handling, stale list and item reads, lost drafts on Back or refresh, reconnect recovery, overlapping item edits, and save-queue error/lifetime handling. Each fix has a regression that failed first. Follow-ups left for an owner decision or cross-stack work: shared profile switches across tabs and queued uploads, failed/offline logout, and ordering of saves forced out when a page closes.
+
 - [x] #199 Adversarial review of planning: fixed hot-day packing with unlimited re-wear, missed feels-like forecast changes, malformed trip weather, removal during price checks, partial rejected wishlist edits, API-disable races, and situation claims using unsuitable partners or requiring shoes indoors. Each fix has a regression that failed first.
 
 Wave 1 (landed):

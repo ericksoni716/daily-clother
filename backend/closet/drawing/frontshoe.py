@@ -443,11 +443,15 @@ def _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, 
             hook = i < int(p.get("hooks") or 0)
             if not hook and not p.get("rings"):
                 continue
-            for x, y in row:
-                angles = [math.radians(-130 + j * 260 / 12) if hook else j * math.pi / 8 for j in range(17 if not hook else 13)]
-                d = _path([(x + 0.55 * view.px * math.cos(a), y + 0.65 * view.px * math.sin(a)) for a in angles],
+            for side, (x, y) in enumerate(row):
+                # Include ordinary eyelet rows when sizing the lowest hook; its outline needs clearance too.
+                gap = min(abs(y - other[side][1]) for other in rows if other is not row)
+                r = min(0.55 * view.px, gap * 0.2, abs(row[1][0] - row[0][0]) * 0.15)
+                angles = [math.radians(-130 + j * 260 / 12) if hook else -math.pi / 2 + j * math.pi / 12 for j in range(13)]
+                # The ring's straight side faces the lacing; the rounded half sits outside it.
+                d = _path([(x + (2 * side - 1) * r * math.cos(a), y + r * math.sin(a)) for a in angles],
                           close=not hook)
-                out.append(ln(d, 3.0, INK, 1) + ln(d, 1.5, METAL, 1))
+                out.append(ln(d, min(3.0, r * 0.8), INK, 1) + ln(d, min(1.5, r * 0.4), METAL, 1))
         if p.get("toggle"):
             x, y = s(lo - 0.015, 0.0, 0.3)
             for side in (-1, 1):

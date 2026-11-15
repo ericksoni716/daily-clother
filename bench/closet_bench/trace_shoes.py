@@ -25,7 +25,8 @@ scores, the gate (how many passed, and why the others did not) and the recommend
 (`closet.drawing.trace`, `closet.drawing.traced`); when the model's cut-out fails the gate, GrabCut is tried.
 
 The template drawing is drawn from a tagger answer saved beside the photo as `<photo name>.json`, when
-there is one; otherwise from the measured colour and a sneaker of the measured height. Photos are listed
+there is one; otherwise from the measured colour and a sneaker of the measured height. The same answer's word
+on the photo (`shoes_in_photo`, `shoe_view`) goes to the gate. Photos are listed
 by number in name order, never by file name.
 """
 from __future__ import annotations
@@ -71,6 +72,7 @@ from closet.drawing.trace import (  # noqa: F401  (the tracing lives in the app;
     second_top,
     to_lab,
     to_svg,
+    told_from,
     trace,
 )
 from closet.drawing.trace import trace_photo as read_photo
@@ -157,7 +159,7 @@ def cutters(cutout: str = "auto", model: str = "isnet-general-use", models_dir: 
 def trace_photo(img: Image.Image, cutout: str = "auto", model: str = "isnet-general-use",
                 models_dir: Path = ROOT / "models", answer=None, uid: str = "s",
                 approaches: tuple[Approach, ...] = APPROACHES) -> Result:
-    rd = read_photo(img, cutters(cutout, model, models_dir), approaches)
+    rd = read_photo(img, cutters(cutout, model, models_dir), approaches, told_from(answer))
     if rd.oriented is None:
         return Result(img, None, rd.cutout_by, None, [], rd.gate, None, rd.seconds, mask=rd.mask, attempts=rd.attempts)
     cut, _ = C.make_cutout(img, Image.fromarray(rd.mask * 255))
@@ -280,6 +282,11 @@ def pairs_cell(r: Result) -> tuple[Image.Image | None, list[str]]:
     over = {k: (sig.get(k) or 0) > limits[k][0] for k in ("second_piece", "second_sole", "second_top")}
     verdict = ("more than one thing: turned down" if over["second_piece"]
                else "maybe two shoes (advice only)" if over["second_sole"] or over["second_top"] else "one shoe")
+    told = r.gate.told.get("shoes_in_photo")
+    if told in ("pair", "more"):
+        verdict = f"Claude: {told}: turned down"
+    elif told:
+        verdict = f"Claude: {told} shoe; outline: {verdict}"
     lines = [line("second_piece", "second piece", ".3f"), line("second_sole", "second sole, cm", ".2f"),
              line("second_top", "second top edge", ".2f"), verdict]
     o = r.oriented
@@ -491,7 +498,8 @@ def _index(results: list[Result], files: list[str], summ: dict, note: str) -> st
 
 def _result_json(r: Result) -> dict:
     o = r.oriented
-    return {"gate": {"ok": r.gate.ok, "reasons": r.gate.reasons, "notes": r.gate.notes, "signals": r.gate.signals},
+    return {"gate": {"ok": r.gate.ok, "reasons": r.gate.reasons, "notes": r.gate.notes, "told": r.gate.told,
+                     "signals": r.gate.signals},
             "cutout_by": r.cutout_by, "seconds": round(r.seconds, 2), "best": r.best,
             "turned": None if o is None else {"angle": round(o.angle, 2), "flipped": o.flipped},
             "variants": {v.approach.name: {"iou": v.scores.iou, "delta_e": v.scores.delta_e, "colors": v.scores.colors,

@@ -240,6 +240,24 @@ def test_a_saved_tagger_answer_draws_the_template(tmp_path):
     assert r.template_svg and plain.template_svg and r.template_svg != plain.template_svg
 
 
+def test_the_tagger_answer_beside_a_photo_is_its_word_on_pairs_and_the_view(tmp_path):
+    photos = tmp_path / "shoes"
+    photos.mkdir()
+    for name, said in (("a", {"shoes_in_photo": "one", "shoe_view": "side"}), ("b", {"shoes_in_photo": "pair", "shoe_view": "side"}),
+                       ("c", {"shoes_in_photo": "one", "shoe_view": "angled"})):
+        synthetic_shoe(noise=2.0)[0].save(photos / f"{name}.png")
+        answer = {"category": "sneakers", "color": "navy", "details": said}
+        (photos / f"{name}.json").write_text(json.dumps(answer), encoding="utf-8")
+    out = tmp_path / "out"
+    T.run(photos, out, cutout="grabcut", png=False, quiet=True)
+    shoes = json.loads((out / "results.json").read_text(encoding="utf-8"))["shoes"]
+    assert [s["gate"]["ok"] for s in shoes] == [True, False, False]
+    assert shoes[0]["gate"]["told"] == {"shoes_in_photo": "one", "shoe_view": "side"}
+    assert any("Claude sees both shoes of a pair" in x for x in shoes[1]["gate"]["reasons"])
+    assert any("Claude sees the shoe at an angle" in x for x in shoes[2]["gate"]["reasons"])
+    assert "Claude: pair: turned down" in (out / "shoe-02.sheet.svg").read_text(encoding="utf-8")
+
+
 def test_specks_join_their_neighbour():
     lmap = np.zeros((40, 40), np.int32)
     lmap[10:12, 10:12] = 1

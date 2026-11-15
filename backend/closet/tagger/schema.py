@@ -118,12 +118,15 @@ DenimWash = Literal[("na",) + BOTTOM_AXES["denim_washes"]]
 DenimFade = Literal[BOTTOM_AXES["denim_fades"]]
 Distressing = Literal[BOTTOM_AXES["distressing"]]
 Shade = Literal[("unknown",) + tuple(SHADES)]
+# shoes: what the first photo shows, so a traced drawing is only made from one shoe seen from the side
+ShoesInPhoto = Literal["na", "one", "pair", "more"]
+ShoeView = Literal["na", "side", "front", "back", "top", "angled"]
 Feature = Literal["v_insert", "pleats", "pressed_crease", "contrast_stitching", "toe_cap", "side_stripe",
                   "contrast_heel_tab", "chunky_sole"]
 
 # Stored with every answer the app keeps. Raise it whenever `ItemTags` changes shape or vocabulary, so stored
 # answers can be told apart (a test holds a fingerprint of the schema and fails until this is raised).
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 FIELDS = ("category", "color", "pattern", "formality", "season")
 DETAIL_FIELDS = ("garment", "fit_detail", "sleeve_length", "neckline", "collar", "placket", "placket_buttons", "button_color", "cuff",
@@ -133,6 +136,8 @@ DETAIL_FIELDS = ("garment", "fit_detail", "sleeve_length", "neckline", "collar",
                  "footwear_height", "heel", "upper_material",
                  "waistband", "fly", "trouser_front", "rise", "leg_shape", "trouser_break", "hem_finish", "crease",
                  "trouser_pockets", "back_details", "denim_wash", "denim_fades", "distressing", "inseam")
+# about the photo, not the garment: never offered to the owner as a detail, nor drawn
+PHOTO_FIELDS = ("shoes_in_photo", "shoe_view")
 SILHOUETTE_FIELDS = ("sleeve", "neck", "top_length", "fit", "leg", "pant_length", "shoe_height")
 
 
@@ -160,6 +165,7 @@ ADDED_IN_4 = {"shade": "unknown", "footwear": "unknown", "toe_shape": "na", "toe
               "upper_material": "na", "waistband": "na", "fly": "na", "trouser_front": "na", "rise": "na", "leg_shape": "na",
               "trouser_break": "na", "hem_finish": "na", "crease": "na", "trouser_pockets": [], "back_details": [],
               "denim_wash": "na", "denim_fades": [], "distressing": [], "inseam": 0}
+ADDED_IN_5 = {"shoes_in_photo": "na", "shoe_view": "na"}
 
 
 class Details(BaseModel):
@@ -204,6 +210,8 @@ class Details(BaseModel):
     footwear_height: FootwearHeight = Field(description="Shoes: how high it comes: low, mid or high (sneakers), ankle_boot, boot_6in, boot_8in_plus, knee; 'na' otherwise.")
     heel: Heel = Field(description="Shoes: the heel: flat, low_stacked, block, cuban (tall and angled, as on a western boot); 'na' otherwise.")
     upper_material: UpperMaterial = Field(description="Shoes: what the upper is made of; 'na' otherwise.")
+    shoes_in_photo: ShoesInPhoto = Field(description="Shoes: how many shoes the first image shows: one, pair (both shoes of the pair, side by side, overlapping or one behind the other) or more; 'na' otherwise.")
+    shoe_view: ShoeView = Field(description="Shoes: where the first image sees the shoe from: side (its whole side, toe to heel, square on), front (toe towards you), back (heel towards you), top (from above), angled (in between, such as three-quarters); 'na' otherwise.")
     waistband: Waistband = Field(description="Trousers and shorts: how the waist is held: belt_loops, side_adjusters (buckled tabs at the sides), extended_tab, gurkha (a wide wrapped band with buckles), elastic_drawcord, half_elastic, drawstring, brace_buttons; 'na' otherwise.")
     fly: Fly = Field(description="Trousers and shorts: zip, button (a button fly) or none (a pull-on); 'na' otherwise.")
     trouser_front: TrouserFront = Field(description="Trousers and shorts: flat or pleated: single_pleat, double_pleat, reverse_pleat (opening toward the pockets), forward_pleat (opening toward the fly); 'na' otherwise.")
@@ -225,7 +233,7 @@ class Details(BaseModel):
     @classmethod
     def _older(cls, data):
         """An answer stored before a field was added reads as if it had said the field's 'nothing'."""
-        return {**ADDED_IN_2, **ADDED_IN_3, **ADDED_IN_4, **data} if isinstance(data, dict) else data
+        return {**ADDED_IN_2, **ADDED_IN_3, **ADDED_IN_4, **ADDED_IN_5, **data} if isinstance(data, dict) else data
 
     @classmethod
     def plain(cls, **known) -> Details:
@@ -235,7 +243,7 @@ class Details(BaseModel):
                     fiber="unknown", weight="unknown", knit_gauge="na", corduroy_wale="na",
                     color_texture="solid", pattern_name="solid", pattern_orientation="all_over", trim_color="same",
                     waist="na", pant_hem="na", shoe_style="na", sole_color="same", lace_color="same",
-                    accessory="na", accessory_kind="na", **ADDED_IN_4, features=[], other_features=[])
+                    accessory="na", accessory_kind="na", **ADDED_IN_4, **ADDED_IN_5, features=[], other_features=[])
         return cls(**{**base, **known})
 
 

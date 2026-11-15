@@ -110,6 +110,53 @@ def test_two_shoes_apart_are_caught():
     assert "more than one thing" in reasons(r)
 
 
+def answer(**said):
+    """A tagging answer as the app stores it, for a sneaker, saying what is given."""
+    from closet.tagger.schema import Details, ItemTags, Silhouette
+    tags = ItemTags(category="sneakers", category_confidence=0.9, color="navy", color_confidence=0.9, secondary_colors=[],
+                    pattern="solid", pattern_confidence=0.9, formality="casual", formality_confidence=0.9, season="all",
+                    season_confidence=0.9, silhouette=Silhouette.of(shoe_height="low"), silhouette_confidence=0.9,
+                    details=Details.plain(**said), details_confidence=0.9, brand=None, size=None, material=None, needs_shot=None)
+    return tags.model_dump(mode="json")
+
+
+def test_the_tagger_saying_pair_turns_a_pair_down():
+    img = S.draw(GLOSSY_BLACK, pair=(0.04, 0.12), noise=3)[0]
+    told = T.told_from(answer(shoes_in_photo="pair", shoe_view="side"))
+    assert told == {"shoes_in_photo": "pair", "shoe_view": "side"}
+    r = T.trace_photo(img, None, told=told)
+    assert not r.gate.ok
+    assert r.gate.reasons[0] == "two shoes: Claude sees both shoes of a pair in the photo"
+    assert len(r.attempts) == 1          # another cut-out cannot change what the tagger saw
+    assert traced.traced_shoe(r).gate["told"] == told
+
+
+@pytest.mark.parametrize("view,words", [("front", "from the front"), ("back", "from the back"), ("top", "from above"),
+                                        ("angled", "at an angle")])
+def test_the_tagger_saying_the_view_is_not_the_side_turns_it_down(view, words):
+    img = S.draw(S.Shoe(), noise=3)[0]
+    r = T.trace_photo(img, None, told=T.told_from(answer(shoes_in_photo="one", shoe_view=view)))
+    assert not r.gate.ok and r.gate.reasons == [f"not side-on: Claude sees the shoe {words}"]
+
+
+def test_one_shoe_from_the_side_passes_and_an_older_answer_says_nothing():
+    img = S.draw(S.Shoe(), noise=3)[0]
+    assert T.trace_photo(img, None, told=T.told_from(answer(shoes_in_photo="one", shoe_view="side"))).gate.ok
+    old = answer()
+    for k in ("shoes_in_photo", "shoe_view"):
+        del old["details"][k]
+    assert T.told_from(old) == {} and T.told_from(answer()) == {} and T.told_from(None) == {}
+
+
+def test_the_tagger_is_asked_how_many_shoes_and_from_where():
+    from closet.tagger.schema import ItemTags
+    from closet.tagger.tagging import PROMPT
+    assert "shoes_in_photo" in PROMPT and "shoe_view" in PROMPT
+    props = ItemTags.model_json_schema()["$defs"]["Details"]["properties"]
+    assert {"shoes_in_photo", "shoe_view"} <= set(props)
+    assert all(why in T.TOLD.values() for why in T._told({"shoes_in_photo": "pair", "shoe_view": "top"}))
+
+
 RUNNER = S.Shoe(upper=(225, 225, 228), midsole=(250, 250, 250), outsole=(60, 60, 60), heel_counter=(200, 40, 40),
                 heel_tab_cm=1.6, window=(120, 135, 150), laces=(30, 30, 30), sole_cm=3.4, sole_toe_cm=2.0, toe_spring_cm=1.4)
 LUG_BOOT = S.Shoe(upper=(120, 80, 50), midsole=(40, 35, 30), outsole=(40, 35, 30), top=list(frontshoe._BOOT), shaft_cm=16,

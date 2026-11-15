@@ -103,7 +103,7 @@ class TracedShoe:
     stitching: Row | None
     style: str                       # the nearest `frontshoe.STYLES` entry, from the profile
     confidence: float                # 0..1: how far to trust the trace
-    gate: dict                       # {"ok": bool, "reasons": [...], "signals": {...}}
+    gate: dict                       # {"ok": bool, "reasons": [...], "notes": [...], "told": {...}, "signals": {...}}
     regions: list[Region]
 
     def part(self, name: str) -> Part | None:
@@ -805,4 +805,4 @@ def traced_shoe(reading: T.Reading, approach: str | None = None) -> TracedShoe |
     return TracedShoe(VERSION, t.approach.name, reading.cutout_by, profile, parts, marks, lace_row, eyelet_row, stitch_row,
                       style_hint(profile, lace_row is not None or eyelet_row is not None), round(float(confidence), 3),
                       {"ok": reading.gate.ok, "reasons": list(reading.gate.reasons), "notes": list(reading.gate.notes),
-                       "signals": signals}, regions)
+                       "told": dict(reading.gate.told), "signals": signals}, regions)

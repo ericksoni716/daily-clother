@@ -35,6 +35,10 @@ survived) and the best approach overall is named. A quality gate says which
 photos are too poor to trace and why (blurred, low contrast, not side-on, cut
 off, more than one thing in the photo). To have the template drawn from the
 shoe's tags, save its tagger answer beside the photo as `<photo name>.json`.
+The gate also takes that answer's word on the photo: when its `details` say
+`shoes_in_photo` is `pair` or `more`, or `shoe_view` is anything but `side`, the
+photo is turned down for that reason (answers from before schema version 5 say
+nothing about it).
 
 The tracing itself is the app's (`backend/closet/drawing/trace.py`), so the
 gate the sheets show is the app's gate. When the model's cut-out fails the gate,

@@ -73,6 +73,17 @@ GATE = {
     "trace_iou": (0.9, "below", "even the best trace strays from the cut-out"),
 }
 
+# What the tagger said about the photo (`details.shoes_in_photo` and `details.shoe_view` of its answer), when it
+# was asked: the main check for a pair and for the view. Each value here turns the photo down, in plain words.
+TOLD = {
+    ("shoes_in_photo", "pair"): "two shoes: Claude sees both shoes of a pair in the photo",
+    ("shoes_in_photo", "more"): "more than one shoe: Claude sees several shoes in the photo",
+    ("shoe_view", "front"): "not side-on: Claude sees the shoe from the front",
+    ("shoe_view", "back"): "not side-on: Claude sees the shoe from the back",
+    ("shoe_view", "top"): "not side-on: Claude sees the shoe from above",
+    ("shoe_view", "angled"): "not side-on: Claude sees the shoe at an angle",
+}
+
 # Signals that only advise: recorded and shown, never a reason to turn a photo down. On the owner's 30 photos
 # the outline's shape did not tell a pair from one shoe (lug soles, heel tabs, collars and shadows give the same
 # readings), so a pair is turned down only on unambiguous evidence: two pieces apart (`second_piece`), or the
@@ -939,6 +950,7 @@ class Gate:
     reasons: list[str]
     signals: dict[str, float]
     notes: list[str] = field(default_factory=list)      # what the advisory signals saw; never turns a photo down
+    told: dict[str, str] = field(default_factory=dict)  # the tagger's word on the photo (`told_from`), when given
 
 
 def _over(table: dict, signals: dict[str, float]) -> list[str]:
@@ -952,9 +964,20 @@ def _over(table: dict, signals: dict[str, float]) -> list[str]:
     return out
 
 
-def gate(signals: dict[str, float]) -> Gate:
-    reasons = _over(GATE, signals)
-    return Gate(not reasons, reasons, signals, _over(ADVICE, signals))
+def told_from(answer: dict | None) -> dict[str, str]:
+    """The tagger's word on the photo from its answer (as stored, a dict): how many shoes it shows and from
+    where. Empty when the answer is missing, is older than the question, or says 'na'."""
+    d = (answer or {}).get("details") or {}
+    return {k: d[k] for k in ("shoes_in_photo", "shoe_view") if isinstance(d.get(k), str) and d[k] != "na"}
+
+
+def _told(told: dict[str, str] | None) -> list[str]:
+    return [why for (k, v), why in TOLD.items() if (told or {}).get(k) == v]
+
+
+def gate(signals: dict[str, float], told: dict[str, str] | None = None) -> Gate:
+    reasons = _told(told) + _over(GATE, signals)
+    return Gate(not reasons, reasons, signals, _over(ADVICE, signals), dict(told or {}))
 
 
 # ------------------------------------------------------------------ one photo
@@ -990,11 +1013,12 @@ Cutter = Callable[[Image.Image], "np.ndarray | None"]
 
 
 def trace_photo(img: Image.Image, cutters: Sequence[tuple[str, Cutter]] | None = None,
-                approaches: Sequence[Approach] = (APPROACH,)) -> Reading:
+                approaches: Sequence[Approach] = (APPROACH,), told: dict[str, str] | None = None) -> Reading:
     """Cut out, turn, trace and check one photo. `cutters` are the ways to cut it out, by name, in the order to
     try them (each returns a soft mask, 0..255, or None when it cannot run); GrabCut alone by default. When a
     cut-out fails the gate, the next way is tried before the photo is turned down (a white shoe on a white
-    ground often leaks out of one cut-out and not the other); if all fail, the one with the fewest reasons wins."""
+    ground often leaks out of one cut-out and not the other); if all fail, the one with the fewest reasons wins.
+    `told` is the tagger's word on the photo (`told_from`); a pair or a view other than the side turns it down."""
     t0 = time.time()
     rgb = np.asarray(img.convert("RGB"))
     cutters = list(cutters or [("grabcut", grabcut_mask)])
@@ -1008,20 +1032,20 @@ def trace_photo(img: Image.Image, cutters: Sequence[tuple[str, Cutter]] | None =
         if signals["found"]:
             o = orient(rgb, mask)
             signals.update(work_signals(o))
-        tried.append((name, signals, mask, o, gate(signals)))
-        if tried[-1][4].ok:
+        tried.append((name, signals, mask, o, gate(signals, told)))
+        if tried[-1][4].ok or _told(told):   # another cut-out cannot change what the tagger saw
             break
     if not tried:
         signals, mask = photo_signals(rgb, grabcut_mask(img))
         o = orient(rgb, mask) if signals["found"] else None
         if o is not None:
             signals.update(work_signals(o))
-        tried.append(("grabcut", signals, mask, o, gate(signals)))
+        tried.append(("grabcut", signals, mask, o, gate(signals, told)))
     pick = tried[-1] if tried[-1][4].ok else min(tried, key=lambda t: len(t[4].reasons))
     attempts = [Attempt(t[0], t[4].reasons) for t in tried if t is not pick] + [Attempt(pick[0], pick[4].reasons)]
     by, signals, mask, o, _ = pick
     if o is None:
-        return Reading(by, mask, None, [], gate(signals), None, time.time() - t0, attempts)
+        return Reading(by, mask, None, [], gate(signals, told), None, time.time() - t0, attempts)
     photo_marks = mark_mask(o.rgb, o.mask)
     variants = []
     for a in approaches:
@@ -1029,4 +1053,4 @@ def trace_photo(img: Image.Image, cutters: Sequence[tuple[str, Cutter]] | None =
         variants.append(Variant(a, t, score(t, o.rgb, o.mask, photo_marks)))
     best = max(variants, key=lambda v: v.scores.score)
     signals["trace_iou"] = max(v.scores.iou for v in variants)
-    return Reading(by, mask, o, variants, gate(signals), best.approach.name, time.time() - t0, attempts)
+    return Reading(by, mask, o, variants, gate(signals, told), best.approach.name, time.time() - t0, attempts)

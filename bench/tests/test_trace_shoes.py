@@ -192,11 +192,44 @@ def test_the_command_writes_sheets_and_an_index(tmp_path):
         ids = [e.getAttribute("id") for e in doc.getElementsByTagName("*") if e.getAttribute("id")]
         assert len(ids) == len(set(ids))
         assert svg.count("Today's template") == 1
+        assert "Traced data (" + T.APPROACH.name + ")" in svg and "Pairs" in svg
     text = index.read_text(encoding="utf-8")
     assert "a.jpg" not in text and "b.png" not in text   # photos are listed by number only
+    assert "photos pass the quality gate" in text
     data = json.loads((out / "results.json").read_text(encoding="utf-8"))
     assert data["summary"]["recommended"] in {a.name for a in T.APPROACHES}
     assert len(data["shoes"]) == 2
+    for shoe in data["shoes"]:
+        traced = T.TracedShoe.from_json(json.dumps(shoe["traced"]))
+        assert traced.approach == T.APPROACH.name and traced.parts and traced.regions
+        assert shoe["attempts"][-1]["cutout_by"] == "grabcut"
+
+
+def test_the_gate_report_counts_why_photos_were_turned_down():
+    def result(reasons, attempts=1):
+        g = T.Gate(not reasons, reasons, {})
+        return T.Result(None, None, "grabcut", None, [], g, None, 0.0,
+                        attempts=[T.Attempt("model", ["x"])] * (attempts - 1) + [T.Attempt("grabcut", reasons)])
+
+    results = [result([]), result(["the photo is blurred (sharpness 0.05, limit 0.08)"]),
+               result(["the photo is blurred (sharpness 0.02, limit 0.08)", "the shoe is too small in the photo (size_px 90, limit 250)"]),
+               result([], attempts=2)]
+    assert T.why_turned_down(results) == {"the photo is blurred": 2, "the shoe is too small in the photo": 1}
+    report = T.gate_report(results)
+    assert report.startswith("2 of 4 photos pass the quality gate.")
+    assert "2 × the photo is blurred" in report
+    assert "1 needed the other cut-out" in report
+
+
+def test_the_traced_data_is_drawn_back_with_its_marks_numbered():
+    img, _ = synthetic_shoe(noise=2.0)
+    r = T.trace_photo(img, cutout="grabcut", approaches=(T.APPROACH,))
+    assert r.traced is not None
+    svg = T.overlay_svg(r.traced)
+    xml.dom.minidom.parseString(svg)
+    assert svg.count("<text") >= len(r.traced.marks) + len([p for p in r.traced.parts if p.name in T.PART_INK])
+    img, lines = T.pairs_cell(r)
+    assert img is not None and lines[-1] == "one shoe"
 
 
 def test_a_saved_tagger_answer_draws_the_template(tmp_path):
@@ -205,6 +238,24 @@ def test_a_saved_tagger_answer_draws_the_template(tmp_path):
     r = T.trace_photo(img, cutout="grabcut", answer=answer, approaches=T.APPROACHES[:1])
     plain = T.trace_photo(img, cutout="grabcut", approaches=T.APPROACHES[:1])
     assert r.template_svg and plain.template_svg and r.template_svg != plain.template_svg
+
+
+def test_the_tagger_answer_beside_a_photo_is_its_word_on_pairs_and_the_view(tmp_path):
+    photos = tmp_path / "shoes"
+    photos.mkdir()
+    for name, said in (("a", {"shoes_in_photo": "one", "shoe_view": "side"}), ("b", {"shoes_in_photo": "pair", "shoe_view": "side"}),
+                       ("c", {"shoes_in_photo": "one", "shoe_view": "angled"})):
+        synthetic_shoe(noise=2.0)[0].save(photos / f"{name}.png")
+        answer = {"category": "sneakers", "color": "navy", "details": said}
+        (photos / f"{name}.json").write_text(json.dumps(answer), encoding="utf-8")
+    out = tmp_path / "out"
+    T.run(photos, out, cutout="grabcut", png=False, quiet=True)
+    shoes = json.loads((out / "results.json").read_text(encoding="utf-8"))["shoes"]
+    assert [s["gate"]["ok"] for s in shoes] == [True, False, False]
+    assert shoes[0]["gate"]["told"] == {"shoes_in_photo": "one", "shoe_view": "side"}
+    assert any("Claude sees both shoes of a pair" in x for x in shoes[1]["gate"]["reasons"])
+    assert any("Claude sees the shoe at an angle" in x for x in shoes[2]["gate"]["reasons"])
+    assert "Claude: pair: turned down" in (out / "shoe-02.sheet.svg").read_text(encoding="utf-8")
 
 
 def test_specks_join_their_neighbour():

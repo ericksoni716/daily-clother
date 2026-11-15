@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { api, KEEPALIVE_BUDGET, keepaliveSize } from './api';
+import { api, connection, KEEPALIVE_BUDGET, keepaliveSize, UNREACHABLE } from './api';
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  connection.set(false);
+});
 
 function answering() {
   const calls: RequestInit[] = [];
@@ -11,6 +14,35 @@ function answering() {
   }));
   return calls;
 }
+
+describe('interrupted responses', () => {
+  it('reports a connection lost while reading the body as offline', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new ReadableStream({
+      start(controller) {
+        controller.error(new TypeError('connection closed'));
+      },
+    }))));
+
+    await expect(api.session()).rejects.toMatchObject({ status: 0, message: UNREACHABLE });
+    expect(connection.offline).toBe(true);
+
+    answering();
+    await api.session();
+    expect(connection.offline).toBe(false);
+  });
+
+  it('does not treat cancelling a response body as a connection failure', async () => {
+    const aborted = new DOMException('Cancelled', 'AbortError');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(new ReadableStream({
+      start(controller) {
+        controller.error(aborted);
+      },
+    }))));
+
+    await expect(api.today({} as never, new AbortController().signal)).rejects.toBe(aborted);
+    expect(connection.offline).toBe(false);
+  });
+});
 
 describe('saves outlive the page', () => {
   it('sends a save with keepalive and the login cookie', async () => {

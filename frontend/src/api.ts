@@ -113,8 +113,10 @@ async function request<T>(path: string, opts: Options = {}): Promise<T> {
     keepaliveBytes += kept;
   }
   let res: Response;
+  let text: string;
   try {
     res = await fetch(path, init);
+    text = await res.text();
   } catch (e) {
     if ((e as Error)?.name === 'AbortError') throw e;
     setOffline(true);
@@ -125,7 +127,6 @@ async function request<T>(path: string, opts: Options = {}): Promise<T> {
   setOffline(res.headers.get(FROM_CACHE_HEADER) === '1');
   if (res.status === 204) return undefined as T;
   let data: unknown = null;
-  const text = await res.text();
   if (opts.text && res.ok) return text as T;
   if (text) {
     try {

@@ -22,6 +22,8 @@ from .state import State
 
 log = logging.getLogger("closet.jobs")
 MAX_ATTEMPTS = 3
+FAILED = ("The background could not be removed from this photo. You can try again, or retake it "
+          "against a plainer background.")
 
 Cutter = Callable[[Image.Image], Image.Image]  # photo -> RGBA cutout
 
@@ -34,11 +36,26 @@ def enqueue_cutout(conn, item_id: str, photo_id: str) -> None:
 
 
 def requeue_interrupted(conn) -> int:
-    """Jobs left 'running' by a previous run go back in the queue."""
-    cur = conn.execute("UPDATE jobs SET state = 'queued', updated_at = ? WHERE state = 'running'", (db.now(),))
-    conn.execute("UPDATE items SET cutout_state = 'pending' WHERE cutout_state = 'processing'")
-    conn.execute("UPDATE items SET tag_state = 'waiting' WHERE tag_state = 'working'")
-    return cur.rowcount
+    """Recover both queues at startup, respecting their attempt limits."""
+    return recover(conn) + tagjobs.recover(conn)
+
+
+def recover(conn) -> int:
+    """Recover interrupted cutouts only; the tagging worker may be running."""
+    t = db.now()
+    conn.execute("BEGIN IMMEDIATE")
+    stale = conn.execute("SELECT id, item_id, attempts, error FROM jobs WHERE kind = 'cutout' AND state = 'running'").fetchall()
+    for job in stale:
+        if job["attempts"] >= MAX_ATTEMPTS:
+            conn.execute("UPDATE jobs SET state = 'failed', updated_at = ? WHERE id = ?", (t, job["id"]))
+            conn.execute("UPDATE items SET cutout_state = 'failed', cutout_error = ?, updated_at = ? WHERE id = ?",
+                         (FAILED, t, job["item_id"]))
+            failures.report(conn, job["item_id"], "cutout", job["error"])
+        else:
+            conn.execute("UPDATE jobs SET state = 'queued', updated_at = ? WHERE id = ?", (t, job["id"]))
+            conn.execute("UPDATE items SET cutout_state = 'pending', updated_at = ? WHERE id = ?", (t, job["item_id"]))
+    conn.execute("COMMIT")
+    return len(stale)
 
 
 def pending_count(conn) -> int:
@@ -76,8 +93,7 @@ def run_one(conn, images_dir: Path, cutter: Cutter, tag: bool = True) -> bool:
         else:
             conn.execute("UPDATE jobs SET state = 'failed', error = ?, updated_at = ? WHERE id = ?", (failures.kept(conn, str(e)), t, job["id"]))
             conn.execute("UPDATE items SET cutout_state = 'failed', cutout_error = ?, updated_at = ? WHERE id = ?",
-                         ("The background could not be removed from this photo. You can try again, or retake it "
-                          "against a plainer background.", t, job["item_id"]))
+                         (FAILED, t, job["item_id"]))
             failures.report(conn, job["item_id"], "cutout", str(e))
         return True
     t = db.now()
@@ -138,6 +154,7 @@ class Worker:
             return done
         conn = db.connect(path)
         try:
+            recover(conn)
             while not self._stop.is_set() and self.is_ready() and run_one(conn, self.cfg.images_dir(profile), self.cutter,
                                                                           tag=profile != "demo"):
                 done += 1

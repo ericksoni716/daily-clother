@@ -14,13 +14,13 @@ from typing import get_args
 
 from . import kinds, vocab
 from .drawing.item import BOTTOMS, SHOES, TOPS
-from .tagger.schema import Color, Details, Feature, ItemTags, Pattern, Silhouette
+from .tagger.schema import PHOTO_FIELDS, Color, Details, Feature, ItemTags, Pattern, Silhouette
 from .tagger.taxonomy import kinds_for
 
 FEATURES: tuple[str, ...] = get_args(Feature)
 # lists (features, the tagger's own words, a trouser's pockets and wear) are shown, not picked one by one
 LISTS = ("features", "other_features", "trouser_pockets", "back_details", "denim_fades", "distressing")
-DETAILS: tuple[str, ...] = tuple(n for n in Details.model_fields if n not in LISTS)
+DETAILS: tuple[str, ...] = tuple(n for n in Details.model_fields if n not in LISTS + PHOTO_FIELDS)
 PICKABLE: tuple[str, ...] = DETAILS + FEATURES
 MAX_BUTTONS = 10
 # details that are a count: the most each can be

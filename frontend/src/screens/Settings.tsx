@@ -56,9 +56,10 @@ export function SettingsScreen({ version }: { version: string }) {
   }, []);
 
   useEffect(() => {
+    if (offline) return;
     void load();
     void refreshModel();
-  }, [load, refreshModel]);
+  }, [load, refreshModel, offline]);
 
   return (
     <div className="settings">

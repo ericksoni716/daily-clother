@@ -116,4 +116,57 @@ describe('SaveLine', () => {
     expect([await a, await b, await c]).toEqual(['A', 'B', 'C']);
     expect(sent).toEqual(['a', 'b', 'c']);
   });
+
+  it('handles a flushed save failing before an earlier request finishes', async () => {
+    const line = new SaveLine();
+    const first = held();
+    const a = line.add(() => first.promise);
+    await Promise.resolve();
+    const b = line.add(() => Promise.reject(new Error('offline')));
+    const rejected = expect(b).rejects.toThrow('offline');
+    line.flush();
+    // Give unhandled rejections a turn to surface while the first save is still pending.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    first.release('A');
+    expect(await a).toBe('A');
+    await rejected;
+  });
+
+  it('commits dirty fields on internal navigation without force-starting queued saves', async () => {
+    const line = new SaveLine();
+    const first = held();
+    const sent: string[] = [];
+    const a = line.add(() => (sent.push('a'), first.promise));
+    await Promise.resolve();
+    let b!: Promise<string>;
+    cleanups.push(whenLeaving(() => { b = line.add(async () => (sent.push('b'), 'B')); }));
+    cleanups.push(whenLeaving(() => line.flush(), true));
+    flushSaves(false);
+    expect(sent).toEqual(['a']);
+    first.release('A');
+    expect(await a).toBe('A');
+    expect(await b).toBe('B');
+    expect(sent).toEqual(['a', 'b']);
+  });
+
+  it('keeps queued saves protected if their screen unmounts before the page closes', async () => {
+    const line = new SaveLine();
+    const first = held();
+    const sent: string[] = [];
+    const stop = whenLeaving(() => line.flush(), true);
+    const a = line.add(() => (sent.push('a'), first.promise));
+    const b = line.add(async () => (sent.push('b'), 'B'));
+    await Promise.resolve();
+    flushSaves(false);
+    stop();
+    flushSaves();
+    expect(sent).toEqual(['a', 'b']);
+    first.release('A');
+    expect(await a).toBe('A');
+    expect(await b).toBe('B');
+    await Promise.resolve();
+    const flush = vi.spyOn(line, 'flush');
+    flushSaves();
+    expect(flush).not.toHaveBeenCalled();
+  });
 });

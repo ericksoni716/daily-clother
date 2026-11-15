@@ -81,8 +81,7 @@ SHOES = [
     ("dress shoe", ("dress_shoes", "oxford", "#b5622f", {"toe_cap": "stitched"}),
      [Drawn("new", "dress-shoe.svg", None, front=32, back=32, instep=30, hinge=32)]),
     ("boat shoe", ("dress_shoes", "loafer", "#73523f", {}),
-     [Drawn("as saved", "boat-shoe.svg", None, front=34, back=34, instep=32, hinge=34),
-      Drawn("lower and narrower", "boat-shoe.svg", None, front=34, back=34, instep=32, hinge=34, size=(0.92, 0.78))]),
+     [Drawn("new", "boat-shoe.svg", None, front=79.3, back=79.3, instep=77.3, hinge=79.3)]),
 ]
 CASES = [("shorts and a crew sock", "shorts"), ("full-length trousers", "full"), ("ankle-length trousers", "ankle")]
 

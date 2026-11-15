@@ -73,8 +73,11 @@ Instead of tracing or measuring a shoe, a vision model (Claude) does what a pers
     for their front to just meet an ordinary sneaker's collar (the frame's y = 50), so under a lower shoe the sock
     shows. The figure's own length (5 cm above the ground) would bury a low shoe drawn at this size.
   - *The boat shoe* was drawn too large (owner): too high for a low-profile shoe, and its proportions looked off
-    once turned out. The sheets show it as saved and 78% as tall and 92% as wide; only the lower one shows the sock
-    under full-length trousers, as a boat shoe should.
+    once turned out. Shown as saved and 78% as tall and 92% as wide, only the lower one showed the sock under
+    full-length trousers, as a boat shoe should. The owner chose the lower one, and `EXAMPLES/boat-shoe.svg` is now
+    that drawing (its coordinates resized, its line widths kept), so the model is not shown a boat shoe too large.
+  - *The owner's verdicts:* the alignment is better, toes turned out is fine, the perspective is fine, the
+    proportions are much better than today's, the hem looks right, use the lower boat shoe.
 
 **Still open:** the runner's toe rubber was corrected from a one-line note in one round and is with the owner to judge. The method has only been
 tuned and judged on these five pairs, so it must next be run unchanged on pairs it has not seen. The drawings are
@@ -92,7 +95,7 @@ down, toes out 11°) and not yet placed on the app's figure. The rest is in the 
 | `render3.js` | The same for `ARCH.md` and `CORRECT.md`: takes `OUT.left.svg`, and `OUT.right.svg` when there is one instead of mirroring. |
 | `on_figure.py` | Lays the saved examples on the app's As worn figure in place of today's shoes and writes a close-up sheet and a phone-size sheet: `python bench/experiments/shoe_drawn/on_figure.py` (writes to `bench/out/shoe_drawn/`; PNGs need Chrome or Chromium). |
 | `EXAMPLES/trainer-full.svg` | The trainer drawn by the orchestrating session from the owner's photos in about ten minutes (four flat colours), with its legs. A worked example. |
-| `EXAMPLES/dress-shoe.svg`, `EXAMPLES/boat-shoe.svg` | Round 1's dress shoe and boat shoe, which the owner liked. Worked examples. |
+| `EXAMPLES/dress-shoe.svg`, `EXAMPLES/boat-shoe.svg` | Round 1's dress shoe and boat shoe, which the owner liked. Worked examples. The boat shoe was made 78% as tall and 92% as wide on 15 November, after the owner saw it too large on the figure. |
 
 The briefs also mention `EXAMPLES/*.png`, renders of the three examples; they are not kept here. Make them again with
 `node render.js EXAMPLES/dress-shoe.svg EXAMPLES/dress-shoe.png` (and the same for the boat shoe); the trainer's file

@@ -32,6 +32,9 @@ ANKLE_CM = 13.0        # the wearer's ankle: where it is drawn up to above the s
 ANKLE_OVER_CM = 3.0    # ... and above the top of a boot's shaft
 ANKLE_U = 0.22         # its middle, as a share of the length from the heel
 ANKLE_HALF_CM, ANKLE_DEPTH_CM = 3.4, 3.8   # half its width, and half its depth from front to back
+INSTEP_U = 0.47        # the instep, at the front of a low shoe's opening (or where a boot's shaft meets its vamp)
+COLLAR_RIM = 0.82      # a low shoe's opening is this share of the upper's width at the collar ...
+SHAFT_RIM = 0.9        # ... and a boot's this share of its shaft's
 BEHIND_CM = 20.0       # how far above a low shoe's collar the ankle is still in front of the collar's back
 
 # per style: half width at the ball, sole thickness, how the upper's top rises from the toe (share of the length
@@ -42,6 +45,13 @@ _DRESS = [(0.0, 6.2), (0.12, 6.6), (0.3, 5.6), (0.46, 6.6), (0.56, 6.1), (0.7, 4
 _SLIP = [(0.0, 6.2), (0.12, 6.6), (0.3, 5.8), (0.46, 6.6), (0.56, 6.2), (0.7, 5.2), (0.85, 4.1), (0.95, 2.9), (1.0, 1.0)]
 _BOOT = [(0.0, 7.6), (0.12, 7.8), (0.3, 7.6), (0.46, 8.6), (0.56, 7.6), (0.7, 6.0), (0.85, 4.6), (0.95, 3.2), (1.0, 1.1)]
 TRAINERS = ("low_sneaker", "runner")
+LOW_COLLARED = ("slip_on", "loafer", "derby", "oxford")   # low shoes whose collar is rounded off like a trainer's
+# A low collar's narrow inner shoulder (less than LIP_ROOM px-widths from the hull's side to past the rim's side) tops
+# out LIP_SHOULDER of the way from its side to the front of the opening; either shoulder of a low collar rises no
+# more than LIP_RISE times as high as it is wide, so it rounds over rather than standing up in a point (#223)
+LIP_SHOULDER = 0.4
+LIP_RISE = 1.3
+LIP_ROOM = 1.5
 STYLES = {
     #               ball  sole  top     shaft
     "low_sneaker": (5.4, 2.9, _LOW, 0.0),
@@ -72,6 +82,7 @@ class FrontShoe:
     upper: str = ""       # the upper's outline, and where the leg shows through it (the opening, and above the
     seen: list[str] = field(default_factory=list)   # collar's back): for checking that nothing hides the leg
     rim: str = ""         # the opening's edge
+    width: float = 0.0    # how wide (cm) the solid is round its opening: a low shoe's collar, a boot's shaft (0: a sandal)
 
 
 def _interp(table, u: float) -> float:
@@ -141,13 +152,28 @@ def _collar_front(upper, rim, px, vamp_top=None):
     lc, rc = left[1] - 0.35 * px, right[1] - 0.35 * px
     ly, ry = (bottom[1] - lc) / 3, (bottom[1] - rc) / 3
     lx, rx = (bottom[0] - left[0] - px) / 3, (right[0] - px - bottom[0]) / 3
-    d = (f"M {start[0]:.1f},{cut:.1f} "
-         f"C {start[0]:.1f},{lc:.1f} {left[0]:.1f},{lc:.1f} {left[0] + px:.1f},{lc + ly:.1f} "
-         f"C {left[0] + 2 * px:.1f},{lc + 2 * ly:.1f} {bottom[0] - lx:.1f},{bottom[1]:.1f} "
-         f"{bottom[0]:.1f},{bottom[1]:.1f} "
-         f"C {bottom[0] + rx:.1f},{bottom[1]:.1f} {right[0] - 2 * px:.1f},{rc + 2 * ry:.1f} "
-         f"{right[0] - px:.1f},{rc + ry:.1f} "
-         f"C {right[0]:.1f},{rc:.1f} {end[0]:.1f},{rc:.1f} {end[0]:.1f},{cut:.1f} ")
+    left_d = (f"C {start[0]:.1f},{lc:.1f} {left[0]:.1f},{lc:.1f} {left[0] + px:.1f},{lc + ly:.1f} "
+              f"C {left[0] + 2 * px:.1f},{lc + 2 * ly:.1f} {bottom[0] - lx:.1f},{bottom[1]:.1f} ")
+    right_d = (f"C {bottom[0] + rx:.1f},{bottom[1]:.1f} {right[0] - 2 * px:.1f},{rc + 2 * ry:.1f} "
+               f"{right[0] - px:.1f},{rc + ry:.1f} "
+               f"C {right[0]:.1f},{rc:.1f} {end[0]:.1f},{rc:.1f} {end[0]:.1f},{cut:.1f} ")
+    k = 0.5523   # a cubic's handles for a quarter circle
+    if vamp_top is None and left[0] + px - start[0] < LIP_ROOM * px:
+        # A low shoe's narrow inner shoulder: a round arc up from the side to a top a little in from it, then an
+        # S level onto the bow, so what shows of it beside a bare ankle is a smooth hump, not a point
+        lt = start[0] + LIP_SHOULDER * (bottom[0] - start[0])
+        top = max(lc, cut - LIP_RISE * (lt - start[0]))
+        lm = (lt + bottom[0]) / 2
+        left_d = (f"C {start[0]:.1f},{cut - k * (cut - top):.1f} {lt - k * (lt - start[0]):.1f},{top:.1f} {lt:.1f},{top:.1f} "
+                  f"C {lm:.1f},{top:.1f} {lm:.1f},{bottom[1]:.1f} ")
+    if vamp_top is None:
+        # Its outer shoulder: an S from the bow up to the rim's side, past the ankle, then round down to the side
+        rt = right[0]
+        top = max(rc, cut - LIP_RISE * (end[0] - rt))
+        rm = (bottom[0] + rt) / 2
+        right_d = (f"C {rm:.1f},{bottom[1]:.1f} {rm:.1f},{top:.1f} {rt:.1f},{top:.1f} "
+                   f"C {rt + k * (end[0] - rt):.1f},{top:.1f} {end[0]:.1f},{cut - k * (cut - top):.1f} {end[0]:.1f},{cut:.1f} ")
+    d = f"M {start[0]:.1f},{cut:.1f} " + left_d + f"{bottom[0]:.1f},{bottom[1]:.1f} " + right_d
     # Walk the untouched lower hull from the right shoulder back to the left.
     i = lower.index(end)
     lower = lower[i:] + lower[:i]
@@ -345,7 +371,7 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
                     upper_pts.append(view(ax + arx * math.cos(a), au + aru * math.sin(a) / LENGTH, h))
         upper_d = _path(_hull(upper_pts))
         collar_seen = None
-        if ankle is not None and style in (*TRAINERS, "boot"):
+        if ankle is not None and style in (*TRAINERS, *LOW_COLLARED, "boot"):
             ring = [view(*q) for q in _collar_ring(hw, inset, table, sole_t, shaft)]
             vamp_top = min(y for _, y in vamp_pts) if shaft else None
             upper_d, collar_seen = _collar_front(_hull(upper_pts), ring, px, vamp_top)
@@ -384,12 +410,21 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         else:
             out += _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill, traced=tr is not None)
         outline_pts = sole_pts + upper_pts
+        # where a trouser hem meets it: the front and the back of the opening (a low shoe's collar, the top of a
+        # boot's shaft), the instep in front of it, and how wide the solid is round the opening
+        ring = _collar_ring(hw, inset, table, sole_t, shaft)
+        rim_pts = [view(*q) for q in ring]
+        opening = {"opening": max(rim_pts, key=lambda q: q[1]), "opening_back": min(rim_pts, key=lambda q: q[1]),
+                   "instep": view(0.0, INSTEP_U, sole_t + _interp(table, INSTEP_U))}
+        width = 2 * max(abs(x) for x, _, _ in ring) / (SHAFT_RIM if shaft else COLLAR_RIM)
     hull = _hull(outline_pts)
     xs, ys = [x for x, _ in hull], [y for _, y in hull]
     anchors = {"ball": (0.0, view(0.0, BALL, 0.0)[1]), "toe": view(0.0, 1.0, 0.0), "heel": view(0.0, 0.0, 0.0),
                "ground": (0.0, 0.0), "top": (0.0, view(0.0, 0.2, top)[1]), **_ankle_anchors(view, sole_t + ANKLE_CM)}
+    if style != "sandal":
+        anchors.update(opening)
     shoe = FrontShoe(_path(hull), (min(xs) - 2, min(ys) - 2, max(xs) + 2, max(ys) + 2), anchors, "".join(out), defs,
-                     ankle is not None)
+                     ankle is not None, width=width if style != "sandal" else 0.0)
     if style == "sandal" and ankle is not None:
         shoe.foot, shoe.toes = foot_d, toe_lines
     elif style != "sandal":
@@ -432,7 +467,7 @@ def _below(ankle: str, d: str, y: float, uid: str) -> tuple[str, str]:
 def _collar_ring(hw, inset, table, sole_t, shaft):
     """The opening's edge."""
     if shaft:
-        rx, ru = 4.7 * 0.9, 5.2 * 0.9
+        rx, ru = 4.7 * SHAFT_RIM, 5.2 * SHAFT_RIM
         ring = [(rx * math.cos(2 * math.pi * k / 32), 0.2 + ru * math.sin(2 * math.pi * k / 32) / LENGTH,
                  shaft) for k in range(32)]
     else:
@@ -440,7 +475,7 @@ def _collar_ring(hw, inset, table, sole_t, shaft):
         for k in range(32):
             a = 2 * math.pi * k / 32
             u = 0.27 + 0.2 * math.sin(a)                     # from just inside the heel to the throat
-            x = hw(u) * inset * 0.82 * math.cos(a)
+            x = hw(u) * inset * COLLAR_RIM * math.cos(a)
             h = sole_t + _interp(table, 0.04) - 0.5 + (0.6 if math.sin(a) > 0 else 0) * math.sin(a)
             ring.append((x, u, h))
     return ring

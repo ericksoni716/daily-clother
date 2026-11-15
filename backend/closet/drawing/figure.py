@@ -47,15 +47,19 @@ shape=)`); the item drawings themselves do not change:
   inside its neck opening, and the under sleeves where its own sleeves are
   shorter. Three layers nest the same way.
 - Trousers (`_fit_bottom`): scaled across to his waist (BOTTOM_SX), the waist on
-  his waist, the crotch at his crotch and a full-length hem resting on the shoe
-  BREAK_CM above the ground, dipping DIP_CM over the instep (the break);
-  shorter legs fall in proportion (an ankle length shows the ankle). Each leg
-  is narrowed or widened about its middle by its shape (LEG_EASE): a slim leg
+  his waist, the crotch at his crotch, and the hem placed on the shoe in 3D
+  (`_hem`): a leg whose opening is narrower than the shoe round its opening
+  rests on top of it (just in front of a low shoe's opening, or on top of a
+  boot's shaft, bunching out to cover it), by its break; a wider one
+  (OVER_SHOE) drops over it, but its front is held up behind the vamp; an
+  ankle length stops above the shoe, the ankle or sock showing. With no shoe a
+  full-length hem rests BREAK_CM above the ground, dipping DIP_CM. Each leg is
+  narrowed or widened about its middle by its shape (LEG_EASE): a slim leg
   tapers to the hem, a straight one falls straight, a wide one stays wide.
 - The shoes stand on the ground as a pair, seen from the front (`frontshoe`),
   toes forward and a little out, each ankle centred under its trouser leg (the
-  viewer's right one mirrored); a full-length hem covers the top of the shoe
-  and nothing of it shows beside the leg.
+  viewer's right one mirrored); a hem dropping over the shoe hides what is
+  under it, and nothing of the shoe shows beside the leg above the hem.
 - Accessories (`pieces["accessories"]`, a list) go by the point each template is
   drawn about, at K_PX: a belt is worn round the trousers' waistband, and the
   first top is then worn tucked in (its body cut off at the belt, its sleeves
@@ -225,6 +229,18 @@ BREAK_CM = 5.0                # a full-length trouser hem rests this far above t
 DIP_CM = 2.0                  # the break: a full-length hem falls this much lower over the instep than at its sides
 TOE_CM = 7.0                  # seen a little from above, the toes stand forward of the legs: lower on the page by this
 RISE_CM, INSEAM_CM = 27.0, 81.0   # the trousers template's regular front rise and full inseam
+# where a full-length hem meets the shoe (`_hem`), from the two as solids: a leg whose opening (flat) is at least
+# this many times as wide as the shoe round its opening (a low shoe's collar, a boot's shaft) drops over it; a
+# narrower one rests on top of it: relaxed, bootcut and wide legs go over a low shoe, only bootcut and wide over a boot
+OVER_SHOE = 2.35
+# how far the hem's front edge comes down past the shoe's opening (or a wide leg's past the instep), by the break:
+# no break ends at the opening, a slight break just touches the shoe, a full one rests on it with a fold
+HEM_FRONT_CM = {"none": 0.3, "slight": 0.8, "full": 1.3, "stacked": 1.3}
+STACK = {"none": "slight", "slight": "full", "full": "stacked"}   # a leg resting on top of a boot's shaft bunches there
+ARCH_CM = 3.0                 # a leg dropping over the shoe: its sides fall up to this much lower than its front
+CROP_GAP_CM = 3.0             # a cropped hem stops at least this far above the back of the shoe's opening
+REST_DIP_CM = 1.2             # resting on the shoe, a hem's front is this much lower than its sides (its opening's tilt)
+BUNCH_EASE_CM, BUNCH_CM = 0.5, 7.0   # a leg resting on a boot's shaft is this much wider than it, over this much above its hem
 MARGIN = 18.0                 # the same space on every side of the figure
 
 NECK_Y = 82.0                 # the base of the neck, in the figure
@@ -405,17 +421,16 @@ def plan(pieces: Mapping[str, Piece | None] | None) -> Layout:
     """Where each piece goes: the figure's geometry, without drawing it."""
     out = Layout()
     pieces = pieces if isinstance(pieces, Mapping) else {}
+    shoes = _placed("shoes", pieces.get("shoes"))   # first: the trousers' hem is put on them
     for place in PLACES:
         if place == "shoes":
             continue
-        made = _placed(place, pieces.get(place))
+        made = _placed(place, pieces.get(place), shoes)
         if made is not None:
             out.pieces.append(made)
-    made = _placed("shoes", pieces.get("shoes"))
-    if made is not None:
+    if shoes is not None:
         try:
-            made = _stand(made, out)
-            out.pieces.append(made)
+            out.pieces.append(_stand(shoes, out))
         except Exception:
             log.exception("placing the shoes for an outfit failed")
     if any(p.place in TOP_PLACES or p.place == "bottom" for p in out.pieces):
@@ -488,22 +503,23 @@ def _shape(spec: Spec) -> Shape:
     return build(spec.template, params)
 
 
-def _placed(place: str, piece) -> Placed | None:
+def _placed(place: str, piece, shoes: Placed | None = None) -> Placed | None:
     """The piece placed in the figure; the plainest drawing of its category if its own cannot be drawn;
-    None if it is not something this place shows, or nothing can be drawn."""
+    None if it is not something this place shows, or nothing can be drawn. Trousers are put on `shoes`."""
     if not isinstance(piece, Piece) or piece.category not in PLACE_CATEGORIES[place]:
         return None
     for make in (_spec, _plainest):
         try:
             spec = make(piece)
             if spec.template == PLACE_TEMPLATE[place]:
-                return _place(place, spec, piece.category, piece.traced if make is _spec else None)
+                return _place(place, spec, piece.category, piece.traced if make is _spec else None,
+                              shoes.front if shoes is not None else None)
         except Exception:
             log.exception("drawing a %s for an outfit failed", piece.category)
     return None
 
 
-def _place(place: str, spec: Spec, category: str | None = None, traced=None) -> Placed:
+def _place(place: str, spec: Spec, category: str | None = None, traced=None, shoe: FrontShoe | None = None) -> Placed:
     if spec.template == "top":
         spec.params.pop("state", None)
         opened = False
@@ -515,11 +531,13 @@ def _place(place: str, spec: Spec, category: str | None = None, traced=None) -> 
         shape, sx = _fit_top(spec, _shape(spec), place, category)
         _draw(spec, "line", "probe", dy=0.0, shape=shape)   # fails here, not halfway through the figure
         return Placed(place, spec, shape, [IDENTITY], K_PX, opened, scale=sx)
-    shape = _shape(spec)
     if spec.template == "pants":
-        shape = _fit_bottom(shape, spec.params.get("leg", "straight"))
+        if _on_shoe(spec.params, shoe) == "on":   # its length bunches on top of a boot's shaft
+            spec.params["break"] = STACK.get(spec.params.get("break", "none"), "stacked")
+        shape = _fit_bottom(_shape(spec), spec.params.get("leg", "straight"), spec.params, shoe)
         _draw(spec, "line", "probe", dy=0.0, shape=shape)
         return Placed(place, spec, shape, [IDENTITY], K_PX, scale=BOTTOM_SX)
+    shape = _shape(spec)
     _draw(spec, "line", "probe", dy=0.0)
     # the shoes: the item's drawing is a side view; the figure draws the same shoe from the front (frontshoe), and
     # `_stand` puts the pair under the legs once the trousers are placed. The side view's sole colour is kept.
@@ -791,13 +809,18 @@ def _torso_half(cm: float) -> float:
                     max(CHEST_CM, min(HIP_CM + 1.0, cm)))
 
 
-def _fit_bottom(shape: Shape, leg: str = "straight") -> Shape:
+def _fit_bottom(shape: Shape, leg: str = "straight", params: Mapping | None = None, shoe: FrontShoe | None = None) -> Shape:
     """The trousers fitted to the wearer: scaled across about the middle, the waist on his waist, the crotch at his
-    crotch, and a full-length hem resting on the shoe (BREAK_CM above the ground); shorter legs fall in proportion.
-    Below the crotch each leg is scaled across about its own middle by its shape (LEG_EASE)."""
+    crotch, and the hem where `_hem` puts it on the shoe (a full-length hem with no shoe BREAK_CM above the ground,
+    dipping DIP_CM over the instep); shorter legs fall in proportion. Below the crotch each leg is scaled across
+    about its own middle by its shape (LEG_EASE)."""
     wx, wy = shape.anchors["waist"]
     table = [(wy, WAIST_Y), (wy + RISE_CM * PX_CM, CROTCH_Y), (wy + (RISE_CM + INSEAM_CM) * PX_CM, HEM_Y)]
     a = shape.anchors
+    fy = a.get("hem_out", a.get("hem", (CX, table[-1][0])))[1]
+    params = {**(params or {}), "leg": leg}
+    side, drop = _hem(params, shoe, _between(table, fy))
+    table[-1] = (fy, side)
     legs = []
     if all(k in a for k in ("leg_l", "leg_r", "hem_out", "hem_in")):
         half = abs(a["hem_out"][0] - a["hem_in"][0]) / 2
@@ -810,22 +833,83 @@ def _fit_bottom(shape: Shape, leg: str = "straight") -> Shape:
         out = min((x0 + (cy - y0) * (x1 - x0) / (y1 - y0) for (x0, y0), (x1, y1) in zip(flat, flat[1:] + flat[:1], strict=True)
                    if (y0 > cy) != (y1 > cy)), default=shape.body_box[0])
         c0, kt = (CX + out) / 2, (KNEE_CM - CROTCH_CM) / (GROUND_CM - BREAK_CM - CROTCH_CM)
+    ramp = max(8 * K_PX, 3 * abs(drop))   # the hem's front is moved this far up the leg, less and less
+    # the hem's front is lowest (or, dropping over the shoe, highest) in front of the shoe's opening, which is a
+    # little toward the toe of the ankle the leg is centred on
+    toward, reach = 0.0, 0.0
+    if shoe is not None and "opening" in shoe.anchors and drop:
+        toward = (shoe.anchors["opening"][0] - shoe.anchors["ankle"][0]) / HIP_SX
+        if drop > 0:   # resting on the shoe, the hem dips over all of its opening, however narrow the leg
+            reach = shoe.width / 2 * K_PX / HIP_SX
 
-    def fn(q):
-        x, y = q[0], _between(table, q[1])
+    def across(q) -> float:
+        x = q[0]
         if shaped and q[1] > cy:
             t = min(1.0, (q[1] - cy) / (hy - cy))
             f = 1 + (knee - 1) * t / kt if t < kt else knee + (hem - knee) * (t - kt) / (1 - kt)
             c = CX + math.copysign(abs(CX - c0) + (abs(CX - legs[0][0]) - abs(CX - c0)) * t, x - CX)
             least = min(abs(x - c), LEG_MIN_HALF_CM * K_PX / HIP_SX)
             x = c + math.copysign(max(abs(x - c) * f, least), x - c)
-        t = min(1.0, max(0.0, (y - HEM_Y + 8 * K_PX) / (8 * K_PX)))   # only near a full-length hem
-        for c, h in legs:
-            s = max(0.0, 1 - abs(x - c) / h) if h else 0.0
-            y += DIP_CM * K_PX * t * t * math.sin(math.pi / 2 * s)
+        return x
+    bunch = 1.0   # resting on top of a boot's shaft, the leg bunches out to cover it (BUNCH_EASE_CM)
+    if legs and _on_shoe(params, shoe) == "on":
+        now = abs(across(a["hem_out"]) - legs[0][0])
+        bunch = max(1.0, (shoe.width / 2 + BUNCH_EASE_CM) * K_PX / HIP_SX / (now or 1.0))
+
+    def fn(q):
+        x, y = across(q), _between(table, q[1])
+        t = min(1.0, max(0.0, (y - side + ramp) / ramp))   # only near the hem
+        if bunch > 1.0 and q[1] > cy:
+            c = legs[0][0] if x < CX else legs[1][0]
+            b = min(1.0, max(0.0, (y - side + BUNCH_CM * K_PX) / (BUNCH_CM * K_PX)))
+            x = c + (x - c) * (1 + (bunch - 1) * b * b * (3 - 2 * b))
+        for n, (c, h) in enumerate(legs):
+            s = max(0.0, 1 - abs(x - c - (toward if n == 0 else -toward)) / max(h, reach)) if h else 0.0
+            y += drop * t * t * math.sin(math.pi / 2 * s)
         t = min(1.0, max(0.0, (q[1] - wy) / (FLAT_HIP_CM * PX_CM)))
         return CX + (x - wx) * (BOTTOM_SX + (HIP_SX - BOTTOM_SX) * t), y
     return fitting.warp(shape, fn, radius=0.85, split=4.0 if legs else None)
+
+
+def _on_shoe(params: Mapping, shoe: FrontShoe | None) -> str | None:
+    """How a trouser leg meets the shoe, from the two as solids: "over" when its opening is wide enough to drop
+    over the shoe round the shoe's opening (OVER_SHOE), "on" when it is not and the shoe has a shaft (it rests on
+    top of the shaft, its length bunched there), "at" when it rests at a low shoe's opening; None when it does not
+    reach the shoe (cropped, shorts) or there is no shoe with an opening (bare feet, sandals)."""
+    if params.get("length", "full") != "full" or shoe is None or not shoe.width or "opening" not in shoe.anchors:
+        return None
+    if LEG_WIDTHS.get(params.get("leg", "straight"), LEG_WIDTHS["straight"])[1] >= OVER_SHOE * shoe.width:
+        return "over"
+    return "on" if shoe.anchors["opening"][1] < shoe.anchors["instep"][1] else "at"
+
+
+def _hem(params: Mapping, shoe: FrontShoe | None, natural: float) -> tuple[float, float]:
+    """Where the hem goes, in the figure: the height of its sides, and how much lower its front is (negative: higher,
+    the sides falling past it). `natural` is where its length puts its sides with no shoe to meet.
+    - A full-length leg narrower than the shoe round its opening rests on it: its front edge just in front of a low
+      shoe's opening, or on top of a boot's shaft, by its break (HEM_FRONT_CM), dipping REST_DIP_CM over it.
+    - A wider one drops over the shoe, but from the front covers no more than what is behind the vamp (the instep,
+      or a boot's shaft): its front is held up there and its sides fall up to ARCH_CM lower.
+    - A cropped (ankle) leg stops above the shoe, level, at least CROP_GAP_CM above the back of its opening.
+    Never lower than its length takes it."""
+    length = params.get("length", "full")
+    if length in ("short", "brief"):
+        return natural, 0.0
+    dip = DIP_CM * K_PX if length == "full" else 0.0
+    if shoe is None or not shoe.width or "opening" not in shoe.anchors:
+        return natural, dip
+    dy = _pair(0.0, 0.0, 0.0)[0][5]   # the shoe's own coordinates, down into the figure
+    rim, instep = shoe.anchors["opening"][1] + dy, shoe.anchors["instep"][1] + dy
+    how = _on_shoe(params, shoe)
+    if how is None:   # cropped: above the shoe, with the ankle (or a sock) between
+        return min(natural, shoe.anchors["opening_back"][1] + dy - CROP_GAP_CM * K_PX), 0.0
+    front = min((max(rim, instep) if how == "over" else rim) + HEM_FRONT_CM.get(params.get("break", "none"), 0.3) * K_PX,
+                natural + dip)
+    if how != "over":
+        return front - REST_DIP_CM * K_PX, REST_DIP_CM * K_PX
+    wider = LEG_WIDTHS.get(params.get("leg", "straight"), LEG_WIDTHS["straight"])[1] / shoe.width - OVER_SHOE
+    side = min(front + ARCH_CM * K_PX * min(1.0, 0.3 + wider), max(natural, front))
+    return side, front - side
 
 
 def _legs(layout: Layout) -> tuple[float, float, bool]:
@@ -842,10 +926,13 @@ def _legs(layout: Layout) -> tuple[float, float, bool]:
 
 
 def _inside_legs(layout: Layout) -> str:
-    """Under full-length trousers, where the shoes may be seen: below the hem, and above it only within the legs
-    (as rectangles for a clip path); empty otherwise."""
-    b = layout.get("bottom")
+    """Under full-length trousers that drop over the shoes, where the shoes may be seen: below the hem, and above it
+    only within the legs (as rectangles for a clip path); empty otherwise (a hem resting on the shoe hides nothing
+    beside it)."""
+    b, shoes = layout.get("bottom"), layout.get("shoes")
     if b is None or not _legs(layout)[2] or "hem_out" not in b.shape.anchors:
+        return ""
+    if shoes is not None and _on_shoe(b.spec.params, shoes.front) in ("on", "at"):   # resting on the shoe: all of it shows
         return ""
     (xo, hy), (xi, _) = b.point(b.shape.anchors["hem_out"]), b.point(b.shape.anchors["hem_in"])
     xo, xi = min(xo, xi), max(xo, xi)

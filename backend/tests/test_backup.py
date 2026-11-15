@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from closet import autostart, backup, cli, config, demo, instance, phone
+from closet import autostart, backup, cli, config, db, demo, instance, phone
 
 from .conftest import upload
 
@@ -115,6 +115,60 @@ def test_interrupted_image_refresh_preserves_the_previous_backup(client, service
     monkeypatch.setattr(backup.shutil, "copy2", interrupted_copy)
     assert not backup.run_backup(cfg, services.state, folder=folder)["ok"]
     assert saved.read_bytes() == previous
+
+
+@pytest.mark.parametrize("failure", ["database", "images", "migration", "install"])
+def test_failed_restore_leaves_the_live_closet_in_place(client, services, cfg, tmp_path, monkeypatch, failure):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    upload(client, name="Backed up")
+    assert backup.run_backup(cfg, services.state, folder=folder)["ok"]
+    upload(client, key="later", name="Not backed up")
+    services.stop()
+    images_before = {p.relative_to(cfg.images_dir("main")): p.read_bytes()
+                     for p in cfg.images_dir("main").rglob("*") if p.is_file()}
+    settings_before = cfg.state_path.read_bytes()
+
+    def fail(*args, **kwargs):
+        raise OSError("disk full")
+
+    with monkeypatch.context() as m:
+        if failure == "database":
+            m.setattr(backup.shutil, "copy2", fail)
+            m.setattr(db, "snapshot", fail)
+        elif failure == "images":
+            m.setattr(backup.shutil, "copytree", fail)
+        elif failure == "migration":
+            m.setattr(db, "migrate", fail)
+        else:
+            real_replace = Path.replace
+            real_copytree = backup.shutil.copytree
+
+            def fail_install(path, target):
+                if Path(target) == cfg.images_dir("main") and path.parent.name.startswith(".restore-"):
+                    raise OSError("disk full")
+                return real_replace(path, target)
+
+            def fail_copytree(src, dest, *args, **kwargs):
+                if Path(dest) == cfg.images_dir("main"):
+                    raise OSError("disk full")
+                return real_copytree(src, dest, *args, **kwargs)
+
+            m.setattr(Path, "replace", fail_install)
+            # The old implementation installs with copytree, not a rename.
+            m.setattr(backup.shutil, "copytree", fail_copytree)
+        with pytest.raises(OSError, match="disk full"):
+            backup.restore(cfg, folder)
+
+    assert cfg.db_path("main").is_file()
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        assert {r[0] for r in conn.execute("SELECT name FROM items")} == {"Backed up", "Not backed up"}
+    finally:
+        conn.close()
+    assert {p.relative_to(cfg.images_dir("main")): p.read_bytes()
+            for p in cfg.images_dir("main").rglob("*") if p.is_file()} == images_before
+    assert cfg.state_path.read_bytes() == settings_before
 
 
 def test_restore_command_refuses_an_empty_folder(cfg, tmp_path, capsys, monkeypatch):

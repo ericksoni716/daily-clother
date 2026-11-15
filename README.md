@@ -236,6 +236,21 @@ A photo that is already in your closet (the same file, even under another name,
 even if that item is archived) is not added again; its row says **Already in
 your closet**. A photo of an item you deleted can be added again.
 
+### Shoes
+
+Choose **A shoe** at the top of Add for the closest drawing of a shoe. Take one
+shoe on its own (not the pair), from the side with the toe to the left, filling
+the outline shown. Closet checks the photo straight away and says if it will not
+draw well, and why, so you can take it again (or add it anyway). You can then
+add a second photo, from the front or from above; it is kept for later.
+
+Closet draws the shoe from its photo a moment after it is added. If the photo
+does not work for that (it shows the pair, or the shoe from the front, say),
+the item page says so and the shoe keeps its plain drawing; **Retake** replaces
+the photo. In **Fix the details** you can change a colour of the drawing,
+remove or move a stripe or logo, **Re-trace** it, or **Use the plain drawing**.
+Your fixes stay when the shoe is drawn again.
+
 ### Several pieces in one photo
 
 To add a pile at once, lay the pieces out with a little space between them (on
@@ -577,7 +592,8 @@ in it; **Leave** takes you back to your own closet. Photo credits are in
 `backend/closet/demo_data/CREDITS.md`.
 What's missing uses fixed example life answers and seasons in the demo,
 unaffected by your own answers or place. Switch back to your own closet to
-save your answers.
+save your answers. The grey runners and the brown boots are drawn as a shoe
+photographed from the side is, so you can try **Fix the details** on them.
 
 ## For development
 

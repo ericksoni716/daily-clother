@@ -24,7 +24,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, failures, history, illustrations, palette, patjobs, spend
+from . import db, failures, history, illustrations, palette, patjobs, spend, tracejobs
 from .config import Config
 from .state import State
 from .tagger import routes as tagger_routes
@@ -253,6 +253,7 @@ def apply_answer(conn, item_id: str, tags: ItemTags, route: str, model: str | No
                 tag_route=route, tag_model=model, tagged_at=t, updated_at=t)
     conn.execute(f"UPDATE items SET {', '.join(f'{k} = ?' for k in sets)} WHERE id = ?", [*sets.values(), item_id])
     patjobs.mark(conn, item_id)           # a patterned item is measured from its photo next
+    tracejobs.answered(conn, item_id)     # a shoe is traced from its photo next, with Claude's word on the photo
     palette.settle(conn, item_id)         # until then, the colours measured before are laid over the new answer's
     illustrations.redraw(conn, item_id)   # the drawing follows the new answer (and the owner's own fields and details)
     history.record(conn, row, conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone(), "claude", "answer",
@@ -296,7 +297,7 @@ class Worker:
 
     def __init__(self, cfg: Config, state: State, routes: Routes, tagger: Tagger, idle: float = 60):
         self.cfg, self.state, self.routes, self.tagger, self.idle = cfg, state, routes, tagger, idle
-        self.on_described: Callable[[], None] = lambda: None   # an item was described (patterns are measured next)
+        self.on_described: Callable[[], None] = lambda: None   # an item was described (patterns are measured, shoes traced next)
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None

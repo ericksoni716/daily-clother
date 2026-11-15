@@ -13,6 +13,10 @@ again the first time it is asked for, so a template change never redraws a
 whole closet at start-up. Drawing never fails an item: what could not be drawn
 is kept, in plain words, for the item page.
 
+A shoe traced from its photo (`tracejobs`) is drawn from its trace instead, with the owner's fixes laid over it
+(`drawing.sideshoe`), unless the owner chose the plain drawing for it; a shoe not traced, or whose photo the
+tracing turned down, keeps the template drawing.
+
 The demo closet's drawings were made in advance by `tools/make_demo.py` (with
 fills taken from the photos) and carry the version they were made with, so they
 stay as they are until the owner changes a field they show.
@@ -26,8 +30,9 @@ from dataclasses import replace
 
 from . import details, drawing, kinds
 from .drawing import item as draw
-from .drawing import stored
+from .drawing import sideshoe, stored
 from .drawing.figure import PLACES, Piece, as_worn, figure
+from .drawing.traced import TracedShoe
 from .tagger.schema import SILHOUETTE_FIELDS, Details
 
 log = logging.getLogger("closet.illustrations")
@@ -142,9 +147,26 @@ def pattern_graphic(row):
     return stored.graphic_from(row["pattern_fill"])
 
 
+def traced(row) -> tuple[str, str | None] | None:
+    """The item's trace and the owner's fixes to it (JSON), when its drawing is the traced one: a shoe, traced,
+    and the owner has not chosen the plain drawing. None otherwise."""
+    keys = row.keys() if hasattr(row, "keys") else row
+    if "trace" not in keys or not row["trace"] or row["trace_state"] != "done" or row["trace_plain"]:
+        return None
+    if row["category"] not in draw.SHOES:
+        return None
+    return row["trace"], row["trace_fixes"]
+
+
 def make(row, extra: dict | None = None) -> draw.Drawing:
     """The drawing for an item row as it stands now (with `extra` details laid over it, for a preview). Never raises."""
     try:
+        shoe = traced(row)
+        if shoe is not None:
+            try:
+                return draw.Drawing(sideshoe.drawing(TracedShoe.from_json(shoe[0]), _json(shoe[1], None), uid=row["id"][:8]), ())
+            except Exception:   # a trace that cannot be read: the template drawing, as for a shoe not traced
+                log.exception("could not draw a traced shoe")
         piece = describe(row, extra)
         uid = row["id"][:8]
         fill = piece.fill

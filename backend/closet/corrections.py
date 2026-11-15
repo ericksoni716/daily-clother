@@ -19,7 +19,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, details, history, illustrations, items, kinds, palette, patjobs, tagjobs, vocab
+from . import db, details, history, illustrations, items, kinds, palette, patjobs, tagjobs, tracejobs, vocab
 from .tagger.correcting import CorrectionResult
 from .tagger.schema import NAMED_HEX, ItemTags
 from .tagger.tagging import CapReached, RouteUnavailable
@@ -180,6 +180,7 @@ def set_kind(conn, item_id: str, kind) -> dict:
         owner["garment"] = kind
         conn.execute("UPDATE items SET category = ?, own_details = ?, source = ?, confidence = ?, updated_at = ? WHERE id = ?",
                      (category, details.dump(owner), json.dumps(source), json.dumps(confidence), db.now(), item_id))
+        tracejobs.mark(conn, item_id, again=False)
         illustrations.redraw(conn, item_id)
         history.record(conn, before, items.get(conn, item_id), "owner", "detail")
         conn.execute("COMMIT")
@@ -386,6 +387,8 @@ def undo(conn, item_id: str, change_id: int) -> dict:
         conn.execute(f"UPDATE items SET {', '.join(f'{k} = ?' for k in sets)} WHERE id = ?", [*sets.values(), item_id])
         if not restore_pattern and ("pattern" in sets or "tag_answer" in sets):
             patjobs.mark(conn, item_id)
+        if "category" in sets:
+            tracejobs.mark(conn, item_id, again=False)
         palette.settle(conn, item_id)   # a colour given back to the tagger is the measured one, as after describing
         drawn = history.drawing_for(conn, items.get(conn, item_id))
         if drawn is not None:   # the item is as it was before some change: the drawing it had then (the demo's are made in advance)

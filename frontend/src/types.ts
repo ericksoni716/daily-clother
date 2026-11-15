@@ -54,6 +54,8 @@ export interface ItemSummary {
 export interface Photo {
   id: string;
   kind: string;
+  /** A shoe's second photo: taken from the front or from above (null for any other photo). */
+  view?: 'front' | 'top' | null;
   url: string | null;
   thumb_url: string | null;
   cutout_url: string | null;
@@ -127,6 +129,55 @@ export interface Item extends ItemSummary {
   recent_wears: string[];
   /** The photo of several pieces this item was cut from, and its box in it; null for a photo of its own. */
   source_photo?: { id: string; photo_url: string; box: BoxEdges | null } | null;
+  /** A shoe traced from its side-on photo; null for anything that is not a shoe. */
+  trace?: ShoeTrace | null;
+}
+
+/** A shoe's trace from its photo, and what "Fix the details" can change on the traced drawing. */
+export interface ShoeTrace {
+  /** null: not traced (yet); refused: the photo would not trace well; failed: it could not be traced. */
+  state: 'waiting' | 'working' | 'done' | 'refused' | 'failed' | null;
+  /** What is happening, or why it is drawn from its details, in plain words. */
+  message: string | null;
+  /** The item's drawing is the traced one. */
+  drawn: boolean;
+  /** The owner chose the plain drawing for this shoe. */
+  plain: boolean;
+  /** The owner has fixed something on the traced drawing. */
+  fixed: boolean;
+  parts: TracePart[];
+  marks: TraceMark[];
+}
+
+export interface TracePart {
+  name: string;
+  title: string;
+  /** The colour drawn: the owner's, else the traced one. */
+  color: string;
+  traced: string;
+  own: boolean;
+}
+
+export interface TraceMark {
+  index: number;
+  kind: string;
+  title: string;
+  color: string;
+  hidden: boolean;
+  /** cm towards the toe, cm up, from where it was traced */
+  moved: [number, number];
+}
+
+export type TraceFix =
+  | { part: string; color: string | null }
+  | { mark: number; hide: boolean }
+  | { mark: number; nudge: [number, number] }
+  | { reset: true };
+
+/** Add's instant check of a shoe photo: will it trace well, and if not, why (plain sentences). */
+export interface ShoeCheck {
+  ok: boolean;
+  reasons: string[];
 }
 
 export interface WornPart {

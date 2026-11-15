@@ -4,7 +4,8 @@ Jobs live in the database, so nothing is lost if the program is closed:
 unfinished work is picked up again on the next start. Uploads never wait for
 this queue, and jobs wait (without failing) until the model file is ready.
 Once a cutout is ready the item is queued for tagging (`tagjobs.py`), in the
-same table.
+same table. A shoe whose cutout is ready waits to be traced (`tracejobs.py`):
+this worker traces waiting shoes once no cutout is left to make.
 """
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, failures, images, tagjobs
+from . import db, failures, images, tagjobs, tracejobs
 from .config import Config
 from .state import State
 
@@ -107,6 +108,7 @@ def run_one(conn, images_dir: Path, cutter: Cutter, tag: bool = True) -> bool:
     conn.execute("UPDATE items SET cutout_state = 'ready', cutout_error = NULL, updated_at = ? WHERE id = ?", (t, job["item_id"]))
     if tag:
         tagjobs.enqueue(conn, job["item_id"])
+    tracejobs.mark(conn, job["item_id"])   # a shoe's new photo is traced again
     conn.execute("COMMIT")
     return True
 
@@ -115,8 +117,9 @@ class Worker:
     """One thread that drains the active closet's queue whenever the model is ready."""
 
     def __init__(self, cfg: Config, state: State, is_ready: Callable[[], bool], cutter: Cutter,
-                 on_done: Callable[[], None] = lambda: None):
+                 on_done: Callable[[], None] = lambda: None, tracer: tracejobs.Tracer | None = None):
         self.cfg, self.state, self.is_ready, self.cutter, self.on_done = cfg, state, is_ready, cutter, on_done
+        self.tracer = tracer   # None: shoes are not traced (tests that do not ask for it)
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -144,7 +147,8 @@ class Worker:
             self._wake.clear()
 
     def drain(self) -> int:
-        """Run queued jobs until none are left (or the model is not ready)."""
+        """Run queued jobs until none are left (or the model is not ready): the cutouts first, then the shoes
+        waiting to be traced, one at a time, so a new photo's cutout never waits for a trace."""
         done = 0
         if not self.is_ready():
             return done
@@ -155,9 +159,15 @@ class Worker:
         conn = db.connect(path)
         try:
             recover(conn)
-            while not self._stop.is_set() and self.is_ready() and run_one(conn, self.cfg.images_dir(profile), self.cutter,
-                                                                          tag=profile != "demo"):
-                done += 1
+            if self.tracer is not None:
+                tracejobs.recover(conn)
+                if profile != "demo":   # the demo's traces were made in advance, without photos to trace again
+                    tracejobs.stale(conn)
+            while not self._stop.is_set() and self.is_ready():
+                if run_one(conn, self.cfg.images_dir(profile), self.cutter, tag=profile != "demo"):
+                    done += 1
+                elif self.tracer is None or tracejobs.run_one(conn, self.cfg.images_dir(profile), self.tracer) == "empty":
+                    break
         finally:
             conn.close()
         if done:

@@ -111,6 +111,47 @@ def _path(pts, close=True) -> str:
     return "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in pts) + (" Z" if close else "")
 
 
+def _collar_front(upper, rim, px, vamp_top=None):
+    """Round the wall over the front of the opening, rather than leaving the
+    convex solid's rear crown sticking up beside the wearer's ankle."""
+    left, right = min(rim), max(rim)
+    bottom = max(rim, key=lambda p: p[1])
+    cut = bottom[1]
+    bottom = (bottom[0], bottom[1] - 0.4 * px)
+    if vamp_top is not None:
+        # A short shaft can sit below the instep on a thick sole. Its front
+        # cannot be cut down to the opening: the raised vamp is in front of it.
+        bottom = (bottom[0], min(bottom[1], vamp_top - 0.4 * px))
+    lower = []
+    for a, b in zip(upper, upper[1:] + upper[:1], strict=True):
+        if a[1] >= cut:
+            lower.append(a)
+        if (a[1] < cut) != (b[1] < cut):
+            t = (cut - a[1]) / (b[1] - a[1])
+            lower.append((a[0] + t * (b[0] - a[0]), cut))
+    ends = sorted(p for p in lower if abs(p[1] - cut) < 0.001)
+    start, end = ends[0], ends[-1]
+    # The collar is a rounded lip in section: rise up its outside, turn over,
+    # then follow the bowed front. Both shoulders meet the bow tangentially.
+    lc, rc = left[1] - 0.35 * px, right[1] - 0.35 * px
+    ly, ry = (bottom[1] - lc) / 3, (bottom[1] - rc) / 3
+    lx, rx = (bottom[0] - left[0] - px) / 3, (right[0] - px - bottom[0]) / 3
+    d = (f"M {start[0]:.1f},{cut:.1f} "
+         f"C {start[0]:.1f},{lc:.1f} {left[0]:.1f},{lc:.1f} {left[0] + px:.1f},{lc + ly:.1f} "
+         f"C {left[0] + 2 * px:.1f},{lc + 2 * ly:.1f} {bottom[0] - lx:.1f},{bottom[1]:.1f} "
+         f"{bottom[0]:.1f},{bottom[1]:.1f} "
+         f"C {bottom[0] + rx:.1f},{bottom[1]:.1f} {right[0] - 2 * px:.1f},{rc + 2 * ry:.1f} "
+         f"{right[0] - px:.1f},{rc + ry:.1f} "
+         f"C {right[0]:.1f},{rc:.1f} {end[0]:.1f},{rc:.1f} {end[0]:.1f},{cut:.1f} ")
+    # Walk the untouched lower hull from the right shoulder back to the left.
+    i = lower.index(end)
+    lower = lower[i:] + lower[:i]
+    if lower[1][0] < end[0] and lower[1][1] == cut:
+        lower = [lower[0]] + list(reversed(lower[1:]))
+    seen = d + f"L {end[0]:.1f},-4000 L {start[0]:.1f},-4000 Z"
+    return d + " ".join(f"L {x:.1f},{y:.1f}" for x, y in lower[1:]) + " Z", seen
+
+
 class _View:
     """Turns points on the shoe (x across, u from heel 0 to toe 1, h above the ground, in cm) into the drawing."""
 
@@ -244,11 +285,15 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         # the upper: a half ellipse across the foot at every step from heel to toe, up to the top line
         inset = 0.93 if style in ("loafer", "derby", "oxford") else 0.97
         upper_pts = []
+        vamp_pts = []
         for u in us:
             w, h = hw(u) * inset, _interp(table, u)
             for k in range(13):
                 a = math.pi * k / 12
-                upper_pts.append(view(w * math.cos(a), u, sole_t + h * math.sin(a)))
+                point = view(w * math.cos(a), u, sole_t + h * math.sin(a))
+                upper_pts.append(point)
+                if u >= ANKLE_U:
+                    vamp_pts.append(point)
         ax, au, arx, aru = 0.0, 0.2, 4.7, 5.2        # the ankle: a boot's shaft, the wearer's ankle
         if shaft:
             for h in (sole_t + 4.0, shaft):
@@ -256,6 +301,11 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
                     a = 2 * math.pi * k / 24
                     upper_pts.append(view(ax + arx * math.cos(a), au + aru * math.sin(a) / LENGTH, h))
         upper_d = _path(_hull(upper_pts))
+        collar_seen = None
+        if ankle is not None and style in (*TRAINERS, "boot"):
+            ring = _collar_ring(hw, inset, table, sole_t, shaft)
+            vamp_top = min(y for _, y in vamp_pts) if shaft else None
+            upper_d, collar_seen = _collar_front(_hull(upper_pts), [view(*q) for q in ring], px, vamp_top)
         out.append(fill(upper_d, base, w=2.4))
         defs += f'<clipPath id="{uid}u"><path d="{upper_d}"/></clipPath>'
         tex = _texture_defs(spec.texture, f"{uid}x", dark, TEXTURE_SCALE)   # the upper's grain, nap or weave ...
@@ -278,7 +328,7 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
                    for u in us if u >= 0.87 for k in range(13)]
             cap += [view(x, u, sole_t) for x, u, _ in contour(0, inset) if u >= 0.8]
             out.append(f'<g clip-path="url(#{uid}u)">' + fill(_path(_hull(cap)), sole_c, w=1.3) + "</g>")
-        out += _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg, ankle_path)
+        out += _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg, ankle_path, collar_seen)
         out += _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill)
         outline_pts = sole_pts + upper_pts
     hull = _hull(outline_pts)
@@ -324,11 +374,7 @@ def _below(ankle: str, d: str, y: float, uid: str) -> tuple[str, str]:
     return f'<g clip-path="url(#{uid}b)">{line}/></g><g clip-path="url(#{uid}c)">{fill}</g>', defs
 
 
-def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg, ankle_path=None):
-    """The way in: the collar of a low shoe, or the top of a boot's shaft, with the dark lining inside; and the
-    wearer's ankle standing in it when asked for, up to where the leg drawn above it takes over."""
-    out = []
-    lining = SHEARLING if p.get("lining") == "shearling" else _mix(base, LINING, 0.82)
+def _collar_ring(hw, inset, table, sole_t, shaft):
     if shaft:
         ring = [(4.7 * math.cos(2 * math.pi * k / 32) * 0.9, 0.2 + 5.2 * 0.9 * math.sin(2 * math.pi * k / 32) / LENGTH,
                  shaft) for k in range(32)]
@@ -340,16 +386,27 @@ def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid
             x = hw(u) * inset * 0.82 * math.cos(a)
             h = sole_t + _interp(table, 0.04) - 0.5 + (0.6 if math.sin(a) > 0 else 0) * math.sin(a)
             ring.append((x, u, h))
+    return ring
+
+
+def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg, ankle_path=None, collar_seen=None):
+    """The way in: the collar of a low shoe, or the top of a boot's shaft, with the dark lining inside; and the
+    wearer's ankle standing in it when asked for, up to where the leg drawn above it takes over."""
+    out = []
+    lining = SHEARLING if p.get("lining") == "shearling" else _mix(base, LINING, 0.82)
+    ring = _collar_ring(hw, inset, table, sole_t, shaft)
     rim = [view(*q) for q in ring]
     rim_d = _path(rim)
     # where the ankle is seen: in the opening, and above the back half of the collar, which is behind it (the
     # heel counter's top, seen from above, stands up behind the ankle; only the collar's sides, curving round
     # it, are in front of it)
-    seen_d = _path(_hull(rim + [view(x, u, h + BEHIND_CM) for x, u, h in ring if u <= (0.2 if shaft else 0.27)]))
+    seen_d = collar_seen or _path(_hull(rim + [view(x, u, h + BEHIND_CM) for x, u, h in ring if u <= (0.2 if shaft else 0.27)]))
     if p.get("lining") == "shearling":   # the fleece turned over the collar, a soft cream rim round the opening
         out.append(f'<path d="{rim_d}" fill="none" stroke="{INK}" stroke-width="5.4" stroke-linejoin="round"/>'
                    f'<path d="{rim_d}" fill="none" stroke="{SHEARLING}" stroke-width="3.6" stroke-linejoin="round"/>')
     out.append(f'<path d="{rim_d}" fill="{lining}" stroke="{INK}" stroke-width="1.4" stroke-linejoin="round"/>')
+    if collar_seen is not None:
+        out = [f'<g clip-path="url(#{uid}u)">{"".join(out)}</g>']
     if ankle is not None:
         pts = _column(view, sole_t + 2.0, leg)
         # it shows inside the opening and above the shoe, never over the shoe's front

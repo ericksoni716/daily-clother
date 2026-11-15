@@ -20,7 +20,8 @@ const WORN: Record<string, Record<string, string>> = {
     oversized: 'oversized fit',
   },
   length: {
-    waist: 'waist length', hip: 'hip length', below_hip: 'below the hip', thigh: 'thigh length', knee: 'knee length',
+    waist: 'waist length', hip: 'hip length', below_hip: 'below the hip', thigh: 'thigh length',
+    above_knee: 'just above the knee', knee: 'knee length',
     full: 'full length', ankle: 'ankle length', short: 'above the knee', brief: 'short shorts',
   },
   sleeve: {

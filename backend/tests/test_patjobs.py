@@ -84,6 +84,53 @@ def test_a_plain_item_is_never_measured(make, cfg):
     assert row(cfg, item["id"])["pattern_state"] is None
 
 
+@pytest.mark.parametrize("legacy_history", [False, True])
+def test_undo_pattern_restores_or_requeues_measurement(make, cfg, legacy_history):
+    sv, client = make(Measurer())
+    item = described(sv, client)
+    url = f"/api/items/{item['id']}"
+    assert client.patch(url, json={"pattern": "stripe"}).status_code == 200
+    assert sv.pattern_worker.drain() == 1
+    assert client.patch(url, json={"pattern": "solid"}).status_code == 200
+    change_id = client.get(url + "/history").json()[0]["id"]
+    if legacy_history:
+        conn = db.connect(cfg.db_path("main"))
+        try:
+            drawing = json.loads(conn.execute("SELECT drawing FROM changes WHERE id = ?", (change_id,)).fetchone()[0])
+            drawing.pop("pattern", None)
+            conn.execute("UPDATE changes SET drawing = ? WHERE id = ?", (json.dumps(drawing), change_id))
+        finally:
+            conn.close()
+
+    assert client.post(f"{url}/history/{change_id}/undo").status_code == 200
+    kept = row(cfg, item["id"])
+    assert kept["pattern"] == "stripe"
+    assert kept["pattern_fill"] or kept["pattern_state"] == "waiting"
+    sv.pattern_worker.drain()
+    assert client.put(url + "/details", json={"details": {"placket_buttons": 2}}).status_code == 200
+    assert row(cfg, item["id"])["pattern_fill"]
+    assert "#1b2a49" in client.get(url).json()["illustration_svg"]
+
+
+def test_undo_name_keeps_measurement_completed_since_edit(make, cfg):
+    sv, client = make(Measurer())
+    item = described(sv, client)
+    url = f"/api/items/{item['id']}"
+    # Keep measurement from also changing the colour inputs to the drawing.
+    assert client.patch(url, json={"color": "navy", "color_hex": "#1b2a49", "pattern": "stripe"}).status_code == 200
+    assert client.patch(url, json={"name": "Renamed polo"}).status_code == 200
+    change_id = client.get(url + "/history").json()[0]["id"]
+    unmeasured = client.get(url).json()["illustration_svg"]
+    assert sv.pattern_worker.drain() == 1
+    measured = client.get(url).json()["illustration_svg"]
+    assert measured != unmeasured
+
+    response = client.post(f"{url}/history/{change_id}/undo")
+    assert response.status_code == 200
+    assert response.json()["item"]["illustration_svg"] == measured
+    assert row(cfg, item["id"])["pattern_fill"]
+
+
 def test_a_patterned_item_is_measured_kept_and_drawn(make, cfg):
     m, lm = Measurer(), Landmarker()
     sv, c = make(m, lm)

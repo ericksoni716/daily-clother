@@ -132,6 +132,7 @@ def remove_many(conn, item_ids: object, worn_on: object, also: Also | None = Non
     """Remove the wear on one day from every item, all or nothing (undoing an outfit worn together).
 
     An item with no wear that day is left as it is. Returns {worn_on, removed, items}.
+    When called inside an outfit's transaction, that caller commits or rolls back the whole change.
     """
     ids = _ids(item_ids)
     if not isinstance(worn_on, str):
@@ -140,8 +141,10 @@ def remove_many(conn, item_ids: object, worn_on: object, also: Also | None = Non
     for item_id in ids:
         items.get(conn, item_id)
     removed = []
+    own_transaction = not conn.in_transaction
     try:
-        conn.execute("BEGIN IMMEDIATE")
+        if own_transaction:
+            conn.execute("BEGIN IMMEDIATE")
         t = db.now()
         for item_id in ids:
             row = items.get(conn, item_id)  # read under the write lock: a wash may have just been recorded
@@ -155,9 +158,10 @@ def remove_many(conn, item_ids: object, worn_on: object, also: Also | None = Non
             removed.append(item_id)
         if also:
             also(day, removed, t)
-        conn.execute("COMMIT")
+        if own_transaction:
+            conn.execute("COMMIT")
     except Exception:
-        if conn.in_transaction:
+        if own_transaction and conn.in_transaction:
             conn.execute("ROLLBACK")
         raise
     return {"worn_on": day, "removed": removed, "items": [items.detail(conn, items.get(conn, i)) for i in ids]}

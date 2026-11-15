@@ -1,4 +1,5 @@
 """Worn outfits: recorded with the wears or by hand, rated, listed, removed, and what Today does with them."""
+import sqlite3
 from datetime import date, timedelta
 
 import pytest
@@ -114,6 +115,52 @@ def test_removing_outfits_that_share_pieces_leaves_the_wear_log_right_in_any_ord
     assert all(client.get(f"/api/items/{i}").json()["wear_count"] == 1 for i in left)
     assert client.delete(f"/api/outfits/worn/{second}").status_code == 204
     assert all(client.get(f"/api/items/{i}").json()["wear_count"] == 0 for i in all_ids(ids))
+
+
+@pytest.mark.parametrize("action", ["remove", "undo"])
+def test_overlapping_outfit_removals_do_not_leave_shared_wears_behind(client, cfg, action):
+    ids = small(client)
+    first = client.post("/api/outfits/worn", json={"item_ids": [ids["tee"], ids["jeans"]]}).json()
+    second = client.post("/api/outfits/worn", json={"item_ids": [ids["jacket"], ids["jeans"], ids["shoes"]]}).json()
+    conn = db.connect(cfg.db_path("main"))
+    other = db.connect(cfg.db_path("main"))
+    interleaved = []
+
+    def before_lock(sql):
+        if sql == "BEGIN IMMEDIATE" and not interleaved:
+            interleaved.append(True)
+            worn.remove(other, first["id"])
+
+    try:
+        conn.set_trace_callback(before_lock)
+        if action == "remove":
+            worn.remove(conn, second["id"])
+        else:
+            worn.undo(conn, [], TODAY.isoformat(), second["id"])
+        assert interleaved
+        assert conn.execute("SELECT COUNT(*) FROM worn_outfits").fetchone()[0] == 0
+        assert conn.execute("SELECT COUNT(*) FROM wears").fetchone()[0] == 0
+        assert all(r[0] == 0 for r in conn.execute("SELECT wears_since_wash FROM items"))
+    finally:
+        conn.close()
+        other.close()
+
+
+def test_failed_outfit_removal_rolls_back_its_wears(client, cfg):
+    ids = small(client)
+    outfit = client.post("/api/outfits/worn", json={"item_ids": [ids["tee"], ids["jeans"]]}).json()
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        conn.execute("CREATE TEMP TRIGGER refuse_removal BEFORE DELETE ON worn_outfits "
+                     "BEGIN SELECT RAISE(ABORT, 'test removal failed'); END")
+        with pytest.raises(sqlite3.IntegrityError, match="test removal failed"):
+            worn.remove(conn, outfit["id"])
+        assert not conn.in_transaction
+        assert worn.get(conn, outfit["id"])["pieces"] == outfit["pieces"]
+        assert conn.execute("SELECT COUNT(*) FROM wears").fetchone()[0] == 2
+        assert conn.execute("SELECT SUM(wears_since_wash) FROM items").fetchone()[0] == 2
+    finally:
+        conn.close()
 
 
 def test_long_sentences_are_shortened_not_refused(client):

@@ -181,6 +181,113 @@ test('today on a phone: swipe to another outfit, open a piece, and come back to 
   expect(overflow).toBeLessThanOrEqual(0);
 });
 
+
+test('today refreshes suggestions when a piece is put in the laundry', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const asked = await fakeWeather(page);
+  await openToday(page);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  const [id] = await pieceIds(page);
+  const before = asked.length;
+
+  try {
+    await current(page).getByTestId('piece').first().click();
+    await page.getByRole('button', { name: 'Put in the laundry' }).click();
+    await expect(page.getByTestId('laundry-state')).toHaveText(/^In the laundry/);
+    await page.getByRole('link', { name: 'Today', exact: true }).first().click();
+    await expect(current(page).getByTestId('piece').first()).toBeVisible();
+    await expect(page.locator(`.today-track a[data-testid="piece"][href$="/${id}"]`)).toHaveCount(0);
+    expect(asked.length).toBeGreaterThan(before);
+  } finally {
+    await page.request.post(`/api/items/${id}/laundry`, { data: { state: 'clean' } });
+  }
+});
+
+
+test('today reports an offline error even when the item list cannot load', async ({ browser }) => {
+  const context = await browser.newContext({ baseURL: process.env.E2E_BASE_URL, serviceWorkers: 'block' });
+  const page = await context.newPage();
+  try {
+    await login(page);
+    await page.evaluate(() => localStorage.removeItem('closet-today-saved:outfits:main'));
+    await page.route('**/api/items?*', (route) => route.abort());
+    await page.route('**/api/outfits/today', (route) => route.abort());
+    await page.goto('/today');
+    await expect(page.getByText("You're offline, and no outfits were saved on this device today.", { exact: false })).toBeVisible();
+    await expect(page.locator('.today-loading')).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
+});
+
+
+test('today kept open overnight does not undo yesterday when wearing another outfit', async ({ page }) => {
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  await page.clock.setFixedTime(yesterday);
+  const asked = await fakeWeather(page);
+  await openToday(page);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('closet-today-saved:outfits:demo')!));
+  const outfit = saved.answer.outfits[0];
+  const ids = await pieceIds(page);
+  const recorded = await (await page.request.post('/api/wears', {
+    data: { item_ids: ids, worn_on: saved.day, outfit: { pieces: outfit.pieces } },
+  })).json();
+  let nextId: string | undefined;
+  try {
+    await page.evaluate(({ saved, outfit, ids, recorded }) => {
+      localStorage.setItem('closet-today-saved:worn:demo', JSON.stringify({
+        day: saved.day, worn_on: recorded.worn_on, ids, recorded: recorded.recorded, outfit, outfit_id: recorded.outfit.id,
+      }));
+    }, { saved, outfit, ids, recorded });
+    await page.reload();
+    await expect(page.getByText(/^You're wearing this today/).first()).toBeVisible();
+
+    await page.clock.setFixedTime(now);
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await expect(page.getByText(/^You're wearing this today/)).toHaveCount(0);
+    await page.getByRole('group', { name: 'Occasion' }).getByRole('button', { name: 'Business' }).click();
+    await expect.poll(() => asked.at(-1)?.occasion).toBe('business');
+    await expect.poll(() => pieceIds(page)).not.toEqual(ids);
+    const wearing = page.waitForResponse((r) => r.url().endsWith('/api/wears') && r.request().method() === 'POST');
+    await current(page).getByRole('button', { name: /I'm wearing this|Wear this instead/ }).click();
+    nextId = (await (await wearing).json()).outfit.id;
+    const history = await (await page.request.get('/api/outfits/worn')).json();
+    expect(history.outfits.map((o: { id: string }) => o.id)).toContain(recorded.outfit.id);
+  } finally {
+    if (nextId) await page.request.delete(`/api/outfits/worn/${nextId}`);
+    await page.request.delete(`/api/outfits/worn/${recorded.outfit.id}`);
+  }
+});
+
+
+test('a wear response arriving after midnight keeps the day it was started', async ({ page }) => {
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  await page.clock.setFixedTime(yesterday);
+  await fakeWeather(page);
+  await openToday(page);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  const day = await page.evaluate(() => JSON.parse(localStorage.getItem('closet-today-saved:outfits:demo')!).day);
+  let outfitId: string | undefined;
+  await page.route('**/api/wears', async (route) => {
+    const response = await route.fetch({ postData: { ...route.request().postDataJSON(), worn_on: day } });
+    outfitId = (await response.json()).outfit.id;
+    await page.clock.setFixedTime(now);
+    await route.fulfill({ response });
+  });
+  try {
+    await current(page).getByRole('button', { name: "I'm wearing this" }).click();
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('closet-today-saved:worn:demo') ?? 'null')?.day)).toBe(day);
+  } finally {
+    if (outfitId) await page.request.delete(`/api/outfits/worn/${outfitId}`);
+  }
+});
+
+
 test('today when the forecast cannot be fetched: an outfit for a mild day, a notice, and typed temperatures behind it', async ({ page }) => {
   // no faked weather: the test backend never reaches the weather service, so the forecast for New York fails
   await openToday(page);

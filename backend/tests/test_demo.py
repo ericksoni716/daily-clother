@@ -23,7 +23,7 @@ def rows(cfg, sql, *args):
 
 def test_the_demo_shows_what_the_app_can_do():
     items = data()["items"]
-    assert 38 <= len(items) <= 45 and len({i["id"] for i in items}) == len(items)
+    assert 38 <= len(items) <= 55 and len({i["id"] for i in items}) == len(items)
     assert sum(1 for i in items if i.get("photo")) == 7   # the open-licence photos; the rest are drawings
     garments = {i["answer"]["details"].get("garment") for i in items}
     assert {"fleece_pullover", "parka", "joggers", "lounge_pants"} <= garments

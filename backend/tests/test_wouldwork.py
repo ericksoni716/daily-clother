@@ -195,6 +195,32 @@ def check_lived(lived, piece):
     return wouldwork.check(items, wears, piece, before, answers, home)
 
 
+def test_exercise_situation_requires_suitable_partner_clothes():
+    items = [{"id": str(i), "name": f"Piece {i}", "category": category, "color": "navy", "formality": "casual"}
+             for i, category in enumerate(["tee"] * 4 + ["jeans"] * 2 + ["sneakers"] * 2)]
+    answers = {**life.DEMO_LIFE, "situations": {key: 4 if key == "exercise" else 0 for key in life.SITUATIONS}}
+    piece = {"category": "tee", "color": "black"}
+    answer = wouldwork.check(items, [], piece, answers=answers, climate={})
+    assert answer["situations"] == []
+    items[4].update(category="shorts")
+    answer = wouldwork.check(items, [], piece, answers=answers, climate={})
+    assert answer["situations"] == [{"id": "exercise", "label": "Exercise"}]
+
+
+def test_lounging_situation_needs_indoor_partners_not_shoes():
+    items = [{"id": str(i), "name": f"Piece {i}", "category": category, "color": "navy", "formality": "casual",
+              "material": "soft jersey"}
+             for i, category in enumerate(["tee"] * 2 + ["trousers"] * 6)]
+    answers = {**life.DEMO_LIFE, "situations": {key: 4 if key == "lounging" else 0 for key in life.SITUATIONS}}
+    piece = {"category": "tee", "color": "grey"}
+    answer = wouldwork.check(items, [], piece, answers=answers, climate={})
+    assert answer["situations"] == [{"id": "lounging", "label": "Lounging at home"}]
+    for row in items[2:]:
+        row.update(category="jeans")
+    answer = wouldwork.check(items, [], piece, answers=answers, climate={})
+    assert answer["situations"] == []
+
+
 def test_a_piece_filling_a_gap_high_on_the_weighed_list_fills_it_and_says_for_whom(lived):
     a = check_lived(lived, {"category": "dress_shoes", "color": "black", "formality": "business"})
     assert a["weighed"] and a["verdict"] == "fills_gap"

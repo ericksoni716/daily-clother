@@ -32,6 +32,7 @@ ANKLE_CM = 13.0        # the wearer's ankle: where it is drawn up to above the s
 ANKLE_OVER_CM = 3.0    # ... and above the top of a boot's shaft
 ANKLE_U = 0.22         # its middle, as a share of the length from the heel
 ANKLE_HALF_CM, ANKLE_DEPTH_CM = 3.4, 3.8   # half its width, and half its depth from front to back
+BEHIND_CM = 20.0       # how far above a low shoe's collar the ankle is still in front of the collar's back
 
 # per style: half width at the ball, sole thickness, how the upper's top rises from the toe (share of the length
 # from the heel, height above the sole in cm), and how high the collar of a boot or high top stands (cm above the
@@ -328,17 +329,22 @@ def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid
     out = []
     lining = SHEARLING if p.get("lining") == "shearling" else _mix(base, LINING, 0.82)
     if shaft:
-        rim = [view(4.7 * math.cos(2 * math.pi * k / 32) * 0.9, 0.2 + 5.2 * 0.9 * math.sin(2 * math.pi * k / 32) / LENGTH,
-                    shaft) for k in range(32)]
+        ring = [(4.7 * math.cos(2 * math.pi * k / 32) * 0.9, 0.2 + 5.2 * 0.9 * math.sin(2 * math.pi * k / 32) / LENGTH,
+                 shaft) for k in range(32)]
     else:
-        rim = []
+        ring = []
         for k in range(32):
             a = 2 * math.pi * k / 32
             u = 0.27 + 0.2 * math.sin(a)                     # from just inside the heel to the throat
             x = hw(u) * inset * 0.82 * math.cos(a)
             h = sole_t + _interp(table, 0.04) - 0.5 + (0.6 if math.sin(a) > 0 else 0) * math.sin(a)
-            rim.append(view(x, u, h))
+            ring.append((x, u, h))
+    rim = [view(*q) for q in ring]
     rim_d = _path(rim)
+    # where the ankle is seen: in the opening, and above the back half of the collar, which is behind it (the
+    # heel counter's top, seen from above, stands up behind the ankle; only the collar's sides, curving round
+    # it, are in front of it)
+    seen_d = rim_d if shaft else _path(_hull(rim + [view(x, u, h + BEHIND_CM) for x, u, h in ring if u <= 0.27]))
     if p.get("lining") == "shearling":   # the fleece turned over the collar, a soft cream rim round the opening
         out.append(f'<path d="{rim_d}" fill="none" stroke="{INK}" stroke-width="5.4" stroke-linejoin="round"/>'
                    f'<path d="{rim_d}" fill="none" stroke="{SHEARLING}" stroke-width="3.6" stroke-linejoin="round"/>')
@@ -348,7 +354,7 @@ def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid
         # it shows inside the opening and above the shoe, never over the shoe's front
         far = 4000
         skin, below = _below(ankle, _path(_hull(pts)), view(0.0, ANKLE_U + ANKLE_DEPTH_CM / LENGTH, leg)[1] + 1.5, uid)
-        out.append(f'<clipPath id="{uid}a"><path d="{rim_d}"/>'
+        out.append(f'<clipPath id="{uid}a"><path d="{seen_d}"/>'
                    f'<path clip-rule="evenodd" d="M {-far},{-far} L {far},{-far} L {far},{far} L {-far},{far} Z {upper_d}"/>'
                    f'</clipPath>{below}')
         out.append(f'<g clip-path="url(#{uid}a)">{skin}</g>')

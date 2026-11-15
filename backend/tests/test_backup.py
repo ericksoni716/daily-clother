@@ -1,7 +1,10 @@
 import json
 import time
+from pathlib import Path
 
-from closet import autostart, backup, cli, config, demo, instance, phone
+import pytest
+
+from closet import autostart, backup, cli, config, db, demo, instance, phone
 
 from .conftest import upload
 
@@ -12,6 +15,17 @@ def test_backup_then_restore_brings_everything_back(client, services, cfg, tmp_p
     services.worker.is_ready = lambda: True
     item = upload(client, name="Keeper").json()
     services.worker.drain()
+    url = f"/api/items/{item['id']}"
+    assert client.patch(url, json={"category": "polo", "price_cents": 1234, "notes": "Résumé 衣服"}).status_code == 200
+    assert client.post(url + "/wears").status_code == 201
+    assert client.put(url + "/details", json={"details": {"placket_buttons": 2}}).status_code == 200
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        saved_database = list(conn.iterdump())
+    finally:
+        conn.close()
+    saved_images = {p.relative_to(cfg.images_dir("main")): p.read_bytes()
+                    for p in cfg.images_dir("main").rglob("*") if p.is_file()}
     assert client.put("/api/settings", json={"backup_folder": str(folder)}).json()["backup_folder"] == str(folder)
     result = client.post("/api/backup").json()
     assert result["ok"] and result["images_copied"] == 4
@@ -19,12 +33,21 @@ def test_backup_then_restore_brings_everything_back(client, services, cfg, tmp_p
     root = folder / backup.SUBFOLDER
     assert json.loads((root / "manifest.json").read_text())["last_backup"] == result["at"]
     assert "passphrase" not in "".join(p.name for p in root.rglob("*")) and not list(root.rglob("settings.json"))
+    saved_settings = cfg.state_path.read_bytes()
 
     client.delete(f"/api/items/{item['id']}")
     upload(client, key="later", name="Added after the backup")
     services.stop()
     restored = backup.restore(cfg, folder)
     assert restored["items"] == 1 and restored["previous_moved_to"]
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        assert list(conn.iterdump()) == saved_database
+    finally:
+        conn.close()
+    assert {p.relative_to(cfg.images_dir("main")): p.read_bytes()
+            for p in cfg.images_dir("main").rglob("*") if p.is_file()} == saved_images
+    assert cfg.state_path.read_bytes() == saved_settings
     names = [i["name"] for i in client.get("/api/items").json()["items"]]
     assert names == ["Keeper"]
     body = client.get(f"/api/items/{item['id']}").json()
@@ -69,6 +92,137 @@ def test_only_the_newest_snapshots_are_kept(services, cfg, tmp_path, client, mon
     assert len(snaps) == backup.KEEP_SNAPSHOTS and snaps[0].name == "closet-20260104-010101.sqlite"
 
 
+@pytest.mark.parametrize("same_second", [False, True])
+def test_failed_image_copy_does_not_publish_a_snapshot(client, services, cfg, tmp_path, monkeypatch, same_second):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    monkeypatch.setattr(backup, "_stamp", lambda: "20260101-010101")
+    upload(client, name="Keeper")
+    good = backup.run_backup(cfg, services.state, folder=folder)
+    root = folder / backup.SUBFOLDER
+    previous = (root / "db" / good["snapshot"]).read_bytes()
+    manifest = (root / "manifest.json").read_bytes()
+    upload(client, key="later")
+    if not same_second:
+        monkeypatch.setattr(backup, "_stamp", lambda: "20260102-010101")
+
+    def interrupted_copy(src, dest, *args, **kwargs):
+        Path(dest).write_bytes(b"partial")
+        raise OSError("disk full")
+
+    monkeypatch.setattr(backup.shutil, "copy2", interrupted_copy)
+    failed = backup.run_backup(cfg, services.state, folder=folder)
+    assert not failed["ok"]
+    assert sorted(p.name for p in (root / "db").glob("closet-*.sqlite")) == [good["snapshot"]]
+    assert (root / "db" / good["snapshot"]).read_bytes() == previous
+    assert (root / "manifest.json").read_bytes() == manifest
+
+
+def test_interrupted_image_refresh_preserves_the_previous_backup(client, services, cfg, tmp_path, monkeypatch):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    item = upload(client).json()
+    assert backup.run_backup(cfg, services.state, folder=folder)["ok"]
+    rel = item["photos"][0]["url"].removeprefix("/media/")
+    saved = folder / backup.SUBFOLDER / "images" / rel
+    previous = saved.read_bytes()
+    (cfg.images_dir("main") / rel).write_bytes(previous + b"changed")
+
+    def interrupted_copy(src, dest, *args, **kwargs):
+        Path(dest).write_bytes(b"partial")
+        raise OSError("disk full")
+
+    monkeypatch.setattr(backup.shutil, "copy2", interrupted_copy)
+    assert not backup.run_backup(cfg, services.state, folder=folder)["ok"]
+    assert saved.read_bytes() == previous
+
+
+def test_item_deleted_during_backup_cannot_produce_a_successful_incomplete_snapshot(
+        client, services, cfg, tmp_path, monkeypatch):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    item = upload(client).json()
+    snapshot = db.snapshot
+
+    def snapshot_then_delete(src, dest):
+        snapshot(src, dest)
+        assert client.delete(f"/api/items/{item['id']}").status_code == 204
+
+    monkeypatch.setattr(db, "snapshot", snapshot_then_delete)
+    result = backup.run_backup(cfg, services.state, folder=folder)
+    assert not result["ok"]
+    assert not list((folder / backup.SUBFOLDER / "db").glob("closet-*.sqlite"))
+
+
+def test_restore_refuses_missing_images_without_changing_the_live_closet(client, services, cfg, tmp_path):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    item = upload(client).json()
+    assert backup.run_backup(cfg, services.state, folder=folder)["ok"]
+    rel = item["photos"][0]["url"].removeprefix("/media/")
+    (folder / backup.SUBFOLDER / "images" / rel).unlink()
+    upload(client, key="later", name="Not backed up")
+    services.stop()
+    with pytest.raises(backup.BackupError, match="image"):
+        backup.restore(cfg, folder)
+    assert len(client.get("/api/items").json()["items"]) == 2
+    assert (cfg.images_dir("main") / rel).is_file()
+
+
+@pytest.mark.parametrize("failure", ["database", "images", "migration", "install"])
+def test_failed_restore_leaves_the_live_closet_in_place(client, services, cfg, tmp_path, monkeypatch, failure):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    upload(client, name="Backed up")
+    assert backup.run_backup(cfg, services.state, folder=folder)["ok"]
+    upload(client, key="later", name="Not backed up")
+    services.stop()
+    images_before = {p.relative_to(cfg.images_dir("main")): p.read_bytes()
+                     for p in cfg.images_dir("main").rglob("*") if p.is_file()}
+    settings_before = cfg.state_path.read_bytes()
+
+    def fail(*args, **kwargs):
+        raise OSError("disk full")
+
+    with monkeypatch.context() as m:
+        if failure == "database":
+            m.setattr(backup.shutil, "copy2", fail)
+            m.setattr(db, "snapshot", fail)
+        elif failure == "images":
+            m.setattr(backup.shutil, "copytree", fail)
+        elif failure == "migration":
+            m.setattr(db, "migrate", fail)
+        else:
+            real_replace = Path.replace
+            real_copytree = backup.shutil.copytree
+
+            def fail_install(path, target):
+                if Path(target) == cfg.images_dir("main") and path.parent.name.startswith(".restore-"):
+                    raise OSError("disk full")
+                return real_replace(path, target)
+
+            def fail_copytree(src, dest, *args, **kwargs):
+                if Path(dest) == cfg.images_dir("main"):
+                    raise OSError("disk full")
+                return real_copytree(src, dest, *args, **kwargs)
+
+            m.setattr(Path, "replace", fail_install)
+            # The old implementation installs with copytree, not a rename.
+            m.setattr(backup.shutil, "copytree", fail_copytree)
+        with pytest.raises(OSError, match="disk full"):
+            backup.restore(cfg, folder)
+
+    assert cfg.db_path("main").is_file()
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        assert {r[0] for r in conn.execute("SELECT name FROM items")} == {"Backed up", "Not backed up"}
+    finally:
+        conn.close()
+    assert {p.relative_to(cfg.images_dir("main")): p.read_bytes()
+            for p in cfg.images_dir("main").rglob("*") if p.is_file()} == images_before
+    assert cfg.state_path.read_bytes() == settings_before
+
+
 def test_restore_command_refuses_an_empty_folder(cfg, tmp_path, capsys, monkeypatch):
     monkeypatch.setenv("CLOSET_DATA_DIR", str(cfg.data_dir))
     (tmp_path / "empty").mkdir()
@@ -80,7 +234,7 @@ def test_demo_closet_has_about_forty_items_and_leaves_the_real_one_alone(client,
     upload(client, name="Mine")
     assert client.post("/api/profile", json={"profile": "demo"}).json() == {"profile": "demo"}
     listed = client.get("/api/items").json()["items"]
-    assert len(listed) == 43 and all(i["name"] != "Mine" for i in listed)
+    assert len(listed) == 49 and all(i["name"] != "Mine" for i in listed)
     with_photo = [i for i in listed if i["has_photo"]]
     assert len(with_photo) == 7 and all(i["cutout_state"] == "ready" and i["thumb_url"] for i in with_photo)
     assert all(i["has_illustration"] for i in listed)
@@ -210,7 +364,7 @@ def test_selfcheck_reports_each_library(cfg):
     assert result["webp"]["ok"] and result["onnxruntime"]["ok"] and result["database"]["ok"]
     assert result["model_state"] == {"ok": True, "detail": "missing"}
     assert result["tagger"]["ok"]
-    assert "43 items" in result["database"]["detail"]
+    assert "49 items" in result["database"]["detail"]
     assert result["drawing"]["ok"] and "drew a shirt" in result["drawing"]["detail"]
 
 

@@ -37,6 +37,31 @@ def test_saving_a_key_needs_login(anon):
     assert anon.delete("/api/settings/api-key").status_code == 401
 
 
+@pytest.mark.parametrize("body", [
+    {"key": [KEY]},
+    {"key": {"nested": KEY}},
+    {"wrong_field": KEY},
+    {"key": KEY, KEY: OTHER},
+    [KEY],
+])
+def test_invalid_key_requests_do_not_echo_inputs(client, keychain, body, caplog):
+    response = client.put("/api/settings/api-key", json=body)
+    assert response.status_code == 422
+    assert KEY not in response.text + caplog.text
+    assert OTHER not in response.text + caplog.text
+    assert isinstance(response.json()["detail"], str)
+    assert keychain.key is None
+
+
+def test_malformed_key_json_does_not_echo_inputs(client, keychain, caplog):
+    response = client.put("/api/settings/api-key", content=json.dumps({"key": KEY})[:-1],
+                          headers={"content-type": "application/json"})
+    assert response.status_code == 422
+    assert isinstance(response.json()["detail"], str)
+    assert KEY not in response.text + caplog.text
+    assert keychain.key is None
+
+
 def test_a_key_is_checked_kept_in_the_keychain_and_never_sent_back(client, keychain, accepted, caplog, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     before = client.get("/api/settings").json()["api_key"]

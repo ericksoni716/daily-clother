@@ -19,7 +19,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, details, history, illustrations, items, kinds, palette, tagjobs, vocab
+from . import db, details, history, illustrations, items, kinds, palette, patjobs, tagjobs, vocab
 from .tagger.correcting import CorrectionResult
 from .tagger.schema import NAMED_HEX, ItemTags
 from .tagger.tagging import CapReached, RouteUnavailable
@@ -122,7 +122,8 @@ def _split(row, changes: dict, fields_allowed: bool) -> tuple[dict, dict]:
     return coarse, picked
 
 
-def apply(conn, item_id: str, changes: dict, kind: str = "detail", sentence: str | None = None) -> dict:
+def apply(conn, item_id: str, changes: dict, kind: str = "detail", sentence: str | None = None,
+          expected: dict | None = None) -> dict:
     """Set details (a value of None gives the detail back to Claude's answer) and, for a correction by sentence,
     the item's fields; draw the item again and keep the whole change as one entry in its history."""
     if not isinstance(changes, dict) or not changes:
@@ -130,6 +131,10 @@ def apply(conn, item_id: str, changes: dict, kind: str = "detail", sentence: str
     conn.execute("BEGIN IMMEDIATE")
     try:
         before = items.get(conn, item_id)
+        if expected:
+            now = _description(before)
+            if any(now.get(name, _UNSET) != was for name, was in expected.items()):
+                raise items.ItemError(CHANGED, 409)
         coarse, picked = _split(before, changes, kind == "sentence")
         if coarse:
             items.update(conn, item_id, coarse, record=False)
@@ -292,11 +297,7 @@ def confirm(conn, item_id: str, sentence, changes) -> dict:
         if "before" in c:
             _plain_value(c["name"], c["before"])
             before[c["name"]] = c["before"]
-    if before:
-        now = _description(items.get(conn, item_id))
-        if any(now.get(name, _UNSET) != was for name, was in before.items()):
-            raise items.ItemError(CHANGED, 409)
-    return apply(conn, item_id, picked, kind="sentence", sentence=text)
+    return apply(conn, item_id, picked, kind="sentence", sentence=text, expected=before)
 
 
 # --------------------------------------------------------------- undoing
@@ -373,9 +374,18 @@ def undo(conn, item_id: str, change_id: int) -> dict:
         if "tag_answer" in sets:   # an answer put back: what the undone one gave to other fields since goes with it
             fields = list(history.DESCRIBED)
         _given_back(row, sets, source, confidence, fields)
+        saved_pattern = illustrations._json(entry["drawing"], {}).get("pattern")
+        restore_pattern = (("pattern" in sets or "tag_answer" in sets) and isinstance(saved_pattern, dict)
+                           and all(saved_pattern.get(field) == sets.get(field, row[field]) for field in ("pattern", "tag_answer")))
+        if restore_pattern:
+            sets.update({field: saved_pattern.get(field) for field in history.PATTERN})
+            if sets["pattern_state"] == "working":
+                sets["pattern_state"] = "waiting"
         sets.update(source=json.dumps(source), confidence=json.dumps(confidence), own_details=details.dump(owner),
                     updated_at=db.now())
         conn.execute(f"UPDATE items SET {', '.join(f'{k} = ?' for k in sets)} WHERE id = ?", [*sets.values(), item_id])
+        if not restore_pattern and ("pattern" in sets or "tag_answer" in sets):
+            patjobs.mark(conn, item_id)
         palette.settle(conn, item_id)   # a colour given back to the tagger is the measured one, as after describing
         drawn = history.drawing_for(conn, items.get(conn, item_id))
         if drawn is not None:   # the item is as it was before some change: the drawing it had then (the demo's are made in advance)

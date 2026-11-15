@@ -249,6 +249,40 @@ def test_an_unreadable_answer_is_said_in_plain_words(client, fake, monkeypatch):
     assert body["weather"] is None and "could not read" in body["message"]
 
 
+@pytest.mark.parametrize("field,value", [
+    ("temperature_2m_min", float("nan")), ("temperature_2m_max", float("inf")),
+    ("temperature_2m_min", 15),  # above the high
+    ("precipitation_probability_max", float("nan")), ("precipitation_probability_max", float("inf")),
+    ("precipitation_probability_max", -1), ("precipitation_probability_max", 101),
+    ("utc_offset_seconds", float("inf")), ("utc_offset_seconds", 10**100),
+])
+@pytest.mark.parametrize("cached", [False, True])
+def test_invalid_forecast_numbers_use_the_offline_fallback(client, fake, monkeypatch, field, value, cached):
+    first = client.get("/api/weather").json()["weather"] if cached else None
+    fake.clock["now"] += 2 * 3600
+    fetch = weather.fetch
+
+    def invalid(url):
+        data = json.loads(fetch(url))
+        if field == "utc_offset_seconds":
+            data[field] = value
+        else:
+            data["daily"][field] = [value]
+        return json.dumps(data).encode()
+
+    monkeypatch.setattr(weather, "fetch", invalid)
+    response = client.get("/api/weather")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["weather"] == first and body["old"] is cached
+    assert "could not read" in body["message"]
+    response = client.post("/api/outfits/today", json={})
+    assert response.status_code == 200
+    context = response.json()["context"]
+    assert context["source"] == ("forecast" if cached else "mild")
+    assert (context["low_c"], context["high_c"]) == ((3.2, 9.8) if cached else (14, 20))
+
+
 # ---------------------------------------------------------------------- today's outfits
 def make_item(client, key, **fields):
     created = upload(client, key=key).json()

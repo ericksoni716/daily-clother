@@ -245,7 +245,7 @@ def _problems(outfit: dict, cand: outfits.Piece, by_id: Mapping[str, outfits.Pie
 
 def _try_day(engine_items: list[dict], by_id: Mapping[str, outfits.Piece], p: outfits.Piece, d: gaps.Day) -> dict:
     """The engine, built around one piece, on one kind of day of the gap analysis."""
-    ctx = outfits.Context(d.low_c, d.high_c, d.rain, d.occasion, build_around=p.id)
+    ctx = outfits.Context(d.low_c, d.high_c, d.rain, d.occasion, mood=d.mood, build_around=p.id)
     t = outfits._design_temp(ctx)
     found = outfits.suggest(engine_items, ctx, 1)["outfits"]
     best = found[0] if found else None
@@ -543,13 +543,24 @@ def _light_base() -> outfits.Piece:
     return p
 
 
-def _serves(row: dict, tried: list[dict], answers: Mapping, climate: Mapping) -> list[dict]:
+def _serves(row: dict, c: gaps._Closet, answers: Mapping, climate: Mapping) -> list[dict]:
     """The owner's situations the piece serves: those it may be worn for (`life.eligible`) with at least one of
     their days on which it makes a good outfit, in the questionnaire's order."""
-    good = {_grid_key(r["day"].as_dict()) for r in tried if r["good"]}
-    return [{"id": key, "label": spec.label} for key, spec in life.SITUATIONS.items()
-            if life.eligible(row, key) and any(_grid_key(d.as_dict()) in good
-                                               for d in life.days_for(key, dict(answers), dict(climate)))]
+    served = []
+    for key, spec in life.SITUATIONS.items():
+        days = life.days_for(key, dict(answers), dict(climate))
+        if not days or not life.eligible(row, key):
+            continue
+        eligible = [r for r in c.engine_items if life.eligible(r, key) and r.get("rating") != "dislike"]
+        if key == "lounging":
+            # As in life._lounge, indoor coverage needs a base and bottoms, not outdoor shoes.
+            good = all(any(r["category"] in categories for r in eligible)
+                       for categories in (("tee",), ("trousers", "shorts")))
+        else:
+            good = any(_try_day(eligible, c.by_id, c.by_id[row["id"]], d)["good"] for d in days)
+        if good:
+            served.append({"id": key, "label": spec.label})
+    return served
 
 
 def _serves_text(serves: list[dict]) -> str:
@@ -611,7 +622,7 @@ def check(items: Iterable[object], wears: Iterable[object], piece: Mapping, befo
     fills = _fills(before, after, {_grid_key(r["day"].as_dict()) for r in good},
                    {_grid_key(r["day"].as_dict()) for r in tried if r["closet"]}, weighed)
     if answers is not None:
-        answer["situations"] = _serves(row, tried, answers, climate)
+        answer["situations"] = _serves(row, c, answers, climate)
         answer["situations_text"] = _serves_text(answer["situations"])
     partners = _partners(tried)[:PAIRS_MAX]
     goes_text = None

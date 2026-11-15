@@ -210,7 +210,10 @@ class Meter:
                 so_far = spent(conn)
             finally:
                 conn.close()
-            if so_far + sum(_held.values()) + cost > cap(self.state):
+            limit = cap(self.state)
+            if limit is None or not self.state.get("tagging_api_enabled"):
+                raise RouteUnavailable("the API key is not allowed in Settings")
+            if so_far + sum(_held.values()) + cost > limit:
                 raise CapReached("this month's spending limit for the API key has been reached")
             _held[me] = cost
 

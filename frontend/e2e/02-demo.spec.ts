@@ -4,7 +4,7 @@ test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
 });
 
-test('open the demo closet: 43 items, the demo strip, filter by category', async ({ page }) => {
+test('open the demo closet: 49 items, the demo strip, filter by category', async ({ page }) => {
   await login(page);
   await useProfile(page, 'main');
   await page.locator('nav.sidebar').getByRole('link', { name: 'Settings' }).click();
@@ -13,17 +13,17 @@ test('open the demo closet: 43 items, the demo strip, filter by category', async
   await expect(page.getByText('Demo closet', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Leave the demo closet' })).toBeVisible();
   await page.getByRole('link', { name: 'Closet', exact: true }).click();
-  await expect(page.getByTestId('tile')).toHaveCount(43);
-  await expect(page.getByTestId('item-count')).toHaveText('43 items');
+  await expect(page.getByTestId('tile')).toHaveCount(49);
+  await expect(page.getByTestId('item-count')).toHaveText('49 items');
 
   await page.getByRole('button', { name: 'Filter' }).click();
   await page.getByRole('group', { name: 'Filter by category' }).getByRole('button', { name: 'Sweaters' }).click();
   await expect(page.getByTestId('tile')).toHaveCount(5);
-  await expect(page.getByTestId('item-count')).toHaveText('5 of 43');
+  await expect(page.getByTestId('item-count')).toHaveText('5 of 49');
   for (const caption of await page.locator('.tile-caption').allTextContents()) expect(caption).toMatch(/^Sweater/);
 
   await page.getByRole('button', { name: 'All', exact: true }).click();
-  await expect(page.getByTestId('tile')).toHaveCount(43);
+  await expect(page.getByTestId('tile')).toHaveCount(49);
   await page.getByRole('searchbox').fill('jeans');
   await expect(page.getByTestId('tile')).toHaveCount(3);
 

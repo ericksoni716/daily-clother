@@ -282,6 +282,8 @@ def save_prices(conn: sqlite3.Connection, wish_id: str, finds: list[dict], seen:
             f = by_url.get(p.get("url").strip() if isinstance(p.get("url"), str) else None)
             if f is None or f["id"] in done:
                 continue
+            if not conn.execute("SELECT 1 FROM finds WHERE id = ? AND wish_id = ?", (f["id"], wish_id)).fetchone():
+                continue
             price = clean_price(p.get("price")) if p.get("price") is not None else None
             if p.get("price") is not None and price is None:
                 continue   # a price that is not one: not kept

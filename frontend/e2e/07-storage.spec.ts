@@ -16,7 +16,7 @@ test('settings show how much space the demo closet takes', async ({ page }) => {
   const section = closet.getByRole('region', { name: 'Storage' });
   await expect(section.getByTestId('storage-total')).toHaveText(/^[\d.]+ (KB|MB|GB)$/);
   await expect(section.getByTestId('storage-total')).not.toHaveText(/^0 /);
-  await expect(section.getByText('used by 43 items')).toBeVisible();
+  await expect(section.getByText('used by 49 items')).toBeVisible();
   for (const row of ['Photos', 'Cutouts', 'Thumbnails', 'Backups on this computer', 'Background-removal model', 'Everything else']) {
     await expect(section.getByText(row, { exact: true })).toBeVisible();
   }

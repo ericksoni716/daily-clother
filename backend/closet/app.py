@@ -408,6 +408,10 @@ def create_app(sv: Services) -> FastAPI:
 
     @app.exception_handler(RequestValidationError)
     async def invalid_input(request: Request, e: RequestValidationError):
+        if request.url.path in ("/api/setup", "/api/login"):
+            return JSONResponse({"detail": "Enter the passphrase as text."}, status_code=422)
+        if request.url.path == "/api/settings/api-key":
+            return JSONResponse({"detail": "Enter the API key as text, with no other fields."}, status_code=422)
         if CORRECTING.match(request.url.path):
             return JSONResponse({"detail": plain_input(e)}, status_code=422)
         return await request_validation_exception_handler(request, e)

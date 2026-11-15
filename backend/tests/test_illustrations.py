@@ -112,6 +112,17 @@ def test_it_changes_with_a_field_it_shows_and_not_with_one_it_does_not(client, s
     assert "the plaid: the drawing shows only the colour for now" in plaid["drawing_notes"]
 
 
+def test_different_drawings_with_the_same_crc32_get_different_cache_urls(client):
+    item = upload(client).json()
+    before = client.patch(f"/api/items/{item['id']}", json={
+        "category": "tee", "color_hex": "#00e96b",
+    }).json()
+    after = client.patch(f"/api/items/{item['id']}", json={"color_hex": "#013d43"}).json()
+    assert before["illustration_svg"] != after["illustration_svg"]
+    assert before["illustration_url"] != after["illustration_url"]
+    assert client.get(after["illustration_url"]).text == after["illustration_svg"]
+
+
 def test_a_field_the_owner_set_wins_over_the_answer(client, services, claude):
     item = upload(client).json()
     # set before Claude answers: the answer leaves them alone, and so does the drawing

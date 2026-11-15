@@ -6,7 +6,6 @@ import json
 import re
 import shutil
 import uuid
-import zlib
 from pathlib import Path
 
 from . import db, details, failures, history, illustrations, images, jobs, kinds, palette, patjobs, tagjobs, vocab
@@ -44,7 +43,7 @@ def summary(conn, row) -> dict:
         "color_hex": row["color_hex"], "pattern": row["pattern"], "location": row["location"], "rating": row["rating"],
         "status": row["status"], "cutout_state": row["cutout_state"], "thumb_url": _media(thumb),
         "has_illustration": row["illustration_svg"] is not None, "has_photo": photo is not None,
-        "illustration_url": (f"/api/items/{row['id']}/illustration.svg?v={zlib.crc32(row['illustration_svg'].encode()):08x}"
+        "illustration_url": (f"/api/items/{row['id']}/illustration.svg?v={hashlib.sha256(row['illustration_svg'].encode()).hexdigest()}"
                              if row["illustration_svg"] is not None else None),
         "last_worn": worn[0], "wear_count": worn[1], "wears_since_wash": row["wears_since_wash"], "laundry": row["laundry"],
         "tag_state": row["tag_state"], "created_at": row["created_at"], "updated_at": row["updated_at"],
@@ -83,7 +82,7 @@ def detail(conn, row) -> dict:
     out["as_worn"] = illustrations.worn(row)
     # trousers and shorts: a small drawing from behind (back pockets, yoke, label), its address versioned like the drawing's
     back = illustrations.back(row)
-    out["back_url"] = f"/api/items/{row['id']}/back.svg?v={zlib.crc32(back.encode()):08x}" if back else None
+    out["back_url"] = f"/api/items/{row['id']}/back.svg?v={hashlib.sha256(back.encode()).hexdigest()}" if back else None
     out["photos"] = [{
         "id": p["id"], "kind": p["kind"], "url": _media(p["original_path"]), "thumb_url": _media(p["thumb_path"]),
         "cutout_url": _media(p["cutout_path"]), "cutout_thumb_url": _media(p["cutout_thumb_path"]),

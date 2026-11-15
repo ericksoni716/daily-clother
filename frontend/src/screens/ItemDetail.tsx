@@ -6,7 +6,7 @@ import { FixDetails, FixDetailsButton, ItemHistory } from '../components/FixDeta
 import { KindPicker } from '../components/KindPicker';
 import { BackIcon, ChevronIcon, HangerIcon, WarnIcon } from '../components/Icons';
 import { FIELD_TITLES, formatPrice, label, shadeLabel, measuredColours, parsePrice, ratingLabel, SWATCH, swatchOf, tileCaption, wornWords } from '../labels';
-import { useWhenLeaving } from '../leave';
+import { SaveLine, useWhenLeaving } from '../leave';
 import { Link, navigate, useMediaQuery } from '../router';
 import { silhouetteGroups } from '../silhouette';
 import { useCloset } from '../store';
@@ -48,6 +48,8 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   const [focus, setFocus] = useState<{ field: string; at: number } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const inflight = useRef(0);
+  const saves = useRef(new SaveLine());
+  useWhenLeaving(() => saves.current.flush());
   const backTo = status === 'archived' ? '/archived' : '/';
 
   const load = useCallback(async () => {
@@ -112,16 +114,18 @@ export function ItemDetail({ id, status, inPanel }: Props) {
     setItem((cur) => (cur ? applyPatch(cur, changes) : cur));
     inflight.current++;
     try {
-      const saved = await api.patch(id, changes);
+      const saved = await saves.current.add(() => api.patch(id, changes));
       inflight.current--;
       if (!inflight.current) setItem(saved);
       upsert(saved);
       toast(saidAs);
     } catch (e) {
       inflight.current--;
-      setItem(before);
       toast((e as ApiError).message, 'error');
-      if (!inflight.current) void load();
+      if (!inflight.current) {
+        setItem(before);
+        void load();
+      }
     }
   }, [item, id, upsert, toast, load]);
 

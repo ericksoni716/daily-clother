@@ -79,3 +79,34 @@ def test_sock_pattern_continues_into_shoe_instead_of_leaving_a_dashed_sliver(pat
             assert any(element.get("fill") == "url(#hemxsp)" for element in painted)
         else:
             assert all(element.get("fill") == worn.shade("#3b4a3a", 0.3) for element in painted)
+
+
+@pytest.mark.parametrize("pattern", ["solid", "argyle", "rugby_hoops"])
+def test_logger_boot_ankle_keeps_skin_above_the_true_crew_sock_top(pattern):
+    pieces = outfit("shorts", True)
+    pieces["shoes"] = Piece("boots", answer("boots", footwear="logger_boot"), "#765432")
+    pieces["accessories"] = [Piece("other", answer(
+        "other", accessory="socks", accessory_kind="casual_crew",
+        **({} if pattern == "solid" else {"pattern_name": pattern})), "#3b4a3a")]
+    layout = fig.plan(pieces)
+    shoes = layout.get("shoes")
+    top = (shoes.point(shoes.front.anchors["ankle"])[1]
+           - (worn.SOCK_LENGTH["casual_crew"] - worn.SOCK_ANKLE_CM) * fig.K_PX)
+    assert shoes.point(shoes.front.anchors["top"])[1] < top
+    dressed = worn.dress(layout, layout.accessories, "crew")
+    root = ElementTree.fromstring(f"<g>{dressed.ankle}</g>")
+    assert any(element.get("fill") == fig.SKIN for element in root)
+    clip = next(element for element in root.iter() if element.get("clip-path") == "url(#crewxsy)")
+    assert any(element.get("fill") == "#3b4a3a" for element in clip.iter())
+    parents = {child: parent for parent in root.iter() for child in parent}
+    tx, ty = shoes.transforms[0][-2:]
+    assert parents[clip].get("transform") == f"translate({-tx:.4f} {-ty:.4f})"
+    assert clip[0].get("transform") == f"translate({tx:.4f} {ty:.4f})"
+    defs = ElementTree.fromstring(f"<defs>{''.join(dressed.defs)}</defs>")
+    boundary = next(element for element in defs if element.get("id") == "crewxsy")[0].get("d")
+    polygon = fitting.points(boundary.split(" V", 1)[0]) + [(4000, 4000), (-4000, 4000)]
+    for centre, transform in zip(fig._legs(layout)[:2], shoes.transforms, strict=True):
+        sx, _, _, _, dx, dy = transform
+        x = (centre - dx) / sx + tx
+        assert not fitting.inside((x, top - 1 - dy + ty), polygon)
+        assert fitting.inside((x, top + 2 * worn.SOCK_BOW_CM * fig.K_PX + 1 - dy + ty), polygon)

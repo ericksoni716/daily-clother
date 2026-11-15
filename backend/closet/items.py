@@ -217,6 +217,21 @@ def _refuse_waiting_source(conn, source_sha256: str) -> None:
 def update(conn, item_id: str, changes: dict, record: bool = True) -> dict:
     """Change the item's own fields. A change to what describes it is kept in its history unless `record` is
     False (the caller records it, with other changes, as one)."""
+    mine = not conn.in_transaction
+    if mine:
+        conn.execute("BEGIN IMMEDIATE")
+    try:
+        result = _update(conn, item_id, changes, record)
+        if mine:
+            conn.execute("COMMIT")
+        return result
+    except Exception:
+        if mine and conn.in_transaction:
+            conn.execute("ROLLBACK")
+        raise
+
+
+def _update(conn, item_id: str, changes: dict, record: bool) -> dict:
     row = get(conn, item_id)
     unknown = set(changes) - PATCHABLE
     if unknown:
@@ -278,23 +293,13 @@ def update(conn, item_id: str, changes: dict, record: bool = True) -> dict:
             args.append(details.dump(kept))
         sets += ["source = ?", "confidence = ?", "updated_at = ?"]
         args += [json.dumps(source), json.dumps(confidence), db.now(), item_id]
-        mine = not conn.in_transaction
-        if mine:
-            conn.execute("BEGIN IMMEDIATE")
-        try:
-            conn.execute(f"UPDATE items SET {', '.join(sets)} WHERE id = ?", args)
-            if "pattern" in changes:
-                patjobs.mark(conn, item_id)   # measured again (or no longer drawn) before it is redrawn
-            if illustrations.SHOWN & changes.keys():
-                illustrations.redraw(conn, item_id)
-            if record:
-                history.record(conn, row, get(conn, item_id), "owner", "field")
-            if mine:
-                conn.execute("COMMIT")
-        except Exception:
-            if mine and conn.in_transaction:
-                conn.execute("ROLLBACK")
-            raise
+        conn.execute(f"UPDATE items SET {', '.join(sets)} WHERE id = ?", args)
+        if "pattern" in changes:
+            patjobs.mark(conn, item_id)   # measured again (or no longer drawn) before it is redrawn
+        if illustrations.SHOWN & changes.keys():
+            illustrations.redraw(conn, item_id)
+        if record:
+            history.record(conn, row, get(conn, item_id), "owner", "field")
     return detail(conn, get(conn, item_id))
 
 

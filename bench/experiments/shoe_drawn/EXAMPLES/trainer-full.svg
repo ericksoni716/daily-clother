@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 340" role="img" aria-label="A pair of German army trainers seen from the front, drawn as clip art">
+<rect width="440" height="340" fill="#f1eee8"/>
+<defs>
+<g id="leg" stroke-linejoin="round">
+  <!-- leg behind the shoe -->
+  <path d="M60,-120 L140,-120 L138,46 L62,46 Z" fill="#c98d6b" stroke="#26221f" stroke-width="4"/>
+  <path d="M61,-60 Q100,-48 139,-60 L138,46 L62,46 Z" fill="#2f7d4f" stroke="#26221f" stroke-width="4"/>
+  <path d="M62,-44 Q100,-32 138,-44 M62,-30 Q100,-18 138,-30" fill="none" stroke="#1f5a38" stroke-width="2"/>
+</g>
+<g id="shoe" stroke-linejoin="round" stroke-linecap="round">
+  <!-- gum sole -->
+  <path d="M14,164 C10,214 56,240 100,240 C144,240 190,214 186,164 Z" fill="#b5772f" stroke="#26221f" stroke-width="4"/>
+  <path d="M17,200 C36,224 70,231 100,231 C130,231 164,224 183,200" fill="none" stroke="#8a5a22" stroke-width="2"/>
+  <!-- upper: white leather -->
+  <path id="up" d="M18,170 C16,136 28,106 50,88 C54,68 58,48 66,36 L134,36 C142,48 146,68 150,88 C172,106 184,136 182,170 C182,194 140,206 100,206 C60,206 18,194 18,170 Z" fill="#f2f0ea" stroke="#26221f" stroke-width="4"/>
+  <!-- grey suede: toe piece with its tab up to the laces, and the lace stays -->
+  <path d="M18,170 C17,150 32,139 54,143 C72,146 82,138 85,124 L115,124 C118,138 128,146 146,143 C168,139 183,150 182,170 C182,194 140,206 100,206 C60,206 18,194 18,170 Z" fill="#b8ac9d" stroke="#26221f" stroke-width="1.6"/>
+  <path d="M85,124 L60,60 Q62,50 70,46 L130,46 Q138,50 140,60 L115,124 Z" fill="#b8ac9d" stroke="#26221f" stroke-width="1.6"/>
+  <!-- tongue -->
+  <path d="M90,120 L74,56 L72,30 Q100,22 128,30 L126,56 L110,120 Z" fill="#f2f0ea" stroke="#26221f" stroke-width="1.6"/>
+  <rect x="84" y="32" width="32" height="13" rx="2" fill="#b8ac9d" stroke="#26221f" stroke-width="1.2"/>
+  <!-- laces -->
+  <g fill="none">
+    <g stroke="#26221f" stroke-width="10"><path d="M66,62 L134,62 M71,77 L129,77 M76,92 L124,92 M81,106 L119,106 M86,119 L114,119"/></g>
+    <g stroke="#eadfc6" stroke-width="7"><path d="M66,62 L134,62 M71,77 L129,77 M76,92 L124,92 M81,106 L119,106 M86,119 L114,119"/></g>
+  </g>
+  <!-- the upper's outline again, over the pieces -->
+  <path d="M18,170 C16,136 28,106 50,88 C54,68 58,48 66,36 L134,36 C142,48 146,68 150,88 C172,106 184,136 182,170 C182,194 140,206 100,206 C60,206 18,194 18,170 Z" fill="none" stroke="#26221f" stroke-width="4"/>
+</g>
+</defs>
+<g transform="translate(22,92)"><use href="#leg"/><g transform="rotate(7 100 40)"><use href="#shoe"/></g></g>
+<g transform="translate(418,92) scale(-1,1)"><use href="#leg"/><g transform="rotate(7 100 40)"><use href="#shoe"/></g></g>
+</svg>

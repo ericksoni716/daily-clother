@@ -13,7 +13,7 @@ from closet.drawing import figure as fig
 from closet.drawing import frontshoe, traced
 from closet.drawing.figure import K_PX, Piece, figure, plan
 
-from .test_figure import SHORTS, TEE, TROUSERS, _flat, _inside, answer
+from .test_figure import SHORTS, TEE, TROUSERS, _clear, _flat, _inside, answer
 
 US = [i / 40 for i in range(41)]
 BASE, PANEL, MARK, LACE = "#2a3f8f", "#cc2222", "#22cc22", "#ff00ff"
@@ -67,7 +67,8 @@ UNTRACED = [("sneakers", "low_sneaker"), ("sneakers", "runner"), ("sneakers", "s
             ("dress_shoes", "loafer"), ("dress_shoes", "derby"), ("dress_shoes", "oxford"), ("boots", "boot"),
             ("boots", "chelsea_boot"), ("sandals", "sandal")]
 # taken before stage 2c; change it only with a change meant to redraw untraced shoes, and say so in the pull request
-UNTRACED_DIGEST = "8e1804b788d67f0311a1b89856a72ac34fea537a1b2f47cb37827ab747658efe"
+# (changed once: a Chelsea boot's pull tab, at the back of its shaft, is drawn behind the leg, not over it)
+UNTRACED_DIGEST = "67d97fa3f531603b8dbf311d6e8f23373dd2092b455f169410c5afd253ad0403"
 
 
 def test_an_untraced_shoe_is_drawn_exactly_as_before():
@@ -434,3 +435,130 @@ def test_view_a_and_b_are_each_the_same_every_time():
     for kind in (frontshoe.FROM_SHAPE, frontshoe.FROM_PHOTO):
         assert front(t, kind=kind).body == front(t.to_json(), kind=kind).body
         assert front(frontshoe.Chosen(t, kind)).body == front(t, kind=kind).body
+
+
+# ---- rules every front shoe keeps: A, B and the untraced templates
+
+LIP_CM = 1.5   # the collar's padded front, rounding up to its sides, stands this far above the opening's front edge
+RULE_SHOES = ["RED_BLACK_RUNNER", "LOW_CHUKKA", "WORK_BOOT", "AIR_RUNNER", "NAVY_DERBY", "SERVICE_BOOT", "BUSY_RUNNER"]
+RULE_STYLES = {"RED_BLACK_RUNNER": ("sneakers", "runner"), "LOW_CHUKKA": ("boots", "boot"),
+               "WORK_BOOT": ("boots", "boot"), "AIR_RUNNER": ("sneakers", "runner"),
+               "NAVY_DERBY": ("sneakers", "derby"), "SERVICE_BOOT": ("boots", "boot"),
+               "BUSY_RUNNER": ("sneakers", "runner")}
+
+
+def every_front_shoe():
+    """(name, the shoe from the front with the wearer's ankle in it) for every synthetic traced shoe, A and B, and
+    every untraced template but the sandal."""
+    for name in RULE_SHOES:
+        t = traced_photo(name, (1000, 700) if "BOOT" in name or "CHUKKA" in name else (1000, 560))
+        spec = spec_of(*RULE_STYLES[name])
+        for kind in (frontshoe.FROM_SHAPE, frontshoe.FROM_PHOTO):
+            yield f"{name} {kind}", front(t, spec, kind=kind)
+    for c, s in UNTRACED[:-1]:
+        yield s, front(None, spec_of(c, s))
+
+
+def after_the_leg(shoe) -> list[tuple[str, list[tuple[float, float]]]]:
+    """What is painted after the wearer's ankle (the tongue apart: it is in front of the leg), each element's
+    markup and points."""
+    i = shoe.body.index('<g clip-path="url(#za)">')
+    depth, j = 0, i
+    for m in re.finditer(r"<g[ >]|</g>", shoe.body[i:]):
+        depth += -1 if m.group() == "</g>" else 1
+        if depth == 0:
+            j = i + m.end()
+            break
+    rest = re.sub(r'<g data-part="tongue">.*?</g>', "", shoe.body[j:])
+    out = []
+    for el in re.findall(r"<(?:path|circle|ellipse|rect)[^>]*>", rest):
+        if 'd="' in el:
+            out.append((el, _flat(re.search(r'd="([^"]+)"', el).group(1))))
+        elif "cx=" in el:
+            out.append((el, [(float(re.search(r'cx="([-\d.]+)"', el).group(1)), float(re.search(r'cy="([-\d.]+)"', el).group(1)))]))
+        else:
+            x, y = (float(re.search(rf'{k}="([-\d.]+)"', el).group(1)) for k in ("x", "y"))
+            out.append((el, [(x, y)]))
+    return out
+
+
+def test_the_collar_back_and_lining_are_painted_before_the_leg():
+    for name, shoe in every_front_shoe():
+        leg = shoe.body.index('clip-path="url(#za)"')
+        lining = [m.start() for m in re.finditer(r'stroke-width="1.4" stroke-linejoin="round"/>', shoe.body)]
+        assert lining and max(lining) < leg, name
+        for el, _ in after_the_leg(shoe):
+            assert 'stroke-width="1.4" stroke-linejoin="round"/>' not in el or "fill=\"none\"" in el, (name, el)
+
+
+def test_nothing_of_the_shoe_hides_the_leg_above_its_opening():
+    """Up the front of the ankle, from the opening's front edge to where the leg above takes over, the leg shows:
+    each point is outside the upper's outline or where the leg is seen through it."""
+    for name, shoe in every_front_shoe():
+        view = frontshoe._View(K_PX)
+        upper, rim = _flat(shoe.upper), _flat(shoe.rim)
+        seen = [_flat(d) for d in shoe.seen]
+        top = shoe.anchors["ankle"][1]
+        bad = []
+        for k in range(3, 10):   # across the middle of the ankle: its sides are behind the collar's rounded sides
+            a = math.pi * k / 12
+            for h in range(2, 30):
+                x, y = view(frontshoe.ANKLE_HALF_CM * math.cos(a),
+                            frontshoe.ANKLE_U + frontshoe.ANKLE_DEPTH_CM * math.sin(a) / frontshoe.LENGTH, h)
+                near = [q[1] for q in rim if abs(q[0] - x) <= 1.8]
+                if y <= top or not near or y > max(near) - LIP_CM * K_PX:
+                    continue   # above where the leg takes over, or the shoe's front and the collar's lip
+                if not (_inside((x, y), rim) or y < min(near)):
+                    continue
+                if _inside((x, y), upper) and not any(_inside((x, y), s) for s in seen):
+                    bad.append((round(x), round(y)))
+        assert not bad, (name, bad[:5])
+
+
+def test_every_detail_lies_on_the_shoe():
+    for name, shoe in every_front_shoe():
+        outline = _flat(shoe.outline)
+        for el, pts in after_the_leg(shoe):
+            off = [q for q in pts if not _inside(q, outline) and _clear(q, [(-9e3, -9e3), (9e3, -9e3), (9e3, 9e3), (-9e3, 9e3)], 0)
+                   and not any(_inside((q[0] + dx, q[1] + dy), outline) for dx in (-1.5, 0, 1.5) for dy in (-1.5, 0, 1.5))]
+            assert not off, (name, el[:80], off[:3])
+
+
+def test_a_traced_toe_is_rounded_as_the_templates():
+    """B's toe follows the style's curve, whatever the trace's top line does there (a boxy toe in the photo)."""
+    t = made(taller=0.0)
+    for i, u in enumerate(US):
+        if u > 0.8:
+            t.profile.top[i] = t.profile.top[[j for j, v in enumerate(US) if v <= 0.8][-1]]
+    tr = frontshoe._Traced.of(t)
+    style = frontshoe.STYLES["low_sneaker"][2]
+    k = frontshoe._interp(tr.table, 0.8) / frontshoe._interp(style, 0.8)
+    for u in (0.85, 0.9, 0.95, 1.0):
+        assert frontshoe._interp(tr.table, u) == pytest.approx(max(frontshoe._interp(style, u) * k, 0.8), rel=0.02)
+
+
+
+def turns(pts, step: float = 1.0) -> list[float]:
+    """How sharply a closed outline turns, in degrees, at each `step` px along it (so a point's sharpness does not
+    depend on how many points the path was written with)."""
+    even, carry = [pts[0]], 0.0
+    for a, b in zip(pts, pts[1:] + pts[:1], strict=True):
+        d = math.dist(a, b)
+        s = step - carry
+        while d and s <= d:
+            even.append((a[0] + (b[0] - a[0]) * s / d, a[1] + (b[1] - a[1]) * s / d))
+            s += step
+        carry = d - (s - step) if d else carry
+    out = []
+    for a, b, c in zip(even, even[1:] + even[:1], even[2:] + even[:2], strict=True):
+        t = math.degrees(math.atan2(c[1] - b[1], c[0] - b[0]) - math.atan2(b[1] - a[1], b[0] - a[0]))
+        out.append(abs((t + 180) % 360 - 180))
+    return out
+
+
+def test_the_shoes_outline_has_no_points_or_horns():
+    """The collar's top edge is a smooth arc: the outline turns no more sharply anywhere than at #214's rounded
+    collar joins (about 60 degrees a pixel). A traced opening standing out past the solid's side once turned the
+    collar's shoulder back on itself in a point."""
+    for name, shoe in every_front_shoe():
+        assert max(turns(_flat(shoe.upper))) < 65, name

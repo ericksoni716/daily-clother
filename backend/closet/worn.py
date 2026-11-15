@@ -319,24 +319,30 @@ def _wears_of(conn, outfit_id: str, day: str) -> list[str]:
         "WHERE p.outfit_id = ? AND p.added_wear = 1 ORDER BY p.item_id", (outfit_id,)) if r[0] not in held]
 
 
-def _in_transaction(conn, fn) -> None:
+def _in_transaction(conn, fn):
+    own_transaction = not conn.in_transaction
     try:
-        conn.execute("BEGIN IMMEDIATE")
-        fn()
-        conn.execute("COMMIT")
+        if own_transaction:
+            conn.execute("BEGIN IMMEDIATE")
+        result = fn()
+        if own_transaction:
+            conn.execute("COMMIT")
+        return result
     except Exception:
-        if conn.in_transaction:
+        if own_transaction and conn.in_transaction:
             conn.execute("ROLLBACK")
         raise
 
 
 def _forget(conn, outfit_id: str, day: str, flag: list[bool], first: list[str] = ()) -> dict:
-    ids = _wears_of(conn, outfit_id, day)
-    ids.sort(key=lambda i: (first.index(i) if i in first else len(first), i))
-    if ids:
-        return wears.remove_many(conn, ids, day, also=_release(conn, outfit_id, day, flag))
-    _in_transaction(conn, _release(conn, outfit_id, day, flag))
-    return {"worn_on": day, "removed": [], "items": []}
+    def run():
+        ids = _wears_of(conn, outfit_id, day)
+        ids.sort(key=lambda i: (first.index(i) if i in first else len(first), i))
+        if ids:
+            return wears.remove_many(conn, ids, day, also=_release(conn, outfit_id, day, flag))
+        _release(conn, outfit_id, day, flag)()
+        return {"worn_on": day, "removed": [], "items": []}
+    return _in_transaction(conn, run)
 
 
 def undo(conn, item_ids: object, worn_on: object, outfit_id: object) -> dict:
@@ -349,13 +355,14 @@ def undo(conn, item_ids: object, worn_on: object, outfit_id: object) -> dict:
         raise _err("Give the day of the wears to remove as YYYY-MM-DD.")
     day = wears._parse(worn_on).isoformat()
     flag: list[bool] = []
-    row = conn.execute("SELECT worn_on FROM worn_outfits WHERE id = ?", (outfit_id,)).fetchone()
-    if row is not None:
-        result = _forget(conn, outfit_id, row["worn_on"], flag, given)
-    else:
+    def run():
+        row = conn.execute("SELECT worn_on FROM worn_outfits WHERE id = ?", (outfit_id,)).fetchone()
+        if row is not None:
+            return _forget(conn, outfit_id, row["worn_on"], flag, given)
         held = _held_elsewhere(conn, day, None)
         left = [i for i in given if i not in held]
-        result = wears.remove_many(conn, left, day) if left else {"worn_on": day, "removed": [], "items": []}
+        return wears.remove_many(conn, left, day) if left else {"worn_on": day, "removed": [], "items": []}
+    result = _in_transaction(conn, run)
     return {**result, "outfit_removed": bool(flag and flag[0])}
 
 

@@ -85,6 +85,7 @@ def test_the_sleeve_comes_from_the_answer_when_the_silhouette_does_not_say():
 
 
 @pytest.mark.parametrize("stored", [None, "", "{nope", "[1, 2]", "null", "42", '{"details": "heavy"}', '{"details": null}',
+                                    '{"details": {"garment": []}}', '{"details": {"garment": {}}}',
                                     '{"details": {"weight": ["heavyweight"], "knit_gauge": {}, "sleeve_length": 3}}',
                                     '{"details": {"weight": "very heavy", "knit_gauge": "huge", "sleeve_length": "none"}}'])
 def test_a_missing_empty_or_broken_answer_is_nothing_known(stored):
@@ -205,6 +206,12 @@ def test_the_kind_is_the_owners_choice_else_the_taggers():
 def test_a_fleece_is_as_warm_as_its_pile(fabric, expected):
     r = row(category="sweater", name="Pullover", answer=answer(garment="fleece_pullover", fabric=fabric, weight="lightweight"))
     assert weight(r) == expected
+
+
+@pytest.mark.parametrize("fabric", [[], {}, ["sherpa"]])
+def test_a_broken_fleece_fabric_falls_back_to_its_usual_weight(fabric):
+    r = row(category="sweater", answer=answer(garment="fleece_pullover", fabric=fabric))
+    assert weight(r) == "heavyweight"
 
 
 def test_the_owners_words_still_win_over_a_fleece():

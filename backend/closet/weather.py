@@ -169,16 +169,28 @@ def _forecast(place: dict) -> tuple[dict, int]:
         low, high = daily["temperature_2m_min"][0], daily["temperature_2m_max"][0]
         chance = (daily.get("precipitation_probability_max") or [None])[0]
         code = (daily.get("weather_code") or [None])[0]
-        if not all(isinstance(v, int | float) and not isinstance(v, bool) for v in (low, high)):
+        if not all(isinstance(v, int | float) and not isinstance(v, bool) and math.isfinite(v) for v in (low, high)):
             raise TypeError
+        if low > high:
+            raise ValueError
         datetime.strptime(day, "%Y-%m-%d")
-    except (KeyError, IndexError, TypeError, ValueError, AttributeError):
+        if isinstance(chance, int | float) and not isinstance(chance, bool):
+            if not math.isfinite(chance) or not 0 <= chance <= 100:
+                raise ValueError
+            chance = round(chance)
+        else:
+            chance = None
+        offset = data.get("utc_offset_seconds")
+        if isinstance(offset, int | float) and not isinstance(offset, bool):
+            if not math.isfinite(offset) or not -86400 <= offset <= 86400:
+                raise ValueError
+            offset = int(offset)
+        else:
+            offset = 0
+    except (KeyError, IndexError, TypeError, ValueError, AttributeError, OverflowError):
         raise WeatherError("The weather service gave an answer Closet could not read.") from None
     summary = _summary(code)
-    chance = round(chance) if isinstance(chance, int | float) and not isinstance(chance, bool) else None
     rain = chance >= RAIN_CHANCE if chance is not None else summary in WET
-    offset = data.get("utc_offset_seconds")
-    offset = int(offset) if isinstance(offset, int | float) and not isinstance(offset, bool) else 0
     answer = {"date": day, "low_c": round(float(low), 1), "high_c": round(float(high), 1), "rain_chance": chance,
               "rain": rain, "summary": summary or "mixed",
               "fetched_at": datetime.fromtimestamp(_now(), UTC).strftime("%Y-%m-%dT%H:%M:%SZ")}

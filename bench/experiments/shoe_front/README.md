@@ -10,7 +10,8 @@ It holds no photos: everything it downloads or draws goes under `bench/private/s
 
 - **Step 1, what shops show: done.** The numbers are in the backlog. In short: a photo from above is nearly
   always there, a true front view for about a third of shoes, and the shop's own "front" label cannot be trusted.
-- **Step 2, the line-up: built, waiting for the owner's result.** The page is a private artifact,
+- **Step 2, the line-up: done, and it failed** (today 8/10, top 3/10, turn 2/10, stance natural; see the backlog for what follows). As it was set up:
+- **The line-up page.** The page is a private artifact,
   <https://claude.ai/artifact/CXwKaVTA3c9capeQ5c4KQG> (only the owner can open it). The owner matches 30 pictures
   of feet to ten side drawings and pastes back a short result, for example:
 

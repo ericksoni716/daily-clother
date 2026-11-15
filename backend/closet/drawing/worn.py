@@ -321,11 +321,11 @@ def _carry(fig, layout, bag, uid: str, out: Worn) -> str:
     # a backpack: on his back; in front, its straps come over the shoulders and go back under the arms
     straps, chest = "", ""
     w = PACK_STRAP_CM * k
-    if style in ("backpack", "rucksack"):   # a strap across the chest, between them, its ends under them
-        y = fig._y(fig.CHEST_CM - 6.0)
-        x0, x1 = CX - 12.6 * k, CX + 12.6 * k
-        chest = (f'<rect x="{x0:.1f}" y="{y - 0.8 * k:.1f}" width="{x1 - x0:.1f}" height="{1.6 * k:.1f}" '
-                 f'fill="{shade(colour, -0.1)}" stroke="{INK}" stroke-width="2"/>'
+    if style in ("backpack", "rucksack"):   # a strap across the chest, between them, its ends under them: a hand
+        y = fig._y(fig.CHEST_CM - 2.0)       # below the collarbones, under a scarf's hanging ends
+        x0, x1 = CX - 14.4 * k, CX + 14.4 * k
+        chest = (f'<rect x="{x0:.1f}" y="{y - 1.1 * k:.1f}" width="{x1 - x0:.1f}" height="{2.2 * k:.1f}" '
+                 f'fill="{shade(colour, -0.25)}" stroke="{INK}" stroke-width="2"/>'
                  f'<rect x="{CX - 1.6 * k:.1f}" y="{y - 1.2 * k:.1f}" width="{3.2 * k:.1f}" height="{2.4 * k:.1f}" '
                  f'rx="{0.4 * k:.1f}" fill="#2a2b2e" stroke="{INK}" stroke-width="1.6"/>')
     for s in (-1, 1):   # down the chest, then out to the side and round behind the arm, nearly level as it goes

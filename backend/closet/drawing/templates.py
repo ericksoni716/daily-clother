@@ -3454,7 +3454,7 @@ def _worn_scarf(style: str, layer: str, px=None) -> Shape:
     the scarf crosses at the front, the one behind the other, overlapping and tapering (fringed when woven). A silk
     one is thinner and tied in a knot at the front, its ends narrow and pointed."""
     silk, knit = style == "silk", style == "knit"
-    top, low, half = (-0.6, 3.4, 7.0) if silk else (-0.2, 4.6, 7.8) if knit else (0.0, 4.4, 7.6)
+    top, low, half = (-0.6, 3.4, 7.0) if silk else (-0.2, 5.4, 8.6) if knit else (0.0, 5.0, 8.2)
     if layer == "back":   # behind the neck, a little higher than the front: it goes round the back of it
         out = half + 1.4
         dr = _Draft([("M", (-out, 2.0)), ("C", (-out - 0.4, -3.0), (-5.0, top - 4.6), (0, top - 4.6)),
@@ -3465,7 +3465,7 @@ def _worn_scarf(style: str, layer: str, px=None) -> Shape:
                  ("C", (4.0, -1.0), (-4.0, -1.0), (-4.0, 1.4)), ("Z",)], "shade")   # its inside, in shadow
         return _finish(dr, px)
     if layer == "front":   # across the throat, sagging a little at the front, its sides rising round the neck
-        sag = 1.2 if silk else 1.8
+        sag = 1.2 if silk else 2.4 if knit else 1.8
         dr = _Draft([("M", (-half + 0.8, top - 1.4)), ("C", (-4.5, top + sag), (4.5, top + sag), (half - 0.8, top - 1.4)),
                      ("C", (half + 0.4, top - 0.4), (half + 1.0, low - 2.8), (half + 0.6, low - 1.6)),
                      ("C", (4.5, low + sag + 0.6), (-4.5, low + sag + 0.6), (-half - 0.6, low - 1.6)),
@@ -3485,8 +3485,8 @@ def _worn_scarf(style: str, layer: str, px=None) -> Shape:
         x0, x1, ln, drift, w_end = (-3.2, 0.0, 18.5, -1.6, 2.2) if under else (-2.0, 1.6, 20.5, 1.0, 2.2)
     else:
         wide = 7.0 if knit else 6.4
-        x0, x1, ln, drift = (-4.6, -4.6 + wide, 38.0, -0.4) if under else (-4.6 + 0.42 * wide, -4.6 + 1.42 * wide, 33.5, 0.1)
-        w_end = wide * 0.62
+        x0, x1, ln, drift = (-4.6, -4.6 + wide, 53.0, -0.8) if under else (-4.6 + 0.42 * wide, -4.6 + 1.42 * wide, 48.0, 0.4)
+        w_end = wide * 0.55
     y0 = low - 1.6 if under or silk else (top + low) / 2 + 0.6
     cx_end = (x0 + x1) / 2 + drift
     a, b = cx_end - w_end / 2, cx_end + w_end / 2
@@ -3496,8 +3496,15 @@ def _worn_scarf(style: str, layer: str, px=None) -> Shape:
         bottom = [("L", (b, ln)), ("L", (a, ln))]
     head = ([("M", (x0, y0)), ("L", (x1, y0))] if under or silk else
             [("M", (x0, y0 + 0.6)), ("C", (x0 + 1.0, y0 - 0.8), (x1 - 1.6, y0 - 1.0), (x1, y0 + 0.2))])   # the fold at the crossing
-    dr = _Draft(head + [("C", (x1 + 0.4, y0 + 10.0), (b + 0.3, ln - 12.0), (b, ln))]
-                + bottom[1:] + [("C", (a - 0.3, ln - 12.0), (x0 - 0.4, y0 + 10.0), head[0][1]), ("Z",)], anchor="neck")
+    def at(p, q, t):
+        return p + (q - p) * t
+    if silk:
+        right = [("C", (x1 + 0.4, y0 + 10.0), (b + 0.3, ln - 12.0), (b, ln))]
+        left = [("C", (a - 0.3, ln - 12.0), (x0 - 0.4, y0 + 10.0), head[0][1])]
+    else:   # a long end narrowing evenly all the way down
+        right = [("C", (at(x1, b, 0.25) + 0.3, at(y0, ln, 0.33)), (at(x1, b, 0.7), at(y0, ln, 0.7)), (b, ln))]
+        left = [("C", (at(x0, a, 0.7), at(y0, ln, 0.7)), (at(x0, a, 0.25) - 0.3, at(y0, ln, 0.33)), head[0][1])]
+    dr = _Draft(head + right + bottom[1:] + left + [("Z",)], anchor="neck")
     if silk and not under:   # the knot, a little off the middle, over the band and the tops of both ends
         k, ky = -1.0, low + 0.4
         dr.part([("M", (k - 2.6, ky - 1.0)), ("C", (k - 2.4, ky - 2.6), (k + 2.2, ky - 2.8), (k + 2.6, ky - 1.2)),

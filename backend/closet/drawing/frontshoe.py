@@ -801,6 +801,8 @@ BOOT_ABOVE_SOLE_CM = 7.5     # ... above the ground, and this high above the sol
 SOLE_LEVELS = 20            # the sole is read at this many heights through it
 GRID_U, GRID_A = 72, 16      # the upper is painted in this many steps along it and up each side
 SHAFT_STEP_CM = 0.8          # ... and a boot's shaft in steps this tall
+MARK_SHARE = 0.12            # a mark (or a piece taken for one) is smaller than this share of the upper; a bigger one is a panel
+MARK_CONTRAST = 60.0         # and stands out from the upper's colour by this much (RGB distance, 0-255)
 MARK_COLOUR = 40.0           # a colour piece this near a mark's colour (RGB distance, 0-255) and over it is that mark
 TOE_U = 0.8                  # from here to the toe, the upper's height is the style's: its round toe, as A's
 TOE_FROM = 0.6               # ... reached from the traced height over the stretch from here
@@ -1152,11 +1154,23 @@ class _Traced:
         elif outsole_c:
             bands = [(0.0, out_frac, outsole_c), (out_frac, 1.0, sole_c)]
         marks = [(m.color, ring) for m in t.marks for ring in m.path if len(ring) >= 3]
+        # how much upper the photo shows: the silhouette less the sole
+        sil = sum(_area(ring) for r in t.regions[:1] for piece in r.paths for ring in piece[:1] if len(ring) >= 3)
+        soles = sum(_area(piece[0]) for r in t.regions[1:] for k, piece in enumerate(r.paths)
+                    if piece and len(piece[0]) >= 3
+                    and (r.part == "sole" or (r.labels[k] if k < len(r.labels) else "") in ("midsole", "outsole")))
+        small = MARK_SHARE * max(sil - soles, 1.0)
+        ground = t.regions[0].color if t.regions else None
+        # the marks that are only marks: each small beside the upper and standing out from it (a swoosh, a stripe),
+        # not a panel the trace also called a mark (a red quarter on a runner)
+        strong = [(c, ring) for c, ring in marks
+                  if _area(ring) < small and (ground is None or not _near(c, ground, MARK_CONTRAST))]
 
         def is_mark(colour, ring) -> bool:
-            # a piece over a mark, in the mark's colour: the mark itself (drawn with the marks), never part of a
+            # a small piece over such a mark, in its colour: the mark itself (drawn with the marks), never part of a
             # part's colour or the upper's mix
-            return any(_near(colour, c) and _over(ring, m) for c, m in marks)
+            return _area(ring) < small and any(_near(colour, c) and _over(ring, m) for c, m in strong)
+        masked: list = []   # the pieces taken for marks: drawn as marks
         # what the photo shows on the upper, layer over layer as traced: the silhouette, then each colour piece
         # big enough to be a panel (a smaller piece, or a smaller hole in one, takes the colour round it)
         layers = [(r.color, [ring for piece in r.paths for ring in piece[:1] if len(ring) >= 3]) for r in t.regions[:1]]
@@ -1174,7 +1188,11 @@ class _Traced:
                 if _thickness(piece[0]) < THIN_CM:
                     continue   # a line of light or stitching along the side, not a panel of the upper
                 if is_mark(r.color, piece[0]):
-                    continue   # a mark: drawn with the marks
+                    # drawn with the marks; the piece itself when the trace's mark kept only a bit of it
+                    if not any(_near(r.color, c) and _over(piece[0], m) and _area(m) >= 0.6 * _area(piece[0])
+                               for c, m in strong):
+                        masked.append((r.color, piece[0]))
+                    continue
                 if _area(piece[0]) < MIN_PANEL_CM2:   # a lace, a speck, a blotch of camouflage: not a panel
                     specks[r.color] = specks.get(r.color, 0.0) + _area(piece[0])
                     continue
@@ -1192,8 +1210,9 @@ class _Traced:
                 total = sum(w for _, w in weights) or 1.0
                 mixed = _hex(tuple(sum(_rgb(c)[i] * w for c, w in weights) / total for i in range(3)))
                 layers[0] = (mixed, layers[0][1])
-        tr = cls(t, style, ball, sole_t, table, shaft, "#808080", sole_c, bands, us, bottom, sole, _Raster(layers), marks)
+        tr = cls(t, style, ball, sole_t, table, shaft, "#808080", sole_c, bands, us, bottom, sole, _Raster(layers), marks + masked)
         tr.pieces = pieces
+        tr.mark_colours = sorted({c for c, _ in strong})
         # the collar's and the heel counter's pieces: at the back, behind the leg, never across the throat
         back = [(c, [ring]) for c, label, ring in pieces if label in ("collar", "heel_counter")]
         tr.back = _Raster(back) if back else None
@@ -1234,7 +1253,7 @@ class _Traced:
             tpl.base = tpl._most_seen() or self.base
             return tpl
         # a part in a mark's colour is that mark (stripes the trace took for the quarter), not the part's colour
-        marked = [m.color for m in self.t.marks]
+        marked = self.mark_colours
         panels = {c for c, _, _ in self.pieces}
         parts = {q.name: q.color for q in self.t.parts if q.measured and not q.within and q.name not in DETAILS
                  and not (q.color not in panels and any(_near(q.color, c) for c in marked))}
@@ -1250,10 +1269,9 @@ class _Traced:
         if zones.get("toe_cap") == zones.get("vamp", upper):
             zones.pop("toe_cap", None)
         tpl.zones = zones
-        for m in self.t.marks:   # every mark B shows (stripes found as a row of small pieces are "text"), not specks
-            for ring in m.path:
-                if len(ring) >= 3 and _area(ring) >= MIN_MARK_CM2:
-                    tpl.marks.append((m.color, [self._onto(tpl, u, h) for u, h in ring]))
+        for c, ring in self.marks:   # every mark B shows (whatever its kind, and the pieces taken for marks), not specks
+            if _area(ring) >= MIN_MARK_CM2:
+                tpl.marks.append((c, [self._onto(tpl, u, h) for u, h in ring]))
         for c, label, ring in self.pieces:
             # a panel on the side (stripes, an overlay) in a colour A's parts do not show there: drawn at the same
             # place on the template's side, as B shows it
@@ -1407,6 +1425,7 @@ class _Traced:
 
     zones: dict | None = None      # A: the traced parts' colours, painted where the template has those parts
     pieces: list = field(default_factory=list)   # the traced panels: (colour, label, outline)
+    mark_colours: list = field(default_factory=list)   # the colours of the marks that are only marks (small, standing out)
     back: _Raster | None = None    # where the collar's and heel counter's pieces are, side on
     front: FrontLook | None = None  # B: what a front photo showed
     src: _Traced | None = None      # B on the template: the traced shoe its colours are sampled from

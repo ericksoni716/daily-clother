@@ -635,6 +635,57 @@ def test_bold_stripes_are_marks_not_part_of_the_uppers_colour():
         assert sum(len(re.findall(rf'<path d="[^"]+" fill="{c}"/>', body)) for c in red) >= 3, kind
 
 
+def test_large_panels_in_a_marks_colour_stay_panels_and_a_small_curve_is_drawn():
+    """A runner with large red panels (the toe box and vamp, the quarter), which the trace also took for a red mark
+    and a red logo over them, and a small black curve on the side: the red panels are not masked as marks, so the
+    toe box stays red in A and B, and the curve is drawn as a mark in both."""
+    red, black = "#c81e28", "#111111"
+    t = made(panels=[(red, rect(0.55, 1.0, 0.0, 20.0), "vamp"), (red, rect(0.15, 0.55, 2.0, 7.0), "quarter")],
+             marks=[(red, rect(0.6, 1.0, 2.0, 9.0)), (red, rect(0.3, 0.36, 5.0, 6.0)),
+                    (black, [[0.3, 3.0], [0.42, 3.4], [0.52, 4.4], [0.5, 4.8], [0.4, 3.9], [0.3, 3.6]])])
+    tr = frontshoe._Traced.of(t, "round", "runner")
+    style = frontshoe.STYLES["runner"][:4]
+    for view in (tr.on_template(*style, 0.97, "round"), tr.on_template(*style, 0.97, "round", sampled=True)):
+        toe = [c for _, i, _, c, _, p in view.cells() if p == "foot" and i >= 0.85 * frontshoe.GRID_U]
+        assert toe and max(set(toe), key=toe.count) == red
+    for kind in (frontshoe.FROM_SHAPE, frontshoe.FROM_PHOTO):
+        body = front(t, spec_of(style="runner"), kind=kind).body
+        assert re.search(rf'<path d="[^"]+" fill="{black}"/>', body), kind
+
+
+def test_three_bold_red_stripes_are_drawn_on_both_views_as_marks():
+    """The white court shoe's three bold red stripes, masked out of its colours, are drawn: three red marks in A
+    and in B, the upper still white."""
+    from . import shoe_photos as S
+    t = traced_photo("BOLD_STRIPES")
+    for kind in (frontshoe.FROM_SHAPE, frontshoe.FROM_PHOTO):
+        body = front(t, kind=kind).body
+        red = [ring for c in set(re.findall(r'fill="(#[0-9a-f]{6})"/>', body)) if near(c, (196, 30, 40))
+               for ring in painted(body, c)]
+        assert len([ring for ring in red if area(ring) > 0.5]) >= 3, kind
+        cells = frontshoe._Traced.of(t, "round", "low_sneaker").on_template(
+            *frontshoe.STYLES["low_sneaker"][:4], 0.97, "round", sampled=kind == frontshoe.FROM_PHOTO).cells()
+        assert all(math.dist(lab(c), lab(S.WHITE)) <= 5 for _, _, _, c, _, _ in cells)
+
+
+def red_area(body: str) -> float:
+    return sum(area(ring) for c in set(re.findall(r'fill="(#[0-9a-f]{6})"/>', body)) if near(c, (196, 30, 40))
+               for ring in painted(body, c))
+
+
+def test_stripes_taken_out_of_the_colours_are_drawn_even_when_the_trace_kept_only_a_bit_of_each():
+    """A trace whose stripe marks kept only a small bit of each stripe (the rest left as colour pieces): the pieces
+    taken out of the upper's colour as those marks are drawn as marks themselves, so the stripes do not vanish."""
+    full = traced_photo("BOLD_STRIPES")
+    t = copy.deepcopy(full)
+    for m in t.marks:
+        m.path = [[[u, h] for u, h in (
+            (cu + du, ch + dh) for cu, ch in [frontshoe._centre(ring)] for du, dh in
+            ((-0.004, -0.3), (0.004, -0.3), (0.004, 0.3), (-0.004, 0.3)))] for ring in m.path]
+    for kind in (frontshoe.FROM_SHAPE, frontshoe.FROM_PHOTO):
+        assert red_area(front(t, kind=kind).body) >= 0.6 * red_area(front(full, kind=kind).body), kind
+
+
 def test_view_a_keeps_the_laces_colour_and_draws_the_stripes():
     """A white court shoe, white laces, three red stripes whose ends cross the lacing's row: A's laces are not
     red, and the stripes are drawn on its side, even when the trace took them for lettering."""

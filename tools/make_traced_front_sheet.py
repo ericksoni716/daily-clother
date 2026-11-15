@@ -29,6 +29,7 @@ from make_figure_sheet import to_png
 from tests import shoe_photos as S
 
 GREEN, BROWN, DARK_BROWN, GUM = (30, 96, 64), (92, 56, 36), (52, 30, 20), (176, 120, 64)
+BLACK, SUEDE, WHEAT = (24, 24, 26), (150, 110, 75), (196, 150, 80)
 # name, the photo's shoe, the photo's size, and the tagger's words for today's drawing (category, style, colour, details)
 SHOES = [
     ("runner, three stripes", S.Shoe(upper=S.NAVY, midsole=S.WHITE, outsole=S.GREY, stripes=S.WHITE, laces=S.WHITE,
@@ -45,6 +46,11 @@ SHOES = [
     ("dress shoe, toe cap", S.Shoe(upper=BROWN, toe_cap=DARK_BROWN, midsole=(40, 30, 25), outsole=None, top=list(frontshoe._DRESS),
                                    sole_cm=1.2, sole_toe_cm=1.0, laces=DARK_BROWN, stitching=(150, 110, 80), gloss=True),
      (1000, 560), ("dress_shoes", "oxford", "#5c3824", {"toe_cap": "stitched"})),
+    ("red and black runner", S.Shoe(**S.RED_BLACK_RUNNER), (1000, 560), ("sneakers", "runner", "#bd1f24", {})),
+    ("chukka, low collar", S.Shoe(**S.LOW_CHUKKA), (1000, 640), ("boots", "boot", "#966e4b", {})),
+    ("work boot, padded collar", S.Shoe(**S.WORK_BOOT), (1000, 700),
+     ("boots", "boot", "#c3954f", {"shoe_height": "high", "tread": "lug"})),
+    ("busy runner", S.Shoe(**S.BUSY_RUNNER), (1000, 560), ("sneakers", "runner", "#808082", {})),
 ]
 GROUNDS = {"white on white sneaker": {"ground": (230, 230, 228), "shade_edge": 10}}
 

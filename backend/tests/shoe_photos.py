@@ -29,6 +29,8 @@ class Shoe:
     heel_counter: tuple | None = None
     collar: tuple | None = None           # a padded collar: a band this colour along the top from the heel to the throat
     mudguard: tuple | None = None         # a panel along the upper's foot from u 0.55 round the toe, 40% of its height
+    vamp: tuple | None = None             # the front of the upper, from u 0.45 to the toe, this colour (a two-colour upper)
+    camo: tuple = ()                      # a busy upper: blotches of these colours scattered over it (the same every time)
     stripes: tuple | None = None          # three slanted stripes on the quarter
     laces: tuple | None = None
     eyelets: tuple | None = None
@@ -69,6 +71,22 @@ class Shoe:
         if self.shaft_cm:
             out = np.maximum(out, np.where(u < 0.42, self.shaft_cm - 1.5 * u, 0.0))
         return out
+
+
+# shoes the front view from a trace once got wrong (#205): their words for `Shoe`
+BLACK, SUEDE, WHEAT, DARK_BROWN = (24, 24, 26), (150, 110, 75), (196, 150, 80), (50, 34, 24)
+# black quarters, a red front, a black mudguard round the toe; a white midsole on a red outsole, a red air window
+RED_BLACK_RUNNER = dict(upper=BLACK, vamp=RED, mudguard=BLACK, heel_counter=BLACK, laces=RED, midsole=WHITE, outsole=RED,
+                        window=RED, sole_cm=3.6, sole_toe_cm=2.4, toe_spring_cm=1.0)
+# a suede chukka whose collar stands a little lower than the tracing's boot threshold
+LOW_CHUKKA = dict(upper=SUEDE, midsole=(70, 50, 35), outsole=None, top=list(frontshoe._BOOT), shaft_cm=11.5, sole_cm=1.8,
+                  sole_toe_cm=1.5, laces=DARK_BROWN, eyelets=DARK_BROWN, lace_count=3)
+# a wheat work boot with a dark padded collar and a lug sole
+WORK_BOOT = dict(upper=WHEAT, midsole=(40, 34, 30), outsole=None, collar=DARK_BROWN, top=list(frontshoe._BOOT),
+                 shaft_cm=16.5, sole_cm=3.0, sole_toe_cm=2.6, lugs_cm=0.5, laces=DARK_BROWN, eyelets=(180, 170, 150))
+# a grey camouflage runner: many small blotches in three greys
+BUSY_RUNNER = dict(upper=(128, 128, 130), camo=((70, 70, 72), (176, 176, 178), (32, 32, 34)), midsole=WHITE,
+                   outsole=(40, 40, 42), laces=(30, 30, 32), sole_cm=3.4, sole_toe_cm=2.3)
 
 
 def _ground_rest(shoe: Shoe, us):
@@ -123,6 +141,18 @@ def draw(shoe: Shoe | None = None, *, px_per_cm: float = 26.0, size=(1000, 560),
             d.polygon(tab, fill=c(shoe.upper))
         md.polygon(outline, fill=255)
         d.polygon(outline, fill=c(shoe.upper))
+        if shoe.vamp:
+            d.polygon([p(u, t + 0.1) for u, t in zip(us, top, strict=True) if u >= 0.45]
+                      + [p(1.0, 0), p(0.45, sole_top[int(0.45 * 240)])], fill=c(shoe.vamp))
+        if shoe.camo:   # blotches 1-3 cm across, each a few overlapping blobs, kept inside the upper by the mask
+            rng = np.random.default_rng(11)
+            for i in range(70):
+                u0 = float(rng.uniform(0.02, 0.97))
+                h0 = float(rng.uniform(np.interp(u0, us, sole_top), np.interp(u0, us, top)))
+                for _ in range(3):
+                    du, dh, r = rng.normal(0, 0.5, 2).tolist() + [float(rng.uniform(0.5, 1.2))]
+                    (xa, ya), (xb, yb) = p(u0 + (du - r) / L, h0 + dh + r * 0.7), p(u0 + (du + r) / L, h0 + dh - r * 0.7)
+                    d.ellipse((min(xa, xb), ya, max(xa, xb), yb), fill=c(shoe.camo[i % len(shoe.camo)]))
         if shoe.heel_counter:
             band = [p(u, s + 0.62 * (t - s)) for u, s, t in zip(us, sole_top, top, strict=True) if u <= 0.2]
             d.polygon([p(0, sole_top[0])] + band + [p(0.2, sole_top[48])], fill=c(shoe.heel_counter))

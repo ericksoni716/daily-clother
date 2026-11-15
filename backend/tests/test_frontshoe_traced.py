@@ -224,3 +224,137 @@ def test_a_traced_photo_is_drawn_from_the_front():
     assert drawn.body != today.body
     assert math.isfinite(drawn.bbox[0]) and drawn.bbox[2] - drawn.bbox[0] < 1.3 * (today.bbox[2] - today.bbox[0])
     assert drawn.body == front(t.to_json()).body
+
+
+# ------------------------------------------------------------------ shoes the front view once got wrong (#205 review)
+
+def near(colour: str, rgb, tol: float = 40.0) -> bool:
+    return math.dist(frontshoe._rgb(colour), [v / 255 for v in rgb]) * 255 <= tol
+
+
+_TRACES: dict = {}
+
+
+def traced_photo(name: str, size=(1000, 560)):
+    """The trace of one of `shoe_photos`' shoes (traced once per test run)."""
+    if name not in _TRACES:
+        from closet.drawing import trace as T
+
+        from . import shoe_photos as S
+        img, _ = S.draw(S.Shoe(**getattr(S, name)), size=size, noise=2)
+        _TRACES[name] = traced.traced_shoe(T.trace_photo(img, None))
+    return _TRACES[name]
+
+
+def cells(t, words=None):
+    tr = frontshoe._Traced.of(frontshoe.usable_trace(t), "round", words)
+    return tr, [(i / frontshoe.GRID_U, math.sin(math.pi / 2 * (j + 0.5) / frontshoe.GRID_A), c, g)
+                for _, i, j, c, g, part in tr.cells() if part == "foot"]
+
+
+def test_the_toe_box_takes_the_colour_under_its_top_line_and_a_mudguard_stays_a_low_band():
+    from . import shoe_photos as S
+    tr, cs = cells(traced_photo("RED_BLACK_RUNNER"))
+    toe = [(sa, c, g) for u, sa, c, g in cs if u >= 0.75]
+    top = [g for sa, c, g in toe if sa >= 0.6]
+    red = sum(g for sa, c, g in toe if sa >= 0.6 and near(c, S.RED, 60))
+    assert red > 0.9 * sum(top)   # the toe box and the vamp, as the viewer sees them, are red
+    black = [sa for sa, c, g in toe if near(c, S.BLACK, 40)]
+    assert black and max(black) < 0.6   # the black mudguard only low round the toe
+    assert near(tr.base, S.RED, 60)
+
+
+def test_a_big_piece_in_the_laces_colour_is_still_a_panel():
+    t = made(panels=[(PANEL, rect(0.45, 1.0, 0.0, 20.0), "laces")])   # the whole front, where the laces run
+    assert painted(front(t).body, PANEL)
+
+
+def test_a_dark_edge_along_the_top_line_does_not_colour_the_crest():
+    # the top line's shade in a photo: a band just under it, darker, the length of the forefoot
+    table = frontshoe.STYLES["low_sneaker"][2]
+    edge = [[u, 2.0 + frontshoe._interp(table, u) + 1.0] for u in US if u >= 0.5]
+    edge += [[u, 2.0 + frontshoe._interp(table, u) - 0.45] for u in reversed(US) if u >= 0.5]
+    tr, cs = cells(made(spring=0.0, panels=[(PANEL, edge, "vamp")]))
+    crest = [c for u, sa, c, g in cs if 0.6 <= u <= 0.9 and sa > 0.9]
+    assert crest and PANEL not in crest
+
+
+def test_the_sole_is_drawn_in_its_traced_bands():
+    from . import shoe_photos as S
+    t = traced_photo("RED_BLACK_RUNNER")
+    tr = frontshoe._Traced.of(t)
+    (lo, mid, red), (_, hi, white) = tr.bands[0], tr.bands[-1]
+    assert near(red, S.RED, 60) and near(white, S.WHITE, 40) and lo == 0.0 and hi == 1.0
+    assert 0.15 <= mid <= 0.5   # the outsole's share of the thickness, as drawn (0.9 of 3.6 cm; the window adds a little)
+    body = front(t).body
+    assert f'fill="{red}"' in body and f'fill="{white}"' in body
+
+
+def test_a_window_in_the_sole_is_not_a_band():
+    sole = [traced.Region("#f4f4f0", "sole", [[rect(0.0, 1.0, 0.0, 2.0)]], ["midsole"]),
+            traced.Region("#cc2222", "sole", [[rect(0.1, 0.3, 0.6, 1.6)]], ["outsole"])]
+    t = made()
+    t.regions = t.regions[:-1] + sole
+    assert [c for _, _, c in frontshoe._Traced.of(t).bands] == ["#f4f4f0"]
+
+
+def test_a_chukka_the_tagger_calls_a_boot_keeps_its_shaft():
+    t = traced_photo("LOW_CHUKKA", (1000, 640))
+    assert not frontshoe.STYLES[t.style][3]   # the trace alone draws the line between a boot and a shoe higher
+    boot, shoe = spec_of("boots", "boot"), spec_of("sneakers", "low_sneaker")
+    as_boot, as_shoe = front(t, boot), front(t, shoe)
+    assert frontshoe._Traced.of(t, "round", "boot").shaft > 9.0
+    assert frontshoe._Traced.of(t, "round", "low_sneaker").shaft == 0.0
+
+    def width_near_top(f):   # the outline's width 4 px under its top: a shaft round the ankle is wide there
+        pts = _flat(f.outline)
+        y = min(q[1] for q in pts) + 4.0
+        xs = [x for x, yy in pts if yy <= y]
+        return max(xs) - min(xs)
+    assert width_near_top(as_boot) > 1.5 * 4.7 * K_PX > width_near_top(as_shoe)
+
+
+def test_a_low_shoe_stays_low_whatever_the_tagger_says():
+    t = made()
+    assert frontshoe._Traced.of(t, "round", "boot").shaft == 0.0
+
+
+def test_a_busy_upper_is_painted_in_a_few_clean_colours():
+    tr, cs = cells(traced_photo("BUSY_RUNNER"))
+    assert len({c for _, _, c, _ in cs}) <= 3
+    # its colour is the blotches' mix, not the darkest of them
+    assert 0.25 < frontshoe.luminance(tr.base) < 0.6
+
+
+def test_small_pieces_take_the_colour_round_them():
+    specks = [(PANEL, rect(0.3 + 0.1 * k, 0.33 + 0.1 * k, 3.0, 4.0), "quarter") for k in range(5)]   # 0.9 x 1 cm each
+    big = [(MARK, rect(0.3, 0.9, 2.5, 6.0), "vamp")]
+    tr, cs = cells(made(panels=specks + big))
+    colours = {c for _, _, c, _ in cs}
+    assert PANEL not in colours and MARK in colours
+
+
+def test_a_traced_low_shoes_heel_does_not_rise_in_a_point_above_its_collar():
+    for name in ("RED_BLACK_RUNNER", "BUSY_RUNNER"):
+        t = traced_photo(name)
+        tr = frontshoe._Traced.of(t)
+        f = front(t)
+        view = frontshoe._View(K_PX, tr.warp)
+        back = view(0.0, 0.07, tr.sole_t + tr.rim - 0.5)[1]   # the back of the collar's rim
+        assert min(y for _, y in _flat(f.outline)) > back - 1.0
+
+
+def test_a_traced_low_shoes_collar_rounds_down_beside_its_opening():
+    assert frontshoe._shoulder(10.0, 2.0, 5.0, 3.0, 2.0) == 10.0   # over the opening: up to the collar
+    beside = [frontshoe._shoulder(10.0, 2.0, 5.0, 3.0, x) for x in (3.5, 4.0, 4.5, 5.0)]
+    assert beside == sorted(beside, reverse=True) and beside[-1] == 2.0 and beside[0] > 9.0   # then down to the sole
+
+
+def test_a_traced_boots_leg_stands_in_front_of_the_back_of_its_shaft():
+    t = traced_photo("WORK_BOOT", (1000, 700))
+    skin = '<path d="{d}" fill="none"/><path d="{d}" fill="#e0b090"/>'
+    traced_boot = frontshoe.front_shoe(spec_of("boots", "boot"), K_PX, ankle=skin, traced=t)
+    plain = frontshoe.front_shoe(spec_of("boots", "boot"), K_PX, ankle=skin)
+    clip = lambda f: re.search(r'<clipPath id="fsa"><path d="([^"]+)"', f.defs + f.body).group(1)   # noqa: E731
+    top = lambda d: min(y for _, y in _flat(d))   # noqa: E731
+    assert top(clip(traced_boot)) < top(clip(plain)) - 10.0

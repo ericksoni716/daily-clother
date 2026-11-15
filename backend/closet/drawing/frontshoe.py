@@ -188,7 +188,7 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
     if style not in STYLES:
         style = "low_sneaker"
     toe = p.get("toe", "round")
-    tr = _Traced.of(usable_trace(traced), toe) if traced is not None and style != "sandal" else None
+    tr = _Traced.of(usable_trace(traced), toe, style) if traced is not None and style != "sandal" else None
     if tr is not None:
         style = tr.style
         ball, sole_t, table, shaft = tr.ball, tr.sole_t, tr.table, tr.shaft
@@ -231,15 +231,17 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
     sole_d = _path(_hull(sole_pts))
     out.append(fill(sole_d, sole_c))
     defs += f'<clipPath id="{uid}s"><path d="{sole_d}"/></clipPath>'
-    if tr is not None:   # the traced sole: the outsole under the midsole, at its traced share of the thickness
-        if tr.outsole_c:
-            low = [view(*q) for h in (0.0, sole_t * tr.out_frac) for q in contour(h)]
-            mid_d = _path(_hull([view(*q) for h in (sole_t * tr.out_frac, sole_t) for q in contour(h)]))
-            # the midsole sits on the outsole and hides its top: only the outsole's edge under it shows
-            out.append(f'<g clip-path="url(#{uid}s)">' + fill(_path(_hull(low)), tr.outsole_c, edge=False)
-                       + fill(mid_d, sole_c, edge=False)
-                       + ln(mid_d, 1.0, shade(tr.outsole_c, -0.3 if luminance(tr.outsole_c) > 0.25 else 0.25), 0.8)
-                       + "</g>")
+    if tr is not None:   # the traced sole: its bands from the ground up, each at its traced share of the thickness
+        if len(tr.bands) > 1:
+            g = ""
+            for k, (f0, f1, c) in enumerate(tr.bands):
+                # each band sits on the one below and hides its top: only the lower one's edge under it shows
+                d = _path(_hull([view(*q) for h in (sole_t * f0, sole_t * f1) for q in contour(h)]))
+                g += fill(d, c, edge=False)
+                if k:
+                    below = tr.bands[k - 1][2]
+                    g += ln(d, 1.0, shade(below, -0.3 if luminance(below) > 0.25 else 0.25), 0.8)
+            out.append(f'<g clip-path="url(#{uid}s)">{g}</g>')
     elif style in TRAINERS or p.get("tread") == "eva":   # a trainer's sole: the outsole under it a shade darker, so its edge reads under a hem
         low = [view(*q) for h in (0.0, sole_t * 0.32) for q in contour(h)]
         c = shade(sole_c, -0.22 if luminance(sole_c) > 0.25 else 0.18)
@@ -265,11 +267,15 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         # the upper: a half ellipse across the foot at every step from heel to toe, up to the top line
         inset = 0.93 if style in ("loafer", "derby", "oxford") else 0.97
         upper_pts = []
+        cap = _collar_cap(tr.rim, sole_t, tr.lift) if tr is not None and not shaft else None
         for u in us:
             w, h = hw(u) * inset, _interp(table, u)
             for k in range(13):
                 a = math.pi * k / 12
-                upper_pts.append(view(w * math.cos(a), u, sole_t + h * math.sin(a)))
+                hh = sole_t + h * math.sin(a)
+                if cap:
+                    hh = min(hh, _shoulder(cap(u), sole_t, w, _ring_half(w, u), w * math.cos(a)))
+                upper_pts.append(view(w * math.cos(a), u, hh))
         ax, au, arx, aru = 0.0, 0.2, 4.7, 5.2        # the ankle: a boot's shaft, the wearer's ankle
         if shaft:
             for h in (sole_t + 4.0, shaft):
@@ -280,7 +286,7 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         out.append(fill(upper_d, base, w=2.4))
         defs += f'<clipPath id="{uid}u"><path d="{upper_d}"/></clipPath>'
         if tr is not None:   # the traced colour panels and marks, on the solid, then its outline again over their edges
-            out.append(f'<g clip-path="url(#{uid}u)">' + "".join(tr.paint(view, hw, inset, line_c)) + "</g>"
+            out.append(f'<g clip-path="url(#{uid}u)">' + "".join(tr.paint(view, line_c)) + "</g>"
                        + f'<path d="{upper_d}" fill="none" stroke="{INK}" stroke-width="2.4" stroke-linejoin="round"/>')
         tex = _texture_defs(spec.texture, f"{uid}x", dark, TEXTURE_SCALE)   # the upper's grain, nap or weave ...
         if tex and float(tex.split('width="')[1].split('"')[0]) < 2.5:   # ... unless it is too fine to show this small
@@ -302,7 +308,8 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
                    for u in us if u >= 0.87 for k in range(13)]
             cap += [view(x, u, sole_t) for x, u, _ in contour(0, inset) if u >= 0.8]
             out.append(f'<g clip-path="url(#{uid}u)">' + fill(_path(_hull(cap)), sole_c, w=1.3) + "</g>")
-        out += _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg)
+        out += _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg,
+                        rim_cm=tr.rim if tr is not None else None, behind=tr is not None)
         if tr is not None and tr.laced:   # the traced laces instead of the style's
             out += _details({**p, "laces": False}, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill, traced=True)
             out += tr.lacing(view, hw, inset, ln)
@@ -352,7 +359,40 @@ def _below(ankle: str, d: str, y: float, uid: str) -> tuple[str, str]:
     return f'<g clip-path="url(#{uid}b)">{line}/></g><g clip-path="url(#{uid}c)">{fill}</g>', defs
 
 
-def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg):
+def _collar_cap(rim_cm: float, sole_t: float, lift=lambda u: 0.0):
+    """How high a traced low shoe's upper may stand at u, so its outline's top is the collar round the ankle: up
+    to the opening's rim (as `_opening` draws it) from the heel to the throat, and behind the rim's back a little
+    lower the further back, so the heel's top stays hidden behind the collar instead of rising in a point. `lift`
+    (u -> cm): how far the sole lifts the upper at u, as the view's warp does."""
+    rim = sole_t + rim_cm - 0.5
+    slope = LENGTH * math.tan(math.radians(LOOK))
+
+    def cap(u: float) -> float:
+        if u < 0.07:
+            return rim - (0.07 - u) * slope - (lift(u) - lift(0.07))
+        if u <= 0.47:
+            return rim + 0.6 * max(0.0, (u - 0.27) / 0.2)
+        return math.inf
+    return cap
+
+
+def _ring_half(w: float, u: float) -> float:
+    """Half the width at u of a low shoe's opening (as `_opening` draws it), in an upper w wide there."""
+    s = (u - 0.27) / 0.2
+    return w * 0.82 * math.sqrt(1 - s * s) if abs(s) < 1 else 0.0
+
+
+def _shoulder(top: float, sole_t: float, w: float, rx: float, x: float) -> float:
+    """How high a traced low shoe's upper, w wide, may stand at x across it when capped at `top` round an opening
+    rx wide: up to the collar beside the opening, then rounding down to the sole at its side, so the collar's top
+    edge is an arc round the ankle, not a flat top with corners."""
+    if abs(x) <= rx or top == math.inf:
+        return top
+    s = min(1.0, (abs(x) - rx) / max(w - rx, 1e-6))
+    return sole_t + (top - sole_t) * math.sqrt(1 - s * s)
+
+
+def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg, rim_cm=None, behind=False):
     """The way in: the collar of a low shoe, or the top of a boot's shaft, with the dark lining inside; and the
     wearer's ankle standing in it when asked for, up to where the leg drawn above it takes over."""
     out = []
@@ -366,14 +406,22 @@ def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid
             a = 2 * math.pi * k / 32
             u = 0.27 + 0.2 * math.sin(a)                     # from just inside the heel to the throat
             x = hw(u) * inset * 0.82 * math.cos(a)
-            h = sole_t + _interp(table, 0.04) - 0.5 + (0.6 if math.sin(a) > 0 else 0) * math.sin(a)
+            h = sole_t + (_interp(table, 0.04) if rim_cm is None else rim_cm) - 0.5 + (0.6 if math.sin(a) > 0 else 0) * math.sin(a)
             ring.append((x, u, h))
     rim = [view(*q) for q in ring]
     rim_d = _path(rim)
     # where the ankle is seen: in the opening, and above the back half of the collar, which is behind it (the
     # heel counter's top, seen from above, stands up behind the ankle; only the collar's sides, curving round
     # it, are in front of it)
-    seen_d = rim_d if shaft else _path(_hull(rim + [view(x, u, h + BEHIND_CM) for x, u, h in ring if u <= 0.27]))
+    # (a traced shoe's ankle also stands in front of all that is behind it above the rim: the back of a boot's
+    # shaft, and the heel's top beside the ankle, turned out from behind it)
+    if shaft and not behind:
+        seen_d = rim_d
+    else:
+        seen = rim + [view(x, u, h + BEHIND_CM) for x, u, h in ring if u <= (0.2 if shaft else 0.27)]
+        if behind:
+            seen += _column(view, min(h for _, _, h in ring), leg + BEHIND_CM)
+        seen_d = _path(_hull(seen))
     if p.get("lining") == "shearling":   # the fleece turned over the collar, a soft cream rim round the opening
         out.append(f'<path d="{rim_d}" fill="none" stroke="{INK}" stroke-width="5.4" stroke-linejoin="round"/>'
                    f'<path d="{rim_d}" fill="none" stroke="{SHEARLING}" stroke-width="3.6" stroke-linejoin="round"/>')
@@ -655,6 +703,16 @@ MARK_NEAR_CM = 0.6           # a colour piece whose middle is this near a mark's
 DETAILS = ("laces", "eyelets", "stitching", "midsole", "outsole")
 LACES_MIN = 3                # a traced row of laces or eyelets with fewer than this is not trusted
 THIN_CM = 0.3                # a colour piece thinner than this (a highlight, a seam) is not a panel
+MIN_PANEL_CM2 = 6.0          # a colour piece smaller than this (a lace, a blotch of camouflage) is not a panel either
+PATTERN_SHARE = 0.15         # small pieces covering this share of the upper are its pattern, mixed into its colour
+RIM_CM = 0.6                 # the band just under the top line (its edge in shade) is not what the crest is
+NOSE_U = 0.92                # past this the photo sees the toe's end edge on: the nose takes the colours here
+BOOTS = ("boot", "chelsea_boot", "high_top")
+BOOT_COLLAR_CM = 10.8        # a shoe the tagger called a boot keeps its shaft when its traced collar is this high ...
+BOOT_ABOVE_SOLE_CM = 7.5     # ... above the ground, and this high above the sole
+SOLE_LEVELS = 20            # the sole is read at this many heights through it
+GRID_U, GRID_A = 72, 16      # the upper is painted in this many steps along it and up each side
+SHAFT_STEP_CM = 0.8          # ... and a boot's shaft in steps this tall
 
 
 def _see() -> tuple[float, float, float]:
@@ -724,6 +782,98 @@ def _centre(ring) -> tuple[float, float]:
     return sum(q[0] for q in ring) / len(ring), sum(q[1] for q in ring) / len(ring)
 
 
+def _area(ring) -> float:
+    """A traced outline's area, in square cm."""
+    pts = [(u * LENGTH, h) for u, h in ring]
+    return abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(pts, pts[1:] + pts[:1], strict=True))) / 2
+
+
+class _Raster:
+    """Traced colour layers (colour, [outline, holes ...]), painted one over another into a fine grid of the side
+    view (u along the length, cm above the ground), to look up what colour the photo shows at a point."""
+    DU, DH, TOP = 0.004, 0.1, 40.0
+
+    def __init__(self, layers):
+        self.colours: list[str] = []
+        nu, nh = round(1 / self.DU), round(self.TOP / self.DH)
+        self.grid = [bytearray(nu) for _ in range(nh)]
+        for colour, rings in layers:
+            if colour not in self.colours:
+                self.colours.append(colour)
+            v = self.colours.index(colour) + 1
+            if v > 255 or not rings:
+                continue
+            hs = [h for ring in rings for _, h in ring]
+            for row in range(max(0, int(min(hs) / self.DH)), min(nh, int(max(hs) / self.DH) + 1)):
+                y = (row + 0.5) * self.DH
+                xs = sorted(u0 + (u1 - u0) * (y - h0) / (h1 - h0)
+                            for ring in rings for (u0, h0), (u1, h1) in zip(ring, ring[1:] + ring[:1], strict=True)
+                            if (h0 <= y) != (h1 <= y))
+                line = self.grid[row]
+                for a, b in zip(xs[::2], xs[1::2], strict=False):   # inside between each pair of crossings
+                    c0, c1 = max(0, math.ceil(a / self.DU - 0.5)), min(nu - 1, math.floor(b / self.DU - 0.5))
+                    if c1 >= c0:
+                        line[c0:c1 + 1] = bytes([v]) * (c1 - c0 + 1)
+
+    def at(self, u: float, h: float) -> str | None:
+        row, col = int(h / self.DH), int(u / self.DU)
+        if not (0 <= row < len(self.grid) and 0 <= col < len(self.grid[0])):
+            return None
+        v = self.grid[row][col]
+        return self.colours[v - 1] if v else None
+
+
+def _sole_bands(t, us, bottom, sole) -> list[tuple[float, float, str]]:
+    """The sole's colour bands from the ground up, as the photo shows them: at each of SOLE_LEVELS heights through
+    the sole, the colour most of its length shows (so a window or a logo in it does not count), then runs of one
+    colour joined; a band thinner than two levels goes to the band beside it."""
+    layers = []
+    for r in t.regions[1:]:
+        for k, piece in enumerate(r.paths):
+            label = r.labels[k] if k < len(r.labels) else ""
+            if (r.part == "sole" or label in ("midsole", "outsole")) and piece and len(piece[0]) >= 3:
+                layers.append((r.color, [ring for ring in piece if len(ring) >= 3]))
+    if not layers:
+        return []
+    side = _Raster(layers)
+    cols = [0.1 + 0.8 * i / 40 for i in range(41)]
+    levels: list[str | None] = []
+    for k in range(SOLE_LEVELS):
+        f = (k + 0.5) / SOLE_LEVELS
+        seen: dict[str, int] = {}
+        for u in cols:
+            c = side.at(u, _lerp(us, bottom, u) + f * _lerp(us, sole, u))
+            if c is not None:
+                seen[c] = seen.get(c, 0) + 1
+        best = max(seen, key=lambda c: (seen[c], c)) if seen else None
+        levels.append(best if best is not None and seen[best] >= 0.3 * len(cols) else None)
+    if not any(levels):
+        return []
+    for k in range(SOLE_LEVELS):   # a level nothing was found at takes the one below it, or above
+        if levels[k] is None:
+            levels[k] = next((c for c in levels[k::-1] if c), None) or next(c for c in levels[k:] if c)
+    runs: list[list] = []
+    for k, c in enumerate(levels):
+        if runs and runs[-1][2] == c:
+            runs[-1][1] = k + 1
+        else:
+            runs.append([k, k + 1, c])
+    while len(runs) > 1 and min(r[1] - r[0] for r in runs) < 2:
+        i = min(range(len(runs)), key=lambda i: (runs[i][1] - runs[i][0], i))
+        j = i - 1 if i == len(runs) - 1 or (i > 0 and runs[i - 1][1] - runs[i - 1][0] >= runs[i + 1][1] - runs[i + 1][0]) else i + 1
+        lo, hi = min(runs[i][0], runs[j][0]), max(runs[i][1], runs[j][1])
+        runs[min(i, j)] = [lo, hi, runs[j][2]]
+        del runs[max(i, j)]
+        k = 0
+        while k + 1 < len(runs):   # neighbours now the same colour join
+            if runs[k][2] == runs[k + 1][2]:
+                runs[k][1] = runs[k + 1][1]
+                del runs[k + 1]
+            else:
+                k += 1
+    return [(a / SOLE_LEVELS, b / SOLE_LEVELS, c) for a, b, c in runs]
+
+
 @dataclass
 class _Traced:
     """The front view's shape and paint, measured from a traced shoe."""
@@ -735,16 +885,18 @@ class _Traced:
     shaft: float
     base: str
     sole_c: str | None
-    outsole_c: str | None
-    out_frac: float
+    bands: list                   # the sole's bands from the ground up: (from, to as shares of its thickness, colour)
     us: list = field(default_factory=list)
     bottom: list = field(default_factory=list)
     sole: list = field(default_factory=list)
-    panels: list = field(default_factory=list)    # (colour, [outline, holes ...]) painted on both sides
+    side: _Raster | None = None                   # the traced upper's colours, side on
     marks: list = field(default_factory=list)     # (colour, outline) painted on both sides, unstroked
+    inset: float = 0.97
+    hw: object = None
+    rim: float = 0.0
 
     @classmethod
-    def of(cls, t, toe: str = "round") -> _Traced | None:
+    def of(cls, t, toe: str = "round", words: str | None = None) -> _Traced | None:
         if t is None:
             return None
         P = t.profile
@@ -753,6 +905,16 @@ class _Traced:
         sole_raw = [float(s) for s in P.sole]
         mid = [s for u, s in zip(us, sole_raw, strict=True) if 0.1 <= u <= 0.9 and s > 0]
         style = t.style
+        if STYLES[style][3] and words in BOOTS:   # both see a shaft: the tagger's word for which kind
+            style = words
+        elif words in BOOTS:
+            # the tagger saw a boot and the trace's collar stands high enough round the ankle for one, though below
+            # the trace's own line between a boot and a shoe (a chukka's collar sits just over the ankle bone)
+            back = [i for i, u in enumerate(us) if u <= 0.3]
+            collar = _median([float(P.top[i]) for i in back])
+            heel = _median([bottom[i] + max(0.0, float(P.sole[i])) for i in back])
+            if collar >= BOOT_COLLAR_CM and collar - heel >= BOOT_ABOVE_SOLE_CM:
+                style = words
         ball, style_sole, style_table, style_shaft = STYLES[style]
         sole_t = min(7.0, max(0.5, _median(mid) if mid else style_sole))
         sole = _median5([min(8.0, max(0.4, s if s > 0 else sole_t)) for s in sole_raw])
@@ -779,23 +941,59 @@ class _Traced:
                          for ring in outs.region for u, h in ring if 0.05 <= u <= 0.95)
             if rel:
                 outsole_c, out_frac = outs.color, min(0.7, max(0.12, rel[int(0.8 * (len(rel) - 1))]))
+        bands = _sole_bands(t, us, bottom, sole)
+        if bands:
+            sole_c = bands[-1][2]
+        elif outsole_c:
+            bands = [(0.0, out_frac, outsole_c), (out_frac, 1.0, sole_c)]
         marks = [(m.color, ring) for m in t.marks for ring in m.path if len(ring) >= 3]
         centres = [_centre(ring) for _, ring in marks]
-        panels = []
+        # what the photo shows on the upper, layer over layer as traced: the silhouette, then each colour piece
+        # big enough to be a panel (a smaller piece, or a smaller hole in one, takes the colour round it)
+        layers = [(r.color, [ring for piece in r.paths for ring in piece[:1] if len(ring) >= 3]) for r in t.regions[:1]]
+        specks: dict[str, float] = {}   # the small pieces' area, by colour
+        sole_area = 0.0
         for r in t.regions[1:]:
-            if r.part == "sole":
-                continue
             for k, piece in enumerate(r.paths):
                 label = r.labels[k] if k < len(r.labels) else ""
-                if label in DETAILS or not piece or len(piece[0]) < 3:
+                if not piece or len(piece[0]) < 3:
+                    continue
+                if r.part == "sole" or label in ("midsole", "outsole"):
+                    sole_area += _area(piece[0])
                     continue
                 if _thickness(piece[0]) < THIN_CM:
                     continue   # a line of light or stitching along the side, not a panel of the upper
+                if _area(piece[0]) < MIN_PANEL_CM2:   # a lace, a speck, a blotch of camouflage: not a panel
+                    specks[r.color] = specks.get(r.color, 0.0) + _area(piece[0])
+                    continue
                 cu, ch = _centre(piece[0])
                 if any(abs(cu - mu) * LENGTH < MARK_NEAR_CM and abs(ch - mh) < MARK_NEAR_CM for mu, mh in centres):
                     continue   # a mark: drawn with the marks
-                panels.append((r.color, [ring for ring in piece if len(ring) >= 3]))
-        return cls(t, style, ball, sole_t, table, shaft, base, sole_c, outsole_c, out_frac, us, bottom, sole, panels, marks)
+                layers.append((r.color, [ring for i, ring in enumerate(piece)
+                                         if len(ring) >= 3 and (i == 0 or _area(ring) >= MIN_PANEL_CM2)]))
+        if layers and layers[0][1]:
+            # a busy upper (camouflage, a print): so many small pieces that together they are much of what the eye
+            # sees; the upper's own colour is then their mix with it, as they blur together seen from afar
+            upper = max(0.0, sum(_area(ring) for ring in layers[0][1]) - sole_area)
+            small = sum(specks.values())
+            if upper and small >= PATTERN_SHARE * upper:
+                kept = sum(_area(ring) for _, rings in layers[1:] for ring in rings[:1])
+                weights = [(layers[0][0], max(0.0, upper - kept - small))] + list(specks.items())
+                total = sum(w for _, w in weights) or 1.0
+                mixed = _hex(tuple(sum(_rgb(c)[i] * w for c, w in weights) / total for i in range(3)))
+                layers[0] = (mixed, layers[0][1])
+        tr = cls(t, style, ball, sole_t, table, shaft, "#808080", sole_c, bands, us, bottom, sole, _Raster(layers), marks)
+        # the collar's height at the back: the traced top line's middle over the heel (not its very end, where
+        # the trace's corner is rounded off)
+        tr.rim = _median([h for u, h in table if 0.03 <= u <= 0.25]) or _interp(table, 0.04)
+        tr.inset = 0.93 if style in ("loafer", "derby", "oxford") else 0.97
+        tr.hw = lambda u: _half_width(u, ball, toe)   # noqa: E731
+        # the colour the viewer sees most of is the shoe's own (its outline, the lining's tint)
+        seen: dict[str, float] = {}
+        for _, _, _, c, g, _ in tr.cells():
+            seen[c] = seen.get(c, 0.0) + g
+        tr.base = max(seen, key=lambda c: (seen[c], c)) if seen else base
+        return tr
 
     @property
     def laces(self):
@@ -904,19 +1102,108 @@ class _Traced:
                 lo = m
         return (lo + hi) / 2
 
-    def paint(self, view, hw, inset: float, line_c: str) -> list[str]:
-        """The traced colour panels, then the marks, on both sides, each where it is seen."""
+    def colour_at(self, u: float, sa: float) -> str | None:
+        """The traced colour for the point on the upper at u, sa of the way up round its cross-section (sin of the
+        angle; 1 at the crest): what the photo shows there, as high up the side as the point is round the shoe.
+        The crest takes what is just under the top line, and the nose what is at NOSE_U: so a band low round the toe
+        (a mudguard) stays low on the front."""
+        u = min(u, NOSE_U)
+        H = _interp(self.table, u)
+        hp = _lerp(self.us, self.bottom, u) + _lerp(self.us, self.sole, u) + sa * (H - min(RIM_CM, 0.3 * H))
+        return self.side.at(u, hp)
+
+    def cells(self):
+        """The upper's surface in small cells, each facing the viewer: (side, i, j, colour, facing, part), where
+        part is "foot" (i along the length, j up the side) or "shaft" (i up the shaft, j round it). Cached."""
+        if getattr(self, "_cells", None) is not None:
+            return self._cells
         out = []
-        for colour, rings in self.panels:
-            for side in (1, -1):
-                d = ""
-                for ring in rings:
-                    seen = self.seen_part(hw, inset, [tuple(q) for q in ring], side)
-                    if len(seen) >= 3:
-                        d += _path([view(*q) for q in seen]) + " "
-                if d:
-                    out.append(f'<path d="{d.strip()}" fill="{colour}" fill-rule="evenodd" stroke="{line_c}" '
-                               f'stroke-width=".9" stroke-linejoin="round" stroke-opacity=".55"/>')
+        hw, inset = self.hw, self.inset
+        for side in (-1, 1):
+            for i in range(GRID_U):
+                u = (i + 0.5) / GRID_U
+                for j in range(GRID_A):
+                    a = math.pi / 2 * (j + 0.5) / GRID_A
+                    g = self._facing(hw, inset, u, math.sin(a), side)
+                    c = self.colour_at(u, math.sin(a)) if g > 0 else None
+                    if c is not None:
+                        out.append((side, i, j, c, g, "foot"))
+            if self.shaft:
+                for i in range(self._shaft_rows()):
+                    h = self._shaft_h(i + 0.5)
+                    for j in range(GRID_A):
+                        su = math.sin(math.pi * ((j + 0.5) / GRID_A - 0.5))   # from the back (-1) to the front (1)
+                        u = SHAFT_AU + SHAFT_RU * su / LENGTH
+                        if h <= self.sole_t + _interp(self.table, u):
+                            continue   # inside the foot's upper
+                        cu = math.sqrt(max(0.0, 1 - su * su))
+                        g = (side * cu / SHAFT_RX * SEE[0] + su / SHAFT_RU * SEE[1]) / (math.hypot(cu / SHAFT_RX, su / SHAFT_RU) or 1.0)
+                        if g <= 0:
+                            continue
+                        c = self.side.at(u, _lerp(self.us, self.bottom, u) + _lerp(self.us, self.sole, u) + h - self.sole_t)
+                        if c is not None:
+                            out.append((side, i, j, c, g, "shaft"))
+        self._cells = out
+        return out
+
+    def _shaft_rows(self) -> int:
+        return max(1, math.ceil((self.shaft - self.sole_t - 4.0) / SHAFT_STEP_CM))
+
+    def _shaft_h(self, i: float) -> float:
+        return self.sole_t + 4.0 + (self.shaft - self.sole_t - 4.0) * i / self._shaft_rows()
+
+    def _facing(self, hw, inset: float, u: float, sa: float, side: int) -> float:
+        H = _interp(self.table, u)
+        return self.on_shoe(hw, inset, u, _lerp(self.us, self.bottom, u) + _lerp(self.us, self.sole, u) + sa * H, side)[3]
+
+    def _corner(self, part: str, side: int, i: float, j: float) -> tuple[float, float, float]:
+        """A cell corner on the solid: i, j counted in cells as `cells` does."""
+        if part == "foot":
+            u, a = min(1.0, i / GRID_U), math.pi / 2 * j / GRID_A
+            return side * self.hw(u) * self.inset * math.cos(a), u, self.sole_t + _interp(self.table, u) * math.sin(a)
+        su = math.sin(math.pi * (j / GRID_A - 0.5))
+        return (SHAFT_AX + side * SHAFT_RX * math.sqrt(max(0.0, 1 - su * su)), SHAFT_AU + SHAFT_RU * su / LENGTH,
+                self._shaft_h(i))
+
+    def paint(self, view, line_c: str) -> list[str]:
+        """The traced colours on the solid, cell by cell where it faces the viewer (runs of one colour joined into
+        one outline), the back of the foot first, then a boot's shaft, then the front; then the marks, on both
+        sides, each where it is seen."""
+        runs: dict = {}
+        for side, i, j, c, _, part in self.cells():
+            runs.setdefault((part, side, i), []).append((j, c))
+        groups = {"back": {}, "shaft": {}, "front": {}}
+        for part, rows in (("foot", GRID_U), ("shaft", self._shaft_rows() if self.shaft else 0)):
+            for side in (-1, 1):
+                open_: dict = {}   # (j0, j1, colour) -> the first row of a block of identical runs
+                for i in range(rows + 1):
+                    here = set()
+                    cells = sorted(runs.get((part, side, i), []))
+                    k = 0
+                    while k < len(cells):
+                        j0, c = cells[k]
+                        j1 = j0
+                        while k + 1 < len(cells) and cells[k + 1][1] == c and cells[k + 1][0] == j1 + 1:
+                            k += 1
+                            j1 = cells[k][0]
+                        here.add((j0, j1, c))
+                        k += 1
+                    for key in [key for key in open_ if key not in here]:
+                        start = open_.pop(key)
+                        j0, j1, c = key
+                        ring = ([self._corner(part, side, start, j) for j in range(j0, j1 + 2)]
+                                + [self._corner(part, side, r, j1 + 1) for r in range(start + 1, i + 1)]
+                                + [self._corner(part, side, i, j) for j in range(j1 + 1, j0 - 1, -1)]
+                                + [self._corner(part, side, r, j0) for r in range(i - 1, start, -1)])
+                        where = "shaft" if part == "shaft" else "back" if start < 0.4 * GRID_U else "front"
+                        groups[where].setdefault(c, []).append(_path([view(*q) for q in ring]))
+                    for key in here:
+                        open_.setdefault(key, i)
+        out = []
+        for where in ("back", "shaft", "front"):
+            for c, ds in sorted(groups[where].items()):
+                out.append(f'<path d="{" ".join(ds)}" fill="{c}" stroke="{c}" stroke-width=".6" stroke-linejoin="round"/>')
+        hw, inset = self.hw, self.inset
         for colour, ring in self.marks:
             for side in (1, -1):
                 seen = self.seen_part(hw, inset, [tuple(q) for q in ring], side)

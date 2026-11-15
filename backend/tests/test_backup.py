@@ -80,7 +80,7 @@ def test_demo_closet_has_about_forty_items_and_leaves_the_real_one_alone(client,
     upload(client, name="Mine")
     assert client.post("/api/profile", json={"profile": "demo"}).json() == {"profile": "demo"}
     listed = client.get("/api/items").json()["items"]
-    assert len(listed) == 43 and all(i["name"] != "Mine" for i in listed)
+    assert len(listed) == 49 and all(i["name"] != "Mine" for i in listed)
     with_photo = [i for i in listed if i["has_photo"]]
     assert len(with_photo) == 7 and all(i["cutout_state"] == "ready" and i["thumb_url"] for i in with_photo)
     assert all(i["has_illustration"] for i in listed)
@@ -210,7 +210,7 @@ def test_selfcheck_reports_each_library(cfg):
     assert result["webp"]["ok"] and result["onnxruntime"]["ok"] and result["database"]["ok"]
     assert result["model_state"] == {"ok": True, "detail": "missing"}
     assert result["tagger"]["ok"]
-    assert "43 items" in result["database"]["detail"]
+    assert "49 items" in result["database"]["detail"]
     assert result["drawing"]["ok"] and "drew a shirt" in result["drawing"]["detail"]
 
 

@@ -59,9 +59,13 @@ shape=)`); the item drawings themselves do not change:
   drawn about, at K_PX: a belt is worn round the trousers' waistband, and the
   first top is then worn tucked in (its body cut off at the belt, its sleeves
   kept), so the belt shows over it and under any layer worn over it; a scarf at the neck point,
-  over every top; a hat's band at HAT_Y, on the head; a bag beside the figure on the viewer's right, its handle
-  at the height of a hand. One of each is drawn (the first given); the other
-  accessories (ties, gloves, socks...) are not drawn in the figure.
+  over every top. A hat goes on his head and a bag is carried as its kind is
+  (in the hand, over the shoulder, on the back): `worn.place` places them, and
+  `worn` draws the bag with its straps; with no wearer drawn, a hat's band is at
+  HAT_Y and a bag beside the figure on the viewer's right, its handle at the
+  height of a hand. One of each is drawn (the first given). A tie, a
+  pocket square, a watch, glasses and socks are drawn by `worn`, which `_svg`
+  calls once; gloves, jewellery and other accessories are not drawn in the figure.
 
 `figure(pieces)` never raises: a missing place is not drawn, a piece of the
 wrong kind for its place is left out, a piece that cannot be drawn falls back
@@ -75,7 +79,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 
-from . import fitting, item
+from . import fitting, item, worn
 from .fills import Graphic
 from .frontshoe import FrontShoe, bare_feet, front_shoe
 from .illustrate import CARD, INK, Fill, Spec, _draw, shade
@@ -349,6 +353,7 @@ class Layout:
     pieces: list[Placed] = field(default_factory=list)
     view: tuple[float, float, float, float] = (0.0, 0.0, 400.0, 600.0)   # x, y, width, height
     body: Body | None = None
+    accessories: list = field(default_factory=list)   # every accessory given: `worn` draws the small ones
 
     def fit(self) -> None:
         """The canvas: everything drawn, with MARGIN on every side."""
@@ -397,6 +402,7 @@ def plan(pieces: Mapping[str, Piece | None] | None) -> Layout:
             log.exception("placing the wearer for an outfit failed")
     accessories = pieces.get("accessories")
     if isinstance(accessories, (list, tuple)):
+        out.accessories = list(accessories)
         for made in _accessories(out, accessories):
             out.pieces.append(made)
     out.fit()
@@ -1184,6 +1190,9 @@ def _accessories(out: Layout, given) -> list[Placed]:
 
 
 def _place_accessory(place: str, spec: Spec, out: Layout) -> Placed:
+    on = worn.place(place, spec, out)   # a hat on his head, a bag carried: `worn` places them on him
+    if on is not None:
+        return on
     params = {**spec.params, "px": K_PX}
     if place == "belt":
         params.update(worn=True, half=BELT_HALF_CM)
@@ -1265,12 +1274,15 @@ def _svg(layout: Layout, uid: str) -> str:
     defs: list[str] = []
     body: list[str] = []
     wearer = layout.body
+    # the small accessories (a tie, a pocket square, a watch, glasses, socks): `worn` draws them, each put in below
+    dressed = worn.dress(layout, layout.accessories, uid)
+    defs += dressed.defs
     if wearer is not None:   # the wearer first, behind everything
-        body.append(f'<g id="{uid}m">{_body_markup(wearer)}</g>')
+        body.append(f'<g id="{uid}m">{_body_markup(wearer)}</g>{dressed.legs}')
     shoes, bottom = layout.get("shoes"), layout.get("bottom")
     if shoes is not None:
         front = front_shoe(shoes.spec, K_PX, sole_default=shoes.shape.sole_default, uid=f"{uid}s",
-                           ankle=_ankle() if shoes.front is not None and shoes.front.ankle else None, toes=TOE_LINE)
+                           ankle=(dressed.ankle or _ankle()) if shoes.front is not None and shoes.front.ankle else None, toes=TOE_LINE)
         defs.append(front.defs)
         pair = "".join(f'<g transform="{_matrix(t)}">{front.body}</g>' for t in shoes.transforms)
         legs = _inside_legs(layout)
@@ -1340,13 +1352,16 @@ def _svg(layout: Layout, uid: str) -> str:
             if seen and holes:   # what is underneath shows inside the neck opening (a shirt collar in a V)
                 defs.append(_clip(f"n{tid}", holes, p.transforms[0]))
                 stack += f'<g clip-path="url(#n{tid})">{chest}{seen}</g>'
+        if n == 0:
+            stack += dressed.tie
         under.append(p)
     body.append(stack)
     if wearer is not None:
         if first is not None:
             body.append(_neck_front(wearer, first, f"{uid}f", defs))
         body.append(_head_markup(wearer))
-    body += [extra[k] for k in ("scarf", "hat", "bag") if k in extra]
+    body.append(dressed.over)
+    body += [extra[k] for k in ("scarf", "hat") if k in extra] + [dressed.carry or extra.get("bag", "")]
     x, y, w, h = layout.view
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x:.1f} {y:.1f} {w:.1f} {h:.1f}" '
             f'width="{w:.0f}" height="{h:.0f}"><defs>{"".join(defs)}</defs>'

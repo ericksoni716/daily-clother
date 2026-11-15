@@ -31,7 +31,10 @@ class Shoe:
     mudguard: tuple | None = None         # a panel along the upper's foot from u 0.55 round the toe, 40% of its height
     vamp: tuple | None = None             # the front of the upper, from u 0.45 to the toe, this colour (a two-colour upper)
     camo: tuple = ()                      # a busy upper: blotches of these colours scattered over it (the same every time)
+    camo_count: int = 70                  # ... this many
     stripes: tuple | None = None          # three slanted stripes on the quarter
+    stripe_cm: float = 0.85               # ... this wide
+    stripe_gap: float = 0.055             # ... this far apart (a share of the length)
     laces: tuple | None = None
     eyelets: tuple | None = None
     stitching: tuple | None = None        # a dashed line along the toe cap's edge
@@ -104,6 +107,8 @@ DARK_COLLAR = dict(upper=(226, 226, 222), heel_counter=BLACK, collar=BLACK, lace
 # a white court shoe with three red stripes and white laces: the stripes' ends cross the lacing's row in the photo
 STRIPED_COURT = dict(upper=WHITE, midsole=WHITE, outsole=(214, 210, 200), stripes=(196, 30, 40), laces=WHITE,
                      sole_cm=2.6, sole_toe_cm=2.2)
+# the same with three bold stripes, each just under a panel's size but together much of the side
+BOLD_STRIPES = dict(STRIPED_COURT, stripe_cm=1.8, stripe_gap=0.105)
 
 
 def _ground_rest(shoe: Shoe, us):
@@ -163,7 +168,7 @@ def draw(shoe: Shoe | None = None, *, px_per_cm: float = 26.0, size=(1000, 560),
                       + [p(1.0, 0), p(0.45, sole_top[int(0.45 * 240)])], fill=c(shoe.vamp))
         if shoe.camo:   # blotches 1-3 cm across, each a few overlapping blobs, kept inside the upper by the mask
             rng = np.random.default_rng(11)
-            for i in range(70):
+            for i in range(shoe.camo_count):
                 u0 = float(rng.uniform(0.02, 0.97))
                 h0 = float(rng.uniform(np.interp(u0, us, sole_top), np.interp(u0, us, top)))
                 for _ in range(3):
@@ -188,9 +193,9 @@ def draw(shoe: Shoe | None = None, *, px_per_cm: float = 26.0, size=(1000, 560),
                 d.line([p(0.79, hh), p(0.79, min(hh + 0.32, top[j] - 0.3))], fill=c(shoe.stitching), width=max(1, int(0.13 * k)))
         if shoe.stripes:
             for i in range(3):
-                u0 = 0.25 + i * 0.055
+                u0 = 0.25 + i * shoe.stripe_gap
                 d.line([p(u0, sole_top[int(u0 * 240)] + 0.2), p(u0 + 0.09, top[int((u0 + 0.09) * 240)] - 1.6)],
-                       fill=c(shoe.stripes), width=int(0.85 * k))
+                       fill=c(shoe.stripes), width=int(shoe.stripe_cm * k))
         if shoe.laces and shoe.lace_style == "cross":   # each crossing an X, the Xs touching end to end
             step = 0.3 / shoe.lace_count
             for i in range(shoe.lace_count):

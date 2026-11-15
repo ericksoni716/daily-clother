@@ -116,27 +116,27 @@ def test_the_drawing_is_the_same_every_time_and_from_its_json():
 
 # ------------------------------------------------------------------ the shape comes from the trace
 
-def test_the_shape_follows_the_traced_profile():
-    def height(t):
-        x0, y0, x1, y1 = front(t).bbox
-        return y1 - y0
-
-    plain, tall, thick = made(), made(taller=2.0), made(sole=3.5)
-    assert height(tall) > height(plain) + 1.0 * K_PX
-    assert height(thick) > height(plain) + 1.0 * K_PX
-    # the sole drawn as thick as traced: the outline's lowest point to the upper's lowest
-    def sole_band(t):
-        f = front(t)
-        upper = _flat(re.search(rf'<path d="([^"]+)" fill="{BASE}"', f.body).group(1))
-        return max(y for _, y in _flat(f.outline)) - max(y for _, y in upper)
-
-    assert sole_band(thick) > sole_band(plain) + 1.0 * K_PX
+def test_both_views_are_the_templates_shape_whatever_the_trace():
+    """B's outline is built exactly as A's: the template's for the style (its footprint, toe, opening and shaft).
+    A taller top line, a thicker sole or a taller boot in the photo change only what is painted on it."""
+    for t, spec in ((made(), None), (made(taller=2.0), None), (made(sole=3.5), None),
+                    (made(style="boot"), spec_of("boots", "boot")), (made(style="boot", taller=5.0), spec_of("boots", "boot"))):
+        plain = front(None, spec)
+        for kind in (frontshoe.FROM_SHAPE, frontshoe.FROM_PHOTO):
+            f = front(t, spec, kind=kind)
+            assert (f.outline, f.anchors, f.upper, f.rim) == (plain.outline, plain.anchors, plain.upper, plain.rim)
 
 
-def test_a_boot_takes_its_shaft_height_from_the_trace():
-    spec = spec_of("boots", "boot")
-    low, high = made(style="boot"), made(style="boot", taller=5.0)
-    assert front(high, spec).anchors["top"][1] < front(low, spec).anchors["top"][1] - 3.0 * K_PX
+def test_b_outline_equals_a_outline_for_every_synthetic_shoe():
+    for name in RULE_SHOES:
+        t = traced_photo(name, (1000, 700) if "BOOT" in name or "CHUKKA" in name else (1000, 560))
+        spec = spec_of(*RULE_STYLES[name])
+        a = front(t, spec, kind=frontshoe.FROM_SHAPE)
+        views = [front(t, spec, kind=frontshoe.FROM_PHOTO)]
+        if name in FRONT_PHOTOS:
+            views.append(front(frontshoe.Chosen(t, frontshoe.FROM_PHOTO, front_look(name)), spec))
+        for b in views:
+            assert (b.outline, b.upper, b.rim, b.seen, b.anchors) == (a.outline, a.upper, a.rim, a.seen, a.anchors), name
 
 
 # ------------------------------------------------------------------ the panels and marks, on the solid
@@ -357,22 +357,6 @@ def test_small_pieces_take_the_colour_round_them():
     assert PANEL not in colours and MARK in colours
 
 
-def test_a_traced_low_shoes_heel_does_not_rise_in_a_point_above_its_collar():
-    for name in ("RED_BLACK_RUNNER", "BUSY_RUNNER"):
-        t = traced_photo(name)
-        tr = frontshoe._Traced.of(t)
-        f = front(t)
-        view = frontshoe._View(K_PX, tr.warp)
-        back = view(0.0, 0.07, tr.sole_t + tr.rim - 0.5)[1]   # the back of the collar's rim
-        assert min(y for _, y in _flat(f.outline)) > back - 1.0
-
-
-def test_a_traced_low_shoes_collar_rounds_down_beside_its_opening():
-    assert frontshoe._shoulder(10.0, 2.0, 5.0, 3.0, 2.0) == 10.0   # over the opening: up to the collar
-    beside = [frontshoe._shoulder(10.0, 2.0, 5.0, 3.0, x) for x in (3.5, 4.0, 4.5, 5.0)]
-    assert beside == sorted(beside, reverse=True) and beside[-1] == 2.0 and beside[0] > 9.0   # then down to the sole
-
-
 def test_a_traced_boots_shaft_top_is_the_rounded_collar_with_the_leg_in_front_of_its_back():
     t = traced_photo("WORK_BOOT", (1000, 700))
     skin = '<path d="{d}" fill="none"/><path d="{d}" fill="#e0b090"/>'
@@ -382,33 +366,11 @@ def test_a_traced_boots_shaft_top_is_the_rounded_collar_with_the_leg_in_front_of
     assert " C " in clip and "-4000" in clip
 
 
-def test_a_boot_laced_high_has_a_round_collar_and_a_rounded_tongue(monkeypatch):
-    t = traced_photo("SERVICE_BOOT", (1000, 700))
-    seen = []
-    real = frontshoe._collar_front
-
-    def spy(upper, rim, px, vamp_top=None):
-        seen.append((rim, vamp_top))
-        return real(upper, rim, px, vamp_top)
-    monkeypatch.setattr(frontshoe, "_collar_front", spy)
-    body = frontshoe.front_shoe(spec_of("boots", "boot"), K_PX, ankle='<path d="{d}"/>', traced=t).body
-    rim, vamp_top = seen[-1]
-    assert vamp_top is None   # the collar's front is not lifted to the tongue: no point, no lining in a V
-    xs = [x for x, _ in rim]
-    assert max(xs) - min(xs) <= 2 * (frontshoe.ANKLE_HALF_CM + frontshoe.SNUG_CM) * K_PX * 1.01   # it hugs the leg
-    tongue = re.search(r'<path d="(M [^"]+ C [^"]+)" fill="none" stroke="#[0-9a-f]+" stroke-width="1.6"', body)
-    assert tongue and tongue.group(1).count(" C ") == 2   # a rounded top
-
-
-# ---- the two front views: A, the template in the trace's colours; B, turned from the trace
-
-
 def test_view_a_is_the_templates_shape_and_opening():
     t = made(sole=4.5, taller=2.0)
     a, untraced = front(t, kind=frontshoe.FROM_SHAPE), front(None)
     assert a.outline == untraced.outline
     assert a.anchors == untraced.anchors
-    assert front(t).outline != untraced.outline   # B follows the trace
 
 
 def test_view_a_paints_each_traced_part_where_the_template_has_it():
@@ -604,6 +566,16 @@ def test_the_upper_is_painted_in_a_few_clean_blocks():
     assert len(block_sizes(busy)) <= 12
 
 
+def test_blotches_of_leather_are_not_panels():
+    """A leather upper whose photo shows blotches a few cm across (creases, shade, wear), each up to 16 cm²: B paints
+    no blotch; it reads as one clean colour."""
+    blotches = [("#303032", rect(u, u + 4.0 / frontshoe.LENGTH, h, h + 4.0), "quarter")
+                for u, h in ((0.1, 3.0), (0.3, 6.5), (0.45, 3.5), (0.6, 5.0), (0.75, 3.0), (0.2, 8.0))]
+    tr = frontshoe._Traced.of(made(panels=blotches))
+    b = tr.on_template(*frontshoe.STYLES["low_sneaker"][:4], 0.97, "round", sampled=True)
+    assert len({c for _, _, _, c, _, _ in b.cells()}) == 1
+
+
 def test_the_collar_never_lies_across_the_throat():
     """A light shoe with a black heel counter and collar along the top to the throat: from the front the collar
     is behind the leg; in front of the leg the crest is the throat, in the upper's colour, in A and in B."""
@@ -636,6 +608,31 @@ def test_view_a_takes_the_toe_box_and_vamp_from_the_top_surface():
     tpl = tr.on_template(*frontshoe.STYLES["low_sneaker"][:4], 0.97, "round")
     assert tpl.zones["vamp"] == "#c01818"
     assert tpl.zones.get("toe_cap", "#c01818") == "#c01818"
+
+
+def lab(colour) -> list[float]:
+    import cv2
+    import numpy as np
+    rgb = frontshoe._rgb(colour) if isinstance(colour, str) else [v / 255 for v in colour]
+    return cv2.cvtColor(np.float32([[rgb]]), cv2.COLOR_RGB2Lab)[0, 0].tolist()
+
+
+def test_bold_stripes_are_marks_not_part_of_the_uppers_colour():
+    """A white court shoe with three bold red stripes, each under a panel's size but together much of the side:
+    they are its marks, kept out of the upper's colour (once mixed into it as a pattern, pink). The upper stays
+    white in A and B, and the three stripes are drawn in both."""
+    from . import shoe_photos as S
+    t = traced_photo("BOLD_STRIPES")
+    assert sum(len(m.path) for m in t.marks) == 3
+    tr = frontshoe._Traced.of(t, "round", "low_sneaker")
+    style = frontshoe.STYLES["low_sneaker"][:4]
+    for view in (tr.on_template(*style, 0.97, "round"), tr.on_template(*style, 0.97, "round", sampled=True)):
+        assert math.dist(lab(view.base), lab(S.WHITE)) <= 5
+        assert all(math.dist(lab(c), lab(S.WHITE)) <= 5 for _, _, _, c, _, _ in view.cells())
+    for kind in (frontshoe.FROM_SHAPE, frontshoe.FROM_PHOTO):
+        body = front(t, kind=kind).body
+        red = {c for c in re.findall(r'fill="(#[0-9a-f]{6})"/>', body) if near(c, (196, 30, 40))}
+        assert sum(len(re.findall(rf'<path d="[^"]+" fill="{c}"/>', body)) for c in red) >= 3, kind
 
 
 def test_view_a_keeps_the_laces_colour_and_draws_the_stripes():

@@ -201,6 +201,44 @@ def test_turning_the_key_off_takes_back_the_limit_message(client, services, cfg)
     assert body["tag_state"] == "waiting" and body["tag_error"] is None
 
 
+@pytest.mark.parametrize("limit", [None, 5.0])
+def test_disabling_api_during_spend_check_refuses_without_a_reservation(services, cfg, monkeypatch, limit):
+    state = services.state
+    state.update(tagging_api_enabled=True, tagging_api_cap_usd=5.0)
+    meter = spend.Meter(cfg, state)
+    entered, resume = threading.Event(), threading.Event()
+    errors, reserved = [], []
+    original = spend.spent
+
+    def paused_spent(conn, month=None):
+        entered.set()
+        assert resume.wait(5)
+        return original(conn, month)
+
+    monkeypatch.setattr(spend, "spent", paused_spent)
+
+    def worker():
+        try:
+            meter.before_api_call(spend.TAGGING_MODEL, 1)
+        except Exception as exc:
+            errors.append(exc)
+        finally:
+            reserved.append(threading.get_ident() in spend._held)
+            meter.release()
+
+    thread = threading.Thread(target=worker)
+    thread.start()
+    try:
+        assert entered.wait(5)
+        state.update(tagging_api_enabled=False, tagging_api_cap_usd=limit)
+    finally:
+        resume.set()
+        thread.join(5)
+    assert not thread.is_alive()
+    assert len(errors) == 1 and isinstance(errors[0], RouteUnavailable)
+    assert reserved == [False]
+
+
 def test_every_request_is_checked_and_counted_even_a_retry():
     class Incomplete(FakeApi):
         def parse(self, **kw):

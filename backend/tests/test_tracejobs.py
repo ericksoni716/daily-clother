@@ -378,6 +378,15 @@ def test_the_owner_can_choose_the_plain_drawing(make, shoe):
     assert c.put(f"/api/items/{item['id']}/trace/plain", json={"plain": "yes"}).status_code == 422
 
 
+def test_the_as_worn_figure_gets_the_trace_unless_the_owner_chose_the_plain_drawing(cfg, make, shoe):
+    sv, c = make(Tracer(shoe))
+    item = a_shoe(sv, c)
+    stored = row(cfg, item["id"])
+    assert illustrations.describe(stored).traced == stored["trace"]
+    c.put(f"/api/items/{item['id']}/trace/plain", json={"plain": True})
+    assert illustrations.describe(row(cfg, item["id"])).traced is None
+
+
 def test_only_a_shoe_has_trace_actions(make, shoe):
     sv, c = make(Tracer(shoe))
     item = upload(c).json()

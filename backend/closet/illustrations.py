@@ -104,19 +104,23 @@ def shown_details(row) -> dict:
 def describe(row, extra: dict | None = None) -> Piece:
     """What the item's drawing is made from: the answer it is drawn from (`drawn_answer`: Claude's, with the owner's
     fields and own details laid over it) and its own colour; or, with no answer, its coarse fields. The outfit
-    figure draws each piece from this too, so the owner's corrections show there as well."""
+    figure draws each piece from this too, so the owner's corrections show there as well. A traced shoe carries its
+    trace, so the figure draws its front view from it (the owner's fixes to the side drawing are not used there)."""
     source = _json(row["source"], {})
     silhouette = _json(row["silhouette"], {})
     answer = drawn_answer(row, extra)
+    shoe = traced(row)
     if answer is None:
         piece = Piece(row["category"], None, row["color_hex"], row["color"], row["pattern"], silhouette)
-        return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row))
+        return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row),
+                       traced=shoe[0] if shoe else None)
     # the item's own colour (from the answer, the photo or the owner), unless the owner chose a colour word
     # and left a colour from before beside it
     own_hex = source.get("color_hex") == OWNER or source.get("color") != OWNER
     piece = Piece(answer.get("category"), answer, row["color_hex"] if own_hex else None, row["color"], row["pattern"],
                   silhouette)
-    return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row))
+    return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row),
+                   traced=shoe[0] if shoe else None)
 
 
 def worn(row) -> list[dict]:

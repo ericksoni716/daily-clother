@@ -18,14 +18,15 @@ import numpy as np
 from . import frontshoe
 from . import trace as T
 
-VERSION = 1                  # raised whenever a field changes meaning; older records are read, newer ones refused
+VERSION = 2                  # raised whenever a field changes meaning; older records are read, newer ones refused
 LENGTH = frontshoe.LENGTH
 PROFILE_N = 41               # the side profile is sampled at this many even steps from heel to toe
 DETAIL_PX = 1200             # the detail pass (laces, eyelets, stitching) looks at the shoe this long, at most
 DETAIL_DE = 14.0             # a detail differs this much in colour from the shoe just round it
 
-# Where each part of the upper sits on a side view: (u from, u to, share of the upper's height from, to), the
-# height measured up from the top of the sole to the upper's top edge in that column.
+# Where each part of the upper usually sits on a side view: (u from, u to, share of the upper's height from, to),
+# the height measured up from the top of the sole to the upper's top edge in that column. A zone only names the
+# traced colour pieces: a piece takes the label of the zone it mostly lies in, and is never cut along a zone's edge.
 ZONES = {
     "heel_counter": (0.0, 0.2, 0.0, 0.8),
     "quarter": (0.2, 0.42, 0.0, 0.8),
@@ -43,6 +44,7 @@ class Part:
     color: str                       # "#rrggbb"
     measured: bool                   # False: not seen in the photo, so given the colour of the part it joins
     region: list[list[list[float]]] = field(default_factory=list)   # outlines, each a list of [u, cm]
+    within: str = ""                 # seen, but no piece of its own: it is part of this one's piece ("upper": the base)
 
 
 @dataclass
@@ -85,6 +87,7 @@ class Region:
     color: str
     part: str                        # silhouette | upper | sole
     paths: list[list[list[list[float]]]]   # pieces, each an outline then its holes, each a list of [u, cm]
+    labels: list[str] = field(default_factory=list)   # each piece's part: the one it mostly lies in ("upper": the base)
 
 
 @dataclass
@@ -501,52 +504,124 @@ def _sole_band(t: T.Trace, ras: np.ndarray, sole: np.ndarray) -> tuple[np.ndarra
     return band, idx
 
 
-def _parts(t: T.Trace, f: _Frame, ras: np.ndarray, sole: np.ndarray, band: np.ndarray) -> tuple[list[Part], set[int]]:
-    """Each part of the shoe: its colour (the trace's colour that covers most of where it sits), its region,
-    and whether it was seen. A part in its own colour takes the outline of that colour block."""
-    shoe = ras >= 0
-    upper = shoe & (sole == 0)
-    H, W = ras.shape
+@dataclass
+class _Piece:
+    idx: int                         # the trace's region
+    pixels: np.ndarray               # bool, the raster's size
+    label: str                       # the part it mostly lies in
+    part: bool                       # a piece of a part (else a mark on it)
+
+
+def _zone_map(f: _Frame, upper: np.ndarray) -> np.ndarray:
+    """Each upper pixel's zone, as an index into ZONES (vamp where no zone says)."""
+    H, W = upper.shape
     yy, xx = np.mgrid[0:H, 0:W]
     u = (f.x_heel - (xx + 0.5)) / (f.x_heel - f.x_toe)
     top = np.where(upper.any(axis=0), upper.argmax(axis=0), H)
     base = np.where(upper.any(axis=0), H - 1 - upper[::-1].argmax(axis=0), 0)
     v = (base[None, :] - yy) / np.maximum(base - top, 1)[None, :]
+    names = list(ZONES)
+    out = np.full((H, W), names.index("vamp"), np.int16)
+    for i, (u0, u1, v0, v1) in enumerate(ZONES.values()):
+        out[(u >= u0) & (u < u1) & (v >= v0) & (v < v1)] = i
+    out[~upper] = -1
+    return out
+
+
+def _pieces(t: T.Trace, ras: np.ndarray, upper: np.ndarray, zones: np.ndarray) -> list[_Piece]:
+    """The traced colour regions on the upper, piece by piece, each labelled with the part it mostly lies in.
+    A piece belongs to a part (rather than being a mark on it) when it is the upper's base colour, when it meets
+    the outline or the sole along a quarter of its edge or more (a heel counter, a toe cap, a mudguard, an
+    eyestay along the top), or when it is large and not long and thin. Nothing is cut: a piece keeps its shape."""
+    import cv2
+    names = list(ZONES)
+    area = max(int(upper.sum()), 1)
+    outside = cv2.dilate((~upper).astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+    zone_area = {n: max(int((zones == i).sum()), 1) for i, n in enumerate(names)}
+    out = []
+    for idx, r in enumerate(t.regions):
+        if r.part not in ("silhouette", "upper"):
+            continue
+        n, labels, stats, _ = cv2.connectedComponentsWithStats(((ras == idx) & upper).astype(np.uint8), 8)
+        for i in range(1, n):
+            a = int(stats[i, cv2.CC_STAT_AREA])
+            if a < 0.002 * area:
+                continue
+            px = labels == i
+            label = names[int(np.bincount(zones[px], minlength=len(names)).argmax())]
+            if idx == 0:
+                out.append(_Piece(idx, px, "upper", True))
+                continue
+            edge = px & ~(cv2.erode(px.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0)
+            contact = float((edge & outside).sum()) / max(int(edge.sum()), 1)
+            ys, xs = np.nonzero(px)
+            _, (w, h), _ = cv2.minAreaRect(np.stack([xs, ys], -1).astype(np.float32))
+            long_thin = max(w, h) + 1 >= 2.5 * (min(w, h) + 1)
+            big = a >= 0.4 * zone_area[label] and not long_thin
+            out.append(_Piece(idx, px, label, contact >= 0.25 or big))
+    return out
+
+
+def _parts(t: T.Trace, f: _Frame, ras: np.ndarray, sole: np.ndarray, band: np.ndarray, band_idx: int
+           ) -> tuple[list[Part], list[_Piece], dict[int, str]]:
+    """Each part of the shoe from the traced colour regions: its colour is that of the part piece that covers
+    most of where the part sits. When that piece is labelled with the part, the part takes its outline (all its
+    pieces so labelled, in that colour); when it is another's (a heel counter reaching into the quarter, or the
+    upper's base colour), the part is `within` that one. A part with too little of the shoe where it sits was
+    not seen, and takes the colour of the part it joins. The sole: its pieces told apart by height, the lowest
+    colour the outsole. Returns the parts, the upper's pieces and each sole region's label."""
+    shoe = ras >= 0
+    upper = shoe & (sole == 0)
+    zones = _zone_map(f, upper)
+    pieces = _pieces(t, ras, upper, zones)
     main_color = t.regions[0].color
     area = int(upper.sum())
-    parts, used = [], set()
-    for name, (u0, u1, v0, v1) in ZONES.items():
-        zone = upper & (u >= u0) & (u < u1) & (v >= v0) & (v < v1)
+    parts: list[Part] = []
+    for i, name in enumerate(ZONES):
+        zone = zones == i
         n = int(zone.sum())
         if n < max(20, 0.01 * area):
             parts.append(Part(name, _inferred(parts, name, main_color), False))
             continue
-        idx = np.bincount(ras[zone]).argmax()
-        region = zone
-        if idx != 0 and t.regions[idx].part == "upper":
-            block = upper & (ras == idx)
-            if (block & zone).sum() >= 0.6 * block.sum():
-                region = block
-                used.add(int(idx))
-        parts.append(Part(name, t.regions[idx].color, True, _outlines(f, region)))
-    sole_ids = [i for i, r in enumerate(t.regions) if r.part == "sole"]
-    if sole.sum() >= 20 and sole_ids:
-        if band.any():   # a midsole in its own colour above the outsole
-            low, high = (sole > 0) & (band == 0), band > 0
-        else:            # one band of sole: its top part is the midsole, the bottom 30% the outsole
-            run = np.cumsum(sole[::-1], axis=0)[::-1]
-            total = sole.sum(axis=0)[None, :]
-            low = (sole > 0) & (run <= np.maximum(0.3 * total, 1))
-            high = (sole > 0) & ~low
-        for name, sel in (("midsole", high), ("outsole", low)):
-            if sel.sum() < 10:
-                sel = sole > 0
-            idx = np.bincount(ras[sel & shoe]).argmax() if (sel & shoe).any() else sole_ids[0]
-            parts.append(Part(name, t.regions[idx].color, True, _outlines(f, sel)))
+        cover = [(int((p.pixels & zone).sum()), k) for k, p in enumerate(pieces) if p.part]
+        if not cover or max(cover)[0] == 0:
+            parts.append(Part(name, main_color, True, [], "upper"))
+            continue
+        top = pieces[max(cover)[1]]
+        color = t.regions[top.idx].color
+        if top.label == name and top.idx != 0:
+            own = np.zeros_like(upper)
+            for p in pieces:
+                if p.part and p.label == name and p.idx == top.idx:
+                    own |= p.pixels
+            parts.append(Part(name, color, True, _outlines(f, own)))
+        else:
+            parts.append(Part(name, color, True, [], top.label))
+    # the sole
+    sole_labels: dict[int, str] = {}
+    ids = [i for i, r in enumerate(t.regions) if r.part == "sole" and (shoe & (ras == i)).sum() >= 0.1 * max(sole.sum(), 1)]
+    if sole.sum() >= 20 and (ids or band_idx >= 0):
+        height = {i: float(np.nonzero(ras == i)[0].mean()) for i in ids}
+        low = max(height, key=height.get) if height else -1
+        if band_idx >= 0:          # a midsole in its own colour above the outsole
+            sole_labels = {i: "outsole" for i in ids}
+            sole_labels[band_idx] = "midsole"
+        else:                      # the lowest colour is the outsole; any other, of a colour of its own, the midsole
+            for i in ids:
+                own = i == low or T.delta_e(t.regions[i].lab, t.regions[low].lab) >= 10
+                sole_labels[i] = "outsole" if i == low else "midsole" if own else "outsole"
+        for name in ("midsole", "outsole"):
+            sel = [i for i, lab in sole_labels.items() if lab == name]
+            if not sel:
+                parts.append(Part(name, t.regions[low].color if low >= 0 else main_color, True, [], "outsole"))
+                continue
+            px = (band > 0) if name == "midsole" and band_idx >= 0 else np.isin(ras, sel) & (sole > 0)
+            biggest = max(sel, key=lambda i: int((ras == i).sum()))
+            parts.append(Part(name, t.regions[biggest].color, True, _outlines(f, px)))
     else:
         for name in ("midsole", "outsole"):
             parts.append(Part(name, main_color, False))
-    return parts, used
+    return parts, pieces, sole_labels
 
 
 def _inferred(parts: list[Part], name: str, main: str) -> str:
@@ -567,9 +642,9 @@ def _angle(du_cm: float, dh: float) -> float:
     return round(a, 1)
 
 
-def _marks(t: T.Trace, f: _Frame, ras: np.ndarray, sole: np.ndarray, used: set[int],
+def _marks(t: T.Trace, f: _Frame, ras: np.ndarray, sole: np.ndarray, taken: np.ndarray,
            skip: list[tuple[float, float]], laces: Row | None) -> list[Mark]:
-    """The marks on the upper: the trace's colours that are not the upper's own and not a part's colour block,
+    """The marks on the upper: the pieces of the trace's colours that are not the upper's own and not a part's,
     grouped into stripe sets and text blocks, the rest told apart by shape. Laces, eyelets and stitching found
     by the detail pass are not marks (a lace the detail pass missed, in the laces' colour by the row, neither)."""
     import cv2
@@ -577,12 +652,12 @@ def _marks(t: T.Trace, f: _Frame, ras: np.ndarray, sole: np.ndarray, used: set[i
     area = max(int(upper.sum()), 1)
     found = []
     for idx, r in enumerate(t.regions):
-        if idx == 0 or r.part != "upper" or idx in used:
+        if idx == 0 or r.part != "upper":
             continue
         n, labels, stats, cent = cv2.connectedComponentsWithStats(((ras == idx) & upper).astype(np.uint8), 8)
         for i in range(1, n):
             a = stats[i, cv2.CC_STAT_AREA]
-            if a < 0.002 * area:
+            if a < 0.002 * area or taken[labels == i].mean() > 0.5:
                 continue
             (cu, ch), = f.uh([cent[i] + 0.5])
             if any(abs(cu - su) * LENGTH < 0.8 and abs(ch - sh) < 0.8 for su, sh in skip):
@@ -626,6 +701,27 @@ def _marks(t: T.Trace, f: _Frame, ras: np.ndarray, sole: np.ndarray, used: set[i
         kind = "curve" if ratio >= 2.5 else "panel" if m["area"] >= 0.04 * area else "other"
         marks.append(_mark(kind, [m]))
     return sorted(marks, key=lambda m: -m.u)
+
+
+def _label(idx: int, piece: list[np.ndarray], ras: np.ndarray, pieces: list[_Piece], sole_labels: dict[int, str],
+           sole: np.ndarray) -> str:
+    """The part a piece of the traced drawing belongs to: the sole's label when it lies mostly in the sole, else
+    the label of the upper's piece it mostly is; the whole shoe's silhouette is the upper's base."""
+    if idx == 0:
+        return "upper"
+    import cv2
+    m = np.zeros(ras.shape, np.uint8)
+    cv2.fillPoly(m, [np.round(T._sampled(piece[0])).astype(np.int32)], 1)
+    m = (m > 0) & (ras == idx)
+    if idx in sole_labels and (sole.astype(bool) & m).sum() >= 0.5 * max(int(m.sum()), 1):
+        return sole_labels[idx]
+    best, label = 0, "upper"
+    for p in pieces:
+        if p.idx == idx:
+            n = int((p.pixels & m).sum())
+            if n > best:
+                best, label = n, p.label
+    return label
 
 
 def _rgb(color: str) -> np.ndarray:
@@ -673,7 +769,7 @@ def traced_shoe(reading: T.Reading, approach: str | None = None) -> TracedShoe |
     bits = _bits(view)
     pieces, eyelet_row, stitch_row = details(bits, lambda u: float(np.interp(u, profile.u, profile.top)), t.regions[0].lab)
     lace_row = lace_row_of(view, t.regions[0].lab, eyelet_row) or pieces
-    parts, used = _parts(t, f, ras, sole, band)
+    parts, pieces, sole_labels = _parts(t, f, ras, sole, band, band_idx)
     for name, row in (("laces", lace_row), ("eyelets", eyelet_row), ("stitching", stitch_row)):
         if row:
             near = [b.pts for b in bits if any(abs(b.u - p[0]) < 1e-3 and abs(b.h - p[1]) < 1e-2 for p in row.points)]
@@ -683,11 +779,27 @@ def traced_shoe(reading: T.Reading, approach: str | None = None) -> TracedShoe |
                         for u, h in row.points]
             parts.append(Part(name, row.color, True, _hull(f, near) if near else []))
     skip = [(p[0], p[1]) for row in (lace_row, eyelet_row, stitch_row) if row for p in row.points]
-    marks = _marks(t, f, ras, sole, used, skip, lace_row)
+    taken = np.zeros(ras.shape, bool)
+    for p in pieces:
+        if p.part:
+            taken |= p.pixels
+    marks = _marks(t, f, ras, sole, taken, skip, lace_row)
     regions = []
-    for r in t.regions:
+    for idx, r in enumerate(t.regions):
         paths = [[_path(f, p) for p in piece] for piece in r.paths]
-        regions.append(Region(r.color, r.part, paths))
+        labels = [_label(idx, piece, ras, pieces, sole_labels, sole) for piece in r.paths]
+        if idx:   # a piece in a lace, eyelet or stitch colour along that row is that detail
+            for name, row in (("laces", lace_row), ("eyelets", eyelet_row), ("stitching", stitch_row)):
+                if row is None or T.delta_e(r.lab, T.to_lab(_rgb(row.color))[0, 0]) > 12:
+                    continue
+                us, hs = [q[0] for q in row.points], [q[1] for q in row.points]
+                pad = max(row.spacing_cm, 1.0) / LENGTH
+                for k, path in enumerate(paths):
+                    mu, mh = (float(v) for v in np.mean(np.asarray(path[0], float), axis=0))
+                    if (labels[k] not in ("midsole", "outsole") and min(us) - pad <= mu <= max(us) + pad
+                            and abs(mh - float(np.interp(mu, us, hs))) < 1.5):
+                        labels[k] = name
+        regions.append(Region(r.color, r.part, paths, labels))
     signals = {k: round(float(v), 4) for k, v in reading.gate.signals.items()}
     confidence = best.scores.score * (1.0 if reading.gate.ok else 0.5)
     return TracedShoe(VERSION, t.approach.name, reading.cutout_by, profile, parts, marks, lace_row, eyelet_row, stitch_row,

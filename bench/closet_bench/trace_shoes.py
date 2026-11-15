@@ -211,14 +211,17 @@ def _poly(pts, close: bool = True) -> str:
 
 
 def overlay_svg(ts: TracedShoe) -> str:
-    """The traced shoe drawn back from its data: the colour regions faded, the profile lines, every part
-    outlined in its own colour (dashed when inferred), the marks numbered, and laces, eyelets and stitching dotted."""
+    """The traced shoe drawn back from its data: the colour regions faded, each piece edged in its part's ink, the
+    profile lines, every part with a piece of its own outlined in its colour (dashed when inferred), the marks
+    numbered, and laces, eyelets and stitching dotted."""
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {CARD_W} {CARD_H}" width="{CARD_W}" height="{CARD_H}">',
            f'<rect width="{CARD_W}" height="{CARD_H}" rx="18" fill="{CARD}"/>']
     for r in ts.regions:
-        for piece in r.paths:
+        for k, piece in enumerate(r.paths):
             d = "".join(_poly(ring) for ring in piece)
-            out.append(f'<path d="{d}" fill="{r.color}" fill-rule="evenodd" opacity=".45"/>')
+            label = r.labels[k] if k < len(r.labels) else ""
+            ink = f' stroke="{PART_INK[label]}" stroke-width=".8"' if label in PART_INK else ""
+            out.append(f'<path d="{d}" fill="{r.color}" fill-rule="evenodd" opacity=".45"{ink}/>')
     p = ts.profile
     sole_top = [(u, b + t) for u, b, t in zip(p.u, p.bottom, p.sole, strict=True)]
     for line, dash in ((list(zip(p.u, p.top, strict=True)), ""), (list(zip(p.u, p.bottom, strict=True)), ""), (sole_top, "4 3")):
@@ -245,7 +248,8 @@ def overlay_svg(ts: TracedShoe) -> str:
         part = ts.part(name)
         x, y = 16 + (i % 3) * 128, 24 + (i // 3) * 17
         out.append(f'<rect x="{x}" y="{y - 9}" width="10" height="10" fill="{part.color}" stroke="{PART_INK[name]}" stroke-width="2"/>'
-                   + _text(x + 14, y, name.replace("_", " ") + ("" if part.measured else " (inferred)"), 11,
+                   + _text(x + 14, y, name.replace("_", " ") + (" (inferred)" if not part.measured
+                                                               else f" (in {part.within.replace('_', ' ')})" if part.within else ""), 11,
                            color=PART_INK[name]))
     out.append("</svg>")
     return "".join(out)

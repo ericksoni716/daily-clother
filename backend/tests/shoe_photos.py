@@ -27,6 +27,7 @@ class Shoe:
     outsole: tuple | None = GREY
     toe_cap: tuple | None = None
     heel_counter: tuple | None = None
+    mudguard: tuple | None = None         # a panel along the upper's foot from u 0.55 round the toe, 40% of its height
     stripes: tuple | None = None          # three slanted stripes on the quarter
     laces: tuple | None = None
     eyelets: tuple | None = None
@@ -124,6 +125,9 @@ def draw(shoe: Shoe | None = None, *, px_per_cm: float = 26.0, size=(1000, 560),
         if shoe.heel_counter:
             band = [p(u, s + 0.62 * (t - s)) for u, s, t in zip(us, sole_top, top, strict=True) if u <= 0.2]
             d.polygon([p(0, sole_top[0])] + band + [p(0.2, sole_top[48])], fill=c(shoe.heel_counter))
+        if shoe.mudguard:
+            band = [p(u, s + 0.4 * (t - s)) for u, s, t in zip(us, sole_top, top, strict=True) if u >= 0.55]
+            d.polygon(band + [p(1.0, 0), p(0.55, sole_top[int(np.argmin(abs(us - 0.55)))])], fill=c(shoe.mudguard))
         if shoe.toe_cap:
             d.polygon([p(u, t + 0.5) for u, t in zip(us, top, strict=True) if u >= 0.82] + [p(1.0, 0), p(0.82, 0)],
                       fill=c(shoe.toe_cap))

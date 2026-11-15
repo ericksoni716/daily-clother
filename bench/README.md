@@ -40,8 +40,10 @@ The tracing itself is the app's (`backend/closet/drawing/trace.py`), so the
 gate the sheets show is the app's gate. When the model's cut-out fails the gate,
 GrabCut is tried before the photo is turned down; the sheet says which cut-outs
 were tried. Each sheet also shows the traced shoe as the app stores it
-(`backend/closet/drawing/traced.py`): the parts outlined in colour (dashed when
-inferred), the profile lines, laces, eyelets and stitching dotted, and the
+(`backend/closet/drawing/traced.py`): each traced colour piece edged in the
+colour of the part it is labelled with, the parts that have a piece of their own
+outlined (dashed when inferred; the key says "in upper" for a part that is just
+the shoe's base colour), the profile lines, laces, eyelets and stitching dotted, and the
 marks numbered; and a "Pairs" column with the turned cut-out, a second sole
 ringed where it shows beyond one end, and a second top edge drawn where it
 runs inside the outline. At the end the command prints how many

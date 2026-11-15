@@ -255,11 +255,51 @@ def test_the_parts_colours_are_recovered(rich):
         assert p is not None, name
         assert p.measured, name
         assert colour_close(p.color, rgb, 12), (name, p.color)
-        assert p.region and all(len(pt) == 2 for pt in p.region[0])
+        # a part in its own colour has its own outline; one in the base colour says so
+        assert p.region and all(len(pt) == 2 for pt in p.region[0]) or p.within == "upper", (name, p)
+    assert rich.part("vamp").within == rich.part("quarter").within == "upper"
     # each part sits where it should along the shoe
     toe = np.array(rich.part("toe_cap").region[0])
     heel = np.array(rich.part("heel_counter").region[0])
     assert toe[:, 0].min() > 0.7 and heel[:, 0].max() < 0.3
+
+
+def test_parts_follow_the_traced_panels_not_straight_lines():
+    # a red mudguard from u 0.55 round the toe crosses the vamp and toe cap zones: it stays one piece
+    shoe = S.Shoe(upper=(30, 30, 30), mudguard=(200, 40, 40), heel_counter=(200, 40, 40), laces=S.WHITE)
+    t = traced.traced_shoe(read(S.draw(shoe, noise=1)[0]))
+    red = next(r for r in t.regions if colour_close(r.color, (200, 40, 40), 12))
+    assert len(red.labels) == len(red.paths)
+    spans = {lab: np.array(path[0])[:, 0] for lab, path in zip(red.labels, red.paths, strict=True)}
+    assert set(spans) == {"heel_counter", "vamp"}
+    assert spans["vamp"].min() < 0.6 and spans["vamp"].max() > 0.97
+    assert spans["heel_counter"].max() < 0.25
+    # the vamp is mostly black: its colour is not a blend with the mudguard's red
+    assert colour_close(t.part("vamp").color, (30, 30, 30), 8)
+    # a part with its own piece is outlined by that piece
+    heel = np.array(t.part("heel_counter").region[0])
+    piece = np.array(red.paths[red.labels.index("heel_counter")][0])
+    assert np.allclose(heel.min(0), piece.min(0), atol=[0.02, 0.3]) and np.allclose(heel.max(0), piece.max(0), atol=[0.02, 0.3])
+    # every piece is labelled, and the sole's pieces as the sole's parts
+    assert all(len(r.labels) == len(r.paths) for r in t.regions)
+    assert t.regions[0].labels == ["upper"]
+    assert "outsole" in {lab for r in t.regions for lab in r.labels}
+
+
+def test_the_lace_pieces_are_labelled_laces(rich):
+    laces = [lab for r in rich.regions for lab in r.labels if lab == "laces"]
+    assert len(laces) >= 3
+
+
+def test_a_record_of_version_1_still_reads(rich):
+    d = json.loads(rich.to_json())
+    d["version"] = 1
+    for p in d["parts"]:
+        del p["within"]
+    for r in d["regions"]:
+        del r["labels"]
+    old = traced.TracedShoe.from_json(json.dumps(d))
+    assert old.version == 1 and old.regions[0].labels == [] and old.part("vamp").within == ""
 
 
 def test_a_part_not_seen_is_inferred():

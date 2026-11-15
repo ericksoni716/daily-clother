@@ -80,8 +80,9 @@ def cloth(row) -> dict:
     own = _json(row["own_details"]) if "own_details" in row.keys() else None
     own = own if isinstance(own, dict) else {}
     said = own.get("garment") if isinstance(own.get("garment"), str) else details.get("garment")   # the owner's kind wins
-    kind = said if said in GARMENTS else None   # a shoe or an accessory has no garment kind here
+    kind = said if isinstance(said, str) and said in GARMENTS else None   # a shoe or an accessory has no garment kind here
     fabric = own.get("fabric") or details.get("fabric")
+    fabric = fabric if isinstance(fabric, str) else None
 
     weight = next((w for w in (_owner_weight(row[f]) for f in ("material", "name") if source.get(f) == "user") if w), None)
     if weight is None and kind in FLEECE_KINDS:

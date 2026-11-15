@@ -396,3 +396,41 @@ def test_a_boot_laced_high_has_a_round_collar_and_a_rounded_tongue(monkeypatch):
     assert max(xs) - min(xs) <= 2 * (frontshoe.ANKLE_HALF_CM + frontshoe.SNUG_CM) * K_PX * 1.01   # it hugs the leg
     tongue = re.search(r'<path d="(M [^"]+ C [^"]+)" fill="none" stroke="#[0-9a-f]+" stroke-width="1.6"', body)
     assert tongue and tongue.group(1).count(" C ") == 2   # a rounded top
+
+
+# ---- the two front views: A, the template in the trace's colours; B, turned from the trace
+
+
+def test_view_a_is_the_templates_shape_and_opening():
+    t = made(sole=4.5, taller=2.0)
+    a, untraced = front(t, kind=frontshoe.FROM_SHAPE), front(None)
+    assert a.outline == untraced.outline
+    assert a.anchors == untraced.anchors
+    assert front(t).outline != untraced.outline   # B follows the trace
+
+
+def test_view_a_paints_each_traced_part_where_the_template_has_it():
+    t = made(panels=[("#c01010", rect(0.84, 1.0, 2.0, 6.0), "toe_cap")])
+    t.parts += [traced.Part("toe_cap", "#c01010", True), traced.Part("heel_counter", "#10a020", True)]
+    body = front(t, kind=frontshoe.FROM_SHAPE).body
+    toe, heel = painted(body, "#c01010"), painted(body, "#10a020")
+    assert toe and heel
+    ball_y = front(t, kind=frontshoe.FROM_SHAPE).anchors["ball"][1]
+    # the toe cap is low in the view (towards the viewer), the heel high (behind)
+    assert max(y for ring in toe for _, y in ring) > ball_y - 5
+    assert min(y for ring in heel for _, y in ring) < min(y for ring in toe for _, y in ring)
+
+
+def test_view_a_draws_the_main_marks_and_the_traced_laces():
+    stripe = [(0.62, 3.5), (0.66, 3.5), (0.6, 7.5), (0.56, 7.5)]
+    t = made(marks=[("#e01080", stripe)], laces=traced.Row(5, 1.2, "#20b0e0", [[0.55 + 0.06 * i, 8.0] for i in range(5)]))
+    body = front(t, kind=frontshoe.FROM_SHAPE).body
+    assert painted(body, "#e01080")
+    assert lace_strokes(body, "#20b0e0") >= 3
+
+
+def test_view_a_and_b_are_each_the_same_every_time():
+    t = traced_photo("RED_BLACK_RUNNER")
+    for kind in (frontshoe.FROM_SHAPE, frontshoe.FROM_PHOTO):
+        assert front(t, kind=kind).body == front(t.to_json(), kind=kind).body
+        assert front(frontshoe.Chosen(t, kind)).body == front(t, kind=kind).body

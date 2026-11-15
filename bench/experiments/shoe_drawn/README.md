@@ -57,6 +57,16 @@ Instead of tracing or measuring a shoe, a vision model (Claude) does what a pers
 - **Cost seen:** each drawing run took 70 to 170 seconds and about 80 to 95 thousand tokens on Opus, including up to
   three look-and-fix rounds; a correction about 35 seconds.
 
+- **On the app's figure** (`on_figure.py`; sheets `docs/screenshots/shoe-drawn-on-figure-closeup.png` and
+  `-phone.png`): the saved runner, boot, dress shoe and boat shoe laid on the app's own figure in place of today's
+  shoes: on the figure's ground, sized so the leg fills the opening, turned out 11°, the runner's left and right
+  drawn separately, the trousers' hem left where it falls for today's shoe. The leg goes in at the opening on all
+  four, under shorts with a crew sock and under full-length and ankle-length trousers. Beside today's shoes the
+  drawings are about a quarter wider (59 px against about 46) and a little lower, because they are drawn from
+  nearly level and the frame's leg is narrow for its shoe (4.5 cm against the figure's 6.8 cm); their outline is
+  about half as thick as the figure's (1.2 px against 2.2), which the sheets' third column corrects. With the
+  owner to judge whether the view fits.
+
 **Still open:** the runner's toe rubber was corrected from a one-line note in one round and is with the owner to judge. The method has only been
 tuned and judged on these five pairs, so it must next be run unchanged on pairs it has not seen. The drawings are
 straight from the front, about 15° above, tilted 7° by the preview; they are not yet at the figure's own view (24°
@@ -71,6 +81,7 @@ down, toes out 11°) and not yet placed on the app's figure. The rest is in the 
 | `CORRECT.md` | Round 4's correction: redraw one shoe from a starting drawing and a one-line note from the owner, changing nothing else. |
 | `render.js` | The preview for `BRIEF3.md`: puts one shoe on a pair of legs, mirrors it for the other foot, tilts it 7°, and renders it large and at phone size. |
 | `render3.js` | The same for `ARCH.md` and `CORRECT.md`: takes `OUT.left.svg`, and `OUT.right.svg` when there is one instead of mirroring. |
+| `on_figure.py` | Lays the saved examples on the app's As worn figure in place of today's shoes and writes a close-up sheet and a phone-size sheet: `python bench/experiments/shoe_drawn/on_figure.py` (writes to `bench/out/shoe_drawn/`; PNGs need Chrome or Chromium). |
 | `EXAMPLES/trainer-full.svg` | The trainer drawn by the orchestrating session from the owner's photos in about ten minutes (four flat colours), with its legs. A worked example. |
 | `EXAMPLES/dress-shoe.svg`, `EXAMPLES/boat-shoe.svg` | Round 1's dress shoe and boat shoe, which the owner liked. Worked examples. |
 

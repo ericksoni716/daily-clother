@@ -57,6 +57,7 @@ LIMIT = ("Waiting for Claude to draw the shoe: this month's spending limit for t
 FAILED = "Claude could not draw the shoe from its photos after three tries."
 NO_PHOTO = "A photo of this shoe is missing, so it could not be drawn. Remove it, or add the photo again, then try again."
 DEMO = "The demo closet is never sent to Claude, so its shoes are not drawn from their photos."
+DEMO_DRAWN = "Made in advance for the demo closet, which is never sent to Claude."
 NOT_A_SHOE = "Only a shoe is drawn from its photos."
 SOON = "It is drawn from its photos once they are sorted into views."
 NOT_DRAWN = "Not drawn from its photos yet."
@@ -94,17 +95,29 @@ def ask(conn, item_id: str, demo: bool = False) -> bool:
     return True
 
 
+def _shoe(value) -> bool:
+    """One shoe as kept: one SVG text (version 1, all in front of the leg) or {behind, front} (version 2)."""
+    return isinstance(value, str) or (isinstance(value, dict) and isinstance(value.get("front"), str))
+
+
 def _drawn(row) -> dict | None:
     try:
         d = json.loads(row["drawn"]) if row["drawn"] else None
     except ValueError:
         return None
-    return d if isinstance(d, dict) and isinstance(d.get("left"), str) else None
+    return d if isinstance(d, dict) and _shoe(d.get("left")) else None
 
 
 def stored(row) -> dict | None:
-    """The drawing kept with the item, or None."""
+    """The drawing kept with the item, or None. A drawing kept as version 1 (each shoe one SVG text, all in front of
+    the leg) is kept and shown as it is: nothing is drawn again by itself."""
     return _drawn(row)
+
+
+def _text(shoe) -> str:
+    if isinstance(shoe, dict):
+        return f"{shoe.get('behind') or ''}\n{shoe.get('front') or ''}"
+    return shoe or ""
 
 
 def _message(row) -> str | None:
@@ -124,8 +137,11 @@ def _message(row) -> str | None:
         return DRAWING
     if state == "failed":
         return row["drawn_error"] or FAILED
-    if state is None and _drawn(row) is None:
+    d = _drawn(row)
+    if state is None and d is None:
         return SOON if row["views_state"] in ("waiting", "sorting") else NOT_DRAWN
+    if d is not None and d.get("route") == "demo":
+        return DEMO_DRAWN
     return None
 
 
@@ -141,7 +157,8 @@ def shown(conn, row) -> dict | None:
         return None
     d = _drawn(row)
     now = sorted(p["id"] for p in shoeviews.photos_of(conn, row["id"]))
-    version = hashlib.sha256(f"{d['left']}{d.get('right') or ''}{d.get('made_at')}".encode()).hexdigest()[:16] if d else ""
+    version = hashlib.sha256(f"{_text(d['left'])}{_text(d.get('right'))}{d.get('made_at')}".encode()).hexdigest()[:16] \
+        if d else ""
     return {
         "state": row["drawn_state"], "message": _message(row),
         "url": f"/api/items/{row['id']}/drawn.svg?v={version}" if d else None,

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { figurePieces, loadTodayView, MAX_ACCESSORIES, saveTodayView, svgSource, TODAY_VIEW_KEY } from './figure';
+import { figurePieces, figureVersion, loadTodayView, MAX_ACCESSORIES, saveTodayView, svgSource, TODAY_VIEW_KEY } from './figure';
 
 describe('the outfit as worn', () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -13,6 +13,19 @@ describe('the outfit as worn', () => {
     const many = Array.from({ length: 12 }, (_, i) => `x${i}`);
     expect(figurePieces({ base: 'a', mid: '', outer: '', bottom: '', shoes: '', accessories: many }).accessories)
       .toHaveLength(MAX_ACCESSORIES);
+  });
+
+  it('is drawn again when a piece\'s drawing changes, or a shoe Claude drew is drawn again', () => {
+    const byId = new Map([
+      ['tee', { illustration_url: '/api/items/tee/illustration.svg?v=1', drawn_version: null }],
+      ['shoe', { illustration_url: '/api/items/shoe/illustration.svg?v=2', drawn_version: 'aaaa' }],
+    ]);
+    const before = figureVersion(['tee', 'shoe', 'gone'], byId);
+    expect(before).toBe('/api/items/tee/illustration.svg?v=1 /api/items/shoe/illustration.svg?v=2#aaaa ');
+    byId.set('shoe', { illustration_url: '/api/items/shoe/illustration.svg?v=2', drawn_version: 'bbbb' });
+    expect(figureVersion(['tee', 'shoe', 'gone'], byId)).not.toBe(before);   // redrawn: its side drawing is the same
+    byId.set('shoe', { illustration_url: '/api/items/shoe/illustration.svg?v=2', drawn_version: null });
+    expect(figureVersion(['shoe'], byId)).toBe('/api/items/shoe/illustration.svg?v=2');   // none: as before
   });
 
   it('shows the drawing through an image source, never as markup on the page', () => {

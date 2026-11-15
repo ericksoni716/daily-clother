@@ -29,9 +29,17 @@ def photos(n=5) -> list[Photo]:
     return [Photo(Image.new("RGB", (900, 700), (40 * i, 90, 120)), v, s) for i, (v, s) in enumerate(VIEWS[:n])]
 
 
+def shoe(front: str, behind: str = "") -> dict:
+    return {"behind": behind, "front": front}
+
+
+def drew(left: str, right: str | None = None) -> DrawAnswer:
+    return DrawAnswer.model_validate({"sheet": SHEET, "left": shoe(left), "right": shoe(right) if right else None})
+
+
 def checked(left=DRESS, good=True, sheet=None, right=None) -> CheckAnswer:
     return CheckAnswer.model_validate({"good": good, "problems": [] if good else ["fixed"], "sheet": sheet or SHEET,
-                                       "left": left, "right": right})
+                                       "left": shoe(left), "right": shoe(right) if right else None})
 
 
 class Asker:
@@ -87,23 +95,23 @@ def test_a_view_is_named_plainly_and_an_unsure_one_as_unsure():
 
 
 def test_the_check_prompt_carries_the_drawing_the_sheet_and_the_problems():
-    text = SD.check_prompt(photos(), SHEET, DRESS, None, ["It does not stand on the ground."])
+    text = SD.check_prompt(photos(), SHEET, drawn.Side(DRESS), None, ["It does not stand on the ground."])
     assert "PHOTOS" in text and "drawing.png" in text and DRESS in text and '"archetype": "cap-toe oxford"' in text
     assert "- It does not stand on the ground." in text and "null (the app mirrors" in text
     assert "- Photo 3 (photo-3.jpg): the inner side" in text and "ground is y = 240" in text
-    assert "- none" in SD.check_prompt(photos(), SHEET, DRESS, "<path d='M0,0'/>", [])
+    assert "- none" in SD.check_prompt(photos(), SHEET, drawn.Side(DRESS), drawn.Side("<path d='M0,0'/>"), [])
 
 
 def test_the_answers_are_strict():
-    DrawAnswer.model_validate({"sheet": SHEET, "left": DRESS, "right": None})
+    drew(DRESS)
     for bad in ({**SHEET, "palette": SHEET["palette"][:1]}, {**SHEET, "signature": ["a"] * 5},
                 {**SHEET, "palette": [{**SHEET["palette"][0], "hex": "tan"}] * 2},
                 {**SHEET, "silhouette": {**SHEET["silhouette"], "height": "mid"}}, {**SHEET, "extra": 1},
                 {**SHEET, "opening_front_y": "40"}, {**SHEET, "opening_front_y": 400}):
         with pytest.raises(ValueError):
-            DrawAnswer.model_validate({"sheet": bad, "left": DRESS, "right": None})
+            DrawAnswer.model_validate({"sheet": bad, "left": shoe(DRESS), "right": None})
     with pytest.raises(ValueError):
-        CheckAnswer.model_validate({"good": "yes", "problems": [], "sheet": SHEET, "left": DRESS, "right": None})
+        CheckAnswer.model_validate({"good": "yes", "problems": [], "sheet": SHEET, "left": shoe(DRESS), "right": None})
     assert SD.MODEL == CONFIG["roles"]["drawing"] and SD.EFFORT == "high"
 
 
@@ -121,7 +129,7 @@ def test_a_drawing_then_a_check_that_says_good():
                and c["timeout"] == SD.TIMEOUT and c["system"] == SD.SYSTEM and c["routes"] == ("plan", "api")
                for c in asker.calls)
     assert made.rounds == 1 and made.good and made.problems == []
-    assert made.left == drawn.sanitise(DRESS) and made.right is None and made.sheet == SHEET
+    assert made.left == drawn.Side(drawn.sanitise(DRESS)) and made.right is None and made.sheet == SHEET
     assert [c.kind for c in made.calls] == ["draw", "check"] and made.route == "plan"
     assert made.seconds > 0 and all(c.seconds > 0 for c in made.calls)
 
@@ -137,25 +145,23 @@ def test_every_drawing_is_made_safe_before_it_is_rendered_checked_or_kept(monkey
     seen = []
     real = drawn.check_png
     monkeypatch.setattr(drawn, "check_png", lambda left, right=None: seen.append(left) or real(left, right))
-    asker = Asker(DrawAnswer.model_validate({"sheet": SHEET, "left": nasty, "right": None}),
-                  checked(left=nasty, good=False), check_answer())
+    asker = Asker(drew(nasty), checked(left=nasty, good=False), check_answer())
     made = SD.draw(photos(), ("plan",), asker=asker, clock=clock())
-    for text in [made.left, *seen, asker.calls[1]["text"]]:
+    for text in [made.left.front, *(drawn.side(s).front for s in seen), asker.calls[1]["text"]]:
         for bit in ("<script", "alert(1)", "<text>N", 'id="x"', "url(#g)", "onclick"):
             assert bit not in text
-    assert made.left in asker.calls[2]["text"]
+    assert made.left.front in asker.calls[2]["text"]
     assert made.rounds == 2 and made.good   # the first check's answer changed the drawing (made safe), the second said good
 
 
 def test_what_the_automatic_checks_find_goes_into_the_next_check():
-    asker = Asker(DrawAnswer.model_validate({"sheet": SHEET, "left": LIFTED, "right": None}),
-                  checked(left=LIFTED, good=True),   # says good, but the shoe still floats: not accepted
+    asker = Asker(drew(LIFTED), checked(left=LIFTED, good=True),   # says good, but the shoe still floats: not accepted
                   checked(left=DRESS, good=False), check_answer())
     made = SD.draw(photos(), ("plan",), asker=asker, clock=clock())
     texts = [c["text"] for c in asker.calls[1:]]
     assert "does not stand on the ground" in texts[0] and "does not stand on the ground" in texts[1]
     assert "## What the automatic checks found (each must be fixed)\n- none" in texts[2]
-    assert made.rounds == 3 and made.good and made.problems == [] and made.left == drawn.sanitise(DRESS)
+    assert made.rounds == 3 and made.good and made.problems == [] and made.left == drawn.Side(drawn.sanitise(DRESS))
 
 
 def test_a_fix_that_cannot_be_used_keeps_the_drawing_before_it():
@@ -163,21 +169,20 @@ def test_a_fix_that_cannot_be_used_keeps_the_drawing_before_it():
     made = SD.draw(photos(), ("plan",), asker=asker, clock=clock())
     assert "could not be used (Nothing drawable" in asker.calls[2]["text"]
     assert drawn.sanitise(DRESS) in asker.calls[2]["text"]
-    assert made.left == drawn.sanitise(DRESS) and made.rounds == 2 and made.good
+    assert made.left == drawn.Side(drawn.sanitise(DRESS)) and made.rounds == 2 and made.good
 
 
 def test_a_check_that_fails_keeps_the_drawing_made_so_far():
     for error in (RouteUnavailable("Claude Code is not signed in"), TaggingError("no usable answer")):
         made = SD.draw(photos(), ("plan",), asker=Asker(draw_answer(), error), clock=clock())
-        assert made.rounds == 0 and not made.good and made.left == drawn.sanitise(DRESS) and len(made.calls) == 1
+        assert made.rounds == 0 and not made.good and made.left == drawn.Side(drawn.sanitise(DRESS)) and len(made.calls) == 1
 
 
 def test_a_drawing_that_fails_raises():
     with pytest.raises(RouteUnavailable):
         SD.draw(photos(), ("plan",), asker=Asker(RouteUnavailable("no route")), clock=clock())
     with pytest.raises(drawn.DrawingError):
-        SD.draw(photos(), ("plan",), clock=clock(),
-                asker=Asker(DrawAnswer.model_validate({"sheet": SHEET, "left": "<text/>", "right": None})))
+        SD.draw(photos(), ("plan",), clock=clock(), asker=Asker(drew("<text/>")))
 
 
 def test_the_cost_is_what_the_api_key_would_charge_without_the_plans_rereading():
@@ -188,7 +193,8 @@ def test_the_cost_is_what_the_api_key_would_charge_without_the_plans_rereading()
     got = made.to_json(["p1", "p2"], "2026-11-15T12:00:00+00:00")
     assert got["cost_usd"] == pytest.approx(2 * one) and got["input_tokens"] == 100_000
     assert got["cache_read_tokens"] == 40_000 and got["output_tokens"] == 12_000 and got["route"] == "plan"
-    assert got["calls"][0]["kind"] == "draw" and got["photo_ids"] == ["p1", "p2"] and got["version"] == 1
+    assert got["calls"][0]["kind"] == "draw" and got["photo_ids"] == ["p1", "p2"] and got["version"] == 2
+    assert got["left"] == {"behind": "", "front": drawn.sanitise(DRESS)} and got["right"] is None
     assert set(got) >= {"left", "right", "sheet", "rounds", "seconds", "calls", "input_tokens", "output_tokens",
                         "cost_usd", "route", "made_at", "photo_ids", "version"}
     assert json.loads(json.dumps(got)) == got
@@ -263,8 +269,45 @@ def test_through_the_plan_every_image_is_saved_under_its_name(monkeypatch):
 def test_the_estimate_allows_for_the_longest_request():
     worst = '<path d="' + "M0,0 " * ((drawn.MAX_CHARS - 20) // 5) + '"/>'
     schema = json.dumps(CheckAnswer.model_json_schema())
-    longest = SD.check_prompt(photos(6), SHEET, worst, worst, ["x" * 300] * 8)
+    longest = SD.check_prompt(photos(6), SHEET, drawn.Side(worst), drawn.Side(worst), ["x" * 300] * 8)
     assert (len(longest) + len(schema) + len(SD.SYSTEM)) / 2 <= spend.DRAW_TEXT_TOKENS
     assert (len(SD.draw_prompt(photos(6))) + len(json.dumps(DrawAnswer.model_json_schema()))) / 2 * 2 <= spend.DRAW_TEXT_TOKENS
     assert spend.estimate_draw(9) - spend.estimate_draw(8) == pytest.approx(spend.cost_usd(SD.MODEL, spend.IMAGE_TOKENS, 0))
     assert spend.estimate_draw(8) >= spend.cost_usd(SD.MODEL, spend.DRAW_TEXT_TOKENS + 8 * spend.IMAGE_TOKENS, SD.MAX_TOKENS)
+
+
+# ------------------------------------------------------------------ behind the leg and in front (step D)
+
+TAB = '<path d="M88,-28 L88,-64 C88,-73 112,-73 112,-64 L112,-28 Z" fill="#4a2c22" stroke="#26221f" stroke-width="1.6"/>'
+
+
+def test_claude_draws_each_shoe_behind_and_in_front_of_the_leg_and_both_are_kept():
+    text = SD.draw_prompt(photos())
+    assert "Behind the leg and in front of it: two parts" in text and "pull tab" in text
+    assert "behind and front" in text and "the back of the opening" in text
+    with pytest.raises(ValueError):   # one text for a shoe is no longer an answer
+        DrawAnswer.model_validate({"sheet": SHEET, "left": DRESS, "right": None})
+    collar = '<path d="M64,24 L136,24 L136,50 L64,50 Z" fill="#3a2a24"/>'   # the back of the collar, behind the leg
+    first = DrawAnswer.model_validate({"sheet": SHEET, "left": shoe(DRESS, collar), "right": None})
+    asker = Asker(first, checked(good=True))
+    made = SD.draw(photos(), ("plan",), asker=asker, clock=clock())
+    assert made.left == drawn.Side(drawn.sanitise(DRESS), drawn.sanitise(collar)) and made.rounds == 1 and made.good
+    check = asker.calls[1]["text"]
+    assert "behind the leg:\n" + drawn.sanitise(collar) in check and "in front of the leg:\n" + drawn.sanitise(DRESS) in check
+    kept = made.to_json([], "2026-11-15T12:00:00+00:00")
+    assert kept["version"] == 2 and kept["left"] == {"behind": drawn.sanitise(collar), "front": drawn.sanitise(DRESS)}
+
+
+def test_a_back_pull_tab_drawn_in_front_of_the_leg_goes_back_to_claude():
+    tall = {**SHEET, "silhouette": {**SHEET["silhouette"], "height": "ankle"}}
+    asker = Asker(DrawAnswer.model_validate({"sheet": tall, "left": shoe(DRESS + TAB), "right": None}),
+                  CheckAnswer.model_validate({"good": True, "problems": [], "sheet": tall, "left": shoe(DRESS + TAB),
+                                              "right": None}),
+                  CheckAnswer.model_validate({"good": False, "problems": ["the tab is behind the leg"], "sheet": tall,
+                                              "left": shoe(DRESS, TAB), "right": None}),
+                  CheckAnswer.model_validate({"good": True, "problems": [], "sheet": tall, "left": shoe(DRESS, TAB),
+                                              "right": None}))
+    made = SD.draw(photos(), ("plan",), asker=asker, clock=clock())
+    assert "hides the leg above its opening" in asker.calls[1]["text"]   # for a boot too, found and sent back
+    assert "hides the leg above its opening" in asker.calls[2]["text"]   # said good, but still found: not accepted
+    assert made.good and made.problems == [] and made.left.behind == drawn.sanitise(TAB) and made.rounds == 3

@@ -3,24 +3,30 @@ checked. No call to Claude is made here; `closet/tagger/shoedrawing.py` asks for
 keeps it with the item.
 
 The drawing comes back as bare SVG elements in a fixed frame: x 0 to 200 centred on x = 100, the ground at y = 240,
-about 17 units to a centimetre, one shoe pointing straight at the viewer, seen from the front and a little above. The
-leg (x 62 to 138, in a sock) is drawn first, the shoe over it.
+about 17 units to a centimetre, one shoe pointing straight at the viewer, seen from the front and a little above. Each
+shoe is in two parts (`Side`, step D): what is behind the leg (the back of a collar or a shaft, a pull tab at the back,
+the lining seen inside the opening) and what is in front of it. The part behind is drawn first, then the leg (x 62 to
+138, in a sock), then the part in front, so the leg goes into the shoe. A drawing kept before the parts (version 1) is
+all in front.
 
 - `sanitise` keeps only plain shapes with plain numbers and plain colours: whatever Claude writes, nothing that could
-  run, link, load or hide can reach the page or the files.
+  run, link, load or hide can reach the page or the files. `side` makes both parts of a shoe safe.
 - `preview_svg` puts the pair on two legs in socks, as the experiment's preview did (`bench/experiments/shoe_drawn/
   render3.js`, without its tilt), with the ink lines as thick as the outfit figure will draw them. The item page
   shows it, and Claude looks at it to check its drawing (`check_png`, rendered by resvg).
 - `checks` measures renders of the drawing against the frame and says in plain words what is wrong: it stands on
-  the ground, stays in the frame, is not too tall, the leg goes into it, and a low shoe does not hide the leg above
-  its opening. They stand in for the four front-shoe rules, which are written for the templates' geometry.
+  the ground, stays in the frame, is not too tall, the leg goes into it, and nothing in front of the leg hides it
+  above the opening. They stand in for the four front-shoe rules, which are written for the templates' geometry.
+- `stored` reads a drawing kept with the item for the outfit figure (`figure.py` places it on the feet).
 """
 from __future__ import annotations
 
 import io
+import math
 import re
 import xml.etree.ElementTree as ET
 from collections.abc import Mapping
+from dataclasses import dataclass
 from functools import cache
 from html import escape
 from pathlib import Path
@@ -38,6 +44,9 @@ MAX_ELEMENTS = 150                 # shapes and groups kept; the liked examples 
 MAX_DEPTH = 8                      # groups inside groups
 EXAMPLES_DIR = Path(__file__).resolve().parent / "shoe_examples"
 EXAMPLES = ("trainer", "dress-shoe", "boat-shoe")   # the drawings the owner liked, as worked examples
+# a liked drawing split by hand into its part behind the leg and its part in front (`<name>.behind.svg`,
+# `<name>.front.svg`): not shown to Claude, but drawn on the demo closet's boot
+SPLIT = ("boot",)
 
 SHAPES = frozenset({"path", "circle", "ellipse", "rect", "line", "polyline", "polygon"})
 ELEMENTS = SHAPES | {"g"}
@@ -61,6 +70,10 @@ ATTRIBUTES = (LENGTHS | OPACITIES | set(CHOICES)
 
 class DrawingError(ValueError):
     """A drawing that cannot be used, and why, in plain words (Claude is told, so it can fix it)."""
+
+
+class NothingDrawable(DrawingError):
+    """Nothing drawable is left once the drawing is made safe."""
 
 
 # ------------------------------------------------------------------ made safe
@@ -157,9 +170,51 @@ def sanitise(fragment) -> str:
     kept = [0, 0]   # elements, shapes
     out = [c for c in (_clean(child, 1, kept) for child in root) if c]
     if not kept[1]:
-        raise DrawingError("Nothing drawable is left in the drawing: draw with path, circle, ellipse, rect, line, "
-                           "polyline and polygon elements (in g groups if you like), nothing else.")
+        raise NothingDrawable("Nothing drawable is left in the drawing: draw with path, circle, ellipse, rect, line, "
+                              "polyline and polygon elements (in g groups if you like), nothing else.")
     return "\n".join(out)
+
+
+@dataclass(frozen=True)
+class Side:
+    """One shoe of a drawing, in the frame, made safe: `front`, what is in front of the leg (drawn over it), and
+    `behind`, what is behind the leg seen from the front (the back of a collar or a shaft, a pull tab at the back, the
+    lining seen inside the opening; drawn before the leg, so the leg covers it; may be empty)."""
+    front: str
+    behind: str = ""
+
+    def to_json(self) -> dict:
+        return {"behind": self.behind, "front": self.front}
+
+
+def _elements(text: str) -> int:
+    return len(re.findall(r"<(?![/!?])", text))
+
+
+def side(value) -> Side:
+    """One shoe of a drawing made safe (`sanitise`): from {"behind", "front"} (an answer, or a drawing kept since
+    version 2), a `Side`, or one SVG text, which is all in front (a drawing kept as version 1). `behind` may be empty
+    or have nothing drawable left; `front` must have something. Together they keep to one drawing's caps."""
+    if isinstance(value, Side):
+        behind, front = value.behind, value.front
+    elif isinstance(value, Mapping):
+        behind, front = value.get("behind") or "", value.get("front")
+    else:
+        behind, front = "", value
+    if not isinstance(behind, str) or not isinstance(front, str):
+        raise DrawingError("The drawing is not SVG text.")
+    if len(behind) + len(front) > MAX_CHARS:
+        raise DrawingError(f"The drawing is too long: {len(behind) + len(front):,} characters behind and in front of "
+                           f"the leg together, at most {MAX_CHARS:,}.")
+    front = sanitise(front)
+    try:
+        behind = sanitise(behind) if behind.strip() else ""
+    except NothingDrawable:
+        behind = ""
+    if _elements(front) + _elements(behind) > MAX_ELEMENTS:
+        raise DrawingError(f"The drawing has too many shapes: keep it to at most {MAX_ELEMENTS}, behind and in front "
+                           "of the leg together.")
+    return Side(front, behind)
 
 
 # ------------------------------------------------------------------ shown
@@ -205,20 +260,25 @@ def _leg(line: float) -> str:
 PREVIEW_W, PREVIEW_H = 440, 400
 
 
-def _scene(left: str, right: str | None, line: float) -> str:
-    left = thicken(sanitise(left), line) if line != 1 else sanitise(left)
-    right = (thicken(sanitise(right), line) if line != 1 else sanitise(right)) if right else None
+def _scene(left, right, line: float) -> str:
     leg = _leg(line)
-    other = (f'<g transform="translate(218,150)">{leg}{right}</g>' if right else
-             f'<g transform="translate(418,150) scale(-1,1)">{leg}{left}</g>')
+
+    def shoe(value) -> str:   # behind the leg, the leg, in front of it
+        s = side(value)
+        behind, front = (thicken(s.behind, line) if s.behind else "", thicken(s.front, line)) if line != 1 else \
+            (s.behind, s.front)
+        return f"{behind}{leg}{front}"
+    other = (f'<g transform="translate(218,150)">{shoe(right)}</g>' if right else
+             f'<g transform="translate(418,150) scale(-1,1)">{shoe(left)}</g>')
     return (f'<rect width="{PREVIEW_W}" height="{PREVIEW_H}" fill="#f1eee8"/>'
-            f'<g transform="translate(22,150)">{leg}{left}</g>{other}')
+            f'<g transform="translate(22,150)">{shoe(left)}</g>{other}')
 
 
-def preview_svg(left: str, right: str | None = None, line: float = TODAY_LINE) -> str:
+def preview_svg(left, right=None, line: float = TODAY_LINE) -> str:
     """The pair on two legs in socks: the viewer's left shoe as drawn, the right one drawn on its own when there is a
-    right drawing, else the left one mirrored. Each leg is drawn first, its shoe over it; no tilt. The ink lines are
-    `line` times as thick as drawn (the figure's weight by default)."""
+    right drawing, else the left one mirrored. Each shoe (`side`: a `Side`, {"behind", "front"} or one SVG text, all
+    in front) is drawn behind the leg, then the leg, then in front of it; no tilt. The ink lines are `line` times as
+    thick as drawn (the figure's weight by default)."""
     return (f'<svg xmlns="{SVG_NS}" viewBox="0 0 {PREVIEW_W} {PREVIEW_H}" width="{PREVIEW_W}" height="{PREVIEW_H}">'
             f'{_scene(left, right, line)}</svg>')
 
@@ -226,7 +286,7 @@ def preview_svg(left: str, right: str | None = None, line: float = TODAY_LINE) -
 BIG_W, SMALL_W, GAP = 560, 150, 20
 
 
-def check_svg(left: str, right: str | None = None) -> str:
+def check_svg(left, right=None) -> str:
     """The preview large (560 px wide) and at phone size (150 px wide) side by side, as the experiment's render3.js
     showed it: what Claude looks at to check its drawing."""
     scene = _scene(left, right, TODAY_LINE)
@@ -254,7 +314,7 @@ def render_png(svg: str, width: int, height: int | None = None, background: str 
         raise DrawingError("The drawing could not be rendered: check its numbers.") from e
 
 
-def check_png(left: str, right: str | None = None) -> bytes:
+def check_png(left, right=None) -> bytes:
     """`check_svg` as one PNG."""
     svg = check_svg(left, right)
     w, h = (int(v) for v in re.search(r'width="(\d+)" height="(\d+)"', svg).groups())
@@ -275,6 +335,14 @@ def example_png(name: str) -> bytes:
     return check_png(example(name))
 
 
+@cache
+def split_example(name: str) -> Side:
+    """A liked drawing split by hand into its part behind the leg and its part in front (`SPLIT`), made safe."""
+    if name not in SPLIT:
+        raise KeyError(name)
+    return side({part: (EXAMPLES_DIR / f"{name}.{part}.svg").read_text(encoding="utf-8") for part in ("behind", "front")})
+
+
 # ------------------------------------------------------------------ checked
 
 SCALE = 2                     # pixels per frame unit in the renders the checks measure
@@ -288,7 +356,7 @@ INSIDE = (2.0, 198.0)
 LEG_IN = (72.0, 128.0)                  # the middle of the leg, hidden from just below the opening down to y 200
 LEG_IN_BOTTOM = 200.0
 OPENING_GAP = 8.0
-ABOVE = (75.0, 125.0)                   # nothing of a low shoe over the leg here, more than 25 units above its opening
+ABOVE = (75.0, 125.0)                   # nothing in front of the leg over it here, more than 25 units above the opening
 ABOVE_ROOM = 25.0
 OPENING_STRIP = (90.0, 110.0)           # where the drawing's front edge is found, to compare with the sheet's
 OPENING_SLACK = 15.0
@@ -296,17 +364,17 @@ SHOWS_PX = 20                           # visible leg pixels allowed (anti-alias
 COVERS_PX = 6
 
 
-def _pixels(fragment: str, band: bool):
+def _pixels(front: str, behind: str = "", band: bool = False):
     import numpy as np
     from PIL import Image
 
     x0, y0, w, h = BOX
-    behind = ""
+    leg = ""
     if band:
         bx0, by0, bx1, by1 = BAND_BOX
-        behind = f'<rect x="{bx0}" y="{by0}" width="{bx1 - bx0}" height="{by1 - by0}" fill="#ff00ff"/>'
+        leg = f'<rect x="{bx0}" y="{by0}" width="{bx1 - bx0}" height="{by1 - by0}" fill="#ff00ff"/>'
     svg = (f'<svg xmlns="{SVG_NS}" viewBox="{x0} {y0} {w} {h}" width="{w * SCALE}" height="{h * SCALE}">'
-           f'{behind}{fragment}</svg>')
+           f'{behind}{leg}{front}</svg>')
     with Image.open(io.BytesIO(render_png(svg, w * SCALE, h * SCALE))) as im:
         return np.asarray(im.convert("RGBA")).astype(int)
 
@@ -327,22 +395,24 @@ def _x(col: float) -> float:
     return BOX[0] + col / SCALE
 
 
-def measure(fragment: str) -> dict:
-    """Where a sanitised drawing is painted, in frame units: its box (left, top, right, bottom; None when nothing is
-    painted), and over the leg band: the leg pixels left showing per row in the middle (for the checks)."""
+def measure(shoe) -> dict:
+    """Where one shoe of a drawing (`side`) is painted, in frame units: its box (left, top, right, bottom; None when
+    nothing is painted), where its part in front of the leg is painted, and, with the leg band drawn between its part
+    behind and its part in front, the leg pixels left showing (for the checks)."""
     import numpy as np
 
-    alone = _pixels(fragment, band=False)
-    painted = alone[:, :, 3] > 128
+    s = side(shoe)
+    painted = _pixels(s.front, s.behind)[:, :, 3] > 128
     rows, cols = np.where(painted.any(axis=1))[0], np.where(painted.any(axis=0))[0]
     box = None if not len(rows) else (_x(cols[0]), _y(rows[0]), _x(cols[-1] + 1), _y(rows[-1] + 1))
-    over = _pixels(fragment, band=True)
+    front = _pixels(s.front)[:, :, 3] > 128 if s.behind else painted
+    over = _pixels(s.front, s.behind, band=True)
     leg = (np.abs(over[:, :, :3] - np.array(BAND)).max(axis=2) <= 8) & (over[:, :, 3] > 250)
-    return {"box": box, "painted": painted, "leg": leg}
+    return {"box": box, "painted": painted, "front": front, "leg": leg}
 
 
-def _checks_one(fragment: str, sheet: Mapping, who: str) -> list[str]:
-    m = measure(fragment)
+def _checks_one(shoe: Side, sheet: Mapping, who: str) -> list[str]:
+    m = measure(shoe)
     if m["box"] is None:
         return [f"{who}Nothing of it is painted inside the frame."]
     left, top, right, bottom = m["box"]
@@ -368,14 +438,14 @@ def _checks_one(fragment: str, sheet: Mapping, who: str) -> list[str]:
             out.append(f"{who}The leg is not inside the shoe: between y {a:.0f} and {LEG_IN_BOTTOM:.0f} it shows "
                        f"through the drawing in the middle (x {LEG_IN[0]:.0f} to {LEG_IN[1]:.0f}). From just below the "
                        "opening's front edge down to the sole, the upper must cover the leg completely.")
-    if low:
-        above = opening - ABOVE_ROOM
-        covers = int(m["painted"][:max(0, _row(above)), _col(ABOVE[0]):_col(ABOVE[1])].sum())
-        if covers > COVERS_PX:
-            out.append(f"{who}It hides the leg above its opening: something is drawn over the middle of the leg higher "
-                       f"than y {above:.0f}, more than {ABOVE_ROOM:.0f} units above the opening's front edge (y "
-                       f"{opening:.0f}). A low shoe never covers the leg above its opening; only the collar's sides "
-                       "may rise a little beside the leg.")
+    above = opening - ABOVE_ROOM   # for every kind of shoe: a boot's opening front is the front of its shaft's top
+    covers = int(m["front"][:max(0, _row(above)), _col(ABOVE[0]):_col(ABOVE[1])].sum())
+    if covers > COVERS_PX:
+        out.append(f"{who}It hides the leg above its opening: something in front of the leg is drawn over its middle "
+                   f"higher than y {above:.0f}, more than {ABOVE_ROOM:.0f} units above the opening's front edge (y "
+                   f"{opening:.0f}). Nothing in front of the leg covers it above the opening (only a low shoe's collar "
+                   "sides may rise a little beside the leg); what is behind the leg, such as the back of the collar or "
+                   "of the shaft or a pull tab at the back, belongs in the part behind the leg, which the leg covers.")
     strip = leg[:, _col(OPENING_STRIP[0]):_col(OPENING_STRIP[1])].sum(axis=1)
     start = _row(BAND_BOX[1]) + 2
     hidden = next((r for r in range(start, _row(BAND_BOX[3]) - 2) if strip[r] <= 1), None)   # within the band
@@ -386,14 +456,60 @@ def _checks_one(fragment: str, sheet: Mapping, who: str) -> list[str]:
     return out
 
 
-def checks(left: str, right: str | None, sheet: Mapping) -> list[str]:
-    """What is wrong with a drawing, measured from renders of it, in plain words; empty when nothing is. `sheet` is
-    the feature sheet (its silhouette's height and its opening_front_y are read). A right drawing is checked the same
-    way; a sheet that says a mark is on one side only needs one."""
-    out = _checks_one(sanitise(left), sheet, "")
+def checks(left, right, sheet: Mapping) -> list[str]:
+    """What is wrong with a drawing, measured from renders of it, in plain words; empty when nothing is. `left` and
+    `right` are its shoes (`side`); `sheet` is the feature sheet (its silhouette's height and its opening_front_y are
+    read). A right drawing is checked the same way; a sheet that says a mark is on one side only needs one."""
+    out = _checks_one(side(left), sheet, "")
     if right:
-        out += _checks_one(sanitise(right), sheet, "The right shoe: ")
+        out += _checks_one(side(right), sheet, "The right shoe: ")
     elif sheet.get("one_side_mark"):
         out.append("The sheet says a mark is on one side only, but there is no right drawing: draw the viewer's right "
                    "shoe too, with the mark on its outer side, reading the right way round.")
     return out
+
+
+# ------------------------------------------------------------------ kept, for the outfit figure
+
+VERSION = 2   # the stored drawing's shape: 2 has each shoe as {behind, front}; 1 had one SVG text, all in front
+
+
+@dataclass(frozen=True)
+class Stored:
+    """A drawing kept with the item, as the outfit figure places it: its shoes made safe (the viewer's left one, and
+    the right one when it is drawn on its own), and where in the frame its opening is, from its sheet: the front of
+    the opening (`opening`, opening_front_y), its highest point (`top`, top_y), the instep (`instep`, instep_y: above
+    a low shoe's opening front and below a boot's, as the figure tells a shaft by), and whether it is a low shoe (its
+    toe turns out below its opening front) or a boot (below its instep: `hinge`)."""
+    left: Side
+    right: Side | None
+    opening: float
+    top: float
+    instep: float
+    low: bool
+
+    @property
+    def hinge(self) -> float:
+        return self.opening if self.low else self.instep
+
+
+def _height(sheet: Mapping, key: str) -> float:
+    v = sheet.get(key)
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or not -200 <= v <= GROUND:
+        raise DrawingError(f"The drawing's sheet has no usable {key}.")
+    return float(v)
+
+
+def stored(value) -> Stored:
+    """A drawing as kept with the item (`shoedraw`: version 1 or 2) read for the outfit figure. Raises `DrawingError`
+    when it cannot be drawn there (its shoes cannot be made safe, or its sheet does not say where its opening is)."""
+    if not isinstance(value, Mapping) or not isinstance(value.get("sheet"), Mapping):
+        raise DrawingError("The drawing has no sheet.")
+    sheet = value["sheet"]
+    opening, top, instep = (_height(sheet, k) for k in ("opening_front_y", "top_y", "instep_y"))
+    silhouette = sheet.get("silhouette") if isinstance(sheet.get("silhouette"), Mapping) else {}
+    height = silhouette.get("height")
+    low = height in LOW if height in (*LOW, "ankle", "boot") else instep < opening
+    instep = min(instep, opening - 1.0) if low else max(instep, opening + 1.0)
+    return Stored(side(value.get("left")), side(value["right"]) if value.get("right") else None, opening, top, instep,
+                  low)

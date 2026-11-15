@@ -14,6 +14,9 @@ finds from made-up shops (one has dropped in price) and a saved trip planned
 for weather given in advance come with it too: nothing is looked up. Two of
 its shoes are drawn from traces made in advance of made-up side-on photos, so
 a traced shoe can be seen and its drawing fixed; they are never traced again.
+Its boot carries a drawing as Claude draws a shoe from its photos, made in
+advance from a drawing the owner liked, so the As worn figure shows a drawn
+shoe; it is never drawn again.
 """
 from __future__ import annotations
 
@@ -43,6 +46,7 @@ def ensure(cfg: Config) -> int:
             _answers(conn, data)   # a demo closet made before the answers existed gets them now
             _prices(conn, data)    # and one made before the demo had prices gets those
             _traces(conn, data)    # and one made before shoes were traced gets the traced shoes
+            _drawings(conn, data)  # and one made before shoes were drawn for the figure gets its drawn shoe
             if WORN_OUTFITS_MIGRATION in applied:
                 _outfits(conn, data)   # and one made before worn outfits were remembered gets those, once
             return _grow(cfg, conn, data)   # and one made before the demo had about 40 items gets the rest, once
@@ -106,6 +110,8 @@ def _add_items(cfg: Config, conn, data: dict, chosen: list[dict]) -> int:
         if it.get("trace"):   # a shoe drawn from a trace made in advance (of a made-up photo), kept as a traced shoe's is
             conn.execute("UPDATE items SET trace = ?, trace_version = ?, trace_state = 'done' WHERE id = ?",
                          (json.dumps(it["trace"]), it.get("trace_version"), it["id"]))
+        if it.get("drawn"):   # a shoe drawn for the figure in advance, kept as one Claude drew is
+            conn.execute("UPDATE items SET drawn = ?, drawn_state = 'done' WHERE id = ?", (json.dumps(it["drawn"]), it["id"]))
         _history(conn, it)
         # the drawing was made in advance with the drawing code of this version; kept until it is raised
         if it.get("illustration_svg"):
@@ -146,6 +152,15 @@ def _traces(conn, data: dict) -> None:
                             (json.dumps(it["trace"]), it.get("trace_version"), it["id"])).rowcount
         if done:
             illustrations.redraw(conn, it["id"])
+
+
+def _drawings(conn, data: dict) -> None:
+    """Give a demo closet made before shoes were drawn for the outfit figure its drawn shoe, once: only a shoe still
+    in it and never drawn."""
+    for it in data["items"]:
+        if it.get("drawn"):
+            conn.execute(f"UPDATE items SET drawn = ?, drawn_state = 'done' WHERE id = ? AND drawn IS NULL "
+                         f"AND drawn_state IS NULL AND category IN {tracejobs.SHOES}", (json.dumps(it["drawn"]), it["id"]))
 
 
 def _answers(conn, data: dict) -> None:

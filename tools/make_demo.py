@@ -26,6 +26,13 @@ photographed side-on is; after a change to the tracing, rewrite just those
 
     python tools/make_demo.py --traces-only
 
+One shoe (DRAWN_SHOES) carries a drawing as Claude draws a shoe from its photos for the outfit figure, made in
+advance from a drawing the owner liked (backend/closet/drawing/shoe_examples/, split into its part behind the leg and
+its part in front), so the demo shows a drawn shoe on the figure without sending anything to Claude; after a change
+to how a drawing is kept, rewrite just that (no model needed):
+
+    python tools/make_demo.py --drawings-only
+
 Some items carry a price (PRICES) so Insights has a cost per wear to show;
 after changing them, rewrite just the prices (no model needed):
 
@@ -48,7 +55,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 from PIL import Image, ImageDraw  # noqa: E402
 
 from closet import palette  # noqa: E402
-from closet.drawing import DRAWING_VERSION, fills, stored  # noqa: E402
+from closet.drawing import DRAWING_VERSION, drawn, fills, stored  # noqa: E402
 from closet.drawing.illustrate import Fill, Spec, render  # noqa: E402
 from closet.drawing.item import drawing_from_answer  # noqa: E402
 from closet.tagger.schema import NAMED_HEX, SCHEMA_VERSION, Details, ItemTags, Silhouette  # noqa: E402
@@ -122,6 +129,30 @@ TRACED = {
                         laces=(200, 170, 90), eyelets=(196, 198, 204), top="_BOOT", shaft_cm=16, sole_cm=3.0,
                         sole_toe_cm=2.4, toe_spring_cm=1.0),
 }
+
+# The demo shoe drawn as Claude draws a shoe from its photos (step D shows it on the figure): made in advance from the
+# boot the owner liked (bench/experiments/shoe_drawn/EXAMPLES/boot.svg, split by hand into the pull tab behind the leg
+# and the rest in front: closet/drawing/shoe_examples/boot.*.svg), with a feature sheet written for it; never sent to
+# Claude. name -> the split example, and its sheet (as `tagger/shoedrawing.Sheet` has it)
+DRAWN_SHOES = {
+    "Brown boots": ("boot", {
+        "kind": "pull-on Chelsea boot (a made-up drawing for the demo closet)", "archetype": "Chelsea boot",
+        "archetype_front": "A rounded toe box with a low, broad dome; the shaft rises behind the instep, a little wider "
+                           "than the leg; elastic side panels run down each side of the shaft; a thin dark sole.",
+        "silhouette": {"toe": "round", "bulk": "regular", "height": "ankle", "sole": "thin, flat"},
+        "proportions": "The sole's front edge is a thin band under the toe box; it barely stands out past the upper.",
+        "palette": [{"name": "brown leather", "hex": "#6e5a3f", "role": "upper"},
+                    {"name": "oxblood elastic", "hex": "#5e2f25", "role": "elastic side panels"},
+                    {"name": "dark brown pull tab", "hex": "#4a2c22", "role": "pull tab"},
+                    {"name": "near-black sole", "hex": "#2c2826", "role": "sole"}],
+        "parts": [{"part": "elastic side panel", "colour": "oxblood elastic", "where": "each side of the shaft",
+                   "seen_from_front": True},
+                  {"part": "pull tab", "colour": "dark brown pull tab", "where": "at the back of the shaft",
+                   "seen_from_front": False}],
+        "signature": ["elastic side panels down the shaft", "a smooth toe box with no laces"],
+        "one_side_mark": False, "opening_front_y": -32.0, "top_y": -46.0, "instep_y": 84.0}),
+}
+DRAWN_AT = "2026-11-15T12:00:00+00:00"   # kept fixed, so running this twice changes no file
 
 # id in bench/hardcases/cases.json -> name, category, colour word, pattern, silhouette, formality, season, extras
 PHOTOS = {
@@ -688,6 +719,21 @@ def add_traces(items: list[dict]) -> None:
         it["trace_version"] = tracejobs.TRACING_VERSION
 
 
+def add_drawings(items: list[dict]) -> None:
+    """Give the DRAWN_SHOES their drawing, kept as the app keeps one Claude made (`shoedrawing.Drawn.to_json`), made
+    in advance: no call, nothing it took, route "demo"."""
+    for it in items:
+        it.pop("drawn", None)
+        made = DRAWN_SHOES.get(it["name"])
+        if made is None:
+            continue
+        name, sheet = made
+        it["drawn"] = {"version": drawn.VERSION, "left": drawn.split_example(name).to_json(), "right": None,
+                       "sheet": sheet, "rounds": 0, "seconds": None, "good": True, "problems": [], "calls": [],
+                       "input_tokens": 0, "cache_read_tokens": 0, "output_tokens": 0, "cost_usd": 0.0, "route": "demo",
+                       "made_at": DRAWN_AT, "photo_ids": []}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--models-dir", type=Path, default=ROOT / "bench" / "models")
@@ -695,6 +741,7 @@ def main() -> None:
     ap.add_argument("--prices-only", action="store_true", help="only rewrite the prices in items.json")
     ap.add_argument("--history-only", action="store_true", help="only rewrite the wear history and worn outfits in items.json")
     ap.add_argument("--traces-only", action="store_true", help="only rewrite the traced shoes in items.json")
+    ap.add_argument("--drawings-only", action="store_true", help="only rewrite the drawn shoe in items.json")
     a = ap.parse_args()
     cases = {c["id"]: c for c in json.loads((ROOT / "bench" / "hardcases" / "cases.json").read_text())["cases"]}
     if a.prices_only:
@@ -710,6 +757,12 @@ def main() -> None:
         add_traces(data["items"])
         (OUT / "items.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"traces written for {sum('trace' in it for it in data['items'])} shoes")
+        return
+    if a.drawings_only:
+        data = json.loads((OUT / "items.json").read_text(encoding="utf-8"))
+        add_drawings(data["items"])
+        (OUT / "items.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"drawings written for {sum('drawn' in it for it in data['items'])} shoes")
         return
     if a.answers_only or a.history_only:
         data = json.loads((OUT / "items.json").read_text(encoding="utf-8"))
@@ -765,6 +818,7 @@ def main() -> None:
     for it in items:
         it["answer"] = by_name[it["name"]]
     add_traces(items)
+    add_drawings(items)
     assert set(HISTORY) | set(PRICES) | set(UNSURE) <= {it["name"] for it in items}
     # interleave so the grid mixes photographed and drawn items
     items.sort(key=lambda it: it["id"])

@@ -211,11 +211,19 @@ def test_a_leg_showing_through_the_shoe_is_found():
     assert drawn.checks(hole, None, sheet()) == []   # lines on the upper do not let the leg through
 
 
-def test_a_low_shoe_hiding_the_leg_above_its_opening_is_found_but_not_a_boot():
-    tongue = PLAIN + '<path d="M88,60 L88,-10 L112,-10 L112,60 Z" fill="#f2f0ea" stroke="#26221f" stroke-width="1.6"/>'
-    found = drawn.checks(tongue, None, sheet(opening=40))
-    assert any("hides the leg above its opening" in f for f in found)
-    assert not any("hides the leg" in f for f in drawn.checks(tongue, None, sheet("ankle", opening=40)))
+TAB = '<path d="M88,60 L88,-10 L112,-10 L112,60 Z" fill="#f2f0ea" stroke="#26221f" stroke-width="1.6"/>'
+
+
+def test_a_shoe_hiding_the_leg_above_its_opening_is_found_for_every_kind_unless_it_is_behind_the_leg():
+    """Step D: the rule was for low shoes only; now nothing in FRONT of the leg may cover it more than 25 units above
+    the opening front, for a boot too (above the front of its shaft's top). What is behind the leg (a pull tab at the
+    back) is drawn before the leg, which covers it, so it is not counted."""
+    tongue = PLAIN + TAB
+    for height in ("low", "low_profile", "ankle", "boot"):
+        found = drawn.checks(tongue, None, sheet(height, opening=40))
+        assert any("hides the leg above its opening" in f for f in found), height
+        assert not any("hides the leg" in f for f in drawn.checks({"behind": TAB, "front": PLAIN}, None,
+                                                                    sheet(height, opening=40))), height
     collar = PLAIN + '<path d="M62,60 L64,20 L72,60 Z M138,60 L136,20 L128,60 Z" fill="#b5622f"/>'   # beside the leg
     assert drawn.checks(collar, None, sheet(opening=40)) == []
 
@@ -253,3 +261,55 @@ def test_a_drawing_resvg_cannot_render_is_refused_with_a_reason(monkeypatch):
 def test_a_shoe_that_never_covers_the_leg_is_not_also_said_to_have_its_opening_elsewhere():
     found = drawn.checks('<rect x="0" y="230" width="40" height="10" fill="#000"/>', None, sheet())
     assert any("leg is not inside the shoe" in f for f in found) and not any("opening_front_y" in f for f in found)
+
+
+# ------------------------------------------------------------------ behind the leg and in front (step D)
+
+def test_a_shoe_has_a_part_behind_the_leg_and_a_part_in_front_both_made_safe():
+    s = drawn.side({"behind": '<path d="M0,0" onclick="x()"/><script>x</script>', "front": PLAIN})
+    assert s.behind == '<path d="M0,0"/>' and s.front == drawn.sanitise(PLAIN)
+    assert drawn.side(PLAIN) == drawn.Side(drawn.sanitise(PLAIN), "")   # one text (version 1): all in front
+    assert drawn.side(s) == s and s.to_json() == {"behind": s.behind, "front": s.front}
+    assert drawn.side({"behind": "<text>tab</text>", "front": PLAIN}).behind == ""   # nothing drawable behind: none
+    assert drawn.side({"front": PLAIN}).behind == ""
+    with pytest.raises(DrawingError, match="Nothing drawable"):
+        drawn.side({"behind": PLAIN, "front": "<text/>"})   # the front must have something
+    with pytest.raises(DrawingError, match="not SVG text"):
+        drawn.side({"behind": 3, "front": PLAIN})
+    with pytest.raises(DrawingError, match="too long"):   # one drawing's caps hold for both parts together
+        drawn.side({"behind": '<path d="M0,0"/>' + " " * (drawn.MAX_CHARS // 2), "front": PLAIN + " " * (drawn.MAX_CHARS // 2)})
+    half = '<path d="M0,0"/>' * (drawn.MAX_ELEMENTS // 2 + 1)
+    with pytest.raises(DrawingError, match="too many shapes"):
+        drawn.side({"behind": half, "front": half})
+
+
+def test_the_leg_covers_what_is_behind_it_in_the_checks():
+    # a back the leg covers is not "the leg showing through", nor counted as hiding the leg
+    back = '<path d="M60,30 L140,30 L140,200 L60,200 Z" fill="#3a2a24"/>'
+    assert drawn.checks({"behind": back, "front": PLAIN}, None, sheet()) == []
+    ring = PLAIN.replace('fill="#b5622f"', 'fill="none"')   # an upper with nothing in front of the leg
+    assert any("leg is not inside the shoe" in f for f in drawn.checks({"behind": back, "front": ring}, None, sheet()))
+    m = drawn.measure({"behind": TAB, "front": PLAIN})
+    assert m["box"][1] == pytest.approx(-11, abs=1.5)   # its height counts what is behind too
+    assert m["front"].sum() < m["painted"].sum()
+
+
+def test_a_kept_drawing_is_read_for_the_figure_with_its_opening_from_the_sheet():
+    kept = {"version": 2, "left": {"behind": TAB, "front": PLAIN}, "right": None,
+            "sheet": {"silhouette": {"height": "low"}, "opening_front_y": 40, "top_y": 38, "instep_y": 37}}
+    s = drawn.stored(kept)
+    assert s.left == drawn.side(kept["left"]) and s.right is None and s.low and s.hinge == 40
+    assert (s.opening, s.top, s.instep) == (40, 38, 37)
+    # the instep keeps to its side of the opening by kind: above a low shoe's opening front, below a boot's
+    assert drawn.stored({**kept, "sheet": {**kept["sheet"], "instep_y": 60}}).instep == 39
+    boot = drawn.stored({**kept, "sheet": {**kept["sheet"], "silhouette": {"height": "ankle"}, "opening_front_y": -30,
+                                           "instep_y": -40}})
+    assert not boot.low and boot.instep == -29 and boot.hinge == -29
+    # no height named: a boot when its instep is below its opening
+    assert not drawn.stored({**kept, "sheet": {"opening_front_y": -30, "top_y": -40, "instep_y": 90}}).low
+    one = drawn.stored({**kept, "version": 1, "left": PLAIN, "right": PLAIN})
+    assert one.left == drawn.Side(drawn.sanitise(PLAIN)) and one.right == one.left
+    for bad in ({**kept, "sheet": {**kept["sheet"], "top_y": None}}, {**kept, "sheet": {**kept["sheet"], "top_y": True}},
+                {**kept, "sheet": {**kept["sheet"], "top_y": 900}}, {**kept, "left": None}, {"left": PLAIN}, []):
+        with pytest.raises(DrawingError):
+            drawn.stored(bad)

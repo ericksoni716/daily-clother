@@ -60,6 +60,19 @@ shape=)`); the item drawings themselves do not change:
   toes forward and a little out, each ankle centred under its trouser leg (the
   viewer's right one mirrored); a hem dropping over the shoe hides what is
   under it, and nothing of the shoe shows beside the leg above the hem.
+- A shoe Claude drew from its photos (`drawn`, step D) is drawn in place of that
+  front view, placed by it (`_drawn_place`): the drawing's frame scaled so its
+  leg is as wide as the figure's ankle, its middle on each ankle, its ground on
+  the front view's lowest point, its ink lines as thick as the figure's
+  (`drawn.thicken`). The toe turns out as far as the front view's does, by
+  sliding the part below a hinge sideways (a shear; a low shoe's opening front,
+  a boot's instep), so the collar or the shaft stays upright round the leg. The
+  viewer's right shoe is the left one mirrored, unless there is a right drawing.
+  Its part behind the leg is drawn before the wearer, so the leg covers it; its
+  part in front where the front view would be. The hem rests on the drawing's
+  own opening (`_on_drawing`), and full-length trousers keep their own length:
+  never longer than to just meet an ordinary sneaker's collar (SNEAKER_RIM), so
+  above a lower shoe the sock shows (drawn under them for that).
 - Accessories (`pieces["accessories"]`, a list) go by the point each template is
   drawn about, at K_PX: a belt is worn round the trousers' waistband, and the
   first top is then worn tucked in (its body cut off at the belt, its sleeves
@@ -75,7 +88,8 @@ shape=)`); the item drawings themselves do not change:
 Every garment is a shell round him, seen from the front and flattened, so it is
 painted in depth order, back to front (`_svg`): the back of the garments where
 it shows (a hood, the inside back of an open layer, the back of a scarf's loop);
-the body, the shoes and the trousers; the tops from the inside out, each one
+the body, the shoes and the trousers (a drawn shoe's part behind the leg before
+the body); the tops from the inside out, each one
 whole; then the arms again (`_arms_over`), over what of a loose body stands out
 past his sides (it is at his side or back, behind the arm hanging beside him),
 from below the lowest sleeve opening and never inside a sleeve; each top's
@@ -98,7 +112,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 
-from . import fitting, item, templates, worn
+from . import drawn, fitting, item, templates, worn
 from .fills import Graphic
 from .frontshoe import FrontShoe, bare_feet, front_shoe
 from .illustrate import CARD, INK, Fill, Spec, _draw, shade
@@ -241,6 +255,11 @@ ARCH_CM = 3.0                 # a leg dropping over the shoe: its sides fall up 
 CROP_GAP_CM = 3.0             # a cropped hem stops at least this far above the back of the shoe's opening
 REST_DIP_CM = 1.2             # resting on the shoe, a hem's front is this much lower than its sides (its opening's tilt)
 BUNCH_EASE_CM, BUNCH_CM = 0.5, 7.0   # a leg resting on a boot's shaft is this much wider than it, over this much above its hem
+DRAWN_ABOVE = 30.0            # a drawn shoe's frame: how far above the back of its opening something may still show (a
+#                               pull tab, the collar's sides), for the canvas only
+SNEAKER_RIM = 50.0            # a drawn shoe's frame: an ordinary low sneaker's collar front is at this y; full-length
+#                               trousers over a drawn shoe are never longer than to just meet it, so a lower shoe shows
+#                               the sock (the frame's leg is drawn.LEG, its ground drawn.GROUND)
 MARGIN = 18.0                 # the same space on every side of the figure
 
 NECK_Y = 82.0                 # the base of the neck, in the figure
@@ -333,6 +352,8 @@ class Piece:
     fill: Fill | None = None     # the item's pattern measured from its photo, as its own drawing uses it
     graphic: Graphic | None = None   # a print lifted from its photo (tops only), as its own drawing uses it
     traced: object = None        # shoes: the shoe traced from its photo (`traced.TracedShoe` or its JSON), drawn from the front
+    drawn: object = None         # shoes: the shoe Claude drew from its photos, as kept (`shoedraw`; read by `drawn.stored`),
+    #                              drawn on the figure in place of the front view
 
 
 @dataclass
@@ -350,6 +371,7 @@ class Placed:
     front: FrontShoe | None = None    # the shoes: one shoe seen from the front, in its own coordinates
     scale: float = 1.0
     traced: object = None             # the shoes: their trace, when there is one (`frontshoe.usable_trace` decides)
+    drawn: drawn.Stored | None = None  # the shoes: Claude's drawing of them, drawn in place of `front`
 
     def point(self, p, copy: int = 0) -> tuple[float, float]:
         a, b, c, d, e, f = self.transforms[copy]
@@ -513,13 +535,26 @@ def _placed(place: str, piece, shoes: Placed | None = None) -> Placed | None:
             spec = make(piece)
             if spec.template == PLACE_TEMPLATE[place]:
                 return _place(place, spec, piece.category, piece.traced if make is _spec else None,
-                              shoes.front if shoes is not None else None)
+                              shoes.front if shoes is not None else None, made=_drawing_of(piece) if place == "shoes" else None)
         except Exception:
             log.exception("drawing a %s for an outfit failed", piece.category)
     return None
 
 
-def _place(place: str, spec: Spec, category: str | None = None, traced=None, shoe: FrontShoe | None = None) -> Placed:
+def _drawing_of(piece: Piece) -> drawn.Stored | None:
+    """The shoe's drawing by Claude, read for the figure; None when it has none or it cannot be drawn (the front view
+    is drawn then, as for a shoe never drawn)."""
+    if piece.drawn is None:
+        return None
+    try:
+        return drawn.stored(piece.drawn)
+    except Exception:
+        log.exception("a shoe's drawing could not be read for an outfit; its front view is drawn instead")
+        return None
+
+
+def _place(place: str, spec: Spec, category: str | None = None, traced=None, shoe: FrontShoe | None = None,
+           made: drawn.Stored | None = None) -> Placed:
     if spec.template == "top":
         spec.params.pop("state", None)
         opened = False
@@ -542,10 +577,14 @@ def _place(place: str, spec: Spec, category: str | None = None, traced=None, sho
     # the shoes: the item's drawing is a side view; the figure draws the same shoe from the front (frontshoe), and
     # `_stand` puts the pair under the legs once the trousers are placed. The side view's sole colour is kept.
     front = front_shoe(spec, K_PX, sole_default=shape.sole_default, traced=traced)
-    flat = Shape(outline=front.outline, bbox=front.bbox, body_box=front.bbox, anchors=dict(front.anchors),
+    if made is not None:   # Claude's drawing is drawn instead: the hem rests on its opening
+        _on_drawing(front, made)
+    box = _drawn_box(front, made) if made is not None else front.bbox
+    flat = Shape(outline=front.outline, bbox=box, body_box=front.bbox, anchors=dict(front.anchors),
                  sole_default=shape.sole_default)
     return Placed(place, spec, flat, [(1.0, 0.0, 0.0, 1.0, CX - LEG_CM * K_PX, GROUND_Y),
-                                      (-1.0, 0.0, 0.0, 1.0, CX + LEG_CM * K_PX, GROUND_Y)], K_PX, front=front, traced=traced)
+                                      (-1.0, 0.0, 0.0, 1.0, CX + LEG_CM * K_PX, GROUND_Y)], K_PX, front=front, traced=traced,
+                  drawn=made)
 
 
 IDENTITY = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
@@ -896,9 +935,15 @@ def _hem(params: Mapping, shoe: FrontShoe | None, natural: float) -> tuple[float
     if length in ("short", "brief"):
         return natural, 0.0
     dip = DIP_CM * K_PX if length == "full" else 0.0
+    dy = _pair(0.0, 0.0, 0.0)[0][5]   # the shoe's own coordinates, down into the figure
+    if length == "full" and shoe is not None and "sneaker_rim" in shoe.anchors:
+        # over a drawn shoe, trousers keep their own length: as long as it takes for their front to just meet an
+        # ordinary sneaker's collar (the drawings are larger than the front views, and the figure's own length would
+        # bury a low one), so above a lower shoe the sock shows
+        meets = shoe.anchors["sneaker_rim"][1] + dy + HEM_FRONT_CM.get(params.get("break", "none"), 0.3) * K_PX
+        natural = min(natural, meets - DIP_CM * K_PX)
     if shoe is None or not shoe.width or "opening" not in shoe.anchors:
         return natural, dip
-    dy = _pair(0.0, 0.0, 0.0)[0][5]   # the shoe's own coordinates, down into the figure
     rim, instep = shoe.anchors["opening"][1] + dy, shoe.anchors["instep"][1] + dy
     how = _on_shoe(params, shoe)
     if how is None:   # cropped: above the shoe, with the ankle (or a sock) between
@@ -947,7 +992,10 @@ def _stand(shoes: Placed, layout: Layout) -> Placed:
     if layout.get("bottom") is not None:
         shoes.front = front_shoe(shoes.spec, K_PX, sole_default=shoes.shape.sole_default, ankle=_ankle(), toes=TOE_LINE,
                                  traced=shoes.traced)
-        shoes.shape = Shape(outline=shoes.front.outline, bbox=shoes.front.bbox, body_box=shoes.front.bbox,
+        if shoes.drawn is not None:
+            _on_drawing(shoes.front, shoes.drawn)
+        shoes.shape = Shape(outline=shoes.front.outline, body_box=shoes.front.bbox,
+                            bbox=_drawn_box(shoes.front, shoes.drawn) if shoes.drawn is not None else shoes.front.bbox,
                             anchors=dict(shoes.front.anchors), sole_default=shoes.shape.sole_default)
     shoes.transforms = _pair(shoes.front.anchors["ankle"][0], left, right)
     return shoes
@@ -958,6 +1006,87 @@ def _pair(ankle_x: float, left: float, right: float) -> list[tuple[float, float,
     bx = ankle_x
     y = GROUND_Y + TOE_CM * K_PX
     return [(1.0, 0.0, 0.0, 1.0, left - bx, y), (-1.0, 0.0, 0.0, 1.0, right + bx, y)]
+
+
+@dataclass
+class DrawnPlace:
+    """How a drawn shoe's frame lands in the front view's own coordinates (`_drawn_place`): `k` px a frame unit, the
+    frame's middle (x = 100) at `x`, its ground at `ground`, and how far the toe slides sideways for each unit below
+    the hinge (`shear`, for the viewer's left shoe)."""
+    k: float
+    x: float
+    ground: float
+    shear: float
+
+    def y(self, v: float) -> float:
+        """A height in the frame, in the front view's coordinates."""
+        return self.ground + self.k * (v - drawn.GROUND)
+
+
+def _drawn_place(front: FrontShoe) -> DrawnPlace:
+    """Where a drawn shoe goes, from the front view it is drawn in place of: the frame's leg as wide as its ankle
+    (the frame's leg is narrow for its shoe, so the drawing comes out larger than the front view, which the owner
+    chose), the frame's middle on the ankle, its ground on the front view's lowest point, and the toe turned out as far
+    as the front view's (the slope from its ankle to its toe tip)."""
+    a = front.anchors
+    k = 2 * (a["ankle_r"][0] - a["ankle"][0]) / (drawn.LEG[1] - drawn.LEG[0])
+    shear = (a["toe"][0] - a["ankle"][0]) / (a["toe"][1] - a["ankle"][1])
+    return DrawnPlace(k, a["ankle"][0], front.bbox[3] - 2.0, shear)
+
+
+def _on_drawing(front: FrontShoe, made: drawn.Stored) -> None:
+    """The front view's opening as the drawing's, so the hem rests on the drawing: the front of the opening, the
+    instep and the back of the opening from its sheet (`drawn.Stored`), and where an ordinary sneaker's
+    collar front would be (`sneaker_rim`: full-length trousers are never longer than to meet it). Its ankle, the
+    width round its opening and its toe stay the front view's."""
+    f = _drawn_place(front)
+    front.anchors.update(opening=(f.x, f.y(made.opening)), instep=(f.x, f.y(made.instep)),
+                         opening_back=(f.x, f.y(made.top)), sneaker_rim=(f.x, f.y(SNEAKER_RIM)))
+
+
+def _drawn_box(front: FrontShoe, made: drawn.Stored) -> tuple[float, float, float, float]:
+    """The front view's box, made to take in the drawing drawn in its place (for the canvas): the frame's width, the
+    toe turned out, and up to DRAWN_ABOVE above the back of its opening."""
+    f = _drawn_place(front)
+    out = abs(f.shear) * (drawn.GROUND - made.hinge) * f.k
+    half = (drawn.FRAME[1] - drawn.FRAME[0]) / 2 * f.k
+    x0, y0, x1, y1 = front.bbox
+    return (min(x0, f.x - half - out), min(y0, f.y(min(made.top, made.opening) - DRAWN_ABOVE)),
+            max(x1, f.x + half + out), y1)
+
+
+def _turned(body: str, uid: str, shear: float, hinge: float) -> str:
+    """A drawing (in its frame) with its toe turned out: above the hinge as it is, below it slid sideways by `shear`
+    frame units for each unit below the hinge (the clip paths `uid`u and `uid`d, in the frame). The two meet at the
+    hinge, where the slide is nothing, so the collar or a boot's shaft stays upright round the leg."""
+    if not body or not shear:
+        return body
+    return (f'<g clip-path="url(#{uid}u)">{body}</g><g clip-path="url(#{uid}d)">'
+            f'<g transform="matrix(1 0 {shear:.4f} 1 {-shear * hinge:.3f} 0)">{body}</g></g>')
+
+
+def _drawn_pair(shoes: Placed, uid: str, defs: list[str]) -> tuple[str, str]:
+    """A drawn shoe on each foot, placed as `_drawn_place` says, in the same copies as the front view (`transforms`):
+    (what is behind the legs, what is in front of them). The viewer's right shoe is the left one mirrored, or the
+    right drawing as drawn (not mirrored, so its toe turns the other way). The ink lines are as thick as the
+    figure's; the toes turn out below the hinge (`_turned`)."""
+    made, f = shoes.drawn, _drawn_place(shoes.front)
+    hinge = made.hinge
+    defs.append(f'<clipPath id="{uid}u"><rect x="-1000" y="-1000" width="3000" height="{1000 + hinge + 0.6:.1f}"/>'
+                f'</clipPath><clipPath id="{uid}d"><rect x="-1000" y="{hinge:.1f}" width="3000" height="2000"/>'
+                "</clipPath>")
+    behind, front = [], []
+    for copy, t in enumerate(shoes.transforms):
+        side, sx, shear = made.left, 1.0, f.shear
+        if copy == 1 and made.right is not None:   # inside the mirrored copy, mirrored back: drawn as is
+            side, sx, shear = made.right, -1.0, -f.shear
+        place = (f"translate({f.x:.2f} {f.ground:.2f}) scale({sx * f.k:.4f} {f.k:.4f}) "
+                 f"translate({-(drawn.FRAME[0] + drawn.FRAME[1]) / 2:g} {-drawn.GROUND:g})")
+        for part, out in ((side.behind, behind), (side.front, front)):
+            if part:
+                out.append(f'<g transform="{_matrix(t)}"><g transform="{place}">'
+                           f'{_turned(drawn.thicken(part), uid, shear, hinge)}</g></g>')
+    return "".join(behind), "".join(front)
 
 
 def _ankle() -> str:
@@ -1139,7 +1268,8 @@ def _leg_paths(ends, layout: Layout) -> list[str]:
     k = K_PX
     out = []
     shoes = layout.get("shoes")
-    into = 6.0 if shoes is not None and shoes.front is not None and not shoes.front.foot else LEG_INTO_CM
+    into = 6.0 if shoes is not None and shoes.front is not None and (not shoes.front.foot or shoes.drawn is not None) \
+        else LEG_INTO_CM
 
     def edge(points):
         # Interpolate x by height: uneven calf/ankle spacing must not make the curve double back.
@@ -1234,7 +1364,7 @@ def _body(layout: Layout) -> Body:
             body.feet = (fs, tr)
             x0, y0, x1, y1 = fs.bbox
             pts += [(t[0] * x + t[4], y + t[5]) for t in tr for x in (x0, x1) for y in (y0, y1)]
-        if fs.foot:   # a bare foot: drawn with the legs, as one shape with them
+        if fs.foot and (shoes is None or shoes.drawn is None):   # a bare foot: drawn with the legs, as one shape with them
             body.foot_paths = [_moved(fs.foot, t) for t in tr]
             if body.feet is not None:
                 body.toe_lines = [_moved(d, t) for t in tr for d in fs.toes]
@@ -1484,10 +1614,19 @@ def _svg(layout: Layout, uid: str) -> str:
     # the small accessories (a tie, a pocket square, a watch, glasses, socks): `worn` draws them, each put in below
     dressed = worn.dress(layout, layout.accessories, uid)
     defs += dressed.defs
+    shoes, bottom = layout.get("shoes"), layout.get("bottom")
+    behind = pair = ""
+    # under full-length trousers that drop over the shoes: nothing of a shoe shows beside the leg above the hem
+    legs = _inside_legs(layout) if shoes is not None else ""
+    if shoes is not None and shoes.drawn is not None:   # Claude's drawing: its part behind the legs goes behind him
+        behind, pair = _drawn_pair(shoes, f"{uid}j", defs)
+        if legs:
+            defs.append(f'<clipPath id="{uid}k">{legs}</clipPath>')
+    if behind:
+        body.append(f'<g id="{uid}q">' + (f'<g clip-path="url(#{uid}k)">{behind}</g>' if legs else behind) + "</g>")
     if wearer is not None:   # the wearer first, behind everything
         body.append(f'<g id="{uid}m">{_body_markup(wearer)}</g>{dressed.legs}')
-    shoes, bottom = layout.get("shoes"), layout.get("bottom")
-    if shoes is not None:
+    if shoes is not None and shoes.drawn is None:
         ankle_path = None
         if wearer is not None and wearer.legs:
             t = shoes.transforms[0]
@@ -1497,9 +1636,10 @@ def _svg(layout: Layout, uid: str) -> str:
                            ankle_path=ankle_path, toes=TOE_LINE, traced=shoes.traced)
         defs.append(front.defs)
         pair = "".join(f'<g transform="{_matrix(t)}">{front.body}</g>' for t in shoes.transforms)
-        legs = _inside_legs(layout)
-        if legs:   # under full-length trousers: nothing of a shoe shows beside the leg above the hem
+        if legs:
             defs.append(f'<clipPath id="{uid}k">{legs}</clipPath>')
+    if shoes is not None:
+        if legs:
             pair = f'<g clip-path="url(#{uid}k)">{pair}</g>'
         body.append(f'<g id="{uid}p">{pair}</g>')
     lower = ""
@@ -1568,7 +1708,7 @@ def _svg(layout: Layout, uid: str) -> str:
             inner = ""
             if wearer is not None:
                 defs.append(_clip(f"o{tid}", [p.shape.outline], p.transforms[0]))
-                inner = (f'<g clip-path="url(#o{tid})"><use href="#{uid}m"/>'
+                inner = (f'<g clip-path="url(#o{tid})">' + (f'<use href="#{uid}q"/>' if behind else "") + f'<use href="#{uid}m"/>'
                          + (f'<use href="#{uid}p"/>' if shoes is not None else "")
                          + (f'<use href="#{uid}w"/>' if lower else "") + "</g>")
             if stack:   # the neck stands in front of this one's collar at the back, behind what is under it

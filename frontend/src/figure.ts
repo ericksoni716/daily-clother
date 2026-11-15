@@ -1,6 +1,7 @@
 /** The outfit drawn as worn: what is asked for it, and this device's choice between it and the pieces laid out. */
 import { useSyncExternalStore } from 'react';
 import type { OutfitPieces } from './today';
+import type { ItemSummary } from './types';
 
 /** The item in each place of an outfit, and its accessories, as `POST /api/outfits/figure` takes them. */
 export interface FigurePieces {
@@ -20,6 +21,17 @@ export function figurePieces(p: OutfitPieces): FigurePieces {
     base: p.base || null, mid: p.mid || null, outer: p.outer || null, bottom: p.bottom || null, shoes: p.shoes || null,
     accessories: (p.accessories ?? []).filter(Boolean).slice(0, MAX_ACCESSORIES),
   };
+}
+
+/**
+ * What the outfit figure is drawn from, for the items `ids`: each one's drawing (its address changes with it) and, for
+ * a shoe Claude drew, that drawing's version. It changes whenever the figure would, so the figure is asked for again.
+ */
+export function figureVersion(ids: string[], byId: Map<string, Pick<ItemSummary, 'illustration_url' | 'drawn_version'>>): string {
+  return ids.map((id) => {
+    const item = byId.get(id);
+    return `${item?.illustration_url ?? ''}${item?.drawn_version ? `#${item.drawn_version}` : ''}`;
+  }).join(' ');
 }
 
 /** The drawing as something an <img> can show (an <img> never runs anything inside an SVG). */

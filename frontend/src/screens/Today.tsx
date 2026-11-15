@@ -4,7 +4,7 @@ import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, HistoryIcon, MoreI
 import { OutfitFigure } from '../components/OutfitFigure';
 import { Button, buttonClass, Card, EmptyState, ItemThumb, Notice, PageHeader, SegmentedControl } from '../components/ui';
 import { WhereYouAre } from '../components/WhereYouAre';
-import { useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
+import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
@@ -727,7 +727,7 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo }:
       <div className="today-card-pieces">
         {view === 'worn' && (
           <OutfitFigure pieces={outfit.pieces} alt={`The outfit as worn: ${joinWords(wornOrder(outfit.pieces).map((p) => itemName(byId.get(p.id))))}`}
-            version={ids.map((id) => byId.get(id)?.illustration_url ?? '').join(' ')} />
+            version={figureVersion(ids, byId)} />
         )}
         <ul className="today-pieces" hidden={view === 'worn'} aria-label="Pieces, in the order they are put on">
           {wornOrder(outfit.pieces).map((p) => (

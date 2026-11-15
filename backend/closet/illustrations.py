@@ -15,7 +15,8 @@ is kept, in plain words, for the item page.
 
 A shoe traced from its photo (`tracejobs`) is drawn from its trace instead, with the owner's fixes laid over it
 (`drawing.sideshoe`), unless the owner chose the plain drawing for it; a shoe not traced, or whose photo the
-tracing turned down, keeps the template drawing.
+tracing turned down, keeps the template drawing. On the outfit figure, a shoe Claude drew from its photos
+(`shoedraw`) is drawn from that drawing; without one, from its front view as before.
 
 The demo closet's drawings were made in advance by `tools/make_demo.py` (with
 fills taken from the photos) and carry the version they were made with, so they
@@ -106,7 +107,8 @@ def describe(row, extra: dict | None = None) -> Piece:
     """What the item's drawing is made from: the answer it is drawn from (`drawn_answer`: Claude's, with the owner's
     fields and own details laid over it) and its own colour; or, with no answer, its coarse fields. The outfit
     figure draws each piece from this too, so the owner's corrections show there as well. A traced shoe carries its
-    trace, so the figure draws its front view from it (the owner's fixes to the side drawing are not used there)."""
+    trace, so the figure draws its front view from it (the owner's fixes to the side drawing are not used there); a
+    shoe Claude drew from its photos carries that drawing (`drawn_of`), which the figure draws instead."""
     source = _json(row["source"], {})
     silhouette = _json(row["silhouette"], {})
     answer = drawn_answer(row, extra)
@@ -114,13 +116,13 @@ def describe(row, extra: dict | None = None) -> Piece:
     if answer is None:
         piece = Piece(row["category"], None, row["color_hex"], row["color"], row["pattern"], silhouette)
         return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row),
-                       traced=shoe)
+                       traced=shoe, drawn=drawn_of(row))
     # the item's own colour (from the answer, the photo or the owner), unless the owner chose a colour word
     # and left a colour from before beside it
     own_hex = source.get("color_hex") == OWNER or source.get("color") != OWNER
     piece = Piece(answer.get("category"), answer, row["color_hex"] if own_hex else None, row["color"], row["pattern"],
                   silhouette)
-    return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row), traced=shoe)
+    return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row), traced=shoe, drawn=drawn_of(row))
 
 
 def worn(row) -> list[dict]:
@@ -160,6 +162,18 @@ def traced(row) -> tuple[str, str | None] | None:
     if row["category"] not in draw.SHOES:
         return None
     return row["trace"], row["trace_fixes"]
+
+
+def drawn_of(row) -> dict | None:
+    """The drawing Claude made of a shoe from its photos (`shoedraw`), as kept with the item, whatever is happening to
+    it now (a shoe being drawn again keeps the drawing it has until the new one is done, also when that fails); None
+    for anything else or a shoe never drawn. The figure reads it (`drawn.stored`) and falls back to the front view
+    when it cannot be drawn."""
+    keys = row.keys() if hasattr(row, "keys") else row
+    if "drawn" not in keys or not row["drawn"] or row["category"] not in draw.SHOES:
+        return None
+    d = _json(row["drawn"], None)
+    return d if isinstance(d, dict) else None
 
 
 def front_of(row) -> Chosen | None:

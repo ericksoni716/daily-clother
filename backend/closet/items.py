@@ -54,6 +54,7 @@ def summary(conn, row) -> dict:
     thumb = None
     if photo is not None:
         thumb = photo["cutout_thumb_path"] or photo["thumb_path"]
+    shoe = tracejobs.wanted(row["category"])
     return {
         "id": row["id"], "name": row["name"], "category": row["category"], "color": row["color"],
         "color_hex": row["color_hex"], "pattern": row["pattern"], "location": row["location"], "rating": row["rating"],
@@ -64,6 +65,10 @@ def summary(conn, row) -> dict:
         "last_worn": worn[0], "wear_count": worn[1], "wears_since_wash": row["wears_since_wash"], "laundry": row["laundry"],
         "tag_state": row["tag_state"], "created_at": row["created_at"], "updated_at": row["updated_at"],
         **kinds.summary_fields(row),   # what it is: its kind from the taxonomy, and the group it is shown in
+        # a shoe drawn by Claude for the outfit figure: how far that has got, and a short hash of the drawing it has
+        # (the figure on Today and a trip's days is drawn again when it changes); null for anything else
+        "drawn_state": row["drawn_state"] if shoe else None,
+        "drawn_version": hashlib.sha256(row["drawn"].encode()).hexdigest()[:16] if shoe and row["drawn"] else None,
     }
 
 

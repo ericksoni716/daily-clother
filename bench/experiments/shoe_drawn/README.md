@@ -81,8 +81,8 @@ Instead of tracing or measuring a shoe, a vision model (Claude) does what a pers
 
 **Still open:** the runner's toe rubber was corrected from a one-line note in one round and is with the owner to judge. The method has only been
 tuned and judged on these five pairs, so it must next be run unchanged on pairs it has not seen. The drawings are
-straight from the front, about 15° above, tilted 7° by the preview; they are not yet at the figure's own view (24°
-down, toes out 11°) and not yet placed on the app's figure. The rest is in the backlog.
+straight from the front, about 15° above, tilted 7° by the preview; the owner kept that view, and the app places them
+on its figure since step D (`backend/closet/drawing/figure.py`, ported from `on_figure.py`). The rest is in the backlog.
 
 ## What each file does
 

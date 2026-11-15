@@ -49,6 +49,10 @@ export interface ItemSummary {
   kind_name?: string | null;
   /** the group it is shown in: its kind's, or its category's when it has no kind */
   group?: string | null;
+  /** a shoe drawn by Claude for the outfit figure: how far that has got (see ShoeDrawn.state); null for anything else */
+  drawn_state?: ShoeDrawn['state'];
+  /** a short hash of the shoe's drawing for the outfit figure, which changes when it is drawn again; null without one */
+  drawn_version?: string | null;
 }
 
 /** What a photo of a shoe shows: its outer or inner side, from above, the front (toe towards the camera), the back

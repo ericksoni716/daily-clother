@@ -14,7 +14,8 @@ if anything here fails, the outfit is drawn without the accessory.
 - Glasses are on the eyes.
 - Socks show above low shoes (not sandals, and not no-show socks) when the trousers stop short of the shoes:
   with shorts, or cropped trousers. The sock's top is SOCK_LENGTH above the ground; its colour is also drawn
-  in the shoe's opening, where the ankle would show.
+  in the shoe's opening, where the ankle would show. Over a shoe Claude drew (`figure`'s drawn shoes), the sock is
+  drawn under full-length trousers too: they keep their own length, so above a low shoe it shows below the hem.
 
 One of each is drawn (the first given).
 
@@ -447,8 +448,9 @@ def _glasses(fig, layout, spec: Spec, uid: str, out: Worn) -> None:
 def _socks(fig, layout, spec: Spec, uid: str, out: Worn) -> None:
     shoes, bottom, body = layout.get("shoes"), layout.get("bottom"), layout.body
     style = spec.params.get("style", "casual_crew")
+    covered = fig._legs(layout)[2] and getattr(shoes, "drawn", None) is None   # full-length trousers over a front view
     if (shoes is None or bottom is None or shoes.front is None or not shoes.front.ankle or shoes.front.foot
-            or fig._legs(layout)[2] or SOCK_LENGTH.get(style, 17.0) <= 0 or not body.legs):
+            or covered or SOCK_LENGTH.get(style, 17.0) <= 0 or not body.legs):
         return
     ankle_y = shoes.point(shoes.front.anchors["ankle"])[1]
     top = ankle_y - (SOCK_LENGTH.get(style, 17.0) - SOCK_ANKLE_CM) * K_PX

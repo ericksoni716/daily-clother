@@ -8,7 +8,8 @@ describing an item (`correcting.ask`, purpose `draw_shoe`), on the model of the 
    and the three drawings the owner liked as worked examples (their SVG text and renders of them on legs). It names
    the kind of shoe first, writes a feature sheet (kind, silhouette, proportions, 2 to 6 true colours, parts, what
    makes it recognisable from the front, where its opening is) and draws one shoe, toes straight at the viewer, in a
-   fixed frame (`closet/drawing/drawn.py`); a second drawing for the other foot only when a mark is on one side only.
+   fixed frame (`closet/drawing/drawn.py`), in two parts: what is behind the leg and what is in front of it (step D);
+   a second drawing for the other foot only when a mark is on one side only.
 2. **Check**: it is shown the photos again and a render of its drawing on two legs, large and at phone size
    (`drawn.check_png`), with its sheet, its SVG and what the automatic checks found (`drawn.checks`). It compares the
    drawing with the photos and either says it is good or gives the drawing fixed. This stops as soon as it says good
@@ -104,18 +105,32 @@ class Sheet(BaseModel):
                                    description="In the drawing: the height (y) where the shoe's front first covers "
                                                "the middle of the leg (x 100): the tongue top or the collar's front "
                                                "for a low shoe, the shaft's top edge at the front for a boot.")
-    top_y: float = Field(ge=-200, le=240, description="In the drawing: the height (y) of its highest point.")
+    top_y: float = Field(ge=-200, le=240,
+                         description="In the drawing: the height (y) of the back of its opening: the top of the "
+                                     "collar's back for a low shoe, the top of the shaft at the back for a boot (not a "
+                                     "pull tab above it).")
     instep_y: float = Field(ge=-200, le=240,
                             description="In the drawing: for a boot, the height (y) where the shaft meets the instep; "
                                         "for a low shoe, just above its opening's front (a little smaller y).")
 
 
+class Shoe(BaseModel):
+    """One shoe of the drawing, in its two parts: the app draws `behind`, then the leg over it, then `front`."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+    behind: str = Field(description="What of the shoe is BEHIND the leg, seen from the front: the back of the collar "
+                                    "or of a boot's shaft where it shows beside the leg, a pull tab or loop at the back, "
+                                    "the lining seen inside the opening. Bare SVG elements in the frame; an empty "
+                                    "string when nothing behind the leg shows.")
+    front: str = Field(description="Everything else, in front of the leg: bare SVG elements in the frame, nothing "
+                                   "around them.")
+
+
 class DrawAnswer(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     sheet: Sheet
-    left: str = Field(description="The viewer's left shoe: bare SVG elements in the frame, nothing around them.")
-    right: str | None = Field(description="Only when one_side_mark is true: the viewer's right shoe, drawn on its "
-                                          "own in the same frame; otherwise null.")
+    left: Shoe = Field(description="The viewer's left shoe, behind and in front of the leg.")
+    right: Shoe | None = Field(description="Only when one_side_mark is true: the viewer's right shoe, drawn on its "
+                                           "own in the same frame, behind and in front of the leg; otherwise null.")
 
 
 class CheckAnswer(BaseModel):
@@ -124,16 +139,16 @@ class CheckAnswer(BaseModel):
     problems: list[str] = Field(description="What was wrong and is fixed in this answer, in short plain sentences; "
                                             "empty when good.")
     sheet: Sheet
-    left: str = Field(description="The viewer's left shoe as it should be: bare SVG elements in the frame (the same "
-                                  "drawing when good).")
-    right: str | None = Field(description="The viewer's right shoe when one_side_mark is true; otherwise null.")
+    left: Shoe = Field(description="The viewer's left shoe as it should be, behind and in front of the leg (the same "
+                                   "drawing when good).")
+    right: Shoe | None = Field(description="The viewer's right shoe when one_side_mark is true; otherwise null.")
 
 
 # ------------------------------------------------------------------ the prompts
 
 BRIEF = """## The frame (about 17 units to a centimetre)
 - x 0 to 200, centred on x = 100; the shoe at most about 180 wide. The ground is y = 240: the sole's lowest point.
-- The app draws a leg (x 62 to 138, in a sock) first and your shoe over it, so the leg goes into the shoe.
+- The app draws the part of your shoe behind the leg first, then a leg (x 62 to 138, in a sock) over it, then the part in front of the leg over that, so the leg goes into the shoe.
 - A low shoe (a sneaker, a derby, an oxford): the whole shoe sits between about y = 40 and y = 240, and its tongue top or collar front crosses the leg at about y = 40 to 60. The liked examples are about as tall as they are wide: do not make a low shoe taller.
 - A low-profile shoe (a boat shoe, a loafer, a ballet flat, a slipper, a driving moc) sits lower and narrower: its vamp or collar front at about y = 75 to 90, and about 145 wide, so trousers long enough to just touch an ordinary sneaker leave the sock showing above it.
 - An ankle boot: the toe box and instep fill about y = 110 to 240, and the shaft rises behind them to a top edge at about y = -30 to -50 (a chukka's at about y = 0), a little wider than the leg and narrower than the toe box. A taller boot's top stays below y = -90.
@@ -148,7 +163,12 @@ The toe is nearest the viewer, so it is the lowest and the largest thing in the 
 - a boot is NOT a tube: it is the same toe box and instep in front, with the shaft rising BEHIND them, narrower than the toe box, starting where the instep meets the leg. From the front you see the toe box below and the shaft above, with a clear break (the instep's slope, a crease or seam line) between them.
 
 ## The opening: the leg goes INTO the shoe
-Draw the opening's front edge as a curve dipping across the leg, and bring the collar's (or shaft's) sides up a little higher at each side of the leg than in the middle, so the leg sits IN the shoe. From just below that front edge down to the sole, the shoe covers the leg completely. Nothing of a low shoe covers the middle of the leg higher than about 25 units above its opening's front edge.
+Draw the opening's front edge as a curve dipping across the leg, and bring the collar's (or shaft's) sides up a little higher at each side of the leg than in the middle, so the leg sits IN the shoe. From just below that front edge down to the sole, the shoe covers the leg completely. Nothing in front of the leg covers its middle higher than about 25 units above the opening's front edge (for a boot, the front of the shaft's top), for any kind of shoe.
+
+## Behind the leg and in front of it: two parts
+The shoe is a 3D object round the foot, so seen from the front some of it is BEHIND the leg. Give each shoe in two parts:
+- behind: what is behind the leg: the back of the collar or of a boot's shaft where it shows beside the leg, a pull tab or loop at the back, the lining seen inside the opening. The app draws it first, so the leg covers it wherever the leg is in front. Leave it empty ("") when nothing behind the leg shows (the three liked drawings have nothing behind the leg).
+- front: everything else, the whole shoe in front of the leg, built as below. Never put a part that is at the back of the shoe (a heel pull tab, the back of the collar) in front: drawn over the leg it would hide the leg and sock.
 
 ## How to build it (the order the liked examples use)
 1. The sole's front edge: one crescent band along the bottom, in the sole's colour, with the bold outline.
@@ -171,7 +191,7 @@ In the left drawing (the viewer's left shoe), the shoe's outer side is the side 
 
 ## Where it is (in the sheet, in the drawing's own y)
 - opening_front_y: where the shoe's front first covers the middle of the leg (x 100): the tongue top or the collar's front for a low shoe; the shaft's top edge at the front for a boot.
-- top_y: the drawing's highest point.
+- top_y: the back of the opening: the top of the collar's back for a low shoe, the top of the shaft at the back for a boot (not a pull tab above it). Cropped trousers stop above it.
 - instep_y: for a boot, where the shaft meets the instep; for a low shoe, just above its opening's front."""
 
 
@@ -213,7 +233,7 @@ def draw_prompt(photos: list[Photo]) -> str:
 Ignore dirt, wear, shade, highlights, the floor and the background.
 
 ## Three drawings the owner liked
-The images {", ".join(EXAMPLE_NAMES)} show them on two legs in socks, large and at phone size (the app draws the lines thicker than written, as it will on the figure), and their SVG is below. Look at how few shapes they use and in what order. They are examples of the STYLE and the CONSTRUCTION, not of this shoe: do not copy their shapes.
+The images {", ".join(EXAMPLE_NAMES)} show them on two legs in socks, large and at phone size (the app draws the lines thicker than written, as it will on the figure), and their SVG is below (each is all in front of the leg: nothing of them shows behind it). Look at how few shapes they use and in what order. They are examples of the STYLE and the CONSTRUCTION, not of this shoe: do not copy their shapes.
 
 {examples}
 
@@ -226,32 +246,35 @@ kind, archetype and archetype_front (above); silhouette; proportions; palette: t
 ## Then the drawing
 {BRIEF}
 
-Answer with the sheet, the left drawing as bare SVG elements (no <svg> around them), and the right drawing or null."""
+Answer with the sheet, the left shoe as its two parts, behind and front, each bare SVG elements (no <svg> around them), and the right shoe the same way or null."""
 
 
-def check_prompt(photos: list[Photo], sheet: dict, left: str, right: str | None, problems: list[str]) -> str:
+def _shoe_text(shoe: drawn.Side) -> str:
+    return f"behind the leg:\n{shoe.behind or '(empty)'}\nin front of the leg:\n{shoe.front}"
+
+
+def check_prompt(photos: list[Photo], sheet: dict, left: drawn.Side, right: drawn.Side | None,
+                 problems: list[str]) -> str:
     found = ("\n".join(f"- {p}" for p in problems) if problems else "- none")
-    right_text = right if right else "null (the app mirrors the left drawing for the other foot)"
+    right_text = _shoe_text(right) if right else "null (the app mirrors the left drawing for the other foot)"
     return f"""You drew this shoe from its photos as flat clip art for the drawn figure that shows the owner's outfits. Now check the drawing against the PHOTOS, not only against your sheet, and fix it if it needs it.
 
 ## The photos of the shoe
 {photo_lines(photos)}
 
 ## Your drawing
-drawing.png shows it on two legs in socks, large and at phone size, with its lines drawn thicker than written, as the app will draw them on the figure (do not thin them to make up for it). Its sheet:
+drawing.png shows it on two legs in socks, large and at phone size, with its lines drawn thicker than written, as the app will draw them on the figure (do not thin them to make up for it): each shoe's part behind the leg first, then the leg, then its part in front. Its sheet:
 {json.dumps(sheet, indent=1)}
 
-The left drawing:
-{left}
+The left shoe, {_shoe_text(left)}
 
-The right drawing:
-{right_text}
+The right shoe, {right_text}
 
 ## What the automatic checks found (each must be fixed)
 {found}
 
 ## Look
-Compare drawing.png with the photos. Is it the same kind of shoe, with the same silhouette, proportions and true colours? Is the toe box the biggest, nearest shape? Is the sole no thicker and no wider than the photos show? Does the leg go into the opening? Does it have the simplicity of a few flat shapes? Would a stranger name the same shoe from the photos and from the drawing, at phone size too?
+Compare drawing.png with the photos. Is it the same kind of shoe, with the same silhouette, proportions and true colours? Is the toe box the biggest, nearest shape? Is the sole no thicker and no wider than the photos show? Does the leg go into the opening, with whatever is at the back of the shoe behind the leg and not over it? Does it have the simplicity of a few flat shapes? Would a stranger name the same shoe from the photos and from the drawing, at phone size too?
 
 If it is right and the automatic checks found nothing, say good, with no problems, and give the drawing and the sheet back unchanged. Otherwise say what was wrong in problems and give the drawing fixed: change what is wrong and what must change with it, and keep everything else as it is (the same shapes where possible). Correct the sheet too where it was wrong, and keep its opening_front_y, top_y and instep_y true to the drawing.
 
@@ -283,11 +306,11 @@ class Call:
 
 @dataclass
 class Drawn:
-    """A finished drawing: the left and right drawings (sanitised), the sheet, how many checks were made, the calls
-    with their tokens and what the API key would charge, the seconds it all took, whether the last check said good
-    and what the automatic checks still find."""
-    left: str
-    right: str | None
+    """A finished drawing: the left and right shoes (sanitised, each behind and in front of the leg), the sheet, how
+    many checks were made, the calls with their tokens and what the API key would charge, the seconds it all took,
+    whether the last check said good and what the automatic checks still find."""
+    left: drawn.Side
+    right: drawn.Side | None
     sheet: dict
     rounds: int
     seconds: float
@@ -306,8 +329,9 @@ class Drawn:
                 "cost_usd": round(sum(c.cost_usd for c in self.calls), 6)}
 
     def to_json(self, photo_ids: list[str], made_at: str) -> dict:
-        """As kept with the item (`items.drawn`)."""
-        return {"version": 1, "left": self.left, "right": self.right, "sheet": self.sheet, "rounds": self.rounds,
+        """As kept with the item (`items.drawn`): version 2, each shoe {behind, front}."""
+        return {"version": drawn.VERSION, "left": self.left.to_json(),
+                "right": self.right.to_json() if self.right else None, "sheet": self.sheet, "rounds": self.rounds,
                 "seconds": round(self.seconds, 1), "good": self.good, "problems": self.problems,
                 "calls": [{**asdict(c), "cost_usd": round(c.cost_usd, 6), "seconds": round(c.seconds, 1)}
                           for c in self.calls],
@@ -326,8 +350,8 @@ def _png(data: bytes) -> Image.Image:
         return im.convert("RGB")
 
 
-def _drawing(answer) -> tuple[str, str | None]:
-    return drawn.sanitise(answer.left), drawn.sanitise(answer.right) if answer.right else None
+def _drawing(answer) -> tuple[drawn.Side, drawn.Side | None]:
+    return drawn.side(answer.left.model_dump()), drawn.side(answer.right.model_dump()) if answer.right else None
 
 
 Asker = Callable[..., correcting.CorrectionResult]

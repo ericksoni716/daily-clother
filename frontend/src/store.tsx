@@ -46,6 +46,8 @@ export function useOffline(): boolean {
 const busy = (i: ItemSummary) => i.cutout_state === 'pending' || i.cutout_state === 'processing';
 const describing = (i: ItemSummary) => i.tag_state === 'working';
 const awaiting = (i: ItemSummary) => i.tag_state === 'waiting';
+/** A shoe waiting to be drawn for the outfit figure, or being drawn: the list is asked again so the figure follows. */
+const drawingShoe = (i: ItemSummary) => i.drawn_state === 'waiting' || i.drawn_state === 'drawing';
 
 interface Props {
   profile: Profile;
@@ -123,7 +125,7 @@ export function ClosetProvider({ profile, onProfile, onLogout, onQuit, toast, ch
   const all = [...(items.active ?? []), ...(items.archived ?? [])];
   const anyBusy = all.some(busy);
   const anyDescribing = all.some(describing);
-  const anyAwaiting = all.some(awaiting);
+  const anyAwaiting = all.some(awaiting) || all.some(drawingShoe);
   const modelStuck = model?.state === 'missing' || model?.state === 'failed';
   const fast = (anyBusy && !modelStuck) || anyDescribing;
   useEffect(() => {
@@ -195,7 +197,7 @@ export function ClosetProvider({ profile, onProfile, onLogout, onQuit, toast, ch
 
 const SUMMARY_KEYS: (keyof ItemSummary)[] = ['id', 'name', 'category', 'color', 'color_hex', 'pattern', 'location', 'rating',
   'status', 'cutout_state', 'tag_state', 'thumb_url', 'has_illustration', 'illustration_url', 'has_photo', 'last_worn', 'wear_count',
-  'wears_since_wash', 'laundry', 'created_at', 'updated_at', 'kind', 'kind_name', 'group'];
+  'wears_since_wash', 'laundry', 'created_at', 'updated_at', 'kind', 'kind_name', 'group', 'drawn_state', 'drawn_version'];
 
 function pickSummary(item: ItemSummary): ItemSummary {
   const out = {} as Record<string, unknown>;

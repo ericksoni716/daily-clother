@@ -45,7 +45,7 @@ class Drawer:
             raise self.error
         calls = [SD.Call("draw", "plan", SD.MODEL, 40_000, 10_000, 6_000, 0.24, 70.0),
                  SD.Call("check", "plan", SD.MODEL, 30_000, 10_000, 3_000, 0.14, 40.0)]
-        return SD.Drawn(drawn.sanitise(self.left), None, dict(SHEET), 1, 112.4, calls, True, [])
+        return SD.Drawn(drawn.side(self.left), None, dict(SHEET), 1, 112.4, calls, True, [])
 
 
 @pytest.fixture
@@ -104,11 +104,29 @@ def test_a_shoe_is_drawn_once_its_photos_are_first_sorted(made):
     assert got["cost_usd"] == pytest.approx(0.38) and got["route"] == "plan" and got["photos_changed"] is False
     assert got["url"].startswith(f"/api/items/{item['id']}/drawn.svg?v=") and got["about_usd"] == 0.38
     kept = json.loads(row(m.sv.cfg, item["id"])["drawn"])
-    assert kept["left"] == drawn.sanitise(DRESS) and kept["sheet"] == SHEET and kept["version"] == 1
+    assert kept["left"] == {"behind": "", "front": drawn.sanitise(DRESS)} and kept["sheet"] == SHEET
+    assert kept["version"] == 2 and kept["right"] is None
     assert kept["photo_ids"] == [p["id"] for p in get(m.c, item)["photos"]]
     assert kept["input_tokens"] == 70_000 and kept["output_tokens"] == 9_000 and kept["cache_read_tokens"] == 20_000
     assert [c["kind"] for c in kept["calls"]] == ["draw", "check"]
     assert row(m.sv.cfg, item["id"])["drawn_attempts"] == 0
+
+
+def test_a_drawing_kept_as_version_1_is_shown_as_it_is_and_never_drawn_again_by_itself(made):
+    """Step D keeps each shoe behind and in front of the leg (version 2); a drawing kept before (one text, all in
+    front) stays as it is: shown on the page and on the figure, never drawn again by itself."""
+    m = made
+    item = sorted_shoe(m)
+    assert m.sv.draws.drain() == 1
+    one = {**json.loads(row(m.sv.cfg, item["id"])["drawn"]), "version": 1, "left": drawn.sanitise(DRESS)}
+    sql(m.sv.cfg, "UPDATE items SET drawn = ? WHERE id = ?", (json.dumps(one), item["id"]))
+    got = drawn_of(m, item)
+    assert got["state"] == "done" and got["url"] and got["message"] is None
+    svg = m.c.get(got["url"]).text
+    assert "#b5622f" in svg.lower() and svg.index("#2f7d4f") < svg.lower().index("#b5622f")   # the leg, then the shoe
+    assert m.sv.draws.drain() == 0 and len(m.drawer.calls) == 1 and get(m.c, item)["drawn_version"]
+    figure = m.c.post("/api/outfits/figure", json={"shoes": item["id"]}).text
+    assert "#b5622f" in figure.lower()
 
 
 def test_it_waits_while_the_owner_is_asked_about_the_outside(made):
@@ -171,7 +189,7 @@ def test_draw_again_keeps_the_old_drawing_until_the_new_one_is_done(made):
     assert seen["state"] == "drawing" and seen["message"] == shoedraw.DRAWING and seen["url"] == old["url"]
     new = drawn_of(m, item)
     assert new["state"] == "done" and new["url"] != old["url"]
-    assert json.loads(row(m.sv.cfg, item["id"])["drawn"])["left"] == drawn.sanitise(BOAT)
+    assert json.loads(row(m.sv.cfg, item["id"])["drawn"])["left"]["front"] == drawn.sanitise(BOAT)
 
 
 def test_a_failed_new_drawing_keeps_the_old_one(made):

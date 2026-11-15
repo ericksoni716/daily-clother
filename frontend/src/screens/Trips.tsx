@@ -4,7 +4,7 @@ import { ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '.
 import { OutfitFigure } from '../components/OutfitFigure';
 import { Card, EmptyState, PageHeader, SegmentedControl } from '../components/ui';
 import { loadGridView, type GridView } from '../drawing';
-import { useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
+import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
 import { SaveLine } from '../leave';
 import { Link, navigate } from '../router';
@@ -853,7 +853,7 @@ function DayCard({ day, tripOccasion, byId, view, shown }: {
           {shown === 'worn' ? (
             <OutfitFigure pieces={o.pieces}
               alt={`What to wear on ${longDate(day.date)}, as worn: ${joinWords(wornOrder(o.pieces).map((p) => itemName(byId.get(p.id))))}`}
-              version={outfitIds(o.pieces).map((id) => byId.get(id)?.illustration_url ?? '').join(' ')} />
+              version={figureVersion(outfitIds(o.pieces), byId)} />
           ) : (
             <ul className="trip-day-pieces" aria-label={`What to wear on ${longDate(day.date)}`}>
               {wornOrder(o.pieces).map((p) => {

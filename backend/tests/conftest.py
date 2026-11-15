@@ -131,12 +131,14 @@ SHEET = {
 
 
 def draw_answer() -> DrawAnswer:
-    return DrawAnswer.model_validate({"sheet": SHEET, "left": drawn.example("dress-shoe"), "right": None})
+    return DrawAnswer.model_validate({"sheet": SHEET, "left": {"behind": "", "front": drawn.example("dress-shoe")},
+                                      "right": None})
 
 
 def check_answer(good: bool = True) -> CheckAnswer:
     return CheckAnswer.model_validate({"good": good, "problems": [] if good else ["The toe box was too narrow."],
-                                       "sheet": SHEET, "left": drawn.example("dress-shoe"), "right": None})
+                                       "sheet": SHEET, "left": {"behind": "", "front": drawn.example("dress-shoe")},
+                                       "right": None})
 
 
 # what the stand-in understands in a correction by sentence: sentence -> (changes, not understood, needs the photo)

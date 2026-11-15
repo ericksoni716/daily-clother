@@ -272,14 +272,21 @@ This takes about two minutes and happens once, by itself. **Drawn for the
 outfit figure** on the shoe's page shows the drawing on two legs, how long it
 took, how often it was checked, and what it cost (on your Claude plan nothing
 is billed; the page says what it would cost on the API key). The outfit figure
-does not use the drawing yet. Adding or removing photos never draws the shoe
+(**As worn** on Today and on a trip's days) then wears that drawing, the leg
+going into the shoe; a shoe with no drawing keeps its plain one. Full-length
+trousers just meet an ordinary sneaker, so over a low shoe like a boat shoe
+the sock shows. A shoe drawn before this version is shown as it was: if
+something at the back of the shoe, such as a boot's pull tab, sits over the
+sock, tap **Draw again** and the new drawing puts it behind the leg. Adding or
+removing photos never draws the shoe
 again: the page says **The photos changed since this drawing**. To draw it
 again, tap **Draw again**; it asks first, and the old drawing stays until the
 new one is done. A shoe added before this version is drawn when you tap **Draw
 it** (its photos are sorted first if they never were), or by itself once you
 add or remove one of its photos. If drawing fails, the
 page says why and offers **Try again**. The demo closet's shoes are never sent
-to Claude.
+to Claude; its brown boots come with a drawing made in advance, so you can see
+a drawn shoe on the figure there.
 
 ### Several pieces in one photo
 

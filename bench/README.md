@@ -42,8 +42,9 @@ GrabCut is tried before the photo is turned down; the sheet says which cut-outs
 were tried. Each sheet also shows the traced shoe as the app stores it
 (`backend/closet/drawing/traced.py`): the parts outlined in colour (dashed when
 inferred), the profile lines, laces, eyelets and stitching dotted, and the
-marks numbered; and a "Pairs" column with the turned cut-out and the place
-where a second toe or heel shows. At the end the command prints how many
+marks numbered; and a "Pairs" column with the turned cut-out, a second sole
+ringed where it shows beyond one end, and a second top edge drawn where it
+runs inside the outline. At the end the command prints how many
 photos passed and how many were turned down for each reason (also in
 `index.html`), and `results.json` holds each shoe's traced data.
 

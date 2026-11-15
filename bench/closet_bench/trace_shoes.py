@@ -58,7 +58,6 @@ from closet.drawing.trace import (  # noqa: F401  (the tracing lives in the app;
     Trace,
     clean_mask,
     delta_e,
-    end_notch,
     gate,
     grabcut_mask,
     mark_mask,
@@ -67,6 +66,8 @@ from closet.drawing.trace import (  # noqa: F401  (the tracing lives in the app;
     raster,
     remove_specks,
     score,
+    second_sole,
+    second_top,
     to_lab,
     to_svg,
     trace,
@@ -260,23 +261,32 @@ def overlay_lines(ts: TracedShoe | None) -> list[str]:
 
 
 def pairs_cell(r: Result) -> tuple[Image.Image | None, list[str]]:
-    """The turned cut-out, with the place where a second toe or heel shows ringed: what the pair checks see."""
-    sp = r.gate.signals.get("second_piece")
-    en = r.gate.signals.get("end_notch")
-    lines = [f"second piece {sp:.3f} (limit {GATE['second_piece'][0]:g})" if sp is not None else "second piece –",
-             f"second toe or heel {en:.3f} (limit {GATE['end_notch'][0]:g})" if en is not None else "second toe or heel –"]
-    many = (sp or 0) > GATE["second_piece"][0] or (en or 0) > GATE["end_notch"][0]
-    lines.append("more than one shoe" if many else "one shoe")
+    """The turned cut-out, with what the pair checks see marked: a second sole's step ringed, and a second top
+    edge drawn where it runs inside the outline."""
+    sig = r.gate.signals
+
+    def line(key: str, label: str, fmt: str) -> str:
+        v = sig.get(key)
+        return f"{label} {v:{fmt}} (limit {GATE[key][0]:g})" if v is not None else f"{label} –"
+
+    over = {k: (sig.get(k) or 0) > GATE[k][0] for k in ("second_piece", "second_sole", "second_top")}
+    lines = [line("second_piece", "second piece", ".3f"), line("second_sole", "second sole, cm", ".2f"),
+             line("second_top", "second top edge", ".2f"), "more than one shoe" if any(over.values()) else "one shoe"]
     o = r.oriented
     if o is None:
         return None, lines
     from PIL import ImageDraw
     img = Image.fromarray(np.where(o.mask[..., None] > 0, np.array([70, 66, 60], np.uint8), np.array([250, 248, 243], np.uint8)))
-    _, at = end_notch(o.mask)
-    if at is not None and (en or 0) > GATE["end_notch"][0]:
-        d = ImageDraw.Draw(img)
-        rad = max(6, o.mask.shape[1] // 30)
-        d.ellipse((at[0] - rad, at[1] - rad, at[0] + rad, at[1] + rad), outline=(214, 40, 40), width=max(2, rad // 3))
+    d = ImageDraw.Draw(img)
+    red, rad = (214, 40, 40), max(6, o.mask.shape[1] // 30)
+    _, at = second_sole(o.mask)
+    if at is not None and over["second_sole"]:
+        d.ellipse((at[0] - rad, at[1] - rad, at[0] + rad, at[1] + rad), outline=red, width=max(2, rad // 3))
+    _, depth = second_top(o.rgb, o.mask)
+    if depth is not None and over["second_top"]:
+        cols = np.nonzero(o.mask.any(axis=0))[0]
+        tops = o.mask.argmax(axis=0)
+        d.line([(int(x), int(tops[x] + depth)) for x in cols[::4]], fill=red, width=max(2, rad // 3))
     return img, lines
 
 

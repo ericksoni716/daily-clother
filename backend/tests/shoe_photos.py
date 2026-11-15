@@ -39,6 +39,12 @@ class Shoe:
     toe_spring_cm: float = 0.0            # how far the toe tip lifts off the ground
     rocker_cm: float = 0.0                # how far a curved outsole rises between heel and ball (a convex sole)
     heel_bevel_cm: float = 0.5            # how far the back of the heel lifts off the ground
+    heel_tab_cm: float = 0.0              # a pull tab standing up and back from the heel's top, this tall
+    window: tuple | None = None           # a see-through window in the midsole at the heel (an air unit), this colour
+    lugs_cm: float = 0.0                  # a lug sole: the gaps between the lugs this deep
+    gloss: bool = False                   # glossy leather: a highlight along the top edge
+    lace_style: str = "bars"              # bars: one bar per lace; cross: the laces criss-cross, touching
+    lace_count: int = 5
 
     def bottom(self, u):
         """The sole's underside, cm above the ground."""
@@ -64,9 +70,13 @@ class Shoe:
 
 
 def _ground_rest(shoe: Shoe, us):
-    """The bottom line shifted so its lowest point touches the ground."""
+    """The bottom line shifted so its lowest point touches the ground (the lugs' gaps raised above it)."""
     b = shoe.bottom(us)
-    return b - b.min()
+    b = b - b.min()
+    if shoe.lugs_cm:
+        phase = (us * L / 1.6) % 1.0
+        b = b + np.where((phase > 0.55) & (us > 0.04) & (us < 0.96), shoe.lugs_cm, 0.0)
+    return b
 
 
 def draw(shoe: Shoe | None = None, *, px_per_cm: float = 26.0, size=(1000, 560), ground=GROUND, toe="left",
@@ -80,8 +90,9 @@ def draw(shoe: Shoe | None = None, *, px_per_cm: float = 26.0, size=(1000, 560),
     k = px_per_cm * ss
     us = np.linspace(0, 1, 241)
     bot = _ground_rest(shoe, us)
-    top = shoe.top_line(us) - shoe.bottom(us) + bot
-    sole_top = bot + shoe.sole(us)
+    base = shoe.bottom(us) - shoe.bottom(us).min()   # the bottom line without the lugs' gaps
+    top = shoe.top_line(us) - shoe.bottom(us) + base
+    sole_top = base + shoe.sole(us)
     tallest = float(top.max())
     tx, gy = at if at else ((size[0] - L * px_per_cm) / (2 * size[0]), (size[1] / 2 + tallest * px_per_cm / 2) / size[1])
     x_toe, y_ground = tx * w, gy * h
@@ -103,6 +114,11 @@ def draw(shoe: Shoe | None = None, *, px_per_cm: float = 26.0, size=(1000, 560),
         lm = Image.new("L", (w, h), 0)
         d, md = ImageDraw.Draw(layer), ImageDraw.Draw(lm)
         outline = [p(u, t) for u, t in zip(us, top, strict=True)] + [p(u, b) for u, b in zip(us[::-1], bot[::-1], strict=True)]
+        if shoe.heel_tab_cm:   # a pull tab: up from the heel's top, leaning back past the heel
+            t0 = float(top[0])
+            tab = [p(0.0, t0 - 1.6), p(-0.025, t0 + shoe.heel_tab_cm), p(0.035, t0 + shoe.heel_tab_cm + 0.1), p(0.07, t0 - 0.4)]
+            md.polygon(tab, fill=255)
+            d.polygon(tab, fill=c(shoe.upper))
         md.polygon(outline, fill=255)
         d.polygon(outline, fill=c(shoe.upper))
         if shoe.heel_counter:
@@ -120,9 +136,16 @@ def draw(shoe: Shoe | None = None, *, px_per_cm: float = 26.0, size=(1000, 560),
                 u0 = 0.25 + i * 0.055
                 d.line([p(u0, sole_top[int(u0 * 240)] + 0.2), p(u0 + 0.09, top[int((u0 + 0.09) * 240)] - 1.6)],
                        fill=c(shoe.stripes), width=int(0.85 * k))
-        if shoe.laces:
-            for i in range(5):
-                u0 = 0.47 + i * 0.07
+        if shoe.laces and shoe.lace_style == "cross":   # each crossing an X, the Xs touching end to end
+            step = 0.3 / shoe.lace_count
+            for i in range(shoe.lace_count):
+                ua, ub = 0.46 + i * step, 0.46 + (i + 1) * step
+                ta, tb = float(np.interp(ua, us, top)), float(np.interp(ub, us, top))
+                d.line([p(ua, ta - 1.7), p(ub, tb - 0.3)], fill=c(shoe.laces), width=int(0.3 * k))
+                d.line([p(ua, ta - 0.3), p(ub, tb - 1.7)], fill=c(shoe.laces), width=int(0.3 * k))
+        elif shoe.laces:
+            for i in range(shoe.lace_count):
+                u0 = 0.47 + i * 0.07 * 5 / shoe.lace_count
                 t0 = float(np.interp(u0, us, top))
                 d.line([p(u0 - 0.018, t0 - 0.35), p(u0 + 0.018, t0 - 1.5)], fill=c(shoe.laces), width=int(0.42 * k))
         if shoe.eyelets:
@@ -136,6 +159,16 @@ def draw(shoe: Shoe | None = None, *, px_per_cm: float = 26.0, size=(1000, 560),
         if shoe.outsole:
             d.polygon([p(u, b + shoe.outsole_cm) for u, b in zip(us, bot, strict=True)]
                       + [p(u, b) for u, b in zip(us[::-1], bot[::-1], strict=True)], fill=c(shoe.outsole))
+        if shoe.window:   # an air unit: a rounded window in the midsole, rimmed in the midsole's colour
+            j0, j1 = int(0.07 * 240), int(0.3 * 240)
+            lo = float(bot[j0:j1].max()) + (shoe.outsole_cm if shoe.outsole else 0.0) + 0.35
+            hi = float(sole_top[j0:j1].min()) - 0.4
+            (xa, ya), (xb, yb) = p(0.3, hi), p(0.07, lo)
+            d.rounded_rectangle((xa, ya, xb, yb), radius=0.4 * k, fill=c(shoe.window))
+            d.line([(xa + 0.3 * k, ya + 0.25 * k), (xb - 0.3 * k, ya + 0.25 * k)], fill=c((235, 238, 242)), width=max(1, int(0.12 * k)))
+        if shoe.gloss:   # a highlight along the top edge, where glossy leather turns towards the light
+            line = [p(u, t - 0.32) for u, t in zip(us, top, strict=True) if 0.01 < u < 0.97]
+            d.line(line, fill=c(tuple(min(255, v + 90) for v in shoe.upper)), width=max(1, int(0.18 * k)))
         # round the corners as a real shoe's are: the mask is smoothed and the layer kept inside it
         lm = lm.filter(ImageFilter.GaussianBlur(0.35 * k)).point(lambda v: 255 if v > 127 else 0)
         return layer, lm

@@ -103,10 +103,32 @@ def test_two_shoes_apart_are_caught():
     assert "more than one thing" in reasons(r)
 
 
-def test_one_shoe_has_no_second_toe_or_heel():
-    for shoe in (S.Shoe(), S.Shoe(toe_spring_cm=2.4, rocker_cm=0.5)):
-        r = read(S.draw(shoe, noise=3)[0])
-        assert r.gate.signals["end_notch"] < T.GATE["end_notch"][0] / 2
+RUNNER = S.Shoe(upper=(225, 225, 228), midsole=(250, 250, 250), outsole=(60, 60, 60), heel_counter=(200, 40, 40),
+                heel_tab_cm=1.6, window=(120, 135, 150), laces=(30, 30, 30), sole_cm=3.4, sole_toe_cm=2.0, toe_spring_cm=1.4)
+LUG_BOOT = S.Shoe(upper=(120, 80, 50), midsole=(40, 35, 30), outsole=(40, 35, 30), top=list(frontshoe._BOOT), shaft_cm=16,
+                  sole_cm=3.0, sole_toe_cm=2.4, lugs_cm=0.6, laces=(200, 170, 90), toe_spring_cm=1.0)
+GLOSSY_BLACK = S.Shoe(upper=(28, 28, 32), midsole=(30, 30, 34), outsole=(20, 20, 22), gloss=True, sole_cm=2.4, sole_toe_cm=1.8)
+
+
+@pytest.mark.parametrize("shoe,size", [
+    (S.Shoe(), (1000, 560)),
+    (S.Shoe(toe_spring_cm=2.4, rocker_cm=0.5), (1000, 560)),
+    (RUNNER, (1000, 560)),               # a heel tab and an air-unit window notch the outline at the heel
+    (LUG_BOOT, (1000, 760)),             # the lugs notch the sole all along
+    (GLOSSY_BLACK, (1000, 560)),         # a highlight runs along just under the top edge
+], ids=["plain", "toe-spring", "runner-heel-tab-window", "lug-boot", "glossy-black"])
+def test_one_shoe_is_one_shoe(shoe, size):
+    r = read(S.draw(shoe, size=size, noise=3)[0])
+    assert r.gate.ok, reasons(r)
+    assert r.gate.signals["second_sole"] < T.GATE["second_sole"][0] * 0.6
+    assert r.gate.signals["second_top"] < T.GATE["second_top"][0] * 0.7
+
+
+@pytest.mark.parametrize("pair", [(0.04, 0.12), (0.0, 0.12)], ids=["offset-along-and-in-depth", "straight-behind"])
+def test_a_glossy_pair_side_by_side_offset_in_depth_is_caught(pair):
+    r = read(S.draw(GLOSSY_BLACK, pair=pair, noise=3)[0])
+    assert not r.gate.ok
+    assert "two shoes: a second top edge runs along inside the outline" in reasons(r)
 
 
 def test_a_white_shoe_on_a_light_grey_ground_passes():

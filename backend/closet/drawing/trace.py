@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from PIL import Image
 
+from .frontshoe import LENGTH
 from .illustrate import CARD, INK, luminance, shade
 
 WORK = 480            # the shoe's longer side, in px, while it is traced and scored
@@ -65,7 +66,8 @@ GATE = {
     "clipped": (0.35, "above", "too much of the shoe is pure white or pure black (over- or under-exposed)"),
     "edge_touch": (0.03, "above", "the shoe runs off the edge of the photo"),
     "second_piece": (0.15, "above", "there is more than one thing in the photo (two shoes, or a hand)"),
-    "end_notch": (0.015, "above", "two shoes overlap: a second toe or heel shows behind the first"),
+    "second_sole": (0.85, "above", "two shoes: a second sole shows beyond one end of the first"),
+    "second_top": (0.65, "above", "two shoes: a second top edge runs along inside the outline"),
     "solidity": (0.80, "below", "the outline is broken up: something covers the shoe, or background got into the cut-out"),
     "aspect": (0.9, "below", "not side-on: the shoe is taller than it is long"),
     "sole_lift": (0.035, "above", "not side-on: the sole does not rest on its heel and its ball"),
@@ -316,45 +318,86 @@ def orient(rgb: np.ndarray, mask: np.ndarray) -> Oriented:
     return Oriented(rgb, mask, angle, flipped, float(toe_heel), sole_lift(mask), float(w / max(h, 1)), full_rgb, full_mask)
 
 
-def end_notch(mask: np.ndarray) -> tuple[float, tuple[int, int] | None]:
-    """A second toe or heel: one shoe's outline is convex at its toe and, low down, at its heel; two shoes, one
-    behind the other and shifted, leave a notch between the two toes or the two heels. Returns the deepest such
-    notch as a share of the length, and where it is (x, y). The mask is level, toe to the left.
-
-    At the toe end (the front 15%) any notch in the lower half of the height counts. At the heel end (the back
-    20%) only one in the lower 45% with the outline above it reaching out at least as far as below it: a running
-    shoe's heel flares out at the sole, and the notch above a flare has the outline above it reaching less far."""
-    import cv2
-    cs, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    if not cs:
+def second_sole(mask: np.ndarray) -> tuple[float, tuple[int, int] | None]:
+    """A second sole: two shoes side by side, the far one shifted along and standing higher in the photo, show
+    the far shoe's sole beyond one end of the near one: going in from that end, the bottom line runs along
+    raised above the ground, then steps down onto the near shoe's sole. One shoe's ends are convex (its sole
+    curves down gradually from the toe or the heel), and a lug sole's steps are shallower than the limit. The
+    step is looked for within 17% of the length from each end (5 cm on the reference shoe): further in, a step
+    is more likely a shadow cut out with the shoe than a second shoe.
+    Returns the step in cm, scaled to the reference shoe (the smaller of how high the raised run is and how
+    far it drops), and where the step is (x, y). The mask is level, toe to the left."""
+    present, _, bottom = _columns(mask)
+    xs = np.nonzero(present)[0]
+    if xs.size < 20:
         return 0.0, None
-    c = max(cs, key=cv2.contourArea)
-    pts = c[:, 0, :]
-    x0, x1 = pts[:, 0].min(), pts[:, 0].max() + 1
-    y0, y1 = pts[:, 1].min(), pts[:, 1].max() + 1
-    length, height = max(x1 - x0, 1), max(y1 - y0, 1)
-    try:
-        defects = cv2.convexityDefects(c, cv2.convexHull(c, returnPoints=False))
-    except cv2.error:   # a self-touching outline
-        return 0.0, None
+    x0, x1 = int(xs[0]), int(xs[-1]) + 1
+    cm = LENGTH / (x1 - x0)
+    ground = bottom[x0:x1].max()
+    b = np.where(present[x0:x1], (ground - bottom[x0:x1]) * cm, 0.0)
+    run, drop, after = max(2, round(0.8 / cm)), max(1, round(1.0 / cm)), max(1, round(2.0 / cm))
     best, where = 0.0, None
-    for s_, e_, f_, d_ in ([] if defects is None else defects.reshape(-1, 4)):
-        fx, fy = pts[f_]
-        u = (x1 - 1 - fx) / length
-        up = (y1 - 1 - fy) / height
-        depth = d_ / 256.0 / length
-        if u >= 0.85 and up < 0.5:
-            pass
-        elif u <= 0.2 and up < 0.45:
-            a, b = pts[s_], pts[e_]
-            above, below = (a, b) if a[1] < b[1] else (b, a)
-            if above[0] < below[0] - 0.005 * length:
+    for flip in (False, True):        # in from the toe, then in from the heel
+        e = b[::-1] if flip else b
+        for i in range(run + drop, int(0.17 * e.size) + drop):
+            raised = e[i - drop - run:i - drop + 1]
+            # the raised run is nearly level, and the step down from it is far steeper (a toe spring is the
+            # other way round: it rises faster towards the tip)
+            if np.ptp(raised) > 0.5 or e[i - drop] - e[i] < max(0.6, 3 * np.ptp(raised)):
                 continue
-        else:
-            continue
-        if depth > best:
-            best, where = float(depth), (int(fx), int(fy))
+            v = min(raised.min(), e[:i - drop + 1].min(), e[i - drop] - e[i:i + after].min())
+            if v > best:
+                x = x1 - 1 - (i - drop) if flip else x0 + i - drop
+                best, where = float(v), (int(x), int(ground - round(e[i - drop] / cm)))
     return best, where
+
+
+EDGE_DE = 3.0    # the colour change (ΔE) that counts as an edge inside the upper
+ALIKE_DE = 15.0  # ... between colours this alike
+
+
+def second_top(rgb: np.ndarray, mask: np.ndarray) -> tuple[float, int | None]:
+    """A second top line: two shoes side by side, the far one standing higher in the photo, show the near
+    shoe's top edge inside the pair's outline, running along below the outline's top at a steady depth, from
+    near the heel to near the toe. One shoe's seams (a collar's padding, an eyestay, a toe cap) each follow a
+    part of the top line, at different depths. Returns the share of the length (6 to 94% from the heel) along
+    which an edge runs at one depth (0.8 to 4.5 cm below the top, give or take 0.5 cm), and that depth in px.
+    The mask is level, toe to the left."""
+    import cv2
+    present, top, bottom = _columns(mask)
+    xs = np.nonzero(present)[0]
+    if xs.size < 20:
+        return 0.0, None
+    x0, x1 = int(xs[0]), int(xs[-1]) + 1
+    px = (x1 - x0) / LENGTH                      # px per cm
+    lab = cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB).astype(np.float32) * np.array([100 / 255, 1, 1], np.float32)
+    cols = np.arange(x0 + round(0.06 * (x1 - x0)), x0 + round(0.94 * (x1 - x0)))
+    depth = np.arange(round(4.5 * px) + 3)
+    ys = top[cols][None, :] + depth[:, None]
+    keep = ys < (bottom[cols] - 3.2 * px)[None, :]           # above the sole
+    ys = ys.clip(0, mask.shape[0] - 1)
+    band = lab[ys, cols[None, :]]                            # the upper, straightened along its top line
+    band = cv2.GaussianBlur(band, (0, 0), sigmaX=0.5 * px, sigmaY=0.5)
+    up, down = np.zeros(band.shape[:2], np.float32), np.zeros(band.shape[:2], np.float32)
+    up[2:] = np.linalg.norm(band[2:] - band[:-2], axis=-1)
+    down[:-2] = up[2:]
+    # an edge between two alike colours: a top edge over the same upper behind it, or a highlight along it;
+    # not a seam between two panels of different colours
+    off = max(3, round(0.3 * px))
+    alike = np.zeros(band.shape[:2], bool)
+    alike[off:-off] = np.linalg.norm(band[2 * off:] - band[:-2 * off], axis=-1) <= ALIKE_DE
+    edge = (np.maximum(up, down) >= EDGE_DE) & alike & keep & np.roll(keep, -off, axis=0)
+    edge[:round(0.8 * px)] = False
+    # the path through the straightened band that meets the most edge, its depth changing by at most 1 px every
+    # cm along (the far shoe may sit shifted along the near one, so the gap between the top lines changes)
+    every = max(1, round(1.0 * px))
+    score = edge[:, 0].astype(np.float32)
+    for j in range(1, edge.shape[1]):
+        if j % every == 0:
+            score = np.maximum(score, np.maximum(np.r_[score[1:], 0], np.r_[0, score[:-1]]))
+        score = score + edge[:, j]
+    at = int(score.argmax())
+    return float(score[at] / edge.shape[1]), at
 
 
 # ------------------------------------------------------------------ tracing
@@ -879,7 +922,8 @@ def work_signals(o: Oriented) -> dict[str, float]:
     clipped = float(((L[inside] > 98) | (L[inside] < 2)).mean())
     return {"contrast_de": contrast, "sharpness": sharp, "clipped": clipped, "aspect": o.aspect,
             "sole_lift": o.lift, "toe_heel": o.toe_heel,
-            "end_notch": end_notch(o.mask)[0] if o.aspect >= GATE["aspect"][0] else 0.0}
+            **({"second_sole": second_sole(o.mask)[0], "second_top": second_top(o.rgb, o.mask)[0]}
+               if o.aspect >= GATE["aspect"][0] else {"second_sole": 0.0, "second_top": 0.0})}
 
 
 @dataclass

@@ -26,10 +26,11 @@ shape=)`); the item drawings themselves do not change:
   shoulder seam lands on his shoulder point (SHOULDER_HALF_CM), and its hem
   lands on the body landmark its length goes to (HEM_AT: a cropped top at the
   waist, still over the waistband; a regular one at the hip; a longline one
-  below it; a coat at the hip, the thigh or the knee), a boxy one a little
+  below it; a coat at the hip, just above the knee when long, or the knee), a boxy one a little
   shorter and an oversized one longer (FIT_LONGER_CM). A fuller fit stays
   fuller (FIT_GAIN), falls straight from the chest and its shoulder falls over
-  the top of the arm; a slim or tailored one is shaped in at the waist
+  the top of the arm; a regular or relaxed one falls straight from the chest
+  with room at the sides (FIT_ROOM_CM); a slim or tailored one is shaped in at the waist
   (SHAPED_EASE), but no top is narrower than he is (BODY_EASE_CM,
   MIN_HIP_EASE_CM). Each sleeve goes round the arm and bends with it
   (`_on_arm`), its top rounding off the shoulder's slope (CAP_CM), with ease by
@@ -59,13 +60,27 @@ shape=)`); the item drawings themselves do not change:
   drawn about, at K_PX: a belt is worn round the trousers' waistband, and the
   first top is then worn tucked in (its body cut off at the belt, its sleeves
   kept), so the belt shows over it and under any layer worn over it; a scarf at the neck point,
-  over every top. A hat goes on his head and a bag is carried as its kind is
+  over every top, a long one wrapped round the neck at its depths. A hat goes on his head and a bag is carried as its kind is
   (in the hand, over the shoulder, on the back): `worn.place` places them, and
   `worn` draws the bag with its straps; with no wearer drawn, a hat's band is at
   HAT_Y and a bag beside the figure on the viewer's right, its handle at the
   height of a hand. One of each is drawn (the first given). A tie, a
   pocket square, a watch, glasses and socks are drawn by `worn`, which `_svg`
   calls once; gloves, jewellery and other accessories are not drawn in the figure.
+
+Every garment is a shell round him, seen from the front and flattened, so it is
+painted in depth order, back to front (`_svg`): the back of the garments where
+it shows (a hood, the inside back of an open layer, the back of a scarf's loop);
+the body, the shoes and the trousers; the tops from the inside out, each one
+whole; then the arms again (`_arms_over`), over what of a loose body stands out
+past his sides (it is at his side or back, behind the arm hanging beside him),
+from below the lowest sleeve opening and never inside a sleeve; each top's
+sleeves are drawn again over its own body (`_sleeves_over`), tubes round the
+arm, the arm coming out of the opening, a wide opening showing a little of its
+inside (TUBE_INSIDE_CM); the neck and head; the bag's straps; a wrapped scarf's
+hanging ends and the band across the throat (`templates.SCARF_LAYERS`); the hat.
+Between an open layer's fronts is what is in front of its back: he is drawn
+again within its outline (and his trousers and shoes), then the layers under it.
 
 `figure(pieces)` never raises: a missing place is not drawn, a piece of the
 wrong kind for its place is left out, a piece that cannot be drawn falls back
@@ -568,7 +583,8 @@ def _fit_top(spec: Spec, shape: Shape, place: str = "base", category: str | None
         return max(20.0, _between(sides, min(max(y, pit_y), hem_y)))
 
     hood = params.get("neck") == "hood"
-    above = HOOD_ABOVE if hood else 0.85   # a hood lies back on the shoulders
+    # a hood lies back on the shoulders (a rain shell's is drawn lying down already: as it is drawn)
+    above = (0.7 if params.get("hood") == "down" else HOOD_ABOVE) if hood else 0.85
     roomy = fuller > 1.02 and block != "coat"   # an oversized top: its ribbed hem and cuffs gather it in
     word = params.get("fit", "regular")
     # how full its sleeves are: by its fit, and for an outer layer by what it is
@@ -1462,9 +1478,9 @@ def _svg(layout: Layout, uid: str) -> str:
             body.append(_neck_front(wearer, first, f"{uid}f", defs))
         body.append(_head_markup(wearer))
     body.append(dressed.over)
-    # a bag's straps on his chest under the scarf's hanging ends, the band of the scarf over its ends
+    # a bag's straps on his chest under the scarf's hanging ends; the scarf's under end, its band, then the end over it
     body += [dressed.carry or extra.get("bag", "")]
-    body += [extra[k] for k in ("scarf", "scarf_under", "scarf_over", "scarf_front", "hat") if k in extra]
+    body += [extra[k] for k in ("scarf", "scarf_under", "scarf_front", "scarf_over", "hat") if k in extra]
     x, y, w, h = layout.view
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x:.1f} {y:.1f} {w:.1f} {h:.1f}" '
             f'width="{w:.0f}" height="{h:.0f}"><defs>{"".join(defs)}</defs>'

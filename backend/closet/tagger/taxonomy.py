@@ -883,7 +883,7 @@ _KIND_TOP: dict[str, tuple[dict, dict]] = {
     "leather_jacket": ({}, {"front": "zip"}),
     "windbreaker": ({}, {"front": "zip", "cuffs": "rib"}),
     "softshell_jacket": ({}, {"front": "zip", "fit": "slim", "pockets": "welt"}),
-    "rain_shell": ({"neck": "hood"}, {"front": "hidden", "hem": "tennis"}),
+    "rain_shell": ({"neck": "hood", "hood": "down"}, {"front": "hidden", "hem": "tennis"}),
     "running_long_sleeve": ({"sleeve": "long"}, {"fit": "slim", "shoulder": "raglan", "hem": "tennis"}),
     "running_singlet": ({"sleeve": "none"}, {"fit": "slim"}),
     "compression_top": ({"fit": "slim"}, {"shoulder": "raglan", "neck": "mock"}),

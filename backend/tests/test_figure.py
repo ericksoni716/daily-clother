@@ -11,7 +11,7 @@ from closet.drawing import figure as fig
 from closet.drawing import fitting, frontshoe, illustrate, templates, worn
 from closet.drawing.figure import CX, GROUND_Y, K_PX, LEG_CM, MARGIN, TOE_CM, WAIST_Y, Piece, figure, plan
 from closet.drawing.templates import PX_CM
-from closet.tagger.schema import Details, ItemTags, Silhouette
+from closet.tagger.schema import Details, ItemTags, Silhouette, drawing_for
 
 from .conftest import upload
 
@@ -914,6 +914,122 @@ def test_skin_shows_below_a_short_sleeve_and_shorts():
         assert max(y for _, y in _flat(leg)) > hem + 30 * K_PX
 
 
+def _arm_clip(svg: str, uid: str = "q") -> list[list[tuple[float, float]]]:
+    """Where the arms are drawn again over the clothes: the clip path of their group, one area for each side."""
+    d = re.search(rf'<clipPath id="{uid}rb"><path d="([^"]+)"', svg).group(1)
+    return [_flat(part) for part in re.findall(r"M[^Z]+Z", d.replace("M", " M").strip().replace(" M", "M"))]
+
+
+BIG_TEE = Piece("tee", answer("tee", fit_detail="oversized", sleeve_length="short", neckline="crew"), "#f4f2ee")
+
+
+@pytest.mark.parametrize("pieces", [dict(base=BIG_TEE, bottom=TROUSERS),
+                                    dict(base=SHIRT, mid=SWEATER, outer=COAT, bottom=TROUSERS, shoes=BOOTS),
+                                    dict(base=TEE, mid=Piece("hoodie", None, "#8b8e92", silhouette={"neck": "hood", "fit": "oversized"}),
+                                         bottom=JEANS)],
+                         ids=["oversized tee", "open coat", "oversized hoodie"])
+def test_the_arms_are_drawn_after_a_loose_bodys_sides_and_before_the_sleeves(pieces):
+    """The depth order: a garment's body is a shell round him, so what of it stands out past his sides is behind his
+    arms; a sleeve is a tube round the arm, in front of it. The arms are drawn again after every top, and that copy
+    is masked out wherever a sleeve is, so a sleeve stays over the arm."""
+    svg = figure(pieces, uid="q")
+    body = svg[svg.index("</defs>"):]
+    arms = body.index('<g id="qa" mask="url(#qr)">')
+    for place in ("base", "mid", "outer"):
+        if place in pieces:   # every top first, none of them after the arms
+            assert f'fill="{pieces[place].color_hex}"' in body[:arms]
+            assert f'fill="{pieces[place].color_hex}"' not in body[arms:body.index(fig.HAIR)]
+    mask = re.search(r'<mask id="qr"[^>]*>(.*?)</mask>', svg).group(1)
+    tops = [p for p in plan(pieces).pieces if p.place in ("base", "mid", "outer")]
+    for p in tops:   # each sleeve cut out of the arms drawn again
+        for d, _ in p.shape.sleeves:
+            assert f'<path d="{d}" transform="{fig._matrix(p.transforms[0])}" fill="#000"' in mask
+
+
+def test_the_forearm_shows_below_an_oversized_tees_sleeve_over_its_roomy_body():
+    """An oversized tee: a dropped shoulder, a wide sleeve to near the elbow and a roomy body falling straight. Below
+    the sleeve, beside his torso, the arm is over the tee's loose side (inside the tee's outline, in no sleeve, and
+    where the arms are drawn again), and the forearm hangs out of the sleeve."""
+    pieces = dict(base=BIG_TEE, bottom=TROUSERS)
+    layout = plan(pieces)
+    t, wearer = layout.get("base"), layout.body
+    tee, tubes = _flat(t.shape.outline, t.transforms[0]), [_flat(d, t.transforms[0]) for d, _ in t.shape.sleeves]
+    clip = _arm_clip(figure(pieces, uid="q"))
+    for arm in wearer.arms:
+        pts = _flat(arm)
+        below = [p for p in pts if fig._y(fig.ELBOW_CM + 2) < p[1] < fig._y(fig.ELBOW_CM + 8)]
+        assert below
+        # over the tee's loose side, not in its sleeve, and drawn again there
+        over = [p for p in below if _inside(p, tee) and not any(_inside(p, s) for s in tubes)]
+        assert over and all(any(_inside(p, c) for c in clip) for p in over)
+        assert any(_inside(p, s) for p in pts for s in tubes)   # the upper arm in the sleeve
+        assert max(y for _, y in pts) > max(t.point(s.cuff)[1] for s in fitting.sleeves(t.shape)) + 15 * K_PX
+
+
+def test_an_open_coat_shows_him_and_his_trousers_between_its_fronts_not_a_flat_fill():
+    """Between an open coat's fronts is what is in front of its back: him (drawn again within its outline), his
+    trousers and shoes, then the layers under the coat; its lining only shows at the edges, past him."""
+    svg = figure(dict(base=SHIRT, mid=SWEATER, outer=COAT, bottom=TROUSERS, shoes=BOOTS), uid="q")
+    body = svg[svg.index("</defs>"):]
+    coat = body.index(f'fill="{COAT.color_hex}"')
+    inner = body.index('<g clip-path="url(#oqt2)"><use href="#qm"/><use href="#qp"/><use href="#qw"/></g>')
+    assert coat < inner < body.index(f'fill="{SWEATER.color_hex}"', inner) < body.index('href="#qqt2"')   # then its fronts
+    assert '<clipPath id="oqt2">' in svg
+
+
+def test_a_slim_tee_hugs_him_and_a_regular_one_has_room_at_the_sides():
+    """Told apart at a glance: the slim tee follows the chest and waist, the regular one falls straight from the
+    chest with room at the sides, and its sleeve is a wider tube."""
+    slim, regular = (plan(dict(base=_tee(f), bottom=TROUSERS)).get("base") for f in ("slim", "regular"))
+    for cm in (65.0, 75.0):
+        assert _side(regular, cm) > _side(slim, cm) + 2.5, cm
+    y = fig._y(57.0)
+    wide = [_sleeve_across(t, next(s for s in fitting.sleeves(t.shape) if s.side == 1), y)[1] for t in (slim, regular)]
+    assert wide[1] > wide[0] + 0.5 * K_PX
+
+
+SCARVES = {kind: Piece("scarf", answer("scarf", accessory="scarf", accessory_kind=kind), "#b8332e")
+           for kind in ("long_knit", "woven_wool", "silk")}
+RUCKSACK = Piece("bag", answer("bag", accessory="bag", accessory_kind="rucksack"), "#3b4a3a")
+
+
+@pytest.mark.parametrize("kind", list(SCARVES))
+@pytest.mark.parametrize("coat", ["open", "none"])
+def test_a_scarf_wraps_round_his_neck_in_depth(kind, coat):
+    """A wrapped scarf is a band round his neck, drawn at its depths: the part going round the back of his neck
+    before his neck and head; then the bag's straps on his chest; then the scarf's under end, the band across his
+    throat, and the end that comes over it, before the hat. Its band is whole: no hole for the chin and collar."""
+    tops = dict(base=SHIRT, mid=SWEATER, outer=COAT) if coat == "open" else dict(base=SHIRT, mid=SWEATER)
+    pieces = dict(**tops, bottom=TROUSERS, shoes=BOOTS, accessories=[SCARVES[kind], RUCKSACK, HAT])
+    layout = plan(pieces)
+    svg = figure(pieces, uid="q")
+    body = svg[svg.index("</defs>"):]
+    straps = worn.dress(layout, layout.accessories, "q").carry
+    assert straps and straps in body
+    at = {layer: body.index(f'"url(#cqc{layer[0]})"') for layer in templates.SCARF_LAYERS}   # each layer's clip
+    assert body.index('<g id="qa"') < at["back"] < body.index(fig.HAIR) < body.index(straps)
+    assert body.index(straps) < at["under"] < at["front"] < at["over"] < body.rindex("#555555")
+    front = templates.scarf(style=layout.get("scarf").spec.params["style"], worn=True, layer="front")
+    assert not [part for part in front.parts if part.role == "hole"]
+    # it rests on the base of his neck: its band no higher than a little above it
+    s = layout.get("scarf")
+    assert s.box(front.bbox)[1] > fig.CHIN_Y + 2 * K_PX
+
+
+def test_a_rain_shells_hood_lies_down_on_its_shoulders_and_a_hoodies_stands_up():
+    """A rain shell's hood is drawn down: a shell sewn to the collar, lying behind the neck on the shoulders, not
+    standing up over the jacket. A hoodie's hood keeps its shape."""
+    tags = ItemTags.model_validate(answer("jacket", garment="rain_shell", neckline="hood", placket="zip_full"))
+    template, params, _, _ = drawing_for(tags)
+    assert template == "top" and params["hood"] == "down"
+    for p, highest in (({"neck": "hood", "hood": "down"}, 25.0), ({"neck": "hood"}, 90.0)):
+        s = templates.build("top", p)
+        ny = s.anchors["neck"][1]
+        top = min(y for part in s.behind for _, y in _flat(part.d))
+        assert ny - top <= highest, (p, ny - top)
+    assert ny - top > 60   # the hoodie's, up
+
+
 def test_the_chest_shows_in_an_open_top_worn_on_its_own():
     svg = figure(dict(mid=OVERSHIRT.__class__("shirt", answer("shirt", collar="point", placket="front_placket"), "#a9c3e0"),
                       bottom=JEANS), uid="q")
@@ -952,6 +1068,19 @@ def test_fitting_garments_on_the_wearer_leaves_the_flat_drawings_byte_for_byte_a
     spec = plan(dict(base=SHIRT)).get("base").spec
     params = spec.params if not spec.weight or "weight" in spec.params else {**spec.params, "weight": spec.weight}
     assert illustrate._draw(spec, "line", "f") == illustrate._draw(spec, "line", "f", shape=illustrate.build(spec.template, params))
+
+
+def test_wrapping_a_scarf_round_him_leaves_the_flat_scarves_and_hoods_alone():
+    """The scarf's worn layers and the rain shell's lowered hood are their own drawings: every scarf's and the
+    hoodie's own drawing is what it was before (digest taken at 4ef22e2)."""
+    import hashlib
+
+    from closet.drawing.item import svg_from_answer
+    h = hashlib.sha256()
+    for kind in ("long_knit", "woven_wool", "cashmere", "silk", "bandana", "neck_gaiter"):
+        h.update(svg_from_answer(answer("scarf", accessory="scarf", accessory_kind=kind), "#b8332e", uid="f").encode())
+    h.update(svg_from_answer(answer("hoodie", {"neck": "hood"}), "#8b8e92", uid="f").encode())
+    assert h.hexdigest() == "3559f728b5742265044bc9e67b5315786cdcbca7bb60e51d9e1dc1a8fa4b7d10"
 
 
 # ------------------------------------------------------------------ as worn: fit and length

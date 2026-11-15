@@ -72,7 +72,13 @@ class State:
             for k in changes:
                 if k not in DEFAULTS:
                     raise KeyError(k)
-            self.mutate(lambda data: data.update(changes))
+            before = deepcopy(self._data)
+            try:
+                self._data.update(changes)
+                self._save()
+            except Exception:
+                self._data = before
+                raise
 
     def mutate(self, fn, *, save_if_changed: bool = False) -> Any:
         """Run `fn(data)` under the lock and save; optionally skip unchanged data."""

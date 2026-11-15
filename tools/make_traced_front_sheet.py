@@ -60,6 +60,7 @@ SHOES = [
     ("navy derby, navy laces", S.Shoe(**S.NAVY_DERBY), (1000, 560), ("sneakers", "derby", "#223478", {})),
     ("light sneaker, black collar", S.Shoe(**S.DARK_COLLAR), (1000, 560), ("sneakers", "low_sneaker", "#e2e2de", {})),
     ("white court, red stripes", S.Shoe(**S.STRIPED_COURT), (1000, 560), ("sneakers", "low_sneaker", "#f2f0ea", {})),
+    ("white court, bold red stripes", S.Shoe(**S.BOLD_STRIPES), (1000, 560), ("sneakers", "low_sneaker", "#f2f0ea", {})),
 ]
 GROUNDS = {"white on white sneaker": {"ground": (230, 230, 228), "shade_edge": 10}}
 # the rows with a synthetic second photo, from the front: what that photo changes on the shoe (as the tests' FRONT_PHOTOS)

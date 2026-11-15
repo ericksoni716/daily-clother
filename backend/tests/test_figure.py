@@ -659,9 +659,12 @@ def test_no_skin_shows_where_a_garment_covers_it(top, bottom):
     body, t, b = layout.body, layout.get("base"), layout.get("bottom")
     margin = fig.LINE - 1.9
     cover = _flat(t.shape.outline, t.transforms[0])
+    # a sleeve is a tube round the arm, drawn over the body (the outline overlaps itself where a loose body's side
+    # stands out past the arm, behind it)
+    tubes = [_flat(d, t.transforms[0]) for d, _ in t.shape.sleeves]
     for arm in body.arms:   # a long sleeve covers the arm to the wrist; the hand comes out of the cuff
         for p in _flat(arm):
-            assert _clear(p, cover, margin), (p, "arm")
+            assert _clear(p, cover, margin) or any(_clear(p, s, margin) for s in tubes), (p, "arm")
     trousers = _flat(b.shape.outline, b.transforms[0])
     hem = b.point(b.shape.anchors["hem"])[1]
     for leg in body.legs:   # full-length trousers cover the legs down to the hem
@@ -758,7 +761,8 @@ def _sleeve_across(t, s, y: float) -> tuple[float, float]:
 
 def test_a_sleeve_beside_the_body_shares_its_line():
     """Where a sleeve hangs against the body's side the two are one line, not two heavy ones side by side: the
-    sleeve's inner edge is on the body's edge (within a pixel), from under the underarm to where the arm leaves it."""
+    sleeve's inner edge is on the body's edge (within a pixel), from under the underarm to where the arm leaves it;
+    or, where the body has room at its sides, the body's edge is under the sleeve, behind the arm, never beside it."""
     t = plan(dict(base=SHIRT, bottom=JEANS)).get("base")
     outline = _flat(t.shape.outline, t.transforms[0])
     for s in fitting.sleeves(t.shape):
@@ -768,8 +772,10 @@ def test_a_sleeve_beside_the_body_shares_its_line():
             inner = hi if s.side < 0 else lo
             edges = [x0 + (y - y0) * (x1 - x0) / (y1 - y0) for (x0, y0), (x1, y1) in zip(outline, outline[1:] + outline[:1], strict=True)
                      if (y0 > y) != (y1 > y)]
-            near = sorted(abs(x - inner) for x in edges)
-            assert near[0] < 0.2 and near[1] < 1.2, (cm, near[:3])   # its own edge, and the body's on it
+            near = sorted(edges, key=lambda x, inner=inner: abs(x - inner))
+            own, body = near[0], near[1]
+            # its own edge, and the body's on it, or under the sleeve: a loose body's side is behind the arm
+            assert abs(own - inner) < 0.2 and (abs(body - inner) < 1.2 or lo <= body <= hi), (cm, own, body, lo, hi)
 
 
 def test_a_sleeve_is_as_wide_as_the_arm_and_an_ease_by_fit():
@@ -804,14 +810,14 @@ def test_an_oversized_hoodie_is_roomy_and_gathered_at_its_cuffs_and_hem():
     usual = Piece("hoodie", answer("hoodie", {"neck": "hood"}, **knit), "#8b8e92")
     loose, plain = (plan(dict(base=p, bottom=JEANS)).get("base") for p in (big, usual))
 
-    def side(t, cm):   # the body's side at a height: the nearest edge to the middle
-        y, poly = fig._y(cm), _flat(t.shape.outline, t.transforms[0])
-        return min(abs(x0 + (y - y0) * (x1 - x0) / (y1 - y0) - CX) for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1], strict=True)
-                   if (y0 > y) != (y1 > y))
+    def side(t, cm):   # the body's side at a height (px)
+        return _side(t, cm) * K_PX
 
     hem = (loose.point(loose.shape.anchors["hem"])[1] - fig.CROWN_Y) / K_PX
-    assert side(loose, 62) == pytest.approx(side(loose, 72), abs=0.6 * K_PX)   # straight from the chest, not shaped at the waist
-    assert side(loose, 62) > side(plain, 62) + 2 * K_PX                       # and roomy
+    # straight from the chest, not shaped at the waist (above 68 cm its side runs in to the underarm, behind the
+    # sleeve: the sleeve is a tube round the arm, in front of the loose body)
+    assert side(loose, 68) == pytest.approx(side(loose, 78), abs=0.6 * K_PX)
+    assert side(loose, 68) > side(plain, 68) + 2 * K_PX                       # and roomy
     assert side(loose, hem - 2) < side(loose, 72) - 0.8 * K_PX                # the hem band draws it in
     for s, r in zip(fitting.sleeves(loose.shape), fitting.sleeves(plain.shape), strict=True):
         ex, ey = fig._arm_points(s.side)[1]
@@ -955,11 +961,17 @@ def _tee(fit: str, **more) -> Piece:
 
 
 def _side(t, cm: float) -> float:
-    """How far the top's body reaches from the middle at a height on him (cm): its outline's nearest crossing."""
+    """How far the top's body reaches from the middle at a height on him (cm): its outline's nearest crossing that
+    is not a sleeve's edge (a sleeve is a tube round the arm, and its inner edge may lie over a loose body)."""
     y = fig._y(cm)
-    pts = [t.point(q) for q in fitting.points(t.shape.outline)]
-    xs = [x0 + (y - y0) * (x1 - x0) / (y1 - y0) for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1], strict=True)
-          if (y0 > y) != (y1 > y) and x0 > CX]
+
+    def crossings(pts):
+        return [x0 + (y - y0) * (x1 - x0) / (y1 - y0) for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1], strict=True)
+                if (y0 > y) != (y1 > y) and x0 > CX]
+    xs = crossings([t.point(q) for q in fitting.points(t.shape.outline)])
+    for s in fitting.sleeves(t.shape):
+        for x in crossings([t.point(q) for q in s.poly]):   # each sleeve edge is on the outline once
+            xs.remove(min(xs, key=lambda v, x=x: abs(v - x)))
     return (min(xs) - CX) / K_PX
 
 
@@ -997,7 +1009,7 @@ def test_a_slim_top_is_shaped_at_the_waist():
     (Piece("tee", None, "#888888"), "hip"),   # nothing told: a regular length
     (Piece("jacket", answer("jacket", collar="point", placket="zip_full", fit_detail="cropped"), "#2a3550"), "waist"),
     (Piece("jacket", answer("jacket", collar="point", placket="zip_full"), "#2a3550"), "hip"),
-    (Piece("coat", answer("coat", {"top_length": "long"}, collar="notch_lapel", placket="front_placket"), "#232326"), "thigh"),
+    (Piece("coat", answer("coat", {"top_length": "long"}, collar="notch_lapel", placket="front_placket"), "#232326"), "above_knee"),
 ], ids=["cropped tee", "regular tee", "longline tee", "untold tee", "cropped jacket", "jacket", "long coat"])
 def test_a_top_ends_at_the_landmark_its_length_goes_to(piece, landmark):
     t = plan(dict(base=piece, bottom=TROUSERS)).get("base")
@@ -1006,10 +1018,12 @@ def test_a_top_ends_at_the_landmark_its_length_goes_to(piece, landmark):
 
 def test_a_coat_goes_to_the_hip_the_thigh_or_the_knee():
     assert [fig.reaches({"length": n}, category="coat") for n in ("cropped", "regular", "long", "knee")] == \
+        ["waist", "hip", "above_knee", "knee"]   # a long (longline) coat well down the thigh, to just above the knee
+    assert [fig.reaches({"length": n}, category="jacket") for n in ("cropped", "regular", "long", "knee")] == \
         ["waist", "hip", "thigh", "knee"]
     assert [fig.reaches({"length": n}, category="shirt") for n in ("cropped", "regular", "long")] == ["waist", "hip", "below_hip"]
     assert fig.reaches({}, category="tee") == "hip"
-    assert fig.HEM_AT["thigh"] < fig.KNEE_CM < fig.HEM_AT["knee"]
+    assert fig.HEM_AT["thigh"] < fig.HEM_AT["above_knee"] < fig.KNEE_CM < fig.HEM_AT["knee"]
 
 
 def test_a_boxy_top_is_shorter_and_an_oversized_one_longer():
@@ -1088,7 +1102,7 @@ def test_as_worn_tells_fit_length_and_sleeves_and_leaves_out_what_was_not_told()
     assert fig.as_worn(Piece("tee", None, "#888888", silhouette={"sleeve": "long"})) == [
         {"part": "sleeve", "value": "long", "field": "sleeve_length"}]
     coat = Piece("coat", answer("coat", {"top_length": "long"}, collar="notch_lapel", placket="front_placket"), "#232326")
-    assert {"part": "length", "value": "thigh", "field": "fit_detail"} in fig.as_worn(coat)
+    assert {"part": "length", "value": "above_knee", "field": "fit_detail"} in fig.as_worn(coat)
     trousers = Piece("trousers", answer("trousers", leg_shape="slim", trouser_break="cropped"), "#6f7278")
     assert fig.as_worn(trousers) == [{"part": "leg", "value": "slim", "field": "leg_shape"},
                                      {"part": "length", "value": "ankle", "field": "trouser_break"}]

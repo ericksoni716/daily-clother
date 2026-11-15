@@ -79,7 +79,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 
-from . import fitting, item, worn
+from . import fitting, item, templates, worn
 from .fills import Graphic
 from .frontshoe import FrontShoe, bare_feet, front_shoe
 from .illustrate import CARD, INK, Fill, Spec, _draw, shade
@@ -90,6 +90,7 @@ log = logging.getLogger("closet.drawing")
 PLACES = ("base", "mid", "outer", "bottom", "shoes")
 ACCESSORY_PLACE = {"belt": "belt", "scarf": "scarf", "bag": "bag", "cap": "hat", "beanie": "hat", "brimmed_hat": "hat"}
 ACCESSORY_ORDER = ("belt", "scarf", "hat", "bag")
+WRAPPED_SCARVES = ("woven", "knit", "silk")   # drawn wrapped round the neck (templates.SCARF_LAYERS); others as flat
 TOP_PLACES = ("base", "mid", "outer")
 PLACE_TEMPLATE = {"base": "top", "mid": "top", "outer": "top", "bottom": "pants", "shoes": "sneaker"}
 PLACE_CATEGORIES = {"base": item.TOPS, "mid": item.TOPS, "outer": item.TOPS, "bottom": item.BOTTOMS, "shoes": item.SHOES}
@@ -143,13 +144,14 @@ WORN_W = 0.68                 # a garment's front, worn, is this share of its fl
 # a sleeve's width is the arm's and some ease, by the top's fit (not the width its flat drawing has): how far it
 # stands off the arm either side (cm) at the upper arm, and at a long sleeve's cuff; it tapers from one to the other
 # (the fuller of the two: by its fit, and for a jacket or coat by the layers it goes over)
-SLEEVE_EASE = {"slim": (0.7, 0.6), "regular": (1.2, 0.65), "relaxed": (2.0, 0.85), "boxy": (2.3, 0.9),
+SLEEVE_EASE = {"slim": (0.45, 0.5), "regular": (1.2, 0.65), "relaxed": (2.0, 0.85), "boxy": (2.3, 0.9),
                "outer": (1.8, 1.0), "coat": (2.3, 1.3), "roomy": (2.8, 1.0)}
 SLEEVE_FIT = {"slim": "slim", "tailored": "slim", "relaxed": "relaxed", "boxy": "boxy", "oversized": "roomy"}
 # where a sleeve ends on him, by its length (cm below the crown): a short sleeve halfway down the upper arm (from the
 # underarm to the elbow), an elbow sleeve at the elbow, a three-quarter one halfway down the forearm, a long one round
 # the wrist
 SLEEVE_ENDS = {"short": 61.0, "elbow": ELBOW_CM + 1.5, "three-quarter": 82.0, "long": WRIST_CM}
+ROOMY_SHORT_CM = ELBOW_CM - 0.5   # an oversized top's short sleeve: a wide tube down to just above the elbow
 SHORT_SLEEVE_MORE_CM = 0.4    # a short sleeve's opening stands this much further off the arm than its top
 SHORT_SHARE = 0.55            # a sleeve shorter than this share of a long one is a short sleeve: it stops where it stops
 CUFF_FROM, CUFF_TO = 0.8, 0.9   # a roomy sleeve is gathered in between these shares of its length; the cuff is below
@@ -171,6 +173,8 @@ HEM_GATHER = 0.07             # a roomy top's ribbed hem band draws its body in 
 HEM_GATHER_CM = 7.0           # ...over this much of its length above the band (and the band is this deep)
 UNDERARM_IN = 0.86            # a top's body, from the underarm down, is drawn this much narrower than its shoulders
 BODY_EASE_CM = 1.0            # the least a top's sides stand off his, below the underarm
+FIT_ROOM_CM = {"regular": 4.5, "relaxed": 6.5}   # a regular or relaxed top falls straight from the chest, its sides
+#                                                  this far off his chest all the way down
 DROP_ACROSS, DROP_DOWN = 0.55, 0.8   # a shoulder seam past his shoulder point: this much of the way out, and down
 PAST_WRIST_CM = 1.5           # a jacket's or coat's sleeve runs this far past the wrist
 SLEEVE_SPLIT = 7.0            # a top's straight edges are cut into pieces this long (px), so a sleeve bends at the elbow
@@ -182,13 +186,14 @@ TOP_LENGTH = [(0.0, 0.0), (55.0, WAIST_CM - NECK_CM + 10.0), (78.0, 61.0), (113.
 # below the waist (still over the trousers' waistband, so no skin shows), a regular one at the hip (below its widest),
 # a longline one below the hip, over the seat; a long coat at the thigh, a knee-length one at the knee
 HEM_AT = {"waist": WAIST_CM + 11.0, "hip": HIP_CM + 5.0, "below_hip": CROTCH_CM + 7.0,
-          "thigh": (CROTCH_CM + KNEE_CM) / 2, "knee": KNEE_CM + 2.0}
+          "thigh": (CROTCH_CM + KNEE_CM) / 2, "above_knee": KNEE_CM - 6.0, "knee": KNEE_CM + 2.0}
 TOP_REACHES = {"cropped": "waist", "regular": "hip", "long": "below_hip", "knee": "knee"}
-COAT_REACHES = {"cropped": "waist", "regular": "hip", "long": "thigh", "knee": "knee"}   # a jacket or a coat
+JACKET_REACHES = {"cropped": "waist", "regular": "hip", "long": "thigh", "knee": "knee"}   # a jacket
+COAT_REACHES = {**JACKET_REACHES, "long": "above_knee"}   # a coat: a long (longline) one well down the thigh
 FIT_LONGER_CM = {"boxy": -4.0, "oversized": 6.0}   # a boxy top is a little shorter, an oversized one longer
 # a slim or tailored top is shaped at the waist: how far its sides stand off his (cm), at the underarm, the waist and
 # the hips
-SHAPED_EASE = [(ARMPIT_CM, 2.4), (WAIST_CM, 0.6), (HIP_CM, 1.2)]
+SHAPED_EASE = [(ARMPIT_CM, 2.4), (WAIST_CM, 0.4), (HIP_CM, 1.2)]
 # a trouser leg, scaled across about its own middle by its leg shape: by this at the knee and at the hem (from none
 # at the crotch), so a slim leg narrows to its hem, a straight one falls straight and a wide one stays wide. Taken
 # from the trousers template's own knee and opening widths for each shape (templates.LEG_WIDTHS), against a
@@ -226,6 +231,7 @@ BELT_HALF_CM = TROUSER_WAIST_HALF_CM - 0.3   # a worn belt, either side of its b
 BELT_Y = WAIST_Y + 1.7 * K_PX   # the middle of the waistband
 HAT_Y = CROWN_Y + 9.0 * K_PX  # where a hat's crown meets its brim, on the head
 BAG_GAP_CM = 5.0              # between the bag and the figure
+TUBE_INSIDE_CM = 0.9          # how deep the inside of a sleeve shows below its opening, beside the arm
 EDGE = 2.5                    # half the drawn outline's width, in pixels: a body's edge is drawn this far outside it
 TUCK_CM = 9.0                 # a top tucked in is drawn in to the belt's width over this much above the belt
 NECK_IN_CM = 4.5              # how far the neck is drawn on down inside a top's neck opening, over its back
@@ -589,6 +595,9 @@ def _fit_top(spec: Spec, shape: Shape, place: str = "base", category: str | None
         across = sx * (1 - (1 - UNDERARM_IN) * t) * (1 + (ease - 1) * low)
         if cm > ARMPIT_CM:   # never narrower than him: its sides stand off his by BODY_EASE_CM at least
             across = max(across, (_torso_half(cm) + BODY_EASE_CM) * K_PX / own_half)
+            if word in FIT_ROOM_CM:   # room at its sides, falling straight from the chest
+                w = min(1.0, (cm - ARMPIT_CM) / 2.0)
+                across = max(across, w * (CHEST_HALF_CM + FIT_ROOM_CM[word]) * K_PX / own_half)
             if shaped:   # in at the waist and out again over the hips, from just under the underarm
                 w = min(1.0, (cm - ARMPIT_CM) / 2.0)
                 across += w * ((_torso_half(cm) + _between(SHAPED_EASE, min(cm, HIP_CM))) * K_PX / flat_half(q[1]) - across)
@@ -624,6 +633,8 @@ def _fit_top(spec: Spec, shape: Shape, place: str = "base", category: str | None
         share = math.dist(own.shoulder, own.outer) / (math.dist(r.shoulder, r.outer) or 1.0)
         # to the point on the arm its length goes to; rolled up, as far down the arm as it is down a long sleeve
         end = SLEEVE_ENDS.get(params.get("sleeve", "long"))
+        if roomy and params.get("sleeve") == "short":
+            end = ROOMY_SHORT_CM
         reach = length * min(share, 1.15) if end is None or params.get("cuffs") in ("rolled", "roll-tab") else _down_arm(side, end)
         reach += PAST_WRIST_CM * K_PX if share >= SHORT_SHARE and block in OUTER_BLOCKS else 0.0
         s2, a2 = body(own.shoulder), body(own.armpit)
@@ -710,8 +721,11 @@ def _on_arm(side: int, shoulder, armpit, reach: float, upper: float, cuff: float
 def _apart(gap: float) -> float:
     """How far a sleeve's inner edge is drawn from the body's side, when it would be `gap` px from it: on it (one
     line for both, not two heavy ones side by side) until they are SLEEVE_SHARE_CM apart, then quickly (APART_RAMP)
-    out to where it is, so no long narrow sliver shows between them. Never inside the body."""
+    out to where it is, so no long narrow sliver shows between them. Inside the body's side (a negative gap: the
+    body's side stands out past the arm, behind it) the sleeve stays a tube round the arm, drawn over the body."""
     share = SLEEVE_SHARE_CM * K_PX
+    if gap < 0:
+        return gap
     return 0.0 if gap <= share else gap * min(1.0, (gap - share) / (APART_RAMP * share))
 
 
@@ -748,8 +762,9 @@ def reaches(params: dict, block: str | None = None, category: str | None = None)
     top by TOP_REACHES. An unknown length is a regular one."""
     if block is None:
         block = _block_for({**TOP_DEFAULTS, **params})
-    coat = category in ("coat", "jacket") or block in OUTER_BLOCKS
-    return (COAT_REACHES if coat else TOP_REACHES).get(params.get("length", "regular"), "hip")
+    table = (COAT_REACHES if category == "coat" or block == "coat" else
+             JACKET_REACHES if category == "jacket" or block in OUTER_BLOCKS else TOP_REACHES)
+    return table.get(params.get("length", "regular"), "hip")
 
 
 def _torso_half(cm: float) -> float:
@@ -1266,6 +1281,73 @@ def _tucked(p: Placed) -> tuple[list[str], str]:
     return shows, sides
 
 
+def _arms_over(wearer: Body, layout: Layout, uid: str, defs: list[str]) -> str:
+    """The arms and hands again, in front of the clothes' sides (the depth order's arms and hands): a garment's
+    body is a shell round his torso, and what of it reaches out past his sides is at his side or back, behind the
+    arm hanging beside him. They are drawn over every garment below the lowest underarm (above it a top's
+    shoulders lie over the top of the arm), except inside any sleeve: a sleeve is a tube round the arm, in front
+    of it, and the arm comes out of its opening."""
+    tops = [p for p in layout.pieces if p.place in TOP_PLACES]
+    far = 4000.0
+    below = []
+    for side in (-1, 1):   # on each side, below the opening of the longest sleeve over that arm
+        ends = [(p.point(s.outer), p.point(s.inner)) for p in tops for s in fitting.sleeves(p.shape) if s.side == side]
+        if ends:
+            (ox, oy), (ix, iy) = max(ends, key=lambda e: e[0][1] + e[1][1])
+            slope = (iy - oy) / (ix - ox) if abs(ix - ox) > 1e-6 else 0.0
+            at_cx, at_far = oy + slope * (CX - ox), oy + slope * (CX + side * 200 - ox)
+            pts = [(CX, at_cx), (CX + side * 200, at_far), (CX + side * 200, far), (CX, far)]
+        else:
+            cut = _y(ARMPIT_CM)
+            pts = [(CX, cut), (CX + side * far, cut), (CX + side * far, far), (CX, far)]
+        below.append("M" + " L".join(f"{x:.1f},{y:.1f}" for x, y in pts) + " Z")
+    white = "".join(f'<path d="{d}" fill="#fff" stroke="#fff" stroke-width="{2 * LINE}" stroke-linejoin="round"/>'
+                    for d in wearer.arms + wearer.hands)
+    black = "".join(f'<path d="{d}" transform="{_matrix(p.transforms[0])}" fill="#000" stroke="#000" '
+                    f'stroke-width="{2 * EDGE + 1.5:.1f}" stroke-linejoin="round"/>'
+                    for p in tops for d, _ in p.shape.sleeves)
+    defs.append(f'<clipPath id="{uid}rb"><path d="{" ".join(below)}"/></clipPath>'
+                f'<mask id="{uid}r" maskUnits="userSpaceOnUse" x="{-far:.0f}" y="{-far:.0f}" width="{2 * far:.0f}" '
+                f'height="{2 * far:.0f}"><g clip-path="url(#{uid}rb)">{white}</g>{black}</mask>')
+    return f'<g id="{uid}a" mask="url(#{uid}r)">{_skin(wearer.arms + wearer.hands)}{_lines(wearer.fingers)}</g>'
+
+
+def _sleeves_over(p: Placed, tid: str, defs: list[str]) -> str:
+    """A top's sleeves again, over its own body: a sleeve is a tube round the arm, in front of the body panel, and
+    what of a loose body reaches out past his sides (its side seam, from the underarm out) is behind the sleeve.
+    Drawn as the top with only its sleeves for an outline, cut to them: the cloth, the cuffs and the seams on them
+    as before, and the sleeve's own edges, its inner one over the body."""
+    paths = [d for d, _ in p.shape.sleeves]
+    d, b, _, _ = _draw(replace(p.spec, graphic=None), "line", f"{tid}v", layered=True, dy=0.0,   # a print: on the body
+                       shape=replace(p.shape, outline=" ".join(paths)))
+    t, far = _matrix(p.transforms[0]), 4000
+    keep = cut = ""
+    for path in paths:   # each sleeve path ends in its armhole: "... L underarm C . . shoulder Z"
+        i = path.rfind(" C ")
+        keep += f'<path d="{path}" transform="{t}" fill="#fff"/>'
+        if i < 0:
+            continue
+        keep += (f'<path d="{path[:i]}" transform="{t}" fill="none" stroke="#fff" stroke-width="{2 * EDGE + 2:.1f}" '
+                 'stroke-linejoin="round"/>')
+        # not its armhole: a seam on the body, not an edge (a dropped one runs across the top of the arm)
+        cut += (f'<path d="M {path[:i].split()[-1]} {path[i + 1:].rstrip(" Z")}" transform="{t}" fill="none" '
+                f'stroke="#000" stroke-width="{2 * EDGE + 1:.1f}"/>')
+    defs += [d, f'<mask id="q{tid}" maskUnits="userSpaceOnUse" x="{-far}" y="{-far}" width="{2 * far}" '
+                f'height="{2 * far}">{keep}{cut}</mask>']
+    inside = ""
+    for sl in fitting.sleeves(p.shape):   # the inside of the tube at the back of its opening, round the arm
+        (ox, oy), (ix, iy) = p.point(sl.outer), p.point(sl.inner)
+        nx, ny = _unit(iy - oy, ox - ix)
+        if ny < 0:
+            nx, ny = -nx, -ny
+        if math.dist((ox, oy), (ix, iy)) < 2 * TUBE_INSIDE_CM * K_PX:
+            continue
+        mx, my = (ox + ix) / 2 + nx * TUBE_INSIDE_CM * K_PX, (oy + iy) / 2 + ny * TUBE_INSIDE_CM * K_PX
+        inside += (f'<path d="M {ox:.1f},{oy:.1f} Q {2 * mx - (ox + ix) / 2:.1f},{2 * my - (oy + iy) / 2:.1f} '
+                   f'{ix:.1f},{iy:.1f} Z" fill="{INK}" opacity=".45"/>')
+    return f'<g mask="url(#q{tid})">{b}</g>{inside}'
+
+
 def _clip(cid: str, paths: list[str], t) -> str:
     return f'<clipPath id="{cid}">' + "".join(f'<path d="{d}" transform="{_matrix(t)}"/>' for d in paths) + "</clipPath>"
 
@@ -1289,7 +1371,7 @@ def _svg(layout: Layout, uid: str) -> str:
         if legs:   # under full-length trousers: nothing of a shoe shows beside the leg above the hem
             defs.append(f'<clipPath id="{uid}k">{legs}</clipPath>')
             pair = f'<g clip-path="url(#{uid}k)">{pair}</g>'
-        body.append(pair)
+        body.append(f'<g id="{uid}p">{pair}</g>')
     lower = ""
     if bottom is not None:
         d, b, _, _ = _draw(bottom.spec, "line", f"{uid}b", dy=0.0, shape=bottom.shape)
@@ -1298,7 +1380,14 @@ def _svg(layout: Layout, uid: str) -> str:
     # the tops, from the inside out: each one over everything under it
     extra = {}
     for p in layout.pieces:
-        if p.place in ACCESSORY_ORDER:
+        if p.place == "scarf" and p.spec.params.get("style", "woven") in WRAPPED_SCARVES:
+            # wrapped round his neck: the part behind it, its ends and the band in front, each at its own depth
+            for layer in templates.SCARF_LAYERS:
+                spec = replace(p.spec, params={**p.spec.params, "worn": True, "layer": layer})
+                d, b, _, _ = _draw(spec, "line", f"{uid}c{layer[0]}", dy=0.0)
+                defs.append(d)
+                extra[f"scarf_{layer}"] = f'<g transform="{_matrix(p.transforms[0])}">{b}</g>'
+        elif p.place in ACCESSORY_ORDER:
             d, b, _, _ = _draw(p.spec, "line", f"{uid}{p.place[0]}", dy=0.0)
             defs.append(d)
             extra[p.place] = f'<g transform="{_matrix(p.transforms[0])}">{b}</g>'
@@ -1330,6 +1419,8 @@ def _svg(layout: Layout, uid: str) -> str:
             defs.append(_clip(f"k{tid}", shows, (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)))
             b = f'<g clip-path="url(#k{tid})">{b}</g>' + sides + belt
             belt = ""
+        if isinstance(b, str) and p.shape.sleeves:
+            b += _sleeves_over(p, tid, defs)
         shows = _shows(p, under) if stack else None
         seen = stack
         if stack and shows is not None:
@@ -1341,11 +1432,18 @@ def _svg(layout: Layout, uid: str) -> str:
                     + "".join(f'<g clip-path="url(#{i})"><use href="#u{tid}"/></g>' for i in ids[1:]))
         if p.open and isinstance(b, tuple):
             back, fronts = b
-            if not stack and wearer is not None:   # nothing under it: the chest shows in the opening, the trousers over it
-                seen = torso + (f'<use href="#{uid}w"/>' if lower else "")
-            else:   # the neck stands in front of this one's collar at the back, behind what is under it
+            # its back is behind him: within its outline he is drawn again over it (the torso, the arms, the legs
+            # and the trousers), so between its fronts what is in front of its back shows, and its lining only at
+            # the edges, past him
+            inner = ""
+            if wearer is not None:
+                defs.append(_clip(f"o{tid}", [p.shape.outline], p.transforms[0]))
+                inner = (f'<g clip-path="url(#o{tid})"><use href="#{uid}m"/>'
+                         + (f'<use href="#{uid}p"/>' if shoes is not None else "")
+                         + (f'<use href="#{uid}w"/>' if lower else "") + "</g>")
+            if stack:   # the neck stands in front of this one's collar at the back, behind what is under it
                 seen = chest + seen
-            stack = back + seen + fronts
+            stack = back + inner + seen + fronts
         else:
             stack = seen + b
             holes = [part.d for part in p.shape.parts if part.role == "hole"]
@@ -1357,11 +1455,16 @@ def _svg(layout: Layout, uid: str) -> str:
         under.append(p)
     body.append(stack)
     if wearer is not None:
+        body.append(_arms_over(wearer, layout, uid, defs))
+    body.append(extra.get("scarf_back", ""))   # round the back of his neck: behind the neck and the head
+    if wearer is not None:
         if first is not None:
             body.append(_neck_front(wearer, first, f"{uid}f", defs))
         body.append(_head_markup(wearer))
     body.append(dressed.over)
-    body += [extra[k] for k in ("scarf", "hat") if k in extra] + [dressed.carry or extra.get("bag", "")]
+    # a bag's straps on his chest under the scarf's hanging ends, the band of the scarf over its ends
+    body += [dressed.carry or extra.get("bag", "")]
+    body += [extra[k] for k in ("scarf", "scarf_under", "scarf_over", "scarf_front", "hat") if k in extra]
     x, y, w, h = layout.view
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x:.1f} {y:.1f} {w:.1f} {h:.1f}" '
             f'width="{w:.0f}" height="{h:.0f}"><defs>{"".join(defs)}</defs>'

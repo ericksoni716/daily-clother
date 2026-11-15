@@ -236,13 +236,21 @@ class _Bit:
     pts: np.ndarray                 # its pixels' outline, (u, cm)
 
 
-def _bits(o: T.Oriented, sole_work: np.ndarray, f: _Frame) -> list[_Bit]:
-    """Small things on the upper that differ from the shoe just round them, seen at up to DETAIL_PX along the
-    length, so that laces and eyelets are not lost when the trace keeps only a few colours."""
+@dataclass
+class _View:
+    """The shoe at up to DETAIL_PX along the length, for the details."""
+    rgb: np.ndarray
+    lab: np.ndarray
+    mask: np.ndarray
+    upper: np.ndarray              # the upper without the sole, its edge pixel trimmed
+    f: _Frame
+
+
+def _view(o: T.Oriented, sole_work: np.ndarray, f: _Frame) -> _View | None:
     import cv2
     rgb, mask = o.full_rgb, o.full_mask
     if rgb is None or mask is None:
-        return []
+        return None
     s_full = rgb.shape[1] / o.rgb.shape[1]
     length_full = (f.x_heel - f.x_toe) * s_full
     s = min(1.0, DETAIL_PX / max(length_full, 1.0))
@@ -252,16 +260,26 @@ def _bits(o: T.Oriented, sole_work: np.ndarray, f: _Frame) -> list[_Bit]:
         mask = (cv2.resize(mask * 255, size, interpolation=cv2.INTER_LINEAR) > 127).astype(np.uint8)
     hf = f.scaled(size[0] / o.rgb.shape[1])
     sole = cv2.resize(sole_work.astype(np.uint8), size, interpolation=cv2.INTER_NEAREST)
-    px_cm = 1 / hf.cm
     upper = (mask > 0) & (sole == 0)
     upper = cv2.erode(upper.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
     if upper.sum() < 100:
+        return None
+    return _View(rgb, T.to_lab(rgb), mask, upper, hf)
+
+
+def _bits(v: _View | None) -> list[_Bit]:
+    """Small things on the upper that differ from the shoe just round them, seen at up to DETAIL_PX along the
+    length, so that laces and eyelets are not lost when the trace keeps only a few colours."""
+    import cv2
+    if v is None:
         return []
+    rgb, mask, upper, hf = v.rgb, v.mask, v.upper, v.f
+    px_cm = 1 / hf.cm
     fill = rgb.copy()
     fill[mask == 0] = np.median(rgb[mask > 0], axis=0).astype(np.uint8)
     k = min(255, int(1.2 * px_cm) | 1)
     around = cv2.medianBlur(fill, k) if k >= 3 else fill
-    lab, lab_around = T.to_lab(rgb), T.to_lab(around)
+    lab, lab_around = v.lab, T.to_lab(around)
     diff = (np.linalg.norm(lab - lab_around, axis=-1) > DETAIL_DE) & upper
     diff = cv2.morphologyEx(diff.astype(np.uint8), cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
     n, labels, stats, _ = cv2.connectedComponentsWithStats(diff, 8)
@@ -281,6 +299,98 @@ def _bits(o: T.Oriented, sole_work: np.ndarray, f: _Frame) -> list[_Bit]:
         colour = np.median(lab[core] if core.sum() >= 0.2 * area else lab[ys, xs], axis=0)
         out.append(_Bit(float(u), float(h), a * hf.cm, b * hf.cm, area / (a * b), colour, hf.uh(c)))
     return out
+
+
+def _peaks(sig: np.ndarray, apart: int) -> list[int]:
+    """The peaks of a signal at least `apart` samples apart, each standing well above the dips beside it."""
+    hi = float(sig.max())
+    if hi <= 0:
+        return []
+    cand = [i for i in range(sig.size) if sig[i] >= 0.35 * hi
+            and sig[i] >= sig[max(0, i - apart // 2):i + apart // 2 + 1].max()]
+    peaks: list[int] = []
+    for i in cand:
+        if peaks and (i - peaks[-1] < apart or sig[peaks[-1]:i + 1].min() > 0.75 * min(sig[i], sig[peaks[-1]])):
+            if sig[i] > sig[peaks[-1]]:
+                peaks[-1] = i
+            continue
+        peaks.append(i)
+    return peaks
+
+
+def lace_row_of(v: _View | None, upper_lab, eyelets: Row | None = None) -> Row | None:
+    """The laces, counted along the lacing rather than piece by piece: laces that cross or touch join into one
+    piece, and the pieces are lost. Along the throat (40 to 88% of the length from the heel, up to 3 cm below
+    the top edge), in each of the four commonest colours there that are not the upper's, the line the laces run
+    along is found (their middle depth below the top, smoothed); each lace, or each crossing, meets it once.
+    Of the colours whose peaks along that line repeat regularly, the one that covers most of the line is the
+    laces' (unless its peaks fall on the eyelets)."""
+    import cv2
+    if v is None:
+        return None
+    hf, px = v.f, 1 / v.f.cm
+    W = v.mask.shape[1]
+    present = v.mask.any(axis=0)
+    top = np.where(present, v.mask.argmax(axis=0), 0)
+    x0 = int(max(0, hf.x(0.88)))
+    x1 = int(min(W, hf.x(0.40)))
+    if x1 - x0 < 3 * px:
+        return None
+    cols = np.arange(x0, x1)
+    depth = np.arange(round(0.15 * px), round(3.0 * px))
+    ys = (top[cols][None, :] + depth[:, None]).clip(0, v.mask.shape[0] - 1)
+    inside = v.upper[ys, cols[None, :]]
+    band = v.lab[ys, cols[None, :]]
+    off = (np.linalg.norm(band - np.asarray(upper_lab, np.float32), axis=-1) >= DETAIL_DE) & inside
+    if off.sum() < 0.2 * px * px:
+        return None
+    keys = np.round(band[off] / 10).astype(int)
+    found, counts = np.unique(keys, axis=0, return_counts=True)
+    best: tuple[float, Row] | None = None
+    for k in found[np.argsort(-counts)][:4]:
+        colour = np.median(band[off][(keys == k).all(axis=1)], axis=0)
+        laces = (np.linalg.norm(band - colour, axis=-1) < 16) & inside
+        weight = laces.sum(axis=0)
+        if weight.sum() < 0.3 * px * px:
+            continue
+        mid = np.array([np.median(depth[laces[:, j]]) if weight[j] else np.nan for j in range(cols.size)])
+        ok = ~np.isnan(mid)
+        if ok.sum() < 3:
+            continue
+        mid = np.interp(np.arange(cols.size), np.nonzero(ok)[0], mid[ok])
+        mid = cv2.GaussianBlur(mid.astype(np.float32).reshape(1, -1), (0, 0), sigmaX=1.5 * px).ravel()
+        reach = max(1, round(0.25 * px))
+        line = np.array([laces[max(0, round(m - depth[0]) - reach):round(m - depth[0]) + reach + 1, j].mean()
+                         for j, m in enumerate(mid)], np.float32)
+        line = cv2.GaussianBlur(line.reshape(1, -1), (0, 0), sigmaX=max(0.5, 0.12 * px)).ravel()
+        at = _peaks(line, max(2, round(0.8 * px)))
+        if len(at) < 2:
+            continue
+        pts = [(float(hf.uh([[cols[j] + 0.5, top[cols[j]] + mid[j] + 0.5]])[0][0]),
+                float(hf.uh([[cols[j] + 0.5, top[cols[j]] + mid[j] + 0.5]])[0][1])) for j in at]
+        pts.sort()
+        while len(pts) >= 4:   # a mark reaching into the lacing (stripes ending at it) adds a peak too close at an end
+            g = np.hypot(*np.diff(np.array([[u * LENGTH, h] for u, h in pts]), axis=0).T)
+            if g[0] < 0.6 * np.median(g):
+                pts = pts[1:]
+            elif g[-1] < 0.6 * np.median(g):
+                pts = pts[:-1]
+            else:
+                break
+        xy = np.array([[u * LENGTH, h] for u, h in pts])
+        if eyelets:   # a row of eyelets, not laces
+            ey = np.array([[u * LENGTH, h] for u, h in eyelets.points])
+            if np.mean([np.hypot(*(ey - p).T).min() < 0.4 for p in xy]) >= 0.6:
+                continue
+        gaps = np.hypot(*np.diff(xy, axis=0).T)
+        if len(gaps) >= 2 and np.std(gaps) > 0.45 * np.mean(gaps):
+            continue
+        row = Row(len(pts), round(float(np.median(gaps)), 2), T.lab_hex(colour),
+                  [[round(u, 4), round(h, 3)] for u, h in pts])
+        score = float(line.sum())
+        if best is None or score > best[0]:
+            best = (score, row)
+    return best[1] if best else None
 
 
 def _same_colour(bits: list[_Bit]) -> list[_Bit]:
@@ -559,12 +669,18 @@ def traced_shoe(reading: T.Reading, approach: str | None = None) -> TracedShoe |
     sole = sole | band
     f = _Frame.of(shoe)
     profile = _profile(f, shoe, sole)
-    bits = _bits(o, sole, f)
-    lace_row, eyelet_row, stitch_row = details(bits, lambda u: float(np.interp(u, profile.u, profile.top)), t.regions[0].lab)
+    view = _view(o, sole, f)
+    bits = _bits(view)
+    pieces, eyelet_row, stitch_row = details(bits, lambda u: float(np.interp(u, profile.u, profile.top)), t.regions[0].lab)
+    lace_row = lace_row_of(view, t.regions[0].lab, eyelet_row) or pieces
     parts, used = _parts(t, f, ras, sole, band)
     for name, row in (("laces", lace_row), ("eyelets", eyelet_row), ("stitching", stitch_row)):
         if row:
             near = [b.pts for b in bits if any(abs(b.u - p[0]) < 1e-3 and abs(b.h - p[1]) < 1e-2 for p in row.points)]
+            if not near:   # counted along the lacing: a box round each lace's middle
+                du = 0.4 * row.spacing_cm / LENGTH
+                near = [np.array([[u - du, h - 0.7], [u + du, h - 0.7], [u + du, h + 0.7], [u - du, h + 0.7]])
+                        for u, h in row.points]
             parts.append(Part(name, row.color, True, _hull(f, near) if near else []))
     skip = [(p[0], p[1]) for row in (lace_row, eyelet_row, stitch_row) if row for p in row.points]
     marks = _marks(t, f, ras, sole, used, skip, lace_row)

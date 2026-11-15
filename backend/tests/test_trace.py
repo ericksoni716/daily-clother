@@ -268,10 +268,24 @@ def test_a_part_not_seen_is_inferred():
     assert p == "#123456"
 
 
+@pytest.mark.parametrize("shoe,count", [
+    (S.Shoe(upper=(225, 225, 228), laces=(30, 30, 30), lace_style="cross", lace_count=7), 7),
+    (S.Shoe(upper=(200, 40, 40), laces=(240, 240, 240), eyelets=S.SILVER, lace_style="cross", lace_count=7), 7),
+    (S.Shoe(upper=S.NAVY, laces=S.WHITE, lace_style="cross", lace_count=5), 5),
+    (S.Shoe(upper=S.NAVY, laces=S.WHITE, lace_count=7), 7),
+], ids=["cross-7-dark", "cross-7-white-silver-eyelets", "cross-5", "bars-7"])
+def test_laces_that_cross_and_touch_are_each_counted(shoe, count):
+    t = traced.traced_shoe(read(S.draw(shoe, noise=2)[0]))
+    assert t.laces and t.laces.count == count, t.laces
+    assert colour_close(t.laces.color, shoe.laces, 20)
+    laces = next(p for p in t.parts if p.name == "laces")
+    assert laces.region
+
+
 def test_laces_and_eyelets_are_counted(rich):
     assert rich.eyelets and abs(rich.eyelets.count - 6) <= 1
     assert abs(rich.eyelets.spacing_cm - 0.06 * frontshoe.LENGTH) < 0.4
-    assert rich.laces and abs(rich.laces.count - 5) <= 1
+    assert rich.laces and rich.laces.count == 5
     assert abs(rich.laces.spacing_cm - 0.07 * frontshoe.LENGTH) < 0.5
     assert colour_close(rich.laces.color, S.WHITE, 12)
     assert rich.stitching and rich.stitching.count >= 4

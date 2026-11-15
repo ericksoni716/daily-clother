@@ -1,0 +1,38 @@
+/* A shoe traced from its photo: the item page's fixes (components/ShoeTrace.tsx) and Add's guided photo
+   (screens/ShoeAdd.tsx). */
+
+.shoe-fix { display: grid; gap: 8px; }
+.shoe-fix p { margin: 0; }
+.shoe-parts, .shoe-marks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.shoe-part, .shoe-mark {
+  display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 8px 4px 4px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg);
+}
+.shoe-part-label { flex: 1; display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.shoe-part input[type='color'] {
+  width: 44px; height: 36px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); background: none;
+  cursor: pointer;
+}
+.shoe-mark { flex-wrap: wrap; padding-left: 8px; }
+.shoe-mark.is-hidden .shoe-mark-title { color: var(--ink-3); }
+.shoe-mark-swatch { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line); flex: none; }
+.shoe-mark-title { flex: 1; min-width: 6em; }
+.shoe-nudges { display: flex; gap: 4px; }
+.shoe-nudge { min-width: 40px; padding: 0 8px; }
+.shoe-fix-actions { gap: 8px; flex-wrap: wrap; }
+
+.shoe-add { display: grid; gap: 12px; }
+.shoe-add p { margin: 0; }
+.shoe-frame {
+  position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; border-radius: var(--radius-md);
+  background: var(--ink); display: grid; place-items: center;
+}
+.shoe-frame video, .shoe-frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.shoe-frame .shoe-guide { position: absolute; left: 6%; right: 6%; width: 88%; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.shoe-frame-words {
+  position: absolute; left: 8px; right: 8px; top: 8px; margin: 0; text-align: center; color: var(--bg);
+  font-size: var(--text-sm); font-weight: var(--weight-label);
+}
+.shoe-steps { margin: 0; padding-left: 1.2rem; display: grid; gap: 4px; }
+.shoe-reasons { margin: 4px 0 0; padding-left: 1.2rem; display: grid; gap: 4px; }
+.shoe-add .row { gap: 8px; flex-wrap: wrap; }

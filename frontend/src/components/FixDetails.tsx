@@ -5,6 +5,7 @@ import {
   type CorrectionAnswer, type DetailChoices, type DetailOptions, type HistoryEntry,
 } from '../corrections';
 import type { Item } from '../types';
+import { ShoeDrawingFix } from './ShoeTrace';
 import './FixDetails.css';
 
 const OFFLINE = "You're offline, so the details can't be fixed right now.";
@@ -119,6 +120,7 @@ export function FixDetails({ item, open = false, focus = null, disabled, onSaved
               Tap a detail to change it. What you set here stays when Claude describes the item again, and can be undone from the history.
             </p>
           </div>
+          {item.trace && <ShoeDrawingFix item={item} disabled={disabled} onSaved={onSaved} onError={onError} />}
           {loadError && <p className="notice notice-warn" role="alert">{loadError}</p>}
           {options?.message && <p className="notice">{options.message}</p>}
           {fixable(options).map((g) => (

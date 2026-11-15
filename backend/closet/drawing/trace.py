@@ -31,6 +31,10 @@ SHADE_L = 25.0        # a colour and the same colour this much darker or lighter
 SPECK = 0.0015        # a patch smaller than this share of the shoe is a speck and joins its neighbour
 SOLE_MAX = 0.35       # the sole is at most this share of the shoe's height
 CORNER = 60.0         # a traced outline turning more sharply than this (degrees) keeps a corner there
+REFINE_PX = 900       # the cut-out's edge is refined on the shoe's crop at most this size
+FRAME_NEAR = 0.035    # a cut-out this close to the photo's frame (a share of its width or height) may run into it ...
+FRAME_DE = 6.0        # a pixel on the frame this far in colour from the background is the shoe meeting the frame
+CONTACT_TOL = 0.012   # outline points this close to the ground line (a share of the shoe's size) rest on it
 MARK_DE = 22.0        # a mark differs from the cloth round it by more than this
 OUTLINE_W, INNER_W = 3.8, 1.5   # style B, the app's: a bold outer edge, inner lines about a third of it
 CARD_W, CARD_H = 400, 460       # the drawing's card, as the templates draw it
@@ -57,13 +61,14 @@ GATE = {
     "found": (0.5, "below", "no shoe was found in the photo"),
     "size_px": (250.0, "below", "the shoe is too small in the photo"),
     "sharpness": (0.08, "below", "the photo is blurred"),
-    "contrast_de": (8.0, "below", "the shoe hardly stands out from the background"),
+    "contrast_de": (6.0, "below", "the shoe hardly stands out from the background"),
     "clipped": (0.35, "above", "too much of the shoe is pure white or pure black (over- or under-exposed)"),
     "edge_touch": (0.03, "above", "the shoe runs off the edge of the photo"),
     "second_piece": (0.15, "above", "there is more than one thing in the photo (two shoes, or a hand)"),
+    "end_notch": (0.015, "above", "two shoes overlap: a second toe or heel shows behind the first"),
     "solidity": (0.80, "below", "the outline is broken up: something covers the shoe, or background got into the cut-out"),
     "aspect": (0.9, "below", "not side-on: the shoe is taller than it is long"),
-    "ground": (0.4, "below", "no flat sole along the bottom: probably not side-on"),
+    "sole_lift": (0.035, "above", "not side-on: the sole does not rest on its heel and its ball"),
     "toe_heel": (0.06, "below", "toe and heel look alike: probably taken from the front, back or top"),
     "trace_iou": (0.9, "below", "even the best trace strays from the cut-out"),
 }
@@ -142,6 +147,51 @@ def clean_mask(soft: np.ndarray) -> tuple[np.ndarray, float]:
     return m, second
 
 
+def _disk(r: int) -> np.ndarray:
+    import cv2
+    r = max(1, int(r))
+    return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
+
+
+def refine_mask(rgb: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """The cut-out's edge made to follow the photo: GrabCut run again in a narrow band round the edge (inside it
+    the shoe, outside it the background, for certain), then notches and spikes narrower than about 1% of the
+    shoe smoothed away. Where a white shoe on a white ground leaked into the background, the band pulls it back.
+    A refinement that moves the edge a long way is not trusted: the cut-out is then only smoothed."""
+    import cv2
+    ys, xs = np.nonzero(mask)
+    size = max(xs.max() - xs.min() + 1, ys.max() - ys.min() + 1)
+    margin = int(0.08 * size) + 4
+    H, W = mask.shape
+    x0, y0, x1, y1 = max(0, xs.min() - margin), max(0, ys.min() - margin), min(W, xs.max() + 1 + margin), min(H, ys.max() + 1 + margin)
+    crop, m = rgb[y0:y1, x0:x1], mask[y0:y1, x0:x1]
+    s = min(1.0, REFINE_PX / max(crop.shape[:2]))
+    if s < 1:
+        crop = cv2.resize(crop, None, fx=s, fy=s, interpolation=cv2.INTER_AREA)
+        m = (cv2.resize(m.astype(np.float32), (crop.shape[1], crop.shape[0]), interpolation=cv2.INTER_AREA) > 0.5).astype(np.uint8)
+    r = max(2, int(round(0.012 * size * s)))
+    gc = np.full(m.shape, cv2.GC_BGD, np.uint8)
+    gc[cv2.dilate(m, _disk(r)) > 0] = cv2.GC_PR_BGD
+    gc[m > 0] = cv2.GC_PR_FGD
+    gc[cv2.erode(m, _disk(r)) > 0] = cv2.GC_FGD
+    smooth = _disk(max(1, int(round(0.006 * size * s))))
+    out = m
+    if (gc == cv2.GC_FGD).any() and (gc == cv2.GC_BGD).any():
+        bgd, fgd = np.zeros((1, 65), np.float64), np.zeros((1, 65), np.float64)
+        cv2.setRNGSeed(0)
+        cv2.grabCut(np.ascontiguousarray(crop[..., ::-1]), gc, None, bgd, fgd, 3, cv2.GC_INIT_WITH_MASK)
+        fg = np.isin(gc, (cv2.GC_FGD, cv2.GC_PR_FGD)).astype(np.uint8)
+        if (fg & m).sum() / max((fg | m).sum(), 1) >= 0.9:
+            out = fg
+    out = cv2.morphologyEx(cv2.morphologyEx(out, cv2.MORPH_CLOSE, smooth), cv2.MORPH_OPEN, smooth)
+    if s < 1:
+        out = (cv2.resize(out.astype(np.float32), (x1 - x0, y1 - y0), interpolation=cv2.INTER_LINEAR) > 0.5).astype(np.uint8)
+    full = np.zeros_like(mask)
+    full[y0:y1, x0:x1] = out
+    refined, _ = clean_mask(full * 255)
+    return refined if refined.sum() > 0 else mask
+
+
 # ------------------------------------------------------------------ orientation
 
 def _rotate(arr: np.ndarray, angle: float, border: int, interp: int | None = None) -> np.ndarray:
@@ -157,31 +207,69 @@ def _rotate(arr: np.ndarray, angle: float, border: int, interp: int | None = Non
 
 
 def ground_edge(mask: np.ndarray) -> tuple[float, float]:
-    """The ground line: the longest edge of the convex hull that faces down (within 50 degrees).
-    Returns its angle in degrees (image coordinates) and its length in px."""
+    """The ground line: the line under the shoe that the most of its sole rests on. Each edge of the convex hull
+    that faces down (within 50 degrees) is a candidate; the one with the outline's lowest points (within
+    CONTACT_TOL of it) spread furthest along it wins, so a sole that rests on its heel and its ball, with toe
+    spring and a curved outsole between, is levelled on those two. Returns its angle in degrees (image
+    coordinates) and that spread in px."""
     import cv2
     cs, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     c = max(cs, key=cv2.contourArea)
+    pts = c[:, 0, :].astype(np.float64)
     hull = cv2.convexHull(c)[:, 0, :].astype(np.float64)
     centre = hull.mean(axis=0)
-    best, angle = 0.0, 0.0
+    tol = CONTACT_TOL * float(max(np.ptp(pts[:, 0]), np.ptp(pts[:, 1]), 1.0))
+    best, angle = (0.0, 0.0), 0.0
     for i in range(len(hull)):
         p, q = hull[i], hull[(i + 1) % len(hull)]
         e = q - p
         length = float(np.hypot(*e))
         if length < 1:
             continue
-        n = np.array([e[1], -e[0]]) / length
+        d = e / length
+        n = np.array([d[1], -d[0]])
         if np.dot(n, (p + q) / 2 - centre) < 0:
             n = -n
-        if n[1] > np.cos(np.radians(50)) and length > best:
-            best = length
+        if n[1] <= np.cos(np.radians(50)):
+            continue
+        along = pts[(pts - p) @ n > -tol] @ d
+        key = (float(along.max() - along.min()), length)
+        if key > best:
+            best = key
             angle = float(np.degrees(np.arctan2(e[1], e[0])))
             if angle > 90:
                 angle -= 180
             elif angle <= -90:
                 angle += 180
-    return angle, best
+    return angle, best[0]
+
+
+def _columns(mask: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """For each column of a mask: whether the shoe is in it, its top row and its bottom row (exclusive)."""
+    h = mask.shape[0]
+    present = mask.any(axis=0)
+    top = np.where(present, mask.argmax(axis=0), h)
+    bottom = np.where(present, h - mask[::-1].argmax(axis=0), 0)
+    return present, top, bottom
+
+
+def sole_lift(mask: np.ndarray) -> float:
+    """How far the sole's lowest point at the heel (the back 30% of the length) or at the ball (55 to 85% from
+    the heel) stays above the ground, as a share of the length; the toe end may lift (toe spring) and the outsole
+    may curve between them. The mask is level, toe to the left."""
+    present, _, bottom = _columns(mask)
+    xs = np.nonzero(present)[0]
+    if len(xs) < 4:
+        return 1.0
+    x0, x1 = xs[0], xs[-1] + 1
+    length = x1 - x0
+    u = (x1 - 1 - xs) / max(length - 1, 1)
+    b = bottom[xs].astype(np.float64)
+    ground = b.max()
+    heel, ball = b[u <= 0.3], b[(u >= 0.55) & (u <= 0.85)]
+    if not len(heel) or not len(ball):
+        return 1.0
+    return float(max(ground - heel.max(), ground - ball.max()) / length)
 
 
 @dataclass
@@ -191,8 +279,10 @@ class Oriented:
     angle: float              # how far the photo was turned (degrees)
     flipped: bool             # whether it was mirrored to put the toe on the left
     toe_heel: float           # how clearly the toe end is lower than the heel end (0 = alike)
-    ground: float             # the flat sole's length as a share of the shoe's length
+    lift: float               # how far the heel or the ball stays off the ground, as a share of the length
     aspect: float             # length / height
+    full_rgb: np.ndarray | None = field(default=None, repr=False)    # the same crop at the photo's own resolution
+    full_mask: np.ndarray | None = field(default=None, repr=False)
 
 
 def orient(rgb: np.ndarray, mask: np.ndarray) -> Oriented:
@@ -206,27 +296,65 @@ def orient(rgb: np.ndarray, mask: np.ndarray) -> Oriented:
     x0, x1, y0, y1 = xs.min(), xs.max() + 1, ys.min(), ys.max() + 1
     w, h = x1 - x0, y1 - y0
     # the toe end of a side view is lower than the heel end
-    cols = mask[y0:y1, x0:x1]
-    present = cols.any(axis=0)
-    top = np.where(present, cols.argmax(axis=0), h)
-    bottom = np.where(present, h - cols[::-1].argmax(axis=0), 0)
+    present, top, bottom = _columns(mask[y0:y1, x0:x1])
     heights = np.where(present, bottom - top, 0).astype(np.float64)
     q = max(1, w // 4)
     left, right = heights[:q].mean(), heights[-q:].mean()
     toe_heel = abs(left - right) / max(left, right, 1.0)
     flipped = bool(left > right)
-    _, ground_len = ground_edge(mask)
     pad = int(round(PAD * max(w, h)))
     H, W = mask.shape
     cx0, cy0, cx1, cy1 = max(0, x0 - pad), max(0, y0 - pad), min(W, x1 + pad), min(H, y1 + pad)
     rgb, mask = rgb[cy0:cy1, cx0:cx1], mask[cy0:cy1, cx0:cx1]
     if flipped:
         rgb, mask = rgb[:, ::-1], mask[:, ::-1]
+    full_rgb, full_mask = np.ascontiguousarray(rgb), np.ascontiguousarray(mask)
     s = WORK / max(w, h)
     size = (max(1, int(round(rgb.shape[1] * s))), max(1, int(round(rgb.shape[0] * s))))
-    rgb = cv2.resize(np.ascontiguousarray(rgb), size, interpolation=cv2.INTER_AREA if s < 1 else cv2.INTER_CUBIC)
-    mask = (cv2.resize(np.ascontiguousarray(mask) * 255, size, interpolation=cv2.INTER_LINEAR) > 127).astype(np.uint8)
-    return Oriented(rgb, mask, angle, flipped, float(toe_heel), float(ground_len / max(w, 1)), float(w / max(h, 1)))
+    rgb = cv2.resize(full_rgb, size, interpolation=cv2.INTER_AREA if s < 1 else cv2.INTER_CUBIC)
+    mask = (cv2.resize(full_mask * 255, size, interpolation=cv2.INTER_LINEAR) > 127).astype(np.uint8)
+    return Oriented(rgb, mask, angle, flipped, float(toe_heel), sole_lift(mask), float(w / max(h, 1)), full_rgb, full_mask)
+
+
+def end_notch(mask: np.ndarray) -> tuple[float, tuple[int, int] | None]:
+    """A second toe or heel: one shoe's outline is convex at its toe and, low down, at its heel; two shoes, one
+    behind the other and shifted, leave a notch between the two toes or the two heels. Returns the deepest such
+    notch as a share of the length, and where it is (x, y). The mask is level, toe to the left.
+
+    At the toe end (the front 15%) any notch in the lower half of the height counts. At the heel end (the back
+    20%) only one in the lower 45% with the outline above it reaching out at least as far as below it: a running
+    shoe's heel flares out at the sole, and the notch above a flare has the outline above it reaching less far."""
+    import cv2
+    cs, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    if not cs:
+        return 0.0, None
+    c = max(cs, key=cv2.contourArea)
+    pts = c[:, 0, :]
+    x0, x1 = pts[:, 0].min(), pts[:, 0].max() + 1
+    y0, y1 = pts[:, 1].min(), pts[:, 1].max() + 1
+    length, height = max(x1 - x0, 1), max(y1 - y0, 1)
+    try:
+        defects = cv2.convexityDefects(c, cv2.convexHull(c, returnPoints=False))
+    except cv2.error:   # a self-touching outline
+        return 0.0, None
+    best, where = 0.0, None
+    for s_, e_, f_, d_ in ([] if defects is None else defects.reshape(-1, 4)):
+        fx, fy = pts[f_]
+        u = (x1 - 1 - fx) / length
+        up = (y1 - 1 - fy) / height
+        depth = d_ / 256.0 / length
+        if u >= 0.85 and up < 0.5:
+            pass
+        elif u <= 0.2 and up < 0.45:
+            a, b = pts[s_], pts[e_]
+            above, below = (a, b) if a[1] < b[1] else (b, a)
+            if above[0] < below[0] - 0.005 * length:
+                continue
+        else:
+            continue
+        if depth > best:
+            best, where = float(depth), (int(fx), int(fy))
+    return best, where
 
 
 # ------------------------------------------------------------------ tracing
@@ -669,24 +797,51 @@ def score(t: Trace, rgb: np.ndarray, mask: np.ndarray, photo_marks: np.ndarray) 
 
 # ------------------------------------------------------------------ the gate
 
-def photo_signals(soft: np.ndarray) -> tuple[dict[str, float], np.ndarray]:
-    """Measured signals from the photo and its cut-out, before orientation; and the cleaned mask."""
+def frame_touch(rgb: np.ndarray, mask: np.ndarray) -> float:
+    """How much of the shoe's outline runs into the photo's frame, as a share of the outline's length. Only where
+    the shoe really meets the frame counts: the cut-out comes within FRAME_NEAR of the frame there (GrabCut never
+    reaches the frame itself) and the photo's outermost pixels there do not look like the background. A shoe
+    close to the border of a white-padded product photo is not cut off: its border is plain background."""
+    import cv2
+    cs, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    if not cs:
+        return 0.0
+    perimeter = max(cv2.arcLength(max(cs, key=cv2.contourArea), True), 1.0)
+    h, w = mask.shape
+    bx, by = max(2, int(FRAME_NEAR * w)), max(2, int(FRAME_NEAR * h))
+    sides = [(mask[:by].any(axis=0), rgb[0]), (mask[-by:].any(axis=0), rgb[-1]),
+             (mask[:, :bx].any(axis=1), rgb[:, 0]), (mask[:, -bx:].any(axis=1), rgb[:, -1])]
+    if not any(near.any() for near, _ in sides):
+        return 0.0
+    ring = np.concatenate([px[~near] for near, px in sides])
+    bg = np.median(to_lab(ring[None])[0], axis=0) if len(ring) >= 20 else None
+    touch = 0
+    for near, px in sides:
+        if not near.any():
+            continue
+        if bg is None:
+            touch += int(near.sum())
+            continue
+        de = np.linalg.norm(to_lab(px[near][None])[0] - bg, axis=-1)
+        touch += int((de > FRAME_DE).sum())
+    return float(touch / perimeter)
+
+
+def photo_signals(rgb: np.ndarray, soft: np.ndarray) -> tuple[dict[str, float], np.ndarray]:
+    """Measured signals from the photo and its cut-out, before orientation; and the cleaned, refined mask."""
     import cv2
     mask, second = clean_mask(soft)
     sig: dict[str, float] = {"found": float(mask.sum() > 0.002 * mask.size)}
     if not sig["found"]:
         return sig, mask
+    mask = refine_mask(rgb, mask)
     ys, xs = np.nonzero(mask)
     sig["size_px"] = float(max(xs.max() - xs.min() + 1, ys.max() - ys.min() + 1))
     sig["second_piece"] = second
     cs, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     c = max(cs, key=cv2.contourArea)
     sig["solidity"] = float(cv2.contourArea(c) / max(cv2.contourArea(cv2.convexHull(c)), 1))
-    h, w = mask.shape
-    bx, by = max(2, int(0.035 * w)), max(2, int(0.035 * h))
-    pts = c[:, 0, :]
-    near = (pts[:, 0] < bx) | (pts[:, 0] >= w - bx) | (pts[:, 1] < by) | (pts[:, 1] >= h - by)
-    sig["edge_touch"] = float(near.mean())
+    sig["edge_touch"] = frame_touch(rgb, mask)
     return sig, mask
 
 
@@ -696,19 +851,24 @@ def work_signals(o: Oriented) -> dict[str, float]:
     lab = to_lab(o.rgb)
     inside = o.mask > 0
     k = np.ones((7, 7), np.uint8)
-    # how far the shoe stands out from what is just outside it, measured all along its outline (the median);
-    # a few px either side of the edge are skipped, so that a soft edge does not count as low contrast
-    near, far = np.ones((7, 7), np.uint8), np.ones((21, 21), np.uint8)
-    band_in = ((cv2.erode(o.mask, near) > 0) & ~(cv2.erode(o.mask, far) > 0)).astype(np.float32)
-    band_out = ((cv2.dilate(o.mask, far) > 0) & ~(cv2.dilate(o.mask, near) > 0)).astype(np.float32)
+    # how far the shoe stands out from what is just outside it, measured all along its outline (the median), in
+    # two widths: a band a few px either side of the edge, skipped so that a soft edge does not count as low
+    # contrast; and a narrow band right at the edge, where a white shoe on a white ground still differs (its
+    # surface turns away from the light there, and seams and shadow lines run along it). The larger counts.
+    def across(skip: int, reach: int, sigma: float) -> float:
+        near, far = np.ones((2 * skip + 1,) * 2, np.uint8), np.ones((2 * reach + 1,) * 2, np.uint8)
+        band_in = ((cv2.erode(o.mask, near) > 0) & ~(cv2.erode(o.mask, far) > 0)).astype(np.float32)
+        band_out = ((cv2.dilate(o.mask, far) > 0) & ~(cv2.dilate(o.mask, near) > 0)).astype(np.float32)
 
-    def local(band):
-        w = cv2.GaussianBlur(band, (0, 0), 6)
-        return np.stack([cv2.GaussianBlur(lab[..., c] * band, (0, 0), 6) for c in range(3)], -1) / np.maximum(w, 1e-6)[..., None]
+        def local(band):
+            w = cv2.GaussianBlur(band, (0, 0), sigma)
+            return np.stack([cv2.GaussianBlur(lab[..., c] * band, (0, 0), sigma) for c in range(3)], -1) / np.maximum(w, 1e-6)[..., None]
 
-    edge = (cv2.dilate(o.mask, np.ones((3, 3), np.uint8)) > 0) & ~(cv2.erode(o.mask, np.ones((3, 3), np.uint8)) > 0)
-    edge &= (cv2.GaussianBlur(band_out, (0, 0), 6) > 0.02) & (cv2.GaussianBlur(band_in, (0, 0), 6) > 0.02)
-    contrast = float(np.median(np.linalg.norm(local(band_in)[edge] - local(band_out)[edge], axis=-1))) if edge.any() else 0.0
+        edge = (cv2.dilate(o.mask, np.ones((3, 3), np.uint8)) > 0) & ~(cv2.erode(o.mask, np.ones((3, 3), np.uint8)) > 0)
+        edge &= (cv2.GaussianBlur(band_out, (0, 0), sigma) > 0.02) & (cv2.GaussianBlur(band_in, (0, 0), sigma) > 0.02)
+        return float(np.median(np.linalg.norm(local(band_in)[edge] - local(band_out)[edge], axis=-1))) if edge.any() else 0.0
+
+    contrast = max(across(3, 10, 6), across(1, 4, 3))
     L = lab[..., 0]
     gx = cv2.Sobel(L, cv2.CV_32F, 1, 0, ksize=3) / 8
     gy = cv2.Sobel(L, cv2.CV_32F, 0, 1, ksize=3) / 8
@@ -718,7 +878,8 @@ def work_signals(o: Oriented) -> dict[str, float]:
     sharp = float(np.percentile(grad[zone], 99.5)) / spread
     clipped = float(((L[inside] > 98) | (L[inside] < 2)).mean())
     return {"contrast_de": contrast, "sharpness": sharp, "clipped": clipped, "aspect": o.aspect,
-            "ground": o.ground, "toe_heel": o.toe_heel}
+            "sole_lift": o.lift, "toe_heel": o.toe_heel,
+            "end_notch": end_notch(o.mask)[0] if o.aspect >= GATE["aspect"][0] else 0.0}
 
 
 @dataclass
@@ -749,6 +910,13 @@ class Variant:
 
 
 @dataclass
+class Attempt:
+    """One way of cutting the photo out, and what the gate said about it before tracing."""
+    cutout_by: str
+    reasons: list[str]
+
+
+@dataclass
 class Reading:
     """What tracing one photo found: the cut-out, the shoe turned, a trace per approach, and the gate."""
     cutout_by: str
@@ -758,6 +926,7 @@ class Reading:
     gate: Gate
     best: str | None = None
     seconds: float = 0.0
+    attempts: list[Attempt] = field(default_factory=list)   # every cut-out tried, in order; the last one is used
 
 
 Cutter = Callable[[Image.Image], "np.ndarray | None"]
@@ -766,23 +935,36 @@ Cutter = Callable[[Image.Image], "np.ndarray | None"]
 def trace_photo(img: Image.Image, cutters: Sequence[tuple[str, Cutter]] | None = None,
                 approaches: Sequence[Approach] = (APPROACH,)) -> Reading:
     """Cut out, turn, trace and check one photo. `cutters` are the ways to cut it out, by name, in the order to
-    try them (each returns a soft mask, 0..255, or None when it cannot run); GrabCut alone by default."""
+    try them (each returns a soft mask, 0..255, or None when it cannot run); GrabCut alone by default. When a
+    cut-out fails the gate, the next way is tried before the photo is turned down (a white shoe on a white
+    ground often leaks out of one cut-out and not the other); if all fail, the one with the fewest reasons wins."""
     t0 = time.time()
     rgb = np.asarray(img.convert("RGB"))
     cutters = list(cutters or [("grabcut", grabcut_mask)])
-    soft, by = None, cutters[-1][0]
+    tried: list[tuple[str, dict[str, float], np.ndarray, Oriented | None, Gate]] = []
     for name, cut in cutters:
         soft = cut(img)
-        if soft is not None:
-            by = name
+        if soft is None:
+            continue
+        signals, mask = photo_signals(rgb, soft)
+        o = None
+        if signals["found"]:
+            o = orient(rgb, mask)
+            signals.update(work_signals(o))
+        tried.append((name, signals, mask, o, gate(signals)))
+        if tried[-1][4].ok:
             break
-    if soft is None:
-        soft, by = grabcut_mask(img), "grabcut"
-    signals, mask = photo_signals(soft)
-    if not signals["found"]:
-        return Reading(by, mask, None, [], gate(signals), None, time.time() - t0)
-    o = orient(rgb, mask)
-    signals.update(work_signals(o))
+    if not tried:
+        signals, mask = photo_signals(rgb, grabcut_mask(img))
+        o = orient(rgb, mask) if signals["found"] else None
+        if o is not None:
+            signals.update(work_signals(o))
+        tried.append(("grabcut", signals, mask, o, gate(signals)))
+    pick = tried[-1] if tried[-1][4].ok else min(tried, key=lambda t: len(t[4].reasons))
+    attempts = [Attempt(t[0], t[4].reasons) for t in tried if t is not pick] + [Attempt(pick[0], pick[4].reasons)]
+    by, signals, mask, o, _ = pick
+    if o is None:
+        return Reading(by, mask, None, [], gate(signals), None, time.time() - t0, attempts)
     photo_marks = mark_mask(o.rgb, o.mask)
     variants = []
     for a in approaches:
@@ -790,4 +972,4 @@ def trace_photo(img: Image.Image, cutters: Sequence[tuple[str, Cutter]] | None =
         variants.append(Variant(a, t, score(t, o.rgb, o.mask, photo_marks)))
     best = max(variants, key=lambda v: v.scores.score)
     signals["trace_iou"] = max(v.scores.iou for v in variants)
-    return Reading(by, mask, o, variants, gate(signals), best.approach.name, time.time() - t0)
+    return Reading(by, mask, o, variants, gate(signals), best.approach.name, time.time() - t0, attempts)

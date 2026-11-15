@@ -572,9 +572,17 @@ class Updater:
         }
 
     # ---------------------------------------------------------------- checking
+    def _begin(self) -> bool:
+        if not self._lock.acquire(blocking=False):
+            return False
+        if self.busy == "restarting":   # the helper still owns the old program and the rollback plan
+            self._lock.release()
+            return False
+        return True
+
     def check(self) -> dict:
         """Ask GitHub for the latest release and remember the answer. Never raises; problems are noted quietly."""
-        if not self._lock.acquire(blocking=False):
+        if not self._begin():
             return self.status()
         try:
             self._check()
@@ -708,7 +716,7 @@ class Updater:
         if not self.can_install:
             raise UpdateError("Only the downloaded Closet program on Windows or a Mac can update itself. "
                               "Download the new version from the release page.")
-        if not self._lock.acquire(blocking=False):
+        if not self._begin():
             raise UpdateError("Closet is already checking for or installing an update.")
         self.busy = "downloading"
 
@@ -744,7 +752,7 @@ class Updater:
         checked = _seconds((self.state.get("update_check") or {}).get("at")) or 0
         if problem.get("version") == release["version"] and (_seconds(problem.get("at")) or 0) >= checked:
             return   # it went wrong since the last check; tried again after the next one, not every half hour
-        if not self._lock.acquire(blocking=False):
+        if not self._begin():
             return
         try:
             if self.status()["ready"] or self._fetch(release):

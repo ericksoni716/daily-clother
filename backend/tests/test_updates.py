@@ -368,6 +368,38 @@ def test_a_bad_download_is_reported_on_the_page(updater, github, client):
     assert Path(updater.executable).read_bytes() == OLD_EXE and not updater.spawned
 
 
+@pytest.mark.parametrize("during_restart", ["install", "check", "tick"])
+def test_restart_keeps_the_old_program_until_the_helper_finishes(updater, github, during_restart):
+    updater.set_mode("auto")
+    updater.check()
+    updater.install_now()
+    wait_idle(updater)
+    assert updater.busy == "restarting"
+    if during_restart == "check":
+        updater.check()
+    elif during_restart == "tick":
+        updater.tick()
+    with pytest.raises(updates.UpdateError, match="already"):
+        updater.install_now()
+    assert updater.busy == "restarting"
+    assert len(updater.spawned) == 1
+    assert Path(updater.executable).with_name("Closet.old.exe").read_bytes() == OLD_EXE
+
+
+def test_a_failed_handover_allows_the_owner_to_retry(updater, github):
+    updater.check()
+    updater.install_now()
+    wait_idle(updater)
+    assert updates.restore(updater.where)
+    updates._write_outcome(updater.cfg, {"to": "0.3.0", "ok": False, "note": "The old copy kept running."})
+    assert updater.status()["busy"] is None
+    updater.install_now()
+    wait_idle(updater)
+    assert len(updater.spawned) == 2
+    assert updater.busy == "restarting"
+    assert updater.where.old.read_bytes() == OLD_EXE
+
+
 # ------------------------------------------------------------------ by itself, and when it must not
 def test_ask_first_fetches_ahead_and_waits(updater, github):
     updater.tick()

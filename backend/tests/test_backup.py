@@ -1,5 +1,8 @@
 import json
 import time
+from pathlib import Path
+
+import pytest
 
 from closet import autostart, backup, cli, config, demo, instance, phone
 
@@ -67,6 +70,51 @@ def test_only_the_newest_snapshots_are_kept(services, cfg, tmp_path, client, mon
         assert backup.run_backup(cfg, services.state, folder=folder)["ok"]
     snaps = sorted((folder / backup.SUBFOLDER / "db").glob("*.sqlite"))
     assert len(snaps) == backup.KEEP_SNAPSHOTS and snaps[0].name == "closet-20260104-010101.sqlite"
+
+
+@pytest.mark.parametrize("same_second", [False, True])
+def test_failed_image_copy_does_not_publish_a_snapshot(client, services, cfg, tmp_path, monkeypatch, same_second):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    monkeypatch.setattr(backup, "_stamp", lambda: "20260101-010101")
+    upload(client, name="Keeper")
+    good = backup.run_backup(cfg, services.state, folder=folder)
+    root = folder / backup.SUBFOLDER
+    previous = (root / "db" / good["snapshot"]).read_bytes()
+    manifest = (root / "manifest.json").read_bytes()
+    upload(client, key="later")
+    if not same_second:
+        monkeypatch.setattr(backup, "_stamp", lambda: "20260102-010101")
+
+    def interrupted_copy(src, dest, *args, **kwargs):
+        Path(dest).write_bytes(b"partial")
+        raise OSError("disk full")
+
+    monkeypatch.setattr(backup.shutil, "copy2", interrupted_copy)
+    failed = backup.run_backup(cfg, services.state, folder=folder)
+    assert not failed["ok"]
+    assert sorted(p.name for p in (root / "db").glob("closet-*.sqlite")) == [good["snapshot"]]
+    assert (root / "db" / good["snapshot"]).read_bytes() == previous
+    assert (root / "manifest.json").read_bytes() == manifest
+
+
+def test_interrupted_image_refresh_preserves_the_previous_backup(client, services, cfg, tmp_path, monkeypatch):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    item = upload(client).json()
+    assert backup.run_backup(cfg, services.state, folder=folder)["ok"]
+    rel = item["photos"][0]["url"].removeprefix("/media/")
+    saved = folder / backup.SUBFOLDER / "images" / rel
+    previous = saved.read_bytes()
+    (cfg.images_dir("main") / rel).write_bytes(previous + b"changed")
+
+    def interrupted_copy(src, dest, *args, **kwargs):
+        Path(dest).write_bytes(b"partial")
+        raise OSError("disk full")
+
+    monkeypatch.setattr(backup.shutil, "copy2", interrupted_copy)
+    assert not backup.run_backup(cfg, services.state, folder=folder)["ok"]
+    assert saved.read_bytes() == previous
 
 
 def test_restore_command_refuses_an_empty_folder(cfg, tmp_path, capsys, monkeypatch):

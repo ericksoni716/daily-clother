@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+import tempfile
 import threading
 import time
 from datetime import UTC, datetime
@@ -53,18 +54,23 @@ def run_backup(cfg: Config, state: State, kind: str = "manual", folder: Path | N
             raise BackupError("There is no closet to back up yet.")
         root = _root(folder)
         snap = root / "db" / f"closet-{_stamp()}.sqlite"
-        db.snapshot(src_db, snap)
-        copied = 0
-        src_images = cfg.images_dir("main")
-        if src_images.is_dir():
-            for f in src_images.rglob("*"):
-                if not f.is_file() or f.suffix == ".part":
-                    continue
-                dest = root / "images" / f.relative_to(src_images)
-                if not dest.exists() or dest.stat().st_size != f.stat().st_size:
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(f, dest)
-                    copied += 1
+        snap.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix=".backup-", dir=root) as staging:
+            staged = Path(staging)
+            db.snapshot(src_db, staged / snap.name)
+            copied = 0
+            src_images = cfg.images_dir("main")
+            if src_images.is_dir():
+                for f in src_images.rglob("*"):
+                    if not f.is_file() or f.suffix == ".part":
+                        continue
+                    dest = root / "images" / f.relative_to(src_images)
+                    if not dest.exists() or dest.stat().st_size != f.stat().st_size:
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(f, staged / "image.part")
+                        (staged / "image.part").replace(dest)
+                        copied += 1
+            (staged / snap.name).replace(snap)
         snaps = sorted((root / "db").glob("closet-*.sqlite"))
         for old in snaps[:-KEEP_SNAPSHOTS]:
             old.unlink(missing_ok=True)

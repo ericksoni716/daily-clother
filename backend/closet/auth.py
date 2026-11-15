@@ -58,20 +58,26 @@ def clear_passphrase(state: State) -> None:
 
 def check_passphrase(state: State, passphrase: str) -> None:
     """Raise AuthError unless the passphrase is right; counts failures."""
-    now = time.time()
-    recent = [t for t in state.get("failed_logins") if now - t < WINDOW_SECONDS]
-    if len(recent) >= MAX_FAILURES:
-        wait = int(WINDOW_SECONDS - (now - recent[0])) + 1
-        raise AuthError(f"Too many wrong attempts. Try again in {max(1, wait // 60)} minute(s).", 429, wait)
-    stored = state.get("passphrase")
-    if stored is None:
-        raise AuthError("No passphrase has been set yet.", 409)
-    got = _hash(passphrase, base64.b64decode(stored["salt"]), stored["n"], stored["r"], stored["p"])
-    if not hmac.compare_digest(got, base64.b64decode(stored["hash"])):
-        state.update(failed_logins=recent + [now])
-        raise AuthError("That passphrase is not right.", 401)
-    if recent:
-        state.update(failed_logins=[])
+    def check(data):
+        now = time.time()
+        recent = [t for t in data["failed_logins"] if now - t < WINDOW_SECONDS]
+        if len(recent) >= MAX_FAILURES:
+            wait = int(WINDOW_SECONDS - (now - recent[0])) + 1
+            return AuthError(f"Too many wrong attempts. Try again in {max(1, wait // 60)} minute(s).", 429, wait)
+        stored = data["passphrase"]
+        if stored is None:
+            return AuthError("No passphrase has been set yet.", 409)
+        got = _hash(passphrase, base64.b64decode(stored["salt"]), stored["n"], stored["r"], stored["p"])
+        if not hmac.compare_digest(got, base64.b64decode(stored["hash"])):
+            data["failed_logins"] = recent + [now]
+            return AuthError("That passphrase is not right.", 401)
+        if recent:
+            data["failed_logins"] = []
+        return None
+
+    error = state.mutate(check, save_if_changed=True)
+    if error:
+        raise error
 
 
 def _digest(token: str) -> str:

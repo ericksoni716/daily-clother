@@ -2,9 +2,11 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
+import pytest
 from fastapi.testclient import TestClient
 
 from closet import auth
+from closet.state import State
 
 from .conftest import PASSPHRASE
 
@@ -68,6 +70,39 @@ def test_wrong_guesses_are_slowed_down(client, services):
     assert r.status_code == 429 and int(r.headers["retry-after"]) > 0
     services.state.update(failed_logins=[time.time() - auth.WINDOW_SECONDS - 1] * auth.MAX_FAILURES)
     assert client.post("/api/login", json={"passphrase": PASSPHRASE}).status_code == 204
+
+
+@pytest.mark.parametrize("failures", [0, auth.MAX_FAILURES - 1])
+def test_concurrent_wrong_guesses_obey_and_persist_the_limit(client, services, monkeypatch, failures):
+    state = services.state
+    state.update(failed_logins=[time.time()] * failures)
+    readers = Barrier(10)
+    real_get = state.get
+
+    def overlapping_reads(key):
+        value = real_get(key)
+        if key == "failed_logins":
+            readers.wait(timeout=10)
+        return value
+
+    def guess(_):
+        return TestClient(client.app).post("/api/login", json={"passphrase": "synthetic wrong guess"})
+
+    with monkeypatch.context() as patch:
+        patch.setattr(state, "get", overlapping_reads)
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            responses = list(pool.map(guess, range(10)))
+
+    statuses = [response.status_code for response in responses]
+    assert statuses.count(401) == auth.MAX_FAILURES - failures
+    assert statuses.count(429) == 10 - (auth.MAX_FAILURES - failures)
+    assert all(int(r.headers["retry-after"]) > 0 for r in responses if r.status_code == 429)
+    assert len(state.get("failed_logins")) == auth.MAX_FAILURES
+    reloaded = State(state.path)
+    assert reloaded.get("failed_logins") == state.get("failed_logins")
+    with pytest.raises(auth.AuthError) as blocked:
+        auth.check_passphrase(reloaded, PASSPHRASE)
+    assert blocked.value.status == 429
 
 
 def test_passphrase_is_never_stored_in_the_clear(client, cfg):

@@ -68,8 +68,11 @@ UNTRACED = [("sneakers", "low_sneaker"), ("sneakers", "runner"), ("sneakers", "s
             ("dress_shoes", "loafer"), ("dress_shoes", "derby"), ("dress_shoes", "oxford"), ("boots", "boot"),
             ("boots", "chelsea_boot"), ("sandals", "sandal")]
 # taken before stage 2c; change it only with a change meant to redraw untraced shoes, and say so in the pull request
-# (changed once: a Chelsea boot's pull tab, at the back of its shaft, is drawn behind the leg, not over it)
-UNTRACED_DIGEST = "67d97fa3f531603b8dbf311d6e8f23373dd2092b455f169410c5afd253ad0403"
+# (changed once: a Chelsea boot's pull tab, at the back of its shaft, is drawn behind the leg, not over it; and once
+# when the trousers' hem moved onto the shoe: the shoes themselves, and the figures in shorts, are byte for byte the
+# same; and once when a bare ankle under cropped trousers showed points on low shoes' collars: the dress shoes and
+# slip-ons got #214's rounded collar, and every low shoe rounder shoulders beside the ankle)
+UNTRACED_DIGEST = "bf1a12ce54a487822383e397a546640b6889de69cf15fad9678815f49bed6ad6"
 
 
 def test_an_untraced_shoe_is_drawn_exactly_as_before():
@@ -794,7 +797,10 @@ def test_a_no_show_cut_lowers_the_collar_and_the_opening(style):
     assert all(low[i][1] - rim[i][1] > min(b[1] - a[1] for a, b in zip(rim, low, strict=True)) for i in sides)
     # the top of the shoe beside the ankle is lower too; its toe and sole are not
     assert min(y for _, y in _flat(cut.upper)) > min(y for _, y in _flat(plain.upper)) + 0.8 * K_PX
-    assert cut.anchors == plain.anchors
+    # a trouser hem meets the opening where it now is, lower; every other anchor stays
+    moved = ("opening", "opening_back")
+    assert {k: v for k, v in cut.anchors.items() if k not in moved} == {k: v for k, v in plain.anchors.items() if k not in moved}
+    assert all(cut.anchors[k][1] > plain.anchors[k][1] + 0.8 * K_PX for k in moved)
     toe = lambda s: [q for q in _flat(s.outline) if q[1] > s.anchors["ball"][1]]   # noqa: E731
     assert toe(cut) == toe(plain)
     # the leg is seen down to the lower opening: more of the ankle shows
@@ -807,3 +813,33 @@ def test_the_shoes_outline_has_no_points_or_horns():
     collar's shoulder back on itself in a point."""
     for name, shoe in every_front_shoe():
         assert max(turns(_flat(shoe.upper))) < 65, name
+
+
+CROPPED = Piece("trousers", answer("trousers", {"pant_length": "ankle"}, leg_shape="slim", trouser_break="cropped"),
+                "#6f7278")
+
+
+@pytest.mark.parametrize("c, s", [("sneakers", "low_sneaker"), ("sneakers", "runner"), ("sneakers", "slip_on"),
+                                  ("dress_shoes", "loafer"), ("dress_shoes", "derby"), ("dress_shoes", "oxford")])
+def test_no_point_of_a_low_collar_sticks_up_beside_the_bare_ankle(c, s):
+    """Under cropped trousers the ankle shows, and where the collar's top edge meets the leg what shows of the shoe
+    is a rounded shoulder: on a small circle there, at least a quarter of it is shoe. A dress shoe's raw crown once
+    left a sliver standing up beside the ankle in a point (#223 review)."""
+    lay = plan(dict(base=TEE, bottom=CROPPED, shoes=Piece(c, answer(c, shoe_style=s), "#5a3a22")))
+    shoes = lay.get("shoes")
+    t = shoes.transforms[0]
+    path = fig._moved(lay.body.legs[0], (t[0], 0.0, 0.0, 1.0, -t[0] * t[4], -t[5]))
+    shoe = fig.front_shoe(shoes.spec, K_PX, sole_default=shoes.shape.sole_default, uid="z", ankle=fig._ankle(),
+                          ankle_path=path, toes=fig.TOE_LINE)
+    upper, leg, seen = _flat(shoe.upper), _flat(path), [_flat(d) for d in shoe.seen]
+    covered = lambda p: _inside(p, leg) and any(_inside(p, q) for q in seen)   # noqa: E731
+    pts = []
+    for a, b in zip(upper, upper[1:] + upper[:1], strict=True):
+        n = max(1, int(math.dist(a, b) / 0.5))
+        pts += [(a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n) for i in range(n)]
+    meets = [b for a, b in zip(pts[-1:] + pts[:-1], pts, strict=True) if covered(a) != covered(b)]
+    assert meets, s
+    for x, y in meets:
+        ring = [(x + 4 * math.cos(math.radians(d)), y + 4 * math.sin(math.radians(d))) for d in range(360)]
+        shown = sum(_inside(q, upper) and not covered(q) for q in ring)
+        assert shown >= 90, (s, round(x, 1), round(y, 1), shown)

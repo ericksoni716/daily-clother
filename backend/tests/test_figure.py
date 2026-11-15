@@ -144,9 +144,12 @@ def test_every_piece_is_drawn_at_the_same_scale(name):
     b = layout.get("bottom")
     assert b.point(b.shape.anchors["waist"])[1] == pytest.approx(WAIST_Y)
     assert b.point(b.shape.anchors["crotch"])[1] == pytest.approx(fig.CROTCH_Y)
-    # a full-length trouser: the hem rests on the shoe, a break above the ground
+    # a full-length trouser: the hem rests on the shoe, never lower than its length takes it (a break above the
+    # ground), and not far above the shoe's opening
     if b.spec.params.get("length", "full") == "full":
-        assert b.point(b.shape.anchors["hem"])[1] == pytest.approx(fig.HEM_Y, abs=fig.DIP_CM * K_PX + 0.1)
+        shoes = layout.get("shoes")
+        rim = shoes.point(shoes.front.anchors["opening"])[1]
+        assert rim - 2.5 * K_PX < b.point(b.shape.anchors["hem"])[1] <= fig.HEM_Y + fig.DIP_CM * K_PX + 0.1
 
 
 @pytest.mark.parametrize("name", list(OUTFITS))
@@ -173,9 +176,11 @@ def test_shoes_stand_on_the_ground_under_the_legs(name):
 
 
 def test_under_full_length_trousers_nothing_of_a_shoe_shows_beside_the_leg():
-    layout = plan(dict(base=TEE, bottom=TROUSERS, shoes=BOOTS))
+    """A leg wide enough to drop over the boot hides its shaft: above the hem, the boot shows only within the leg."""
+    wide = Piece("trousers", answer("trousers", {"pant_length": "full"}, leg_shape="wide"), "#6f7278")
+    layout = plan(dict(base=TEE, bottom=wide, shoes=BOOTS))
     b = layout.get("bottom")
-    svg = figure(dict(base=TEE, bottom=TROUSERS, shoes=BOOTS), uid="q")
+    svg = figure(dict(base=TEE, bottom=wide, shoes=BOOTS), uid="q")
     (xo, hy), (xi, _) = b.point(b.shape.anchors["hem_out"]), b.point(b.shape.anchors["hem_in"])
     clip = re.search(r'<clipPath id="qk">(.*?)</clipPath>', svg).group(1)
     rects = [tuple(float(v) for v in r) for r in re.findall(r'x="([-\d.]+)" y="([-\d.]+)" width="([\d.]+)" height="([\d.]+)"', clip)]
@@ -184,8 +189,9 @@ def test_under_full_length_trousers_nothing_of_a_shoe_shows_beside_the_leg():
     assert left[0] == pytest.approx(xo, abs=0.1) and left[2] == pytest.approx(xi - xo, abs=0.1)
     assert left[1] + left[3] == pytest.approx(hy, abs=0.1) and right[0] == pytest.approx(2 * CX - xi, abs=0.1)
     assert 'clip-path="url(#qk)"' in svg
-    # shorts leave the shoes whole
+    # shorts leave the shoes whole, and so does a leg resting on top of the shaft: the boot is outside it
     assert "qk" not in figure(dict(base=TEE, bottom=SHORTS, shoes=BOOTS), uid="q")
+    assert "qk" not in figure(dict(base=TEE, bottom=TROUSERS, shoes=BOOTS), uid="q")
 
 
 @pytest.mark.parametrize("style,extra", [
@@ -668,10 +674,15 @@ def test_no_skin_shows_where_a_garment_covers_it(top, bottom):
             assert _clear(p, cover, margin) or any(_clear(p, s, margin) for s in tubes), (p, "arm")
     trousers = _flat(b.shape.outline, b.transforms[0])
     hem = b.point(b.shape.anchors["hem"])[1]
+    # a hem dropping over the shoe is held up in front of it: under it is the shoe (its opening, ankle and all,
+    # still under the trousers), drawn over the legs, its outline as wide as theirs
+    s = layout.get("shoes")
+    shoes = [_flat(s.front.outline, s.transforms[i]) for i in range(2)]
     for leg in body.legs:   # full-length trousers cover the legs down to the hem
         for p in _flat(leg):
             if p[1] < hem - margin:
-                assert _clear(p, trousers, margin) or _clear(p, cover, margin), (p, "leg")
+                assert (_clear(p, trousers, margin) or _clear(p, cover, margin)
+                        or any(_inside(p, shoe) for shoe in shoes)), (p, "leg")
     for p in _flat(body.torso):   # the torso below the collar: under the top, or under the trousers below it
         if p[1] > fig.NECK_Y + 6 * K_PX:
             assert _clear(p, cover, margin) or _clear(p, trousers, margin), (p, "torso")
@@ -977,11 +988,13 @@ def test_front_shoes_draw_a_toggle_and_its_two_cord_ends():
 
 @pytest.mark.parametrize("shoes", LOW_SHOES, ids=lambda p: p.answer["details"]["shoe_style"])
 @pytest.mark.parametrize("socks", [None, "no_show", "casual_crew"])
-def test_the_back_of_a_low_shoes_collar_is_behind_the_ankle(shoes, socks):
+@pytest.mark.parametrize("bottom", [SHORTS, Piece("trousers", answer("trousers", leg_shape="slim", trouser_break="cropped"),
+                                                   "#6f7278")], ids=["shorts", "cropped"])
+def test_the_back_of_a_low_shoes_collar_is_behind_the_ankle(shoes, socks, bottom):
     """Seen from the front and a little above, the top of a low shoe's heel counter stands up behind the ankle: it
     is drawn first, the ankle (or sock) over it, and only the collar's sides show beside the ankle."""
     accessories = [small("socks", socks)] if socks else []
-    spec = plan(dict(base=TEE, bottom=SHORTS, shoes=shoes, accessories=accessories)).get("shoes").spec
+    spec = plan(dict(base=TEE, bottom=bottom, shoes=shoes, accessories=accessories)).get("shoes").spec
     drawn = fig.front_shoe(spec, K_PX, uid="z", ankle=fig._ankle(), toes=fig.TOE_LINE)
     body = drawn.body
     upper, ankle = body.index(f'fill="{spec.fill.color}"'), body.index('clip-path="url(#za)"')
@@ -1358,3 +1371,89 @@ def test_as_worn_tells_fit_length_and_sleeves_and_leaves_out_what_was_not_told()
     assert fig.as_worn(Piece("shorts", answer("shorts", inseam=7), "#6f7550")) == [
         {"part": "length", "value": "short", "field": "inseam"}]
     assert fig.as_worn(SNEAKERS) == [] and fig.as_worn(Piece("hat", None, "#222222")) == []
+
+
+HEM_SHOES = {
+    "low sneaker": Piece("sneakers", answer("sneakers", shoe_style="low_sneaker"), "#e8edf0"),
+    "dress shoe": Piece("dress_shoes", answer("dress_shoes", shoe_style="derby"), "#5a3a22"),
+    "chukka": Piece("boots", answer("boots", shoe_style="boot", footwear="chukka"), "#a07850"),
+    "work boot": Piece("boots", answer("boots", shoe_style="boot", footwear="service_boot", footwear_height="boot_6in"),
+                       "#6b4a32"),
+    "chelsea": Piece("boots", answer("boots", shoe_style="chelsea_boot"), "#2a2420"),
+}
+HEM_BOOTS = ["chukka", "work boot", "chelsea"]
+
+
+def _legged(leg: str, brk: str) -> Piece:
+    return Piece("trousers", answer("trousers", {"pant_length": "ankle" if brk == "cropped" else "full"},
+                                    leg_shape=leg, trouser_break=brk), "#6f7278")
+
+
+def _shoe_seen(layout) -> float:
+    """The share of the left shoe's front outline not covered by the trousers."""
+    shoes, b = layout.get("shoes"), layout.get("bottom")
+    outline, legs = [shoes.point(q) for q in _flat(shoes.front.outline)], _flat(b.shape.outline, b.transforms[0])
+    xs, ys = [x for x, _ in outline], [y for _, y in outline]
+    grid = [(min(xs) + (max(xs) - min(xs)) * i / 39, min(ys) + (max(ys) - min(ys)) * j / 39) for i in range(40) for j in range(40)]
+    on = [p for p in grid if _inside(p, outline)]
+    return sum(not _inside(p, legs) for p in on) / len(on)
+
+
+@pytest.mark.parametrize("shoe", list(HEM_SHOES))
+@pytest.mark.parametrize("leg", ["skinny", "slim", "straight", "relaxed"])
+@pytest.mark.parametrize("brk", ["full", "slight", "no_break"])
+def test_a_leg_narrower_than_the_shoe_rests_on_it_and_most_of_the_shoe_shows(shoe, leg, brk):
+    """In 3D a trouser's front edge sits just in front of the shoe's opening: the toe box, most of the vamp and the
+    sole show; and the opening itself is under the hem, nothing of its lining seen."""
+    layout = plan(dict(base=TEE, bottom=_legged(leg, brk), shoes=HEM_SHOES[shoe]))
+    assert _shoe_seen(layout) > 0.74
+    shoes, b = layout.get("shoes"), layout.get("bottom")
+    legs = _flat(b.shape.outline, b.transforms[0])
+    for copy in range(2):
+        assert all(_inside(shoes.point(q, copy), legs) for q in _flat(shoes.front.rim))
+
+
+@pytest.mark.parametrize("shoe", list(HEM_SHOES))
+@pytest.mark.parametrize("leg", ["wide", "bootcut"])
+def test_a_wide_leg_drops_over_the_shoe_but_not_past_the_vamp(shoe, leg):
+    layout = plan(dict(base=TEE, bottom=_legged(leg, "full"), shoes=HEM_SHOES[shoe]))
+    shoes, b = layout.get("shoes"), layout.get("bottom")
+    front = shoes.front.anchors
+    x, rim = shoes.point(front["opening"])
+    edge = [p for p in _flat(b.shape.outline, b.transforms[0]) if p[1] > rim - 10 * K_PX]
+    assert max(y for _, y in edge) < shoes.point(front["toe"])[1] - 3 * K_PX   # the toe box and the sole's front show
+    in_front = max(y for px, y in edge if abs(px - x) < 1.5 * K_PX)   # in front of the opening: behind the vamp
+    assert in_front <= max(rim, shoes.point(front["instep"])[1]) + 1.4 * K_PX
+    assert _shoe_seen(layout) > 0.5
+
+
+@pytest.mark.parametrize("shoe", HEM_BOOTS)
+@pytest.mark.parametrize("leg", ["skinny", "slim", "straight"])
+@pytest.mark.parametrize("brk", ["full", "slight", "no_break"])
+def test_a_slim_leg_never_drops_over_a_boots_shaft(shoe, leg, brk):
+    """The ankle of a boot is thick: a slim leg sits on top of the shaft, bunching out to cover it, and the shaft
+    shows below it whole (not clipped beside the leg)."""
+    pieces = dict(base=TEE, bottom=_legged(leg, brk), shoes=HEM_SHOES[shoe])
+    layout = plan(pieces)
+    shoes, b = layout.get("shoes"), layout.get("bottom")
+    assert fig._on_shoe(b.spec.params, shoes.front) == "on"
+    rim = shoes.point(shoes.front.anchors["opening"])[1]
+    assert b.point(b.shape.anchors["hem"])[1] <= rim + max(fig.HEM_FRONT_CM.values()) * K_PX + 0.1
+    assert max(b.point(b.shape.anchors[k])[1] for k in ("hem_out", "hem_in")) < rim + 0.5 * K_PX   # not down its sides
+    (xo, _), (xi, _) = b.point(b.shape.anchors["hem_out"]), b.point(b.shape.anchors["hem_in"])
+    assert abs(xi - xo) >= shoes.front.width * K_PX   # as wide as the shaft it rests on
+    assert "uk" not in figure(pieces, uid="u")
+
+
+@pytest.mark.parametrize("shoe", list(HEM_SHOES))
+@pytest.mark.parametrize("leg", ["skinny", "slim", "straight", "relaxed", "wide", "bootcut"])
+def test_cropped_trousers_leave_a_gap_above_the_shoe(shoe, leg):
+    socks = small("socks", "casual_crew", "#2e7d4f")
+    layout = plan(dict(base=TEE, bottom=_legged(leg, "cropped"), shoes=HEM_SHOES[shoe], accessories=[socks]))
+    shoes, b = layout.get("shoes"), layout.get("bottom")
+    back = shoes.point(shoes.front.anchors["opening_back"])[1]
+    assert max(b.point(b.shape.anchors[k])[1] for k in ("hem", "hem_out", "hem_in")) <= back - fig.CROP_GAP_CM * K_PX + 0.1
+    assert not fig._legs(layout)[2]   # so the sock is drawn, in the gap
+    assert 'fill="#2e7d4f"' in figure(dict(base=TEE, bottom=_legged(leg, "cropped"), shoes=HEM_SHOES[shoe],
+                                           accessories=[socks]))
+

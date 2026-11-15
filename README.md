@@ -513,8 +513,9 @@ model, plus how much free space the disk has left.
 In **Settings → Your closet → Backups**, choose a folder (a cloud-synced folder is ideal).
 Closet backs up there once a day while it is running, catches up at the next
 start if the computer was off, and shows the date of the last good backup. It
-keeps the 14 most recent database snapshots and one copy of every image. The
-settings file with your passphrase is not included.
+keeps the 14 most recent database snapshots, each with the photos and cutouts
+it had; a picture that did not change is stored only once. The settings file
+with your passphrase is not included.
 
 ### Restore
 
@@ -527,6 +528,11 @@ Closet.exe restore "D:\path\to\your backup folder"
 (On a Mac: `Closet.app/Contents/MacOS/Closet restore "/path/to/folder"`.) The
 closet that was there before is moved aside into a `replaced-…` folder, not
 deleted.
+
+If the computer loses power or Closet is stopped while a restore is putting
+files in place, the next start finishes the restore, or puts your closet back as
+it was before it, never half of each. A message at the top of the screen says
+which, until you press **OK**.
 
 ### Forgotten passphrase
 

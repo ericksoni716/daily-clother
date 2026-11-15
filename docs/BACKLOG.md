@@ -11,6 +11,7 @@ owner; see `DECISIONS.md`, "How the work is organised").
 
 ## In progress (Copilot agents)
 
+- [x] #218 Backups: a restore cut short (a power cut, a forced quit) is finished or undone at the next start, from a journal of its moves, and the owner is told once. Backup images are kept by content, so restoring an older snapshot gives back its own cutouts; old backups still restore.
 - [x] #199 Adversarial review of planning: fixed hot-day packing with unlimited re-wear, missed feels-like forecast changes, malformed trip weather, removal during price checks, partial rejected wishlist edits, API-disable races, and situation claims using unsuitable partners or requiring shoes indoors. Each fix has a regression that failed first.
 
 Wave 1 (landed):

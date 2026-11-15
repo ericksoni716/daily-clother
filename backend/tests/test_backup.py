@@ -301,7 +301,7 @@ def test_restoring_an_older_snapshot_gives_its_own_cutout(client, services, cfg,
     assert _closet_now(cfg) == newer
 
 
-def test_an_unchanged_closet_adds_no_images_to_the_backup(client, services, cfg, tmp_path, monkeypatch):
+def test_an_unchanged_closet_adds_no_images_and_a_damaged_copy_is_made_again(client, services, cfg, tmp_path, monkeypatch):
     folder = tmp_path / "Synced"
     folder.mkdir()
     services.worker.is_ready = lambda: True
@@ -314,6 +314,11 @@ def test_an_unchanged_closet_adds_no_images_to_the_backup(client, services, cfg,
     monkeypatch.setattr(backup, "_stamp", lambda: "20260102-010101")
     assert backup.run_backup(cfg, services.state, folder=folder)["images_copied"] == 0
     assert sorted(p.name for p in root.rglob("*") if p.is_file() and "db" not in p.parts) == stored
+    blob = next(p for p in (root / backup.CONTENT).rglob("*") if p.is_file())
+    blob.write_bytes(b"")   # a copy cut short, as an unplugged drive can leave it
+    monkeypatch.setattr(backup, "_stamp", lambda: "20260103-010101")
+    assert backup.run_backup(cfg, services.state, folder=folder)["images_copied"] == 1
+    assert hashlib.sha256(blob.read_bytes()).hexdigest() == blob.name
 
 
 def test_an_old_layout_backup_still_restores_its_own_images(client, services, cfg, tmp_path, monkeypatch):

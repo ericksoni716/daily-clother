@@ -148,6 +148,14 @@ def _one_backup_at_a_time(cfg: Config) -> Iterator[None]:
                     fcntl.flock(f, fcntl.LOCK_UN)
 
 
+def _stored(blob: Path, size: int) -> bool:
+    """Whether the backup has this image already. A copy cut short (a drive unplugged, a power cut) is copied again."""
+    try:
+        return blob.stat().st_size == size
+    except OSError:
+        return False
+
+
 def _store_images(src_images: Path, root: Path, staged: Path) -> tuple[dict[str, str], int]:
     """Adds the closet's images that the backup does not have yet to its store. Returns {image: SHA-256}, and how
     many were copied."""
@@ -159,12 +167,13 @@ def _store_images(src_images: Path, root: Path, staged: Path) -> tuple[dict[str,
         if not f.is_file() or f.suffix == ".part":
             continue
         digest = _sha256(f)
-        if not _blob(root, digest).is_file():
+        if not _stored(_blob(root, digest), f.stat().st_size):
             part = staged / "image.part"
             shutil.copy2(f, part)
+            _flush(part)
             digest = _sha256(part)   # what was copied, should the image have changed meanwhile
             blob = _blob(root, digest)
-            if not blob.is_file():
+            if not _stored(blob, part.stat().st_size):
                 blob.parent.mkdir(parents=True, exist_ok=True)
                 part.replace(blob)
                 copied += 1

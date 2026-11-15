@@ -4,10 +4,11 @@ Claude is never called: `FakeClaude` (conftest) reads the sentences it knows and
 """
 import json
 import sqlite3
+from contextlib import closing
 
 import pytest
 
-from closet import db, details, illustrations, tagjobs
+from closet import corrections, db, details, illustrations, items, tagjobs
 from closet.config import bundle_dir
 from closet.tagger.schema import ItemTags
 
@@ -54,6 +55,75 @@ def history(client, item_id):
     r = client.get(f"/api/items/{item_id}/history")
     assert r.status_code == 200
     return r.json()
+
+
+class BeforeBegin:
+    """Complete another writer immediately before this connection takes its lock."""
+
+    def __init__(self, conn, other):
+        self.conn, self.other = conn, other
+
+    def __getattr__(self, name):
+        return getattr(self.conn, name)
+
+    def execute(self, sql, *args):
+        if sql == "BEGIN IMMEDIATE" and self.other:
+            other, self.other = self.other, None
+            other()
+        return self.conn.execute(sql, *args)
+
+
+def test_patch_preserves_concurrent_detail(client, services, claude, cfg):
+    item_id = described(client, services, claude)["id"]
+    with closing(db.connect(cfg.db_path("main"))) as a, closing(db.connect(cfg.db_path("main"))) as b:
+        corrections.apply(a, item_id, {"sleeve_length": "three_quarter", "placket_buttons": 1})
+        delayed = BeforeBegin(a, lambda: corrections.apply(b, item_id, {"collar": "band"}))
+        result = items.update(delayed, item_id, {"silhouette": {"sleeve": "long"}})
+        assert result["own_details"] == {"collar": "band", "placket_buttons": 1}
+
+
+def test_patch_preserves_concurrent_owner_color(client, services, claude, cfg):
+    item_id = described(client, services, claude)["id"]
+    with closing(db.connect(cfg.db_path("main"))) as a, closing(db.connect(cfg.db_path("main"))) as b:
+        delayed = BeforeBegin(a, lambda: items.update(b, item_id, {"color": "green"}))
+        result = items.update(delayed, item_id, {"notes": "A note"})
+        assert result["source"]["color"] == "user"
+        assert result["color"] == "green"
+    assert client.post(f"/api/items/{item_id}/retag").status_code == 202
+    assert services.tag_worker.drain() == 1
+    assert client.get(f"/api/items/{item_id}").json()["color"] == "green"
+
+
+def test_confirm_checks_current_value_under_lock(client, services, claude, cfg):
+    item_id = described(client, services, claude)["id"]
+    with closing(db.connect(cfg.db_path("main"))) as a, closing(db.connect(cfg.db_path("main"))) as b:
+        delayed = BeforeBegin(a, lambda: corrections.apply(b, item_id, {"placket_buttons": 4}))
+        with pytest.raises(items.ItemError) as exc:
+            corrections.confirm(delayed, item_id, "two buttons",
+                                [{"name": "placket_buttons", "before": 3, "value": 2}])
+        assert exc.value.status == 409
+        assert json.loads(items.get(a, item_id)["own_details"])["placket_buttons"] == 4
+        assert not a.in_transaction
+
+
+def test_undo_pattern_keeps_a_demo_items_stored_pattern(client, cfg):
+    assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
+    item = next(i for i in client.get("/api/items").json()["items"]
+                if i["pattern"] == "stripe" and not i["has_photo"])
+    url = f"/api/items/{item['id']}"
+    before = client.get(url).json()
+    with closing(db.connect(cfg.db_path("demo"))) as conn:
+        fill = items.get(conn, item["id"])["pattern_fill"]
+    assert fill
+    assert client.patch(url, json={"pattern": "solid"}).status_code == 200
+    change_id = history(client, item["id"])[0]["id"]
+    undone = client.post(f"{url}/history/{change_id}/undo")
+    assert undone.status_code == 200
+    assert undone.json()["item"]["illustration_svg"] == before["illustration_svg"]
+    assert undone.json()["item"]["pattern_state"] == before["pattern_state"]
+    assert client.put(url + "/details", json={"details": {"fit_detail": "relaxed"}}).status_code == 200
+    with closing(db.connect(cfg.db_path("demo"))) as conn:
+        assert items.get(conn, item["id"])["pattern_fill"] == fill
 
 
 # ---- by picking

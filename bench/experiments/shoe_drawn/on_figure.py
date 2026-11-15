@@ -6,8 +6,12 @@ the view by; not app code, nothing imports it).
 The examples are drawn in the experiment's frame (x 0 to 200 centred on 100, ground at y = 240, the leg x 62 to 138
 going in at about y = 40 to 60), from the front and a little above. The figure looks down 24 degrees with the toes
 turned out 11 degrees. Each drawing is laid on the figure's own feet: its ground on the figure's ground, its leg on
-the figure's leg (so the frame is scaled until its leg is as wide as the figure's ankle), turned out 11 degrees
-round the opening, the viewer's right foot mirrored unless there is a right drawing. Everything else (the figure,
+the figure's leg (so the frame is scaled until its leg is as wide as the figure's ankle), its lines as thick as the
+figure's, the viewer's right foot mirrored unless there is a right drawing. Drawn twice: toes straight ahead, and
+toes turned out as far as today's shoes are. A turned foot keeps the top of the shoe round the leg: only the part
+below the opening is slid sideways, more the nearer the toe (a shear hinged at the opening), so the collar or a
+boot's shaft stays upright round the leg. (Tilting the whole drawing, the first try, leant a boot's shaft away from
+the leg.) Everything else (the figure,
 the trousers, where their hem falls) is the app's own drawing, unchanged: the hem is still placed for today's shoe.
 
 Writes on-figure-closeup.png (the feet, large), on-figure-phone.png (whole figures at phone size) and the SVGs
@@ -33,8 +37,7 @@ from closet.drawing.figure import Piece, figure, plan  # noqa: E402
 EX = HERE / "EXAMPLES"
 FRAME_LEG = (62.0, 138.0)   # the frame's leg, left and right edge
 FRAME_GROUND = 240.0
-FRAME_OPENING = (100.0, 50.0)   # where the leg goes in: the turn is made round it
-TURN = 11.0
+HINGE_Y = 60.0   # the frame's opening: above it the shoe stays upright round the leg, below it the toe swings out
 
 # name, the example's left (and right) drawing, and today's drawing for the same shoe (category, style, colour, details)
 SHOES = [
@@ -70,29 +73,43 @@ def fragment(name: str, uid: str, line: float = 1.0) -> str:
     return text.replace('id="', f'id="{uid}').replace("url(#", f"url(#{uid}").replace('href="#', f'href="#{uid}')
 
 
-def drawn_pair(pieces: dict, left: str, right: str | None, uid: str, line: float = 1.0) -> tuple[str, dict]:
-    """The example drawing placed on each of the figure's feet, and the numbers it was placed by."""
+def turned(body: str, uid: str, shear: float) -> str:
+    """The drawing with its toe swung out: above the hinge as it is, below it slid sideways by `shear` units for each
+    unit below the hinge. The two halves meet at the hinge, where the slide is nothing."""
+    if not shear:
+        return body
+    y0 = HINGE_Y
+    lower = body.replace('id="', 'id="h')   # the second copy's ids kept apart from the first's
+    return (f'<clipPath id="{uid}hu"><rect x="-1000" y="-1000" width="3000" height="{1000 + y0 + 0.6}"/></clipPath>'
+            f'<clipPath id="{uid}hd"><rect x="-1000" y="{y0}" width="3000" height="2000"/></clipPath>'
+            f'<g clip-path="url(#{uid}hu)">{body}</g>'
+            f'<g clip-path="url(#{uid}hd)"><g transform="matrix(1 0 {shear:.4f} 1 {-shear * y0:.3f} 0)">'
+            f'{lower}</g></g>')
+
+
+def drawn_pair(pieces: dict, left: str, right: str | None, uid: str, turn: bool, line: float = TODAY_LINE
+               ) -> tuple[str, dict]:
+    """The example drawing placed on each of the figure's feet, and the numbers it was placed by. With `turn`, the
+    toe swings out as far as today's shoe's does: the slope from its ankle to its toe tip."""
     shoes = plan(pieces).get("shoes")
     a = shoes.front.anchors
     leg_w = 2 * (a["ankle_r"][0] - a["ankle"][0])
     k = leg_w / (FRAME_LEG[1] - FRAME_LEG[0])
     ground = shoes.box()[3] - 2          # today's sole's lowest point (its box has 2 px to spare)
-    ox, oy = FRAME_OPENING
+    shear = (a["toe"][0] - a["ankle"][0]) / (a["toe"][1] - a["ankle"][1]) if turn else 0.0
     out = []
     for copy in (0, 1):
-        ax, ay = shoes.point(a["ankle"], copy)
+        ax, _ = shoes.point(a["ankle"], copy)
         if copy == 0 or right is None:
-            mirror = 1 if copy == 0 else -1
-            body = fragment(left, f"{uid}{copy}", line)
-            turn = TURN
-        else:
-            mirror, body, turn = 1, fragment(right, f"{uid}{copy}", line), -TURN
+            mirror, body = (1 if copy == 0 else -1), fragment(left, f"{uid}{copy}", line)
+            sh = shear
+        else:   # the right shoe drawn on its own: not mirrored, so its toe swings the other way
+            mirror, body, sh = 1, fragment(right, f"{uid}{copy}", line), -shear
         # frame -> figure: the frame's leg centre over the figure's ankle, its ground on the figure's ground
         place = f"translate({ax:.2f} {ground:.2f}) scale({mirror * k:.4f} {k:.4f}) translate({-100:.1f} {-FRAME_GROUND:.1f})"
-        out.append(f'<g transform="{place}"><g transform="rotate({turn} {ox} {oy})">{body}</g></g>')
-    top = ground + k * (oy - FRAME_GROUND)
-    info = {"scale": k, "leg_px": leg_w, "ground": ground, "opening_y": top, "leg_ends": shoes.point(a["ankle"])[1],
-            "today_box": shoes.box()}
+        out.append(f'<g transform="{place}">{turned(body, f"{uid}{copy}", sh)}</g>')
+    info = {"scale": k, "leg_px": leg_w, "ground": ground, "opening_y": ground + k * (HINGE_Y - FRAME_GROUND),
+            "leg_ends": shoes.point(a["ankle"])[1], "today_box": shoes.box(), "shear": shear}
     return "".join(out), info
 
 
@@ -130,10 +147,10 @@ def main() -> None:
     args.out.mkdir(parents=True, exist_ok=True)
 
     # the feet, close up: for each shoe, today's drawing, the example laid on as drawn, and with today's line weight
-    FW, FH, ZOOM = 120, 122, 2.4        # the feet's box in figure units, and how much larger it is drawn
+    FW, FH, ZOOM = 140, 122, 2.2        # the feet's box in figure units, and how much larger it is drawn
     cw, ch = FW * ZOOM, FH * ZOOM
     lab, gap, head = 190, 12, 70
-    kinds = [("today", None), ("example laid on", 1.0), ("same, today's line weight", TODAY_LINE)]
+    kinds = [("today", None), ("toes straight ahead", False), ("toes turned out", True)]
     cols = len(SHOES) * len(kinds)
     W, H = lab + cols * (cw + gap) + len(SHOES) * 16, head + len(CASES) * (ch + gap)
     cells, notes, phone = [], [], {}
@@ -152,7 +169,7 @@ def main() -> None:
                 uid = f"u{j}{i}{n}"
                 svg = figure(pieces, uid=uid)
                 if line is not None:
-                    pair, info = drawn_pair(pieces, left, right, f"d{j}{i}{n}", line)
+                    pair, info = drawn_pair(pieces, left, right, f"d{j}{i}{n}", turn=line)
                     svg = swap_shoes(svg, uid, pair)
                 box = (200 - FW / 2, info["ground"] - FH + 8, FW, FH) if line is not None else None
                 phone.setdefault((name, case), []).append((kind, svg))
@@ -166,7 +183,7 @@ def main() -> None:
             if case == "shorts":
                 tb = info["today_box"]
                 notes.append(f"{name}: scale {info['scale']:.3f} px a frame unit (leg {info['leg_px']:.1f} px); "
-                             f"opening at y {info['opening_y']:.1f}, leg ends at y {info['leg_ends']:.1f}; "
+                             f"toe slides {info['shear']:.3f} a unit; opening at y {info['opening_y']:.1f}, leg ends at y {info['leg_ends']:.1f}; "
                              f"today's pair {tb[2] - tb[0] - 4:.0f} x {tb[3] - tb[1] - 4:.0f} px")
     sheet = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">'
              f'<rect width="{W}" height="{H}" fill="#ffffff"/>{"".join(cells)}</svg>')
@@ -188,7 +205,7 @@ def main() -> None:
                 x = x0 + n * (pw + 6)
                 pcells.append(cell(svg, view_box(svg), x, y, pw, ph))
                 if r == 1:
-                    pcells.append(text(x + pw / 2, y + ph + 16, ["today", "example", "+ line"][n], 11))
+                    pcells.append(text(x + pw / 2, y + ph + 16, ["today", "straight", "turned out"][n], 11))
     PW, PH = 10 + len(SHOES) * (len(kinds) * (pw + 6) + 24), 30 + 2 * (ph + 30)
     psheet = (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {PW:.0f} {PH:.0f}" width="{PW:.0f}" '
               f'height="{PH:.0f}"><rect width="{PW:.0f}" height="{PH:.0f}" fill="#fbfaf7"/>{"".join(pcells)}</svg>')

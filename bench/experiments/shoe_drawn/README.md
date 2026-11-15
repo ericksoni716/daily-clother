@@ -59,13 +59,14 @@ Instead of tracing or measuring a shoe, a vision model (Claude) does what a pers
 
 - **On the app's figure** (`on_figure.py`; sheets `docs/screenshots/shoe-drawn-on-figure-closeup.png` and
   `-phone.png`): the saved runner, boot, dress shoe and boat shoe laid on the app's own figure in place of today's
-  shoes: on the figure's ground, sized so the leg fills the opening, turned out 11°, the runner's left and right
-  drawn separately, the trousers' hem left where it falls for today's shoe. The leg goes in at the opening on all
-  four, under shorts with a crew sock and under full-length and ankle-length trousers. Beside today's shoes the
-  drawings are about a quarter wider (59 px against about 46) and a little lower, because they are drawn from
-  nearly level and the frame's leg is narrow for its shoe (4.5 cm against the figure's 6.8 cm); their outline is
-  about half as thick as the figure's (1.2 px against 2.2), which the sheets' third column corrects. With the
-  owner to judge whether the view fits.
+  shoes: on the figure's ground, sized so the leg fills the opening, lines as thick as the figure's, the runner's
+  left and right drawn separately, the trousers' hem left where it falls for today's shoe; once with the toes
+  straight ahead and once turned out as far as today's. The first try tilted the whole drawing 11° to turn the toes
+  out, and the owner saw that the boot's shaft then leant away from the leg and sock. Now only the part below the
+  opening slides sideways, more towards the toe, so the collar or shaft stays upright round the leg. Beside today's
+  shoes the drawings are about a quarter wider (59 px against about 46) and a little lower, because they are drawn
+  from nearly level and the frame's leg is narrow for its shoe (4.5 cm against the figure's 6.8 cm), and they show
+  the toe end where today's show the top of the shoe. With the owner to judge.
 
 **Still open:** the runner's toe rubber was corrected from a one-line note in one round and is with the owner to judge. The method has only been
 tuned and judged on these five pairs, so it must next be run unchanged on pairs it has not seen. The drawings are

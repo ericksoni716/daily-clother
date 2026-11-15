@@ -299,6 +299,32 @@ def test_a_rain_day_keeps_the_rain_rules_and_does_not_change_rewear():
     assert {b["key"] for b in result["basics"]} >= {"umbrella"}
 
 
+@pytest.mark.parametrize("weather", [{"high_c": 28}, {"feels_high_c": 26}])
+@pytest.mark.parametrize("laundry, count", [(None, 4), ({"day": 2}, 3)])
+def test_whole_trip_rewear_still_needs_fresh_tops_on_hot_days(weather, laundry, count):
+    result = trips.plan(shirt_closet(6, "tee"), mild(4, **weather), {"laundry": laundry},
+                        {"tops": None, "bottoms": None})
+    assert result["uncovered"] == []
+    assert len(packed_of(result, "tee")) == count
+    assert len(packed_of(result, "trousers")) == 1
+    assert next(c["words"] for c in result["counts"] if c["kind"] == "tops").startswith(
+        f"{count} tees: one a day, as every day is hot or humid")
+    if laundry:
+        assert "tees" in result["washes"][0]["words"]
+
+
+def test_whole_trip_rewear_keeps_cool_days_but_not_a_sweaty_top():
+    closet = shirt_closet(6, "tee")
+    assert len(packed_of(trips.plan(closet, mild(4), rewear={"tops": None}), "tee")) == 1
+    mixed = mild(4)
+    mixed[1]["feels_high_c"] = 26
+    result = trips.plan(closet, mixed, rewear={"tops": None})
+    assert result["uncovered"] == []
+    assert len(packed_of(result, "tee")) == 2
+    hot_tee = next(x for x in core_worn(result["days"][1]) if x.startswith("tee"))
+    assert sum(hot_tee in core_worn(d) for d in result["days"]) == 1
+
+
 def test_jackets_and_coats_cover_the_whole_trip():
     result = trips.plan(demo_items(), days(10, lows=(2, 4)), rewear={"tops": 30, "knits": 30, "bottoms": 30})
     assert result["uncovered"] == []

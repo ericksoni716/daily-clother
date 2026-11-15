@@ -51,7 +51,7 @@ GROUNDS = {"white on white sneaker": {"ground": (230, 230, 228), "shade_edge": 1
 THEMES = {"light": ("#fbfaf7", "#26231f"), "dark": ("#1b1916", "#eeeae3")}
 SIDE_W, SIDE_H = 120, 60        # the side trace's cell, in figure units
 SHOE_W, SHOE_H = 60, 46         # a front shoe's cell
-FEET_W, FEET_H = 110, 80        # the feet on the figure
+FEET_W, FEET_H = 130, 110       # the feet on the figure
 LABEL_W = 120
 
 

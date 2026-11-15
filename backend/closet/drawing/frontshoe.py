@@ -946,13 +946,14 @@ class _Traced:
                     out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{0.32 * view.px:.1f}" fill="{ec}" stroke="{INK}" stroke-width=".5"/>')
         if self.laces:
             lace = self.laces.color
-            n = self.laces.count if self.laces.count >= LACES_MIN else (self.eyelets.count - 1 if self.eyelets else 3)
-            n = max(1, min(9, n))
+            # too few laces counted (hidden in the photo's shade, say): one crossing for each pair of eyelets seen
+            n = self.laces.count if self.laces.count >= LACES_MIN else (self.eyelets.count // 2 if self.eyelets else 3)
+            n = max(1, min(7, n))
             wide = 0.5 if self.style in TRAINERS else 0.42
             for i in range(n):
                 u = lo + (hi - lo) * (i + 0.5) / n if n > 1 else (lo + hi) / 2
                 d = _path(across(u, wide, 0.25), close=False)
-                out.append(ln(d, 3.8, INK, 0.9) + ln(d, 1.5, lace, 1))
+                out.append(ln(d, 2.8, INK, 0.9) + ln(d, 1.5, lace, 1))
             if self.shaft:   # a boot laces on up its shaft
                 for i in range(3):
                     h = sole_t + 8.5 + i * (self.shaft - sole_t - 10) / 2

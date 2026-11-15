@@ -1,6 +1,7 @@
 """Making sure only one copy of the program runs, and choosing its port."""
 from __future__ import annotations
 
+import errno
 import hmac
 import json
 import os
@@ -10,11 +11,38 @@ import signal
 import socket
 import time
 import urllib.request
+from contextlib import contextmanager
 
 from .config import Config
 
 # the header a newer copy sends to ask this one to quit; its value is the token in the lock file
 QUIT_HEADER = "X-Closet-Instance-Token"
+
+
+@contextmanager
+def startup_lock(cfg: Config, timeout: float = 60):
+    """Serialize launches until the first copy can answer. Closing (or crashing) releases the OS lock."""
+    cfg.data_dir.mkdir(parents=True, exist_ok=True)
+    # Keep this file: unlinking it would let another launch lock a different file at the same path.
+    with open(cfg.lock_path.with_suffix(".startup"), "a+b") as guard:
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                if os.name == "nt":
+                    import msvcrt
+                    guard.seek(0)
+                    msvcrt.locking(guard.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(guard, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError as e:
+                if e.errno not in (errno.EACCES, errno.EAGAIN):
+                    raise
+                if time.monotonic() >= deadline:
+                    raise TimeoutError("Another copy of Closet is still starting. Try opening it again in a moment.")
+                time.sleep(0.05)
+        yield guard.close
 
 
 def running_info(cfg: Config) -> dict | None:

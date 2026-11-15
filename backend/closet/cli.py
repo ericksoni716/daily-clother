@@ -105,6 +105,15 @@ def _follow_start_at_login() -> None:
 
 
 def serve(args, cfg: config.Config) -> int:
+    try:
+        with instance.startup_lock(cfg) as release_startup:
+            return _serve(args, cfg, release_startup)
+    except TimeoutError as e:
+        _say(str(e))
+        return 2
+
+
+def _serve(args, cfg: config.Config, release_startup) -> int:
     import uvicorn
 
     from .app import build_services, create_app
@@ -186,6 +195,7 @@ def serve(args, cfg: config.Config) -> int:
         return 3
     instance.write_lock(cfg, port)
     services.start()
+    release_startup()
     log.info("%s %s serving on %s (data folder: %s)", APP_NAME, __version__, url, cfg.data_dir)
     if port != wanted:
         log.warning("port %s was busy; using %s. Phone access set up for the usual port will not reach this one.",

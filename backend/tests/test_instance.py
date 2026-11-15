@@ -151,3 +151,78 @@ def test_the_same_or_a_newer_copy_running_is_just_opened(cfg, newer, monkeypatch
 
 def test_started_at_login_never_waits_on_a_question():
     assert cli._ask("?", "yes", "no", headless=True) is None
+
+
+STARTING_COPY = textwrap.dedent("""
+    import os, sys
+    from pathlib import Path
+    from closet import app, cli
+    build = app.build_services
+    def paused_build(cfg):
+        marker = cfg.data_dir / ("building-" + sys.argv[1])
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.touch()
+        if sys.argv[1] == "first":
+            print("building", flush=True)
+            sys.stdin.readline()
+        else:
+            raise RuntimeError("a second copy entered startup")
+        return build(cfg)
+    app.build_services = paused_build
+    print("launching", flush=True)
+    raise SystemExit(cli.main(["--no-browser", "--no-tray"]))
+""")
+
+
+def test_simultaneous_launches_share_one_startup(cfg):
+    env = dict(os.environ, CLOSET_DATA_DIR=str(cfg.data_dir), CLOSET_NO_AUTO_DOWNLOAD="1")
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        env["CLOSET_PORT"] = str(s.getsockname()[1])
+    first = subprocess.Popen([sys.executable, "-c", STARTING_COPY, "first"], env=env,
+                             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    second = None
+    try:
+        assert first.stdout.readline().strip() == "launching"
+        assert first.stdout.readline().strip() == "building"
+        second = subprocess.Popen([sys.executable, "-c", STARTING_COPY, "second"], env=env,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        assert second.stdout.readline().strip() == "launching"
+        time.sleep(0.5)   # the first copy is still starting, not yet answering /api/health
+        first.stdin.write("\n")
+        first.stdin.flush()
+        out, err = second.communicate(timeout=30)
+        assert second.returncode == 0, (out, err)
+        assert "already running" in out
+        assert not (cfg.data_dir / "building-second").exists()
+        info = instance.running_info(cfg)
+        assert info and info["pid"] == first.pid
+    finally:
+        for proc in (first, second):
+            if proc is not None:
+                if proc.poll() is None:
+                    proc.terminate()
+                proc.communicate(timeout=30)
+
+
+def test_startup_lock_is_released_when_its_process_dies(cfg):
+    hold = textwrap.dedent("""
+        import sys
+        from pathlib import Path
+        from closet import instance
+        from closet.config import Config
+        with instance.startup_lock(Config(Path(sys.argv[1]))):
+            print("locked", flush=True)
+            sys.stdin.readline()
+    """)
+    proc = subprocess.Popen([sys.executable, "-c", hold, str(cfg.data_dir)],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    try:
+        assert proc.stdout.readline().strip() == "locked"
+        with pytest.raises(TimeoutError, match="still starting"), instance.startup_lock(cfg, timeout=0):
+            pytest.fail("another process holds the startup lock")
+    finally:
+        proc.kill()
+        proc.communicate(timeout=30)
+    with instance.startup_lock(cfg, timeout=0):
+        pass

@@ -57,7 +57,7 @@ Instead of tracing or measuring a shoe, a vision model (Claude) does what a pers
 - **Cost seen:** each drawing run took 70 to 170 seconds and about 80 to 95 thousand tokens on Opus, including up to
   three look-and-fix rounds; a correction about 35 seconds.
 
-**Still open:** a correction of the runner's toe rubber was running when this was written. The method has only been
+**Still open:** the runner's toe rubber was corrected from a one-line note in one round and is with the owner to judge. The method has only been
 tuned and judged on these five pairs, so it must next be run unchanged on pairs it has not seen. The drawings are
 straight from the front, about 15° above, tilted 7° by the preview; they are not yet at the figure's own view (24°
 down, toes out 11°) and not yet placed on the app's figure. The rest is in the backlog.

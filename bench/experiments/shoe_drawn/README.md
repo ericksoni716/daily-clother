@@ -60,13 +60,21 @@ Instead of tracing or measuring a shoe, a vision model (Claude) does what a pers
 - **On the app's figure** (`on_figure.py`; sheets `docs/screenshots/shoe-drawn-on-figure-closeup.png` and
   `-phone.png`): the saved runner, boot, dress shoe and boat shoe laid on the app's own figure in place of today's
   shoes: on the figure's ground, sized so the leg fills the opening, lines as thick as the figure's, the runner's
-  left and right drawn separately, the trousers' hem left where it falls for today's shoe; once with the toes
-  straight ahead and once turned out as far as today's. The first try tilted the whole drawing 11° to turn the toes
-  out, and the owner saw that the boot's shaft then leant away from the leg and sock. Now only the part below the
-  opening slides sideways, more towards the toe, so the collar or shaft stays upright round the leg. Beside today's
-  shoes the drawings are about a quarter wider (59 px against about 46) and a little lower, because they are drawn
-  from nearly level and the frame's leg is narrow for its shoe (4.5 cm against the figure's 6.8 cm), and they show
-  the toe end where today's show the top of the shoe. With the owner to judge.
+  left and right drawn separately, the toes turned out as far as today's.
+  - *The turn.* The first try tilted the whole drawing 11°, and the owner saw that the boot's shaft then leant away
+    from the leg and sock. Now only the part below a hinge (a low shoe's opening, a boot's instep) slides sideways,
+    more towards the toe, so the collar or shaft stays upright round the leg. The owner: toes turned out is fine.
+  - *The view and size.* The owner: the perspective is fine, and the proportions are much better than today's
+    shoes, which are tiny. The drawings are about a quarter wider than today's (59 px against about 46), because
+    the frame's leg is narrow for its shoe (4.5 cm against the figure's 6.8 cm).
+  - *The hem.* With the hem placed for today's shoe, the trousers covered too much of the dress shoe (its laces) and
+    of the boat shoe (owner). The sheets now stand the drawing's own opening in for today's shoe's, so a full-length
+    hem rests on the front of the drawing's opening, and the trousers keep their own length: as long as it takes
+    for their front to just meet an ordinary sneaker's collar (the frame's y = 50), so under a lower shoe the sock
+    shows. The figure's own length (5 cm above the ground) would bury a low shoe drawn at this size.
+  - *The boat shoe* was drawn too large (owner): too high for a low-profile shoe, and its proportions looked off
+    once turned out. The sheets show it as saved and 78% as tall and 92% as wide; only the lower one shows the sock
+    under full-length trousers, as a boat shoe should.
 
 **Still open:** the runner's toe rubber was corrected from a one-line note in one round and is with the owner to judge. The method has only been
 tuned and judged on these five pairs, so it must next be run unchanged on pairs it has not seen. The drawings are

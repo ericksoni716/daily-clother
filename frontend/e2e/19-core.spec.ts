@@ -47,3 +47,23 @@ test('a list requested before an edit cannot replace the saved item', async ({ p
     await page.request.patch(`/api/items/${original.id}`, { data: { name: original.name } });
   }
 });
+
+test('browser Back saves a text field without waiting for blur', async ({ page }) => {
+  await login(page);
+  await useProfile(page, 'demo');
+  await page.getByTestId('tile').filter({ hasText: 'Oatmeal henley' }).click();
+  const id = new URL(page.url()).pathname.split('/').at(-1)!;
+  const original = await (await page.request.get(`/api/items/${id}`)).json();
+  try {
+    await page.locator('.detail-panel').getByText('More details').click();
+    const notes = page.getByRole('textbox', { name: 'Notes', exact: true });
+    await notes.fill('Saved by browser Back');
+    await expect(notes).toBeFocused();
+    await page.goBack();
+    await expect(page.locator('.detail-panel')).toHaveCount(0);
+    await expect.poll(async () => (await (await page.request.get(`/api/items/${id}`)).json()).notes)
+      .toBe('Saved by browser Back');
+  } finally {
+    await page.request.patch(`/api/items/${id}`, { data: { notes: original.notes } });
+  }
+});

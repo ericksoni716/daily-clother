@@ -1,0 +1,229 @@
+<title>Shoe Line-up</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one narrow column, like the app on a phone; the feet are shown at the size the figure draws them. */
+:root {
+  --bg: #fbfaf7; --fg: #26231f; --muted: #6f685e; --card: #f1eee8; --line: #ddd7cc;
+  --accent: #2e7d4f; --accent-fg: #ffffff; --warn: #a2551c; --pick: #26231f;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #1b1916; --fg: #eeeae3; --muted: #a59d90; --card: #2a2722; --line: #3d3932;
+  --accent: #58b07c; --accent-fg: #10140f; --warn: #e0a06a; --pick: #eeeae3; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #1b1916; --fg: #eeeae3; --muted: #a59d90; --card: #2a2722; --line: #3d3932;
+  --accent: #58b07c; --accent-fg: #10140f; --warn: #e0a06a; --pick: #eeeae3; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font: 16px/1.5 var(--font); }
+main { max-width: 34rem; margin: 0 auto; padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 20px; }
+h1 { font-size: 1.5rem; line-height: 1.2; margin: 0; text-wrap: balance; }
+h2 { font-size: 1.1rem; margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.muted { color: var(--muted); font-size: .9rem; }
+section { display: flex; flex-direction: column; gap: 12px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.go { background: var(--accent); color: var(--accent-fg); border: 0; border-radius: 10px; padding: 12px 18px; font-weight: 600; align-self: flex-start; }
+.plain { background: none; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.stage { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 0 4px; }
+.stage img { width: 104px; height: 88px; border-radius: 6px; display: block; }
+.stage.big img { width: 260px; height: 220px; }
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.tiles button { background: var(--card); border: 2px solid transparent; border-radius: 10px; padding: 4px; display: flex; flex-direction: column; align-items: center; }
+.tiles button:active { border-color: var(--pick); }
+.tiles img, .look img { border-radius: 6px; display: block; }
+.tiles img { width: 100%; max-width: 168px; height: auto; }
+.tiles span { font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+progress { width: 100%; accent-color: var(--accent); }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.n { font-weight: 700; white-space: nowrap; }
+.verdict { border-left: 4px solid var(--accent); padding: 8px 12px; background: var(--card); border-radius: 0 8px 8px 0; }
+.verdict.no { border-color: var(--warn); }
+.stance { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.stance figure { margin: 0; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.stance img { width: 100%; max-width: 180px; height: auto; border-radius: 8px; }
+figcaption { font-size: .8rem; color: var(--muted); text-align: center; }
+textarea { width: 100%; box-sizing: border-box; min-height: 7.5rem; font: .85rem/1.4 ui-monospace, Menlo, Consolas, monospace;
+  background: var(--card); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.look { display: flex; flex-direction: column; gap: 18px; }
+.shoe { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
+.shoe .side { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; }
+.shoe .side img { width: 150px; height: auto; }
+.shoe figure { margin: 0; }
+.shoe figure img { width: 100%; height: auto; }
+</style>
+
+<main>
+  <header>
+    <h1>Which shoe is on the figure?</h1>
+  </header>
+
+  <section id="intro">
+    <p>Ten real pairs, drawn on the figure's feet three ways and shuffled. For each picture, tap the shoe you think it is. There are 30 pictures; it takes about four minutes.</p>
+    <p>The feet are shown at the size they are on your phone. Use the app's size first; the larger view is there if you want a second look.</p>
+    <p class="muted">You are not told which way each picture was drawn until the end.</p>
+    <div class="row">
+      <button class="go" id="start">Start</button>
+      <button class="plain" id="skip">Skip the test and just look</button>
+    </div>
+  </section>
+
+  <section id="test" hidden>
+    <progress id="bar" max="30" value="0"></progress>
+    <p class="muted" id="count"></p>
+    <div class="stage" id="stage"><img id="feet" alt="The figure's feet in one of the ten pairs"></div>
+    <div class="row" style="justify-content:center">
+      <button class="plain" id="zoom" aria-pressed="false">Larger</button>
+      <button class="plain" id="dunno">Can't tell</button>
+    </div>
+    <h2>Which shoe is it?</h2>
+    <div class="tiles" id="tiles"></div>
+  </section>
+
+  <section id="result" hidden>
+    <h2>Result</h2>
+    <table>
+      <thead><tr><th>How the feet were drawn</th><th>Matched</th></tr></thead>
+      <tbody id="scores"></tbody>
+    </table>
+    <p class="verdict" id="verdict"></p>
+
+    <h2>Does the right-hand stance look natural?</h2>
+    <div class="stance">
+      <figure><img src="assets/whole-11-trousers.png" alt="The figure with the toes turned out 11 degrees"><figcaption>Today: toes out 11°</figcaption></figure>
+      <figure><img src="assets/whole-20-trousers.png" alt="The figure with the toes turned out 20 degrees"><figcaption>Toes out 20°</figcaption></figure>
+    </div>
+    <div class="row">
+      <button class="plain" data-stance="natural">Looks natural</button>
+      <button class="plain" data-stance="odd">Looks odd</button>
+      <span class="muted" id="stanceSaid"></span>
+    </div>
+
+    <h2>Send this back</h2>
+    <p class="muted">Copy this and paste it into the chat.</p>
+    <textarea id="report" readonly></textarea>
+    <div class="row">
+      <button class="go" id="copy">Copy</button>
+      <button class="plain" id="again">Do the test again</button>
+      <span class="muted" id="copied"></span>
+    </div>
+  </section>
+
+  <section id="look" hidden>
+    <h2>Every pair, close up</h2>
+    <p class="muted">The side drawing, then the feet three ways at twice the app's size, and under trousers.</p>
+    <div class="look" id="pairs"></div>
+  </section>
+</main>
+
+<script>
+(function () {
+  var N = 10, KEY = "shoe-lineup-v1";
+  var WAYS = [
+    { id: "today", name: "Today's drawing (from the side photo only)" },
+    { id: "top", name: "A photo from above laid on the front" },
+    { id: "turn", name: "The same, toes turned out 20°" }
+  ];
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { order: [], answers: [], stance: "" };
+
+  function load() { try { var s = JSON.parse(localStorage.getItem(KEY)); if (s && s.order && s.order.length === 30) state = s; } catch (e) {} }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function fresh() {
+    var all = [];
+    WAYS.forEach(function (w) { for (var i = 0; i < N; i++) all.push([w.id, i]); });
+    state = { order: shuffle(all), answers: [], stance: "" };
+    save();
+  }
+  function show(id) { ["intro", "test", "result"].forEach(function (s) { $(s).hidden = s !== id; }); }
+
+  function tiles() {
+    var box = $("tiles"); box.innerHTML = "";
+    for (var i = 0; i < N; i++) (function (i) {
+      var b = document.createElement("button");
+      b.innerHTML = '<img src="assets/tile-' + i + '.png" alt="Shoe ' + (i + 1) + ', seen from the side"><span>Shoe ' + (i + 1) + '</span>';
+      b.addEventListener("click", function () { answer(i); });
+      box.appendChild(b);
+    })(i);
+  }
+  function next() {
+    var n = state.answers.length;
+    if (n >= state.order.length) { return finish(); }
+    show("test");
+    $("bar").value = n; $("count").textContent = "Picture " + (n + 1) + " of 30";
+    $("feet").src = "assets/feet-" + state.order[n][0] + "-" + state.order[n][1] + ".png";
+    window.scrollTo(0, 0);
+  }
+  function answer(i) { state.answers.push(i); save(); next(); }
+
+  function tally() {
+    var out = {};
+    WAYS.forEach(function (w) { out[w.id] = { right: 0, missed: [] }; });
+    state.order.forEach(function (o, n) {
+      var a = state.answers[n];
+      if (a === o[1]) out[o[0]].right++;
+      else out[o[0]].missed.push((o[1] + 1) + (a < 0 ? " (can't tell)" : " taken for " + (a + 1)));
+    });
+    return out;
+  }
+  function finish() {
+    show("result"); $("look").hidden = false;
+    var t = tally(), rows = "";
+    WAYS.forEach(function (w) { rows += "<tr><td>" + w.name + "</td><td class='n'>" + t[w.id].right + " of 10</td></tr>"; });
+    $("scores").innerHTML = rows;
+    var pass = t.top.right >= 8 && t.top.right - t.today.right >= 3;
+    var v = $("verdict");
+    v.className = "verdict" + (pass ? "" : " no");
+    v.textContent = pass
+      ? "Passes the mark: at least 8 of 10 from the photo laid on, and at least 3 more than today's drawing."
+      : "Below the mark (8 of 10 from the photo laid on, and 3 more than today's drawing).";
+    report();
+    window.scrollTo(0, 0);
+  }
+  function report() {
+    var t = tally(), lines = ["Shoe line-up result"];
+    WAYS.forEach(function (w) {
+      lines.push(w.id + ": " + t[w.id].right + "/10" + (t[w.id].missed.length ? "; missed shoe " + t[w.id].missed.join(", ") : ""));
+    });
+    lines.push("stance at 20: " + (state.stance || "not answered"));
+    $("report").value = lines.join("\n");
+    $("stanceSaid").textContent = state.stance ? "Noted: " + (state.stance === "natural" ? "looks natural" : "looks odd") : "";
+  }
+  function pairs() {
+    var box = $("pairs"), html = "";
+    for (var i = 0; i < N; i++) {
+      html += '<div class="shoe"><div class="side"><img src="assets/tile-' + i + '.png" alt="Shoe ' + (i + 1) + ' from the side"><strong>Shoe ' + (i + 1) + '</strong></div>';
+      [["feet-today", "Today"], ["feet-top", "Photo from above laid on"], ["feet-turn", "The same, toes out 20°"], ["hem-top", "Laid on, under trousers"]].forEach(function (p) {
+        html += '<figure><img loading="lazy" src="assets/' + p[0] + '-' + i + '.png" alt="' + p[1] + ', shoe ' + (i + 1) + '"><figcaption>' + p[1] + '</figcaption></figure>';
+      });
+      html += "</div>";
+    }
+    box.innerHTML = html;
+  }
+
+  $("start").addEventListener("click", function () { if (!state.order.length || state.answers.length >= 30) fresh(); next(); });
+  $("skip").addEventListener("click", function () { $("look").hidden = false; $("look").scrollIntoView(); });
+  $("dunno").addEventListener("click", function () { answer(-1); });
+  $("zoom").addEventListener("click", function () {
+    var big = $("stage").classList.toggle("big");
+    this.setAttribute("aria-pressed", big ? "true" : "false"); this.textContent = big ? "App size" : "Larger";
+  });
+  $("again").addEventListener("click", function () { fresh(); next(); });
+  $("copy").addEventListener("click", function () {
+    var ta = $("report");
+    function fallback() { ta.focus(); ta.select(); $("copied").textContent = "Selected. Copy it from here."; }
+    try { navigator.clipboard.writeText(ta.value).then(function () { $("copied").textContent = "Copied"; }, fallback); } catch (e) { fallback(); }
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-stance]"), function (b) {
+    b.addEventListener("click", function () { state.stance = b.getAttribute("data-stance"); save(); report(); });
+  });
+
+  load(); tiles(); pairs();
+  if (state.order.length && state.answers.length >= 30) finish();
+  else if (state.answers.length > 0) { $("start").textContent = "Carry on (" + state.answers.length + " of 30 done)"; }
+})();
+</script>

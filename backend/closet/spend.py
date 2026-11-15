@@ -10,8 +10,9 @@ month in the computer's local time; it is kept in the program's settings with
 the switch that allows the API key. Before each API request the month's spend
 plus a careful estimate of that request is compared with the limit, and the
 request is not made if it could go over. Several workers can ask at once (describing, landmarks, the pieces in
-a photo, a shoe's photos sorted into views, "Would this work?", shopping), so the estimate of each request on its
-way is held against the limit until it comes back or fails: together they cannot go over either.
+a photo, a shoe's photos sorted into views, a shoe drawn from its photos, "Would this work?", shopping), so the
+estimate of each request on its way is held against the limit until it comes back or fails: together they cannot go
+over either.
 """
 from __future__ import annotations
 
@@ -23,6 +24,8 @@ from .config import Config
 from .state import State
 from .tagger.correcting import MAX_TOKENS as CORRECT_MAX_TOKENS
 from .tagger.garments import MODEL as GARMENTS_MODEL
+from .tagger.shoedrawing import MAX_TOKENS as DRAW_MAX_TOKENS
+from .tagger.shoedrawing import MODEL as DRAW_MODEL
 from .tagger.shopping import MAX_TOKENS as SHOP_MAX_TOKENS
 from .tagger.tagging import CONFIG, MAX_TOKENS, CapReached, RouteUnavailable
 from .tagger.views import MODEL as VIEWS_MODEL
@@ -34,6 +37,7 @@ PURPOSE_SHOP = "shop_find"            # searching shops for a wish (`tagger/shop
 PURPOSE_PRICES = "shop_prices"        # looking up the prices of a wish's finds again
 PURPOSE_GARMENTS = "find_garments"    # where each piece is in a photo of several (`tagger/garments.py`)
 PURPOSE_VIEWS = "sort_views"          # which view each photo of a shoe shows (`tagger/views.py`)
+PURPOSE_DRAW = "draw_shoe"            # a shoe drawn from its photos, and its checks (`tagger/shoedrawing.py`)
 PRICES_CHECKED: str = CONFIG.get("prices_checked", "")
 TAGGING_MODEL: str = CONFIG["roles"]["tagging"]
 SUGGESTED_CAP_USD = 5.0     # see DECISIONS, "Spend cap for the API key"
@@ -53,6 +57,12 @@ CORRECT_TEXT_TOKENS = 9000
 # for every character pair, then the whole doubled and rounded up), each photo at no more than 1024 px a side, and the
 # longest answer the request allows (`correcting.MAX_TOKENS`; the answer itself is a few lines).
 VIEWS_TEXT_TOKENS = 4000
+# Drawing a shoe, or checking its drawing: the longest prompt with the answer's schema (the brief, the worked
+# examples' SVG or, for a check, the sheet and two drawings of at most `drawn.MAX_CHARS` characters each: under
+# 110,000 characters in all, counted at 1 token for every character pair and rounded up), the shoe's photos and the
+# example renders or the check render, and the longest answer the request allows, thinking included
+# (`shoedrawing.MAX_TOKENS`).
+DRAW_TEXT_TOKENS = 55_000
 # Searching shops: Claude reads the pages its web searches bring back, and reads them again at each step of its
 # search, so a request takes in far more than its prompt. A careful upper bound: 300,000 tokens in, the longest
 # answer the request allows, and every web search it may make, at the price per search in the price table.
@@ -111,6 +121,12 @@ def estimate_views(photos: int, model: str = VIEWS_MODEL) -> float:
     """The most one request to sort a shoe's photos into views should cost: a short prompt and schema, every photo of
     the shoe (one to six), and the longest answer allowed."""
     return cost_usd(model, VIEWS_TEXT_TOKENS + IMAGE_TOKENS * max(1, photos), CORRECT_MAX_TOKENS)
+
+
+def estimate_draw(images: int, model: str = DRAW_MODEL) -> float:
+    """The most one request to draw a shoe, or to check its drawing, should cost: the brief and the drawings as text,
+    every image sent (the shoe's photos and the renders), and the longest answer allowed."""
+    return cost_usd(model, DRAW_TEXT_TOKENS + IMAGE_TOKENS * max(1, images), DRAW_MAX_TOKENS)
 
 
 def estimate_correction(photos: int, model: str = TAGGING_MODEL) -> float:

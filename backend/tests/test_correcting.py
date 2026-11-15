@@ -286,3 +286,97 @@ def test_the_photo_is_sent_on_a_second_request_both_checked_and_recorded(client,
     assert body["state"] == "understood" and "photo" in body["sent"]
     assert [len([c for c in r["messages"][0]["content"] if c["type"] == "image"]) for r in fake_api.requests] == [0, 1]
     assert [r["purpose"] for r in calls(cfg)] == ["correct_item", "correct_item"]
+
+
+# ---- the arguments for longer questions (a shoe drawn from its photos): names, max_tokens, timeout, effort
+
+def test_by_default_ask_behaves_as_before(cli):
+    """No names, no effort, no timeout given: the images are photo-N.jpg (or item.jpg), the model's effort, two
+    minutes; on the API route `messages.parse` with MAX_TOKENS and nothing between the images."""
+    correcting.ask("Which view?", [Image.new("RGB", (40, 60))] * 2, ("plan",), exe="claude")
+    cmd = cli["commands"][0]
+    assert cmd[cmd.index("--effort") + 1] == correcting.CONFIG["models"][correcting.MODEL]["effort"]
+    assert cli["files"][0] == ["photo-1.jpg", "photo-2.jpg"]
+    api = FakeApi()
+    correcting.ask("x", [Image.new("RGB", (40, 60))] * 2, ("api",), client=api)
+    sent = api.requests[0]
+    assert sent["max_tokens"] == correcting.MAX_TOKENS and "output_format" in sent
+    assert [c["type"] for c in sent["messages"][0]["content"]] == ["image", "image", "text"]
+
+
+def test_named_images_are_saved_under_their_names_on_the_plan(monkeypatch, cli):
+    seen = {}
+    real = cli["reply"]
+
+    def run(cmd, cwd=None, **kw):
+        seen["timeout"], seen["cmd"] = kw["timeout"], cmd
+        seen["input"] = kw["stdin"].read().decode("utf-8")
+        seen["files"] = {p.name: p.read_bytes()[:4] for p in Path(cwd).iterdir()}
+        return real
+    monkeypatch.setattr(correcting.subprocess, "run", run)
+    images = [Image.new("RGB", (40, 60), (200, 0, 0)), Image.new("RGBA", (30, 30), (0, 0, 0, 0))]
+    result = correcting.ask("Look.", images, ("plan",), exe="claude", names=["photo-1.jpg", "drawing.png"],
+                            timeout=600, effort="high")
+    assert sorted(seen["files"]) == ["drawing.png", "photo-1.jpg"]
+    assert seen["files"]["drawing.png"] == b"\x89PNG" and seen["files"]["photo-1.jpg"][:2] == b"\xff\xd8"
+    assert "in the current folder: photo-1.jpg, drawing.png" in seen["input"]
+    assert seen["timeout"] == 600 and seen["cmd"][seen["cmd"].index("--effort") + 1] == "high"
+    assert result.cache_read_tokens == 500 and result.input_tokens == 3500
+
+
+def test_names_are_checked():
+    for names in (["a.jpg"], ["../x.jpg", "b.jpg"], ["a.jpg", "a.jpg"], ["a.gif", "b.jpg"], ["A B.jpg", "b.jpg"]):
+        with pytest.raises(ValueError):
+            correcting.ask("x", [Image.new("RGB", (4, 4))] * 2, ("plan",), exe="claude", names=names)
+
+
+def test_named_images_are_labelled_on_the_api_route_and_a_png_stays_png():
+    api = FakeApi()
+    correcting.ask("Look.", [Image.new("RGB", (40, 60)), Image.new("RGB", (40, 60))], ("api",), client=api,
+                   names=["photo-1.jpg", "drawing.png"], effort="high")
+    content = api.requests[0]["messages"][0]["content"]
+    assert [c.get("text") or c["source"]["media_type"] for c in content] == [
+        "photo-1.jpg:", "image/jpeg", "drawing.png:", "image/png", "Look."]
+    assert api.requests[0]["output_config"]["effort"] == "high"
+
+
+def test_a_long_answer_is_streamed_as_the_sdk_requires():
+    """The SDK refuses a request without streaming above NONSTREAMING_MAX_TOKENS; above it the answer is streamed,
+    with the schema in output_config.format, and read once it has come."""
+    client = anthropic.Anthropic(api_key="x")
+    client._calculate_nonstreaming_timeout(correcting.NONSTREAMING_MAX_TOKENS, None)
+    with pytest.raises(ValueError, match="Streaming is required"):
+        client._calculate_nonstreaming_timeout(correcting.NONSTREAMING_MAX_TOKENS + 1, None)
+    api, meter = FakeApi(), Meter()
+    api.drawing = CorrectionAnswer(changes=[], not_understood="", needs_photo=False)
+    got = correcting.ask("x", [], ("api",), client=api, meter=meter, max_tokens=correcting.NONSTREAMING_MAX_TOKENS + 1)
+    sent = api.requests[0]
+    assert got.answer == api.drawing and "output_format" not in sent
+    assert sent["output_config"]["format"]["schema"]["properties"].keys() == {"changes", "not_understood", "needs_photo"}
+    assert sent["max_tokens"] == correcting.NONSTREAMING_MAX_TOKENS + 1
+    assert meter.checked == [(correcting.MODEL, 0)] and meter.recorded == [("api", correcting.MODEL, 2000, 400)]
+    correcting.ask("x", [], ("api",), client=api, max_tokens=correcting.NONSTREAMING_MAX_TOKENS)
+    assert "output_format" in api.requests[1]   # at the limit: not streamed
+
+
+def test_a_streamed_answer_cut_short_is_asked_again_and_counted_each_time():
+    api, meter = FakeApi(), Meter()
+    replies = iter([SimpleNamespace(type="text", text='{"changes": [{"name": "col'), SimpleNamespace(type="text", text="{}")])
+
+    def stream(**kw):
+        api.calls += 1
+        api.requests.append(kw)
+        message = SimpleNamespace(content=[next(replies)], stop_reason="max_tokens",
+                                  usage=SimpleNamespace(input_tokens=100, output_tokens=50))
+
+        class Stream:
+            def __enter__(self):
+                return SimpleNamespace(get_final_message=lambda: message)
+
+            def __exit__(self, *exc):
+                return False
+        return Stream()
+    api.stream = stream
+    with pytest.raises(correcting.TaggingError, match="no valid answer"):
+        correcting.ask("x", [], ("api",), client=api, meter=meter, max_tokens=64_000)
+    assert len(meter.recorded) == correcting.MAX_ATTEMPTS == 2

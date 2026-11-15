@@ -142,6 +142,31 @@ export interface Item extends ItemSummary {
   trace?: ShoeTrace | null;
   /** A shoe's photos sorted into views; null for anything that is not a shoe. */
   views?: ShoeViews | null;
+  /** A shoe drawn by Claude from its photos for the outfit figure; null for anything that is not a shoe. */
+  drawn?: ShoeDrawn | null;
+}
+
+/** A shoe drawn by Claude from its photos for the outfit figure: drawn once by itself after its photos are sorted,
+ * after that only when the owner asks. */
+export interface ShoeDrawn {
+  /** null: not drawn, nor waiting to be; waiting: for its photos to be sorted, the answer about the outside, or Claude;
+   * failed: three tries gave no drawing (the one it had, if any, stays). */
+  state: 'waiting' | 'drawing' | 'done' | 'failed' | null;
+  /** What is happening, or why it is not drawn, in plain words. */
+  message: string | null;
+  /** The drawing on two legs, while the shoe has one (the old one stays until a new one is done). */
+  url: string | null;
+  /** How many times the drawing was checked against the photos. */
+  rounds: number | null;
+  seconds: number | null;
+  /** What the API key would charge for it, whichever way it was drawn. */
+  cost_usd: number | null;
+  route: 'plan' | 'api' | '' | null;
+  made_at: string | null;
+  /** Photos were added or removed since it was drawn. */
+  photos_changed: boolean;
+  /** Roughly what drawing it again costs on the API key. */
+  about_usd: number;
 }
 
 /** A shoe's photos sorted into views by Claude, so the owner never has to say which is which. */

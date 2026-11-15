@@ -1,0 +1,352 @@
+"""A shoe drawn by Claude from its sorted photos, in the background (`closet/shoedraw.py`): drawn once by itself when
+its photos are first sorted, waiting while they are sorted or the owner is asked about the outside, never drawn again
+by itself, drawn again when the owner asks with the old drawing kept until the new one is done, Claude out of reach
+or failing, the demo closet, and what the item page and `drawn.svg` show.
+
+Claude is never called: a stand-in sorter and a stand-in drawer answer.
+"""
+import json
+import logging
+from contextlib import closing
+from types import SimpleNamespace
+
+import pytest
+from fastapi.testclient import TestClient
+
+from closet import app as app_module
+from closet import db, shoedraw, spend, tracejobs
+from closet.drawing import drawn
+from closet.tagger import shoedrawing as SD
+from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError
+
+from .conftest import PASSPHRASE, SHEET, FakeApi, FakeClaude, fake_cutter, upload
+from .test_shoeviews import Sorter, a_shoe, add, answer, get, later, row, sql
+
+DRESS = drawn.example("dress-shoe")
+BOAT = drawn.example("boat-shoe")
+
+
+class Drawer:
+    """Stands in for Claude drawing the shoe: a finished drawing of `left` (the dress shoe unless told otherwise), or
+    raises `error`. `calls` keeps the views of the photos it was given; `during` runs while it draws."""
+
+    def __init__(self):
+        self.left = DRESS
+        self.error: Exception | None = None
+        self.calls: list[list[tuple]] = []
+        self.during = None
+
+    def __call__(self, photos, routes):
+        self.calls.append([(p.view, p.sure, p.image.size) for p in photos])
+        assert routes == ("plan",)
+        if self.during:
+            self.during()
+        if self.error:
+            raise self.error
+        calls = [SD.Call("draw", "plan", SD.MODEL, 40_000, 10_000, 6_000, 0.24, 70.0),
+                 SD.Call("check", "plan", SD.MODEL, 30_000, 10_000, 3_000, 0.14, 40.0)]
+        return SD.Drawn(drawn.sanitise(self.left), None, dict(SHEET), 1, 112.4, calls, True, [])
+
+
+@pytest.fixture
+def made(cfg):
+    sorter, drawer = Sorter(), Drawer()
+    routes = {"now": ("plan",)}
+    sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, tagger=FakeClaude(),
+                                   routes=lambda: routes["now"], sorter=sorter, drawer=drawer)
+    c = TestClient(app_module.create_app(sv))
+    assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
+    yield SimpleNamespace(sv=sv, c=c, routes=routes, sorter=sorter, drawer=drawer)
+    sv.stop()
+
+
+def sorted_shoe(m, differ=False, key="k1") -> dict:
+    """A shoe with one more photo, sorted (the two photos sure, the sides alike unless `differ`)."""
+    item = a_shoe(m.c, key)
+    add(m.c, item, 1)
+    m.sorter.reply = answer(("outer", not differ), ("inner", not differ), differ=differ)
+    m.sv.views.drain(now=later())
+    return item
+
+
+def drawn_of(m, item) -> dict:
+    return get(m.c, item)["drawn"]
+
+
+# ------------------------------------------------------------------ the migration
+
+def test_the_migration_adds_the_columns(cfg):
+    cfg.data_dir.mkdir(parents=True, exist_ok=True)
+    db.migrate(cfg.db_path("main"), cfg.local_backups_dir)
+    with closing(db.connect(cfg.db_path("main"))) as conn:
+        cols = {r[1]: r for r in conn.execute("PRAGMA table_info(items)")}
+    assert {"drawn", "drawn_state", "drawn_error", "drawn_attempts"} <= set(cols)
+    assert cols["drawn_attempts"][4] == "0" and cols["drawn_attempts"][3] == 1   # NOT NULL DEFAULT 0
+
+
+# ------------------------------------------------------------------ drawn once by itself
+
+def test_a_shoe_is_drawn_once_its_photos_are_first_sorted(made):
+    m = made
+    item = a_shoe(m.c)
+    assert drawn_of(m, item)["state"] is None and drawn_of(m, item)["message"] == shoedraw.NOT_DRAWN
+    add(m.c, item, 1)
+    assert drawn_of(m, item)["message"] == shoedraw.SOON   # the photos wait to be sorted first
+    assert m.sv.draws.drain() == 0 and m.drawer.calls == []
+    m.sorter.reply = answer(("outer", True), ("inner", True))
+    m.sv.views.drain(now=later())
+    got = drawn_of(m, item)
+    assert got["state"] == "waiting" and got["message"] == shoedraw.WAITING and got["url"] is None
+    assert m.sv.draws.drain() == 1
+    assert m.drawer.calls == [[("outer", True, (900, 1200)), ("inner", True, (640, 480))]]   # the main photo first
+    got = drawn_of(m, item)
+    assert got["state"] == "done" and got["message"] is None and got["rounds"] == 1 and got["seconds"] == 112.4
+    assert got["cost_usd"] == pytest.approx(0.38) and got["route"] == "plan" and got["photos_changed"] is False
+    assert got["url"].startswith(f"/api/items/{item['id']}/drawn.svg?v=") and got["about_usd"] == 0.38
+    kept = json.loads(row(m.sv.cfg, item["id"])["drawn"])
+    assert kept["left"] == drawn.sanitise(DRESS) and kept["sheet"] == SHEET and kept["version"] == 1
+    assert kept["photo_ids"] == [p["id"] for p in get(m.c, item)["photos"]]
+    assert kept["input_tokens"] == 70_000 and kept["output_tokens"] == 9_000 and kept["cache_read_tokens"] == 20_000
+    assert [c["kind"] for c in kept["calls"]] == ["draw", "check"]
+    assert row(m.sv.cfg, item["id"])["drawn_attempts"] == 0
+
+
+def test_it_waits_while_the_owner_is_asked_about_the_outside(made):
+    m = made
+    item = sorted_shoe(m, differ=True)
+    assert get(m.c, item)["views"]["state"] == "asking"
+    got = drawn_of(m, item)
+    assert got["state"] == "waiting" and got["message"] == shoedraw.WAIT_ASK
+    assert m.sv.draws.drain() == 0 and m.drawer.calls == []
+    first = get(m.c, item)["photos"][0]
+    m.c.put(f"/api/items/{item['id']}/photos/{first['id']}/view", json={"view": "outer"})
+    assert drawn_of(m, item)["message"] == shoedraw.WAITING
+    assert m.sv.draws.drain() == 1 and drawn_of(m, item)["state"] == "done"
+
+
+def test_it_is_never_drawn_again_by_itself(made):
+    m = made
+    item = sorted_shoe(m)
+    m.sv.draws.drain()
+    before = drawn_of(m, item)
+    add(m.c, item, 2)   # a photo added: sorted again, never drawn again
+    m.sorter.reply = answer(("outer", True), ("inner", True), ("top", True))
+    m.sv.views.drain(now=later())
+    assert m.sv.draws.drain() == 0 and len(m.drawer.calls) == 1
+    got = drawn_of(m, item)
+    assert got["state"] == "done" and got["url"] == before["url"] and got["photos_changed"] is True
+    two = get(m.c, item)["photos"][2]
+    m.c.delete(f"/api/items/{item['id']}/photos/{two['id']}")
+    assert drawn_of(m, item)["photos_changed"] is False   # the same photos as when it was drawn
+
+
+def test_a_failed_first_drawing_is_not_tried_again_by_itself(made):
+    m = made
+    item = sorted_shoe(m)
+    m.drawer.error = TaggingError("no usable answer")
+    m.sv.draws.drain()
+    assert drawn_of(m, item)["state"] == "failed"
+    add(m.c, item, 2)
+    m.sorter.reply = answer(("outer", True), ("inner", True), ("top", True))
+    m.sv.views.drain(now=later())
+    assert drawn_of(m, item)["state"] == "failed" and m.sv.draws.drain() == 0
+
+
+# ------------------------------------------------------------------ drawn again when the owner asks
+
+def test_draw_again_keeps_the_old_drawing_until_the_new_one_is_done(made):
+    m = made
+    item = sorted_shoe(m)
+    m.sv.draws.drain()
+    old = drawn_of(m, item)
+    r = m.c.post(f"/api/items/{item['id']}/drawn")
+    assert r.status_code == 202
+    got = r.json()["drawn"]
+    assert got["state"] == "waiting" and got["url"] == old["url"]   # still shown
+    assert m.c.post(f"/api/items/{item['id']}/drawn").json()["drawn"]["state"] == "waiting"   # asked twice: once
+    seen = {}
+    m.drawer.left = BOAT
+    m.drawer.during = lambda: seen.update(drawn_of(m, item))
+    assert m.sv.draws.drain() == 1 and len(m.drawer.calls) == 2
+    assert seen["state"] == "drawing" and seen["message"] == shoedraw.DRAWING and seen["url"] == old["url"]
+    new = drawn_of(m, item)
+    assert new["state"] == "done" and new["url"] != old["url"]
+    assert json.loads(row(m.sv.cfg, item["id"])["drawn"])["left"] == drawn.sanitise(BOAT)
+
+
+def test_a_failed_new_drawing_keeps_the_old_one(made):
+    m = made
+    item = sorted_shoe(m)
+    m.sv.draws.drain()
+    old = drawn_of(m, item)
+    m.c.post(f"/api/items/{item['id']}/drawn")
+    m.drawer.error = drawn.DrawingError("Nothing drawable is left in the drawing.")
+    m.sv.draws.drain()
+    got = drawn_of(m, item)
+    assert got["state"] == "failed" and got["message"] == shoedraw.FAILED and got["url"] == old["url"]
+    assert len(m.drawer.calls) == 1 + shoedraw.MAX_ATTEMPTS
+
+
+def test_draw_on_a_shoe_kept_from_before_sorts_its_photos_first(made):
+    m = made
+    item = a_shoe(m.c)   # never sorted: a shoe kept from before
+    assert get(m.c, item)["views"]["state"] is None
+    got = m.c.post(f"/api/items/{item['id']}/drawn").json()
+    assert got["views"]["state"] == "waiting" and got["drawn"]["state"] == "waiting"
+    assert got["drawn"]["message"] == shoedraw.WAIT_SORT
+    assert m.sv.draws.drain() == 0
+    m.sorter.reply = answer(("outer", True))
+    m.sv.views.drain(now=later())
+    assert m.sv.draws.drain() == 1 and drawn_of(m, item)["state"] == "done"
+
+
+def test_draw_after_the_photos_could_not_be_sorted_sorts_them_again(made):
+    m = made
+    item = a_shoe(m.c)
+    add(m.c, item, 1)
+    m.sorter.error = TaggingError("outside the schema")
+    m.sv.views.drain(now=later())
+    assert get(m.c, item)["views"]["state"] == "failed"
+    m.sorter.error = None
+    got = m.c.post(f"/api/items/{item['id']}/drawn").json()
+    assert got["views"]["state"] == "waiting"
+
+
+def test_only_a_shoe_and_never_the_demo_closet(made):
+    m = made
+    plain = upload(m.c, key="k2").json()
+    m.c.patch(f"/api/items/{plain['id']}", json={"category": "tee"})
+    r = m.c.post(f"/api/items/{plain['id']}/drawn")
+    assert r.status_code == 409 and r.json()["detail"] == shoedraw.NOT_A_SHOE
+    assert get(m.c, plain)["drawn"] is None
+    assert m.c.post("/api/items/nope/drawn").status_code == 404
+    assert m.c.post("/api/profile", json={"profile": "demo"}).status_code == 200
+    shoe = next(i for i in m.c.get("/api/items").json()["items"] if i["category"] in tracejobs.SHOES)
+    r = m.c.post(f"/api/items/{shoe['id']}/drawn")
+    assert r.status_code == 409 and r.json()["detail"] == shoedraw.DEMO
+    sql_demo = db.connect(m.sv.cfg.db_path("demo"))
+    sql_demo.execute("UPDATE items SET drawn_state = 'waiting', views_state = 'sorted' WHERE id = ?", (shoe["id"],))
+    sql_demo.close()
+    assert m.sv.draws.drain() == 0 and m.drawer.calls == []   # never sent to Claude, even if one waited
+
+
+# ------------------------------------------------------------------ Claude out of reach, or failing
+
+def test_claude_out_of_reach_puts_the_shoe_back_with_its_attempt(made):
+    m = made
+    item = sorted_shoe(m)
+    m.drawer.error = RouteUnavailable("Claude Code is not signed in")
+    assert m.sv.draws.drain() == 0
+    got = drawn_of(m, item)
+    assert got["state"] == "waiting" and got["message"] == shoedraw.NO_ROUTE
+    assert row(m.sv.cfg, item["id"])["drawn_attempts"] == 0
+    m.drawer.error = CapReached("this month's spending limit for the API key has been reached")
+    m.sv.draws.drain()
+    assert drawn_of(m, item)["message"] == shoedraw.LIMIT and row(m.sv.cfg, item["id"])["drawn_attempts"] == 0
+    m.routes["now"] = ()   # no route at all: Claude is not even asked
+    calls = len(m.drawer.calls)
+    m.sv.draws.drain()
+    assert len(m.drawer.calls) == calls and drawn_of(m, item)["message"] == shoedraw.NO_ROUTE
+    m.routes["now"] = ("plan",)
+    m.drawer.error = None
+    assert m.sv.draws.drain() == 1 and drawn_of(m, item)["state"] == "done" and drawn_of(m, item)["message"] is None
+
+
+def test_after_three_failures_the_item_says_so(made, caplog):
+    m = made
+    item = sorted_shoe(m)
+    m.drawer.error = TaggingError("the answer was outside the schema")
+    with caplog.at_level(logging.WARNING, logger="closet.failures"):
+        m.sv.draws.drain()
+    assert len(m.drawer.calls) == shoedraw.MAX_ATTEMPTS == 3
+    got = drawn_of(m, item)
+    assert got["state"] == "failed" and got["message"] == shoedraw.FAILED and got["url"] is None
+    assert "drawing from its photos failed" in caplog.text
+    assert m.sv.draws.drain() == 0   # not tried again until the owner asks
+    m.drawer.error = None
+    m.c.post(f"/api/items/{item['id']}/drawn")   # "Try again"
+    assert m.sv.draws.drain() == 1 and drawn_of(m, item)["state"] == "done"
+
+
+def test_a_missing_photo_file_fails_at_once_with_a_plain_message(made):
+    m = made
+    item = sorted_shoe(m)
+    one = get(m.c, item)["photos"][1]
+    (m.sv.cfg.images_dir("main") / one["url"].removeprefix("/media/")).unlink()
+    m.sv.draws.drain()
+    assert drawn_of(m, item)["message"] == shoedraw.NO_PHOTO and m.drawer.calls == []
+
+
+def test_a_drawing_interrupted_by_a_quit_starts_again(made):
+    m = made
+    item = sorted_shoe(m)
+    sql(m.sv.cfg, "UPDATE items SET drawn_state = 'drawing' WHERE id = ?", (item["id"],))
+    assert m.sv.draws.drain() == 1 and drawn_of(m, item)["state"] == "done"
+
+
+def test_a_shoe_deleted_while_it_is_drawn_is_left_alone(made):
+    m = made
+    item = sorted_shoe(m)
+    m.drawer.during = lambda: m.c.delete(f"/api/items/{item['id']}")
+    assert m.sv.draws.drain() == 1
+    assert m.c.get(f"/api/items/{item['id']}").status_code == 404
+
+
+# ------------------------------------------------------------------ the drawing on two legs
+
+def test_drawn_svg_serves_the_pair_on_two_legs_behind_the_login(made):
+    m = made
+    item = sorted_shoe(m)
+    assert m.c.get(f"/api/items/{item['id']}/drawn.svg").status_code == 404
+    m.sv.draws.drain()
+    r = m.c.get(drawn_of(m, item)["url"])
+    assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg+xml")
+    assert r.headers["cache-control"] == "no-store" and "default-src 'none'" in r.headers["content-security-policy"]
+    assert r.text == drawn.preview_svg(drawn.sanitise(DRESS)) and r.text.count("#2f7d4f") == 2
+    anon = TestClient(app_module.create_app(m.sv))
+    assert anon.get(f"/api/items/{item['id']}/drawn.svg").status_code == 401
+    assert anon.post(f"/api/items/{item['id']}/drawn").status_code == 401
+
+
+def test_a_shoe_only_has_drawn_details(made):
+    m = made
+    plain = upload(m.c, key="k3").json()
+    assert get(m.c, plain)["drawn"] is None   # not described yet: not a shoe
+    item = a_shoe(m.c, key="k4")
+    assert set(drawn_of(m, item)) == {"state", "message", "url", "rounds", "seconds", "cost_usd", "route", "made_at",
+                                      "photos_changed", "about_usd"}
+    assert drawn_of(m, item)["about_usd"] == shoedraw.ABOUT_USD
+
+
+# ------------------------------------------------------------------ through the API key and its monthly limit
+
+def test_drawing_goes_through_the_api_key_and_its_monthly_limit(cfg):
+    api = FakeApi(input_tokens=20_000, output_tokens=5_000)
+    sorter = Sorter()
+    sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, routes=lambda: ("api",), api_client=api,
+                                   sorter=lambda photos, routes: sorter.reply(len(photos)) if callable(sorter.reply)
+                                   else sorter.reply)
+    try:
+        c = TestClient(app_module.create_app(sv))
+        assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
+        item = a_shoe(c)
+        add(c, item, 1)
+        sorter.reply = answer(("outer", True), ("inner", True))
+        sv.views.drain(now=later())
+        c.put("/api/settings", json={"tagging_api_enabled": True, "tagging_api_cap_usd": 0.5})
+        sv.draws.drain()
+        assert api.calls == 0   # the estimate is checked first: nothing is sent past the limit
+        assert get(c, item)["drawn"]["message"] == shoedraw.LIMIT
+        c.put("/api/settings", json={"tagging_api_cap_usd": 20.0})
+        assert sv.draws.drain() == 1 and api.calls == 2
+        got = get(c, item)["drawn"]
+        assert got["state"] == "done" and got["route"] == "api" and got["rounds"] == 1
+        assert got["cost_usd"] == pytest.approx(2 * spend.cost_usd(SD.MODEL, 20_000, 5_000))
+        with closing(db.connect(cfg.db_path("main"))) as conn:
+            rows = [dict(r) for r in conn.execute("SELECT purpose, route, model, cost_usd FROM claude_calls "
+                                                  "WHERE purpose = 'draw_shoe'")]
+        assert len(rows) == 2 and spend.PURPOSE_DRAW == "draw_shoe"
+        assert all(r["route"] == "api" and r["model"] == SD.MODEL for r in rows)
+        assert spend.estimate_draw(8) > 0.5   # one request's careful estimate is over the first limit
+    finally:
+        sv.stop()

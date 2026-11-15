@@ -113,11 +113,16 @@ def question(conn, row) -> list[str] | None:
 
 
 def settle(conn, item_id: str) -> None:
-    """After the views changed: the item asks the owner when a side question remains, else it is sorted."""
+    """After the views changed: the item asks the owner when a side question remains, else it is sorted. A shoe whose
+    photos settle for the first time and that was never drawn waits to be drawn from them (`shoedraw.first_sorted`):
+    once they are sorted, after the owner's answer when asked."""
+    from . import shoedraw  # it reads the sorted photos, so it imports this module
+
     row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
     if row is not None:
         conn.execute("UPDATE items SET views_state = ? WHERE id = ?",
                      ("asking" if question(conn, row) else "sorted", item_id))
+        shoedraw.first_sorted(conn, item_id)
 
 
 def read(answer, count: int) -> dict[int, tuple[str, bool]]:
@@ -282,6 +287,7 @@ class Worker:
     def __init__(self, cfg: Config, state: State, routes: Routes, sorter: Sorter, idle: float = 60):
         self.cfg, self.state, self.routes, self.sorter, self.idle = cfg, state, routes, sorter, idle
         self.soon: float | None = None   # seconds until the next waiting shoe is due, after the last round
+        self.on_sorted: Callable[[], None] = lambda: None   # a shoe's photos were sorted (it may be drawn next)
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -338,4 +344,6 @@ class Worker:
                 done += status == "done"
         finally:
             conn.close()
+        if done:
+            self.on_sorted()
         return done

@@ -12,8 +12,10 @@ here.
 """
 from __future__ import annotations
 
+import functools
 import json
 import os
+import re
 import subprocess
 import tempfile
 from dataclasses import dataclass
@@ -29,6 +31,12 @@ from .tagging import CONFIG, ApiRefused, CapReached, Meter, PlanSignIn, RouteUna
 MODEL = CONFIG["roles"]["tagging"]
 MAX_TOKENS = 2000    # the longest answer asked for: a few changes and a sentence (`spend.CORRECT_MAX_TOKENS`)
 MAX_ATTEMPTS = 2
+CLI_TIMEOUT = 120    # seconds a call through the plan may take, unless the caller says otherwise
+# The most `max_tokens` the SDK lets a request ask for without streaming: `messages.parse` refuses ("Streaming is
+# required for operations that may take longer than 10 minutes") when 3,600 s x max_tokens / 128,000 is over 600 s
+# (anthropic 2.8.0, `_base_client._calculate_nonstreaming_timeout`). Larger answers are streamed instead.
+NONSTREAMING_MAX_TOKENS = 128_000 * 600 // 3600
+IMAGE_NAME = re.compile(r"[a-z0-9][a-z0-9-]*\.(jpg|png)")   # the names a caller may give the images it sends
 SYSTEM = ("You correct the description of one item of clothing in a private wardrobe app, following what its owner "
           "says. If an image file is named in the request, look at it with the Read tool. Answer in the required JSON "
           "format. Do nothing else.")
@@ -53,6 +61,7 @@ class CorrectionResult:
     model: str
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_read_tokens: int = 0   # of input_tokens, those Claude Code read again from its cache (the plan route)
 
 
 def prompt(sentence: str, description: dict, allowed: dict[str, list], with_photo: bool) -> str:
@@ -74,24 +83,78 @@ Turn what the owner says into changes: each change is one name from the list and
 - {"The image is the item with its background removed." if with_photo else "You have not been shown the item. If the sentence cannot be understood without seeing it (for example \"the colour is wrong\"), set needs_photo to true and give no changes."}"""
 
 
+def _checked_names(names: list[str] | None, images: list[Image.Image]) -> list[str] | None:
+    if names is not None and (len(names) != len(images) or len(set(names)) != len(names)
+                              or not all(isinstance(n, str) and IMAGE_NAME.fullmatch(n) for n in names)):
+        raise ValueError("give one plain, different file name (like photo-1.jpg or drawing.png) for every image")
+    return names
+
+
+def _png_block(img: Image.Image, max_edge: int = 1024) -> dict:
+    """An image content block in PNG, for a drawing: line art is blurred by JPEG."""
+    import base64
+    import io
+
+    im = img.copy()
+    im.thumbnail((max_edge, max_edge), Image.LANCZOS)
+    buf = io.BytesIO()
+    im.save(buf, "PNG")
+    return {"type": "image", "source": {"type": "base64", "media_type": "image/png",
+                                        "data": base64.standard_b64encode(buf.getvalue()).decode()}}
+
+
+def _streamed(client, **kwargs):
+    """One request streamed, as the SDK requires for a long answer; the whole message once it has come."""
+    with client.messages.stream(**kwargs) as stream:
+        return stream.get_final_message()
+
+
+def _parsed(resp, answer_model):
+    """The answer in a streamed message, read against its shape; None when it is cut short or does not fit."""
+    text = "".join(getattr(block, "text", "") for block in resp.content if getattr(block, "type", None) == "text")
+    try:
+        return answer_model.model_validate_json(text)
+    except ValueError:
+        return None
+
+
 def correct_api(client, model: str, text: str, images: list[Image.Image], meter: Meter | None = None,
-                answer_model=CorrectionAnswer) -> CorrectionResult:
+                answer_model=CorrectionAnswer, names: list[str] | None = None, max_tokens: int = MAX_TOKENS,
+                effort: str | None = None) -> CorrectionResult:
     """Through the API key. With a `meter`, every request is checked against it before it is sent and counted
     once it comes back, as for tagging. `answer_model` is the shape of the answer (another short question to
-    Claude, such as the landmarks, uses the same way in)."""
+    Claude, such as the landmarks, uses the same way in). `names`: what to call each image, put just before it (a
+    name ending in .png is sent as PNG). `max_tokens` above what the SDK allows without streaming
+    (`NONSTREAMING_MAX_TOKENS`) is streamed: the answer's schema goes in `output_config.format`, as `messages.stream`
+    does with `output_format` itself, and the whole text is read against it once it has come, so an answer cut short
+    is still counted at what it cost. `effort` overrides the model's effort in `models.json`."""
     import anthropic
+    from anthropic.lib._parse._transform import transform_schema
 
-    content = [encode_image(im) for im in images] + [{"type": "text", "text": text}]
-    effort = CONFIG["models"][model].get("effort", "low")
+    names = _checked_names(names, images)
+    content: list[dict] = []
+    for i, im in enumerate(images):
+        if names:
+            content.append({"type": "text", "text": f"{names[i]}:"})
+        content.append(_png_block(im) if names and names[i].endswith(".png") else encode_image(im))
+    content.append({"type": "text", "text": text})
+    effort = effort or CONFIG["models"][model].get("effort", "low")
+    streamed = max_tokens > NONSTREAMING_MAX_TOKENS
     tokens_in = tokens_out = 0
     last: Exception | None = None
     for _ in range(MAX_ATTEMPTS):
         if meter:
             meter.before_api_call(model, len(images))
         try:
-            resp = send(meter, client.messages.parse, model=model, max_tokens=MAX_TOKENS,
-                        messages=[{"role": "user", "content": content}], output_format=answer_model,
-                        output_config={"effort": effort})
+            if streamed:
+                resp = send(meter, functools.partial(_streamed, client), model=model, max_tokens=max_tokens,
+                            messages=[{"role": "user", "content": content}],
+                            output_config={"effort": effort, "format": {"type": "json_schema",
+                                                                        "schema": transform_schema(answer_model)}})
+            else:
+                resp = send(meter, client.messages.parse, model=model, max_tokens=max_tokens,
+                            messages=[{"role": "user", "content": content}], output_format=answer_model,
+                            output_config={"effort": effort})
         except (anthropic.RateLimitError, anthropic.APIConnectionError) as e:
             last = e
             continue
@@ -110,29 +173,47 @@ def correct_api(client, model: str, text: str, images: list[Image.Image], meter:
             meter.record("api", model, resp.usage.input_tokens, resp.usage.output_tokens)
         if resp.stop_reason == "refusal":
             raise TaggingError(f"{model} declined to answer")
-        if resp.parsed_output is None:
+        parsed = _parsed(resp, answer_model) if streamed else resp.parsed_output
+        if parsed is None or (streamed and resp.stop_reason == "max_tokens"):
             last = TaggingError(f"{model} returned an incomplete answer")
             continue
-        return CorrectionResult(resp.parsed_output, "api", model, tokens_in, tokens_out)
+        return CorrectionResult(parsed, "api", model, tokens_in, tokens_out)
     raise TaggingError(f"{model} gave no valid answer: {type(last).__name__ if last else 'none'}")
 
 
-def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | None = None, timeout: float = 120,
-                answer_model=CorrectionAnswer, system: str = SYSTEM, tools: str = "Read") -> CorrectionResult:
+def _save_named(img: Image.Image, path: Path, max_edge: int = 1024) -> None:
+    if path.suffix == ".png":   # a drawing: kept sharp
+        im = img.copy()
+        im.thumbnail((max_edge, max_edge), Image.LANCZOS)
+        im.save(path, "PNG")
+    else:
+        claude_cli._save(img, path, max_edge)
+
+
+def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | None = None, timeout: float = CLI_TIMEOUT,
+                answer_model=CorrectionAnswer, system: str = SYSTEM, tools: str = "Read",
+                names: list[str] | None = None, effort: str | None = None) -> CorrectionResult:
     """Through the Claude plan (`claude -p`); the photos, if any, are saved in a folder of its own for it to read:
     one photo as `item.jpg`, several as `photo-1.jpg`, `photo-2.jpg`, ... in their order, and the prompt says
-    their names. `tools`: the only Claude Code tools it may use, comma-separated (searching shops allows the web
-    ones)."""
+    their names; or, given `names`, each image under its own name (a .png kept as PNG). `tools`: the only Claude Code
+    tools it may use, comma-separated (searching shops allows the web ones). `effort` overrides the model's effort in
+    `models.json`."""
     from anthropic.lib._parse._transform import transform_schema
 
+    names = _checked_names(names, images)
     exe = exe or claude_cli.find_claude()
     if not exe:
         raise RouteUnavailable("Claude Code is not installed on this computer")
-    effort = CONFIG["models"].get(model, {}).get("effort", "low")
+    effort = effort or CONFIG["models"].get(model, {}).get("effort", "low")
     env = {k: v for k, v in os.environ.items() if k not in claude_cli._SCRUB}
     last: Exception | None = None
     with tempfile.TemporaryDirectory(prefix="closet-correct-", ignore_cleanup_errors=True) as tmp:
-        if len(images) == 1:
+        if names:
+            for im, name in zip(images, names, strict=True):
+                _save_named(im, Path(tmp) / name)
+            text += (f"\n\nThe image files are in the current folder: {', '.join(names)}. Open each with the Read tool, "
+                     "then answer.")
+        elif len(images) == 1:
             claude_cli._save(images[0], Path(tmp) / "item.jpg")
             text += "\n\nThe image file is in the current folder: item.jpg. Open it with the Read tool, then answer."
         elif images:
@@ -174,7 +255,8 @@ def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | Non
                 continue
             usage = out.get("usage") or {}
             tokens_in = sum(int(usage.get(k) or 0) for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
-            return CorrectionResult(parsed, "plan", model, tokens_in, int(usage.get("output_tokens") or 0))
+            return CorrectionResult(parsed, "plan", model, tokens_in, int(usage.get("output_tokens") or 0),
+                                    int(usage.get("cache_read_input_tokens") or 0))
     raise last or TaggingError(f"{model} through Claude Code gave no answer")
 
 
@@ -188,13 +270,18 @@ def correct(sentence: str, description: dict, allowed: dict[str, list], images: 
 
 def ask(text: str, images: list[Image.Image], routes: tuple[str, ...], client=None, exe: str | None = None,
         meter: Meter | None = None, answer_model=CorrectionAnswer, system: str = SYSTEM,
-        model: str = MODEL) -> CorrectionResult:
-    """A short question to Claude with an answer of the given shape, through `routes` in order, as `correct`."""
+        model: str = MODEL, names: list[str] | None = None, max_tokens: int | None = None,
+        timeout: float | None = None, effort: str | None = None) -> CorrectionResult:
+    """A question to Claude with an answer of the given shape, through `routes` in order, as `correct`. `names`: a
+    file name for each image, which the prompt can refer to (else `item.jpg`, or `photo-1.jpg`, ... on the plan route);
+    `max_tokens`: the longest answer the API route allows (streamed when the SDK requires it); `timeout`: how long a
+    call through the plan may take, in seconds; `effort`: instead of the model's effort in `models.json`."""
     skipped, capped = [], False
     for route in routes:
         try:
             if route == "plan":
-                result = correct_cli(model, text, images, exe=exe, answer_model=answer_model, system=system)
+                result = correct_cli(model, text, images, exe=exe, timeout=timeout or CLI_TIMEOUT,
+                                     answer_model=answer_model, system=system, names=names, effort=effort)
                 if meter:
                     meter.record("plan", result.model, result.input_tokens, result.output_tokens)
                 return result
@@ -203,7 +290,8 @@ def ask(text: str, images: list[Image.Image], routes: tuple[str, ...], client=No
                     if not apikey.get():
                         raise RouteUnavailable("no API key is set")
                     client = apikey.client()
-                return correct_api(client, model, text, images, meter=meter, answer_model=answer_model)
+                return correct_api(client, model, text, images, meter=meter, answer_model=answer_model, names=names,
+                                   max_tokens=max_tokens or MAX_TOKENS, effort=effort)
         except RouteUnavailable as e:
             skipped.append(f"{route}: {e}")
             capped = capped or isinstance(e, CapReached)

@@ -80,3 +80,12 @@
 }
 .shoe-ask-choice:hover:not(:disabled), .shoe-ask-choice:focus-visible { border-color: var(--accent); background: var(--accent-soft); }
 .shoe-ask-choice img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: var(--radius-sm); }
+
+/* A shoe drawn by Claude from its photos for the outfit figure (components/ShoeDrawn.tsx). */
+.shoe-drawn { display: grid; gap: 8px; margin: 0 0 14px; }
+.shoe-drawn p { margin: 0; }
+.shoe-drawn .notice { margin: 0; }
+.shoe-drawn-picture {
+  width: 100%; max-width: 320px; height: auto; border-radius: var(--radius-sm); background: var(--card-figure);
+}
+.shoe-drawn .confirm { background: var(--surface-2); }

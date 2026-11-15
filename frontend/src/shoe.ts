@@ -1,4 +1,4 @@
-import type { Item, Photo, ShoeCheck, ShoeTrace, ShoeView, ShoeViews } from './types';
+import type { Item, Photo, ShoeCheck, ShoeDrawn, ShoeTrace, ShoeView, ShoeViews } from './types';
 
 /** What the item page says about a shoe's trace: while it is traced, or why it is drawn from its details. */
 export function traceNotice(trace: ShoeTrace | null | undefined): { tone: 'info' | 'warn'; text: string; retake: boolean } | null {
@@ -85,4 +85,49 @@ export function outsideQuestion(item: Pick<Item, 'photos' | 'views'>):
   });
   if (!photos.length) return null;
   return photos.length === 1 ? { one: true, photos: [photos[0]] } : { one: false, photos };
+}
+
+/** The shoe is waiting to be drawn from its photos, or being drawn: the item page asks again until it is done. */
+export const drawingShoe = (drawn: ShoeDrawn | null | undefined) => drawn?.state === 'waiting' || drawn?.state === 'drawing';
+
+/** A drawing's time in words: "48 s", "1 min 52 s". */
+export function drawnTime(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)} min ${s % 60} s`;
+}
+
+/** Dollars in words: "$0.61". */
+export const dollars = (usd: number) => `$${usd.toFixed(2)}`;
+
+/** The line under a shoe's drawing: how long it took, how often it was checked against the photos, and what it cost
+ * (or would cost) on the API key. Null when there is no drawing. */
+export function drawnLine(drawn: ShoeDrawn | null | undefined): string | null {
+  if (!drawn?.url || drawn.seconds == null) return null;
+  const n = drawn.rounds ?? 0;
+  const checked = n === 0 ? 'not checked against the photos' : n === 1 ? 'checked once against the photos'
+    : `checked ${n} times against the photos`;
+  const cost = dollars(drawn.cost_usd ?? 0);
+  if (drawn.route === 'api') return `Drawn in ${drawnTime(drawn.seconds)}, ${checked} · ${cost} on the API key`;
+  return `Drawn in ${drawnTime(drawn.seconds)} on your Claude plan, ${checked} · about ${cost} if drawn on the API key`;
+}
+
+export const DRAWN_DEMO = 'The demo closet is never sent to Claude, so its shoes are not drawn from their photos.';
+
+/** What the item page offers for a shoe's drawing: draw it (never drawn), draw it again (it has one), try again (it
+ * failed), or nothing (waiting, being drawn, its photos being sorted for the first time, or the demo closet). */
+export function drawnOffer(item: Pick<Item, 'drawn' | 'views'>, demo: boolean): 'draw' | 'again' | 'retry' | null {
+  const drawn = item.drawn;
+  if (!drawn || demo || drawingShoe(drawn)) return null;
+  if (drawn.state === 'failed') return 'retry';
+  if (drawn.url) return 'again';
+  if (sortingViews(item.views)) return null;   // drawn by itself once the photos are sorted
+  return 'draw';
+}
+
+/** The question before drawing a shoe (again): what happens, how long it takes and roughly what it costs. */
+export function drawQuestion(drawn: ShoeDrawn, again: boolean): string {
+  const cost = `roughly ${dollars(drawn.about_usd)} on the API key, and nothing extra on your Claude plan`;
+  return again
+    ? `The new drawing replaces this one when it is done, in about two minutes. It costs ${cost}.`
+    : `It takes about two minutes and costs ${cost}.`;
 }

@@ -77,6 +77,7 @@ export class SaveLine {
   flush(): void {
     const waiting = this.waiting;
     this.waiting = [];
-    waiting.forEach((start) => start());
+    // The caller still receives the error through `run`, even while an earlier save holds it up.
+    waiting.forEach((start) => { void Promise.resolve(start()).catch(() => undefined); });
   }
 }

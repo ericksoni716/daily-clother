@@ -116,4 +116,19 @@ describe('SaveLine', () => {
     expect([await a, await b, await c]).toEqual(['A', 'B', 'C']);
     expect(sent).toEqual(['a', 'b', 'c']);
   });
+
+  it('handles a flushed save failing before an earlier request finishes', async () => {
+    const line = new SaveLine();
+    const first = held();
+    const a = line.add(() => first.promise);
+    await Promise.resolve();
+    const b = line.add(() => Promise.reject(new Error('offline')));
+    const rejected = expect(b).rejects.toThrow('offline');
+    line.flush();
+    // Give unhandled rejections a turn to surface while the first save is still pending.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    first.release('A');
+    expect(await a).toBe('A');
+    await rejected;
+  });
 });

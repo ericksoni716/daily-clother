@@ -341,6 +341,30 @@ def test_a_helper_that_cannot_start_puts_the_old_program_back(updater, github):
     assert not Path(updater.executable).with_name("Closet.old.exe").exists()
 
 
+@pytest.mark.parametrize("failure", ["plan", "outcome"])
+def test_failed_handover_files_put_the_old_program_back(updater, github, monkeypatch, failure):
+    updater.check()
+    write_text, unlink = Path.write_text, Path.unlink
+
+    def fail_plan(path, *args, **kwargs):
+        if path == updates.plan_path(updater.cfg):
+            raise OSError("disk full")
+        return write_text(path, *args, **kwargs)
+
+    def fail_outcome(path, *args, **kwargs):
+        if path == updates.outcome_path(updater.cfg):
+            raise PermissionError("file is locked")
+        return unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text" if failure == "plan" else "unlink",
+                        fail_plan if failure == "plan" else fail_outcome)
+    with pytest.raises(updates.UpdateError, match="put this one back"):
+        updater.install(updater.available())
+    assert Path(updater.executable).read_bytes() == OLD_EXE
+    assert not updater.where.old.exists()
+    assert not updater.spawned
+
+
 def test_install_from_the_page(updater, github, client):
     client.post("/api/updates/check")
     status = client.get("/api/updates").json()

@@ -698,9 +698,9 @@ class Updater:
                 "args": list(self.launch_args), "old_pid": os.getpid(), "data_dir": str(self.cfg.data_dir),
                 "timeout": START_WITHIN, "snapshots": {k: str(v) for k, v in snapshots.items()}}
         path = plan_path(self.cfg)
-        path.write_text(json.dumps(plan, indent=1), encoding="utf-8")
-        outcome_path(self.cfg).unlink(missing_ok=True)
         try:
+            path.write_text(json.dumps(plan, indent=1), encoding="utf-8")
+            outcome_path(self.cfg).unlink(missing_ok=True)
             self.spawn(where.old_program, path)
         except Exception as e:
             restore(where)

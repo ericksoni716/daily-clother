@@ -112,16 +112,22 @@ def _path(pts, close=True) -> str:
 
 
 class _View:
-    """Turns points on the shoe (x across, u from heel 0 to toe 1, h above the ground, in cm) into the drawing."""
+    """Turns points on the shoe (x across, u from heel 0 to toe 1, h above the ground, in cm) into the drawing.
+    `warp` (u, h) -> h, when given, moves heights along the shoe before it is seen (a traced sole's thickness and
+    toe spring); the ground line stays where an unwarped shoe's toe touches it."""
 
-    def __init__(self, px: float):
+    def __init__(self, px: float, warp=None):
         self.px = px
         self.ct, self.st = math.cos(math.radians(TURN)), math.sin(math.radians(TURN))
         self.cl, self.sl = math.cos(math.radians(LOOK)), math.sin(math.radians(LOOK))
+        self.warp = None
         self.y0 = 0.0
         self.y0 = self.raw(0.0, 1.0, 0.0)[1]
+        self.warp = warp
 
     def raw(self, x: float, u: float, h: float) -> tuple[float, float]:
+        if self.warp is not None:
+            h = self.warp(u, h)
         z = (u - BALL) * LENGTH
         xr = x * self.ct - z * self.st       # the toe swings out, to the viewer's left
         zr = x * self.st + z * self.ct
@@ -171,29 +177,36 @@ def _half_width(u: float, ball: float, toe: str) -> float:
 
 
 def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: str = "fs",
-               ankle: str | None = None, toes: str | None = None) -> FrontShoe:
+               ankle: str | None = None, toes: str | None = None, traced=None) -> FrontShoe:
     """The shoe of `spec` from the front, scaled by `px`. With `ankle` (markup for skin, with "{d}" for its path),
     the wearer's ankle stands in the shoe's opening, and a sandal holds a bare foot (`toes`: the colour of the
-    lines between its toes). The anchor "ankle" is where the leg above it ends, "ankle_r" its right edge there."""
+    lines between its toes). The anchor "ankle" is where the leg above it ends, "ankle_r" its right edge there.
+    With `traced` (a `traced.TracedShoe`, or its JSON) whose photo passed the quality gate, the shoe's shape,
+    colour panels, marks and laces come from the trace (`_Traced`); otherwise it is drawn from its style words."""
     p = {**spec.params, "lace_color": spec.lace_color}
     style = p.get("style") or ("high_top" if p.get("height") == "high" else "low_sneaker")
     if style not in STYLES:
         style = "low_sneaker"
-    ball, sole_t, table, shaft = STYLES[style]
-    sole_t *= {"thin": 0.75, "chunky": 1.6}.get(p.get("sole"), 1.0)
-    sole_t *= {"lug": 1.25, "eva": 1.35, "city": 0.85}.get(p.get("tread"), 1.0)
-    if style == "sandal" and p.get("molded"):   # a moulded slide: one deeper piece
-        sole_t *= 1.25
-    if shaft and p.get("shaft"):
-        shaft = max(0.35, min(0.95, float(p["shaft"]))) * LENGTH
     toe = p.get("toe", "round")
-    view = _View(px)
+    tr = _Traced.of(usable_trace(traced), toe) if traced is not None and style != "sandal" else None
+    if tr is not None:
+        style = tr.style
+        ball, sole_t, table, shaft = tr.ball, tr.sole_t, tr.table, tr.shaft
+    else:
+        ball, sole_t, table, shaft = STYLES[style]
+        sole_t *= {"thin": 0.75, "chunky": 1.6}.get(p.get("sole"), 1.0)
+        sole_t *= {"lug": 1.25, "eva": 1.35, "city": 0.85}.get(p.get("tread"), 1.0)
+        if style == "sandal" and p.get("molded"):   # a moulded slide: one deeper piece
+            sole_t *= 1.25
+        if shaft and p.get("shaft"):
+            shaft = max(0.35, min(0.95, float(p["shaft"]))) * LENGTH
+    view = _View(px, tr.warp if tr is not None else None)
     hw = lambda u: _half_width(u, ball, toe)   # noqa: E731
     mid = _lean if style == "sandal" else (lambda u: 0.0)   # a sandal's footbed is the shape of a foot
     us = [i / 60 for i in range(61)]
-    base = spec.fill.color
+    base = tr.base if tr is not None else spec.fill.color
     dark = luminance(base) < 0.3
-    sole_c = spec.sole_color or sole_default or "#f4f1ea"
+    sole_c = (tr.sole_c if tr is not None else None) or spec.sole_color or sole_default or "#f4f1ea"
     if style == "sandal" and p.get("molded"):   # a moulded slide is one piece, in its own colour
         sole_c = spec.sole_color or shade(base, 0.14 if dark else -0.14)   # its side a shade off its top, so it reads as deep
     line_c = shade(base, 0.42) if dark else INK
@@ -218,15 +231,24 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
     sole_d = _path(_hull(sole_pts))
     out.append(fill(sole_d, sole_c))
     defs += f'<clipPath id="{uid}s"><path d="{sole_d}"/></clipPath>'
-    if style in TRAINERS or p.get("tread") == "eva":   # a trainer's sole: the outsole under it a shade darker, so its edge reads under a hem
+    if tr is not None:   # the traced sole: the outsole under the midsole, at its traced share of the thickness
+        if tr.outsole_c:
+            low = [view(*q) for h in (0.0, sole_t * tr.out_frac) for q in contour(h)]
+            mid_d = _path(_hull([view(*q) for h in (sole_t * tr.out_frac, sole_t) for q in contour(h)]))
+            # the midsole sits on the outsole and hides its top: only the outsole's edge under it shows
+            out.append(f'<g clip-path="url(#{uid}s)">' + fill(_path(_hull(low)), tr.outsole_c, edge=False)
+                       + fill(mid_d, sole_c, edge=False)
+                       + ln(mid_d, 1.0, shade(tr.outsole_c, -0.3 if luminance(tr.outsole_c) > 0.25 else 0.25), 0.8)
+                       + "</g>")
+    elif style in TRAINERS or p.get("tread") == "eva":   # a trainer's sole: the outsole under it a shade darker, so its edge reads under a hem
         low = [view(*q) for h in (0.0, sole_t * 0.32) for q in contour(h)]
         c = shade(sole_c, -0.22 if luminance(sole_c) > 0.25 else 0.18)
         out.append(f'<g clip-path="url(#{uid}s)">' + fill(_path(_hull(low)), c, edge=False) + "</g>")
-    if style in ("high_top", "slip_on") + TRAINERS or p.get("foxing"):   # the stripe round a vulcanised sole
+    if tr is None and (style in ("high_top", "slip_on") + TRAINERS or p.get("foxing")):   # the stripe round a vulcanised sole
         line = [view(x, u, sole_t * 0.55) for x, u, _ in contour(0)]
         out.append(f'<g clip-path="url(#{uid}s)">' + ln(_path(line, close=False), 1.1,
                                                          shade(sole_c, -0.3 if luminance(sole_c) > 0.25 else 0.22), 1) + "</g>")
-    if p.get("tread") in ("lug", "crepe") or style in ("boot",):   # a thick outsole: its lower part darker
+    if tr is None and (p.get("tread") in ("lug", "crepe") or style in ("boot",)):   # a thick outsole: its lower part darker
         low = [view(*q) for h in (0.0, sole_t * 0.4) for q in contour(h)]
         c = shade(sole_c, -0.35 if luminance(sole_c) > 0.25 else 0.18)
         out.append(f'<g clip-path="url(#{uid}s)">' + fill(_path(_hull(low)), c, edge=False) + "</g>")
@@ -257,6 +279,9 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
         upper_d = _path(_hull(upper_pts))
         out.append(fill(upper_d, base, w=2.4))
         defs += f'<clipPath id="{uid}u"><path d="{upper_d}"/></clipPath>'
+        if tr is not None:   # the traced colour panels and marks, on the solid, then its outline again over their edges
+            out.append(f'<g clip-path="url(#{uid}u)">' + "".join(tr.paint(view, hw, inset, line_c)) + "</g>"
+                       + f'<path d="{upper_d}" fill="none" stroke="{INK}" stroke-width="2.4" stroke-linejoin="round"/>')
         tex = _texture_defs(spec.texture, f"{uid}x", dark, TEXTURE_SCALE)   # the upper's grain, nap or weave ...
         if tex and float(tex.split('width="')[1].split('"')[0]) < 2.5:   # ... unless it is too fine to show this small
             tex = ""
@@ -272,13 +297,17 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
             out.append(f'<g clip-path="url(#{uid}u)">{sheen}</g>')
         top = max(shaft, sole_t + max(h for _, h in table))
         leg = max(sole_t + ANKLE_CM, shaft + ANKLE_OVER_CM if shaft else 0.0)
-        if style == "high_top" or p.get("toe_cap") == "rubber":   # a rubber toe in the sole's colour
+        if tr is None and (style == "high_top" or p.get("toe_cap") == "rubber"):   # a rubber toe in the sole's colour
             cap = [view(hw(u) * inset * math.cos(math.pi * k / 12), u, sole_t + _interp(table, u) * math.sin(math.pi * k / 12))
                    for u in us if u >= 0.87 for k in range(13)]
             cap += [view(x, u, sole_t) for x, u, _ in contour(0, inset) if u >= 0.8]
             out.append(f'<g clip-path="url(#{uid}u)">' + fill(_path(_hull(cap)), sole_c, w=1.3) + "</g>")
         out += _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid, leg)
-        out += _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill)
+        if tr is not None and tr.laced:   # the traced laces instead of the style's
+            out += _details({**p, "laces": False}, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill, traced=True)
+            out += tr.lacing(view, hw, inset, ln)
+        else:
+            out += _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill, traced=tr is not None)
         outline_pts = sole_pts + upper_pts
     hull = _hull(outline_pts)
     xs, ys = [x for x, _ in hull], [y for _, y in hull]
@@ -361,7 +390,7 @@ def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid
     return out
 
 
-def _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill):
+def _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill, traced=False):
     out = []
     s = lambda u, xs, lift=0.0: _surface(view, hw, inset, table, sole_t, u, xs, lift)   # noqa: E731
     across = lambda u, w, lift=0.15: [s(u, k / 6 * w, lift) for k in range(-6, 7)]       # noqa: E731
@@ -400,7 +429,7 @@ def _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, 
                 x, y = s(u + 0.025, -0.62, 0.4)
                 out.append(f'<rect x="{x - 2.2:.1f}" y="{y - 2.6:.1f}" width="4.4" height="5.2" rx="1" fill="none" '
                            f'stroke="{METAL}" stroke-width="1.4"/>')
-    if style in TRAINERS:   # the overlay round the toe box, stitched on a little above the sole
+    if style in TRAINERS and not traced:   # the overlay round the toe box (a traced shoe has its own panels)
         guard = [s(u, xs, 0.0) for u, xs in ((0.7, -0.98), (0.8, -0.9), (0.88, -0.7), (0.93, -0.35), (0.95, 0.0),
                                               (0.93, 0.35), (0.88, 0.7), (0.8, 0.9), (0.7, 0.98))]
         guard = [(x, y + 0.9 * view.px) for x, y in guard]
@@ -605,3 +634,328 @@ def _sandal(p, view, hw, sole_t, base, sole_c, uid, ankle=None, toes=None, foot_
                        f'<path d="{d}" fill="none" stroke="{base}" stroke-width="3" stroke-linecap="round"{over}/>')
         out.append(f'<circle cx="{post[0]:.1f}" cy="{post[1]:.1f}" r="2.2" fill="{base}" stroke="{INK}" stroke-width="1.2"/>')
     return out, defs
+
+
+# ------------------------------------------------------------------ a traced shoe (#192, stage 2c)
+#
+# A shoe traced from the owner's side-on photo (`traced.TracedShoe`) is drawn from the front as the same small
+# solid, its shape measured instead of looked up: the upper's height along the length from the traced top line,
+# the sole's thickness and toe spring from the traced sole (folded into the view as a warp of heights), a boot's
+# shaft from the traced collar, the width at the ball from the style hint, adjusted by the profile. The traced
+# colour pieces are painted on the solid: each side-view point (u, cm above the ground) goes onto the upper's
+# cross-section at u, as high round it as it is up the traced side (a piece reaching the top line reaches the
+# crest), on the outer side (-x) and, mirrored, on the inner one, then is seen with the same view as the outline.
+# Only what faces the viewer is painted: each piece is cut where its side turns away, so a mark in the middle of
+# the side mostly disappears and one near the toe or the instep shows, foreshortened. The photo saw the outer side;
+# a pair's marks are on both sides, and the toe-out turn shows more of the inner one, so marks go on both too.
+
+PAINT_STEP_CM = 0.3          # a traced outline is cut into steps this long before it is bent onto the solid
+SHAFT_AX, SHAFT_AU, SHAFT_RX, SHAFT_RU = 0.0, 0.2, 4.7, 5.2   # a boot's shaft (as `front_shoe` draws it)
+MARK_NEAR_CM = 0.6           # a colour piece whose middle is this near a mark's is that mark (drawn as a mark)
+DETAILS = ("laces", "eyelets", "stitching", "midsole", "outsole")
+LACES_MIN = 3                # a traced row of laces or eyelets with fewer than this is not trusted
+THIN_CM = 0.3                # a colour piece thinner than this (a highlight, a seam) is not a panel
+
+
+def _see() -> tuple[float, float, float]:
+    ct, st = math.cos(math.radians(TURN)), math.sin(math.radians(TURN))
+    cl, sl = math.cos(math.radians(LOOK)), math.sin(math.radians(LOOK))
+    return st * cl, ct * cl, sl
+
+
+SEE = _see()   # the direction towards the viewer, in (x, z = (u - BALL) * LENGTH, h) on the shoe
+
+
+def usable_trace(traced):
+    """The traced shoe to draw from (a `traced.TracedShoe`, read from JSON when given as text), or None to keep the
+    drawing from the style words: no trace, a record this program cannot read, or a photo the gate turned down."""
+    if traced is None:
+        return None
+    if isinstance(traced, str):
+        from .traced import TracedShoe  # here: `traced` imports this module
+        try:
+            traced = TracedShoe.from_json(traced)
+        except (ValueError, KeyError, TypeError):
+            return None
+    try:
+        ok = (bool(traced.gate.get("ok")) and STYLES.get(traced.style, (0, 0, None))[2] is not None
+              and len(traced.profile.u) >= 5 and len(traced.profile.u) == len(traced.profile.top))
+    except AttributeError:
+        return None
+    return traced if ok else None
+
+
+def _lerp(xs, ys, x: float) -> float:
+    if x <= xs[0]:
+        return float(ys[0])
+    if x >= xs[-1]:
+        return float(ys[-1])
+    lo, hi = 0, len(xs) - 1
+    while hi - lo > 1:
+        m = (lo + hi) // 2
+        if xs[m] <= x:
+            lo = m
+        else:
+            hi = m
+    t = (x - xs[lo]) / ((xs[hi] - xs[lo]) or 1.0)
+    return float(ys[lo] + (ys[hi] - ys[lo]) * t)
+
+
+def _median(vs) -> float:
+    vs = sorted(vs)
+    n = len(vs)
+    return float(vs[n // 2] if n % 2 else (vs[n // 2 - 1] + vs[n // 2]) / 2) if n else 0.0
+
+
+def _median5(vs) -> list[float]:
+    """Each value the median of it and its two neighbours either side: a heel tab or a speck is not the shape."""
+    return [_median(vs[max(0, i - 2):i + 3]) for i in range(len(vs))]
+
+
+def _thickness(ring) -> float:
+    """How thick a traced outline (u, cm) is, in cm: twice its area over its length round."""
+    pts = [(u * LENGTH, h) for u, h in ring]
+    nxt = pts[1:] + pts[:1]
+    area = abs(sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(pts, nxt, strict=True))) / 2
+    return 2 * area / (sum(math.dist(a, b) for a, b in zip(pts, nxt, strict=True)) or 1.0)
+
+
+def _centre(ring) -> tuple[float, float]:
+    return sum(q[0] for q in ring) / len(ring), sum(q[1] for q in ring) / len(ring)
+
+
+@dataclass
+class _Traced:
+    """The front view's shape and paint, measured from a traced shoe."""
+    t: object                     # the TracedShoe
+    style: str
+    ball: float
+    sole_t: float                 # the solid's sole thickness; the warp moves it to the traced one at each u
+    table: list                   # the upper's height above the sole along the length, as STYLES' tables
+    shaft: float
+    base: str
+    sole_c: str | None
+    outsole_c: str | None
+    out_frac: float
+    us: list = field(default_factory=list)
+    bottom: list = field(default_factory=list)
+    sole: list = field(default_factory=list)
+    panels: list = field(default_factory=list)    # (colour, [outline, holes ...]) painted on both sides
+    marks: list = field(default_factory=list)     # (colour, outline) painted on both sides, unstroked
+
+    @classmethod
+    def of(cls, t, toe: str = "round") -> _Traced | None:
+        if t is None:
+            return None
+        P = t.profile
+        us = [float(u) for u in P.u]
+        bottom = _median5([max(0.0, float(b)) for b in P.bottom])
+        sole_raw = [float(s) for s in P.sole]
+        mid = [s for u, s in zip(us, sole_raw, strict=True) if 0.1 <= u <= 0.9 and s > 0]
+        style = t.style
+        ball, style_sole, style_table, style_shaft = STYLES[style]
+        sole_t = min(7.0, max(0.5, _median(mid) if mid else style_sole))
+        sole = _median5([min(8.0, max(0.4, s if s > 0 else sole_t)) for s in sole_raw])
+        above = _median5([max(0.0, float(tp) - b - s) for tp, b, s in zip(P.top, bottom, sole, strict=True)])
+        table = [(u, max(a, 0.8 if u >= 0.95 else 1.5)) for u, a in zip(us, above, strict=True)]
+        shaft = 0.0
+        if style_shaft:   # a shaft: the traced collar (its median along the back 30%); the upper in front of it
+            collar = _median([float(tp) for u, tp in zip(us, P.top, strict=True) if u <= 0.3])
+            lift = _lerp(us, bottom, SHAFT_AU) + _lerp(us, sole, SHAFT_AU) - sole_t
+            shaft = min(0.95 * LENGTH, max(sole_t + 6.0, collar - lift))
+            k = _interp(table, 0.56) / max(_interp(style_table, 0.56), 0.1)
+            table = [(u, min(h, _interp(style_table, u) * k)) if u < 0.56 else (u, h) for u, h in table]
+        # the width at the ball: the style's, a little fuller for a taller forefoot or a thicker sole
+        fore = [h for u, h in table if 0.6 <= u <= 0.9]
+        want = [_interp(style_table, u) for u, _ in table if 0.6 <= u <= 0.9]
+        tall = (sum(fore) / max(sum(want), 0.1)) if fore else 1.0
+        ball *= min(1.08, max(0.94, tall ** 0.25)) * min(1.06, max(0.96, 1 + 0.025 * (sole_t - style_sole)))
+        base = t.regions[0].color if t.regions else (t.part("vamp").color if t.part("vamp") else "#808080")
+        mids, outs = t.part("midsole"), t.part("outsole")
+        sole_c = mids.color if mids and mids.measured else outs.color if outs and outs.measured else None
+        outsole_c, out_frac = None, 0.35
+        if mids and outs and mids.measured and outs.measured and mids.color.lower() != outs.color.lower() and outs.region:
+            rel = sorted((h - _lerp(us, bottom, u)) / max(_lerp(us, sole, u), 0.3)
+                         for ring in outs.region for u, h in ring if 0.05 <= u <= 0.95)
+            if rel:
+                outsole_c, out_frac = outs.color, min(0.7, max(0.12, rel[int(0.8 * (len(rel) - 1))]))
+        marks = [(m.color, ring) for m in t.marks for ring in m.path if len(ring) >= 3]
+        centres = [_centre(ring) for _, ring in marks]
+        panels = []
+        for r in t.regions[1:]:
+            if r.part == "sole":
+                continue
+            for k, piece in enumerate(r.paths):
+                label = r.labels[k] if k < len(r.labels) else ""
+                if label in DETAILS or not piece or len(piece[0]) < 3:
+                    continue
+                if _thickness(piece[0]) < THIN_CM:
+                    continue   # a line of light or stitching along the side, not a panel of the upper
+                cu, ch = _centre(piece[0])
+                if any(abs(cu - mu) * LENGTH < MARK_NEAR_CM and abs(ch - mh) < MARK_NEAR_CM for mu, mh in centres):
+                    continue   # a mark: drawn with the marks
+                panels.append((r.color, [ring for ring in piece if len(ring) >= 3]))
+        return cls(t, style, ball, sole_t, table, shaft, base, sole_c, outsole_c, out_frac, us, bottom, sole, panels, marks)
+
+    @property
+    def laces(self):
+        return self.t.laces
+
+    @property
+    def eyelets(self):
+        return self.t.eyelets
+
+    @property
+    def laced(self) -> bool:
+        """Whether the trace found lacing to draw: a row of at least LACES_MIN crossings or eyelets (fewer is more
+        likely a collar or a seam than laces; the style's laces are drawn instead)."""
+        return any(r is not None and r.count >= LACES_MIN for r in (self.laces, self.eyelets))
+
+    def lift(self, u: float) -> float:
+        """How far the traced sole's top stands above the solid's at u."""
+        return _lerp(self.us, self.bottom, u) + _lerp(self.us, self.sole, u) - self.sole_t
+
+    def warp(self, u: float, h: float) -> float:
+        """The solid's height h at u moved onto the traced shoe: the sole stretched to its traced thickness and
+        lifted by the toe spring, the upper standing on it."""
+        b, s = _lerp(self.us, self.bottom, u), _lerp(self.us, self.sole, u)
+        return b + h * s / self.sole_t if h <= self.sole_t else b + s + h - self.sole_t
+
+    # ---- the solid's surface
+
+    def on_shoe(self, hw, inset: float, u: float, hp: float, side: int) -> tuple[float, float, float, float]:
+        """A traced side-view point (u, hp cm above the ground) on the solid's `side` (-1 outer, 1 inner): the point
+        (x, u, h) for the view, and how much its surface faces the viewer (> 0: seen)."""
+        u = min(1.0, max(0.0, u))
+        hm = hp - _lerp(self.us, self.bottom, u) - _lerp(self.us, self.sole, u)   # cm above the traced sole
+        H = _interp(self.table, u)
+        if self.shaft and u < 0.5 and hm > H + 0.3:   # up a boot's shaft: round its cylinder
+            su = min(1.0, max(-1.0, (u - SHAFT_AU) * LENGTH / SHAFT_RU))
+            cu = math.sqrt(max(0.0, 1 - su * su))
+            n = (side * cu / SHAFT_RX, su / SHAFT_RU, 0.0)
+            g = n[0] * SEE[0] + n[1] * SEE[1]
+            return (SHAFT_AX + side * SHAFT_RX * cu, SHAFT_AU + SHAFT_RU * su / LENGTH,
+                    min(self.shaft, self.sole_t + hm), g / math.hypot(n[0], n[1]))
+        sa = min(1.0, max(0.0, hm / max(H, 0.1)))
+        a = math.asin(sa)
+        ca = math.cos(a)
+        w = hw(u) * inset
+        x, h = side * w * ca, self.sole_t + H * sa
+        # the surface's slope along the length and round the cross-section, then its outward normal
+        du = 0.005
+        u0, u1 = max(0.0, u - du), min(1.0, u + du)
+        dw = (hw(u1) - hw(u0)) * inset / (u1 - u0)
+        dH = (_interp(self.table, u1) - _interp(self.table, u0)) / (u1 - u0)
+        dl = (self.lift(u1) - self.lift(u0)) / (u1 - u0)
+        A = (side * dw * ca, LENGTH, dH * sa + dl)
+        B = (-side * w * sa, 0.0, H * ca)
+        n = (A[1] * B[2] - A[2] * B[1], A[2] * B[0] - A[0] * B[2], A[0] * B[1] - A[1] * B[0])
+        if n[0] * side * ca + n[2] * sa < 0:
+            n = (-n[0], -n[1], -n[2])
+        size = math.sqrt(n[0] ** 2 + n[1] ** 2 + n[2] ** 2) or 1.0
+        return x, u, h, (n[0] * SEE[0] + n[1] * SEE[1] + n[2] * SEE[2]) / size
+
+    def seen_part(self, hw, inset: float, ring, side: int) -> list[tuple[float, float, float]]:
+        """The part of a traced outline that faces the viewer on `side`, as points on the solid. The outline is cut
+        into short steps, then clipped where the surface turns away; where it is clipped, it runs along the line
+        where the surface turns (found by halving)."""
+        pts = []
+        for (u0, h0), (u1, h1) in zip(ring, ring[1:] + ring[:1], strict=True):
+            n = max(1, math.ceil(math.hypot((u1 - u0) * LENGTH, h1 - h0) / PAINT_STEP_CM))
+            pts += [(u0 + (u1 - u0) * i / n, h0 + (h1 - h0) * i / n) for i in range(n)]
+        g = [self.on_shoe(hw, inset, u, h, side)[3] for u, h in pts]
+        if all(v <= 0 for v in g):
+            return []
+        out: list[tuple[float, float, bool]] = []   # (u, hp, on the turning line)
+        for i, (p, q) in enumerate(zip(pts, pts[1:] + pts[:1], strict=True)):
+            gp, gq = g[i], g[(i + 1) % len(pts)]
+            if gp > 0:
+                out.append((p[0], p[1], False))
+            if (gp > 0) != (gq > 0):
+                t = gp / (gp - gq)
+                out.append((p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t, True))
+        if all(v > 0 for v in g):
+            return [self.on_shoe(hw, inset, u, h, side)[:3] for u, h, _ in out]
+        # where the outline leaves the seen part and comes back, follow the turning line between
+        full = []
+        for i, (u, h, edge) in enumerate(out):
+            full.append((u, h))
+            nu, nh, nedge = out[(i + 1) % len(out)]
+            if edge and nedge:
+                k = max(1, math.ceil(abs(nu - u) * LENGTH / PAINT_STEP_CM))
+                for j in range(1, k):
+                    uu = u + (nu - u) * j / k
+                    hh = self._turn(hw, inset, uu, side, h + (nh - h) * j / k)
+                    full.append((uu, hh))
+        return [self.on_shoe(hw, inset, u, h, side)[:3] for u, h in full]
+
+    def _turn(self, hw, inset: float, u: float, side: int, guess: float) -> float:
+        """Where, going up the side at u, the surface turns to face the viewer (`guess` if it does not)."""
+        lo = _lerp(self.us, self.bottom, u) + _lerp(self.us, self.sole, u)
+        hi = lo + _interp(self.table, u)
+        glo, ghi = self.on_shoe(hw, inset, u, lo, side)[3], self.on_shoe(hw, inset, u, hi, side)[3]
+        if (glo > 0) == (ghi > 0):
+            return guess
+        for _ in range(18):
+            m = (lo + hi) / 2
+            if (self.on_shoe(hw, inset, u, m, side)[3] > 0) == (ghi > 0):
+                hi = m
+            else:
+                lo = m
+        return (lo + hi) / 2
+
+    def paint(self, view, hw, inset: float, line_c: str) -> list[str]:
+        """The traced colour panels, then the marks, on both sides, each where it is seen."""
+        out = []
+        for colour, rings in self.panels:
+            for side in (1, -1):
+                d = ""
+                for ring in rings:
+                    seen = self.seen_part(hw, inset, [tuple(q) for q in ring], side)
+                    if len(seen) >= 3:
+                        d += _path([view(*q) for q in seen]) + " "
+                if d:
+                    out.append(f'<path d="{d.strip()}" fill="{colour}" fill-rule="evenodd" stroke="{line_c}" '
+                               f'stroke-width=".9" stroke-linejoin="round" stroke-opacity=".55"/>')
+        for colour, ring in self.marks:
+            for side in (1, -1):
+                seen = self.seen_part(hw, inset, [tuple(q) for q in ring], side)
+                if len(seen) >= 3:
+                    out.append(f'<path d="{_path([view(*q) for q in seen])}" fill="{colour}"/>')
+        return out
+
+    def lacing(self, view, hw, inset: float, ln) -> list[str]:
+        """The laces as traced: as many crossings as were counted, in their colour, spread over the stretch of the
+        instep they were found along; the eyelets beside them."""
+        table, sole_t = self.table, self.sole_t
+        s = lambda u, xs, lift=0.0: _surface(view, hw, inset, table, sole_t, u, xs, lift)   # noqa: E731
+        across = lambda u, w, lift=0.15: [s(u, k / 6 * w, lift) for k in range(-6, 7)]       # noqa: E731
+        row = self.laces if self.laces is not None and self.laces.count >= LACES_MIN else self.eyelets
+        lo, hi = min(q[0] for q in row.points), max(q[0] for q in row.points)
+        lo, hi = max(0.42, min(lo, 0.8)), min(0.9, max(hi, lo + 0.08))
+        out = []
+        for xs in (-0.42, 0.42):
+            out.append(ln(_path([s(u, xs, 0.05) for u in (lo - 0.03, (lo + hi) / 2, hi)], close=False), 1.2))
+        if self.eyelets:
+            ec = self.eyelets.color
+            n = max(2, min(9, self.eyelets.count))
+            for i in range(n):
+                u = lo - 0.02 + (hi - lo + 0.02) * i / (n - 1)
+                for xs in (-0.46, 0.46):
+                    x, y = s(u, xs, 0.1)
+                    out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{0.32 * view.px:.1f}" fill="{ec}" stroke="{INK}" stroke-width=".5"/>')
+        if self.laces:
+            lace = self.laces.color
+            n = self.laces.count if self.laces.count >= LACES_MIN else (self.eyelets.count - 1 if self.eyelets else 3)
+            n = max(1, min(9, n))
+            wide = 0.5 if self.style in TRAINERS else 0.42
+            for i in range(n):
+                u = lo + (hi - lo) * (i + 0.5) / n if n > 1 else (lo + hi) / 2
+                d = _path(across(u, wide, 0.25), close=False)
+                out.append(ln(d, 3.8, INK, 0.9) + ln(d, 1.5, lace, 1))
+            if self.shaft:   # a boot laces on up its shaft
+                for i in range(3):
+                    h = sole_t + 8.5 + i * (self.shaft - sole_t - 10) / 2
+                    d = _path([view(1.8 * k / 3, SHAFT_AU + SHAFT_RU / LENGTH, h) for k in range(-3, 4)], close=False)
+                    out.append(ln(d, 2.8, INK, 0.9) + ln(d, 1.5, lace, 1))
+        return out

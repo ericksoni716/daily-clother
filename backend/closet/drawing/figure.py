@@ -316,6 +316,7 @@ class Piece:
     silhouette: dict | None = None
     fill: Fill | None = None     # the item's pattern measured from its photo, as its own drawing uses it
     graphic: Graphic | None = None   # a print lifted from its photo (tops only), as its own drawing uses it
+    traced: object = None        # shoes: the shoe traced from its photo (`traced.TracedShoe` or its JSON), drawn from the front
 
 
 @dataclass
@@ -332,6 +333,7 @@ class Placed:
     open: bool = False
     front: FrontShoe | None = None    # the shoes: one shoe seen from the front, in its own coordinates
     scale: float = 1.0
+    traced: object = None             # the shoes: their trace, when there is one (`frontshoe.usable_trace` decides)
 
     def point(self, p, copy: int = 0) -> tuple[float, float]:
         a, b, c, d, e, f = self.transforms[copy]
@@ -495,13 +497,13 @@ def _placed(place: str, piece) -> Placed | None:
         try:
             spec = make(piece)
             if spec.template == PLACE_TEMPLATE[place]:
-                return _place(place, spec, piece.category)
+                return _place(place, spec, piece.category, piece.traced if make is _spec else None)
         except Exception:
             log.exception("drawing a %s for an outfit failed", piece.category)
     return None
 
 
-def _place(place: str, spec: Spec, category: str | None = None) -> Placed:
+def _place(place: str, spec: Spec, category: str | None = None, traced=None) -> Placed:
     if spec.template == "top":
         spec.params.pop("state", None)
         opened = False
@@ -521,11 +523,11 @@ def _place(place: str, spec: Spec, category: str | None = None) -> Placed:
     _draw(spec, "line", "probe", dy=0.0)
     # the shoes: the item's drawing is a side view; the figure draws the same shoe from the front (frontshoe), and
     # `_stand` puts the pair under the legs once the trousers are placed. The side view's sole colour is kept.
-    front = front_shoe(spec, K_PX, sole_default=shape.sole_default)
+    front = front_shoe(spec, K_PX, sole_default=shape.sole_default, traced=traced)
     flat = Shape(outline=front.outline, bbox=front.bbox, body_box=front.bbox, anchors=dict(front.anchors),
                  sole_default=shape.sole_default)
     return Placed(place, spec, flat, [(1.0, 0.0, 0.0, 1.0, CX - LEG_CM * K_PX, GROUND_Y),
-                                      (-1.0, 0.0, 0.0, 1.0, CX + LEG_CM * K_PX, GROUND_Y)], K_PX, front=front)
+                                      (-1.0, 0.0, 0.0, 1.0, CX + LEG_CM * K_PX, GROUND_Y)], K_PX, front=front, traced=traced)
 
 
 IDENTITY = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
@@ -856,7 +858,8 @@ def _stand(shoes: Placed, layout: Layout) -> Placed:
     is the left one mirrored. With trousers on, the wearer's ankle stands in each shoe (a bare foot in a sandal)."""
     left, right, _ = _legs(layout)
     if layout.get("bottom") is not None:
-        shoes.front = front_shoe(shoes.spec, K_PX, sole_default=shoes.shape.sole_default, ankle=_ankle(), toes=TOE_LINE)
+        shoes.front = front_shoe(shoes.spec, K_PX, sole_default=shoes.shape.sole_default, ankle=_ankle(), toes=TOE_LINE,
+                                 traced=shoes.traced)
         shoes.shape = Shape(outline=shoes.front.outline, bbox=shoes.front.bbox, body_box=shoes.front.bbox,
                             anchors=dict(shoes.front.anchors), sole_default=shoes.shape.sole_default)
     shoes.transforms = _pair(shoes.front.anchors["ankle"][0], left, right)
@@ -1380,7 +1383,8 @@ def _svg(layout: Layout, uid: str) -> str:
     shoes, bottom = layout.get("shoes"), layout.get("bottom")
     if shoes is not None:
         front = front_shoe(shoes.spec, K_PX, sole_default=shoes.shape.sole_default, uid=f"{uid}s",
-                           ankle=(dressed.ankle or _ankle()) if shoes.front is not None and shoes.front.ankle else None, toes=TOE_LINE)
+                           ankle=(dressed.ankle or _ankle()) if shoes.front is not None and shoes.front.ankle else None, toes=TOE_LINE,
+                           traced=shoes.traced)
         defs.append(front.defs)
         pair = "".join(f'<g transform="{_matrix(t)}">{front.body}</g>' for t in shoes.transforms)
         legs = _inside_legs(layout)

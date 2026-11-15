@@ -364,7 +364,7 @@ def front_shoe(spec: Spec, px: float, *, sole_default: str | None = None, uid: s
                         rim_cm=tr.rim if tr is not None else None, behind=tr is not None)
         if tr is not None and tr.laced:   # the traced laces instead of the style's
             out += _details({**p, "laces": False}, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill, traced=True)
-            out += tr.lacing(view, hw, inset, ln)
+            out += tr.lacing(view, hw, inset, ln, p.get("lace_color") or _lace_shade(base))
         else:
             out += _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill, traced=tr is not None)
         outline_pts = sole_pts + upper_pts
@@ -501,6 +501,11 @@ def _opening(p, view, hw, inset, table, sole_t, shaft, base, ankle, upper_d, uid
     return out
 
 
+def _lace_shade(base: str) -> str:
+    """Laces of no colour said: a shade off the upper's, so they read on it."""
+    return shade(base, -0.28) if luminance(base) > 0.75 else shade(base, 0.35 if luminance(base) < 0.3 else -0.25)
+
+
 def _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, fill, traced=False):
     out = []
     s = lambda u, xs, lift=0.0: _surface(view, hw, inset, table, sole_t, u, xs, lift)   # noqa: E731
@@ -552,7 +557,7 @@ def _details(p, style, view, hw, inset, table, sole_t, shaft, base, line_c, ln, 
         for xs in (-0.42, 0.42):
             out.append(ln(_path([s(u, xs, 0.05) for u in (lo - 0.03, (lo + hi) / 2, hi)], close=False), 1.2))
         n = max(3, min(7, int(p.get("eyelets", 5)))) - 1
-        lace = lace_c or (shade(base, -0.28) if luminance(base) > 0.75 else shade(base, 0.35 if luminance(base) < 0.3 else -0.25))
+        lace = lace_c or _lace_shade(base)
         kind = p.get("lace_kind")
         k = {"flat_waxed": 1.3, "flat_cotton": 1.3, "round_waxed": 0.8, "round_rope": 1.4, "rawhide": 1.3}.get(kind, 1.0)
         rows = []
@@ -1302,9 +1307,10 @@ class _Traced:
                     out.append(f'<path d="{_path([view(*q) for q in seen])}" fill="{colour}"/>')
         return out
 
-    def lacing(self, view, hw, inset: float, ln) -> list[str]:
+    def lacing(self, view, hw, inset: float, ln, lace_c: str = INK) -> list[str]:
         """The laces as traced: as many crossings as were counted, in their colour, spread over the stretch of the
-        instep they were found along; the eyelets beside them."""
+        instep they were found along; the eyelets beside them. Eyelets with no laces found (laces the upper's
+        colour do not stand out in the photo): one crossing for each pair, in `lace_c`."""
         table, sole_t = self.table, self.sole_t
         s = lambda u, xs, lift=0.0: _surface(view, hw, inset, table, sole_t, u, xs, lift)   # noqa: E731
         across = lambda u, w, lift=0.15: [s(u, k / 6 * w, lift) for k in range(-6, 7)]       # noqa: E731
@@ -1322,10 +1328,11 @@ class _Traced:
                 for xs in (-0.46, 0.46):
                     x, y = s(u, xs, 0.1)
                     out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{0.32 * view.px:.1f}" fill="{ec}" stroke="{INK}" stroke-width=".5"/>')
-        if self.laces:
-            lace = self.laces.color
-            # too few laces counted (hidden in the photo's shade, say): one crossing for each pair of eyelets seen
-            n = self.laces.count if self.laces.count >= LACES_MIN else (self.eyelets.count // 2 if self.eyelets else 3)
+        if self.laces or self.eyelets:
+            lace = self.laces.color if self.laces else lace_c
+            # too few laces counted (hidden in the photo's shade, or the upper's colour): one crossing between each
+            # two eyelets seen along the side
+            n = self.laces.count if self.laces and self.laces.count >= LACES_MIN else (self.eyelets.count - 1 if self.eyelets else 3)
             n = max(1, min(7, n))
             wide = 0.5 if self.style in TRAINERS else 0.42
             for i in range(n):

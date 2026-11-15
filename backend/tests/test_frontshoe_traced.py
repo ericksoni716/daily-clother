@@ -209,6 +209,16 @@ def test_too_few_traced_laces_give_the_styles_laces():
     assert body.count('stroke-linecap="round"') >= 4   # the style's lacing is still drawn
 
 
+def test_eyelets_traced_without_laces_still_get_their_laces():
+    t = traced_photo("NAVY_DERBY")
+    assert t.laces is None and t.eyelets.count >= frontshoe.LACES_MIN   # navy laces on navy: only the eyelets show
+    spec = spec_of("sneakers", "derby")
+    body = frontshoe.front_shoe(spec, K_PX, traced=t).body
+    lace = spec.lace_color or frontshoe._lace_shade(frontshoe._Traced.of(t).base)
+    assert lace_strokes(body, lace) == t.eyelets.count - 1   # a crossing between each two eyelets
+    assert body.count("<circle") == 2 * t.eyelets.count
+
+
 # ------------------------------------------------------------------ a traced photo, end to end
 
 def test_a_traced_photo_is_drawn_from_the_front():

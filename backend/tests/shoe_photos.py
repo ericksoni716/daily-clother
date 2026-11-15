@@ -87,6 +87,9 @@ WORK_BOOT = dict(upper=WHEAT, midsole=(40, 34, 30), outsole=None, collar=DARK_BR
 # a red and black runner on a thin white midsole, a red air window in it, over a thick black outsole
 AIR_RUNNER = dict(upper=BLACK, vamp=RED, mudguard=BLACK, heel_counter=BLACK, laces=RED, midsole=WHITE, outsole=BLACK,
                   window=RED, sole_cm=3.6, sole_toe_cm=2.8, outsole_cm=2.6, toe_spring_cm=1.0)
+# a navy derby sneaker, its laces navy too (they do not stand out in the photo, its eyelets do), a brown heel and collar
+NAVY_DERBY = dict(upper=NAVY, heel_counter=(120, 80, 45), collar=(120, 80, 45), midsole=WHITE, outsole=(120, 80, 45),
+                  laces=NAVY, eyelets=(120, 80, 45), sole_cm=2.6, sole_toe_cm=2.0, lace_count=4)
 # a grey camouflage runner: many small blotches in three greys
 BUSY_RUNNER = dict(upper=(128, 128, 130), camo=((70, 70, 72), (176, 176, 178), (32, 32, 34)), midsole=WHITE,
                    outsole=(40, 40, 42), laces=(30, 30, 32), sole_cm=3.4, sole_toe_cm=2.3)

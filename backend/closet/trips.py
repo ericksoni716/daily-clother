@@ -350,6 +350,8 @@ class _Planner:
         """Wears before washing for the piece's kind; None: as often as the trip needs (shoes, accessories, and
         a kind the owner allows the whole trip)."""
         kind = KIND_OF.get(p.category)
+        if kind in NEXT_TO_SKIN and self.rewear.get(kind) is None and any(self.hot):
+            return self.n_days
         return None if kind is None else self.rewear.get(kind)
 
     def can_wear(self, p: outfits.Piece, d: _Day) -> bool:
@@ -561,7 +563,7 @@ class _Planner:
             pieces = self._kind_pieces(kind)
             if not pieces:
                 continue
-            cap = self.rewear.get(kind)
+            cap = self.cap(pieces[0])
             days = set().union(*(self.worn_on.get(p.id, set()) for p in pieces))
             wears = sum(len(self.worn_on.get(p.id, ())) for p in pieces)
             one, many, _ = _noun(pieces, kind)

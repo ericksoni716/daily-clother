@@ -240,15 +240,21 @@ def _price_range(w: dict, changes: dict) -> tuple[float | None, float | None, st
 def update_wish(conn: sqlite3.Connection, wish_id: str, name: str | None, note: str | None,
                 price: dict | None = None) -> dict:
     """Change a wish's name, note or price range (`price`: the parts of the range sent, None clearing one)."""
-    w = get_wish(conn, wish_id)
-    if price:
-        low, high, currency = _price_range(w, price)
-        conn.execute("UPDATE wishes SET price_min = ?, price_max = ?, price_currency = ?, updated_at = ? WHERE id = ?",
-                     (low, high, currency, db.now(), wish_id))
-    if name is not None:
-        conn.execute("UPDATE wishes SET name = ?, updated_at = ? WHERE id = ?", (_text(name, "name", NAME_MAX, True), db.now(), wish_id))
-    if note is not None:
-        conn.execute("UPDATE wishes SET note = ?, updated_at = ? WHERE id = ?", (_text(note, "note", NOTE_MAX), db.now(), wish_id))
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        w = get_wish(conn, wish_id)
+        if price:
+            low, high, currency = _price_range(w, price)
+            conn.execute("UPDATE wishes SET price_min = ?, price_max = ?, price_currency = ?, updated_at = ? WHERE id = ?",
+                         (low, high, currency, db.now(), wish_id))
+        if name is not None:
+            conn.execute("UPDATE wishes SET name = ?, updated_at = ? WHERE id = ?", (_text(name, "name", NAME_MAX, True), db.now(), wish_id))
+        if note is not None:
+            conn.execute("UPDATE wishes SET note = ?, updated_at = ? WHERE id = ?", (_text(note, "note", NOTE_MAX), db.now(), wish_id))
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
     return get_wish(conn, wish_id)
 
 

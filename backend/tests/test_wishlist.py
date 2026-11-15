@@ -23,6 +23,19 @@ def wishes(client) -> list[dict]:
     return [w for w in client.get("/api/wishlist").json()["wishes"] if w["name"] not in DEMO_WISHES]
 
 
+@pytest.mark.parametrize("invalid", [{"note": "x" * 1001}, {"name": " "}])
+def test_rejected_wish_edit_keeps_every_field(client, invalid):
+    original = client.post("/api/wishlist", json={"name": "Rain coat", "note": "Keep this note"}).json()
+    path = f"/api/wishlist/{original['id']}"
+    response = client.patch(path, json={"name": "Changed", "note": "Changed note", "price_max": 200, **invalid})
+    assert response.status_code == 422
+    assert wishes(client) == [original]
+    valid = client.patch(path, json={"name": "New coat", "note": "New note", "price_max": 150})
+    assert valid.status_code == 200
+    assert valid.json()["name"] == "New coat" and valid.json()["note"] == "New note"
+    assert valid.json()["price_max"] == 150
+
+
 def gap_list(client) -> list[dict]:
     r = client.get("/api/gaps")
     assert r.status_code == 200

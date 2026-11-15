@@ -68,7 +68,10 @@ def unknown(day: str) -> dict:
 
 
 def _number(v: object) -> float | None:
-    return float(v) if isinstance(v, int | float) and not isinstance(v, bool) and math.isfinite(v) else None
+    try:
+        return float(v) if isinstance(v, int | float) and not isinstance(v, bool) and math.isfinite(v) else None
+    except OverflowError:
+        return None
 
 
 def _years_back(day: date, years: int) -> date:
@@ -243,7 +246,7 @@ def lookup(state: State, place: dict, first: date, last: date, today: date) -> d
 def given(first: date, last: date, value: object) -> list[dict]:
     """The weather given for every day of the trip, checked; ValueError with a sentence."""
     days = dates_of(first, last)
-    if not isinstance(value, list) or not all(isinstance(d, dict) for d in value):
+    if not isinstance(value, list) or not all(isinstance(d, dict) and isinstance(d.get("date"), str) for d in value):
         raise ValueError("Give the weather as a list of days, each with a date, low_c, high_c and rain.")
     by_day = {d.get("date"): d for d in value}
     if sorted(k for k in by_day if isinstance(k, str)) != days or len(value) != len(days):
@@ -277,7 +280,7 @@ def in_forecast(days: list[dict], today: date) -> bool:
 
 def changed(before: list[dict], after: list[dict]) -> bool:
     """True when a day's weather moved enough to plan again: it became known or forecast, its rain flipped,
-    or its low or high moved by CHANGE_C or more. A day that became unknown is not a change."""
+    or its low, high or feels-like high moved by CHANGE_C or more. A day that became unknown is not a change."""
     old = {d.get("date"): d for d in before}
     for new in after:
         prev = old.get(new.get("date"))
@@ -285,8 +288,10 @@ def changed(before: list[dict], after: list[dict]) -> bool:
             continue
         if prev.get("source") != new.get("source") or prev.get("rain") != new.get("rain"):
             return True
-        for k in ("low_c", "high_c"):
+        for k in ("low_c", "high_c", "feels_high_c"):
             a, b = _number(prev.get(k)), _number(new.get(k))
+            if k == "feels_high_c" and a is None and b is None:
+                continue
             if a is None or b is None or abs(a - b) >= CHANGE_C:
                 return True
     return False

@@ -11,6 +11,8 @@ owner; see `DECISIONS.md`, "How the work is organised").
 
 ## In progress (Copilot agents)
 
+- [x] #199 Adversarial review of planning: fixed hot-day packing with unlimited re-wear, missed feels-like forecast changes, malformed trip weather, removal during price checks, partial rejected wishlist edits, API-disable races, and situation claims using unsuitable partners or requiring shoes indoors. Each fix has a regression that failed first.
+
 Wave 1 (landed):
 - [x] #20 Tagging in the app, part 1: the tagger and its two routes are in the backend; Settings shows which routes are available.
 - [x] #22 Wear log and laundry state (migration 0004).

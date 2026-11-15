@@ -226,6 +226,16 @@ def test_a_changed_forecast_is_noticed():
     assert tripweather.in_forecast(before, date(2026, 11, 20)) and not tripweather.in_forecast(before, TODAY)
 
 
+@pytest.mark.parametrize("before_feels, after_feels", [(20, 26), (None, 26), (26, None)])
+def test_a_changed_feels_like_high_is_noticed(before_feels, after_feels):
+    day = {"date": "2026-12-01", "low_c": 15, "high_c": 21, "rain": False, "source": "forecast"}
+    before = {**day, **({"feels_high_c": before_feels} if before_feels is not None else {})}
+    after = {**day, **({"feels_high_c": after_feels} if after_feels is not None else {})}
+    assert tripweather.changed([before], [after])
+    assert not tripweather.changed([before], [before])
+    assert not tripweather.changed([day], [day])
+
+
 def test_given_weather_is_checked():
     first, last = date(2026, 12, 1), date(2026, 12, 2)
     days = [{"date": "2026-12-01", "low_c": 1, "high_c": 5, "rain": True}, {"date": "2026-12-02", "low_c": 2, "high_c": 6}]

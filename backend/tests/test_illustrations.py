@@ -6,6 +6,8 @@ Claude is never called: `FakeClaude` (conftest) stands in for both routes.
 import json
 import sqlite3
 
+import pytest
+
 from closet import db, drawing, illustrations
 from closet.config import bundle_dir
 from closet.drawing import item as draw
@@ -121,6 +123,21 @@ def test_different_drawings_with_the_same_crc32_get_different_cache_urls(client)
     assert before["illustration_svg"] != after["illustration_svg"]
     assert before["illustration_url"] != after["illustration_url"]
     assert client.get(after["illustration_url"]).text == after["illustration_svg"]
+
+
+@pytest.mark.parametrize("view", ["illustration_url", "back_url"])
+def test_a_stale_drawing_url_does_not_cache_new_content_as_immutable(client, services, claude, view):
+    item = tagged(client, services, claude)
+    before = client.patch(f"/api/items/{item['id']}", json={"category": "jeans"}).json()
+    original = client.get(before[view])
+    assert "immutable" in original.headers["cache-control"]
+    after = client.patch(f"/api/items/{item['id']}", json={"color_hex": "#ffffff"}).json()
+    assert after[view] != before[view]
+    late = client.get(before[view])   # a second tab still has the address from before the edit
+    assert late.text != original.text
+    assert late.headers["cache-control"] == "no-store"
+    assert "immutable" in client.get(after[view]).headers["cache-control"]
+    assert client.get(after[view].split("?")[0]).headers["cache-control"] == "no-store"
 
 
 def test_a_field_the_owner_set_wins_over_the_answer(client, services, claude):

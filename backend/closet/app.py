@@ -495,21 +495,23 @@ def create_app(sv: Services) -> FastAPI:
         return items.detail(conn, items.get(conn, item_id))
 
     @app.get("/api/items/{item_id}/illustration.svg", dependencies=protected)
-    def get_illustration(item_id: str, conn=Depends(conn_dep)):
+    def get_illustration(item_id: str, v: str | None = None, conn=Depends(conn_dep)):
         svg = illustrations.current(conn, items.get(conn, item_id))["illustration_svg"]
         if svg is None:
             raise HTTPException(404, "This item has no illustration yet.")
-        # the address carries a version, so the drawing can be cached until it changes
+        # Only cache the drawing under its own version, not an old address another tab still has.
+        cache = "private, max-age=31536000, immutable" if v == hashlib.sha256(svg.encode()).hexdigest() else "no-store"
         return Response(svg, media_type="image/svg+xml", headers={
-            "Cache-Control": "private, max-age=31536000, immutable", "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
+            "Cache-Control": cache, "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
 
     @app.get("/api/items/{item_id}/back.svg", dependencies=protected)
-    def get_back(item_id: str, conn=Depends(conn_dep)):
+    def get_back(item_id: str, v: str | None = None, conn=Depends(conn_dep)):
         svg = illustrations.back(items.get(conn, item_id))
         if svg is None:
             raise HTTPException(404, "This item has no drawing from the back.")
+        cache = "private, max-age=31536000, immutable" if v == hashlib.sha256(svg.encode()).hexdigest() else "no-store"
         return Response(svg, media_type="image/svg+xml", headers={
-            "Cache-Control": "private, max-age=31536000, immutable", "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
+            "Cache-Control": cache, "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
 
     @app.patch("/api/items/{item_id}", dependencies=protected)
     async def patch_item(item_id: str, request: Request, conn=Depends(conn_dep)):

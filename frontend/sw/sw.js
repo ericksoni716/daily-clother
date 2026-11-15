@@ -71,7 +71,7 @@ async function cacheFirst(request) {
   const saved = await cache.match(request);
   if (saved) return saved;
   const response = await fetch(request);
-  if (response.ok) await cache.put(request, response.clone());
+  if (response.ok && !/\bno-store\b/i.test(response.headers.get('Cache-Control') ?? '')) await cache.put(request, response.clone());
   return response;
 }
 

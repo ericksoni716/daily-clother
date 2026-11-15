@@ -148,4 +148,25 @@ describe('SaveLine', () => {
     expect(await b).toBe('B');
     expect(sent).toEqual(['a', 'b']);
   });
+
+  it('keeps queued saves protected if their screen unmounts before the page closes', async () => {
+    const line = new SaveLine();
+    const first = held();
+    const sent: string[] = [];
+    const stop = whenLeaving(() => line.flush(), true);
+    const a = line.add(() => (sent.push('a'), first.promise));
+    const b = line.add(async () => (sent.push('b'), 'B'));
+    await Promise.resolve();
+    flushSaves(false);
+    stop();
+    flushSaves();
+    expect(sent).toEqual(['a', 'b']);
+    first.release('A');
+    expect(await a).toBe('A');
+    expect(await b).toBe('B');
+    await Promise.resolve();
+    const flush = vi.spyOn(line, 'flush');
+    flushSaves();
+    expect(flush).not.toHaveBeenCalled();
+  });
 });

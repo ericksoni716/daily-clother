@@ -48,23 +48,26 @@ export function listenForLeaving(win: Target, doc: Target & { visibilityState: s
 }
 
 /** Runs the latest `flush` given when the page goes away, for as long as the component is shown. */
-export function useWhenLeaving(flush: Flush, pageOnly = false): void {
+export function useWhenLeaving(flush: Flush): void {
   const latest = useRef(flush);
   useEffect(() => {
     latest.current = flush;
   });
-  useEffect(() => whenLeaving(() => latest.current(), pageOnly), [pageOnly]);
+  useEffect(() => whenLeaving(() => latest.current()), []);
 }
 
 /**
  * Sends saves one at a time, in the order they were made (each waits for the one before). When
  * the page goes away, `flush` starts the ones still waiting at once, in order, so none is lost.
+ * A pending queue stays registered even after its screen is gone.
  */
 export class SaveLine {
   private tail: Promise<unknown> = Promise.resolve();
   private waiting: (() => unknown)[] = [];
+  private unlisten: (() => void) | null = null;
 
   add<T>(send: () => Promise<T>): Promise<T> {
+    this.unlisten ??= whenLeaving(() => this.flush(), true);
     let started: Promise<T> | null = null;
     const start = () => (started ??= send());
     this.waiting.push(start);
@@ -73,6 +76,12 @@ export class SaveLine {
       return start();
     });
     this.tail = run.catch(() => undefined);
+    const tail = this.tail;
+    void tail.then(() => {
+      if (this.tail !== tail) return;
+      this.unlisten?.();
+      this.unlisten = null;
+    });
     return run;
   }
 

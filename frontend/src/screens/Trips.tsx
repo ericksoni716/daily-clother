@@ -6,7 +6,7 @@ import { Card, EmptyState, PageHeader, SegmentedControl } from '../components/ui
 import { loadGridView, type GridView } from '../drawing';
 import { useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
-import { SaveLine, useWhenLeaving } from '../leave';
+import { SaveLine } from '../leave';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
 import { joinWords, longDate, occasionLabel, OCCASIONS, outfitIds, placeLabel, shortPlace, wornOrder, type Outfit } from '../today';
@@ -403,7 +403,6 @@ function SavedTrip({ id }: { id: string }) {
   const [newWeather, setNewWeather] = useState(false);
   const pending = useRef(0);
   const ticks = useRef(new SaveLine());
-  useWhenLeaving(() => ticks.current.flush(), true);
 
   useEffect(() => {
     let current = true;

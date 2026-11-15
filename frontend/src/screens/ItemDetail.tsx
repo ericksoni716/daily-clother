@@ -50,7 +50,6 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   const inflight = useRef(0);
   const editVersion = useRef(0);
   const saves = useRef(new SaveLine());
-  useWhenLeaving(() => saves.current.flush(), true);
   const backTo = status === 'archived' ? '/archived' : '/';
 
   const load = useCallback(async () => {

@@ -87,8 +87,10 @@ export function outsideQuestion(item: Pick<Item, 'photos' | 'views'>):
   return photos.length === 1 ? { one: true, photos: [photos[0]] } : { one: false, photos };
 }
 
-/** The shoe is waiting to be drawn from its photos, or being drawn: the item page asks again until it is done. */
-export const drawingShoe = (drawn: ShoeDrawn | null | undefined) => drawn?.state === 'waiting' || drawn?.state === 'drawing';
+/** The shoe is waiting to be drawn from its photos, being drawn, or its drawing is being changed from the owner's
+ * note: the item page asks again until it is done. */
+export const drawingShoe = (drawn: ShoeDrawn | null | undefined) =>
+  drawn?.state === 'waiting' || drawn?.state === 'drawing' || drawn?.state === 'correcting';
 
 /** A drawing's time in words: "48 s", "1 min 52 s". */
 export function drawnTime(seconds: number): string {
@@ -107,9 +109,31 @@ export function drawnLine(drawn: ShoeDrawn | null | undefined): string | null {
   const checked = n === 0 ? 'not checked against the photos' : n === 1 ? 'checked once against the photos'
     : `checked ${n} times against the photos`;
   const cost = dollars(drawn.cost_usd ?? 0);
-  if (drawn.route === 'api') return `Drawn in ${drawnTime(drawn.seconds)}, ${checked} · ${cost} on the API key`;
-  return `Drawn in ${drawnTime(drawn.seconds)} on your Claude plan, ${checked} · about ${cost} if drawn on the API key`;
+  const [made, done] = drawn.corrected ? ['Changed', 'changed'] : ['Drawn', 'drawn'];
+  if (drawn.route === 'api') return `${made} in ${drawnTime(drawn.seconds)}, ${checked} · ${cost} on the API key`;
+  return `${made} in ${drawnTime(drawn.seconds)} on your Claude plan, ${checked} · about ${cost} if ${done} on the API key`;
 }
+
+/** The longest note on a drawing the app takes, in characters. */
+export const NOTE_MAX = 200;
+
+/** The line under a drawing changed from the owner's note: the note and what Claude says it changed. Null when the
+ * drawing was not changed from a note, or while a change is being made. */
+export function changedLine(drawn: ShoeDrawn | null | undefined): string | null {
+  if (!drawn?.url || !drawn.corrected || drawn.correcting || !drawn.note) return null;
+  return `Changed as you asked: “${drawn.note}”.${drawn.changed ? ` ${drawn.changed}` : ''}`;
+}
+
+/** What the button that swaps the drawing and the one kept before it says, or null when none is kept (or while the
+ * shoe is drawn or changed). */
+export function backLabel(drawn: ShoeDrawn | null | undefined): string | null {
+  if (!drawn?.url || !drawn.has_previous || drawingShoe(drawn)) return null;
+  return drawn.previous_newer ? 'Go to the newer drawing' : 'Go back to the drawing before';
+}
+
+/** The note box is offered once the shoe has a drawing, unless it is being drawn or changed, or in the demo closet. */
+export const canCorrect = (drawn: ShoeDrawn | null | undefined, demo: boolean) =>
+  Boolean(drawn?.url) && !demo && !drawingShoe(drawn);
 
 export const DRAWN_DEMO = 'The demo closet is never sent to Claude, so its shoes are not drawn from their photos.';
 

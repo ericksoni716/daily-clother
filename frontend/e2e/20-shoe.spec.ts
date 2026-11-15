@@ -190,6 +190,45 @@ test.describe('a shoe drawn from its photo', () => {
     await expect(drawnSection.getByRole('status')).toHaveCount(0, { timeout: 30_000 });
     await expect(drawnSection.getByRole('button', { name: 'Draw again' })).toBeVisible();
 
+    // the owner's one-line note: the stand-in Claude changes only the laces, and its check says the photos show them
+    // brown, so the page says so in one line; the drawing before is kept, one tap away
+    const box = drawnSection.getByLabel("What's wrong with the drawing?");
+    const sendNote = drawnSection.getByRole('button', { name: 'Send' });
+    await expect(box).toHaveAttribute('placeholder', /the elastic sides should be wider/);
+    await expect(sendNote).toBeDisabled();
+    const before = (await picture.getAttribute('src'))!;
+    await box.fill('the laces should be black');
+    await sendNote.click();
+    await expect(drawnSection.getByRole('status')).toHaveText('Changing the drawing: “the laces should be black”');
+    await expect(box).toHaveCount(0);
+    await expect(picture).toHaveAttribute('src', before);   // the drawing stays shown until the change is done
+    const changedLine = drawnSection.getByTestId('shoe-drawn-changed');
+    await expect(changedLine).toHaveText('Changed as you asked: “the laces should be black”. The laces are black now.',
+      { timeout: 30_000 });
+    await expect(drawnSection.getByTestId('shoe-drawn-against')).toHaveText(
+      'The photos show brown laces, not black; drawn as you asked.');
+    await expect(drawnSection.getByTestId('shoe-drawn-line')).toContainText('Changed in');
+    await expect(drawnSection.getByTestId('shoe-drawn-line')).toContainText('checked once against the photos');
+    await expect(picture).not.toHaveAttribute('src', before);
+    await expect.poll(() => picture.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
+    await expect(box).toBeVisible();
+    expect(await sideways(page)).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
+    await drawnSection.scrollIntoViewIfNeeded();
+    await expect(page.locator('.toast')).toHaveCount(0, { timeout: 15_000 });
+    await drawnSection.screenshot({ path: resolve(SCREENSHOTS, 'shoe-drawn-corrected.png') });
+
+    // back to the drawing before in one tap, and the same button offers the newer one again
+    const changedSrc = (await picture.getAttribute('src'))!;
+    await drawnSection.getByRole('button', { name: 'Go back to the drawing before' }).click();
+    await expect(picture).toHaveAttribute('src', before);
+    await expect(changedLine).toHaveCount(0);
+    await expect(drawnSection.getByTestId('shoe-drawn-against')).toHaveCount(0);
+    await drawnSection.getByRole('button', { name: 'Go to the newer drawing' }).click();
+    await expect(picture).toHaveAttribute('src', changedSrc);
+    await expect(changedLine).toBeVisible();
+    await expect(drawnSection.getByRole('button', { name: 'Go back to the drawing before' })).toBeVisible();
+
     // a photo removed: the shoe is not drawn again, and the page says the photos changed since the drawing
     await row.getByRole('button', { name: 'Remove photo 2' }).click();
     await expect(drawnSection).toContainText('The photos changed since this drawing.');

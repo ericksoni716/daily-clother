@@ -28,16 +28,19 @@ BOAT = drawn.example("boat-shoe")
 
 class Drawer:
     """Stands in for Claude drawing the shoe: a finished drawing of `left` (the dress shoe unless told otherwise), or
-    raises `error`. `calls` keeps the views of the photos it was given; `during` runs while it draws."""
+    raises `error`. `calls` keeps the views of the photos it was given, `notes` the owner's notes it was given (step
+    E); `during` runs while it draws."""
 
     def __init__(self):
         self.left = DRESS
         self.error: Exception | None = None
         self.calls: list[list[tuple]] = []
+        self.notes: list[list[str]] = []
         self.during = None
 
-    def __call__(self, photos, routes):
+    def __call__(self, photos, routes, notes=()):
         self.calls.append([(p.view, p.sure, p.image.size) for p in photos])
+        self.notes.append(list(notes))
         assert routes == ("plan",)
         if self.during:
             self.during()
@@ -331,9 +334,15 @@ def test_a_shoe_only_has_drawn_details(made):
     plain = upload(m.c, key="k3").json()
     assert get(m.c, plain)["drawn"] is None   # not described yet: not a shoe
     item = a_shoe(m.c, key="k4")
+    # step E added what the page needs for the owner's correction, and going back to the drawing before
     assert set(drawn_of(m, item)) == {"state", "message", "url", "rounds", "seconds", "cost_usd", "route", "made_at",
-                                      "photos_changed", "about_usd"}
+                                      "photos_changed", "about_usd", "correcting", "note", "corrected", "changed",
+                                      "against_photos", "has_previous", "previous_newer"}
     assert drawn_of(m, item)["about_usd"] == shoedraw.ABOUT_USD
+    assert {k: drawn_of(m, item)[k] for k in ("correcting", "note", "corrected", "changed", "against_photos",
+                                              "has_previous", "previous_newer")} == {
+        "correcting": False, "note": None, "corrected": False, "changed": None, "against_photos": None,
+        "has_previous": False, "previous_newer": False}
 
 
 # ------------------------------------------------------------------ through the API key and its monthly limit

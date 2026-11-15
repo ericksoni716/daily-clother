@@ -173,7 +173,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                    corrector: corrections.Corrector | None = None, measurer: patjobs.Measurer | None = None,
                    landmarker: patjobs.Landmarker | None = None, shop_asker: shop.Asker | None = None,
                    finder: sources.Finder | None = None, tracer: tracejobs.Tracer | None = None,
-                   sorter: shoeviews.Sorter | None = None, drawer: shoedraw.Drawer | None = None) -> Services:
+                   sorter: shoeviews.Sorter | None = None, drawer: shoedraw.Drawer | None = None,
+                   drawing_corrector: shoedraw.Corrector | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
@@ -184,7 +185,9 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     the pieces in a photo of several (tests). `tracer` traces shoes from their photos; tests standing in for Claude
     trace none unless they give one. `sorter` stands in for Claude sorting a shoe's photos into views (tests); tests
     standing in for Claude sort none unless they give one. `drawer` stands in for Claude drawing a shoe from its
-    sorted photos (tests); tests standing in for Claude draw none unless they give one.
+    sorted photos (tests); tests standing in for Claude draw none unless they give one. `drawing_corrector` stands in
+    for Claude changing a shoe's drawing from the owner's note (tests); tests standing in for Claude change none unless
+    they give one.
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
@@ -268,15 +271,26 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                                     sorter or (no_sorter if tagger is not None else real_sorter))
     draw_meter = spend.Meter(cfg, state, spend.PURPOSE_DRAW, spend.estimate_draw)
 
-    def real_drawer(photos: list, usable: tuple[str, ...]):
+    def real_drawer(photos: list, usable: tuple[str, ...], notes=()):
         from .tagger import shoedrawing
-        return shoedrawing.draw(photos, usable, client=api_client, meter=draw_meter)
+        return shoedrawing.draw(photos, usable, client=api_client, meter=draw_meter, notes=notes)
 
-    def no_drawer(photos: list, usable: tuple[str, ...]):
+    def no_drawer(photos: list, usable: tuple[str, ...], notes=()):
         raise RouteUnavailable("tests standing in for Claude draw no shoes unless they ask to")
 
+    correct_meter = spend.Meter(cfg, state, spend.PURPOSE_CORRECT_DRAWING, spend.estimate_correct_drawing)
+
+    def real_drawing_corrector(photos: list, kept: dict, note: str, usable: tuple[str, ...]):
+        from .tagger import shoedrawing
+        return shoedrawing.correct(photos, kept, note, usable, client=api_client, meter=correct_meter)
+
+    def no_drawing_corrector(photos: list, kept: dict, note: str, usable: tuple[str, ...]):
+        raise RouteUnavailable("tests standing in for Claude change no drawings unless they ask to")
+
     draw_worker = shoedraw.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)),
-                                  drawer or (no_drawer if tagger is not None else real_drawer))
+                                  drawer or (no_drawer if tagger is not None else real_drawer),
+                                  corrector=drawing_corrector or (no_drawing_corrector if tagger is not None
+                                                                  else real_drawing_corrector))
     views_worker.on_sorted = draw_worker.wake   # a shoe sorted for the first time is drawn next
 
     def described() -> None:   # patterns are measured, shoes traced and their photos sorted next
@@ -711,6 +725,34 @@ def create_app(sv: Services) -> FastAPI:
             sv.views.wake()   # photos never sorted are sorted first
         if sv.draws:
             sv.draws.wake()
+        return items.detail(conn, items.get(conn, item_id))
+
+    @app.post("/api/items/{item_id}/drawn/correct", status_code=202, dependencies=protected)
+    async def correct_drawing(item_id: str, request: Request, conn=Depends(conn_dep)):
+        body = await shoe_body(request)
+        note = body.get("note") if isinstance(body, dict) else None
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            shoedraw.correct(conn, item_id, note, state.get("profile") == "demo")
+            conn.execute("COMMIT")
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        if sv.draws:
+            sv.draws.wake()
+        return items.detail(conn, items.get(conn, item_id))
+
+    @app.post("/api/items/{item_id}/drawn/back", dependencies=protected)
+    def drawn_back(item_id: str, conn=Depends(conn_dep)):
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            shoedraw.back(conn, item_id)
+            conn.execute("COMMIT")
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
         return items.detail(conn, items.get(conn, item_id))
 
     @app.get("/api/items/{item_id}/drawn.svg", dependencies=protected)

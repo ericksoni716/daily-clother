@@ -129,4 +129,13 @@ describe("a shoe's photos", () => {
     await api.drawShoe('a b');
     expect(calls.map((c) => [c.init.method, c.path])).toEqual([['POST', '/api/items/a%20b/drawn']]);
   });
+
+  it("sends the owner's note on a shoe's drawing, and goes back to the drawing before", async () => {
+    const calls = recording();
+    await api.correctDrawing('a b', 'the laces are black');
+    await api.drawingBack('a b');
+    expect(calls.map((c) => [c.init.method, c.path])).toEqual([
+      ['POST', '/api/items/a%20b/drawn/correct'], ['POST', '/api/items/a%20b/drawn/back']]);
+    expect(JSON.parse(calls[0].init.body as string)).toEqual({ note: 'the laces are black' });
+  });
 });

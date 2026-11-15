@@ -164,6 +164,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
+    backup.recover(cfg)   # a restore cut short is finished or undone before the closet is opened
     db.migrate(cfg.db_path("main"), cfg.local_backups_dir)
     if state.get("profile") == "demo":
         demo.ensure(cfg)
@@ -1081,6 +1082,15 @@ def create_app(sv: Services) -> FastAPI:
         if not result["ok"]:
             return JSONResponse(result, status_code=409)
         return result
+
+    @app.get("/api/restore-notice", dependencies=protected)
+    def get_restore_notice():
+        return {"notice": backup.restore_notice(cfg)}
+
+    @app.delete("/api/restore-notice", status_code=204, dependencies=protected)
+    def dismiss_restore_notice():
+        backup.dismiss_notice(cfg)
+        return Response(status_code=204)
 
     # -------------------------------------------------------------- updates
     @app.get("/api/updates", dependencies=protected)

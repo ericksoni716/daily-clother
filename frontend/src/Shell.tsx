@@ -17,6 +17,7 @@ import { WornScreen } from './screens/Worn';
 import { ReviewBadge, reviewCountText, ReviewIcon, ReviewScreen, useReviewCount } from './screens/Review';
 import { BagIcon, MissingScreen } from './screens/Missing';
 import { Restarting, UpdateBanner, useUpdateStatus } from './components/Updates';
+import { RestoreNotice } from './components/RestoreNotice';
 
 export function Shell({ version }: { version: string }) {
   const path = usePath();
@@ -62,6 +63,7 @@ function TopBanners() {
     <>
       <Restarting />
       <UpdateBanner offline={offline} toast={toast} />
+      <RestoreNotice offline={offline} toast={toast} />
       {offline && (
         <div className="banner banner-offline" role="status">
           <CloudOffIcon />

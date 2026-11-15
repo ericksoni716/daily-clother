@@ -131,8 +131,10 @@ def test_interrupted_image_refresh_preserves_the_previous_backup(client, service
     item = upload(client).json()
     assert backup.run_backup(cfg, services.state, folder=folder)["ok"]
     rel = item["photos"][0]["url"].removeprefix("/media/")
-    saved = folder / backup.SUBFOLDER / "images" / rel
-    previous = saved.read_bytes()
+    previous = (cfg.images_dir("main") / rel).read_bytes()
+    digest = hashlib.sha256(previous).hexdigest()
+    saved = folder / backup.SUBFOLDER / backup.CONTENT / digest[:2] / digest
+    assert saved.read_bytes() == previous
     (cfg.images_dir("main") / rel).write_bytes(previous + b"changed")
 
     def interrupted_copy(src, dest, *args, **kwargs):
@@ -167,7 +169,8 @@ def test_restore_refuses_missing_images_without_changing_the_live_closet(client,
     item = upload(client).json()
     assert backup.run_backup(cfg, services.state, folder=folder)["ok"]
     rel = item["photos"][0]["url"].removeprefix("/media/")
-    (folder / backup.SUBFOLDER / "images" / rel).unlink()
+    digest = hashlib.sha256((cfg.images_dir("main") / rel).read_bytes()).hexdigest()
+    (folder / backup.SUBFOLDER / backup.CONTENT / digest[:2] / digest).unlink()
     upload(client, key="later", name="Not backed up")
     services.stop()
     with pytest.raises(backup.BackupError, match="image"):
@@ -196,7 +199,8 @@ def test_failed_restore_leaves_the_live_closet_in_place(client, services, cfg, t
             m.setattr(backup.shutil, "copy2", fail)
             m.setattr(db, "snapshot", fail)
         elif failure == "images":
-            m.setattr(backup.shutil, "copytree", fail)
+            m.setattr(backup.shutil, "copytree", fail)   # a backup in the old layout
+            m.setattr(backup.shutil, "copy2", fail)      # images kept by content, copied one by one
         elif failure == "migration":
             m.setattr(db, "migrate", fail)
         else:

@@ -717,27 +717,33 @@ def on_the_shoe(shoe, pts) -> bool:
                for q in pts)
 
 
-@pytest.mark.parametrize("name", ["STRIPED_COURT", "BOLD_STRIPES"])
+@pytest.mark.parametrize("name", ["STRIPED_COURT", "BOLD_STRIPES", "REAL_STRIPES"])
 def test_a_white_shoes_three_red_stripes_are_three_bands_in_a_and_b(name):
     """A white court shoe with three red stripes on its side: A and B each draw three marks, one band for each
     stripe, slanted and foreshortened by the turn but wide enough to see (no slivers of the side turned away), on
     the shoe and under its laces; the upper stays white. A stripe the trace took for a colour piece beside two
-    marks (its box overlapping theirs) was once dropped, and the side walls showed only thin slivers."""
+    marks (its box overlapping theirs) was once dropped, and the side walls showed only thin slivers. REAL_STRIPES
+    has thin, tapered, soft-edged stripes, as a photo shows them: one was once taken for the laces."""
     from . import shoe_photos as S
+    spec = getattr(S, name)
     t = traced_photo(name)
     for kind in (frontshoe.FROM_SHAPE, frontshoe.FROM_PHOTO):
         shoe = front(t, kind=kind)
-        red = [ring for c in set(re.findall(r'fill="(#[0-9a-f]{6})"/>', shoe.body)) if near(c, (196, 30, 40))
+        red = [ring for c in set(re.findall(r'fill="(#[0-9a-f]{6})"/>', shoe.body)) if near(c, spec["stripes"])
                for ring in painted(shoe.body, c)]
         assert len(red) == 3, kind
         assert all(area(ring) > 5 and thickness(ring) > 0.2 * K_PX for ring in red), kind
         assert all(on_the_shoe(shoe, ring) for ring in red), kind
-        reds = {c for c in re.findall(r'fill="(#[0-9a-f]{6})"/>', shoe.body) if near(c, (196, 30, 40))}
+        reds = {c for c in re.findall(r'fill="(#[0-9a-f]{6})"/>', shoe.body) if near(c, spec["stripes"])}
         last_mark = max(m.start() for c in reds for m in re.finditer(rf'fill="{c}"/>', shoe.body))
         assert last_mark < shoe.body.index('stroke-linecap="round"'), kind   # the laces are painted over them
         cells = frontshoe._Traced.of(t, "round", "low_sneaker").on_template(
             *frontshoe.STYLES["low_sneaker"][:4], 0.97, "round", sampled=kind == frontshoe.FROM_PHOTO).cells()
-        assert all(math.dist(lab(c), lab(S.WHITE)) <= 5 for _, _, _, c, _, _ in cells), kind
+        own = [spec["upper"]] + ([spec["heel_counter"]] if spec.get("heel_counter") else [])   # a dark heel tab
+        assert all(min(math.dist(lab(c), lab(rgb)) for rgb in own) <= 5 for _, _, _, c, _, _ in cells), kind
+        laces = [c for c in re.findall(r'stroke="(#[0-9a-f]{6})" stroke-width="[\d.]+" stroke-linecap="round"', shoe.body)
+                 if c != frontshoe.INK]
+        assert laces and not any(near(c, spec["stripes"]) for c in laces), kind   # the laces are not the stripes' red
 
 
 def test_a_small_black_curve_is_one_curved_mark_in_a_and_b():

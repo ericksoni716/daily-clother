@@ -145,6 +145,22 @@ def test_stripes_are_measured_from_the_photo():
         assert abs(width * 500 - 20) <= 3
 
 
+def test_stripe_measurement_does_not_depend_on_previous_random_state():
+    import cv2
+
+    colours = np.array([[197, 77, 130], [169, 72, 49], [139, 155, 193], [44, 141, 81], [58, 107, 206]],
+                       dtype=np.uint8)
+    pixels = np.full((200, 100, 4), 255, dtype=np.uint8)
+    pixels[:, :, :3] = colours[(np.arange(200) // 10) % len(colours), None, :]
+    cutout = Image.fromarray(pixels)
+    drawings = []
+    for seed in (0, 1, 2, 3):
+        cv2.setRNGSeed(seed)
+        stripes = fills.measure_stripes(cutout)
+        drawings.append(render(Spec("top", {}, Fill("stripes", "#888888", stripes=stripes)), "line"))
+    assert all(svg == drawings[0] for svg in drawings)
+
+
 def test_plaid_swatch_finds_the_repeat():
     yy, xx = np.mgrid[0:500, 0:400]
     plaid = np.stack([120 + 80 * np.sin(xx * 2 * np.pi / 40), 120 + 80 * np.sin(yy * 2 * np.pi / 50),

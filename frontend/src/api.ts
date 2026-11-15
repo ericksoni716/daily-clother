@@ -1,4 +1,4 @@
-import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeCheck, TraceFix } from './types';
+import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeCheck, TraceFix } from './types';
 import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
@@ -312,6 +312,8 @@ export const api = {
   outfitFigure: (pieces: FigurePieces, signal?: AbortSignal) =>
     request<string>('/api/outfits/figure', { method: 'POST', body: pieces, signal, text: true }),
   backup: () => request<BackupRecord>('/api/backup', { method: 'POST' }),
+  restoreNotice: () => request<{ notice: RestoreNotice | null }>('/api/restore-notice'),
+  dismissRestoreNotice: () => request<void>('/api/restore-notice', { method: 'DELETE' }),
   // New versions of Closet
   updates: () => request<UpdateStatus>('/api/updates'),
   setUpdateMode: (mode: UpdateMode) => request<UpdateStatus>('/api/updates', { method: 'PUT', body: { mode } }),

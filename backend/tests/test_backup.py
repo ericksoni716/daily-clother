@@ -1,12 +1,19 @@
+import hashlib
 import json
+import os
+import shutil
+import subprocess
+import sys
 import time
 from pathlib import Path
 
 import pytest
+from fastapi.testclient import TestClient
 
+from closet import app as app_module
 from closet import autostart, backup, cli, config, db, demo, instance, phone
 
-from .conftest import upload
+from .conftest import PASSPHRASE, FakeClaude, fake_cutter, upload
 
 
 def test_backup_then_restore_brings_everything_back(client, services, cfg, tmp_path):
@@ -124,8 +131,10 @@ def test_interrupted_image_refresh_preserves_the_previous_backup(client, service
     item = upload(client).json()
     assert backup.run_backup(cfg, services.state, folder=folder)["ok"]
     rel = item["photos"][0]["url"].removeprefix("/media/")
-    saved = folder / backup.SUBFOLDER / "images" / rel
-    previous = saved.read_bytes()
+    previous = (cfg.images_dir("main") / rel).read_bytes()
+    digest = hashlib.sha256(previous).hexdigest()
+    saved = folder / backup.SUBFOLDER / backup.CONTENT / digest[:2] / digest
+    assert saved.read_bytes() == previous
     (cfg.images_dir("main") / rel).write_bytes(previous + b"changed")
 
     def interrupted_copy(src, dest, *args, **kwargs):
@@ -160,7 +169,8 @@ def test_restore_refuses_missing_images_without_changing_the_live_closet(client,
     item = upload(client).json()
     assert backup.run_backup(cfg, services.state, folder=folder)["ok"]
     rel = item["photos"][0]["url"].removeprefix("/media/")
-    (folder / backup.SUBFOLDER / "images" / rel).unlink()
+    digest = hashlib.sha256((cfg.images_dir("main") / rel).read_bytes()).hexdigest()
+    (folder / backup.SUBFOLDER / backup.CONTENT / digest[:2] / digest).unlink()
     upload(client, key="later", name="Not backed up")
     services.stop()
     with pytest.raises(backup.BackupError, match="image"):
@@ -189,7 +199,8 @@ def test_failed_restore_leaves_the_live_closet_in_place(client, services, cfg, t
             m.setattr(backup.shutil, "copy2", fail)
             m.setattr(db, "snapshot", fail)
         elif failure == "images":
-            m.setattr(backup.shutil, "copytree", fail)
+            m.setattr(backup.shutil, "copytree", fail)   # a backup in the old layout
+            m.setattr(backup.shutil, "copy2", fail)      # images kept by content, copied one by one
         elif failure == "migration":
             m.setattr(db, "migrate", fail)
         else:
@@ -228,6 +239,273 @@ def test_restore_command_refuses_an_empty_folder(cfg, tmp_path, capsys, monkeypa
     (tmp_path / "empty").mkdir()
     assert cli.main(["restore", str(tmp_path / "empty")]) == 1
     assert "No backup was found" in capsys.readouterr().out
+
+
+# ---------------------------------------------------------------- the images of each snapshot, and old backups
+
+def _closet_now(cfg):
+    """The real closet as it stands: its database, line by line, and every image."""
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        dump = list(conn.iterdump())
+    finally:
+        conn.close()
+    images = {p.relative_to(cfg.images_dir("main")).as_posix(): p.read_bytes()
+              for p in cfg.images_dir("main").rglob("*") if p.is_file()}
+    return dump, images
+
+
+def _cutout(client, item_id) -> str:
+    return client.get(f"/api/items/{item_id}").json()["photos"][0]["cutout_url"].removeprefix("/media/")
+
+
+def _old_layout_backup(cfg, folder, stamp):
+    """A backup as the program wrote them before images were kept by content (#218): the database snapshot, and
+    one images folder shared by every snapshot, a file copied again only when its size changed."""
+    root = folder / backup.SUBFOLDER
+    snap = root / "db" / f"closet-{stamp}.sqlite"
+    db.snapshot(cfg.db_path("main"), snap)
+    for f in cfg.images_dir("main").rglob("*"):
+        if f.is_file():
+            dest = root / "images" / f.relative_to(cfg.images_dir("main"))
+            if not dest.exists() or dest.stat().st_size != f.stat().st_size:
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(f, dest)
+    (root / "manifest.json").write_text(json.dumps(
+        {"last_backup": "2026-01-01T01:01:01Z", "snapshot": snap.name, "snapshots": [snap.name],
+         "data_version": db.latest_version()}, indent=1))
+    return snap.name
+
+
+def test_restoring_an_older_snapshot_gives_its_own_cutout(client, services, cfg, tmp_path, monkeypatch):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    services.worker.is_ready = lambda: True
+    item = upload(client).json()
+    services.worker.drain()
+    cut = cfg.images_dir("main") / _cutout(client, item["id"])
+    monkeypatch.setattr(backup, "_stamp", lambda: "20260101-010101")
+    first = backup.run_backup(cfg, services.state, folder=folder)
+    assert first["ok"]
+    backed_up = _closet_now(cfg)
+    cut.write_bytes(cut.read_bytes() + b"a newer cutout")   # the cutout made again, under the same name
+    monkeypatch.setattr(backup, "_stamp", lambda: "20260102-010101")
+    assert backup.run_backup(cfg, services.state, folder=folder)["ok"]
+    newer = _closet_now(cfg)
+    services.stop()
+
+    monkeypatch.setattr(backup, "_stamp", lambda: "20260103-010101")
+    backup.restore(cfg, folder, first["snapshot"])
+    assert _closet_now(cfg) == backed_up
+    backup.restore(cfg, folder)   # the newest still has the newer one
+    assert _closet_now(cfg) == newer
+
+
+def test_an_unchanged_closet_adds_no_images_and_a_damaged_copy_is_made_again(client, services, cfg, tmp_path, monkeypatch):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    services.worker.is_ready = lambda: True
+    upload(client)
+    services.worker.drain()
+    monkeypatch.setattr(backup, "_stamp", lambda: "20260101-010101")
+    assert backup.run_backup(cfg, services.state, folder=folder)["images_copied"] == 4
+    root = folder / backup.SUBFOLDER
+    stored = sorted(p.name for p in root.rglob("*") if p.is_file() and "db" not in p.parts)
+    monkeypatch.setattr(backup, "_stamp", lambda: "20260102-010101")
+    assert backup.run_backup(cfg, services.state, folder=folder)["images_copied"] == 0
+    assert sorted(p.name for p in root.rglob("*") if p.is_file() and "db" not in p.parts) == stored
+    blob = next(p for p in (root / backup.CONTENT).rglob("*") if p.is_file())
+    blob.write_bytes(b"")   # a copy cut short, as an unplugged drive can leave it
+    monkeypatch.setattr(backup, "_stamp", lambda: "20260103-010101")
+    assert backup.run_backup(cfg, services.state, folder=folder)["images_copied"] == 1
+    assert hashlib.sha256(blob.read_bytes()).hexdigest() == blob.name
+
+
+def test_an_old_layout_backup_still_restores_its_own_images(client, services, cfg, tmp_path, monkeypatch):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    services.worker.is_ready = lambda: True
+    item = upload(client, name="Backed up").json()
+    services.worker.drain()
+    cut = cfg.images_dir("main") / _cutout(client, item["id"])
+    old = _old_layout_backup(cfg, folder, "20260101-010101")
+    backed_up = _closet_now(cfg)
+    cut.write_bytes(cut.read_bytes() + b"a newer cutout")
+    upload(client, key="later", name="Not in the old backup")
+    services.worker.drain()
+    monkeypatch.setattr(backup, "_stamp", lambda: "20260102-010101")
+    new = backup.run_backup(cfg, services.state, folder=folder)   # into the same folder, with this program
+    assert new["ok"]
+    newer = _closet_now(cfg)
+    services.stop()
+
+    monkeypatch.setattr(backup, "_stamp", lambda: "20260103-010101")
+    assert backup.restore(cfg, folder, old)["items"] == 1
+    assert _closet_now(cfg) == backed_up
+    assert backup.restore(cfg, folder, new["snapshot"])["items"] == 2
+    assert _closet_now(cfg) == newer
+
+
+def test_pruning_keeps_every_image_a_remaining_snapshot_needs(client, services, cfg, tmp_path, monkeypatch):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    services.worker.is_ready = lambda: True
+    item = upload(client).json()
+    services.worker.drain()
+    cut = cfg.images_dir("main") / _cutout(client, item["id"])
+    root = folder / backup.SUBFOLDER
+    _old_layout_backup(cfg, folder, "20251231-010101")
+    versions = {}
+    for day in range(1, backup.KEEP_SNAPSHOTS + 4):
+        cut.write_bytes(b"cutout %d" % day)
+        monkeypatch.setattr(backup, "_stamp", lambda day=day: f"202601{day:02d}-010101")
+        result = backup.run_backup(cfg, services.state, folder=folder)
+        assert result["ok"]
+        versions[result["snapshot"]] = cut.read_bytes()
+        if day == 1:   # the old-layout snapshot is still kept, and so are its images
+            assert (root / "images").is_dir()
+    kept = sorted(p.name for p in (root / "db").glob("closet-*.sqlite"))
+    assert kept == sorted(versions)[-backup.KEEP_SNAPSHOTS:]
+    assert not (root / "images").exists()   # no snapshot left uses the old layout
+    stored = {p.name for p in root.rglob("*") if p.is_file() and "db" not in p.parts and p.name != "manifest.json"}
+    for snap in kept:
+        assert hashlib.sha256(versions[snap]).hexdigest() in stored
+    for gone in sorted(versions)[:-backup.KEEP_SNAPSHOTS]:
+        assert hashlib.sha256(versions[gone]).hexdigest() not in stored
+    services.stop()
+    monkeypatch.setattr(backup, "_stamp", lambda: "20260301-010101")
+    for snap in (kept[0], kept[-1]):
+        backup.restore(cfg, folder, snap)
+        assert cut.read_bytes() == versions[snap]
+
+
+# ---------------------------------------------------------------- a restore cut short: the journal
+
+# Runs a restore in a program of its own and ends that program at once, as a power cut or a forced quit would,
+# just after one of the moves that put the backup in place: the first, the middle one or the last (argv[4] is how
+# many there are). "none" ends it just before the first move.
+KILL = """
+import os, sys
+from pathlib import Path
+from closet import backup, config
+cfg = config.Config(Path(sys.argv[1]), auto_download_model=False)
+real, moves = Path.replace, []
+def replace(src, dst):
+    dst = Path(dst)
+    if dst.parent != cfg.data_dir and not dst.parent.name.startswith("replaced-"):
+        return real(src, dst)
+    if sys.argv[3] == "none":
+        os._exit(9)
+    real(src, dst)
+    moves.append(dst)
+    steps = int(sys.argv[4])
+    if len(moves) == {"first": 1, "middle": (steps + 1) // 2, "last": steps}[sys.argv[3]]:
+        os._exit(9)
+Path.replace = replace
+backup.restore(cfg, Path(sys.argv[2]))
+"""
+
+
+def _kill_restore(cfg, folder, when):
+    live = [cfg.db_path("main"), cfg.images_dir("main")] + [cfg.db_path("main").with_name(f"closet.db{e}")
+                                                            for e in ("-wal", "-shm")]
+    steps = sum(p.exists() for p in live) + 2   # each moved aside, then the database and images put in
+    env = dict(os.environ, PYTHONPATH=str(Path(backup.__file__).parents[1]))
+    done = subprocess.run([sys.executable, "-c", KILL, str(cfg.data_dir), str(folder), when, str(steps)], env=env,
+                          capture_output=True, text=True, timeout=120)
+    assert done.returncode == 9, done.stderr
+
+
+def _start_again(cfg):
+    claude = FakeClaude()
+    return app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, tagger=claude,
+                                     routes=lambda: claude.routes(), corrector=claude.correct)
+
+
+def _backed_up_then_changed(client, services, cfg, folder):
+    """A closet backed up, then changed. Returns the closet as backed up and as it is now."""
+    folder.mkdir()
+    services.worker.is_ready = lambda: True
+    upload(client, name="Backed up")
+    services.worker.drain()
+    assert backup.run_backup(cfg, services.state, folder=folder)["ok"]
+    backed_up = _closet_now(cfg)
+    upload(client, key="later", name="Not backed up")
+    services.worker.drain()
+    services.stop()
+    return backed_up, _closet_now(cfg)
+
+
+@pytest.mark.parametrize("when", ["first", "middle", "last"])
+def test_a_restore_cut_short_is_finished_at_the_next_start(client, services, cfg, tmp_path, when):
+    backed_up, before = _backed_up_then_changed(client, services, cfg, tmp_path / "Synced")
+    settings = cfg.state_path.read_bytes()
+    _kill_restore(cfg, tmp_path / "Synced", when)
+    again = _start_again(cfg)
+    try:
+        assert _closet_now(cfg) == backed_up   # all of the backup: every new file was there, whole
+        assert cfg.state_path.read_bytes() == settings
+        assert not (cfg.data_dir / backup.JOURNAL).exists()
+        assert not list(cfg.data_dir.glob(".restore-*"))
+        aside = [p for p in cfg.data_dir.glob("replaced-*") if (p / "closet.db").exists()]
+        assert len(aside) == 1   # the closet from before is kept, as after any restore
+        notice = backup.restore_notice(cfg)
+        assert notice["outcome"] == "finished" and "interrupted" in notice["message"]
+    finally:
+        again.stop()
+
+
+def test_a_restore_cut_short_without_all_its_new_files_is_undone(client, services, cfg, tmp_path):
+    backed_up, before = _backed_up_then_changed(client, services, cfg, tmp_path / "Synced")
+    settings = cfg.state_path.read_bytes()
+    _kill_restore(cfg, tmp_path / "Synced", "middle")
+    staged = [p for p in cfg.data_dir.glob(".restore-*/images/**/*") if p.is_file()]
+    assert staged
+    staged[0].write_bytes(b"cut")   # a new file damaged: the restore cannot be finished
+    again = _start_again(cfg)
+    try:
+        assert _closet_now(cfg) == before
+        assert cfg.state_path.read_bytes() == settings
+        assert not (cfg.data_dir / backup.JOURNAL).exists()
+        notice = backup.restore_notice(cfg)
+        assert notice["outcome"] == "undone"
+        assert notice["message"] == ("A restore was interrupted; your closet was put back as it was before the "
+                                     "restore.")
+        anon = TestClient(app_module.create_app(again))
+        assert anon.post("/api/login", json={"passphrase": PASSPHRASE}).status_code == 204
+        assert anon.get("/api/restore-notice").json()["notice"]["message"] == notice["message"]
+        assert anon.delete("/api/restore-notice").status_code == 204
+        assert anon.get("/api/restore-notice").json() == {"notice": None}   # shown once
+        assert len(anon.get("/api/items").json()["items"]) == 2
+    finally:
+        again.stop()
+
+
+def test_a_restore_cut_short_while_its_journal_was_written_leaves_the_closet_as_it_was(client, services, cfg, tmp_path):
+    backed_up, before = _backed_up_then_changed(client, services, cfg, tmp_path / "Synced")
+    (cfg.data_dir / (backup.JOURNAL + ".tmp")).write_text('{"version": 1, "steps": [{"kind": "as')
+    again = _start_again(cfg)
+    try:
+        assert _closet_now(cfg) == before
+        assert not (cfg.data_dir / (backup.JOURNAL + ".tmp")).exists()
+        assert backup.restore_notice(cfg) is None   # nothing had happened yet
+    finally:
+        again.stop()
+
+
+def test_a_damaged_journal_moves_nothing(client, services, cfg, tmp_path):
+    backed_up, before = _backed_up_then_changed(client, services, cfg, tmp_path / "Synced")
+    _kill_restore(cfg, tmp_path / "Synced", "none")   # the journal is written, nothing moved yet
+    journal = cfg.data_dir / backup.JOURNAL
+    assert journal.is_file()
+    journal.write_bytes(journal.read_bytes()[:40])
+    again = _start_again(cfg)
+    try:
+        assert _closet_now(cfg) == before
+        assert not journal.exists() and list(cfg.data_dir.glob("restore-journal.unreadable-*.json"))
+        assert backup.restore_notice(cfg)["outcome"] == "unreadable"
+    finally:
+        again.stop()
 
 
 def test_demo_closet_has_about_forty_items_and_leaves_the_real_one_alone(client, cfg):

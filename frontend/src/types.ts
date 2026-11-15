@@ -222,6 +222,13 @@ export interface BackupRecord {
   kind: string;
 }
 
+/** What Closet did at start-up about a restore that was cut short: shown once, until the owner says OK. */
+export interface RestoreNotice {
+  at: string;
+  outcome: 'finished' | 'undone' | 'unreadable';
+  message: string;
+}
+
 export interface Settings {
   version: string;
   profile: Profile;

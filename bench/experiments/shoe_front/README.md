@@ -26,6 +26,14 @@ It holds no photos: everything it downloads or draws goes under `bench/private/s
   `today` is today's default drawing ("From the shoe's shape"), `top` is the photo from above laid on, `turn` is
   the same with the toes turned out 20°.
 
+## The owner's notes on each shoe's outline
+
+After the line-up the owner said the problem is the outline of the shoes on the figure's feet. Their notes on each
+of the ten pairs (ticks such as "Too narrow" or "Sole too thin", and a line of text) are kept by a second private
+page, <https://claude.ai/artifact/MqwpSvwgm9LEzDZ4pwwUYE>, in its collection `notes` (documents `shoe-1` to
+`shoe-10`: `shoe`, `name`, `ticks`, `text`, `at`). Read them from there before measuring anything. The shoes are
+numbered as on the line-up page: the order of `TEN` in `sheets.py`.
+
 ## What to do with the result
 
 - **Pass** (`top` at least 8 of 10 and at least 3 more than `today`): go on to steps 3 to 5 of the plan, as

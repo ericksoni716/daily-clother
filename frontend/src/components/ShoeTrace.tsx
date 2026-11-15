@@ -73,7 +73,7 @@ function PartColour({ title, color, own, busy, onPick, onReset }: {
   return (
     <li className="shoe-part">
       <label className="shoe-part-label">
-        <input type="color" value={value} disabled={busy} aria-label={`Colour of the ${title}`} onChange={(e) => {
+        <input type="color" value={value} disabled={busy} aria-label={title === 'main colour' ? 'Main colour' : `Colour of the ${title}`} onChange={(e) => {
           const next = e.target.value;
           setValue(next);
           window.clearTimeout(timer.current);

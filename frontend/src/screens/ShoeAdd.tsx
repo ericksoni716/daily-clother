@@ -162,9 +162,9 @@ export function ShoeAdd() {
               {liveCamera() && !cameraError && (
                 <button type="button" className="btn btn-primary" onClick={() => void openCamera()}><CameraIcon />Open the camera</button>
               )}
-              <button type="button" className={`btn${liveCamera() && !cameraError ? '' : ' btn-primary'}`} onClick={() => camera.current?.click()}>
-                <CameraIcon />Take photo
-              </button>
+              {!(liveCamera() && !cameraError) && (
+                <button type="button" className="btn btn-primary" onClick={() => camera.current?.click()}><CameraIcon />Take photo</button>
+              )}
               <button type="button" className="btn" onClick={() => library.current?.click()}><ImagesIcon />Choose from library</button>
             </>
           )}

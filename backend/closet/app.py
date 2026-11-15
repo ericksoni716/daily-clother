@@ -527,6 +527,11 @@ def create_app(sv: Services) -> FastAPI:
         return Response(svg, media_type="image/svg+xml", headers={
             "Cache-Control": "private, max-age=31536000, immutable", "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
 
+    def _traced_soon(item) -> None:
+        """An item just said to be a shoe waits to be traced: the queue need not wait for its next round."""
+        if isinstance(item, dict) and (item.get("trace") or {}).get("state") == "waiting":
+            sv.worker.wake()
+
     @app.patch("/api/items/{item_id}", dependencies=protected)
     async def patch_item(item_id: str, request: Request, conn=Depends(conn_dep)):
         try:
@@ -535,7 +540,9 @@ def create_app(sv: Services) -> FastAPI:
             raise HTTPException(400, "The request was not valid JSON.")
         if not isinstance(changes, dict):
             raise HTTPException(422, "Send an object of fields to change.")
-        return items.update(conn, item_id, changes)
+        saved = items.update(conn, item_id, changes)
+        _traced_soon(saved)
+        return saved
 
     @app.delete("/api/items/{item_id}", status_code=204, dependencies=protected)
     def delete_item(item_id: str, conn=Depends(conn_dep)):
@@ -629,7 +636,9 @@ def create_app(sv: Services) -> FastAPI:
 
     @app.put("/api/items/{item_id}/kind", dependencies=protected)
     def set_kind(item_id: str, body: KindBody, conn=Depends(conn_dep)):
-        return corrections.set_kind(conn, item_id, body.kind)
+        saved = corrections.set_kind(conn, item_id, body.kind)
+        _traced_soon(saved)
+        return saved
 
     @app.post("/api/items/{item_id}/correct", dependencies=protected)
     async def correct_item(item_id: str, body: Sentence):
@@ -664,7 +673,9 @@ def create_app(sv: Services) -> FastAPI:
 
     @app.post("/api/items/{item_id}/history/{change_id}/undo", dependencies=protected)
     def undo_change(item_id: str, change_id: int, conn=Depends(conn_dep)):
-        return corrections.undo(conn, item_id, change_id)
+        saved = corrections.undo(conn, item_id, change_id)
+        _traced_soon(saved["item"])
+        return saved
 
     @app.get("/api/items/{item_id}/wears", dependencies=protected)
     def list_wears(item_id: str, conn=Depends(conn_dep)):

@@ -297,7 +297,7 @@ def check(img: Image.Image, maskers: list[tuple[str, Masker]]) -> dict:
             break
     if best is None:
         return {"ok": False, "reasons": [_sentence("found")]}
-    return {"ok": best.ok, "reasons": [_sentence(k) for k in _keys(best.reasons)] or
+    return {"ok": best.ok, "reasons": list(dict.fromkeys(_sentence(k) for k in _keys(best.reasons))) or
             ([] if best.ok else ["This photo may not trace well. " + TIP])}
 
 

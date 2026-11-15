@@ -448,6 +448,7 @@ def test_the_instant_check_passes_a_side_on_photo_and_says_why_it_turns_one_down
     front = c.post("/api/shoes/check", files={"photo": ("f.jpg", jpeg(S.front_view()), "image/jpeg")}).json()
     assert front["ok"] is False and front["reasons"]
     assert all(r.startswith("The photo ") and "limit" not in r for r in front["reasons"])
+    assert len(set(front["reasons"])) == len(front["reasons"])   # each said once
     bad = c.post("/api/shoes/check", files={"photo": ("x.jpg", b"not a photo", "image/jpeg")})
     assert bad.status_code == 400
 
@@ -469,3 +470,15 @@ def test_the_real_tracer_traces_a_synthetic_photo(cfg, make):
     item = a_shoe(sv, c, data=jpeg(img))
     assert item["trace"]["state"] == "done", item["trace"]
     assert item["trace"]["drawn"] and "toe_cap" in [p["name"] for p in item["trace"]["parts"]]
+
+
+def test_saying_an_item_is_a_shoe_wakes_the_queue(make, shoe):
+    sv, c = make(Tracer(shoe))
+    item = upload(c, key="wake").json()
+    sv.worker.drain()   # cut out; not a shoe yet, so not traced
+    woken = []
+    sv.worker.wake = lambda: woken.append(1)
+    assert c.patch(f"/api/items/{item['id']}", json={"notes": "x"}).status_code == 200
+    assert not woken   # nothing to trace
+    shown = c.patch(f"/api/items/{item['id']}", json={"category": "sneakers"}).json()
+    assert shown["trace"]["state"] == "waiting" and woken   # traced now, not at the queue's next round

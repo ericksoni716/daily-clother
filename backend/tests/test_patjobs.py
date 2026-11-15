@@ -103,6 +103,25 @@ def test_undo_pattern_restores_or_requeues_measurement(make, cfg):
     assert "#1b2a49" in client.get(url).json()["illustration_svg"]
 
 
+def test_undo_name_keeps_measurement_completed_since_edit(make, cfg):
+    sv, client = make(Measurer())
+    item = described(sv, client)
+    url = f"/api/items/{item['id']}"
+    # Keep measurement from also changing the colour inputs to the drawing.
+    assert client.patch(url, json={"color": "navy", "color_hex": "#1b2a49", "pattern": "stripe"}).status_code == 200
+    assert client.patch(url, json={"name": "Renamed polo"}).status_code == 200
+    change_id = client.get(url + "/history").json()[0]["id"]
+    unmeasured = client.get(url).json()["illustration_svg"]
+    assert sv.pattern_worker.drain() == 1
+    measured = client.get(url).json()["illustration_svg"]
+    assert measured != unmeasured
+
+    response = client.post(f"{url}/history/{change_id}/undo")
+    assert response.status_code == 200
+    assert response.json()["item"]["illustration_svg"] == measured
+    assert row(cfg, item["id"])["pattern_fill"]
+
+
 def test_a_patterned_item_is_measured_kept_and_drawn(make, cfg):
     m, lm = Measurer(), Landmarker()
     sv, c = make(m, lm)

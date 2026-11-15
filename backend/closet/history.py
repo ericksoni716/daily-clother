@@ -58,6 +58,8 @@ def drawn_state(row) -> str:
                  "silhouette": _json(row["silhouette"], {}),
                  "owner": sorted(f for f in (*illustrations.SHOWN, "color_hex") if source.get(f) == illustrations.OWNER),
                  "answer": _json(row["tag_answer"], None), "details": details.own(row)}
+    if row["pattern_fill"]:   # keep older fingerprints valid for drawings without a measured pattern
+        made_from["pattern_fill"] = _json(row["pattern_fill"], None)
     return hashlib.sha256(json.dumps(made_from, sort_keys=True).encode()).hexdigest()
 
 

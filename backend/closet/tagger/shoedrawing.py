@@ -389,7 +389,8 @@ The right shoe, {_right_text(right)}
 {kept}
 ## Change ONLY what the note asks
 - Start from the drawing as it is: copy its SVG and change only the shapes the note is about and whatever must change with them (a panel made wider moves the seam beside it). Keep every other shape as it is, with the same coordinates and colours, and keep to the owner's earlier notes.
-- Look at the photos for how the part in the note really is, and draw it as the note asks. The note is the owner's word: if it asks for something the photos do not show (a part higher, larger, in another place or another colour than the photos show), still draw it as the owner asks, and say so in against_photos in one short plain sentence to the owner, such as "The photos show the toe rubber lower than your note asks; drawn as you asked." Otherwise against_photos is null.
+- First check, in every photo (the side photos show both ends of the shoe), each thing the note says or takes for granted about the shoe: where a part is (at the front or the back, on which side), how many there are, its colour, size and height. A note can be wrong about the shoe: a part can be at both ends or on one side only, a sole's rubber can climb higher at one side.
+- Then draw it as the note asks. The note is the owner's word: if it asks for something the photos do not show, or takes for granted something the photos show otherwise (a part higher, larger, in another place, one part where there are two, another colour), still draw it as the owner asks, and say so in against_photos in one short plain sentence to the owner naming what the photos show, such as "The side photos show the stripes on the outer side only; drawn as you asked." Otherwise against_photos is null.
 - Copy the sheet, changing only what the note changes (a colour, a part, a signature, or opening_front_y, top_y and instep_y when the drawing's opening moves).
 - changed: what you changed, in one short plain sentence for the owner, such as "The elastic side panels are wider."
 
@@ -426,7 +427,8 @@ Compare drawing.png with before.png and with the photos.
 - The owner's change stays. The note is the owner's word: never undo it or weaken it, even where the photos look different.
 - Nothing else changes. Anything the note did not ask for that differs from before.png, or that the change broke (a shape moved or lost, a colour changed, the leg no longer going into the opening, something at the back of the shoe drawn over the leg), is put back as it was in before.png.
 - Against the photos: is it still the same kind of shoe, with the same silhouette, proportions and true colours, at phone size too?
-- against_photos: only when the note asks for something the photos do not show, say so in one short plain sentence to the owner, such as "The photos show the toe rubber lower than your note asks; drawn as you asked."; otherwise null.
+- Check the note itself against every photo (the side photos show both ends of the shoe): where the part it is about really is, how many there are, its colour, size and height. A note can be wrong about the shoe.
+- against_photos: when the note asks for something the photos do not show, or takes for granted something the photos show otherwise, say so in one short plain sentence to the owner naming what the photos show, such as "The side photos show the stripes on the outer side only; drawn as you asked."; otherwise null.
 
 If it is right and the automatic checks found nothing, say good, with no problems, and give the drawing and the sheet back unchanged. Otherwise say what was wrong in problems and give the drawing fixed: change what is wrong and keep everything else as it is. Keep the sheet's opening_front_y, top_y and instep_y true to the drawing.
 

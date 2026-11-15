@@ -276,9 +276,9 @@ is billed; the page says what it would cost on the API key). The outfit figure
 going into the shoe; a shoe with no drawing keeps its plain one. Full-length
 trousers just meet an ordinary sneaker, so over a low shoe like a boat shoe
 the sock shows. A shoe drawn before this version is shown as it was: if
-something at the back of the shoe, such as a boot's pull tab, sits over the
-sock, tap **Draw again** and the new drawing puts it behind the leg, or say so
-in the box below the drawing (next paragraph). Adding or
+something at the back of the shoe, such as a pull tab at the heel, sits over
+the sock, tap **Draw again** (the new drawing puts what is behind the leg
+behind it), or say so in the box below the drawing (next paragraph). Adding or
 removing photos never draws the shoe
 again: the page says **The photos changed since this drawing**. To draw it
 again, tap **Draw again**; it asks first, and the old drawing stays until the

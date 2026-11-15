@@ -106,6 +106,26 @@ def test_confirm_checks_current_value_under_lock(client, services, claude, cfg):
         assert not a.in_transaction
 
 
+def test_undo_pattern_keeps_a_demo_items_stored_pattern(client, cfg):
+    assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
+    item = next(i for i in client.get("/api/items").json()["items"]
+                if i["pattern"] == "stripe" and not i["has_photo"])
+    url = f"/api/items/{item['id']}"
+    before = client.get(url).json()
+    with closing(db.connect(cfg.db_path("demo"))) as conn:
+        fill = items.get(conn, item["id"])["pattern_fill"]
+    assert fill
+    assert client.patch(url, json={"pattern": "solid"}).status_code == 200
+    change_id = history(client, item["id"])[0]["id"]
+    undone = client.post(f"{url}/history/{change_id}/undo")
+    assert undone.status_code == 200
+    assert undone.json()["item"]["illustration_svg"] == before["illustration_svg"]
+    assert undone.json()["item"]["pattern_state"] == before["pattern_state"]
+    assert client.put(url + "/details", json={"details": {"fit_detail": "relaxed"}}).status_code == 200
+    with closing(db.connect(cfg.db_path("demo"))) as conn:
+        assert items.get(conn, item["id"])["pattern_fill"] == fill
+
+
 # ---- by picking
 
 def test_a_picked_detail_changes_the_drawing_and_survives_describe_it_again(client, services, claude, cfg):

@@ -374,10 +374,17 @@ def undo(conn, item_id: str, change_id: int) -> dict:
         if "tag_answer" in sets:   # an answer put back: what the undone one gave to other fields since goes with it
             fields = list(history.DESCRIBED)
         _given_back(row, sets, source, confidence, fields)
+        saved_pattern = illustrations._json(entry["drawing"], {}).get("pattern")
+        restore_pattern = (("pattern" in sets or "tag_answer" in sets) and isinstance(saved_pattern, dict)
+                           and all(saved_pattern.get(field) == sets.get(field, row[field]) for field in ("pattern", "tag_answer")))
+        if restore_pattern:
+            sets.update({field: saved_pattern.get(field) for field in history.PATTERN})
+            if sets["pattern_state"] == "working":
+                sets["pattern_state"] = "waiting"
         sets.update(source=json.dumps(source), confidence=json.dumps(confidence), own_details=details.dump(owner),
                     updated_at=db.now())
         conn.execute(f"UPDATE items SET {', '.join(f'{k} = ?' for k in sets)} WHERE id = ?", [*sets.values(), item_id])
-        if "pattern" in sets or "tag_answer" in sets:
+        if not restore_pattern and ("pattern" in sets or "tag_answer" in sets):
             patjobs.mark(conn, item_id)
         palette.settle(conn, item_id)   # a colour given back to the tagger is the measured one, as after describing
         drawn = history.drawing_for(conn, items.get(conn, item_id))

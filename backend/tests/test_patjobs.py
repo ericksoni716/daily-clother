@@ -84,7 +84,8 @@ def test_a_plain_item_is_never_measured(make, cfg):
     assert row(cfg, item["id"])["pattern_state"] is None
 
 
-def test_undo_pattern_restores_or_requeues_measurement(make, cfg):
+@pytest.mark.parametrize("legacy_history", [False, True])
+def test_undo_pattern_restores_or_requeues_measurement(make, cfg, legacy_history):
     sv, client = make(Measurer())
     item = described(sv, client)
     url = f"/api/items/{item['id']}"
@@ -92,6 +93,14 @@ def test_undo_pattern_restores_or_requeues_measurement(make, cfg):
     assert sv.pattern_worker.drain() == 1
     assert client.patch(url, json={"pattern": "solid"}).status_code == 200
     change_id = client.get(url + "/history").json()[0]["id"]
+    if legacy_history:
+        conn = db.connect(cfg.db_path("main"))
+        try:
+            drawing = json.loads(conn.execute("SELECT drawing FROM changes WHERE id = ?", (change_id,)).fetchone()[0])
+            drawing.pop("pattern", None)
+            conn.execute("UPDATE changes SET drawing = ? WHERE id = ?", (json.dumps(drawing), change_id))
+        finally:
+            conn.close()
 
     assert client.post(f"{url}/history/{change_id}/undo").status_code == 200
     kept = row(cfg, item["id"])

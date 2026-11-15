@@ -15,6 +15,17 @@ def test_backup_then_restore_brings_everything_back(client, services, cfg, tmp_p
     services.worker.is_ready = lambda: True
     item = upload(client, name="Keeper").json()
     services.worker.drain()
+    url = f"/api/items/{item['id']}"
+    assert client.patch(url, json={"category": "polo", "price_cents": 1234, "notes": "Résumé 衣服"}).status_code == 200
+    assert client.post(url + "/wears").status_code == 201
+    assert client.put(url + "/details", json={"details": {"placket_buttons": 2}}).status_code == 200
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        saved_database = list(conn.iterdump())
+    finally:
+        conn.close()
+    saved_images = {p.relative_to(cfg.images_dir("main")): p.read_bytes()
+                    for p in cfg.images_dir("main").rglob("*") if p.is_file()}
     assert client.put("/api/settings", json={"backup_folder": str(folder)}).json()["backup_folder"] == str(folder)
     result = client.post("/api/backup").json()
     assert result["ok"] and result["images_copied"] == 4
@@ -22,12 +33,21 @@ def test_backup_then_restore_brings_everything_back(client, services, cfg, tmp_p
     root = folder / backup.SUBFOLDER
     assert json.loads((root / "manifest.json").read_text())["last_backup"] == result["at"]
     assert "passphrase" not in "".join(p.name for p in root.rglob("*")) and not list(root.rglob("settings.json"))
+    saved_settings = cfg.state_path.read_bytes()
 
     client.delete(f"/api/items/{item['id']}")
     upload(client, key="later", name="Added after the backup")
     services.stop()
     restored = backup.restore(cfg, folder)
     assert restored["items"] == 1 and restored["previous_moved_to"]
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        assert list(conn.iterdump()) == saved_database
+    finally:
+        conn.close()
+    assert {p.relative_to(cfg.images_dir("main")): p.read_bytes()
+            for p in cfg.images_dir("main").rglob("*") if p.is_file()} == saved_images
+    assert cfg.state_path.read_bytes() == saved_settings
     names = [i["name"] for i in client.get("/api/items").json()["items"]]
     assert names == ["Keeper"]
     body = client.get(f"/api/items/{item['id']}").json()

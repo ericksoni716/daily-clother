@@ -30,6 +30,7 @@ from . import db, details, drawing, illustrations
 # them is recorded
 DESCRIBED = ("name", "category", "color", "color_hex", "pattern", "formality", "season", "silhouette", "material")
 ANSWER = ("tag_answer", "tag_schema_version", "tag_route", "tag_model", "tagged_at")
+PATTERN = ("pattern_fill", "pattern_state", "pattern_error", "landmarks")
 WHO = ("owner", "claude")
 _MISSING = object()
 
@@ -92,6 +93,8 @@ def record(conn, before, after, by: str, kind: str, sentence: str | None = None,
         return None
     drawn = {"svg": before["illustration_svg"], "version": before["illustration_version"], "notes": before["illustration_notes"],
              "state": drawn_state(before)}
+    if before["pattern"] != after["pattern"] or before["tag_answer"] != after["tag_answer"]:
+        drawn["pattern"] = {field: before[field] for field in (*PATTERN, "pattern", "tag_answer")}
     cur = conn.execute("INSERT INTO changes (item_id, at, by, kind, parts, sentence, drawing, undoes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                        (after["id"], db.now(), by, kind, json.dumps(parts), sentence, json.dumps(drawn), undoes))
     return cur.lastrowid

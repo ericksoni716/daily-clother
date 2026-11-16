@@ -1,4 +1,4 @@
-import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeCheck, ShoeView, TraceFix } from './types';
+import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix } from './types';
 import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
@@ -245,12 +245,6 @@ export const api = {
     request<Item>(`/api/items/${encodeURIComponent(id)}/drawn/correct`, { method: 'POST', body: { note } }),
   /** Swaps a shoe's drawing and the one before the last change: back in one tap, and forward again the same way. */
   drawingBack: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/drawn/back`, { method: 'POST' }),
-  /** Add's instant check: will this shoe photo trace well? Nothing is kept. */
-  checkShoe: (photo: Blob, filename: string, signal?: AbortSignal) => {
-    const form = new FormData();
-    form.append('photo', photo, filename);
-    return request<ShoeCheck>('/api/shoes/check', { method: 'POST', form, signal });
-  },
   /** `duplicate` is true when the photo was already in the closet; the item returned is the one it is in. */
   upload: (photo: Blob, filename: string, clientKey: string, sha256?: string | null, signal?: AbortSignal, shoe = false) => {
     const form = new FormData();

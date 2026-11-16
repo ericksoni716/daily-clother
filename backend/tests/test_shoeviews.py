@@ -542,8 +542,9 @@ def test_the_front_view_reads_the_newest_photo_from_the_front_else_from_above(cf
     # an unsorted photo is not read: nothing changes on adding it
     b = add(c, item, 2).json()["photos"][-1]["id"]
     assert row(cfg, item["id"])["trace_state"] == "done" and row(cfg, item["id"])["front_look"]
-    # sorted: the main photo from the front is never read; the photo from above is
-    sorter.reply = answer(("front", True), ("top", True), ("inner", True))
+    # sorted: the main photo from the front is never read; the photo from above is (no photo is a side view, so the
+    # main photo stays the main one: test_shoe_main_photo.py has what happens when one is)
+    sorter.reply = answer(("front", True), ("top", True), ("back", True))
     sv.views.drain(now=later())
     assert look() == a and row(cfg, item["id"])["front_look"] is None and row(cfg, item["id"])["trace_state"] == "waiting"
     # the same answer again: the same photo, so what was read stays
@@ -586,6 +587,7 @@ def test_the_newest_of_two_photos_from_the_front_is_read(cfg, c, sv, sorter):
 def test_the_prompt_explains_the_views_and_asks_for_unsure_rather_than_a_guess():
     text = tagger_views.prompt(3)
     assert "numbered 1 to 3" in text and "Photo 1 is the main photo" in text
+    assert "photo 1 too, may show any view" in text and "usually of the side" not in text   # added in any order on Add
     assert "faces away from the other shoe" in text and "arch" in text and "but not always" in text
     assert "pair" in text and "rather than guess" in text and "sides_differ" in text
     assert "There is one photo, photo 1" in tagger_views.prompt(1)

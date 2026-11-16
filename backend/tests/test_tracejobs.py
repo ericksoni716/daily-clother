@@ -1,6 +1,6 @@
 """Tracing a shoe from its photo in the cut-out queue (#206, stage 2b): when a shoe waits to be traced, what is kept,
 how its drawing changes, the fallback with a plain explanation, the owner's fixes surviving a new trace, the
-plain drawing, a new photo, the second photo and Add's instant check.
+plain drawing, a new photo and the second photo.
 
 Most tests use a stand-in tracer that returns a shoe traced once from a synthetic photo (`shoe_photos`, never a real
 photo); one test runs the real tracer on such a photo, start to finish.
@@ -532,27 +532,15 @@ def test_the_real_reader_reads_a_synthetic_front_photo(cfg, tmp_path, shoe):
     assert look is not None and look["vamp"] and look["aspect"] > 0
 
 
-# ------------------------------------------------------------------ Add's instant check
+# ------------------------------------------------------------------ no instant check on Add any more
 
-def test_the_instant_check_passes_a_side_on_photo_and_says_why_it_turns_one_down(make, shoe):
+def test_add_no_longer_checks_a_shoe_photo_before_it_is_added(make, shoe):
+    """A shoe in one step (16 November): Add sends all of a shoe's photos at once, and Closet sorts them; the check of
+    one side photo before adding it is gone, with its route."""
     sv, c = make(Tracer(shoe))
-    ok = c.post("/api/shoes/check", files={"photo": ("s.jpg", jpeg(S.draw(noise=3)[0]), "image/jpeg")}).json()
-    assert ok == {"ok": True, "reasons": []}
-    front = c.post("/api/shoes/check", files={"photo": ("f.jpg", jpeg(S.front_view()), "image/jpeg")}).json()
-    assert front["ok"] is False and front["reasons"]
-    assert all(r.startswith("The photo ") and "limit" not in r for r in front["reasons"])
-    assert len(set(front["reasons"])) == len(front["reasons"])   # each said once
-    bad = c.post("/api/shoes/check", files={"photo": ("x.jpg", b"not a photo", "image/jpeg")})
-    assert bad.status_code == 400
-
-
-def test_the_instant_check_needs_the_login(cfg):
-    sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, tagger=Tagger(None), routes=lambda: ())
-    try:
-        anon = TestClient(app_module.create_app(sv))
-        assert anon.post("/api/shoes/check", files={"photo": ("s.jpg", b"x", "image/jpeg")}).status_code == 401
-    finally:
-        sv.stop()
+    r = c.post("/api/shoes/check", files={"photo": ("s.jpg", jpeg(S.draw(noise=3)[0]), "image/jpeg")})
+    assert r.status_code in (404, 405)
+    assert not hasattr(tracejobs, "check")
 
 
 # ------------------------------------------------------------------ the real tracer, start to finish

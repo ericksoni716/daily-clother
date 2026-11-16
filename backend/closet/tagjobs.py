@@ -106,11 +106,16 @@ def note_waiting(conn, why: str | None) -> None:
                      _WAIT_NOTES)
 
 
-def _photos(conn, images_dir: Path, item_id: str) -> list[Image.Image]:
+def _photo_rows(conn, item_id: str) -> list:
+    """The item's photos in the order Claude is shown them: the main one first, then the others, oldest first."""
+    return conn.execute("SELECT * FROM photos WHERE item_id = ? ORDER BY kind = 'front' DESC, created_at",
+                        (item_id,)).fetchall()
+
+
+def _photos(conn, images_dir: Path, item_id: str, rows: list | None = None) -> list[Image.Image]:
     """The front photo's cutout first (what the prompt expects), then any other photos of the item."""
     out = []
-    for n, p in enumerate(conn.execute("SELECT * FROM photos WHERE item_id = ? ORDER BY kind = 'front' DESC, created_at",
-                                       (item_id,)).fetchall()):
+    for n, p in enumerate(_photo_rows(conn, item_id) if rows is None else rows):
         cutout = n == 0 and p["cutout_path"]
         with Image.open(images_dir / (p["cutout_path"] if cutout else p["original_path"])) as im:
             out.append(im.convert("RGBA") if cutout else im.convert("RGB"))   # WebP drops an alpha that is all opaque
@@ -132,8 +137,9 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], tagger: Tagger) -> 
     conn.execute("UPDATE items SET tag_state = 'working', updated_at = ? WHERE id = ?", (t, job["item_id"]))
     conn.execute("COMMIT")
     attempts = job["attempts"] + 1
+    rows = _photo_rows(conn, job["item_id"])
     try:
-        result = tagger(_photos(conn, images_dir, job["item_id"]), routes)
+        result = tagger(_photos(conn, images_dir, job["item_id"], rows), routes)
         if not isinstance(result.tags, ItemTags):
             raise TypeError("the tagger did not return a tagging answer")
     except RouteUnavailable as e:
@@ -161,7 +167,8 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], tagger: Tagger) -> 
         return "done"
     conn.execute("BEGIN IMMEDIATE")
     try:
-        apply_answer(conn, job["item_id"], result.tags, route=result.route, model=result.model)
+        apply_answer(conn, job["item_id"], result.tags, route=result.route, model=result.model,
+                     photo_id=rows[0]["id"] if rows else None)
         note_waiting(conn, None)   # Claude could be reached: the others are no longer held up
         conn.execute("UPDATE jobs SET state = 'done', error = NULL, updated_at = ? WHERE id = ?", (db.now(), job["id"]))
         conn.execute("COMMIT")
@@ -219,11 +226,14 @@ def fill(tags: ItemTags, field: str, current, by: str | None, suggested: dict | 
     return value, "ai", getattr(tags, _CONFIDENCE[field]) if field in _CONFIDENCE else None
 
 
-def apply_answer(conn, item_id: str, tags: ItemTags, route: str, model: str | None) -> None:
+def apply_answer(conn, item_id: str, tags: ItemTags, route: str, model: str | None, photo_id: str | None = None) -> None:
     """Store the whole answer and fill in the item's fields, inside the caller's transaction.
 
     A field is filled when the owner has not set it (`source` says "user" for those) and it is either
     empty or was filled by an earlier answer. A name given at upload is the owner's too, so it stays.
+    `photo_id` is the photo Claude was shown first (by default the item's main photo now): the answer's words on
+    "the first image" (how many shoes it shows, from where) are about that photo, even once another photo of a shoe
+    becomes its main one (`items.tag_photo_id`, `tracejobs.told`).
     """
     row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
     if row is None:   # deleted while Claude was looking at it
@@ -248,9 +258,12 @@ def apply_answer(conn, item_id: str, tags: ItemTags, route: str, model: str | No
             confidence[field] = sure
     confidence["details"] = tags.details_confidence
     t = db.now()
+    if photo_id is None:
+        first = _photo_rows(conn, item_id)
+        photo_id = first[0]["id"] if first else None
     sets.update(source=json.dumps(source), confidence=json.dumps(confidence), tag_state="done", tag_error=None,
                 tag_answer=json.dumps(tags.model_dump(mode="json")), tag_schema_version=SCHEMA_VERSION,
-                tag_route=route, tag_model=model, tagged_at=t, updated_at=t)
+                tag_route=route, tag_model=model, tagged_at=t, tag_photo_id=photo_id, updated_at=t)
     conn.execute(f"UPDATE items SET {', '.join(f'{k} = ?' for k in sets)} WHERE id = ?", [*sets.values(), item_id])
     patjobs.mark(conn, item_id)           # a patterned item is measured from its photo next
     tracejobs.answered(conn, item_id)     # a shoe is traced from its photo next, with Claude's word on the photo

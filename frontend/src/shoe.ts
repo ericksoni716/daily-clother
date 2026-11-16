@@ -1,4 +1,4 @@
-import type { Item, Photo, ShoeCheck, ShoeDrawn, ShoeTrace, ShoeView, ShoeViews } from './types';
+import type { Item, Photo, ShoeDrawn, ShoeTrace, ShoeView, ShoeViews } from './types';
 
 /** What the item page says about a shoe's trace: while it is traced, or why it is drawn from its details. */
 export function traceNotice(trace: ShoeTrace | null | undefined): { tone: 'info' | 'warn'; text: string; retake: boolean } | null {
@@ -26,11 +26,6 @@ export function nudgeLabel(title: string, dir: Nudge): string {
   return `Move the ${title} ${TOWARDS[dir]}`;
 }
 
-/** Add's instant check, in a sentence for the top of the result. */
-export function checkHeadline(check: ShoeCheck): string {
-  return check.ok ? 'This photo should trace well.' : 'This photo may not trace well.';
-}
-
 export type FrontKind = 'shape' | 'photo';
 /** The two front views of a traced shoe on the outfit figure, in the owner's words. */
 export const FRONT_VIEWS: { kind: FrontKind; title: string; about: string }[] = [
@@ -45,6 +40,21 @@ export function frontPreviewUrl(item: { id: string; updated_at: string }, kind: 
 
 /** A shoe can have this many photos besides its main one (6 in all). */
 export const MAX_EXTRA_PHOTOS = 5;
+/** A shoe's photos in all, as Add takes them at once. */
+export const MAX_PHOTOS = MAX_EXTRA_PHOTOS + 1;
+
+/** Add's sentence for photos that did not fit in the row. */
+export const tooManyPhotos = (left: number) =>
+  `A shoe can have up to ${MAX_PHOTOS} photos, so ${left === 1 ? 'one photo was' : `${left} photos were`} not added.`;
+
+/** What Add says once it has sent a shoe's photos: `added` of the `total` chosen went in (the first made the shoe). */
+export function shoeAddedLine(added: number, total: number): string {
+  if (total <= 1) return 'The shoe is added. In a moment Closet removes the background and describes it.';
+  if (added >= total) {
+    return `The shoe is added with its ${total} photos. In a moment Closet removes the background and works out which photo is which.`;
+  }
+  return `The shoe is added with ${added} of its ${total} photos.`;
+}
 
 /** The words under a photo of a shoe for the view it shows. */
 export const VIEW_WORDS: Record<ShoeView, string> = {
@@ -62,6 +72,14 @@ export function viewLabel(photo: Photo, views: ShoeViews | null | undefined): st
   if (!photo.view) return null;
   return photo.view_sure === false ? `${VIEW_WORDS[photo.view]}?` : VIEW_WORDS[photo.view];
 }
+
+/** Once the photos are sorted, none shows the shoe from the side (the outer or inner side): the item page says that
+ * a photo of its side would help. */
+export function noSidePhoto(item: Pick<Item, 'photos' | 'views'>): boolean {
+  return item.views?.state === 'sorted' && item.photos.length > 0
+    && !item.photos.some((p) => p.view === 'outer' || p.view === 'inner');
+}
+export const NO_SIDE = 'None of these photos shows the shoe from the side. A photo of its side would help the drawing.';
 
 /** The shoe's photos besides its main one. */
 export const extraPhotos = (item: Pick<Item, 'photos'>) => item.photos.filter((p) => p.kind !== 'front');

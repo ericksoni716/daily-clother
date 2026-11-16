@@ -348,3 +348,66 @@ def test_a_kind_of_top_told_alone_is_drawn_with_its_look():
     assert p["collar"] == "shawl" and p["belt"] == "sash" and extras["texture"] == "velvet"
     told = answer("jacket", {}, garment="smoking_jacket", collar="peak_lapel")
     assert drawing_for(ItemTags.model_validate(told))[1]["collar"] == "peak"
+
+
+# ---- the armhole seam: drawn only where it marks something (the owner, 16 November)
+
+def _armhole_seams(params: dict) -> list[str]:
+    """The seams that start at the shoulder point and curve down: the armhole's, on both sides."""
+    from closet.drawing.templates import TOP_DEFAULTS, build
+    sh = build("top", {**TOP_DEFAULTS, **params})
+    return [d for d in sh.seams if " C " in d and _near_a_shoulder(d, sh)]
+
+
+def _near_a_shoulder(d: str, sh) -> bool:
+    """A path that starts at either shoulder point (within a few px: the seam sits just outside it)."""
+    x, y = (float(v) for v in d.split()[1].split(","))
+    return any(abs(x - sx) < 6 and abs(y - sy) < 6 for sx, sy in (sh.anchors["shoulder_r"], sh.anchors["shoulder_l"]))
+
+
+@pytest.mark.parametrize("params", [
+    {},   # a plain set-in sleeve: the outline already shows where it meets the body
+    {"sleeve": "short", "neck": "collar", "front": "buttons"},
+    {"fit": "slim", "neck": "v"},
+    {"neck": "hood", "pockets": "kangaroo"},
+    {"colorblock": ("collar",)},   # a second colour on the collar or a pocket is not at the armhole
+    {"colorblock": ("pocket",)},
+])
+def test_an_ordinary_set_in_sleeve_has_no_armhole_seam(params):
+    assert _armhole_seams(params) == []
+
+
+@pytest.mark.parametrize("params", [
+    {"colorblock": ("sleeves",)},   # a varsity jacket's leather sleeves: the seam is the edge between two colours
+    {"colorblock": ("yoke", "sleeves", "pocket")},   # the snap-front fleece
+    {"colorblock": ("yoke",)},   # a yoke in a second colour meets the sleeve along the armhole
+    {"shoulder": "saddle"},   # and the strip across the shoulder
+    {"shoulder": "raglan", "neck": "collar"},   # under a collar a raglan's seam is drawn as the armhole's
+])
+def test_an_armhole_seam_that_marks_something_is_drawn(params):
+    assert len(_armhole_seams(params)) == 2
+
+
+def test_a_dropped_shoulder_still_shows_where_its_seam_falls():
+    from closet.drawing.templates import TOP_DEFAULTS, build
+    plain, dropped = (build("top", {**TOP_DEFAULTS, "fit": "oversized", "shoulder": s}) for s in ("set-in", "drop"))
+    assert len(dropped.seams) == len(plain.seams) + 2   # one on each arm
+
+
+def test_a_raglan_without_a_collar_keeps_its_diagonal_seams():
+    from closet.drawing.templates import TOP_DEFAULTS, build
+    plain, raglan = (build("top", {**TOP_DEFAULTS, "shoulder": s}) for s in ("set-in", "raglan"))
+    assert len(raglan.seams) == len(plain.seams) + 2
+
+
+def test_the_rule_for_every_shoulder():
+    from closet.drawing.templates import seam_shows
+    assert [seam_shows(s) for s in ("set-in", "raglan", "drop", "saddle", "dolman")] == [False, True, True, True, False]
+    assert seam_shows("set-in", ("sleeves",)) and seam_shows("set-in", ("yoke",)) and seam_shows("dolman", ("sleeves",))
+    assert not seam_shows("set-in", ("collar", "pocket"))
+
+
+def test_a_tailored_jacket_has_no_armhole_seam_but_the_seams_it_had_otherwise():
+    from closet.drawing.templates import TOP_DEFAULTS, build
+    sh = build("top", {**TOP_DEFAULTS, "block": "jacket", "neck": "collar", "collar": "notch", "front": "buttons"})
+    assert not [d for d in sh.seams if " C " in d and _near_a_shoulder(d, sh)]

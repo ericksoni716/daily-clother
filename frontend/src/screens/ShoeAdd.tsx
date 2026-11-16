@@ -153,7 +153,9 @@ export function ShoeAdd() {
     const live = step.at === 'camera';
     return (
       <div className="shoe-add" data-testid="shoe-add">
-        <p className="muted add-intro">Closet draws a shoe from a photo of its side. For the closest drawing:</p>
+        <p className="muted add-intro">First, one photo of the shoe's side. Right after it you can add up to 5 more
+          photos of the same shoe (from above, the front, the back, the other side), in any order. For the side
+          photo:</p>
         <ol className="shoe-steps">
           <li>One shoe on its own, not the pair.</li>
           <li>From the side, toe to the left, filling the outline.</li>

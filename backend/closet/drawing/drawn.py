@@ -358,6 +358,9 @@ LEG_IN_BOTTOM = 200.0
 OPENING_GAP = 8.0
 ABOVE = (75.0, 125.0)                   # nothing in front of the leg over it here, more than 25 units above the opening
 ABOVE_ROOM = 25.0
+TAB = (86.0, 114.0)                     # a front pull tab, centred on the leg: it may rise above the opening
+TAB_ROOM = 60.0                         # but no more than this above the opening's front edge
+OPENING_STRIP_TAB = (76.0, 84.0)        # beside a front pull tab, where the front edge is found
 OPENING_STRIP = (90.0, 110.0)           # where the drawing's front edge is found, to compare with the sheet's
 OPENING_SLACK = 15.0
 SHOWS_PX = 20                           # visible leg pixels allowed (anti-aliasing at the edges)
@@ -439,14 +442,26 @@ def _checks_one(shoe: Side, sheet: Mapping, who: str) -> list[str]:
                        f"through the drawing in the middle (x {LEG_IN[0]:.0f} to {LEG_IN[1]:.0f}). From just below the "
                        "opening's front edge down to the sole, the upper must cover the leg completely.")
     above = opening - ABOVE_ROOM   # for every kind of shoe: a boot's opening front is the front of its shaft's top
-    covers = int(m["front"][:max(0, _row(above)), _col(ABOVE[0]):_col(ABOVE[1])].sum())
+    tab = bool(sheet.get("front_pull_tab"))   # the owner: a pull tab at the front shows, in front of the leg
+    region = m["front"][:max(0, _row(above))]
+    if tab:
+        covers = int(region[:, _col(ABOVE[0]):_col(TAB[0])].sum() + region[:, _col(TAB[1]):_col(ABOVE[1])].sum())
+        high = opening - TAB_ROOM
+        if int(m["front"][:max(0, _row(high)), _col(TAB[0]):_col(TAB[1])].sum()) > COVERS_PX:
+            out.append(f"{who}The pull tab at the front rises too high: it reaches above y {high:.0f}, more than "
+                       f"{TAB_ROOM:.0f} units above the opening's front edge (y {opening:.0f}).")
+    else:
+        covers = int(region[:, _col(ABOVE[0]):_col(ABOVE[1])].sum())
     if covers > COVERS_PX:
         out.append(f"{who}It hides the leg above its opening: something in front of the leg is drawn over its middle "
                    f"higher than y {above:.0f}, more than {ABOVE_ROOM:.0f} units above the opening's front edge (y "
                    f"{opening:.0f}). Nothing in front of the leg covers it above the opening (only a low shoe's collar "
                    "sides may rise a little beside the leg); what is behind the leg, such as the back of the collar or "
-                   "of the shaft or a pull tab at the back, belongs in the part behind the leg, which the leg covers.")
-    strip = leg[:, _col(OPENING_STRIP[0]):_col(OPENING_STRIP[1])].sum(axis=1)
+                   "of the shaft or a pull tab at the back, belongs in the part behind the leg, which the leg covers. A "
+                   "pull tab at the FRONT is the one exception: it stays in front, centred on the leg, with "
+                   "front_pull_tab true in the sheet.")
+    where = OPENING_STRIP_TAB if tab else OPENING_STRIP
+    strip = leg[:, _col(where[0]):_col(where[1])].sum(axis=1)
     start = _row(BAND_BOX[1]) + 2
     hidden = next((r for r in range(start, _row(BAND_BOX[3]) - 2) if strip[r] <= 1), None)   # within the band
     if hidden is not None and abs(_y(hidden) - opening) > OPENING_SLACK:

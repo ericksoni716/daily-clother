@@ -15,8 +15,8 @@ import './Several.css';
 
 type Mode = 'one' | 'several' | 'shoe';
 const MODES = [
-  { value: 'one', label: 'One item per photo' },
-  { value: 'several', label: 'Several items per photo' },
+  { value: 'one', label: 'Clothes, one per photo' },
+  { value: 'several', label: 'Several in one photo' },
   { value: 'shoe', label: 'A shoe' },
 ] as const;
 const OPEN_POLL_MS = 3000;
@@ -199,7 +199,7 @@ export function AddScreen() {
         </div>
       ) : (
         <>
-          <SegmentedControl label="What each photo holds" options={MODES} value={mode} onChange={setMode} className="add-mode" />
+          <SegmentedControl label="What you're adding" options={MODES} value={mode} onChange={setMode} className="add-mode" />
           {mode === 'shoe' ? <ShoeAdd /> : (<>
           {several ? (
             <>

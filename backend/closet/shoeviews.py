@@ -1,11 +1,16 @@
 """A shoe's photos sorted into views by Claude, in the background (shoes drawn from understanding, step B).
 
-A shoe has its main photo (the guided side photo) and up to five more (`MAX_EXTRA`), taken in any order. Whenever a
-photo is added or removed the shoe waits to be sorted (`changed`); once its newest photo is `SORT_QUIET` seconds
-old (the owner may still be adding more) one call to Claude with all of its photos, the main one first, says which
-view each shows: the outer or inner side, from above, the front, the back, the sole or something else, and whether
-it is sure (`tagger/views.py`). Claude's word never replaces the owner's: a photo whose view the owner gave
+A shoe has its main photo and up to five more (`MAX_EXTRA`), taken in any order: on Add the owner takes or chooses
+them all at once, and the first one is the main photo until they are sorted. Whenever a photo is added or removed
+the shoe waits to be sorted (`changed`); once its newest photo is `SORT_QUIET` seconds old (the owner may still be
+adding more) one call to Claude with all of its photos, the main one first, says which view each shows: the outer or
+inner side, from above, the front, the back, the sole or something else, and whether it is sure
+(`tagger/views.py`). Claude's word never replaces the owner's: a photo whose view the owner gave
 (`photos.view_by = 'owner'`) keeps it.
+
+Once the views are settled (`sorted`), a main photo that is not a side view gives way to the outer side, else the
+inner side (`promote`): that photo becomes the closet picture, cut out as usual, and the photo traced for the shoe's
+drawing. A main photo that is a side view, or a shoe with no side photo, stays as it is.
 
 The owner is asked only when it matters and Claude could not tell (`question`): when the outer and inner sides look
 different (a logo, stripe or panel on one side only: `items.sides_differ`) and a side photo is unsure, or two photos
@@ -113,16 +118,52 @@ def question(conn, row) -> list[str] | None:
 
 
 def settle(conn, item_id: str) -> None:
-    """After the views changed: the item asks the owner when a side question remains, else it is sorted. A shoe whose
+    """After the views changed: the item asks the owner when a side question remains, else it is sorted, and the
+    outer (or inner) side becomes the main photo when the main one is not a side view (`promote`). A shoe whose
     photos settle for the first time and that was never drawn waits to be drawn from them (`shoedraw.first_sorted`):
     once they are sorted, after the owner's answer when asked."""
     from . import shoedraw  # it reads the sorted photos, so it imports this module
 
     row = conn.execute("SELECT * FROM items WHERE id = ?", (item_id,)).fetchone()
     if row is not None:
-        conn.execute("UPDATE items SET views_state = ? WHERE id = ?",
-                     ("asking" if question(conn, row) else "sorted", item_id))
+        state = "asking" if question(conn, row) else "sorted"
+        conn.execute("UPDATE items SET views_state = ? WHERE id = ?", (state, item_id))
+        if state == "sorted":   # while the owner is asked, which side is the outer one is not known yet
+            promote(conn, item_id)
         shoedraw.first_sorted(conn, item_id)
+
+
+def promote(conn, item_id: str) -> bool:
+    """Once the photos are sorted (inside the caller's transaction): when the main photo is not a side view and
+    another photo is the outer side (else the inner side), that photo becomes the main one: the closet picture, cut
+    out as usual (the old one's cutout job, if still waiting, goes), and the photo traced for the shoe's drawing
+    (the old trace goes, the owner's fixes stay). Among several of the same side: the one the owner named, then one
+    Claude was sure of, then the oldest. The old main photo stays as one of the others, with its view. Returns
+    whether the main photo changed.
+
+    Claude's description is not asked again: its words on the photo it saw first stay with that photo
+    (`items.tag_photo_id`), and the cut-out queue does not describe again a photo Claude has already seen."""
+    from . import illustrations, jobs
+
+    photos = photos_of(conn, item_id)
+    main = next((p for p in photos if p["kind"] == "front"), None)
+    if main is None or main["view"] in SIDES:
+        return False
+    found: list = []
+    for side in SIDES:   # the outer side first
+        found = [p for p in photos if p["kind"] != "front" and p["view"] == side]
+        if found:
+            break
+    if not found:
+        return False
+    pick = min(found, key=lambda p: (p["view_by"] != "owner", p["view_sure"] != 1))   # the first of the best: oldest
+    conn.execute("UPDATE photos SET kind = 'detail' WHERE id = ?", (main["id"],))
+    conn.execute("UPDATE photos SET kind = 'front' WHERE id = ?", (pick["id"],))
+    conn.execute("DELETE FROM jobs WHERE kind = 'cutout' AND item_id = ? AND state = 'queued'", (item_id,))
+    jobs.enqueue_cutout(conn, item_id, pick["id"])
+    tracejobs.forget(conn, item_id)
+    illustrations.redraw(conn, item_id)
+    return True
 
 
 def read(answer, count: int) -> dict[int, tuple[str, bool]]:

@@ -252,12 +252,6 @@ export type TraceFix =
   | { mark: number; nudge: [number, number] }
   | { reset: true };
 
-/** Add's instant check of a shoe photo: will it trace well, and if not, why (plain sentences). */
-export interface ShoeCheck {
-  ok: boolean;
-  reasons: string[];
-}
-
 export interface WornPart {
   part: 'fit' | 'length' | 'sleeve' | 'leg';
   value: string;

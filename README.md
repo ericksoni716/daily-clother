@@ -226,7 +226,9 @@ numbers.
 ## Adding your clothes
 
 Open **Add** (the round button in the middle of the bar at the bottom of a
-phone; **Add clothes** at the top of the menu on a computer). One piece of
+phone; **Add clothes** at the top of the menu on a computer). The switch at the
+top says what you are adding: **Clothes, one per photo** (the usual way, below),
+**Several in one photo** or **A shoe** (both further down). One piece of
 clothing per photo works best.
 
 - **On the computer:** click **Choose photos** and pick as many as you like,
@@ -247,24 +249,34 @@ your closet**. A photo of an item you deleted can be added again.
 
 ### Shoes
 
-Choose **A shoe** at the top of Add for the closest drawing of a shoe. Take one
-shoe on its own (not the pair), from the side with the toe to the left, filling
-the outline shown. Closet checks the photo straight away and says if it will not
-draw well, and why, so you can take it again (or add it anyway). You can then
-add up to five more photos of the shoe: from above, the front, the back and the
-other side, in any order. You don't have to say which photo is which: Closet
-sorts them itself a few seconds after the last one, and shows what each photo
-is under it on the shoe's page (outer side, inner side, from above, front, back,
-sole). If a shoe has a logo or stripe on one side only and Closet can't tell the
+Choose **A shoe** at the top of Add for the closest drawing of a shoe, and add
+all of its photos in one go: up to six photos of one shoe on its own (not the
+pair), in any order. Its side, the other side, from above, the front and the
+back help most, against a plain floor or wall in even light. **Choose photos**
+picks several at once; **Take a photo** takes one each time you tap it (where
+the page can show the camera itself, it stays open so you can take several in a
+row: tap **Close the camera** when you have them all). The photos wait in a row
+on the page, each with an **×** to remove it, and nothing is sent until you tap
+**Add this shoe**. A seventh photo is not added, and the page says so.
+
+You don't have to say which photo is which: Closet sorts them itself a few
+seconds after the last one, and shows what each photo is under it on the shoe's
+page (outer side, inner side, from above, front, back, sole). The outer side
+then becomes the shoe's picture in the closet (or the inner side, if no photo
+shows the outer one); the first photo you added stays the picture when it
+already shows a side, or when none does. If none of the photos shows the shoe
+from the side, the shoe's page says a photo of its side would help the drawing.
+If a shoe has a logo or stripe on one side only and Closet can't tell the
 outside from the inside, the shoe's page asks you which photo shows the outside
 (the outside is the side that faces away from the other shoe when you wear
-them); tap it. On the shoe's page you can also add more photos (**Add photos**)
-or remove one with its **×**; the main photo is replaced with **Retake** instead.
+them); tap it, and the outside becomes the picture. On the shoe's page you can
+also add more photos (**Add photos**) or remove one with its **×**; the main
+photo (the picture, shown first) is replaced with **Retake** instead.
 
-Closet draws the shoe from its photo a moment after it is added. If the photo
-does not work for that (it shows the pair, or the shoe from the front, say),
-the item page says so and the shoe keeps its plain drawing; **Retake** replaces
-the photo. In **Fix the details** you can change a colour of the drawing,
+Closet draws the shoe's side from its main photo a moment after the photos are
+sorted. If that photo does not work for that (it shows the pair, or the shoe
+from the front, say), the item page says so and the shoe keeps its plain
+drawing; **Retake** replaces the photo. In **Fix the details** you can change a colour of the drawing,
 remove or move a stripe or logo, **Re-trace** it, or **Use the plain drawing**.
 Your fixes stay when the shoe is drawn again. Fix the details also shows the
 shoe from the front, as the outfit figure wears it, in two ways side by side:
@@ -318,7 +330,7 @@ the page says so; send the note again, or say it another way.
 ### Several pieces in one photo
 
 To add a pile at once, lay the pieces out with a little space between them (on
-the bed or the floor), choose **Several items per photo** at the top of
+the bed or the floor), choose **Several in one photo** at the top of
 **Add**, and take or choose the photo. Claude draws a numbered box around each
 piece; this takes a few seconds, and goes through your Claude plan or the API
 key exactly as describing does (the page says what one photo can cost with the
@@ -334,7 +346,7 @@ key). Then check the boxes, with each piece's cutout beside its box:
 **Add these N items** adds them: each becomes an item of its own, cut out,
 described and drawn like any other photo. Photos still to check are listed on
 **Add** until you add their pieces or **Forget this photo**. On a computer, a
-folder chosen while **Several items per photo** is on is treated the same way:
+folder chosen while **Several in one photo** is on is treated the same way:
 every photo in it holds several pieces. The same photo is not added twice. The
 demo closet never sends photos to Claude, so there you draw the boxes yourself.
 

@@ -4,8 +4,10 @@ Jobs live in the database, so nothing is lost if the program is closed:
 unfinished work is picked up again on the next start. Uploads never wait for
 this queue, and jobs wait (without failing) until the model file is ready.
 Once a cutout is ready the item is queued for tagging (`tagjobs.py`), in the
-same table. A shoe whose cutout is ready waits to be traced (`tracejobs.py`):
-this worker traces waiting shoes once no cutout is left to make.
+same table, unless Claude has described it since that photo was added (a shoe's
+photo that became its main one once its photos were sorted, `shoeviews.promote`).
+A shoe whose cutout is ready waits to be traced (`tracejobs.py`): this worker
+traces waiting shoes once no cutout is left to make.
 """
 from __future__ import annotations
 
@@ -106,11 +108,19 @@ def run_one(conn, images_dir: Path, cutter: Cutter, tag: bool = True) -> bool:
     conn.execute("UPDATE photos SET cutout_path = ?, cutout_thumb_path = ? WHERE id = ?", (rel, rel_thumb, job["photo_id"]))
     conn.execute("UPDATE jobs SET state = 'done', error = NULL, updated_at = ? WHERE id = ?", (t, job["id"]))
     conn.execute("UPDATE items SET cutout_state = 'ready', cutout_error = NULL, updated_at = ? WHERE id = ?", (t, job["item_id"]))
-    if tag:
+    if tag and not _described_since(conn, job["item_id"], photo):
         tagjobs.enqueue(conn, job["item_id"])
     tracejobs.mark(conn, job["item_id"])   # a shoe's new photo is traced again
     conn.execute("COMMIT")
     return True
+
+
+def _described_since(conn, item_id: str, photo) -> bool:
+    """Claude has described the item since this photo was added, so it has seen the photo already: a shoe's photo
+    that became its main one once its photos were sorted is cut out, not described again. A new or retaken photo
+    always is."""
+    row = conn.execute("SELECT tagged_at FROM items WHERE id = ?", (item_id,)).fetchone()
+    return row is not None and bool(row["tagged_at"]) and row["tagged_at"] >= photo["created_at"]
 
 
 class Worker:

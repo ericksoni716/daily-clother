@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  backLabel, canCorrect, changedLine, checkHeadline, dollars, DRAWN_DEMO, drawingShoe, drawnLine, drawnOffer, drawnTime,
-  drawQuestion, extraPhotos, FRONT_VIEWS, NOTE_MAX,
-  frontPreviewUrl, MAX_EXTRA_PHOTOS, NUDGE_CM, NUDGES, nudgeLabel, outsideQuestion, photoRoom, sortingViews, traceNotice,
-  tracing, VIEW_WORDS, viewLabel,
+  backLabel, canCorrect, changedLine, dollars, DRAWN_DEMO, drawingShoe, drawnLine, drawnOffer, drawnTime,
+  drawQuestion, extraPhotos, FRONT_VIEWS, NOTE_MAX, NO_SIDE, noSidePhoto,
+  frontPreviewUrl, MAX_EXTRA_PHOTOS, MAX_PHOTOS, NUDGE_CM, NUDGES, nudgeLabel, outsideQuestion, photoRoom, shoeAddedLine,
+  sortingViews, tooManyPhotos, traceNotice, tracing, VIEW_WORDS, viewLabel,
 } from './shoe';
 import type { Photo, ShoeDrawn, ShoeTrace, ShoeViews } from './types';
 
@@ -43,10 +43,17 @@ describe('fixing the marks', () => {
   });
 });
 
-describe("Add's instant check", () => {
-  it('heads the answer in one sentence', () => {
-    expect(checkHeadline({ ok: true, reasons: [] })).toBe('This photo should trace well.');
-    expect(checkHeadline({ ok: false, reasons: ['x'] })).toBe('This photo may not trace well.');
+describe('a shoe added in one step', () => {
+  it('says plainly when more than six photos were chosen', () => {
+    expect(tooManyPhotos(1)).toBe('A shoe can have up to 6 photos, so one photo was not added.');
+    expect(tooManyPhotos(3)).toBe('A shoe can have up to 6 photos, so 3 photos were not added.');
+  });
+
+  it('says what was added, all of it or part of it', () => {
+    expect(shoeAddedLine(1, 1)).toBe('The shoe is added. In a moment Closet removes the background and describes it.');
+    expect(shoeAddedLine(4, 4)).toBe(
+      'The shoe is added with its 4 photos. In a moment Closet removes the background and works out which photo is which.');
+    expect(shoeAddedLine(2, 4)).toBe('The shoe is added with 2 of its 4 photos.');
   });
 });
 
@@ -96,8 +103,23 @@ describe("a shoe's photos sorted into views", () => {
     const item = { photos: [photo('m', 'front'), photo('a', 'detail'), photo('b', 'detail')] };
     expect(extraPhotos(item).map((p) => p.id)).toEqual(['a', 'b']);
     expect(MAX_EXTRA_PHOTOS).toBe(5);
+    expect(MAX_PHOTOS).toBe(6);
     expect(photoRoom(item)).toBe(3);
     expect(photoRoom({ photos: [photo('m', 'front'), ...'abcde'.split('').map((id) => photo(id, 'detail'))] })).toBe(0);
+  });
+
+  it('says a photo from the side would help only once the photos are sorted and none is a side view', () => {
+    const none = [photo('m', 'front', 'top', true, 'model'), photo('a', 'detail', 'front', true, 'model')];
+    expect(noSidePhoto({ photos: none, views: views('sorted') })).toBe(true);
+    expect(NO_SIDE).toBe('None of these photos shows the shoe from the side. A photo of its side would help the drawing.');
+    for (const side of ['outer', 'inner'] as const) {
+      expect(noSidePhoto({ photos: [...none, photo('b', 'detail', side, false, 'model')], views: views('sorted') })).toBe(false);
+    }
+    for (const state of ['waiting', 'sorting', 'asking', 'failed', null] as const) {
+      expect(noSidePhoto({ photos: none, views: views(state) })).toBe(false);   // not sorted yet, or never
+    }
+    expect(noSidePhoto({ photos: none, views: null })).toBe(false);
+    expect(noSidePhoto({ photos: [], views: views('sorted') })).toBe(false);
   });
 
   it('asks which photo shows the outside, or about the one photo, numbered as in the row', () => {

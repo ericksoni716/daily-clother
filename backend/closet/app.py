@@ -101,7 +101,6 @@ class Services:
     on_quit: Callable[[], None] = lambda: None
     on_show: Callable[[], bool] = lambda: False   # shows Closet's own window; False when there is none (the browser is used)
     updater: updates.Updater | None = None   # new releases: checked once a day, installed when the owner says
-    check_maskers: list = field(default_factory=list)   # the cut-outs Add's instant check of a shoe photo tries, in order
     _phone_cache: tuple[float, dict] | None = field(default=None, repr=False)
 
     def start(self) -> None:
@@ -232,8 +231,6 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     def model_mask(img: Image.Image):
         return np.asarray(predict_mask(img, MODEL, model.path)) if model.ready else None
 
-    from .drawing.trace import grabcut_mask  # no OpenCV until it runs
-    maskers = ([("model", model_mask)] if cutter is None else []) + [("grabcut", grabcut_mask)]
     if tracer is None and tagger is None:
         tracer = tracejobs.tracer(model_mask if cutter is None else None)
     tag_worker = tagjobs.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)), tagger or real_tagger)
@@ -318,8 +315,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                     pattern_worker=pattern_worker, second_model=second if cutter is None else None,
                     corrector=corrector or real_corrector,
                     check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper),
-                    finder=finding, views=views_worker, draws=draw_worker, updater=updates.Updater(cfg, state),
-                    check_maskers=maskers)
+                    finder=finding, views=views_worker, draws=draw_worker, updater=updates.Updater(cfg, state))
 
 
 def closet_inputs(cfg: Config, profile: str) -> tuple[list[dict], list[dict]]:
@@ -769,11 +765,6 @@ def create_app(sv: Services) -> FastAPI:
             raise HTTPException(404, "This shoe's drawing can't be shown.")
         return Response(svg, media_type="image/svg+xml", headers={
             "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
-
-    @app.post("/api/shoes/check", dependencies=protected)
-    def check_shoe(photo: UploadFile = File(...)):
-        data = photo.file.read(images.MAX_UPLOAD_BYTES + 1)
-        return tracejobs.check(images.decode(data), sv.check_maskers)
 
     @app.post("/api/items/{item_id}/retag", status_code=202, dependencies=protected)
     def retag(item_id: str, conn=Depends(conn_dep)):

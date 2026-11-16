@@ -1,9 +1,10 @@
 """Which view each photo of a shoe shows, asked of Claude so the owner never has to say (shoes drawn from
 understanding, step B).
 
-A shoe has its main photo (the guided side photo) and up to five more, taken in any order. All of them go to Claude in
-one call, the main photo first, through the same routes and the same monthly limit as describing an item
-(`spend.Meter`, purpose `sort_views`), on the model of the `sorting` role: in the experiment it named above, front
+A shoe has its main photo and up to five more, taken in any order (on Add, all at once: the first one is the main
+photo until they are sorted). All of them go to Claude in one call, the main photo first, through the same routes
+and the same monthly limit as describing an item (`spend.Meter`, purpose `sort_views`), on the model of the
+`sorting` role: in the experiment it named above, front
 and back right on 15 of 15 photos and flagged as unsure every photo whose outer and inner side it swapped. The
 answer is applied in `closet/shoeviews.py`, where the owner's own answers always win.
 """
@@ -44,9 +45,9 @@ class ShoeViews(BaseModel):
 
 
 def prompt(count: int) -> str:
-    which = ("There is one photo, photo 1, the main photo the owner took, usually of the side." if count == 1 else
+    which = ("There is one photo, photo 1, the main photo the owner took." if count == 1 else
              f"There are {count} photos, numbered 1 to {count} in the order they are given. Photo 1 is the main photo "
-             "the owner took, usually of the side; the others were taken in any order.")
+             "for now; the owner took them in any order, so any of them, photo 1 too, may show any view.")
     return f"""These are photos of one shoe from the owner's wardrobe. {which} Say which view each photo shows:
 - outer: the outer side, the whole side from toe to heel.
 - inner: the inner side, the whole side from toe to heel.

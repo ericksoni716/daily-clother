@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+import re
+
 MB = 1024 * 1024
 
 PHOTO_BYTES = 60 * MB          # one photo as the owner chose it, before the page shrinks it
@@ -17,7 +19,12 @@ UPLOADS = frozenset({
     ("POST", "/api/sources"),
     ("POST", "/api/would-this-work"),
 })
+# And those with an item in their path: a shoe's photo checked on Add, another photo of a shoe, a retaken photo.
+# (They were missing, so a phone's photo was refused there as "more than Closet reads in one request".)
+UPLOAD_PATHS = (re.compile(r"/api/shoes/check"), re.compile(r"/api/items/[^/]+/photos?"))
 
 
 def limit_for(method: str, path: str) -> int:
-    return UPLOAD_BYTES if (method, path) in UPLOADS else BODY_BYTES
+    if (method, path) in UPLOADS or (method == "POST" and any(p.fullmatch(path) for p in UPLOAD_PATHS)):
+        return UPLOAD_BYTES
+    return BODY_BYTES

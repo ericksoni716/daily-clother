@@ -66,7 +66,7 @@
 .gap-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; }
 /* Drawn as tight as the page titles so a usual name ("A pair of smart leather shoes") stays on one line on a phone. */
 .gap-head h3 { margin: 0; font-size: var(--text-lg); line-height: 1.25; letter-spacing: -0.015em; }
-.gap-label { margin: 0 0 6px; font-size: var(--text-xs); font-weight: var(--weight-heading); color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.gap-label { margin: 0 0 6px; font-family: var(--font-label); font-size: var(--text-xs); font-weight: var(--weight-heading); color: var(--label-ink); text-transform: uppercase; letter-spacing: 0.08em; }
 
 /* How much it would help: a pill with the words, stronger the more it helps. */
 .help-pill {

@@ -39,6 +39,13 @@
   --danger-soft: #f8e5e1;
   --warn: #8a5a12;
   --warn-soft: #fbf0d9;
+  /* prototype (16 Nov), from the look of moodbit.app: a title's second colour, labels set like notes on a sketch,
+     and soft tints behind a few sections. Each passes contrast with every text colour used on it. */
+  --ink-tone: #4f7a66;
+  --label-ink: #9a4a30;
+  --tint-green: #e7efe5;
+  --tint-sand: #f4ead6;
+  --tint-coral: #f9e5db;
   --focus: #2f6fb0;
   --scrim: rgba(38, 35, 31, 0.45);
   --shadow: 0 0 0 1px var(--line-soft), 0 1px 2px rgba(38, 35, 31, 0.06), 0 4px 14px rgba(38, 35, 31, 0.05);
@@ -51,6 +58,7 @@
   --text-lg: 20px;
   --text-xl: 25px;
   --text-2xl: 31px;
+  --text-3xl: 39px;   /* page titles on a wider screen (prototype) */
   --weight-body: 400;
   --weight-label: 560;
   --weight-heading: 650;
@@ -76,6 +84,8 @@
   --figure-h: min(62vh, 560px);
   --gutter: 16px;
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* labels (prototype): the device's own typewriter-style font, so nothing is downloaded and it works offline */
+  --font-label: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, 'Roboto Mono', monospace;
   /* motion: one curve, a fast start and a long soft landing, and two lengths: quick for a press, a colour or a
      small turn; move for something arriving. Loops (the spinner, the skeletons) keep their own pace. */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -122,6 +132,13 @@
     --danger-soft: #3d2420;
     --warn: #f0c67a;
     --warn-soft: #3a2f1c;
+    /* prototype (16 Nov), from the look of moodbit.app: a title's second colour, labels set like notes on a sketch,
+       and soft tints behind a few sections. Each passes contrast with every text colour used on it. */
+    --ink-tone: #9cc0b0;
+    --label-ink: #eaa58c;
+    --tint-green: #1f2a24;
+    --tint-sand: #2b261d;
+    --tint-coral: #33231d;
     --focus: #8ab8ec;
     --scrim: rgba(0, 0, 0, 0.6);
     /* in dark, depth is a 1px ring only: shadows do not read on a dark canvas */
@@ -167,6 +184,13 @@
   --danger-soft: #3d2420;
   --warn: #f0c67a;
   --warn-soft: #3a2f1c;
+  /* prototype (16 Nov), from the look of moodbit.app: a title's second colour, labels set like notes on a sketch,
+     and soft tints behind a few sections. Each passes contrast with every text colour used on it. */
+  --ink-tone: #9cc0b0;
+  --label-ink: #eaa58c;
+  --tint-green: #1f2a24;
+  --tint-sand: #2b261d;
+  --tint-coral: #33231d;
   --focus: #8ab8ec;
   --scrim: rgba(0, 0, 0, 0.6);
   /* in dark, depth is a 1px ring only: shadows do not read on a dark canvas */
@@ -403,6 +427,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .page-title-row { display: flex; align-items: baseline; gap: 10px; }
 .count { color: var(--ink-3); font-size: var(--text-md); }
+/* page titles: large and light (prototype); a phone gets the smaller size */
+.page-title-row h1 { font-size: var(--text-2xl); font-weight: var(--weight-body); letter-spacing: -0.02em; line-height: 1.1; }
+@media (min-width: 700px) { .page-title-row h1 { font-size: var(--text-3xl); } }
 
 .segmented { display: inline-flex; padding: 3px; border-radius: var(--radius-pill); background: var(--inset); border: 1px solid var(--line); gap: 2px; }
 .segmented > * {
@@ -623,7 +650,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .detail-panel .back-view { max-width: 20rem; }
 .detail-picture-main { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; max-width: 26rem; }
 .drawing-notes { width: 100%; max-width: 26rem; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); font-size: var(--text-sm); }
-.drawing-notes h3 { font-size: var(--text-sm); font-weight: var(--weight-heading); color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 6px; }
+.drawing-notes h3 { font-family: var(--font-label); font-size: var(--text-xs); font-weight: var(--weight-heading); color: var(--label-ink); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 6px; }
 .drawing-notes ul { margin: 0; padding-left: 18px; }
 .drawing-notes li + li { margin-top: 4px; }
 @media (min-width: 700px) {
@@ -661,7 +688,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
   width: 100%; min-height: 48px; display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) 0;
   border: 0; background: none; color: var(--ink); text-align: left; cursor: pointer;
 }
-.detail-row-label { flex: none; width: 40%; max-width: 10rem; color: var(--ink-3); font-size: var(--text-sm); font-weight: var(--weight-label); }
+.detail-row-label { flex: none; width: 40%; max-width: 10rem; font-family: var(--font-label); color: var(--label-ink); font-size: var(--text-xs); font-weight: var(--weight-label); text-transform: uppercase; letter-spacing: 0.08em; }
 .detail-row-value { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-2); }
 .detail-row-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .detail-row-value.is-empty { color: var(--ink-3); }
@@ -675,7 +702,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .detail-editor .chip-group-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .detail-editor .field { margin: var(--space-4) 0 0; }
 
-.chip-group-title { font-size: var(--text-sm); font-weight: var(--weight-heading); color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+.chip-group-title { font-family: var(--font-label); font-size: var(--text-xs); font-weight: var(--weight-heading); color: var(--label-ink); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
 .chip-group .chips { gap: 7px; }
 
 .more { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-bottom: 18px; }
@@ -692,7 +719,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .tag-body { padding: 4px 0 14px; }
 .tag-body .muted { font-size: var(--text-sm); margin: 10px 0 0; }
 .tag-details { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 14px; }
-.tag-details dt { font-size: var(--text-xs); font-weight: var(--weight-heading); color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.04em; }
+.tag-details dt { font-family: var(--font-label); font-size: var(--text-xs); font-weight: var(--weight-heading); color: var(--label-ink); text-transform: uppercase; letter-spacing: 0.08em; }
 .tag-details dd { margin: 0; }
 .tag-seen-title { font-size: var(--text-md); margin: 16px 0 6px; }
 .tag-seen { margin: 0; padding-left: 20px; }

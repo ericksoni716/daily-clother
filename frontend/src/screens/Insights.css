@@ -26,6 +26,8 @@
 }
 .insights-sentence { margin: 0 0 12px; color: var(--ink-2); font-size: var(--text-md); line-height: 1.45; }
 .insights-card .chip-group-title { margin: 14px 0 8px; }
+/* cost per wear's pieces, folded away until asked for */
+.insights-card .insights-cost-pieces { margin: 0; border-bottom: 0; }
 .insights-detail { margin: 0 0 10px; }
 
 /* pieces as small pictures, in a row that scrolls on a phone */

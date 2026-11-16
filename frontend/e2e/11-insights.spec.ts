@@ -18,11 +18,17 @@ test('insights in the demo closet: a cost per wear, and archiving a piece never 
   await expect(page).toHaveURL(/\/insights$/);
   await expect(page.locator('#insights-title')).toBeVisible();
 
-  // each card: a short label, the figure first, then one sentence that does not repeat it
+  // cost per wear is kept, but is not what the screen leads with (the owner, 16 November): the last card, as wide as
+  // the one beside it, its figure inside its sentence, and its pieces folded away until asked for
+  const cards = page.locator('.insights-grid > .insights-card');
+  await expect(cards.last()).toHaveAttribute('data-testid', 'cost-per-wear');
   const cost = page.getByTestId('cost-per-wear');
+  await expect(cost).not.toHaveClass(/is-wide/);
   await expect(cost.getByRole('heading', { level: 2 })).toHaveText('Cost per wear');
-  await expect(cost.getByTestId('insight-hero')).toHaveText(/^\$[\d,]+\.\d\d a wear$/);
-  await expect(cost.locator('.insights-sentence')).toHaveText(/^You paid \$[\d,]+ for the \d+ pieces with a price and have worn them \d+ times\.$/);
+  await expect(cost.getByTestId('insight-hero')).toHaveCount(0);
+  await expect(cost.locator('.insights-sentence')).toHaveText(/^You paid \$[\d,]+ for the \d+ pieces with a price and have worn them \d+ times: \$[\d,]+\.\d\d a wear\.$/);
+  await expect(page.getByTestId('cost-best')).toBeHidden();
+  await cost.getByText('Best value and most per wear').click();
   await expect(page.getByTestId('cost-best')).toHaveText(/^Your .+ cost \$[\d,]+\.\d\d a wear over \d+ wears?\.$/);
   // pieces not worn yet are listed once, in their own card, not again under cost per wear
   await expect(cost.getByRole('heading', { name: 'Not worn yet' })).toHaveCount(0);
@@ -89,6 +95,7 @@ test('insights shows the same pictures as the closet grid: photos or drawings, a
   await useProfile(page, 'demo');
   await page.getByRole('group', { name: 'Show' }).getByRole('button', { name: 'Drawings' }).click();
   await page.goto('/insights');
+  await page.getByTestId('cost-per-wear').getByText('Best value and most per wear').click();
   const pics = page.getByTestId('cost-per-wear').locator('.insights-piece-pic img');
   await expect(pics.first()).toBeVisible();
   expect(await pics.evaluateAll((imgs) => imgs.every((i) => i.classList.contains('pic-illustration')))).toBe(true);

@@ -144,19 +144,6 @@ export function groupLabel(field: MakeupField, value: string | null): string {
 
 // --------------------------------------------------------------------- the figure each card leads with
 
-/** "$61.08 a wear" once the closet has a cost per wear; null while the sentence says why there is none. */
-export function costHero(f: CostPerWear): string | null {
-  return f.closet ? perWear(f.closet.per_wear_cents) : null;
-}
-
-/** The cost-per-wear sentence without the figure the card already leads with. */
-export function costSentence(f: CostPerWear): string {
-  const c = f.closet;
-  if (!c) return f.sentence;
-  const whom = c.pieces === 1 ? 'the one piece with a price' : `the ${c.pieces} pieces with a price`;
-  return `You paid ${money(c.spent_cents)} for ${whom} and have worn ${c.pieces === 1 ? 'it' : 'them'} ${plural(c.wears, 'time')}.`;
-}
-
 /** "3 pieces" not being worn; null when there is too little history, or nothing to list. */
 export function unwornHero(f: Unworn, listed: number): string | null {
   return f.enough && listed > 0 ? plural(listed, 'piece') : null;

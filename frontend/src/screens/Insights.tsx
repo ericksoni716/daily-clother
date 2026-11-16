@@ -4,7 +4,7 @@ import { HangerIcon, WarnIcon } from '../components/Icons';
 import { Card as UiCard, ItemThumb, PageHeader, SegmentedControl } from '../components/ui';
 import { loadGridView, type GridView } from '../drawing';
 import {
-  barWidth, costCaption, costHero, costSentence, FIELD_WORDS, forgetKept, groupLabel, keepPiece, keptPieces, loadSavedInsights,
+  barWidth, costCaption, FIELD_WORDS, forgetKept, groupLabel, keepPiece, keptPieces, loadSavedInsights,
   MAKEUP_FIELDS, makeupHero, plural, saveInsights, shortDate, spreadHero, unwornCaption, unwornHero, windowLabel, wornMostHero, type CostPiece, type Counted, type Insights, type MakeupField, type Unworn,
   type UnwornPiece,
 } from '../insights';
@@ -138,7 +138,6 @@ export function InsightsScreen() {
       {phase.kind === 'ready' && (
         <ViewContext.Provider value={view}>
           <div className="insights-grid">
-            <CostCard answer={phase.answer} byId={byId} />
             <UnwornCard finding={phase.answer.never_worn} testid="never-worn" byId={byId} kept={kept} gone={gone} offline={locked}
               archiving={archiving} onArchive={archive} onKeep={keep} onShowKept={showKept} />
             <UnwornCard finding={phase.answer.not_worn_lately} testid="not-worn-lately" byId={byId} kept={kept} gone={gone} offline={locked}
@@ -146,6 +145,7 @@ export function InsightsScreen() {
             <WornMostCard answer={phase.answer} byId={byId} />
             <SpreadCard answer={phase.answer} byId={byId} />
             <MakeupCard answer={phase.answer} />
+            <CostCard answer={phase.answer} byId={byId} />
           </div>
         </ViewContext.Provider>
       )}
@@ -210,13 +210,23 @@ function CostRow({ heading, detail, pieces, byId }: { heading: string; detail?: 
   );
 }
 
+/**
+ * Cost per wear: worth having, not what to judge every piece by (the owner, 16 November). So it comes last, at the
+ * width of the cards beside it, with its figure inside its sentence rather than leading the card, and its pieces
+ * folded away until asked for.
+ */
 function CostCard({ answer, byId }: { answer: Insights; byId: ById }) {
   const f = answer.cost_per_wear;
   return (
-    <Card title={f.title} hero={costHero(f)} sentence={costSentence(f)} testid="cost-per-wear" wide>
-      <CostRow heading="Best value" pieces={f.best} byId={byId}
-        detail={f.best[0] && <p className="insights-detail muted small" data-testid="cost-best">{f.best[0].sentence}</p>} />
-      <CostRow heading="Most per wear" pieces={f.worst} byId={byId} />
+    <Card title={f.title} hero={null} sentence={f.sentence} testid="cost-per-wear">
+      {(f.best.length > 0 || f.worst.length > 0) && (
+        <details className="more insights-cost-pieces" data-testid="cost-pieces">
+          <summary>Best value and most per wear</summary>
+          <CostRow heading="Best value" pieces={f.best} byId={byId}
+            detail={f.best[0] && <p className="insights-detail muted small" data-testid="cost-best">{f.best[0].sentence}</p>} />
+          <CostRow heading="Most per wear" pieces={f.worst} byId={byId} />
+        </details>
+      )}
     </Card>
   );
 }

@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { forgetSaved } from './today';
 import {
-  addDays, loadSavedInsights, saveInsights, type Insights, barWidth, costCaption, costHero, costSentence, forgetKept, groupLabel, keepPiece,
+  addDays, loadSavedInsights, saveInsights, type Insights, barWidth, costCaption, forgetKept, groupLabel, keepPiece,
   keptPieces, KEEP_DAYS, makeupHero, money, perWear, plural, shortDate, spreadHero, unwornCaption, unwornHero, wears, windowLabel,
-  wornMostHero, type CategorySpread, type CostPerWear,
+  wornMostHero, type CategorySpread,
 } from './insights';
 
 class MemoryStorage {
@@ -80,23 +80,6 @@ describe('captions', () => {
 });
 
 describe('the figure each card leads with', () => {
-  const cost = (closet: CostPerWear['closet'], sentence = 'Add what you paid.'): CostPerWear =>
-    ({ title: 'Cost per wear', enough: !!closet, sentence, closet, best: [], worst: [], not_worn: [] });
-
-  it('leads cost per wear with the closet figure and leaves it out of the sentence', () => {
-    const f = cost({ pieces: 13, spent_cents: 152700, wears: 25, per_wear_cents: 6108 });
-    expect(costHero(f)).toBe('$61.08 a wear');
-    expect(costSentence(f)).toBe('You paid $1,527 for the 13 pieces with a price and have worn them 25 times.');
-    const one = cost({ pieces: 1, spent_cents: 4500, wears: 1, per_wear_cents: 4500 });
-    expect(costSentence(one)).toBe('You paid $45 for the one piece with a price and have worn it 1 time.');
-  });
-
-  it('has no figure while the sentence says why there is none', () => {
-    const f = cost(null);
-    expect(costHero(f)).toBeNull();
-    expect(costSentence(f)).toBe('Add what you paid.');
-  });
-
   it('counts the pieces not being worn, only when there is something to list', () => {
     const f = { title: 'Not worn yet', enough: true, sentence: '', items: [] };
     expect(unwornHero(f, 3)).toBe('3 pieces');

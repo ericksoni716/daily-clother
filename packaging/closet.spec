@@ -206,6 +206,17 @@ excludes = [
     "setuptools",
     "pkg_resources",
     "distutils",
+    # cffi's tools for compiling C code (the window's .NET loader, clr_loader, only calls cffi.FFI(), cdef and
+    # dlopen). cffi._shimmed_dist_utils imports distutils, and with distutils excluded PyInstaller stops with
+    # 'Target module "distutils" already imported as ExcludedModule' (the 0.6.0 Windows build, 16 November)
+    "cffi._shimmed_dist_utils",
+    "cffi.ffiplatform",
+    "cffi.recompiler",
+    "cffi.verifier",
+    "cffi.setuptools_ext",
+    "cffi.vengine_cpy",
+    "cffi.vengine_gen",
+    "cffi.pkgconfig",
     "pip",
     "pytest",
     "_pytest",

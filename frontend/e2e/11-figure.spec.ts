@@ -79,15 +79,20 @@ test('today: a layered outfit is dressed a layer at a time once in sight, and at
   const mine = asked.filter((a) => items(a).every((id) => ids.includes(id)));
   expect(mine.some((a) => items(a).length === ids.length)).toBe(true);
   expect(mine.length).toBeGreaterThanOrEqual(await layers.count());
-  // every layer inside the outfit's frame, and the outfit's own fills it
-  const frame = (await figure.locator('.figure-stack').boundingBox())!;
-  for (const box of await layers.evaluateAll((all) => all.map((img) => img.getBoundingClientRect().toJSON()))) {
-    expect(box.x).toBeGreaterThanOrEqual(frame.x - 1);
-    expect(box.y).toBeGreaterThanOrEqual(frame.y - 1);
-    expect(box.x + box.width).toBeLessThanOrEqual(frame.x + frame.width + 1);
-    expect(box.y + box.height).toBeLessThanOrEqual(frame.y + frame.height + 1);
+  // every layer placed inside the outfit's frame, and the outfit's own fills it. Where each is placed, not where it
+  // is seen: the first layer rises 8px as it arrives, so its box on the screen can be below the frame for a moment
+  const stack = await figure.locator('.figure-stack').evaluate((s) => ({ w: s.clientWidth, h: s.clientHeight }));
+  const placed = await layers.evaluateAll((all) => all.map((img) => {
+    const el = img as HTMLElement;
+    return { x: el.offsetLeft, y: el.offsetTop, w: el.offsetWidth, h: el.offsetHeight };
+  }));
+  for (const box of placed) {
+    expect(box.x).toBeGreaterThanOrEqual(-1);
+    expect(box.y).toBeGreaterThanOrEqual(-1);
+    expect(box.x + box.w).toBeLessThanOrEqual(stack.w + 1);
+    expect(box.y + box.h).toBeLessThanOrEqual(stack.h + 1);
   }
-  expect((await layers.last().boundingBox())!.height).toBeGreaterThan(frame.height - 1);
+  expect(placed[placed.length - 1].h).toBeGreaterThan(stack.h - 1);
   // dressed within a moment: the outfit's own drawing ends fully shown
   await expect.poll(() => layers.last().evaluate((img) => getComputedStyle(img).opacity)).toBe('1');
 

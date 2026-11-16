@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
+from pydantic import BaseModel
 
 from closet import app as app_module
 from closet import weather
@@ -219,9 +220,11 @@ class FakeClaude:
 
 
 class FakeApi:
-    """Stands in for the Anthropic API behind the API-key route (its `messages.parse`); no test reaches the real one.
+    """Stands in for the Anthropic API behind the API-key route (its `messages.parse`, and `messages.create` for
+    describing an item); no test reaches the real one.
 
-    Answers ANSWER (or, asked to read a correction, `correction`: two buttons; asked to sort a shoe's photos, `views`,
+    Asked to describe an item (`create`, with the form as a tool), it calls the tool with `tag_answers` in turn, the
+    last one again once they run out (ANSWER by default). Answers ANSWER (or, asked to read a correction, `correction`: two buttons; asked to sort a shoe's photos, `views`,
     else `views_answer` for the photos sent) and reports token counts as the real API does; `error` makes the next
     calls raise it instead. `requests` keeps what each call was sent. Asked to draw a shoe, or to check its drawing,
     which is streamed (`messages.stream`), it answers `drawing` (`draw_answer`) or `checked` (`check_answer`), as text
@@ -245,6 +248,26 @@ class FakeApi:
         self.checked = check_answer()
         self.corrected = correct_answer()
         self.correct_checked = correct_check_answer()
+        self.tag_answers: list = [ANSWER]   # what describing an item answers, in turn: models, dicts, or None (no call)
+
+    def create(self, **kw):
+        """Describing an item on the API-key route: the answer comes back as a call of the form's tool."""
+        self.calls += 1
+        self.requests.append(kw)
+        if self.error:
+            raise self.error
+        usage = SimpleNamespace(input_tokens=self.input_tokens, output_tokens=self.output_tokens)
+        answer = self.tag_answers[min(len(self.requests_to("create")) - 1, len(self.tag_answers) - 1)]
+        if answer is None:   # answered in words, without calling the tool
+            return SimpleNamespace(content=[SimpleNamespace(type="text", text="A navy shirt.")], stop_reason="end_turn",
+                                   usage=usage)
+        data = answer.model_dump(mode="json") if isinstance(answer, BaseModel) else answer
+        call = SimpleNamespace(type="tool_use", id=f"toolu_{self.calls}", name=kw["tools"][0]["name"], input=data)
+        return SimpleNamespace(content=[call], stop_reason="tool_use", usage=usage)
+
+    def requests_to(self, method: str) -> list[dict]:
+        """The requests made with `create` (they carry `tools`) or the others."""
+        return [r for r in self.requests if ("tools" in r) == (method == "create")]
 
     def stream(self, **kw):
         self.calls += 1

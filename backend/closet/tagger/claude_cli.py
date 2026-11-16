@@ -1,9 +1,9 @@
 """Reach Claude through the Claude Code command-line tool (`claude -p`).
 
 This uses the owner's Claude plan instead of an API key: nothing is billed
-per call, and usage counts against the plan's limits. The same prompt and
-the same schema are used as on the API route, and the answer is validated the
-same way.
+per call, and usage counts against the plan's limits. The same prompt is used
+as on the API route, with the short form (`tagging.SENT`) as its schema, and the
+answer is validated the same way (against the full form).
 """
 from __future__ import annotations
 
@@ -136,8 +136,8 @@ def plan_status(exe: str | None = None, timeout: float | None = None) -> tuple[b
 
 
 def strict_schema() -> dict:
-    """The answer schema the API route sends (`tagging.SENT`: its long word lists as plain text), with the same
-    adjustments, so both routes ask for the same answer."""
+    """The answer schema the plan route sends: the short form (`tagging.SENT`: its long word lists as plain text),
+    adjusted as the SDK adjusts a structured output's. (The API route sends the whole form as a plain tool.)"""
     from anthropic.lib._parse._transform import transform_schema
     return transform_schema(SENT)
 

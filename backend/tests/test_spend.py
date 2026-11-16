@@ -246,9 +246,9 @@ def test_disabling_api_during_spend_check_refuses_without_a_reservation(services
 
 def test_every_request_is_checked_and_counted_even_a_retry():
     class Incomplete(FakeApi):
-        def parse(self, **kw):
-            reply = super().parse(**kw)
-            return reply if self.calls > 1 else type(reply)(parsed_output=None, stop_reason="max_tokens", usage=reply.usage)
+        def create(self, **kw):
+            reply = super().create(**kw)
+            return reply if self.calls > 1 else type(reply)(content=[], stop_reason="max_tokens", usage=reply.usage)
 
     seen = []
 
@@ -276,7 +276,8 @@ def test_the_estimate_for_waiting_items(client, services, cfg, routes):
     assert body["waiting"] == {"items": 3, "photos": 3, "at_most_usd": pytest.approx(3 * spend.estimate_call(1))}
     assert body["per_photo_usd"] == pytest.approx(spend.estimate_call(1)) and body["left_usd"] == pytest.approx(1.5)
     # careful: the most a request could be billed (the longest answer allowed, generous prompt and photos)
-    assert spend.estimate_call(1) == pytest.approx(spend.cost_usd("claude-haiku-5-5", 9600, 4000))
+    # (the prompt and the whole form as a tool, 18,000 tokens, since 16 November; a photo 1,600)
+    assert spend.estimate_call(1) == pytest.approx(spend.cost_usd("claude-haiku-5-5", 19600, 4000))
     assert spend.estimate_call(1) > ONE_CALL and spend.estimate_call(2) > spend.estimate_call(1)
     assert spend.estimate_call(1) < 0.01   # under a cent a photo at the prices written down
 
@@ -397,10 +398,10 @@ class Held(FakeApi):
         super().__init__()
         self.inside, self.go = threading.Event(), threading.Event()
 
-    def parse(self, **kw):
+    def create(self, **kw):
         self.inside.set()
         assert self.go.wait(10)
-        return super().parse(**kw)
+        return super().create(**kw)
 
 
 def test_requests_made_at_once_cannot_together_pass_the_limit(client, services, cfg):

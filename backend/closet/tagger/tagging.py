@@ -1,8 +1,9 @@
 """Ask Claude for an item's attributes and get back validated data.
 
-One function, one call shape. The answer is constrained to the schema by the
-API and validated again here; a call that cannot produce a valid answer fails
-loudly instead of returning a guess.
+One function, one call shape. On the API route the answer comes back as a call
+of a plain tool holding the whole form, and is checked against the form here
+(the plan route's form is enforced by Claude Code, and checked here too); a call
+that cannot produce a valid answer fails loudly instead of returning a guess.
 """
 from __future__ import annotations
 
@@ -136,13 +137,14 @@ def encode_image(img: Image.Image, max_edge: int = 1024) -> dict:
                                         "data": base64.standard_b64encode(buf.getvalue()).decode()}}
 
 
-# On the API route the answer's form is compiled into a grammar, and the API refuses one that is too large ("The
-# compiled grammar is too large", 400): the full form passed that limit at 939 listed words (schema version 5). So the
-# form sent lists in the grammar every word of the main fields (category, colour, pattern ...: what the closet sorts
-# and builds outfits by) and, in the details and the silhouette, only lists of up to ENUM_IN_GRAMMAR words; a longer
-# list there is plain text, its words named in the field's description, and Closet checks the answer against the
-# full form itself (`fitted`). Both routes send this form. (Tried loosening the main fields too: a boat shoe came back
-# as category "other", a word outside the list made to fit.)
+# The plan route's form (`SENT`, passed to `claude -p --json-schema`). It lists every word of the main fields
+# (category, colour, pattern ...: what the closet sorts and builds outfits by) and, in the details and the silhouette,
+# only lists of up to ENUM_IN_GRAMMAR words; a longer list there is plain text, its words named in the field's
+# description, and Closet checks the answer against the full form itself (`fitted`). It was made for the API route,
+# whose structured output compiles the form into a grammar and refuses one that is too large ("The compiled grammar
+# is too large", 400): the full form passed that limit at 939 listed words (schema version 5). The API route no
+# longer sends a compiled form at all (`answer_tool`, below). (Tried loosening the main fields too: a boat shoe came
+# back as category "other", a word outside the list made to fit.)
 ENUM_IN_GRAMMAR = 12
 NO_ANSWER = ("unknown", "na", "none", "other")   # what a word outside its list becomes, the first the field allows
 
@@ -221,28 +223,95 @@ def fitted(answer) -> ItemTags:
     return ItemTags.model_validate(_fit(data, ItemTags))
 
 
+# ---- the API route: the whole form as a plain tool
+#
+# Sent as structured output (or as a strict tool), the form is compiled by the API into a grammar, and the API refuses
+# a grammar over a size it does not publish: the 939-word form was refused in v0.5.0, #235 cut it to 327 words without
+# a way to try that against the API, and the owner reported a description through the API key failing the same way
+# again (16 November). A tool that is not strict is not compiled, so its form has no size limit: the API route sends
+# the full form (every word of every list) as one and asks for it to be called; Closet checks the answer itself, asks
+# again in the same conversation when a main field is outside its list, then fits what is left (`fitted`).
+ANSWER_TOOL = "describe_item"
+ASK_FOR_TOOL = "Give your answer by calling the describe_item tool once, with every field filled in."
+MAIN_FIELDS = ("category", "color", "secondary_colors", "pattern", "formality", "season")   # what the closet sorts by
+
+
+def _inline(node, defs: dict):
+    """`node` with every `{"$ref": "#/$defs/X"}` replaced by X itself (the form has no loops)."""
+    if isinstance(node, dict):
+        ref = node.get("$ref")
+        if isinstance(ref, str) and ref.startswith("#/$defs/"):
+            return _inline(defs[ref.split("/")[-1]], defs)
+        return {k: _inline(v, defs) for k, v in node.items() if k != "$defs"}
+    if isinstance(node, list):
+        return [_inline(v, defs) for v in node]
+    return node
+
+
+def answer_tool() -> dict:
+    """The full form as a tool that is not strict (no `strict`): the API does not compile it into a grammar. Its
+    parts are written out in place, so it is one schema with no references."""
+    from anthropic.lib._parse._transform import transform_schema
+    schema = transform_schema(ItemTags)
+    return {"name": ANSWER_TOOL,
+            "description": "Record what the photos show about the item. For a field with a list, use only its words.",
+            "input_schema": _inline(schema, schema.get("$defs", {}))}
+
+
+def _words(name: str) -> tuple:
+    t = ItemTags.model_fields[name].annotation
+    return get_args(get_args(t)[0]) if get_origin(t) is list else get_args(t)
+
+
+def main_strays(data) -> dict:
+    """The main fields whose answer is not one of their words (for a list, the words that are not)."""
+    if not isinstance(data, dict):
+        return {name: None for name in MAIN_FIELDS}
+    out = {}
+    for name in MAIN_FIELDS:
+        value, words = data.get(name), _words(name)
+        if get_origin(ItemTags.model_fields[name].annotation) is list:
+            bad = [v for v in value if v not in words] if isinstance(value, list) else ([] if value is None else [value])
+            if bad:
+                out[name] = bad
+        elif value not in words:
+            out[name] = value
+    return out
+
+
+def stray_note(off: dict) -> str:
+    """What is said back when main fields are outside their lists: each field, what came, and the words it allows."""
+    parts = [f"{name}: {value!r} is not one of its words ({', '.join(_words(name))})" for name, value in off.items()]
+    return "Some fields are not in their lists. " + "; ".join(parts) + ". Call describe_item again with the whole answer."
+
+
 def tag_item(client, model: str, images: list[Image.Image], max_attempts: int = 3, meter: Meter | None = None) -> TagResult:
-    """Tag one item. `client` is an `anthropic.Anthropic` (or a stand-in with the same `messages.parse`).
+    """Tag one item. `client` is an `anthropic.Anthropic` (or a stand-in with the same `messages.create`).
 
     With a `meter`, every request is checked against it before it is sent and counted once it comes back.
     """
     import anthropic
 
-    content = [encode_image(im) for im in images] + [{"type": "text", "text": PROMPT}]
+    content = [encode_image(im) for im in images] + [{"type": "text", "text": PROMPT + "\n\n" + ASK_FOR_TOOL}]
+    first = [{"role": "user", "content": content}]
+    tool = answer_tool()
     effort = CONFIG["models"][model].get("effort", "low")
     t0 = time.time()
     tokens_in = tokens_out = 0
     last: Exception | None = None
+    messages = first
     for attempt in range(1, max_attempts + 1):
         if meter:
             meter.before_api_call(model, len(images))
         try:
             resp = send(
-                meter, client.messages.parse,
+                meter, client.messages.create,
                 model=model,
                 max_tokens=MAX_TOKENS,
-                messages=[{"role": "user", "content": content}],
-                output_format=SENT,
+                messages=messages,
+                tools=[tool],
+                # "auto": forcing the tool is refused by some models (Opus 5.5, Sonnet 5.5); the prompt asks for it
+                tool_choice={"type": "auto", "disable_parallel_tool_use": True},
                 output_config={"effort": effort},
             )
         except anthropic.RateLimitError as e:
@@ -269,13 +338,25 @@ def tag_item(client, model: str, images: list[Image.Image], max_attempts: int = 
             meter.record("api", model, resp.usage.input_tokens, resp.usage.output_tokens)
         if resp.stop_reason == "refusal":
             raise TaggingError(f"{model} declined to tag this photo")
-        if resp.stop_reason == "max_tokens" or resp.parsed_output is None:
-            last = TaggingError(f"{model} returned an incomplete answer (stop_reason={resp.stop_reason})")
+        call = next((b for b in resp.content if getattr(b, "type", None) == "tool_use" and b.name == ANSWER_TOOL), None)
+        if resp.stop_reason == "max_tokens" or call is None:
+            last = TaggingError(f"{model} returned an incomplete answer (stop_reason={resp.stop_reason})"
+                                if resp.stop_reason == "max_tokens" else f"{model} did not answer with the form")
+            messages = first   # asked again from the start
+            continue
+        off = main_strays(call.input)
+        if off and attempt < max_attempts:   # said back in the same conversation, so it can put them right
+            last = TaggingError(f"{model} answered outside the lists: {off}")
+            messages = messages + [
+                {"role": "assistant", "content": resp.content},
+                {"role": "user", "content": [{"type": "tool_result", "tool_use_id": call.id, "is_error": True,
+                                              "content": stray_note(off)}]}]
             continue
         try:
-            tags = fitted(resp.parsed_output)
+            tags = fitted(call.input)
         except ValidationError as e:
             last = TaggingError(f"{model} answered outside the form: {e.error_count()} problems")
+            messages = first
             continue
         return TagResult(tags, model, time.time() - t0, tokens_in, tokens_out,
                          cost_usd(model, tokens_in, tokens_out), attempt)

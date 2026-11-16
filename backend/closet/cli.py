@@ -104,6 +104,20 @@ def _follow_start_at_login() -> None:
         log.warning("could not point start at login to this program", exc_info=True)
 
 
+def _open_running(info: dict, url: str) -> None:
+    """Opened again while a copy runs: that copy shows its window, or, when it has none (it uses the browser, or it is
+    from before Closet had a window), the browser opens as it always did."""
+    if not instance.show_running(info):
+        webbrowser.open(url)
+
+
+def _launch_args(args, port: int, window_shown: bool = False) -> list[str]:
+    """How an update starts the new program: the way this one was started, on the same port, showing its window only
+    when this one's is showing (an update never opens the browser; the page already open there reconnects)."""
+    return ((["--no-tray"] if args.no_tray else []) + (["--browser"] if args.browser else [])
+            + ([] if window_shown else ["--no-browser"]) + ["--port", str(port)])
+
+
 def serve(args, cfg: config.Config) -> int:
     try:
         with instance.startup_lock(cfg) as release_startup:
@@ -140,11 +154,11 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
                     _say(f"An older {APP_NAME} ({theirs}) is already running at {url}. Quit it from its icon or "
                          f"from Settings, then open {APP_NAME} {__version__} again to use the new version.")
                 if not args.no_browser:
-                    webbrowser.open(url)
+                    _open_running(already, url)
                 return 0
         if not replaced_older:
             if not args.no_browser:
-                webbrowser.open(url)
+                _open_running(already, url)
             if sys.stdout is not None:
                 print(f"{APP_NAME} {theirs} is already running at {url}", flush=True)
             return 0
@@ -171,20 +185,33 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
                                            http="h11", ws="none", lifespan="off", access_log=False))
     server.install_signal_handlers = lambda: None  # we run it off the main thread
     url = f"http://127.0.0.1:{port}/"
-    icon_holder: dict = {}
+    ui: dict = {}   # the tray icon and Closet's own window, once they are up
 
     def quit_program() -> None:
         server.should_exit = True
-        icon = icon_holder.get("icon")
+        window = ui.get("window")
+        if window is not None:
+            window.close()
+        icon = ui.pop("icon", None)   # stopped once: a second stop() can wait forever on a loop that has ended
         if icon is not None:
             try:
                 icon.stop()
             except Exception:
                 pass
 
+    def show_window() -> bool:
+        """Show Closet's own window; False when there is none and the browser should be opened instead."""
+        window = ui.get("window")
+        return window is not None and window.show()
+
+    def open_closet() -> None:   # the tray's "Open Closet"
+        if not show_window():
+            webbrowser.open(url)
+
     services.on_quit = quit_program
+    services.on_show = show_window
     if services.updater is not None:   # an update starts the new program the way this one was started
-        services.updater.launch_args = (["--no-tray"] if args.no_tray else []) + ["--no-browser", "--port", str(port)]
+        services.updater.launch_args = _launch_args(args, port)
     thread = threading.Thread(target=server.run, name="server", daemon=True)
     thread.start()
     deadline = time.time() + 30
@@ -202,7 +229,41 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
                     wanted, port)
     if sys.stdout is not None:
         print(f"{APP_NAME} is running at {url}  (quit from the tray icon, Settings, or Ctrl+C)", flush=True)
-    if not args.no_browser:
+
+    stopping = threading.Lock()
+
+    def shut_down() -> None:
+        """Stop the server and the background work and let go of the closet, once, whoever gets here first."""
+        if not stopping.acquire(blocking=False):
+            return
+        server.should_exit = True
+        thread.join(timeout=10)
+        services.stop()
+        instance.clear_lock(cfg)
+
+    def quit_now() -> None:   # the Mac's Quit (Cmd+Q, logging out): macOS ends the program as soon as this returns
+        quit_program()
+        shut_down()
+
+    # Closet's own window, unless it was asked for the browser or runs with neither a tray nor a window (the smoke
+    # test, the browser tests). Started at login (--no-browser) it is made hidden, for "Open Closet" to show.
+    window = None
+    if not args.browser and not (args.no_tray and args.no_browser):
+        from . import window as app_window
+
+        def window_shown(shown: bool) -> None:
+            if services.updater is not None:
+                services.updater.launch_args = _launch_args(args, port, window_shown=shown)
+
+        window = app_window.AppWindow(url, cfg.window_dir, hidden=args.no_browser,
+                                      keep_running=lambda: ui.get("icon") is not None, on_quit=quit_program,
+                                      on_visible=window_shown, on_terminate=quit_now)
+        if window.prepare():
+            ui["window"] = window
+            window_shown(window.visible)
+        else:
+            window = None
+    if window is None and not args.no_browser:
         webbrowser.open(url)
 
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -214,11 +275,27 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
     icon = None
     if not args.no_tray:
         from . import tray
-        icon = tray.create(lambda: webbrowser.open(url), quit_program,
+        icon = tray.create(open_closet, quit_program,
                            lambda: autostart.is_enabled() if autostart.program() else None, autostart.set_enabled)
     try:
-        if icon is not None:
-            icon_holder["icon"] = icon
+        if window is not None:
+            # The window's loop runs on the main thread; the tray joins it or runs beside it (see closet/window.py).
+            if icon is not None:
+                try:
+                    tray.run_beside(icon)
+                    ui["icon"] = icon
+                except Exception:
+                    log.info("tray icon unavailable; continuing without it")
+                    icon = None
+            if not window.run():   # the window has gone without Closet quitting: use the browser from now on
+                ui.pop("window", None)
+                if not server.should_exit:
+                    if window.visible:
+                        webbrowser.open(url)
+                    if icon is not None and not tray.has_own_loop(icon):
+                        icon.run()   # the tray was riding on the window's loop; it needs its own now
+        elif icon is not None:
+            ui["icon"] = icon
             try:
                 icon.run()  # blocks on the main thread until Quit
             except Exception:
@@ -228,10 +305,8 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
     except KeyboardInterrupt:
         quit_program()
     finally:
-        server.should_exit = True
-        thread.join(timeout=10)
-        services.stop()
-        instance.clear_lock(cfg)
+        quit_program()   # stops a tray icon still running in its own thread, which would keep the program alive
+        shut_down()
     return 0
 
 
@@ -361,6 +436,10 @@ def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -
             return f"updates install {asset} in place of {where.installed.name}"
         return "updates are reported with a link (this computer installs them by hand)"
 
+    def window():
+        from . import window as app_window
+        return app_window.check_bundled()
+
     def https():
         import urllib.request
         from urllib.parse import urlsplit
@@ -382,6 +461,7 @@ def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -
     check("model_state", model)
     check("tagger", tagger)
     check("updater", updater)
+    check("window", window)
     if with_cutout:
         check("cutout", cutout)
     if with_https:  # the same connection the model download makes; needs the internet
@@ -402,7 +482,9 @@ def cmd_selfcheck(args, cfg: config.Config) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="closet", description=f"{APP_NAME}: a private wardrobe app.")
     ap.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
-    ap.add_argument("--no-browser", action="store_true", help="do not open the browser on start")
+    ap.add_argument("--no-browser", action="store_true",
+                    help="do not open Closet's window (or the browser) on start; Open Closet in the tray shows it")
+    ap.add_argument("--browser", action="store_true", help="use the browser instead of Closet's own window")
     ap.add_argument("--no-tray", action="store_true", help="do not show the tray icon")
     ap.add_argument("--port", type=int, help="listen on this port instead of the default")
     ap.add_argument("--replace", action="store_true",

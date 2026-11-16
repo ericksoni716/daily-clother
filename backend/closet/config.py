@@ -53,6 +53,11 @@ class Config:
     def lock_path(self) -> Path:
         return self.data_dir / "closet.lock"
 
+    @property
+    def window_dir(self) -> Path:
+        """Closet's own window keeps its web storage here (its login cookie, the page's settings), like a browser profile."""
+        return self.data_dir / "window"
+
 
 def load(env: dict | None = None) -> Config:
     env = os.environ if env is None else env

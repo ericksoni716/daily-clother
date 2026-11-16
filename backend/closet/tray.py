@@ -1,11 +1,13 @@
-"""The small icon near the clock: the program's only window.
+"""The small icon near the clock (in the menu bar on a Mac): Open Closet, start at login, Quit.
 
 Optional. Where no tray is available (or the library is missing) the program
-simply runs without one and can be stopped from Settings.
+simply runs without one and can be stopped from Settings. How it shares the
+main thread with Closet's own window is explained in closet/window.py.
 """
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 
 from PIL import Image, ImageDraw
@@ -50,3 +52,25 @@ def create(on_open: Callable[[], None], on_quit: Callable[[], None],
     except Exception as e:
         log.info("no tray icon: %s", type(e).__name__)
         return None
+
+
+def _backend(icon) -> str:
+    return type(icon).__module__.rsplit(".", 1)[-1]
+
+
+def run_beside(icon) -> None:
+    """Start the icon beside the loop of Closet's window, which has the main thread: pystray's `run_detached()`.
+
+    pystray 0.19.5's plain X11 icon (Linux without GTK) is started by hand instead: its `run_detached()` calls `run()`
+    in a thread, which starts the icon's setup thread a second time, and that one waits forever, keeping the program
+    from ending. Its loop runs in a daemon thread here, as `run_detached()` would have run it."""
+    if _backend(icon) == "_xorg":
+        threading.Thread(target=icon.run, name="tray", daemon=True).start()
+    else:
+        icon.run_detached()
+
+
+def has_own_loop(icon) -> bool:
+    """Whether the icon runs a loop of its own in a thread once started by `run_beside` (Windows, plain X11), rather
+    than relying on the loop of the window it shares the main thread with (the Mac, GTK). See closet/window.py."""
+    return _backend(icon) not in ("_darwin", "_gtk", "_appindicator")

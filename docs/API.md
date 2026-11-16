@@ -259,6 +259,7 @@ The answer (`answer`, when `ready`): `{enough, message, verdict, verdict_words, 
 | `POST /api/profile {profile: "main"\|"demo"}` | Switches between the real closet and the demo closet. |
 | `POST /api/quit` | 202; the program exits shortly after. |
 | `POST /api/instance/quit` (header `X-Closet-Instance-Token`) | Not for the page: a newer copy of the program asks this one to quit. Needs no session, only the token this copy wrote into `closet.lock` in the data folder; 202 and the program exits shortly after, 403 otherwise. |
+| `POST /api/instance/show` (header `X-Closet-Instance-Token`) | Not for the page: the program, opened again while this copy runs, asks it to show its window. Needs no session, only the same token as `instance/quit`; 200 `{"shown": true}` when the window is coming up, `{"shown": false}` when this copy has no window (it uses the browser, or runs with neither tray nor window) and the browser should be opened instead; 403 otherwise. |
 
 ## Trips
 

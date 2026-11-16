@@ -99,6 +99,7 @@ class Services:
     views: shoeviews.Worker | None = None         # sorts a shoe's photos into views
     draws: shoedraw.Worker | None = None          # draws a shoe from its sorted photos
     on_quit: Callable[[], None] = lambda: None
+    on_show: Callable[[], bool] = lambda: False   # shows Closet's own window; False when there is none (the browser is used)
     updater: updates.Updater | None = None   # new releases: checked once a day, installed when the owner says
     check_maskers: list = field(default_factory=list)   # the cut-outs Add's instant check of a shoe photo tries, in order
     _phone_cache: tuple[float, dict] | None = field(default=None, repr=False)
@@ -1386,6 +1387,15 @@ def create_app(sv: Services) -> FastAPI:
         log.info("a newer copy of the program asked this one to quit")
         threading.Timer(0.3, sv.on_quit).start()
         return {"status": "shutting-down"}
+
+    @app.post("/api/instance/show", include_in_schema=False)
+    def show_for_second_launch(request: Request):
+        """The program, opened again while this copy runs, asks it to show its window. Like the quit above, only
+        something that can read this copy's data folder can ask. `shown` is false when this copy has no window (it
+        uses the browser, or runs without a tray and a window), and the program opens the browser instead."""
+        if not instance.quit_token_matches(cfg, request.headers.get(instance.QUIT_HEADER)):
+            raise HTTPException(403, "Not allowed.")
+        return {"shown": bool(sv.on_show())}
 
     # ---------------------------------------------------------------- pages
     @app.get("/{path:path}", include_in_schema=False)

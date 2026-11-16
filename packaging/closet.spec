@@ -5,10 +5,12 @@
 #       --distpath <dir> --workpath <dir>
 #
 # What it produces depends on the OS it runs on:
-#   Windows  dist/Closet.exe   one file, windowed (no console), with an icon
+#   Windows  dist/Closet.exe   one file, windowed (no console), with an icon;
+#                              Closet's window is Edge WebView2 (pywebview)
 #   macOS    dist/Closet.app   windowed menu-bar app (LSUIElement, bundle id
 #                              app.closet), one-folder inside the bundle; the
-#                              release workflow zips it with `ditto`
+#                              release workflow zips it with `ditto`; Closet's
+#                              window is WebKit (pywebview)
 #   Linux    dist/closet       one file, console; for local verification only
 #
 # Before building: the frontend must be built into backend/closet/web/
@@ -129,7 +131,25 @@ heif_libs = dist_native_libs("pillow_heif")
 if not heif_libs:
     fail("no libheif/libde265/x265 libraries found for pillow_heif")
 
-binaries = onnxruntime_libs + heif_libs
+# Closet's own window (pywebview, closet/window.py). pywebview ships a PyInstaller hook of its own
+# (webview/__pyinstaller), and pyinstaller-hooks-contrib has one too; what they collect is listed here
+# as well so the build does not depend on which of the two PyInstaller picks: the scripts it puts in
+# the page (webview/js) everywhere, and on Windows the Edge WebView2 libraries (webview/lib), which
+# pythonnet loads. pythonnet's Python.Runtime.dll and clr_loader's ClrLoader.dll come from the contrib
+# hooks for `clr` and `clr_loader`.
+window_datas = collect_data_files("webview", subdir="js")
+if not window_datas:
+    fail("pywebview's scripts (webview/js) were not found; is pywebview installed?")
+window_libs = []
+if IS_WIN:
+    window_datas += collect_data_files("webview", subdir="lib")
+    window_libs = collect_dynamic_libs("webview")
+    names = {os.path.basename(src) for src, _ in window_datas + window_libs}
+    for needed in ("Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll", "WebView2Loader.dll"):
+        if needed not in names:
+            fail(f"pywebview's {needed} was not found")
+
+binaries = onnxruntime_libs + heif_libs + window_libs
 
 print("closet.spec: collected native files:")
 for src, dest in binaries:
@@ -162,9 +182,19 @@ elif IS_MAC:
 else:
     tray_imports = ["pystray._xorg", "pystray._appindicator", "pystray._gtk"]
 
+# pywebview picks its window library at run time (webview/guilib.py), with imports inside functions;
+# each computer's is listed so it is never left out. Linux gets no window library (the browser is used).
+window_imports = ["webview", "webview.guilib", "webview.util", "webview.http", "bottle", "proxy_tools"]
+if IS_WIN:
+    window_imports += ["webview.platforms.winforms", "webview.platforms.edgechromium", "webview.platforms.win32",
+                       "clr", "clr_loader", "pythonnet", "cffi", "_cffi_backend"]
+elif IS_MAC:
+    window_imports += ["webview.platforms.cocoa", "WebKit", "Quartz", "Security", "UniformTypeIdentifiers",
+                       "PyObjCTools.AppHelper"]
+
 hiddenimports = closet_modules + ["_pillow_heif", "pystray", "pystray._dummy", "truststore", "certifi",
                                    "anthropic", "anthropic.lib._parse._transform", "cv2",
-                                   "resvg_py"] + tray_imports   # resvg_py: imported only when a drawing is rendered
+                                   "resvg_py"] + tray_imports + window_imports   # resvg_py: imported only when a drawing is rendered
 
 excludes = [
     "tkinter",
@@ -216,7 +246,7 @@ a = Analysis(
     [os.path.join(PKG, "__main__.py")],
     pathex=[BACKEND],
     binaries=binaries,
-    datas=datas + collect_data_files("certifi"),   # the fallback certificate bundle (closet/net.py)
+    datas=datas + collect_data_files("certifi") + window_datas,   # certifi: the fallback certificate bundle (closet/net.py)
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
@@ -261,9 +291,16 @@ if IS_MAC:
             "CFBundleDisplayName": "Closet",
             "CFBundleShortVersionString": version or "0.1.0",
             "CFBundleVersion": version or "0.1.0",
-            "LSUIElement": True,  # menu-bar app: no Dock icon, no app menu
+            "LSUIElement": True,  # menu-bar app; Closet's window gives it a Dock icon while it shows (closet/window_mac.py)
             "LSMinimumSystemVersion": "14.0",  # onnxruntime / numpy arm64 wheels are macosx_14_0
             "NSHighResolutionCapable": True,
+            # the window shows the page from Closet's own server on 127.0.0.1 over http
+            "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
+            # asked by macOS the first time the owner taps "Use my location" on Today, in the window
+            "NSLocationUsageDescription": "Closet uses your location only when you tap Use my location, to show "
+                                          "the weather where you are.",
+            "NSLocationWhenInUseUsageDescription": "Closet uses your location only when you tap Use my location, "
+                                                   "to show the weather where you are.",
         },
     )
 else:

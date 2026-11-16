@@ -14,11 +14,15 @@ call Claude with a key.
 Default mode:
   1. `PROGRAM selfcheck --out FILE`: exit code 0, every check ok (the
      drawing check draws a garment, the updater check imports the module
-     that installs new releases), model_state == "missing".
-  2. `PROGRAM --no-browser --no-tray --port N`: /api/health answers within
+     that installs new releases, the window check loads Closet's window
+     library without opening a window), model_state == "missing".
+  2. `PROGRAM --no-browser --no-tray --port N` (no tray, no window):
+     /api/health answers within
      the startup timeout with app == "closet", model_state == "missing",
      setup_required == true; GET / is the built page (id="root") and the
      scripts and styles it links to are served with the right types;
+     POST /api/instance/show -> 403 without the token from closet.lock,
+     200 with it and shown == false (this copy has no window);
      POST /api/setup -> 204 + session cookie; GET /api/items -> 200;
      GET /api/tagging -> 200 with the plan route then the API route;
      POST /api/profile demo -> GET /api/items has 49 items, and a demo
@@ -61,7 +65,8 @@ from pathlib import Path
 DEMO_ITEMS = 49
 PASSPHRASE = "smoke-test-passphrase"
 MIGRATIONS = Path(__file__).resolve().parent.parent / "backend" / "closet" / "migrations"
-BASE_CHECKS = ("webp", "heic", "onnxruntime", "database", "web_page", "drawing", "model_state", "tagger", "updater")
+BASE_CHECKS = ("webp", "heic", "onnxruntime", "database", "web_page", "drawing", "model_state", "tagger", "updater",
+               "window")
 
 # Never route loopback requests through a proxy from the environment.
 _opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -246,6 +251,29 @@ def check_assets(base: str, page: str) -> None:
         log(f"  GET {path} -> 200, {len(body):,} bytes of {kind}")
 
 
+def check_show(base: str, data_dir: Path) -> None:
+    """Opening the program again asks the running copy to show its window, with the token from its lock file. A copy
+    started with neither a tray nor a window has none to show, so the new launch would open the browser."""
+    expect("POST", base + "/api/instance/show", 403)
+    try:
+        token = json.loads((data_dir / "closet.lock").read_text(encoding="utf-8"))["token"]
+    except (OSError, ValueError, KeyError) as exc:
+        raise SmokeFailure(f"closet.lock in {data_dir} has no token: {exc!r}") from exc
+    req = urllib.request.Request(base + "/api/instance/show", method="POST", data=b"",
+                                 headers={"X-Closet-Instance-Token": token})
+    try:
+        with _opener.open(req, timeout=30) as resp:
+            status, body = resp.status, resp.read()
+    except urllib.error.HTTPError as exc:
+        status, body = exc.code, exc.read()
+    except OSError as exc:
+        raise SmokeFailure(f"POST /api/instance/show failed: {exc!r}") from exc
+    if status != 200 or as_json("POST", "/api/instance/show", body).get("shown") is not False:
+        raise SmokeFailure(f"POST /api/instance/show with the token -> HTTP {status} {body[:200]!r}, "
+                           "expected 200 and shown false")
+    log("  POST /api/instance/show -> 403 without the token; 200, shown false, with it (no window here)")
+
+
 def check_drawing(base: str, cookie: str, items: list) -> None:
     item = items[0]
     _, body = expect("GET", f"{base}/api/items/{item['id']}/illustration.svg", 200, cookie=cookie)
@@ -329,6 +357,8 @@ def _drive_server(proc: subprocess.Popen, base: str, data_dir: Path, startup_tim
         raise SmokeFailure(f'GET / is not the built page (no id="root"): {page[:300]!r}')
     log(f'  GET / -> 200, built page ({len(body)} bytes, has id="root")')
     check_assets(base, page)
+
+    check_show(base, data_dir)
 
     headers, _ = expect("POST", base + "/api/setup", 204, body={"passphrase": PASSPHRASE})
     cookies = [c.split(";", 1)[0].strip() for c in headers["_set_cookie"]]

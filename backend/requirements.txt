@@ -15,11 +15,13 @@ certifi==2026.10.23      # fallback certificate bundle
 anthropic==2.8.0         # the API-key route to Claude for tagging (and the schema the plan route sends)
 opencv-python-headless==5.0.0.93   # measuring an item's pattern from its photo (closet/patterns); the drawing itself never imports it
 resvg-py==0.5.0          # renders a shoe Claude drew to PNG, so Claude can look at its drawing (closet/drawing/drawn.py); MIT, wheels for Windows and macOS, no other dependencies
+pywebview==6.2.1         # Closet's own window (closet/window.py): Edge WebView2 on Windows, WebKit on the Mac; BSD; falls back to the browser
 
 # transitive
 annotated-doc==0.0.6
 annotated-types==0.8.0
 anyio==4.16.0
+bottle==0.13.4           # pywebview
 click==8.5.1
 docstring-parser==0.18.0
 flatbuffers==25.12.19
@@ -31,6 +33,7 @@ jiter==0.19.0
 opentelemetry-api==1.45.2
 packaging==26.3
 protobuf==7.36.2
+proxy-tools==0.1.0       # pywebview (published as source only; pip builds it, no compiler needed)
 pydantic==2.14.3
 pydantic-core==2.50.4
 six==1.17.0
@@ -39,5 +42,18 @@ starlette==1.10.0
 typing-extensions==4.16.0
 typing-inspection==0.4.5
 python-xlib==0.33 ; sys_platform == "linux"   # pystray on Linux
-# pystray on macOS also installs pyobjc packages; pin them to the versions
-# the first macOS release run installs (shown in its pip log).
+
+# pywebview's window on Windows: .NET's WinForms through pythonnet
+pythonnet==3.2.1 ; sys_platform == "win32"
+clr-loader==0.3.1 ; sys_platform == "win32"
+cffi==2.1.1 ; sys_platform == "win32"
+pycparser==3.12 ; sys_platform == "win32"
+
+# the Mac: AppKit and WebKit through PyObjC, for pywebview's window (all six) and pystray's menu-bar icon (core,
+# Cocoa, Quartz). pywebview needs 9.0 or later; 12.2.2 has been out since August (13.0 only two weeks).
+pyobjc-core==12.2.2 ; sys_platform == "darwin"
+pyobjc-framework-Cocoa==12.2.2 ; sys_platform == "darwin"
+pyobjc-framework-Quartz==12.2.2 ; sys_platform == "darwin"
+pyobjc-framework-WebKit==12.2.2 ; sys_platform == "darwin"
+pyobjc-framework-Security==12.2.2 ; sys_platform == "darwin"
+pyobjc-framework-UniformTypeIdentifiers==12.2.2 ; sys_platform == "darwin"

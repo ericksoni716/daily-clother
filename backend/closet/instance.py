@@ -15,7 +15,8 @@ from contextlib import contextmanager
 
 from .config import Config
 
-# the header a newer copy sends to ask this one to quit; its value is the token in the lock file
+# the header another copy of the program sends to ask this one to quit or to show its window; its value is the token
+# in the lock file
 QUIT_HEADER = "X-Closet-Instance-Token"
 
 
@@ -142,6 +143,30 @@ def stop_running(cfg: Config, info: dict, timeout: float = 20.0) -> bool:
             return True
         time.sleep(0.25)
     return False
+
+
+def show_running(info: dict) -> bool:
+    """Ask the copy described by `info` to show its window, as `stop_running` asks it to quit (with the token from its
+    lock file). True when it did; False when it has no window to show (it uses the browser, it runs without a window,
+    or it is from before Closet had one), and the browser should be opened instead."""
+    if not info.get("token"):
+        return False
+    pid = info.get("pid")
+    if os.name == "nt" and isinstance(pid, int) and pid > 0:
+        # Windows only lets a program bring its window to the front when the owner was just using it. This program
+        # was just opened by the owner, so it may hand that permission on to the copy that will show its window.
+        try:
+            import ctypes
+            ctypes.WinDLL("user32").AllowSetForegroundWindow(pid)
+        except Exception:
+            pass
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{info['port']}/api/instance/show", method="POST", data=b"",
+                                     headers={QUIT_HEADER: str(info["token"])})
+        with urllib.request.urlopen(req, timeout=3) as r:
+            return r.status == 200 and json.loads(r.read()).get("shown") is True
+    except Exception:
+        return False
 
 
 def quit_token_matches(cfg: Config, given: str | None) -> bool:

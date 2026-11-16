@@ -41,7 +41,7 @@
   --warn-soft: #fbf0d9;
   /* prototype (16 Nov), from the look of moodbit.app: a title's second colour, labels set like notes on a sketch,
      and soft tints behind a few sections. Each passes contrast with every text colour used on it. */
-  --ink-tone: #4f7a66;
+  --ink-tone: #48725f;   /* 4.9:1 on the page: the day is small text on a phone */
   --label-ink: #9a4a30;
   --tint-green: #e7efe5;
   --tint-sand: #f4ead6;

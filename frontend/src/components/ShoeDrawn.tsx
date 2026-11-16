@@ -1,6 +1,8 @@
 import { useId, useState } from 'react';
 import { api, ApiError } from '../api';
-import { DRAWN_DEMO, drawingShoe, drawnLine, drawnOffer, drawQuestion } from '../shoe';
+import {
+  backLabel, canCorrect, changedLine, DRAWN_DEMO, drawingShoe, drawnLine, drawnOffer, drawQuestion, NOTE_MAX,
+} from '../shoe';
 import type { Item } from '../types';
 import { confirmKeys, useConfirmFocus } from './ui';
 import { WarnIcon } from './Icons';
@@ -17,28 +19,39 @@ interface Props {
 
 /** "Drawn for the outfit figure" on a shoe's page: the drawing Claude made from its photos, on two legs, with how long
  * it took, how often it was checked against the photos and what it cost; what is happening while it is drawn; and
- * "Draw again", which asks first (it replaces the drawing once the new one is done, and costs something). */
+ * "Draw again", which asks first (it replaces the drawing once the new one is done, and costs something). Once it has a
+ * drawing, a one-line box says what is wrong with it: Claude changes only that, checks the change against the photos
+ * and says when the note goes against them; the drawing before is kept, one tap away. */
 export function ShoeDrawn({ item, disabled, demo, onSaved, onError }: Props) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState('');
   const back = useConfirmFocus(confirming);
   const titleId = useId();
   const askId = useId();
+  const noteId = useId();
   const drawn = item.drawn;
   if (!drawn) return null;
   const offer = drawnOffer(item, demo);
   const line = drawnLine(drawn);
-  const draw = async (saidAs: string) => {
+  const changed = changedLine(drawn);
+  const swapLabel = backLabel(drawn);
+  const run = async (call: () => Promise<Item>, saidAs: string, after?: () => void) => {
     setBusy(true);
     try {
-      onSaved(await api.drawShoe(item.id), saidAs);
-      setConfirming(false);
+      onSaved(await call(), saidAs);
+      after?.();
     } catch (e) {
       onError((e as ApiError).message);
     } finally {
       setBusy(false);
     }
   };
+  const draw = (saidAs: string) => run(() => api.drawShoe(item.id), saidAs, () => setConfirming(false));
+  const send = () => run(() => api.correctDrawing(item.id, note.trim()), 'Changing the drawing as you asked',
+    () => setNote(''));
+  const swap = () => run(() => api.drawingBack(item.id),
+    drawn.previous_newer ? 'Back to the newer drawing' : 'Back to the drawing before');
   const off = disabled || busy;
   const message = demo && !drawn.url ? DRAWN_DEMO : drawn.message;
   return (
@@ -49,6 +62,15 @@ export function ShoeDrawn({ item, disabled, demo, onSaved, onError }: Props) {
           alt="The shoe as Claude drew it from its photos, on two legs, as the outfit figure will wear it" />
       )}
       {line && <p className="muted small" data-testid="shoe-drawn-line">{line}</p>}
+      {changed && <p className="small" data-testid="shoe-drawn-changed">{changed}</p>}
+      {changed && drawn.against_photos && (
+        <p className="notice shoe-drawn-against" data-testid="shoe-drawn-against">{drawn.against_photos}</p>
+      )}
+      {swapLabel && (
+        <div className="row shoe-fix-actions">
+          <button type="button" className="btn btn-small" disabled={off} onClick={() => void swap()}>{swapLabel}</button>
+        </div>
+      )}
       {drawn.url && drawn.photos_changed && <p className="small">The photos changed since this drawing.</p>}
       {drawn.state === 'failed' ? (
         <div className="notice notice-warn">
@@ -85,6 +107,23 @@ export function ShoeDrawn({ item, disabled, demo, onSaved, onError }: Props) {
           </div>
         </div>
       ))}
+      {canCorrect(drawn, demo) && (
+        <form className="shoe-drawn-say" onSubmit={(e) => {
+          e.preventDefault();
+          if (note.trim()) void send();
+        }}>
+          <label htmlFor={noteId} className="chip-group-title">What's wrong with the drawing?</label>
+          <div className="shoe-drawn-say-row">
+            <input id={noteId} type="text" maxLength={NOTE_MAX} value={note} disabled={off}
+              placeholder="e.g. the elastic sides should be wider" onChange={(e) => setNote(e.target.value)} />
+            <button type="submit" className="btn btn-small" disabled={off || !note.trim()}>Send</button>
+          </div>
+          <p className="muted small">
+            One thing to change. Claude changes only that and checks it against the photos; this drawing is kept, so
+            you can go back to it.
+          </p>
+        </form>
+      )}
     </section>
   );
 }

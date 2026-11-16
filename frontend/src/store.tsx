@@ -46,8 +46,10 @@ export function useOffline(): boolean {
 const busy = (i: ItemSummary) => i.cutout_state === 'pending' || i.cutout_state === 'processing';
 const describing = (i: ItemSummary) => i.tag_state === 'working';
 const awaiting = (i: ItemSummary) => i.tag_state === 'waiting';
-/** A shoe waiting to be drawn for the outfit figure, or being drawn: the list is asked again so the figure follows. */
-const drawingShoe = (i: ItemSummary) => i.drawn_state === 'waiting' || i.drawn_state === 'drawing';
+/** A shoe waiting to be drawn for the outfit figure, being drawn, or its drawing being changed from the owner's note:
+ * the list is asked again so the figure follows. */
+const drawingShoe = (i: ItemSummary) =>
+  i.drawn_state === 'waiting' || i.drawn_state === 'drawing' || i.drawn_state === 'correcting';
 
 interface Props {
   profile: Profile;

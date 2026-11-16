@@ -153,9 +153,10 @@ export interface Item extends ItemSummary {
 /** A shoe drawn by Claude from its photos for the outfit figure: drawn once by itself after its photos are sorted,
  * after that only when the owner asks. */
 export interface ShoeDrawn {
-  /** null: not drawn, nor waiting to be; waiting: for its photos to be sorted, the answer about the outside, or Claude;
-   * failed: three tries gave no drawing (the one it had, if any, stays). */
-  state: 'waiting' | 'drawing' | 'done' | 'failed' | null;
+  /** null: not drawn, nor waiting to be; waiting: for its photos to be sorted, the answer about the outside, or Claude
+   * (also a correction from the owner's note waiting: see `correcting`); correcting: the drawing is being changed from
+   * the owner's note; failed: three tries gave no drawing (the one it had, if any, stays). */
+  state: 'waiting' | 'drawing' | 'correcting' | 'done' | 'failed' | null;
   /** What is happening, or why it is not drawn, in plain words. */
   message: string | null;
   /** The drawing on two legs, while the shoe has one (the old one stays until a new one is done). */
@@ -171,6 +172,20 @@ export interface ShoeDrawn {
   photos_changed: boolean;
   /** Roughly what drawing it again costs on the API key. */
   about_usd: number;
+  /** A correction from the owner's note waits or is being made (`note` is that note). */
+  correcting: boolean;
+  /** While correcting, the note being drawn; otherwise the note this drawing was changed from (null when it was not). */
+  note: string | null;
+  /** This drawing is the one before, changed from the owner's note (`note`, `changed`, `against_photos`). */
+  corrected: boolean;
+  /** What Claude says it changed, in one plain sentence. */
+  changed: string | null;
+  /** When the note asks for something the photos do not show, one plain sentence saying so (drawn as asked). */
+  against_photos: string | null;
+  /** The drawing before the last change is kept: the owner can go back to it in one tap. */
+  has_previous: boolean;
+  /** That kept drawing is the newer one (the owner went back): the same button goes forward again. */
+  previous_newer: boolean;
 }
 
 /** A shoe's photos sorted into views by Claude, so the owner never has to say which is which. */

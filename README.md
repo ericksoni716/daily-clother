@@ -276,8 +276,9 @@ is billed; the page says what it would cost on the API key). The outfit figure
 going into the shoe; a shoe with no drawing keeps its plain one. Full-length
 trousers just meet an ordinary sneaker, so over a low shoe like a boat shoe
 the sock shows. A shoe drawn before this version is shown as it was: if
-something at the back of the shoe, such as a boot's pull tab, sits over the
-sock, tap **Draw again** and the new drawing puts it behind the leg. Adding or
+something at the back of the shoe, such as a pull tab at the heel, sits over
+the sock, tap **Draw again** (the new drawing puts what is behind the leg
+behind it), or say so in the box below the drawing (next paragraph). Adding or
 removing photos never draws the shoe
 again: the page says **The photos changed since this drawing**. To draw it
 again, tap **Draw again**; it asks first, and the old drawing stays until the
@@ -287,6 +288,23 @@ add or remove one of its photos. If drawing fails, the
 page says why and offers **Try again**. The demo closet's shoes are never sent
 to Claude; its brown boots come with a drawing made in advance, so you can see
 a drawn shoe on the figure there.
+
+If one thing about the drawing is wrong, type it in **What's wrong with the
+drawing?** under it, in one line (for example "the elastic sides should be
+wider"), and tap **Send**. Claude changes only that, keeping the rest of the
+drawing as it is, then checks the change against your photos. This takes
+about a minute; the page says **Changing the drawing** and keeps showing the
+old drawing until the new one is done. The new drawing comes with a line
+saying what changed. If your photos do not show what the note asks (say, the
+toe rubber is lower in the photos than you asked), the shoe is still drawn as
+you asked, and the page says so in one line, so you can check. **Go back to
+the drawing before** swaps back to the drawing you had, in one tap, and the
+same button then offers the newer one again. Only the drawing before the last
+change is kept (a new drawing from **Draw again** keeps the one before it the
+same way). Your notes stay with the drawing they made: when you later tap
+**Draw again**, Claude is given them, so a new drawing keeps to them. If
+Claude cannot change it after three tries, the drawing stays as it was and
+the page says so; send the note again, or say it another way.
 
 ### Several pieces in one photo
 

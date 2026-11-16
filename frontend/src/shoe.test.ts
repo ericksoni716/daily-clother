@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  checkHeadline, dollars, DRAWN_DEMO, drawingShoe, drawnLine, drawnOffer, drawnTime, drawQuestion, extraPhotos, FRONT_VIEWS,
+  backLabel, canCorrect, changedLine, checkHeadline, dollars, DRAWN_DEMO, drawingShoe, drawnLine, drawnOffer, drawnTime,
+  drawQuestion, extraPhotos, FRONT_VIEWS, NOTE_MAX,
   frontPreviewUrl, MAX_EXTRA_PHOTOS, NUDGE_CM, NUDGES, nudgeLabel, outsideQuestion, photoRoom, sortingViews, traceNotice,
   tracing, VIEW_WORDS, viewLabel,
 } from './shoe';
@@ -116,7 +117,8 @@ describe("a shoe's photos sorted into views", () => {
 
 const drawn = (state: ShoeDrawn['state'], over: Partial<ShoeDrawn> = {}): ShoeDrawn => ({
   state, message: null, url: null, rounds: null, seconds: null, cost_usd: null, route: null, made_at: null,
-  photos_changed: false, about_usd: 0.6, ...over,
+  photos_changed: false, about_usd: 0.6, correcting: false, note: null, corrected: false, changed: null,
+  against_photos: null, has_previous: false, previous_newer: false, ...over,
 });
 const done = (over: Partial<ShoeDrawn> = {}) => drawn('done', {
   url: '/api/items/x/drawn.svg?v=1', rounds: 2, seconds: 112.4, cost_usd: 0.6149, route: 'plan', ...over,
@@ -168,5 +170,48 @@ describe('a shoe drawn from its photos', () => {
     expect(again).toContain('nothing extra on your Claude plan');
     expect(drawQuestion(drawn(null), false)).toContain('roughly $0.60');
     expect(drawQuestion(drawn(null), false)).not.toContain('replaces');
+  });
+});
+
+describe("the owner's note on a shoe's drawing", () => {
+  const note = 'the elastic sides should be wider';
+  const corrected = (over: Partial<ShoeDrawn> = {}) => done({
+    corrected: true, note, changed: 'The elastic side panels are wider.', has_previous: true, seconds: 41, rounds: 1,
+    cost_usd: 0.12, ...over,
+  });
+
+  it('follows a correction as it follows a drawing, and offers nothing else meanwhile', () => {
+    const working = drawn('correcting', { url: '/x', correcting: true, note, has_previous: true });
+    expect(drawingShoe(working)).toBe(true);
+    expect(drawingShoe(drawn('waiting', { url: '/x', correcting: true, note }))).toBe(true);
+    expect(drawnOffer({ drawn: working, views: views('sorted') }, false)).toBeNull();
+    expect(canCorrect(working, false)).toBe(false);
+    expect(backLabel(working)).toBeNull();
+    expect(changedLine(working)).toBeNull();
+  });
+
+  it('offers the note box once there is a drawing, never in the demo closet', () => {
+    expect(canCorrect(done(), false)).toBe(true);
+    expect(canCorrect(done(), true)).toBe(false);
+    expect(canCorrect(drawn(null), false)).toBe(false);
+    expect(canCorrect(drawn('failed', { url: '/x' }), false)).toBe(true);   // a redraw failed: the old one can be fixed
+    expect(canCorrect(null, false)).toBe(false);
+    expect(NOTE_MAX).toBe(200);
+  });
+
+  it('says what changed, and the time and cost of the change, by the way it was made', () => {
+    expect(changedLine(corrected())).toBe(`Changed as you asked: “${note}”. The elastic side panels are wider.`);
+    expect(changedLine(corrected({ changed: null }))).toBe(`Changed as you asked: “${note}”.`);
+    expect(changedLine(done())).toBeNull();
+    expect(drawnLine(corrected())).toBe(
+      'Changed in 41 s on your Claude plan, checked once against the photos · about $0.12 if changed on the API key');
+    expect(drawnLine(corrected({ route: 'api' }))).toBe('Changed in 41 s, checked once against the photos · $0.12 on the API key');
+  });
+
+  it('swaps back to the drawing before in one tap, and offers the newer one again', () => {
+    expect(backLabel(corrected())).toBe('Go back to the drawing before');
+    expect(backLabel(done({ has_previous: true, previous_newer: true }))).toBe('Go to the newer drawing');
+    expect(backLabel(done())).toBeNull();
+    expect(backLabel(drawn('waiting', { url: '/x', has_previous: true }))).toBeNull();
   });
 });

@@ -1,5 +1,6 @@
 import io
 import json
+import re
 import sys
 import urllib.error
 import zlib
@@ -16,7 +17,7 @@ from closet.drawing import drawn
 from closet.tagger.correcting import Change, CorrectionAnswer, CorrectionResult
 from closet.tagger.garments import Garment, Garments
 from closet.tagger.schema import Details, ItemTags, Silhouette
-from closet.tagger.shoedrawing import CheckAnswer, DrawAnswer
+from closet.tagger.shoedrawing import CheckAnswer, CorrectAnswer, CorrectCheckAnswer, DrawAnswer
 from closet.tagger.tagging import RouteUnavailable, TaggingError, TagResult
 from closet.tagger.views import PhotoView, ShoeViews
 
@@ -141,6 +142,30 @@ def check_answer(good: bool = True) -> CheckAnswer:
                                        "right": None})
 
 
+# How the stand-ins change a drawing from the owner's note: the dress shoe with its laces black (the only shape the
+# note is about), said to go against the photos, which show brown laces; a check says it is good at once.
+BLACK_LACES = "the laces should be black"
+AGAINST = "The photos show brown laces, not black; drawn as you asked."
+
+
+def black_laces(svg: str) -> str:
+    return re.sub("#3a2a24", "#111111", svg, flags=re.IGNORECASE)
+
+
+def correct_answer(against: str | None = AGAINST) -> CorrectAnswer:
+    sheet = {**SHEET, "palette": [*SHEET["palette"][:2], {"name": "black laces", "hex": "#111111", "role": "laces"}]}
+    return CorrectAnswer.model_validate({"changed": "The laces are black now.", "against_photos": against,
+                                         "sheet": sheet, "left": {"behind": "", "front": black_laces(drawn.example("dress-shoe"))},
+                                         "right": None})
+
+
+def correct_check_answer(good: bool = True, against: str | None = AGAINST) -> CorrectCheckAnswer:
+    answer = correct_answer(against)
+    return CorrectCheckAnswer.model_validate({"good": good, "problems": [] if good else ["The toe cap had moved."],
+                                              "against_photos": against, "sheet": answer.sheet.model_dump(),
+                                              "left": answer.left.model_dump(), "right": None})
+
+
 # what the stand-in understands in a correction by sentence: sentence -> (changes, not understood, needs the photo)
 SENTENCES = {
     "it has three buttons": ([("placket_buttons", "3")], "", False),
@@ -200,7 +225,8 @@ class FakeApi:
     else `views_answer` for the photos sent) and reports token counts as the real API does; `error` makes the next
     calls raise it instead. `requests` keeps what each call was sent. Asked to draw a shoe, or to check its drawing,
     which is streamed (`messages.stream`), it answers `drawing` (`draw_answer`) or `checked` (`check_answer`), as text
-    in the answer's schema.
+    in the answer's schema; asked to change a drawing from the owner's note, or to check the change, `corrected`
+    (`correct_answer`) or `correct_checked` (`correct_check_answer`).
     """
 
     def __init__(self, input_tokens: int = 2000, output_tokens: int = 400):
@@ -217,14 +243,19 @@ class FakeApi:
         self.views: ShoeViews | None = None
         self.drawing = draw_answer()
         self.checked = check_answer()
+        self.corrected = correct_answer()
+        self.correct_checked = correct_check_answer()
 
     def stream(self, **kw):
         self.calls += 1
         self.requests.append(kw)
         if self.error:
             raise self.error
-        schema = kw["output_config"]["format"]["schema"]
-        answer = self.checked if "good" in schema["properties"] else self.drawing
+        props = kw["output_config"]["format"]["schema"]["properties"]
+        if "against_photos" in props:   # changing a drawing from the owner's note, or checking the change
+            answer = self.correct_checked if "good" in props else self.corrected
+        else:
+            answer = self.checked if "good" in props else self.drawing
         message = SimpleNamespace(content=[SimpleNamespace(type="text", text=json.dumps(answer.model_dump()))],
                                   stop_reason="end_turn",
                                   usage=SimpleNamespace(input_tokens=self.input_tokens, output_tokens=self.output_tokens))

@@ -3,7 +3,7 @@
     python tools/make_drawn_figure_sheet.py [--out docs/screenshots]
 
 For the saved example drawings (the runner, drawn left and right, from bench/experiments/shoe_drawn/EXAMPLES/; the
-boot split into its part behind the leg and its part in front, from backend/closet/drawing/shoe_examples/; the dress
+boot, its pull tab the one at the front, shown in front of the leg, from backend/closet/drawing/shoe_examples/; the dress
 shoe and the boat shoe), today's figure beside the app's own drawing of the same outfit with the drawing kept on the
 shoe, as `POST /api/outfits/figure` draws it (`illustrations.describe` gives the shoe its stored drawing; the figure
 is `figure.figure`): under shorts with a crew sock, full-length trousers and ankle-length trousers, a crew sock under
@@ -45,12 +45,13 @@ def answer(category: str, style: str, silhouette: dict | None = None, **details)
         brand=None, size=None, material=None, needs_shot=None).model_dump(mode="json")
 
 
-def kept(left, right, opening: float, top: float, instep: float, height: str) -> dict:
+def kept(left, right, opening: float, top: float, instep: float, height: str, tab: bool = False) -> dict:
     """A drawing as the app keeps it (version 2), with the sheet's heights the figure reads."""
     def shoe(s) -> dict:
         return drawn.side(s).to_json()
     return {"version": drawn.VERSION, "left": shoe(left), "right": shoe(right) if right else None,
-            "sheet": {"silhouette": {"height": height}, "opening_front_y": opening, "top_y": top, "instep_y": instep}}
+            "sheet": {"silhouette": {"height": height}, "opening_front_y": opening, "top_y": top, "instep_y": instep,
+                      "front_pull_tab": tab}}
 
 
 @dataclass
@@ -67,7 +68,7 @@ def examples() -> list[Shoe]:
     return [
         Shoe("runner", ("sneakers", "runner", "#f1f0eb", {}),
              kept(bench("runner-left.svg"), bench("runner-right.svg"), 24, 16, 22, "low")),
-        Shoe("boot", ("boots", "chelsea_boot", "#6e5a3f", {}), kept(drawn.split_example("boot"), None, -32, -46, 84, "ankle")),
+        Shoe("boot", ("boots", "chelsea_boot", "#6e5a3f", {}), kept(drawn.split_example("boot"), None, -32, -46, 84, "ankle", tab=True)),
         Shoe("dress shoe", ("dress_shoes", "oxford", "#b5622f", {"toe_cap": "stitched"}),
              kept(drawn.example("dress-shoe"), None, 32, 32, 30, "low")),
         Shoe("boat shoe", ("dress_shoes", "loafer", "#73523f", {}),

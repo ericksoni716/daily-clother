@@ -127,7 +127,7 @@ SHEET = {
                 {"name": "brown laces", "hex": "#3a2a24", "role": "laces"}],
     "parts": [{"part": "toe cap", "colour": "tan leather", "where": "across the toe", "seen_from_front": True}],
     "signature": ["straight toe cap line", "closed lacing with five pairs of eyelets"],
-    "one_side_mark": False, "opening_front_y": 32.0, "top_y": 30.0, "instep_y": 30.0,
+    "one_side_mark": False, "front_pull_tab": False, "opening_front_y": 32.0, "top_y": 30.0, "instep_y": 30.0,
 }
 
 

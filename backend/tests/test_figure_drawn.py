@@ -29,12 +29,13 @@ def answer(category: str, style: str = "", silhouette: dict | None = None, **det
         brand=None, size=None, material=None, needs_shot=None).model_dump(mode="json")
 
 
-def kept(left, right=None, opening=32.0, top=32.0, instep=30.0, height="low", version=2) -> dict:
-    """A drawing as `shoedraw` keeps it."""
+def kept(left, right=None, opening=32.0, top=32.0, instep=30.0, height="low", version=2, tab=False) -> dict:
+    """A drawing as `shoedraw` keeps it (`tab`: the sheet says it has a pull tab at the front)."""
     def shoe(s):
         return s if version == 1 else drawn.side(s).to_json()
     return {"version": version, "left": shoe(left), "right": shoe(right) if right else None,
-            "sheet": {"silhouette": {"height": height}, "opening_front_y": opening, "top_y": top, "instep_y": instep},
+            "sheet": {"silhouette": {"height": height}, "opening_front_y": opening, "top_y": top, "instep_y": instep,
+                      "front_pull_tab": tab},
             "made_at": "2026-11-15T12:00:00+00:00"}
 
 
@@ -49,7 +50,18 @@ def conn(cfg):
 
 DRESS_DRAWING = kept(drawn.example("dress-shoe"))
 BOAT_DRAWING = kept(drawn.example("boat-shoe"), opening=79.3, top=79.3, instep=77.3, height="low_profile")
-BOOT_DRAWING = kept(drawn.split_example("boot"), opening=-32, top=-46, instep=84, height="ankle")
+BOOT_DRAWING = kept(drawn.split_example("boot"), opening=-32, top=-46, instep=84, height="ankle", tab=True)
+
+
+def _back_tab_boot() -> drawn.Side:
+    """The bench boot with its tab taken as a tab at the BACK of the shaft: behind the leg, the rest in front."""
+    import xml.etree.ElementTree as ET
+    els = list(ET.fromstring(f"<g>{(BENCH / 'boot.svg').read_text(encoding='utf-8')}</g>"))
+    text = lambda keep: "".join(ET.tostring(el, encoding="unicode") for el in els if keep(el))  # noqa: E731
+    return drawn.Side(front=text(lambda el: "tab" not in el.get("id", "")), behind=text(lambda el: "tab" in el.get("id", "")))
+
+
+BACK_TAB_BOOT = kept(_back_tab_boot(), opening=-32, top=-46, instep=84, height="ankle")
 RUNNER_DRAWING = kept((BENCH / "runner-left.svg").read_text(), (BENCH / "runner-right.svg").read_text(), opening=24,
                       top=16, instep=22)
 
@@ -158,7 +170,7 @@ def test_a_version_1_drawing_is_all_in_front_and_still_drawn():
 
 @pytest.mark.parametrize("bottom", [SHORTS, FULL, ANKLE], ids=["shorts", "full", "ankle"])
 def test_the_part_behind_the_leg_goes_before_the_wearer_and_the_part_in_front_after_the_legs(bottom):
-    svg = figure(outfit(replace(CHELSEA, drawn=BOOT_DRAWING), bottom), uid="o")
+    svg = figure(outfit(replace(CHELSEA, drawn=BACK_TAB_BOOT), bottom), uid="o")
     behind, front = group(svg, "oq"), group(svg, "op")
     order = [svg.index(f'<g id="o{g}">') for g in ("q", "m", "p", "w")]
     assert order == sorted(order)   # behind, the wearer (and his socks), the shoes' fronts, then the trousers
@@ -169,8 +181,8 @@ def test_the_part_behind_the_leg_goes_before_the_wearer_and_the_part_in_front_af
 
 
 def test_under_trousers_that_drop_over_the_shoe_both_parts_keep_to_the_legs():
-    svg = figure(outfit(replace(CHELSEA, drawn=BOOT_DRAWING), WIDE), uid="c")
-    assert fig._on_shoe({"length": "full", "leg": "wide"}, plan(outfit(replace(CHELSEA, drawn=BOOT_DRAWING), WIDE))
+    svg = figure(outfit(replace(CHELSEA, drawn=BACK_TAB_BOOT), WIDE), uid="c")
+    assert fig._on_shoe({"length": "full", "leg": "wide"}, plan(outfit(replace(CHELSEA, drawn=BACK_TAB_BOOT), WIDE))
                         .get("shoes").front) == "over" and 'id="ck"' in svg
     assert group(svg, "cq").startswith('<g id="cq"><g clip-path="url(#ck)">')
     assert group(svg, "cp").startswith('<g id="cp"><g clip-path="url(#ck)">')
@@ -179,7 +191,7 @@ def test_under_trousers_that_drop_over_the_shoe_both_parts_keep_to_the_legs():
 def test_an_open_coat_draws_the_part_behind_again_between_its_fronts():
     coat = Piece("coat", answer("coat", silhouette={"top_length": "long"}, collar="notch_lapel",
                                 placket="front_placket"), "#232326")
-    svg = figure({"base": TEE, "outer": coat, "bottom": FULL, "shoes": replace(CHELSEA, drawn=BOOT_DRAWING)}, uid="k")
+    svg = figure({"base": TEE, "outer": coat, "bottom": FULL, "shoes": replace(CHELSEA, drawn=BACK_TAB_BOOT)}, uid="k")
     assert '<use href="#kq"/><use href="#km"/><use href="#kp"/>' in svg
 
 
@@ -325,6 +337,21 @@ def test_illustrations_give_the_shoe_its_drawing_whatever_is_happening_to_it_now
     assert illustrations.describe(row()).drawn is None   # only a shoe
 
 
+def test_a_pull_tab_at_the_front_shows_in_front_of_the_leg():
+    """The owner (16 November): a boot's pull tab at the FRONT shows, in front of the leg, an exception to the rule
+    that nothing of a shoe hides the leg above its opening. The owner's boots have a tab at each end."""
+    svg = figure(outfit(replace(CHELSEA, drawn=BOOT_DRAWING), SHORTS), uid="t")
+    assert "#4a2c22" in group(svg, "tp") and '<g id="tq">' not in svg   # the tab in front; nothing behind
+    sheet = BOOT_DRAWING["sheet"]
+    assert drawn.checks(drawn.split_example("boot"), None, sheet) == []
+    # without the sheet saying it is a front tab, the same drawing hides the leg above its opening: found
+    found = drawn.checks(drawn.split_example("boot"), None, {**sheet, "front_pull_tab": False})
+    assert any("hides the leg above its opening" in p for p in found)
+    # a front tab still may not rise far above the opening
+    tall = drawn.Side(front=drawn.split_example("boot").front.replace("-73", "-120").replace("-64", "-111"))
+    assert any("pull tab at the front rises too high" in p for p in drawn.checks(tall, None, sheet))
+
+
 def test_the_split_boot_is_the_bench_boot_the_owner_liked():
     import xml.etree.ElementTree as ET
 
@@ -334,13 +361,10 @@ def test_the_split_boot_is_the_bench_boot_the_owner_liked():
     bench = (BENCH / "boot.svg").read_text(encoding="utf-8")
     behind = (drawn.EXAMPLES_DIR / "boot.behind.svg").read_text(encoding="utf-8")
     front = (drawn.EXAMPLES_DIR / "boot.front.svg").read_text(encoding="utf-8")
-    assert shapes(behind + front) == shapes(bench)   # every shape of the bench file, once, nothing else
-    tab = [el for el in ET.fromstring(f"<g>{bench}</g>") if "tab" in el.get("id", "")]
-    assert shapes(behind) == shapes("".join(ET.tostring(el, encoding="unicode") for el in tab))   # the pull tab and its hole
+    # every shape of the bench file, once, nothing else: all in front, its pull tab the one at the front (the owner's
+    # boots have one at each end; the one at the back is hidden behind the leg, so not drawn)
+    assert behind.strip() == "" and shapes(front) == shapes(bench)
     assert drawn.checks(drawn.split_example("boot"), None, BOOT_DRAWING["sheet"]) == []
-    # drawn all in front, as step C's boot was, its tab hides the leg above the shaft's top: found
-    whole = drawn.Side(drawn.split_example("boot").behind + drawn.split_example("boot").front)
-    assert any("hides the leg above its opening" in p for p in drawn.checks(whole, None, BOOT_DRAWING["sheet"]))
 
 
 def test_the_demo_boot_is_drawn_on_the_figure(client):
@@ -361,7 +385,7 @@ def test_the_demo_boot_is_drawn_on_the_figure(client):
     assert client.get(shown["drawn"]["url"]).status_code == 200
     svg = client.post("/api/outfits/figure", json={"base": None, "shoes": boot["id"], "bottom": next(
         i["id"] for i in items if i["name"] == "Dark indigo jeans")}).text
-    assert '<g id="fq">' in svg and "#4a2c22" in group(svg, "fq") and "#5e2f25" in group(svg, "fp")
+    assert '<g id="fq">' not in svg and "#4a2c22" in group(svg, "fp") and "#5e2f25" in group(svg, "fp")
 
 
 def test_the_figure_is_asked_for_again_when_a_shoe_is_drawn_again(conn):
@@ -379,7 +403,7 @@ def test_the_figure_is_asked_for_again_when_a_shoe_is_drawn_again(conn):
 
 
 def test_the_preview_and_the_check_image_draw_behind_then_the_leg_then_in_front():
-    boot = drawn.split_example("boot")
+    boot = _back_tab_boot()
     svg = drawn.preview_svg(boot)
     left = svg[svg.index('translate(22,150)'):svg.index('translate(418,150)')]
     assert left.index("#4a2c22") < left.index("#2f7d4f") < left.index("#5e2f25")   # the tab, the sock, the panels

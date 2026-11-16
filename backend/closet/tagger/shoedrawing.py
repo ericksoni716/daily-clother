@@ -113,10 +113,16 @@ class Sheet(BaseModel):
                                  description="The 2 to 4 things that make it recognisable from the front at small "
                                              "size.")
     one_side_mark: bool = Field(description="True when a logo, stripe or panel is on one side of the shoe only.")
+    front_pull_tab: bool = Field(default=False,
+                                 description="True when the shoe has a pull tab or loop at the FRONT of its collar or "
+                                             "shaft (many pull-on boots have one at the front and one at the back): "
+                                             "it is drawn in the front part, centred on the leg, and may rise above "
+                                             "the opening.")
     opening_front_y: float = Field(ge=-200, le=240,
                                    description="In the drawing: the height (y) where the shoe's front first covers "
                                                "the middle of the leg (x 100): the tongue top or the collar's front "
-                                               "for a low shoe, the shaft's top edge at the front for a boot.")
+                                               "for a low shoe, the shaft's top edge at the front for a boot (not a "
+                                               "pull tab at the front above it).")
     top_y: float = Field(ge=-200, le=240,
                          description="In the drawing: the height (y) of the back of its opening: the top of the "
                                      "collar's back for a low shoe, the top of the shaft at the back for a boot (not a "
@@ -203,12 +209,13 @@ The toe is nearest the viewer, so it is the lowest and the largest thing in the 
 - a boot is NOT a tube: it is the same toe box and instep in front, with the shaft rising BEHIND them, narrower than the toe box, starting where the instep meets the leg. From the front you see the toe box below and the shaft above, with a clear break (the instep's slope, a crease or seam line) between them.
 
 ## The opening: the leg goes INTO the shoe
-Draw the opening's front edge as a curve dipping across the leg, and bring the collar's (or shaft's) sides up a little higher at each side of the leg than in the middle, so the leg sits IN the shoe. From just below that front edge down to the sole, the shoe covers the leg completely. Nothing in front of the leg covers its middle higher than about 25 units above the opening's front edge (for a boot, the front of the shaft's top), for any kind of shoe.
+Draw the opening's front edge as a curve dipping across the leg, and bring the collar's (or shaft's) sides up a little higher at each side of the leg than in the middle, so the leg sits IN the shoe. From just below that front edge down to the sole, the shoe covers the leg completely. Nothing in front of the leg covers its middle higher than about 25 units above the opening's front edge (for a boot, the front of the shaft's top), for any kind of shoe, except a pull tab at the front (below).
 
 ## Behind the leg and in front of it: two parts
 The shoe is a 3D object round the foot, so seen from the front some of it is BEHIND the leg. Give each shoe in two parts:
 - behind: what is behind the leg: the back of the collar or of a boot's shaft where it shows beside the leg, a pull tab or loop at the back, the lining seen inside the opening. The app draws it first, so the leg covers it wherever the leg is in front. Leave it empty ("") when nothing behind the leg shows (the three liked drawings have nothing behind the leg).
 - front: everything else, the whole shoe in front of the leg, built as below. Never put a part that is at the back of the shoe (a heel pull tab, the back of the collar) in front: drawn over the leg it would hide the leg and sock.
+- A pull tab or loop at the FRONT of the collar or shaft (many pull-on boots have one at the front and one at the back: look at the side photos) is in front of the leg: draw it in the front part, centred on the leg, narrow (at most about 26 units wide), rising no more than about 60 units above the opening's front edge, and set front_pull_tab true. The one at the back goes in the behind part.
 
 ## How to build it (the order the liked examples use)
 1. The sole's front edge: one crescent band along the bottom, in the sole's colour, with the bold outline.

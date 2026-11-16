@@ -131,8 +131,9 @@ TRACED = {
 }
 
 # The demo shoe drawn as Claude draws a shoe from its photos (step D shows it on the figure): made in advance from the
-# boot the owner liked (bench/experiments/shoe_drawn/EXAMPLES/boot.svg, split by hand into the pull tab behind the leg
-# and the rest in front: closet/drawing/shoe_examples/boot.*.svg), with a feature sheet written for it; never sent to
+# boot the owner liked (bench/experiments/shoe_drawn/EXAMPLES/boot.svg: all in front of the leg, its pull tab the one at
+# the front, which the owner wants shown: closet/drawing/shoe_examples/boot.*.svg, nothing behind), with a feature
+# sheet written for it; never sent to
 # Claude. name -> the split example, and its sheet (as `tagger/shoedrawing.Sheet` has it)
 DRAWN_SHOES = {
     "Brown boots": ("boot", {
@@ -147,10 +148,12 @@ DRAWN_SHOES = {
                     {"name": "near-black sole", "hex": "#2c2826", "role": "sole"}],
         "parts": [{"part": "elastic side panel", "colour": "oxblood elastic", "where": "each side of the shaft",
                    "seen_from_front": True},
-                  {"part": "pull tab", "colour": "dark brown pull tab", "where": "at the back of the shaft",
+                  {"part": "pull tab", "colour": "dark brown pull tab",
+                   "where": "at the front of the shaft, in front of the leg",
                    "seen_from_front": False}],
         "signature": ["elastic side panels down the shaft", "a smooth toe box with no laces"],
-        "one_side_mark": False, "opening_front_y": -32.0, "top_y": -46.0, "instep_y": 84.0}),
+        "one_side_mark": False, "front_pull_tab": True, "opening_front_y": -32.0, "top_y": -46.0,
+        "instep_y": 84.0}),
 }
 DRAWN_AT = "2026-11-15T12:00:00+00:00"   # kept fixed, so running this twice changes no file
 

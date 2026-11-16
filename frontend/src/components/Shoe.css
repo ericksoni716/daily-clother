@@ -1,4 +1,4 @@
-/* A shoe traced from its photo: the item page's fixes (components/ShoeTrace.tsx) and Add's guided photo
+/* A shoe traced from its photo: the item page's fixes (components/ShoeTrace.tsx); and Add's "A shoe"
    (screens/ShoeAdd.tsx). */
 
 .shoe-fix { display: grid; gap: 8px; }
@@ -21,22 +21,21 @@
 .shoe-nudge { min-width: 40px; padding: 0 8px; }
 .shoe-fix-actions { gap: 8px; flex-wrap: wrap; }
 
+/* Add's "A shoe": all of a shoe's photos at once, waiting in a row until it is added (screens/ShoeAdd.tsx). */
 .shoe-add { display: grid; gap: 12px; }
 .shoe-add p { margin: 0; }
 .shoe-frame {
-  position: relative; width: 100%; aspect-ratio: 16 / 10; overflow: hidden; border-radius: var(--radius-md);
+  position: relative; width: 100%; aspect-ratio: 4 / 3; overflow: hidden; border-radius: var(--radius-md);
   background: var(--ink); display: grid; place-items: center;
 }
-.shoe-frame video, .shoe-frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-.shoe-frame .shoe-guide { position: absolute; left: 4%; width: 92%; top: 50%; transform: translateY(-50%); pointer-events: none; }
-.shoe-frame-words {
-  position: absolute; left: 8px; right: 8px; top: 8px; margin: 0; text-align: center; color: var(--bg);
-  font-size: var(--text-sm); font-weight: var(--weight-label);
-}
-.shoe-steps { margin: 0; padding-left: 1.2rem; display: grid; gap: 4px; }
-.shoe-reasons { margin: 4px 0 0; padding-left: 1.2rem; display: grid; gap: 4px; }
+.shoe-frame video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.shoe-tips { margin: 0; padding-left: 1.2rem; display: grid; gap: 4px; }
 .shoe-add .row { gap: 8px; flex-wrap: wrap; }
 .shoe-add .row > .btn { flex: 1 1 auto; justify-content: center; }
+.shoe-photo-none {
+  width: 100%; aspect-ratio: 1; display: grid; place-items: center; border-radius: var(--radius-sm);
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-3);
+}
 
 /* A traced shoe's two front views on the outfit figure, side by side (issue 205). */
 .shoe-front { display: grid; gap: 8px; }
@@ -50,7 +49,7 @@
 .shoe-front-title { font-weight: var(--weight-label); }
 
 /* A shoe's photos, each with the view Closet sorted it into, and the question about the outside (components/
-   ShoePhotos.tsx); the same row of photos on Add's "more photos" step. */
+   ShoePhotos.tsx); the same row of photos on Add's "A shoe", before they are sent. */
 .shoe-photos { display: grid; gap: 8px; margin: 0 0 14px; }
 .shoe-photos p { margin: 0; }
 .shoe-photo-row {

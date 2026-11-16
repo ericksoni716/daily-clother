@@ -43,7 +43,7 @@ test.describe('several items from one photo', () => {
     await page.getByRole('button', { name: 'Start with my own closet' }).click();
 
     await page.goto(backend.url + '/add');
-    await page.getByRole('button', { name: 'Several items per photo' }).click();
+    await page.getByRole('button', { name: 'Several in one photo' }).click();
     await expect(page.getByTestId('several-intro')).toContainText('Claude finds each piece');
     await page.getByTestId('library-input').setInputFiles({ name: 'pile.png', mimeType: 'image/png', buffer: await pilePhoto(page) });
 

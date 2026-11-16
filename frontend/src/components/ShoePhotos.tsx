@@ -1,7 +1,10 @@
 import { useRef, useState } from 'react';
 import { api, ApiError } from '../api';
 import { preparePhoto } from '../resize';
-import { MAX_EXTRA_PHOTOS, ONE_SIDE_QUESTION, OUTSIDE_HINT, OUTSIDE_QUESTION, outsideQuestion, photoRoom, sortingViews, viewLabel } from '../shoe';
+import {
+  MAX_EXTRA_PHOTOS, NO_SIDE, noSidePhoto, ONE_SIDE_QUESTION, OUTSIDE_HINT, OUTSIDE_QUESTION, outsideQuestion, photoRoom,
+  sortingViews, viewLabel,
+} from '../shoe';
 import type { Item, ShoeView } from '../types';
 import { sha256 } from '../uploads';
 import { CloseIcon, ImagesIcon } from './Icons';
@@ -118,7 +121,7 @@ function OutsideQuestion({ item, disabled, onSaved, onError }: Props) {
 }
 
 /** A shoe's photos on its page: each with what it shows, the other photos with a way to remove them, "Add photos",
- * and the question about the outside when Closet has to ask. */
+ * the question about the outside when Closet has to ask, and a word when no photo shows the shoe from the side. */
 export function ShoePhotos(props: Props) {
   const { item, disabled, onSaved, onError } = props;
   const [busy, setBusy] = useState<string | null>(null);
@@ -159,6 +162,7 @@ export function ShoePhotos(props: Props) {
         })}
       </ul>
       {views.message && <p className="muted small" role="status">{views.message}</p>}
+      {noSidePhoto(item) && <p className="notice" data-testid="shoe-no-side">{NO_SIDE}</p>}
       <div className="row shoe-fix-actions">
         <AddShoePhotos {...props} />
         <span className="muted small">

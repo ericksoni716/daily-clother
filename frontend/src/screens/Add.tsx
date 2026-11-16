@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState, useSyncExternalStore, type DragEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type DragEvent } from 'react';
 import { api } from '../api';
+import { byId, itemIdOf, waitingReason } from '../added';
+import { AddedPicture, AddedRow } from '../components/AddedItem';
 import { CameraIcon, CheckIcon, CloudOffIcon, ImagesIcon, WarnIcon } from '../components/Icons';
 import { Card, Notice, PageHeader, SegmentedControl } from '../components/ui';
 import { filesFromDrop, splitPhotos } from '../resize';
@@ -7,16 +9,17 @@ import { Link, navigate, useMediaQuery } from '../router';
 import { sourceLine } from '../several';
 import { aboutUsd, importLine } from '../spend';
 import { useCloset } from '../store';
+import { tagNotice } from '../tagging';
 import { ShoeAdd } from './ShoeAdd';
 import { countEntries, type QueueEntry, type UploadStatus } from '../uploadQueue';
 import { addFiles, cancelImport, clearFinished, previewOf, uploads } from '../uploads';
-import type { SourcePhoto } from '../types';
+import type { ItemSummary, SourcePhoto } from '../types';
 import './Several.css';
 
 type Mode = 'one' | 'several' | 'shoe';
 const MODES = [
-  { value: 'one', label: 'One item per photo' },
-  { value: 'several', label: 'Several items per photo' },
+  { value: 'one', label: 'Clothes, one per photo' },
+  { value: 'several', label: 'Several in one photo' },
   { value: 'shoe', label: 'A shoe' },
 ] as const;
 const OPEN_POLL_MS = 3000;
@@ -25,7 +28,7 @@ const STATUS_TEXT: Record<UploadStatus, string> = {
   waiting: 'Waiting',
   resizing: 'Resizing',
   uploading: 'Uploading',
-  done: 'Done',
+  done: 'Added',
   duplicate: 'Already in your closet',
   failed: 'Failed',
   missing: 'Not added yet',
@@ -90,7 +93,7 @@ function useWakeLock(active: boolean) {
 }
 
 export function AddScreen() {
-  const { offline, profile } = useCloset();
+  const { offline, profile, items, loadItems } = useCloset();
   const queue = useQueue();
   const paused = usePaused();
   const desktop = useMediaQuery('(min-width: 1000px) and (pointer: fine)');
@@ -152,6 +155,21 @@ export function AddScreen() {
     };
   }, [offline, profile, sentSeveral, looking]);
 
+  // What each photo became: the closet's own list already follows new items until they are described, so the rows
+  // read it and ask for nothing more. A photo already in the closet can be an archived item's: that list is asked
+  // for once, when such a row is not in the closet's list.
+  const known = useMemo(() => byId([items.archived, items.active]), [items.archived, items.active]);
+  const itemOf = (e: QueueEntry): ItemSummary | null => {
+    const id = itemIdOf(e);
+    return id ? known.get(id) ?? null : null;
+  };
+  const needArchived = !offline && items.active !== null && items.archived === null
+    && queue.some((e) => e.status === 'duplicate' && itemIdOf(e) && !known.has(e.itemId as string));
+  useEffect(() => {
+    if (needArchived) void loadItems('archived');
+  }, [needArchived, loadItems]);
+  const waitsBecause = waitingReason(queue.map(itemOf));
+
   const counts = countEntries(queue);
   const pending = counts.waiting + counts.uploading;
   const longBatch = phone && pending > 5;
@@ -199,7 +217,7 @@ export function AddScreen() {
         </div>
       ) : (
         <>
-          <SegmentedControl label="What each photo holds" options={MODES} value={mode} onChange={setMode} className="add-mode" />
+          <SegmentedControl label="What you're adding" options={MODES} value={mode} onChange={setMode} className="add-mode" />
           {mode === 'shoe' ? <ShoeAdd /> : (<>
           {several ? (
             <>
@@ -307,8 +325,13 @@ export function AddScreen() {
               {paused && <span className="muted small">Uploads already going will finish; nothing new starts.</span>}
             </div>
           )}
+          {waitsBecause && (
+            <p className="notice" role="status" data-testid="import-waiting">
+              {tagNotice('waiting', null, waitsBecause)} <Link to="/settings">Open Settings</Link>
+            </p>
+          )}
           <ul className="queue-list">
-            {queue.map((e) => <QueueRow key={e.id} entry={e} />)}
+            {queue.map((e) => <QueueRow key={e.id} entry={e} item={itemOf(e)} />)}
           </ul>
           {!pending && counts.missing === 0 && (
             <div className="row queue-done">
@@ -323,23 +346,31 @@ export function AddScreen() {
   );
 }
 
-function QueueRow({ entry }: { entry: QueueEntry }) {
+/** One photo of the import. Once Closet knows the item it became (`item`), the row shows that item, what Claude called
+ * it or how far it has got, and opens it; the file's name stays, small, beside how the upload went. */
+function QueueRow({ entry, item }: { entry: QueueEntry; item: ItemSummary | null }) {
   const preview = previewOf(entry.id);
-  const [broken, setBroken] = useState(false);
+  const status = (
+    <span className="queue-status" data-testid="queue-status">
+      {(entry.status === 'done' || entry.status === 'duplicate') && <CheckIcon />}
+      {entry.status === 'failed' && <WarnIcon />}
+      {(entry.status === 'resizing' || entry.status === 'uploading') && <span className="spinner" aria-hidden="true" />}
+      {STATUS_TEXT[entry.status]}
+      {entry.status === 'uploading' && entry.attempts > 1 ? ` (try ${entry.attempts})` : ''}
+    </span>
+  );
+  if (item) {
+    return (
+      <AddedRow item={item} fallback={preview} className={`status-${entry.status}`} testId="queue-row"
+        sub={<>{status}<span aria-hidden="true">·</span><span className="queue-file">{entry.name}</span></>} />
+    );
+  }
   return (
     <li className={`queue-row status-${entry.status}`} data-testid="queue-row">
-      <div className="queue-thumb">
-        {preview && !broken ? <img src={preview} alt="" loading="lazy" onError={() => setBroken(true)} /> : <ImagesIcon />}
-      </div>
+      <AddedPicture item={null} fallback={preview} />
       <div className="queue-info">
         <span className="queue-name">{entry.name}</span>
-        <span className="queue-status" data-testid="queue-status">
-          {(entry.status === 'done' || entry.status === 'duplicate') && <CheckIcon />}
-          {entry.status === 'failed' && <WarnIcon />}
-          {(entry.status === 'resizing' || entry.status === 'uploading') && <span className="spinner" aria-hidden="true" />}
-          {STATUS_TEXT[entry.status]}
-          {entry.status === 'uploading' && entry.attempts > 1 ? ` (try ${entry.attempts})` : ''}
-        </span>
+        {status}
         {entry.error && <span className={entry.status === 'failed' ? 'queue-error' : 'queue-note'} data-testid="queue-error">{entry.error}</span>}
       </div>
       {entry.status === 'failed' && <button className="btn btn-small" onClick={() => uploads.retry(entry.id)}>Retry</button>}

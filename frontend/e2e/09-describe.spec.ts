@@ -22,7 +22,7 @@ test.describe('with a stand-in for Claude', () => {
 
     await page.goto(backend.url + '/add');
     await page.getByTestId('library-input').setInputFiles(`${PHOTOS}graphic-tee.jpg`);
-    await expect(page.getByTestId('queue-status')).toHaveText('Done', { timeout: 30_000 });
+    await expect(page.getByTestId('queue-status')).toHaveText('Added', { timeout: 30_000 });
     await page.getByRole('link', { name: 'See them in your closet' }).click();
 
     // the grid picks up the name once the description arrives, without a reload

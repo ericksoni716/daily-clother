@@ -18,7 +18,8 @@ from starlette.requests import cookie_parser
 from . import limits
 
 # Calls that work without the login (as in docs/API.md); everything else under /api/ needs it.
-OPEN = frozenset({"/api/health", "/api/session", "/api/setup", "/api/login", "/api/logout", "/api/instance/quit"})
+OPEN = frozenset({"/api/health", "/api/session", "/api/setup", "/api/login", "/api/logout", "/api/instance/quit",
+                  "/api/instance/show"})
 
 
 class TooLarge(Exception):

@@ -2,11 +2,13 @@
 
 A shoe (sneakers, boots, dress shoes, sandals) waits to be traced once it has a cutout and is known to be a shoe:
 when Claude's description says so (`tagjobs.apply_answer`, which also gives the photo's view and how many shoes it
-shows), when the owner says it is one (`items.update`), when its photo is replaced (`jobs.run_one`, once the new
-cutout is made), when the owner asks for it again ("Re-trace"), and when it was traced by older tracing code than
-this program's (`TRACING_VERSION`). The cut-out queue (`jobs.Worker`) traces waiting shoes after its cutouts, one at
-a time, never in a request: `drawing.trace.trace_photo` on the stored photo, through the quality gate, then
-`drawing.traced.traced_shoe`. The traced shoe is kept as JSON in `items.trace` and the item is drawn again.
+shows), when the owner says it is one (`items.update`), when its photo is replaced, or another of its photos becomes
+the main one once they are sorted (`jobs.run_one`, once the new cutout is made), when the owner asks for it again
+("Re-trace"), and when it was traced by older tracing code than this program's (`TRACING_VERSION`). The cut-out
+queue (`jobs.Worker`) traces waiting shoes after its cutouts, one at a time, never in a request:
+`drawing.trace.trace_photo` on the stored main photo, through the quality gate, then `drawing.traced.traced_shoe`.
+The traced shoe is kept as JSON in `items.trace` and the item is drawn again. A shoe not traced yet whose photos
+are about to be sorted into views waits for that (`SORTING_FIRST`): sorting may make another photo the main one.
 
 A photo the gate turns down keeps the template drawing ("refused"), and the item page says why in plain words
 (`plain`). A trace that fails for another reason does the same ("failed"). Tracing never costs an item its drawing.
@@ -34,7 +36,11 @@ SHOES = ("sneakers", "boots", "dress_shoes", "sandals")
 # Raised whenever `drawing.trace` or `drawing.traced` change what a trace finds: a shoe traced by older code is
 # traced again (`stale`), in the background, the next time the queue runs.
 TRACING_VERSION = 1
-MAX_PHOTO = 1600   # the instant check reads the photo at most this size, as the stored photo is
+# A shoe not traced yet (none since its main photo changed) waits while its photos wait to be sorted, or are being
+# sorted, unless something holds the sorting up (`views_error`): sorting may make another photo the main one
+# (`shoeviews.promote`), and tracing the first one would only say it is not a side view.
+SORTING_FIRST = ("trace_version IS NULL AND coalesce(views_state, '') IN ('waiting', 'sorting') "
+                 "AND views_error IS NULL")
 
 FAILED = "Closet could not trace the shoe from its photo, so it's drawn from its details instead."
 NO_PHOTO = "This shoe has no photo to trace."
@@ -209,10 +215,11 @@ def look_photo(conn, item_id: str):
 
 
 def told(row, photo) -> dict:
-    """The tagger's word on the photo (how many shoes, from where), when its answer was given for this photo: an
-    answer older than the photo (it was replaced and is being described again) says nothing about it."""
+    """The tagger's word on the photo (how many shoes, from where), when its answer was given with this photo first
+    (`items.tag_photo_id`): an answer about another photo (the one it replaced, or the one that was the main photo
+    before the photos were sorted) says nothing about it."""
     from .drawing.trace import told_from
-    if not row["tag_answer"] or not row["tagged_at"] or row["tagged_at"] < photo["created_at"]:
+    if not row["tag_answer"] or row["tag_photo_id"] is None or row["tag_photo_id"] != photo["id"]:
         return {}
     try:
         answer = json.loads(row["tag_answer"])
@@ -225,7 +232,7 @@ def run_one(conn, images_dir, tracer: Tracer) -> str:
     """Trace the oldest waiting shoe whose cutout is ready. Returns 'empty' or 'done'."""
     conn.execute("BEGIN IMMEDIATE")
     row = conn.execute(f"SELECT * FROM items WHERE trace_state = 'waiting' AND cutout_state = 'ready' "
-                       f"AND category IN {SHOES} ORDER BY updated_at, id LIMIT 1").fetchone()
+                       f"AND category IN {SHOES} AND NOT ({SORTING_FIRST}) ORDER BY updated_at, id LIMIT 1").fetchone()
     if row is None:
         conn.execute("COMMIT")
         return "empty"
@@ -304,38 +311,6 @@ def plain(reasons: list[str]) -> str:
         return f"The photo could not be traced well, so it's drawn from its details instead. {TIP}"
     what, better = PLAIN[keys[0]]
     return f"The photo {what}, so it's drawn from its details instead. {better}"
-
-
-def check(img: Image.Image, maskers: list[tuple[str, Masker]]) -> dict:
-    """The instant check of a photo before it is added (the Add screen): the quality gate on its cut-out, without
-    tracing it. Returns {"ok": bool, "reasons": [plain sentences]}. The tagger's word is not known yet, so only what
-    the photo itself shows is checked."""
-    from .drawing import trace as T
-    img = img.convert("RGB")
-    img.thumbnail((MAX_PHOTO, MAX_PHOTO), Image.LANCZOS)
-    rgb = np.asarray(img)
-    best = None
-    for _, cut in maskers:
-        soft = cut(img)
-        if soft is None:
-            continue
-        signals, mask = T.photo_signals(rgb, soft)
-        if signals["found"]:
-            signals.update(T.work_signals(T.orient(rgb, mask)))
-        g = T.gate(signals)
-        if best is None or len(g.reasons) < len(best.reasons):
-            best = g
-        if g.ok:
-            break
-    if best is None:
-        return {"ok": False, "reasons": [_sentence("found")]}
-    return {"ok": best.ok, "reasons": list(dict.fromkeys(_sentence(k) for k in _keys(best.reasons))) or
-            ([] if best.ok else ["This photo may not trace well. " + TIP])}
-
-
-def _sentence(key: str) -> str:
-    what, better = PLAIN[key]
-    return f"The photo {what}. {better}"
 
 
 def tracer(model: Masker | None = None) -> Tracer:

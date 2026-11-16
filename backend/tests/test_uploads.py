@@ -100,8 +100,8 @@ def test_a_wrong_session_is_refused_before_its_body_is_read(client):
     assert status == 401 and body.read <= FEW_KB
 
 
-@pytest.mark.parametrize("path", ["/api/items", "/api/sources", "/api/would-this-work", "/api/shoes/check",
-                                  "/api/items/x/photos", "/api/items/x/photo"])
+@pytest.mark.parametrize("path", ["/api/items", "/api/sources", "/api/would-this-work", "/api/items/x/photos",
+                                  "/api/items/x/photo"])
 def test_an_upload_too_large_is_refused_while_it_streams_in(client, cfg, monkeypatch, path):
     monkeypatch.setattr(limits, "UPLOAD_BYTES", 64 * 1024)
     before = kept(cfg)
@@ -152,8 +152,8 @@ def test_several_photos_and_a_photo_of_several_pieces_still_go_in(client):
 
 
 def test_every_call_that_takes_a_photo_may_send_a_whole_photo(client):
-    """Each route with an uploaded file gets the photo's limit, not the 1 MB of any other request: the shoe's check,
-    another photo of a shoe and a retake were once left at 1 MB, so a phone's photo was refused there."""
+    """Each route with an uploaded file gets the photo's limit, not the 1 MB of any other request: another photo of a
+    shoe and a retake were once left at 1 MB, so a phone's photo was refused there."""
     import inspect
     import re
 
@@ -169,15 +169,20 @@ def test_every_call_that_takes_a_photo_may_send_a_whole_photo(client):
             for method in route.methods:
                 found.append((method, path))
                 assert limits.limit_for(method, path) == limits.UPLOAD_BYTES, (method, route.path)
-    assert ("POST", "/api/shoes/check") in found and ("POST", "/api/items/x/photos") in found
+    assert ("POST", "/api/items/x/photos") in found and ("POST", "/api/items/x/photo") in found
+    assert limits.limit_for("POST", "/api/shoes/check") == limits.BODY_BYTES   # Add's instant check is gone
     # and nothing else is let through as a photo
     assert limits.limit_for("PUT", "/api/items/x/photos/y/view") == limits.BODY_BYTES
     assert limits.limit_for("DELETE", "/api/items/x/photos/y") == limits.BODY_BYTES
     assert limits.limit_for("POST", "/api/items/x/correct") == limits.BODY_BYTES
 
 
-def test_a_phone_sized_photo_reaches_the_shoe_check(client):
+def test_a_phone_sized_photo_goes_in_as_another_photo_of_a_shoe(client):
+    """Add sends a shoe's second to sixth photos to the shoe's own route: a phone's photo must go in there too."""
+    item = client.post("/api/items", files={"photo": ("p.jpg", photo_for("shoe"), "image/jpeg")},
+                       data={"client_key": "shoe", "shoe": "true"}).json()
     big = photo_bytes(fmt="PNG", size=(800, 800)) + b"\0" * (2 * limits.MB)   # over the 1 MB of other requests
     assert len(big) > limits.BODY_BYTES
-    r = client.post("/api/shoes/check", files={"photo": ("p.png", big, "image/png")})
-    assert r.status_code != 413 and "more than Closet reads" not in r.text
+    r = client.post(f"/api/items/{item['id']}/photos", files={"photo": ("p.png", big, "image/png")})
+    assert r.status_code == 201, r.text
+    assert len(r.json()["photos"]) == 2

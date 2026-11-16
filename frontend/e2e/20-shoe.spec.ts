@@ -53,10 +53,16 @@ function demoId(name: string): string {
   return data.items.find((i: { name: string }) => i.name === name).id;
 }
 
+// The browser's camera is a fake one (a moving test pattern), so the camera on the page can be tried.
+const executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined;
+test.use({
+  launchOptions: { ...(executablePath ? { executablePath } : {}), args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] },
+});
+
 // Its own backend, with stand-ins for the model and for Claude; shoes are traced with GrabCut, as without the model.
 test.describe('a shoe drawn from its photo', () => {
   let backend: Backend;
-  test.use({ viewport: PHONE, hasTouch: true, isMobile: true });
+  test.use({ viewport: PHONE, hasTouch: true, isMobile: true, permissions: ['camera'] });
 
   test.beforeAll(async () => {
     backend = await startBackend({ fakes: true });
@@ -65,7 +71,7 @@ test.describe('a shoe drawn from its photo', () => {
     await backend?.stop();
   });
 
-  test('Add guides the photo, says at once why it will not trace, takes more photos, and the item page sorts them, falls back and draws the shoe', async ({ page }) => {
+  test("Add takes all of a shoe's photos in one step, and the item page sorts them, falls back and draws the shoe", async ({ page }) => {
     test.setTimeout(180_000);
     mkdirSync(SCREENSHOTS, { recursive: true });
     await page.goto(backend.url + '/');
@@ -74,57 +80,101 @@ test.describe('a shoe drawn from its photo', () => {
     await page.getByRole('button', { name: 'Set passphrase' }).click();
     await page.getByRole('button', { name: 'Start with my own closet' }).click();
 
+    // the switch at the top says what is being added, and fits a phone
     await page.goto(backend.url + '/add');
-    await page.getByRole('button', { name: 'A shoe' }).click();
+    const modes = page.getByRole('group', { name: "What you're adding" });
+    for (const name of ['Clothes, one per photo', 'Several in one photo', 'A shoe']) {
+      await expect(modes.getByRole('button', { name })).toBeVisible();
+    }
+    expect(await sideways(page)).toEqual([]);
+    await modes.getByRole('button', { name: 'A shoe' }).click();
     const add = page.getByTestId('shoe-add');
-    await expect(add).toContainText('One shoe on its own');
-    await expect(add).toContainText('toe to the left');
-    await expect(page.getByTestId('shoe-guide')).toBeVisible();
+    await expect(add).toContainText('Take or choose up to 6 photos of one shoe, in any order.');
+    await expect(add).toContainText('One shoe on its own, not the pair.');
+    await expect(add).toContainText('Its side, the other side, from above, the front and the back.');
+    await expect(add).toContainText('A plain floor or wall behind it, and even light.');
+    for (const old of ['toe to the left', 'outline', 'trace', 'drawn from']) await expect(add).not.toContainText(old);
+    await expect(add.getByRole('button', { name: 'Add this shoe' })).toBeDisabled();
     expect(await sideways(page)).toEqual([]);
     expect(await axeViolations(page)).toEqual([]);
-    await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-add-guide.png') });
+    await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-add.png') });
 
-    // a photo from the front: the instant check says it will not trace well, and why, with a chance to retake
-    const photo = await frontOnPhoto(page);
-    await page.getByTestId('shoe-library-input').setInputFiles({ name: 'front.png', mimeType: 'image/png', buffer: photo });
-    const check = page.getByTestId('shoe-check');
-    await expect(check).toContainText('This photo may not trace well.', { timeout: 30_000 });
-    await expect(check.locator('li').first()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Retake' })).toBeVisible();
+    // the photos wait in a row and nothing is sent yet: three chosen at once, one removed again
+    let sent = false;
+    page.on('request', (req) => {
+      if (req.method() === 'POST' && new URL(req.url()).pathname.startsWith('/api/items')) sent = true;
+    });
+    const file = (name: string, buffer: Buffer) => ({ name, mimeType: 'image/png', buffer });
+    const front = await frontOnPhoto(page);
+    const others = await otherPhotos(page, ['#2b6f9e', '#9e2b52', '#7a5230']);
+    const extras = await otherPhotos(page, ['#3a7d44', '#c08a2d', '#5e4b8b', '#8b4b5e']);
+    await page.getByTestId('shoe-library-input').setInputFiles([file('front.png', front), file('top.png', others[0]), file('wrong.png', others[1])]);
+    const inRow = add.getByRole('list', { name: 'Photos of the shoe' }).getByRole('listitem');
+    await expect(inRow).toHaveCount(3);
+    await add.getByRole('button', { name: 'Remove photo 3' }).click();
+    await expect(inRow).toHaveCount(2);
+
+    // more than six: the extra ones are not added, and the page says so in a sentence
+    await page.getByTestId('shoe-library-input').setInputFiles(
+      [file('side.png', others[2]), ...extras.map((b, i) => file(`more-${i}.png`, b)), file('again.png', extras[0])]);
+    await expect(inRow).toHaveCount(6);
+    await expect(add.getByTestId('shoe-note')).toHaveText('A shoe can have up to 6 photos, so 2 photos were not added.');
+    await expect(add.getByTestId('shoe-count')).toHaveText("That's 6 photos, the most for one shoe.");
+    await expect(add.getByRole('button', { name: 'Choose photos' })).toBeDisabled();
+    await expect(add.getByRole('button', { name: 'Take a photo' })).toBeDisabled();
+    for (const n of [6, 5, 4]) await add.getByRole('button', { name: `Remove photo ${n}` }).click();
+    await expect(inRow).toHaveCount(3);
+    await expect(add.getByTestId('shoe-note')).toHaveCount(0);
+
+    // where the page can show the camera, it stays open between photos until it is closed
+    await add.getByRole('button', { name: 'Take a photo' }).click();
+    const video = add.getByLabel('The camera');
+    await expect(video).toBeVisible();
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.videoWidth)).toBeGreaterThan(0);
+    await add.getByRole('button', { name: 'Take the photo' }).click();
+    await expect(inRow).toHaveCount(4);
+    await add.getByRole('button', { name: 'Take the photo' }).click();
+    await expect(inRow).toHaveCount(5);
+    await expect(video).toBeVisible();
+    await expect(add.getByTestId('shoe-count')).toHaveText('5 photos so far, up to 6. Close the camera when you have them all.');
+    expect(await sideways(page)).toEqual([]);
+    await add.getByRole('button', { name: 'Close the camera' }).click();
+    await expect(video).toHaveCount(0);
+    for (const n of [5, 4]) await add.getByRole('button', { name: `Remove photo ${n}` }).click();
+
+    // elsewhere the phone's camera app takes them: each photo taken adds one to the row
+    await page.getByTestId('shoe-camera-input').setInputFiles(file('snap.png', extras[1]));
+    await expect(inRow).toHaveCount(4);
+    await add.getByRole('button', { name: 'Remove photo 4' }).click();
+    await expect(inRow).toHaveCount(3);
+    expect(sent).toBe(false);
+    await expect(add.getByTestId('shoe-count')).toHaveText('3 photos so far, up to 6.');
+    await expect(add.getByRole('button', { name: 'Add this shoe' })).toBeEnabled();
     expect(await sideways(page)).toEqual([]);
     expect(await axeViolations(page)).toEqual([]);
-    await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-add-check.png') });
+    await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-add-photos.png') });
 
-    // retake goes back to the guide; the same photo again, added anyway
-    await page.getByRole('button', { name: 'Retake' }).click();
-    await expect(page.getByTestId('shoe-guide')).toBeVisible();
-    await page.getByTestId('shoe-library-input').setInputFiles({ name: 'front.png', mimeType: 'image/png', buffer: photo });
+    // "Add this shoe": the first photo makes the shoe, the others are added to it
     const created = page.waitForResponse((res) => new URL(res.url()).pathname === '/api/items' && res.request().method() === 'POST');
-    await page.getByRole('button', { name: 'Add it anyway' }).click({ timeout: 30_000 });
+    await add.getByRole('button', { name: 'Add this shoe' }).click();
     const id: string = (await (await created).json()).id;
+    await expect(add.getByTestId('shoe-added')).toHaveText(
+      'The shoe is added with its 3 photos. In a moment Closet removes the background and works out which photo is which.');
+    // below it, the shoe itself: its picture and how far it has got (what Claude calls it, once described), opening it
+    const shoeRow = add.getByTestId('shoe-added-item');
+    await expect(shoeRow.locator('.queue-thumb img')).toHaveAttribute('src', /^\/media\//);
+    await expect(shoeRow.getByTestId('queue-item')).toHaveAttribute('href', `/item/${id}`);
+    await expect(shoeRow.getByTestId('queue-title')).not.toBeEmpty();
+    expect(await sideways(page)).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
+    await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-add-done.png') });
+    const kept = await (await page.request.get(`${backend.url}/api/items/${encodeURIComponent(id)}`)).json();
+    expect(kept.photos.map((p: { kind: string }) => p.kind)).toEqual(['front', 'detail', 'detail']);
 
     // the stand-in Claude would say it is a polo; the owner says it is a sneaker (and names it), so it is traced, and
     // its photos are sorted into views
     const r = await page.request.patch(`${backend.url}/api/items/${encodeURIComponent(id)}`, { data: { category: 'sneakers', name: 'Navy sneaker' } });
     expect(r.ok()).toBe(true);
-
-    // more photos of the shoe, in any order: two chosen at once, one removed again, one more
-    await expect(add).toContainText('Add more photos of this shoe');
-    expect(await axeViolations(page)).toEqual([]);
-    const others = await otherPhotos(page, ['#2b6f9e', '#9e2b52', '#7a5230']);
-    const file = (name: string, buffer: Buffer) => ({ name, mimeType: 'image/png', buffer });
-    await page.getByTestId('shoe-more-input').setInputFiles([file('top.png', others[0]), file('wrong.png', others[1])]);
-    const added = add.getByRole('list', { name: 'Photos added' }).getByRole('listitem');
-    await expect(added).toHaveCount(2);
-    await add.getByRole('button', { name: 'Remove photo 3' }).click();
-    await expect(added).toHaveCount(1);
-    await page.getByTestId('shoe-more-input').setInputFiles([file('side.png', others[2])]);
-    await expect(added).toHaveCount(2);
-    expect(await sideways(page)).toEqual([]);
-    expect(await axeViolations(page)).toEqual([]);
-    await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-add-more.png') });
-    await page.getByRole('button', { name: 'Done' }).click();
-    await expect(add).toContainText('The shoe and 2 more photos are added.');
     await page.getByRole('link', { name: 'See the shoe' }).click();
     await expect(page).toHaveURL(/\/item\//);
 

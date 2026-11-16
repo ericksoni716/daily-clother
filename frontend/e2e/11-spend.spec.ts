@@ -41,7 +41,7 @@ test.describe('the API key with a monthly limit', () => {
     // the first photo is described with the API key
     await page.goto(backend.url + '/add');
     await page.getByTestId('library-input').setInputFiles(`${PHOTOS}graphic-tee.jpg`);
-    await expect(page.getByTestId('queue-status')).toHaveText('Done', { timeout: 30_000 });
+    await expect(page.getByTestId('queue-status')).toHaveText('Added', { timeout: 30_000 });
     await page.getByRole('link', { name: 'See them in your closet' }).click();
     await expect(page.getByTestId('tile').first()).toContainText('Navy polo', { timeout: 60_000 });
 
@@ -59,7 +59,7 @@ test.describe('the API key with a monthly limit', () => {
     await page.goto(backend.url + '/add');
     await page.getByRole('button', { name: 'Clear list' }).click();
     await page.getByTestId('library-input').setInputFiles(`${PHOTOS}jeans.jpg`);
-    await expect(page.getByTestId('queue-status')).toHaveText('Done', { timeout: 30_000 });
+    await expect(page.getByTestId('queue-status')).toHaveText('Added', { timeout: 30_000 });
     let waitingId = '';
     await expect.poll(async () => {
       const items = (await (await page.request.get(backend.url + '/api/items')).json()).items as { id: string; tag_state: string }[];
@@ -68,6 +68,14 @@ test.describe('the API key with a monthly limit', () => {
       waitingId = waiting.id;
       return (await (await page.request.get(`${backend.url}/api/items/${waiting.id}`)).json()).tag_error;
     }, { timeout: 30_000 }).toMatch(/spending limit for the API key has been reached/);
+
+    // the import list says it too: the row waits, and why is said once above the rows
+    const row = page.getByTestId('queue-row').filter({ hasText: 'jeans.jpg' });
+    await expect(row.getByTestId('queue-title')).toHaveText('Waiting to be described by Claude', { timeout: 30_000 });
+    const why = page.getByTestId('import-waiting');
+    await expect(why).toContainText("Waiting to be described by Claude. This month's spending limit for the API key has been reached");
+    await expect(why.getByRole('link', { name: 'Open Settings' })).toHaveAttribute('href', '/settings');
+    await expect(row.getByTestId('queue-item')).toHaveAttribute('href', `/item/${waitingId}`);
 
     await page.goto(`${backend.url}/item/${waitingId}`);
     const notice = page.getByRole('status').filter({ hasText: 'Waiting to be described by Claude' });

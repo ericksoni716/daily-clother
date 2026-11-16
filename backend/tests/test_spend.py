@@ -168,6 +168,10 @@ def test_a_request_that_could_pass_the_limit_is_not_made_and_the_item_waits(clie
     for it in (item, other):
         body = client.get(f"/api/items/{it['id']}").json()
         assert body["tag_state"] == "waiting" and body["tag_error"] == spend.LIMIT_REACHED
+    # the closet's list says so too: the import list on Add reads it for the photos just added
+    listed = {i["id"]: i for i in client.get("/api/items").json()["items"]}
+    for it in (item, other):
+        assert listed[it["id"]]["tag_state"] == "waiting" and listed[it["id"]]["tag_error"] == spend.LIMIT_REACHED
     s = client.get("/api/tagging/spend").json()
     assert s["reached"] is True and s["left_usd"] < spend.estimate_call(1)
     assert services.state.get("tagging_api_enabled") is True   # the limit does not switch the key off
@@ -177,6 +181,7 @@ def test_a_request_that_could_pass_the_limit_is_not_made_and_the_item_waits(clie
     assert tag(services) == 2 and fake_api.calls == 0
     body = client.get(f"/api/items/{item['id']}").json()
     assert body["tag_state"] == "done" and body["tag_route"] == "plan" and body["tag_error"] is None
+    assert all(i["tag_error"] is None for i in client.get("/api/items").json()["items"])
 
 
 def test_raising_the_limit_lets_waiting_items_go(client, services, cfg, fake_api):

@@ -1,7 +1,7 @@
 # Closet
 
 A private, single-user wardrobe app. It runs as a small program on your own
-computer; you use it in a browser there and as a home-screen app on your
+computer; you use it in its own window there and as a home-screen app on your
 iPhone. Your closet never leaves your computer.
 
 **Status: stop A (the first of the app's try-it stops; see `docs/BACKLOG.md`).**
@@ -19,8 +19,8 @@ page. There is nothing else to install.
 
 **Windows:** double-click `Closet.exe`. The first time, Windows shows
 "Windows protected your PC": click **More info**, then **Run anyway**.
-Starting takes a few seconds; there is no window, only a coat-hanger icon near
-the clock. Setting up a Windows PC to be the hub your phone reaches, step by
+Starting takes a few seconds; then a coat-hanger icon appears near the clock
+and Closet opens in a window of its own. Setting up a Windows PC to be the hub your phone reaches, step by
 step, is in "Setting up Closet on a Windows PC (the hub)" below.
 
 **Mac (Apple Silicon):** unzip `Closet-mac-arm64.zip` and double-click
@@ -29,7 +29,7 @@ open **System Settings → Privacy & Security**, scroll down to the message abou
 Closet, click **Open Anyway**, confirm with your password, then **Open**. The
 icon appears in the menu bar. Requires macOS 14 or later.
 
-Your browser then opens the app:
+Closet then opens in its own window, titled **Closet**:
 
 1. Choose a passphrase (at least 8 characters). This is the only login.
 2. The background-removal model (about 170 MB) downloads once, with progress
@@ -77,8 +77,16 @@ lower on the item page, lists every change to the description, newest first;
 **Undo** puts one back, as long as nothing changed the same thing since. In the
 demo closet you can pick and undo, but sentences are not sent to Claude.
 
-To stop the program use **Quit Closet** in the icon's menu or at the bottom of Settings.
-Double-clicking the program while it is already running just opens the app.
+Closing Closet's window does not stop Closet: it keeps running in the icon
+near the clock (in the menu bar on a Mac), so your phone can still reach it and
+the nightly backup still runs. **Open Closet** in the icon's menu (or
+double-clicking the program again) brings the window back. To stop the program
+use **Quit Closet** in the icon's menu or at the bottom of Settings (on a Mac,
+**Quit** in the Closet menu, ⌘Q, quits it too). The window remembers your login
+the way a browser does; links to shops and other sites open in your usual
+browser. If the window cannot open on your computer, Closet opens in your
+browser instead, as it used to; on Windows that happens if the Microsoft Edge
+WebView2 Runtime is missing (it comes with Windows 11 and current Windows 10).
 If the copy that is running is an older version (you downloaded an update but
 the old one was still open), Closet says so and asks whether to close the old
 one and use the new one; your closet is the same either way. On Windows the
@@ -187,7 +195,8 @@ sale now that match it: what the suggestion says to look for, your note, and
 the **Price range** if you set one on the wish. It takes a minute or two. Each
 one found shows its picture, shop and price, and how it would work with your
 clothes, with the same answers and reasons as **Would this work?**. **Open in
-shop** opens the shop's page in a new tab; nothing is ever bought or opened for
+shop** opens the shop's page in a new tab (from Closet's own window, in your
+usual browser); nothing is ever bought or opened for
 you, and **Remove** takes one off. **Check prices** looks at their prices again,
 and while Closet is running it does so by itself once a day; when a price has
 gone down the wish shows it ("Was $180.00, now $144.00"). Searching goes the
@@ -217,7 +226,9 @@ numbers.
 ## Adding your clothes
 
 Open **Add** (the round button in the middle of the bar at the bottom of a
-phone; **Add clothes** at the top of the menu on a computer). One piece of
+phone; **Add clothes** at the top of the menu on a computer). The switch at the
+top says what you are adding: **Clothes, one per photo** (the usual way, below),
+**Several in one photo** or **A shoe** (both further down). One piece of
 clothing per photo works best.
 
 - **On the computer:** click **Choose photos** and pick as many as you like,
@@ -232,30 +243,53 @@ your closet, or did not work. Two photos go up at a time. **Pause** stops new
 ones starting; **Cancel the rest** drops the ones not started yet. A photo that
 did not work says why and has a **Retry** button.
 
+Once a photo is in, its row shows what it became: the piece with its
+background removed (the photo until then) and, once Claude has described it,
+what Claude called it ("Navy crew-neck tee"). Until then the row says how far
+it has got: **Removing background…**, **Waiting to be described by Claude** or
+**Claude is describing it…**. Tap the row to open the item and fix anything
+that's wrong. The file's name stays underneath, small, after **Added**. If the
+items wait because of something you can change (the API key's monthly limit,
+say), the page says so once, above the list, with **Open Settings**.
+
 A photo that is already in your closet (the same file, even under another name,
 even if that item is archived) is not added again; its row says **Already in
-your closet**. A photo of an item you deleted can be added again.
+your closet** and opens the item it already is. A photo of an item you deleted
+can be added again.
 
 ### Shoes
 
-Choose **A shoe** at the top of Add for the closest drawing of a shoe. Take one
-shoe on its own (not the pair), from the side with the toe to the left, filling
-the outline shown. Closet checks the photo straight away and says if it will not
-draw well, and why, so you can take it again (or add it anyway). You can then
-add up to five more photos of the shoe: from above, the front, the back and the
-other side, in any order. You don't have to say which photo is which: Closet
-sorts them itself a few seconds after the last one, and shows what each photo
-is under it on the shoe's page (outer side, inner side, from above, front, back,
-sole). If a shoe has a logo or stripe on one side only and Closet can't tell the
+Choose **A shoe** at the top of Add for the closest drawing of a shoe, and add
+all of its photos in one go: up to six photos of one shoe on its own (not the
+pair), in any order. Its side, the other side, from above, the front and the
+back help most, against a plain floor or wall in even light. **Choose photos**
+picks several at once; **Take a photo** takes one each time you tap it (where
+the page can show the camera itself, it stays open so you can take several in a
+row: tap **Close the camera** when you have them all). The photos wait in a row
+on the page, each with an **×** to remove it, and nothing is sent until you tap
+**Add this shoe**. A seventh photo is not added, and the page says so. Once it
+is added, the page shows the shoe the same way as the list of photos above:
+its picture and, once Claude has described it, what Claude called it; tap it
+(or **See the shoe**) to open it.
+
+You don't have to say which photo is which: Closet sorts them itself a few
+seconds after the last one, and shows what each photo is under it on the shoe's
+page (outer side, inner side, from above, front, back, sole). The outer side
+then becomes the shoe's picture in the closet (or the inner side, if no photo
+shows the outer one); the first photo you added stays the picture when it
+already shows a side, or when none does. If none of the photos shows the shoe
+from the side, the shoe's page says a photo of its side would help the drawing.
+If a shoe has a logo or stripe on one side only and Closet can't tell the
 outside from the inside, the shoe's page asks you which photo shows the outside
 (the outside is the side that faces away from the other shoe when you wear
-them); tap it. On the shoe's page you can also add more photos (**Add photos**)
-or remove one with its **×**; the main photo is replaced with **Retake** instead.
+them); tap it, and the outside becomes the picture. On the shoe's page you can
+also add more photos (**Add photos**) or remove one with its **×**; the main
+photo (the picture, shown first) is replaced with **Retake** instead.
 
-Closet draws the shoe from its photo a moment after it is added. If the photo
-does not work for that (it shows the pair, or the shoe from the front, say),
-the item page says so and the shoe keeps its plain drawing; **Retake** replaces
-the photo. In **Fix the details** you can change a colour of the drawing,
+Closet draws the shoe's side from its main photo a moment after the photos are
+sorted. If that photo does not work for that (it shows the pair, or the shoe
+from the front, say), the item page says so and the shoe keeps its plain
+drawing; **Retake** replaces the photo. In **Fix the details** you can change a colour of the drawing,
 remove or move a stripe or logo, **Re-trace** it, or **Use the plain drawing**.
 Your fixes stay when the shoe is drawn again. Fix the details also shows the
 shoe from the front, as the outfit figure wears it, in two ways side by side:
@@ -309,7 +343,7 @@ the page says so; send the note again, or say it another way.
 ### Several pieces in one photo
 
 To add a pile at once, lay the pieces out with a little space between them (on
-the bed or the floor), choose **Several items per photo** at the top of
+the bed or the floor), choose **Several in one photo** at the top of
 **Add**, and take or choose the photo. Claude draws a numbered box around each
 piece; this takes a few seconds, and goes through your Claude plan or the API
 key exactly as describing does (the page says what one photo can cost with the
@@ -325,7 +359,7 @@ key). Then check the boxes, with each piece's cutout beside its box:
 **Add these N items** adds them: each becomes an item of its own, cut out,
 described and drawn like any other photo. Photos still to check are listed on
 **Add** until you add their pieces or **Forget this photo**. On a computer, a
-folder chosen while **Several items per photo** is on is treated the same way:
+folder chosen while **Several in one photo** is on is treated the same way:
 every photo in it holds several pieces. The same photo is not added twice. The
 demo closet never sends photos to Claude, so there you draw the boxes yourself.
 
@@ -371,9 +405,10 @@ in a folder of your own. Not in **Downloads** either, so it is not tidied away.
   rather than turning it off.
 
 A few seconds later the coat-hanger icon appears near the clock (if not, click
-the **^** beside the clock: it may be hidden there) and your browser opens
-Closet at `http://127.0.0.1:8765`. Choose your passphrase; the
-background-removal model starts downloading.
+the **^** beside the clock: it may be hidden there) and Closet opens in its own
+window (it is the page at `http://127.0.0.1:8765`, which also works in a
+browser). Choose your passphrase; the background-removal model starts
+downloading. Closing the window leaves Closet running in the icon.
 
 **4. The firewall.** Closet only listens on this PC itself (127.0.0.1), never on
 the network, so Windows normally asks nothing. If a "Windows Security" window
@@ -390,8 +425,8 @@ installed but not signed in, do step 1's `claude` sign-in again, then press
 
 **6. Start at login.** Right-click the coat-hanger icon and click **Start when I
 log in**; a tick appears beside it. From then on Closet starts by itself when
-you sign in to Windows, with no browser window (open it from the icon, or go to
-`http://127.0.0.1:8765`). To keep the icon always in view: **Settings →
+you sign in to Windows, with no window (open it from the icon's **Open
+Closet**, or double-click `Closet.exe`). To keep the icon always in view: **Settings →
 Personalization → Taskbar → Other system tray icons**, turn **Closet** on. If you
 ever move `Closet.exe`, click **Start when I log in** twice (off, then on) so it
 points to the new place.
@@ -626,7 +661,7 @@ Where you are** (or **Change** on Today), search for your town or city and
 choose it from the list, or tap **Use my location**. Only the name you search
 for and the chosen place's location are sent, to the free weather service
 Open-Meteo; nothing about your clothes is. **Use my location** asks your
-browser where you are only when you tap it, and sends that position, rounded
+browser (or, in Closet's window, your computer) where you are only when you tap it, and sends that position, rounded
 to about a kilometre, to OpenStreetMap to find the town's name. On the phone
 over Tailscale the browser may not share its position (the address is not
 https); search by name there instead. **Back to New York** forgets your place.

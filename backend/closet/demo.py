@@ -175,8 +175,9 @@ def _answers(conn, data: dict) -> None:
         if not answer:
             continue
         conn.execute("UPDATE items SET tag_state = 'done', tag_error = NULL, tag_answer = ?, tag_schema_version = ?, "
-                     "tag_route = 'demo', tag_model = NULL, tagged_at = created_at WHERE id = ? AND tag_answer IS NULL",
-                     (json.dumps(answer), data.get("schema_version"), it["id"]))
+                     "tag_route = 'demo', tag_model = NULL, tagged_at = created_at, tag_photo_id = (SELECT id FROM "
+                     "photos WHERE photos.item_id = items.id AND kind = 'front' ORDER BY created_at LIMIT 1) "
+                     "WHERE id = ? AND tag_answer IS NULL", (json.dumps(answer), data.get("schema_version"), it["id"]))
         row = conn.execute("SELECT source, confidence FROM items WHERE id = ?", (it["id"],)).fetchone()
         if row is None:
             continue

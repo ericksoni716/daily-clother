@@ -39,7 +39,7 @@
   --danger-soft: #f8e5e1;
   --warn: #8a5a12;
   --warn-soft: #fbf0d9;
-  /* prototype (16 Nov), from the look of moodbit.app: a title's second colour, labels set like notes on a sketch,
+  /* 16 Nov, from the look of moodbit.app: a title's second colour, labels set like notes on a sketch,
      and soft tints behind a few sections. Each passes contrast with every text colour used on it. */
   --ink-tone: #48725f;   /* 4.9:1 on the page: the day is small text on a phone */
   --label-ink: #9a4a30;
@@ -58,7 +58,7 @@
   --text-lg: 20px;
   --text-xl: 25px;
   --text-2xl: 31px;
-  --text-3xl: 39px;   /* page titles on a wider screen (prototype) */
+  --text-3xl: 39px;   /* page titles on a wider screen */
   --weight-body: 400;
   --weight-label: 560;
   --weight-heading: 650;
@@ -84,7 +84,7 @@
   --figure-h: min(62vh, 560px);
   --gutter: 16px;
   --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, 'Helvetica Neue', Arial, sans-serif;
-  /* labels (prototype): the device's own typewriter-style font, so nothing is downloaded and it works offline */
+  /* labels: the device's own typewriter-style font, so nothing is downloaded and it works offline */
   --font-label: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, 'Roboto Mono', monospace;
   /* motion: one curve, a fast start and a long soft landing, and two lengths: quick for a press, a colour or a
      small turn; move for something arriving. Loops (the spinner, the skeletons) keep their own pace. */
@@ -132,7 +132,7 @@
     --danger-soft: #3d2420;
     --warn: #f0c67a;
     --warn-soft: #3a2f1c;
-    /* prototype (16 Nov), from the look of moodbit.app: a title's second colour, labels set like notes on a sketch,
+    /* 16 Nov, from the look of moodbit.app: a title's second colour, labels set like notes on a sketch,
        and soft tints behind a few sections. Each passes contrast with every text colour used on it. */
     --ink-tone: #9cc0b0;
     --label-ink: #eaa58c;
@@ -184,7 +184,7 @@
   --danger-soft: #3d2420;
   --warn: #f0c67a;
   --warn-soft: #3a2f1c;
-  /* prototype (16 Nov), from the look of moodbit.app: a title's second colour, labels set like notes on a sketch,
+  /* 16 Nov, from the look of moodbit.app: a title's second colour, labels set like notes on a sketch,
      and soft tints behind a few sections. Each passes contrast with every text colour used on it. */
   --ink-tone: #9cc0b0;
   --label-ink: #eaa58c;
@@ -427,7 +427,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .page-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .page-title-row { display: flex; align-items: baseline; gap: 10px; }
 .count { color: var(--ink-3); font-size: var(--text-md); }
-/* page titles: large and light (prototype); a phone gets the smaller size */
+/* page titles: large and light; a phone gets the smaller size */
 .page-title-row h1 { font-size: var(--text-2xl); font-weight: var(--weight-body); letter-spacing: -0.02em; line-height: 1.1; }
 @media (min-width: 700px) { .page-title-row h1 { font-size: var(--text-3xl); } }
 

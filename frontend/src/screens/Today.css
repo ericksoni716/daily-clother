@@ -3,7 +3,7 @@
 .today { max-width: 72rem; min-width: 0; }
 .page-header.today-header { margin-bottom: var(--space-2); flex-wrap: nowrap; }
 .today-header .page-title-row { min-width: 0; flex-wrap: wrap; column-gap: var(--space-2); }
-/* two tones (prototype): the day after the title, as large and light, in the title's second colour */
+/* two tones: the day after the title, as large and light, in the title's second colour */
 .today-header .count { font-size: var(--text-2xl); font-weight: var(--weight-body); letter-spacing: -0.02em; line-height: 1.1; color: var(--ink-tone); }
 @media (min-width: 700px) { .today-header .count { font-size: var(--text-3xl); } }
 .today-links { display: flex; gap: var(--space-2); flex: none; }
@@ -74,7 +74,7 @@
 
 .today-card { display: grid; gap: var(--space-3); height: 100%; padding: var(--space-3); align-content: start; }
 .today-card-pieces, .today-card-why { min-width: 0; }
-/* why it works, on a soft green (prototype) */
+/* why it works, on a soft green */
 .today-card-why { background: var(--tint-green); border-radius: var(--radius-sm); padding: var(--space-3); }
 
 /* the pieces: at least 100px wide on a phone */

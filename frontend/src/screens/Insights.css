@@ -16,7 +16,7 @@
 }
 /* a card: a short label, the figure it leads with, then one sentence */
 .insights-card h2 { margin: 0 0 6px; font-family: var(--font-label); font-size: var(--text-xs); font-weight: var(--weight-heading); color: var(--label-ink); text-transform: uppercase; letter-spacing: 0.08em; }
-/* each card on its own soft tint, in turn (prototype) */
+/* each card on its own soft tint, in turn */
 .insights-grid > .insights-card:nth-child(3n + 1) { background: var(--tint-green); }
 .insights-grid > .insights-card:nth-child(3n + 2) { background: var(--tint-sand); }
 .insights-grid > .insights-card:nth-child(3n) { background: var(--tint-coral); }

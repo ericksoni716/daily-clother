@@ -34,7 +34,7 @@ function block(selector: string): string {
 
 describe('design tokens', () => {
   it('has the type scale, 1.25 from 16px', () => {
-    // 39px is the page titles' on a wider screen (the prototype of 16 November)
+    // 39px is the page titles' on a wider screen (16 November)
     const sizes = ['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl'].map((k) => Number(new RegExp(`--text-${k}: (\\d+)px`).exec(tokens)?.[1]));
     expect(sizes).toEqual([12, 14, 16, 20, 25, 31, 39]);
   });
@@ -70,7 +70,7 @@ describe('design tokens', () => {
   });
 
   it('sets every small capital label in the label font and colour', () => {
-    // facts about an item and the small heads over a group, like notes on a sketch (the prototype of 16 November)
+    // facts about an item and the small heads over a group, like notes on a sketch (16 November)
     const labels = rules.flatMap((f) => [...f.text.matchAll(/([^{}]*)\{([^}]*text-transform:\s*uppercase[^}]*)\}/g)]
       .map((m) => ({ name: `${f.name}: ${m[1].trim()}`, body: m[2] })));
     expect(labels.length).toBeGreaterThan(8);

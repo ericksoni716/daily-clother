@@ -1,4 +1,4 @@
-.life-questions { padding: 18px; margin-bottom: 20px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--tint-sand); }   /* a soft tint (prototype) */
+.life-questions { padding: 18px; margin-bottom: 20px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--tint-sand); }   /* a soft tint */
 .life-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .life-heading h2 { font-size: var(--text-lg); margin: 0; }
 .life-eyebrow { font-family: var(--font-label); font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--label-ink); font-weight: var(--weight-heading); margin: 0 0 4px; }

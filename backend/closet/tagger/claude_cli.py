@@ -18,8 +18,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from .schema import ItemTags
-from .tagging import CONFIG, PROMPT, PlanSignIn, RouteUnavailable, TaggingError, TagResult
+from .tagging import CONFIG, PROMPT, SENT, PlanSignIn, RouteUnavailable, TaggingError, TagResult, fitted
 
 SYSTEM = ("You tag photos of clothes for a private wardrobe app. Look at the image file or files named in the "
           "request with the Read tool, then answer in the required JSON format. Do nothing else.")
@@ -137,9 +136,10 @@ def plan_status(exe: str | None = None, timeout: float | None = None) -> tuple[b
 
 
 def strict_schema() -> dict:
-    """The answer schema with the same adjustments the API route sends."""
+    """The answer schema the API route sends (`tagging.SENT`: its long word lists as plain text), with the same
+    adjustments, so both routes ask for the same answer."""
     from anthropic.lib._parse._transform import transform_schema
-    return transform_schema(ItemTags)
+    return transform_schema(SENT)
 
 
 def _save(img: Image.Image, path: Path, max_edge: int = 1024) -> None:
@@ -200,7 +200,7 @@ def tag_item_cli(model: str, images: list[Image.Image], exe: str | None = None, 
                 last = TaggingError(f"{model} through Claude Code gave no usable answer (exit {proc.returncode}): {detail}")
                 continue
             try:
-                tags = ItemTags.model_validate(answer)
+                tags = fitted(answer)   # checked against the full form, as on the API route
             except ValueError as e:
                 last = TaggingError(f"{model} through Claude Code answered outside the schema: {e}")
                 continue

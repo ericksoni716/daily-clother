@@ -192,7 +192,7 @@ class FakeMessages:
 
     def parse(self, **kw):
         self.calls += 1
-        assert kw["output_format"] is ItemTags
+        assert kw["output_format"] is tagging.SENT   # the short form the API route sends (tagger/tagging.py)
         return self.replies.pop(0)
 
 

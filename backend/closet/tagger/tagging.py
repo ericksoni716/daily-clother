@@ -10,11 +10,14 @@ import base64
 import io
 import json
 import time
+import types
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Literal, Protocol, Union, get_args, get_origin
 
 from PIL import Image
+from pydantic import BaseModel, ValidationError, create_model
+from pydantic.fields import FieldInfo
 
 from .schema import ItemTags
 
@@ -133,6 +136,91 @@ def encode_image(img: Image.Image, max_edge: int = 1024) -> dict:
                                         "data": base64.standard_b64encode(buf.getvalue()).decode()}}
 
 
+# On the API route the answer's form is compiled into a grammar, and the API refuses one that is too large ("The
+# compiled grammar is too large", 400): the full form passed that limit at 939 listed words (schema version 5). So the
+# form sent lists in the grammar every word of the main fields (category, colour, pattern ...: what the closet sorts
+# and builds outfits by) and, in the details and the silhouette, only lists of up to ENUM_IN_GRAMMAR words; a longer
+# list there is plain text, its words named in the field's description, and Closet checks the answer against the
+# full form itself (`fitted`). Both routes send this form. (Tried loosening the main fields too: a boat shoe came back
+# as category "other", a word outside the list made to fit.)
+ENUM_IN_GRAMMAR = 12
+NO_ANSWER = ("unknown", "na", "none", "other")   # what a word outside its list becomes, the first the field allows
+
+
+def _sent_type(t, keep: bool = False):
+    """`t` with every list of more than ENUM_IN_GRAMMAR words made plain text (none when `keep`, as for the main
+    fields), and those words, for the description."""
+    origin = get_origin(t)
+    if isinstance(t, type) and issubclass(t, BaseModel):
+        return sent_form(t, keep_main=False), ""
+    if origin is Literal:
+        words = get_args(t)
+        if len(words) > ENUM_IN_GRAMMAR and not keep:
+            return str, " One of: " + ", ".join(map(str, words)) + "."
+        return t, ""
+    if origin in (Union, types.UnionType):
+        parts = [_sent_type(a, keep) for a in get_args(t)]
+        return Union[tuple(p[0] for p in parts)], "".join(p[1] for p in parts)
+    if origin is list:
+        inner, words = _sent_type(get_args(t)[0], keep)
+        return list[inner], words
+    return t, ""
+
+
+def sent_form(model: type[BaseModel], keep_main: bool = True) -> type[BaseModel]:
+    """The form sent for `model`: the same fields; with `keep_main` its own word lists all kept, the long ones of the
+    models inside it (the details, the silhouette) as plain text (`_sent_type`)."""
+    fields = {}
+    for name, f in model.model_fields.items():
+        t, words = _sent_type(f.annotation, keep=keep_main)
+        info = FieldInfo.merge_field_infos(f, description=(f.description or "") + words) if words else f
+        fields[name] = (t, info)
+    return create_model(model.__name__ + "Sent", __config__=model.model_config, **fields)
+
+
+SENT = sent_form(ItemTags)
+
+
+def _fit(value, t):
+    """`value` made to fit type `t`: a word outside its list becomes the first of NO_ANSWER the list has (unchanged
+    when it has none, so the check below refuses it), list entries outside their list are dropped."""
+    origin = get_origin(t)
+    if isinstance(t, type) and issubclass(t, BaseModel):
+        if isinstance(value, dict):
+            return {k: _fit(v, t.model_fields[k].annotation) if k in t.model_fields else v for k, v in value.items()}
+        return value
+    if origin is Literal:
+        words = get_args(t)
+        if value in words:
+            return value
+        return next((w for w in NO_ANSWER if w in words), value)
+    if origin in (Union, types.UnionType):
+        args = get_args(t)
+        if value is None and type(None) in args:
+            return None
+        literal = next((a for a in args if get_origin(a) is Literal), None)
+        if literal is not None and isinstance(value, str):
+            if value in get_args(literal):
+                return value
+            fallback = next((w for w in NO_ANSWER if w in get_args(literal)), None)
+            return fallback if fallback is not None else (None if type(None) in args else value)
+        model = next((a for a in args if isinstance(a, type) and issubclass(a, BaseModel)), None)
+        return _fit(value, model) if model is not None and isinstance(value, dict) else value
+    if origin is list and isinstance(value, list):
+        inner = get_args(t)[0]
+        if get_origin(inner) is Literal:
+            return [v for v in value if v in get_args(inner)]
+        return [_fit(v, inner) for v in value]
+    return value
+
+
+def fitted(answer) -> ItemTags:
+    """The API's answer (on the form sent, `SENT`) checked against the full form; raises ValidationError when it
+    cannot be made to fit."""
+    data = answer.model_dump(mode="json") if isinstance(answer, BaseModel) else answer
+    return ItemTags.model_validate(_fit(data, ItemTags))
+
+
 def tag_item(client, model: str, images: list[Image.Image], max_attempts: int = 3, meter: Meter | None = None) -> TagResult:
     """Tag one item. `client` is an `anthropic.Anthropic` (or a stand-in with the same `messages.parse`).
 
@@ -154,7 +242,7 @@ def tag_item(client, model: str, images: list[Image.Image], max_attempts: int = 
                 model=model,
                 max_tokens=MAX_TOKENS,
                 messages=[{"role": "user", "content": content}],
-                output_format=ItemTags,
+                output_format=SENT,
                 output_config={"effort": effort},
             )
         except anthropic.RateLimitError as e:
@@ -184,6 +272,11 @@ def tag_item(client, model: str, images: list[Image.Image], max_attempts: int = 
         if resp.stop_reason == "max_tokens" or resp.parsed_output is None:
             last = TaggingError(f"{model} returned an incomplete answer (stop_reason={resp.stop_reason})")
             continue
-        return TagResult(resp.parsed_output, model, time.time() - t0, tokens_in, tokens_out,
+        try:
+            tags = fitted(resp.parsed_output)
+        except ValidationError as e:
+            last = TaggingError(f"{model} answered outside the form: {e.error_count()} problems")
+            continue
+        return TagResult(tags, model, time.time() - t0, tokens_in, tokens_out,
                          cost_usd(model, tokens_in, tokens_out), attempt)
     raise TaggingError(f"{model} gave no valid answer after {max_attempts} attempts: {last}")

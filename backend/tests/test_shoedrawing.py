@@ -112,7 +112,7 @@ def test_the_answers_are_strict():
             DrawAnswer.model_validate({"sheet": bad, "left": shoe(DRESS), "right": None})
     with pytest.raises(ValueError):
         CheckAnswer.model_validate({"good": "yes", "problems": [], "sheet": SHEET, "left": shoe(DRESS), "right": None})
-    assert SD.MODEL == CONFIG["roles"]["drawing"] and SD.EFFORT == "high"
+    assert SD.MODEL == CONFIG["roles"]["drawing"] and SD.EFFORT == "medium"
 
 
 # ------------------------------------------------------------------ the calls
@@ -222,7 +222,7 @@ def test_through_the_api_key_the_calls_are_streamed_and_counted():
     assert api.calls == 2 and made.rounds == 1 and made.good and made.route == "api"
     first = api.requests[0]
     assert first["model"] == SD.MODEL and first["max_tokens"] == SD.MAX_TOKENS > correcting.NONSTREAMING_MAX_TOKENS
-    assert first["output_config"]["effort"] == "high" and first["output_config"]["format"]["type"] == "json_schema"
+    assert first["output_config"]["effort"] == "medium" and first["output_config"]["format"]["type"] == "json_schema"
     content = first["messages"][0]["content"]
     assert [c["text"] for c in content if c["type"] == "text"][:6] == [
         "photo-1.jpg:", "photo-2.jpg:", "photo-3.jpg:", "photo-4.jpg:", "photo-5.jpg:", "example-trainer.png:"]
@@ -256,7 +256,7 @@ def test_through_the_plan_every_image_is_saved_under_its_name(monkeypatch):
     assert "drawing.png" in check["files"] and "drawing.png" in check["input"]
     for call in seen:
         cmd = call["cmd"]
-        assert cmd[cmd.index("--model") + 1] == SD.MODEL and cmd[cmd.index("--effort") + 1] == "high"
+        assert cmd[cmd.index("--model") + 1] == SD.MODEL and cmd[cmd.index("--effort") + 1] == "medium"
         assert cmd[cmd.index("--system-prompt") + 1] == SD.SYSTEM and call["timeout"] == SD.TIMEOUT
     assert "photo-1.jpg, photo-2.jpg" in draw["input"] and "example-boat-shoe.png" in draw["input"]
     assert meter.recorded == [("plan", SD.MODEL, 51_000, 4_000)] * 2

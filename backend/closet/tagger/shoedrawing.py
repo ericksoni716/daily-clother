@@ -50,7 +50,7 @@ from .views import shown
 log = logging.getLogger("closet.shoedrawing")
 
 MODEL = CONFIG["roles"]["drawing"]
-EFFORT = "high"        # the experiment's drawings were made at a high effort; lower it once it is measured in the app
+EFFORT = "medium"      # the owner's choice after comparing high, medium and Sonnet (16 November): see DECISIONS.md
 MAX_TOKENS = 32_000    # the longest answer a call allows on the API route, its thinking included (streamed)
 TIMEOUT = 600          # seconds one call through the plan may take
 MAX_ROUNDS = 3         # check calls at most, after the drawing

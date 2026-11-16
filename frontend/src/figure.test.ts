@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { figurePieces, figureVersion, loadTodayView, MAX_ACCESSORIES, saveTodayView, svgSource, TODAY_VIEW_KEY } from './figure';
+import {
+  dressingSteps, figurePieces, figureVersion, frameOf, loadTodayView, MAX_ACCESSORIES, placeIn, saveTodayView, svgSource,
+  TODAY_VIEW_KEY, type FigurePieces,
+} from './figure';
 
 describe('the outfit as worn', () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -49,5 +52,60 @@ describe('the outfit as worn', () => {
     vi.stubGlobal('localStorage', { getItem: () => { throw new Error('denied'); }, setItem: () => { throw new Error('denied'); } });
     expect(loadTodayView()).toBe('pieces');
     expect(() => saveTodayView('worn')).not.toThrow();
+  });
+});
+
+describe('dressing the outfit a layer at a time', () => {
+  const none: FigurePieces = { base: null, mid: null, outer: null, bottom: null, shoes: null, accessories: [] };
+
+  it('starts dressed in the trousers, the shoes and the innermost top, then adds each top from the inside out, then the accessories', () => {
+    const outfit = { base: 'shirt', mid: 'jumper', outer: 'coat', bottom: 'jeans', shoes: 'boots', accessories: ['scarf', 'hat'] };
+    expect(dressingSteps(outfit)).toEqual([
+      { ...none, base: 'shirt', bottom: 'jeans', shoes: 'boots' },
+      { ...none, base: 'shirt', mid: 'jumper', bottom: 'jeans', shoes: 'boots' },
+      { ...none, base: 'shirt', mid: 'jumper', outer: 'coat', bottom: 'jeans', shoes: 'boots' },
+      outfit,
+    ]);
+  });
+
+  it('ends with the outfit itself, whatever it has', () => {
+    const outfits: FigurePieces[] = [
+      { ...none, base: 'tee', bottom: 'shorts', shoes: 'sneakers' },
+      { ...none, mid: 'jumper', outer: 'coat', bottom: 'trousers' },
+      { ...none, outer: 'coat', accessories: ['bag'] },
+      { ...none, shoes: 'boots' },
+      { ...none, accessories: ['watch'] },
+    ];
+    for (const outfit of outfits) {
+      const steps = dressingSteps(outfit);
+      expect(steps[steps.length - 1]).toEqual(outfit);
+      // never a step with nothing to draw: the server refuses an empty outfit
+      for (const step of steps) expect([step.base, step.mid, step.outer, step.bottom, step.shoes, ...step.accessories].some(Boolean)).toBe(true);
+    }
+  });
+
+  it('is one step when there is nothing to layer', () => {
+    expect(dressingSteps({ ...none, base: 'tee', bottom: 'shorts', shoes: 'sneakers' })).toHaveLength(1);
+    expect(dressingSteps({ ...none, accessories: ['watch'] })).toHaveLength(1);
+  });
+
+  it('starts with the innermost top there is, when there is no base layer', () => {
+    expect(dressingSteps({ ...none, mid: 'jumper', outer: 'coat', bottom: 'trousers' })[0]).toEqual({ ...none, mid: 'jumper', bottom: 'trousers' });
+  });
+
+  it('reads the part of the plane each drawing shows', () => {
+    expect(frameOf('<svg xmlns="http://www.w3.org/2000/svg" viewBox="-12.5 30.0 425.0 610.0" width="425">')).toEqual([-12.5, 30, 425, 610]);
+    expect(frameOf('<svg viewBox="0,0,400,600">')).toEqual([0, 0, 400, 600]);
+    expect(frameOf('<svg width="400" height="600">')).toBeNull();
+    expect(frameOf('<svg viewBox="0 0 0 600">')).toBeNull();
+    expect(frameOf('<svg viewBox="0 0 four 600">')).toBeNull();
+  });
+
+  it('places each layer where it is in the outfit, not stretched to fill it', () => {
+    // a bag beside him widens the outfit to the right: the layers before it keep their size and place
+    expect(placeIn([0, 0, 400, 600], [0, 0, 500, 600])).toEqual({ left: '0.000%', top: '0.000%', width: '80.000%', height: '100.000%' });
+    // a hat raises the outfit's top
+    expect(placeIn([10, 40, 380, 560], [10, 0, 380, 600])).toEqual({ left: '0.000%', top: '6.667%', width: '100.000%', height: '93.333%' });
+    expect(placeIn([0, 0, 400, 600], [0, 0, 400, 600])).toEqual({ left: '0.000%', top: '0.000%', width: '100.000%', height: '100.000%' });
   });
 });

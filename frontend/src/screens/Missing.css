@@ -87,7 +87,7 @@
 .gap-days summary::-webkit-details-marker { display: none; }
 .gap-days summary::before {
   content: ''; width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
-  transform: rotate(-45deg); transition: transform 0.15s; margin: 0 2px;
+  transform: rotate(-45deg); transition: transform var(--dur-quick) var(--ease-out); margin: 0 2px;
 }
 .gap-days[open] summary::before { transform: rotate(45deg); }
 .gap-days > .gap-why { margin-top: 4px; font-size: var(--text-sm); }
@@ -103,7 +103,7 @@
 .look-swatches { display: inline-flex; gap: 3px; vertical-align: -2px; }
 
 .gap-thumbs { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.gap-thumb { width: 56px; height: 64px; transition: box-shadow 0.15s; }
+.gap-thumb { width: 56px; height: 64px; transition: box-shadow var(--dur-quick) var(--ease-out); }
 .gap-thumb > .pic-cutout { padding: 4px; filter: none; }
 .gap-thumb:hover { box-shadow: inset 0 0 0 1px var(--card-edge), 0 0 0 2px var(--accent); }
 .gap-thumb-more { font-size: var(--text-sm); padding-left: 4px; }

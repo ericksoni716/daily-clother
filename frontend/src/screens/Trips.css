@@ -76,7 +76,7 @@
 .trip-weather-day.is-rainy .trip-weather-rain { color: var(--focus); font-weight: var(--weight-label); }
 
 .trip-uncovered { margin-bottom: 14px; }
-.trip-plan.is-asking .trip-columns { opacity: 0.55; transition: opacity 0.2s; }
+.trip-plan.is-asking .trip-columns { opacity: 0.55; transition: opacity var(--dur-move) var(--ease-out); }
 
 /* ---------------------------------------------------------------- what to pack */
 .trip-columns { display: grid; gap: 22px; min-width: 0; }

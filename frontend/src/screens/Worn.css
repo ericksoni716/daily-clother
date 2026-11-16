@@ -14,7 +14,7 @@ p.worn-rating { margin: 0; font-size: var(--text-sm); color: var(--ink-3); }
 .chip.worn-rating > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip.worn-rating.is-loved { color: var(--accent); border-color: var(--accent); }
 .chip.worn-rating.is-not_again { color: var(--danger); border-color: var(--danger); }
-.worn-rating-chevron { flex: none; width: 16px; height: 16px; transform: rotate(90deg); transition: transform 0.15s; }
+.worn-rating-chevron { flex: none; width: 16px; height: 16px; transform: rotate(90deg); transition: transform var(--dur-quick) var(--ease-out); }
 .chip.worn-rating[aria-expanded='true'] .worn-rating-chevron { transform: rotate(-90deg); }
 .worn-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; font-size: var(--text-sm); }
 

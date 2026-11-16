@@ -68,6 +68,21 @@ describe('design tokens', () => {
     expect(found).toEqual([]);
   });
 
+  it('moves on the motion tokens: one curve and two lengths', () => {
+    // a transition or a one-off animation; a loop (the spinner, a skeleton) keeps its own pace, and less motion cuts
+    // every one to nothing with its own rule
+    const timed = [...values('transition'), ...values('animation')].filter((v) => !/infinite|^none$|!important/.test(v.value));
+    expect(timed.length).toBeGreaterThan(10);
+    const off = timed.filter((v) => v.value.split(',').some((part) => {
+      const words = part.trim().split(/\s+/);
+      const times = words.filter((w) => /^-?[\d.]+m?s$/.test(w) || w.startsWith('var(--dur'));
+      const curves = words.filter((w) => /^(ease|ease-in|ease-out|ease-in-out|linear|step-start|step-end)$/.test(w) || /^(cubic-bezier|steps)\(/.test(w) || w.startsWith('var(--ease'));
+      return times.length !== 1 || !/^var\(--dur-(quick|move)\)$/.test(times[0]) || curves.length !== 1 || curves[0] !== 'var(--ease-out)';
+    }));
+    expect(off).toEqual([]);
+    expect(tokens).toMatch(/--ease-out: cubic-bezier\(0\.22, 1, 0\.36, 1\);/);
+  });
+
   it('defines every token it uses', () => {
     const defined = new Set([...styles.matchAll(/(--[\w-]+):/g)].map((m) => m[1]));
     const used = new Set(files.flatMap((f) => [...f.text.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1])));

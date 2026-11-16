@@ -364,6 +364,15 @@ def _first_cross(path, poly):
     return None
 
 
+def seam_shows(shoulder: str, colorblock: tuple = ()) -> bool:
+    """Whether a top's armhole seam is drawn: when it marks something. A shoulder that is not the usual set-in one
+    (dropped onto the arm, raglan, saddle: the seam is where the look is), or a sleeve or yoke cut in a second
+    colour, where the seam is the edge between the two colours (a snap-front fleece, a varsity jacket's sleeves).
+    An ordinary set-in sleeve's seam is not drawn, on a tailored jacket either (the owner, 16 November). A dolman
+    sleeve has none to draw."""
+    return shoulder not in ("set-in", "dolman") or bool({"sleeves", "yoke"} & set(colorblock))
+
+
 def top(**kw) -> Shape:
     """A top, front view, as a fashion flat drawn from the flat measurements of real garments
     (BLOCKS, men's M / 40R, in cm), with the sleeves hanging over the sides of the body as they
@@ -830,13 +839,15 @@ def top(**kw) -> Shape:
             sh.seams.append(f"M {_pt(m((x0, y0)))} Q {_pt(m(((x0 + CX + 44) / 2, y0 + 12)))} {_pt(m((CX + 44, sy + 54)))} "
                             f"Q {_pt(m((CX + 26, sy + 40)))} {_pt(m((CX + 7, sy + 34)))}")
 
-    # ---- armhole seams: from the shoulder, curving in, then straight down into the side seam
+    # ---- armhole seams: from the shoulder, curving in, then straight down into the side seam. Drawn only where the
+    # seam shows something (`seam_shows`): an ordinary set-in sleeve's is left out, since the outline already shows
+    # where the sleeve meets the body and over a busy front it was one line too many
     if seam and shoulder == "raglan" and not collar:
         for m in (lambda v: v, _mirror):
             sh.seams.append(f"M {_pt(m((N[0] + 4, ny + 2)))} Q {_pt(m(((N[0] + A[0]) / 2 + 9, (ny + ay) / 2 - 8)))} {_pt(m(A))}")
     elif seam and shoulder == "dolman":
         pass   # cut in one with the body: no armhole seam to draw
-    elif seam:
+    elif seam and seam_shows(shoulder, blocks):
         s0, s1, s2, s3 = seam
         for m in (lambda v: v, _mirror):
             sh.seams.append(f"M {_pt(m(s0))} C {_pt(m(s1))} {_pt(m(s2))} {_pt(m(s3))} L {_pt(m(A))}")
@@ -1258,8 +1269,9 @@ def _tailored(p, block) -> Shape:
                 a_ = 9 + (2 * br + 1.2) * i
                 b = (Co[0] + q[0] * 6.5 - d[0] * a_, Co[1] + q[1] * 6.5 - d[1] * a_)
                 sh.dots += [(b[0], b[1], br), (ml(b)[0], ml(b)[1], br)]
-    for m in (lambda v: v, ml):   # the armhole seam runs down the edge of the body
-        sh.seams.append(f"M {_pt(m(S))} C {_pt(m(c1))} {_pt(m(c2))} {_pt(m(A))}")
+    if seam_shows("set-in", tuple(p.get("colorblock") or ())):   # the armhole seam runs down the edge of the body
+        for m in (lambda v: v, ml):
+            sh.seams.append(f"M {_pt(m(S))} C {_pt(m(c1))} {_pt(m(c2))} {_pt(m(A))}")
 
     # ---- the stance: where the front buttons, and where the lapels roll from
     dbl = p["front"] == "double"

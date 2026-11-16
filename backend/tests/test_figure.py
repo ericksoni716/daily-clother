@@ -1188,7 +1188,8 @@ FLAT_LAYS = [("tee", {"sleeve": "short"}), ("tee", {"sleeve": "short", "fit": "s
 
 def test_fitting_garments_on_the_wearer_leaves_the_flat_drawings_byte_for_byte_alone():
     """The garments are fitted to the wearer only in the figure: the items' own drawings (closet tiles, the item
-    page, the coverage sheets) are exactly what they were before the figure fitted them (digest taken at a389de3).
+    page, the coverage sheets) are exactly what they were before the figure fitted them (digest taken at a389de3;
+    taken again on 16 November, when an ordinary set-in sleeve lost its armhole seam: DRAWING_VERSION 17).
     A deliberate change to the item drawings (with DRAWING_VERSION raised) updates this digest."""
     import hashlib
 
@@ -1196,7 +1197,7 @@ def test_fitting_garments_on_the_wearer_leaves_the_flat_drawings_byte_for_byte_a
     h = hashlib.sha256()
     for category, silhouette in FLAT_LAYS:
         h.update((svg_from_fields(category, "#6b4a32", None, silhouette, uid="f") or "-").encode())
-    assert h.hexdigest() == "17abe72e3e2f1df5c3168977260cac7f4579f3bcaeff231005f75236793b6616"
+    assert h.hexdigest() == "725f780c8432a4ebd1eb191cb1bcb1e8d24c6a0aa9dab8611e7cdabb540f50fa"
     # drawing a garment with its own template's shape passed in is drawing it as it is
     spec = plan(dict(base=SHIRT)).get("base").spec
     params = spec.params if not spec.weight or "weight" in spec.params else {**spec.params, "weight": spec.weight}
@@ -1205,7 +1206,8 @@ def test_fitting_garments_on_the_wearer_leaves_the_flat_drawings_byte_for_byte_a
 
 def test_wrapping_a_scarf_round_him_leaves_the_flat_scarves_and_hoods_alone():
     """The scarf's worn layers and the rain shell's lowered hood are their own drawings: every scarf's and the
-    hoodie's own drawing is what it was before (digest taken at 4ef22e2)."""
+    hoodie's own drawing is what it was before (digest taken at 4ef22e2; taken again on 16 November, when the
+    hoodie's ordinary set-in sleeve lost its armhole seam)."""
     import hashlib
 
     from closet.drawing.item import svg_from_answer
@@ -1213,7 +1215,7 @@ def test_wrapping_a_scarf_round_him_leaves_the_flat_scarves_and_hoods_alone():
     for kind in ("long_knit", "woven_wool", "cashmere", "silk", "bandana", "neck_gaiter"):
         h.update(svg_from_answer(answer("scarf", accessory="scarf", accessory_kind=kind), "#b8332e", uid="f").encode())
     h.update(svg_from_answer(answer("hoodie", {"neck": "hood"}), "#8b8e92", uid="f").encode())
-    assert h.hexdigest() == "3559f728b5742265044bc9e67b5315786cdcbca7bb60e51d9e1dc1a8fa4b7d10"
+    assert h.hexdigest() == "7c719f464a6dd423ccd0bdf92c1a140a8b6720ee641ece7213de56797b182aea"
 
 
 # ------------------------------------------------------------------ as worn: fit and length

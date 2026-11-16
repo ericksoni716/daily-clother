@@ -348,47 +348,47 @@ JACKETS = ("blazer", "sport_coat", "suit_jacket", "overcoat", "peacoat")
 # Recorded again for #110 (drawing faults) where a drawing changed on purpose: the cause is noted on each line.
 # Every lightweight garment also gained drape folds, and every heavy one with a rib band its soft shade.
 UNCHANGED = {
-    "t_shirt": "e6bb331568c7e3a5",   # #182: jersey surface
-    "henley": "4c2da65dd3332fd4",
-    "polo": "ffed94ccace3764e",
-    "rugby_shirt": "fc35361d2bcb0d26",   # #182: jersey surface
-    "dress_shirt": "e1c480d8a22c7920",   # #182: poplin surface
-    "ocbd": "6cea0cb02a91e64c",   # #182: oxford surface
-    "casual_button_up": "cb7328824233b49f",   # #163: new; point collar, chest pocket, vented straight hem; #182: poplin surface
-    "flannel_shirt": "b491a4ccf6438fcd",   # #182: flannel surface
-    "work_shirt": "6b8cfd2cc051a566",   # #182: chambray surface
-    "western_shirt": "a1ad566838687b49",
-    "camp_collar_shirt": "dc86cea5286cd6a8",   # #182: challis surface
-    "popover_shirt": "4c7b47805a7989a1",   # #182: oxford surface
-    "band_collar_shirt": "e36611ed2e43240f",   # #110: calmer linen
-    "guayabera": "8635571b38df9032",   # #110: calmer linen
-    "overshirt": "06f6e4cb356be6b1",   # #182: flannel surface
-    "tuxedo_shirt": "28b78081b6194afd",   # #110: larger wing tips; #182: poplin surface
+    "t_shirt": "9675fb2295654202",   # #182: jersey surface; no set-in armhole seam (16 Nov)
+    "henley": "009213a6d493b4ee",   # no set-in armhole seam (16 Nov)
+    "polo": "f9811af32c83e72f",   # no set-in armhole seam (16 Nov)
+    "rugby_shirt": "a7b4b4ffba07f648",   # #182: jersey surface; no set-in armhole seam (16 Nov)
+    "dress_shirt": "97fcfe094fdf0a43",   # #182: poplin surface; no set-in armhole seam (16 Nov)
+    "ocbd": "78f96d7fb5101a96",   # #182: oxford surface; no set-in armhole seam (16 Nov)
+    "casual_button_up": "21c25749e1e518db",   # #163: new; point collar, chest pocket, vented straight hem; #182: poplin surface; no set-in armhole seam (16 Nov)
+    "flannel_shirt": "0d7c6068a2cc1248",   # #182: flannel surface; no set-in armhole seam (16 Nov)
+    "work_shirt": "756567cf7b4df9f6",   # #182: chambray surface; no set-in armhole seam (16 Nov)
+    "western_shirt": "928a5c3b86dcdab0",   # no set-in armhole seam (16 Nov)
+    "camp_collar_shirt": "628c2ff0ad8cccab",   # #182: challis surface; no set-in armhole seam (16 Nov)
+    "popover_shirt": "a2f9b1c298ae486a",   # #182: oxford surface; no set-in armhole seam (16 Nov)
+    "band_collar_shirt": "6c086d7d0639a1c5",   # #110: calmer linen; no set-in armhole seam (16 Nov)
+    "guayabera": "77c40474d00fb80c",   # #110: calmer linen; no set-in armhole seam (16 Nov)
+    "overshirt": "0d89aeba7792e7dc",   # #182: flannel surface; no set-in armhole seam (16 Nov)
+    "tuxedo_shirt": "a4e455b40181692b",   # #110: larger wing tips; #182: poplin surface; no set-in armhole seam (16 Nov)
     "crewneck_sweatshirt": "8ef1ba5c1c7c3579",   # #182: french terry surface
-    "hoodie": "d94a19965cb06860",
-    "zip_hoodie": "8893ac4861061caa",
-    "pullover_sweater": "ab9e46737cb8df6d",   # #182: lambswool's soft edge
-    "cardigan": "5a7ef550bc921053",   # #182: flat knit surface, merino's fine gauge
-    "shawl_cardigan": "8dadaebcd226c9ce",   # #182: shaker surface, lambswool's soft edge
+    "hoodie": "157658ecae83f007",   # no set-in armhole seam (16 Nov)
+    "zip_hoodie": "77e6546d35796b6b",   # no set-in armhole seam (16 Nov)
+    "pullover_sweater": "ee7d85dc8ae76377",   # #182: lambswool's soft edge; no set-in armhole seam (16 Nov)
+    "cardigan": "595df99495cbec31",   # #182: flat knit surface, merino's fine gauge; no set-in armhole seam (16 Nov)
+    "shawl_cardigan": "cf5e36ef09745a70",   # #182: shaker surface, lambswool's soft edge; no set-in armhole seam (16 Nov)
     "sweater_vest": "e3a185d363c7fcfe",   # #110: armhole band keeps its width; #182: lambswool's soft edge
-    "quarter_zip": "27bc1f5d9a22353b",   # #182: flat knit surface, merino's fine gauge
-    "chore_coat": "f82ceba2e738d934",   # #182: canvas surface
-    "trucker_jacket": "1fd21e47f12d94f2",   # #110: buttoned waistband, not a rib
-    "bomber": "6cc6616e2a294223",   # #182: plain surface
-    "harrington": "db90f35e110582b6",   # #182: gabardine surface
-    "field_jacket": "01c0c23d4cbcab72",   # #182: sateen surface
-    "puffer": "ea68fbbdd4556bf6",   # #110: outline swells between channels
-    "quilted_jacket": "9daae90d264d9d8d",
-    "fleece_jacket": "d1ff07dded0b7647",
-    "barn_jacket": "f9404968c3a48ca1",   # #182: canvas surface
+    "quarter_zip": "3f17aa72450be623",   # #182: flat knit surface, merino's fine gauge; no set-in armhole seam (16 Nov)
+    "chore_coat": "2e87e9601b345718",   # #182: canvas surface; no set-in armhole seam (16 Nov)
+    "trucker_jacket": "f1da77b2abe87d5b",   # #110: buttoned waistband, not a rib; no set-in armhole seam (16 Nov)
+    "bomber": "934cf9030dd00b2a",   # #182: plain surface; no set-in armhole seam (16 Nov)
+    "harrington": "812034fe02b6413a",   # #182: gabardine surface; no set-in armhole seam (16 Nov)
+    "field_jacket": "d0afa519e684fa6b",   # #182: sateen surface; no set-in armhole seam (16 Nov)
+    "puffer": "3ae7930e6d4d5a69",   # #110: outline swells between channels; no set-in armhole seam (16 Nov)
+    "quilted_jacket": "9f886e54edc1ada3",   # no set-in armhole seam (16 Nov)
+    "fleece_jacket": "4ab831a62c98fb51",   # no set-in armhole seam (16 Nov)
+    "barn_jacket": "79904ee343ef79af",   # #182: canvas surface; no set-in armhole seam (16 Nov)
     "fleece_pullover": "2ec1c00de609e68f",
     "performance_tee": "af4dd6aa727dae5f",
     "athletic_half_zip": "ab1080303aaa8474",   # #182: interlock surface
-    "track_jacket": "afa6a0b587a04703",   # #182: interlock surface
-    "trench_coat": "5478e9ffe311f812",   # #163: new; self belt; #182: gabardine surface
-    "parka": "d5ba24eb82d51c9b",   # #163: new
+    "track_jacket": "7970107b2b220936",   # #182: interlock surface; no set-in armhole seam (16 Nov)
+    "trench_coat": "5c2e0c15c3440103",   # #163: new; self belt; #182: gabardine surface; no set-in armhole seam (16 Nov)
+    "parka": "66833b7e46c119f1",   # #163: new; no set-in armhole seam (16 Nov)
     "varsity_jacket": "59fea13692466334",   # #163: new; sleeves in the second colour; #182: melton surface
-    "waxed_jacket": "99d299876a55bb61",   # #163: new; cord collar; #182: waxed surface
+    "waxed_jacket": "72abc902477ae476",   # #163: new; cord collar; #182: waxed surface; no set-in armhole seam (16 Nov)
     "pants.jeans": "b09a649969597eec",
     "pants.dress": "567a1b5f294a79cc",
     "shoe.derby": "f356f82e866763c4",   # redrawn on purpose: open lacing (#108)

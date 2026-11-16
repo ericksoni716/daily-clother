@@ -72,7 +72,7 @@ UNTRACED = [("sneakers", "low_sneaker"), ("sneakers", "runner"), ("sneakers", "s
 # when the trousers' hem moved onto the shoe: the shoes themselves, and the figures in shorts, are byte for byte the
 # same; and once when a bare ankle under cropped trousers showed points on low shoes' collars: the dress shoes and
 # slip-ons got #214's rounded collar, and every low shoe rounder shoulders beside the ankle)
-UNTRACED_DIGEST = "bf1a12ce54a487822383e397a546640b6889de69cf15fad9678815f49bed6ad6"
+UNTRACED_DIGEST = "514cd687c1f0b0104d5a5481b6f69d3cc94cdcdbf2f61f0503b9e47b9d344208"   # taken again 16 Nov: the figure's tee lost its set-in armhole seam; the shoes and the rest are unchanged
 
 
 def test_an_untraced_shoe_is_drawn_exactly_as_before():

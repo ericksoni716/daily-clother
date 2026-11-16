@@ -34,12 +34,13 @@ function block(selector: string): string {
 
 describe('design tokens', () => {
   it('has the type scale, 1.25 from 16px', () => {
-    const sizes = ['xs', 'sm', 'md', 'lg', 'xl', '2xl'].map((k) => Number(new RegExp(`--text-${k}: (\\d+)px`).exec(tokens)?.[1]));
-    expect(sizes).toEqual([12, 14, 16, 20, 25, 31]);
+    // 39px is the page titles' on a wider screen (16 November)
+    const sizes = ['xs', 'sm', 'md', 'lg', 'xl', '2xl', '3xl'].map((k) => Number(new RegExp(`--text-${k}: (\\d+)px`).exec(tokens)?.[1]));
+    expect(sizes).toEqual([12, 14, 16, 20, 25, 31, 39]);
   });
 
   it('uses only the type scale for font sizes', () => {
-    expect(values('font-size').filter((v) => !/^var\(--text-(xs|sm|md|lg|xl|2xl)\)$/.test(v.value))).toEqual([]);
+    expect(values('font-size').filter((v) => !/^var\(--text-(xs|sm|md|lg|xl|2xl|3xl)\)$/.test(v.value))).toEqual([]);
   });
 
   it('uses only the radius tokens', () => {
@@ -66,6 +67,29 @@ describe('design tokens', () => {
     const found = rules.flatMap((f) => [...f.text.matchAll(/([^{}]*)\{[^}]*(?<![\w-])color:\s*var\(--ink-4\)/g)]
       .map((m) => m[1].trim()).filter((sel) => !/chevron|icon|svg/.test(sel)).map((sel) => `${f.name}: ${sel}`));
     expect(found).toEqual([]);
+  });
+
+  it('sets every small capital label in the label font and colour', () => {
+    // facts about an item and the small heads over a group, like notes on a sketch (16 November)
+    const labels = rules.flatMap((f) => [...f.text.matchAll(/([^{}]*)\{([^}]*text-transform:\s*uppercase[^}]*)\}/g)]
+      .map((m) => ({ name: `${f.name}: ${m[1].trim()}`, body: m[2] })));
+    expect(labels.length).toBeGreaterThan(8);
+    expect(labels.filter((l) => !/font-family:\s*var\(--font-label\)/.test(l.body) || !/color:\s*var\(--label-ink\)/.test(l.body)).map((l) => l.name)).toEqual([]);
+  });
+
+  it('moves on the motion tokens: one curve and two lengths', () => {
+    // a transition or a one-off animation; a loop (the spinner, a skeleton) keeps its own pace, and less motion cuts
+    // every one to nothing with its own rule
+    const timed = [...values('transition'), ...values('animation')].filter((v) => !/infinite|^none$|!important/.test(v.value));
+    expect(timed.length).toBeGreaterThan(10);
+    const off = timed.filter((v) => v.value.split(',').some((part) => {
+      const words = part.trim().split(/\s+/);
+      const times = words.filter((w) => /^-?[\d.]+m?s$/.test(w) || w.startsWith('var(--dur'));
+      const curves = words.filter((w) => /^(ease|ease-in|ease-out|ease-in-out|linear|step-start|step-end)$/.test(w) || /^(cubic-bezier|steps)\(/.test(w) || w.startsWith('var(--ease'));
+      return times.length !== 1 || !/^var\(--dur-(quick|move)\)$/.test(times[0]) || curves.length !== 1 || curves[0] !== 'var(--ease-out)';
+    }));
+    expect(off).toEqual([]);
+    expect(tokens).toMatch(/--ease-out: cubic-bezier\(0\.22, 1, 0\.36, 1\);/);
   });
 
   it('defines every token it uses', () => {

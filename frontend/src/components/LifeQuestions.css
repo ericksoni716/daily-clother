@@ -1,7 +1,7 @@
-.life-questions { padding: 18px; margin-bottom: 20px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.life-questions { padding: 18px; margin-bottom: 20px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--tint-sand); }   /* a soft tint */
 .life-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .life-heading h2 { font-size: var(--text-lg); margin: 0; }
-.life-eyebrow { font-size: var(--text-xs); letter-spacing: .1em; color: var(--accent); font-weight: var(--weight-heading); margin: 0 0 4px; }
+.life-eyebrow { font-family: var(--font-label); font-size: var(--text-xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--label-ink); font-weight: var(--weight-heading); margin: 0 0 4px; }
 .life-minute { color: var(--ink-3); font-size: var(--text-xs); white-space: nowrap; }
 .life-intro { color: var(--ink-3); font-size: var(--text-md); margin: 10px 0 16px; }
 .life-questions fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }

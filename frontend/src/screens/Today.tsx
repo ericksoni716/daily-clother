@@ -727,7 +727,7 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo }:
       <div className="today-card-pieces">
         {view === 'worn' && (
           <OutfitFigure pieces={outfit.pieces} alt={`The outfit as worn: ${joinWords(wornOrder(outfit.pieces).map((p) => itemName(byId.get(p.id))))}`}
-            version={figureVersion(ids, byId)} />
+            version={figureVersion(ids, byId)} dress />
         )}
         <ul className="today-pieces" hidden={view === 'worn'} aria-label="Pieces, in the order they are put on">
           {wornOrder(outfit.pieces).map((p) => (

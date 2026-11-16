@@ -406,7 +406,7 @@ def test_the_preview_and_the_check_image_draw_behind_then_the_leg_then_in_front(
     boot = _back_tab_boot()
     svg = drawn.preview_svg(boot)
     left = svg[svg.index('translate(22,150)'):svg.index('translate(418,150)')]
-    assert left.index("#4a2c22") < left.index("#2f7d4f") < left.index("#5e2f25")   # the tab, the sock, the panels
+    assert left.index("#4a2c22") < left.index(drawn.PREVIEW_SOCK) < left.index("#5e2f25")   # the tab, the sock, the panels
     check = drawn.check_svg(boot)
-    assert check.index("#4a2c22") < check.index("#2f7d4f") < check.index("#5e2f25")
+    assert check.index("#4a2c22") < check.index(drawn.PREVIEW_SOCK) < check.index("#5e2f25")
     assert math.isclose(drawn.TODAY_LINE, 2.2 / (4 * 0.297))

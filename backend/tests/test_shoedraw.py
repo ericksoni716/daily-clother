@@ -126,7 +126,7 @@ def test_a_drawing_kept_as_version_1_is_shown_as_it_is_and_never_drawn_again_by_
     got = drawn_of(m, item)
     assert got["state"] == "done" and got["url"] and got["message"] is None
     svg = m.c.get(got["url"]).text
-    assert "#b5622f" in svg.lower() and svg.index("#2f7d4f") < svg.lower().index("#b5622f")   # the leg, then the shoe
+    assert "#b5622f" in svg.lower() and svg.index(drawn.PREVIEW_SOCK) < svg.lower().index("#b5622f")   # the leg, then the shoe
     assert m.sv.draws.drain() == 0 and len(m.drawer.calls) == 1 and get(m.c, item)["drawn_version"]
     figure = m.c.post("/api/outfits/figure", json={"shoes": item["id"]}).text
     assert "#b5622f" in figure.lower()
@@ -323,7 +323,7 @@ def test_drawn_svg_serves_the_pair_on_two_legs_behind_the_login(made):
     r = m.c.get(drawn_of(m, item)["url"])
     assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg+xml")
     assert r.headers["cache-control"] == "no-store" and "default-src 'none'" in r.headers["content-security-policy"]
-    assert r.text == drawn.preview_svg(drawn.sanitise(DRESS)) and r.text.count("#2f7d4f") == 2
+    assert r.text == drawn.preview_svg(drawn.sanitise(DRESS)) and r.text.count(drawn.PREVIEW_SOCK) == 2
     anon = TestClient(app_module.create_app(m.sv))
     assert anon.get(f"/api/items/{item['id']}/drawn.svg").status_code == 401
     assert anon.post(f"/api/items/{item['id']}/drawn").status_code == 401

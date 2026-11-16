@@ -39,6 +39,9 @@ FRAME = (0.0, 200.0)
 GROUND = 240.0
 LEG = (62.0, 138.0)
 LEG_DOWN = 200.0                   # the stand-in leg in the preview goes down this far, behind the shoe
+# the stand-in leg's crew sock, in the preview and the check picture: a light grey, so the shoe's own colours stand
+# out (the owner, 16 November; green before, as in the experiment's render3.js), and its two rib lines
+PREVIEW_SOCK, PREVIEW_SOCK_RIB = "#d3d0ca", "#a9a59d"
 MAX_CHARS = 40_000                 # one drawing, as written; the liked examples are 1,300 to 2,900
 MAX_ELEMENTS = 150                 # shapes and groups kept; the liked examples have 9 to 13
 MAX_DEPTH = 8                      # groups inside groups
@@ -246,15 +249,15 @@ def thicken(fragment: str, factor: float = TODAY_LINE) -> str:
 
 
 def _leg(line: float) -> str:
-    """The stand-in leg in a green crew sock (render3.js's), its outline as thick as the shoe's. It goes on down into
+    """The stand-in leg in a light grey crew sock (PREVIEW_SOCK), its outline as thick as the shoe's. It goes on down into
     the shoe, to y = LEG_DOWN (render3.js stopped at y = 60, which left a gap above a shoe as low as a boat shoe), so
     wherever the shoe does not cover it, it shows."""
     w = 4 * line
     return (f'<g stroke-linejoin="round"><path d="M60,-150 L140,-150 L138,{LEG_DOWN:g} L62,{LEG_DOWN:g} Z" '
             f'fill="#c98d6b" stroke="{INK}" stroke-width="{w:.2f}"/><path d="M61,-92 Q100,-80 139,-92 '
-            f'L138,{LEG_DOWN:g} L62,{LEG_DOWN:g} Z" fill="#2f7d4f" '
+            f'L138,{LEG_DOWN:g} L62,{LEG_DOWN:g} Z" fill="{PREVIEW_SOCK}" '
             f'stroke="{INK}" stroke-width="{w:.2f}"/><path d="M62,-76 Q100,-64 138,-76 M62,-62 Q100,-50 138,-62" '
-            'fill="none" stroke="#1f5a38" stroke-width="2"/></g>')
+            f'fill="none" stroke="{PREVIEW_SOCK_RIB}" stroke-width="2"/></g>')
 
 
 PREVIEW_W, PREVIEW_H = 440, 400

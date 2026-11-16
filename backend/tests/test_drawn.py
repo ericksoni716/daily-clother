@@ -153,8 +153,8 @@ def test_the_preview_puts_the_pair_on_two_legs():
     svg = drawn.preview_svg(left)
     root = ET.fromstring(svg)
     assert root.get("viewBox") == "0 0 440 400"
-    assert svg.count('fill="#2f7d4f"') == 2   # two socks
-    assert 'translate(418,150) scale(-1,1)' in svg and svg.index("#2f7d4f") < svg.index("#b5622f")   # leg first
+    assert svg.count(f'fill="{drawn.PREVIEW_SOCK}"') == 2   # two socks
+    assert 'translate(418,150) scale(-1,1)' in svg and svg.index(drawn.PREVIEW_SOCK) < svg.index("#b5622f")   # leg first
     assert f'stroke-width="{4 * drawn.TODAY_LINE:.2f}"' in svg and 'rotate' not in svg   # no tilt
     own = drawn.preview_svg(left, drawn.example("boat-shoe"))
     assert "scale(-1,1)" not in own and "translate(218,150)" in own and "#73523f" in own

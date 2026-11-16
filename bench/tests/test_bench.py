@@ -190,15 +190,19 @@ class FakeMessages:
     def __init__(self, replies):
         self.replies, self.calls = list(replies), 0
 
-    def parse(self, **kw):
+    def create(self, **kw):
         self.calls += 1
-        assert kw["output_format"] is tagging.SENT   # the short form the API route sends (tagger/tagging.py)
+        (tool,) = kw["tools"]   # the whole form as a plain tool, which the API does not compile (tagger/tagging.py)
+        assert tool["name"] == tagging.ANSWER_TOOL and not tool.get("strict")
         return self.replies.pop(0)
 
 
 class Reply:
-    def __init__(self, parsed, stop_reason="end_turn"):
-        self.parsed_output, self.stop_reason = parsed, stop_reason
+    """An answer: a call of the form's tool holding `parsed`, or (None) no call, as a cut-off or refused one has."""
+    def __init__(self, parsed, stop_reason=None):
+        self.stop_reason = stop_reason or ("tool_use" if parsed is not None else "end_turn")
+        self.content = [] if parsed is None else [type("Call", (), {
+            "type": "tool_use", "id": "toolu_1", "name": tagging.ANSWER_TOOL, "input": parsed.model_dump(mode="json")})()]
         self.usage = type("U", (), {"input_tokens": 1500, "output_tokens": 300})()
 
 
@@ -389,28 +393,35 @@ def test_the_schema_sent_to_the_api_stays_within_its_documented_limits():
 
 
 def test_the_tagging_request_and_answer_survive_a_real_http_round_trip():
-    """Run the real SDK against a local stand-in server: checks what is sent and that the answer parses."""
+    """Run the real SDK against a local stand-in server: checks what is sent, that the answer is read from the call of
+    the form's tool, and that a main field outside its list is said back in the same conversation, the SDK's own
+    reply sent back as it came."""
     import http.server
     import json
     import threading
 
     import anthropic
-    seen = {}
-    answer = make_tags(category="jeans", silhouette=Silhouette.of(leg="straight", pant_length="full")).model_dump_json()
+    seen = []
+    good = make_tags(category="jeans", silhouette=Silhouette.of(leg="straight", pant_length="full")).model_dump(mode="json")
+    answers = [{**good, "category": "denim"}, good]   # a word outside the list first, then the right one
 
     class H(http.server.BaseHTTPRequestHandler):
         def do_POST(self):
-            seen["path"] = self.path
-            seen["body"] = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            seen["auth"] = self.headers.get("authorization") or self.headers.get("x-api-key")
-            body = json.dumps({"id": "msg_test", "type": "message", "role": "assistant", "model": seen["body"]["model"],
-                               "content": [{"type": "text", "text": answer}], "stop_reason": "end_turn", "stop_sequence": None,
-                               "usage": {"input_tokens": 1700, "output_tokens": 310}}).encode()
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            seen.append({"path": self.path, "body": body,
+                         "auth": self.headers.get("authorization") or self.headers.get("x-api-key")})
+            reply = json.dumps({
+                "id": f"msg_test{len(seen)}", "type": "message", "role": "assistant", "model": body["model"],
+                "content": [{"type": "thinking", "thinking": "", "signature": "sig"},
+                            {"type": "tool_use", "id": f"toolu_test{len(seen)}", "name": body["tools"][0]["name"],
+                             "input": answers[len(seen) - 1]}],
+                "stop_reason": "tool_use", "stop_sequence": None,
+                "usage": {"input_tokens": 1700, "output_tokens": 310}}).encode()
             self.send_response(200)
             self.send_header("content-type", "application/json")
-            self.send_header("content-length", str(len(body)))
+            self.send_header("content-length", str(len(reply)))
             self.end_headers()
-            self.wfile.write(body)
+            self.wfile.write(reply)
 
         def log_message(self, *a):
             pass
@@ -422,15 +433,26 @@ def test_the_tagging_request_and_answer_survive_a_real_http_round_trip():
         r = tagging.tag_item(client, "claude-haiku-5-5", [garment()])
     finally:
         srv.shutdown()
-    body = seen["body"]
-    assert seen["path"].endswith("/v1/messages") and seen["auth"].endswith("test-key")
-    assert body["model"] == "claude-haiku-5-5" and body["output_config"]["effort"] == "low"
-    assert body["output_config"]["format"]["type"] == "json_schema" and "category" in body["output_config"]["format"]["schema"]["properties"]
-    assert "temperature" not in body and "thinking" not in body and "tool_choice" not in body
-    kinds = [b["type"] for b in body["messages"][0]["content"]]
-    assert kinds == ["image", "text"] and body["messages"][0]["content"][0]["source"]["media_type"] == "image/jpeg"
-    assert r.tags.category == "jeans" and r.tags.silhouette.leg == "straight"
-    assert (r.input_tokens, r.output_tokens) == (1700, 310) and r.cost_usd == pytest.approx((1700 * 0.10 + 310 * 0.50) / 1e6)
+    assert len(seen) == 2
+    first, second = seen[0]["body"], seen[1]["body"]
+    assert seen[0]["path"].endswith("/v1/messages") and seen[0]["auth"].endswith("test-key")
+    assert first["model"] == "claude-haiku-5-5" and first["output_config"] == {"effort": "low"}   # no structured output
+    (tool,) = first["tools"]
+    assert tool["name"] == "describe_item" and "strict" not in tool and "category" in tool["input_schema"]["properties"]
+    assert first["tool_choice"] == {"type": "auto", "disable_parallel_tool_use": True}
+    assert "temperature" not in first and "thinking" not in first
+    kinds = [b["type"] for b in first["messages"][0]["content"]]
+    assert kinds == ["image", "text"] and first["messages"][0]["content"][0]["source"]["media_type"] == "image/jpeg"
+    # the stray category, said back: the first question, the reply as it came (its thinking too), the tool's result
+    assert [m["role"] for m in second["messages"]] == ["user", "assistant", "user"]
+    assert second["messages"][0] == first["messages"][0]
+    assert [b["type"] for b in second["messages"][1]["content"]] == ["thinking", "tool_use"]
+    assert second["messages"][1]["content"][0]["signature"] == "sig"
+    (result,) = second["messages"][2]["content"]
+    assert result["type"] == "tool_result" and result["tool_use_id"] == "toolu_test1" and result["is_error"] is True
+    assert "'denim'" in result["content"] and "jeans" in result["content"]
+    assert r.tags.category == "jeans" and r.tags.silhouette.leg == "straight" and r.attempts == 2
+    assert (r.input_tokens, r.output_tokens) == (3400, 620) and r.cost_usd == pytest.approx((3400 * 0.10 + 620 * 0.50) / 1e6)
 
 
 # ---- the two ways to reach Claude: the plan (claude -p) and the API key
@@ -504,7 +526,7 @@ def test_when_api_credits_run_out_the_plan_takes_over(fake_claude):
     class Broke:
         class messages:
             @staticmethod
-            def parse(**kw):
+            def create(**kw):
                 resp = httpx.Response(400, request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"))
                 raise anthropic.BadRequestError("Your credit balance is too low to access the Anthropic API.", response=resp, body=None)
 

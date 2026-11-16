@@ -46,10 +46,11 @@ SUGGESTED_CAP_USD = 5.0     # see DECISIONS, "Spend cap for the API key"
 MAX_CAP_USD = 1000.0        # a typing slip should not allow a large bill
 HISTORY_MONTHS = 12
 
-# A careful upper bound on one request to describe an item: the prompt with the answer's schema and whatever the
-# API adds for it (about 4,500 tokens measured, doubled), each photo at no more than 1024 px a side (about 1,400
-# tokens by Anthropic's rule of width x height / 750, rounded up), and the longest answer the request allows.
-TEXT_TOKENS = 8000
+# A careful upper bound on one request to describe an item: the prompt and the whole answer form as a tool (about
+# 35,000 characters, counted at 1 token for every character pair, with room for what the API adds for a tool), each
+# photo at no more than 1024 px a side (about 1,400 tokens by Anthropic's rule of width x height / 750, rounded up),
+# and the longest answer the request allows. (8,000 while the form went as a compiled structured output.)
+TEXT_TOKENS = 18000
 IMAGE_TOKENS = 1600
 # Reading a correction: the longest prompt the app writes (a 500-character sentence, a shirt's description and every
 # value it may take, about 7,000 characters with the schema; counted at 1 token for every character pair, then the

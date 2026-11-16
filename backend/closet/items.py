@@ -64,6 +64,9 @@ def summary(conn, row) -> dict:
                              if row["illustration_svg"] is not None else None),
         "last_worn": worn[0], "wear_count": worn[1], "wears_since_wash": row["wears_since_wash"], "laundry": row["laundry"],
         "tag_state": row["tag_state"], "created_at": row["created_at"], "updated_at": row["updated_at"],
+        # why describing failed, or why it waits (the API key's monthly limit, Claude Code's sign-in): the import list
+        # on Add reads the list and says it once for all the photos just added
+        "tag_error": row["tag_error"],
         **kinds.summary_fields(row),   # what it is: its kind from the taxonomy, and the group it is shown in
         # a shoe drawn by Claude for the outfit figure: how far that has got, and a short hash of the drawing it has
         # (the figure on Today and a trip's days is drawn again when it changes); null for anything else

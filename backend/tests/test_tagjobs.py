@@ -140,6 +140,8 @@ def test_three_failed_attempts_end_in_failed_with_a_plain_reason_then_retag_work
     body = client.get(f"/api/items/{item['id']}").json()
     assert body["tag_state"] == "failed" and "try again" in body["tag_error"].lower()
     assert body["category"] is None and row(cfg, item["id"])["tag_answer"] is None
+    listed = client.get("/api/items").json()["items"]   # the list says why too (the import list on Add reads it)
+    assert [(i["tag_state"], i["tag_error"]) for i in listed if i["id"] == item["id"]] == [("failed", body["tag_error"])]
     # each attempt logs only the kind of failure; the cleaned reason is logged once, when the item is marked failed
     attempts = [r for r in caplog.records if r.name == "closet.tagjobs"]
     assert attempts and not any("outside the schema" in r.getMessage() for r in attempts)

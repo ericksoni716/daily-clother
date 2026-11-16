@@ -243,9 +243,19 @@ your closet, or did not work. Two photos go up at a time. **Pause** stops new
 ones starting; **Cancel the rest** drops the ones not started yet. A photo that
 did not work says why and has a **Retry** button.
 
+Once a photo is in, its row shows what it became: the piece with its
+background removed (the photo until then) and, once Claude has described it,
+what Claude called it ("Navy crew-neck tee"). Until then the row says how far
+it has got: **Removing background…**, **Waiting to be described by Claude** or
+**Claude is describing it…**. Tap the row to open the item and fix anything
+that's wrong. The file's name stays underneath, small, after **Added**. If the
+items wait because of something you can change (the API key's monthly limit,
+say), the page says so once, above the list, with **Open Settings**.
+
 A photo that is already in your closet (the same file, even under another name,
 even if that item is archived) is not added again; its row says **Already in
-your closet**. A photo of an item you deleted can be added again.
+your closet** and opens the item it already is. A photo of an item you deleted
+can be added again.
 
 ### Shoes
 
@@ -257,7 +267,10 @@ picks several at once; **Take a photo** takes one each time you tap it (where
 the page can show the camera itself, it stays open so you can take several in a
 row: tap **Close the camera** when you have them all). The photos wait in a row
 on the page, each with an **×** to remove it, and nothing is sent until you tap
-**Add this shoe**. A seventh photo is not added, and the page says so.
+**Add this shoe**. A seventh photo is not added, and the page says so. Once it
+is added, the page shows the shoe the same way as the list of photos above:
+its picture and, once Claude has described it, what Claude called it; tap it
+(or **See the shoe**) to open it.
 
 You don't have to say which photo is which: Closet sorts them itself a few
 seconds after the last one, and shows what each photo is under it on the shoe's

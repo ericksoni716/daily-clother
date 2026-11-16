@@ -194,6 +194,10 @@ Original phase 2 and the single-photo parts of phase 3.
 - The app's stored vocabulary (`backend/closet/vocab.py`, the frontend labels) moves to the taxonomy.
 - README: installing Claude Code on Windows and checking it is signed in (done in #164, "Setting up Closet on a Windows PC").
 - The bench as a `bench` command in the packaged program, so the owner's photos never leave the PC.
+- [x] Add shows what each photo became (approved by the owner 16 November, #239): each row of the import list shows the item's picture and what Claude called it, links to the item, and says once above the list why photos wait when that is something the owner can change; the shoe's done screen shows the shoe the same way.
+- [ ] The closet's item list is re-checked every 2 to 10 seconds while anything is being processed, even while the page or app is hidden: pause it while hidden (phone battery), and for a large closet re-check only the items still changing (measure first).
+- [ ] The item page's "It starts by itself once Claude can be reached" also shows when an item is only waiting its turn in a normal batch; reword it for that case.
+- [ ] After a photo of several pieces is added, its row on Add could list the items it became (today it keeps "Check the pieces").
 
 ### Stop C: today's outfit
 Original phase 4 and the rating parts of phase 6. The first stop the owner uses every day.

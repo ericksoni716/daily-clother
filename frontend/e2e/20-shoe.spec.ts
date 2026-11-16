@@ -160,6 +160,11 @@ test.describe('a shoe drawn from its photo', () => {
     const id: string = (await (await created).json()).id;
     await expect(add.getByTestId('shoe-added')).toHaveText(
       'The shoe is added with its 3 photos. In a moment Closet removes the background and works out which photo is which.');
+    // below it, the shoe itself: its picture and how far it has got (what Claude calls it, once described), opening it
+    const shoeRow = add.getByTestId('shoe-added-item');
+    await expect(shoeRow.locator('.queue-thumb img')).toHaveAttribute('src', /^\/media\//);
+    await expect(shoeRow.getByTestId('queue-item')).toHaveAttribute('href', `/item/${id}`);
+    await expect(shoeRow.getByTestId('queue-title')).not.toBeEmpty();
     expect(await sideways(page)).toEqual([]);
     expect(await axeViolations(page)).toEqual([]);
     await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-add-done.png') });

@@ -153,6 +153,8 @@ To do:
 - [x] Drawing faults its own author listed (#110): the tab collar has close-set points and a buttoned strap, the wing collar larger tips; lapels on dark or patterned cloth carry a facing shade; the puffer's sides and sleeves swell between its channels; the trucker jacket has a buttoned waistband with side adjusters; the vest's armhole band keeps its width to the side seam; linen texture is sparser and fainter. Before/after sheets: `docs/screenshots/drawing-faults-*.png`. Still open: at item size the tab strap and wing tips are only specks, and tab and point collars are hard to tell apart.
 - [x] Accessories drawn from the taxonomy's accessory ids and kinds: bags, belts, caps, beanies, brimmed hats and scarves have shapes of their own; ties, pocket squares, gloves, glasses, watches and socks a plain tag. The outfit figure wears a belt, scarf, hat and bag. Sheet: `docs/screenshots/accessories.png` (`tools/make_accessory_sheet.py`). Waiting for the owner's verdict.
 - [x] Shapes of their own for ties, pocket squares, gloves, glasses, watches and socks (`closet/drawing/accessories.py`), with each one's details: a tie's width, knit or silk and pattern; a watch's dial, strap and colours; glasses' frame and lenses; socks' length and pattern. The figure wears a tie under the collar, a pocket square in a tailored jacket's breast pocket, a watch on the wrist, glasses, and socks above low shoes with shorts or cropped trousers (`closet/drawing/worn.py`); hats sit on the head and bags are carried (in the hand, on the shoulder, across the body, round the waist or on the back). The demo closet has a tie, a pocket square, a watch, glasses, socks and gloves. Sheets: `docs/screenshots/coverage-accessories-*.png` and `accessories.png`. Waiting for the owner's verdict.
+- [x] An armhole seam only where it marks something (16 November, #240): a dropped, raglan or saddle shoulder, or a sleeve or yoke in a second colour; none on an ordinary set-in sleeve (`templates.seam_shows`, DRAWING_VERSION 17).
+- [ ] Ringer and raglan baseball tees (the t-shirt's `ringer` and `raglan_baseball` variants in the taxonomy) are drawn in one colour: nothing maps their contrast sleeves (or a ringer's contrast neck and cuffs) to the drawing yet. A raglan's seams are already kept.
 - [ ] Accessories still drawn simply: a fingerless glove's thumb is hidden by its palm; the watch on the figure is only drawn when no sleeve covers the wrist; jewellery, braces and umbrellas have no drawing.
 - [x] Shoes left after #108: a monk strap's buckles, a flip-flop's thong, apron and split toes, speed hooks and D-rings, boot kinds (chukka, western, rain), a cork footbed's grain, patent shine. All drawn by #184, with the shoe uppers and laces.
 - [x] Trousers: the taxonomy's bottoms are a signature line each; rise, fit names (leg shapes) and jeans washes are tagged and drawn; what is on the back shows in a small drawing from behind on the item page.
@@ -204,11 +206,14 @@ Original phase 4 and the rating parts of phase 6. The first stop the owner uses 
 - Daily outfit builder (weather, event, mood, build-around-item) on the rule-based outfit engine.
 - Layering rules from the weight class (what can be worn under or over what), not only from category.
 - Mannequin layering, outfit rating with reasons, wear log, laundry state.
+- [x] The outfit as worn is dressed a layer at a time on Today, with one set of motion timings and the look taken from moodbit.app (large light titles, typewriter-style labels, soft tints) (16 November, #240).
+- [ ] Dressing asks the server for each layer on its own: up to four requests for one outfit, each a few milliseconds of drawing. One request that returns every layer in the outfit's frame would be lighter, if it ever shows as slow.
 
 ### Stop D: what's missing, and shopping
 Original phase 5.
 - Gap analysis (counts by code, explanations by the model), shopping by web search, wishlist, "would this work?", computer layout first.
 - Price checks (#112: run by the app itself while it runs).
+- [ ] On a phone, What's missing's larger title (since #240) pushes its "Would this work?" button onto a line of its own: fit both on one line, or decide that is fine.
 
 ### After D, each its own smaller stop
 - Multi-item photos: done in #151 (Claude finds the pieces, the owner checks the boxes; see DECISIONS, "Several items from one photo"). Video sweeps are out (owner's decision). Still to learn: how well Claude boxes a cluttered bed.

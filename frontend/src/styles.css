@@ -751,6 +751,21 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .queue-error { font-size: var(--text-sm); color: var(--danger); }
 .queue-note { font-size: var(--text-sm); color: var(--ink-3); }
 .queue-done { margin-top: 14px; }
+/* a photo that went in: the row shows the item it became and opens it; the file's name stays, small and muted */
+.queue-row.has-item { padding: 0; }
+.queue-item { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; min-height: 68px; padding: 10px 12px; color: inherit; text-decoration: none; }
+.queue-item:hover { background: var(--surface-2); }
+.queue-item:focus-visible { outline-offset: -3px; }
+.queue-thumb img.is-cutout { object-fit: contain; padding: 3px; }
+.queue-title { display: flex; align-items: center; gap: 6px; font-weight: var(--weight-label); overflow-wrap: anywhere; }
+.queue-title > svg { width: 16px; height: 16px; flex: none; }
+/* how far it has got, until it has a name: quieter than a name, and short enough for one line on a phone */
+.queue-title:not(.is-described) { font-size: var(--text-sm); font-weight: var(--weight-body); color: var(--ink-2); }
+.queue-title.is-failed, .queue-title.is-cutout-failed { color: var(--danger); }
+.queue-sub { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--text-sm); color: var(--ink-3); }
+.queue-sub .queue-status { flex: none; }
+.queue-file { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.queue-chevron { width: 18px; height: 18px; flex: none; color: var(--ink-4); }
 
 /* ---------------------------------------------------------------- settings */
 .settings { max-width: var(--content-w); overflow-wrap: break-word; }

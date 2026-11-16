@@ -15,7 +15,7 @@ test('upload a photo: it shows up with its waiting badge', async ({ page }) => {
   await page.getByTestId('library-input').setInputFiles(`${PHOTOS}marl-sweater.jpg`);
 
   const row = page.getByTestId('queue-row').filter({ hasText: 'marl-sweater' });
-  await expect(row.getByTestId('queue-status')).toHaveText('Done', { timeout: 30_000 });
+  await expect(row.getByTestId('queue-status')).toHaveText('Added', { timeout: 30_000 });
 
   // the browser resized it: what arrived is at most 2400px on the long edge, re-encoded as JPEG
   const items = (await (await page.request.get('/api/items')).json()).items;
@@ -65,7 +65,7 @@ test('a dropped connection is retried with the same key and never duplicates', a
   await page.goto('/add');
   await page.getByTestId('library-input').setInputFiles(`${PHOTOS}jeans.jpg`);
   const row = page.getByTestId('queue-row').filter({ hasText: 'jeans' });
-  await expect(row.getByTestId('queue-status')).toHaveText('Done', { timeout: 30_000 });
+  await expect(row.getByTestId('queue-status')).toHaveText('Added', { timeout: 30_000 });
   expect(keys.length).toBe(2);
   expect(keys[0]).toBe(keys[1]);
   const after = (await (await page.request.get('/api/items')).json()).items.length;

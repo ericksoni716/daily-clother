@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError } from '../api';
+import { byId } from '../added';
+import { AddedRow } from '../components/AddedItem';
 import { CameraIcon, CloseIcon, ImagesIcon } from '../components/Icons';
 import { sendShoePhotos } from '../components/ShoePhotos';
 import { Link } from '../router';
 import { preparePhoto, splitPhotos } from '../resize';
 import { MAX_PHOTOS, photoRoom, shoeAddedLine, tooManyPhotos } from '../shoe';
-import type { Item } from '../types';
+import { useCloset } from '../store';
+import type { Item, ItemSummary } from '../types';
 import { sha256 } from '../uploads';
 import '../components/Shoe.css';
 
@@ -16,7 +19,7 @@ interface Shot { key: string; file: File; url: string }
 type Step =
   | { at: 'choose' }
   | { at: 'sending'; sent: number; total: number }
-  | { at: 'done'; itemId: string; added: number; total: number; duplicate: boolean; error?: string };
+  | { at: 'done'; item: ItemSummary; added: number; total: number; duplicate: boolean; error?: string };
 
 const newKey = () => (typeof crypto.randomUUID === 'function' ? crypto.randomUUID()
   : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`);
@@ -41,6 +44,7 @@ function Thumb({ url, alt }: { url: string; alt: string }) {
  * (each can be removed), and "Add this shoe" sends them: the first makes the shoe, the others are added to it.
  * Closet then sorts them into views itself and uses the outer side as the closet picture. */
 export function ShoeAdd() {
+  const { items, upsert } = useCloset();
   const [step, setStep] = useState<Step>({ at: 'choose' });
   const [shots, setShots] = useState<Shot[]>([]);
   const [note, setNote] = useState<string | null>(null);
@@ -170,8 +174,9 @@ export function ShoeAdd() {
       setError((e as ApiError).message);
       return;
     }
+    upsert(item);   // the closet's list follows it from now on: its background removed, then described by Claude
     if (item.duplicate) {
-      finish({ at: 'done', itemId: item.id, added: 0, total, duplicate: true });
+      finish({ at: 'done', item, added: 0, total, duplicate: true });
       return;
     }
     let added = 1;
@@ -185,10 +190,12 @@ export function ShoeAdd() {
     } catch (e) {
       failed = (e as ApiError).message;
     }
-    finish({ at: 'done', itemId: item.id, added, total, duplicate: false, error: failed });
+    finish({ at: 'done', item, added, total, duplicate: false, error: failed });
   }
 
+  const known = useMemo(() => byId([items.archived, items.active]), [items.archived, items.active]);
   if (step.at === 'done') {
+    const shoe = known.get(step.item.id) ?? step.item;   // as the closet last saw it
     const said = step.duplicate
       ? (step.total > 1 ? 'The first photo is already in your closet, so nothing was added.' : 'This photo is already in your closet.')
       : shoeAddedLine(step.added, step.total);
@@ -197,8 +204,11 @@ export function ShoeAdd() {
         <p className={`notice${step.error ? ' notice-warn' : ''}`} role="status" data-testid="shoe-added">
           {said}{step.error ? ` ${step.error} You can add the others on the shoe's page.` : ''}
         </p>
+        <ul className="queue-list" aria-label="The shoe">
+          <AddedRow item={shoe} testId="shoe-added-item" />
+        </ul>
         <div className="row">
-          <Link to={`/item/${encodeURIComponent(step.itemId)}`} className="btn btn-primary">See the shoe</Link>
+          <Link to={`/item/${encodeURIComponent(shoe.id)}`} className="btn btn-primary">See the shoe</Link>
           <button type="button" className="btn" onClick={() => setStep({ at: 'choose' })}>Add another shoe</button>
         </div>
       </div>

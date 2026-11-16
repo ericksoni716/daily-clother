@@ -33,6 +33,9 @@ export interface ItemSummary {
   status: 'active' | 'archived';
   cutout_state: CutoutState;
   tag_state: TagState;
+  /** Why describing it failed, or while it waits, why it can't go yet (the API key's monthly limit, Claude Code's
+   * sign-in), in plain words; null otherwise. */
+  tag_error?: string | null;
   thumb_url: string | null;
   has_illustration: boolean;
   illustration_url?: string | null;

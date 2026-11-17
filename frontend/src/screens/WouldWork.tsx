@@ -1,10 +1,10 @@
 import { useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 import { api, ApiError } from '../api';
-import { Card, ChipGroup, EmptyState, PageHeader } from '../components/ui';
+import { Card, ChipGroup, EmptyState, ItemThumb, PageHeader } from '../components/ui';
 import { CameraIcon, CheckIcon, HangerIcon, ImagesIcon, PlusIcon, WarnIcon } from '../components/Icons';
-import { itemName, Pic, Pieces } from '../components/ItemPic';
+import { itemName, Pieces } from '../components/ItemPic';
 import type { Wish } from '../gaps';
-import { Link, navigate } from '../router';
+import { navigate } from '../router';
 import { useCloset } from '../store';
 import { placeLabel, wornOrder } from '../today';
 import type { ItemSummary } from '../types';
@@ -372,13 +372,10 @@ function Answer({ check, answer, byId }: { check: Check; answer: WouldAnswer; by
                       {wornOrder(ex.pieces).map(({ place, id }) => (
                         <li key={`${place}-${id}`}>
                           {id === CANDIDATE_ID ? (
-                            <span className="gap-thumb wouldwork-this" title={`This piece (${placeLabel(place).toLowerCase()})`}>
-                              <span>This piece</span>
-                            </span>
+                            <ItemThumb className="gap-thumb wouldwork-this" title={`This piece (${placeLabel(place).toLowerCase()})`}
+                              picture={<span>This piece</span>} />
                           ) : (
-                            <Link to={`/missing/item/${encodeURIComponent(id)}`} className="gap-thumb" title={itemName(byId.get(id))}>
-                              <Pic item={byId.get(id)} />
-                            </Link>
+                            <ItemThumb item={byId.get(id)} to={`/missing/item/${encodeURIComponent(id)}`} className="gap-thumb" title={itemName(byId.get(id))} />
                           )}
                         </li>
                       ))}
@@ -396,9 +393,8 @@ function Answer({ check, answer, byId }: { check: Check; answer: WouldAnswer; by
               <ul className="gap-thumbs" aria-label="Pieces you have like it">
                 {answer.repeats.items.map((r) => (
                   <li key={r.id} className="wouldwork-repeat">
-                    <Link to={`/missing/item/${encodeURIComponent(r.id)}`} className="gap-thumb" title={`${itemName(byId.get(r.id))}: ${wornWords(r.worn).toLowerCase()}`}>
-                      <Pic item={byId.get(r.id)} />
-                    </Link>
+                    <ItemThumb item={byId.get(r.id)} to={`/missing/item/${encodeURIComponent(r.id)}`} className="gap-thumb"
+                      title={`${itemName(byId.get(r.id))}: ${wornWords(r.worn).toLowerCase()}`} />
                     <span className={r.hardly_worn ? 'wouldwork-worn is-hardly' : 'wouldwork-worn'}>{wornWords(r.worn)}</span>
                   </li>
                 ))}

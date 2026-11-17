@@ -130,6 +130,18 @@ The review's fixes are merged (#244 to #248). Left for later, in the owner's wor
   - Tray-less running (#247) not yet tried on a real PC or Mac.
   - **A faster plan route** (asked for by the owner). The timing tool is built: `python tools/time_plan_route.py` on the owner's PC times one description four ways, five runs each, through the plan (nothing billed): `today` (the app's call, the photos opened with the Read tool), `inline` (the photos inside the message, `--input-format stream-json`, no tools), `lean` (as inline, loading none of the computer's settings or slash commands) and `ready` (as lean, with Claude Code started ahead and waiting; a fresh one for each call, so one item's photos never reach another item's answer). For each way it splits the time into Claude's (what Claude Code says it waited on Anthropic) and Claude Code's own. A process kept open for many items was ruled out: each message carries the conversation before it (seen: about 2,000 tokens read again on the second message). On a Linux test machine (one demo photo, four runs): today 6.9 s (Claude Code's own part 1.3 s), inline 8.0 s, lean 6.1 s, ready 4.0 s, the steadiest; Claude's own time swings by several seconds between calls. Next: the owner runs it on the PC (Windows may start Claude Code more slowly), then the way that wins is built into the app.
 
+## Which model for which work (suggested 17 November; the owner to confirm)
+
+The owner finds the most capable model (Fable) better at drawing and at judging what matters to a person. Its weekly allowance is small, so it goes where a wrong call costs the most:
+
+- **For the most capable model:**
+  - the bigger screen redesigns above (each starts from phone screenshots and ends with looking at the result);
+  - all drawing work (shoes, garments, the As worn figure) and judging a drawing against its photos;
+  - changes to what the outfit engine, trips, gaps and laundry decide for the owner, and the DECISIONS that go with them;
+  - reviews that look for faults (the review of 17 November was one), and anything where processes, timing or the owner's data could go wrong, such as building the ready Claude Code into the app.
+- **For a cheaper model, with the tests as the guard:** the smaller wording fixes, one date format, the prompt-cache mark on shopping searches, new tests for behaviour already decided, docs, renumbering a migration, redoing screenshots.
+- **Inside the app** (`tagger/models.json`): describing an item and shopping searches use Haiku; sorting photos Sonnet; several pieces in one photo, landmarks and drawing a shoe Opus. Worth one trial on the bench, not a switch: drawing a shoe with the most capable model on the five pairs already drawn (`tools/draw_shoe_photos.py`), judged by the owner side by side. A shoe reads 53,000 to 106,000 tokens, so through the plan it would use a good share of that model's weekly allowance; it belongs to the shoe-drawing work to decide.
+
 ## Waiting on the owner
 - **Garment review**: the owner called the drawings good enough for now (after round 7). Marks and notes in the review gallery are still read when they appear; drawing work is parked until asked for.
 - **Mac 0.1.1**: confirm the background-removal model now downloads on the owner's Mac.
@@ -138,6 +150,7 @@ The review's fixes are merged (#244 to #248). Left for later, in the owner's wor
 - **25–30 photos of the owner's own clothes** with an answer key (`bench/answer_key.template.csv`). Most useful: items that differ from the usual (a polo with one or three buttons, a henley, corduroy, fleece or heavy wool beside light cotton, a sweatshirt with a V-insert). The bench runs them through the Claude plan by default; an API key is optional.
 - Three photos for the untested hard cases: something striped, something floral or patterned, something camouflage.
 - **Shoes drawn from understanding**: five photos each (outer side, above, front, back, inner side) of three to five more pairs, of kinds not tried yet (not a runner, army trainer, cap-toe dress shoe, boat shoe or elastic-sided boot), for the check on unseen pairs. They stay out of the repository.
+- **Time the plan route on the PC** (when the owner is home; about 3 minutes, nothing billed): `python tools/time_plan_route.py` in the Closet folder, and paste the table it prints. It decides whether a Claude Code started ahead of each call is built into the app (see "A faster plan route" above).
 - Whether to drop the Google Drive hand-off for price checks now that the app runs them itself (#112, through the plan route while the PC is on; see DECISIONS, "Shopping for a wish"). Recommended: drop it.
 - Whether multi-item photos and video sweeps stay after the outfit builder (as planned below) or move into stop B.
 

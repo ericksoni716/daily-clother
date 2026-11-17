@@ -108,6 +108,8 @@
 /* "I'm wearing this", straight under the pieces */
 .today-wear { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .today-wear-button { font-size: var(--text-md); }
+.today-next { margin-inline: auto; gap: 4px; }
+.today-next svg { width: 16px; height: 16px; }
 .today-worn {
   flex: 1; min-width: 12rem; display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 12px; min-height: var(--tap);
   border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent); font-weight: var(--weight-heading);

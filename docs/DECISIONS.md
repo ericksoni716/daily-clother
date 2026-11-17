@@ -204,7 +204,7 @@ The engine now reads its places, layering, temperature bands, rain, formality, c
 | A whole block missing from the file is read from the old hand-written rules (written in the file's own words in `FALLBACK_OUTFIT`); an empty block means no rule | Deleting a block by mistake should not leave the engine with no rules at all. |
 | The band is chosen by the day's high; the warmth target is still the low plus 30% of the way to the high | The file's bands are named by `high_min`. Within a band the warmth points still pick the pieces. |
 | A layer the band says "must" be worn is required only when some outfit in the closet can have it | A small closet still gets an answer, with a warning that the layer is missing. |
-| In rain, "outer must be water-resistant" restricts the outer layer to ones whose name or material sheds water only when the closet has one; otherwise any outer is offered with a warning | Otherwise a closet without a raincoat would get nothing on a cold rainy day. |
+| In rain, "outer must be water-resistant" restricts the outer layer to ones whose name or material sheds water only when the closet has one; otherwise any outer is offered with a warning. A rain-proof layer is required only where the day's band requires an outer layer anyway (from a 16°C high the bands leave it optional): the owner, 17 November, "a rain jacket is definitely not required on warm days". Without one those outfits say to take an umbrella | Otherwise a closet without a raincoat would get nothing on a cold rainy day. |
 | Never-break rules (the file says "never" or "only"): two patterns of the same type side by side, athletic pieces with dressier ones, and the layering order are excluded even from the relaxed pass; ratings never override them | The issue asks hard rules to stay hard. |
 | "One dressier piece is fine" applies to a top piece (tee, shirt, polo, sweater, hoodie, jacket, coat) only | The file's example is a blazer; dressy trousers with a tee are not what it means. |
 | Every piece, the outer layer too, sits within the file's reach of the occasion; the old two-step outer reach is gone | The file says "every piece within one level". A smart casual coat therefore no longer covers formal days. |
@@ -524,6 +524,13 @@ Facts checked in Anthropic's documentation on 2026-11-12:
 - Signing in once with `claude` persists (stored in `%USERPROFILE%\.claude\.credentials.json`); later `claude -p` calls from another program use it. `claude auth status` exits 0 when signed in.
 - The support pages say `claude -p` under a plan login draws on the plan's limits. The legal page restricts third-party developers offering Claude login to their users, and says this does not prevent an end user signing in to the unmodified Claude Code program with their own plan. A personal program calling that program on the owner's own machine appears to be inside those terms, but the docs do not say so in as many words, and Anthropic reserves the right to change enforcement.
 - When a limit is hit the message reads "You've hit your session limit · resets …" (or weekly). The exit code for that case is not documented; the app matches on the message.
+
+### Prompt caching on the API key (17 November)
+
+| Decision | Why |
+|---|---|
+| Describing an item marks the form (the `describe_item` tool, sent first) for Anthropic's 5-minute prompt cache. A shoe's drawing, its checks and corrections mark the photos. One-off questions (sorting a shoe's photos, landmarks, the pieces in a photo, corrections by sentence, shopping) mark nothing | A write to the cache costs 1.25x input and a read 0.1x (0.05x on Sonnet 5.5 and Opus 5.5). A bulk import describes items back to back, and a drawing's checks resend its photos, so these read back what was written. A single question would only pay the write. |
+| Spending counts cached tokens at their own prices (`cache_write`, `cache_read` in `tagger/models.json`). The estimate before a cached call prices its whole prompt as a cache write, the dearest way it can go | The API's `input_tokens` leaves the cached part out, so the monthly limit would otherwise undercount. An estimate must never be below what the call can cost. |
 
 ## Illustration
 

@@ -690,7 +690,8 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
           <article key={outfitIds(o.pieces).join(',')} className="today-slide" aria-roledescription="slide"
             aria-label={`Outfit ${i + 1} of ${count}`} aria-hidden={i !== current} inert={i !== current}
             data-testid={i === current ? 'current-outfit' : undefined}>
-            <OutfitCard outfit={o} view={view} {...rest} />
+            <OutfitCard outfit={o} view={view} {...rest}
+              next={count > 1 ? { label: i < count - 1 ? 'See another idea' : 'Back to the best one', go: () => go(i < count - 1 ? i + 1 : 0) } : undefined} />
           </article>
         ))}
       </div>
@@ -716,8 +717,10 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
   );
 }
 
-function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & {
+function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, next }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & {
   outfit: Outfit; view: TodayView;
+  /** The next outfit, one tap from the main button: the arrows sit below the reasons, far down a phone's screen. */
+  next?: { label: string; go(): void };
 }) {
   const ids = outfitIds(outfit.pieces);
   const isWorn = !!worn && sameOutfit(worn.ids, ids);
@@ -771,6 +774,7 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo }:
             {worn ? 'Wear this instead' : "I'm wearing this"}
           </button>
         )}
+        {next && <button className="btn btn-link today-next" onClick={next.go}>{next.label} <ChevronIcon /></button>}
       </div>
 
       <div className="today-card-why">

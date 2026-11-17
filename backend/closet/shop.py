@@ -170,15 +170,17 @@ def clean_find(raw: object) -> dict | None:
 
 
 # ------------------------------------------------------------------ "Would this work?" for each find
-def judge(rows: list[dict], worn: list[dict], pieces: list[dict]) -> list[dict]:
+def judge(rows: list[dict], worn: list[dict], pieces: list[dict], weighed: dict | None = None) -> list[dict]:
     """Each piece checked against the closet: {verdict, verdict_words, reasons, checked_at}. The closet's gaps are
-    worked out once for all of them."""
+    worked out once for all of them. `weighed` is the gap list weighed by how the owner lives, as What's missing
+    shows it (None until the owner has said): the finds are then judged exactly as "Would this work?" judges a piece."""
     if not pieces:
         return []
-    before = gaps.find_gaps(rows, worn, {"max_gaps": wouldwork.ALL_GAPS})
+    before = weighed if weighed is not None else gaps.find_gaps(rows, worn, {"max_gaps": wouldwork.ALL_GAPS})
+    context = (weighed or {}).get("context") or {}
     out = []
     for p in pieces:
-        a = wouldwork.check(rows, worn, p, before)
+        a = wouldwork.check(rows, worn, p, before, context.get("life"), context.get("climate"))
         out.append({"verdict": a["verdict"], "verdict_words": a["verdict_words"], "reasons": a["reasons"],
                     "checked_at": db.now()})
     return out
@@ -336,6 +338,8 @@ class Shopper:
 
     def __init__(self, cfg: Config, state: State, closet: Closet, routes: Routes, asker: Asker):
         self.cfg, self.state, self.closet, self.routes, self.asker = cfg, state, closet, routes, asker
+        # the gap list weighed by how the owner lives, as "Would this work?" is given it (set by the app); None: plain
+        self.weighed: Callable[[str, tuple[list[dict], list[dict]]], dict | None] = lambda profile, inputs: None
         self._runs: dict[tuple[str, str], dict] = {}   # (profile, wish id) -> the last or current search or check
         self._lock = threading.Lock()
 
@@ -458,7 +462,7 @@ class Shopper:
             self._end(profile, wish_id, "done", NOTHING if not raw else NOT_UNDERSTOOD, 0)
             return 0
         rows, worn = self.closet(profile)
-        verdicts = judge(rows, worn, [f["piece"] for f in found])
+        verdicts = judge(rows, worn, [f["piece"] for f in found], self.weighed(profile, (rows, worn)))
         conn = db.connect(self.cfg.db_path(profile))
         try:
             wishlist.get_wish(conn, wish_id)   # still on the list (it may have been removed meanwhile)
@@ -501,7 +505,7 @@ class Shopper:
             kept = list_finds(conn, wish_id)
         finally:
             conn.close()
-        verdicts = judge(rows, worn, [f["piece"] for f in kept])
+        verdicts = judge(rows, worn, [f["piece"] for f in kept], self.weighed(profile, (rows, worn)))
         conn = db.connect(self.cfg.db_path(profile))
         try:
             n = save_prices(conn, wish_id, finds, getattr(answer, "prices", []) or [])

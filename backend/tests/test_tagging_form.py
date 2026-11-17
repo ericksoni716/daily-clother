@@ -102,6 +102,26 @@ def test_the_plan_route_out_of_reach_says_so(monkeypatch):
     assert not isinstance(e.value, Unreachable)
 
 
+def test_a_good_plan_answer_that_mentions_a_limit_is_kept(monkeypatch):
+    # words printed on a garment ("SPEED LIMIT REACHED") can come back in a good answer; only a failed call is the plan's limit
+    import json as _json
+    from types import SimpleNamespace
+
+    from closet.tagger import claude_cli
+    said = {"is_error": False, "result": "A grey tee printed SPEED LIMIT REACHED.", "structured_output": ANSWER.model_dump(mode="json"),
+            "usage": {"input_tokens": 10, "output_tokens": 5}}
+    monkeypatch.setattr(claude_cli.subprocess, "run",
+                        lambda *a, **k: SimpleNamespace(returncode=0, stdout=_json.dumps(said), stderr=""))
+    result = claude_cli.tag_item_cli("claude-haiku-5-5", [Image.new("RGB", (40, 40))], exe="claude")
+    assert result.route == "plan" and result.tags.category == ANSWER.category
+    # a failed call that says so is still the limit
+    limit = {"is_error": True, "result": "You've hit your usage limit."}
+    monkeypatch.setattr(claude_cli.subprocess, "run",
+                        lambda *a, **k: SimpleNamespace(returncode=1, stdout=_json.dumps(limit), stderr=""))
+    with pytest.raises(tagging.RouteUnavailable):
+        claude_cli.tag_item_cli("claude-haiku-5-5", [Image.new("RGB", (40, 40))], exe="claude")
+
+
 def stray(**fields) -> dict:
     data = ANSWER.model_dump(mode="json")
     data.update(fields)

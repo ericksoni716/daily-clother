@@ -15,7 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from closet import app as app_module
-from closet import db, demo, shop, spend
+from closet import db, demo, gaps, shop, spend
 from closet.tagger import correcting, shopping
 from closet.tagger.shopping import Found, PriceAnswer, PriceSeen, ShopAnswer
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError
@@ -634,3 +634,29 @@ def test_the_plan_route_may_only_search_the_web(monkeypatch):
     cmd = seen["cmd"]
     assert cmd[cmd.index("--tools") + 1] == "WebSearch,WebFetch" and cmd[cmd.index("--allowedTools") + 1] == "WebSearch,WebFetch"
     assert "https://shop.example/coat" in seen["input"] and not any("shop.example" in part for part in cmd)
+
+
+def test_finds_are_judged_on_the_same_weighed_list_as_would_this_work():
+    # a find for a wish and the same piece described on "Would this work?" must get the same answer once the owner
+    # has said how they live (a find used to be judged on the plain list, naming gaps for days they never have)
+    from closet import life, wouldwork
+
+    from .test_wouldwork import demo as demo_closet
+    rows, worn = demo_closet()
+    answers, home = life.example()
+    weighed = life.analyse(rows, worn, answers, home, wouldwork.ALL_GAPS)
+    weighed["context"] = {"life": answers, "climate": home}
+    pieces = [wouldwork.parse_piece({"category": "dress_shoes", "color": "black", "formality": "business"}),
+              wouldwork.parse_piece({"category": "coat", "color": "tan", "formality": "smart_casual", "rain_proof": True})]
+    found = shop.judge(rows, worn, pieces, weighed)
+    for p, f in zip(pieces, found, strict=True):
+        check = wouldwork.check(rows, worn, p, weighed, answers, home)
+        assert (f["verdict"], f["reasons"]) == (check["verdict"], check["reasons"])
+    assert [f["verdict"] for f in shop.judge(rows, worn, pieces)] == [
+        wouldwork.check(rows, worn, p, gaps.find_gaps(rows, worn, {"max_gaps": wouldwork.ALL_GAPS}))["verdict"] for p in pieces]
+
+
+def test_the_app_gives_the_shopper_the_weighed_list(client, services, cfg):
+    assert services.shopper.weighed("main", app_module.closet_inputs(cfg, "main")) is None   # not said how they live yet
+    client.post("/api/profile", json={"profile": "demo"})
+    assert "context" in services.shopper.weighed("demo", app_module.closet_inputs(cfg, "demo"))

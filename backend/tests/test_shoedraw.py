@@ -305,6 +305,14 @@ def test_a_drawing_interrupted_by_a_quit_starts_again(made):
     assert m.sv.draws.drain() == 1 and drawn_of(m, item)["state"] == "done"
 
 
+def test_a_drawing_cut_short_at_every_start_is_not_paid_for_for_ever(made):
+    m = made
+    item = sorted_shoe(m)
+    sql(m.sv.cfg, "UPDATE items SET drawn_state = 'drawing', drawn_attempts = ? WHERE id = ?", (shoedraw.MAX_ATTEMPTS, item["id"]))
+    assert m.sv.draws.drain() == 0 and m.drawer.calls == []
+    assert drawn_of(m, item)["state"] == "failed" and drawn_of(m, item)["message"] == shoedraw.FAILED
+
+
 def test_a_shoe_deleted_while_it_is_drawn_is_left_alone(made):
     m = made
     item = sorted_shoe(m)

@@ -239,7 +239,8 @@ def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | Non
             except ValueError:
                 out = {}
             said = f"{out.get('result') or ''} {proc.stderr or ''} {proc.stdout if not out else ''}".lower()
-            if any(w in said for w in claude_cli._LIMIT_WORDS):
+            failed = proc.returncode != 0 or bool(out.get("is_error")) or out.get("structured_output") is None
+            if failed and any(w in said for w in claude_cli._LIMIT_WORDS):   # a good answer may use the words
                 raise RouteUnavailable("the Claude plan's usage limit has been reached")
             problem = claude_cli.sign_in_problem(said) if (proc.returncode != 0 or out.get("is_error")) else None
             if problem:

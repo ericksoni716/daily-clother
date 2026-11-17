@@ -568,8 +568,10 @@ def create_app(sv: Services) -> FastAPI:
                           name: str | None = Form(None), photo_sha256: str | None = Form(None), shoe: bool = Form(False),
                           conn=Depends(conn_dep)):
         data = await photo.read(images.MAX_UPLOAD_BYTES + 1)
-        item, created = items.create_from_photo(conn, images_dir(), data, client_key, name, photo_sha256 or None,
-                                                shoe=shoe, demo=state.get("profile") == "demo")
+        # decoding, resizing and encoding a photo takes a fifth of a second or more: on a worker thread, so the other
+        # requests of an import (and the closet's polling) are not held up behind it
+        item, created = await run_in_threadpool(items.create_from_photo, conn, images_dir(), data, client_key, name,
+                                                photo_sha256 or None, shoe=shoe, demo=state.get("profile") == "demo")
         response.status_code = 201 if created else 200
         sv.worker.wake()
         return item
@@ -675,8 +677,8 @@ def create_app(sv: Services) -> FastAPI:
     async def replace_photo(item_id: str, photo: UploadFile = File(...), photo_sha256: str | None = Form(None),
                             conn=Depends(conn_dep)):
         data = await photo.read(images.MAX_UPLOAD_BYTES + 1)
-        item = shoes.replace_photo(conn, images_dir(), item_id, data, photo_sha256 or None,
-                                   demo=state.get("profile") == "demo")
+        item = await run_in_threadpool(shoes.replace_photo, conn, images_dir(), item_id, data, photo_sha256 or None,
+                                       demo=state.get("profile") == "demo")
         views_soon()
         return item
 
@@ -684,8 +686,8 @@ def create_app(sv: Services) -> FastAPI:
     async def add_photo(item_id: str, photo: UploadFile = File(...), view: str | None = Form(None),
                         photo_sha256: str | None = Form(None), conn=Depends(conn_dep)):
         data = await photo.read(images.MAX_UPLOAD_BYTES + 1)
-        item = shoes.add_photo(conn, images_dir(), item_id, data, view or None, photo_sha256 or None,
-                               demo=state.get("profile") == "demo")
+        item = await run_in_threadpool(shoes.add_photo, conn, images_dir(), item_id, data, view or None,
+                                       photo_sha256 or None, demo=state.get("profile") == "demo")
         views_soon()
         return item
 
@@ -1062,6 +1064,9 @@ def create_app(sv: Services) -> FastAPI:
                               sv.worker.cutter, sv.worker.is_ready)
     app.include_router(wouldjobs.router(checks, protected))
     assert sv.shopper, "build_services wires it"
+    # shop finds are judged on the same list as "Would this work?" (closet_for_check)
+    sv.shopper.weighed = lambda profile, inputs: (
+        None if profile != "demo" and state.get("life") is None else gap_analysis(profile, inputs))
     app.include_router(shop.router(sv.shopper, state, conn_dep, protected))
     app.include_router(sources.router(conn_dep, images_dir, state, protected,
                                       sv.finder.wake if sv.finder else (lambda: None), sv.worker.wake,

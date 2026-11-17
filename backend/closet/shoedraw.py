@@ -298,7 +298,13 @@ def note_waiting(conn, why: str | None) -> None:
 
 
 def recover(conn) -> None:
-    """A drawing or a correction interrupted by a quit starts again (a correction keeps its note)."""
+    """A drawing or a correction interrupted by a quit starts again (a correction keeps its note), unless it has
+    used its tries already: a drawing takes minutes, so one cut short at every start would otherwise be paid for
+    again at every start, for ever."""
+    conn.execute("UPDATE items SET drawn_state = 'failed', drawn_error = ? WHERE drawn_state = 'drawing' AND drawn_attempts >= ?",
+                 (FAILED, MAX_ATTEMPTS))
+    conn.execute("UPDATE items SET drawn_state = CASE WHEN drawn IS NOT NULL THEN 'done' END, drawn_error = ?, drawn_note = NULL "
+                 "WHERE drawn_state = 'correcting' AND drawn_attempts >= ?", (CORRECT_FAILED, MAX_ATTEMPTS))
     conn.execute("UPDATE items SET drawn_state = 'waiting' WHERE drawn_state IN ('drawing', 'correcting')")
 
 

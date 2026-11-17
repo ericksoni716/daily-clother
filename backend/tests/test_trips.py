@@ -130,6 +130,17 @@ def test_a_pinned_piece_in_the_laundry_is_not_packed_and_the_plan_says_so():
     assert any("in the laundry" in n for n in result["notes"])
 
 
+def test_a_piece_in_the_laundry_today_is_packed_for_a_trip_far_enough_off():
+    # what is in the wash today is clean again by a trip three or more days away; only a trip about to start goes without it
+    items = basic_closet()
+    items[0]["laundry"] = "laundry"
+    soon = trips.plan(items, days(2), {"pin": ["tee1"]}, today=FIRST - timedelta(days=1))
+    assert "tee1" not in {p["id"] for p in soon["packed"]}
+    later = trips.plan(items, days(2), {"pin": ["tee1"]}, today=FIRST - timedelta(days=trips.CLEAN_BY_DAYS))
+    assert "tee1" in {p["id"] for p in later["packed"]}
+    assert not any("in the laundry" in n for n in later["notes"])
+
+
 def test_a_day_that_cannot_be_covered_says_why():
     items = [i for i in basic_closet() if i["category"] not in ("sneakers", "dress_shoes")]
     result = trips.plan(items, days(2))

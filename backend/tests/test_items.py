@@ -1,4 +1,5 @@
 import io
+from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -164,6 +165,44 @@ def test_database_is_migrated_and_a_newer_one_is_refused(cfg, tmp_path):
         db.migrate(path, tmp_path / "bk")
 
 
+def test_a_photo_damaged_in_its_header_is_refused_clearly(client):
+    import random
+
+    buf = io.BytesIO()
+    Image.new("RGB", (20, 20), (1, 2, 3)).save(buf, "PNG")
+    data = bytearray(buf.getvalue())
+    random.seed(1)
+    for _ in range(745):   # the 745th damaged copy is one Pillow refuses with a ValueError ("Truncated IHDR chunk")
+        data = bytearray(buf.getvalue())
+        for _ in range(3):
+            data[random.randrange(8, 40)] = random.randrange(256)
+    r = client.post("/api/items", files={"photo": ("x.png", bytes(data), "image/png")}, data={"client_key": "damaged"})
+    assert r.status_code == 400 and "damaged" in r.json()["detail"]
+
+
+def test_the_real_and_demo_closets_keep_their_own_copy_from_before_a_migration(tmp_path, monkeypatch):
+    # both are migrated within the same second when the program starts after an upgrade
+    main, demo = tmp_path / "closet.db", tmp_path / "demo" / "closet.db"
+    for path in (main, demo):
+        db.migrate(path, tmp_path / "bk")
+    conn = db.connect(main)
+    conn.execute("CREATE TABLE marker (x)")
+    conn.commit()
+    conn.close()
+    n = db.latest_version()
+    extra = tmp_path / f"{n + 1:04d}_more.sql"
+    extra.write_text("CREATE TABLE more (id INTEGER PRIMARY KEY);")
+    real = db.migration_files()
+    monkeypatch.setattr(db, "migration_files", lambda: real + [(n + 1, extra)])
+    monkeypatch.setattr(db.time, "strftime", lambda fmt: "20261117-090000")
+    a = db.migrate(main, tmp_path / "bk", "main")["backup"]
+    b = db.migrate(demo, tmp_path / "bk", "demo")["backup"]
+    assert a != b and Path(a).exists() and Path(b).exists()
+    kept = db.connect(Path(a))
+    assert kept.execute("SELECT name FROM sqlite_master WHERE name = 'marker'").fetchone()   # still the real closet's
+    kept.close()
+
+
 def test_a_backup_copy_is_taken_before_an_existing_database_is_migrated(tmp_path, monkeypatch):
     path = tmp_path / "closet.db"
     db.migrate(path, tmp_path / "bk")
@@ -175,7 +214,7 @@ def test_a_backup_copy_is_taken_before_an_existing_database_is_migrated(tmp_path
     more.write_text("CREATE TABLE more (id INTEGER PRIMARY KEY);")
     monkeypatch.setattr(db, "migration_files", lambda: real + [(n + 1, more)])
     result = db.migrate(path, tmp_path / "bk")
-    assert result["applied"] == [n + 1] and result["backup"] and (tmp_path / "bk").glob(f"pre-migration-v{n}-*.sqlite")
+    assert result["applied"] == [n + 1] and result["backup"] and list((tmp_path / "bk").glob(f"pre-migration-main-v{n}-*.sqlite"))
     from pathlib import Path
     assert Path(result["backup"]).exists()
     # a failing migration leaves the database at its old version

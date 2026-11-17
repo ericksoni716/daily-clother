@@ -102,7 +102,7 @@ The review's fixes are merged (#244 to #248). Left for later, in the owner's wor
   - They come back clean by themselves on the owner's laundry rhythm (for example "every Sunday", or "three days after"). **Laundry's done** marks everything clean in one tap.
   - Today and Trips trust that. The owner only corrects the exceptions: a shirt worn twice, a sweater washed early. **Put these in the laundry** on Worn and **All clean** on the closet (#246) stay as the manual way.
   - Needs a migration, and a Settings group (how often you do laundry).
-- [x] **One Add for clothes and shoes, sorted by Closet** (#250, approved by the owner 17 November). Done as below; shoes are grouped within each set of ten photos, and the shoe screen's own camera is gone (DECISIONS, "One Add for clothes and shoes"). The owner: "clothes/shoes import could all be combined and classified to the category it is". Today Add has three switches: one item per photo, several in one photo, a shoe.
+- [x] **One Add for clothes and shoes, sorted by Closet** (#250, approved by the owner 17 November). Done as below; shoes are grouped within each set of ten photos; Take photos opens the camera on Add itself, and each shoe gets a checklist of its three photos (outer side, front, inner side), with a photo showing the pair held back (DECISIONS, "One Add for clothes and shoes"). The owner: "clothes/shoes import could all be combined and classified to the category it is". Today Add has three switches: one item per photo, several in one photo, a shoe.
   - Instead, drop or take any mix of photos. Claude says for each photo whether it shows one piece, several pieces, or a shoe (and which view).
   - Photos of the same shoe are grouped into one shoe, as "A shoe" does now. Several pieces go through the boxes step, as now. The switch goes.
   - Open: what to ask the owner when Claude is unsure whether two shoe photos are the same pair, and the cost of the extra sorting call on large imports.
@@ -128,6 +128,7 @@ The review's fixes are merged (#244 to #248). Left for later, in the owner's wor
   - The words Claude Code prints when it cannot reach Anthropic (#244) were never seen from a real offline Claude Code. Check them once on the owner's computer.
   - Shopping searches are not marked for the prompt cache.
   - Tray-less running (#247) not yet tried on a real PC or Mac.
+  - **A faster plan route** (asked for by the owner, after the shoe-drawing work lands). A small timing tool run on the owner's PC that times the same call several ways and says how much of each call is Claude Code starting: as today; with the photos sent inside the message (`--input-format stream-json`) instead of read through the file tool; without loading the owner's settings and slash commands (`--setting-sources`, `--disable-slash-commands`); and through one Claude Code kept open by the server, cleared between items so one photo cannot colour the next answer. Build the kept-open version only if starting turns out to be a large share of the 10 to 14 seconds. `--bare` is not an option: it needs an API key, never the plan.
 
 ## Waiting on the owner
 - **Garment review**: the owner called the drawings good enough for now (after round 7). Marks and notes in the review gallery are still read when they appear; drawing work is parked until asked for.

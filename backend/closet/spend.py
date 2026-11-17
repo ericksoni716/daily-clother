@@ -28,7 +28,7 @@ from .tagger.garments import MODEL as GARMENTS_MODEL
 from .tagger.shoedrawing import MAX_TOKENS as DRAW_MAX_TOKENS
 from .tagger.shoedrawing import MODEL as DRAW_MODEL
 from .tagger.shopping import MAX_TOKENS as SHOP_MAX_TOKENS
-from .tagger.tagging import CONFIG, MAX_TOKENS, CapReached, RouteUnavailable
+from .tagger.tagging import CACHE_WRITE, CONFIG, MAX_TOKENS, CapReached, RouteUnavailable
 from .tagger.views import MODEL as VIEWS_MODEL
 
 PURPOSE_TAG = "tag_item"
@@ -104,9 +104,14 @@ def price(model: str) -> dict:
     return table.get(model) or max(table.values(), key=lambda p: p["output"])
 
 
-def cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
+def cost_usd(model: str, input_tokens: int, output_tokens: int, cache_write: int = 0, cache_read: int = 0) -> float:
+    """What the API key charges: `input_tokens` read in full, `output_tokens` written, and, for a request that uses the
+    prompt cache, `cache_write` tokens written to it (CACHE_WRITE times input) and `cache_read` read back from it (the
+    model's `cache_read` price, else a tenth of input)."""
     p = price(model)
-    return (input_tokens * p["input"] + output_tokens * p["output"]) / 1_000_000
+    read = p.get("cache_read", p["input"] / 10)
+    return (input_tokens * p["input"] + output_tokens * p["output"] + cache_write * p["input"] * CACHE_WRITE
+            + cache_read * read) / 1_000_000
 
 
 def estimate_call(photos: int, model: str = TAGGING_MODEL) -> float:
@@ -155,13 +160,17 @@ def estimate_shop(searches: int, model: str = TAGGING_MODEL) -> float:
 
 
 def record(conn, route: str, model: str, input_tokens: int, output_tokens: int, purpose: str = PURPOSE_TAG,
-           searches: int = 0) -> float:
+           searches: int = 0, cache_write: int = 0, cache_read: int = 0) -> float:
     """Write down one call; returns what it cost (nothing on the plan route). `searches`: the web searches the API
-    made for it, each billed on top of the tokens."""
-    cost = cost_usd(model, input_tokens, output_tokens) + SEARCH_USD * max(0, searches) if route == "api" else 0.0
+    made for it, each billed on top of the tokens. `cache_write`, `cache_read`: input written to and read back from
+    the prompt cache, on top of `input_tokens` (read in full), each at its own price; the row counts all three as
+    input."""
+    cost = (cost_usd(model, input_tokens, output_tokens, cache_write, cache_read) + SEARCH_USD * max(0, searches)
+            if route == "api" else 0.0)
+    read_in = int(input_tokens or 0) + int(cache_write or 0) + int(cache_read or 0)
     conn.execute("INSERT INTO claude_calls (at, month, purpose, route, model, input_tokens, output_tokens, cost_usd, "
                  "prices_checked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                 (db.now(), this_month(), purpose, route, model, int(input_tokens or 0), int(output_tokens or 0), cost,
+                 (db.now(), this_month(), purpose, route, model, read_in, int(output_tokens or 0), cost,
                   PRICES_CHECKED))
     return cost
 
@@ -260,11 +269,12 @@ class Meter:
                 raise CapReached("this month's spending limit for the API key has been reached")
             _held[me] = cost
 
-    def record(self, route: str, model: str, input_tokens: int, output_tokens: int, searches: int = 0) -> None:
+    def record(self, route: str, model: str, input_tokens: int, output_tokens: int, searches: int = 0,
+               cache_write: int = 0, cache_read: int = 0) -> None:
         with _lock:
             conn = self._connect()
             try:
-                record(conn, route, model, input_tokens, output_tokens, self.purpose, searches)
+                record(conn, route, model, input_tokens, output_tokens, self.purpose, searches, cache_write, cache_read)
             finally:
                 conn.close()
                 if route == "api":

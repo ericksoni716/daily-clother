@@ -235,6 +235,7 @@ class FakeApi:
 
     def __init__(self, input_tokens: int = 2000, output_tokens: int = 400):
         self.input_tokens, self.output_tokens = input_tokens, output_tokens
+        self.cache_write = self.cache_read = 0   # what each streamed answer says went to and came from the cache
         self.error: Exception | None = None
         self.calls = 0
         self.requests: list[dict] = []
@@ -286,7 +287,9 @@ class FakeApi:
             answer = self.checked if "good" in props else self.drawing
         message = SimpleNamespace(content=[SimpleNamespace(type="text", text=json.dumps(answer.model_dump()))],
                                   stop_reason="end_turn",
-                                  usage=SimpleNamespace(input_tokens=self.input_tokens, output_tokens=self.output_tokens))
+                                  usage=SimpleNamespace(input_tokens=self.input_tokens, output_tokens=self.output_tokens,
+                                                        cache_creation_input_tokens=self.cache_write,
+                                                        cache_read_input_tokens=self.cache_read))
 
         class Stream:
             def __enter__(self):

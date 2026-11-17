@@ -61,7 +61,9 @@ class CorrectionResult:
     model: str
     input_tokens: int = 0
     output_tokens: int = 0
-    cache_read_tokens: int = 0   # of input_tokens, those Claude Code read again from its cache (the plan route)
+    cache_read_tokens: int = 0   # of input_tokens, those read back from a cache: Claude Code's own (the plan route),
+                                 # or the prompt cache (the API route, `cache_images`)
+    cache_write_tokens: int = 0  # of input_tokens, those written to the prompt cache (the API route)
 
 
 def prompt(sentence: str, description: dict, allowed: dict[str, list], with_photo: bool) -> str:
@@ -120,14 +122,17 @@ def _parsed(resp, answer_model):
 
 def correct_api(client, model: str, text: str, images: list[Image.Image], meter: Meter | None = None,
                 answer_model=CorrectionAnswer, names: list[str] | None = None, max_tokens: int = MAX_TOKENS,
-                effort: str | None = None) -> CorrectionResult:
+                effort: str | None = None, cache_images: int = 0) -> CorrectionResult:
     """Through the API key. With a `meter`, every request is checked against it before it is sent and counted
     once it comes back, as for tagging. `answer_model` is the shape of the answer (another short question to
     Claude, such as the landmarks, uses the same way in). `names`: what to call each image, put just before it (a
     name ending in .png is sent as PNG). `max_tokens` above what the SDK allows without streaming
     (`NONSTREAMING_MAX_TOKENS`) is streamed: the answer's schema goes in `output_config.format`, as `messages.stream`
     does with `output_format` itself, and the whole text is read against it once it has come, so an answer cut short
-    is still counted at what it cost. `effort` overrides the model's effort in `models.json`."""
+    is still counted at what it cost. `effort` overrides the model's effort in `models.json`. `cache_images`: the
+    first images are the same in a run of requests (a shoe's photos, in every call that draws it), so the request is
+    cached up to the last of them, and the next request reads them back from the cache at a tenth of the price or
+    less; what was written to and read from the cache is counted at its own price."""
     import anthropic
     from anthropic.lib._parse._transform import transform_schema
 
@@ -137,10 +142,12 @@ def correct_api(client, model: str, text: str, images: list[Image.Image], meter:
         if names:
             content.append({"type": "text", "text": f"{names[i]}:"})
         content.append(_png_block(im) if names and names[i].endswith(".png") else encode_image(im))
+        if i == cache_images - 1:   # the end of what is the same in every request of the run
+            content[-1]["cache_control"] = {"type": "ephemeral"}
     content.append({"type": "text", "text": text})
     effort = effort or CONFIG["models"][model].get("effort", "low")
     streamed = max_tokens > NONSTREAMING_MAX_TOKENS
-    tokens_in = tokens_out = 0
+    tokens_in = tokens_out = written = read_back = 0
     last: Exception | None = None
     for _ in range(MAX_ATTEMPTS):
         if meter:
@@ -167,17 +174,21 @@ def correct_api(client, model: str, text: str, images: list[Image.Image], meter:
                 reason = "key" if e.status_code in (401, 403) else "credit"
                 raise ApiRefused(f"the API key cannot be used right now ({e.status_code})", reason) from e
             raise TaggingError(f"{model} rejected the request ({e.status_code})") from e
-        tokens_in += resp.usage.input_tokens
+        cache_write = getattr(resp.usage, "cache_creation_input_tokens", 0) or 0
+        cache_read = getattr(resp.usage, "cache_read_input_tokens", 0) or 0
+        tokens_in += resp.usage.input_tokens + cache_write + cache_read
         tokens_out += resp.usage.output_tokens
+        written, read_back = written + cache_write, read_back + cache_read
         if meter:
-            meter.record("api", model, resp.usage.input_tokens, resp.usage.output_tokens)
+            cached = {"cache_write": cache_write, "cache_read": cache_read} if cache_write or cache_read else {}
+            meter.record("api", model, resp.usage.input_tokens, resp.usage.output_tokens, **cached)
         if resp.stop_reason == "refusal":
             raise TaggingError(f"{model} declined to answer")
         parsed = _parsed(resp, answer_model) if streamed else resp.parsed_output
         if parsed is None or (streamed and resp.stop_reason == "max_tokens"):
             last = TaggingError(f"{model} returned an incomplete answer")
             continue
-        return CorrectionResult(parsed, "api", model, tokens_in, tokens_out)
+        return CorrectionResult(parsed, "api", model, tokens_in, tokens_out, read_back, written)
     raise TaggingError(f"{model} gave no valid answer: {type(last).__name__ if last else 'none'}")
 
 
@@ -271,11 +282,13 @@ def correct(sentence: str, description: dict, allowed: dict[str, list], images: 
 def ask(text: str, images: list[Image.Image], routes: tuple[str, ...], client=None, exe: str | None = None,
         meter: Meter | None = None, answer_model=CorrectionAnswer, system: str = SYSTEM,
         model: str = MODEL, names: list[str] | None = None, max_tokens: int | None = None,
-        timeout: float | None = None, effort: str | None = None) -> CorrectionResult:
+        timeout: float | None = None, effort: str | None = None, cache_images: int = 0) -> CorrectionResult:
     """A question to Claude with an answer of the given shape, through `routes` in order, as `correct`. `names`: a
     file name for each image, which the prompt can refer to (else `item.jpg`, or `photo-1.jpg`, ... on the plan route);
     `max_tokens`: the longest answer the API route allows (streamed when the SDK requires it); `timeout`: how long a
-    call through the plan may take, in seconds; `effort`: instead of the model's effort in `models.json`."""
+    call through the plan may take, in seconds; `effort`: instead of the model's effort in `models.json`;
+    `cache_images`: on the API route, cache the request up to that many first images (`correct_api`); Claude Code
+    caches on its own."""
     skipped, capped = [], False
     for route in routes:
         try:
@@ -291,7 +304,7 @@ def ask(text: str, images: list[Image.Image], routes: tuple[str, ...], client=No
                         raise RouteUnavailable("no API key is set")
                     client = apikey.client()
                 return correct_api(client, model, text, images, meter=meter, answer_model=answer_model, names=names,
-                                   max_tokens=max_tokens or MAX_TOKENS, effort=effort)
+                                   max_tokens=max_tokens or MAX_TOKENS, effort=effort, cache_images=cache_images)
         except RouteUnavailable as e:
             skipped.append(f"{route}: {e}")
             capped = capped or isinstance(e, CapReached)

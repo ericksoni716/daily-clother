@@ -33,7 +33,7 @@ show, in the order sent, the outer side, from above, the inner side, the front, 
 sides unsure and looking different once both are there, so the page asks which photo shows the outside. With
 CLOSET_E2E_ROUTES=api the real API route asks `conftest.FakeApi`, which answers the same.
 
-Drawing a shoe from its photos runs the real steps (three drawings straight on, the judge, two turns, the judge again;
+Drawing a shoe from its photos runs the real steps (two drawings straight on, the judge, two turns, the judge again;
 each drawing made safe, rendered and checked) with a stand-in for Claude's answers: after a second each, every drawing,
 straight on or turned, is the dress shoe the owner liked (`conftest.draw_answer`), the first check of each says it is
 good and the judge keeps the first with no fault named (so nothing is fixed), as if on the Claude plan, with made-up
@@ -108,7 +108,7 @@ def fake_asker(text, images, routes, answer_model=None, model="", **kw):
     time.sleep(1)   # long enough for the page to show it drawing
     if answer_model is shoedrawing.Verdict:
         answer = shoedrawing.Verdict(observations="The panels as the photos show them.", best="a",
-                                     ranking=["a", "b", "c"], faults=["A: none", "B: none", "C: none"])
+                                     ranking=["a", "b"], faults=["A: none", "B: none"])
     else:
         answer = {shoedrawing.DrawAnswer: draw_answer, shoedrawing.TurnedDrawAnswer: draw_answer,
                   shoedrawing.CorrectAnswer: correct_answer, shoedrawing.TurnedCorrectAnswer: correct_answer,

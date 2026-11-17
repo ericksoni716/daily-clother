@@ -302,9 +302,9 @@ chose otherwise.
 Once the photos are sorted (and you have answered the question about the
 outside, if Closet asked it), Claude also draws the shoe from them for the
 outfit figure, its toe turned out a little, as you stand. It notes what kind of
-shoe it is, its colours and parts, and draws it straight on three times,
-checking each against your photos; it then compares the three with your photos
-and keeps the closest. Closet turns that drawing with its own 3D shoe, so every
+shoe it is, its colours and parts, and draws it straight on twice, checking
+each against your photos; it then compares the two with your photos and keeps
+the closer. Closet turns that drawing with its own 3D shoe, so every
 panel and stitch turns the right way, and Claude draws the turned shoe twice
 from it, keeps the better one and fixes what still differs from your photos.
 This takes four to ten minutes and happens once, by itself. **Drawn for the

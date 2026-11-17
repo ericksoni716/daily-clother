@@ -143,13 +143,13 @@ def test_candidates_are_made_side_by_side():
     assert got == [None, 1.0] and isinstance(failed[0], ZeroDivisionError)
 
 
-def test_three_candidates_the_judge_the_turn_and_the_fix():
+def test_two_candidates_the_judge_the_turn_and_the_fix():
     claude = Claude()
     made = SD.draw(photos(), ("plan",), asker=claude, clock=clock(), style="oxford")
-    assert len(claude.asked(DrawAnswer)) == SD.CANDIDATES == 3
+    assert len(claude.asked(DrawAnswer)) == SD.CANDIDATES == 2
     judged = claude.asked(Verdict)
     assert len(judged) == 3   # the candidates, the turns, the fix against the turn it fixes
-    assert judged[0]["names"][-3:] == ["candidate-a.png", "candidate-b.png", "candidate-c.png"]
+    assert judged[0]["names"][-2:] == ["candidate-a.png", "candidate-b.png"]
     assert "straight.png" not in judged[0]["names"] and "straight.png" in judged[1]["names"]
     assert "seen from the front and a little above" in judged[0]["text"] and "turned out 12 degrees" in judged[1]["text"]
     # the judge kept candidate B (the black laces): it is what was turned
@@ -170,7 +170,7 @@ def test_three_candidates_the_judge_the_turn_and_the_fix():
     assert kept["version"] == 3 and kept["view"] == "turned" and kept["style"] == "oxford"
     assert kept["straight"]["sheet"] == SHEET and drawn.stored(kept).view is drawn.TURNED
     kinds = [c.kind for c in made.calls]
-    assert kinds.count("draw") == 3 and kinds.count("turn") == 2 and kinds.count("judge") == 3 and "correct" in kinds
+    assert kinds.count("draw") == 2 and kinds.count("turn") == 2 and kinds.count("judge") == 3 and "correct" in kinds
 
 
 def test_a_drawing_with_a_measured_fault_is_not_chosen_while_another_has_none():

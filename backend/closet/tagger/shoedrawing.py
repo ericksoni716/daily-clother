@@ -54,7 +54,8 @@ EFFORT = "medium"      # the owner's choice after comparing high, medium and Son
 MAX_TOKENS = 32_000    # the longest answer a call allows on the API route, its thinking included (streamed)
 TIMEOUT = 600          # seconds one call through the plan may take
 MAX_ROUNDS = 3         # check calls at most, after a drawing (straight on, or turned)
-CANDIDATES = 3         # straight-on drawings made side by side, of which the judge keeps one
+CANDIDATES = 2         # straight-on drawings made side by side, of which the judge keeps one (the owner's choice
+                       # over three, 17 November 2026: see DECISIONS.md)
 TURNS = 2              # turns of the kept drawing made side by side, of which the judge keeps one
 FIX_NOTE_MAX = 900     # the judge's faults on the kept turn, given back as a note to fix
 MAX_CORRECT_ROUNDS = 2 # check calls at most, after a correction from the owner's note
@@ -695,6 +696,7 @@ class Call:
     output_tokens: int
     cost_usd: float     # what the API key would charge for it
     seconds: float
+    cache_write_tokens: int = 0   # of input_tokens, those written to the prompt cache (the API route)
 
 
 @dataclass
@@ -787,7 +789,7 @@ def _sentence(text) -> str | None:
 
 
 def api_cost(model: str, input_tokens: int, cache_read_tokens: int, output_tokens: int) -> float:
-    """What the API key would charge for a call, at the prices in `models.json`, whichever route made it. The API
+    """What the API key would charge for a call made through the plan, at the prices in `models.json`. The API
     route sends everything once; through the plan, Claude Code reads its earlier context again from its cache on each
     step (`cache_read_tokens`), which the API route would not do, so those are left out."""
     return cost_usd(model, max(0, input_tokens - cache_read_tokens), output_tokens)
@@ -806,16 +808,24 @@ Asker = Callable[..., correcting.CorrectionResult]
 
 
 def _caller(routes: tuple[str, ...], client, exe: str | None, meter: Meter | None, asker: Asker,
-            clock: Callable[[], float], calls: list[Call]):
-    """One call to Claude on the drawing model, recorded in `calls` with its tokens, cost and seconds."""
+            clock: Callable[[], float], calls: list[Call], cache_images: int = 0):
+    """One call to Claude on the drawing model, recorded in `calls` with its tokens, cost and seconds. `cache_images`:
+    every call's images start with the shoe's photos, this many: on the API route the request is cached up to them,
+    so each later call reads them back from the cache."""
     def ask(kind: str, text: str, images: list[Image.Image], image_names: list[str], answer_model):
         t = clock()
         result = asker(text, images, routes, client=client, exe=exe, meter=meter, answer_model=answer_model,
                        system=SYSTEM, model=MODEL, names=image_names, max_tokens=MAX_TOKENS, timeout=TIMEOUT,
-                       effort=EFFORT)
+                       effort=EFFORT, cache_images=cache_images)
         cached = getattr(result, "cache_read_tokens", 0) or 0
-        calls.append(Call(kind, result.route, result.model, result.input_tokens, cached, result.output_tokens,
-                          api_cost(result.model, result.input_tokens, cached, result.output_tokens), clock() - t))
+        written = getattr(result, "cache_write_tokens", 0) or 0
+        if result.route == "api":   # what it cost, the cache's writes and reads at their own prices
+            cost = cost_usd(result.model, max(0, result.input_tokens - cached - written), result.output_tokens,
+                            written, cached)
+        else:
+            cost = api_cost(result.model, result.input_tokens, cached, result.output_tokens)
+        calls.append(Call(kind, result.route, result.model, result.input_tokens, cached, result.output_tokens, cost,
+                          clock() - t, written))
         return result.answer
     return ask
 
@@ -1058,7 +1068,7 @@ def draw_straight(photos: list[Photo], routes: tuple[str, ...], client=None, exe
     shots = [shown(p.image) for p in photos]
     names = photo_names(len(photos))
     calls: list[Call] = []
-    ask = _caller(routes, client, exe, meter, asker, clock, calls)
+    ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_images=len(shots))
     done = _straight(ask, photos, shots, names, list(notes), style, front)
     return Drawn(done.left, done.right, done.sheet, done.rounds, clock() - start, calls, done.good, done.problems)
 
@@ -1087,7 +1097,7 @@ def draw(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | N
     shots = [shown(p.image) for p in photos]
     names = photo_names(len(photos))
     calls: list[Call] = []
-    ask = _caller(routes, client, exe, meter, asker, clock, calls)
+    ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_images=len(shots))
     notes = list(notes)
 
     made, failed = _parallel(CANDIDATES, lambda i: _straight(ask, photos, shots, names, notes, style, front))
@@ -1167,7 +1177,7 @@ def correct(photos: list[Photo], kept: Mapping, note: str, routes: tuple[str, ..
     shots = [shown(p.image) for p in photos]
     names = photo_names(len(photos))
     calls: list[Call] = []
-    ask = _caller(routes, client, exe, meter, asker, clock, calls)
+    ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_images=len(shots))
     first, done = _correcting(ask, photos, shots, names, kept["sheet"], left0, right0, note, earlier, whole, view, style,
                               MAX_CORRECT_ROUNDS, checker=_kept_turn_checks(kept, style) if view is drawn.TURNED else None)
     # the last check looked at the change beside the photos, so its word on them is the one kept

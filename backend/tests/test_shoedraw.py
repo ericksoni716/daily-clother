@@ -353,6 +353,7 @@ def test_a_shoe_only_has_drawn_details(made):
 
 def test_drawing_goes_through_the_api_key_and_its_monthly_limit(cfg):
     api = FakeApi(input_tokens=20_000, output_tokens=5_000)
+    api.cache_write, api.cache_read = 1_000, 4_000   # each request writes some of the photos to the cache, reads some
     sorter = Sorter()
     sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, routes=lambda: ("api",), api_client=api,
                                    sorter=lambda photos, routes: sorter.reply(len(photos)) if callable(sorter.reply)
@@ -369,18 +370,30 @@ def test_drawing_goes_through_the_api_key_and_its_monthly_limit(cfg):
         assert api.calls == 0   # the estimate is checked first: nothing is sent past the limit
         assert get(c, item)["drawn"]["message"] == shoedraw.LIMIT
         c.put("/api/settings", json={"tagging_api_cap_usd": 20.0})
-        # three candidates and a check each, the judge, two turns and a check each, the judge again (no fault named:
+        # two candidates and a check each, the judge, two turns and a check each, the judge again (no fault named:
         # no fix)
         calls = SD.CANDIDATES * 2 + 1 + SD.TURNS * 2 + 1
-        assert sv.draws.drain() == 1 and api.calls == calls == 12
+        assert sv.draws.drain() == 1 and api.calls == calls == 10
+        # every request is cached up to its last photo (the shoe's two photos come first in each), and nowhere else
+        for request in api.requests:
+            content = request["messages"][0]["content"]
+            marked = [i for i, block in enumerate(content) if "cache_control" in block]
+            assert marked == [3] and content[3]["type"] == "image" and content[2]["text"] == "photo-2.jpg:"
+            assert content[3]["cache_control"] == {"type": "ephemeral"}
         got = get(c, item)["drawn"]
         assert got["state"] == "done" and got["route"] == "api" and got["rounds"] == SD.CANDIDATES + SD.TURNS
-        assert got["cost_usd"] == pytest.approx(calls * spend.cost_usd(SD.MODEL, 20_000, 5_000))
+        # what the cache wrote and read is counted at its own price, in the drawing's cost and in the month's spend
+        one = spend.cost_usd(SD.MODEL, 20_000, 5_000, cache_write=1_000, cache_read=4_000)
+        assert one == pytest.approx(spend.cost_usd(SD.MODEL, 20_000, 5_000) + (1_000 * 4.00 * 1.25 + 4_000 * 0.20) / 1e6)
+        assert got["cost_usd"] == pytest.approx(calls * one)
         with closing(db.connect(cfg.db_path("main"))) as conn:
-            rows = [dict(r) for r in conn.execute("SELECT purpose, route, model, cost_usd FROM claude_calls "
-                                                  "WHERE purpose = 'draw_shoe'")]
+            rows = [dict(r) for r in conn.execute("SELECT purpose, route, model, input_tokens, cost_usd FROM "
+                                                  "claude_calls WHERE purpose = 'draw_shoe'")]
+            month = spend.spent(conn)
         assert len(rows) == calls and spend.PURPOSE_DRAW == "draw_shoe"
         assert all(r["route"] == "api" and r["model"] == SD.MODEL for r in rows)
+        assert all(r["input_tokens"] == 25_000 and r["cost_usd"] == pytest.approx(one) for r in rows)
+        assert month >= calls * one - 1e-9
         assert spend.estimate_draw(8) > 0.5   # one request's careful estimate is over the first limit
     finally:
         sv.stop()

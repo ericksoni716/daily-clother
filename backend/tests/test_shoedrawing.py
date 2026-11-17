@@ -237,6 +237,32 @@ def test_through_the_api_key_the_calls_are_streamed_and_counted():
     assert made.totals()["cost_usd"] == pytest.approx(2 * spend.cost_usd(SD.MODEL, 25_000, 7_000))
 
 
+def test_through_the_api_key_the_photos_are_cached_and_the_cache_counted():
+    """Every call for a shoe starts with its photos: the request is cached up to the last of them, and what the cache
+    wrote and read is passed on to the meter and priced at its own rate."""
+    class CacheMeter(Meter):
+        def record(self, route, model, input_tokens, output_tokens, **cached):
+            self.recorded.append((route, model, input_tokens, output_tokens, cached))
+
+    api, meter = FakeApi(input_tokens=5_000, output_tokens=7_000), CacheMeter()
+    api.cache_write, api.cache_read = 3_000, 20_000
+    made = SD.draw_straight(photos(), ("api",), client=api, meter=meter)
+    for request in api.requests:
+        content = request["messages"][0]["content"]
+        marked = [i for i, block in enumerate(content) if "cache_control" in block]
+        assert marked == [9] and content[8]["text"] == "photo-5.jpg:" and content[9]["type"] == "image"
+    assert meter.recorded == [("api", SD.MODEL, 5_000, 7_000, {"cache_write": 3_000, "cache_read": 20_000})] * 2
+    call = made.calls[0]
+    assert (call.input_tokens, call.cache_write_tokens, call.cache_read_tokens) == (28_000, 3_000, 20_000)
+    assert call.cost_usd == pytest.approx(spend.cost_usd(SD.MODEL, 5_000, 7_000, 3_000, 20_000))
+    assert spend.cost_usd(SD.MODEL, 0, 0, 1_000_000, 0) == pytest.approx(5.00)   # a write: 1.25 times input
+    assert spend.cost_usd(SD.MODEL, 0, 0, 0, 1_000_000) == pytest.approx(0.20)   # a read: the table's cache price
+    # nothing to cache (another question with no photos named as shared): no marker, and the meter is told as before
+    plain = FakeApi()
+    correcting.correct_api(plain, SD.MODEL, "x", [], meter=Meter())
+    assert not any("cache_control" in b for b in plain.requests[0]["messages"][0]["content"])
+
+
 def test_through_the_plan_every_image_is_saved_under_its_name(monkeypatch):
     seen = []
     answers = iter([draw_answer(), check_answer()])

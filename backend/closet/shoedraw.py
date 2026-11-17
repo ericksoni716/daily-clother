@@ -45,9 +45,9 @@ from .tagger.tagging import CapReached, RouteUnavailable
 log = logging.getLogger("closet.shoedraw")
 
 MAX_ATTEMPTS = 3      # as for describing and sorting
-ABOUT_USD = 2.2       # roughly what one drawing costs on the API key, until this shoe has one of its own: three
-                      # drawings straight on, two turns, the judge and a fix came to $1.44 to $3.35 on the owner's five
-                      # pairs, drawn twice through the app's own code, $2.17 on average (17 November 2026)
+ABOUT_USD = 2.0       # roughly what one drawing costs on the API key, until this shoe has one of its own: two
+                      # drawings straight on, two turns, the judge and a fix came to $1.38 to $3.13 on the owner's five
+                      # pairs through the app's own code, $1.93 on average (17 November 2026), before the cache
 SHOES = tracejobs.SHOES
 
 # the shoe's photos (the main one first, each with its view), the routes to try and, as `notes`, the owner's notes on

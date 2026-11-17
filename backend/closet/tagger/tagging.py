@@ -86,7 +86,9 @@ class Meter(Protocol):
         """Raise `CapReached` if the API call about to be made could go over the limit."""
 
     def record(self, route: str, model: str, input_tokens: int, output_tokens: int) -> None:
-        """One call was made (on the API route: one request, whatever came back)."""
+        """One call was made (on the API route: one request, whatever came back). A request that used the prompt
+        cache also passes `cache_write` and `cache_read`: input written to and read back from it, on top of
+        `input_tokens`."""
 
     def api_refused(self, reason: str) -> None:
         """The API refused the key ("credit" or "key")."""
@@ -118,9 +120,17 @@ class TagResult:
     route: str = "api"       # "api" (API key, billed) or "plan" (Claude plan through `claude -p`)
 
 
-def cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
+CACHE_WRITE = 1.25   # a prompt-cache write (five-minute entry) costs this many times input
+
+
+def cost_usd(model: str, input_tokens: int, output_tokens: int, cache_write: int = 0, cache_read: int = 0) -> float:
+    """What the API key charges: `input_tokens` read in full, `output_tokens` written, and, for a request that uses the
+    prompt cache, `cache_write` tokens written to it (CACHE_WRITE times input) and `cache_read` read back from it (the
+    model's `cache_read` price, else a tenth of input)."""
     price = CONFIG["models"][model]
-    return (input_tokens * price["input"] + output_tokens * price["output"]) / 1_000_000
+    read = price.get("cache_read", price["input"] / 10)
+    return (input_tokens * price["input"] + output_tokens * price["output"]
+            + cache_write * price["input"] * CACHE_WRITE + cache_read * read) / 1_000_000
 
 
 def encode_image(img: Image.Image, max_edge: int = 1024) -> dict:

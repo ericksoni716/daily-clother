@@ -34,6 +34,7 @@ import dataclasses
 import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from datetime import date
 
 from . import outfits
 from .tagger.taxonomy import GARMENT_CATEGORIES
@@ -309,7 +310,7 @@ class _Reference:
 
 
 class _Planner:
-    def __init__(self, items: list, days: list[_Day], opts: Options, rewear: Mapping):
+    def __init__(self, items: list, days: list[_Day], opts: Options, rewear: Mapping, washed_by_then: bool = False):
         self.opts = opts
         self.rewear = dict(rewear)
         self.days = days
@@ -325,7 +326,9 @@ class _Planner:
         pool = []
         for p, it in everything:
             why = outfits._unavailable(it, out)
-            if why is None or (why == "rated dislike" and p.id in pins):
+            if why == "in the laundry" and washed_by_then:   # the trip is far enough off for the wash to be done
+                why = None
+            if why is None or (why in ("rated dislike", outfits.FOR_HOME) and p.id in pins):
                 pool.append(p)
             elif p.id in pins:
                 self.notes.append(f"{_the(p, True)} is {why}, so it is not packed.")
@@ -613,8 +616,12 @@ class _Planner:
         return out
 
 
+# A piece in the laundry today is clean again by a trip that starts this many days from now or later.
+CLEAN_BY_DAYS = 3
+
+
 def plan(items: Iterable[object], days: list[Mapping], options: Options | Mapping | None = None,
-         rewear: Mapping | None = None) -> dict:
+         rewear: Mapping | None = None, today: date | None = None) -> dict:
     """The packing plan for a trip.
 
     `days` are the trip's days in order, each {date, low_c, high_c, rain, source, ...} (source `unknown` when the
@@ -628,7 +635,11 @@ def plan(items: Iterable[object], days: list[Mapping], options: Options | Mappin
     opts = options if isinstance(options, Options) else parse_options(options or {}, dates)
     trip = [_Day(str(d["date"]), dict(d), opts.day_occasions.get(str(d["date"]), opts.occasion), i)
             for i, d in enumerate(days)]
-    return _Planner(list(items), trip, opts, check_rewear(rewear)).run()
+    try:
+        far = today is not None and bool(dates) and (date.fromisoformat(dates[0]) - today).days >= CLEAN_BY_DAYS
+    except ValueError:
+        far = False
+    return _Planner(list(items), trip, opts, check_rewear(rewear), washed_by_then=far).run()
 
 
 def lines(result: Mapping) -> list[str]:

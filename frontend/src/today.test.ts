@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canDress, dayParts, forgetSaved, joinWords, keptFor, loadChoice, longDate, moodLabel, OCCASIONS, occasionLabel, outfitIds,
   parseTemp, placeLabel, rainWords, sameOutfit, saveChoice, SAVED_PREFIX, shortPlace, temps, whatToAddFirst, wornOrder,
-  type DayContext, type Outfit, type SavedOutfits,
+  type DayContext, type Outfit, type SavedOutfits, wornNow, type WornToday,
 } from './today';
 import type { ItemSummary } from './types';
 
@@ -175,5 +175,31 @@ describe('kept on this device', () => {
     expect([...kv.data.keys()].some((k) => k.startsWith(SAVED_PREFIX))).toBe(false);
     expect(kv.getItem('something-else')).toBe('x');
     expect(loadChoice(kv).occasion).toBe('formal');
+  });
+});
+
+describe('what is worn today', () => {
+  const outfit = { pieces: { base: 'tee', mid: null, outer: null, bottom: 'jeans', shoes: 'boots', accessories: [] }, score: 80, reasons: [], warnings: [] };
+  const local: WornToday = { day: '2026-11-17', worn_on: '2026-11-17', ids: ['tee', 'jeans', 'boots'], recorded: ['tee'], outfit, outfit_id: 'o1', at: 1000 };
+  const record = (id: string, worn_on = '2026-11-17') => ({ id, worn_on, pieces: outfit.pieces, score: 80, reasons: [], warnings: [] });
+
+  it("keeps this device's memory until the server's list is known", () => {
+    expect(wornNow(local, null, null, '2026-11-17')).toBe(local);
+    expect(wornNow(local, [], null, '2026-11-17')).toBe(local);
+  });
+
+  it('keeps an outfit just recorded when the list is older than it', () => {
+    expect(wornNow(local, [], 500, '2026-11-17')).toBe(local);
+  });
+
+  it('forgets an outfit removed on the Worn screen', () => {
+    expect(wornNow(local, [record('older', '2026-11-16')], 2000, '2026-11-17')).toBeNull();
+  });
+
+  it('knows an outfit recorded on another device, so it is not recorded twice', () => {
+    const w = wornNow(null, [record('o2')], 2000, '2026-11-17');
+    expect(w?.outfit_id).toBe('o2');
+    expect(w?.ids).toEqual(['tee', 'jeans', 'boots']);
+    expect(wornNow(null, [record('o2', '2026-11-16')], 2000, '2026-11-17')).toBeNull();
   });
 });

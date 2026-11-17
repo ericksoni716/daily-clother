@@ -1,4 +1,4 @@
-import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix } from './types';
+import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting } from './types';
 import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
@@ -78,7 +78,15 @@ export interface Options {
   signal?: AbortSignal;
   /** The answer is text (an SVG drawing), not JSON. */
   text?: boolean;
+  /** Give up after this long and treat Closet as out of reach (offline), instead of waiting for the system to. */
+  timeoutMs?: number;
 }
+
+/**
+ * How long the app waits for the questions it opens with (am I logged in, the closet) before showing the saved copy.
+ * A computer that is asleep or switched off may never answer, and the phone would otherwise wait a minute or more.
+ */
+export const OPEN_TIMEOUT_MS = 12_000;
 
 /**
  * Browsers allow 64 KiB of bodies for all `keepalive` requests still on their way together, and
@@ -102,6 +110,13 @@ export function keepaliveSize(method: string, body: string | undefined, opts: Op
 async function request<T>(path: string, opts: Options = {}): Promise<T> {
   const method = opts.method ?? 'GET';
   const init: RequestInit = { method, credentials: 'same-origin', signal: opts.signal };
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  if (opts.timeoutMs && !opts.signal) {
+    const controller = new AbortController();
+    init.signal = controller.signal;
+    timer = setTimeout(() => { timedOut = true; controller.abort(); }, opts.timeoutMs);
+  }
   if (opts.form) init.body = opts.form;
   else if (opts.body !== undefined) {
     init.body = JSON.stringify(opts.body);
@@ -118,11 +133,12 @@ async function request<T>(path: string, opts: Options = {}): Promise<T> {
     res = await fetch(path, init);
     text = await res.text();
   } catch (e) {
-    if ((e as Error)?.name === 'AbortError') throw e;
+    if ((e as Error)?.name === 'AbortError' && !timedOut) throw e;
     setOffline(true);
     throw new ApiError(0, UNREACHABLE);
   } finally {
     if (kept !== null) keepaliveBytes -= kept;
+    if (timer !== undefined) clearTimeout(timer);
   }
   setOffline(res.headers.get(FROM_CACHE_HEADER) === '1');
   if (res.status === 204) return undefined as T;
@@ -146,13 +162,13 @@ async function request<T>(path: string, opts: Options = {}): Promise<T> {
 }
 
 export const api = {
-  session: () => request<Session>('/api/session'),
+  session: () => request<Session>('/api/session', { timeoutMs: OPEN_TIMEOUT_MS }),
   setup: (passphrase: string) => request<void>('/api/setup', { method: 'POST', body: { passphrase }, quiet401: true }),
   login: (passphrase: string) => request<void>('/api/login', { method: 'POST', body: { passphrase }, quiet401: true }),
   logout: () => request<void>('/api/logout', { method: 'POST', quiet401: true }),
   vocab: () => request<Vocab>('/api/vocab'),
   items: (status: 'active' | 'archived' = 'active') =>
-    request<{ items: ItemSummary[] }>(`/api/items?status=${status}`).then((r) => r.items),
+    request<{ items: ItemSummary[] }>(`/api/items?status=${status}`, { timeoutMs: OPEN_TIMEOUT_MS }).then((r) => r.items),
   item: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}`),
   patch: (id: string, changes: ItemPatch) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes }),
@@ -226,6 +242,14 @@ export const api = {
     return request<Item>(`/api/items/${encodeURIComponent(id)}/photos`, { method: 'POST', form });
   },
   /** Another photo of a shoe, besides its main one (at most 5): Closet sorts it into its view. */
+  /** What each photo chosen on Add shows (one piece, several, a shoe and which shoe), up to ten small copies at once. */
+  sortAdd: (photos: { blob: Blob; filename: string }[]) => {
+    const form = new FormData();
+    for (const p of photos) form.append('photos', p.blob, p.filename);
+    return request<{ sorted: boolean; message: string | null; needed?: string[];
+      photos: { kind: 'piece' | 'pieces' | 'shoe'; shoe: number; view?: string | null; pair?: boolean }[] }>(
+      '/api/add/sort', { method: 'POST', form });
+  },
   addShoePhoto: (id: string, photo: Blob, filename: string, sha256?: string | null) => {
     const form = new FormData();
     form.append('photo', photo, filename);
@@ -278,7 +302,7 @@ export const api = {
   downloadModel: () => request<ModelInfo>('/api/model/download', { method: 'POST' }),
   setModelUrl: (url: string) => request<ModelInfo>('/api/model/url', { method: 'PUT', body: { url } }),
   settings: () => request<Settings>('/api/settings'),
-  putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean; tagging_api_cap_usd?: number | null; tagging_route_order?: RouteOrder; life?: Life | null; life_prompt_dismissed?: boolean; rewear?: Partial<Rewear> | null }) =>
+  putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean; tagging_api_cap_usd?: number | null; tagging_route_order?: RouteOrder; life?: Life | null; life_prompt_dismissed?: boolean; rewear?: Partial<Rewear> | null; laundry?: Partial<LaundrySetting> }) =>
     request<Settings>('/api/settings', { method: 'PUT', body: changes }),
   storage: () => request<Storage>('/api/storage'),
   saveApiKey: (key: string) => request<Settings>('/api/settings/api-key', { method: 'PUT', body: { key } }),

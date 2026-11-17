@@ -35,6 +35,7 @@ DEFAULTS: dict[str, Any] = {
     "weather": None,          # the last forecast for the place: {"key", "fetched", "offset", "answer"}
     "trip_weather": None,     # forecasts and usual weather looked up for trips: {"forecast": {...}, "usual": {...}}
     "rewear": None,           # "Before it needs washing": kind -> wears (closet/trips.py KINDS); None: the defaults
+    "laundry": None,          # laundry that keeps itself: {"auto": bool, "day": 0-6 or None}; None: on, Sunday (wears.py)
     "life": None,             # the optional situations and style line for What's missing
     "life_prompt_dismissed": False,
     "life_gap_hides": {},     # per-profile hide consent: id -> {hidden_at, situations}

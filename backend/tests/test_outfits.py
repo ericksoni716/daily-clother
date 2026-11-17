@@ -235,6 +235,42 @@ def test_items_in_the_laundry_or_archived_are_never_used():
         assert "tee1" not in ids_of(o) and "sneakers1" not in ids_of(o)
 
 
+def test_loungewear_and_pieces_waiting_to_be_mended_are_not_suggested():
+    # the owner's loungewear and sleepwear is for home; Today's occasions are all for going out
+    items = basic_closet() + [
+        item("lounge", "trousers", "red", "casual", kind="lounge_pants", pattern="plaid"),
+        item("robe", "coat", "grey", "casual", "cool", kind="robe"),
+        item("smoking", "jacket", "burgundy", "smart_casual", kind="smoking_jacket"),
+    ]
+    items[7]["condition"] = "needs_repair"   # jeans1, with its hole
+    seen = set()
+    for low, high in ((-2, 6), (8, 14), (15, 21), (24, 31)):
+        for o in outfits.suggest(items, day(low, high), 5)["outfits"]:
+            seen.update(ids_of(o))
+    assert not seen & {"lounge", "robe", "jeans1"}
+    assert "trousers1" in seen
+    # still there when asked for by name
+    built = outfits.suggest(items, day(15, 21, build_around="lounge"), 3)
+    assert built["outfits"] and all("lounge" in ids_of(o) for o in built["outfits"])
+    # with nothing else to wear, it says why
+    only = [i for i in basic_closet() if i["category"] not in BOTTOMS] + [item("lounge", "trousers", "red", "casual", kind="lounge_pants")]
+    assert outfits.suggest(only, day(15), 3)["missing"] == [
+        "None of your trousers, jeans or shorts can be worn today: 1 for wearing at home."]
+
+
+def test_in_rain_a_rain_proof_jacket_is_not_forced_onto_a_warm_day():
+    # the owner's rule restricts the outer layer to rain-proof ones; one is required only where the day's band asks
+    # for an outer layer anyway (the owner, 17 November: a rain jacket is not required on warm days)
+    items = basic_closet() + [item("waxed", "jacket", "olive", "casual", "cool", name="olive waxed jacket",
+                                   material="waxed cotton", weight_class="heavyweight")]
+    warm = outfits.suggest(items, day(19, 26, rain=True), 3)["outfits"]
+    assert warm and not all("waxed" in ids_of(o) for o in warm)
+    for o in warm:   # any outer layer worn is still the rain-proof one
+        assert o["pieces"]["outer"] in (None, "waxed")
+    cold = outfits.suggest(items, day(2, 7, rain=True), 3)["outfits"]   # an outer layer is a must: it is the waxed one
+    assert cold and all(o["pieces"]["outer"] == "waxed" for o in cold)
+
+
 def test_build_around_an_item_in_the_laundry_explains_why_not():
     items = basic_closet()
     items[0]["laundry"] = "laundry"

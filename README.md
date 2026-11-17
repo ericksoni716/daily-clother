@@ -19,15 +19,14 @@ page. There is nothing else to install.
 
 **Windows:** double-click `Closet.exe`. The first time, Windows shows
 "Windows protected your PC": click **More info**, then **Run anyway**.
-Starting takes a few seconds; then a coat-hanger icon appears near the clock
-and Closet opens in a window of its own. Setting up a Windows PC to be the hub your phone reaches, step by
+Starting takes a few seconds; then Closet opens in a window of its own. Setting up a Windows PC to be the hub your phone reaches, step by
 step, is in "Setting up Closet on a Windows PC (the hub)" below.
 
 **Mac (Apple Silicon):** unzip `Closet-mac-arm64.zip` and double-click
 **Closet**. The first time, macOS says it cannot verify the app: click **Done**,
 open **System Settings → Privacy & Security**, scroll down to the message about
-Closet, click **Open Anyway**, confirm with your password, then **Open**. The
-icon appears in the menu bar. Requires macOS 14 or later.
+Closet, click **Open Anyway**, confirm with your password, then **Open**.
+Requires macOS 14 or later.
 
 Closet then opens in its own window, titled **Closet**:
 
@@ -77,12 +76,12 @@ lower on the item page, lists every change to the description, newest first;
 **Undo** puts one back, as long as nothing changed the same thing since. In the
 demo closet you can pick and undo, but sentences are not sent to Claude.
 
-Closing Closet's window does not stop Closet: it keeps running in the icon
-near the clock (in the menu bar on a Mac), so your phone can still reach it and
-the nightly backup still runs. **Open Closet** in the icon's menu (or
-double-clicking the program again) brings the window back. To stop the program
-use **Quit Closet** in the icon's menu or at the bottom of Settings (on a Mac,
-**Quit** in the Closet menu, ⌘Q, quits it too). The window remembers your login
+Closing Closet's window does not stop Closet: it keeps running in the
+background, with no icon, so your phone can still reach it and the nightly
+backup still runs. Opening the program again (double-clicking it) brings the
+window back. To stop the program use **Quit** at the bottom of Settings (on a
+Mac, **Quit** in the Closet menu, ⌘Q, quits it too). If you would rather have an
+icon near the clock (in the menu bar on a Mac), start Closet with `--tray`. The window remembers your login
 the way a browser does; links to shops and other sites open in your usual
 browser. If the window cannot open on your computer, Closet opens in your
 browser instead, as it used to; on Windows that happens if the Microsoft Edge
@@ -212,6 +211,16 @@ the recent days, each of which can be removed. **Put in the laundry** and
 carry a small mark, and the **Clean** and **In the laundry** buttons show only
 those.
 
+The laundry mostly keeps itself. When you record a wear, a piece goes in the
+laundry by itself once it has been worn as often as **Before it needs
+washing** says (a shirt or tee after one wear, a sweater or trousers after
+three; shoes, jackets, coats and accessories never). On your **laundry day**
+everything in the laundry is clean again. Undo a wear and a piece it put in
+comes back out. To change the day, or turn it off, open **Settings → Your
+closet → Laundry**. To catch up after a wash on another day, the closet says
+how many pieces are in the laundry: tap **Show**, then **All clean**. On an
+outfit in **Worn**, **⋯ → Put these in the laundry** does it by hand.
+
 **Insights** (the button at the top of your closet) turns what you have
 recorded as worn into a few plain sentences: what each piece with a price has
 cost per wear (type the price on the item, in dollars), what you have never
@@ -226,16 +235,28 @@ numbers.
 ## Adding your clothes
 
 Open **Add** (the round button in the middle of the bar at the bottom of a
-phone; **Add clothes** at the top of the menu on a computer). The switch at the
-top says what you are adding: **Clothes, one per photo** (the usual way, below),
-**Several in one photo** or **A shoe** (both further down). One piece of
-clothing per photo works best.
+phone; **Add clothes** at the top of the menu on a computer) and add any photos
+at all: one piece of clothing per photo (the usual way, below), several pieces
+laid out together, or a shoe from a few sides (both further down). Closet asks
+Claude what each photo shows, a fraction of a cent with the API key, and which
+photos are the same shoe:
+
+- When every photo is one piece, they go straight in.
+- When there is a photo of several pieces or a shoe, the photos wait in a list
+  under **Your photos**, each saying what Closet made of it (**One piece**,
+  **Several pieces**, **Shoe 1**, **Another shoe**). Change any that are wrong,
+  remove one with **×**, and tap **Add these**.
+- When Claude can't be asked (and always in the demo closet), the list says so
+  and you sort them yourself the same way.
+- More than 60 photos at once (a folder, say) go in one piece per photo without
+  waiting to be sorted: add photos of several pieces or of shoes a few at a
+  time.
 
 - **On the computer:** click **Choose photos** and pick as many as you like,
   click **Choose a folder**, or drag photos or whole folders onto the page.
   Folders inside folders are included. Files that are not photos are skipped,
   and the page says which.
-- **On the iPhone:** **Take photo**, or **Choose from library** and pick many
+- **On the iPhone:** **Take photos** (the camera stays open between photos), or **Choose from library** and pick many
   at once.
 
 The list underneath shows how many are waiting, uploading, added, already in
@@ -259,17 +280,24 @@ can be added again.
 
 ### Shoes
 
-Choose **A shoe** at the top of Add for the closest drawing of a shoe, and add
-all of its photos in one go: up to six photos of one shoe on its own (not the
-pair), in any order. Its outer side, its front and its inner side matter most
-for the drawing; from above and the back help too. Take them against a plain
-floor or wall in even light. **Choose photos**
-picks several at once; **Take a photo** takes one each time you tap it (where
-the page can show the camera itself, it stays open so you can take several in a
-row: tap **Close the camera** when you have them all). The photos wait in a row
-on the page, each with an **×** to remove it, and nothing is sent until you tap
-**Add this shoe**. A seventh photo is not added, and the page says so. Once it
-is added, the page shows the shoe the same way as the list of photos above:
+For the closest drawing of a shoe, add all of its photos in one go on **Add**:
+one shoe on its own (not the pair), photographed from **the outer side, the
+front and the inner side**, against a plain floor or wall in even light. Those
+three are what the drawing needs; up to six are kept. **Choose photos** picks
+several at once. **Take photos** opens the camera on the page, which stays open
+so you can take one after another (tap **Take the photo** for each, then
+**Close the camera**); where the page can't show the camera, your phone's
+camera app takes one photo each time.
+
+Closet groups the photos of the same shoe as **Shoe 1** (a second shoe is
+**Shoe 2**) and shows each shoe as a checklist (**✓ Outer side · ✓ Front ·
+Inner side**). It says when one is missing; the shoe can still be added, but the
+drawing is better with all three. A photo that shows the pair is held back:
+remove it and take one of a single shoe, or tap **It's one shoe** if Closet got
+it wrong. Nothing is sent until you tap **Add these**; a seventh photo of one
+shoe is left out, and the page says so.
+Once it is added, the page shows the shoe the same way as the list of photos
+above:
 its picture and, once Claude has described it, what Claude called it; tap it
 (or **See the shoe**) to open it.
 
@@ -350,8 +378,8 @@ the page says so; send the note again, or say it another way.
 ### Several pieces in one photo
 
 To add a pile at once, lay the pieces out with a little space between them (on
-the bed or the floor), choose **Several in one photo** at the top of
-**Add**, and take or choose the photo. Claude draws a numbered box around each
+the bed or the floor), and take or choose the photo on **Add**. Closet sorts it
+as **Several pieces**; tap **Add it**. Claude draws a numbered box around each
 piece; this takes a few seconds, and goes through your Claude plan or the API
 key exactly as describing does (the page says what one photo can cost with the
 key). Then check the boxes, with each piece's cutout beside its box:
@@ -365,9 +393,7 @@ key). Then check the boxes, with each piece's cutout beside its box:
 
 **Add these N items** adds them: each becomes an item of its own, cut out,
 described and drawn like any other photo. Photos still to check are listed on
-**Add** until you add their pieces or **Forget this photo**. On a computer, a
-folder chosen while **Several in one photo** is on is treated the same way:
-every photo in it holds several pieces. The same photo is not added twice. The
+**Add** until you add their pieces or **Forget this photo**. The same photo is not added twice. The
 demo closet never sends photos to Claude, so there you draw the boxes yourself.
 
 If the page is closed or the computer restarts during an import, open **Add**
@@ -411,11 +437,11 @@ in a folder of your own. Not in **Downloads** either, so it is not tidied away.
   Smart App Control only allows signed programs. Tell whoever looks after Closet
   rather than turning it off.
 
-A few seconds later the coat-hanger icon appears near the clock (if not, click
-the **^** beside the clock: it may be hidden there) and Closet opens in its own
-window (it is the page at `http://127.0.0.1:8765`, which also works in a
-browser). Choose your passphrase; the background-removal model starts
-downloading. Closing the window leaves Closet running in the icon.
+A few seconds later Closet opens in its own window (it is the page at
+`http://127.0.0.1:8765`, which also works in a browser). Choose your
+passphrase; the background-removal model starts downloading. Closing the
+window leaves Closet running in the background; double-click `Closet.exe` to
+bring it back.
 
 **4. The firewall.** Closet only listens on this PC itself (127.0.0.1), never on
 the network, so Windows normally asks nothing. If a "Windows Security" window
@@ -425,18 +451,15 @@ Tailscale, which runs on this PC and passes the phone's requests to Closet here.
 
 **5. Check that Claude can be reached.** In Closet open **Settings → Describing
 clothes**. Under **Your Claude plan, through Claude Code** it should say **Ready
-to use.** If it says Claude Code is not installed, quit Closet (the icon's menu,
-**Quit Closet**) and open it again so it sees the new program; if it says
+to use.** If it says Claude Code is not installed, quit Closet (**Quit** at the
+bottom of Settings) and open it again so it sees the new program; if it says
 installed but not signed in, do step 1's `claude` sign-in again, then press
 **Check again**.
 
-**6. Start at login.** Right-click the coat-hanger icon and click **Start when I
-log in**; a tick appears beside it. From then on Closet starts by itself when
-you sign in to Windows, with no window (open it from the icon's **Open
-Closet**, or double-click `Closet.exe`). To keep the icon always in view: **Settings →
-Personalization → Taskbar → Other system tray icons**, turn **Closet** on. If you
-ever move `Closet.exe`, click **Start when I log in** twice (off, then on) so it
-points to the new place.
+**6. Start at login.** In Closet's **Settings → Your closet**, turn on **Start
+Closet when I log in**. From then on Closet starts by itself when you sign in to
+Windows, with no window (double-click `Closet.exe` to open it). If you ever move
+`Closet.exe`, turn it off and on again so it points to the new place.
 
 **7. Reach it from the iPhone.** Install Tailscale on the PC (tailscale.com,
 **Download**, Windows) and on the iPhone (App Store), and sign in to both with

@@ -37,7 +37,7 @@ WORN_OUTFITS_MIGRATION = 10  # the migration that added worn outfits
 def ensure(cfg: Config) -> int:
     """Create and fill the demo closet if it is empty. Returns how many items were added."""
     path = cfg.db_path("demo")
-    applied = db.migrate(path, cfg.local_backups_dir)["applied"]
+    applied = db.migrate(path, cfg.local_backups_dir, "demo")["applied"]
     conn = db.connect(path)
     try:
         source = bundle_dir() / "demo_data"

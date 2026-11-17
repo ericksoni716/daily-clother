@@ -28,7 +28,7 @@ from .tagger.garments import MODEL as GARMENTS_MODEL
 from .tagger.shoedrawing import MAX_TOKENS as DRAW_MAX_TOKENS
 from .tagger.shoedrawing import MODEL as DRAW_MODEL
 from .tagger.shopping import MAX_TOKENS as SHOP_MAX_TOKENS
-from .tagger.tagging import CACHE_WRITE, CONFIG, MAX_TOKENS, CapReached, RouteUnavailable
+from .tagger.tagging import CONFIG, MAX_TOKENS, CapReached, RouteUnavailable
 from .tagger.views import MODEL as VIEWS_MODEL
 
 PURPOSE_TAG = "tag_item"
@@ -38,6 +38,7 @@ PURPOSE_SHOP = "shop_find"            # searching shops for a wish (`tagger/shop
 PURPOSE_PRICES = "shop_prices"        # looking up the prices of a wish's finds again
 PURPOSE_GARMENTS = "find_garments"    # where each piece is in a photo of several (`tagger/garments.py`)
 PURPOSE_VIEWS = "sort_views"          # which view each photo of a shoe shows (`tagger/views.py`)
+PURPOSE_SORT_ADD = "sort_add"         # what each photo chosen on Add shows: a piece, several, a shoe (`tagger/addsort.py`)
 PURPOSE_DRAW = "draw_shoe"            # a shoe drawn from its photos, and its checks (`tagger/shoedrawing.py`)
 PURPOSE_CORRECT_DRAWING = "correct_drawing"   # a shoe's drawing changed from the owner's note, and its checks
 PRICES_CHECKED: str = CONFIG.get("prices_checked", "")
@@ -104,19 +105,28 @@ def price(model: str) -> dict:
     return table.get(model) or max(table.values(), key=lambda p: p["output"])
 
 
+# The most a prompt can cost per token over the plain input price: written to the cache (see models.json)
+CACHE_WRITE_FACTOR = 1.25
+
+
 def cost_usd(model: str, input_tokens: int, output_tokens: int, cache_write: int = 0, cache_read: int = 0) -> float:
-    """What the API key charges: `input_tokens` read in full, `output_tokens` written, and, for a request that uses the
-    prompt cache, `cache_write` tokens written to it (CACHE_WRITE times input) and `cache_read` read back from it (the
-    model's `cache_read` price, else a tenth of input)."""
+    """What a call cost. `input_tokens` is the part of the prompt neither written to nor read from the cache, as the
+    API reports it; the cached parts are priced on their own."""
     p = price(model)
-    read = p.get("cache_read", p["input"] / 10)
-    return (input_tokens * p["input"] + output_tokens * p["output"] + cache_write * p["input"] * CACHE_WRITE
-            + cache_read * read) / 1_000_000
+    return (input_tokens * p["input"] + output_tokens * p["output"]
+            + cache_write * p.get("cache_write", p["input"] * CACHE_WRITE_FACTOR)
+            + cache_read * p.get("cache_read", p["input"])) / 1_000_000
+
+
+def _worst(model: str, input_tokens: int, output_tokens: int) -> float:
+    """An estimate before a call whose prompt is marked for the cache (describing an item, drawing a shoe and its
+    checks): as if the whole prompt were written to it, the dearest way it can go."""
+    return cost_usd(model, 0, output_tokens, cache_write=input_tokens)
 
 
 def estimate_call(photos: int, model: str = TAGGING_MODEL) -> float:
     """The most one request to describe an item with this many photos should cost."""
-    return cost_usd(model, TEXT_TOKENS + IMAGE_TOKENS * max(1, photos), MAX_TOKENS)
+    return _worst(model, TEXT_TOKENS + IMAGE_TOKENS * max(1, photos), MAX_TOKENS)
 
 
 def estimate_landmarks(photos: int, model: str = TAGGING_MODEL) -> float:
@@ -130,6 +140,15 @@ def estimate_garments(photos: int, model: str = GARMENTS_MODEL) -> float:
     return cost_usd(model, CORRECT_TEXT_TOKENS + IMAGE_TOKENS * max(1, photos), CORRECT_MAX_TOKENS)
 
 
+SORT_ADD_IMAGE_TOKENS = 400   # a photo at most 512 pixels on its longest side (about width × height / 750)
+
+
+def estimate_sort_add(photos: int, model: str = VIEWS_MODEL) -> float:
+    """The most one request to sort the photos chosen on Add should cost: a short prompt and schema, up to ten small
+    photos, and the longest answer allowed."""
+    return cost_usd(model, VIEWS_TEXT_TOKENS + SORT_ADD_IMAGE_TOKENS * max(1, photos), CORRECT_MAX_TOKENS)
+
+
 def estimate_views(photos: int, model: str = VIEWS_MODEL) -> float:
     """The most one request to sort a shoe's photos into views should cost: a short prompt and schema, every photo of
     the shoe (one to six), and the longest answer allowed."""
@@ -139,14 +158,14 @@ def estimate_views(photos: int, model: str = VIEWS_MODEL) -> float:
 def estimate_draw(images: int, model: str = DRAW_MODEL) -> float:
     """The most one request to draw a shoe, or to check its drawing, should cost: the brief and the drawings as text,
     every image sent (the shoe's photos and the renders), and the longest answer allowed."""
-    return cost_usd(model, DRAW_TEXT_TOKENS + IMAGE_TOKENS * max(1, images), DRAW_MAX_TOKENS)
+    return _worst(model, DRAW_TEXT_TOKENS + IMAGE_TOKENS * max(1, images), DRAW_MAX_TOKENS)
 
 
 def estimate_correct_drawing(images: int, model: str = DRAW_MODEL) -> float:
     """The most one request to change a shoe's drawing from the owner's note, or to check the change, should cost:
     the brief, the note and the drawing as text, every image sent (the shoe's photos and the renders), and the longest
     answer allowed."""
-    return cost_usd(model, CORRECT_DRAW_TEXT_TOKENS + IMAGE_TOKENS * max(1, images), DRAW_MAX_TOKENS)
+    return _worst(model, CORRECT_DRAW_TEXT_TOKENS + IMAGE_TOKENS * max(1, images), DRAW_MAX_TOKENS)
 
 
 def estimate_correction(photos: int, model: str = TAGGING_MODEL) -> float:
@@ -162,15 +181,14 @@ def estimate_shop(searches: int, model: str = TAGGING_MODEL) -> float:
 def record(conn, route: str, model: str, input_tokens: int, output_tokens: int, purpose: str = PURPOSE_TAG,
            searches: int = 0, cache_write: int = 0, cache_read: int = 0) -> float:
     """Write down one call; returns what it cost (nothing on the plan route). `searches`: the web searches the API
-    made for it, each billed on top of the tokens. `cache_write`, `cache_read`: input written to and read back from
-    the prompt cache, on top of `input_tokens` (read in full), each at its own price; the row counts all three as
-    input."""
+    made for it, each billed on top of the tokens. `cache_write` / `cache_read`: the prompt's tokens written to or
+    read from the cache, priced on their own and counted in the stored input tokens (the whole prompt)."""
     cost = (cost_usd(model, input_tokens, output_tokens, cache_write, cache_read) + SEARCH_USD * max(0, searches)
             if route == "api" else 0.0)
-    read_in = int(input_tokens or 0) + int(cache_write or 0) + int(cache_read or 0)
+    input_tokens = int(input_tokens or 0) + int(cache_write or 0) + int(cache_read or 0)
     conn.execute("INSERT INTO claude_calls (at, month, purpose, route, model, input_tokens, output_tokens, cost_usd, "
                  "prices_checked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                 (db.now(), this_month(), purpose, route, model, read_in, int(output_tokens or 0), cost,
+                 (db.now(), this_month(), purpose, route, model, int(input_tokens or 0), int(output_tokens or 0), cost,
                   PRICES_CHECKED))
     return cost
 

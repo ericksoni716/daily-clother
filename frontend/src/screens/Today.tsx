@@ -10,7 +10,7 @@ import { Link, navigate } from '../router';
 import { useCloset } from '../store';
 import {
   canDress, dayParts, joinWords, longDate, keptFor, loadChoice, moodLabel, MOODS, occasionLabel, OCCASIONS, outfitIds, parseTemp, placeLabel,
-  saveChoice, sameOutfit, timeOf, whatToAddFirst, wornOrder, type Choice, type Outfit, type Place, type TodayAnswer,
+  saveChoice, sameOutfit, timeOf, whatToAddFirst, wornNow, wornOrder, type Choice, type Outfit, type Place, type TodayAnswer,
   type TodayRequest, type TypedDay, type WornToday,
 } from '../today';
 import type { ItemSummary, Settings } from '../types';
@@ -70,7 +70,6 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const [asking, setAsking] = useState(false);
   const [index, setIndex] = useState(remembered?.index ?? 0);
   const [wornOnDay, setWorn] = useState<WornToday | null>(() => kept.worn(today));
-  const worn = wornOnDay?.day === today ? wornOnDay : null;
   const [busy, setBusy] = useState(false);
   const [editDay, setEditDay] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -96,14 +95,22 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     if (window.location.search) navigate('/today', { replace: true });
   }, []);
 
+  const [recentAt, setRecentAt] = useState<number | null>(null);
   const loadRecent = useCallback(() => {
     // the same first page as the Worn screen, so both read (and refresh) one saved copy for offline
-    void refreshSaved(profile).then((p) => setRecent(p ? p.outfits : null));
+    const started = Date.now();
+    void refreshSaved(profile).then((p) => {
+      setRecent(p ? p.outfits : null);
+      setRecentAt(p && navigator.onLine !== false ? started : null);
+    });
   }, [profile]);
   useEffect(() => {
     loadRecent();
   }, [loadRecent, profile]);
   const question = rated ?? pendingQuestion(recent, dismissed, dayNow());
+  // what is worn today: this device's memory, put right by the server's list (another device, the Worn screen)
+  const worn = useMemo(() => wornNow(wornOnDay?.day === today ? wornOnDay : null, offline ? null : recent, recentAt, today),
+    [wornOnDay, recent, recentAt, today, offline]);
 
   const request = useMemo(() => requestFor(choice, buildAround, leaveOut, typed, again), [choice, buildAround, leaveOut, typed, again]);
   // Returning from an item keeps the outfit only if its pieces still have the same places and availability.
@@ -218,7 +225,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
       });
       r.items.forEach(upsert);
       setToday(localDay());
-      const record: WornToday = { day, worn_on: r.worn_on, ids, recorded: r.recorded ?? [], outfit: o, outfit_id: r.outfit?.id };
+      const record: WornToday = { day, worn_on: r.worn_on, ids, recorded: r.recorded ?? [], outfit: o, outfit_id: r.outfit?.id, at: Date.now() };
       loadRecent();
       kept.setWorn(record);
       setWorn(record);
@@ -239,6 +246,8 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     setBusy(true);
     try {
       if (worn.recorded.length || worn.outfit_id) (await api.unwearMany(worn.recorded, worn.worn_on, worn.outfit_id)).items.forEach(upsert);
+      const gone = worn.outfit_id;
+      setRecent((l) => l && l.filter((o) => o.id !== gone));
       loadRecent();
       kept.setWorn(null);
       setWorn(null);
@@ -681,7 +690,8 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
           <article key={outfitIds(o.pieces).join(',')} className="today-slide" aria-roledescription="slide"
             aria-label={`Outfit ${i + 1} of ${count}`} aria-hidden={i !== current} inert={i !== current}
             data-testid={i === current ? 'current-outfit' : undefined}>
-            <OutfitCard outfit={o} view={view} {...rest} />
+            <OutfitCard outfit={o} view={view} {...rest}
+              next={count > 1 ? { label: i < count - 1 ? 'See another idea' : 'Back to the best one', go: () => go(i < count - 1 ? i + 1 : 0) } : undefined} />
           </article>
         ))}
       </div>
@@ -707,8 +717,10 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
   );
 }
 
-function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & {
+function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, next }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & {
   outfit: Outfit; view: TodayView;
+  /** The next outfit, one tap from the main button: the arrows sit below the reasons, far down a phone's screen. */
+  next?: { label: string; go(): void };
 }) {
   const ids = outfitIds(outfit.pieces);
   const isWorn = !!worn && sameOutfit(worn.ids, ids);
@@ -762,6 +774,7 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo }:
             {worn ? 'Wear this instead' : "I'm wearing this"}
           </button>
         )}
+        {next && <button className="btn btn-link today-next" onClick={next.go}>{next.label} <ChevronIcon /></button>}
       </div>
 
       <div className="today-card-why">

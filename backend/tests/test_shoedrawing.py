@@ -301,7 +301,9 @@ def test_the_estimate_allows_for_the_longest_request():
     longest = SD.check_prompt(photos(6), SHEET, drawn.Side(worst), drawn.Side(worst), ["x" * 300] * 8)
     assert (len(longest) + len(schema) + len(SD.SYSTEM)) / 2 <= spend.DRAW_TEXT_TOKENS
     assert (len(SD.draw_prompt(photos(6))) + len(json.dumps(DrawAnswer.model_json_schema()))) / 2 * 2 <= spend.DRAW_TEXT_TOKENS
-    assert spend.estimate_draw(9) - spend.estimate_draw(8) == pytest.approx(spend.cost_usd(SD.MODEL, spend.IMAGE_TOKENS, 0))
+    # each photo priced as written to the prompt cache, the dearest way it can go (the photos are marked for it)
+    assert spend.estimate_draw(9) - spend.estimate_draw(8) == pytest.approx(
+        spend.cost_usd(SD.MODEL, 0, 0, cache_write=spend.IMAGE_TOKENS))
     assert spend.estimate_draw(8) >= spend.cost_usd(SD.MODEL, spend.DRAW_TEXT_TOKENS + 8 * spend.IMAGE_TOKENS, SD.MAX_TOKENS)
 
 

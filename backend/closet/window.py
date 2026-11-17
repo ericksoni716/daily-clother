@@ -4,9 +4,9 @@ The window is pywebview (https://pywebview.flowrl.com, BSD licence): Edge WebVie
 GTK or Qt on Linux when they are installed (a closet run from source on Linux usually has neither, and uses the browser).
 It shows the same page the browser and the phone get, from the same server on 127.0.0.1, with the same login.
 
-- Closing the window hides it: Closet keeps running in the tray, so the phone and the nightly backup keep working.
-  "Open Closet" in the tray, a second launch and (on the Mac) clicking the program again bring it back. Only when
-  there is no tray icon to come back from does closing the window quit Closet.
+- Closing the window hides it: Closet keeps running in the background, so the phone and the nightly backup keep
+  working. A second launch, (on the Mac) clicking the program again and, with `--tray`, "Open Closet" in the tray
+  bring it back. Only when the launcher says not to keep running does closing the window quit Closet.
 - A copy started at login prepares the window hidden and loads nothing until the owner first opens it.
 - The window keeps its web storage (the login cookie, the page's own settings) in `window/` in the closet's data
   folder, not in private mode, so the login is remembered like a browser remembers it. (The Mac keeps WebKit's storage

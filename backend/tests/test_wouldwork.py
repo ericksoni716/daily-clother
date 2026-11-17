@@ -41,7 +41,9 @@ def test_a_rain_proof_coat_fills_the_demo_closets_rain_gap(closet):
     rain = next(f for f in a["fills"] if f["gap_id"] == "outer-rain")
     assert rain["score_after"] < rain["score_before"] and rain["days"]
     assert all(d["rain"] for d in rain["days"])
-    assert "rain-proof outer layer" in a["reasons"][0]
+    # a heavy coat covers the cold and cool wet days; on mild ones a rain layer is not required (the owner, 17 November)
+    assert {d["temperature"] for d in rain["days"]} <= {"cold", "cool"}
+    assert rain["score_after"] <= rain["score_before"] / 2
     assert a["goes_with"]["days"] >= wouldwork.GOOD_MIN_DAYS and a["goes_with"]["items"]
     assert 1 <= len(a["goes_with"]["examples"]) <= wouldwork.EXAMPLES_MAX
     owned = {i["id"] for i in closet[0]}
@@ -67,6 +69,16 @@ def test_a_piece_nothing_goes_with_is_hard_to_wear(closet):
     assert a["goes_with"]["days"] == 0 and a["goes_with"]["examples"] == []
     assert a["holds_back"] and "formality" in a["holds_back"][0]
     assert a["reasons"][0].startswith("Nothing you own makes a good outfit with it")
+
+
+@pytest.mark.parametrize("piece", [{"category": "scarf", "color": "grey", "formality": "casual"},
+                                   {"category": "hat", "color": "navy", "formality": "casual"}])
+def test_a_scarf_or_a_hat_is_judged_on_days_cold_enough_to_ask_for_one(closet, piece):
+    # the owner's rules add them only below the gap analysis's coldest day; they used to be "hard to wear" always
+    a = check(closet, piece)
+    assert a["verdict"] != "hard_to_wear", a["reasons"]
+    assert a["goes_with"]["suits"] > 0 and a["goes_with"]["days"] > 0
+    assert all(d["temperature"] == "cold" for d in (ex["day"] for ex in a["goes_with"]["examples"]))
 
 
 def test_a_new_kind_of_piece_works_and_adds_something(closet):
@@ -266,7 +278,7 @@ def test_unanswered_questions_give_the_plain_check(closet):
                for f in a["fills"])
     assert all("situation" not in d for f in a["fills"] for d in f["days"])
     # no situation is named, as before
-    assert a["verdict"] == "fills_gap" and a["reasons"][0].startswith("It would fill “A rain-proof outer layer”, covering")
+    assert a["verdict"] == "fills_gap" and a["reasons"][0].startswith("It would fill “")
 
 
 def test_an_empty_or_tiny_closet_says_there_is_not_enough_to_say():

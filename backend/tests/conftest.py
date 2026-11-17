@@ -193,7 +193,7 @@ class FakeClaude:
         self.corrections: list[tuple] = []
 
     def routes(self) -> tuple[str, ...]:
-        return () if self.mode == "unavailable" else ("plan",)
+        return () if self.mode == "unavailable" else ("plan",)   # "unreachable" looks usable until called
 
     def __call__(self, images, routes):
         self.calls.append(routes)
@@ -202,6 +202,9 @@ class FakeClaude:
             raise RouteUnavailable("Claude Code is not signed in")
         if self.mode == "fails":
             raise TaggingError("the answer was outside the schema")
+        if self.mode == "unreachable":   # a route looks usable, but Claude cannot be reached (offline, overloaded)
+            from closet.tagger.tagging import Unreachable
+            raise Unreachable("Claude could not be reached")
         return TagResult(ANSWER, "claude-haiku-5-5", 0.1, 100, 50, 0.0, 1, route=routes[0])
 
     def correct(self, sentence, description, allowed, images, routes):

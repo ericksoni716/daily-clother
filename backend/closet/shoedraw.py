@@ -40,7 +40,7 @@ from . import db, failures, shoeviews, tracejobs
 from .config import Config
 from .state import State
 from .tagger.shoedrawing import Drawn, Photo, clean_note, notes_of
-from .tagger.tagging import CapReached, RouteUnavailable
+from .tagger.tagging import CapReached, RouteUnavailable, Unreachable
 
 log = logging.getLogger("closet.shoedraw")
 
@@ -299,7 +299,13 @@ def note_waiting(conn, why: str | None) -> None:
 
 
 def recover(conn) -> None:
-    """A drawing or a correction interrupted by a quit starts again (a correction keeps its note)."""
+    """A drawing or a correction interrupted by a quit starts again (a correction keeps its note), unless it has
+    used its tries already: a drawing takes minutes, so one cut short at every start would otherwise be paid for
+    again at every start, for ever."""
+    conn.execute("UPDATE items SET drawn_state = 'failed', drawn_error = ? WHERE drawn_state = 'drawing' AND drawn_attempts >= ?",
+                 (FAILED, MAX_ATTEMPTS))
+    conn.execute("UPDATE items SET drawn_state = CASE WHEN drawn IS NOT NULL THEN 'done' END, drawn_error = ?, drawn_note = NULL "
+                 "WHERE drawn_state = 'correcting' AND drawn_attempts >= ?", (CORRECT_FAILED, MAX_ATTEMPTS))
     conn.execute("UPDATE items SET drawn_state = 'waiting' WHERE drawn_state IN ('drawing', 'correcting')")
 
 
@@ -362,7 +368,7 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], drawer: Drawer, cor
             made = drawer(_open(images_dir, photos), routes, notes=[n["note"] for n in notes], style=style_of(row))
         if not isinstance(made, Drawn):
             raise TypeError("the drawer did not return a drawing")
-    except RouteUnavailable as e:
+    except (RouteUnavailable, Unreachable) as e:   # out of reach (no route, no network, overloaded): it waits
         # nothing is wrong with the shoe: Claude cannot be reached right now, so it waits without losing an attempt
         log.info("%s a shoe is waiting: no route to Claude can be used right now", working)
         conn.execute("UPDATE items SET drawn_state = 'waiting', drawn_attempts = max(0, drawn_attempts - 1) "

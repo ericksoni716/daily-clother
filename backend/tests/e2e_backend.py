@@ -96,6 +96,25 @@ def fake_finder(photo, routes):
     return [dict(b) for b in GARMENT_BOXES]
 
 
+def fake_add_sorter(photos, routes):
+    """What each photo chosen on Add shows, from its file name: "shoe..." is one shoe (all such photos the same one;
+    "outer", "inner", "front" ... in the name is its side, "pair" that it shows the pair), "several..." or "pile..."
+    several pieces, anything else one piece."""
+    out = []
+    for p in photos:
+        name = p.info.get("filename", "").lower()
+        if name.startswith("shoe"):   # "shoe-outer...", "shoe-front...", "shoe-pair...": the side, or the pair
+            view = next((v for v in ("outer", "inner", "front", "top", "back") if v in name), "other")
+            out.append({"kind": "shoe", "shoe": 1, "view": view, "pair": "pair" in name})
+        else:
+            kind = "pieces" if name.startswith(("several", "pile")) else "piece"
+            out.append({"kind": kind, "shoe": 0, "view": None, "pair": False})
+    return out
+
+
+fake_add_sorter.needs_route = False   # answers on a computer with no route to Claude too (the CI)
+
+
 def fake_sorter(photos, routes):
     time.sleep(1)   # long enough for the page to show it sorting
     return views_answer(len(photos))
@@ -182,6 +201,8 @@ def no_weather_service(url):
 
 
 def build_services(cfg, **kwargs):
+    # sorting the photos on Add never reaches Claude from a browser test, with or without the other stand-ins
+    kwargs.setdefault("add_sorter", fake_add_sorter)
     if not os.environ.get("CLOSET_E2E_FAKES"):
         return _real_build(cfg, **kwargs)
     if os.environ.get("CLOSET_E2E_SEED") == "demo":

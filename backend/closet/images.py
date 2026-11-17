@@ -50,10 +50,14 @@ def decode(data: bytes) -> Image.Image:
     except UnidentifiedImageError as e:
         hint = "" if HEIC else " HEIC photos are not supported on this computer."
         raise ImageError("That file is not a photo this app can read (JPEG, PNG, WebP or HEIC)." + hint) from e
-    except (OSError, Image.DecompressionBombError) as e:
+    except (OSError, ValueError, SyntaxError, Image.DecompressionBombError) as e:
+        # Pillow says a damaged file in several ways (a truncated PNG header is a ValueError)
         raise ImageError("That photo could not be opened; it may be damaged.") from e
-    img = ImageOps.exif_transpose(img)
-    return img.convert("RGB")
+    try:
+        img = ImageOps.exif_transpose(img)
+        return img.convert("RGB")
+    except (OSError, ValueError, SyntaxError) as e:
+        raise ImageError("That photo could not be opened; it may be damaged.") from e
 
 
 def save_webp(img: Image.Image, path: Path, quality: int) -> int:

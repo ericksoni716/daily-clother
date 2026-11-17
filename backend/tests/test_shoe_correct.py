@@ -736,6 +736,6 @@ def test_the_estimate_allows_for_the_longest_correction():
         assert (len(text) + len(json.dumps(model.model_json_schema())) + len(SD.SYSTEM)) / 2 \
             <= spend.CORRECT_DRAW_TEXT_TOKENS
     assert spend.estimate_correct_drawing(9) - spend.estimate_correct_drawing(8) == pytest.approx(
-        spend.cost_usd(SD.MODEL, spend.IMAGE_TOKENS, 0))
+        spend.cost_usd(SD.MODEL, 0, 0, cache_write=spend.IMAGE_TOKENS))   # as written to the prompt cache
     assert spend.estimate_correct_drawing(8) >= spend.cost_usd(
         SD.MODEL, spend.CORRECT_DRAW_TEXT_TOKENS + 8 * spend.IMAGE_TOKENS, SD.MAX_TOKENS)

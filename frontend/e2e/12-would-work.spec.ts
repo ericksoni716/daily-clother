@@ -139,6 +139,13 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   await expect(answer).toHaveAttribute('data-verdict', 'have_it');
   await expect(answer).toContainText('You have three like it');
   await expect(answer.getByRole('list', { name: 'Pieces you have like it' }).getByRole('link')).toHaveCount(3);
+  // every piece in the answer is a small picture, never one stretched to the width of the page
+  const thumbs = await answer.locator('.gap-thumb').evaluateAll((els) => els.map((el) => el.getBoundingClientRect()));
+  expect(thumbs.length).toBeGreaterThan(3);
+  for (const box of thumbs) {
+    expect(box.width).toBeLessThanOrEqual(64);
+    expect(box.height).toBeLessThanOrEqual(72);
+  }
   const width = await page.evaluate(() => document.documentElement.scrollWidth);
   expect(width).toBeLessThanOrEqual(390);
 

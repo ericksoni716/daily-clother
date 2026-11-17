@@ -31,6 +31,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from . import outfit_rules, vocab
+from .tagger.taxonomy import LOUNGE_KINDS
 
 
 def rules() -> outfit_rules.Rules:
@@ -1045,11 +1046,13 @@ def _search(pool: list[Piece], ctx: Context, t: float, forced: tuple[Piece, str]
     need_mid = band.mid == "must" and any(_fits(p, "mid") for p in pool)
     need_outer = band.outer == "must" and any(_fits(p, "outer") for p in pool)
     if ctx.rain and rules().rain_outer_must and not band.bare:
-        # the owner: in rain the outer layer must be water-resistant. With one in the closet that suits the day it is
-        # worn; without, any outer layer may be, with the warning to take an umbrella
+        # the owner: in rain the outer layer must be water-resistant. With one in the closet that suits the day, it is
+        # the only outer layer offered; it is required only where the day's band requires an outer layer anyway, so on
+        # a warm wet day the outfit may go without, with the warning to take an umbrella (the owner, 17 November: a
+        # rain jacket is not required on warm days). Without one, any outer layer may be worn, with the same warning
         dry = [o for o in outers if o is not None and _rain_friendly(o.piece)]
         if dry:
-            outers, need_outer = list(dry), True
+            outers = list(dry)
     if not (forced and forced[1] == "mid") and not (need_mid and strict):
         mids.append(None)
     if not (forced and forced[1] == "outer") and not (need_outer and strict):
@@ -1406,11 +1409,23 @@ def _explain_feedback(core: list[_Option], fb: Feedback, reasons: list[str], war
 PLACE_WORDS = {"base": "tops (tees, shirts or polos)", "bottom": "trousers, jeans or shorts", "shoes": "shoes"}
 
 
+# The owner's loungewear and sleepwear (the taxonomy's own group) is worn at home: never in an outfit for going
+# out, though it can still be built around or packed when asked for. The smoking jacket is the exception: an
+# evening jacket worn out as well as in.
+HOME_KINDS = frozenset(LOUNGE_KINDS - {"smoking_jacket"})
+FOR_HOME = "for wearing at home"
+NEEDS_MENDING = "waiting to be mended"
+
+
 def _unavailable(item: dict, ctx: Context) -> str | None:
     if item.get("status") == "archived":
         return "archived"
     if _in_laundry(item):
         return "in the laundry"
+    if item.get("condition") == "needs_repair":
+        return NEEDS_MENDING
+    if item.get("kind") in HOME_KINDS:
+        return FOR_HOME
     if str(item.get("id")) in ctx.leave_out:
         return "left out today"
     if item.get("rating") == "dislike":

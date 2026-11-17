@@ -303,7 +303,7 @@ def restore(cfg: Config, folder: Path, snapshot: str | None = None) -> dict:
         if version > db.latest_version():
             raise BackupError("This backup was made by a newer version of the program. Download the latest version to restore it.")
         _stage_images(root, chosen, staged_images)
-        db.migrate(staged_db, cfg.local_backups_dir)
+        db.migrate(staged_db, cfg.local_backups_dir, "restored")
         _check_images(staged_db, lambda p: (staged_images / p).is_file())
         aside = _install(cfg, staged, [staged_db, staged_images], chosen.name)
     return {"snapshot": chosen.name, "items": items, "previous_moved_to": str(aside) if aside else None}

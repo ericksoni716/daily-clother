@@ -808,15 +808,15 @@ Asker = Callable[..., correcting.CorrectionResult]
 
 
 def _caller(routes: tuple[str, ...], client, exe: str | None, meter: Meter | None, asker: Asker,
-            clock: Callable[[], float], calls: list[Call], cache_images: int = 0):
-    """One call to Claude on the drawing model, recorded in `calls` with its tokens, cost and seconds. `cache_images`:
-    every call's images start with the shoe's photos, this many: on the API route the request is cached up to them,
-    so each later call reads them back from the cache."""
+            clock: Callable[[], float], calls: list[Call], cache_photos: int = 0):
+    """One call to Claude on the drawing model, recorded in `calls` with its tokens, cost and seconds. `cache_photos`:
+    every call's images start with the shoe's photos, this many: on the API route the request is cached up to the
+    last of them, so each later call reads them back from the cache."""
     def ask(kind: str, text: str, images: list[Image.Image], image_names: list[str], answer_model):
         t = clock()
         result = asker(text, images, routes, client=client, exe=exe, meter=meter, answer_model=answer_model,
                        system=SYSTEM, model=MODEL, names=image_names, max_tokens=MAX_TOKENS, timeout=TIMEOUT,
-                       effort=EFFORT, cache_images=cache_images)
+                       effort=EFFORT, cache_photos=cache_photos)
         cached = getattr(result, "cache_read_tokens", 0) or 0
         written = getattr(result, "cache_write_tokens", 0) or 0
         if result.route == "api":   # what it cost, the cache's writes and reads at their own prices
@@ -1068,7 +1068,7 @@ def draw_straight(photos: list[Photo], routes: tuple[str, ...], client=None, exe
     shots = [shown(p.image) for p in photos]
     names = photo_names(len(photos))
     calls: list[Call] = []
-    ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_images=len(shots))
+    ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_photos=len(shots))
     done = _straight(ask, photos, shots, names, list(notes), style, front)
     return Drawn(done.left, done.right, done.sheet, done.rounds, clock() - start, calls, done.good, done.problems)
 
@@ -1097,7 +1097,7 @@ def draw(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | N
     shots = [shown(p.image) for p in photos]
     names = photo_names(len(photos))
     calls: list[Call] = []
-    ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_images=len(shots))
+    ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_photos=len(shots))
     notes = list(notes)
 
     made, failed = _parallel(CANDIDATES, lambda i: _straight(ask, photos, shots, names, notes, style, front))
@@ -1177,7 +1177,7 @@ def correct(photos: list[Photo], kept: Mapping, note: str, routes: tuple[str, ..
     shots = [shown(p.image) for p in photos]
     names = photo_names(len(photos))
     calls: list[Call] = []
-    ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_images=len(shots))
+    ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_photos=len(shots))
     first, done = _correcting(ask, photos, shots, names, kept["sheet"], left0, right0, note, earlier, whole, view, style,
                               MAX_CORRECT_ROUNDS, checker=_kept_turn_checks(kept, style) if view is drawn.TURNED else None)
     # the last check looked at the change beside the photos, so its word on them is the one kept

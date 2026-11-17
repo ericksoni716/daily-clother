@@ -26,7 +26,20 @@ from pydantic import BaseModel, Field
 
 from .. import apikey
 from . import claude_cli
-from .tagging import CONFIG, ApiRefused, CapReached, Meter, PlanSignIn, RouteUnavailable, TaggingError, encode_image, send
+from .tagging import (
+    CACHED,
+    CONFIG,
+    ApiRefused,
+    CapReached,
+    Meter,
+    PlanSignIn,
+    RouteUnavailable,
+    TaggingError,
+    Unreachable,
+    cached_tokens,
+    encode_image,
+    send,
+)
 
 MODEL = CONFIG["roles"]["tagging"]
 MAX_TOKENS = 2000    # the longest answer asked for: a few changes and a sentence (`spend.CORRECT_MAX_TOKENS`)
@@ -62,7 +75,7 @@ class CorrectionResult:
     input_tokens: int = 0
     output_tokens: int = 0
     cache_read_tokens: int = 0   # of input_tokens, those read back from a cache: Claude Code's own (the plan route),
-                                 # or the prompt cache (the API route, `cache_images`)
+                                 # or the prompt cache (the API route, `cache_photos`)
     cache_write_tokens: int = 0  # of input_tokens, those written to the prompt cache (the API route)
 
 
@@ -122,17 +135,14 @@ def _parsed(resp, answer_model):
 
 def correct_api(client, model: str, text: str, images: list[Image.Image], meter: Meter | None = None,
                 answer_model=CorrectionAnswer, names: list[str] | None = None, max_tokens: int = MAX_TOKENS,
-                effort: str | None = None, cache_images: int = 0) -> CorrectionResult:
+                effort: str | None = None, cache_photos: bool | int = False) -> CorrectionResult:
     """Through the API key. With a `meter`, every request is checked against it before it is sent and counted
     once it comes back, as for tagging. `answer_model` is the shape of the answer (another short question to
     Claude, such as the landmarks, uses the same way in). `names`: what to call each image, put just before it (a
     name ending in .png is sent as PNG). `max_tokens` above what the SDK allows without streaming
     (`NONSTREAMING_MAX_TOKENS`) is streamed: the answer's schema goes in `output_config.format`, as `messages.stream`
     does with `output_format` itself, and the whole text is read against it once it has come, so an answer cut short
-    is still counted at what it cost. `effort` overrides the model's effort in `models.json`. `cache_images`: the
-    first images are the same in a run of requests (a shoe's photos, in every call that draws it), so the request is
-    cached up to the last of them, and the next request reads them back from the cache at a tenth of the price or
-    less; what was written to and read from the cache is counted at its own price."""
+    is still counted at what it cost. `effort` overrides the model's effort in `models.json`."""
     import anthropic
     from anthropic.lib._parse._transform import transform_schema
 
@@ -142,12 +152,19 @@ def correct_api(client, model: str, text: str, images: list[Image.Image], meter:
         if names:
             content.append({"type": "text", "text": f"{names[i]}:"})
         content.append(_png_block(im) if names and names[i].endswith(".png") else encode_image(im))
-        if i == cache_images - 1:   # the end of what is the same in every request of the run
-            content[-1]["cache_control"] = {"type": "ephemeral"}
+    if cache_photos and content:
+        # the photos come first and are sent again by the calls that follow (a shoe's drawing, then its checks): read
+        # back from Anthropic's prompt cache at a tenth of the price, or less, instead of paying for them each time.
+        # A number says how many of the first images are the photos: the marker goes on the last of them, the end of
+        # what every call shares, not on a render that changes from call to call (a cache is only read back by a
+        # request the same up to where an earlier one was marked)
+        photos = len(images) if cache_photos is True else min(int(cache_photos), len(images))
+        last = 2 * photos - 1 if names else photos - 1   # with names, each image follows its name
+        content[last] = {**content[last], "cache_control": CACHED}
     content.append({"type": "text", "text": text})
     effort = effort or CONFIG["models"][model].get("effort", "low")
     streamed = max_tokens > NONSTREAMING_MAX_TOKENS
-    tokens_in = tokens_out = written = read_back = 0
+    tokens_in = tokens_out = cache_write = cache_read = 0
     last: Exception | None = None
     for _ in range(MAX_ATTEMPTS):
         if meter:
@@ -174,13 +191,12 @@ def correct_api(client, model: str, text: str, images: list[Image.Image], meter:
                 reason = "key" if e.status_code in (401, 403) else "credit"
                 raise ApiRefused(f"the API key cannot be used right now ({e.status_code})", reason) from e
             raise TaggingError(f"{model} rejected the request ({e.status_code})") from e
-        cache_write = getattr(resp.usage, "cache_creation_input_tokens", 0) or 0
-        cache_read = getattr(resp.usage, "cache_read_input_tokens", 0) or 0
-        tokens_in += resp.usage.input_tokens + cache_write + cache_read
+        tokens_in += resp.usage.input_tokens
         tokens_out += resp.usage.output_tokens
-        written, read_back = written + cache_write, read_back + cache_read
+        cached = cached_tokens(resp.usage)
+        cache_write += cached.get("cache_write", 0)
+        cache_read += cached.get("cache_read", 0)
         if meter:
-            cached = {"cache_write": cache_write, "cache_read": cache_read} if cache_write or cache_read else {}
             meter.record("api", model, resp.usage.input_tokens, resp.usage.output_tokens, **cached)
         if resp.stop_reason == "refusal":
             raise TaggingError(f"{model} declined to answer")
@@ -188,7 +204,11 @@ def correct_api(client, model: str, text: str, images: list[Image.Image], meter:
         if parsed is None or (streamed and resp.stop_reason == "max_tokens"):
             last = TaggingError(f"{model} returned an incomplete answer")
             continue
-        return CorrectionResult(parsed, "api", model, tokens_in, tokens_out, read_back, written)
+        return CorrectionResult(parsed, "api", model, tokens_in + cache_write + cache_read, tokens_out, cache_read,
+                                cache_write)
+    if isinstance(last, (anthropic.RateLimitError, anthropic.APIConnectionError, anthropic.APIStatusError)):
+        # every try failed to reach Claude (a 4xx is raised above): out of reach, not a bad answer
+        raise Unreachable(f"{model} could not be reached: {type(last).__name__}") from last
     raise TaggingError(f"{model} gave no valid answer: {type(last).__name__ if last else 'none'}")
 
 
@@ -250,13 +270,17 @@ def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | Non
             except ValueError:
                 out = {}
             said = f"{out.get('result') or ''} {proc.stderr or ''} {proc.stdout if not out else ''}".lower()
-            if any(w in said for w in claude_cli._LIMIT_WORDS):
+            failed = proc.returncode != 0 or bool(out.get("is_error")) or out.get("structured_output") is None
+            if failed and any(w in said for w in claude_cli._LIMIT_WORDS):   # a good answer may use the words
                 raise RouteUnavailable("the Claude plan's usage limit has been reached")
             problem = claude_cli.sign_in_problem(said) if (proc.returncode != 0 or out.get("is_error")) else None
             if problem:
                 raise PlanSignIn(problem)
             answer = out.get("structured_output")
             if proc.returncode != 0 or out.get("is_error") or answer is None:
+                if (proc.returncode != 0 or out.get("is_error")) and any(w in said for w in claude_cli._UNREACHABLE_WORDS):
+                    last = Unreachable(f"{model} through Claude Code could not reach Anthropic")
+                    continue
                 last = TaggingError(f"{model} through Claude Code gave no usable answer (exit {proc.returncode})")
                 continue
             try:
@@ -282,13 +306,13 @@ def correct(sentence: str, description: dict, allowed: dict[str, list], images: 
 def ask(text: str, images: list[Image.Image], routes: tuple[str, ...], client=None, exe: str | None = None,
         meter: Meter | None = None, answer_model=CorrectionAnswer, system: str = SYSTEM,
         model: str = MODEL, names: list[str] | None = None, max_tokens: int | None = None,
-        timeout: float | None = None, effort: str | None = None, cache_images: int = 0) -> CorrectionResult:
+        timeout: float | None = None, effort: str | None = None, cache_photos: bool | int = False) -> CorrectionResult:
     """A question to Claude with an answer of the given shape, through `routes` in order, as `correct`. `names`: a
     file name for each image, which the prompt can refer to (else `item.jpg`, or `photo-1.jpg`, ... on the plan route);
     `max_tokens`: the longest answer the API route allows (streamed when the SDK requires it); `timeout`: how long a
     call through the plan may take, in seconds; `effort`: instead of the model's effort in `models.json`;
-    `cache_images`: on the API route, cache the request up to that many first images (`correct_api`); Claude Code
-    caches on its own."""
+    `cache_photos`: mark the photos for the API's prompt cache, for a question asked again about the same photos
+    (True: every image is a photo; a number: how many of the first images are)."""
     skipped, capped = [], False
     for route in routes:
         try:
@@ -304,7 +328,7 @@ def ask(text: str, images: list[Image.Image], routes: tuple[str, ...], client=No
                         raise RouteUnavailable("no API key is set")
                     client = apikey.client()
                 return correct_api(client, model, text, images, meter=meter, answer_model=answer_model, names=names,
-                                   max_tokens=max_tokens or MAX_TOKENS, effort=effort, cache_images=cache_images)
+                                   max_tokens=max_tokens or MAX_TOKENS, effort=effort, cache_photos=cache_photos)
         except RouteUnavailable as e:
             skipped.append(f"{route}: {e}")
             capped = capped or isinstance(e, CapReached)

@@ -18,6 +18,7 @@ UPLOADS = frozenset({
     ("POST", "/api/items"),
     ("POST", "/api/sources"),
     ("POST", "/api/would-this-work"),
+    ("POST", "/api/add/sort"),          # up to ten small copies of the photos chosen on Add
 })
 # And those with an item in their path: another photo of a shoe, a retaken photo.
 # (They were missing, so a phone's photo was refused there as "more than Closet reads in one request".)

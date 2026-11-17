@@ -7,7 +7,11 @@ import { Link, navigate } from '../router';
 import { useCloset } from '../store';
 import { occasionLabel } from '../today';
 import type { ItemSummary } from '../types';
+import { setLaundryMany } from '../laundry';
 import { localDay } from '../wears';
+
+/** The kinds of piece that go in the wash after a day's wear (not shoes, coats, jackets or accessories). */
+const WASHED = new Set(['tee', 'shirt', 'polo', 'sweater', 'hoodie', 'jeans', 'trousers', 'shorts']);
 import {
   contextWords, RATINGS, ratingLabel, ratingSummary, reasonLabel, reasonsFor, loadSavedWorn, pieceName, saveWorn, wornDay, wornIds, type Rating, type Reason,
   type WornOutfit, type WornPage,
@@ -242,8 +246,18 @@ export function WornScreen() {
 function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
   outfit: WornOutfit; byId: Map<string, ItemSummary>; offline: boolean; onRated(o: WornOutfit): void; onRemoved(): void;
 }) {
-  const { toast } = useCloset();
+  const { toast, upsert } = useCloset();
   const [confirm, setConfirm] = useState(false);
+  // the clothes of the outfit that go in the wash, still in the closet and not in the laundry already
+  const washable = wornIds(outfit.pieces).filter((id) => {
+    const item = byId.get(id);
+    return item && item.status !== 'archived' && item.laundry !== 'laundry' && WASHED.has(item.category ?? '');
+  });
+  async function toLaundry() {
+    const failed = await setLaundryMany(washable, 'laundry', upsert);
+    toast(failed ? `${failed} could not be put in the laundry. Try again.` : `${washable.length === 1 ? 'It is' : `${washable.length} pieces are`} in the laundry`,
+      failed ? 'error' : 'ok');
+  }
   const [busy, setBusy] = useState(false);
   const [rating, setRating] = useState(false);
   const title = offline ? OFFLINE_TITLE : undefined;
@@ -272,6 +286,7 @@ function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
         </div>
         <OutfitMenu offline={offline}
           onAgain={() => navigate(`/today?again=${encodeURIComponent(outfit.id)}`)}
+          onLaundry={washable.length ? () => void toLaundry() : undefined}
           onRemove={() => setConfirm(true)} />
       </div>
       <OutfitPics outfit={outfit} byId={byId} />
@@ -303,7 +318,7 @@ function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
 }
 
 /** The less used actions on a worn outfit, behind a ⋯ button. Escape closes the menu and puts focus back on the button. */
-function OutfitMenu({ offline, onAgain, onRemove }: { offline: boolean; onAgain(): void; onRemove(): void }) {
+function OutfitMenu({ offline, onAgain, onLaundry, onRemove }: { offline: boolean; onAgain(): void; onLaundry?(): void; onRemove(): void }) {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -358,6 +373,11 @@ function OutfitMenu({ offline, onAgain, onRemove }: { offline: boolean; onAgain(
           <button type="button" role="menuitem" className="worn-menu-item" disabled={offline} title={title} onClick={choose(onAgain)}>
             Wear this again
           </button>
+          {onLaundry && (
+            <button type="button" role="menuitem" className="worn-menu-item" disabled={offline} title={title} onClick={choose(onLaundry)}>
+              Put these in the laundry
+            </button>
+          )}
           <button type="button" role="menuitem" className="worn-menu-item is-danger" disabled={offline} title={title} onClick={choose(onRemove)}>
             Remove
           </button>

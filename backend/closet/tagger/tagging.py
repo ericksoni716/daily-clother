@@ -72,6 +72,13 @@ class PlanSignIn(RouteUnavailable):
     that Anthropic turns down. The owner has to sign in again; nothing was wrong with the photo or the prompt."""
 
 
+class Unreachable(TaggingError):
+    """Claude could not be reached just now: no network, a connection cut, or Anthropic overloaded or rate
+    limiting. Nothing was wrong with the photo or the route's sign-in, so the item waits and is tried again
+    later without losing an attempt. Not a `RouteUnavailable`: the other route would most likely be out of reach
+    too, and a plan call must never move to the paid route for this."""
+
+
 class CapReached(RouteUnavailable):
     """The call was not made: it could take this month's API spending past the owner's limit."""
 
@@ -85,10 +92,9 @@ class Meter(Protocol):
     def before_api_call(self, model: str, images: int) -> None:
         """Raise `CapReached` if the API call about to be made could go over the limit."""
 
-    def record(self, route: str, model: str, input_tokens: int, output_tokens: int) -> None:
-        """One call was made (on the API route: one request, whatever came back). A request that used the prompt
-        cache also passes `cache_write` and `cache_read`: input written to and read back from it, on top of
-        `input_tokens`."""
+    def record(self, route: str, model: str, input_tokens: int, output_tokens: int, **cached: int) -> None:
+        """One call was made (on the API route: one request, whatever came back). `cached`: `cache_write` and
+        `cache_read`, the prompt's tokens written to or read from the cache, when there were any."""
 
     def api_refused(self, reason: str) -> None:
         """The API refused the key ("credit" or "key")."""
@@ -120,17 +126,23 @@ class TagResult:
     route: str = "api"       # "api" (API key, billed) or "plan" (Claude plan through `claude -p`)
 
 
-CACHE_WRITE = 1.25   # a prompt-cache write (five-minute entry) costs this many times input
-
-
 def cost_usd(model: str, input_tokens: int, output_tokens: int, cache_write: int = 0, cache_read: int = 0) -> float:
-    """What the API key charges: `input_tokens` read in full, `output_tokens` written, and, for a request that uses the
-    prompt cache, `cache_write` tokens written to it (CACHE_WRITE times input) and `cache_read` read back from it (the
-    model's `cache_read` price, else a tenth of input)."""
     price = CONFIG["models"][model]
-    read = price.get("cache_read", price["input"] / 10)
     return (input_tokens * price["input"] + output_tokens * price["output"]
-            + cache_write * price["input"] * CACHE_WRITE + cache_read * read) / 1_000_000
+            + cache_write * price.get("cache_write", price["input"] * 1.25) + cache_read * price.get("cache_read", price["input"])) / 1_000_000
+
+
+# The prompt's long, unchanging part is marked for Anthropic's prompt cache: describing a closet's worth of photos
+# one after another reads the form from the cache at a tenth of the price after the first (5 minutes, renewed by use)
+CACHED = {"type": "ephemeral"}
+
+
+def cached_tokens(usage) -> dict:
+    """The prompt's tokens written to and read from the cache, as `Meter.record`'s keywords (none when there were
+    none, so a stand-in meter that does not know them still works)."""
+    write = int(getattr(usage, "cache_creation_input_tokens", 0) or 0)
+    read = int(getattr(usage, "cache_read_input_tokens", 0) or 0)
+    return {"cache_write": write, "cache_read": read} if write or read else {}
 
 
 def encode_image(img: Image.Image, max_edge: int = 1024) -> dict:
@@ -304,9 +316,10 @@ def tag_item(client, model: str, images: list[Image.Image], max_attempts: int = 
 
     content = [encode_image(im) for im in images] + [{"type": "text", "text": PROMPT + "\n\n" + ASK_FOR_TOOL}]
     first = [{"role": "user", "content": content}]
-    tool = answer_tool()
+    tool = {**answer_tool(), "cache_control": CACHED}   # the form comes first in the prompt and is the same every time
     effort = CONFIG["models"][model].get("effort", "low")
     t0 = time.time()
+    cache_write = cache_read = 0
     tokens_in = tokens_out = 0
     last: Exception | None = None
     messages = first
@@ -344,8 +357,11 @@ def tag_item(client, model: str, images: list[Image.Image], max_attempts: int = 
             raise TaggingError(f"{model} rejected the request ({e.status_code}): {message}") from e
         tokens_in += resp.usage.input_tokens
         tokens_out += resp.usage.output_tokens
+        cached = cached_tokens(resp.usage)
+        cache_write += cached.get("cache_write", 0)
+        cache_read += cached.get("cache_read", 0)
         if meter:
-            meter.record("api", model, resp.usage.input_tokens, resp.usage.output_tokens)
+            meter.record("api", model, resp.usage.input_tokens, resp.usage.output_tokens, **cached)
         if resp.stop_reason == "refusal":
             raise TaggingError(f"{model} declined to tag this photo")
         call = next((b for b in resp.content if getattr(b, "type", None) == "tool_use" and b.name == ANSWER_TOOL), None)
@@ -368,6 +384,9 @@ def tag_item(client, model: str, images: list[Image.Image], max_attempts: int = 
             last = TaggingError(f"{model} answered outside the form: {e.error_count()} problems")
             messages = first
             continue
-        return TagResult(tags, model, time.time() - t0, tokens_in, tokens_out,
-                         cost_usd(model, tokens_in, tokens_out), attempt)
+        return TagResult(tags, model, time.time() - t0, tokens_in + cache_write + cache_read, tokens_out,
+                         cost_usd(model, tokens_in, tokens_out, cache_write, cache_read), attempt)
+    if isinstance(last, (anthropic.RateLimitError, anthropic.APIConnectionError, anthropic.APIStatusError)):
+        # every attempt failed to reach Claude (the 4xx answers were raised above): out of reach, not a bad answer
+        raise Unreachable(f"{model} could not be reached after {max_attempts} attempts: {type(last).__name__}") from last
     raise TaggingError(f"{model} gave no valid answer after {max_attempts} attempts: {last}")

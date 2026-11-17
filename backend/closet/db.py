@@ -14,6 +14,8 @@ from pathlib import Path
 
 from .config import bundle_dir
 
+KEEP_MIGRATION_COPIES = 3   # copies made before a migration kept for each closet in the local backups folder
+
 
 class NewerDatabaseError(RuntimeError):
     pass
@@ -65,7 +67,7 @@ def snapshot(src: Path, dest: Path) -> None:
     tmp.replace(dest)
 
 
-def migrate(path: Path, backups_dir: Path) -> dict:
+def migrate(path: Path, backups_dir: Path, name: str = "main") -> dict:
     """Bring the database at `path` up to date. Returns what happened."""
     path.parent.mkdir(parents=True, exist_ok=True)
     existed = path.exists()
@@ -81,8 +83,12 @@ def migrate(path: Path, backups_dir: Path) -> dict:
         pending = [(v, p) for v, p in migration_files() if v > current]
         backup = None
         if pending and existed and current > 0:
-            backup = backups_dir / f"pre-migration-v{current}-{time.strftime('%Y%m%d-%H%M%S')}.sqlite"
+            # named for its closet: the real and the demo closet are migrated in the same second at a start, and one
+            # copy must never replace the other's
+            backup = backups_dir / f"pre-migration-{name}-v{current}-{time.strftime('%Y%m%d-%H%M%S')}.sqlite"
             snapshot(path, backup)
+            for old in sorted(backups_dir.glob(f"pre-migration-{name}-v*.sqlite"), key=lambda p: p.stat().st_mtime)[:-KEEP_MIGRATION_COPIES]:
+                old.unlink(missing_ok=True)
         for version, file in pending:
             sql = file.read_text(encoding="utf-8")
             try:

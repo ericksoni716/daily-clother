@@ -66,7 +66,7 @@ def rewear(state: State) -> dict:
 
 
 def _plan(conn, state: State, days: list[dict], opts: trips.Options) -> dict:
-    return trips.plan(closet_rows(conn), days, opts, rewear(state))
+    return trips.plan(closet_rows(conn), days, opts, rewear(state), today=wears.today())
 
 
 def _all_given(days: list[dict]) -> bool:

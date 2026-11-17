@@ -769,6 +769,17 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .queue-list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); overflow: hidden; }
 .queue-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; min-height: 68px; }
 .queue-row + .queue-row { border-top: 1px solid var(--line); }
+.add-tray { margin-top: var(--space-4); }
+.add-shoe-check { margin: 0 0 var(--space-2); }
+.add-shoe-check p { margin: 0 0 4px; }
+.add-shoe-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.add-tray-choice select {
+  min-height: var(--tap); padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+}
+.add-tray-row .queue-info { flex: 1; min-width: 0; }
+.add-tray-row .queue-file { overflow-wrap: anywhere; }
+.add-tray-choice { flex: none; }
+.add-tray-remove svg { width: 20px; height: 20px; }
 .queue-thumb { width: 48px; height: 48px; flex: none; border-radius: var(--radius-sm); overflow: hidden; background: var(--card); display: grid; place-items: center; color: var(--card-faint); }
 .queue-thumb img { width: 100%; height: 100%; object-fit: cover; }
 .queue-thumb svg { width: 22px; height: 22px; }
@@ -814,7 +825,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .settings-sub h3, .route-name { font-size: var(--text-md); }
 .settings-rewear { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0 12px; }
 .settings-rewear .field { margin-bottom: 8px; }
-.settings-rewear select {
+.settings-laundry .field { margin: 8px 0 0; max-width: 22rem; }
+.settings-rewear select, .settings-laundry select {
   min-height: var(--tap); padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink);
 }
 .settings-spend { margin: 0; }

@@ -235,6 +235,29 @@ def test_items_in_the_laundry_or_archived_are_never_used():
         assert "tee1" not in ids_of(o) and "sneakers1" not in ids_of(o)
 
 
+def test_loungewear_and_pieces_waiting_to_be_mended_are_not_suggested():
+    # the owner's loungewear and sleepwear is for home; Today's occasions are all for going out
+    items = basic_closet() + [
+        item("lounge", "trousers", "red", "casual", kind="lounge_pants", pattern="plaid"),
+        item("robe", "coat", "grey", "casual", "cool", kind="robe"),
+        item("smoking", "jacket", "burgundy", "smart_casual", kind="smoking_jacket"),
+    ]
+    items[7]["condition"] = "needs_repair"   # jeans1, with its hole
+    seen = set()
+    for low, high in ((-2, 6), (8, 14), (15, 21), (24, 31)):
+        for o in outfits.suggest(items, day(low, high), 5)["outfits"]:
+            seen.update(ids_of(o))
+    assert not seen & {"lounge", "robe", "jeans1"}
+    assert "trousers1" in seen
+    # still there when asked for by name
+    built = outfits.suggest(items, day(15, 21, build_around="lounge"), 3)
+    assert built["outfits"] and all("lounge" in ids_of(o) for o in built["outfits"])
+    # with nothing else to wear, it says why
+    only = [i for i in basic_closet() if i["category"] not in BOTTOMS] + [item("lounge", "trousers", "red", "casual", kind="lounge_pants")]
+    assert outfits.suggest(only, day(15), 3)["missing"] == [
+        "None of your trousers, jeans or shorts can be worn today: 1 for wearing at home."]
+
+
 def test_build_around_an_item_in_the_laundry_explains_why_not():
     items = basic_closet()
     items[0]["laundry"] = "laundry"

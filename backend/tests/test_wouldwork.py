@@ -69,6 +69,16 @@ def test_a_piece_nothing_goes_with_is_hard_to_wear(closet):
     assert a["reasons"][0].startswith("Nothing you own makes a good outfit with it")
 
 
+@pytest.mark.parametrize("piece", [{"category": "scarf", "color": "grey", "formality": "casual"},
+                                   {"category": "hat", "color": "navy", "formality": "casual"}])
+def test_a_scarf_or_a_hat_is_judged_on_days_cold_enough_to_ask_for_one(closet, piece):
+    # the owner's rules add them only below the gap analysis's coldest day; they used to be "hard to wear" always
+    a = check(closet, piece)
+    assert a["verdict"] != "hard_to_wear", a["reasons"]
+    assert a["goes_with"]["suits"] > 0 and a["goes_with"]["days"] > 0
+    assert all(d["temperature"] == "cold" for d in (ex["day"] for ex in a["goes_with"]["examples"]))
+
+
 def test_a_new_kind_of_piece_works_and_adds_something(closet):
     a = check(closet, {"category": "shirt", "color": "orange", "pattern": "floral", "formality": "casual"})
     assert a["verdict"] == "adds" and a["repeats"]["items"] == [] and a["fills"] == []

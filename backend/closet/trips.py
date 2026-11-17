@@ -325,7 +325,7 @@ class _Planner:
         pool = []
         for p, it in everything:
             why = outfits._unavailable(it, out)
-            if why is None or (why == "rated dislike" and p.id in pins):
+            if why is None or (why in ("rated dislike", outfits.FOR_HOME) and p.id in pins):
                 pool.append(p)
             elif p.id in pins:
                 self.notes.append(f"{_the(p, True)} is {why}, so it is not packed.")

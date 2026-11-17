@@ -114,7 +114,9 @@ test('laundry on the trip and the explained counts', async ({ page }) => {
     await page.getByRole('button', { name: 'Work out what to pack' }).click();
 
     const counts = page.getByRole('list', { name: 'Why these counts' });
-    await expect(counts).toContainText(/: one a day, laundry on day 4/);
+    // "one a day", or "each worn once" when some days wear two tops (a tee under a shirt): what is in the demo's
+    // laundry today is packed for a trip a week away, which gives the planner more tops to layer
+    await expect(counts).toContainText(/: (one a day|each worn once), laundry on day 4/);
     await expect(counts).toContainText('jacket: one for the whole trip');
     await expect(page.getByRole('list', { name: 'Laundry' })).toContainText(/^Wash on day 4: .* from days 1–3 are worn again from day 5\./);
     await expect(page.getByTestId('trip-day').nth(3)).toContainText('Laundry day');

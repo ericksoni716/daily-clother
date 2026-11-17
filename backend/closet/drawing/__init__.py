@@ -13,4 +13,4 @@ draws from tags without it.
 # Raised whenever a template, the renderer or the fills change what a drawing looks like. The app keeps the
 # version each item was drawn with and draws an item again, the first time it is asked for, when it is older.
 # Regenerate the demo closet (`tools/make_demo.py`) in the same change: it records the version it was drawn with.
-DRAWING_VERSION = 17   # 17: an ordinary set-in sleeve has no armhole seam (templates.seam_shows)
+DRAWING_VERSION = 18   # 18: flannel's brushed surface is a faint scattered nap, not a grid of ovals (illustrate._brushed)

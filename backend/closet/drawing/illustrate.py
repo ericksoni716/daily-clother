@@ -364,6 +364,30 @@ def _upper_tile(name: str, lo: str, hi: str):
     return None
 
 
+def _brushed(lo: str, hi: str):
+    """Flannel's surface: broad, faint clouds where the nap lies one way or the other, and short fibres lying
+    every way. Scattered over a large tile by a generator seeded with the name, so no grid shows and the same
+    surface is drawn every time; a mark that crosses the tile's edge is drawn again on the far side, so no
+    seam shows either. Faint enough that a check or stripe underneath stays the thing the eye reads."""
+    size, rnd, marks = 72, random.Random("flannel"), []
+
+    def places(x: float, y: float, reach: float):
+        return [(x + dx, y + dy) for dx in (-size, 0, size) for dy in (-size, 0, size)
+                if -reach < x + dx < size + reach and -reach < y + dy < size + reach]
+
+    for i in range(14):   # the clouds: three sizes laid over each other, so each fades out at its edge
+        x, y = rnd.uniform(0, size), rnd.uniform(0, size)
+        rx, ry, turn = rnd.uniform(8, 14), rnd.uniform(4, 7), rnd.uniform(-25, 25)
+        tone = lo if i % 2 else hi
+        marks += [f'<ellipse cx="{cx:.1f}" cy="{cy:.1f}" rx="{rx * k:.1f}" ry="{ry * k:.1f}" fill="{tone}" opacity=".012" '
+                  f'transform="rotate({turn:.0f} {cx:.1f} {cy:.1f})"/>' for k in (1.0, 0.72, 0.45) for cx, cy in places(x, y, rx)]
+    for i in range(90):   # the nap
+        x, y, a, r = rnd.uniform(0, size), rnd.uniform(0, size), rnd.uniform(0, 3.1416), rnd.uniform(0.9, 1.9)
+        dx, dy, tone = r * math.cos(a), r * math.sin(a), (lo if i % 3 else hi)
+        marks += [f'<path d="M{cx:.1f},{cy:.1f}l{dx:.1f},{dy:.1f}" stroke="{tone}" opacity=".07"/>' for cx, cy in places(x, y, r)]
+    return (size, size, f'<g fill="none" stroke-width=".55" stroke-linecap="round">{"".join(marks)}</g>')
+
+
 def _cloth_tile(name: str, sc: float, lo: str, hi: str):
     """The plain weaves, shirtings, jerseys and the smooth cloths: each a faint surface of its own, big enough
     to show on a closet tile, faint enough that the cloth still reads as plain cloth. White marks are light
@@ -420,8 +444,7 @@ def _cloth_tile(name: str, sc: float, lo: str, hi: str):
         return (26, 8, f'<path d="M1,2H14M12,6H25" stroke="#fff" stroke-width=".9" stroke-linecap="round" opacity=".14"/>'
                        f'<path d="M17,2H22M3,6H7" stroke="{lo}" stroke-width=".6" opacity=".08"/>')
     if name == "flannel":    # a brushed nap: a soft, cloudy mottle
-        return (18, 16, f'<g fill="{lo}" opacity=".07"><ellipse cx="4" cy="4" rx="4" ry="2.6"/><ellipse cx="13" cy="11.5" rx="4.5" ry="2.8"/></g>'
-                        f'<g fill="#fff" opacity=".09"><ellipse cx="13" cy="3" rx="3" ry="1.8"/><ellipse cx="5" cy="12" rx="3" ry="1.8"/></g>')
+        return _brushed(lo, hi)
     if name == "brushed_twill":   # a twill whose lines the brushing has softened, with a little nap
         return (7, 7, f'<path d="M-1,1L1,-1M0,7L7,0M6,8L8,6" stroke="{lo}" stroke-width="1.5" opacity=".08"/>'
                       f'<circle cx="2" cy="2.4" r=".7" fill="#fff" opacity=".13"/>')

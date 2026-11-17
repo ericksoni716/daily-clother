@@ -69,7 +69,7 @@ from .modelstore import MODEL, SECOND_MODEL, ModelStore
 from .state import HOME_PLACE, State
 from .tagger import correcting
 from .tagger import routes as tagger_routes
-from .tagger.tagging import RouteUnavailable
+from .tagger.tagging import CapReached, RouteUnavailable, TaggingError, Unreachable
 from .today import closet_rows
 from .today import suggest as suggest_today
 from .weather import WeatherError, check_place, lookup, place_near, search_places
@@ -98,6 +98,7 @@ class Services:
     finder: sources.Worker | None = None          # asks where each piece is in a photo of several
     views: shoeviews.Worker | None = None         # sorts a shoe's photos into views
     draws: shoedraw.Worker | None = None          # draws a shoe from its sorted photos
+    add_sorter: object = None                      # says what each photo chosen on Add shows (tagger/addsort.py)
     on_quit: Callable[[], None] = lambda: None
     on_show: Callable[[], bool] = lambda: False   # shows Closet's own window; False when there is none (the browser is used)
     updater: updates.Updater | None = None   # new releases: checked once a day, installed when the owner says
@@ -174,7 +175,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                    landmarker: patjobs.Landmarker | None = None, shop_asker: shop.Asker | None = None,
                    finder: sources.Finder | None = None, tracer: tracejobs.Tracer | None = None,
                    sorter: shoeviews.Sorter | None = None, drawer: shoedraw.Drawer | None = None,
-                   drawing_corrector: shoedraw.Corrector | None = None) -> Services:
+                   drawing_corrector: shoedraw.Corrector | None = None, add_sorter=None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
@@ -267,6 +268,14 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
 
     views_worker = shoeviews.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)),
                                     sorter or (no_sorter if tagger is not None else real_sorter))
+    add_meter = spend.Meter(cfg, state, spend.PURPOSE_SORT_ADD, spend.estimate_sort_add)
+
+    def real_add_sorter(photos: list[Image.Image], usable: tuple[str, ...]):
+        from .tagger import addsort
+        return addsort.ask(photos, usable, client=api_client, meter=add_meter)
+
+    def no_add_sorter(photos: list[Image.Image], usable: tuple[str, ...]):
+        raise RouteUnavailable("tests standing in for Claude sort no photos on Add unless they ask to")
     draw_meter = spend.Meter(cfg, state, spend.PURPOSE_DRAW, spend.estimate_draw)
 
     def real_drawer(photos: list, usable: tuple[str, ...], notes=()):
@@ -315,7 +324,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                     pattern_worker=pattern_worker, second_model=second if cutter is None else None,
                     corrector=corrector or real_corrector,
                     check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper),
-                    finder=finding, views=views_worker, draws=draw_worker, updater=updates.Updater(cfg, state))
+                    finder=finding, views=views_worker, draws=draw_worker, updater=updates.Updater(cfg, state),
+                    add_sorter=add_sorter or (no_add_sorter if tagger is not None else real_add_sorter))
 
 
 def closet_inputs(cfg: Config, profile: str) -> tuple[list[dict], list[dict]]:
@@ -1077,6 +1087,43 @@ def create_app(sv: Services) -> FastAPI:
     sv.shopper.weighed = lambda profile, inputs: (
         None if profile != "demo" and state.get("life") is None else gap_analysis(profile, inputs))
     app.include_router(shop.router(sv.shopper, state, conn_dep, protected))
+    @app.post("/api/add/sort", dependencies=protected)
+    async def sort_add(request: Request):
+        """What each photo chosen on Add shows (one piece, several, a shoe, and which photos are the same shoe), asked
+        of Claude before anything is added; the owner checks it on the page. When Claude cannot be asked, says why
+        and leaves every photo a piece, for the owner to sort by hand."""
+        from .tagger import addsort
+        form = await request.form()
+        sent = [f for f in form.getlist("photos") if not isinstance(f, str)]
+        if not 1 <= len(sent) <= addsort.MAX_PHOTOS:
+            raise HTTPException(422, f"Send 1 to {addsort.MAX_PHOTOS} photos to sort at a time.")
+        plain = [{"kind": "piece", "shoe": 0, "view": None, "pair": False} for _ in sent]
+        needed = list(addsort.SHOE_VIEWS_NEEDED)
+        if state.get("profile") == "demo":
+            return {"sorted": False, "photos": plain, "needed": needed,
+                    "message": "The demo closet is never sent to Claude: sort the photos yourself."}
+        assert sv.tag_worker, "build_services wires it"
+        usable = sv.tag_worker.routes()
+        if not usable and getattr(sv.add_sorter, "needs_route", True):   # a stand-in (the browser tests) needs none
+            return {"sorted": False, "photos": plain, "needed": needed,
+                    "message": "Claude can't be reached right now, so Closet couldn't sort these: sort them yourself."}
+        try:
+            photos = [images.decode(await f.read(images.MAX_UPLOAD_BYTES + 1)) for f in sent]
+        except images.ImageError as e:
+            raise HTTPException(400, str(e))
+        for photo, f in zip(photos, sent, strict=True):
+            photo.info["filename"] = f.filename or ""   # never sent to Claude; the browser tests' stand-in reads it
+        try:
+            return {"sorted": True, "photos": await run_in_threadpool(sv.add_sorter, photos, usable), "message": None,
+                    "needed": needed}
+        except CapReached:
+            message = f"{spend.LIMIT_REACHED} Sort these yourself."
+        except (RouteUnavailable, Unreachable):
+            message = "Claude can't be reached right now, so Closet couldn't sort these: sort them yourself."
+        except TaggingError:
+            message = "Claude couldn't tell what these show: sort them yourself."
+        return {"sorted": False, "photos": plain, "message": message, "needed": needed}
+
     app.include_router(sources.router(conn_dep, images_dir, state, protected,
                                       sv.finder.wake if sv.finder else (lambda: None), sv.worker.wake,
                                       lambda img: sv.worker.cutter(img), lambda: sv.worker.is_ready()))

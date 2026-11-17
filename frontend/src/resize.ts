@@ -18,7 +18,7 @@ function jpegName(name: string): string {
  * Shrinks a photo to at most 2400px on the long edge and re-encodes it as JPEG.
  * If this browser cannot read the file (HEIC on desktop Chrome, say), the original goes up unchanged.
  */
-export async function preparePhoto(file: File): Promise<{ blob: Blob; filename: string }> {
+export async function preparePhoto(file: File, maxEdge = MAX_EDGE): Promise<{ blob: Blob; filename: string }> {
   const original = { blob: file as Blob, filename: file.name || 'photo' };
   if (typeof createImageBitmap !== 'function') return original;
   let bitmap: ImageBitmap;
@@ -28,7 +28,7 @@ export async function preparePhoto(file: File): Promise<{ blob: Blob; filename: 
     return original;
   }
   try {
-    const { width, height } = fitWithin(bitmap.width, bitmap.height);
+    const { width, height } = fitWithin(bitmap.width, bitmap.height, maxEdge);
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;

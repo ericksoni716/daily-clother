@@ -102,7 +102,7 @@ The review's fixes are merged (#244 to #248). Left for later, in the owner's wor
   - They come back clean by themselves on the owner's laundry rhythm (for example "every Sunday", or "three days after"). **Laundry's done** marks everything clean in one tap.
   - Today and Trips trust that. The owner only corrects the exceptions: a shirt worn twice, a sweater washed early. **Put these in the laundry** on Worn and **All clean** on the closet (#246) stay as the manual way.
   - Needs a migration, and a Settings group (how often you do laundry).
-- [ ] **One Add for clothes and shoes, sorted by Closet.** The owner: "clothes/shoes import could all be combined and classified to the category it is". Today Add has three switches: one item per photo, several in one photo, a shoe.
+- [x] **One Add for clothes and shoes, sorted by Closet** (#250, approved by the owner 17 November). Done as below; shoes are grouped within each set of ten photos, and the shoe screen's own camera is gone (DECISIONS, "One Add for clothes and shoes"). The owner: "clothes/shoes import could all be combined and classified to the category it is". Today Add has three switches: one item per photo, several in one photo, a shoe.
   - Instead, drop or take any mix of photos. Claude says for each photo whether it shows one piece, several pieces, or a shoe (and which view).
   - Photos of the same shoe are grouped into one shoe, as "A shoe" does now. Several pieces go through the boxes step, as now. The switch goes.
   - Open: what to ask the owner when Claude is unsure whether two shoe photos are the same pair, and the cost of the extra sorting call on large imports.

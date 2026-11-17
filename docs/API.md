@@ -11,7 +11,7 @@ Every request is cut off as soon as its body goes past its size limit, with or
 without a `Content-Length` (a `Content-Length` over the limit is refused before
 anything is read): 413 `{"detail": "That photo is too large to send: Closet takes
 photos of up to 60 MB. Choose a smaller photo."}` for the calls that carry a
-photo (`POST /api/items`, `POST /api/sources`, `POST /api/would-this-work`,
+photo (`POST /api/items`, `POST /api/sources`, `POST /api/would-this-work`, `POST /api/add/sort`,
 61 MB in all), and 413 `{"detail": "That is more than Closet reads in one
 request. Try again with less."}` for any other request over 1 MB. Nothing of a
 refused upload is kept. The limits are in `backend/closet/limits.py`.
@@ -113,6 +113,7 @@ A photo of several pieces laid out together is kept once (`backend/closet/source
 | Call | Result |
 |---|---|
 | `POST /api/sources` multipart: `photo`, `client_key`, optional `photo_sha256` | 201 `{duplicate: false, source: SourcePhoto, item: null}`, `state` `finding` (or `review` in the demo). The same `client_key` again: 200 with the photo kept the first time. A photo already kept (by `photo_sha256` as for `POST /api/items`, or the hash of the bytes), or already in the closet as an item (also one made from a photo of several), is not kept again: 200 `{duplicate: true}` with the earlier `source`, or with `item` (an `Item`) and `source` null. 422 for a malformed `photo_sha256`, 400 for a file that is not a readable photo, 413 for an upload over its limit. |
+| `POST /api/add/sort` multipart: `photos` (1 to 10 small copies of the photos chosen on Add) | `{sorted, message, needed, photos: [{kind, shoe, view, pair}]}` in the photos' order: `kind` is `piece`, `pieces` (several in one photo) or `shoe`, and `shoe` numbers the photos of the same shoe 1, 2, ... (0 otherwise); for a shoe, `view` is the side it shows (`outer`, `inner`, `front`, `top`, `back`, `sole` or `other`) and `pair` is true when it shows both shoes (null and false otherwise). `needed` is the sides a shoe's drawing needs (`["outer", "front", "inner"]`). Asked of Claude through the usual routes and the monthly limit (purpose `sort_add`); nothing is kept. When Claude cannot be asked (no route, the limit, out of reach, no usable answer) or in the demo closet: `sorted` false, every photo a `piece`, and `message` says why in a sentence. 422 for no photos or more than ten, 400 for a file that is not a readable photo. |
 | `GET /api/sources` | `{sources: [SourcePhoto]}`: the photos not added yet, oldest first. |
 | `GET /api/sources/{id}` | `SourcePhoto`; 404 if there is no such photo (also once forgotten, or gone with the last of its items). |
 | `DELETE /api/sources/{id}` | 204: forgets a photo not added yet, and its file. 409 once its items are added. |

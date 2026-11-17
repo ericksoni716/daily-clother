@@ -43,9 +43,12 @@ test.describe('several items from one photo', () => {
     await page.getByRole('button', { name: 'Start with my own closet' }).click();
 
     await page.goto(backend.url + '/add');
-    await page.getByRole('button', { name: 'Several in one photo' }).click();
-    await expect(page.getByTestId('several-intro')).toContainText('Claude finds each piece');
+    // one Add for everything: the photo is sorted as several pieces (a stand-in for Claude reads the file name) and
+    // waits for the owner to check it
     await page.getByTestId('library-input').setInputFiles({ name: 'pile.png', mimeType: 'image/png', buffer: await pilePhoto(page) });
+    await expect(page.getByTestId('tray-row').getByRole('combobox')).toHaveValue('pieces');
+    await expect(page.getByTestId('tray-state')).toHaveText('1 photo of several pieces');
+    await page.getByTestId('add-tray').getByRole('button', { name: 'Add it' }).click();
 
     // the one photo is in: its pieces are checked straight away, once Claude has found them
     await expect(page).toHaveURL(/\/add\/several\//, { timeout: 30_000 });

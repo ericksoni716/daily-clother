@@ -195,3 +195,64 @@ def test_a_plain_item_has_no_measured_colours(make, cfg):
     sv.tag_worker.drain()
     got = c.get(f"/api/items/{item['id']}").json()
     assert got["pattern_colors"] == [] and got["color"] == "navy"
+
+
+# --- a photo too dark or too light for the colour the item is called ----------------------------------------
+
+def _checks(colours, shares, side=120):
+    """A tile of plain bands in these colours (hex), each covering its share."""
+    img = np.zeros((side, side, 3), np.uint8)
+    x = 0
+    for h, s in zip(colours, shares, strict=True):
+        w = int(round(s * side))
+        img[:, x:x + w] = [int(h[i:i + 2], 16) for i in (1, 3, 5)]
+        x += w
+    return Image.fromarray(img[:, :x], "RGB")
+
+
+def _lightness(tile, at):
+    return float(palette._lab(np.asarray(tile, float)[5, at] / 255)[0])
+
+
+def test_a_navy_plaid_photographed_nearly_black_is_made_navy_again():
+    """The jacket on the duvet: the phone exposed for the white bedding, so the navy measured at lightness 4."""
+    dark = _checks(["#0e1015", "#05080d", "#575759"], [0.6, 0.25, 0.15])
+    gain = palette.exposure(dark, "navy")
+    assert 2.5 < gain <= 4.0
+    lit = palette.exposed(dark, gain)
+    assert 11 < _lightness(lit, 10) < 28                      # in navy's own range now
+    assert _lightness(lit, 110) > _lightness(dark, 110) + 20   # its grey and white lines came up with it
+    assert palette.named(palette.measured({"kind": "tile", "image": stored.tile_text(lit)}), ["navy"])[0]["color"] == "navy"
+
+
+@pytest.mark.parametrize("word", ["black", "grey", "white", "multi", None, "not a colour"])
+def test_a_dark_cloth_called_anything_else_is_left_as_photographed(word):
+    dark = _checks(["#0e1015", "#05080d", "#575759"], [0.6, 0.25, 0.15])
+    assert palette.exposure(dark, word) == 1.0
+
+
+def test_a_photo_that_agrees_with_its_colour_word_is_not_touched():
+    navy = _checks(["#1b2a49", "#f4f1ea"], [0.7, 0.3])
+    assert palette.exposure(navy, "navy") == 1.0
+    assert palette.exposed(navy, 1.0) is navy
+
+
+def test_another_colour_is_never_moved_to_fit_the_word():
+    """Called navy, but most of the cloth is cream with navy lines: the cream is not darkened into navy, and the
+    navy, which is navy already, moves nothing."""
+    cream = _checks(["#f2ebd9", "#1b2a49"], [0.7, 0.3])
+    assert palette.exposure(cream, "navy") == 1.0
+
+
+def test_the_lightest_part_never_goes_past_white():
+    dark = _checks(["#0e1015", "#9a9a9a"], [0.8, 0.2])            # dark navy with a line already fairly light
+    gain = palette.exposure(dark, "navy")
+    assert 1.25 < gain < 3.0                                      # less than the navy alone would ask for
+    assert np.asarray(palette.exposed(dark, gain)).max() <= 245
+
+
+def test_a_navy_photographed_too_light_is_brought_down_and_a_pale_blue_is_not_called_blue():
+    light = _checks(["#3f5590", "#ffffff"], [0.8, 0.2])           # navy in full sun
+    assert 0.5 <= palette.exposure(light, "navy") < 0.8
+    pale = _checks(["#a9c3e8", "#ffffff"], [0.8, 0.2])            # darkened as far as allowed it is still not blue
+    assert palette.exposure(pale, "blue") == 1.0

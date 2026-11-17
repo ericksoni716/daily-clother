@@ -6,8 +6,10 @@ One function, `measure`, picks the method for the pattern Claude saw:
   flattened into one straight repeat (each front on its own when the two agree). Photographed at
   an angle, turned, over a slope or in soft, low-contrast cloth: the cloth made regular from its own lines first
   (`straighten`), then flattened. With no regular repeat (madras): measured whole and kept as one
-  garment-sized tile. With landmarks the repeat is placed on each front beside the buttons. A plaid none of the
-  three explains is not drawn as a guess: the item is drawn in its colour and says so;
+  garment-sized tile. With landmarks the repeat is placed on each front beside the buttons. A photo too dark
+  or too light for the colour the item is called has its repeat lightened or darkened to that colour
+  (`palette.exposure`). A plaid none of the three explains is not drawn as a guess: the item is drawn in its
+  colour and says so;
 - stripes: regular stripes folded onto one sharp repeat, or stripes with placed bands (a polo's chest band)
   drawn over a crisp ground, the collar (and, unless the photo shows bands on them, the sleeves) cut from that
   ground; colours corrected from Claude's colour words when it says the item has white or cream;
@@ -22,10 +24,11 @@ import cv2
 import numpy as np
 from PIL import Image
 
+from .. import palette
 from ..drawing import fills
 from ..drawing.stored import VERSION, graphic_part, tile_text
 from . import flatten, plaid, prints, straighten, stripes
-from .common import garment_mask, lab_to_rgb, quiet
+from .common import garment_mask, quiet
 from .masks import surfaces
 
 MEASURED = ("plaid", "stripe", "floral", "camo", "other", "graphic")
@@ -49,6 +52,27 @@ def _tile(img_rgb: np.ndarray, scale: int = 1) -> str:
     if scale > 1:
         im = im.resize((im.width * scale, im.height * scale), Image.LANCZOS)
     return tile_text(im)
+
+
+def _lit(out: dict | None, tile, scale: int, words, log) -> dict | None:
+    """The kept plaid with its tile, made lighter or darker when the photo was too dark or too light for the
+    colour the item is called (`palette.exposure`; the first of `words` is the item's main colour). `tile` is
+    the repeat in Lab as it was measured (fractions of a level kept, so a dark photo lightened four times over
+    does not show the steps between its few dark levels), or RGB pixels."""
+    if out is None:
+        return None
+    if tile.dtype == np.uint8:
+        rgb = tile.astype(np.float32) / 255
+    else:
+        lab = np.ascontiguousarray(tile, np.float32) * (100 / 255, 1, 1) - (0, 128, 128)
+        rgb = np.clip(cv2.cvtColor(lab.astype(np.float32), cv2.COLOR_LAB2RGB), 0, 1)
+    gain = palette.exposure(Image.fromarray((rgb * 255).round().astype(np.uint8)), words[0] if words else None)
+    if gain != 1.0:
+        log(f"the photo is too {'dark' if gain > 1 else 'light'} for {words[0]}: the repeat's light is multiplied by {gain}")
+        out["lit"] = gain
+        lin = np.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4) * gain
+        rgb = np.clip(np.where(lin <= 0.0031308, 12.92 * lin, 1.055 * np.power(np.clip(lin, 0, None), 1 / 2.4) - 0.055), 0, 1)
+    return {**out, "image": _tile((rgb * 255).round().astype(np.uint8), scale)}
 
 
 def _placed(out, cut, tile_lab, info, P, Q, landmarks, log, soft=False):
@@ -127,14 +151,18 @@ def _straightened(cut, landmarks, log):
         new = reg.to_new([c, c + (16, 0), c + (0, 16)])
         jac = np.stack([new[1] - new[0], new[2] - new[0]], 1) / 16
         across = float(np.linalg.norm(np.linalg.solve(jac, np.array([reg.P, 0.0]))))
-        out = {"kind": "tile", "image": _tile(lab_to_rgb(tile_lab), TILE_SCALE), "how": "straightened",
-               "width_frac": round(across / max(1, _garment_width(part)), 4)}
+        out = {"kind": "tile", "how": "straightened", "width_frac": round(across / max(1, _garment_width(part)), 4)}
         _placed(out, reg.cut, tile_lab, info, reg.P, reg.Q, marks, log, soft=True)
-        return out
+        return out, tile_lab, TILE_SCALE
     return None
 
 
-def _plaid(cut, landmarks, log):
+def _plaid(cut, landmarks, words, log):
+    return _lit(*_plaid_tile(cut, landmarks, log), words, log)
+
+
+def _plaid_tile(cut, landmarks, log):
+    """(the kept plaid without its tile, the tile's pixels, how much larger to keep them), or (None, None, 1)."""
     found = plaid.period(cut)
     if found is not None:
         P, Q = found
@@ -145,19 +173,18 @@ def _plaid(cut, landmarks, log):
             agrees, share = flatten.agreement(cut, tile_lab, info, P, Q)
             log(f"the rebuilt repeat agrees {agrees:.2f} with the photo over {share:.0%} of the garment")
             if agrees >= AGREES:     # a repeat found by chance in cloth that has none explains nothing: go on
-                out = {"kind": "tile", "image": _tile(lab_to_rgb(tile_lab), TILE_SCALE), "how": "repeat",
-                       "width_frac": round(P / max(1, _garment_width(cut)), 4)}
+                out = {"kind": "tile", "how": "repeat", "width_frac": round(P / max(1, _garment_width(cut)), 4)}
                 _placed(out, cut, tile_lab, info, P, Q, landmarks, log)
-                return out
+                return out, tile_lab, TILE_SCALE
     log("no regular repeat seen straight on: straightening the cloth from its own lines")
-    out = _straightened(cut, landmarks, log)
-    if out is not None:
-        return out
+    made = _straightened(cut, landmarks, log)
+    if made is not None:
+        return made
     r = plaid.no_repeat(cut, log=log)
     log(f"no regular repeat: measured whole, which agrees {r['agreement']:.2f} with the photo")
     if r["agreement"] < WHOLE_AGREES:
-        return None     # neither a repeat nor two crossing sequences of bands explain this photo: say so
-    return {"kind": "tile", "image": _tile(r["tile"]), "how": "whole", "width_frac": round(float(r["width_frac"]), 4)}
+        return None, None, 1     # neither a repeat nor two crossing sequences of bands explain this photo: say so
+    return {"kind": "tile", "how": "whole", "width_frac": round(float(r["width_frac"]), 4)}, r["tile"], 1
 
 
 def _gain_fix(hexes, gain):
@@ -234,7 +261,7 @@ def measure(cut: Image.Image, pattern: str, words: list[str] | None = None, land
         return None
     cut = cut.convert("RGBA")
     if pattern == "plaid":
-        out = _plaid(cut, landmarks, log)
+        out = _plaid(cut, landmarks, list(words or []), log)
     elif pattern == "stripe":
         out = _stripes(cut, list(words or []), landmarks, log)
     elif pattern == "graphic":

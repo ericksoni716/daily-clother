@@ -426,3 +426,19 @@ def test_the_demo_closet_is_not_measured_again(make, cfg):
         assert conn.execute("SELECT COUNT(*) FROM items WHERE pattern_state = 'waiting'").fetchone()[0] == 0
     finally:
         conn.close()
+
+
+def test_the_colour_claude_called_it_comes_first_whatever_an_earlier_measurement_made_it(make, cfg):
+    """A photo too dark turns a navy item's colour to black once measured; measured again, the word that says
+    how light it should be is still Claude's navy (or the owner's own colour)."""
+    m = Measurer()
+    sv, c = make(m)
+    item = described(sv, c)
+    c.patch(f"/api/items/{item['id']}", json={"pattern": "plaid"})
+    _set(cfg, item["id"], color="black")                      # as `palette.settle` leaves it; not the owner's choice
+    sv.pattern_worker.drain()
+    assert m.calls[-1][2][0] == "navy" and "black" in m.calls[-1][2]
+    assert c.patch(f"/api/items/{item['id']}", json={"color": "green"}).status_code == 200   # the owner's word wins
+    c.patch(f"/api/items/{item['id']}", json={"pattern": "stripe"})
+    sv.pattern_worker.drain()
+    assert m.calls[-1][2][0] == "green"

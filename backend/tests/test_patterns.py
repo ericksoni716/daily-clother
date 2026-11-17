@@ -489,3 +489,12 @@ def test_a_cutout_of_two_surfaces_is_split_and_the_plaid_measured():
     assert masks.surfaces(alone) == [alone]                        # checks do not split one cloth in two
     kept = measure.measure(both, "plaid")                          # the duvet does not stop the plaid being found
     assert kept is not None and kept["kind"] == "tile" and kept["width_frac"] < 0.5
+
+
+def test_a_plaid_from_a_dark_photo_is_lightened_to_the_colour_it_is_called():
+    from closet.patterns import measure
+    cut = _seen_at_an_angle(_soft_overcheck() * 0.45, noise=3.0, tilt=0.0004, turn=4.0)   # the same cloth, underexposed
+    as_it_is = measure.measure(cut, "plaid", ["black"])
+    lit = measure.measure(cut, "plaid", ["navy", "white"])
+    assert "lit" not in as_it_is and lit["lit"] > 1.5
+    assert _to_truth_size(lit["image"], TRUTH).mean() > 1.5 * _to_truth_size(as_it_is["image"], TRUTH).mean()

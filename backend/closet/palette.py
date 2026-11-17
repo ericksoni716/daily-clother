@@ -160,15 +160,81 @@ def _unmix(colours: list[tuple[np.ndarray, float]]) -> list[tuple[np.ndarray, fl
     return [(rgb[i], share[i]) for i in alive]
 
 
-def _tile_colours(raw: str) -> list[tuple[np.ndarray, float]]:
-    with Image.open(io.BytesIO(base64.b64decode(raw, validate=True))) as im:
-        im = im.convert("RGB")
-        im.thumbnail((TILE_SIDE, TILE_SIDE))
-        q = im.quantize(colors=TILE_COLOURS, method=Image.Quantize.MAXCOVERAGE, kmeans=2)
+def _image_colours(im: Image.Image) -> list[tuple[np.ndarray, float]]:
+    im = im.convert("RGB")
+    im.thumbnail((TILE_SIDE, TILE_SIDE))
+    q = im.quantize(colors=TILE_COLOURS, method=Image.Quantize.MAXCOVERAGE, kmeans=2)
     pal = q.getpalette() or []
     counts = q.getcolors() or []
     total = sum(n for n, _ in counts) or 1
     return [(np.array(pal[3 * k:3 * k + 3], float) / 255, n / total) for n, k in counts]
+
+
+def _tile_colours(raw: str) -> list[tuple[np.ndarray, float]]:
+    with Image.open(io.BytesIO(base64.b64decode(raw, validate=True))) as im:
+        return _image_colours(im)
+
+
+# ------------------------------------------------------------------ a photo too dark or too light for its colour word
+EXPOSURE = (0.5, 4.0)   # the most a tile is darkened or lightened (in linear light: two stops up, one down)
+LEAVE = (0.8, 1.25)     # a correction smaller than this is left alone: the photo is near enough
+IS_THAT_COLOUR = 18.0   # corrected, the cloth must be this close (ΔE) to a shade of the word, or it is not that colour
+A_MAIN_COLOUR = 0.15    # only a colour covering this much of the tile can be the one the word names
+WHITE = 0.9             # the lightest part of the cloth is never made lighter than this (linear light, 1 = white)
+
+
+def _lightness_to_light(lightness: float) -> float:
+    """CIE L* to linear luminance."""
+    return ((lightness + 16) / 116) ** 3 if lightness > 8 else lightness * 27 / 24389
+
+
+def exposure(tile: Image.Image, word: str | None) -> float:
+    """How much lighter or darker (a gain in linear light; 1.0 = as it is) a measured tile should be for its
+    main colour to be the colour the item is called.
+
+    A phone sets its exposure for the whole scene: a navy jacket on a white duvet is photographed nearly black
+    (lightness 4, where the darkest navy the app draws is 14), though anyone looking calls it navy, and so does
+    Claude. The word gives a range of lightness (its shades); when a main colour of the tile lies outside it,
+    the whole tile is moved by the one gain that brings that colour to the range's nearest edge, so its other
+    colours move with it and keep their contrast. Only when that colour then is the word's colour (a cream
+    ground is never darkened into navy), never past the limits, and never so far that the lightest part of the
+    cloth goes past white."""
+    if word not in WORDS or word == "multi":
+        return 1.0
+    shades = _lab(_rgb([NAMED_HEX[word], *_SHADES.get(word, [])]))
+    lo, hi = float(shades[:, 0].min()), float(shades[:, 0].max())
+    colours = _unmix(_image_colours(tile))
+    total = sum(s for _, s in colours) or 1
+    best = None
+    for c, share in sorted(colours, key=lambda x: -x[1]):   # the largest colour that can be the word's colour
+        if share / total < A_MAIN_COLOUR or best is not None:
+            break
+        lightness = float(_lab(c)[0])
+        if lo <= lightness <= hi:
+            aim = lightness
+        else:
+            aim = lo if lightness < lo else hi
+        now = max(_lightness_to_light(lightness), 1e-4)
+        gain = float(np.clip(_lightness_to_light(aim) / now, *EXPOSURE))
+        off = float(np.linalg.norm(shades - _lab(np.clip(_delin(_lin(c) * gain), 0, 1)), axis=1).min())
+        if off <= IS_THAT_COLOUR:
+            best = gain
+    if best is None or LEAVE[0] <= best <= LEAVE[1]:
+        return 1.0
+    if best > 1:
+        light = _lin(np.asarray(tile.convert("RGB"), float) / 255) @ np.array([0.2126, 0.7152, 0.0722])
+        best = min(best, WHITE / max(float(np.percentile(light, 99.5)), 1e-4))
+        if best <= LEAVE[1]:
+            return 1.0
+    return round(best, 3)
+
+
+def exposed(tile: Image.Image, gain: float) -> Image.Image:
+    """The tile made lighter or darker by `gain` in linear light (as a longer or shorter exposure would)."""
+    if gain == 1.0:
+        return tile
+    rgb = np.asarray(tile.convert("RGB"), float) / 255
+    return Image.fromarray((np.clip(_delin(_lin(rgb) * gain), 0, 1) * 255).round().astype(np.uint8), "RGB")
 
 
 def measured(kept: dict) -> list[list]:

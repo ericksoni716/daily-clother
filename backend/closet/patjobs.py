@@ -118,13 +118,18 @@ def waiting_count(conn) -> int:
 
 
 def _words(row) -> list[str]:
-    words = [row["color"]] if row["color"] else []
+    """The item's colour words, the main one first: the owner's own colour when they set it, else the colour
+    Claude called it (not the item's current colour, which an earlier measurement of a photo too dark may have
+    turned to black), then Claude's other colours and the item's current colour."""
+    words = palette.said(row)
     try:
         answer = json.loads(row["tag_answer"]) if row["tag_answer"] else {}
         words += [w for w in answer.get("secondary_colors") or [] if isinstance(w, str)]
-    except ValueError:
+    except (ValueError, AttributeError):
         pass
-    return words
+    if row["color"]:
+        words.append(row["color"])
+    return list(dict.fromkeys(words))
 
 
 def _cutout(conn, images_dir: Path, item_id: str) -> Image.Image | None:

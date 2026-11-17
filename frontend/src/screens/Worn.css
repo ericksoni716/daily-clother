@@ -78,3 +78,5 @@ p.worn-rating { margin: 0; font-size: var(--text-sm); color: var(--ink-3); }
 .worn-pic.is-gone {
   opacity: 0.55;
 }
+/* the ⋯ was drawn at the shared button's small icon size, three specks easy to miss; same size as Today's */
+.worn-menu-button svg { width: 28px; height: 28px; }

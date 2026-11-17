@@ -10,9 +10,23 @@ window.addEventListener('popstate', notify);
 
 export function navigate(to: string, opts: { replace?: boolean } = {}) {
   if (to === window.location.pathname + window.location.search) return;
+  const from = window.location.pathname;
   if (opts.replace) window.history.replaceState(null, '', to);
   else window.history.pushState(null, '', to);
   notify();
+  if (!opts.replace && startsAtTop(from, window.location.pathname)) window.scrollTo(0, 0);
+}
+
+/**
+ * A new page opens at its top, as it would in a browser: on a phone the item page replaces the closet and would
+ * otherwise open at the grid's scroll position, near its bottom. On a computer, choosing an item opens it in the side
+ * panel next to the list, so the list keeps its place. Going Back keeps the browser's own scroll position.
+ */
+export function startsAtTop(from: string, to: string, wide = window.matchMedia?.(WIDE).matches ?? false): boolean {
+  const a = parseRoute(from), b = parseRoute(to);
+  if (!wide || a.name !== b.name) return true;
+  const panel = (r: Route) => ('itemId' in r ? r.itemId : null);
+  return panel(a) === null && panel(b) === null;
 }
 
 export function usePath(): string {

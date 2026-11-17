@@ -135,10 +135,15 @@ export function contextWords(c: WornContext | null, occasionLabel: (v: string) =
  * The outfit Today asks about: the newest one worn today or yesterday that has no rating and was not
  * waved away on this device. Yesterday's comes first: today's outfit is still being worn.
  */
-export function pendingQuestion(list: WornOutfit[] | null | undefined, dismissed: string[], today: string = localDay()): WornOutfit | null {
+/** Today's own outfit is asked about from this hour (local time): asking the moment it is put on is too soon. */
+export const ASK_TODAY_FROM_HOUR = 18;
+
+export function pendingQuestion(list: WornOutfit[] | null | undefined, dismissed: string[], today: string = localDay(),
+  hour: number = new Date().getHours()): WornOutfit | null {
   const yesterday = daysBefore(today, 1);
   const open = (list ?? []).filter((o) => !o.rating && !dismissed.includes(o.id));
-  return open.find((o) => o.worn_on === yesterday) ?? open.find((o) => o.worn_on === today) ?? null;
+  return open.find((o) => o.worn_on === yesterday)
+    ?? (hour >= ASK_TODAY_FROM_HOUR ? open.find((o) => o.worn_on === today) : undefined) ?? null;
 }
 
 // --------------------------------------------------------------------- kept on this device

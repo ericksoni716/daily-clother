@@ -280,6 +280,40 @@ export interface WornToday {
   outfit: Outfit;
   /** The worn outfit remembered on the server, removed with the wears on undo. */
   outfit_id?: string;
+  /** When this device recorded it (ms), so an older list of worn outfits does not undo it. */
+  at?: number;
+}
+
+/** The fields of a worn outfit (as the Worn screen lists them) that say what was worn today. */
+export interface WornRecord {
+  id: string;
+  worn_on: string;
+  pieces: { [P in keyof OutfitPieces]: OutfitPieces[P] | null };
+  score: number | null;
+  reasons: string[];
+  warnings: string[];
+}
+
+/**
+ * What is being worn today, from this device's memory and the server's list of worn outfits (`recent`, fetched at
+ * `fetchedAt`; null while unknown or offline). The server's list wins once it is newer than what this device
+ * recorded: an outfit removed on the Worn screen is no longer "worn today", and one recorded on another device
+ * (or before a reload that lost this device's memory) is, so it is not recorded twice.
+ */
+export function wornNow(local: WornToday | null, recent: WornRecord[] | null, fetchedAt: number | null, today: string): WornToday | null {
+  if (!recent || fetchedAt === null) return local;
+  if (local) {
+    const newer = local.at === undefined || fetchedAt > local.at;
+    if (!newer || !local.outfit_id || recent.some((o) => o.id === local.outfit_id)) return local;
+  }
+  const todays = recent.find((o) => o.worn_on === today && o.pieces.base && o.pieces.bottom && o.pieces.shoes);
+  if (!todays) return null;
+  const pieces = { ...todays.pieces, accessories: todays.pieces.accessories ?? [] } as OutfitPieces;
+  const ids = outfitIds(pieces);
+  return {
+    day: today, worn_on: todays.worn_on, ids, recorded: ids, outfit_id: todays.id,
+    outfit: { pieces, score: todays.score ?? 0, reasons: todays.reasons, warnings: todays.warnings },
+  };
 }
 
 const keyFor = (what: string, profile: string) => `${SAVED_PREFIX}:${what}:${profile}`;

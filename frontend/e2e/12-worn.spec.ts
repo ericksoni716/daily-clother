@@ -80,11 +80,31 @@ test('worn: wear an outfit, rate it, Today learns from it, wear one again, remov
   await expect(more).toHaveAttribute('aria-expanded', 'true');
   await expect(loved.getByRole('menuitem', { name: 'Wear this again' })).toBeFocused();
   await page.keyboard.press('ArrowDown');
+  await expect(loved.getByRole('menuitem', { name: 'Put these in the laundry' })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
   await expect(loved.getByRole('menuitem', { name: 'Remove' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(loved.getByRole('menu')).toHaveCount(0);
   await expect(more).toBeFocused();
   await expect(more).toHaveAttribute('aria-expanded', 'false');
+
+  // the outfit's clothes go in the laundry in one tap (its shoes do not), and the closet can mark them all clean
+  const before = ((await (await page.request.get('/api/items')).json()).items as { id: string; laundry: string | null }[])
+    .filter((i) => i.laundry === 'laundry').map((i) => i.id);
+  await more.click();
+  await loved.getByRole('menuitem', { name: 'Put these in the laundry' }).click();
+  await expect(page.getByText(/in the laundry$/).first()).toBeVisible();
+  const washing = async () => ((await (await page.request.get('/api/items')).json()).items as { laundry: string | null; category: string }[])
+    .filter((i) => i.laundry === 'laundry');
+  await expect.poll(async () => (await washing()).length).toBeGreaterThan(0);
+  expect((await washing()).every((i) => ['tee', 'shirt', 'polo', 'sweater', 'hoodie', 'jeans', 'trousers', 'shorts'].includes(i.category))).toBe(true);
+  await page.goto('/');
+  const notice = page.getByTestId('laundry-notice');
+  await notice.getByRole('button', { name: 'Show' }).click();
+  await notice.getByRole('button', { name: 'All clean' }).click();
+  await expect.poll(async () => (await washing()).length).toBe(0);
+  await expect(notice).toHaveCount(0);
+  for (const id of before) await page.request.post(`/api/items/${id}/laundry`, { data: { state: 'laundry' } });   // as the rest of this test left them
 
   // Today changes because of the rating: on a day like this one, it dresses the owner a little warmer
   await page.goto('/today');

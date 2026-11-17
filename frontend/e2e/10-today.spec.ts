@@ -269,6 +269,10 @@ test('a wear response arriving after midnight keeps the day it was started', asy
   yesterday.setDate(yesterday.getDate() - 1);
   await page.clock.setFixedTime(yesterday);
   await fakeWeather(page);
+  // the demo closet has an outfit worn yesterday, which Today would show as already worn on that day; this test is
+  // about a wear of its own crossing midnight, so it starts from no outfit worn
+  await page.route('**/api/outfits/worn?*', (route) =>
+    route.request().method() === 'GET' ? route.fulfill({ json: { outfits: [], next: null } }) : route.fallback());
   await openToday(page);
   await expect(current(page).getByTestId('piece').first()).toBeVisible();
   const day = await page.evaluate(() => JSON.parse(localStorage.getItem('closet-today-saved:outfits:demo')!).day);

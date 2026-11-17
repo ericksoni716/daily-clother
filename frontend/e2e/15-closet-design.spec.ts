@@ -67,6 +67,30 @@ test.describe('phone', () => {
     await expect(season).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   });
+
+  test('an item opens at its top, and the closet keeps its search when you come back', async ({ page }) => {
+    await login(page);
+    await useProfile(page, 'demo');
+    await expect(page.getByTestId('tile').first()).toBeVisible();
+    // far down the grid, the item page opens at its picture, not at the grid's scroll position
+    await page.getByTestId('tile').last().scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(1000);
+    await page.getByTestId('tile').last().click();
+    await expect(page).toHaveURL(/\/item\//);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    await page.goBack();
+
+    // a search survives opening one of its results and coming back
+    await page.getByRole('searchbox').fill('jeans');
+    const found = await page.getByTestId('tile').count();
+    expect(found).toBeGreaterThan(0);
+    await page.getByTestId('tile').first().click();
+    await expect(page).toHaveURL(/\/item\//);
+    await page.goBack();
+    await expect(page.getByRole('searchbox')).toHaveValue('jeans');
+    await expect(page.getByTestId('tile')).toHaveCount(found);
+    await page.getByRole('searchbox').fill('');
+  });
 });
 
 test.describe('computer', () => {

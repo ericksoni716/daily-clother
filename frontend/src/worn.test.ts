@@ -47,7 +47,9 @@ describe('worn outfits in plain words', () => {
     const list = [worn('t', '2026-11-12'), worn('y', '2026-11-11'), worn('o', '2026-11-09')];
     expect(pendingQuestion(list, [], '2026-11-12')?.id).toBe('y');
     expect(questionFor(list[1], '2026-11-12')).toBe("How was yesterday's outfit?");
-    expect(pendingQuestion(list, ['y'], '2026-11-12')?.id).toBe('t');
+    expect(pendingQuestion(list, ['y'], '2026-11-12', 20)?.id).toBe('t');
+    // today's own outfit is asked about in the evening, not the moment it is put on
+    expect(pendingQuestion(list, ['y'], '2026-11-12', 9)).toBeNull();
     expect(questionFor(list[0], '2026-11-12')).toBe("How was today's outfit?");
     expect(pendingQuestion([worn('y', '2026-11-11', { rating: 'fine' }), list[2]], [], '2026-11-12')).toBeNull();
     expect(pendingQuestion(null, [], '2026-11-12')).toBeNull();

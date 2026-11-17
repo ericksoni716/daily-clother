@@ -18,13 +18,17 @@ from pathlib import Path
 
 from PIL import Image
 
-from .tagging import CONFIG, PROMPT, SENT, PlanSignIn, RouteUnavailable, TaggingError, TagResult, fitted
+from .tagging import CONFIG, PROMPT, SENT, PlanSignIn, RouteUnavailable, TaggingError, TagResult, Unreachable, fitted
 
 SYSTEM = ("You tag photos of clothes for a private wardrobe app. Look at the image file or files named in the "
           "request with the Read tool, then answer in the required JSON format. Do nothing else.")
 # never let a plan call fall through to a paid API key by accident
 _SCRUB = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")
 _LIMIT_WORDS = ("hit your", "usage limit", "limit reached", "out of extra usage")
+# Claude Code's own words when it could not reach Anthropic ("API Error: Connection error.", "fetch failed",
+# "529 ... overloaded"); read only from a call that failed
+_UNREACHABLE_WORDS = ("connection error", "fetch failed", "econnrefused", "econnreset", "enotfound", "etimedout",
+                      "network error", "overloaded", "api error: 5", "api error: 429")
 _LOGIN_WORDS = ("not logged in", "please run /login", "authentication")
 # Claude Code using an API key (a Console login, or a key in its own settings) that Anthropic refuses, e.g.
 # "API Error: 400 Not a valid API key for this workspace" or "Invalid API key · Fix external API key"
@@ -197,6 +201,9 @@ def tag_item_cli(model: str, images: list[Image.Image], exe: str | None = None, 
             answer = out.get("structured_output")
             if proc.returncode != 0 or out.get("is_error") or answer is None:
                 detail = (out.get("result") or proc.stderr or "no output").strip()[:200]
+                if (proc.returncode != 0 or out.get("is_error")) and any(w in text for w in _UNREACHABLE_WORDS):
+                    last = Unreachable(f"{model} through Claude Code could not reach Anthropic: {detail}")
+                    continue
                 last = TaggingError(f"{model} through Claude Code gave no usable answer (exit {proc.returncode}): {detail}")
                 continue
             try:

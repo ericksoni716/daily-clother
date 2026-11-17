@@ -84,6 +84,26 @@ def test_a_route_that_turns_out_unusable_puts_the_job_back_without_using_an_atte
     assert tag_jobs(cfg, item["id"])[0]["attempts"] == 0 and tag_jobs(cfg, item["id"])[0]["state"] == "queued"
 
 
+def test_claude_out_of_reach_keeps_every_item_waiting_with_its_attempts(client, services, claude, cfg):
+    # a minute without network during an import must not use up each waiting item's three tries in a few seconds
+    ids = [upload(client, key=f"k{i}").json()["id"] for i in range(3)]
+    cut(services)
+    claude.mode = "unreachable"
+    assert tag(services) == 0
+    assert len(claude.calls) == 1   # the queue pauses at the first item instead of running through the others
+    for item_id in ids:
+        assert row(cfg, item_id)["tag_state"] == "waiting" and row(cfg, item_id)["tag_error"] is None
+        (job,) = tag_jobs(cfg, item_id)
+        assert job["state"] == "queued" and job["attempts"] == 0
+    for _ in range(5):   # however many rounds it stays out of reach
+        assert tag(services) == 0
+    assert tag_jobs(cfg, ids[0])[0]["attempts"] == 0
+
+    claude.mode = "answers"   # back in reach: everything is described
+    assert tag(services) == 3
+    assert all(row(cfg, item_id)["tag_state"] == "done" for item_id in ids)
+
+
 def test_the_answer_fills_the_fields_and_the_whole_answer_is_stored(client, services, claude, cfg):
     claude.mode = "answers"
     item = upload(client).json()

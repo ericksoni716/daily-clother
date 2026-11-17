@@ -30,7 +30,7 @@ from .state import State
 from .tagger import routes as tagger_routes
 from .tagger import taxonomy
 from .tagger.schema import NAMED_HEX, SCHEMA_VERSION, ItemTags
-from .tagger.tagging import CONFIG, CapReached, Meter, PlanSignIn, RouteUnavailable, TagResult
+from .tagger.tagging import CONFIG, CapReached, Meter, PlanSignIn, RouteUnavailable, TagResult, Unreachable
 
 log = logging.getLogger("closet.tagjobs")
 KIND = "tag"
@@ -151,6 +151,14 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], tagger: Tagger) -> 
         # every waiting item waits for the same reason; say so when it is the monthly limit
         note_waiting(conn, spend.LIMIT_REACHED if isinstance(e, CapReached)
                      else SIGN_IN if isinstance(e, PlanSignIn) else None)
+        return "blocked"
+    except Unreachable:
+        # Claude is out of reach just now (no network, overloaded): the item waits with its attempts kept, and the
+        # queue pauses until the next round instead of using up every waiting item's tries in a few seconds
+        log.info("tagging job %s is waiting: Claude could not be reached", job["id"])
+        t = db.now()
+        conn.execute("UPDATE jobs SET state = 'queued', attempts = attempts - 1, updated_at = ? WHERE id = ?", (t, job["id"]))
+        conn.execute("UPDATE items SET tag_state = 'waiting', updated_at = ? WHERE id = ?", (t, job["item_id"]))
         return "blocked"
     except Exception as e:  # any failure is recorded against the job, never lost; only its kind is logged
         log.warning("tagging job %s failed (attempt %s): %s", job["id"], attempts, type(e).__name__)

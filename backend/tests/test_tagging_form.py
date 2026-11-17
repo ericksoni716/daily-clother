@@ -55,6 +55,53 @@ def test_the_api_route_sends_the_whole_form_as_a_plain_tool():
     assert tagging.ASK_FOR_TOOL in sent["messages"][0]["content"][-1]["text"]
 
 
+def test_the_api_route_out_of_reach_says_so_rather_than_a_bad_answer(monkeypatch):
+    import anthropic
+    import httpx2 as httpx
+
+    from closet.tagger.tagging import RouteUnavailable, Unreachable
+    monkeypatch.setattr(tagging.time, "sleep", lambda s: None)
+    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    api = FakeApi()
+    api.error = anthropic.APIConnectionError(request=request)
+    with pytest.raises(Unreachable) as e:
+        tag_item(api, "claude-haiku-5-5", [Image.new("RGB", (40, 40))])
+    assert not isinstance(e.value, RouteUnavailable)   # never moved to the other route for this
+    assert api.calls == 3   # its own retries, then it says so
+
+    overloaded = anthropic.APIStatusError("Overloaded", response=httpx.Response(529, request=request), body=None)
+    api = FakeApi()
+    api.error = overloaded
+    with pytest.raises(Unreachable):
+        tag_item(api, "claude-haiku-5-5", [Image.new("RGB", (40, 40))])
+
+    # a request Anthropic turns down is still a plain failure
+    api = FakeApi()
+    api.error = anthropic.BadRequestError("bad image", response=httpx.Response(400, request=request), body=None)
+    with pytest.raises(TaggingError) as e:
+        tag_item(api, "claude-haiku-5-5", [Image.new("RGB", (40, 40))])
+    assert not isinstance(e.value, Unreachable)
+
+
+def test_the_plan_route_out_of_reach_says_so(monkeypatch):
+    import json as _json
+    from types import SimpleNamespace
+
+    from closet.tagger import claude_cli
+    from closet.tagger.tagging import Unreachable
+    said = {"is_error": True, "result": "API Error: Connection error."}
+    monkeypatch.setattr(claude_cli.subprocess, "run",
+                        lambda *a, **k: SimpleNamespace(returncode=1, stdout=_json.dumps(said), stderr=""))
+    with pytest.raises(Unreachable):
+        claude_cli.tag_item_cli("claude-haiku-5-5", [Image.new("RGB", (40, 40))], exe="claude")
+    # an answer that is simply unusable is still a plain failure
+    monkeypatch.setattr(claude_cli.subprocess, "run", lambda *a, **k: SimpleNamespace(
+        returncode=1, stdout=_json.dumps({"is_error": True, "result": "something else went wrong"}), stderr=""))
+    with pytest.raises(TaggingError) as e:
+        claude_cli.tag_item_cli("claude-haiku-5-5", [Image.new("RGB", (40, 40))], exe="claude")
+    assert not isinstance(e.value, Unreachable)
+
+
 def stray(**fields) -> dict:
     data = ANSWER.model_dump(mode="json")
     data.update(fields)

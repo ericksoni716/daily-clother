@@ -72,6 +72,13 @@ class PlanSignIn(RouteUnavailable):
     that Anthropic turns down. The owner has to sign in again; nothing was wrong with the photo or the prompt."""
 
 
+class Unreachable(TaggingError):
+    """Claude could not be reached just now: no network, a connection cut, or Anthropic overloaded or rate
+    limiting. Nothing was wrong with the photo or the route's sign-in, so the item waits and is tried again
+    later without losing an attempt. Not a `RouteUnavailable`: the other route would most likely be out of reach
+    too, and a plan call must never move to the paid route for this."""
+
+
 class CapReached(RouteUnavailable):
     """The call was not made: it could take this month's API spending past the owner's limit."""
 
@@ -360,4 +367,7 @@ def tag_item(client, model: str, images: list[Image.Image], max_attempts: int = 
             continue
         return TagResult(tags, model, time.time() - t0, tokens_in, tokens_out,
                          cost_usd(model, tokens_in, tokens_out), attempt)
+    if isinstance(last, (anthropic.RateLimitError, anthropic.APIConnectionError, anthropic.APIStatusError)):
+        # every attempt failed to reach Claude (the 4xx answers were raised above): out of reach, not a bad answer
+        raise Unreachable(f"{model} could not be reached after {max_attempts} attempts: {type(last).__name__}") from last
     raise TaggingError(f"{model} gave no valid answer after {max_attempts} attempts: {last}")

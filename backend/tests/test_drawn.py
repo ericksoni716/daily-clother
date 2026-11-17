@@ -313,3 +313,48 @@ def test_a_kept_drawing_is_read_for_the_figure_with_its_opening_from_the_sheet()
                 {**kept, "sheet": {**kept["sheet"], "top_y": 900}}, {**kept, "left": None}, {"left": PLAIN}, []):
         with pytest.raises(DrawingError):
             drawn.stored(bad)
+
+
+# ------------------------------------------------------------------ the turned view
+
+DRESS = drawn.example("dress-shoe")
+
+
+def _turned_dress():
+    from closet.drawing import turned
+    return turned.turn_side(drawn.side(DRESS), "oxford", SHEETS["dress-shoe"])
+
+
+def test_a_turned_drawing_is_framed_and_checked_wide():
+    out = _turned_dress()
+    left, _, right, _ = drawn.measure(out)["box"]
+    assert left < drawn.FRONT.inside[0] and drawn.TURNED.inside[0] < left
+    assert drawn.checks(out, None, SHEETS["dress-shoe"], drawn.TURNED) == [] or all(
+        "runs out of the frame" not in p for p in drawn.checks(out, None, SHEETS["dress-shoe"], drawn.TURNED))
+    assert any("runs out of the frame" in p for p in drawn.checks(out, None, SHEETS["dress-shoe"]))   # not straight on
+    wide = drawn.preview_svg(out, None, view=drawn.TURNED)
+    assert 'viewBox="0 0 640 400"' in wide and "translate(122,150)" in wide and "translate(530,150) scale(-1,1)" in wide
+    assert 'viewBox="0 0 440 400"' in drawn.preview_svg(DRESS)   # straight on, as before
+    png = drawn.check_png(out, None, drawn.TURNED)
+    assert png[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_the_preview_leg_stops_where_a_turned_shoe_stops_covering_it():
+    assert drawn.leg_down(drawn.side(DRESS)) == drawn.LEG_DOWN   # straight on, the shoe covers it down to the sole
+    narrow = ('<path d="M20,40 L180,40 L180,150 L120,150 L120,240 L80,240 L80,150 L20,150 Z" fill="#b5622f" '
+              'stroke="#26221f" stroke-width="4"/>')   # wraps the leg down to y 150, then narrower than it
+    down = drawn.leg_down(drawn.side(narrow))
+    assert 140 < down < 150
+    assert f'L138,{drawn.LEG_DOWN:g}' in drawn.preview_svg(narrow) and f"L138,{down:g}" in drawn.preview_svg(
+        narrow, view=drawn.TURNED)
+
+
+def test_a_drawing_kept_says_its_view():
+    out = _turned_dress()
+    from .conftest import SHEET
+    kept = {"version": 3, "view": "turned", "left": out.to_json(), "right": None, "sheet": SHEET}
+    assert drawn.stored(kept).view is drawn.TURNED
+    assert drawn.stored({**kept, "view": "front"}).view is drawn.FRONT
+    assert drawn.stored({k: v for k, v in kept.items() if k != "view"}).view is drawn.FRONT   # versions 1 and 2
+    with pytest.raises(drawn.DrawingError):
+        drawn.stored({**kept, "view": "sideways"})

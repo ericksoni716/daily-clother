@@ -13,9 +13,11 @@
   <path d="M17,200 C36,224 70,231 100,231 C130,231 164,224 183,200" fill="none" stroke="#8a5a22" stroke-width="2"/>
   <!-- upper: white leather -->
   <path id="up" d="M18,170 C16,136 28,106 50,88 C54,68 58,48 66,36 L134,36 C142,48 146,68 150,88 C172,106 184,136 182,170 C182,194 140,206 100,206 C60,206 18,194 18,170 Z" fill="#f2f0ea" stroke="#26221f" stroke-width="4"/>
-  <!-- grey suede: toe piece with its tab up to the laces, and the lace stays -->
-  <path d="M18,170 C17,150 32,139 54,143 C72,146 82,138 85,124 L115,124 C118,138 128,146 146,143 C168,139 183,150 182,170 C182,194 140,206 100,206 C60,206 18,194 18,170 Z" fill="#b8ac9d" stroke="#26221f" stroke-width="1.6"/>
-  <path d="M85,124 L60,60 Q62,50 70,46 L130,46 Q138,50 140,60 L115,124 Z" fill="#b8ac9d" stroke="#26221f" stroke-width="1.6"/>
+  <!-- grey suede: the lace stays, sweeping out to the outline at mid-height (the top of the side's T band), and the
+       toe cap with its centre strip up to the lacing; white leather shows as two slanted wedges either side of
+       the strip and as the quarters above the lace stays (corrected 17 November 2026, as the owner's GAT photos show) -->
+  <path d="M80,124 C64,121 42,120 26,121 C28,116 30,112 33,108 C42,103 52,99 60,96 L72,48 Q75,42 82,42 L118,42 Q125,42 128,48 L140,96 C148,99 158,103 167,108 C170,112 172,116 174,121 C158,120 136,121 120,124 Z" fill="#b8ac9d" stroke="#26221f" stroke-width="1.6"/>
+  <path d="M18,170 C18,158 22,151 31,148 C45,144 62,143 73,143 Q80,143 80,136 L80,124 L120,124 L120,136 Q120,143 127,143 C138,143 155,144 169,148 C178,151 182,158 182,170 C182,194 140,206 100,206 C60,206 18,194 18,170 Z" fill="#b8ac9d" stroke="#26221f" stroke-width="1.6"/>
   <!-- tongue -->
   <path d="M90,120 L74,56 L72,30 Q100,22 128,30 L126,56 L110,120 Z" fill="#f2f0ea" stroke="#26221f" stroke-width="1.6"/>
   <rect x="84" y="32" width="32" height="13" rx="2" fill="#b8ac9d" stroke="#26221f" stroke-width="1.2"/>

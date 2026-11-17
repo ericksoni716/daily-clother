@@ -170,6 +170,6 @@ export function drawnOffer(item: Pick<Item, 'drawn' | 'views'>, demo: boolean): 
 export function drawQuestion(drawn: ShoeDrawn, again: boolean): string {
   const cost = `roughly ${dollars(drawn.about_usd)} on the API key, and nothing extra on your Claude plan`;
   return again
-    ? `The new drawing replaces this one when it is done, in about two minutes. It costs ${cost}.`
-    : `It takes about two minutes and costs ${cost}.`;
+    ? `The new drawing replaces this one when it is done, in four to ten minutes. It costs ${cost}.`
+    : `It takes four to ten minutes and costs ${cost}.`;
 }

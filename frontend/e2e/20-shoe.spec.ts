@@ -209,9 +209,9 @@ test.describe('a shoe drawn from its photo', () => {
     await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-item-fallback.png') });
 
     // drawn for the outfit figure: once the photos are sorted, Claude (a stand-in answering with the dress shoe the
-    // owner liked) draws the shoe and checks it once against the photos
+    // owner liked) draws the shoe three times straight on and twice turned, checking each once against the photos
     const drawnSection = page.getByTestId('shoe-drawn');
-    await expect(drawnSection.getByTestId('shoe-drawn-line')).toContainText('checked once against the photos', { timeout: 60_000 });
+    await expect(drawnSection.getByTestId('shoe-drawn-line')).toContainText('checked 5 times against the photos', { timeout: 60_000 });
     await expect(drawnSection).toContainText('on your Claude plan');
     await expect(drawnSection).toContainText('if drawn on the API key');
     const picture = drawnSection.getByRole('img', { name: /as Claude drew it from its photos/ });
@@ -227,7 +227,7 @@ test.describe('a shoe drawn from its photo', () => {
     await drawnSection.getByRole('button', { name: 'Draw again' }).click();
     const question = drawnSection.getByRole('alertdialog');
     await expect(question).toContainText('replaces this one when it is done');
-    await expect(question).toContainText('about two minutes');
+    await expect(question).toContainText('four to ten minutes');
     await expect(question).toContainText('on the API key');
     expect(await axeViolations(page)).toEqual([]);
     await question.getByRole('button', { name: 'Keep this drawing' }).click();

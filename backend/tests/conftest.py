@@ -228,8 +228,9 @@ class FakeApi:
     else `views_answer` for the photos sent) and reports token counts as the real API does; `error` makes the next
     calls raise it instead. `requests` keeps what each call was sent. Asked to draw a shoe, or to check its drawing,
     which is streamed (`messages.stream`), it answers `drawing` (`draw_answer`) or `checked` (`check_answer`), as text
-    in the answer's schema; asked to change a drawing from the owner's note, or to check the change, `corrected`
-    (`correct_answer`) or `correct_checked` (`correct_check_answer`).
+    in the answer's schema, turned or not; asked to change a drawing from the owner's note, or to check the change,
+    `corrected` (`correct_answer`) or `correct_checked` (`correct_check_answer`); asked to judge drawings, the first,
+    with no fault named.
     """
 
     def __init__(self, input_tokens: int = 2000, output_tokens: int = 400):
@@ -275,7 +276,11 @@ class FakeApi:
         if self.error:
             raise self.error
         props = kw["output_config"]["format"]["schema"]["properties"]
-        if "against_photos" in props:   # changing a drawing from the owner's note, or checking the change
+        if "best" in props:   # the judge, choosing between drawings: the first, with no fault named
+            from closet.tagger.shoedrawing import Verdict
+            answer = Verdict(observations="the panels", faults=["A: none", "B: none", "C: none"], best="a",
+                             ranking=["a", "b", "c"])
+        elif "against_photos" in props:   # changing a drawing from the owner's note, or checking the change
             answer = self.correct_checked if "good" in props else self.corrected
         else:
             answer = self.checked if "good" in props else self.drawing

@@ -33,9 +33,11 @@ show, in the order sent, the outer side, from above, the inner side, the front, 
 sides unsure and looking different once both are there, so the page asks which photo shows the outside. With
 CLOSET_E2E_ROUTES=api the real API route asks `conftest.FakeApi`, which answers the same.
 
-Drawing a shoe from its photos runs the real steps (the drawing made safe, rendered and checked) with a stand-in for
-Claude's answers: after a second each, the drawing is the dress shoe the owner liked (`conftest.draw_answer`) and the
-first check says it is good, as if on the Claude plan, with made-up token counts. With CLOSET_E2E_ROUTES=api the real
+Drawing a shoe from its photos runs the real steps (three drawings straight on, the judge, two turns, the judge again;
+each drawing made safe, rendered and checked) with a stand-in for Claude's answers: after a second each, every drawing,
+straight on or turned, is the dress shoe the owner liked (`conftest.draw_answer`), the first check of each says it is
+good and the judge keeps the first with no fault named (so nothing is fixed), as if on the Claude plan, with made-up
+token counts. With CLOSET_E2E_ROUTES=api the real
 API route asks `conftest.FakeApi`, which answers the same. Changing a drawing from the owner's note runs the real steps
 too: whatever the note, after a second each, the dress shoe comes back with black laces (`conftest.correct_answer`),
 said to go against the photos, and the first check says it is good.
@@ -100,16 +102,29 @@ def fake_sorter(photos, routes):
 
 
 def fake_asker(text, images, routes, answer_model=None, model="", **kw):
-    """Claude's answers to the drawing and its check, after a second each: the dress shoe, said to be good; and to a
-    correction and its check: the dress shoe with black laces, said to go against the photos, and good."""
+    """Claude's answers to the drawing and its check, after a second each: the dress shoe, said to be good, straight
+    on or turned; to the judge: the first, with no fault named; and to a correction and its check: the dress shoe with
+    black laces, said to go against the photos, and good."""
     time.sleep(1)   # long enough for the page to show it drawing
-    answer = {shoedrawing.DrawAnswer: draw_answer, shoedrawing.CorrectAnswer: correct_answer,
-              shoedrawing.CorrectCheckAnswer: correct_check_answer}.get(answer_model, check_answer)()
+    if answer_model is shoedrawing.Verdict:
+        answer = shoedrawing.Verdict(observations="The panels as the photos show them.", best="a",
+                                     ranking=["a", "b", "c"], faults=["A: none", "B: none", "C: none"])
+    else:
+        answer = {shoedrawing.DrawAnswer: draw_answer, shoedrawing.TurnedDrawAnswer: draw_answer,
+                  shoedrawing.CorrectAnswer: correct_answer, shoedrawing.TurnedCorrectAnswer: correct_answer,
+                  shoedrawing.CorrectCheckAnswer: correct_check_answer,
+                  shoedrawing.TurnedCorrectCheckAnswer: correct_check_answer}.get(answer_model, check_answer)()
+        if answer_model in TURNED:   # the same answer in the turned form (the same fields): the dress shoe as drawn,
+            answer = answer_model.model_validate(answer.model_dump())   # which passes the turned view's checks
     return CorrectionResult(answer, routes[0], model, 42_000, 6_500, 12_000)
 
 
-def fake_drawer(photos, routes, notes=()):
-    return shoedrawing.draw(photos, routes, asker=fake_asker, notes=notes)
+TURNED = {shoedrawing.TurnedDrawAnswer, shoedrawing.TurnedCheckAnswer, shoedrawing.TurnedCorrectAnswer,
+          shoedrawing.TurnedCorrectCheckAnswer}
+
+
+def fake_drawer(photos, routes, notes=(), style=None):
+    return shoedrawing.draw(photos, routes, asker=fake_asker, notes=notes, style=style)
 
 
 def fake_drawing_corrector(photos, kept, note, routes):

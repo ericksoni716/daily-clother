@@ -261,8 +261,9 @@ can be added again.
 
 Choose **A shoe** at the top of Add for the closest drawing of a shoe, and add
 all of its photos in one go: up to six photos of one shoe on its own (not the
-pair), in any order. Its side, the other side, from above, the front and the
-back help most, against a plain floor or wall in even light. **Choose photos**
+pair), in any order. Its outer side, its front and its inner side matter most
+for the drawing; from above and the back help too. Take them against a plain
+floor or wall in even light. **Choose photos**
 picks several at once; **Take a photo** takes one each time you tap it (where
 the page can show the camera itself, it stays open so you can take several in a
 row: tap **Close the camera** when you have them all). The photos wait in a row
@@ -299,20 +300,26 @@ toe, laces and logos right; once you add one, that view is used unless you
 chose otherwise.
 
 Once the photos are sorted (and you have answered the question about the
-outside, if Closet asked it), Claude also draws the shoe from them, from the
-front, for the outfit figure: it notes what kind of shoe it is, its colours and
-parts, draws it, and checks the drawing against your photos up to three times.
-This takes about two minutes and happens once, by itself. **Drawn for the
+outside, if Closet asked it), Claude also draws the shoe from them for the
+outfit figure, its toe turned out a little, as you stand. It notes what kind of
+shoe it is, its colours and parts, and draws it straight on three times,
+checking each against your photos; it then compares the three with your photos
+and keeps the closest. Closet turns that drawing with its own 3D shoe, so every
+panel and stitch turns the right way, and Claude draws the turned shoe twice
+from it, keeps the better one and fixes what still differs from your photos.
+This takes four to ten minutes and happens once, by itself. **Drawn for the
 outfit figure** on the shoe's page shows the drawing on two legs, how long it
 took, how often it was checked, and what it cost (on your Claude plan nothing
-is billed; the page says what it would cost on the API key). The outfit figure
-(**As worn** on Today and on a trip's days) then wears that drawing, the leg
-going into the shoe; a shoe with no drawing keeps its plain one. Full-length
+is billed; the page says what it would cost on the API key, about $2 a shoe).
+The outfit figure (**As worn** on Today and on a trip's days) then wears that
+drawing, the leg going into the shoe; a shoe with no drawing keeps its plain
+one. Full-length
 trousers just meet an ordinary sneaker, so over a low shoe like a boat shoe
-the sock shows. A shoe drawn before this version is shown as it was: if
-something at the back of the shoe, such as a pull tab at the heel, sits over
-the sock, tap **Draw again** (the new drawing puts what is behind the leg
-behind it), or say so in the box below the drawing (next paragraph). Adding or
+the sock shows. A shoe drawn before this version is shown as it was, straight
+on, with the figure turning its toe out; tap **Draw again** for the turned
+drawing. If something at the back of an older drawing, such as a pull tab at
+the heel, sits over the sock, **Draw again** puts what is behind the leg behind
+it, or say so in the box below the drawing (next paragraph). Adding or
 removing photos never draws the shoe
 again: the page says **The photos changed since this drawing**. To draw it
 again, tap **Draw again**; it asks first, and the old drawing stays until the

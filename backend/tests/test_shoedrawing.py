@@ -1,6 +1,8 @@
 """A shoe drawn by Claude from its photos (`closet/tagger/shoedrawing.py`): the prompts, the strict answers, and the
-calls: a drawing, then checks against the photos that stop as soon as one says good, at most three; every drawing made
-safe before it is rendered, checked or kept; what the automatic checks find fed into the next check. Both routes are
+calls of one straight-on drawing (`draw_straight`, each candidate of `draw`): a drawing, then checks against the photos
+that stop as soon as one says good, at most three; every drawing made safe before it is rendered, checked or kept; what
+the automatic checks find fed into the next check. The whole drawing (candidates, the judge, the turn, the fix) is
+tested in test_shoedrawing_turned.py. Both routes are
 stood in for (`conftest.FakeApi`, and a stand-in for `subprocess.run`); Claude is never called.
 """
 import json
@@ -119,7 +121,7 @@ def test_the_answers_are_strict():
 
 def test_a_drawing_then_a_check_that_says_good():
     asker = Asker(draw_answer(), check_answer())
-    made = SD.draw(photos(), ("plan", "api"), asker=asker, clock=clock())
+    made = SD.draw_straight(photos(), ("plan", "api"), asker=asker, clock=clock())
     assert [c["answer_model"] for c in asker.calls] == [DrawAnswer, CheckAnswer]
     first, second = asker.calls
     assert first["names"] == [f"photo-{n}.jpg" for n in range(1, 6)] + [f"example-{n}.png" for n in drawn.EXAMPLES]
@@ -136,7 +138,7 @@ def test_a_drawing_then_a_check_that_says_good():
 
 def test_the_checks_stop_after_three_rounds():
     asker = Asker(draw_answer(), checked(good=False), checked(good=False), checked(good=False))
-    made = SD.draw(photos(), ("plan",), asker=asker, clock=clock())
+    made = SD.draw_straight(photos(), ("plan",), asker=asker, clock=clock())
     assert len(asker.calls) == 1 + SD.MAX_ROUNDS == 4 and made.rounds == 3 and not made.good
 
 
@@ -144,9 +146,9 @@ def test_every_drawing_is_made_safe_before_it_is_rendered_checked_or_kept(monkey
     nasty = DRESS + '<script>alert(1)</script><text>N</text><path id="x" d="M0,0" onclick="x()" fill="url(#g)"/>'
     seen = []
     real = drawn.check_png
-    monkeypatch.setattr(drawn, "check_png", lambda left, right=None: seen.append(left) or real(left, right))
+    monkeypatch.setattr(drawn, "check_png", lambda left, right=None, view=drawn.FRONT: seen.append(left) or real(left, right, view))
     asker = Asker(drew(nasty), checked(left=nasty, good=False), check_answer())
-    made = SD.draw(photos(), ("plan",), asker=asker, clock=clock())
+    made = SD.draw_straight(photos(), ("plan",), asker=asker, clock=clock())
     for text in [made.left.front, *(drawn.side(s).front for s in seen), asker.calls[1]["text"]]:
         for bit in ("<script", "alert(1)", "<text>N", 'id="x"', "url(#g)", "onclick"):
             assert bit not in text
@@ -157,7 +159,7 @@ def test_every_drawing_is_made_safe_before_it_is_rendered_checked_or_kept(monkey
 def test_what_the_automatic_checks_find_goes_into_the_next_check():
     asker = Asker(drew(LIFTED), checked(left=LIFTED, good=True),   # says good, but the shoe still floats: not accepted
                   checked(left=DRESS, good=False), check_answer())
-    made = SD.draw(photos(), ("plan",), asker=asker, clock=clock())
+    made = SD.draw_straight(photos(), ("plan",), asker=asker, clock=clock())
     texts = [c["text"] for c in asker.calls[1:]]
     assert "does not stand on the ground" in texts[0] and "does not stand on the ground" in texts[1]
     assert "## What the automatic checks found (each must be fixed)\n- none" in texts[2]
@@ -166,7 +168,7 @@ def test_what_the_automatic_checks_find_goes_into_the_next_check():
 
 def test_a_fix_that_cannot_be_used_keeps_the_drawing_before_it():
     asker = Asker(draw_answer(), checked(left="<text>no shapes</text>", good=False), check_answer())
-    made = SD.draw(photos(), ("plan",), asker=asker, clock=clock())
+    made = SD.draw_straight(photos(), ("plan",), asker=asker, clock=clock())
     assert "could not be used (Nothing drawable" in asker.calls[2]["text"]
     assert drawn.sanitise(DRESS) in asker.calls[2]["text"]
     assert made.left == drawn.Side(drawn.sanitise(DRESS)) and made.rounds == 2 and made.good
@@ -174,26 +176,27 @@ def test_a_fix_that_cannot_be_used_keeps_the_drawing_before_it():
 
 def test_a_check_that_fails_keeps_the_drawing_made_so_far():
     for error in (RouteUnavailable("Claude Code is not signed in"), TaggingError("no usable answer")):
-        made = SD.draw(photos(), ("plan",), asker=Asker(draw_answer(), error), clock=clock())
+        made = SD.draw_straight(photos(), ("plan",), asker=Asker(draw_answer(), error), clock=clock())
         assert made.rounds == 0 and not made.good and made.left == drawn.Side(drawn.sanitise(DRESS)) and len(made.calls) == 1
 
 
 def test_a_drawing_that_fails_raises():
     with pytest.raises(RouteUnavailable):
-        SD.draw(photos(), ("plan",), asker=Asker(RouteUnavailable("no route")), clock=clock())
+        SD.draw_straight(photos(), ("plan",), asker=Asker(RouteUnavailable("no route")), clock=clock())
     with pytest.raises(drawn.DrawingError):
-        SD.draw(photos(), ("plan",), clock=clock(), asker=Asker(drew("<text/>")))
+        SD.draw_straight(photos(), ("plan",), clock=clock(), asker=Asker(drew("<text/>")))
 
 
 def test_the_cost_is_what_the_api_key_would_charge_without_the_plans_rereading():
-    made = SD.draw(photos(), ("plan",), asker=Asker(draw_answer(), check_answer(), tokens=(50_000, 6_000),
+    made = SD.draw_straight(photos(), ("plan",), asker=Asker(draw_answer(), check_answer(), tokens=(50_000, 6_000),
                                                     cached=20_000), clock=clock())
     one = spend.cost_usd(SD.MODEL, 30_000, 6_000)
     assert [c.cost_usd for c in made.calls] == [pytest.approx(one)] * 2
     got = made.to_json(["p1", "p2"], "2026-11-15T12:00:00+00:00")
     assert got["cost_usd"] == pytest.approx(2 * one) and got["input_tokens"] == 100_000
     assert got["cache_read_tokens"] == 40_000 and got["output_tokens"] == 12_000 and got["route"] == "plan"
-    assert got["calls"][0]["kind"] == "draw" and got["photo_ids"] == ["p1", "p2"] and got["version"] == 2
+    assert got["calls"][0]["kind"] == "draw" and got["photo_ids"] == ["p1", "p2"] and got["version"] == 3
+    assert got["view"] == "front" and got["style"] is None and got["straight"] is None   # one drawing, straight on
     assert got["left"] == {"behind": "", "front": drawn.sanitise(DRESS)} and got["right"] is None
     assert set(got) >= {"left", "right", "sheet", "rounds", "seconds", "calls", "input_tokens", "output_tokens",
                         "cost_usd", "route", "made_at", "photo_ids", "version"}
@@ -218,7 +221,7 @@ class Meter:
 
 def test_through_the_api_key_the_calls_are_streamed_and_counted():
     api, meter = FakeApi(input_tokens=25_000, output_tokens=7_000), Meter()
-    made = SD.draw(photos(), ("api",), client=api, meter=meter)
+    made = SD.draw_straight(photos(), ("api",), client=api, meter=meter)
     assert api.calls == 2 and made.rounds == 1 and made.good and made.route == "api"
     first = api.requests[0]
     assert first["model"] == SD.MODEL and first["max_tokens"] == SD.MAX_TOKENS > correcting.NONSTREAMING_MAX_TOKENS
@@ -247,7 +250,7 @@ def test_through_the_plan_every_image_is_saved_under_its_name(monkeypatch):
         return SimpleNamespace(returncode=0, stdout=json.dumps(out), stderr="")
     monkeypatch.setattr(correcting.subprocess, "run", run)
     meter = Meter()
-    made = SD.draw(photos(), ("plan",), exe="claude", meter=meter)
+    made = SD.draw_straight(photos(), ("plan",), exe="claude", meter=meter)
     assert made.rounds == 1 and made.good and made.route == "plan"
     draw, check = seen
     assert sorted(draw["files"]) == sorted([f"photo-{n}.jpg" for n in range(1, 6)] + [
@@ -290,12 +293,12 @@ def test_claude_draws_each_shoe_behind_and_in_front_of_the_leg_and_both_are_kept
     collar = '<path d="M64,24 L136,24 L136,50 L64,50 Z" fill="#3a2a24"/>'   # the back of the collar, behind the leg
     first = DrawAnswer.model_validate({"sheet": SHEET, "left": shoe(DRESS, collar), "right": None})
     asker = Asker(first, checked(good=True))
-    made = SD.draw(photos(), ("plan",), asker=asker, clock=clock())
+    made = SD.draw_straight(photos(), ("plan",), asker=asker, clock=clock())
     assert made.left == drawn.Side(drawn.sanitise(DRESS), drawn.sanitise(collar)) and made.rounds == 1 and made.good
     check = asker.calls[1]["text"]
     assert "behind the leg:\n" + drawn.sanitise(collar) in check and "in front of the leg:\n" + drawn.sanitise(DRESS) in check
     kept = made.to_json([], "2026-11-15T12:00:00+00:00")
-    assert kept["version"] == 2 and kept["left"] == {"behind": drawn.sanitise(collar), "front": drawn.sanitise(DRESS)}
+    assert kept["version"] == 3 and kept["left"] == {"behind": drawn.sanitise(collar), "front": drawn.sanitise(DRESS)}
 
 
 def test_a_back_pull_tab_drawn_in_front_of_the_leg_goes_back_to_claude():
@@ -307,7 +310,7 @@ def test_a_back_pull_tab_drawn_in_front_of_the_leg_goes_back_to_claude():
                                               "left": shoe(DRESS, TAB), "right": None}),
                   CheckAnswer.model_validate({"good": True, "problems": [], "sheet": tall, "left": shoe(DRESS, TAB),
                                               "right": None}))
-    made = SD.draw(photos(), ("plan",), asker=asker, clock=clock())
+    made = SD.draw_straight(photos(), ("plan",), asker=asker, clock=clock())
     assert "hides the leg above its opening" in asker.calls[1]["text"]   # for a boot too, found and sent back
     assert "hides the leg above its opening" in asker.calls[2]["text"]   # said good, but still found: not accepted
     assert made.good and made.problems == [] and made.left.behind == drawn.sanitise(TAB) and made.rounds == 3

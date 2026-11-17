@@ -40,6 +40,7 @@ from .conftest import (
     upload,
 )
 from .test_shoedraw import Drawer
+from .test_shoedrawing_turned import Claude
 from .test_shoeviews import Sorter, a_shoe, add, answer, get, later, row, sql
 
 DRESS = drawn.example("dress-shoe")
@@ -217,7 +218,7 @@ def test_a_note_is_queued_made_and_the_drawing_before_kept(made):
     assert got["about_usd"] == old["about_usd"] == 0.38   # drawing it again costs what the drawing did
     assert kept(m, item, "drawn_prev") == before
     new = kept(m, item)
-    assert new["version"] == 2 and new["left"] == {"behind": "", "front": LACES} and new["corrected"] is True
+    assert new["version"] == drawn.VERSION and new["left"] == {"behind": "", "front": LACES} and new["corrected"] is True
     assert new["notes"] == [{"note": BLACK_LACES, "at": new["made_at"], "against_photos": AGAINST,
                              "changed": "The laces are black now."}]
     assert new["sheet"]["owner_notes"] == [BLACK_LACES] and new["drawn_cost_usd"] == before["cost_usd"]
@@ -303,7 +304,7 @@ def test_a_note_gone_back_from_is_not_given_to_a_later_drawing(made):
     assert m.drawer.notes[-1] == [] and kept(m, item)["notes"] == [] and "owner_notes" not in kept(m, item)["sheet"]
 
 
-def test_a_version_1_drawing_is_changed_and_comes_back_as_version_2(made):
+def test_a_version_1_drawing_is_changed_and_comes_back_as_the_current_version(made):
     m = made
     item = drawn_shoe(m)
     one = {**kept(m, item), "version": 1, "left": drawn.sanitise(DRESS)}
@@ -313,7 +314,7 @@ def test_a_version_1_drawing_is_changed_and_comes_back_as_version_2(made):
     m.sv.draws.drain()
     assert m.corrector.calls[0][1]["left"] == drawn.sanitise(DRESS)   # given as kept
     new = kept(m, item)
-    assert new["version"] == 2 and new["left"] == {"behind": "", "front": LACES}
+    assert new["version"] == drawn.VERSION and new["left"] == {"behind": "", "front": LACES}
     assert kept(m, item, "drawn_prev") == one
 
 
@@ -435,23 +436,24 @@ def test_through_the_api_key_and_its_monthly_limit(cfg):
         sorter.reply = answer(("outer", True), ("inner", True))
         sv.views.drain(now=later())
         c.put("/api/settings", json={"tagging_api_enabled": True, "tagging_api_cap_usd": 20.0})
-        assert sv.draws.drain() == 1 and api.calls == 2
+        drawing = SD.CANDIDATES * 2 + 1 + SD.TURNS * 2 + 1   # as in test_shoedraw: no fault named, so no fix
+        assert sv.draws.drain() == 1 and api.calls == drawing
         with closing(db.connect(cfg.db_path("main"))) as conn:
             so_far = spend.spent(conn)
         c.put("/api/settings", json={"tagging_api_cap_usd": round(so_far + 0.5, 2)})
         assert c.post(f"/api/items/{item['id']}/drawn/correct", json={"note": BLACK_LACES}).status_code == 202
         sv.draws.drain()
-        assert api.calls == 2   # the estimate is checked first: nothing is sent past the limit
+        assert api.calls == drawing   # the estimate is checked first: nothing is sent past the limit
         assert get(c, item)["drawn"]["message"] == shoedraw.CORRECT_LIMIT
         c.put("/api/settings", json={"tagging_api_cap_usd": 40.0})
-        assert sv.draws.drain() == 1 and api.calls == 4
+        assert sv.draws.drain() == 1 and api.calls == drawing + 2
         got = get(c, item)["drawn"]
         assert got["state"] == "done" and got["corrected"] and got["route"] == "api" and got["rounds"] == 1
         assert got["against_photos"] == AGAINST and got["changed"] == "The laces are black now."
         assert got["cost_usd"] == pytest.approx(2 * spend.cost_usd(SD.MODEL, 20_000, 5_000))
         with closing(db.connect(cfg.db_path("main"))) as conn:
             rows = [dict(r) for r in conn.execute("SELECT purpose, route, model FROM claude_calls ORDER BY rowid")]
-        assert [r["purpose"] for r in rows] == ["draw_shoe"] * 2 + ["correct_drawing"] * 2
+        assert [r["purpose"] for r in rows] == ["draw_shoe"] * drawing + ["correct_drawing"] * 2
         assert spend.PURPOSE_CORRECT_DRAWING == "correct_drawing" and all(r["model"] == SD.MODEL for r in rows)
         assert spend.estimate_correct_drawing(8) > 0.5   # one request's careful estimate is over the room left
     finally:
@@ -578,14 +580,15 @@ def test_against_the_photos_is_the_last_checks_word():
     assert len(made.against_photos) == SD.SENTENCE_MAX and made.against_photos.endswith("…")
 
 
-def test_a_version_1_drawing_goes_in_and_version_2_comes_out():
+def test_a_version_1_drawing_goes_in_and_the_current_version_comes_out():
     one = a_drawing(TAB + DRESS, version=1)
     asker = Asker(changed(left=DRESS, behind=TAB, sheet=TALL), check(left=DRESS, behind=TAB, sheet=TALL))
     made = SD.correct(photos(), one, "The pull tab is at the back of the boot", ("plan",), asker=asker, clock=clock())
     assert "kept before drawings had two parts" in asker.calls[0]["text"]
     assert "behind the leg:\n(empty)\nin front of the leg:\n" + drawn.sanitise(TAB + DRESS) in asker.calls[0]["text"]
     out = made.to_json(["p1"], "2026-11-15T13:00:00.000000Z", SD.notes_of(one))
-    assert out["version"] == 2 and out["left"] == {"behind": drawn.sanitise(TAB), "front": drawn.sanitise(DRESS)}
+    assert out["version"] == drawn.VERSION and out["left"] == {"behind": drawn.sanitise(TAB),
+                                                                "front": drawn.sanitise(DRESS)}
     assert out["corrected"] is True and out["notes"][-1]["note"] == "The pull tab is at the back of the boot"
 
 
@@ -638,14 +641,18 @@ def made_prompt(earlier) -> str:
 
 
 def test_a_drawing_from_scratch_keeps_to_the_owners_notes():
-    asker = Asker(*[a for a in (SD.DrawAnswer.model_validate({"sheet": SHEET, "left": shoe(DRESS), "right": None}),
-                                SD.CheckAnswer.model_validate({"good": True, "problems": [], "sheet": SHEET,
-                                                               "left": shoe(DRESS), "right": None}))])
-    SD.draw(photos(), ("plan",), asker=asker, clock=clock(), notes=[BLACK_LACES, "the toe is rounder"])
-    for call in asker.calls:
-        assert "## The owner's notes on earlier drawings of this shoe" in call["text"]
-        assert f'- "{BLACK_LACES}"' in call["text"] and '- "the toe is rounder"' in call["text"]
-    assert "owner's notes" not in SD.draw_prompt(photos())
+    """Every question of a drawing from scratch carries them: each drawing and check, straight on and turned, each
+    judge's choice and the fix of the judge's faults."""
+    claude = Claude()
+    SD.draw(photos(), ("plan",), asker=claude, clock=clock(), notes=[BLACK_LACES, "the toe is rounder"], style="oxford")
+    kinds = {c["model"] for c in claude.calls}
+    assert {SD.DrawAnswer, SD.CheckAnswer, SD.Verdict, SD.TurnedDrawAnswer, SD.TurnedCheckAnswer,
+            SD.TurnedCorrectAnswer} <= kinds
+    for call in claude.calls:
+        assert ("## The owner's notes on earlier drawings of this shoe" in call["text"]
+                or "## The owner's earlier notes on this shoe" in call["text"]), call["model"]
+        assert f'- "{BLACK_LACES}"' in call["text"] and '- "the toe is rounder"' in call["text"], call["model"]
+    assert "owner's notes" not in SD.draw_prompt(photos()) and "owner's notes" not in SD.judge_prompt(photos(), 3)
     many = [f"note {n}" for n in range(30)]
     text = SD.draw_prompt(photos(), many)
     assert '- "note 29"' in text and '- "note 10"' in text and '- "note 9"' not in text   # the latest NOTES_SENT
@@ -683,7 +690,7 @@ def test_through_the_api_key_a_correction_is_streamed_and_counted():
     assert api.calls == 2 and made.rounds == 1 and made.good and made.route == "api"
     assert made.against_photos == AGAINST and made.left == drawn.Side(LACES)
     first = api.requests[0]
-    assert first["model"] == SD.MODEL and first["output_config"]["effort"] == "high"
+    assert first["model"] == SD.MODEL and first["output_config"]["effort"] == SD.EFFORT == "medium"
     assert "against_photos" in first["output_config"]["format"]["schema"]["properties"]
     content = first["messages"][0]["content"]
     assert [c["text"] for c in content if c["type"] == "text"][:6] == [
@@ -714,7 +721,7 @@ def test_through_the_plan_a_correction_saves_every_image_under_its_name(monkeypa
     assert BLACK_LACES in fix["input"] and "before.png" in look["input"]
     for call in seen:
         cmd = call["cmd"]
-        assert cmd[cmd.index("--model") + 1] == SD.MODEL and cmd[cmd.index("--effort") + 1] == "high"
+        assert cmd[cmd.index("--model") + 1] == SD.MODEL and cmd[cmd.index("--effort") + 1] == SD.EFFORT
     assert made.calls[0].cost_usd == pytest.approx(spend.cost_usd(SD.MODEL, 21_000, 4_000))
 
 

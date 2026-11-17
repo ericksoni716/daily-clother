@@ -731,7 +731,8 @@ def add_drawings(items: list[dict]) -> None:
         if made is None:
             continue
         name, sheet = made
-        it["drawn"] = {"version": drawn.VERSION, "left": drawn.split_example(name).to_json(), "right": None,
+        it["drawn"] = {"version": drawn.VERSION, "view": drawn.FRONT.name, "left": drawn.split_example(name).to_json(),
+                       "right": None,
                        "sheet": sheet, "rounds": 0, "seconds": None, "good": True, "problems": [], "calls": [],
                        "input_tokens": 0, "cache_read_tokens": 0, "output_tokens": 0, "cost_usd": 0.0, "route": "demo",
                        "made_at": DRAWN_AT, "photo_ids": []}

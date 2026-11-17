@@ -1,23 +1,29 @@
 """Draw shoes from folders of photos with the app's own drawing and checks (developer tool; not shipped).
 
     python tools/draw_shoe_photos.py --photos DIR [--routes plan|api] [--out bench/out/draw_shoe_photos]
-                                     [--shoes 1,3] [--jobs 2]
+                                     [--shoes 1,3] [--jobs 1] [--model isnet-general-use.onnx]
 
 DIR holds one folder per shoe, `shoe-N/`, with its photos named for their views: side.jpg (the outer side, sent first,
 as the app's main photo), above.jpg, front.jpg, back.jpg and inner.jpg (any of them may be missing). The views are
-taken from the names, so the photos are not sorted first. Each shoe is drawn and checked exactly as in the app
-(`closet/tagger/shoedrawing.py`: a feature sheet and a drawing, then at most three checks against the photos), and
-written to OUT:
+taken from the names, so the photos are not sorted first. A folder may also hold `style.txt`, one word from
+`closet/drawing/turned.py`'s STYLES (runner, oxford, chelsea_boot, ...), standing in for the item's description;
+without it the drawing's own sheet says what kind of shoe it is. Each shoe is drawn exactly as in the app
+(`closet/tagger/shoedrawing.py`: three drawings straight on, the best chosen against the photos, turned out with the 3D
+shoe, two turned drawings, the best chosen and its faults fixed), and written to OUT:
 
 - `shoe-N.json`: the sheet, the drawings, the rounds, the seconds, each call's tokens and what the API key would
   charge (as kept with an item);
 - `shoe-N.svg`: the pair on two legs, as the item page shows it;
 - `shoe-N.png`: the check image, the pair large and at phone size, as Claude was last shown it;
+- `shoe-N.straight.png`: the drawing straight on that it was turned from;
 - `summary.txt`: a table of rounds, seconds, tokens and the API-key cost per shoe, and the average (also printed).
 
 `--routes plan` goes through Claude Code on this computer (the Claude plan); `--routes api` through the API key in
-ANTHROPIC_API_KEY, billed. Nothing is counted against the app's monthly limit. OUT is git-ignored by default: the
-photos and what is drawn from them never go into the repository.
+ANTHROPIC_API_KEY, billed. Nothing is counted against the app's monthly limit. `--model` is the app's background model
+file (isnet-general-use.onnx, in the app's models folder): with it each photo is cut to the shoe and the drawing's
+light material is measured against the front photo, as in the app; without it the photos are sent whole and that check
+is left out. Each shoe runs up to three Claude Code processes at once, so keep `--jobs` low on the plan route. OUT is
+git-ignored by default: the photos and what is drawn from them never go into the repository.
 """
 from __future__ import annotations
 
@@ -52,19 +58,36 @@ def photos_of(folder: Path) -> list[shoedrawing.Photo]:
     return out
 
 
-def draw_one(folder: Path, out: Path, routes: tuple[str, ...], client) -> dict:
+def mask_maker(model: Path | None):
+    """The app's background model as a photo -> mask function, or None."""
+    if model is None:
+        return None
+    import numpy as np
+
+    from closet.cutout import predict_mask
+    from closet.modelstore import MODEL
+    return lambda img: np.asarray(predict_mask(img, MODEL, model))
+
+
+def draw_one(folder: Path, out: Path, routes: tuple[str, ...], client, mask_of) -> dict:
     name = folder.name
     t0 = time.monotonic()
+    style_file = folder / "style.txt"
+    style = style_file.read_text(encoding="utf-8").strip() or None if style_file.exists() else None
     try:
-        made = shoedrawing.draw(photos_of(folder), routes, client=client)
+        made = shoedrawing.draw(photos_of(folder), routes, client=client, style=style, mask_of=mask_of)
     except Exception as e:   # one shoe failing does not stop the others
         print(f"{name}: failed after {time.monotonic() - t0:.0f} s: {type(e).__name__}: {e}", flush=True)
         return {"shoe": name, "error": f"{type(e).__name__}: {e}"}
     kept = made.to_json([f"{name}/{v}" for v, _ in VIEWS], datetime.now(UTC).isoformat(timespec="seconds"))
     (out / f"{name}.json").write_text(json.dumps(kept, indent=1), encoding="utf-8")
-    (out / f"{name}.svg").write_text(drawn.preview_svg(made.left, made.right), encoding="utf-8")
-    (out / f"{name}.png").write_bytes(drawn.check_png(made.left, made.right))
-    print(f"{name}: {made.sheet.get('archetype')} | {made.rounds} checks | {made.seconds:.0f} s | "
+    view = drawn.VIEWS[made.view]
+    (out / f"{name}.svg").write_text(drawn.preview_svg(made.left, made.right, view=view), encoding="utf-8")
+    (out / f"{name}.png").write_bytes(drawn.check_png(made.left, made.right, view=view))
+    if made.straight:
+        (out / f"{name}.straight.png").write_bytes(drawn.check_png(made.straight["left"], made.straight.get("right")))
+    print(f"{name}: {made.sheet.get('archetype')} | {made.view}, {made.style or 'not turned'} | {made.rounds} drawings | "
+          f"{made.seconds:.0f} s | "
           f"${kept['cost_usd']:.2f} | {'good' if made.good else 'not said good'} | "
           f"{'; '.join(made.problems) or 'no automatic problems'}", flush=True)
     return {"shoe": name, "kind": made.sheet.get("archetype"), "rounds": made.rounds, "seconds": made.seconds,
@@ -105,7 +128,8 @@ def main() -> None:
     ap.add_argument("--routes", choices=("plan", "api"), default="plan")
     ap.add_argument("--out", type=Path, default=ROOT / "bench" / "out" / "draw_shoe_photos")
     ap.add_argument("--shoes", default="", help="which shoes, by number (for example 1,3); all by default")
-    ap.add_argument("--jobs", type=int, default=2, help="shoes drawn at the same time (default 2)")
+    ap.add_argument("--jobs", type=int, default=1, help="shoes drawn at the same time (default 1)")
+    ap.add_argument("--model", type=Path, default=None, help="the app's background model file (isnet-general-use.onnx)")
     args = ap.parse_args()
     folders = sorted((p for p in args.photos.iterdir() if p.is_dir() and p.name.startswith("shoe-")),
                      key=lambda p: (len(p.name), p.name))
@@ -121,7 +145,8 @@ def main() -> None:
         client = anthropic.Anthropic()
     routes = (args.routes,)
     with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as pool:
-        rows = list(pool.map(lambda f: draw_one(f, args.out, routes, client), folders))
+        mask_of = mask_maker(args.model)
+        rows = list(pool.map(lambda f: draw_one(f, args.out, routes, client, mask_of), folders))
     text = table(rows)
     (args.out / "summary.txt").write_text(text + "\n", encoding="utf-8")
     print()

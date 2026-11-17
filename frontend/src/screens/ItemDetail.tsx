@@ -89,7 +89,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   const traced = tracing(item?.trace);
   const sorting = sortingViews(item?.views);   // a shoe's photos sorted into views
   const sortingNow = item?.views?.state === 'sorting';
-  const drawing = drawingShoe(item?.drawn);   // a shoe drawn from its photos, about two minutes
+  const drawing = drawingShoe(item?.drawn);   // a shoe drawn from its photos, four to ten minutes
   const followed = useRef('');
   useEffect(() => {
     if (!(busy || describing || awaiting || measuring || traced || sorting || drawing) || offline) return;

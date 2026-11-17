@@ -273,6 +273,21 @@ def test_claude_out_of_reach_puts_the_shoe_back_with_its_attempt(made):
     assert m.sv.draws.drain() == 1 and drawn_of(m, item)["state"] == "done" and drawn_of(m, item)["message"] is None
 
 
+def test_a_network_outage_keeps_the_shoe_waiting_with_its_tries(made):
+    # no network or Anthropic overloaded: every try of the run fails to reach Claude, which is not the shoe's fault
+    from closet.tagger.tagging import Unreachable
+    m = made
+    item = sorted_shoe(m)
+    m.drawer.error = Unreachable("Claude could not be reached")
+    for _ in range(shoedraw.MAX_ATTEMPTS + 2):
+        assert m.sv.draws.drain() == 0
+    got = drawn_of(m, item)
+    assert got["state"] == "waiting" and got["message"] == shoedraw.NO_ROUTE
+    assert row(m.sv.cfg, item["id"])["drawn_attempts"] == 0
+    m.drawer.error = None
+    assert m.sv.draws.drain() == 1 and drawn_of(m, item)["state"] == "done"
+
+
 def test_after_three_failures_the_item_says_so(made, caplog):
     m = made
     item = sorted_shoe(m)

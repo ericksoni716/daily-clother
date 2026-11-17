@@ -37,7 +37,7 @@ from PIL import Image
 from . import db, failures, tracejobs
 from .config import Config
 from .state import State
-from .tagger.tagging import CapReached, RouteUnavailable
+from .tagger.tagging import CapReached, RouteUnavailable, Unreachable
 from .tagger.views import SIDES, VIEWS, ShoeViews
 
 log = logging.getLogger("closet.shoeviews")
@@ -291,7 +291,7 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], sorter: Sorter, now
     try:
         answer = sorter(_open(images_dir, photos), routes)
         said = read(answer, len(photos))
-    except RouteUnavailable as e:
+    except (RouteUnavailable, Unreachable) as e:   # out of reach (no route, no network, overloaded): it waits
         # nothing is wrong with the photos: Claude cannot be reached right now, so it waits without losing an attempt
         log.info("sorting a shoe's photos is waiting: no route to Claude can be used right now")
         conn.execute("UPDATE items SET views_state = 'waiting', views_attempts = max(0, views_attempts - 1) "

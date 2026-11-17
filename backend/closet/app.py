@@ -704,7 +704,9 @@ def create_app(sv: Services) -> FastAPI:
     async def replace_photo(item_id: str, photo: UploadFile = File(...), photo_sha256: str | None = Form(None),
                             conn=Depends(conn_dep)):
         data = await photo.read(images.MAX_UPLOAD_BYTES + 1)
-        item = await run_in_threadpool(shoes.replace_photo, conn, images_dir(), item_id, data, photo_sha256 or None,
+        # a shoe is traced again from its new photo; anything else is cut out, described and measured again
+        retake = shoes.replace_photo if tracejobs.wanted(items.get(conn, item_id)["category"]) else items.replace_photo
+        item = await run_in_threadpool(retake, conn, images_dir(), item_id, data, photo_sha256 or None,
                                        demo=state.get("profile") == "demo")
         views_soon()
         return item

@@ -4,6 +4,7 @@ import { ChipGroup } from '../components/ui/Chips';
 import { confirmKeys, Notice, PHONE, Section, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
 import { FixDetails, FixDetailsButton, ItemHistory } from '../components/FixDetails';
 import { KindPicker } from '../components/KindPicker';
+import { RetakeButton } from '../components/RetakeButton';
 import { ShoeDrawn } from '../components/ShoeDrawn';
 import { ShoePhotos } from '../components/ShoePhotos';
 import { TraceNotice } from '../components/ShoeTrace';
@@ -16,6 +17,7 @@ import { useCloset } from '../store';
 import { drawingPlaceholder, loadGridView, notInDrawing } from '../drawing';
 import { describedBy, detailLines, tagNotice } from '../tagging';
 import { kindDrawing, kindLine, type KindGroup } from '../kinds';
+import { retakeOffer, retakeSaid } from '../retake';
 import { sureText } from '../review';
 import { drawingShoe, sortingViews, tracing } from '../shoe';
 import type { Item, ItemPatch, PatternColour } from '../types';
@@ -209,6 +211,12 @@ export function ItemDetail({ id, status, inPanel }: Props) {
     toast(saidAs);
   };
   const failed = (message: string) => toast(message, 'error');
+  // clothes: a new photo when the background couldn't be removed or the pattern couldn't be measured (one button)
+  const offer = retakeOffer(item);
+  const retake = offer && (
+    <RetakeButton item={item} disabled={locked} said={retakeSaid(item, profile === 'demo')} onError={failed}
+      onSaved={fixed} />
+  );
 
   return (
     <article className="detail" aria-label={item.name || 'Item'}>
@@ -231,7 +239,10 @@ export function ItemDetail({ id, status, inPanel }: Props) {
         </p>
       )}
       {item.pattern_state === 'failed' && item.pattern_error && (
-        <p className="muted tag-note" data-testid="pattern-failed">{item.pattern_error}</p>
+        <div className="tag-note pattern-failed" data-testid="pattern-failed">
+          <p className="muted">{item.pattern_error}</p>
+          {offer === 'pattern' && <div className="row">{retake}</div>}
+        </div>
       )}
       {item.cutout_state === 'failed' && (
         <div className="notice notice-warn">
@@ -239,15 +250,18 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           <div>
             <p><strong>The background couldn't be removed.</strong>{item.cutout_error ? ` ${item.cutout_error}` : ''}</p>
             <FailureDetails item={item} stage="cutout" />
-            <button className="btn btn-small" disabled={locked} onClick={async () => {
-              editVersion.current++;
-              try {
-                setItem(await api.retryCutout(id));
-                toast('Trying the cutout again');
-              } catch (e) {
-                toast((e as Error).message, 'error');
-              }
-            }}>Try the cutout again</button>
+            <div className="row">
+              <button className="btn btn-small" disabled={locked} onClick={async () => {
+                editVersion.current++;
+                try {
+                  setItem(await api.retryCutout(id));
+                  toast('Trying the cutout again');
+                } catch (e) {
+                  toast((e as Error).message, 'error');
+                }
+              }}>Try the cutout again</button>
+              {offer === 'cutout' && retake}
+            </div>
           </div>
         </div>
       )}
@@ -284,9 +298,6 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           {item.tag_state === 'waiting' && item.tag_error && <> <Link to="/settings">Open Settings</Link></>}
         </p>
       ) : null}
-      {item.pattern_state === 'failed' && item.pattern_error && (
-        <p className="muted tag-note" data-testid="pattern-failed">{item.pattern_error}</p>
-      )}
 
       <Section id={`details-${item.id}`} title="Details" className="detail-fields"
         hint={item.tag_state === 'done' && tagText ? tagText : undefined}>

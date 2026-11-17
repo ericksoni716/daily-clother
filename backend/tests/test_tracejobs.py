@@ -389,12 +389,19 @@ def test_the_as_worn_figure_gets_the_trace_unless_the_owner_chose_the_plain_draw
 
 
 def test_only_a_shoe_has_trace_actions(make, shoe):
+    # A new photo (POST /api/items/{id}/photo) is no longer for shoes only: clothes can retake theirs too, and are
+    # not traced from it (test_retake.py).
     sv, c = make(Tracer(shoe))
     item = upload(c).json()
     for r in (c.post(f"/api/items/{item['id']}/retrace"), c.put(f"/api/items/{item['id']}/trace/plain", json={"plain": True}),
-              c.post(f"/api/items/{item['id']}/trace/fix", json={"reset": True}),
-              c.post(f"/api/items/{item['id']}/photo", files={"photo": ("p.jpg", jpeg(S.front_view()), "image/jpeg")})):
+              c.post(f"/api/items/{item['id']}/trace/fix", json={"reset": True})):
         assert r.status_code == 409 and "shoe" in r.json()["detail"]
+    sv.worker.is_ready = lambda: True
+    sv.worker.drain()
+    r = c.post(f"/api/items/{item['id']}/photo", files={"photo": ("p.jpg", jpeg(S.front_view()), "image/jpeg")})
+    assert r.status_code == 200 and r.json()["trace"] is None
+    sv.worker.drain()
+    assert c.get(f"/api/items/{item['id']}").json()["trace"] is None
 
 
 def test_an_item_no_longer_a_shoe_keeps_its_trace_unused(cfg, make, shoe):

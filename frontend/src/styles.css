@@ -716,6 +716,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .detail-panel .more-body { grid-template-columns: 1fr; }
 
 .tag-note { font-size: var(--text-sm); margin: -2px 0 14px; }
+.pattern-failed p { margin: 0 0 8px; }
 .tag-body { padding: 4px 0 14px; }
 .tag-body .muted { font-size: var(--text-sm); margin: 10px 0 0; }
 .tag-details { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 14px; }

@@ -349,11 +349,132 @@ def delete(conn, images_dir: Path, item_id: str) -> None:
     row = get(conn, item_id)
     conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
     shutil.rmtree(images_dir / item_id, ignore_errors=True)
-    source = row["source_photo_id"]
-    if source and conn.execute("SELECT 1 FROM items WHERE source_photo_id = ? LIMIT 1", (source,)).fetchone() is None:
-        # the last item cut from a photo of several pieces: the photo is not kept for nothing
-        if conn.execute("DELETE FROM source_photos WHERE id = ? AND state = 'added'", (source,)).rowcount:
-            shutil.rmtree(images_dir / "sources" / source, ignore_errors=True)
+    if _drop_unused_source(conn, row["source_photo_id"]):
+        shutil.rmtree(images_dir / "sources" / row["source_photo_id"], ignore_errors=True)
+
+
+def _drop_unused_source(conn, source: str | None) -> bool:
+    """No item is cut from this photo of several pieces any more: its row goes (the photo is not kept for nothing).
+    True when the caller should remove its folder."""
+    if not source or conn.execute("SELECT 1 FROM items WHERE source_photo_id = ? LIMIT 1", (source,)).fetchone():
+        return False
+    return bool(conn.execute("DELETE FROM source_photos WHERE id = ? AND state = 'added'", (source,)).rowcount)
+
+
+# ------------------------------------------------------------------ a new main photo ("Retake the photo")
+
+RUNNING_CUTOUT = "The photo is still being cut out; try again in a moment."
+ELSEWHERE = "This photo is already in the closet, as another item."
+
+
+def locked(conn, work) -> None:
+    """Run `work` under the database's write lock, all of it or nothing."""
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        work()
+        conn.execute("COMMIT")
+    except Exception:
+        if conn.in_transaction:
+            conn.execute("ROLLBACK")
+        raise
+
+
+def store_photo(images_dir: Path, item_id: str, data: bytes):
+    """The uploaded photo's files, stored under a new photo id: (photo_id, images.Stored)."""
+    photo_id = uuid.uuid4().hex
+    return photo_id, images.store_upload(data, images_dir, item_id, photo_id)
+
+
+def remove_photo_files(images_dir: Path, photo) -> None:
+    for key in ("original_path", "thumb_path", "cutout_path", "cutout_thumb_path"):
+        if photo[key]:
+            (images_dir / photo[key]).unlink(missing_ok=True)
+
+
+def refuse_elsewhere(conn, item_id: str, source_sha256: str) -> None:
+    """A photo already in the closet as another item is not given to this one too."""
+    other = conn.execute("SELECT item_id FROM photos WHERE source_sha256 = ? AND item_id != ? LIMIT 1",
+                         (source_sha256, item_id)).fetchone()
+    if other is not None:
+        raise ItemError(ELSEWHERE, 409)
+
+
+def replace_front(conn, images_dir: Path, item_id: str, data: bytes, source_sha256: str | None, check,
+                  then=None, demo: bool = False) -> dict:
+    """A new main photo in place of the old one, for a shoe (`shoes.replace_photo`) or anything else
+    (`replace_photo`). `check(row, source_sha256)` refuses what the caller does not allow, before the photo is
+    stored and again under the lock; `then(row)` runs under the lock once the new photo is in, before its cutout is
+    queued. The old main photo goes, rows and files; a queued cutout of it is dropped; refused while its cutout
+    runs, and for a photo already in the closet as another item. The trace of the old photo goes (a shoe is traced
+    again from the new cutout), and photos sorted into views (or waiting to be) are sorted again with the new one.
+    Once the new cutout is ready the item is described again (`jobs._described_since`), not in the demo closet."""
+    source_sha256 = photo_hash(data, source_sha256)
+    check(get(conn, item_id), source_sha256)
+    photo_id, stored = store_photo(images_dir, item_id, data)
+    old: list = []
+
+    def work():
+        row = get(conn, item_id)
+        check(row, source_sha256)
+        if conn.execute("SELECT 1 FROM jobs WHERE kind = 'cutout' AND item_id = ? AND state = 'running'",
+                        (item_id,)).fetchone():
+            raise ItemError(RUNNING_CUTOUT, 409)
+        refuse_elsewhere(conn, item_id, source_sha256)
+        old.extend(conn.execute("SELECT * FROM photos WHERE item_id = ? AND kind = 'front'", (item_id,)).fetchall())
+        conn.execute("DELETE FROM jobs WHERE kind = 'cutout' AND item_id = ? AND state = 'queued'", (item_id,))
+        conn.execute("DELETE FROM photos WHERE item_id = ? AND kind = 'front'", (item_id,))
+        conn.execute("INSERT INTO photos (id, item_id, kind, original_path, thumb_path, width, height, bytes, sha256, "
+                     "source_sha256, created_at) VALUES (?, ?, 'front', ?, ?, ?, ?, ?, ?, ?, ?)",
+                     (photo_id, item_id, stored.original_path, stored.thumb_path, stored.width, stored.height,
+                      stored.bytes, stored.sha256, source_sha256, db.now()))
+        tracejobs.forget(conn, item_id)
+        if row["views_state"] is not None or row["views_error"] is not None:   # its photos were sorted, or meant to be
+            shoeviews.changed(conn, item_id, demo)
+        if then is not None:
+            then(row)
+        jobs.enqueue_cutout(conn, item_id, photo_id)
+        illustrations.redraw(conn, item_id)
+
+    try:
+        locked(conn, work)
+    except Exception:
+        for name in (stored.original_path, stored.thumb_path):
+            (images_dir / name).unlink(missing_ok=True)
+        raise
+    for p in old:
+        remove_photo_files(images_dir, p)
+    return detail(conn, get(conn, item_id))
+
+
+def replace_photo(conn, images_dir: Path, item_id: str, data: bytes, source_sha256: str | None = None,
+                  demo: bool = False) -> dict:
+    """A new photo of a piece of clothing (anything but a shoe) in place of its photo: the item page's "Retake the
+    photo", offered when the background could not be removed or the pattern could not be measured. The item keeps
+    its id, wears, rating, laundry, history and everything the owner set; its background is removed from the new
+    photo, Claude describes it again (fields and details the owner set stay theirs, as always) and its pattern is
+    measured again from the new cutout once described.
+
+    What was measured from the old photo goes at once, so nothing about the old photo is shown as if it were about
+    the new one: the measured pattern and its state (a "could not measure" note included) and Claude's landmarks.
+    The pattern waits for the new description, which marks it for measuring (`patjobs.mark`); measuring it before
+    would only be thrown away. An item cut from a photo of several pieces is no longer: the new photo is its own,
+    so it leaves that photo (which goes once no item is cut from it). The demo closet is never sent to Claude, so
+    there it is cut out again and keeps its description."""
+    dropped: list[str] = []
+
+    def check(row, sha):
+        _refuse_waiting_source(conn, sha)
+
+    def then(row):
+        conn.execute("UPDATE items SET pattern_state = NULL, pattern_error = NULL, pattern_fill = NULL, "
+                     "landmarks = NULL, source_photo_id = NULL, source_box = NULL WHERE id = ?", (item_id,))
+        if _drop_unused_source(conn, row["source_photo_id"]):
+            dropped.append(row["source_photo_id"])
+
+    out = replace_front(conn, images_dir, item_id, data, source_sha256, check, then, demo)
+    for source in dropped:
+        shutil.rmtree(images_dir / "sources" / source, ignore_errors=True)
+    return out
 
 
 def retry_cutout(conn, item_id: str) -> dict:

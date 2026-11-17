@@ -19,10 +19,13 @@ test('wear log and laundry in the demo closet: wear, undo, laundry and back', as
   await expect(summary).toHaveText('Worn 2 times, last today');
   await expect(panel.getByText('Worn today', { exact: true })).toBeVisible();
   await expect(panel.getByRole('button', { name: 'Remove the wear: Today' })).toBeVisible();
+  // a shirt needs washing after one wear (Settings → Laundry, on by default): it went in the laundry by itself
+  await expect(panel.getByTestId('laundry-state')).toHaveText(/^In the laundry/);
 
   await panel.getByRole('button', { name: 'Undo' }).click();
   await expect(summary).toHaveText(/^Worn once, on /);
   await expect(panel.getByRole('button', { name: 'Wore it today' })).toBeVisible();
+  await expect(panel.getByTestId('laundry-state')).toHaveText(/^Clean/);   // undone, so back out
 
   // into the laundry: the tile gets a mark and the laundry filter finds it
   await expect(tile.getByTestId('laundry-mark')).toHaveCount(0);
@@ -71,4 +74,22 @@ test('offline: the wear and laundry buttons are disabled and say why', async ({ 
     await expect(button).toBeDisabled();
     await expect(button).toHaveAttribute('title', /needs Closet on your computer/i);
   }
+});
+
+
+test('settings: the laundry keeps itself, on a laundry day the owner chooses, and can be turned off', async ({ page }) => {
+  await login(page);
+  await page.goto('/settings');
+  const toggle = page.getByRole('switch', { name: 'Put worn clothes in the laundry by themselves' });
+  await expect(toggle).toBeChecked();
+  const day = page.getByLabel('Laundry day');
+  await expect(day).toHaveValue('6');   // Sunday
+  const saved = page.waitForResponse((r) => r.request().method() === 'PUT' && r.url().endsWith('/api/settings') && r.ok());
+  await day.selectOption({ label: 'Wednesday' });
+  await saved;
+  expect((await (await page.request.get('/api/settings')).json()).laundry).toEqual({ auto: true, day: 2 });
+  await toggle.click();
+  await expect(day).toHaveCount(0);
+  await expect.poll(async () => (await (await page.request.get('/api/settings')).json()).laundry.auto).toBe(false);
+  await page.request.put('/api/settings', { data: { laundry: { auto: true, day: 6 } } });
 });

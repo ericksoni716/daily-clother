@@ -211,6 +211,16 @@ the recent days, each of which can be removed. **Put in the laundry** and
 carry a small mark, and the **Clean** and **In the laundry** buttons show only
 those.
 
+The laundry mostly keeps itself. When you record a wear, a piece goes in the
+laundry by itself once it has been worn as often as **Before it needs
+washing** says (a shirt or tee after one wear, a sweater or trousers after
+three; shoes, jackets, coats and accessories never). On your **laundry day**
+everything in the laundry is clean again. Undo a wear and a piece it put in
+comes back out. To change the day, or turn it off, open **Settings → Your
+closet → Laundry**. To catch up after a wash on another day, the closet says
+how many pieces are in the laundry: tap **Show**, then **All clean**. On an
+outfit in **Worn**, **⋯ → Put these in the laundry** does it by hand.
+
 **Insights** (the button at the top of your closet) turns what you have
 recorded as worn into a few plain sentences: what each piece with a price has
 cost per wear (type the price on the item, in dollars), what you have never

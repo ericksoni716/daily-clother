@@ -12,7 +12,7 @@ import { apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, monthN
 import { useCloset } from '../store';
 import { applyTheme, loadTheme, saveTheme, THEME_CHOICES, type Theme } from '../theme';
 import { MAX_REWEAR, REWEAR_KINDS, rewearWords } from '../trips';
-import type { ModelInfo, Profile, RewearKind, RouteOrder, Settings, Storage, TaggingRoute, TaggingSpend, TaggingStatus } from '../types';
+import type { LaundrySetting, ModelInfo, Profile, RewearKind, RouteOrder, Settings, Storage, TaggingRoute, TaggingSpend, TaggingStatus } from '../types';
 
 /** One group of settings: a card with a heading. */
 function Section({ title, hint, children, id }: { title: string; hint?: string; children: ReactNode; id: string }) {
@@ -89,6 +89,7 @@ export function SettingsScreen({ version }: { version: string }) {
               }} />
           )}
           {model && <ModelSection model={model} refresh={refreshModel} toast={toast} disabled={offline} />}
+          {settings?.laundry && <LaundrySection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
           {settings?.rewear && <RewearSection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
           {settings && <BackupSection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
           <StorageSection offline={offline} profile={profile} />
@@ -210,7 +211,48 @@ function ModelAddress({ model, refresh, toast, disabled }: { model: ModelInfo; r
   );
 }
 
-/** "Before it needs washing": how often each kind of clothing is worn on a trip before it needs a wash. */
+export const LAUNDRY_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+/** Laundry that keeps itself: worn clothes go in after their count ("Before it needs washing"), out on the laundry day. */
+function LaundrySection({ settings, onChange, toast, disabled }: { settings: Settings; onChange(s: Settings): void; toast(m: string, k?: 'ok' | 'error'): void; disabled: boolean }) {
+  const [busy, setBusy] = useState(false);
+  const laundry = settings.laundry!;
+
+  async function save(change: Partial<LaundrySetting>) {
+    setBusy(true);
+    try {
+      onChange(await api.putSettings({ laundry: { ...laundry, ...change } }));
+      toast('Saved');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Sub title="Laundry" id="s-laundry">
+      <Toggle label="Put worn clothes in the laundry by themselves"
+        hint="When you record a wear, a piece goes in the laundry once it has been worn as often as Before it needs washing says. Shoes, coats and accessories never do. Undo the wear and it comes back out."
+        checked={laundry.auto} disabled={disabled || busy} onChange={(auto) => void save({ auto })} />
+      {laundry.auto && (
+        <div className="settings-laundry">
+        <label className="field">
+          <span>Laundry day</span>
+          <select value={laundry.day === null ? '' : String(laundry.day)} disabled={disabled || busy}
+            onChange={(e) => void save({ day: e.target.value === '' ? null : Number(e.target.value) })}>
+            {LAUNDRY_DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
+            <option value="">No set day: I mark things clean myself</option>
+          </select>
+          <span className="hint">Everything in the laundry is clean again from this day. All clean on the closet works any time.</span>
+        </label>
+        </div>
+      )}
+    </Sub>
+  );
+}
+
+/** "Before it needs washing": how often each kind of clothing is worn before it needs a wash. */
 function RewearSection({ settings, onChange, toast, disabled }: { settings: Settings; onChange(s: Settings): void; toast(m: string, k?: 'ok' | 'error'): void; disabled: boolean }) {
   const [busy, setBusy] = useState(false);
   const rewear = settings.rewear!;
@@ -229,7 +271,7 @@ function RewearSection({ settings, onChange, toast, disabled }: { settings: Sett
 
   return (
     <Sub title="Before it needs washing" id="s-rewear">
-      <p className="hint">How many times you wear each kind on a trip before it needs washing. Trip packing counts with these; on a hot or humid day, what is worn next to the skin is worn once.</p>
+      <p className="hint">How many times you wear each kind before it needs washing. The laundry and trip packing count with these; on a hot or humid day on a trip, what is worn next to the skin is worn once.</p>
       <div className="settings-rewear">
         {REWEAR_KINDS.map(({ kind, label }) => {
           const n = rewear[kind];

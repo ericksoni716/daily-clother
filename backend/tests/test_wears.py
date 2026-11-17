@@ -207,3 +207,126 @@ def test_the_migration_runs_on_a_closet_made_by_the_previous_version(tmp_path, m
     old = db.connect(Path(result["backup"]))
     assert old.execute("SELECT location FROM items WHERE id = 'a'").fetchone()[0] == "laundry"
     old.close()
+
+
+# ------------------------------------------------------------------ laundry that keeps itself (17 November)
+def test_what_is_in_the_laundry_keeps_its_place_through_migration_30(tmp_path, monkeypatch):
+    # pieces already in the laundry are dated from their last change, so the first laundry day washes them
+    path, backups = tmp_path / "closet.db", tmp_path / "bk"
+    real = db.migration_files()
+    monkeypatch.setattr(db, "migration_files", lambda: [(v, p) for v, p in real if v < 30])
+    db.migrate(path, backups)
+    conn = db.connect(path)
+    for item_id, state in (("a", "laundry"), ("b", "clean")):
+        conn.execute("INSERT INTO items (id, laundry, created_at, updated_at) VALUES (?, ?, '2026-11-01T09:00:00.000000Z', "
+                     "'2026-11-02T09:00:00.000000Z')", (item_id, state))
+    conn.close()
+    monkeypatch.setattr(db, "migration_files", lambda: real)
+    assert 30 in db.migrate(path, backups)["applied"]
+    conn = db.connect(path)
+    rows = {r["id"]: (r["laundry_at"], r["laundry_by"]) for r in conn.execute("SELECT id, laundry_at, laundry_by FROM items")}
+    conn.close()
+    assert rows == {"a": ("2026-11-02T09:00:00.000000Z", "owner"), "b": (None, None)}
+
+
+def kind(client, category, key):
+    item = upload(client, key=key).json()
+    assert client.patch(f"/api/items/{item['id']}", json={"category": category}).status_code == 200
+    return item["id"]
+
+
+def laundry(client, item_id):
+    return client.get(f"/api/items/{item_id}").json()["laundry"]
+
+
+def wear(client, item_id, n):
+    assert client.post(f"/api/items/{item_id}/wears", json={"worn_on": days_ago(n)}).status_code in (200, 201)
+
+
+def test_worn_clothes_go_in_the_laundry_by_themselves_after_their_count(client):
+    # "Before it needs washing": tops after 1 wear, trousers after 3, jackets and coats and shoes never
+    tee, trousers, jacket, shoes = (kind(client, c, c) for c in ("tee", "trousers", "jacket", "sneakers"))
+    wear(client, tee, 0)
+    assert laundry(client, tee) == "laundry"
+    for n in (3, 2):
+        wear(client, trousers, n)
+    assert laundry(client, trousers) == "clean"
+    wear(client, trousers, 1)
+    assert laundry(client, trousers) == "laundry"
+    for n in range(6):
+        wear(client, jacket, n)
+        wear(client, shoes, n)
+    assert laundry(client, jacket) == laundry(client, shoes) == "clean"
+    # the owner's own count wins: trousers after one wear
+    assert client.put("/api/settings", json={"rewear": {"bottoms": 1}}).status_code == 200
+    other = kind(client, "jeans", "jeans")
+    wear(client, other, 0)
+    assert laundry(client, other) == "laundry"
+
+
+def test_undoing_the_wear_that_put_it_in_takes_it_back_out_but_never_one_put_in_by_hand(client):
+    tee, shirt = kind(client, "tee", "t"), kind(client, "shirt", "s")
+    wear(client, tee, 0)
+    assert laundry(client, tee) == "laundry"
+    assert client.delete(f"/api/items/{tee}/wears/{days_ago(0)}").status_code == 200
+    assert laundry(client, tee) == "clean"
+    # an outfit undone as one does the same
+    worn = client.post("/api/wears", json={"item_ids": [tee, shirt]}).json()
+    assert {i["laundry"] for i in worn["items"]} == {"laundry"}
+    client.post("/api/wears/remove", json={"item_ids": [tee, shirt], "worn_on": worn["worn_on"]})
+    assert laundry(client, tee) == laundry(client, shirt) == "clean"
+    # put in by hand: undoing a wear leaves it where the owner put it
+    client.post(f"/api/items/{shirt}/laundry", json={"state": "laundry"})
+    wear(client, shirt, 2)
+    client.delete(f"/api/items/{shirt}/wears/{days_ago(2)}")
+    assert laundry(client, shirt) == "laundry"
+
+
+def test_the_laundry_day_washes_what_went_in_before_it(client, cfg, monkeypatch):
+    # TODAY is a Thursday; with Sunday as the laundry day, what went in before last Sunday is clean, the rest waits
+    assert client.put("/api/settings", json={"laundry": {"auto": True, "day": 6}}).status_code == 200
+    old, new, undated = kind(client, "tee", "o"), kind(client, "shirt", "n"), kind(client, "polo", "u")
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        conn.execute("UPDATE items SET laundry = 'laundry', laundry_at = '2026-11-06T10:00:00.000000Z', laundry_by = 'auto', "
+                     "wears_since_wash = 1 WHERE id = ?", (old,))
+        conn.execute("UPDATE items SET laundry = 'laundry', laundry_at = '2026-11-10T10:00:00.000000Z', laundry_by = 'auto' "
+                     "WHERE id = ?", (new,))
+        conn.execute("UPDATE items SET laundry = 'laundry', laundry_at = NULL WHERE id = ?", (undated,))   # the demo's kind
+    finally:
+        conn.close()
+    wears._caught_up.clear()
+    listed = {i["id"]: i for i in client.get("/api/items").json()["items"]}
+    assert listed[old]["laundry"] == "clean" and listed[old]["wears_since_wash"] == 0
+    assert listed[new]["laundry"] == "laundry" and listed[undated]["laundry"] == "laundry"
+    # a week on, the next Sunday has washed the other one too
+    monkeypatch.setattr(wears, "today", lambda: TODAY + timedelta(days=4))
+    assert laundry(client, new) == "clean"
+    assert wears.last_laundry_day(6, TODAY) == date(2026, 11, 8) and wears.next_laundry_day(6, TODAY) == date(2026, 11, 15)
+
+
+def test_the_laundry_setting_can_be_turned_off_and_is_checked(client):
+    assert client.get("/api/settings").json()["laundry"] == {"auto": True, "day": 6}
+    assert client.put("/api/settings", json={"laundry": {"auto": False}}).status_code == 200
+    tee = kind(client, "tee", "t")
+    wear(client, tee, 0)
+    assert laundry(client, tee) == "clean"   # off: nothing goes in by itself
+    assert client.get("/api/settings").json()["laundry"] == {"auto": False, "day": 6}
+    for bad in ({"auto": "yes"}, {"day": 7}, {"day": True}, {"when": 1}, "sunday"):
+        r = client.put("/api/settings", json={"laundry": bad})
+        assert r.status_code == 422, bad
+    assert client.put("/api/settings", json={"laundry": {"auto": True, "day": None}}).status_code == 200
+
+
+def test_undoing_the_wear_takes_it_out_even_when_its_count_was_already_reached(client, cfg):
+    # the demo's pieces carry counts from their history: clean, yet already worn as often as their kind allows
+    tee = kind(client, "tee", "t")
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        conn.execute("UPDATE items SET wears_since_wash = 1 WHERE id = ?", (tee,))
+    finally:
+        conn.close()
+    wear(client, tee, 0)
+    assert laundry(client, tee) == "laundry"
+    client.delete(f"/api/items/{tee}/wears/{days_ago(0)}")
+    assert laundry(client, tee) == "clean"

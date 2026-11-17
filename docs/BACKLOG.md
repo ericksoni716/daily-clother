@@ -97,7 +97,7 @@ Patterns from the photo (owner's request; it had fallen out of the app):
 
 The review's fixes are merged (#244 to #248). Left for later, in the owner's words where they gave them:
 
-- [ ] **Laundry with much less upkeep.** The owner: "maintaining what is in the laundry seems like a huge pain, but I realize it affects what outfits can be put together". A proposal to decide first:
+- [x] **Laundry with much less upkeep** (#249, migration 0030; approved by the owner 17 November: "Yes keep going"). Done as proposed below; the laundry day is Sunday until the owner chooses another. The owner: "maintaining what is in the laundry seems like a huge pain, but I realize it affects what outfits can be put together". A proposal to decide first:
   - Clothes go in the laundry by themselves once worn as often as **Before it needs washing** allows. That setting exists already for trips: tops after one wear, knitwear and trousers after three, jackets and coats rarely.
   - They come back clean by themselves on the owner's laundry rhythm (for example "every Sunday", or "three days after"). **Laundry's done** marks everything clean in one tap.
   - Today and Trips trust that. The owner only corrects the exceptions: a shirt worn twice, a sweater washed early. **Put these in the laundry** on Worn and **All clean** on the closet (#246) stay as the manual way.

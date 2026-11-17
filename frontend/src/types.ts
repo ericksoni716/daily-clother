@@ -339,6 +339,14 @@ export interface Settings {
   life_prompt_dismissed: boolean;
   /** "Before it needs washing": wears per kind of clothing on a trip; null is the whole trip. */
   rewear?: Rewear;
+  /** Laundry that keeps itself: worn clothes go in by themselves after their count, and come out on the laundry day. */
+  laundry?: LaundrySetting;
+}
+
+/** Laundry that keeps itself. `day`: Monday 0 to Sunday 6, or null for no set laundry day. */
+export interface LaundrySetting {
+  auto: boolean;
+  day: number | null;
 }
 
 /** The kinds of clothing the owner sets "Before it needs washing" for. */

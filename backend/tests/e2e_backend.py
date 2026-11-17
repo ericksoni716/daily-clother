@@ -105,6 +105,9 @@ def fake_add_sorter(photos, routes):
     return out
 
 
+fake_add_sorter.needs_route = False   # answers on a computer with no route to Claude too (the CI)
+
+
 def fake_sorter(photos, routes):
     time.sleep(1)   # long enough for the page to show it sorting
     return views_answer(len(photos))

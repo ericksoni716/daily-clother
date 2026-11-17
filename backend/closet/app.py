@@ -1102,7 +1102,7 @@ def create_app(sv: Services) -> FastAPI:
             return {"sorted": False, "photos": plain, "message": "The demo closet is never sent to Claude: sort the photos yourself."}
         assert sv.tag_worker, "build_services wires it"
         usable = sv.tag_worker.routes()
-        if not usable:
+        if not usable and getattr(sv.add_sorter, "needs_route", True):   # a stand-in (the browser tests) needs none
             return {"sorted": False, "photos": plain,
                     "message": "Claude can't be reached right now, so Closet couldn't sort these: sort them yourself."}
         try:

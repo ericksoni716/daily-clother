@@ -90,7 +90,7 @@ def test_an_older_copy_without_a_quit_endpoint_is_stopped(cfg, old_copy):
 
 
 def _args(**kw):
-    return SimpleNamespace(**{"no_browser": True, "no_tray": False, "port": None, "replace": False, **kw})
+    return SimpleNamespace(**{"no_browser": True, "no_tray": False, "tray": True, "port": None, "replace": False, **kw})
 
 
 @pytest.fixture

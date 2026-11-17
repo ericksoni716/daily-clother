@@ -114,7 +114,7 @@ def _open_running(info: dict, url: str) -> None:
 def _launch_args(args, port: int, window_shown: bool = False) -> list[str]:
     """How an update starts the new program: the way this one was started, on the same port, showing its window only
     when this one's is showing (an update never opens the browser; the page already open there reconnects)."""
-    return ((["--no-tray"] if args.no_tray else []) + (["--browser"] if args.browser else [])
+    return ((["--no-tray"] if args.no_tray else []) + (["--tray"] if args.tray else []) + (["--browser"] if args.browser else [])
             + ([] if window_shown else ["--no-browser"]) + ["--port", str(port)])
 
 
@@ -228,7 +228,7 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
         log.warning("port %s was busy; using %s. Phone access set up for the usual port will not reach this one.",
                     wanted, port)
     if sys.stdout is not None:
-        print(f"{APP_NAME} is running at {url}  (quit from the tray icon, Settings, or Ctrl+C)", flush=True)
+        print(f"{APP_NAME} is running at {url}  (quit from Settings, or Ctrl+C)", flush=True)
 
     stopping = threading.Lock()
 
@@ -256,7 +256,7 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
                 services.updater.launch_args = _launch_args(args, port, window_shown=shown)
 
         window = app_window.AppWindow(url, cfg.window_dir, hidden=args.no_browser,
-                                      keep_running=lambda: ui.get("icon") is not None, on_quit=quit_program,
+                                      keep_running=lambda: True, on_quit=quit_program,
                                       on_visible=window_shown, on_terminate=quit_now)
         if window.prepare():
             ui["window"] = window
@@ -273,7 +273,7 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
             pass
 
     icon = None
-    if not args.no_tray:
+    if args.tray and not args.no_tray:   # no icon near the clock or in the menu bar unless asked for (the owner's choice)
         from . import tray
         icon = tray.create(open_closet, quit_program,
                            lambda: autostart.is_enabled() if autostart.program() else None, autostart.set_enabled)
@@ -312,7 +312,7 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
 
 def cmd_restore(args, cfg: config.Config) -> int:
     if instance.running_instance(cfg):
-        _say(f"{APP_NAME} is running. Quit it first (tray icon or Settings), then restore.")
+        _say(f"{APP_NAME} is running. Quit it first (Settings, Quit), then restore.")
         return 1
     try:
         earlier = backup.recover(cfg)   # a restore cut short before is put right first
@@ -483,9 +483,10 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="closet", description=f"{APP_NAME}: a private wardrobe app.")
     ap.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
     ap.add_argument("--no-browser", action="store_true",
-                    help="do not open Closet's window (or the browser) on start; Open Closet in the tray shows it")
+                    help="do not open Closet's window (or the browser) on start; opening the program again shows it")
     ap.add_argument("--browser", action="store_true", help="use the browser instead of Closet's own window")
-    ap.add_argument("--no-tray", action="store_true", help="do not show the tray icon")
+    ap.add_argument("--tray", action="store_true", help="also show an icon near the clock (Windows) or in the menu bar (Mac)")
+    ap.add_argument("--no-tray", action="store_true", help="run with no window to ask questions in (tests); never shows the icon")
     ap.add_argument("--port", type=int, help="listen on this port instead of the default")
     ap.add_argument("--replace", action="store_true",
                     help="if an older version is already running, close it without asking and start this one")

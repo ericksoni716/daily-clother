@@ -440,7 +440,8 @@ def free_port():
 
 
 def args(**kw):
-    return SimpleNamespace(**{"no_browser": False, "no_tray": False, "browser": False, "port": free_port(),
+    # the tray icon is off unless asked for (--tray); these tests ask for it, to check it still works when wanted
+    return SimpleNamespace(**{"no_browser": False, "no_tray": False, "tray": True, "browser": False, "port": free_port(),
                               "replace": False, **kw})
 
 
@@ -519,6 +520,27 @@ def test_launching_shows_the_window_and_quit_stops_everything(cfg, launcher):
     assert "destroy" in launcher.toolkit.window.calls and launcher.icons[0].stops == 1
     assert not health(a.port) and not cfg.lock_path.exists()
     assert launcher.toolkit.start_args == {"storage_path": str(cfg.window_dir)}
+
+
+def test_by_default_there_is_no_tray_icon_and_closing_the_window_keeps_closet_running(cfg, launcher):
+    # the owner's choice: no icon near the clock or in the menu bar; the window comes back by opening the program again
+    a = args(tray=False)
+    seen = {}
+
+    def drive(env):
+        wait_for(env.toolkit.started.is_set)
+        win = env.toolkit.window
+        assert not win.close_button()                      # the owner closes the window: it is only hidden
+        wait_for(lambda: not win.on_screen)
+        seen["closed"] = health(a.port)                    # the phone and the nightly backup keep working
+        info = instance.running_info(cfg)
+        seen["shown"] = instance.show_running(info)        # opening the program again brings it back
+        wait_for(lambda: win.on_screen)
+        instance.stop_running(cfg, info, timeout=10)       # Quit in Settings
+    assert launcher.run(a, drive) == 0
+    assert launcher.icons == []
+    assert seen == {"closed": True, "shown": True}
+    assert not health(a.port)
 
 
 def test_started_at_login_no_window_opens(cfg, launcher):
@@ -629,11 +651,12 @@ def test_browser_flag_uses_the_browser(cfg, launcher):
 
 
 def test_an_update_opens_the_window_only_when_it_was_showing():
-    a = SimpleNamespace(no_tray=False, browser=False)
+    a = SimpleNamespace(no_tray=False, tray=False, browser=False)
     assert cli._launch_args(a, 8765) == ["--no-browser", "--port", "8765"]
     assert cli._launch_args(a, 8765, window_shown=True) == ["--port", "8765"]
-    assert cli._launch_args(SimpleNamespace(no_tray=True, browser=True), 9000) == [
+    assert cli._launch_args(SimpleNamespace(no_tray=True, tray=False, browser=True), 9000) == [
         "--no-tray", "--browser", "--no-browser", "--port", "9000"]
+    assert cli._launch_args(SimpleNamespace(no_tray=False, tray=True, browser=False), 9000) == ["--tray", "--no-browser", "--port", "9000"]
 
 
 def test_the_tray_knows_whose_loop_it_runs_on():

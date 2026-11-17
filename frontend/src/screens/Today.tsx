@@ -323,21 +323,20 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
       {header}
 
       <DayLine phase={phase} editing={editDay} locked={locked} onEdit={() => setEditDay(!editDay)} />
-      {phase.kind !== 'needs-day' && (
-        <DayNoteRow note={ctx?.note ?? null} known={ctx !== null} locked={locked}
-          onChanged={(answer) => {
-            // a place in the note wins over temperatures typed earlier today, as a place chosen under Change does
+      {(editDay || phase.kind === 'needs-day') && (
+        <DayPanel phase={phase} typed={typed} locked={locked} offline={offline} toast={toast}
+          onNote={(answer) => {
+            // a place in the note wins over temperatures typed earlier today, as a place chosen here does
             if (answer.note?.active && answer.note.place) {
               kept.setTyped(null);
               setTyped(null);
             }
             const occasion = answer.note?.active ? answer.note.occasion : null;
             if (occasion && (OCCASIONS as readonly string[]).includes(occasion)) choose({ ...choice, occasion });
+            if (answer.message) toast(answer.message);
+            setEditDay(false);
             setAttempt((n) => n + 1);
-          }} />
-      )}
-      {(editDay || phase.kind === 'needs-day') && (
-        <DayPanel phase={phase} typed={typed} locked={locked} offline={offline} toast={toast}
+          }}
           onTyped={setDay}
           onClose={phase.kind === 'needs-day' ? undefined : () => setEditDay(false)}
           onPlace={() => {
@@ -474,6 +473,13 @@ function DayLine({ phase, editing, locked, onEdit }: { phase: Phase; editing: bo
           </span>
         )}
       </p>
+      {c?.note && (
+        <p className="today-note-line" data-testid="day-note" title={c.note.text}>
+          {!c.note.active && <span className="muted">Coming up: </span>}
+          {/* the weather line already names an active note's place */}
+          {(c.note.active && c.note.place && c.place ? c.note.words.slice(1) : c.note.words).join(' · ')}
+        </p>
+      )}
       {c?.old && <p className="today-day-old" role="note">{c.message || 'This is an older forecast: the weather service could not be reached.'}</p>}
     </section>
   );
@@ -482,14 +488,12 @@ function DayLine({ phase, editing, locked, onEdit }: { phase: Phase; editing: bo
 const DAY_NOTE_MAX = 300;
 
 /**
- * The day in the owner's words: one sentence ("In Lisbon until Friday", "at a match today, outside from noon to six")
- * that Claude reads for the place, the days and the hours outside. Shown back as what Closet took from it.
+ * The day in the owner's words, first behind "Change": one sentence ("In Lisbon until Friday", "at a match today,
+ * outside from noon to six") that Claude reads for the place, the days and the hours outside. What Closet took from
+ * it is shown back under the weather line; here it can be said another way or cleared.
  */
-function DayNoteRow({ note, known, locked, onChanged }: {
-  note: DayNote | null; known: boolean; locked: boolean; onChanged(answer: DayAnswer): void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [text, setText] = useState('');
+function DayNoteForm({ note, locked, onNote }: { note: DayNote | null; locked: boolean; onNote(answer: DayAnswer): void }) {
+  const [text, setText] = useState(note?.text ?? '');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -498,10 +502,8 @@ function DayNoteRow({ note, known, locked, onChanged }: {
     setMessage(null);
     try {
       const answer = await call();
-      setMessage(answer.message);
-      if (answer.saved === false) return;
-      setOpen(false);
-      onChanged(answer);
+      if (answer.saved === false) setMessage(answer.message);
+      else onNote(answer);
     } catch (e) {
       setMessage((e as Error).message);
     } finally {
@@ -515,61 +517,28 @@ function DayNoteRow({ note, known, locked, onChanged }: {
   }
 
   return (
-    <section className="today-note" aria-label="Your day">
-      {!open && note && (
-        <p className="today-note-line" data-testid="day-note">
-          <span className="today-note-words">
-            {!note.active && <span className="muted">Coming up: </span>}
-            {note.words.join(' · ')}
-          </span>
-          <button className="btn btn-link" disabled={locked || busy} title={locked ? OFFLINE_TITLE : undefined}
-            onClick={() => {
-              setText(note.text);
-              setMessage(null);
-              setOpen(true);
-            }}>
-            Change
-          </button>
-          <button className="btn btn-link" disabled={locked || busy} title={locked ? OFFLINE_TITLE : undefined}
-            aria-label="Clear the note about your day" onClick={() => void run(api.clearDay)}>
-            Clear
-          </button>
-        </p>
-      )}
-      {!open && !note && known && (
-        <button className="btn btn-link today-note-add" disabled={locked} title={locked ? OFFLINE_TITLE : undefined}
-          onClick={() => {
-            setText('');
-            setMessage(null);
-            setOpen(true);
-          }}>
-          Somewhere else, or out all day? Tell Closet
-        </button>
-      )}
-      {open && (
-        <form className="today-note-form" onSubmit={submit}>
-          <label className="field">
-            <span>What's different about today, or the days ahead?</span>
-            <input type="text" value={text} maxLength={DAY_NOTE_MAX} autoFocus disabled={busy} data-testid="day-note-text"
-              placeholder="In Lisbon until Friday. Or: at a match today, outside from noon to six."
-              onChange={(e) => setText(e.target.value)} />
-          </label>
-          <p className="hint">Claude reads this one sentence to find the place and the hours. Nothing from your closet is sent.</p>
-          <div className="today-note-actions">
-            <Button variant="primary" small type="submit" disabled={busy || !text.trim()}>{busy ? 'Reading…' : 'Save'}</Button>
-            <Button small disabled={busy} onClick={() => setOpen(false)}>Cancel</Button>
-          </div>
-        </form>
-      )}
+    <form className="today-note-form" onSubmit={submit}>
+      <label className="field">
+        <span>Say it in a sentence</span>
+        <input type="text" value={text} maxLength={DAY_NOTE_MAX} disabled={busy || locked} data-testid="day-note-text"
+          placeholder="In Lisbon until Friday. Or: at a match today, outside from noon to six."
+          onChange={(e) => setText(e.target.value)} />
+      </label>
+      <p className="hint">Claude reads this one sentence to find the place and the hours. Nothing from your closet is sent. Your home place stays as it is.</p>
+      {note && <p className="today-note-now" data-testid="day-note-now">Now: {note.active ? '' : 'coming up, '}{note.words.join(' · ')}</p>}
+      <div className="today-note-actions">
+        <Button variant="primary" small type="submit" disabled={busy || locked || !text.trim()}>{busy ? 'Reading…' : 'Save'}</Button>
+        {note && <Button small disabled={busy || locked} onClick={() => void run(api.clearDay)}>Clear the note</Button>}
+      </div>
       {message && <p className="today-note-message" role="status" data-testid="day-note-message">{message}</p>}
-    </section>
+    </form>
   );
 }
 
 /** Behind "Change": where you are (search or the browser's location), or today's temperatures typed by hand. */
-function DayPanel({ phase, typed, locked, offline, toast, onTyped, onClose, onPlace }: {
+function DayPanel({ phase, typed, locked, offline, toast, onTyped, onClose, onPlace, onNote }: {
   phase: Phase; typed: TypedDay | null; locked: boolean; offline: boolean; toast: (m: string, k?: 'ok' | 'error') => void;
-  onTyped(t: Omit<TypedDay, 'day'> | null): void; onClose?: () => void; onPlace(): void;
+  onTyped(t: Omit<TypedDay, 'day'> | null): void; onClose?: () => void; onPlace(): void; onNote(answer: DayAnswer): void;
 }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   useEffect(() => {
@@ -584,7 +553,13 @@ function DayPanel({ phase, typed, locked, offline, toast, onTyped, onClose, onPl
   return (
     <Card as="section" className="today-day-panel" id="today-day-panel" aria-labelledby="day-title">
       {phase.kind === 'needs-day' && <p className="today-day-why">{phase.message}</p>}
-      <h2 id="day-title">Where are you?</h2>
+      {phase.kind === 'ready' && (
+        <>
+          <h2 id="day-note-title">Somewhere else, or out all day?</h2>
+          <DayNoteForm note={phase.answer.context.note ?? null} locked={locked} onNote={onNote} />
+        </>
+      )}
+      <h2 id="day-title" className={phase.kind === 'ready' ? 'today-day-next' : undefined}>Where are you?</h2>
       <WhereYouAre inline place={settings ? settings.place : undefined} home={settings?.home_place} offline={offline} toast={toast}
         onChange={(s) => {
           setSettings(s);

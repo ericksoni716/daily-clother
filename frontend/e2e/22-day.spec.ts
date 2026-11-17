@@ -33,24 +33,27 @@ test.describe('the day in your words', () => {
     await expect(page.getByTestId('current-outfit').getByTestId('piece').first()).toBeVisible();
     await expect(page.getByTestId('day-note')).toHaveCount(0);
 
-    // a sentence with nothing in it is said so, and nothing is kept
-    await page.getByRole('button', { name: 'Somewhere else, or out all day? Tell Closet' }).click();
-    const box = page.getByLabel("What's different about today, or the days ahead?");
-    await expect(box).toBeFocused();
+    // the way in is behind Change, so an ordinary day's first screen is as it was
+    const change = page.getByTestId('day-line').getByRole('button', { name: 'Change' });
+    await change.click();
+    await expect(page.getByRole('heading', { name: 'Somewhere else, or out all day?' })).toBeVisible();
+    const box = page.getByLabel('Say it in a sentence');
     await expect(page.getByText('Nothing from your closet is sent.')).toBeVisible();
+
+    // a sentence with nothing in it is said so, and nothing is kept
     await box.fill('Hello there');
-    await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByTestId('day-note-message')).toContainText("couldn't find anything about your day");
     await expect(page.getByTestId('day-note')).toHaveCount(0);
 
     await box.fill('In Lisbon for four days, outside walking the city from noon to six');
-    await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
     const note = page.getByTestId('day-note');
-    await expect(note).toContainText('Lisbon, Portugal');
     await expect(note).toContainText('outside noon to 6pm');
-    await expect(note).toContainText('walking the city');
+    await expect(note).not.toContainText('Lisbon');   // the weather line names the place
     await expect(note).toContainText('until ');
-    await expect(page.getByTestId('day-note-message')).toHaveCount(0);
+    await expect(note).toHaveAttribute('title', 'In Lisbon for four days, outside walking the city from noon to six');
+    await expect(box).toHaveCount(0);   // the panel closed
 
     // Today now dresses for Lisbon: what its hours feel like, the rain and the wind
     await expect(day).toContainText('Lisbon');
@@ -59,24 +62,32 @@ test.describe('the day in your words', () => {
     await expect(day).toContainText('windy');
     await expect(page.getByTestId('no-weather')).toHaveCount(0);
     await expect(page.getByTestId('current-outfit').getByTestId('piece').first()).toBeVisible();
+    // the note is one line, however long: it never pushes the outfit down by more than that
+    expect((await note.boundingBox())!.height).toBeLessThanOrEqual(24);
     expect(await axeViolations(page)).toEqual([]);
     await page.screenshot({ path: resolve(SHOTS, 'today-day-note.png') });
 
     // it is still there after a reload, and home's place in Settings is untouched
     await page.reload();
-    await expect(page.getByTestId('day-note')).toContainText('Lisbon, Portugal');
+    await expect(page.getByTestId('day-note')).toContainText('outside noon to 6pm');
+    await expect(day).toContainText('Lisbon');
     const settings = await (await page.request.get(backend.url + '/api/settings')).json();
     expect(settings.place.name).toContain('New York');
 
-    // Change opens the sentence again; a wedding makes the day formal
-    await page.getByTestId('day-note').getByRole('button', { name: 'Change' }).click();
+    // Change opens the sentence again with what Closet took from it; a wedding makes the day formal
+    await change.click();
     await expect(box).toHaveValue('In Lisbon for four days, outside walking the city from noon to six');
+    await expect(page.getByTestId('day-note-now')).toContainText('Lisbon, Portugal');
+    await expect(page.getByTestId('day-note-now')).toContainText('walking the city');
+    expect(await axeViolations(page)).toEqual([]);
+    await page.screenshot({ path: resolve(SHOTS, 'today-day-note-change.png') });
     await box.fill('A wedding in Lisbon today');
-    await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByTestId('day-note')).toContainText('a wedding');
     await expect(page.getByRole('group', { name: 'Occasion' }).getByRole('button', { name: 'Formal', pressed: true })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Clear the note about your day' }).click();
+    await change.click();
+    await page.getByRole('button', { name: 'Clear the note' }).click();
     await expect(page.getByTestId('day-note')).toHaveCount(0);
     await expect(day).toContainText('a mild day');
   });

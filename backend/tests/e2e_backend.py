@@ -94,6 +94,17 @@ def fake_finder(photo, routes):
     return [dict(b) for b in GARMENT_BOXES]
 
 
+def fake_add_sorter(photos, routes):
+    """What each photo chosen on Add shows, from its file name: "shoe..." is one shoe (all such photos the same one),
+    "several..." or "pile..." several pieces, anything else one piece."""
+    out = []
+    for p in photos:
+        name = p.info.get("filename", "").lower()
+        out.append({"kind": "shoe", "shoe": 1} if name.startswith("shoe") else
+                   {"kind": "pieces", "shoe": 0} if name.startswith(("several", "pile")) else {"kind": "piece", "shoe": 0})
+    return out
+
+
 def fake_sorter(photos, routes):
     time.sleep(1)   # long enough for the page to show it sorting
     return views_answer(len(photos))
@@ -167,6 +178,8 @@ def no_weather_service(url):
 
 
 def build_services(cfg, **kwargs):
+    # sorting the photos on Add never reaches Claude from a browser test, with or without the other stand-ins
+    kwargs.setdefault("add_sorter", fake_add_sorter)
     if not os.environ.get("CLOSET_E2E_FAKES"):
         return _real_build(cfg, **kwargs)
     if os.environ.get("CLOSET_E2E_SEED") == "demo":

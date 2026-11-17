@@ -80,26 +80,15 @@ test.describe('a shoe drawn from its photo', () => {
     await page.getByRole('button', { name: 'Set passphrase' }).click();
     await page.getByRole('button', { name: 'Start with my own closet' }).click();
 
-    // the switch at the top says what is being added, and fits a phone
+    // one Add for everything: no switch, a word on shoes, and it fits a phone
     await page.goto(backend.url + '/add');
-    const modes = page.getByRole('group', { name: "What you're adding" });
-    for (const name of ['Clothes, one per photo', 'Several in one photo', 'A shoe']) {
-      await expect(modes.getByRole('button', { name })).toBeVisible();
-    }
-    expect(await sideways(page)).toEqual([]);
-    await modes.getByRole('button', { name: 'A shoe' }).click();
-    const add = page.getByTestId('shoe-add');
-    await expect(add).toContainText('Take or choose up to 6 photos of one shoe, in any order.');
-    await expect(add).toContainText('One shoe on its own, not the pair.');
-    await expect(add).toContainText('Its side, the other side, from above, the front and the back.');
-    await expect(add).toContainText('A plain floor or wall behind it, and even light.');
-    for (const old of ['toe to the left', 'outline', 'trace', 'drawn from']) await expect(add).not.toContainText(old);
-    await expect(add.getByRole('button', { name: 'Add this shoe' })).toBeDisabled();
+    await expect(page.getByRole('group', { name: "What you're adding" })).toHaveCount(0);
+    await expect(page.getByTestId('shoe-tips')).toContainText('one shoe on its own, not the pair, up to 6 photos');
     expect(await sideways(page)).toEqual([]);
     expect(await axeViolations(page)).toEqual([]);
     await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-add.png') });
 
-    // the photos wait in a row and nothing is sent yet: three chosen at once, one removed again
+    // the photos wait in the tray, sorted by Claude (a stand-in here: the file names say), and nothing is added yet
     let sent = false;
     page.on('request', (req) => {
       if (req.method() === 'POST' && new URL(req.url()).pathname.startsWith('/api/items')) sent = true;
@@ -107,57 +96,33 @@ test.describe('a shoe drawn from its photo', () => {
     const file = (name: string, buffer: Buffer) => ({ name, mimeType: 'image/png', buffer });
     const front = await frontOnPhoto(page);
     const others = await otherPhotos(page, ['#2b6f9e', '#9e2b52', '#7a5230']);
-    const extras = await otherPhotos(page, ['#3a7d44', '#c08a2d', '#5e4b8b', '#8b4b5e']);
-    await page.getByTestId('shoe-library-input').setInputFiles([file('front.png', front), file('top.png', others[0]), file('wrong.png', others[1])]);
-    const inRow = add.getByRole('list', { name: 'Photos of the shoe' }).getByRole('listitem');
-    await expect(inRow).toHaveCount(3);
-    await add.getByRole('button', { name: 'Remove photo 3' }).click();
-    await expect(inRow).toHaveCount(2);
+    const tray = page.getByTestId('add-tray');
+    const inTray = tray.getByTestId('tray-row');
+    await page.getByTestId('library-input').setInputFiles([file('shoe-front.png', front), file('shoe-top.png', others[0]), file('shoe-wrong.png', others[1])]);
+    await expect(inTray).toHaveCount(3);
+    await expect(page.getByTestId('tray-state')).toHaveText('1 shoe (3 photos)');
+    for (const row of await inTray.all()) await expect(row.getByRole('combobox')).toHaveValue('shoe:1');
+    await tray.getByRole('button', { name: 'Remove shoe-wrong.png' }).click();
+    await expect(inTray).toHaveCount(2);
 
-    // more than six: the extra ones are not added, and the page says so in a sentence
-    await page.getByTestId('shoe-library-input').setInputFiles(
-      [file('side.png', others[2]), ...extras.map((b, i) => file(`more-${i}.png`, b)), file('again.png', extras[0])]);
-    await expect(inRow).toHaveCount(6);
-    await expect(add.getByTestId('shoe-note')).toHaveText('A shoe can have up to 6 photos, so 2 photos were not added.');
-    await expect(add.getByTestId('shoe-count')).toHaveText("That's 6 photos, the most for one shoe.");
-    await expect(add.getByRole('button', { name: 'Choose photos' })).toBeDisabled();
-    await expect(add.getByRole('button', { name: 'Take a photo' })).toBeDisabled();
-    for (const n of [6, 5, 4]) await add.getByRole('button', { name: `Remove photo ${n}` }).click();
-    await expect(inRow).toHaveCount(3);
-    await expect(add.getByTestId('shoe-note')).toHaveCount(0);
-
-    // where the page can show the camera, it stays open between photos until it is closed
-    await add.getByRole('button', { name: 'Take a photo' }).click();
-    const video = add.getByLabel('The camera');
-    await expect(video).toBeVisible();
-    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.videoWidth)).toBeGreaterThan(0);
-    await add.getByRole('button', { name: 'Take the photo' }).click();
-    await expect(inRow).toHaveCount(4);
-    await add.getByRole('button', { name: 'Take the photo' }).click();
-    await expect(inRow).toHaveCount(5);
-    await expect(video).toBeVisible();
-    await expect(add.getByTestId('shoe-count')).toHaveText('5 photos so far, up to 6. Close the camera when you have them all.');
-    expect(await sideways(page)).toEqual([]);
-    await add.getByRole('button', { name: 'Close the camera' }).click();
-    await expect(video).toHaveCount(0);
-    for (const n of [5, 4]) await add.getByRole('button', { name: `Remove photo ${n}` }).click();
-
-    // elsewhere the phone's camera app takes them: each photo taken adds one to the row
-    await page.getByTestId('shoe-camera-input').setInputFiles(file('snap.png', extras[1]));
-    await expect(inRow).toHaveCount(4);
-    await add.getByRole('button', { name: 'Remove photo 4' }).click();
-    await expect(inRow).toHaveCount(3);
+    // a photo taken afterwards joins it once sorted again; one the owner says is something else stays as they say
+    await page.getByTestId('camera-input').setInputFiles(file('shoe-snap.png', others[2]));
+    await expect(inTray).toHaveCount(3);
+    await expect(page.getByTestId('tray-state')).toHaveText('1 shoe (3 photos)');
+    await inTray.nth(2).getByRole('combobox').selectOption({ label: 'One piece' });
+    await expect(page.getByTestId('tray-state')).toHaveText('1 piece, 1 shoe (2 photos)');
+    await inTray.nth(2).getByRole('combobox').selectOption({ label: 'Shoe 1' });
+    await expect(page.getByTestId('tray-state')).toHaveText('1 shoe (3 photos)');
     expect(sent).toBe(false);
-    await expect(add.getByTestId('shoe-count')).toHaveText('3 photos so far, up to 6.');
-    await expect(add.getByRole('button', { name: 'Add this shoe' })).toBeEnabled();
     expect(await sideways(page)).toEqual([]);
     expect(await axeViolations(page)).toEqual([]);
     await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-add-photos.png') });
 
-    // "Add this shoe": the first photo makes the shoe, the others are added to it
+    // "Add these": the first photo makes the shoe, the others are added to it
     const created = page.waitForResponse((res) => new URL(res.url()).pathname === '/api/items' && res.request().method() === 'POST');
-    await add.getByRole('button', { name: 'Add this shoe' }).click();
+    await tray.getByRole('button', { name: 'Add these' }).click();
     const id: string = (await (await created).json()).id;
+    const add = page.getByTestId('shoes-sent');
     await expect(add.getByTestId('shoe-added')).toHaveText(
       'The shoe is added with its 3 photos. In a moment Closet removes the background and works out which photo is which.');
     // below it, the shoe itself: its picture and how far it has got (what Claude calls it, once described), opening it

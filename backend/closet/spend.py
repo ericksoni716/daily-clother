@@ -38,6 +38,7 @@ PURPOSE_SHOP = "shop_find"            # searching shops for a wish (`tagger/shop
 PURPOSE_PRICES = "shop_prices"        # looking up the prices of a wish's finds again
 PURPOSE_GARMENTS = "find_garments"    # where each piece is in a photo of several (`tagger/garments.py`)
 PURPOSE_VIEWS = "sort_views"          # which view each photo of a shoe shows (`tagger/views.py`)
+PURPOSE_SORT_ADD = "sort_add"         # what each photo chosen on Add shows: a piece, several, a shoe (`tagger/addsort.py`)
 PURPOSE_DRAW = "draw_shoe"            # a shoe drawn from its photos, and its checks (`tagger/shoedrawing.py`)
 PURPOSE_CORRECT_DRAWING = "correct_drawing"   # a shoe's drawing changed from the owner's note, and its checks
 PRICES_CHECKED: str = CONFIG.get("prices_checked", "")
@@ -137,6 +138,15 @@ def estimate_garments(photos: int, model: str = GARMENTS_MODEL) -> float:
     """The most one request for the boxes around the pieces in a photo should cost: a short prompt and schema, the
     photo, and the longest answer allowed (about twenty boxes fit in it)."""
     return cost_usd(model, CORRECT_TEXT_TOKENS + IMAGE_TOKENS * max(1, photos), CORRECT_MAX_TOKENS)
+
+
+SORT_ADD_IMAGE_TOKENS = 400   # a photo at most 512 pixels on its longest side (about width × height / 750)
+
+
+def estimate_sort_add(photos: int, model: str = VIEWS_MODEL) -> float:
+    """The most one request to sort the photos chosen on Add should cost: a short prompt and schema, up to ten small
+    photos, and the longest answer allowed."""
+    return cost_usd(model, VIEWS_TEXT_TOKENS + SORT_ADD_IMAGE_TOKENS * max(1, photos), CORRECT_MAX_TOKENS)
 
 
 def estimate_views(photos: int, model: str = VIEWS_MODEL) -> float:

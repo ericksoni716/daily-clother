@@ -235,10 +235,22 @@ numbers.
 ## Adding your clothes
 
 Open **Add** (the round button in the middle of the bar at the bottom of a
-phone; **Add clothes** at the top of the menu on a computer). The switch at the
-top says what you are adding: **Clothes, one per photo** (the usual way, below),
-**Several in one photo** or **A shoe** (both further down). One piece of
-clothing per photo works best.
+phone; **Add clothes** at the top of the menu on a computer) and add any photos
+at all: one piece of clothing per photo (the usual way, below), several pieces
+laid out together, or a shoe from a few sides (both further down). Closet asks
+Claude what each photo shows, a fraction of a cent with the API key, and which
+photos are the same shoe:
+
+- When every photo is one piece, they go straight in.
+- When there is a photo of several pieces or a shoe, the photos wait in a list
+  under **Your photos**, each saying what Closet made of it (**One piece**,
+  **Several pieces**, **Shoe 1**, **Another shoe**). Change any that are wrong,
+  remove one with **×**, and tap **Add these**.
+- When Claude can't be asked (and always in the demo closet), the list says so
+  and you sort them yourself the same way.
+- More than 60 photos at once (a folder, say) go in one piece per photo without
+  waiting to be sorted: add photos of several pieces or of shoes a few at a
+  time.
 
 - **On the computer:** click **Choose photos** and pick as many as you like,
   click **Choose a folder**, or drag photos or whole folders onto the page.
@@ -268,16 +280,15 @@ can be added again.
 
 ### Shoes
 
-Choose **A shoe** at the top of Add for the closest drawing of a shoe, and add
-all of its photos in one go: up to six photos of one shoe on its own (not the
-pair), in any order. Its side, the other side, from above, the front and the
-back help most, against a plain floor or wall in even light. **Choose photos**
-picks several at once; **Take a photo** takes one each time you tap it (where
-the page can show the camera itself, it stays open so you can take several in a
-row: tap **Close the camera** when you have them all). The photos wait in a row
-on the page, each with an **×** to remove it, and nothing is sent until you tap
-**Add this shoe**. A seventh photo is not added, and the page says so. Once it
-is added, the page shows the shoe the same way as the list of photos above:
+For the closest drawing of a shoe, add all of its photos in one go on **Add**:
+up to six photos of one shoe on its own (not the pair), in any order. Its side,
+the other side, from above, the front and the back help most, against a plain
+floor or wall in even light. **Choose photos** picks several at once; **Take
+photo** takes one each time. Closet groups the photos of the same shoe as
+**Shoe 1** (a second shoe is **Shoe 2**), and nothing is sent until you tap
+**Add these**; a seventh photo of one shoe is left out, and the page says so.
+Once it is added, the page shows the shoe the same way as the list of photos
+above:
 its picture and, once Claude has described it, what Claude called it; tap it
 (or **See the shoe**) to open it.
 
@@ -352,8 +363,8 @@ the page says so; send the note again, or say it another way.
 ### Several pieces in one photo
 
 To add a pile at once, lay the pieces out with a little space between them (on
-the bed or the floor), choose **Several in one photo** at the top of
-**Add**, and take or choose the photo. Claude draws a numbered box around each
+the bed or the floor), and take or choose the photo on **Add**. Closet sorts it
+as **Several pieces**; tap **Add it**. Claude draws a numbered box around each
 piece; this takes a few seconds, and goes through your Claude plan or the API
 key exactly as describing does (the page says what one photo can cost with the
 key). Then check the boxes, with each piece's cutout beside its box:
@@ -367,9 +378,7 @@ key). Then check the boxes, with each piece's cutout beside its box:
 
 **Add these N items** adds them: each becomes an item of its own, cut out,
 described and drawn like any other photo. Photos still to check are listed on
-**Add** until you add their pieces or **Forget this photo**. On a computer, a
-folder chosen while **Several in one photo** is on is treated the same way:
-every photo in it holds several pieces. The same photo is not added twice. The
+**Add** until you add their pieces or **Forget this photo**. The same photo is not added twice. The
 demo closet never sends photos to Claude, so there you draw the boxes yourself.
 
 If the page is closed or the computer restarts during an import, open **Add**

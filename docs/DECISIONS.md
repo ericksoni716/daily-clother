@@ -525,6 +525,15 @@ Facts checked in Anthropic's documentation on 2026-11-12:
 - The support pages say `claude -p` under a plan login draws on the plan's limits. The legal page restricts third-party developers offering Claude login to their users, and says this does not prevent an end user signing in to the unmodified Claude Code program with their own plan. A personal program calling that program on the owner's own machine appears to be inside those terms, but the docs do not say so in as many words, and Anthropic reserves the right to change enforcement.
 - When a limit is hit the message reads "You've hit your session limit · resets …" (or weekly). The exit code for that case is not documented; the app matches on the message.
 
+### One Add for clothes and shoes (17 November, asked for by the owner)
+
+| Decision | Why |
+|---|---|
+| Add has no switch any more: the owner chooses, takes or drops any mix of photos, and Closet asks Claude what each shows (one piece, several pieces, a shoe, and which photos are the same shoe) before anything is added (`tagger/addsort.py`, `POST /api/add/sort`). Then each photo goes the way it always has: one piece through the resumable import, several through the pieces' boxes, a shoe with all its photos at once | The owner: "clothes/shoes import could all be combined and classified to the category it is". Nothing new happens to a photo after it is sorted, so the import, the boxes and the shoe's views stay as tried and tested. |
+| When every photo is one piece, they go straight in; otherwise they wait in a list the owner can change (a choice by hand is kept if the list is sorted again) and **Add these** sends them. When Claude cannot be asked, and always in the demo closet, the list says so and the owner sorts by hand | The everyday case keeps the one tap it had. A shoe or a photo of several pieces is worth a look before it is cut up or grouped. |
+| Up to ten photos go in one question, each at most 512 pixels on its longest side, on the `sorting` model (purpose `sort_add`). Shoes are grouped within a question only. More than 60 photos at once go in one piece per photo without being sorted | Enough to tell a shoe from a shirt and to match a shoe's sides, at a fraction of a cent. A folder import should not wait minutes before the first photo goes up. |
+| The shoe screen's own camera that stayed open between photos is gone with the switch; **Take photo** takes one photo each time | Over the home network (plain http) the page cannot show the camera anyway, so the phone's camera app was what the owner would use. |
+
 ### Laundry that keeps itself (17 November, approved by the owner)
 
 | Decision | Why |

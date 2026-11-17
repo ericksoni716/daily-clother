@@ -63,6 +63,9 @@ for (const viewport of [{ name: 'computer', width: 1280, height: 800 }, { name: 
       await page.getByRole('button', { name: 'Save this trip' }).click();
       await expect(page.getByRole('heading', { name: 'Lisbon' })).toBeVisible();
       tripId = page.url().split('/').pop() ?? null;
+      // the saved trip fits the screen: its "Change the trip" chips scroll inside their row instead of widening the page
+      await expect(page.getByRole('region', { name: 'Change the trip' })).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
 
       const firstTick = page.getByRole('checkbox', { name: /^Packed:/ }).first();
       const patch = page.waitForResponse((response) =>

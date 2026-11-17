@@ -93,6 +93,42 @@ Patterns from the photo (owner's request; it had fallen out of the app):
 - [x] #105 Graphic prints on tops: a top Claude calls graphic (or a novelty print) has its print lifted from the cutout in the background and drawn at its place, on its own drawing and in the outfit figure; a print that cannot be lifted leaves it plain with a note. Known: the tagging schema does not yet ask for the taxonomy's `graphic_technique` and `graphic_placement`, so a back print or a sleeve print is not told apart, and only the front photo is read.
 - [ ] Graphic prints on the back or sleeves (needs `graphic_placement` in the tagging schema and a photo of the back).
 
+## From the review of 17 November (asked for by the owner)
+
+The review's fixes are merged (#244 to #248). Left for later, in the owner's words where they gave them:
+
+- [ ] **Laundry with much less upkeep.** The owner: "maintaining what is in the laundry seems like a huge pain, but I realize it affects what outfits can be put together". A proposal to decide first:
+  - Clothes go in the laundry by themselves once worn as often as **Before it needs washing** allows. That setting exists already for trips: tops after one wear, knitwear and trousers after three, jackets and coats rarely.
+  - They come back clean by themselves on the owner's laundry rhythm (for example "every Sunday", or "three days after"). **Laundry's done** marks everything clean in one tap.
+  - Today and Trips trust that. The owner only corrects the exceptions: a shirt worn twice, a sweater washed early. **Put these in the laundry** on Worn and **All clean** on the closet (#246) stay as the manual way.
+  - Needs a migration, and a Settings group (how often you do laundry).
+- [ ] **One Add for clothes and shoes, sorted by Closet.** The owner: "clothes/shoes import could all be combined and classified to the category it is". Today Add has three switches: one item per photo, several in one photo, a shoe.
+  - Instead, drop or take any mix of photos. Claude says for each photo whether it shows one piece, several pieces, or a shoe (and which view).
+  - Photos of the same shoe are grouped into one shoe, as "A shoe" does now. Several pieces go through the boxes step, as now. The switch goes.
+  - Open: what to ask the owner when Claude is unsure whether two shoe photos are the same pair, and the cost of the extra sorting call on large imports.
+- [ ] **Bigger redesigns found in the review** (with phone screenshots), each its own issue:
+  - **Settings** as a short list of groups that open (Your closet and backups, Where you are, Look, Describing clothes, Updates, Phone access, Advanced), with Look near the top. It is one 4,850 px column now.
+  - **What's missing** with folded cards (title, how much it helps, one line, thumbnails) that open on a tap. Merge "Also worth knowing" lines that repeat a card. The first suggestion starts about 440 px down.
+  - **The item page** with one Details card and "Show all details" opening in place below the wearing box, with What Claude saw folded inside it. Now four places overlap: the line under the name, Details, Fix the details and What Claude saw. Fix the details pushes the name a screen down.
+  - **The closet grid:** a denser choice (three across, one-line names). The Review and background-removal notes folded into one slim line. The first phone screen shows two tiles.
+  - **The Filter sheet:** group first with its kinds under it, Laundry and In use / Archived at the top, Clear all, and **Show N** on Done. Category, group and kind overlap now.
+  - **Would this work? by hand:** kind and colour first, the rest under "More about it". A button that stays in view, a busy state while it checks, and the wishlist buttons under the verdict.
+  - **Today:** yesterday's rating card (above the outfit by the owner's earlier choice) as one slim row or below the outfit, so I'm wearing this and See another idea stay on the first screen. The piece ⋯ menu as a sheet, not a panel below the grid. The weather failure as one line with Try again.
+  - **Record an outfit** grouped by top, bottom, shoes and extras, recent first, with a search.
+  - **Review:** the picture at about a third of the screen, Undo on "Confirmed", and Back to closet when done.
+  - **Smaller:**
+    - one date format everywhere;
+    - engine words out of the owner's text ("the engine can only say…", "40 kinds of day the closet is tried on", 3.2°C to 9.8°C);
+    - Add's switch reading "One piece / Several / A shoe";
+    - the tab bar's Add label on the same line as the others, and the bar opaque;
+    - one empty state on Insights;
+    - Photo | Drawing in words on the phone;
+    - the privacy paragraph behind "What is sent?".
+- [ ] **Technical, left over:**
+  - The words Claude Code prints when it cannot reach Anthropic (#244) were never seen from a real offline Claude Code. Check them once on the owner's computer.
+  - Shopping searches are not marked for the prompt cache.
+  - Tray-less running (#247) not yet tried on a real PC or Mac.
+
 ## Waiting on the owner
 - **Garment review**: the owner called the drawings good enough for now (after round 7). Marks and notes in the review gallery are still read when they appear; drawing work is parked until asked for.
 - **Mac 0.1.1**: confirm the background-removal model now downloads on the owner's Mac.

@@ -277,7 +277,8 @@ def test_the_estimate_for_waiting_items(client, services, cfg, routes):
     assert body["per_photo_usd"] == pytest.approx(spend.estimate_call(1)) and body["left_usd"] == pytest.approx(1.5)
     # careful: the most a request could be billed (the longest answer allowed, generous prompt and photos)
     # (the prompt and the whole form as a tool, 18,000 tokens, since 16 November; a photo 1,600)
-    assert spend.estimate_call(1) == pytest.approx(spend.cost_usd("claude-haiku-5-5", 19600, 4000))
+    # the whole prompt priced as written to the prompt cache (1.25x input), the dearest way it can go, since 17 November
+    assert spend.estimate_call(1) == pytest.approx(spend.cost_usd("claude-haiku-5-5", 0, 4000, cache_write=19600))
     assert spend.estimate_call(1) > ONE_CALL and spend.estimate_call(2) > spend.estimate_call(1)
     assert spend.estimate_call(1) < 0.01   # under a cent a photo at the prices written down
 

@@ -47,6 +47,19 @@ self.addEventListener('activate', (event) => {
 const DATA_PATHS = [/^\/api\/items$/, /^\/api\/items\/[^/]+$/, /^\/api\/vocab$/, /^\/api\/session$/];
 const IMMUTABLE_PATHS = [/^\/media\//, /^\/api\/items\/[^/]+\/(?:illustration|back)\.svg$/];
 
+// How long to wait for Closet before answering from the saved copy, when there is one. A computer that is asleep or
+// switched off may never answer, and the system can take a minute or more to give up on it.
+const PAGE_WAIT_MS = 4000;
+const DATA_WAIT_MS = 6000;
+
+/** The network's answer, or `fallback` once `ms` have passed without one (the network answer still lands later). */
+function withinOr(pending, ms, fallback) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => fallback().then(resolve, reject), ms);
+    pending.then((r) => { clearTimeout(timer); resolve(r); }, (err) => { clearTimeout(timer); reject(err); });
+  });
+}
+
 function markFromCache(response) {
   const headers = new Headers(response.headers);
   headers.set(FROM_CACHE, '1');
@@ -55,12 +68,14 @@ function markFromCache(response) {
 
 async function networkFirst(request) {
   const cache = await caches.open(DATA);
-  try {
-    const response = await fetch(request);
+  const saved = await cache.match(request);
+  const fresh = fetch(request).then(async (response) => {
     if (response.ok) await cache.put(request, response.clone());
     return response;
+  });
+  try {
+    return saved ? await withinOr(fresh, DATA_WAIT_MS, () => markFromCache(saved.clone())) : await fresh;
   } catch (err) {
-    const saved = await cache.match(request);
     if (saved) return markFromCache(saved);
     throw err;
   }
@@ -76,12 +91,11 @@ async function cacheFirst(request) {
 }
 
 async function page(request) {
+  const shell = await caches.open(SHELL);
+  const saved = await shell.match('/');
   try {
-    const response = await fetch(request);
-    return response;
+    return saved ? await withinOr(fetch(request), PAGE_WAIT_MS, async () => saved.clone()) : await fetch(request);
   } catch (err) {
-    const shell = await caches.open(SHELL);
-    const saved = await shell.match('/');
     if (saved) return saved;
     throw err;
   }

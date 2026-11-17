@@ -40,7 +40,7 @@ from . import db, failures, shoeviews, tracejobs
 from .config import Config
 from .state import State
 from .tagger.shoedrawing import Drawn, Photo, clean_note, notes_of
-from .tagger.tagging import CapReached, RouteUnavailable
+from .tagger.tagging import CapReached, RouteUnavailable, Unreachable
 
 log = logging.getLogger("closet.shoedraw")
 
@@ -352,7 +352,7 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], drawer: Drawer, cor
             made = drawer(_open(images_dir, photos), routes, notes=[n["note"] for n in notes])
         if not isinstance(made, Drawn):
             raise TypeError("the drawer did not return a drawing")
-    except RouteUnavailable as e:
+    except (RouteUnavailable, Unreachable) as e:   # out of reach (no route, no network, overloaded): it waits
         # nothing is wrong with the shoe: Claude cannot be reached right now, so it waits without losing an attempt
         log.info("%s a shoe is waiting: no route to Claude can be used right now", working)
         conn.execute("UPDATE items SET drawn_state = 'waiting', drawn_attempts = max(0, drawn_attempts - 1) "

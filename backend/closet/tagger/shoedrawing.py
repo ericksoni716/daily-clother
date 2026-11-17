@@ -576,7 +576,7 @@ def _caller(routes: tuple[str, ...], client, exe: str | None, meter: Meter | Non
         t = clock()
         result = asker(text, images, routes, client=client, exe=exe, meter=meter, answer_model=answer_model,
                        system=SYSTEM, model=MODEL, names=image_names, max_tokens=MAX_TOKENS, timeout=TIMEOUT,
-                       effort=EFFORT)
+                       effort=EFFORT, cache_photos=True)
         cached = getattr(result, "cache_read_tokens", 0) or 0
         calls.append(Call(kind, result.route, result.model, result.input_tokens, cached, result.output_tokens,
                           api_cost(result.model, result.input_tokens, cached, result.output_tokens), clock() - t))

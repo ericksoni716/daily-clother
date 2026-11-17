@@ -78,7 +78,15 @@ export interface Options {
   signal?: AbortSignal;
   /** The answer is text (an SVG drawing), not JSON. */
   text?: boolean;
+  /** Give up after this long and treat Closet as out of reach (offline), instead of waiting for the system to. */
+  timeoutMs?: number;
 }
+
+/**
+ * How long the app waits for the questions it opens with (am I logged in, the closet) before showing the saved copy.
+ * A computer that is asleep or switched off may never answer, and the phone would otherwise wait a minute or more.
+ */
+export const OPEN_TIMEOUT_MS = 12_000;
 
 /**
  * Browsers allow 64 KiB of bodies for all `keepalive` requests still on their way together, and
@@ -102,6 +110,13 @@ export function keepaliveSize(method: string, body: string | undefined, opts: Op
 async function request<T>(path: string, opts: Options = {}): Promise<T> {
   const method = opts.method ?? 'GET';
   const init: RequestInit = { method, credentials: 'same-origin', signal: opts.signal };
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  if (opts.timeoutMs && !opts.signal) {
+    const controller = new AbortController();
+    init.signal = controller.signal;
+    timer = setTimeout(() => { timedOut = true; controller.abort(); }, opts.timeoutMs);
+  }
   if (opts.form) init.body = opts.form;
   else if (opts.body !== undefined) {
     init.body = JSON.stringify(opts.body);
@@ -118,11 +133,12 @@ async function request<T>(path: string, opts: Options = {}): Promise<T> {
     res = await fetch(path, init);
     text = await res.text();
   } catch (e) {
-    if ((e as Error)?.name === 'AbortError') throw e;
+    if ((e as Error)?.name === 'AbortError' && !timedOut) throw e;
     setOffline(true);
     throw new ApiError(0, UNREACHABLE);
   } finally {
     if (kept !== null) keepaliveBytes -= kept;
+    if (timer !== undefined) clearTimeout(timer);
   }
   setOffline(res.headers.get(FROM_CACHE_HEADER) === '1');
   if (res.status === 204) return undefined as T;
@@ -146,13 +162,13 @@ async function request<T>(path: string, opts: Options = {}): Promise<T> {
 }
 
 export const api = {
-  session: () => request<Session>('/api/session'),
+  session: () => request<Session>('/api/session', { timeoutMs: OPEN_TIMEOUT_MS }),
   setup: (passphrase: string) => request<void>('/api/setup', { method: 'POST', body: { passphrase }, quiet401: true }),
   login: (passphrase: string) => request<void>('/api/login', { method: 'POST', body: { passphrase }, quiet401: true }),
   logout: () => request<void>('/api/logout', { method: 'POST', quiet401: true }),
   vocab: () => request<Vocab>('/api/vocab'),
   items: (status: 'active' | 'archived' = 'active') =>
-    request<{ items: ItemSummary[] }>(`/api/items?status=${status}`).then((r) => r.items),
+    request<{ items: ItemSummary[] }>(`/api/items?status=${status}`, { timeoutMs: OPEN_TIMEOUT_MS }).then((r) => r.items),
   item: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}`),
   patch: (id: string, changes: ItemPatch) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}`, { method: 'PATCH', body: changes }),

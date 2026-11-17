@@ -208,3 +208,78 @@ def test_the_estimate_covers_the_request_with_the_whole_form():
     from closet import spend
     text = len(tagging.PROMPT) + len(tagging.ASK_FOR_TOOL) + len(json.dumps(tagging.answer_tool()))
     assert text / 2 <= spend.TEXT_TOKENS
+
+
+def test_the_shoe_and_correction_calls_out_of_reach_say_so(monkeypatch):
+    # the shared route for sorting a shoe's photos, drawing it and corrections: an outage is not a bad answer
+    import anthropic
+    import httpx2 as httpx
+
+    from closet.tagger import correcting
+    from closet.tagger.tagging import Unreachable
+    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    api = FakeApi()
+    api.error = anthropic.APIConnectionError(request=request)
+    with pytest.raises(Unreachable):
+        correcting.ask("the colour is wrong", [], ("api",), client=api)
+
+
+def test_the_form_is_marked_for_the_prompt_cache_and_cached_tokens_are_paid_for():
+    # describing a closet's worth of photos reads the long form back from the cache instead of paying for it each time
+    from types import SimpleNamespace
+
+    from closet import spend
+    api = FakeApi()
+    seen = []
+
+    class Meter:
+        def before_api_call(self, model, images):
+            pass
+
+        def record(self, route, model, input_tokens, output_tokens, **cached):
+            seen.append((input_tokens, output_tokens, cached))
+
+        def release(self):
+            pass
+
+    real = api.create
+
+    def create(**kw):   # Anthropic's usage for a call that read the form from the cache
+        resp = real(**kw)
+        resp.usage = SimpleNamespace(input_tokens=1600, output_tokens=400, cache_creation_input_tokens=0,
+                                     cache_read_input_tokens=9000)
+        return resp
+    api.create = create
+    result = tag_item(api, "claude-haiku-5-5", [Image.new("RGB", (40, 40))], meter=Meter())
+    (tool,) = api.requests[-1]["tools"]
+    assert tool["cache_control"] == {"type": "ephemeral"}
+    assert seen == [(1600, 400, {"cache_write": 0, "cache_read": 9000})]
+    assert result.input_tokens == 10_600   # the whole prompt
+    assert result.cost_usd == pytest.approx(spend.cost_usd("claude-haiku-5-5", 1600, 400, cache_read=9000))
+    # read from the cache, the form costs a tenth of the plain price
+    assert spend.cost_usd("claude-haiku-5-5", 0, 0, cache_read=9000) == pytest.approx(
+        spend.cost_usd("claude-haiku-5-5", 9000, 0) / 10)
+
+
+def test_a_shoe_drawings_photos_are_marked_for_the_cache_and_a_one_off_question_is_not():
+    from closet.tagger import correcting
+    api = FakeApi()
+    photos = [Image.new("RGB", (40, 40)), Image.new("RGB", (40, 40))]
+    correcting.ask("the colour is wrong", photos, ("api",), client=api, cache_photos=True)
+    blocks = api.requests[-1]["messages"][0]["content"]
+    marked = [i for i, b in enumerate(blocks) if b.get("cache_control")]
+    assert marked == [1] and blocks[1]["type"] == "image" and blocks[-1]["type"] == "text"
+    correcting.ask("the colour is wrong", photos, ("api",), client=api)
+    assert not any(b.get("cache_control") for b in api.requests[-1]["messages"][0]["content"])
+
+
+def test_a_call_recorded_with_cached_tokens_counts_them_at_their_own_prices(client, cfg):
+    from closet import db, spend
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        cost = spend.record(conn, "api", "claude-opus-5-5", 1000, 500, cache_write=8000, cache_read=20_000)
+        row = conn.execute("SELECT input_tokens, cost_usd FROM claude_calls ORDER BY id DESC").fetchone()
+    finally:
+        conn.close()
+    assert cost == pytest.approx((1000 * 4.00 + 500 * 20.00 + 8000 * 5.00 + 20_000 * 0.20) / 1_000_000)
+    assert row["input_tokens"] == 29_000 and row["cost_usd"] == pytest.approx(cost)

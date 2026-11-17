@@ -75,6 +75,21 @@ describe('the day at a glance', () => {
       .toEqual(['14–20°C', 'no rain', 'a mild day']);
   });
 
+  it('with the forecast hour by hour: what the hours ahead feel like, when the rain falls, and the wind', () => {
+    const detail = {
+      from_hour: 12, to_hour: 22, temp_low_c: 4, temp_high_c: 9, feels_low_c: 0, feels_high_c: 9, feels_apart: true,
+      rain: { kind: 'rain', from_hour: 16, to_hour: 18, chance: 80, mm: 4, most: false, words: 'rain 4pm to 6pm' },
+      wind: { kmh: 40, gust_kmh: 55, words: 'windy' }, uv: 1, humid: false, wet: true,
+      words: ['feels like 0° to 9°', 'rain 4pm to 6pm', 'windy'],
+    };
+    expect(dayParts(day({ detail }))).toEqual(['feels like 0–9°C', 'rain 4pm to 6pm', 'windy', 'Brooklyn']);
+    // close to the thermometer and dry: the plain temperatures of those hours, and "no rain" said
+    const calm = { ...detail, feels_apart: false, rain: null, wind: null, wet: false, words: ['4° to 9°', 'strong sun'] };
+    expect(dayParts(day({ detail: calm, rain: false }))).toEqual(['4–9°C', 'no rain', 'strong sun', 'Brooklyn']);
+    expect(dayParts(day({ detail: { ...calm, feels_apart: true, feels_low_c: 12.6, feels_high_c: 13.2 } }))[0]).toBe('feels like about 13°C');
+    expect(dayParts(day({ detail: null }))).toEqual(['3–10°C', 'rain 70%', 'Brooklyn']);
+  });
+
   it('says "about" when low and high round to the same degree', () => {
     expect(temps(21.6, 22.4)).toBe('About 22°C');
     expect(temps(-3.4, 1)).toBe('-3°C to 1°C');

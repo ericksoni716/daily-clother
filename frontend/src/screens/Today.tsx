@@ -10,7 +10,8 @@ import { Link, navigate } from '../router';
 import { useCloset } from '../store';
 import {
   canDress, dayParts, joinWords, longDate, keptFor, loadChoice, moodLabel, MOODS, occasionLabel, OCCASIONS, outfitIds, parseTemp, placeLabel,
-  saveChoice, sameOutfit, timeOf, whatToAddFirst, wornNow, wornOrder, type Choice, type Outfit, type Place, type TodayAnswer,
+  saveChoice, sameOutfit, timeOf, whatToAddFirst, wornNow, wornOrder, type Choice, type DayAnswer, type DayNote, type Outfit, type Place,
+  type TodayAnswer,
   type TodayRequest, type TypedDay, type WornToday,
 } from '../today';
 import type { ItemSummary, Settings } from '../types';
@@ -322,6 +323,19 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
       {header}
 
       <DayLine phase={phase} editing={editDay} locked={locked} onEdit={() => setEditDay(!editDay)} />
+      {phase.kind !== 'needs-day' && (
+        <DayNoteRow note={ctx?.note ?? null} known={ctx !== null} locked={locked}
+          onChanged={(answer) => {
+            // a place in the note wins over temperatures typed earlier today, as a place chosen under Change does
+            if (answer.note?.active && answer.note.place) {
+              kept.setTyped(null);
+              setTyped(null);
+            }
+            const occasion = answer.note?.active ? answer.note.occasion : null;
+            if (occasion && (OCCASIONS as readonly string[]).includes(occasion)) choose({ ...choice, occasion });
+            setAttempt((n) => n + 1);
+          }} />
+      )}
       {(editDay || phase.kind === 'needs-day') && (
         <DayPanel phase={phase} typed={typed} locked={locked} offline={offline} toast={toast}
           onTyped={setDay}
@@ -461,6 +475,93 @@ function DayLine({ phase, editing, locked, onEdit }: { phase: Phase; editing: bo
         )}
       </p>
       {c?.old && <p className="today-day-old" role="note">{c.message || 'This is an older forecast: the weather service could not be reached.'}</p>}
+    </section>
+  );
+}
+
+const DAY_NOTE_MAX = 300;
+
+/**
+ * The day in the owner's words: one sentence ("In Lisbon until Friday", "at a match today, outside from noon to six")
+ * that Claude reads for the place, the days and the hours outside. Shown back as what Closet took from it.
+ */
+function DayNoteRow({ note, known, locked, onChanged }: {
+  note: DayNote | null; known: boolean; locked: boolean; onChanged(answer: DayAnswer): void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function run(call: () => Promise<DayAnswer>) {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const answer = await call();
+      setMessage(answer.message);
+      if (answer.saved === false) return;
+      setOpen(false);
+      onChanged(answer);
+    } catch (e) {
+      setMessage((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    if (text.trim()) void run(() => api.saveDay(text.trim()));
+  }
+
+  return (
+    <section className="today-note" aria-label="Your day">
+      {!open && note && (
+        <p className="today-note-line" data-testid="day-note">
+          <span className="today-note-words">
+            {!note.active && <span className="muted">Coming up: </span>}
+            {note.words.join(' · ')}
+          </span>
+          <button className="btn btn-link" disabled={locked || busy} title={locked ? OFFLINE_TITLE : undefined}
+            onClick={() => {
+              setText(note.text);
+              setMessage(null);
+              setOpen(true);
+            }}>
+            Change
+          </button>
+          <button className="btn btn-link" disabled={locked || busy} title={locked ? OFFLINE_TITLE : undefined}
+            aria-label="Clear the note about your day" onClick={() => void run(api.clearDay)}>
+            Clear
+          </button>
+        </p>
+      )}
+      {!open && !note && known && (
+        <button className="btn btn-link today-note-add" disabled={locked} title={locked ? OFFLINE_TITLE : undefined}
+          onClick={() => {
+            setText('');
+            setMessage(null);
+            setOpen(true);
+          }}>
+          Somewhere else, or out all day? Tell Closet
+        </button>
+      )}
+      {open && (
+        <form className="today-note-form" onSubmit={submit}>
+          <label className="field">
+            <span>What's different about today, or the days ahead?</span>
+            <input type="text" value={text} maxLength={DAY_NOTE_MAX} autoFocus disabled={busy} data-testid="day-note-text"
+              placeholder="In Lisbon until Friday. Or: at a match today, outside from noon to six."
+              onChange={(e) => setText(e.target.value)} />
+          </label>
+          <p className="hint">Claude reads this one sentence to find the place and the hours. Nothing from your closet is sent.</p>
+          <div className="today-note-actions">
+            <Button variant="primary" small type="submit" disabled={busy || !text.trim()}>{busy ? 'Reading…' : 'Save'}</Button>
+            <Button small disabled={busy} onClick={() => setOpen(false)}>Cancel</Button>
+          </div>
+        </form>
+      )}
+      {message && <p className="today-note-message" role="status" data-testid="day-note-message">{message}</p>}
     </section>
   );
 }

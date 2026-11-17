@@ -26,9 +26,23 @@
   margin: 0; min-height: var(--tap); display: flex; flex-wrap: wrap; align-items: center; row-gap: 0;
   font-size: var(--text-md); font-weight: var(--weight-label);
 }
-.today-day-line > span + span::before { content: '·'; color: var(--ink-3); padding: 0 0.4em; font-weight: var(--weight-body); }
+/* the dot follows each part, so a line that wraps never starts with one */
+.today-day-line > span:not(:last-child)::after { content: '·'; color: var(--ink-3); padding: 0 0.4em; font-weight: var(--weight-body); }
 .today-day-change .btn-link { min-height: var(--tap); padding: 0 4px; font-size: var(--text-md); }
 .today-day-old { margin: 0 0 var(--space-2); color: var(--warn); font-size: var(--text-sm); }
+
+/* the day in the owner's words: what Closet took from the note, or the way in to write one */
+.today-note { margin: 0 0 var(--space-2); min-width: 0; }
+.today-note-line { margin: 0; display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--space-2); font-size: var(--text-sm); }
+.today-note-words { font-weight: var(--weight-label); min-width: 0; overflow-wrap: anywhere; }
+.today-note .btn-link { min-height: var(--tap); padding: 0 4px; font-size: var(--text-sm); }
+.today-note-add { padding-left: 0; }
+.today-note-form { max-width: 40rem; margin-bottom: var(--space-2); }
+.today-note-form .field { margin-bottom: var(--space-1); }
+.today-note-form .field input { width: 100%; }
+.today-note-form .hint { margin: 0 0 var(--space-2); }
+.today-note-actions { display: flex; gap: var(--space-2); }
+.today-note-message { margin: 0 0 var(--space-2); font-size: var(--text-sm); color: var(--ink-2); }
 
 .today-day-panel { padding: var(--space-4); margin-bottom: var(--space-4); max-width: 40rem; }
 .today-day-panel h2 { font-size: var(--text-lg); margin-bottom: var(--space-1); }

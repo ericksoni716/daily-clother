@@ -110,6 +110,29 @@ choose your place: tap **Change** beside the weather to search for it or tap
 When the weather cannot be fetched, Today still dresses you, for a mild day,
 and says so. Offline, Today shows the outfits it last found that day.
 
+The weather line is about the hours ahead of you, not the whole day: from now
+until ten at night (from seven in the morning if you look earlier). It says
+what those hours feel like when wind or damp make that different from the
+thermometer ("feels like 0–9°C"), when rain falls and how hard ("rain 2pm to
+5pm", "light rain around noon"), and the wind, strong sun or humid air when
+they matter. Today dresses you for that: what it feels like in those hours,
+and rain only if it falls in them.
+
+**Somewhere else, or out all day?** Under the weather, tap **Somewhere else,
+or out all day? Tell Closet** and type it in a sentence: "In Lisbon until
+Friday", or "At a match today, outside from noon to six". Claude reads that
+one sentence (nothing from your closet is sent with it) and Closet shows what
+it took from it: the place, until when, the hours you are outside. While the
+note holds, Today uses that place's weather and those hours, and picks the
+occasion if the sentence made one clear (a wedding is formal). Your home place
+in Settings is not changed, and the note ends by itself after its last day;
+**Clear** ends it now and **Change** lets you say it another way. A note about
+days still ahead ("in Rome this weekend") waits, marked **Coming up**, until
+its first day. This needs Claude to be reachable (your Claude plan, or the API
+key when it is switched on in Settings, which is used first for this); the
+demo closet never asks Claude, so the note can only be written from your own
+closet.
+
 Closet remembers what you wore together. The morning after, Today asks **How
 was yesterday's outfit?** above the outfits: tap **Loved it**, **Fine** or
 **Not again**, and if you like say why (**Too warm**, **Too cold**, **Too

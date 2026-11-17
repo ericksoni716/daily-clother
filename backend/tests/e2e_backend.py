@@ -48,6 +48,7 @@ something shaped like a key and a file outside Closet's folder (both made up), s
 The API key box keeps keys in a stand-in keychain (never the computer's), and the check with Anthropic is a
 stand-in too: a key ending in "refused" is turned down, any other well-formed key is accepted.
 """
+import json
 import os
 import shutil
 import sqlite3
@@ -197,12 +198,46 @@ def seed_from_demo(cfg):
 
 
 def no_weather_service(url):
+    """The browser tests never reach the weather service. One place is stood in for, so a day somewhere else can be
+    tried: Lisbon is on the map, and its forecast is a mild, windy day with rain, the same in every hour (so the
+    words on Today do not depend on the hour the test runs at). Everything else is out of reach, as before."""
+    from datetime import UTC, datetime
+    from urllib.parse import parse_qs, urlsplit
+    parts = urlsplit(url)
+    params = {k: v[0] for k, v in parse_qs(parts.query).items()}
+    if parts.netloc == "geocoding-api.open-meteo.com" and params.get("name", "").lower().startswith("lisbon"):
+        return json.dumps({"results": [{"name": "Lisbon", "latitude": 38.71667, "longitude": -9.13333,
+                                        "timezone": "Europe/Lisbon", "country": "Portugal"}]}).encode()
+    if parts.netloc == "api.open-meteo.com" and params.get("latitude", "").startswith("38.7") and "hourly" in params:
+        day = datetime.now(UTC).date().isoformat()
+        every = {"temperature_2m": 17.0, "apparent_temperature": 13.0, "precipitation_probability": 70,
+                 "precipitation": 1.5, "wind_speed_10m": 38.0, "wind_gusts_10m": 50.0, "relative_humidity_2m": 60,
+                 "uv_index": 2.0, "weather_code": 61}
+        return json.dumps({"utc_offset_seconds": 0, "daily": {
+            "time": [day], "temperature_2m_min": [14.0], "temperature_2m_max": [18.0],
+            "precipitation_probability_max": [70], "weather_code": [61]},
+            "hourly": {"time": [f"{day}T{h:02d}:00" for h in range(24)], **{k: [v] * 24 for k, v in every.items()}}}).encode()
     raise urllib.error.URLError("the browser tests never reach the weather service")
+
+
+def fake_day_reader(text, today, home, routes):
+    """Stands in for Claude reading the day in the owner's words, from words in the sentence itself: "Lisbon" is a
+    place, "four days" four days, "outside" noon to six, "wedding" a formal day; anything else says nothing."""
+    words = text.lower()
+    return {"place": "Lisbon, Portugal" if "lisbon" in words else None, "starts_in_days": 0,
+            "days": 4 if "four days" in words else 1, "outside": (12, 18) if "outside" in words else None,
+            "exposure": "outside" if "outside" in words else "mixed",
+            "activity": "a wedding" if "wedding" in words else "walking the city" if "walking" in words else "",
+            "occasion": "formal" if "wedding" in words else None}
+
+
+fake_day_reader.needs_route = False   # as fake_add_sorter
 
 
 def build_services(cfg, **kwargs):
     # sorting the photos on Add never reaches Claude from a browser test, with or without the other stand-ins
     kwargs.setdefault("add_sorter", fake_add_sorter)
+    kwargs.setdefault("day_reader", fake_day_reader)   # nor does reading the day in the owner's words
     if not os.environ.get("CLOSET_E2E_FAKES"):
         return _real_build(cfg, **kwargs)
     if os.environ.get("CLOSET_E2E_SEED") == "demo":

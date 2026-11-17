@@ -166,7 +166,7 @@ def test_with_no_place_chosen_the_weather_is_new_yorks(client, fake):
 def test_no_place_at_all_is_said_in_plain_words(tmp_path, fake):
     state = State(tmp_path / "settings.json")
     state.update(place=None)   # not reachable from the screen, which goes back to New York; still said in words
-    assert weather.lookup(state) == {"place": None, "weather": None, "old": False, "is_today": False,
+    assert weather.lookup(state) == {"place": None, "weather": None, "old": False, "is_today": False, "hour": None,
                                      "message": "Choose where you are in Settings to see today's weather."}
     assert fake.calls == []
 
@@ -178,11 +178,14 @@ def test_weather_answer_and_what_is_sent(client, fake):
     body = r.json()
     assert body["place"] == NYC and body["old"] is False and body["message"] is None and body["is_today"] is True
     assert body["weather"] == {"date": "2026-11-12", "low_c": 3.2, "high_c": 9.8, "rain_chance": 70, "rain": True,
-                               "summary": "rain", "fetched_at": "2026-11-12T17:00:00Z"}
+                               "summary": "rain", "hours": [],   # this stand-in gives no hours (tests/test_day.py does)
+                               "fetched_at": "2026-11-12T17:00:00Z"}
     where, params = fake.calls[0]
     assert where == "api.open-meteo.com/v1/forecast"
     assert (params["latitude"], params["longitude"], params["timezone"]) == ("40.7143", "-74.006", "America/New_York")
-    assert set(params) == {"latitude", "longitude", "timezone", "daily", "temperature_unit", "forecast_days"}
+    # the day's hours are asked for too (closet/day.py); still nothing but the place's coordinates and time zone
+    assert set(params) == {"latitude", "longitude", "timezone", "daily", "hourly", "temperature_unit",
+                           "wind_speed_unit", "precipitation_unit", "forecast_days"}
 
 
 def test_a_low_chance_of_rain_is_a_dry_day(client, fake):
@@ -326,7 +329,8 @@ def test_today_uses_the_weather_for_the_saved_place(client, fake):
     body = r.json()
     assert body["missing"] == [] and body["outfits"]
     assert body["context"] == {"date": "2026-11-12", "low_c": 3.2, "high_c": 9.8, "rain": True, "source": "forecast",
-                               "old": False, "place": NYC["name"], "rain_chance": 70, "summary": "rain", "message": None}
+                               "old": False, "place": NYC["name"], "rain_chance": 70, "summary": "rain", "message": None,
+                               "detail": None, "note": None}   # no hours in this forecast, and an ordinary day
     # a cold day: the jacket goes over the tee
     assert all(o["pieces"]["outer"] == ids["jacket"] for o in body["outfits"])
 
@@ -356,13 +360,14 @@ def test_today_overrides_win_over_the_weather(client, fake):
     body = client.post("/api/outfits/today", json={"high_c": 12, "rain": False}).json()
     assert body["context"] == {"date": "2026-11-12", "low_c": 3.2, "high_c": 12, "rain": False,
                                     "source": "forecast and given", "old": False, "place": NYC["name"],
-                                    "rain_chance": None, "summary": "rain", "message": None}
+                                    "rain_chance": None, "summary": "rain", "message": None,
+                                    "detail": None, "note": None}
     calls = fake.forecasts()
     body = client.post("/api/outfits/today", json={"low_c": 25, "high_c": 30, "rain": False}).json()
     assert fake.forecasts() == calls  # nothing left to look up
     assert body["context"] == {"date": "2026-11-12", "low_c": 25, "high_c": 30, "rain": False, "source": "given",
                                "old": False, "place": None, "rain_chance": None, "summary": None,
-                               "message": None}
+                               "message": None, "detail": None, "note": None}
     assert all(o["pieces"]["outer"] is None for o in body["outfits"])
 
 

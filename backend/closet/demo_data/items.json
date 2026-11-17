@@ -5585,7 +5585,8 @@
    },
    "trace_version": 1,
    "drawn": {
-    "version": 2,
+    "version": 3,
+    "view": "front",
     "left": {
      "behind": "",
      "front": "<path d=\"M15,186 C10,230 56,240 100,240 C144,240 190,230 185,186 Z\" fill=\"#2c2826\" stroke=\"#26221f\" stroke-width=\"4\" stroke-linejoin=\"round\"/>\n<path d=\"M100,227 C58,227 16,220 16,188 C16,146 32,104 50,76 C55,50 55,0 53,-46 C70,-36 86,-32 100,-32 C114,-32 130,-36 147,-46 C145,0 145,50 150,76 C168,104 184,146 184,188 C184,220 142,227 100,227 Z\" fill=\"#6e5a3f\" stroke=\"#26221f\" stroke-width=\"4\" stroke-linejoin=\"round\"/>\n<path d=\"M53,-46 C61,-41 69,-39 78,-37 C78,-5 76,25 69,44 C65,54 59,60 54,62 C55.5,40 55.5,0 53,-46 Z\" fill=\"#5e2f25\" stroke=\"#26221f\" stroke-width=\"1.6\" stroke-linejoin=\"round\"/>\n<path d=\"M147,-46 C139,-41 131,-39 122,-37 C122,-5 124,25 131,44 C135,54 141,60 146,62 C144.5,40 144.5,0 147,-46 Z\" fill=\"#5e2f25\" stroke=\"#26221f\" stroke-width=\"1.6\" stroke-linejoin=\"round\"/>\n<path d=\"M51,84 C70,70 130,70 149,84\" fill=\"none\" stroke=\"#26221f\" stroke-width=\"1.6\" stroke-linecap=\"round\"/>\n<path d=\"M88,-28 L88,-64 C88,-73 112,-73 112,-64 L112,-28 Z\" fill=\"#4a2c22\" stroke=\"#26221f\" stroke-width=\"1.6\" stroke-linejoin=\"round\"/>\n<path d=\"M95,-36 L95,-60 C95,-65 105,-65 105,-60 L105,-36 Z\" fill=\"#6e5a3f\" stroke=\"#26221f\" stroke-width=\"1.6\" stroke-linejoin=\"round\"/>\n<path d=\"M100,227 C58,227 16,220 16,188 C16,146 32,104 50,76 C55,50 55,0 53,-46 C70,-36 86,-32 100,-32 C114,-32 130,-36 147,-46 C145,0 145,50 150,76 C168,104 184,146 184,188 C184,220 142,227 100,227 Z\" fill=\"none\" stroke=\"#26221f\" stroke-width=\"4\" stroke-linejoin=\"round\"/>"

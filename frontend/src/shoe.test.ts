@@ -184,10 +184,10 @@ describe('a shoe drawn from its photos', () => {
     expect(DRAWN_DEMO).toContain('never sent to Claude');
   });
 
-  it('asks before drawing, saying it replaces the drawing, takes about two minutes and roughly what it costs', () => {
+  it('asks before drawing, saying it replaces the drawing, takes four to ten minutes and roughly what it costs', () => {
     const again = drawQuestion(done({ about_usd: 0.61 }), true);
     expect(again).toContain('replaces this one when it is done');
-    expect(again).toContain('about two minutes');
+    expect(again).toContain('four to ten minutes');
     expect(again).toContain('roughly $0.61 on the API key');
     expect(again).toContain('nothing extra on your Claude plan');
     expect(drawQuestion(drawn(null), false)).toContain('roughly $0.60');

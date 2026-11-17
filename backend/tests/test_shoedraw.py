@@ -20,6 +20,7 @@ from closet.tagger import shoedrawing as SD
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError
 
 from .conftest import PASSPHRASE, SHEET, FakeApi, FakeClaude, fake_cutter, upload
+from .test_figure_drawn import answer as tags
 from .test_shoeviews import Sorter, a_shoe, add, answer, get, later, row, sql
 
 DRESS = drawn.example("dress-shoe")
@@ -36,11 +37,13 @@ class Drawer:
         self.error: Exception | None = None
         self.calls: list[list[tuple]] = []
         self.notes: list[list[str]] = []
+        self.styles: list[str | None] = []   # the item's shoe style it was told
         self.during = None
 
-    def __call__(self, photos, routes, notes=()):
+    def __call__(self, photos, routes, notes=(), style=None):
         self.calls.append([(p.view, p.sure, p.image.size) for p in photos])
         self.notes.append(list(notes))
+        self.styles.append(style)
         assert routes == ("plan",)
         if self.during:
             self.during()
@@ -102,13 +105,14 @@ def test_a_shoe_is_drawn_once_its_photos_are_first_sorted(made):
     assert got["state"] == "waiting" and got["message"] == shoedraw.WAITING and got["url"] is None
     assert m.sv.draws.drain() == 1
     assert m.drawer.calls == [[("outer", True, (900, 1200)), ("inner", True, (640, 480))]]   # the main photo first
+    assert m.drawer.styles == [None]   # not described yet: the drawing's own sheet says what kind of shoe it is
     got = drawn_of(m, item)
     assert got["state"] == "done" and got["message"] is None and got["rounds"] == 1 and got["seconds"] == 112.4
     assert got["cost_usd"] == pytest.approx(0.38) and got["route"] == "plan" and got["photos_changed"] is False
     assert got["url"].startswith(f"/api/items/{item['id']}/drawn.svg?v=") and got["about_usd"] == 0.38
     kept = json.loads(row(m.sv.cfg, item["id"])["drawn"])
     assert kept["left"] == {"behind": "", "front": drawn.sanitise(DRESS)} and kept["sheet"] == SHEET
-    assert kept["version"] == 2 and kept["right"] is None
+    assert kept["version"] == drawn.VERSION == 3 and kept["right"] is None
     assert kept["photo_ids"] == [p["id"] for p in get(m.c, item)["photos"]]
     assert kept["input_tokens"] == 70_000 and kept["output_tokens"] == 9_000 and kept["cache_read_tokens"] == 20_000
     assert [c["kind"] for c in kept["calls"]] == ["draw", "check"]
@@ -126,7 +130,7 @@ def test_a_drawing_kept_as_version_1_is_shown_as_it_is_and_never_drawn_again_by_
     got = drawn_of(m, item)
     assert got["state"] == "done" and got["url"] and got["message"] is None
     svg = m.c.get(got["url"]).text
-    assert "#b5622f" in svg.lower() and svg.index("#2f7d4f") < svg.lower().index("#b5622f")   # the leg, then the shoe
+    assert "#b5622f" in svg.lower() and svg.index(drawn.PREVIEW_SOCK) < svg.lower().index("#b5622f")   # the leg, then the shoe
     assert m.sv.draws.drain() == 0 and len(m.drawer.calls) == 1 and get(m.c, item)["drawn_version"]
     figure = m.c.post("/api/outfits/figure", json={"shoes": item["id"]}).text
     assert "#b5622f" in figure.lower()
@@ -346,7 +350,7 @@ def test_drawn_svg_serves_the_pair_on_two_legs_behind_the_login(made):
     r = m.c.get(drawn_of(m, item)["url"])
     assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg+xml")
     assert r.headers["cache-control"] == "no-store" and "default-src 'none'" in r.headers["content-security-policy"]
-    assert r.text == drawn.preview_svg(drawn.sanitise(DRESS)) and r.text.count("#2f7d4f") == 2
+    assert r.text == drawn.preview_svg(drawn.sanitise(DRESS)) and r.text.count(drawn.PREVIEW_SOCK) == 2
     anon = TestClient(app_module.create_app(m.sv))
     assert anon.get(f"/api/items/{item['id']}/drawn.svg").status_code == 401
     assert anon.post(f"/api/items/{item['id']}/drawn").status_code == 401
@@ -372,6 +376,7 @@ def test_a_shoe_only_has_drawn_details(made):
 
 def test_drawing_goes_through_the_api_key_and_its_monthly_limit(cfg):
     api = FakeApi(input_tokens=20_000, output_tokens=5_000)
+    api.cache_write, api.cache_read = 1_000, 4_000   # each request writes some of the photos to the cache, reads some
     sorter = Sorter()
     sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, routes=lambda: ("api",), api_client=api,
                                    sorter=lambda photos, routes: sorter.reply(len(photos)) if callable(sorter.reply)
@@ -388,15 +393,43 @@ def test_drawing_goes_through_the_api_key_and_its_monthly_limit(cfg):
         assert api.calls == 0   # the estimate is checked first: nothing is sent past the limit
         assert get(c, item)["drawn"]["message"] == shoedraw.LIMIT
         c.put("/api/settings", json={"tagging_api_cap_usd": 20.0})
-        assert sv.draws.drain() == 1 and api.calls == 2
+        # two candidates and a check each, the judge, two turns and a check each, the judge again (no fault named:
+        # no fix)
+        calls = SD.CANDIDATES * 2 + 1 + SD.TURNS * 2 + 1
+        assert sv.draws.drain() == 1 and api.calls == calls == 10
+        # every request is cached up to its last photo (the shoe's two photos come first in each), and nowhere else
+        for request in api.requests:
+            content = request["messages"][0]["content"]
+            marked = [i for i, block in enumerate(content) if "cache_control" in block]
+            assert marked == [3] and content[3]["type"] == "image" and content[2]["text"] == "photo-2.jpg:"
+            assert content[3]["cache_control"] == {"type": "ephemeral"}
         got = get(c, item)["drawn"]
-        assert got["state"] == "done" and got["route"] == "api" and got["rounds"] == 1
-        assert got["cost_usd"] == pytest.approx(2 * spend.cost_usd(SD.MODEL, 20_000, 5_000))
+        assert got["state"] == "done" and got["route"] == "api" and got["rounds"] == SD.CANDIDATES + SD.TURNS
+        # what the cache wrote and read is counted at its own price, in the drawing's cost and in the month's spend
+        one = spend.cost_usd(SD.MODEL, 20_000, 5_000, cache_write=1_000, cache_read=4_000)
+        assert one == pytest.approx(spend.cost_usd(SD.MODEL, 20_000, 5_000) + (1_000 * 4.00 * 1.25 + 4_000 * 0.20) / 1e6)
+        assert got["cost_usd"] == pytest.approx(calls * one)
         with closing(db.connect(cfg.db_path("main"))) as conn:
-            rows = [dict(r) for r in conn.execute("SELECT purpose, route, model, cost_usd FROM claude_calls "
-                                                  "WHERE purpose = 'draw_shoe'")]
-        assert len(rows) == 2 and spend.PURPOSE_DRAW == "draw_shoe"
+            rows = [dict(r) for r in conn.execute("SELECT purpose, route, model, input_tokens, cost_usd FROM "
+                                                  "claude_calls WHERE purpose = 'draw_shoe'")]
+            month = spend.spent(conn)
+        assert len(rows) == calls and spend.PURPOSE_DRAW == "draw_shoe"
         assert all(r["route"] == "api" and r["model"] == SD.MODEL for r in rows)
+        assert all(r["input_tokens"] == 25_000 and r["cost_usd"] == pytest.approx(one) for r in rows)
+        assert month >= calls * one - 1e-9
         assert spend.estimate_draw(8) > 0.5   # one request's careful estimate is over the first limit
     finally:
         sv.stop()
+
+
+def test_the_drawer_is_told_the_shoes_style_from_its_description(made):
+    """The drawing is turned with the 3D shoe of the item's own style, as its description says it."""
+    m = made
+    item = a_shoe(m.c)
+    sql(m.sv.cfg, "UPDATE items SET tag_answer = ? WHERE id = ?",
+        (json.dumps(tags("sneakers", "high_top", {"height": "high"})), item["id"]))
+    add(m.c, item, 1)
+    m.sorter.reply = answer(("outer", True), ("inner", True))
+    m.sv.views.drain(now=later())
+    assert m.sv.draws.drain() == 1
+    assert m.drawer.styles == ["high_top"] == [shoedraw.style_of(row(m.sv.cfg, item["id"]))]

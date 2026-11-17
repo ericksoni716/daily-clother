@@ -91,9 +91,11 @@ def main() -> None:
     result = made.to_json([f"{args.photos.name}/{v}" for v, _ in VIEWS],
                           datetime.now(UTC).isoformat(timespec="seconds"), shoedrawing.notes_of(kept))
     (args.out / f"{name}.json").write_text(json.dumps(result, indent=1), encoding="utf-8")
-    (args.out / f"{name}.svg").write_text(drawn.preview_svg(made.left, made.right), encoding="utf-8")
-    (args.out / f"{name}.png").write_bytes(drawn.check_png(made.left, made.right))
-    (args.out / f"{name}.before.png").write_bytes(drawn.check_png(kept["left"], kept.get("right")))
+    view = drawn.VIEWS[made.view]   # a turned drawing stays turned
+    (args.out / f"{name}.svg").write_text(drawn.preview_svg(made.left, made.right, view=view), encoding="utf-8")
+    (args.out / f"{name}.png").write_bytes(drawn.check_png(made.left, made.right, view=view))
+    before = drawn.VIEWS.get(kept.get("view") or "front", drawn.FRONT)
+    (args.out / f"{name}.before.png").write_bytes(drawn.check_png(kept["left"], kept.get("right"), view=before))
     text = numbers(made, result)
     (args.out / f"{name}.txt").write_text(text + "\n", encoding="utf-8")
     print(text)

@@ -1023,14 +1023,16 @@ class DrawnPlace:
         return self.ground + self.k * (v - drawn.GROUND)
 
 
-def _drawn_place(front: FrontShoe) -> DrawnPlace:
+def _drawn_place(front: FrontShoe, made: drawn.Stored | None = None) -> DrawnPlace:
     """Where a drawn shoe goes, from the front view it is drawn in place of: the frame's leg as wide as its ankle
     (the frame's leg is narrow for its shoe, so the drawing comes out larger than the front view, which the owner
     chose), the frame's middle on the ankle, its ground on the front view's lowest point, and the toe turned out as far
-    as the front view's (the slope from its ankle to its toe tip)."""
+    as the front view's (the slope from its ankle to its toe tip). A drawing in the turned view (`made.view`) is
+    turned already: it slides nothing."""
     a = front.anchors
     k = 2 * (a["ankle_r"][0] - a["ankle"][0]) / (drawn.LEG[1] - drawn.LEG[0])
-    shear = (a["toe"][0] - a["ankle"][0]) / (a["toe"][1] - a["ankle"][1])
+    turned = made is not None and made.view is drawn.TURNED
+    shear = 0.0 if turned else (a["toe"][0] - a["ankle"][0]) / (a["toe"][1] - a["ankle"][1])
     return DrawnPlace(k, a["ankle"][0], front.bbox[3] - 2.0, shear)
 
 
@@ -1039,7 +1041,7 @@ def _on_drawing(front: FrontShoe, made: drawn.Stored) -> None:
     instep and the back of the opening from its sheet (`drawn.Stored`), and where an ordinary sneaker's
     collar front would be (`sneaker_rim`: full-length trousers are never longer than to meet it). Its ankle, the
     width round its opening and its toe stay the front view's."""
-    f = _drawn_place(front)
+    f = _drawn_place(front, made)
     front.anchors.update(opening=(f.x, f.y(made.opening)), instep=(f.x, f.y(made.instep)),
                          opening_back=(f.x, f.y(made.top)), sneaker_rim=(f.x, f.y(SNEAKER_RIM)))
 
@@ -1047,9 +1049,9 @@ def _on_drawing(front: FrontShoe, made: drawn.Stored) -> None:
 def _drawn_box(front: FrontShoe, made: drawn.Stored) -> tuple[float, float, float, float]:
     """The front view's box, made to take in the drawing drawn in its place (for the canvas): the frame's width, the
     toe turned out, and up to DRAWN_ABOVE above the back of its opening."""
-    f = _drawn_place(front)
+    f = _drawn_place(front, made)
     out = abs(f.shear) * (drawn.GROUND - made.hinge) * f.k
-    half = (drawn.FRAME[1] - drawn.FRAME[0]) / 2 * f.k
+    half = (made.view.frame[1] - made.view.frame[0]) / 2 * f.k
     x0, y0, x1, y1 = front.bbox
     return (min(x0, f.x - half - out), min(y0, f.y(min(made.top, made.opening) - DRAWN_ABOVE)),
             max(x1, f.x + half + out), y1)
@@ -1070,7 +1072,8 @@ def _drawn_pair(shoes: Placed, uid: str, defs: list[str]) -> tuple[str, str]:
     (what is behind the legs, what is in front of them). The viewer's right shoe is the left one mirrored, or the
     right drawing as drawn (not mirrored, so its toe turns the other way). The ink lines are as thick as the
     figure's; the toes turn out below the hinge (`_turned`)."""
-    made, f = shoes.drawn, _drawn_place(shoes.front)
+    made = shoes.drawn
+    f = _drawn_place(shoes.front, made)
     hinge = made.hinge
     defs.append(f'<clipPath id="{uid}u"><rect x="-1000" y="-1000" width="3000" height="{1000 + hinge + 0.6:.1f}"/>'
                 f'</clipPath><clipPath id="{uid}d"><rect x="-1000" y="{hinge:.1f}" width="3000" height="2000"/>'
@@ -1081,7 +1084,7 @@ def _drawn_pair(shoes: Placed, uid: str, defs: list[str]) -> tuple[str, str]:
         if copy == 1 and made.right is not None:   # inside the mirrored copy, mirrored back: drawn as is
             side, sx, shear = made.right, -1.0, -f.shear
         place = (f"translate({f.x:.2f} {f.ground:.2f}) scale({sx * f.k:.4f} {f.k:.4f}) "
-                 f"translate({-(drawn.FRAME[0] + drawn.FRAME[1]) / 2:g} {-drawn.GROUND:g})")
+                 f"translate({-(made.view.frame[0] + made.view.frame[1]) / 2:g} {-drawn.GROUND:g})")
         for part, out in ((side.behind, behind), (side.front, front)):
             if part:
                 out.append(f'<g transform="{_matrix(t)}"><g transform="{place}">'

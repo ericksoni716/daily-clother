@@ -42,18 +42,22 @@ from typing import Literal
 from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..drawing import drawn
+from ..drawing import drawn, photocheck, turned
 from . import correcting
-from .tagging import CONFIG, Meter, TaggingError, cost_usd
+from .tagging import CONFIG, Meter, RouteUnavailable, TaggingError, cost_usd
 from .views import shown
 
 log = logging.getLogger("closet.shoedrawing")
 
 MODEL = CONFIG["roles"]["drawing"]
-EFFORT = "high"        # the experiment's drawings were made at a high effort; lower it once it is measured in the app
+EFFORT = "medium"      # the owner's choice after comparing high, medium and Sonnet (16 November): see DECISIONS.md
 MAX_TOKENS = 32_000    # the longest answer a call allows on the API route, its thinking included (streamed)
 TIMEOUT = 600          # seconds one call through the plan may take
-MAX_ROUNDS = 3         # check calls at most, after the drawing
+MAX_ROUNDS = 3         # check calls at most, after a drawing (straight on, or turned)
+CANDIDATES = 2         # straight-on drawings made side by side, of which the judge keeps one (the owner's choice
+                       # over three, 17 November 2026: see DECISIONS.md)
+TURNS = 2              # turns of the kept drawing made side by side, of which the judge keeps one
+FIX_NOTE_MAX = 900     # the judge's faults on the kept turn, given back as a note to fix
 MAX_CORRECT_ROUNDS = 2 # check calls at most, after a correction from the owner's note
 NOTE_MAX = 200         # the owner's note on a drawing, in characters
 NOTES_SENT = 20        # the owner's latest notes passed on to Claude with a drawing or a correction
@@ -190,6 +194,51 @@ class CorrectCheckAnswer(BaseModel):
     right: Shoe | None = Field(description="The viewer's right shoe when one_side_mark is true; otherwise null.")
 
 
+# The same forms for a drawing turned out (`turned`): what was "seen from the front" is seen in this view.
+IN_VIEW = (f"in this view (from in front and a little above, the foot turned out {turned.TURN:g} degrees, the toe, the "
+           "vamp and the inner side showing)")
+
+
+class TurnedPart(Part):
+    seen_from_front: bool = Field(description=f"True when it shows {IN_VIEW}.")
+
+
+class TurnedSheet(Sheet):
+    archetype_front: str = Field(description=f"Three or four sentences: how that kind of shoe looks {IN_VIEW}: its "
+                                             "outline, how the sole relates to the upper, where its bulk is.")
+    parts: list[TurnedPart]
+    signature: list[str] = Field(min_length=2, max_length=4,
+                                 description=f"The 2 to 4 things that make it recognisable {IN_VIEW} at small size.")
+
+
+class TurnedDrawAnswer(DrawAnswer):
+    sheet: TurnedSheet
+
+
+class TurnedCheckAnswer(CheckAnswer):
+    sheet: TurnedSheet
+
+
+class TurnedCorrectAnswer(CorrectAnswer):
+    sheet: TurnedSheet
+
+
+class TurnedCorrectCheckAnswer(CorrectCheckAnswer):
+    sheet: TurnedSheet
+
+
+class Verdict(BaseModel):
+    """The judge's answer: which of several drawings of the shoe is most faithful to its photos."""
+    model_config = ConfigDict(extra="forbid", strict=True)
+    observations: str = Field(description="First, from the photos alone: what the judging turns on (each panel of the "
+                                          "shoe's front and sides, its colour, its shape and where its edges meet the "
+                                          "others; each mark). Plain sentences.")
+    faults: list[str] = Field(description="For each candidate, in order A, B, C, ...: one line '<letter>: ...' naming "
+                                          "every place where it differs from the photos, or '<letter>: none'.")
+    best: str = Field(description="The letter of the candidate that matches the photos best.")
+    ranking: list[str] = Field(description="All letters, best first.")
+
+
 # ------------------------------------------------------------------ the prompts
 
 BRIEF = """## The frame (about 17 units to a centimetre)
@@ -284,10 +333,32 @@ The owner corrected earlier drawings of this shoe with these notes. They are the
 {lines}"""
 
 
-def draw_prompt(photos: list[Photo], notes: Sequence[str] = ()) -> str:
+OWN_PHOTOS = ("The three drawings show how to draw, not what this shoe looks like: its panels, their sizes, their shapes "
+              "and their colours come from its own photos, even when it is the same kind of shoe as one of them.")
+RUNNER = """## A running shoe
+A running shoe's character is its midsole. Read its profile from the side photos before you draw:
+- how thick the midsole is under the heel and under the ball (thicker at the heel: the drop), and how it flares out wider than the upper at the heel and under the forefoot, so the upper sits down IN it;
+- the rocker: the sole's bottom curves up from under the ball to the toe, so the toe tip is lifted off the ground; where the front photo shows the toe's underside (the outsole, often a darker rubber) as a crescent under the toe tip, it shows in the drawing too;
+- the midsole's top edge, where the upper sits, climbs round the toe and at the heel, cupping the foot;
+- marks on the midsole (a stripe, a wave of colour) follow its curve.
+Draw the midsole as one big shape that does all of this, and the upper slim and low on top of it."""
+SHARES = """## How much of the front each colour covers
+Before drawing, look at the front photo (and the photo from above) and note, for each colour, how much of the shoe's front it covers and where: for example "grey suede: the toe, the lacing area and the sides up to the collar, about two thirds; white leather: two small wedges either side above the toe; gum: the sole". The drawing's colours cover the same shares in the same places. A shoe made of one material under overlays of another is drawn as the photos show it, not as it is built: when overlays cover most of the front, most of the drawing is the overlays' colour, and the colour underneath shows only where the photo shows it."""
+SIDE_MARKS = """## Marks on the sides
+A logo, stripe or panel on the side of the shoe shows from the front only where the side shows: as a thin sliver along the outline, about as much as the front photo shows, at its true place along the shoe. A logo on the middle of the side shows, if at all, only at the outline beside the back of the vamp, never on the toe box. Never bring a side mark round to the front."""
+SHARE_QUESTION = "Does each colour cover the same share of the front, in the same places, as in the front photo? "
+
+
+def _straight_extra(style: str | None) -> str:
+    """The sections added to the straight-on prompts: a running shoe's midsole (when the item is one), how much of
+    the front each colour covers, and where marks on the sides show."""
+    return (RUNNER + "\n\n" if style == "runner" else "") + SHARES + "\n\n" + SIDE_MARKS + "\n\n"
+
+
+def draw_prompt(photos: list[Photo], notes: Sequence[str] = (), style: str | None = None) -> str:
     examples = "\n\n".join(f"{label} ({png}):\n{_example_text(name)}"
                            for name, png, label in zip(drawn.EXAMPLES, EXAMPLE_NAMES,
-                                                       ("A German-army-trainer style sneaker", "A tan cap-toe dress shoe",
+                                                       ("A sneaker", "A tan cap-toe dress shoe",
                                                         "A boat shoe, a low-profile shoe"), strict=True))
     return f"""Draw one shoe from the owner's wardrobe as flat clip art, from its photos, for the drawn figure that shows the owner's outfits.
 
@@ -296,7 +367,7 @@ def draw_prompt(photos: list[Photo], notes: Sequence[str] = ()) -> str:
 Ignore dirt, wear, shade, highlights, the floor and the background.{notes_section(notes)}
 
 ## Three drawings the owner liked
-The images {", ".join(EXAMPLE_NAMES)} show them on two legs in socks, large and at phone size (the app draws the lines thicker than written, as it will on the figure), and their SVG is below (each is all in front of the leg: nothing of them shows behind it). Look at how few shapes they use and in what order. They are examples of the STYLE and the CONSTRUCTION, not of this shoe: do not copy their shapes.
+The images {", ".join(EXAMPLE_NAMES)} show them on two legs in socks, large and at phone size (the app draws the lines thicker than written, as it will on the figure), and their SVG is below (each is all in front of the leg: nothing of them shows behind it). Look at how few shapes they use and in what order. They are examples of the STYLE and the CONSTRUCTION, not of this shoe: do not copy their shapes. {OWN_PHOTOS}
 
 {examples}
 
@@ -306,7 +377,7 @@ Name the most specific kind of shoe a footwear designer would call it (for examp
 ## Then the feature sheet, from the photos
 kind, archetype and archetype_front (above); silhouette; proportions; palette: the shoe's 2 to 6 TRUE colours, one material one colour; parts; signature: the 2 to 4 things that make it recognisable from the FRONT at small size; one_side_mark; and where the drawing's opening, top and instep are.
 
-## Then the drawing
+{_straight_extra(style)}## Then the drawing
 {BRIEF}
 
 Answer with the sheet, the left shoe as its two parts, behind and front, each bare SVG elements (no <svg> around them), and the right shoe the same way or null."""
@@ -325,7 +396,16 @@ def _right_text(right: drawn.Side | None) -> str:
 
 
 def check_prompt(photos: list[Photo], sheet: dict, left: drawn.Side, right: drawn.Side | None,
-                 problems: list[str], notes: Sequence[str] = ()) -> str:
+                 problems: list[str], notes: Sequence[str] = (), style: str | None = None) -> str:
+    """The check of a straight-on drawing: also how much of the front each colour covers."""
+    p = _check_text(photos, sheet, left, right, problems, notes, BRIEF)
+    return (p.replace("Is the toe box the biggest, nearest shape?", SHARE_QUESTION + "Is the toe box the biggest, nearest "
+                      "shape?", 1).replace("The rules the drawing follows:", _straight_extra(style) + "The rules the "
+                                           "drawing follows:", 1))
+
+
+def _check_text(photos: list[Photo], sheet: dict, left: drawn.Side, right: drawn.Side | None,
+                problems: list[str], notes: Sequence[str], brief: str) -> str:
     found, right_text = _found(problems), _right_text(right)
     return f"""You drew this shoe from its photos as flat clip art for the drawn figure that shows the owner's outfits. Now check the drawing against the PHOTOS, not only against your sheet, and fix it if it needs it.
 
@@ -349,7 +429,160 @@ Compare drawing.png with the photos. Is it the same kind of shoe, with the same 
 If it is right and the automatic checks found nothing, say good, with no problems, and give the drawing and the sheet back unchanged. Otherwise say what was wrong in problems and give the drawing fixed: change what is wrong and what must change with it, and keep everything else as it is (the same shapes where possible). Correct the sheet too where it was wrong, and keep its opening_front_y, top_y and instep_y true to the drawing.
 
 The rules the drawing follows:
-{BRIEF}"""
+{brief}"""
+
+
+# ------------------------------------------------------------------ the turned view
+
+def turned_brief(style: str, a: float = turned.TURN) -> str:
+    """The rules for a drawing turned out `a` degrees, for a shoe of `style` (`turned.STYLES`): the wide frame, the view,
+    the guide's lines (an ordinary shoe of the style, from the 3D solid), what shows from the nearest part to the
+    furthest, the straight-on brief's opening and two parts, building on the surfaces, the style, left and right, and
+    where the opening is."""
+    words = turned.WORDS[style]
+    frame = """## The frame (about 16 units to a centimetre)
+- x -100 to 300. The leg is at x 62 to 138, centred on x = 100. The ground is y = 240: the sole's lowest point, under the toe.
+- The app draws the part of your shoe behind the leg first, then a leg (in a sock) over it, then the part in front of the leg over that, so the leg goes into the shoe.
+- The guide below gives the shoe's size and place for its kind: fit it to the photos.
+- Nothing goes left of x -98 or right of x 298."""
+    view = f"""## The view: turned out {a:g} degrees, seen from in front and a little above
+ONE shoe: the viewer's left one, the wearer's RIGHT foot. The camera is in front of the wearer and a little above; the foot is turned out {a:g} degrees, as a man stands: the toe points towards the viewer and a little to the viewer's LEFT, and the heel is behind the leg.
+
+## The guide: draw ON it
+guide.png is the true shape of an ordinary {words} in exactly this view and this frame, made from a 3D model of a shoe, with the leg (x 62 to 138) as a pale band. Its lines, in the frame's coordinates:
+{turned.guide_text(style, a)}
+Use it as your underdrawing. Your sole band, your upper's silhouette, your opening and your lacing's centre line keep the guide's perspective. Change them only where the photos show this shoe differs from an ordinary {words} (a longer, rounder or squarer toe; a thicker or thinner sole; a higher or lower collar; a chunkier or slimmer shape), and only by that difference. Never flatten what the guide shows rising: the heel is further away than the toe, so everything along the inner side climbs towards the heel.
+
+## What you see, from the nearest part to the furthest
+- The sole: one band along the bottom, deepest under the toe. It curves round the toe and runs back along the inner side, climbing steeply towards the heel (as the guide's does) until the leg hides it; on the outer side (the left) only its edge shows.
+- The toe box: the nearest, lowest and largest shape, at the lower left. Its top is a broad dome that rolls round into the inner side with no edge or corner between them.
+- The inner side (the arch side): a narrow strip of the upper above the sole, on the right, climbing with the sole towards the heel. Panels, overlays, logos, stripes and elastic that are on the inner side show here, narrowed by the turn and sloping with the strip, as they wrap round the shoe; draw them as the inner side photo has them (as the outer side has them when there is no inner photo).
+- The vamp and the lacing (or the plain instep): up and back from the toe box along the guide's centre line. The lacing follows that line: its rows are square to it, not to the page, and get shorter and closer together further back.
+- The opening, round the leg at the top: its front edge (the tongue top or the collar's front) crosses the leg; the collar's back and the heel counter are behind the leg, so they go in the part behind it.
+- The heel: the furthest part, on the right, mostly behind the leg. Its outline is the guide's: down from the collar and round into the sole, with no sharp corner where the collar or the sole meets it.
+The turn is about the vertical, so nothing leans: a boot's shaft stands upright round the leg. Do not tilt it and do not thicken its lines: the app does not turn it any further and matches the line weight itself."""
+    rest = BRIEF[BRIEF.index("## The opening"):BRIEF.index("## How to build it")].strip()
+    build = """## How to build it
+1. The sole band: the guide's, fitted to the photos' thickness, in the sole's colour, with the bold outline.
+2. The upper's whole silhouette on top of it: the guide's, fitted to the photos, in the main colour, with the bold outline.
+3. The few panels of another colour, each one closed shape with a thin outline, lying ON the surfaces they cover (the toe box's dome, the inner side's strip, the vamp), so their edges curve and slope with those surfaces: a toe cap's seam is a curve across the dome; a side panel is a band that narrows and climbs with the strip.
+4. The seams that define the shoe (a toe cap line, a moccasin seam, a boot's instep seam): thin lines, on the surfaces too.
+5. The tongue and the lacing, last, in front of the leg, along the centre line.
+6. The upper's bold outline once more over everything."""
+    style_rules = (BRIEF[BRIEF.index("## Style (strict)"):BRIEF.index("## Left and right")].strip()
+                   .replace("draw a detail only if it shows from the front AND", "draw a detail only if it shows in this view AND")
+                   .replace("The sole's front edge is as thick as it looks from the front, no thicker.",
+                            "The sole's edge is as thick as it looks in the photos, no thicker.")
+                   .replace("Outsole rubber climbs the toe only as far as the front shows it.",
+                            "Outsole rubber climbs the toe and the side only as far as the photos show it."))
+    left_right = f"""## Left and right
+The app mirrors the left drawing for the other foot, which turns its toe out the other way with its inner side towards the viewer too: right for most shoes. Only when a mark would read the wrong way round mirrored (a letter-shaped logo) or the two shoes differ, also draw the viewer's right shoe on its own (the wearer's LEFT foot), in the same frame: its toe turned {a:g} degrees to the viewer's RIGHT (towards x 300), its inner side face running from the toe box back along the lower LEFT of the shoe, its heel and collar back to the LEFT of the leg, and every mark reading the right way round. Set one_side_mark true exactly when you give a right drawing."""
+    where = BRIEF[BRIEF.index("## Where it is"):].strip()
+    return "\n\n".join([frame, view, rest, build, style_rules, left_right, where])
+
+
+RUNNER_TURNED = """
+- On the inner side's strip, the midsole shows its profile: thickest at the heel, thinning to the ball, then curving up to the lifted toe, flaring out past the upper, with its marks following its curve."""
+
+
+def turn_prompt(photos: list[Photo], sheet: Mapping, left: drawn.Side, right: drawn.Side | None, style: str,
+                notes: Sequence[str] = (), a: float = turned.TURN) -> str:
+    """Turning the straight-on drawing: the details are the computed turn's (turned.png), the outline is drawn by eye,
+    and the inner side that comes into view is drawn from its photo."""
+    words = turned.WORDS[style]
+    fr, md = turned.inner_region(style, a, 0.65, 0.92), turned.inner_region(style, a)
+    runner = RUNNER_TURNED if style == "runner" else ""
+    runner_section = (RUNNER + "\n\n") if style == "runner" else ""
+    return f"""You drew this shoe from its photos as flat clip art, straight on (straight.png). Now draw it turned out {a:g} degrees, as a man stands, for the drawn figure that shows the owner's outfits. You have two references for the turn.
+
+- turned.png (its SVG is below) is your straight-on drawing turned by the app with a 3D model of a shoe. Its DETAILS are exactly right: every seam, panel edge, lacing row, stitch line, logo and stripe is where it goes on the turned shoe, tilted as it turns.
+- Its OUTLINES are not right, and must not be copied. An outline is not drawn on the shoe: it is where the shoe's surface turns away from you, so when the shoe turns, a different part of the surface becomes the outline. Turned as if painted on, the outline comes out squashed into a straight edge on the outer side (the left), with the inner side (the right) left open, where the leg shows through.
+
+## The photos of the shoe
+{photo_lines(photos)}
+Ignore dirt, wear, shade, highlights, the floor and the background.{notes_section(notes)}
+
+## The turned drawing (its details are right, its outlines are not)
+Its sheet (from the straight-on drawing):
+{_sheet_text(sheet)}
+
+The left shoe, {_shoe_text(left)}
+
+The right shoe, {_right_text(right)}
+
+## How to draw it
+1. The outline is yours. Draw the upper's silhouette and the sole band's outer edge as the real shoe turned {a:g} degrees looks, by eye, as you would turn your straight-on drawing yourself: smooth, and round wherever the shoe is round; the toe box still a broad dome, as wide as in straight.png (the shoe gets wider only by the inner side that comes into view); the toe moved down and to the left as in turned.png; the inner side closing the shoe on the right, climbing towards the heel, as guide.png's right panel shows for an ordinary {words}. From just below the opening down to the sole, the shoe covers the leg completely.
+2. The details are turned.png's. Copy every seam, panel, lacing row, stitch line, logo and stripe from its SVG, with the same coordinates and tilts. Where a detail or a panel reaches the outline, trim or extend it to meet your outline; a panel whose edge is partly the outline (a toe cap, the sole band, a side panel) keeps turned.png's seams and takes your outline for its outer edge.
+3. On the inner side that comes into view, draw what the inner side photo shows there (panels, overlays, logos, stripes, elastic, the midsole's marks), narrowed and sloping with the strip; shapes that wrap onto it continue in the same colour with no new seam.
+4. Add nothing the photos do not show: every panel and mark you draw is one you can point to in a photo, in the same place.
+5. What of the inner side shows, from a 3D model of an ordinary {words} turned this way: its FRONT third (from the ball forward, beside the toe box) shows as a band about {fr[2]-fr[0]:.0f} units wide, at about x {fr[0]:.0f} to {fr[2]:.0f}, y {fr[1]:.0f} to {fr[3]:.0f}; its MIDDLE third only as a sliver about {md[2]-md[0]:.0f} units wide at the edge, x {md[0]:.0f} to {md[2]:.0f}; its back third is hidden. Draw on each part what the inner side photo shows there. The shoe's SIGNATURE marks on the inner side (its logo, the main panel or stripe that makes it recognisable) are drawn a little more than this strict view shows, as an illustrator would, so they still read: a logo in the middle of the side shows as its front part, narrowed to about 16 units wide, at the edge of the band nearest the heel (about x {md[0]-12:.0f} to {md[2]:.0f}), cut by the outline and reading the right way round; a panel or stripe that runs along the side shows across the band, narrowed and sloping with it. Other marks keep the strict view's size. A side mark that straight.png or turned.png shows on the toe box or at the front of the shoe is in the wrong place: leave it out there. In a right drawing (the other foot), the inner side is on the LEFT: mirror these x values (x becomes 200 - x).{runner}
+- On the inner side the sole's edge shows as a band below and beside the upper, climbing steeply towards the heel, as guide.png's right panel shows. Its top end, at the heel, is rounded and curves back behind the upper. The upper's own outline on the inner side stays one smooth curve from the toe box up to the collar: never step the outline out sideways to meet the sole, and never leave a notch, corner or lump where the two meet.
+- The back of the collar and a pull tab at the back are behind the leg: they go in the part behind it. A boot's shaft stands upright round the leg.
+- Give the sheet back for the turned drawing: one_side_mark, opening_front_y, top_y and instep_y true to it.
+
+{runner_section}## The rules the drawing follows
+{turned_brief(style, a)}
+
+Answer with the sheet, the left shoe as its two parts, behind and front, each bare SVG elements (no <svg> around them), and the right shoe the same way or null."""
+
+
+def turned_check_prompt(photos: list[Photo], sheet: dict, left: drawn.Side, right: drawn.Side | None,
+                        problems: list[str], style: str, notes: Sequence[str] = (), a: float = turned.TURN) -> str:
+    """The check of a turned drawing, against straight.png, turned.png and the photos."""
+    p = _check_text(photos, sheet, left, right, problems, notes, turned_brief(style, a))
+    first = p.split("\n", 1)[0]
+    p = p.replace(first, f"You turned your straight-on drawing of this shoe (straight.png) out {a:g} degrees: the outline "
+                         "drawn by eye, smooth and round, and the details placed as turned.png (turned by a 3D model) places "
+                         "them. Now check the drawing against turned.png and the PHOTOS, and fix it if it needs it: the "
+                         "details keep turned.png's places and tilts; the outline is smooth and round, not turned.png's "
+                         "squashed one; the toe box is as wide as in straight.png; the inner side shows what the inner side "
+                         "photo shows, and nothing is drawn that the photos do not show; the shoe covers the leg below the "
+                         "opening.", 1)
+    return p.replace("Is the toe box the biggest, nearest shape?",
+                     f"Is the shoe turned out {a:g} degrees (the toe box at the lower left, the inner side showing as a "
+                     "foreshortened side face), not pointing straight at the viewer? Is the toe box the biggest, nearest "
+                     "shape? Do the inner side's panels and marks match the photos?", 1)
+
+
+# ------------------------------------------------------------------ the judge
+
+JUDGE_SYSTEM = ("You compare drawings of a shoe with its photos. Look at every image file named in the request with the "
+                "Read tool, then answer in the required JSON format. Do nothing else.")
+SIDE_RULE = ("A logo or mark in the middle of the shoe's side shows from the front only as a thin sliver at the outline, "
+             "or not at all; a candidate that draws a side logo on the toe box or the front is wrong there. ")
+LETTERS = "abcdefgh"
+
+
+def candidate_names(n: int) -> list[str]:
+    return [f"candidate-{LETTERS[i]}.png" for i in range(n)]
+
+
+def judge_prompt(photos: list[Photo], n: int, turned_view: bool = False, a: float = turned.TURN,
+                 notes: Sequence[str] = ()) -> str:
+    """Which of `n` drawings (candidate-a.png, ...) is most faithful to the photos: straight-on drawings, or turned ones
+    (then straight.png, the chosen straight-on drawing, is shown too). `notes`: the owner's notes on earlier drawings
+    of the shoe, which a candidate is right to follow."""
+    named = ", ".join(photo_names(len(photos)))
+    cands = ", ".join(candidate_names(n))
+    if turned_view:
+        head = f"""These are photos of one shoe ({named}), its drawing as flat clip art straight on (straight.png, already checked against the photos), and {n} candidate drawings of the same shoe turned out {a:g} degrees, as a man stands ({cands} for candidates {", ".join(LETTERS[:n].upper())}; each shows the pair on two legs, large and at phone size).
+
+Turned, the shoe should keep every panel, colour and detail of straight.png, moved with the turn, with smooth, rounded outlines; and the inner side that comes into view on the right of the viewer's left shoe (on the left of the right shoe) should show what the inner side photo shows there, at its true place along the shoe and narrowed by the turn, with nothing added that the photos do not show. {SIDE_RULE}Which candidate does this best? Judge faithfulness and cleanness (no stray shapes, slivers, spikes, gaps or lumps), not style. First describe what the inner side shows in the photos; then list each candidate's faults; then choose."""
+    else:
+        head = f"""These are photos of one shoe ({named}) and {n} candidate drawings of it as flat clip art seen from the front and a little above ({cands} for candidates {", ".join(LETTERS[:n].upper())}; each shows the pair on two legs, large and at phone size).
+
+Which candidate is most faithful to the photos: the same panels, in the same colours, with the same shapes and the same edges where they meet, the same marks, in the same places, as they would show from the front? {SIDE_RULE}Judge faithfulness to THIS shoe, not drawing quality or style. First describe the shoe's panels from the photos alone; then list each candidate's faults; then choose."""
+    owner = ""
+    if notes:
+        owner = f"""
+
+## The owner's notes on earlier drawings of this shoe
+The owner corrected earlier drawings of this shoe with these notes. They are the owner's word: a candidate that keeps to them is right there, even where the photos seem to show otherwise, and one that goes against them has a fault.
+{_note_lines(notes)}"""
+    return f"""{head}
+
+## The photos of the shoe
+{photo_lines(photos)}{owner}"""
 
 
 def _note_text(note: str) -> str:
@@ -371,7 +604,7 @@ def _sheet_text(sheet: Mapping) -> str:
 
 
 def correct_prompt(photos: list[Photo], sheet: Mapping, left: drawn.Side, right: drawn.Side | None, note: str,
-                   notes: Sequence[str] = (), whole: bool = False) -> str:
+                   notes: Sequence[str] = (), whole: bool = False, brief: str | None = None) -> str:
     """The owner's one-line note on a drawing: change only what it asks. `whole`: the drawing was kept as version 1,
     all of it in front of the leg."""
     kept = ("\nThis drawing was kept before drawings had two parts, so all of it is given as in front of the leg. Give "
@@ -402,13 +635,13 @@ The right shoe, {_right_text(right)}
 - changed: what you changed, in one short plain sentence for the owner, such as "The elastic side panels are wider."
 
 ## The rules the drawing follows
-{BRIEF}
+{brief or BRIEF}
 
 Answer with changed, against_photos, the sheet, the left shoe as its two parts, behind and front, each bare SVG elements (no <svg> around them), and the right shoe the same way or null."""
 
 
 def correct_check_prompt(photos: list[Photo], sheet: Mapping, left: drawn.Side, right: drawn.Side | None,
-                         problems: list[str], note: str, notes: Sequence[str] = ()) -> str:
+                         problems: list[str], note: str, notes: Sequence[str] = (), brief: str | None = None) -> str:
     """A check of a drawing changed from the owner's note, against the photos and the drawing before the change."""
     return f"""You changed your drawing of this shoe as the owner's one-line note asked. Now check the change against the PHOTOS, not only against the note, and fix it if it needs it.
 
@@ -440,7 +673,7 @@ Compare drawing.png with before.png and with the photos.
 If it is right and the automatic checks found nothing, say good, with no problems, and give the drawing and the sheet back unchanged. Otherwise say what was wrong in problems and give the drawing fixed: change what is wrong and keep everything else as it is. Keep the sheet's opening_front_y, top_y and instep_y true to the drawing.
 
 The rules the drawing follows:
-{BRIEF}"""
+{brief or BRIEF}"""
 
 
 # ------------------------------------------------------------------ the calls
@@ -463,6 +696,7 @@ class Call:
     output_tokens: int
     cost_usd: float     # what the API key would charge for it
     seconds: float
+    cache_write_tokens: int = 0   # of input_tokens, those written to the prompt cache (the API route)
 
 
 @dataclass
@@ -478,6 +712,9 @@ class Drawn:
     calls: list[Call] = field(default_factory=list)
     good: bool = False
     problems: list[str] = field(default_factory=list)
+    view: str = drawn.FRONT.name           # "turned": drawn turned out, as the figure shows it
+    style: str | None = None              # the 3D solid it was turned with (`turned.STYLES`)
+    straight: dict | None = None          # the straight-on drawing it was turned from: {left, right, sheet}
 
     @property
     def route(self) -> str:
@@ -490,12 +727,13 @@ class Drawn:
                 "cost_usd": round(sum(c.cost_usd for c in self.calls), 6)}
 
     def to_json(self, photo_ids: list[str], made_at: str, notes: Sequence[Mapping] = ()) -> dict:
-        """As kept with the item (`items.drawn`): version 2, each shoe {behind, front}. `notes`: the owner's notes on
+        """As kept with the item (`items.drawn`): version 3, its view, each shoe {behind, front}. `notes`: the owner's notes on
         the drawing it replaces (`notes_of`), carried on so a later drawing keeps to them; they are also the sheet's
         `owner_notes`."""
         notes = [dict(n) for n in notes]
         sheet = {**self.sheet, "owner_notes": [n["note"] for n in notes]} if notes else self.sheet
-        return {"version": drawn.VERSION, "left": self.left.to_json(),
+        return {"version": drawn.VERSION, "view": self.view, "style": self.style, "straight": self.straight,
+                "left": self.left.to_json(),
                 "right": self.right.to_json() if self.right else None, "sheet": sheet, "rounds": self.rounds,
                 "seconds": round(self.seconds, 1), "good": self.good, "problems": self.problems,
                 "calls": [{**asdict(c), "cost_usd": round(c.cost_usd, 6), "seconds": round(c.seconds, 1)}
@@ -551,7 +789,7 @@ def _sentence(text) -> str | None:
 
 
 def api_cost(model: str, input_tokens: int, cache_read_tokens: int, output_tokens: int) -> float:
-    """What the API key would charge for a call, at the prices in `models.json`, whichever route made it. The API
+    """What the API key would charge for a call made through the plan, at the prices in `models.json`. The API
     route sends everything once; through the plan, Claude Code reads its earlier context again from its cache on each
     step (`cache_read_tokens`), which the API route would not do, so those are left out."""
     return cost_usd(model, max(0, input_tokens - cache_read_tokens), output_tokens)
@@ -570,16 +808,24 @@ Asker = Callable[..., correcting.CorrectionResult]
 
 
 def _caller(routes: tuple[str, ...], client, exe: str | None, meter: Meter | None, asker: Asker,
-            clock: Callable[[], float], calls: list[Call]):
-    """One call to Claude on the drawing model, recorded in `calls` with its tokens, cost and seconds."""
+            clock: Callable[[], float], calls: list[Call], cache_photos: int = 0):
+    """One call to Claude on the drawing model, recorded in `calls` with its tokens, cost and seconds. `cache_photos`:
+    every call's images start with the shoe's photos, this many: on the API route the request is cached up to the
+    last of them, so each later call reads them back from the cache."""
     def ask(kind: str, text: str, images: list[Image.Image], image_names: list[str], answer_model):
         t = clock()
         result = asker(text, images, routes, client=client, exe=exe, meter=meter, answer_model=answer_model,
                        system=SYSTEM, model=MODEL, names=image_names, max_tokens=MAX_TOKENS, timeout=TIMEOUT,
-                       effort=EFFORT, cache_photos=True)
+                       effort=EFFORT, cache_photos=cache_photos)
         cached = getattr(result, "cache_read_tokens", 0) or 0
-        calls.append(Call(kind, result.route, result.model, result.input_tokens, cached, result.output_tokens,
-                          api_cost(result.model, result.input_tokens, cached, result.output_tokens), clock() - t))
+        written = getattr(result, "cache_write_tokens", 0) or 0
+        if result.route == "api":   # what it cost, the cache's writes and reads at their own prices
+            cost = cost_usd(result.model, max(0, result.input_tokens - cached - written), result.output_tokens,
+                            written, cached)
+        else:
+            cost = api_cost(result.model, result.input_tokens, cached, result.output_tokens)
+        calls.append(Call(kind, result.route, result.model, result.input_tokens, cached, result.output_tokens, cost,
+                          clock() - t, written))
         return result.answer
     return ask
 
@@ -598,12 +844,13 @@ class _Checked:
 def _check(ask, left: drawn.Side, right: drawn.Side | None, sheet: dict, max_rounds: int,
            prompt: Callable[[dict, drawn.Side, drawn.Side | None, list[str]], str],
            images: Callable[[drawn.Side, drawn.Side | None], tuple[list[Image.Image], list[str]]],
-           answer_model) -> _Checked:
-    """The check rounds: each shows Claude the drawing and what the automatic checks found, and takes its fix. They
-    stop as soon as Claude says good and the automatic checks find nothing, and after `max_rounds` in any case. A check
-    that fails keeps the drawing so far; a fix that cannot be used is set aside and the drawing before it is checked
-    again."""
-    problems, note = drawn.checks(left, right, sheet), []
+           answer_model, checker: Callable[[drawn.Side, drawn.Side | None, dict], list[str]] = drawn.checks,
+           ) -> _Checked:
+    """The check rounds: each shows Claude the drawing and what the automatic checks (`checker`) found, and takes its
+    fix. They stop as soon as Claude says good and the automatic checks find nothing, and after `max_rounds` in any
+    case. A check that fails keeps the drawing so far; a fix that cannot be used is set aside and the drawing before it
+    is checked again."""
+    problems, note = checker(left, right, sheet), []
     rounds, good, answers = 0, False, []
     while rounds < max_rounds:
         shots, names = images(left, right)
@@ -620,44 +867,300 @@ def _check(ask, left: drawn.Side, right: drawn.Side | None, sheet: dict, max_rou
         try:
             left, right = _drawing(answer)
             sheet, note = answer.sheet.model_dump(), []
-            problems = drawn.checks(left, right, sheet)
+            problems = checker(left, right, sheet)
         except drawn.DrawingError as e:   # the fix cannot be used: the drawing before it is checked again
             note = [f"The drawing you gave last could not be used ({e}) This is the drawing before it: fix it again, "
                     "or say good if it needs nothing."]
     return _Checked(left, right, sheet, rounds, good, problems, answers)
 
 
-def draw(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | None = None,
-         meter: Meter | None = None, asker: Asker = correcting.ask, clock: Callable[[], float] = time.monotonic,
-         notes: Sequence[str] = ()) -> Drawn:
-    """Draw the shoe from its photos (the main one first) and check it, at most `MAX_ROUNDS` times. `notes`: the
-    owner's notes on earlier drawings of the shoe, kept to by the drawing and its checks. Raises `RouteUnavailable`
-    (or `CapReached`) when Claude cannot be reached for the drawing, `TaggingError` when it gives no usable answer,
-    `drawn.DrawingError` when its drawing cannot be used. `asker` stands in for `correcting.ask` (tests, the browser
-    tests' stand-in)."""
+def style_of(sheet: Mapping, hint: str | None = None) -> str | None:
+    """The shoe style whose 3D solid turns the drawing (`turned.STYLES`): the item's own (`hint`, from its
+    description) when it has one, else read from the drawing's sheet. None for a sandal: it is kept straight on."""
+    if hint == "sandal":
+        return None
+    if hint in turned.STYLES:
+        return hint
+    text = " ".join(str(sheet.get(k) or "") for k in ("kind", "archetype")).lower()
+    height = ((sheet.get("silhouette") or {}) if isinstance(sheet.get("silhouette"), Mapping) else {}).get("height")
+    if any(w in text for w in ("sandal", "slide", "flip-flop", "flip flop")):
+        return None
+    if height in ("ankle", "boot"):
+        return "chelsea_boot" if any(w in text for w in ("chelsea", "elastic", "gusset", "gore", "pull-on")) else "boot"
+    if height == "low_profile":
+        return "loafer"
+    if any(w in text for w in ("running", "runner", "jogging")):
+        return "runner"
+    if any(w in text for w in ("derby", "blucher")):
+        return "derby"
+    if any(w in text for w in ("oxford", "balmoral", "brogue", "wingtip", "cap-toe", "dress shoe")):
+        return "oxford"
+    if any(w in text for w in ("high-top", "high top", "hi-top")):
+        return "high_top"
+    if any(w in text for w in ("slip-on", "slip on")):
+        return "slip_on"
+    return "low_sneaker"
+
+
+def _kept_turn_checks(kept: Mapping, style: str):
+    """A kept turned drawing's automatic checks, with its shaft measured against the turn of the straight-on drawing
+    it was made from (`straight`); the turned view's own checks when that drawing cannot be read."""
+    try:
+        st = kept.get("straight") or {}
+        sheet = st["sheet"]
+        left = turned.turn_side(drawn.side(st["left"]), style, sheet)
+        right = turned.turn_side(drawn.side(st["right"]), style, sheet, mirror=True) if st.get("right") else None
+    except (KeyError, TypeError, drawn.DrawingError):
+        return None
+    return _upright_checks(_Computed(left, right, []), sheet)
+
+
+def _measured_clean(made: list[_Checked]) -> list[int]:
+    """Which drawings the judge may choose: those the automatic checks find nothing wrong with, when there are any;
+    else all of them. A measured fault (off the ground, the leg hidden, the light material's share against the front
+    photo, a boot's shaft leaning) is certain where the judge's eye is not; the judge still sees them all."""
+    clean = [i for i, m in enumerate(made) if not m.problems]
+    return clean or list(range(len(made)))
+
+
+def _parallel(n: int, job: Callable[[int], object]) -> tuple[list, list[BaseException]]:
+    """`job(0)` ... `job(n - 1)` side by side: what came back, in order (None where it failed), and what failed."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def run(i):
+        try:
+            return job(i), None
+        except BaseException as e:   # recorded; whether it matters is the caller's to say
+            return None, e
+    if n == 1:
+        got = [run(0)]
+    else:
+        with ThreadPoolExecutor(max_workers=n) as pool:
+            got = list(pool.map(run, range(n)))
+    return [g for g, _ in got], [e for _, e in got if e is not None]
+
+
+def _judge(ask, photos: list[Photo], shots: list[Image.Image], names: list[str],
+           cands: list[tuple[drawn.Side, drawn.Side | None]], view: drawn.View,
+           straight: tuple[drawn.Side, drawn.Side | None] | None = None,
+           notes: Sequence[str] = (), allowed: Sequence[int] | None = None) -> tuple[int, list[str]]:
+    """Which candidate the judge finds most faithful to the photos (its index), and its faults in plain words. The
+    judge sees them all; the choice is its best-ranked one among `allowed` (all, by default). The first allowed one,
+    with no faults known, when there is one candidate or the judge cannot answer."""
+    allowed = [i for i in (allowed if allowed is not None else range(len(cands))) if 0 <= i < len(cands)] or [0]
+    if len(cands) == 1:
+        return 0, []
+    images = [_png(drawn.check_png(lf, rt, view)) for lf, rt in cands]
+    extra, extra_names = [], []
+    if straight is not None:
+        extra, extra_names = [_png(drawn.check_png(*straight))], ["straight.png"]
+    try:
+        v = ask("judge", judge_prompt(photos, len(cands), turned_view=straight is not None, notes=notes),
+                shots + extra + images, names + extra_names + candidate_names(len(cands)), Verdict)
+    except TaggingError as e:   # Claude out of reach, or no usable answer: the first is kept
+        log.info("judging a shoe's drawings stopped: %s", type(e).__name__)
+        return allowed[0], []
+    order = []
+    for said in [v.best or ""] + list(v.ranking or []):
+        letter = said.strip().lower()[:1]
+        i = LETTERS.find(letter) if letter else -1
+        if 0 <= i < len(cands) and i not in order:
+            order.append(i)
+    if not order:
+        return allowed[0], []
+    i = next((k for k in order if k in allowed), allowed[0])
+    letter = LETTERS[i]
+    faults = [f.split(":", 1)[1].strip() if ":" in f else f.strip() for f in v.faults
+              if f.strip().lower().startswith(letter)]
+    return i, [f for f in faults if f and f.strip(" .").lower() != "none"]
+
+
+def _straight(ask, photos: list[Photo], shots: list[Image.Image], names: list[str], notes: Sequence[str],
+              style: str | None, front: photocheck.FrontCheck | None) -> _Checked:
+    """One straight-on drawing and its check rounds (the photo check, where it applies, among the automatic checks)."""
+    examples = [_png(drawn.example_png(name)) for name in drawn.EXAMPLES]
+    first = ask("draw", draw_prompt(photos, notes, style), shots + examples, names + EXAMPLE_NAMES, DrawAnswer)
+    left, right = _drawing(first)
+
+    def checker(lf, rt, sheet):
+        return drawn.checks(lf, rt, sheet) + (front.problems(lf, sheet) if front is not None else [])
+    return _check(ask, left, right, first.sheet.model_dump(), MAX_ROUNDS,
+                  lambda sheet, lf, rt, found: check_prompt(photos, sheet, lf, rt, found, notes, style),
+                  lambda lf, rt: (shots + [_png(drawn.check_png(lf, rt))], names + ["drawing.png"]), CheckAnswer, checker)
+
+
+def _turned_checks(left, right, sheet):
+    return drawn.checks(left, right, sheet, drawn.TURNED)
+
+
+def _upright_checks(computed: _Computed, sheet: Mapping) -> Callable[[drawn.Side, drawn.Side | None, dict], list[str]]:
+    """The turned view's automatic checks, and whether a boot's shaft stands where the computed turn leaves it
+    (`turned.upright_problems`), against the straight-on drawing's sheet the turn was made with."""
+    def check(left, right, found_sheet):
+        found = _turned_checks(left, right, found_sheet) + turned.upright_problems(left, computed.left, sheet)
+        if right is not None and computed.right is not None:
+            found += turned.upright_problems(right, computed.right, sheet, which="right")
+        return found
+    return check
+
+
+@dataclass
+class _Computed:
+    """The straight-on drawing turned by the 3D solid, and the pictures the turn is drawn from."""
+    left: drawn.Side
+    right: drawn.Side | None
+    refs: list[Image.Image]
+
+
+REF_NAMES = ["straight.png", "turned.png", "guide.png"]
+
+
+def _computed(straight: _Checked, style: str) -> _Computed:
+    left1 = turned.turn_side(straight.left, style, straight.sheet)
+    right1 = turned.turn_side(straight.right, style, straight.sheet, mirror=True) if straight.right else None
+    refs = [_png(drawn.check_png(straight.left, straight.right)), _png(drawn.check_png(left1, right1, drawn.TURNED)),
+            _png(turned.guide_png(style))]
+    return _Computed(left1, right1, refs)
+
+
+def _turn(ask, photos: list[Photo], shots: list[Image.Image], names: list[str], notes: Sequence[str], style: str,
+          straight: _Checked, computed: _Computed) -> _Checked:
+    """The straight-on drawing turned out: the computed turn (`turned.turn_side`) shown as turned.png beside the
+    straight-on drawing and the guide; Claude draws the outline and the inner side, then checks."""
+    left1, right1, refs, ref_names = computed.left, computed.right, computed.refs, REF_NAMES
+    first = ask("turn", turn_prompt(photos, straight.sheet, left1, right1, style, notes), shots + refs,
+                names + ref_names, TurnedDrawAnswer)
+    left, right = _drawing(first)
+    return _check(ask, left, right, first.sheet.model_dump(), MAX_ROUNDS,
+                  lambda sheet, lf, rt, found: turned_check_prompt(photos, sheet, lf, rt, found, style, notes),
+                  lambda lf, rt: (shots + refs + [_png(drawn.check_png(lf, rt, drawn.TURNED))],
+                                  names + ref_names + ["drawing.png"]), TurnedCheckAnswer,
+                  _upright_checks(computed, straight.sheet))
+
+
+def _correcting(ask, photos: list[Photo], shots: list[Image.Image], names: list[str], sheet: Mapping,
+                left0: drawn.Side, right0: drawn.Side | None, note: str, earlier: Sequence[str], whole: bool,
+                view: drawn.View, style: str | None, max_rounds: int, checker=None):
+    """A drawing changed as `note` asks, then checked against the photos and the drawing before it: (the change's
+    answer, the checks). In the turned view, with its brief and forms. `checker`: the automatic checks, when not the
+    view's own."""
+    turned_view = view is drawn.TURNED
+    brief = turned_brief(style) if turned_view else None
+    before = _png(drawn.check_png(left0, right0, view))
+    first = ask("correct", correct_prompt(photos, sheet, left0, right0, note, earlier, whole, brief=brief),
+                shots + [before], names + ["drawing.png"], TurnedCorrectAnswer if turned_view else CorrectAnswer)
+    left, right = _drawing(first)
+    done = _check(ask, left, right, first.sheet.model_dump(), max_rounds,
+                  lambda sh, lf, rt, found: correct_check_prompt(photos, sh, lf, rt, found, note, earlier, brief=brief),
+                  lambda lf, rt: (shots + [before, _png(drawn.check_png(lf, rt, view))],
+                                  names + ["before.png", "drawing.png"]),
+                  TurnedCorrectCheckAnswer if turned_view else CorrectCheckAnswer,
+                  checker or (_turned_checks if turned_view else drawn.checks))
+    return first, done
+
+
+def draw_straight(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | None = None,
+                  meter: Meter | None = None, asker: Asker = correcting.ask, clock: Callable[[], float] = time.monotonic,
+                  notes: Sequence[str] = (), style: str | None = None, front: photocheck.FrontCheck | None = None) -> Drawn:
+    """One straight-on drawing of the shoe and its checks, at most `MAX_ROUNDS` (one candidate of `draw`, kept straight
+    on). Raises as `draw` does."""
     start = clock()
     shots = [shown(p.image) for p in photos]
     names = photo_names(len(photos))
     calls: list[Call] = []
-    ask = _caller(routes, client, exe, meter, asker, clock, calls)
+    ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_photos=len(shots))
+    done = _straight(ask, photos, shots, names, list(notes), style, front)
+    return Drawn(done.left, done.right, done.sheet, done.rounds, clock() - start, calls, done.good, done.problems)
+
+
+def draw(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | None = None,
+         meter: Meter | None = None, asker: Asker = correcting.ask, clock: Callable[[], float] = time.monotonic,
+         notes: Sequence[str] = (), style: str | None = None, mask_of: photocheck.MaskOf | None = None) -> Drawn:
+    """Draw the shoe from its photos (the main one first) as the figure shows it, turned out `turned.TURN` degrees.
+
+    1. The photos are cut to the shoe (`photocheck.crop`, with the app's background model `mask_of` when there is
+       one).
+    2. CANDIDATES straight-on drawings are made side by side, each checked at most MAX_ROUNDS times (with the photo
+       check, `photocheck.FrontCheck`, where it applies), and the judge keeps the one most faithful to the photos.
+    3. TURNS turns of it are made side by side (`_turn`), and the judge keeps the best; its faults are given back as a
+       note to fix (`_correcting`), and the fixed turn is kept only when the judge prefers it.
+
+    `style`: the item's shoe style, from its description (`style_of` reads the sheet when there is none); a sandal is
+    kept straight on. `notes`: the owner's notes on earlier drawings of the shoe, kept to throughout. Raises
+    `RouteUnavailable` (or `CapReached`) when Claude cannot be reached for a drawing, `TaggingError` when no candidate
+    gives a usable answer, `drawn.DrawingError` when none can be used. A turn or a fix that fails keeps what was made
+    before it. `asker` stands in for `correcting.ask` (tests, the browser tests' stand-in)."""
+    start = clock()
+    photos = [Photo(photocheck.crop(p.image, mask_of), p.view, p.sure) for p in photos]
+    front_photo = next((p for p in photos if p.view == "front" and p.sure is not False), None)
+    front = photocheck.FrontCheck.of(front_photo.image, mask_of) if front_photo is not None else None
+    shots = [shown(p.image) for p in photos]
+    names = photo_names(len(photos))
+    calls: list[Call] = []
+    ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_photos=len(shots))
     notes = list(notes)
 
-    examples = [_png(drawn.example_png(name)) for name in drawn.EXAMPLES]
-    first = ask("draw", draw_prompt(photos, notes), shots + examples, names + EXAMPLE_NAMES, DrawAnswer)
-    left, right = _drawing(first)
-    done = _check(ask, left, right, first.sheet.model_dump(), MAX_ROUNDS,
-                  lambda sheet, lf, rt, found: check_prompt(photos, sheet, lf, rt, found, notes),
-                  lambda lf, rt: (shots + [_png(drawn.check_png(lf, rt))], names + ["drawing.png"]), CheckAnswer)
-    return Drawn(done.left, done.right, done.sheet, done.rounds, clock() - start, calls, done.good, done.problems)
+    made, failed = _parallel(CANDIDATES, lambda i: _straight(ask, photos, shots, names, notes, style, front))
+    cands = [m for m in made if m is not None]
+    if not cands:
+        raise failed[0]
+    i, _ = _judge(ask, photos, shots, names, [(c.left, c.right) for c in cands], drawn.FRONT, notes=notes,
+                  allowed=_measured_clean(cands))
+    straight = cands[i]
+    rounds = sum(c.rounds for c in cands)
+
+    kind = style_of(straight.sheet, style)
+    if kind is None:   # a sandal: kept straight on
+        return Drawn(straight.left, straight.right, straight.sheet, rounds, clock() - start, calls, straight.good,
+                     straight.problems)
+    try:
+        computed = _computed(straight, kind)
+    except drawn.DrawingError as e:   # too long to turn: kept straight on, which the figure turns itself
+        log.info("turning a shoe's drawing failed (%s): kept straight on", e)
+        return Drawn(straight.left, straight.right, straight.sheet, rounds, clock() - start, calls, straight.good,
+                     straight.problems)
+    turns, failed = _parallel(TURNS, lambda i: _turn(ask, photos, shots, names, notes, kind, straight, computed))
+    turns = [t for t in turns if t is not None]
+    if not turns:
+        if any(isinstance(e, RouteUnavailable) for e in failed):
+            raise next(e for e in failed if isinstance(e, RouteUnavailable))
+        log.info("turning a shoe's drawing failed (%s): kept straight on", type(failed[0]).__name__)
+        return Drawn(straight.left, straight.right, straight.sheet, rounds, clock() - start, calls, straight.good,
+                     straight.problems)
+    pair = (straight.left, straight.right)
+    j, faults = _judge(ask, photos, shots, names, [(t.left, t.right) for t in turns], drawn.TURNED, straight=pair,
+                       notes=notes, allowed=_measured_clean(turns))
+    chosen = turns[j]
+    rounds += sum(t.rounds for t in turns)
+    if faults:
+        note = ("Fix only these faults, found by comparing the turned drawing with the photos and with the drawing "
+                "straight on: " + " ".join(faults))[:FIX_NOTE_MAX]
+        try:
+            _, fixed = _correcting(ask, photos, shots, names, chosen.sheet, chosen.left, chosen.right, note, notes,
+                                   False, drawn.TURNED, kind, MAX_CORRECT_ROUNDS,
+                                   checker=_upright_checks(computed, straight.sheet))
+            rounds += fixed.rounds
+            if fixed.problems and not chosen.problems:   # the fix broke what was measured right: the turn is kept
+                raise drawn.DrawingError("the fix has automatic problems the turn before it had not")
+            k, _ = _judge(ask, photos, shots, names, [(chosen.left, chosen.right), (fixed.left, fixed.right)],
+                          drawn.TURNED, straight=pair, notes=notes)
+            if k == 1:
+                chosen = fixed
+        except (TaggingError, drawn.DrawingError, RouteUnavailable) as e:   # the turn as it was is kept
+            log.info("fixing a shoe's turned drawing stopped: %s", type(e).__name__)
+    return Drawn(chosen.left, chosen.right, chosen.sheet, rounds, clock() - start, calls, chosen.good, chosen.problems,
+                 view=drawn.TURNED.name, style=kind,
+                 straight={"left": straight.left.to_json(), "right": straight.right.to_json() if straight.right else None,
+                           "sheet": straight.sheet})
 
 
 def correct(photos: list[Photo], kept: Mapping, note: str, routes: tuple[str, ...], client=None,
             exe: str | None = None, meter: Meter | None = None, asker: Asker = correcting.ask,
             clock: Callable[[], float] = time.monotonic) -> Corrected:
-    """Change a drawing kept with the item (`kept`, as `items.drawn`: version 1 or 2) as the owner's one-line `note`
-    asks, then check the change against the photos and the drawing before it, at most `MAX_CORRECT_ROUNDS` times. The
-    owner's earlier notes (`kept`'s notes) are kept to. Raises as `draw` does; `drawn.DrawingError` too when the
-    drawing kept cannot be read."""
+    """Change a drawing kept with the item (`kept`, as `items.drawn`: version 1, 2 or 3) as the owner's one-line
+    `note` asks, then check the change against the photos and the drawing before it, at most `MAX_CORRECT_ROUNDS`
+    times, in the drawing's own view (a turned drawing stays turned). The owner's earlier notes (`kept`'s notes) are
+    kept to. Raises as `draw` does; `drawn.DrawingError` too when the drawing kept cannot be read."""
     if not isinstance(kept, Mapping) or not isinstance(kept.get("sheet"), Mapping):
         raise drawn.DrawingError("The drawing to change has no sheet.")
     note = clean_note(note)
@@ -665,22 +1168,20 @@ def correct(photos: list[Photo], kept: Mapping, note: str, routes: tuple[str, ..
     left0 = drawn.side(kept.get("left"))
     right0 = drawn.side(kept["right"]) if kept.get("right") else None
     whole = isinstance(kept.get("left"), str)   # kept as version 1: all in front of the leg
+    view = drawn.VIEWS.get(kept.get("view") or "front", drawn.FRONT)
+    style = (kept.get("style") if kept.get("style") in turned.STYLES else style_of(kept["sheet"])) \
+        if view is drawn.TURNED else None
+    if view is drawn.TURNED and style is None:
+        view = drawn.FRONT
     earlier = [n["note"] for n in notes_of(kept)]
     shots = [shown(p.image) for p in photos]
     names = photo_names(len(photos))
     calls: list[Call] = []
-    ask = _caller(routes, client, exe, meter, asker, clock, calls)
-
-    before = _png(drawn.check_png(left0, right0))
-    first = ask("correct", correct_prompt(photos, kept["sheet"], left0, right0, note, earlier, whole),
-                shots + [before], names + ["drawing.png"], CorrectAnswer)
-    left, right = _drawing(first)
-    done = _check(ask, left, right, first.sheet.model_dump(), MAX_CORRECT_ROUNDS,
-                  lambda sheet, lf, rt, found: correct_check_prompt(photos, sheet, lf, rt, found, note, earlier),
-                  lambda lf, rt: (shots + [before, _png(drawn.check_png(lf, rt))],
-                                   names + ["before.png", "drawing.png"]),
-                  CorrectCheckAnswer)
+    ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_photos=len(shots))
+    first, done = _correcting(ask, photos, shots, names, kept["sheet"], left0, right0, note, earlier, whole, view, style,
+                              MAX_CORRECT_ROUNDS, checker=_kept_turn_checks(kept, style) if view is drawn.TURNED else None)
     # the last check looked at the change beside the photos, so its word on them is the one kept
     against = _sentence(done.answers[-1].against_photos if done.answers else first.against_photos)
     return Corrected(done.left, done.right, done.sheet, done.rounds, clock() - start, calls, done.good, done.problems,
+                     view=view.name, style=style, straight=kept.get("straight") if view is drawn.TURNED else None,
                      note=note, changed=_sentence(first.changed), against_photos=against)

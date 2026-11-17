@@ -247,6 +247,24 @@ def test_the_toe_turns_out_below_the_hinge_and_nothing_moves_above_it(drawing, h
     assert toe_out[0] < 0 < toe_out[1]   # the viewer's left toe goes left, the right one right
 
 
+def test_a_turned_drawing_is_placed_as_drawn_without_turning_it_again():
+    from closet.drawing import turned
+    out = turned.turn_side(drawn.side(drawn.example("dress-shoe")), "oxford", DRESS_DRAWING["sheet"])
+    drawing = {**kept(out, version=3), "view": "turned"}
+    assert drawn.stored(drawing).view is drawn.TURNED
+    shoes = replace(OXFORD, drawn=drawing)
+    placed = plan(outfit(shoes)).get("shoes")
+    assert fig._drawn_place(placed.front, drawn.stored(drawing)).shear == 0.0
+    assert fig._drawn_place(placed.front, drawn.stored(DRESS_DRAWING)).shear != 0.0   # straight on: the toe slid out
+    svg = figure(outfit(shoes), uid="t")
+    for _, inside in copies(group(svg, "tp")):
+        assert "matrix(1 0" not in inside   # no shear
+    assert "translate(-100 -240)" in svg   # the turned frame's middle is x 100, as straight on
+    wide = plan(outfit(shoes)).get("shoes").box()
+    assert wide[2] - wide[0] > plan(outfit(replace(OXFORD, drawn=DRESS_DRAWING))).get("shoes").box()[2] - \
+        plan(outfit(replace(OXFORD, drawn=DRESS_DRAWING))).get("shoes").box()[0]   # room for the wide frame
+
+
 def test_the_ink_lines_are_as_thick_as_the_figures_and_the_thick_laces_are_kept():
     svg = figure(outfit(replace(LOAFER, drawn=BOAT_DRAWING)), uid="t")
     pair = group(svg, "tp")
@@ -374,7 +392,8 @@ def test_the_demo_boot_is_drawn_on_the_figure(client):
     drawn_shoes = [i for i in items if i.get("drawn")]
     assert [i["name"] for i in drawn_shoes] == ["Brown boots"]
     boot = drawn_shoes[0]
-    assert boot["drawn"]["version"] == drawn.VERSION == 2 and boot["drawn"]["route"] == "demo"
+    assert boot["drawn"]["version"] == drawn.VERSION == 3 and boot["drawn"]["route"] == "demo"
+    assert boot["drawn"]["view"] == "front" and drawn.stored(boot["drawn"]).view is drawn.FRONT   # drawn straight on
     assert drawn.side(boot["drawn"]["left"]) == drawn.split_example("boot") and boot["drawn"]["right"] is None
     from closet.tagger.shoedrawing import Sheet
     Sheet.model_validate(boot["drawn"]["sheet"])   # a whole feature sheet, as Claude would write one
@@ -406,7 +425,7 @@ def test_the_preview_and_the_check_image_draw_behind_then_the_leg_then_in_front(
     boot = _back_tab_boot()
     svg = drawn.preview_svg(boot)
     left = svg[svg.index('translate(22,150)'):svg.index('translate(418,150)')]
-    assert left.index("#4a2c22") < left.index("#2f7d4f") < left.index("#5e2f25")   # the tab, the sock, the panels
+    assert left.index("#4a2c22") < left.index(drawn.PREVIEW_SOCK) < left.index("#5e2f25")   # the tab, the sock, the panels
     check = drawn.check_svg(boot)
-    assert check.index("#4a2c22") < check.index("#2f7d4f") < check.index("#5e2f25")
+    assert check.index("#4a2c22") < check.index(drawn.PREVIEW_SOCK) < check.index("#5e2f25")
     assert math.isclose(drawn.TODAY_LINE, 2.2 / (4 * 0.297))

@@ -45,8 +45,9 @@ from .tagger.tagging import CapReached, RouteUnavailable, Unreachable
 log = logging.getLogger("closet.shoedraw")
 
 MAX_ATTEMPTS = 3      # as for describing and sorting
-ABOUT_USD = 0.4       # roughly what one drawing costs on the API key, until this shoe has one of its own: $0.23 to
-                      # $0.70 on the owner's five pairs, $0.37 on average (15 November 2026)
+ABOUT_USD = 2.0       # roughly what one drawing costs on the API key, until this shoe has one of its own: two
+                      # drawings straight on, two turns, the judge and a fix came to $1.38 to $3.13 on the owner's five
+                      # pairs through the app's own code, $1.93 on average (17 November 2026), before the cache
 SHOES = tracejobs.SHOES
 
 # the shoe's photos (the main one first, each with its view), the routes to try and, as `notes`, the owner's notes on
@@ -62,7 +63,7 @@ WAIT_SORT = "Waiting for the photos to be sorted into views; the shoe is drawn a
 WAIT_ASK = "Waiting for your answer about which photo shows the outside; the shoe is drawn after that."
 WAIT_UNSORTED = ("The photos could not be sorted into views, so the shoe can't be drawn yet. Add or remove a photo to "
                  "sort them again.")
-DRAWING = "Drawing the shoe from its photos — about two minutes."
+DRAWING = "Drawing the shoe from its photos — four to ten minutes."
 NO_ROUTE = "Waiting for Claude to draw the shoe: it can't be reached right now. It is drawn by itself once it can."
 LIMIT = ("Waiting for Claude to draw the shoe: this month's spending limit for the API key has been reached. It is "
          "drawn when your plan can be used again, when the new month starts, or if you raise the limit in Settings.")
@@ -308,6 +309,21 @@ def recover(conn) -> None:
     conn.execute("UPDATE items SET drawn_state = 'waiting' WHERE drawn_state IN ('drawing', 'correcting')")
 
 
+def style_of(row) -> str | None:
+    """The item's shoe style as its description says it (with the owner's corrections), for turning its drawing with
+    the right 3D solid; None when it cannot be read (the drawing's own sheet is read instead)."""
+    try:
+        from .illustrations import drawn_answer
+        from .tagger.schema import ItemTags, drawing_for
+
+        answer = drawn_answer(row)
+        if not isinstance(answer, dict):
+            return None
+        return drawing_for(ItemTags.model_validate(answer))[1].get("style")
+    except Exception:   # an answer from an older schema, or none: the sheet says
+        return None
+
+
 def _open(images_dir: Path, photos: list) -> list[Photo]:
     if not photos:
         raise LookupError("the shoe has no photo")
@@ -349,7 +365,7 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], drawer: Drawer, cor
                 raise _NothingToChange("the shoe has no drawing to change")
             made = corrector(_open(images_dir, photos), kept, note, routes)
         else:   # the owner's notes on the drawing it replaces are kept to
-            made = drawer(_open(images_dir, photos), routes, notes=[n["note"] for n in notes])
+            made = drawer(_open(images_dir, photos), routes, notes=[n["note"] for n in notes], style=style_of(row))
         if not isinstance(made, Drawn):
             raise TypeError("the drawer did not return a drawing")
     except (RouteUnavailable, Unreachable) as e:   # out of reach (no route, no network, overloaded): it waits

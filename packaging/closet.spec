@@ -194,7 +194,7 @@ elif IS_MAC:
 
 hiddenimports = closet_modules + ["_pillow_heif", "pystray", "pystray._dummy", "truststore", "certifi",
                                    "anthropic", "anthropic.lib._parse._transform", "cv2",
-                                   "resvg_py"] + tray_imports + window_imports   # resvg_py: imported only when a drawing is rendered
+                                   "resvg_py", "svgelements"] + tray_imports + window_imports   # resvg_py, svgelements: imported only when a drawing is rendered or turned
 
 excludes = [
     "tkinter",

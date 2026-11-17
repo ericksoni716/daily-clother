@@ -278,11 +278,12 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
         raise RouteUnavailable("tests standing in for Claude sort no photos on Add unless they ask to")
     draw_meter = spend.Meter(cfg, state, spend.PURPOSE_DRAW, spend.estimate_draw)
 
-    def real_drawer(photos: list, usable: tuple[str, ...], notes=()):
+    def real_drawer(photos: list, usable: tuple[str, ...], notes=(), style=None):
         from .tagger import shoedrawing
-        return shoedrawing.draw(photos, usable, client=api_client, meter=draw_meter, notes=notes)
+        return shoedrawing.draw(photos, usable, client=api_client, meter=draw_meter, notes=notes, style=style,
+                                mask_of=model_mask)
 
-    def no_drawer(photos: list, usable: tuple[str, ...], notes=()):
+    def no_drawer(photos: list, usable: tuple[str, ...], notes=(), style=None):
         raise RouteUnavailable("tests standing in for Claude draw no shoes unless they ask to")
 
     correct_meter = spend.Meter(cfg, state, spend.PURPOSE_CORRECT_DRAWING, spend.estimate_correct_drawing)
@@ -781,7 +782,7 @@ def create_app(sv: Services) -> FastAPI:
         if made is None:
             raise HTTPException(404, "This shoe has not been drawn from its photos.")
         try:
-            svg = drawn.preview_svg(made["left"], made.get("right"))
+            svg = drawn.preview_svg(made["left"], made.get("right"), view=drawn.VIEWS.get(made.get("view"), drawn.FRONT))
         except drawn.DrawingError:
             raise HTTPException(404, "This shoe's drawing can't be shown.")
         return Response(svg, media_type="image/svg+xml", headers={

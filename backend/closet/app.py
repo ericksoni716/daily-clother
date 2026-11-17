@@ -441,6 +441,7 @@ class SettingsPatch(BaseModel):
     life: object = None
     life_prompt_dismissed: bool | None = None
     rewear: object = None
+    laundry: object = None
     model_config = {"extra": "forbid"}
 
 
@@ -464,8 +465,16 @@ def create_app(sv: Services) -> FastAPI:
     # the login and the size limits, checked before any request body is read
     app.add_middleware(gate.Gate, cookie=auth.COOKIE, refusal=refusal)
 
+    # laundry that keeps itself: the owner's counts and laundry day (Settings), read live
+    wears.set_policy(lambda: wears.policy_from(state.get("laundry"), savedtrips.rewear(state)))
+
     def conn_dep():
-        conn = db.connect(cfg.db_path(state.get("profile")))
+        path = cfg.db_path(state.get("profile"))
+        conn = db.connect(path)
+        try:
+            wears.catch_up(conn, str(path))   # what the last laundry day washed is clean before anything is read
+        except Exception:   # never in the way of the request itself
+            log.exception("the laundry could not be brought up to date")
         try:
             yield conn
         finally:
@@ -1188,6 +1197,7 @@ def create_app(sv: Services) -> FastAPI:
             "life": life.example()[0] if state.get("profile") == "demo" else state.get("life"),
             "life_prompt_dismissed": True if state.get("profile") == "demo" else state.get("life_prompt_dismissed"),
             "rewear": savedtrips.rewear(state),
+            "laundry": wears.laundry_setting(state.get("laundry")),
         }
 
     @app.get("/api/settings", dependencies=protected)
@@ -1222,6 +1232,11 @@ def create_app(sv: Services) -> FastAPI:
                     state.update(rewear=trips.check_rewear({**savedtrips.rewear(state), **body.rewear}))
                 except trips.PlanError as e:
                     raise HTTPException(422, str(e))
+        if "laundry" in sent:
+            try:
+                state.update(laundry=wears.check_laundry_setting(body.laundry))
+            except items.ItemError as e:
+                raise HTTPException(422, str(e))
         if "backup_folder" in sent:
             folder = (body.backup_folder or "").strip()
             if folder:

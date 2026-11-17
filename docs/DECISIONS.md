@@ -525,6 +525,16 @@ Facts checked in Anthropic's documentation on 2026-11-12:
 - The support pages say `claude -p` under a plan login draws on the plan's limits. The legal page restricts third-party developers offering Claude login to their users, and says this does not prevent an end user signing in to the unmodified Claude Code program with their own plan. A personal program calling that program on the owner's own machine appears to be inside those terms, but the docs do not say so in as many words, and Anthropic reserves the right to change enforcement.
 - When a limit is hit the message reads "You've hit your session limit · resets …" (or weekly). The exit code for that case is not documented; the app matches on the message.
 
+### Laundry that keeps itself (17 November, approved by the owner)
+
+| Decision | Why |
+|---|---|
+| When a wear is recorded, a piece goes in the laundry by itself once its wears since the last wash reach its count in **Before it needs washing** (tops 1, knits 3, trousers 3; outer layers, shoes and accessories never). It uses the same setting as trip packing, by the trip's kinds of clothing | The owner: "maintaining what is in the laundry seems like a huge pain, but I realize it affects what outfits can be put together". One setting for how often a thing is worn before a wash, wherever it is used. |
+| Everything in the laundry that went in before the start of the last laundry day (Sunday until the owner chooses another, or none) is clean again: its count starts again and it is offered again. Checked before each request reads the closet, at most one look per laundry date | Most people do laundry on a rhythm. Washing on the day itself counts from the next one, so this morning's tee is not marked clean before it is washed. |
+| A wear undone takes a piece back out of the laundry only when that very wear put it in (its time in the laundry is the wear's). A piece the owner put in by hand stays where they put it | Undo should undo. A piece already at its count from older wears (the demo's history) still comes back out. |
+| A piece in the laundry with no time of going in (the demo closet's, made that way) is never washed by the laundry day; migration 0030 dates what is in the laundry already from its last change | The demo shows a closet with some laundry in it, and an upgrade must not empty the owner's laundry basket at once. |
+| On by default, for both closets; one switch in **Settings → Your closet → Laundry** turns it off, and then nothing goes in or comes out by itself | The owner asked for less upkeep; off, everything is as before. |
+
 ### Prompt caching on the API key (17 November)
 
 | Decision | Why |

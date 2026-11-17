@@ -6,6 +6,7 @@ test.afterEach(async ({ page, context }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' });
   await context.setOffline(false);
   await page.request.post('/api/profile', { data: { profile: 'main' } });
+  await page.request.put('/api/settings', { data: { laundry: { auto: true, day: 6 } } });
 });
 
 /** Open-Meteo is never called from a test: Today's outfits are asked of the real server with a mild, dry day filled in. */
@@ -19,6 +20,8 @@ async function fakeWeather(page: Page) {
 
 async function openToday(page: Page) {
   await login(page);
+  // these tests are about the Worn screen: the laundry stays as the owner puts it (automatic laundry has its own tests)
+  await page.request.put('/api/settings', { data: { laundry: { auto: false } } });
   await useProfile(page, 'demo');
   await page.goto('/today');
   await expect(page.locator('#today-title')).toBeVisible();

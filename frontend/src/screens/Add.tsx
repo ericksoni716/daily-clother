@@ -6,8 +6,8 @@ import { CameraIcon, CheckIcon, CloseIcon, CloudOffIcon, ImagesIcon, WarnIcon } 
 import { sendShoePhotos } from '../components/ShoePhotos';
 import { Card, Notice, PageHeader } from '../components/ui';
 import {
-  applySort, batches, choicesFor, choose, shoes, SHOE_PHOTOS, SORT_EDGE, SORT_MAX, tooManyForAShoe, trayLine, valueOf,
-  type Kind, type TrayPhoto,
+  applySort, batches, choicesFor, choose, missingLine, NEEDED_DEFAULT, pairs, shoeCheck, shoes, SHOE_PHOTOS, SORT_EDGE,
+  SORT_MAX, tooManyForAShoe, trayLine, valueOf, VIEW_LABEL, viewsWords, type SortAnswer, type TrayPhoto,
 } from '../addsort';
 import { filesFromDrop, preparePhoto, splitPhotos } from '../resize';
 import { Link, navigate, useMediaQuery } from '../router';
@@ -23,6 +23,8 @@ import '../components/Shoe.css';
 import './Several.css';
 
 const OPEN_POLL_MS = 3000;
+/** Can this browser show the camera on the page (a secure address, such as Tailscale's https one, and a camera)? */
+const liveCamera = () => typeof window !== 'undefined' && window.isSecureContext && !!navigator.mediaDevices?.getUserMedia;
 const newKey = () => (typeof crypto.randomUUID === 'function' ? crypto.randomUUID()
   : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`);
 /** The same file chosen twice. */
@@ -140,6 +142,24 @@ export function AddScreen() {
     setTray(next);
   };
   const [sorting, setSorting] = useState<Sorting>({ at: 'idle' });
+  const [needed, setNeeded] = useState<string[]>(NEEDED_DEFAULT);
+  // the camera on the page, where the browser allows it: it stays open between photos, and the photos are sorted once
+  // it is closed (the phone's own camera app takes one photo each time otherwise)
+  const [live, setLive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const video = useRef<HTMLVideoElement>(null);
+  const stream = useRef<MediaStream | null>(null);
+  const stopCamera = () => {
+    stream.current?.getTracks().forEach((t) => t.stop());
+    stream.current = null;
+  };
+  useEffect(() => stopCamera, []);
+  useEffect(() => {
+    if (live && video.current && stream.current) {
+      video.current.srcObject = stream.current;
+      void video.current.play().catch(() => undefined);
+    }
+  }, [live]);
   const sortRun = useRef(0);
   const [sending, setSending] = useState(false);
   const [shoesSent, setShoesSent] = useState<ShoeSent[]>([]);
@@ -151,13 +171,14 @@ export function AddScreen() {
     const run = ++sortRun.current;
     const snapshot = trayRef.current;
     const groups = batches(snapshot);
-    const answers: { kind: Kind; shoe: number }[][] = [];
+    const answers: SortAnswer[][] = [];
     let message: string | null = null;
     setSorting({ at: 'sorting', done: 0, total: snapshot.length });
     for (const group of groups) {
       try {
         const small = await Promise.all(group.map((p) => preparePhoto(p.file, SORT_EDGE)));
         const answer = await api.sortAdd(small);
+        if (answer.needed?.length) setNeeded(answer.needed);
         if (!answer.sorted) {
           message = answer.message;
           break;
@@ -166,7 +187,7 @@ export function AddScreen() {
       } catch (e) {
         if ((e as ApiError).status === 400) {
           // a file Closet cannot read as a photo: added as one piece, so the import says why it did not go in
-          answers.push(group.map(() => ({ kind: 'piece' as Kind, shoe: 0 })));
+          answers.push(group.map(() => ({ kind: 'piece' as const, shoe: 0 })));
           continue;
         }
         message = `Closet couldn't sort these (${(e as Error).message}): sort them yourself.`;
@@ -182,7 +203,7 @@ export function AddScreen() {
     putTray(next);
     setSorting({ at: 'sorted', message });
     // the everyday case, one piece per photo, goes straight in; anything else waits for the owner to check it
-    if (!message && next.length && next.every((p) => p.kind === 'piece' && !p.fixed)) void addTray();
+    if (!message && next.length && !stream.current && next.every((p) => p.kind === 'piece' && !p.fixed)) void addTray();
   }
 
   function remove(key: string) {
@@ -299,7 +320,43 @@ export function AddScreen() {
   const longBatch = phone && pending > 5;
   useWakeLock(pending > 0 && longBatch && !paused);
 
-  function take(list: FileList | File[] | null) {
+  async function openCamera() {
+    setCameraError(null);
+    try {
+      stream.current = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      setLive(true);
+    } catch {
+      setCameraError("The camera couldn't be opened here, so the phone's own camera takes the photos instead, one at a time.");
+      camera.current?.click();
+    }
+  }
+
+  function closeCamera() {
+    stopCamera();
+    setLive(false);
+    if (trayRef.current.some((p) => !p.fixed)) void sortTray();   // sorted once, with every photo taken
+  }
+
+  /** "Take photos": the camera on the page where the browser allows it, else the phone's camera app. */
+  const takePhotos = () => {
+    if (liveCamera() && !cameraError) void openCamera();
+    else camera.current?.click();
+  };
+
+  function snap() {
+    const v = video.current;
+    if (!v || !v.videoWidth) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = v.videoWidth;
+    canvas.height = v.videoHeight;
+    canvas.getContext('2d')?.drawImage(v, 0, 0);
+    canvas.toBlob((blob) => {
+      const at = Date.now();
+      if (blob) take([new File([blob], `photo-${at}.jpg`, { type: 'image/jpeg', lastModified: at })], false);
+    }, 'image/jpeg', 0.92);
+  }
+
+  function take(list: FileList | File[] | null, sortNow = true) {
     const files = Array.from(list ?? []);
     if (!files.length) return;
     const { photos, skipped } = splitPhotos(files);
@@ -316,8 +373,10 @@ export function AddScreen() {
     if (skipped.length) parts.push(describeAdded(0, 0, skipped));
     setNote(parts.join(' ') || null);
     if (!fresh.length) return;
-    putTray([...now, ...fresh.map((file) => ({ key: newKey(), file, url: URL.createObjectURL(file), kind: 'piece' as Kind, shoe: 0, fixed: false }))]);
-    void sortTray();
+    putTray([...now, ...fresh.map((file) => ({
+      key: newKey(), file, url: URL.createObjectURL(file), kind: 'piece' as const, shoe: 0, fixed: false, view: null, pair: false,
+    }))]);
+    if (sortNow) void sortTray();
   }
 
   async function onDrop(e: DragEvent) {
@@ -354,7 +413,7 @@ export function AddScreen() {
       ) : (
         <>
           <p className="muted add-intro" data-testid="add-intro">Add any photos: one piece of clothing per photo, several pieces laid out together on the bed or the floor, or a shoe from a few sides (all its photos at once). Closet sorts them; one piece per photo goes straight in, anything else waits for you to check it. Photos already in your closet are recognised and not added twice.</p>
-          <p className="muted small" data-testid="shoe-tips">For a shoe: one shoe on its own, not the pair, up to {SHOE_PHOTOS} photos (its side, the other side, from above, the front and the back), against a plain floor or wall in even light.</p>
+          <p className="muted small" data-testid="shoe-tips">For a shoe: one shoe on its own, not the pair, photographed from {viewsWords(needed)}, against a plain floor or wall in even light. Those are the photos its drawing needs; up to {SHOE_PHOTOS} are kept.</p>
           {profile !== 'demo' && perFindUsd !== null && (
             <p className="muted small" data-testid="several-cost">With the API key, if your plan can't be used: sorting is a fraction of a cent, finding the pieces in a photo of several {aboutUsd(perFindUsd)} at most, and describing each piece{perPhotoUsd !== null ? ` ${aboutUsd(perPhotoUsd)} at most` : ' a little'}.</p>
           )}
@@ -376,8 +435,8 @@ export function AddScreen() {
 
           {!desktop && (
             <div className="add-buttons">
-              <button className="big-button" onClick={() => camera.current?.click()}>
-                <CameraIcon /><span>Take photo</span>
+              <button className="big-button" onClick={takePhotos} disabled={live}>
+                <CameraIcon /><span>Take photos</span>
               </button>
               <button className="big-button" onClick={() => library.current?.click()}>
                 <ImagesIcon /><span>Choose from library</span>
@@ -404,6 +463,22 @@ export function AddScreen() {
 
           {pickers}
 
+          {live && (
+            <div className="shoe-add" data-testid="add-camera">
+              <div className="shoe-frame">
+                <video ref={video} aria-label="The camera" playsInline muted />
+              </div>
+              <p className="muted small" data-testid="camera-count">
+                {tray.length ? `${plural(tray.length, 'photo')} so far. ` : ''}Take as many as you like; Closet sorts them when you close the camera.
+              </p>
+              <div className="row">
+                <button type="button" className="btn btn-primary" onClick={snap}><CameraIcon />Take the photo</button>
+                <button type="button" className="btn" onClick={closeCamera}>Close the camera</button>
+              </div>
+            </div>
+          )}
+          {cameraError && <p className="notice" role="status">{cameraError}</p>}
+
           {tray.length > 0 && (
             <section className="add-tray" aria-labelledby="add-tray-title" data-testid="add-tray">
               <div className="queue-head">
@@ -414,6 +489,28 @@ export function AddScreen() {
                 </span>
               </div>
               {sorting.at === 'sorted' && sorting.message && <p className="notice" role="status" data-testid="tray-message">{sorting.message}</p>}
+              {sorting.at !== 'sorting' && shoes(tray).map((shoe, n) => {
+                const check = shoeCheck(shoe, needed);
+                const missing = missingLine(check);
+                return (
+                  <div key={shoe[0].shoe} className="add-shoe-check" data-testid="shoe-check">
+                    <p className="add-shoe-title"><strong>Shoe {n + 1}</strong>
+                      {check.map((c) => (
+                        <span key={c.view} className={`chip${c.have ? ' is-on' : ''}`} data-testid="shoe-view">
+                          {c.have ? '✓ ' : ''}{VIEW_LABEL[c.view] ?? c.view}
+                        </span>
+                      ))}
+                    </p>
+                    {missing && <p className="muted small" data-testid="shoe-missing">{missing}{live ? '' : ' Take photos to add one.'}</p>}
+                  </div>
+                );
+              })}
+              {pairs(tray).length > 0 && (
+                <p className="notice notice-warn" role="status" data-testid="tray-pairs">
+                  {pairs(tray).length === 1 ? 'One photo shows' : `${pairs(tray).length} photos show`} the pair: a shoe is drawn from photos of one shoe on its own.
+                  Remove {pairs(tray).length === 1 ? 'it' : 'them'} and take one of a single shoe, or tap It's one shoe if Closet is wrong.
+                </p>
+              )}
               <ul className="queue-list" aria-label="Your photos, sorted">
                 {tray.map((p) => (
                   <li key={p.key} className="queue-row add-tray-row" data-testid="tray-row">
@@ -425,14 +522,25 @@ export function AddScreen() {
                         {choicesFor(tray).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
                       </select>
                     </label>
-                    <span className="queue-file muted small">{p.file.name}</span>
-                    <button type="button" className="btn btn-icon btn-ghost" aria-label={`Remove ${p.file.name}`} disabled={sending}
+                    <span className="queue-info">
+                      {p.pair ? <strong>Shows the pair</strong>
+                        : p.kind === 'shoe' && p.view ? <span>{VIEW_LABEL[p.view] ?? p.view}</span> : null}
+                      <span className="queue-file muted small">{p.file.name}</span>
+                    </span>
+                    {p.pair && (
+                      <button type="button" className="btn btn-small" disabled={sending}
+                        onClick={() => putTray(trayRef.current.map((q) => (q.key === p.key ? { ...q, pair: false, fixed: true } : q)))}>
+                        It's one shoe
+                      </button>
+                    )}
+                    <button type="button" className="btn btn-icon btn-ghost add-tray-remove" aria-label={`Remove ${p.file.name}`} disabled={sending}
                       onClick={() => remove(p.key)}><CloseIcon /></button>
                   </li>
                 ))}
               </ul>
               <div className="row">
-                <button type="button" className="btn btn-primary" disabled={sending || sorting.at === 'sorting'} onClick={() => void addTray()}>
+                <button type="button" className="btn btn-primary" disabled={sending || live || sorting.at === 'sorting' || pairs(tray).length > 0}
+                  onClick={() => void addTray()}>
                   {sending ? 'Adding…' : `Add ${tray.length === 1 ? 'it' : 'these'}`}
                 </button>
                 <button type="button" className="btn btn-ghost" disabled={sending} onClick={clearTray}>Clear</button>

@@ -246,7 +246,8 @@ export const api = {
   sortAdd: (photos: { blob: Blob; filename: string }[]) => {
     const form = new FormData();
     for (const p of photos) form.append('photos', p.blob, p.filename);
-    return request<{ sorted: boolean; message: string | null; photos: { kind: 'piece' | 'pieces' | 'shoe'; shoe: number }[] }>(
+    return request<{ sorted: boolean; message: string | null; needed?: string[];
+      photos: { kind: 'piece' | 'pieces' | 'shoe'; shoe: number; view?: string | null; pair?: boolean }[] }>(
       '/api/add/sort', { method: 'POST', form });
   },
   addShoePhoto: (id: string, photo: Blob, filename: string, sha256?: string | null) => {

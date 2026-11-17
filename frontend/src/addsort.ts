@@ -15,7 +15,20 @@ export interface TrayPhoto {
   shoe: number;
   /** The owner chose this one by hand: sorting again leaves it as they said. */
   fixed: boolean;
+  /** For a shoe: the side Claude says it shows (outer, inner, front, top, back, sole, other), or null when unknown. */
+  view: string | null;
+  /** For a shoe: Claude says it shows the pair. Held back until removed or the owner says it is one shoe. */
+  pair: boolean;
 }
+
+/** A sorted photo as the server gives it. */
+export interface SortAnswer { kind: Kind; shoe: number; view?: string | null; pair?: boolean }
+
+/** The photos a shoe's drawing needs, until the server says (it keeps the one list: `addsort.SHOE_VIEWS_NEEDED`). */
+export const NEEDED_DEFAULT = ['outer', 'front', 'inner'];
+export const VIEW_LABEL: Record<string, string> = {
+  outer: 'Outer side', inner: 'Inner side', front: 'Front', top: 'From above', back: 'Back', sole: 'Sole', other: 'Other',
+};
 
 /** Photos sent to Claude in one question, and the most sorted at once (a bigger import goes in one piece per photo). */
 export const SORT_AT_ONCE = 10;
@@ -36,7 +49,7 @@ export function batches<T>(list: T[], size = SORT_AT_ONCE): T[][] {
  * Claude's answers for each batch laid onto the tray: a photo the owner chose by hand keeps their choice, and shoe
  * numbers from later batches follow on from the earlier ones (a shoe is only grouped within its own batch).
  */
-export function applySort(tray: TrayPhoto[], answers: { kind: Kind; shoe: number }[][]): TrayPhoto[] {
+export function applySort(tray: TrayPhoto[], answers: SortAnswer[][]): TrayPhoto[] {
   const out = tray.map((p) => ({ ...p }));
   let offset = Math.max(0, ...out.filter((p) => p.fixed && p.kind === 'shoe').map((p) => p.shoe));
   let i = 0;
@@ -47,6 +60,8 @@ export function applySort(tray: TrayPhoto[], answers: { kind: Kind; shoe: number
       if (!p || p.fixed) continue;
       p.kind = a.kind;
       p.shoe = a.kind === 'shoe' ? a.shoe + offset : 0;
+      p.view = a.kind === 'shoe' ? a.view ?? null : null;
+      p.pair = a.kind === 'shoe' && !!a.pair;
       top = Math.max(top, p.shoe);
     }
     offset = Math.max(offset, top);
@@ -79,8 +94,25 @@ export const valueOf = (p: TrayPhoto) => (p.kind === 'shoe' ? `shoe:${p.shoe}` :
 /** A photo set by hand to a choice ('piece', 'pieces' or 'shoe:N'). */
 export function choose(p: TrayPhoto, value: string): TrayPhoto {
   if (value.startsWith('shoe:')) return { ...p, kind: 'shoe', shoe: Number(value.slice(5)), fixed: true };
-  return { ...p, kind: value as Kind, shoe: 0, fixed: true };
+  return { ...p, kind: value as Kind, shoe: 0, fixed: true, view: null, pair: false };
 }
+
+/** What one shoe's photos cover of the photos its drawing needs, in the order needed. */
+export function shoeCheck(photos: TrayPhoto[], needed: string[] = NEEDED_DEFAULT): { view: string; have: boolean }[] {
+  const seen = new Set(photos.filter((p) => !p.pair).map((p) => p.view));
+  return needed.map((view) => ({ view, have: seen.has(view) }));
+}
+
+/** The words for what a shoe lacks, or null when it has every photo its drawing needs. */
+export function missingLine(check: { view: string; have: boolean }[]): string | null {
+  const missing = check.filter((c) => !c.have).map((c) => (VIEW_LABEL[c.view] ?? c.view).toLowerCase());
+  if (!missing.length) return null;
+  const list = missing.length === 1 ? missing[0] : `${missing.slice(0, -1).join(', ')} and ${missing.at(-1)}`;
+  return `No photo of the ${list} yet. It can be added without, but the drawing is better with ${missing.length === 1 ? 'it' : 'them'}.`;
+}
+
+/** Shoe photos held back because they show the pair (one shoe on its own is drawn; two are not yet). */
+export const pairs = (tray: TrayPhoto[]) => tray.filter((p) => p.kind === 'shoe' && p.pair);
 
 /** One line for what the tray will add, as the button's neighbour says it. */
 export function trayLine(tray: TrayPhoto[]): string {
@@ -97,4 +129,10 @@ export function trayLine(tray: TrayPhoto[]): string {
 /** Shoes with more photos than a shoe takes: the extra ones are left out, said in plain words. */
 export function tooManyForAShoe(tray: TrayPhoto[]): number {
   return shoes(tray).reduce((n, s) => n + Math.max(0, s.length - SHOE_PHOTOS), 0);
+}
+
+/** "the outer side, the front and the inner side": the photos a shoe needs, in words. */
+export function viewsWords(needed: string[]): string {
+  const words = needed.map((v) => `the ${(VIEW_LABEL[v] ?? v).toLowerCase()}`);
+  return words.length < 2 ? words.join('') : `${words.slice(0, -1).join(', ')} and ${words.at(-1)}`;
 }

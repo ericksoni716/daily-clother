@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { applySort, batches, choicesFor, choose, shoes, tooManyForAShoe, trayLine, valueOf, type TrayPhoto } from './addsort';
+import { applySort, batches, choicesFor, choose, missingLine, pairs, shoeCheck, shoes, tooManyForAShoe, trayLine, valueOf, type TrayPhoto } from './addsort';
 
 const photo = (key: string, over: Partial<TrayPhoto> = {}): TrayPhoto =>
-  ({ key, file: new File(['x'], `${key}.jpg`), url: `blob:${key}`, kind: 'piece', shoe: 0, fixed: false, ...over });
+  ({ key, file: new File(['x'], `${key}.jpg`), url: `blob:${key}`, kind: 'piece', shoe: 0, fixed: false, view: null, pair: false, ...over });
 
 describe('one Add for everything', () => {
   it('sorts in batches of ten', () => {
@@ -32,5 +32,19 @@ describe('one Add for everything', () => {
   it('says when a shoe has more photos than it takes', () => {
     const tray = Array.from({ length: 8 }, (_, i) => photo(`p${i}`, { kind: 'shoe', shoe: 1 }));
     expect(tooManyForAShoe(tray)).toBe(2);
+  });
+
+  it("checks each shoe against the photos its drawing needs, and holds back a photo of the pair", () => {
+    const tray = applySort([photo('a'), photo('b'), photo('c'), photo('d')], [[
+      { kind: 'shoe', shoe: 1, view: 'outer' }, { kind: 'shoe', shoe: 1, view: 'front', pair: true },
+      { kind: 'shoe', shoe: 1, view: 'inner' }, { kind: 'piece', shoe: 0 },
+    ]]);
+    const check = shoeCheck(shoes(tray)[0]);
+    expect(check).toEqual([{ view: 'outer', have: true }, { view: 'front', have: false }, { view: 'inner', have: true }]);
+    expect(missingLine(check)).toBe('No photo of the front yet. It can be added without, but the drawing is better with it.');
+    expect(pairs(tray).map((p) => p.key)).toEqual(['b']);
+    expect(missingLine(shoeCheck([photo('x', { kind: 'shoe', shoe: 1, view: 'outer' })]))).toBe(
+      'No photo of the front and inner side yet. It can be added without, but the drawing is better with them.');
+    expect(missingLine(shoeCheck(tray.slice(0, 1).concat([photo('f', { kind: 'shoe', shoe: 1, view: 'front' }), tray[2]])))).toBeNull();
   });
 });

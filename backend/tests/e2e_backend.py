@@ -95,13 +95,18 @@ def fake_finder(photo, routes):
 
 
 def fake_add_sorter(photos, routes):
-    """What each photo chosen on Add shows, from its file name: "shoe..." is one shoe (all such photos the same one),
-    "several..." or "pile..." several pieces, anything else one piece."""
+    """What each photo chosen on Add shows, from its file name: "shoe..." is one shoe (all such photos the same one;
+    "outer", "inner", "front" ... in the name is its side, "pair" that it shows the pair), "several..." or "pile..."
+    several pieces, anything else one piece."""
     out = []
     for p in photos:
         name = p.info.get("filename", "").lower()
-        out.append({"kind": "shoe", "shoe": 1} if name.startswith("shoe") else
-                   {"kind": "pieces", "shoe": 0} if name.startswith(("several", "pile")) else {"kind": "piece", "shoe": 0})
+        if name.startswith("shoe"):   # "shoe-outer...", "shoe-front...", "shoe-pair...": the side, or the pair
+            view = next((v for v in ("outer", "inner", "front", "top", "back") if v in name), "other")
+            out.append({"kind": "shoe", "shoe": 1, "view": view, "pair": "pair" in name})
+        else:
+            kind = "pieces" if name.startswith(("several", "pile")) else "piece"
+            out.append({"kind": kind, "shoe": 0, "view": None, "pair": False})
     return out
 
 

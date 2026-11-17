@@ -256,7 +256,7 @@ photos are the same shoe:
   click **Choose a folder**, or drag photos or whole folders onto the page.
   Folders inside folders are included. Files that are not photos are skipped,
   and the page says which.
-- **On the iPhone:** **Take photo**, or **Choose from library** and pick many
+- **On the iPhone:** **Take photos** (the camera stays open between photos), or **Choose from library** and pick many
   at once.
 
 The list underneath shows how many are waiting, uploading, added, already in
@@ -281,12 +281,21 @@ can be added again.
 ### Shoes
 
 For the closest drawing of a shoe, add all of its photos in one go on **Add**:
-up to six photos of one shoe on its own (not the pair), in any order. Its side,
-the other side, from above, the front and the back help most, against a plain
-floor or wall in even light. **Choose photos** picks several at once; **Take
-photo** takes one each time. Closet groups the photos of the same shoe as
-**Shoe 1** (a second shoe is **Shoe 2**), and nothing is sent until you tap
-**Add these**; a seventh photo of one shoe is left out, and the page says so.
+one shoe on its own (not the pair), photographed from **the outer side, the
+front and the inner side**, against a plain floor or wall in even light. Those
+three are what the drawing needs; up to six are kept. **Choose photos** picks
+several at once. **Take photos** opens the camera on the page, which stays open
+so you can take one after another (tap **Take the photo** for each, then
+**Close the camera**); where the page can't show the camera, your phone's
+camera app takes one photo each time.
+
+Closet groups the photos of the same shoe as **Shoe 1** (a second shoe is
+**Shoe 2**) and shows each shoe as a checklist (**✓ Outer side · ✓ Front ·
+Inner side**). It says when one is missing; the shoe can still be added, but the
+drawing is better with all three. A photo that shows the pair is held back:
+remove it and take one of a single shoe, or tap **It's one shoe** if Closet got
+it wrong. Nothing is sent until you tap **Add these**; a seventh photo of one
+shoe is left out, and the page says so.
 Once it is added, the page shows the shoe the same way as the list of photos
 above:
 its picture and, once Claude has described it, what Claude called it; tap it

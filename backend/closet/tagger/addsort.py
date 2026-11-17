@@ -23,6 +23,11 @@ MODEL = CONFIG["roles"]["sorting"]
 MAX_PHOTOS = 10    # photos in one call; more are sorted in several calls
 MAX_EDGE = 512     # the image Claude sees, longest side in pixels: enough to tell a shoe from a shirt, cheap to send
 KINDS = ("piece", "pieces", "shoe")
+# The photos a shoe's drawing needs (the drawing work, 17 November: the outer side, the front and the inner side; from
+# above and from the back are no longer needed). The one list the Add page checks a shoe against: change it here
+# when the drawing needs other photos. A shoe missing one is still added, and the page says what it lacks.
+SHOE_VIEWS_NEEDED = ("outer", "front", "inner")
+VIEWS = ("outer", "inner", "front", "top", "back", "sole", "other")
 SYSTEM = ("You sort photos for a private wardrobe app. Look at every image file named in the request with the Read "
           "tool, then answer in the required JSON format. Do nothing else.")
 
@@ -35,6 +40,10 @@ class PhotoKind(BaseModel):
                     "shoe: a shoe or a pair of shoes.")
     shoe: int = Field(description="For a shoe: the same number for every photo of the same shoe or pair, starting "
                                   "at 1; 0 when the photo is not of a shoe.")
+    view: Literal["outer", "inner", "front", "top", "back", "sole", "other", "none"] = Field(
+        description="For a shoe: which side it shows (outer, inner, front, top, back, sole or other); none when the "
+                    "photo is not of a shoe.")
+    pair: bool = Field(description="For a shoe: true when the photo shows both shoes of the pair; false otherwise.")
 
 
 class PhotoKinds(BaseModel):
@@ -52,7 +61,15 @@ def prompt(count: int) -> str:
 
 A pair of socks or gloves is one piece. A suit's jacket and trousers in one photo are pieces.
 
-Photos of shoes: the owner often takes several photos of the same shoe from different sides (the outer side, the inner side, from above, the front, the back, the sole). Give every photo of the same shoe or pair the same shoe number, starting at 1 for the first shoe you see; a different shoe gets the next number. Decide by the shoe itself: its colours, materials, markings and shape, not by the background. For a photo that is not of a shoe, give shoe 0.
+Photos of shoes: the owner often takes several photos of the same shoe from different sides. Give every photo of the same shoe or pair the same shoe number, starting at 1 for the first shoe you see; a different shoe gets the next number. Decide by the shoe itself: its colours, materials, markings and shape, not by the background. For a photo that is not of a shoe, give shoe 0.
+
+For each photo of a shoe, also say which side it shows (view):
+- outer: the outer side, the whole side from toe to heel. Brands usually put their main mark (a logo, stripes) on the outer side; the inner side has the arch, where the sole curves in under the middle of the foot.
+- inner: the inner side, the whole side from toe to heel.
+- front: the toe pointing towards the camera.
+- top, back, sole: from above, the heel towards the camera, the underside.
+- other: anything else, such as a close-up or a view halfway between two of these.
+And say whether the photo shows both shoes of the pair (pair true) or one shoe on its own (pair false). For a photo that is not of a shoe, give view none and pair false.
 
 Give one entry for every photo, by its number."""
 
@@ -65,7 +82,8 @@ def shown(photo: Image.Image) -> Image.Image:
 
 def ask(photos: list[Image.Image], routes: tuple[str, ...], client=None, exe: str | None = None,
         meter: Meter | None = None, model: str = MODEL) -> list[dict]:
-    """[{kind, shoe}] for the photos, in their order. A photo missing from the answer is a piece; shoe numbers are
+    """[{kind, shoe, view, pair}] for the photos, in their order (`view` and `pair` say which side a shoe photo shows
+    and whether it shows the pair; None and False for the others). A photo missing from the answer is a piece; shoe numbers are
     renumbered 1, 2, ... in order of first appearance, and a shoe photo with no number is a shoe of its own. Raises
     `RouteUnavailable` (or `CapReached`) when Claude cannot be asked, `TaggingError` when it gives no usable answer."""
     if not 1 <= len(photos) <= MAX_PHOTOS:
@@ -82,9 +100,10 @@ def read(answer: PhotoKinds, count: int) -> list[dict]:
     for i in range(1, count + 1):
         p = by.get(i)
         if p is None or p.kind != "shoe":
-            out.append({"kind": p.kind if p else "piece", "shoe": 0})
+            out.append({"kind": p.kind if p else "piece", "shoe": 0, "view": None, "pair": False})
             continue
         key = p.shoe if p.shoe > 0 else ("alone", i)
         numbers.setdefault(key, len(numbers) + 1)
-        out.append({"kind": "shoe", "shoe": numbers[key]})
+        out.append({"kind": "shoe", "shoe": numbers[key], "view": p.view if p.view in VIEWS else "other",
+                    "pair": p.pair})
     return out

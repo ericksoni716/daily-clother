@@ -1097,13 +1097,15 @@ def create_app(sv: Services) -> FastAPI:
         sent = [f for f in form.getlist("photos") if not isinstance(f, str)]
         if not 1 <= len(sent) <= addsort.MAX_PHOTOS:
             raise HTTPException(422, f"Send 1 to {addsort.MAX_PHOTOS} photos to sort at a time.")
-        plain = [{"kind": "piece", "shoe": 0} for _ in sent]
+        plain = [{"kind": "piece", "shoe": 0, "view": None, "pair": False} for _ in sent]
+        needed = list(addsort.SHOE_VIEWS_NEEDED)
         if state.get("profile") == "demo":
-            return {"sorted": False, "photos": plain, "message": "The demo closet is never sent to Claude: sort the photos yourself."}
+            return {"sorted": False, "photos": plain, "needed": needed,
+                    "message": "The demo closet is never sent to Claude: sort the photos yourself."}
         assert sv.tag_worker, "build_services wires it"
         usable = sv.tag_worker.routes()
         if not usable and getattr(sv.add_sorter, "needs_route", True):   # a stand-in (the browser tests) needs none
-            return {"sorted": False, "photos": plain,
+            return {"sorted": False, "photos": plain, "needed": needed,
                     "message": "Claude can't be reached right now, so Closet couldn't sort these: sort them yourself."}
         try:
             photos = [images.decode(await f.read(images.MAX_UPLOAD_BYTES + 1)) for f in sent]
@@ -1112,14 +1114,15 @@ def create_app(sv: Services) -> FastAPI:
         for photo, f in zip(photos, sent, strict=True):
             photo.info["filename"] = f.filename or ""   # never sent to Claude; the browser tests' stand-in reads it
         try:
-            return {"sorted": True, "photos": await run_in_threadpool(sv.add_sorter, photos, usable), "message": None}
+            return {"sorted": True, "photos": await run_in_threadpool(sv.add_sorter, photos, usable), "message": None,
+                    "needed": needed}
         except CapReached:
             message = f"{spend.LIMIT_REACHED} Sort these yourself."
         except (RouteUnavailable, Unreachable):
             message = "Claude can't be reached right now, so Closet couldn't sort these: sort them yourself."
         except TaggingError:
             message = "Claude couldn't tell what these show: sort them yourself."
-        return {"sorted": False, "photos": plain, "message": message}
+        return {"sorted": False, "photos": plain, "message": message, "needed": needed}
 
     app.include_router(sources.router(conn_dep, images_dir, state, protected,
                                       sv.finder.wake if sv.finder else (lambda: None), sv.worker.wake,

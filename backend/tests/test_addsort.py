@@ -10,15 +10,20 @@ from .conftest import photo_bytes
 
 
 def answer(*rows):
-    return PhotoKinds(photos=[PhotoKind(photo=i, kind=k, shoe=s) for i, k, s in rows])
+    return PhotoKinds(photos=[PhotoKind(photo=i, kind=k, shoe=s, view=(r[0] if r else ("outer" if k == "shoe" else "none")),
+                                        pair=(r[1] if len(r) > 1 else False)) for i, k, s, *r in rows])
 
 
 def test_the_answer_is_tidied_shoes_numbered_in_order_and_gaps_are_pieces():
-    got = addsort.read(answer((1, "shoe", 7), (2, "piece", 0), (3, "shoe", 3), (4, "shoe", 7), (6, "shoe", 0),
-                              (9, "pieces", 0)), 6)
-    assert got == [{"kind": "shoe", "shoe": 1}, {"kind": "piece", "shoe": 0}, {"kind": "shoe", "shoe": 2},
-                   {"kind": "shoe", "shoe": 1}, {"kind": "piece", "shoe": 0},   # photo 5 was not answered
-                   {"kind": "shoe", "shoe": 3}]                                   # a shoe photo with no number: its own
+    got = addsort.read(answer((1, "shoe", 7, "outer"), (2, "piece", 0), (3, "shoe", 3, "front", True), (4, "shoe", 7, "inner"),
+                              (6, "shoe", 0, "front"), (9, "pieces", 0)), 6)
+    assert [(g["kind"], g["shoe"]) for g in got] == [("shoe", 1), ("piece", 0), ("shoe", 2), ("shoe", 1),
+                                                      ("piece", 0),    # photo 5 was not answered
+                                                      ("shoe", 3)]     # a shoe photo with no number: its own
+    # each shoe photo's side, and whether it shows the pair; nothing of the kind for the others
+    assert [(g["view"], g["pair"]) for g in got] == [("outer", False), (None, False), ("front", True), ("inner", False),
+                                                      (None, False), ("front", False)]
+    assert addsort.SHOE_VIEWS_NEEDED == ("outer", "front", "inner")
 
 
 def test_the_photos_go_small_in_one_call_and_never_more_than_ten(monkeypatch):
@@ -27,10 +32,11 @@ def test_the_photos_go_small_in_one_call_and_never_more_than_ten(monkeypatch):
 
     def fake_ask(text, images, routes, **kw):
         seen.update(count=len(images), sizes={max(i.size) for i in images}, model=kw["model"], text=text)
-        return correcting.CorrectionResult(answer((1, "piece", 0), (2, "shoe", 1)), "plan", kw["model"])
+        return correcting.CorrectionResult(answer((1, "piece", 0), (2, "shoe", 1, "front")), "plan", kw["model"])
     monkeypatch.setattr(correcting, "ask", fake_ask)
     photos = [Image.new("RGB", (3000, 2000)), Image.new("RGB", (900, 1600))]
-    assert addsort.ask(photos, ("plan",)) == [{"kind": "piece", "shoe": 0}, {"kind": "shoe", "shoe": 1}]
+    assert addsort.ask(photos, ("plan",)) == [{"kind": "piece", "shoe": 0, "view": None, "pair": False},
+                                              {"kind": "shoe", "shoe": 1, "view": "front", "pair": False}]
     assert seen["count"] == 2 and seen["sizes"] == {addsort.MAX_EDGE} and seen["model"] == addsort.MODEL
     assert "There are 2 photos" in seen["text"]
     with pytest.raises(ValueError):
@@ -48,9 +54,9 @@ def test_sorting_on_add_through_claude_and_when_it_cannot(client, services, clau
     claude.mode = "answers"   # a route to Claude can be used
     services.add_sorter = lambda photos, routes: [{"kind": "piece", "shoe": 0}, {"kind": "shoe", "shoe": 1}]
     r = post(client)
-    assert r.status_code == 200 and r.json() == {"sorted": True, "message": None,
+    assert r.status_code == 200 and r.json() == {"sorted": True, "message": None, "needed": ["outer", "front", "inner"],
                                                  "photos": [{"kind": "piece", "shoe": 0}, {"kind": "shoe", "shoe": 1}]}
-    plain = [{"kind": "piece", "shoe": 0}] * 2
+    plain = [{"kind": "piece", "shoe": 0, "view": None, "pair": False}] * 2
     for error, words in ((CapReached("limit"), "spending limit"), (Unreachable("offline"), "can't be reached"),
                          (TaggingError("bad"), "couldn't tell")):
         def failing(photos, routes, e=error):

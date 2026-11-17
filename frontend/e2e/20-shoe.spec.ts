@@ -83,7 +83,7 @@ test.describe('a shoe drawn from its photo', () => {
     // one Add for everything: no switch, a word on shoes, and it fits a phone
     await page.goto(backend.url + '/add');
     await expect(page.getByRole('group', { name: "What you're adding" })).toHaveCount(0);
-    await expect(page.getByTestId('shoe-tips')).toContainText('one shoe on its own, not the pair, up to 6 photos');
+    await expect(page.getByTestId('shoe-tips')).toContainText('one shoe on its own, not the pair, photographed from the outer side, the front and the inner side');
     expect(await sideways(page)).toEqual([]);
     expect(await axeViolations(page)).toEqual([]);
     await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-add.png') });
@@ -98,18 +98,36 @@ test.describe('a shoe drawn from its photo', () => {
     const others = await otherPhotos(page, ['#2b6f9e', '#9e2b52', '#7a5230']);
     const tray = page.getByTestId('add-tray');
     const inTray = tray.getByTestId('tray-row');
-    await page.getByTestId('library-input').setInputFiles([file('shoe-front.png', front), file('shoe-top.png', others[0]), file('shoe-wrong.png', others[1])]);
+    await page.getByTestId('library-input').setInputFiles([file('shoe-front.png', front), file('shoe-outer.png', others[0]), file('shoe-pair.png', others[1])]);
     await expect(inTray).toHaveCount(3);
     await expect(page.getByTestId('tray-state')).toHaveText('1 shoe (3 photos)');
     for (const row of await inTray.all()) await expect(row.getByRole('combobox')).toHaveValue('shoe:1');
-    await tray.getByRole('button', { name: 'Remove shoe-wrong.png' }).click();
-    await expect(inTray).toHaveCount(2);
 
-    // a photo taken afterwards joins it once sorted again; one the owner says is something else stays as they say
-    await page.getByTestId('camera-input').setInputFiles(file('shoe-snap.png', others[2]));
+    // the shoe is checked against the photos its drawing needs: the outer side, the front and the inner side
+    const check = tray.getByTestId('shoe-check');
+    await expect(check.getByTestId('shoe-view')).toHaveText(['✓ Outer side', '✓ Front', 'Inner side']);
+    await expect(check.getByTestId('shoe-missing')).toContainText('No photo of the inner side yet. It can be added without');
+
+    // a photo of the pair is held back: the drawing is made from one shoe on its own
+    const addThese = tray.getByRole('button', { name: 'Add these' });
+    await expect(tray.getByTestId('tray-pairs')).toContainText('One photo shows the pair');
+    await expect(addThese).toBeDisabled();
+    await tray.getByRole('button', { name: 'Remove shoe-pair.png' }).click();
+    await expect(inTray).toHaveCount(2);
+    await expect(tray.getByTestId('tray-pairs')).toHaveCount(0);
+
+    // where the page can show the camera, it stays open between photos; they are sorted once it is closed
+    await page.getByRole('button', { name: 'Take photos' }).click();
+    const video = page.getByLabel('The camera');
+    await expect(video).toBeVisible();
+    await expect.poll(() => video.evaluate((v: HTMLVideoElement) => v.videoWidth)).toBeGreaterThan(0);
+    await page.getByRole('button', { name: 'Take the photo' }).click();
     await expect(inTray).toHaveCount(3);
-    await expect(page.getByTestId('tray-state')).toHaveText('1 shoe (3 photos)');
-    await inTray.nth(2).getByRole('combobox').selectOption({ label: 'One piece' });
+    await expect(addThese).toBeDisabled();   // not while the camera is open
+    expect(await sideways(page)).toEqual([]);
+    await page.getByRole('button', { name: 'Close the camera' }).click();
+    await expect(video).toHaveCount(0);
+    // the stand-in cannot tell what the camera's photo shows, so the owner says it is the same shoe
     await expect(page.getByTestId('tray-state')).toHaveText('1 piece, 1 shoe (2 photos)');
     await inTray.nth(2).getByRole('combobox').selectOption({ label: 'Shoe 1' });
     await expect(page.getByTestId('tray-state')).toHaveText('1 shoe (3 photos)');

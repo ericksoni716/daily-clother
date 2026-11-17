@@ -36,6 +36,28 @@ def signal(lab):
     return out
 
 
+def soft(lab, m=None, grain=2.0, light=None):
+    """One channel for matching soft, low-contrast cloth (a flannel in navy, black and grey). The three Lab
+    channels are added as they are, so a channel that carries nothing but noise (the colour axes of a nearly
+    colourless plaid) is not blown up to count as much as lightness, as `signal` does; the weave's grain is
+    smoothed away over `grain` px; and with `light` (px) the slow change of light across the garment is taken
+    out, measured over garment pixels only (`m`)."""
+    s = np.zeros(lab.shape[:2], np.float32)
+    for c in range(3):
+        s += cv2.GaussianBlur(np.ascontiguousarray(lab[..., c], dtype=np.float32), (0, 0), grain)
+    if light:
+        w = np.ones(s.shape, np.float32) if m is None else m.astype(np.float32)
+        s = s - cv2.GaussianBlur(s * w, (0, 0), light) / np.maximum(cv2.GaussianBlur(w, (0, 0), light), 1e-3)
+    return s
+
+
+def soft_tile(tile_lab, grain=2.0):
+    """`soft` for one repeat: smoothed as the endless cloth it stands for (round its edges)."""
+    k = int(np.ceil(3 * grain))
+    wide = np.pad(tile_lab, ((k, k), (k, k), (0, 0)), mode="wrap")
+    return soft(wide, grain=grain)[k:-k, k:-k]
+
+
 def body_mask(alpha, shrink=0.02):
     """The garment from its alpha channel, shrunk by `shrink` of the image's size."""
     m = (alpha > 200).astype(np.uint8)

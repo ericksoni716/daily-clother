@@ -19,7 +19,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, failures, images, tagjobs, tracejobs
+from . import db, failures, images, patjobs, tagjobs, tracejobs
 from .config import Config
 from .state import State
 
@@ -108,11 +108,32 @@ def run_one(conn, images_dir: Path, cutter: Cutter, tag: bool = True) -> bool:
     conn.execute("UPDATE photos SET cutout_path = ?, cutout_thumb_path = ? WHERE id = ?", (rel, rel_thumb, job["photo_id"]))
     conn.execute("UPDATE jobs SET state = 'done', error = NULL, updated_at = ? WHERE id = ?", (t, job["id"]))
     conn.execute("UPDATE items SET cutout_state = 'ready', cutout_error = NULL, updated_at = ? WHERE id = ?", (t, job["item_id"]))
+    # Claude's landmarks are points in the old cutout's own pixels: they are asked for again with the new one
+    conn.execute("UPDATE items SET landmarks = NULL WHERE id = ?", (job["item_id"],))
     if tag and not _described_since(conn, job["item_id"], photo):
         tagjobs.enqueue(conn, job["item_id"])
+    elif tag:   # described already: its pattern is measured again, from the new cutout (never in the demo closet)
+        patjobs.mark(conn, job["item_id"])
     tracejobs.mark(conn, job["item_id"])   # a shoe's new photo is traced again
     conn.execute("COMMIT")
     return True
+
+
+def remeasure(conn) -> int:
+    """Plaids older measuring code found no repeat in (`patjobs.stale`): the cutout of each is made again (it may
+    have kept the bedding the garment lay on, which the two models together now leave out) and its pattern is
+    then measured again from it. Returns how many."""
+    conn.execute("BEGIN IMMEDIATE")
+    found = patjobs.stale(conn)
+    for item_id in found:
+        photo = conn.execute("SELECT id FROM photos WHERE item_id = ? AND kind = 'front' ORDER BY created_at LIMIT 1",
+                             (item_id,)).fetchone()
+        busy = conn.execute("SELECT 1 FROM jobs WHERE kind = 'cutout' AND item_id = ? AND state IN ('queued', 'running')",
+                            (item_id,)).fetchone()
+        if photo is not None and busy is None:
+            enqueue_cutout(conn, item_id, photo["id"])
+    conn.execute("COMMIT")
+    return len(found)
 
 
 def _described_since(conn, item_id: str, photo) -> bool:
@@ -173,6 +194,8 @@ class Worker:
                 tracejobs.recover(conn)
                 if profile != "demo":   # the demo's traces were made in advance, without photos to trace again
                     tracejobs.stale(conn)
+            if profile != "demo":
+                remeasure(conn)
             while not self._stop.is_set() and self.is_ready():
                 if run_one(conn, self.cfg.images_dir(profile), self.cutter, tag=profile != "demo"):
                     done += 1

@@ -88,6 +88,10 @@ Fixes after 0.2.0:
 
 Patterns from the photo (owner's request; it had fallen out of the app):
 - [x] Plaids flattened and placed per front, madras measured whole, stripes (regular and placed bands, sleeves checked), prints quilted; OpenCV and the second background model in the app; migration 0013.
+- [x] Plaids photographed at an angle, turned, over a slope, in soft dark cloth or on bedding (17 November, the owner's navy flannel jacket drawn as a pale smear): the cloth is straightened from its own lines before it is flattened, an overcheck over every other check is kept, the two background models no longer keep the bedding between them, every result must explain the photo before it is kept, and a plaid that cannot be measured says so. Plaids the older code could not measure are cut out and measured again once. See DECISIONS, "A plaid is measured three ways".
+- [ ] **Retake the photo** for clothes (shoes have it): the note on a plaid that could not be measured says what photo would work, but the only way to give one is to add the item again.
+- [ ] A plaid measured from a dark photo is drawn as dark as the photo (the navy jacket comes out near black with its grey and white lines). Stripes are corrected from Claude's colour words; plaids are not yet.
+- [ ] Plaids with a repeat larger than about a quarter of the garment's body, seen at an angle: too few areas show the repeat to even it out, so only the tilt is undone.
 - [ ] Florals placed motif by motif on a good photo (now pieced from the whole garment).
 - [ ] Very fine stripes on small photos (a 285 px polo loses its 1–2 px pink lines).
 - [x] #105 Graphic prints on tops: a top Claude calls graphic (or a novelty print) has its print lifted from the cutout in the background and drawn at its place, on its own drawing and in the outfit figure; a print that cannot be lifted leaves it plain with a note. Known: the tagging schema does not yet ask for the taxonomy's `graphic_technique` and `graphic_placement`, so a back print or a sleeve print is not told apart, and only the front photo is read.

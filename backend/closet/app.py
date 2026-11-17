@@ -76,7 +76,6 @@ from .weather import WeatherError, check_place, lookup, place_near, search_place
 
 log = logging.getLogger("closet.app")
 
-SEE_THROUGH = 0.2   # a cutout this see-through inside its outline is asked of the second model as well
 GAPS_ALL = 100   # gaps asked of the analysis; the list shows at most gaps.MAX_GAPS not yet decided on
 
 
@@ -209,9 +208,11 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     def real_cutter(img: Image.Image) -> Image.Image:
         mask = predict_mask(img, MODEL, model.path)
         if second.ready:
-            from .patterns.masks import see_through  # OpenCV: loaded only once a cutout is made
-            if see_through(mask) > SEE_THROUGH:   # a plaid's dark checks taken for background: ask the other model
-                mask = Image.fromarray(np.maximum(np.asarray(mask), np.asarray(predict_mask(img, SECOND_MODEL, second.path))))
+            from .patterns import masks  # OpenCV: loaded only once a cutout is made
+            # a plaid's dark checks taken for background, or the duvet under a jacket kept with it: ask the other
+            # model, keep what the two agree on, and leave out a surface the garment only lies on
+            if masks.doubtful(img, mask):
+                mask = masks.settle(img, mask, predict_mask(img, SECOND_MODEL, second.path), log.info)
         return make_cutout(img, mask)[0]
 
     meter = spend.Meter(cfg, state)
@@ -235,7 +236,12 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     if tracer is None and tagger is None:
         tracer = tracejobs.tracer(model_mask if cutter is None else None)
     tag_worker = tagjobs.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)), tagger or real_tagger)
-    worker = jobs.Worker(cfg, state, lambda: model.ready, cutter or real_cutter, on_done=tag_worker.wake, tracer=tracer)
+    def cutouts_made() -> None:   # the next step for each: describing it, or measuring its pattern from the new cutout
+        tag_worker.wake()
+        if holder.get("patterns") is not None:
+            holder["patterns"].wake()
+
+    worker = jobs.Worker(cfg, state, lambda: model.ready, cutter or real_cutter, on_done=cutouts_made, tracer=tracer)
     holder["worker"] = worker
     landmark_meter = spend.Meter(cfg, state, spend.PURPOSE_LANDMARKS, spend.estimate_landmarks)
 
@@ -252,6 +258,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                                     routes or (lambda: tagjobs.usable_routes(state)))
     if measurer is None and tagger is not None:
         pattern_worker = None    # tests standing in for Claude measure no patterns unless they ask to
+    holder["patterns"] = pattern_worker
     model.refresh()  # know the model's real state before the first request is answered
     if web_dir == "bundled":
         candidate = bundle_dir() / "web"

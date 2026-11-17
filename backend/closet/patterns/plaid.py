@@ -4,7 +4,8 @@ import cv2
 import numpy as np
 from PIL import Image
 
-from .common import autocorr, body_mask, lab_to_rgb, quiet, signal, to_lab
+from .common import autocorr, body_mask, lab_to_rgb, quiet, signal, soft_tile, to_lab
+from .common import soft as soft_signal
 from .prints import lean
 from .stripes import mask_of, straightened_sequence
 
@@ -82,10 +83,12 @@ def check_placement(cut, tile_lab, info, P, Q, anchor, phase, side=+1):
     return dict(rank=rank, of=P * Q, match=round(float(mine), 2), best=round(float(scores.max()), 2), off_px=off)
 
 
-def _scores(lab, tile_sig, P, Q, x0, y0):
+def _scores(lab, tile_sig, P, Q, x0, y0, soft=False):
     """Match of the photo's repeat-sized patch at (x0, y0) against the repeat at every placement:
     r[dv, du] is how well the patch's top-left fits tile spot (du, dv). None when the patch leaves the photo."""
-    patch = signal(lab[y0:y0 + Q, x0:x0 + P])
+    if x0 < 0 or y0 < 0:
+        return None
+    patch = lab[y0:y0 + Q, x0:x0 + P].sum(2) if soft else signal(lab[y0:y0 + Q, x0:x0 + P])
     if patch.shape != (Q, P):
         return None
     pz = patch - patch.mean()
@@ -94,7 +97,7 @@ def _scores(lab, tile_sig, P, Q, x0, y0):
     return r
 
 
-def match_front(cut, tile_lab, P, Q, anchor, side, offsets=(-1.0,), check=(0.5,)):
+def match_front(cut, tile_lab, P, Q, anchor, side, offsets=(-1.0,), check=(0.5,), soft=False):
     """A front's placement by matching the photo beside the button line against the repeat directly: patches one
     repeat in size, just inside that front (side +1: right of the anchor, -1: left), at `offsets` repeats from
     the anchor height (the estimate), and at `check` (held out). Returns (phase at the anchor as fractions of the
@@ -103,13 +106,15 @@ def match_front(cut, tile_lab, P, Q, anchor, side, offsets=(-1.0,), check=(0.5,)
     lab = to_lab(rgb)
     ax, ay = anchor
     x0 = int(ax + 0.15 * P) if side > 0 else int(ax - 0.15 * P - P)
-    t = cv2.resize(signal(tile_lab), (P, Q), interpolation=cv2.INTER_AREA)
+    t = cv2.resize(soft_tile(tile_lab) if soft else signal(tile_lab), (P, Q), interpolation=cv2.INTER_AREA)
+    if soft:    # soft, nearly colourless cloth: matched as `flatten` matches it (see `common.soft`)
+        lab = np.repeat(soft_signal(lab)[..., None], 3, 2) / 3
 
     def best(offs):
         acc = None
         for o in offs:
             y0 = int(ay + o * Q)
-            r = _scores(lab, t, P, Q, x0, y0)
+            r = _scores(lab, t, P, Q, x0, y0, soft)
             if r is None:
                 continue
             # shift so every score refers to the spot at the anchor itself
@@ -132,7 +137,8 @@ def match_front(cut, tile_lab, P, Q, anchor, side, offsets=(-1.0,), check=(0.5,)
 def no_repeat(cut, log=quiet, lean_deg=None):
     """A plaid with no regular repeat (madras): both band sequences measured whole, straightened, and redrawn
     at their true positions across the garment. The fill is one tile the size of the garment.
-    Returns dict(tile=RGB image array, width_frac=the tile's width as a fraction of the upright photo's)."""
+    Returns dict(tile=RGB image array, width_frac=the tile's width as a fraction of the upright photo's,
+    agreement=how well the tile explains the photo, 1 = the same picture)."""
     ang = lean(cut) if lean_deg is None else lean_deg
     up = cut.rotate(-ang, Image.BICUBIC, expand=True)
     rgb = np.asarray(up.convert("RGB"))
@@ -153,4 +159,12 @@ def no_repeat(cut, log=quiet, lean_deg=None):
     warp, weft = np.clip(2 * a - M, 0, 255), np.clip(2 * d - M, 0, 255)
     tile = (warp[None, :, :] + weft[:, None, :]) / 2
     log(f"  turned upright by {-ang:.1f} degrees; {len(a)} px across x {len(d)} px down, measured whole")
-    return dict(tile=lab_to_rgb(tile.astype(np.float32)), width_frac=len(a) / up.width)
+    # how well two crossing sequences explain the photo (grain smoothed, slow light taken out): high for a madras
+    # lying flat, next to nothing for a plaid at an angle or a cutout that is half bedding
+    box, on = lab[y0:y1 + 1, x0:x1 + 1], m[y0:y1 + 1, x0:x1 + 1]
+    agreement = 0.0
+    if on.sum() > 100:
+        light = 0.08 * max(on.shape)
+        pair = np.corrcoef(soft_signal(box, on, light=light)[on], soft_signal(tile.astype(np.float32), on, light=light)[on])
+        agreement = float(np.nan_to_num(pair[0, 1]))
+    return dict(tile=lab_to_rgb(tile.astype(np.float32)), width_frac=len(a) / up.width, agreement=agreement)

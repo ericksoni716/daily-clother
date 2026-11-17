@@ -3,6 +3,7 @@ import { CloseIcon, DrawingIcon, FilterIcon, HangerIcon, ImagesIcon, SearchIcon,
 import { ModelBanner } from '../components/ModelBanner';
 import { Button, buttonClass, EmptyState, Notice, PageHeader, SegmentedControl, Sheet } from '../components/ui';
 import { loadGridView, saveGridView, type GridView } from '../drawing';
+import { setLaundryMany } from '../laundry';
 import { groupsIn, groupTitle, kindsOf, type KindGroup } from '../kinds';
 import { categoryPlural, label, tileCaption } from '../labels';
 import { itemPath, Link, navigate } from '../router';
@@ -18,14 +19,26 @@ interface Props {
   toReview?: number | null;
 }
 
+/** The search and filters, kept while the app is open: on a phone the item page replaces the closet, and coming
+ * back from it should find the list as it was left. Kept per closet (demo or real) and per In use / Archived. */
+interface Filters { category: string | null; group: string | null; kind: string | null; query: string; laundry: Laundry | null }
+const NO_FILTERS: Filters = { category: null, group: null, kind: null, query: '', laundry: null };
+const filterMemory = new Map<string, Filters>();
+
 export function ClosetScreen({ status, selectedId, wide, toReview = null }: Props) {
-  const { items, loadItems, loadError, model, profile, vocab } = useCloset();
+  const { items, loadItems, loadError, model, profile, vocab, offline, upsert, toast } = useCloset();
+  const [washing, setWashing] = useState(false);
   const list = items[status];
-  const [category, setCategory] = useState<string | null>(null);
-  const [group, setGroup] = useState<string | null>(null);
-  const [kind, setKind] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
-  const [laundry, setLaundry] = useState<Laundry | null>(null);
+  const memoryKey = `${profile}:${status}`;
+  const kept = filterMemory.get(memoryKey) ?? NO_FILTERS;
+  const [category, setCategory] = useState<string | null>(kept.category);
+  const [group, setGroup] = useState<string | null>(kept.group);
+  const [kind, setKind] = useState<string | null>(kept.kind);
+  const [query, setQuery] = useState(kept.query);
+  const [laundry, setLaundry] = useState<Laundry | null>(kept.laundry);
+  useEffect(() => {
+    filterMemory.set(memoryKey, { category, group, kind, query, laundry });
+  }, [memoryKey, category, group, kind, query, laundry]);
   const [gridView, setGridView] = useState<GridView>(loadGridView);
   const [filtering, setFiltering] = useState(false);
   const [panelTop, setPanelTop] = useState(0);
@@ -88,6 +101,13 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
           {toReview} {toReview === 1 ? 'piece needs' : 'pieces need'} a quick check
         </Notice>
       )}
+      {status === 'active' && list && <LaundryNotice inLaundry={list.filter((it) => it.laundry === 'laundry')} showing={activeLaundry === 'laundry'}
+        busy={washing} offline={offline} onShow={() => setLaundry('laundry')} onAllClean={(pieces) => {
+          setWashing(true);
+          void setLaundryMany(pieces.map((it) => it.id), 'clean', upsert)
+            .then((failed) => toast(failed ? `${failed} could not be marked clean. Try again.` : `${pieces.length === 1 ? 'Marked' : `All ${pieces.length} marked`} clean`, failed ? 'error' : 'ok'))
+            .finally(() => setWashing(false));
+        }} />}
       {status === 'active' && <ModelBanner />}
 
       {list === null && !loadError && <div className="grid grid-skeleton" aria-hidden="true">{Array.from({ length: 6 }, (_, i) => <div key={i} className="tile-skeleton" />)}</div>}
@@ -184,6 +204,24 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
 }
 
 const LAUNDRY: Record<Laundry, string> = { clean: 'Clean', laundry: 'In the laundry' };
+
+/** What is in the laundry, one tap from the closet: show only those, then mark them all clean at once. */
+function LaundryNotice({ inLaundry, showing, busy, offline, onShow, onAllClean }: {
+  inLaundry: ItemSummary[]; showing: boolean; busy: boolean; offline: boolean; onShow(): void; onAllClean(pieces: ItemSummary[]): void;
+}) {
+  if (inLaundry.length === 0) return null;
+  const n = inLaundry.length;
+  return (
+    <Notice className="laundry-notice" testId="laundry-notice"
+      action={showing ? (
+        <Button small disabled={busy || offline} title={offline ? "You're offline" : undefined} onClick={() => onAllClean(inLaundry)}>
+          {busy ? 'Marking clean…' : 'All clean'}
+        </Button>
+      ) : <Button small variant="link" onClick={onShow}>Show</Button>}>
+      {n} {n === 1 ? 'piece is' : 'pieces are'} in the laundry
+    </Notice>
+  );
+}
 
 function FilterChoices({ status, categories, category, laundry, groups, group, kinds, kind, onCategory, onLaundry, onGroup, onKind }: {
   status: 'active' | 'archived';

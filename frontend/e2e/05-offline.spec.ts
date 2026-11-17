@@ -55,6 +55,8 @@ test('settings opened offline recover when the computer is reachable again', asy
   await context.setOffline(true);
   await page.locator('nav.sidebar').getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page.getByText("You're offline, so settings can't be shown or changed right now.")).toBeVisible();
+  // the server cannot end the login while it is out of reach, so Log out waits rather than only looking done
+  await expect(page.getByRole('button', { name: 'Log out' })).toBeDisabled();
   await context.setOffline(false);
   await expect(page.getByText('Offline: showing your saved closet')).toBeHidden({ timeout: 15_000 });
   await expect(page.getByRole('textbox', { name: 'Backup folder', exact: true })).toBeEnabled();

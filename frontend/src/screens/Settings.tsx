@@ -136,7 +136,9 @@ export function SettingsScreen({ version }: { version: string }) {
         </details>
 
         <div className="settings-leave" role="group" aria-label="Leave">
-          <button className="btn" onClick={() => void logout()}>Log out</button>
+          {/* offline the server cannot end the login, so the phone would only look logged out until it is back in reach */}
+          <button className="btn" disabled={offline} title={offline ? "You're offline: log out once Closet on your computer can be reached" : undefined}
+            onClick={() => void logout()}>Log out</button>
           <QuitButton onQuit={quit} disabled={offline} toast={toast} />
         </div>
       </div>

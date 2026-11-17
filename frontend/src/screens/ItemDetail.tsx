@@ -383,7 +383,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           await api.remove(id);
           drop(id);
           toast('Deleted');
-          navigate(backTo);
+          navigate(backTo, { replace: true });   // Back must not return to the page of an item that is gone
         } catch (e) {
           toast((e as Error).message, 'error');
         }

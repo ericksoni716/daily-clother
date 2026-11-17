@@ -209,7 +209,8 @@ def history_words(worn: list[dict], names: Mapping[str, str]) -> str:
         said += [REASON_WORDS[r] for r in (o.get("rating_reasons") or []) if r in REASON_WORDS]
         if _text(o.get("rating_note")):
             said.append(f"“{_text(o['rating_note'])[:MAX_NOTE]}”")
-        lines.append(f"- {o.get('worn_on')} ({', '.join(w for w in on if w)}): {what}. The owner: {', '.join(said)}.")
+        day_of = f" ({', '.join(w for w in on if w)})" if any(on) else ""
+        lines.append(f"- {o.get('worn_on')}{day_of}: {what}. The owner: {', '.join(said)}.")
     return "\n".join(lines) or "- Nothing has been recorded as worn yet."
 
 

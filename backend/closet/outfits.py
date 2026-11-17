@@ -31,6 +31,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from . import outfit_rules, vocab
+from .tagger.taxonomy import LOUNGE_KINDS
 
 
 def rules() -> outfit_rules.Rules:
@@ -1406,11 +1407,23 @@ def _explain_feedback(core: list[_Option], fb: Feedback, reasons: list[str], war
 PLACE_WORDS = {"base": "tops (tees, shirts or polos)", "bottom": "trousers, jeans or shorts", "shoes": "shoes"}
 
 
+# The owner's loungewear and sleepwear (the taxonomy's own group) is worn at home: never in an outfit for going
+# out, though it can still be built around or packed when asked for. The smoking jacket is the exception: an
+# evening jacket worn out as well as in.
+HOME_KINDS = frozenset(LOUNGE_KINDS - {"smoking_jacket"})
+FOR_HOME = "for wearing at home"
+NEEDS_MENDING = "waiting to be mended"
+
+
 def _unavailable(item: dict, ctx: Context) -> str | None:
     if item.get("status") == "archived":
         return "archived"
     if _in_laundry(item):
         return "in the laundry"
+    if item.get("condition") == "needs_repair":
+        return NEEDS_MENDING
+    if item.get("kind") in HOME_KINDS:
+        return FOR_HOME
     if str(item.get("id")) in ctx.leave_out:
         return "left out today"
     if item.get("rating") == "dislike":

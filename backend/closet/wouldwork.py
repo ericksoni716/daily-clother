@@ -29,6 +29,7 @@ reads the engine's. The same inputs always give the same answer.
 """
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Iterable, Mapping
 
 from . import gaps, life, outfits, vocab
@@ -255,9 +256,25 @@ def _try_day(engine_items: list[dict], by_id: Mapping[str, outfits.Piece], p: ou
             "problems": problems, "closet": False}
 
 
+# The owner's rules add a scarf or a hat only on days colder than any the gap analysis tries (its coldest is 0 to
+# 6°C), so a scarf or a hat is tried on those cold days made this much colder: below the band that asks for it.
+COLD_ACCESSORY_SHIFT_C = 6.0
+
+
+def _days_for(cand: outfits.Piece) -> list[gaps.Day]:
+    days = gaps.grid()
+    if cand.category not in ("scarf", "hat"):
+        return days
+    colder = min(d.high_c for d in days) - COLD_ACCESSORY_SHIFT_C
+    if cand.category not in outfits.rules().band(colder).accessories:
+        return days
+    return [dataclasses.replace(d, low_c=d.low_c - COLD_ACCESSORY_SHIFT_C, high_c=d.high_c - COLD_ACCESSORY_SHIFT_C)
+            if d.band == gaps.TEMP_BANDS[0][0] else d for d in days]
+
+
 def _try_days(c: gaps._Closet, cand: outfits.Piece) -> list[dict]:
     """The engine, built around the piece, on every kind of day of the gap analysis."""
-    return [_try_day(c.engine_items, c.by_id, cand, d) for d in gaps.grid()]
+    return [_try_day(c.engine_items, c.by_id, cand, d) for d in _days_for(cand)]
 
 
 def _peers(c: gaps._Closet, cand: outfits.Piece) -> list[outfits.Piece]:

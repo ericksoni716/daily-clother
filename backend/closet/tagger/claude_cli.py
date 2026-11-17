@@ -192,7 +192,9 @@ def tag_item_cli(model: str, images: list[Image.Image], exe: str | None = None, 
             except ValueError:
                 out = {}
             text = f"{out.get('result') or ''} {proc.stderr or ''} {proc.stdout if not out else ''}".lower()
-            if any(w in text for w in _LIMIT_WORDS):
+            failed = proc.returncode != 0 or bool(out.get("is_error")) or out.get("structured_output") is None
+            # only a call that failed is about the limit: a good answer may say "limit reached" (words on a shirt)
+            if failed and any(w in text for w in _LIMIT_WORDS):
                 raise RouteUnavailable("the Claude plan's usage limit has been reached: "
                                        + (out.get("result") or proc.stderr or "").strip()[:200])
             problem = sign_in_problem(text) if (proc.returncode != 0 or out.get("is_error")) else None

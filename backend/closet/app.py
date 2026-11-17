@@ -1062,6 +1062,9 @@ def create_app(sv: Services) -> FastAPI:
                               sv.worker.cutter, sv.worker.is_ready)
     app.include_router(wouldjobs.router(checks, protected))
     assert sv.shopper, "build_services wires it"
+    # shop finds are judged on the same list as "Would this work?" (closet_for_check)
+    sv.shopper.weighed = lambda profile, inputs: (
+        None if profile != "demo" and state.get("life") is None else gap_analysis(profile, inputs))
     app.include_router(shop.router(sv.shopper, state, conn_dep, protected))
     app.include_router(sources.router(conn_dep, images_dir, state, protected,
                                       sv.finder.wake if sv.finder else (lambda: None), sv.worker.wake,

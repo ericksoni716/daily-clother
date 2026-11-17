@@ -1046,11 +1046,13 @@ def _search(pool: list[Piece], ctx: Context, t: float, forced: tuple[Piece, str]
     need_mid = band.mid == "must" and any(_fits(p, "mid") for p in pool)
     need_outer = band.outer == "must" and any(_fits(p, "outer") for p in pool)
     if ctx.rain and rules().rain_outer_must and not band.bare:
-        # the owner: in rain the outer layer must be water-resistant. With one in the closet that suits the day it is
-        # worn; without, any outer layer may be, with the warning to take an umbrella
+        # the owner: in rain the outer layer must be water-resistant. With one in the closet that suits the day, it is
+        # the only outer layer offered; it is required only where the day's band requires an outer layer anyway, so on
+        # a warm wet day the outfit may go without, with the warning to take an umbrella (the owner, 17 November: a
+        # rain jacket is not required on warm days). Without one, any outer layer may be worn, with the same warning
         dry = [o for o in outers if o is not None and _rain_friendly(o.piece)]
         if dry:
-            outers, need_outer = list(dry), True
+            outers = list(dry)
     if not (forced and forced[1] == "mid") and not (need_mid and strict):
         mids.append(None)
     if not (forced and forced[1] == "outer") and not (need_outer and strict):

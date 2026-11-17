@@ -5,6 +5,9 @@ item to build around, items to leave out, how many outfits) and fills in the
 rest: the day's temperatures and rain from the forecast for the saved place
 (unless given), how many days ago each item was last worn from the wear log,
 and what the owner's ratings of outfits worn before ask (`outfits.feedback_from`).
+The forecast is read hour by hour for the hours the owner is out (`closet/day.py`): the engine dresses for what
+those hours feel like and whether it rains in them. A day note that holds today (`closet/daynote.py`: "in Lisbon
+until Friday, outside from noon") moves the weather to its place, the hours to its hours, and offers its occasion.
 Items in the laundry are left out by the engine itself. `again` starts from an
 outfit worn before: its pieces that can be worn today keep their places.
 """
@@ -14,7 +17,8 @@ import dataclasses
 import json
 from datetime import date
 
-from . import items, outfits, wears, weather, worn
+from . import day as dayparts
+from . import daynote, items, outfits, wears, weather, worn
 from .state import State
 from .tagger.taxonomy import GARMENTS
 
@@ -139,14 +143,17 @@ def suggest(conn, state: State, body: object) -> dict:
     if unknown:
         raise outfits.ContextError(f"These are not part of today's choices: {', '.join(unknown)}.")
     given = {k: body[k] for k in WEATHER_FIELDS if body.get(k) is not None}
+    note = daynote.current(state, wears.today())
+    on = note if daynote.active(note, wears.today()) else None   # a note for days still ahead changes nothing yet
 
-    forecast, place, old, message, mild = None, None, False, None, False
+    forecast, place, old, message, mild, reading = None, None, False, None, False, None
     if len(given) < len(WEATHER_FIELDS):
-        found = weather.lookup(state)
+        found = weather.lookup(state, on.get("place") if on else None)
         place = found["place"]
         if found["weather"] and found["is_today"]:
             forecast, old = found["weather"], found["old"]
             message = found["message"] if old else None
+            reading = dayparts.read(forecast.get("hours") or [], daynote.outside(on), found["hour"])
         elif "low_c" not in given or "high_c" not in given:
             # never no outfit just because the weather is missing: dress for a mild day and say why
             mild = True
@@ -161,8 +168,13 @@ def suggest(conn, state: State, body: object) -> dict:
         high = given["high_c"] if "high_c" in given else (max(MILD["high_c"], low) if number(low) else MILD["high_c"])
         day = {"low_c": low, "high_c": high, "rain": given.get("rain", MILD["rain"])}
     else:
-        day = {k: given[k] if k in given else (forecast[k] if forecast else False) for k in WEATHER_FIELDS}
+        # the hours the owner is out, as they feel, where the forecast has them; else the whole day's low and high
+        dressed = ({"low_c": reading["feels_low_c"], "high_c": reading["feels_high_c"], "rain": reading["wet"]}
+                   if reading else forecast)
+        day = {k: given[k] if k in given else (dressed[k] if dressed else False) for k in WEATHER_FIELDS}
     request = {k: body[k] for k in CHOICES if body.get(k) is not None and k != "again"}
+    if on and on.get("occasion") and "occasion" not in request:
+        request["occasion"] = on["occasion"]
     ctx, count = outfits.parse_request({**request, **day, "worn_days_ago": worn_days_ago(conn)})
     rows = closet_rows(conn)
     if ctx.build_around and not any(r["id"] == ctx.build_around for r in rows):
@@ -188,6 +200,9 @@ def suggest(conn, state: State, body: object) -> dict:
         "rain_chance": forecast["rain_chance"] if forecast and "rain" not in given else None,
         "summary": forecast["summary"] if forecast else None,
         "message": message,
+        # the hours dressed for, read from the forecast (None when it has no hours, or every number was typed)
+        "detail": reading if from_forecast else None,
+        "note": daynote.describe(note, wears.today()),
     }
     if again is not None:
         context["again"] = again

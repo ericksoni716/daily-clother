@@ -33,6 +33,8 @@ DEFAULTS: dict[str, Any] = {
     "tagging_route_order": "auto", # which route to Claude is tried first: a key of tagger.routes.ORDERS
     "place": HOME_PLACE,      # {"name", "latitude", "longitude", "timezone"}: New York until one is chosen
     "weather": None,          # the last forecast for the place: {"key", "fetched", "offset", "answer"}
+    "weather_away": None,     # the same for the place of a day spent somewhere else (closet/daynote.py)
+    "day_note": None,         # the day in the owner's words, as Claude read it (closet/daynote.py); None: an ordinary day at home
     "trip_weather": None,     # forecasts and usual weather looked up for trips: {"forecast": {...}, "usual": {...}}
     "rewear": None,           # "Before it needs washing": kind -> wears (closet/trips.py KINDS); None: the defaults
     "laundry": None,          # laundry that keeps itself: {"auto": bool, "day": 0-6 or None}; None: on, Sunday (wears.py)

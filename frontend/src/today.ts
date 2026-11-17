@@ -36,6 +36,53 @@ export interface DayContext {
   message?: string | null;
   /** When the outfits start from one worn before: which of its pieces came back and which could not. */
   again?: { id: string; worn_on: string; kept: string[]; unavailable: string[] };
+  /** The hours dressed for, read from the forecast hour by hour; null when it has no hours or the day was typed. */
+  detail?: DayDetail | null;
+  /** The day in the owner's words, if a note holds today or is coming up. */
+  note?: DayNote | null;
+}
+
+/** What the hours the owner is out are like (the server's `closet/day.py`). */
+export interface DayDetail {
+  from_hour: number;
+  to_hour: number;
+  temp_low_c: number;
+  temp_high_c: number;
+  feels_low_c: number;
+  feels_high_c: number;
+  /** Whether it feels far enough from the thermometer to say so. */
+  feels_apart: boolean;
+  rain: { kind: string; from_hour: number; to_hour: number; chance: number | null; mm: number | null; most: boolean; words: string } | null;
+  wind: { kmh: number | null; gust_kmh: number | null; words: string | null } | null;
+  uv: number | null;
+  humid: boolean;
+  wet: boolean;
+  /** The day in short plain parts, the temperatures first: ["feels like 0° to 7°", "rain 2pm to 5pm", "windy"]. */
+  words: string[];
+}
+
+/** A note that today, or the days ahead, are not an ordinary day at home (the server's `closet/daynote.py`). */
+export interface DayNote {
+  text: string;
+  from: string;
+  to: string;
+  /** Whether it counts today (false: it is for days still ahead). */
+  active: boolean;
+  place: { name: string; latitude: number; longitude: number; timezone: string } | null;
+  /** The place Claude read from the sentence, kept when the map could not find it. */
+  place_asked: string | null;
+  outside: [number, number] | null;
+  exposure: 'inside' | 'mixed' | 'outside';
+  activity: string;
+  occasion: string | null;
+  /** What Closet took from it: ["Lisbon, Portugal", "until Sunday 15 November", "outside noon to 6pm"]. */
+  words: string[];
+}
+
+export interface DayAnswer {
+  note: DayNote | null;
+  message: string | null;
+  saved?: boolean;
 }
 
 export interface TodayAnswer {
@@ -143,7 +190,12 @@ export function tempRange(low: number, high: number): string {
  */
 export function dayParts(c: DayContext): string[] {
   const known = c.rain_chance !== null && c.rain_chance !== undefined;
-  const parts = [tempRange(c.low_c, c.high_c), c.rain ? (known ? `rain ${c.rain_chance}%` : 'rain likely') : 'no rain'];
+  const d = c.detail;
+  // with the forecast's hours: what the hours ahead feel like, when the rain falls, and the wind and sun if they matter
+  const parts = d
+    ? [d.feels_apart ? `feels like ${tempRange(d.feels_low_c, d.feels_high_c).replace(/^A/, 'a')}` : tempRange(d.temp_low_c, d.temp_high_c),
+      ...(d.rain ? [] : ['no rain']), ...d.words.slice(1)]
+    : [tempRange(c.low_c, c.high_c), c.rain ? (known ? `rain ${c.rain_chance}%` : 'rain likely') : 'no rain'];
   if (c.source === 'mild') parts.push('a mild day');
   else if (c.place) parts.push(shortPlace(c.place));
   else if (c.source === 'given') parts.push('your temperatures');

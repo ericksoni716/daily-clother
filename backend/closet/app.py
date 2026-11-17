@@ -29,6 +29,7 @@ from . import (
     backup,
     climate,
     corrections,
+    daynote,
     db,
     demo,
     gate,
@@ -99,6 +100,7 @@ class Services:
     views: shoeviews.Worker | None = None         # sorts a shoe's photos into views
     draws: shoedraw.Worker | None = None          # draws a shoe from its sorted photos
     add_sorter: object = None                      # says what each photo chosen on Add shows (tagger/addsort.py)
+    day_reader: object = None                      # reads the day in the owner's words (tagger/dayread.py)
     on_quit: Callable[[], None] = lambda: None
     on_show: Callable[[], bool] = lambda: False   # shows Closet's own window; False when there is none (the browser is used)
     updater: updates.Updater | None = None   # new releases: checked once a day, installed when the owner says
@@ -175,7 +177,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                    landmarker: patjobs.Landmarker | None = None, shop_asker: shop.Asker | None = None,
                    finder: sources.Finder | None = None, tracer: tracejobs.Tracer | None = None,
                    sorter: shoeviews.Sorter | None = None, drawer: shoedraw.Drawer | None = None,
-                   drawing_corrector: shoedraw.Corrector | None = None, add_sorter=None) -> Services:
+                   drawing_corrector: shoedraw.Corrector | None = None, add_sorter=None,
+                   day_reader=None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
@@ -276,6 +279,14 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
 
     def no_add_sorter(photos: list[Image.Image], usable: tuple[str, ...]):
         raise RouteUnavailable("tests standing in for Claude sort no photos on Add unless they ask to")
+    day_meter = spend.Meter(cfg, state, spend.PURPOSE_DAY, spend.estimate_day)
+
+    def real_day_reader(text: str, today, home: str | None, usable: tuple[str, ...]):
+        from .tagger import dayread
+        return dayread.ask(text, today, home, usable, client=api_client, meter=day_meter)
+
+    def no_day_reader(text: str, today, home: str | None, usable: tuple[str, ...]):
+        raise RouteUnavailable("tests standing in for Claude read no day notes unless they ask to")
     draw_meter = spend.Meter(cfg, state, spend.PURPOSE_DRAW, spend.estimate_draw)
 
     def real_drawer(photos: list, usable: tuple[str, ...], notes=(), style=None):
@@ -326,7 +337,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                     corrector=corrector or real_corrector,
                     check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper),
                     finder=finding, views=views_worker, draws=draw_worker, updater=updates.Updater(cfg, state),
-                    add_sorter=add_sorter or (no_add_sorter if tagger is not None else real_add_sorter))
+                    add_sorter=add_sorter or (no_add_sorter if tagger is not None else real_add_sorter),
+                    day_reader=day_reader or (no_day_reader if tagger is not None else real_day_reader))
 
 
 def closet_inputs(cfg: Config, profile: str) -> tuple[list[dict], list[dict]]:
@@ -1088,6 +1100,60 @@ def create_app(sv: Services) -> FastAPI:
     sv.shopper.weighed = lambda profile, inputs: (
         None if profile != "demo" and state.get("life") is None else gap_analysis(profile, inputs))
     app.include_router(shop.router(sv.shopper, state, conn_dep, protected))
+    # ---------------------------------------------------------------- the day in the owner's words
+    def day_answer(message: str | None = None, saved: bool | None = None) -> dict:
+        out = {"note": daynote.describe(daynote.current(state, wears.today()), wears.today()), "message": message}
+        return out if saved is None else {**out, "saved": saved}
+
+    @app.get("/api/day", dependencies=protected)
+    async def get_day():
+        """The note about today or the days ahead, if one holds: {note, message}."""
+        return day_answer()
+
+    @app.put("/api/day", dependencies=protected)
+    async def put_day(request: Request):
+        """Reads a sentence about the owner's day with Claude and keeps it: {saved, note, message}. Nothing from the
+        closet is sent, only the sentence, today's date and the home place's name. `saved` false with a `message`
+        when Claude cannot be asked or found nothing in it; the note kept before stays."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        try:
+            text = daynote.check_text(body.get("text") if isinstance(body, dict) else None)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        if state.get("profile") == "demo":
+            return day_answer("The demo closet never asks Claude, so Closet can't read this here. "
+                              "Open your own closet to describe your day.", False)
+        assert sv.tag_worker, "build_services wires it"
+        # the API key first when it is switched on (the owner: "opus via api"), else the plan
+        usable = tuple(sorted(sv.tag_worker.routes(), key=lambda r: r != "api"))
+        if not usable and getattr(sv.day_reader, "needs_route", True):   # a stand-in (the browser tests) needs none
+            return day_answer("Claude can't be reached right now, so Closet couldn't read that. "
+                              "You can still change where you are, or type the temperatures, under Change.", False)
+        home = (state.get("place") or {}).get("name")
+        try:
+            reading = await run_in_threadpool(sv.day_reader, text, wears.today(), home, usable)
+        except CapReached:
+            return day_answer(f"{spend.LIMIT_REACHED} Closet couldn't read that.", False)
+        except (RouteUnavailable, Unreachable):
+            return day_answer("Claude can't be reached right now, so Closet couldn't read that. Try again in a moment.", False)
+        except TaggingError:
+            return day_answer("Claude gave no usable answer. Try again, or say it another way.", False)
+        from .tagger import dayread
+        if not dayread.said_something(reading):
+            return day_answer(daynote.NOTHING_READ, False)
+        note, message = await run_in_threadpool(daynote.make, text, reading, wears.today())
+        daynote.save(state, note)
+        return day_answer(message, True)
+
+    @app.delete("/api/day", dependencies=protected)
+    async def delete_day():
+        """Back to an ordinary day at home."""
+        daynote.clear(state)
+        return day_answer()
+
     @app.post("/api/add/sort", dependencies=protected)
     async def sort_add(request: Request):
         """What each photo chosen on Add shows (one piece, several, a shoe, and which photos are the same shoe), asked

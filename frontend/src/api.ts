@@ -1,5 +1,5 @@
 import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting } from './types';
-import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
+import { forgetSaved, type DayAnswer, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
 import type { Insights } from './insights';
@@ -243,6 +243,11 @@ export const api = {
   },
   /** Another photo of a shoe, besides its main one (at most 5): Closet sorts it into its view. */
   /** What each photo chosen on Add shows (one piece, several, a shoe and which shoe), up to ten small copies at once. */
+  /** The note about today or the days ahead, if one holds. */
+  day: () => request<DayAnswer>('/api/day'),
+  /** Reads a sentence about the owner's day with Claude and keeps it; `saved` false with a `message` when it could not. */
+  saveDay: (text: string) => request<DayAnswer>('/api/day', { method: 'PUT', body: { text } }),
+  clearDay: () => request<DayAnswer>('/api/day', { method: 'DELETE' }),
   sortAdd: (photos: { blob: Blob; filename: string }[]) => {
     const form = new FormData();
     for (const p of photos) form.append('photos', p.blob, p.filename);

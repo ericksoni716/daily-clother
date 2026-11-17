@@ -8,6 +8,10 @@ saved place's coordinates and time zone; nothing about the closet is. When the
 owner taps "Use my location", the browser's position, rounded to about a
 kilometre, is sent to OpenStreetMap's Nominatim to name the town, and nothing else.
 
+The forecast also carries the day hour by hour (temperature, what it feels like, rain, wind, humidity and sun), which
+`closet/day.py` reads for the hours the owner is out. A day spent somewhere else (`closet/daynote.py`) is looked up
+for that place and kept apart from home's.
+
 A forecast is kept for an hour and reused. When Open-Meteo cannot be reached
 the last forecast for the same place is given back marked as old.
 """
@@ -45,6 +49,10 @@ TIMEZONE = re.compile(r"^[A-Za-z0-9_+\-/]{1,64}$")
 SUMMARY = ((0, 1, "clear"), (2, 3, "cloudy"), (45, 48, "foggy"), (51, 57, "drizzle"), (61, 67, "rain"),
            (71, 77, "snow"), (80, 82, "rain"), (85, 86, "snow"), (95, 99, "storms"))
 WET = ("drizzle", "rain", "snow", "storms")
+# What is asked for each hour of the day, and the range each may be in (anything else is left out as unknown)
+HOURLY = {"temperature_2m": (-90, 60), "apparent_temperature": (-110, 70), "precipitation_probability": (0, 100),
+          "precipitation": (0, 500), "wind_speed_10m": (0, 400), "wind_gusts_10m": (0, 500),
+          "relative_humidity_2m": (0, 100), "uv_index": (0, 20), "weather_code": (0, 99)}
 
 
 class WeatherError(Exception):
@@ -158,11 +166,47 @@ def _summary(code: object) -> str | None:
     return None
 
 
+def _hours(data: dict, day: str) -> list[dict]:
+    """The day hour by hour, as the weather service gave it: [{hour, temp_c, feels_c, rain_chance, rain_mm, wind_kmh,
+    gust_kmh, humidity, uv, summary}], an hour without a temperature left out and anything else unknown as None
+    (what it feels like falls back on the temperature). [] when no hours can be read: the day's low and high still
+    stand, so this never fails a forecast."""
+    hourly = data.get("hourly")
+    times = hourly.get("time") if isinstance(hourly, dict) else None
+    if not isinstance(times, list):
+        return []
+
+    def at(name: str, i: int) -> float | None:
+        column = hourly.get(name)
+        v = column[i] if isinstance(column, list) and i < len(column) else None
+        lo, hi = HOURLY[name]
+        if isinstance(v, bool) or not isinstance(v, int | float) or not math.isfinite(v) or not lo <= v <= hi:
+            return None
+        return round(float(v), 1)
+
+    out, seen = [], set()
+    for i, t in enumerate(times):
+        if not isinstance(t, str) or not t.startswith(f"{day}T") or not t[11:13].isdigit():
+            continue
+        hour, temp = int(t[11:13]), at("temperature_2m", i)
+        if hour > 23 or hour in seen or temp is None:
+            continue
+        seen.add(hour)
+        feels, chance = at("apparent_temperature", i), at("precipitation_probability", i)
+        out.append({"hour": hour, "temp_c": temp, "feels_c": temp if feels is None else feels,
+                    "rain_chance": None if chance is None else round(chance), "rain_mm": at("precipitation", i),
+                    "wind_kmh": at("wind_speed_10m", i), "gust_kmh": at("wind_gusts_10m", i),
+                    "humidity": at("relative_humidity_2m", i), "uv": at("uv_index", i),
+                    "summary": _summary(at("weather_code", i))})
+    return sorted(out, key=lambda h: h["hour"])
+
+
 def _forecast(place: dict) -> tuple[dict, int]:
     data = _get(FORECAST_URL, {
         "latitude": place["latitude"], "longitude": place["longitude"], "timezone": place["timezone"],
         "daily": "temperature_2m_min,temperature_2m_max,precipitation_probability_max,weather_code",
-        "temperature_unit": "celsius", "forecast_days": 1})
+        "hourly": ",".join(HOURLY), "temperature_unit": "celsius", "wind_speed_unit": "kmh",
+        "precipitation_unit": "mm", "forecast_days": 1})
     daily = data.get("daily")
     try:
         day = daily["time"][0]
@@ -192,7 +236,7 @@ def _forecast(place: dict) -> tuple[dict, int]:
     summary = _summary(code)
     rain = chance >= RAIN_CHANCE if chance is not None else summary in WET
     answer = {"date": day, "low_c": round(float(low), 1), "high_c": round(float(high), 1), "rain_chance": chance,
-              "rain": rain, "summary": summary or "mixed",
+              "rain": rain, "summary": summary or "mixed", "hours": _hours(data, day),
               "fetched_at": datetime.fromtimestamp(_now(), UTC).strftime("%Y-%m-%dT%H:%M:%SZ")}
     return answer, offset
 
@@ -201,35 +245,45 @@ def _place_today(offset: int) -> str:
     return datetime.fromtimestamp(_now() + offset, UTC).date().isoformat()
 
 
-def lookup(state: State) -> dict:
-    """Today's weather for the saved place.
+def _hour_at(offset: int) -> int:
+    """The hour of the day it is now at a place (0 to 23)."""
+    return datetime.fromtimestamp(_now() + offset, UTC).hour
 
-    Returns {place, weather, old, message, is_today}: `weather` is {date, low_c, high_c, rain_chance, rain,
-    summary, fetched_at} or None; `old` is true when it is a forecast kept from before because Open-Meteo
+
+def lookup(state: State, away: dict | None = None) -> dict:
+    """Today's weather for the saved place, or for `away`: the place of a day spent somewhere else.
+
+    Returns {place, weather, old, message, is_today, hour}: `weather` is {date, low_c, high_c, rain_chance, rain,
+    summary, hours, fetched_at} or None (`hours`: the day hour by hour, see `_hours`; a forecast kept from an older
+    Closet has none); `old` is true when it is a forecast kept from before because Open-Meteo
     could not be reached; `message` says in plain words why there is no weather, or that it is old;
-    `is_today` says whether the forecast is for today at the place (an old one may be for an earlier day).
+    `is_today` says whether the forecast is for today at the place (an old one may be for an earlier day);
+    `hour` is the hour it is now at the place (None without a forecast). Home's forecast and an away day's are
+    kept apart, so asking for one never throws the other away.
     """
-    place = state.get("place")
+    place = away or state.get("place")
+    slot = "weather_away" if away else "weather"
     if not place:
-        return {"place": None, "weather": None, "old": False, "is_today": False,
+        return {"place": None, "weather": None, "old": False, "is_today": False, "hour": None,
                 "message": "Choose where you are in Settings to see today's weather."}
-    key, kept = _key(place), state.get("weather")
+    key, kept = _key(place), state.get(slot)
     if not (isinstance(kept, dict) and kept.get("key") == key):
         kept = None
     if kept and _now() - kept["fetched"] < KEEP_S and kept["answer"]["date"] == _place_today(kept["offset"]):
-        return {"place": place, "weather": kept["answer"], "old": False, "message": None, "is_today": True}
+        return {"place": place, "weather": kept["answer"], "old": False, "message": None, "is_today": True,
+                "hour": _hour_at(kept["offset"])}
     try:
         answer, offset = _forecast(place)
     except WeatherError as e:
         if kept:
-            return {"place": place, "weather": kept["answer"], "old": True,
+            return {"place": place, "weather": kept["answer"], "old": True, "hour": _hour_at(kept["offset"]),
                     "is_today": kept["answer"]["date"] == _place_today(kept["offset"]),
                     "message": f"{e} This is the last forecast Closet got."}
-        return {"place": place, "weather": None, "old": False, "is_today": False,
+        return {"place": place, "weather": None, "old": False, "is_today": False, "hour": None,
                 "message": f"{e} Try again later, or give today's temperatures yourself."}
-    if state.get("place") == place:  # the place may have been changed while Open-Meteo was asked
-        state.update(weather={"key": key, "fetched": _now(), "offset": offset, "answer": answer})
-    return {"place": place, "weather": answer, "old": False, "message": None,
+    if away or state.get("place") == place:  # the place may have been changed while Open-Meteo was asked
+        state.update(**{slot: {"key": key, "fetched": _now(), "offset": offset, "answer": answer}})
+    return {"place": place, "weather": answer, "old": False, "message": None, "hour": _hour_at(offset),
             "is_today": answer["date"] == _place_today(offset)}
 
 

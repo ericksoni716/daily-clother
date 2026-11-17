@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { api, connection, KEEPALIVE_BUDGET, keepaliveSize, UNREACHABLE } from './api';
+import { api, connection, KEEPALIVE_BUDGET, keepaliveSize, OPEN_TIMEOUT_MS, UNREACHABLE } from './api';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -137,5 +137,22 @@ describe("a shoe's photos", () => {
     expect(calls.map((c) => [c.init.method, c.path])).toEqual([
       ['POST', '/api/items/a%20b/drawn/correct'], ['POST', '/api/items/a%20b/drawn/back']]);
     expect(JSON.parse(calls[0].init.body as string)).toEqual({ note: 'the laces are black' });
+  });
+});
+
+describe('a computer that does not answer', () => {
+  it('gives up on the opening questions after a while and shows Closet as out of reach', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal('fetch', vi.fn((_path: string, init: RequestInit) => new Promise((_resolve, reject) => {
+        init.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')));
+      })));
+      const asking = expect(api.session()).rejects.toMatchObject({ status: 0, message: UNREACHABLE });
+      await vi.advanceTimersByTimeAsync(OPEN_TIMEOUT_MS);
+      await asking;
+      expect(connection.offline).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

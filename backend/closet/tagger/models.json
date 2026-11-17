@@ -1,5 +1,5 @@
 {
-  "_note": "The one place model IDs and prices live. Prices are US dollars per million tokens (prompts up to 100K tokens for Haiku), checked 2026-11-03. The app's spend cap reads these prices; check them against Anthropic's pricing page before relying on them, and change prices_checked when they are written down again.",
+  "_note": "The one place model IDs and prices live. Prices are US dollars per million tokens (cache_write: a prompt written to the 5-minute cache, 1.25x input; cache_read: read back from it) (prompts up to 100K tokens for Haiku), checked 2026-11-03. The app's spend cap reads these prices; check them against Anthropic's pricing page before relying on them, and change prices_checked when they are written down again.",
   "prices_checked": "2026-11-03",
   "roles": {
     "tagging": "claude-haiku-5-5",
@@ -9,9 +9,9 @@
   },
   "bench_models": ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5"],
   "models": {
-    "claude-haiku-5-5": {"input": 0.10, "output": 0.50, "effort": "low"},
-    "claude-sonnet-5-5": {"input": 2.00, "output": 10.00, "effort": "low"},
-    "claude-opus-5-5": {"input": 4.00, "output": 20.00, "effort": "low"}
+    "claude-haiku-5-5": {"input": 0.10, "output": 0.50, "cache_write": 0.125, "cache_read": 0.01, "effort": "low"},
+    "claude-sonnet-5-5": {"input": 2.00, "output": 10.00, "cache_write": 2.50, "cache_read": 0.10, "effort": "low"},
+    "claude-opus-5-5": {"input": 4.00, "output": 20.00, "cache_write": 5.00, "cache_read": 0.20, "effort": "low"}
   },
   "web_search_per_1000": 10.00
 }

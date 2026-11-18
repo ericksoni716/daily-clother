@@ -71,13 +71,16 @@ def look_of(brief: dict, why="It works.", **names) -> dict:
 
 class StandIn:
     """Stands in for Claude choosing outfits. By default it gives the engine's first shortlisted outfit; `looks`
-    (a list, or a function of the brief) changes that and `error` is raised instead. `calls` holds (brief, routes)."""
+    (a list, or a function of the brief) changes that and `error` is raised instead. `calls` holds (brief, routes).
+    A message of the owner's (`say` in the brief) is answered with `reply` and `remember` as well."""
 
     def __init__(self):
         self.calls: list[tuple[dict, tuple[str, ...]]] = []
         self.looks = None
         self.error: Exception | None = None
         self.read = "A cool, dry day: a layer helps."
+        self.reply: str | None = "Done."
+        self.remember: list = []
 
     def __call__(self, brief: dict, routes: tuple[str, ...]) -> dict:
         self.calls.append((brief, routes))
@@ -85,8 +88,11 @@ class StandIn:
             raise self.error
         looks = (self.looks(brief) if callable(self.looks) else self.looks if self.looks is not None
                  else shortlist_looks(brief)[:1])
-        return {"looks": looks, "read": self.read, "route": routes[0], "model": "stand-in-model",
-                "input_tokens": 1200, "output_tokens": 300}
+        got = {"looks": looks, "read": self.read, "route": routes[0], "model": "stand-in-model",
+               "input_tokens": 1200, "output_tokens": 300}
+        if brief.get("say"):
+            got.update(read=None, reply=self.reply, remember=self.remember)
+        return got
 
 
 @pytest.fixture
@@ -173,9 +179,11 @@ def key(day="2026-11-17", context=None, ctx=None, rows=None, profile="I like nav
     return stylejobs.key_of(day, context, ctx, rows, profile)
 
 
-def test_the_same_choices_give_the_same_key():
+def test_the_same_choices_give_the_same_key_of_two_hashes_the_choices_then_the_owners_words():
     assert key() == key()
-    assert len(key()) == 64
+    choices, words = key().split(":")
+    assert len(choices) == 64 and len(words) == 64
+    assert words == stylejobs.words_of([row("a"), row("b", notes="Runs small")], "I like navy.")
 
 
 def test_the_key_changes_with_every_choice_and_word_claude_is_told():
@@ -262,10 +270,15 @@ def test_claudes_outfits_come_first_then_the_engines_that_differ_up_to_the_count
     assert stylejobs.merged([], engine, 2) == engine[:2]
 
 
-def test_today_is_told_only_the_state_id_read_and_message():
+def test_today_is_told_the_state_id_read_message_talk_and_what_is_being_answered_but_not_the_outfits():
     assert stylejobs.public(None) is None
     found = {"state": "ready", "id": "x", "outfits": [outfit("t")], "read": "Cold.", "message": None}
-    assert stylejobs.public(found) == {"state": "ready", "id": "x", "read": "Cold.", "message": None}
+    assert stylejobs.public(found) == {"state": "ready", "id": "x", "read": "Cold.", "message": None, "talk": [],
+                                       "answering": None}
+    turn = {"id": "y", "said": "Too dressy.", "state": "working", "reply": None, "message": None, "remember": [],
+            "at": "now"}
+    assert stylejobs.public({**found, "talk": [turn], "answering": "y"}) == {
+        "state": "ready", "id": "x", "read": "Cold.", "message": None, "talk": [turn], "answering": "y"}
 
 
 # ------------------------------------------------------------------ through Today
@@ -303,7 +316,8 @@ def test_claudes_outfits_come_first_once_ready_then_the_engines_that_differ(styl
     assert styled.c.get(f"/api/style/answers/{aid}").json() == {"id": aid, "state": "ready", "message": None}
     body = today(styled.c, count=4)
     st = body["context"]["stylist"]
-    assert st == {"state": "ready", "id": aid, "read": "A cool, dry day: a layer helps.", "message": None}
+    assert st == {"state": "ready", "id": aid, "read": "A cool, dry day: a layer helps.", "message": None,
+                  "talk": [], "answering": None}
     got = body["outfits"]
     assert [o.get("by") for o in got[:2]] == ["claude", "claude"]
     assert got[0]["pieces"] == {"base": ids["shirt"], "mid": ids["sweater"], "outer": None, "bottom": ids["jeans"],
@@ -383,7 +397,8 @@ def test_with_no_route_to_claude_nothing_is_asked_and_why_is_said(styled):
     styled.claude.mode = "unavailable"
     body = today(styled.c)
     st = body["context"]["stylist"]
-    assert st == {"state": "failed", "id": None, "read": None, "message": MESSAGES["no_route"]}
+    assert st == {"state": "failed", "id": None, "read": None, "message": MESSAGES["no_route"], "talk": [],
+                  "answering": None}
     assert "can't be reached right now" in st["message"] and body["outfits"]
     assert answers(styled.cfg) == [] and styled.held == [] and styled.stand_in.calls == []
 
@@ -542,7 +557,8 @@ def test_claudes_outfits_that_can_no_longer_be_worn_are_said_so_and_not_passed_o
     assert body["outfits"][0].get("by") == "claude"
     wear_first(styled, body)
     after = today(styled.c)
-    assert after["context"]["stylist"] == {"state": "failed", "id": first, "read": None, "message": MESSAGES["gone"]}
+    assert after["context"]["stylist"] == {"state": "failed", "id": first, "read": None, "message": MESSAGES["gone"],
+                                           "talk": [], "answering": None}
     assert "can no longer be worn" in MESSAGES["gone"]
     assert after["outfits"] and not any(o.get("by") == "claude" for o in after["outfits"]) and styled.held == []
 
@@ -613,7 +629,8 @@ def test_claude_is_asked_at_most_max_per_day_times_a_day(styled):
     # with none of Claude's outfits wearable any more, the day's questions are used up
     assert styled.c.post(f"/api/items/{mine['pieces']['base']}/laundry", json={"state": "laundry"}).status_code == 200
     st = today(styled.c)["context"]["stylist"]
-    assert st == {"state": "failed", "id": None, "read": None, "message": MESSAGES["day_limit"]}
+    assert st == {"state": "failed", "id": None, "read": None, "message": MESSAGES["day_limit"], "talk": [],
+                  "answering": None}
     assert f"{MAX_PER_DAY} times today" in st["message"]
     assert styled.held == [] and len(styled.stand_in.calls) == MAX_PER_DAY
 
@@ -734,8 +751,8 @@ def test_the_real_stylist_turns_claudes_answer_into_looks(cfg, monkeypatch):
         sv.stop()
     assert got == {"looks": [{"base": 1, "mid": 0, "outer": 0, "bottom": 2, "shoes": 3, "accessories": [4],
                               "why": "Warm.", "watch": ""}],
-                   "read": "Cold and dry.", "route": "api", "model": "styling-model", "input_tokens": 900,
-                   "output_tokens": 120}
+                   "read": "Cold and dry.", "reply": None, "remember": [], "route": "api", "model": "styling-model",
+                   "input_tokens": 900, "output_tokens": 120}
     [(brief, routes, meter)] = told
     assert brief == {"closet": "1. White tee"} and routes == ("api",)
     assert meter is not None and meter.purpose == spend.PURPOSE_STYLE

@@ -294,9 +294,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
 
     def real_stylist(brief: dict, usable: tuple[str, ...]) -> dict:
         from .tagger import stylist
-        result = stylist.ask(brief, usable, client=api_client, meter=style_meter)
-        return {"looks": stylist.looks(result.answer), "read": result.answer.read, "route": result.route,
-                "model": result.model, "input_tokens": result.input_tokens, "output_tokens": result.output_tokens}
+        return stylist.given(stylist.ask(brief, usable, client=api_client, meter=style_meter))
 
     # tests standing in for Claude get no stylist unless they give one: Today is then the rules engine's, as before
     choose = stylist_ask or (None if tagger is not None else real_stylist)
@@ -1335,10 +1333,25 @@ def create_app(sv: Services) -> FastAPI:
     @app.get("/api/style/answers/{answer_id}", dependencies=protected)
     def style_answer(answer_id: str, conn=Depends(conn_dep)):
         """How a question to Claude about today's outfits stands, for the page waiting on it: {id, state, message}."""
-        found = stylejobs.Stylist.get(conn, answer_id)
+        found = stylejobs.Stylist.get(conn, answer_id, sv.stylist.clock() if sv.stylist else None)
         if found is None:
             raise HTTPException(404, "That answer is not known. Open Today again.")
         return found
+
+    @app.post("/api/style/answers/{answer_id}/remember", dependencies=protected)
+    async def style_remember(answer_id: str, request: Request, conn=Depends(conn_dep)):
+        """The owner's answer to a thing Claude offered to remember: {"index": 0, "save": true} keeps it (in Your
+        style, or in the piece's "How I wear it"), {"save": false} does not. Gives the thing as it now stands."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        if not isinstance(body, dict) or not isinstance(body.get("save"), bool):
+            raise HTTPException(422, "Say which thing (index) and whether to keep it (save: true or false).")
+        try:
+            return stylejobs.settle(conn, answer_id, body.get("index"), body["save"])
+        except stylejobs.Refused as e:
+            raise HTTPException(422, str(e))
 
     # ---------------------------------------------- the owner's style profile (Settings, "Your style")
     @app.get("/api/style/profile", dependencies=protected)

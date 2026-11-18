@@ -57,8 +57,8 @@ test.describe('outfits chosen by Claude', () => {
 
   test('Today waits for Claude, shows its outfits, keeps them, asks again, and wears them', async ({ page }) => {
     test.setTimeout(180_000);
+    await aDay(page);   // before the first page: logging in can show Today, whose request must be for this day too
     await setUp(page, backend.url);
-    await aDay(page);
 
     // hold Claude's answer as "still choosing" until the waiting state has been looked at
     let hold = true;

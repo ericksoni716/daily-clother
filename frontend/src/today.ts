@@ -34,6 +34,35 @@ export interface StylistState {
   /** Why Claude could not choose, in a sentence (failed). On ready, normally null; a sentence only on the request that
    * carried `ask_again` and was refused by the daily limit ("…so these are still the ones it chose last"). */
   message: string | null;
+  /** The day's conversation with Claude about the outfits, oldest first (absent in copies saved before it existed). */
+  talk?: TalkTurn[];
+  /** The id of the owner's message Claude is answering now, for `api.styleAnswer`; null when none. */
+  answering?: string | null;
+}
+
+/** Something Claude offered to remember from a message: about the owner's style, or about one piece. */
+export interface RememberThing {
+  kind: 'style' | 'piece';
+  /** The piece's id (kind 'piece'); null for the owner's style. */
+  item_id: string | null;
+  /** The piece's name (kind 'piece'); null for the owner's style. */
+  name: string | null;
+  text: string;
+  /** Only 'offered' things are asked about; nothing is kept until the owner saves it. */
+  state: 'offered' | 'saved' | 'dismissed';
+}
+
+/** One message of the owner's about the outfits, and Claude's answer to it. */
+export interface TalkTurn {
+  id: string;
+  /** What the owner wrote. */
+  said: string;
+  /** 'working': Claude is answering; 'ready': `reply` is Claude's words; 'failed': `message` says why it was not answered. */
+  state: 'working' | 'ready' | 'failed';
+  reply: string | null;
+  message: string | null;
+  remember: RememberThing[];
+  at: string;
 }
 
 /** The day the outfits were chosen for, as the server worked it out. */
@@ -128,6 +157,10 @@ export interface TodayRequest {
   again?: string;
   /** Ask Claude to choose afresh (one request only: never kept with the request). */
   ask_again?: boolean;
+  /** A message to Claude about the outfits on the page (one request only: never kept with the request). */
+  say?: string;
+  /** Which outfit was in front of the owner as they wrote (0 is the first); only sent with `say`. */
+  looking_at?: number;
 }
 
 export interface WearManyAnswer {
@@ -466,4 +499,54 @@ export const STYLIST_SLOW_S = 60;
 export function waitingLine(seconds: number): string {
   return seconds >= STYLIST_SLOW_S ? 'This is taking longer than usual.'
     : 'This usually takes about 20 seconds. They are kept for the rest of the day.';
+}
+
+// --------------------------------------------------------------------- talking to Claude about the outfits
+
+/** The longest message to Claude (the server's `styling.MAX_SAY`). */
+export const MAX_SAY = 500;
+
+/** The conversation and the message being answered, from a stylist state, also from a copy saved before they existed. */
+export function talkOf(stylist: StylistState | null | undefined): { talk: TalkTurn[]; answering: string | null } {
+  return { talk: Array.isArray(stylist?.talk) ? stylist.talk : [], answering: stylist?.answering ?? null };
+}
+
+/** Whether a message can be sent: something other than spaces. */
+export function canSay(text: string): boolean {
+  return text.trim().length > 0;
+}
+
+/**
+ * Which outfit is in front of the owner, for `looking_at`: the carousel shows one outfit at a time, so it is the one at
+ * its place (kept within the outfits shown); null when there is none.
+ */
+export function lookingAt(index: number, count: number): number | null {
+  if (count <= 0) return null;
+  return Math.max(0, Math.min(index, count - 1));
+}
+
+/** The question on a thing Claude offered to remember, and the button that keeps it. */
+export function rememberWords(thing: RememberThing): { question: string; save: string } {
+  return thing.kind === 'piece'
+    ? { question: `Keep this on ${thing.name || 'this piece'}?`, save: 'Save to its notes' }
+    : { question: 'Keep this for other days?', save: 'Save to Your style' };
+}
+
+/** The quiet line in place of a thing once it is saved. */
+export function savedLine(thing: RememberThing): string {
+  return thing.kind === 'piece' ? `Saved to ${thing.name || 'the piece'}'s notes.` : 'Saved to Your style.';
+}
+
+/** The answer with one thing of one turn as it now stands (after Save or No thanks); the same answer when not found. */
+export function withThing(answer: TodayAnswer, turnId: string, index: number, thing: RememberThing): TodayAnswer {
+  const stylist = answer.context.stylist;
+  const talk = talkOf(stylist).talk;
+  if (!stylist || !talk.some((t) => t.id === turnId && index >= 0 && index < t.remember.length)) return answer;
+  const next = talk.map((t) => (t.id !== turnId ? t : { ...t, remember: t.remember.map((r, i) => (i === index ? thing : r)) }));
+  return { ...answer, context: { ...answer.context, stylist: { ...stylist, talk: next } } };
+}
+
+/** Whether two lists of outfits are the same outfits in the same order (after Claude answered a message). */
+export function sameOutfits(a: Outfit[], b: Outfit[]): boolean {
+  return a.length === b.length && a.every((o, i) => outfitIds(o.pieces).join(',') === outfitIds(b[i].pieces).join(','));
 }

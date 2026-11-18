@@ -579,3 +579,193 @@ def test_an_outfit_with_nothing_known_of_its_day_has_no_empty_brackets():
         worn = [{"worn_on": "2026-11-16", "pieces": {"base": "a", "bottom": "b", "shoes": "c"}, "context": context}]
         assert styling.history_words(worn, names) == \
             "- 2026-11-16: White tee, Blue jeans, White sneakers. The owner: not rated."
+
+
+# ------------------------------------------------------------------ the conversation (styling.talk_words, keeps)
+def shown_outfits():
+    return [{"pieces": {"base": "t1", "mid": None, "outer": None, "bottom": "b1", "shoes": "s1", "accessories": ["a1"]},
+             "reasons": ["  Easy and\n warm. "], "by": "claude"},
+            {"pieces": {"base": "t2", "mid": "m1", "outer": None, "bottom": "b2", "shoes": "s2", "accessories": []},
+             "reasons": ["The rules liked it."], "score": 80}]
+
+
+def test_nothing_said_is_no_talk():
+    listing = styling.listed(closet(), context())
+    assert styling.talk_words([], listing) == ""
+    assert styling.talk_words([], listing, shown_outfits()) == ""   # the outfits are only told with a message
+    assert styling.talk_words([{"said": "  ", "reply": "Hello."}, {"said": None, "reply": None}], listing) == ""
+
+
+def test_the_talk_tells_the_outfits_shown_by_their_numbers_then_what_was_said():
+    listing = styling.listed(closet(), context())
+    turns = [{"said": "Too  dressy.", "reply": " Plainer\n it is. "}]
+    assert styling.talk_words(turns, listing, shown_outfits(), "  Swap the\n boots ").splitlines() == [
+        "The outfits on the owner's screen now, in order (the owner may call them the first, the second and so on):",
+        "- Outfit 1 (yours): base 2; bottom 6; shoes 8; accessories 10. You said: “Easy and warm.”",
+        "- Outfit 2 (from the app's rules): base 1; mid layer 3; bottom 5; shoes 7.",
+        "What was said today, oldest first:",
+        "- The owner: “Too dressy.”",
+        "- You: “Plainer it is.”",
+        "- The owner, just now: “Swap the boots”",
+    ]
+
+
+def test_without_a_message_the_talk_is_only_what_was_said():
+    listing = styling.listed(closet(), context())
+    turns = [{"said": "Too dressy.", "reply": "Plainer it is."}]
+    assert styling.talk_words(turns, listing, shown_outfits()) == (
+        "What was said today, oldest first:\n- The owner: “Too dressy.”\n- You: “Plainer it is.”")
+    assert styling.talk_words(turns, listing) == styling.talk_words(turns, listing, shown_outfits())
+
+
+def test_a_turn_with_no_answer_says_it_did_not_reach_the_owner():
+    listing = styling.listed(closet(), context())
+    for reply in (None, "", "  "):
+        assert styling.talk_words([{"said": "Too dressy.", "reply": reply}], listing).splitlines()[-1] == (
+            "- (your answer did not reach them)")
+
+
+def test_only_the_newest_talk_turns_are_told():
+    listing = styling.listed(closet(), context())
+    turns = [{"said": f"Message {i}.", "reply": f"Answer {i}."} for i in range(styling.TALK_TURNS + 3)]
+    lines = styling.talk_words(turns, listing).splitlines()
+    assert len(lines) == 1 + 2 * styling.TALK_TURNS
+    assert lines[1] == "- The owner: “Message 3.”" and lines[-1] == f"- You: “Answer {styling.TALK_TURNS + 2}.”"
+    assert "Message 2." not in "\n".join(lines)
+
+
+@pytest.mark.parametrize("looking_at, said", [(0, ", with outfit 1 in front of them"),
+                                              (1, ", with outfit 2 in front of them"),
+                                              (2, ""), (-1, ""), (True, ""), (None, ""), ("0", "")])
+def test_the_outfit_in_front_of_the_owner_is_told_only_when_it_is_on_the_screen(looking_at, said):
+    listing = styling.listed(closet(), context())
+    text = styling.talk_words([], listing, shown_outfits(), "Not this one.", looking_at)
+    assert text.splitlines()[-1] == f"- The owner, just now{said}: “Not this one.”"
+    assert "in front of them" not in styling.talk_words([], listing, None, "Not this one.", 0)
+
+
+def test_things_to_remember_are_kept_with_where_they_would_go():
+    listing = styling.listed(closet(), context())   # piece 2 is the white tee
+    got = styling.keeps([{"about": 0, "text": "  I like   navy. "}, {"about": 2, "text": "Only under a layer."}], listing)
+    assert got == [
+        {"kind": "style", "item_id": None, "name": None, "text": "I like navy.", "state": "offered"},
+        {"kind": "piece", "item_id": "t1", "name": "White tee", "text": "Only under a layer.", "state": "offered"},
+    ]
+    assert styling.keeps([{"text": "No about is my style."}, {"about": None, "text": "Nor is None."}], listing) == [
+        {"kind": "style", "item_id": None, "name": None, "text": "No about is my style.", "state": "offered"},
+        {"kind": "style", "item_id": None, "name": None, "text": "Nor is None.", "state": "offered"}]
+    assert styling.STYLE == "style" and styling.PIECE == "piece" and styling.MAX_KEEPS == 2
+
+
+@pytest.mark.parametrize("thing", [{"about": 12, "text": "No such piece."}, {"about": -1, "text": "Below."},
+                                   {"about": True, "text": "A yes."}, {"about": "2", "text": "Words."},
+                                   {"about": 2.0, "text": "A float."}, {"about": 0, "text": ""},
+                                   {"about": 0, "text": "   "}, {"about": 0, "text": 5}, {"about": 0}, "I like navy.",
+                                   None, 3])
+def test_a_thing_with_no_text_or_about_no_piece_is_dropped(thing):
+    assert styling.keeps([thing], styling.listed(closet(), context())) == []
+
+
+def test_things_to_remember_must_be_a_list():
+    listing = styling.listed(closet(), context())
+    for offered in (None, {"about": 0, "text": "I like navy."}, "I like navy.", 3):
+        assert styling.keeps(offered, listing) == []
+
+
+def test_a_thing_offered_twice_is_kept_once_and_at_most_max_keeps():
+    listing = styling.listed(closet(), context())
+    got = styling.keeps([{"about": 0, "text": "One."}, {"about": 0, "text": " One. "}, {"about": 2, "text": "One."},
+                         {"about": 0, "text": "Two."}], listing)
+    assert [(k["item_id"], k["text"]) for k in got] == [(None, "One."), ("t1", "One.")]
+    assert len(styling.keeps([{"about": 0, "text": f"Thing {i}."} for i in range(5)], listing)) == styling.MAX_KEEPS
+
+
+def test_a_thing_to_remember_is_cut_to_max_note():
+    got = styling.keeps([{"about": 0, "text": "z" * 500}], styling.listed(closet(), context()))
+    assert got[0]["text"] == "z" * styling.MAX_NOTE
+
+
+# ------------------------------------------------------------------ the conversation in the question to Claude
+BLOCKS = {"guide": "GUIDE-TEXT", "profile": "PROFILE-TEXT", "closet": "CLOSET-TEXT", "day": "DAY-TEXT",
+          "worn": "WORN-TEXT", "shortlist": "SHORTLIST-TEXT", "must": ""}
+HOLDS = "What the owner told you earlier today (the conversation above) still holds: keep to it."
+
+
+def test_a_plain_prompt_asks_for_outfits_and_a_line_about_the_day_with_no_conversation():
+    text = stylist.prompt(BLOCKS)
+    assert "# What to give" in text and "`read`" in text
+    assert "# The conversation" not in text and HOLDS not in text and "`reply`" not in text
+    assert "`remember`" not in text and text.endswith("- `read`: one sentence on what about today shaped your choices.")
+
+
+def test_a_plain_prompt_after_a_conversation_tells_it_and_says_it_still_holds():
+    text = stylist.prompt({**BLOCKS, "talk": "TALK-TEXT"})
+    assert "# The conversation with the owner today\nTALK-TEXT" in text
+    assert text.index("SHORTLIST-TEXT") < text.index("TALK-TEXT") < text.index("# What to give")
+    assert HOLDS in text and "`read`" in text and "`reply`" not in text
+    assert f"{stylist.COUNT} outfits for today" in text
+
+
+def test_a_prompt_with_a_message_asks_for_a_reply_outfits_and_things_to_remember_not_a_read():
+    text = stylist.prompt({**BLOCKS, "talk": "TALK-TEXT", "say": "Too dressy."})
+    assert "# The conversation with the owner today\nTALK-TEXT" in text
+    assert "`reply`" in text and "`outfits`" in text and "`remember`" in text
+    assert f"give {stylist.COUNT} outfits again" in text
+    assert "`read`" not in text and HOLDS not in text and "outfits for today, the best first" not in text
+    assert "Every outfit must" not in text
+    must = "Every outfit must include piece 4: the owner wants to build around it."
+    assert stylist.prompt({**BLOCKS, "talk": "T", "say": "Too dressy.", "must": must}).count(must) == 1
+    assert "give 5 outfits again" in stylist.prompt({**BLOCKS, "talk": "T", "say": "Too dressy."}, 5)
+
+
+def test_a_message_is_asked_with_the_reply_form_and_more_room(monkeypatch):
+    seen = []
+
+    def fake_ask(text, images, routes, **kw):
+        seen.append((text, kw))
+        model = kw["answer_model"]
+        answer = (stylist.Reply(reply="Plainer.", outfits=[], remember=[]) if model is stylist.Reply
+                  else stylist.Looks(read="", outfits=[]))
+        return correcting.CorrectionResult(answer, "api", kw["model"])
+    monkeypatch.setattr(stylist.correcting, "ask", fake_ask)
+    talking = {**BLOCKS, "talk": "TALK-TEXT", "say": "Too dressy."}
+    assert stylist.ask(talking, ("api",)).answer.reply == "Plainer."
+    text, kw = seen[-1]
+    assert text == stylist.prompt(talking, stylist.COUNT)
+    assert kw["answer_model"] is stylist.Reply and kw["max_tokens"] == stylist.TALK_MAX_TOKENS
+    assert kw["system"] == stylist.SYSTEM and (kw["model"], kw["effort"]) == (stylist.MODEL, stylist.EFFORT)
+    for brief in ({**BLOCKS, "talk": "TALK-TEXT"}, {**BLOCKS, "talk": "TALK-TEXT", "say": ""}):
+        stylist.ask(brief, ("api",))
+        assert seen[-1][1]["answer_model"] is stylist.Looks and seen[-1][1]["max_tokens"] == stylist.MAX_TOKENS
+    assert stylist.TALK_MAX_TOKENS > stylist.MAX_TOKENS
+
+
+def test_given_turns_a_plain_answer_into_what_the_job_takes():
+    one = stylist.Look(base=1, mid=0, outer=0, bottom=2, shoes=3, accessories=[], why="Warm.", watch="")
+    result = correcting.CorrectionResult(stylist.Looks(read="Cold.", outfits=[one]), "plan", "m", 10, 5)
+    assert stylist.given(result) == {"looks": [one.model_dump()], "read": "Cold.", "reply": None, "remember": [],
+                                     "route": "plan", "model": "m", "input_tokens": 10, "output_tokens": 5}
+
+
+def test_given_turns_a_reply_into_what_the_job_takes():
+    one = stylist.Look(base=1, mid=0, outer=0, bottom=2, shoes=3, accessories=[4], why="Plainer.", watch="")
+    answer = stylist.Reply(reply="Plainer it is.", outfits=[one],
+                           remember=[stylist.Keep(about=0, text="I don't wear a blazer on weekends.")])
+    result = correcting.CorrectionResult(answer, "api", "m", 20, 8)
+    assert stylist.given(result) == {"looks": [one.model_dump()], "read": None, "reply": "Plainer it is.",
+                                     "remember": [{"about": 0, "text": "I don't wear a blazer on weekends."}],
+                                     "route": "api", "model": "m", "input_tokens": 20, "output_tokens": 8}
+
+
+def test_the_reply_form_refuses_anything_extra_or_loose():
+    stylist.Reply.model_validate({"reply": "Yes.", "outfits": [], "remember": [{"about": 0, "text": "I like navy."}]})
+    with pytest.raises(ValidationError):
+        stylist.Reply.model_validate({"reply": "Yes.", "outfits": [], "remember": [], "read": "Cold."})
+    with pytest.raises(ValidationError):
+        stylist.Reply.model_validate({"reply": "Yes.", "outfits": []})
+    with pytest.raises(ValidationError):
+        stylist.Reply.model_validate({"reply": "Yes.", "outfits": [], "remember": [{"about": 0, "text": "x", "why": 1}]})
+    with pytest.raises(ValidationError):
+        stylist.Keep.model_validate({"about": "0", "text": "I like navy."})
+    with pytest.raises(ValidationError):
+        stylist.Keep.model_validate({"about": 0, "text": "I like navy.", "kind": "style"})

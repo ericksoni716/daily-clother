@@ -126,6 +126,24 @@ rules** when Claude couldn't choose). It uses your Claude plan, or your API key
 first when that is switched on in Settings: about 5 cents each time, counted in
 the monthly limit.
 
+**Tell Claude what you think.** Under Claude's outfits, write to Claude about
+them in the box **Tell Claude what you think**: "too dressy", "swap the boots",
+or ask "why not the navy blazer?". Tap **Send** (or press Enter; Shift+Enter
+starts a new line). Your message shows at once, with "Claude is answering…",
+and a few seconds later Claude's answer appears under it. When Claude changes
+the outfits, the first one is shown; when it only answers, the outfits stay as
+they were. What you said holds for the rest of the day, even when the weather
+or the occasion changes. If Claude couldn't be reached, the message says so,
+with **Send again**. The day's conversation stays on Today until tomorrow, and
+offline you can read it but not send.
+
+**Keep this for other days?** Sometimes Claude offers to remember something you
+said: about how you dress ("I never wear shorts in town"), or about one piece
+("Fits well under a jacket"). Nothing is kept unless you tap **Save**: **Save
+to Your style** adds it as a line in **Settings → Your style**, and **Save to
+its notes** adds it to that piece's **How I wear it**. **No thanks** lets it go.
+You can change or remove either later, where it was saved.
+
 The weather line is about the hours ahead of you, not the whole day: from now
 until ten at night (from seven in the morning if you look earlier). It says
 what those hours feel like when wind or damp make that different from the

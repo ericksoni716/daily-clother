@@ -18,6 +18,9 @@ dislike is never in the list, so it cannot be chosen. From the answer, an outfit
 the list, each piece is in a place it can fill, it has a top, a bottom and shoes, and it is not an outfit the
 owner rated "not again"; anything else is dropped and said in `problems`. Nothing else is checked: layering,
 colour, formality and warmth are Claude's to judge.
+
+The conversation (`closet/stylejobs.py`): `talk_words` writes what was said today, and for a message just written
+the outfits on the owner's screen; `keeps` shapes what Claude offers to remember for other days.
 """
 from __future__ import annotations
 
@@ -33,11 +36,18 @@ from . import outfits
 GUIDE_FILE = Path(__file__).resolve().parents[2] / "docs" / "menswear-taxonomy.json"
 # How the owner dresses, until they write their own in Settings, "Your style" (`closet/styleprofile.py`). The first
 # line is the owner's, 17 November.
-DEFAULT_PROFILE = """- I carry an umbrella, so a rain jacket is never a must. When it really rains, favour one if it suits the outfit, and boots or shoes that can take water.
+DEFAULT_KEPT = ("- I carry an umbrella, so a rain jacket is never a must. When it really rains, favour one if it suits "
+                "the outfit, and boots or shoes that can take water.")
+DEFAULT_PROFILE = f"""{DEFAULT_KEPT}
 - Nothing else is written here yet: go by the guide and by what I have worn and said about it."""
 HISTORY = 12                 # the newest this many worn outfits are told
 SHORTLIST = 6                # the engine's best this many outfits are offered as a start
 MAX_NOTE = 240               # the longest owner's note on a piece that is passed on (characters)
+MAX_SAY = 500                # the longest message the owner can send Claude about the outfits (characters)
+MAX_REPLY = 700              # the longest answer of Claude's that is kept
+TALK_TURNS = 12              # the newest this many messages of the day's conversation are told
+MAX_KEEPS = 2                # things Claude may offer to remember in one answer, at most
+STYLE, PIECE = "style", "piece"   # where a thing to remember would be kept: Your style, or a piece's "How I wear it"
 PLACE_WORDS = {"base": "base", "mid": "mid layer", "outer": "outer layer", "bottom": "bottom", "shoes": "shoes"}
 RATING_WORDS = {"love": "loved", "like": "liked", "meh": "meh"}
 REASON_WORDS = {"too_warm": "too warm", "too_cold": "too cold", "too_dressy": "too dressy", "too_casual": "too casual",
@@ -227,6 +237,61 @@ def shortlist_words(engine: list[dict], listing: Listed) -> str:
         if parts:
             lines.append("- " + "; ".join(parts))
     return "\n".join(lines) or "- The rules found no outfit."
+
+
+def _numbers(o: Mapping, listing: Listed) -> str:
+    placed = o.get("pieces") or {}
+    parts = [f"{PLACE_WORDS[pl]} {listing.number(placed[pl])}" for pl in outfits.PLACES
+             if placed.get(pl) and listing.number(placed[pl])]
+    extras = [str(listing.number(a)) for a in placed.get("accessories") or [] if listing.number(a)]
+    return "; ".join(parts + ([f"accessories {', '.join(extras)}"] if extras else []))
+
+
+def talk_words(turns: list[dict], listing: Listed, shown: list[dict] | None = None, say: str | None = None,
+               looking_at: int | None = None) -> str:
+    """The day's conversation for Claude: the outfits on the owner's screen (when they have just written, `say`),
+    then what was said, oldest first. `turns`: [{said, reply}] (`reply` None when no answer reached the owner).
+    `looking_at`: which of the outfits shown the owner had in front of them as they wrote (0 is the first), when
+    the page shows one at a time. Empty when nothing has been said."""
+    out = []
+    if say and shown:
+        out.append("The outfits on the owner's screen now, in order (the owner may call them the first, the second "
+                   "and so on):")
+        for i, o in enumerate(shown, 1):
+            whose = "yours" if o.get("by") == "claude" else "from the app's rules"
+            why = f" You said: “{_text(o['reasons'][0])}”" if o.get("by") == "claude" and o.get("reasons") else ""
+            out.append(f"- Outfit {i} ({whose}): {_numbers(o, listing)}.{why}")
+    said = []
+    for t in turns[-TALK_TURNS:]:
+        if _text(t.get("said")):
+            said.append(f"- The owner: “{_text(t['said'])}”")
+            said.append(f"- You: “{_text(t['reply'])}”" if _text(t.get("reply")) else "- (your answer did not reach them)")
+    if _text(say):
+        at = (f", with outfit {looking_at + 1} in front of them" if shown and isinstance(looking_at, int)
+              and not isinstance(looking_at, bool) and 0 <= looking_at < len(shown) else "")
+        said.append(f"- The owner, just now{at}: “{_text(say)}”")
+    if said:
+        out += ["What was said today, oldest first:", *said]
+    return "\n".join(out)
+
+
+def keeps(offered: object, listing: Listed) -> list[dict]:
+    """What Claude offers to remember, as it is kept until the owner answers: [{kind: "style" or "piece", item_id,
+    name, text, state: "offered"}]. `offered`: [{about: 0 for the owner's style or a piece's number, text}]. One
+    with no text, or about a number that is no piece, is dropped; at most `MAX_KEEPS`."""
+    out = []
+    for k in offered if isinstance(offered, list) else []:
+        if not isinstance(k, Mapping):
+            continue
+        text, about = _text(k.get("text"))[:MAX_NOTE], 0 if k.get("about") is None else k["about"]
+        if not text or not isinstance(about, int) or isinstance(about, bool) or not 0 <= about <= len(listing.ids):
+            continue
+        item_id = listing.ids[about - 1] if about else None
+        if any(o["text"] == text and o["item_id"] == item_id for o in out):
+            continue
+        out.append({"kind": PIECE if item_id else STYLE, "item_id": item_id,
+                    "name": listing.names.get(item_id) if item_id else None, "text": text, "state": "offered"})
+    return out[:MAX_KEEPS]
 
 
 def brief(rows: list[dict], context: Mapping, ctx: outfits.Context, when: date, worn: list[dict],

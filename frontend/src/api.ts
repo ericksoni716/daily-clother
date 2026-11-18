@@ -1,5 +1,5 @@
 import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, StyleProfile } from './types';
-import { forgetSaved, type DayAnswer, type StyleAnswer, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
+import { forgetSaved, type DayAnswer, type RememberThing, type StyleAnswer, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
 import type { Insights } from './insights';
@@ -328,6 +328,9 @@ export const api = {
   /** How a question to Claude about today's outfits stands, while Today waits on it (cheap to ask every few seconds). */
   styleAnswer: (id: string, signal?: AbortSignal) =>
     request<StyleAnswer>(`/api/style/answers/${encodeURIComponent(id)}`, { signal }),
+  /** The owner's answer to a thing Claude offered to remember in its answer to a message: keep it (`save`) or not. */
+  remember: (turnId: string, index: number, save: boolean) =>
+    request<RememberThing>(`/api/style/answers/${encodeURIComponent(turnId)}/remember`, { method: 'POST', body: { index, save } }),
   planTrip: (trip: TripRequest, signal?: AbortSignal) =>
     request<PlannedTrip>('/api/trips/plan', { method: 'POST', body: trip, signal }),
   saveTrip: (trip: TripRequest) => request<Trip>('/api/trips', { method: 'POST', body: trip }),

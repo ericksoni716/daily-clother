@@ -136,14 +136,19 @@ def again_of(outfit: dict, rows: list[dict], leave_out: set[str]) -> dict:
     return {"id": outfit["id"], "worn_on": outfit["worn_on"], "kept": kept, "unavailable": unavailable}
 
 
-def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None = None, path=None) -> dict:
+def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None = None, path=None,
+            ahead: bool = False) -> dict:
     """Outfits for today plus the context used. Raises outfits.ContextError with a sentence for a bad request.
 
     With a `stylist` (and `path`, the closet's database, for its thread), Claude chooses: its outfits for today
     are given when they are ready, and the rules engine's meanwhile and whenever Claude cannot be asked;
     `context.stylist` says which (`closet/stylejobs.py`). `ask_again` in the body asks Claude afresh; `say` sends
     Claude a message about the outfits on the page (the conversation), which it answers in the background, and
-    `looking_at` says which of the outfits was in front of the owner as they wrote (0 is the first)."""
+    `looking_at` says which of the outfits was in front of the owner as they wrote (0 is the first).
+
+    `ahead`: this is not the owner asking but Closet, ahead of their first look (`closet/styleahead.py`). Claude is
+    then asked only for a day read from today's fresh forecast: outfits for a guessed or an old day would be asked
+    again as soon as the owner opened Today."""
     if not isinstance(body, dict):
         raise outfits.ContextError("Send today's choices as an object, for example {\"occasion\": \"casual\"}.")
     unknown = sorted(set(body) - set(CHOICES) - set(WEATHER_FIELDS))
@@ -229,6 +234,8 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
     answer = outfits.suggest(rows, ctx, count, feedback)
     if say is not None and (stylist is None or not answer["outfits"]):
         raise outfits.ContextError("Claude isn't choosing your outfits here, so the message wasn't sent.")
+    if ahead and (source != "forecast" or old):
+        stylist = None
     if stylist is not None and answer["outfits"]:
         recent = worn.list_outfits(conn, styling.HISTORY)["outfits"]
         profile = styleprofile.text_for_stylist(conn)

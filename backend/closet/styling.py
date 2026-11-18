@@ -283,7 +283,7 @@ def keeps(offered: object, listing: Listed) -> list[dict]:
     for k in offered if isinstance(offered, list) else []:
         if not isinstance(k, Mapping):
             continue
-        text, about = _text(k.get("text"))[:MAX_NOTE], k.get("about") or 0
+        text, about = _text(k.get("text"))[:MAX_NOTE], 0 if k.get("about") is None else k["about"]
         if not text or not isinstance(about, int) or isinstance(about, bool) or not 0 <= about <= len(listing.ids):
             continue
         item_id = listing.ids[about - 1] if about else None

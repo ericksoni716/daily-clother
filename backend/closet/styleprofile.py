@@ -45,14 +45,17 @@ def save(conn, text: object, source: str = "owner") -> dict:
     if source not in SOURCES:
         raise ValueError("A style profile is written by the owner or by Claude.")
     text = tidy(text)
-    conn.execute("BEGIN IMMEDIATE")
+    mine = not conn.in_transaction   # inside a caller's transaction, the caller commits (as `items.update`)
+    if mine:
+        conn.execute("BEGIN IMMEDIATE")
     try:
         row = _newest(conn)
         if text != (row["text"] if row is not None else ""):
             conn.execute("INSERT INTO style_profile (text, source, created_at) VALUES (?, ?, ?)", (text, source, db.now()))
-        conn.execute("COMMIT")
+        if mine:
+            conn.execute("COMMIT")
     except Exception:
-        if conn.in_transaction:
+        if mine and conn.in_transaction:
             conn.execute("ROLLBACK")
         raise
     return current(conn)

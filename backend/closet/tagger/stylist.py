@@ -147,7 +147,7 @@ def looks(answer: Looks | Reply) -> list[dict]:
 
 def given(result) -> dict:
     """An answer as `closet/stylejobs.py` takes it: {looks, read, reply, remember, route, model, input_tokens,
-    output_tokens}. `read` is None for a `Reply`; `reply` and `remember` are for a `Looks`."""
+    output_tokens}. `read` is None for a `Reply`; `reply` is None and `remember` empty for a `Looks`."""
     a = result.answer
     return {"looks": looks(a), "read": getattr(a, "read", None), "reply": getattr(a, "reply", None),
             "remember": [k.model_dump() for k in getattr(a, "remember", [])], "route": result.route,

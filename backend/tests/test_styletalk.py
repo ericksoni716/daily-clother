@@ -791,3 +791,94 @@ def test_a_closet_has_the_three_columns_of_the_conversation(cfg):
         conn.close()
     assert {"said", "reply", "remember"} <= set(columns)
     assert all(columns[c]["type"] == "TEXT" and not columns[c]["notnull"] for c in ("said", "reply", "remember"))
+
+
+# ------------------------------------------------------------------ found in review (each shown failing first)
+def test_while_a_message_is_being_answered_asking_again_starts_nothing(styled):
+    _, before = ready(styled)
+    sent(styled)
+    body = today(styled.c, ask_again=True)
+    assert len(styled.held) == 1 and len(answers(styled.cfg)) == 2   # the message's job only
+    assert body["outfits"] == before["outfits"] and body["context"]["stylist"]["state"] == "ready"
+
+
+def test_while_a_message_is_being_answered_the_weather_moving_starts_nothing_until_it_is(styled):
+    _, before = ready(styled)
+    sent(styled)
+    body = today(styled.c, low_c=DAY["low_c"] + DRIFT_C)
+    assert len(styled.held) == 1 and len(answers(styled.cfg)) == 2
+    assert body["context"]["stylist"]["state"] == "ready"
+    run(styled)
+    today(styled.c, low_c=DAY["low_c"] + DRIFT_C)   # the answer is in: now Claude is asked for the new weather
+    assert len(styled.held) == 1 and len(answers(styled.cfg)) == 3
+    brief = styled.stand_in.calls[-1][0] if not styled.held else None
+    run(styled)
+    brief = styled.stand_in.calls[-1][0]
+    assert "- You: “Done.”" in brief["talk"] and "did not reach them" not in brief["talk"]
+
+
+def test_while_a_message_is_being_answered_other_choices_wait_on_it(styled):
+    ready(styled)
+    aid = sent(styled)["context"]["stylist"]["answering"]
+    body = today(styled.c, occasion="smart_casual")
+    st = body["context"]["stylist"]
+    # nothing new is asked: the page waits on the message, then asks Today again
+    assert len(styled.held) == 1 and len(answers(styled.cfg)) == 2
+    assert st["state"] == "working" and st["id"] == aid and st["answering"] == aid
+    run(styled)
+    today(styled.c, occasion="smart_casual")
+    assert len(styled.held) == 1 and len(answers(styled.cfg)) == 3
+
+
+def test_a_thing_that_is_part_of_a_longer_line_is_still_added(styled):
+    def setup(ids):
+        assert styled.c.put("/api/style/profile", json={"text": "- Shirts untucked."}).status_code == 200
+        assert styled.c.patch(f"/api/items/{ids['tee']}", json={"wear_notes": "Never tucked."}).status_code == 200
+    ids, aid, _ = offered(styled, setup=setup, things=lambda brief: [
+        {"about": 0, "text": "tucked."}, {"about": number_of(brief, "White tee"), "text": "tucked."}])
+    assert remember(styled.c, aid, index=0, save=True).json()["state"] == "saved"
+    assert remember(styled.c, aid, index=1, save=True).json()["state"] == "saved"
+    assert styled.c.get("/api/style/profile").json()["text"] == "- Shirts untucked.\n- tucked."
+    assert wear_notes(styled, ids["tee"]) == "Never tucked.\ntucked."
+
+
+def test_when_keeping_a_thing_fails_part_way_nothing_is_kept(styled, monkeypatch):
+    from closet import stylejobs
+    _, aid, _ = offered(styled)
+    real, calls = stylejobs.words_of, []
+
+    def breaks_the_second_time(rows, profile):
+        calls.append(1)
+        if len(calls) == 2:
+            raise RuntimeError("the disk is full")
+        return real(rows, profile)
+    monkeypatch.setattr(stylejobs, "words_of", breaks_the_second_time)
+    with pytest.raises(RuntimeError):
+        remember(styled.c, aid, index=0, save=True)
+    monkeypatch.setattr(stylejobs, "words_of", real)
+    assert profile_rows(styled) == []   # the profile is as it was
+    assert today(styled.c)["context"]["stylist"]["talk"][-1]["remember"][0]["state"] == "offered"
+
+
+def test_a_message_lost_when_closet_stopped_is_said_so_to_the_page_waiting_on_it(styled):
+    ready(styled)
+    aid = sent(styled)["context"]["stylist"]["answering"]
+    styled.now["t"] += STALE_S + 1
+    got = styled.c.get(f"/api/style/answers/{aid}").json()
+    assert got == {"id": aid, "state": "failed", "message": TALK_MESSAGES["lost"]}
+
+
+def test_a_question_lost_when_closet_stopped_is_said_so_to_the_page_waiting_on_it(styled):
+    wardrobe(styled.c)
+    aid = today(styled.c)["context"]["stylist"]["id"]
+    assert styled.c.get(f"/api/style/answers/{aid}").json()["state"] == "working"
+    styled.now["t"] += STALE_S + 1
+    got = styled.c.get(f"/api/style/answers/{aid}").json()
+    assert got == {"id": aid, "state": "failed", "message": MESSAGES["lost"]}
+
+
+def test_a_thing_about_true_or_false_is_dropped(styled):
+    listing = styling.listed([], outfits.parse_request({**DAY, "worn_days_ago": {}})[0])
+    assert styling.keeps([{"about": False, "text": "No ties."}, {"about": True, "text": "No ties."},
+                          {"about": None, "text": "No hats."}], listing) == [
+        {"kind": "style", "item_id": None, "name": None, "text": "No hats.", "state": "offered"}]

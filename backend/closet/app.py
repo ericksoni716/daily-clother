@@ -1333,7 +1333,7 @@ def create_app(sv: Services) -> FastAPI:
     @app.get("/api/style/answers/{answer_id}", dependencies=protected)
     def style_answer(answer_id: str, conn=Depends(conn_dep)):
         """How a question to Claude about today's outfits stands, for the page waiting on it: {id, state, message}."""
-        found = stylejobs.Stylist.get(conn, answer_id)
+        found = stylejobs.Stylist.get(conn, answer_id, sv.stylist.clock() if sv.stylist else None)
         if found is None:
             raise HTTPException(404, "That answer is not known. Open Today again.")
         return found

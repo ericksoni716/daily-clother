@@ -28,7 +28,9 @@ may offer things worth remembering (`remember`). While it is being answered the 
 fails they stay too, and the message is shown as not answered. The day's messages and answers are told to Claude
 with every later question that day, so "too dressy" still holds after the weather moves or the occasion changes.
 A message is refused, with a sentence, when Claude's outfits are not on the page, when one is still being
-answered, when no route to Claude can be used and at the day's limit.
+answered, when no route to Claude can be used and at the day's limit. While a message is being answered no other
+question is started (asking again, the weather moving, other choices): the page waits on the message and asks
+Today again, so Claude's words back never sit beside outfits from another answer.
 
 **Remembering.** Nothing is kept unless the owner says so (`settle`): a thing about their style is added to the
 style profile as a line, a thing about a piece to its "How I wear it" note. Both are part of what an answer is
@@ -82,7 +84,7 @@ TALK_MESSAGES = {
 }
 # Why a message was not sent at all (the request is refused with the sentence)
 REFUSED = {
-    "nothing": "Claude's outfits aren't on the page yet, so there is nothing to talk about. Try again in a moment.",
+    "nothing": "Claude's outfits aren't on the page right now, so your message wasn't sent.",
     "busy": "Claude is still answering your last message.",
     "no_route": ("Claude can't be reached right now (your Claude plan is not signed in on this computer and the API "
                  "key is not switched on), so your message wasn't sent."),
@@ -186,12 +188,17 @@ class Stylist:
         return row
 
     @staticmethod
-    def get(conn, answer_id: str) -> dict | None:
-        """One answer's state for the page that is waiting on it: {id, state, message} or None when unknown."""
-        row = conn.execute("SELECT id, state, error, said FROM style_answers WHERE id = ?", (answer_id,)).fetchone()
+    def get(conn, answer_id: str, now: float | None = None) -> dict | None:
+        """One answer's state for the page that is waiting on it: {id, state, message} or None when unknown. One
+        still "working" long after it was asked (`now`: the time by the stylist's clock) was lost when the program
+        stopped: it is said to have failed, so the page stops waiting and asks Today, which marks it."""
+        row = conn.execute("SELECT id, state, error, said, asked_at FROM style_answers WHERE id = ?",
+                           (answer_id,)).fetchone()
         if row is None:
             return None
         why = TALK_MESSAGES if row["said"] is not None else MESSAGES
+        if row["state"] == WORKING and now is not None and now - float(row["asked_at"]) > STALE_S:
+            return {"id": row["id"], "state": FAILED, "message": why["lost"]}
         return {"id": row["id"], "state": row["state"],
                 "message": why.get(row["error"] or "error", why["error"]) if row["state"] == FAILED else None}
 
@@ -242,6 +249,13 @@ class Stylist:
                    or (row["state"] == FAILED and not worn_today and (lost or self._age(row) >= RETRY_S)))
             if not due:
                 return self._shape(row, kept)
+            answering = self._answering(conn, day.isoformat())
+            if answering is not None:
+                # a message is being answered: nothing else is asked until it is. What stands is given; with
+                # nothing to give (other choices), the page waits on the message and then asks Today again
+                if row is not None and (kept or row["state"] != READY):
+                    return self._shape(row, kept)
+                return {"state": WORKING, "id": answering["id"], "outfits": [], "read": None, "message": None}
             usable = tuple(sorted(self.routes(), key=lambda r: r != "api"))   # the API key first (the owner: "opus via api")
             problem = ("no_route" if not usable else "day_limit" if conn.execute(
                 "SELECT COUNT(*) FROM style_answers WHERE day = ?", (day.isoformat(),)).fetchone()[0] >= MAX_PER_DAY else None)
@@ -386,28 +400,39 @@ def settle(conn, answer_id: str, index: int, save: bool) -> dict:
     thing = found[index]
     if thing.get("state") != OFFERED:
         return thing
-    if save:
-        before = words_of(_spoken(conn), styleprofile.text_for_stylist(conn))
-        try:
-            if thing.get("kind") == styling.PIECE:
-                item = conn.execute("SELECT wear_notes FROM items WHERE id = ?", (thing.get("item_id"),)).fetchone()
-                if item is None:
-                    raise Refused("That piece is no longer in your closet.")
-                old = (item["wear_notes"] or "").strip()
-                if thing["text"] not in old:
-                    items.update(conn, thing["item_id"], {"wear_notes": f"{old}\n{thing['text']}" if old else thing["text"]})
-            else:
-                old = styleprofile.text_for_stylist(conn) or styling.DEFAULT_KEPT
-                if thing["text"] not in old:
-                    styleprofile.save(conn, f"{old.rstrip()}\n- {thing['text']}", "claude")
-        except (ValueError, items.ItemError) as e:
-            raise Refused(str(e)) from None
-        after = words_of(_spoken(conn), styleprofile.text_for_stylist(conn))
-        if after != before:   # the answers for the words as they were now stand for the new ones
-            conn.execute("UPDATE style_answers SET key = substr(key, 1, instr(key, ':')) || ? WHERE day = ? AND "
-                         "substr(key, instr(key, ':') + 1) = ? AND instr(key, ':') > 0", (after, row["day"], before))
-    thing["state"] = SAVED if save else DISMISSED
-    conn.execute("UPDATE style_answers SET remember = ? WHERE id = ?", (json.dumps(found), answer_id))
+    def written(old: str) -> bool:   # the same line is there already (not merely inside a longer one)
+        return thing["text"] in (line.strip().removeprefix("- ").strip() for line in old.splitlines())
+
+    conn.execute("BEGIN IMMEDIATE")   # the words, the day's answers and the thing change together or not at all
+    try:
+        if save:
+            before = words_of(_spoken(conn), styleprofile.text_for_stylist(conn))
+            try:
+                if thing.get("kind") == styling.PIECE:
+                    item = conn.execute("SELECT wear_notes FROM items WHERE id = ?", (thing.get("item_id"),)).fetchone()
+                    if item is None:
+                        raise Refused("That piece is no longer in your closet.")
+                    old = (item["wear_notes"] or "").strip()
+                    if not written(old):
+                        items.update(conn, thing["item_id"],
+                                     {"wear_notes": f"{old}\n{thing['text']}" if old else thing["text"]})
+                else:
+                    old = styleprofile.text_for_stylist(conn) or styling.DEFAULT_KEPT
+                    if not written(old):
+                        styleprofile.save(conn, f"{old.rstrip()}\n- {thing['text']}", "claude")
+            except (ValueError, items.ItemError) as e:
+                raise Refused(str(e)) from None
+            after = words_of(_spoken(conn), styleprofile.text_for_stylist(conn))
+            if after != before:   # the answers for the words as they were now stand for the new ones
+                conn.execute("UPDATE style_answers SET key = substr(key, 1, instr(key, ':')) || ? WHERE day = ? AND "
+                             "substr(key, instr(key, ':') + 1) = ? AND instr(key, ':') > 0", (after, row["day"], before))
+        thing["state"] = SAVED if save else DISMISSED
+        conn.execute("UPDATE style_answers SET remember = ? WHERE id = ?", (json.dumps(found), answer_id))
+        conn.execute("COMMIT")
+    except Exception:
+        if conn.in_transaction:
+            conn.execute("ROLLBACK")
+        raise
     return thing
 
 

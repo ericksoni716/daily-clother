@@ -187,7 +187,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                    finder: sources.Finder | None = None, tracer: tracejobs.Tracer | None = None,
                    sorter: shoeviews.Sorter | None = None, drawer: shoedraw.Drawer | None = None,
                    drawing_corrector: shoedraw.Corrector | None = None, add_sorter=None,
-                   day_reader=None, stylist_ask: stylejobs.Asker | None = None) -> Services:
+                   day_reader=None, stylist_ask: stylejobs.Asker | None = None,
+                   stylist_look: stylejobs.Looker | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
@@ -302,8 +303,30 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
         from .tagger import stylist
         return stylist.given(stylist.ask(brief, usable, client=api_client, meter=style_meter))
 
+    def real_look(brief: dict, pictures: list, usable: tuple[str, ...]) -> dict:
+        from .tagger import stylist
+        return stylist.seen(stylist.look(brief, pictures, usable, client=api_client, meter=style_meter))
+
+    def draw_outfits(path, found: list[dict]) -> list:
+        """Each outfit drawn as worn on the figure, as a picture for Claude to look at."""
+        import io
+
+        from PIL import Image
+
+        from .drawing import drawn
+        from .tagger import stylist
+        conn = db.connect(path)
+        try:
+            return [Image.open(io.BytesIO(drawn.render_png(
+                illustrations.outfit_figure(conn, {k: v for k, v in o["pieces"].items() if v}),
+                stylist.PICTURE_WIDTH, background="#ffffff"))).convert("RGB") for o in found]
+        finally:
+            conn.close()
+
     # tests standing in for Claude get no stylist unless they give one: Today is then the rules engine's, as before
     choose = stylist_ask or (None if tagger is not None else real_stylist)
+    # the real stylist looks at its outfits as drawn; a stand-in does when the test gives a look of its own
+    looker = stylist_look or (real_look if choose is real_stylist else None)
     draw_meter = spend.Meter(cfg, state, spend.PURPOSE_DRAW, spend.estimate_draw)
 
     def real_drawer(photos: list, usable: tuple[str, ...], notes=(), style=None):
@@ -356,7 +379,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                   finder=finding, views=views_worker, draws=draw_worker, updater=updates.Updater(cfg, state),
                   add_sorter=add_sorter or (no_add_sorter if tagger is not None else real_add_sorter),
                   day_reader=day_reader or (no_day_reader if tagger is not None else real_day_reader),
-                  stylist=stylejobs.Stylist(choose, routes or (lambda: tagjobs.usable_routes(state))) if choose else None)
+                  stylist=stylejobs.Stylist(choose, routes or (lambda: tagjobs.usable_routes(state)), draw=draw_outfits,
+                                            look=looker) if choose else None)
     sv.ahead = styleahead.Ahead(cfg, state, lambda: sv.stylist)
     return sv
 

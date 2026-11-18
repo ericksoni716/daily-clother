@@ -769,3 +769,113 @@ def test_the_reply_form_refuses_anything_extra_or_loose():
         stylist.Keep.model_validate({"about": "0", "text": "I like navy."})
     with pytest.raises(ValidationError):
         stylist.Keep.model_validate({"about": 0, "text": "I like navy.", "kind": "style"})
+
+
+# ------------------------------------------------------------------ the look at the outfits as drawn
+LOOK_BLOCKS = {**BLOCKS, "chosen": "CHOSEN-TEXT"}
+
+
+def test_the_look_prompt_has_the_day_the_profile_the_closet_and_the_outfits_chosen_under_their_headings():
+    text = stylist.look_prompt(LOOK_BLOCKS, 3)
+    for heading, key in (("# Today", "day"), ("# How the owner dresses", "profile"),
+                         ("# The closet: what can be worn today", "closet"), ("# The outfits you chose", "chosen")):
+        assert heading in text and text.index(heading) < text.index(LOOK_BLOCKS[key])
+    assert "outfit-1.png is outfit 1" in text
+
+
+def test_the_look_prompt_asks_for_outfits_and_what_was_seen_and_to_keep_an_outfit_unless_the_picture_shows_a_problem():
+    text = stylist.look_prompt(LOOK_BLOCKS, 3)
+    assert "`outfits`: the final 3 outfits" in text and "`saw`:" in text
+    assert "Change an outfit only where the picture shows something you would really fix" in text
+    assert "Otherwise keep it exactly as it is, with the same numbers." in text
+    assert "`outfits`: the final 2 outfits" in stylist.look_prompt(LOOK_BLOCKS, 2)
+
+
+def test_the_look_prompt_leaves_out_the_guide_the_worn_history_and_the_shortlist():
+    text = stylist.look_prompt(LOOK_BLOCKS, 3)
+    for left_out in ("GUIDE-TEXT", "WORN-TEXT", "SHORTLIST-TEXT", "# The guide", "# What the owner wore lately"):
+        assert left_out not in text
+
+
+def test_the_look_asks_claude_with_the_seen_form_one_named_picture_each_and_its_own_limits(monkeypatch):
+    seen = []
+
+    def fake_ask(text, images, routes, **kw):
+        seen.append((text, images, routes, kw))
+        return correcting.CorrectionResult(stylist.Seen(saw="", outfits=[]), "api", kw["model"])
+    monkeypatch.setattr(stylist.correcting, "ask", fake_ask)
+    pictures = ["first", "second", "third"]
+    result = stylist.look(LOOK_BLOCKS, pictures, ("api", "plan"))
+    assert result.route == "api" and result.answer.outfits == []
+    text, images, routes, kw = seen[0]
+    assert text == stylist.look_prompt(LOOK_BLOCKS, 3) and images == pictures and routes == ("api", "plan")
+    assert kw["names"] == ["outfit-1.png", "outfit-2.png", "outfit-3.png"]
+    assert kw["answer_model"] is stylist.Seen and kw["system"] == stylist.SYSTEM
+    assert (kw["model"], kw["effort"], kw["max_tokens"], kw["timeout"]) == (
+        stylist.MODEL, stylist.LOOK_EFFORT, stylist.LOOK_MAX_TOKENS, stylist.LOOK_TIMEOUT)
+    assert kw["client"] is None and kw["exe"] is None and kw["meter"] is None
+    meter, client = object(), object()
+    stylist.look(LOOK_BLOCKS, ["one"], ("plan",), client=client, exe="claude", meter=meter, model="claude-x",
+                 effort="high")
+    text, _, _, kw = seen[1]
+    assert "the final 1 outfits" in text and kw["names"] == ["outfit-1.png"]
+    assert (kw["model"], kw["effort"], kw["client"], kw["exe"], kw["meter"]) == ("claude-x", "high", client, "claude",
+                                                                               meter)
+
+
+def test_the_look_is_asked_on_the_styling_model_at_low_effort_with_a_bound_on_time():
+    assert stylist.MODEL == stylist.CONFIG["roles"]["styling"]
+    assert stylist.LOOK_EFFORT == "low" and 0 < stylist.LOOK_TIMEOUT and 0 < stylist.LOOK_MAX_TOKENS
+    assert stylist.PICTURE_WIDTH == 360
+
+
+@pytest.mark.parametrize("error", [RouteUnavailable("no route"), Unreachable("offline"), TaggingError("bad answer")])
+def test_when_the_look_cannot_be_answered_the_error_comes_through(monkeypatch, error):
+    def fake_ask(*a, **kw):
+        raise error
+    monkeypatch.setattr(stylist.correcting, "ask", fake_ask)
+    with pytest.raises(type(error)):
+        stylist.look(LOOK_BLOCKS, ["p"], ("plan",))
+
+
+def test_seen_turns_a_look_into_what_the_job_takes():
+    one = stylist.Look(base=1, mid=0, outer=4, bottom=2, shoes=3, accessories=[5], why="Lighter.", watch="")
+    result = correcting.CorrectionResult(stylist.Seen(saw="Too dark.", outfits=[one]), "plan", "m", 30, 9)
+    assert stylist.seen(result) == {"looks": [one.model_dump()], "saw": "Too dark.", "route": "plan", "model": "m",
+                                    "input_tokens": 30, "output_tokens": 9}
+
+
+def test_the_seen_form_refuses_anything_extra_or_loose():
+    good = look()
+    stylist.Seen.model_validate({"saw": "", "outfits": [good]})
+    with pytest.raises(ValidationError):
+        stylist.Seen.model_validate({"saw": "", "outfits": [good], "read": "Cold."})
+    with pytest.raises(ValidationError):
+        stylist.Seen.model_validate({"saw": "", "outfits": [{**good, "extra": 1}]})
+    with pytest.raises(ValidationError):
+        stylist.Seen.model_validate({"outfits": [good]})
+    with pytest.raises(ValidationError):
+        stylist.Seen.model_validate({"saw": None, "outfits": []})
+
+
+def test_the_outfits_chosen_are_told_by_number_with_their_pictures_and_why():
+    listing = styling.listed(closet(), context())
+    found = [{"pieces": {"base": "t1", "mid": "m1", "outer": "o1", "bottom": "b1", "shoes": "s2",
+                         "accessories": ["a1", "a2"]}, "reasons": ["Warm  and\n easy."]},
+             {"pieces": {"base": "t2", "mid": None, "outer": None, "bottom": "b2", "shoes": "s1", "accessories": []}},
+             {"pieces": {"base": "t2", "bottom": "b1", "shoes": "s2"}, "reasons": []}]
+    assert styling.chosen_words(found, listing) == (
+        "- Outfit 1 (outfit-1.png): base 2; mid layer 3; outer layer 4; bottom 6; shoes 7; accessories 10, 11. "
+        "Why you chose it: “Warm and easy.”\n"
+        "- Outfit 2 (outfit-2.png): base 1; bottom 5; shoes 8.\n"
+        "- Outfit 3 (outfit-3.png): base 1; bottom 6; shoes 7.")
+    assert styling.chosen_words([], listing) == ""
+
+
+def test_the_outfits_chosen_are_told_with_what_check_made_of_claudes_answer():
+    ctx = context()
+    listing = styling.listed(closet(), ctx)
+    kept, _ = styling.check([look(base=1, outer=4, accessories=[9], why="Sharp."), look()], listing, ctx)
+    assert styling.chosen_words(kept, listing).splitlines() == [
+        "- Outfit 1 (outfit-1.png): base 1; outer layer 4; bottom 6; shoes 8; accessories 9. Why you chose it: “Sharp.”",
+        "- Outfit 2 (outfit-2.png): base 2; bottom 6; shoes 8."]

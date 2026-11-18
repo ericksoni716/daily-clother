@@ -166,8 +166,9 @@ STYLE_TEXT_TOKENS = 16000     # what the stylist is told for a large closet: the
 
 
 def estimate_style(photos: int = 0, model: str = STYLING_MODEL) -> float:
-    """The most one request to choose the day's outfits should cost: a long text, no photo, and the longest answer
-    allowed (`photos` is always 0; the meter passes it)."""
+    """The most one request to choose the day's outfits should cost: a long text and the longest answer allowed.
+    The look at the outfits as drawn is priced the same: its text is a third of this and its few small pictures
+    (`photos`, about 500 tokens each) fit well inside the rest."""
     return cost_usd(model, STYLE_TEXT_TOKENS, STYLE_MAX_TOKENS)
 
 

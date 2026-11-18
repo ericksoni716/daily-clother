@@ -216,3 +216,19 @@ All before any arm was run and before any drawing of a test photo existed.
    **Caveat:** the judges and most sheet writers are the same model as the loop's corrector (`drawing` role) and
    C-opus, so a fault that model cannot see will be missed by both the loop and its judge; the measured lines
    (scale against the sheet's count, colour shares, run-to-run) do not share that blind spot.
+7. **After the tuning half (the run stopped there; `README.md`), the owner chose to take one description from
+   Sonnet with the three gaps every arm shared fixed to the held-out half.** This is a new arm, **F**: Sonnet
+   (`sorting` role, its effort in `models.json`), one call per run, three runs, with the **second surface form**
+   (`surface.Surface2`, drawn with `drawn(..., second=True)`). The first form and arms A, B and C are unchanged, so
+   they draw as they did. The three fixes:
+   - **Bands across the body** for blocks (`panels`: where each starts and ends from collar to hem, at most six),
+     drawn as one garment-sized picture laid over the template, the drawn garment's proportions measured from a
+     plain drawing of it; the yoke, sleeves, collar and pocket parts stay.
+   - **Prints pieced by the app**: kind "other" is drawn with the app's own print piecing from the photo
+     (`measure`'s print path, as arm A draws a print); with no piece, the main colour as before.
+   - **Fine patterns**: a size word "micro" (more than 20 across; "tiny" now 9 to 20), a cap of 150 repeats
+     across instead of 16, and for a pattern Claude calls micro or tiny, the repeat read first from a 400 px square
+     of cloth at the photo's own detail (`fine_repeats`, used only when it finds at least 12 across).
+   Checked on the tuning half first (prompts and rules may be tuned there only, every change logged here). Then the
+   held-out half is run once: A, B, C-sonnet and F, judged by Opus in one shuffled round so the four are compared
+   on the same footing.

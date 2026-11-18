@@ -4,9 +4,10 @@ import io
 
 import numpy as np
 import pytest
+from PIL import Image
+
 from closet.drawing import stored
 from closet.patterns import surface
-from PIL import Image
 
 
 def _form(**kw):
@@ -134,3 +135,51 @@ def test_the_waist_ruler_is_the_waistband_of_a_bottom():
     r = surface.waist_ruler(cut)
     assert r["underarm_right"]["x"] - r["underarm_left"]["x"] == pytest.approx(239, abs=2)
     assert surface.waist_ruler(Image.new("RGBA", (50, 50))) is None
+
+
+# ---- the second form -------------------------------------------------------------------------------------------
+
+def test_the_second_form_reads_bands_across_the_body_and_drops_nonsense():
+    d = surface.read(_form(kind="blocks", colors=[{"color": WHITE, "share": 6}],
+                           panels=[{"top": 60, "bottom": 30, "color": RED}, {"top": 20, "bottom": 35, "color": NAVY},
+                                   {"top": "x", "bottom": 50, "color": RED}, {"top": 50, "bottom": 51, "color": RED}]))
+    assert d["kind"] == "blocks" and d["panels"] == [(0.2, 0.35, NAVY)]
+    assert surface.read(_form(kind="blocks", colors=[{"color": WHITE, "share": 1}]))["kind"] == "plain"
+
+
+def test_bands_across_the_body_are_one_garment_sized_picture():
+    d = surface.read(_form(kind="blocks", colors=[{"color": WHITE, "share": 6}],
+                           panels=[{"top": 50, "bottom": 100, "color": NAVY}]))
+    out = surface.drawn(d, None, None, second=True, aspect=1.2)
+    tile = _tile(out["kept"])
+    assert out["kept"]["width_frac"] == 1.0 and out["kept"]["phase"] is None
+    assert tile.shape[0] == pytest.approx(1.2 * tile.shape[1], abs=2)
+    top, low = tile[: tile.shape[0] // 3].mean(), tile[-tile.shape[0] // 3:].mean()
+    assert top > low + 60                                     # white above, navy below
+    assert surface.drawn(d, None, None)["kept"] is None       # the first form draws no bands
+
+
+def test_other_is_drawn_from_the_apps_own_piecing_in_the_second_form_only():
+    pieced = {"kind": "tile", "image": "x", "width_frac": 0.9, "version": 1}
+    d = surface.read(_form(kind="other", colors=[{"color": RED, "share": 1}]))
+    assert surface.drawn(d, None, None, second=True, pieced=pieced)["kept"] is pieced
+    first = surface.drawn(d, None, None, pieced=pieced)
+    assert first["kept"] is None and first["not_drawn"] is True
+    assert surface.drawn(d, None, None, second=True)["not_drawn"] is True     # nothing pieced: says less
+
+
+def test_the_second_form_draws_fine_patterns_past_sixteen_across():
+    d = surface.read(_form(kind="plaid", size="micro", bands=[{"color": NAVY, "width": 1}, {"color": WHITE, "width": 1}]))
+    assert surface.drawn(d, None, None, second=True)["repeats"] == pytest.approx(40.0)
+    assert surface.drawn(d, None, None)["repeats"] == pytest.approx(4.0)       # the first form: no such word
+
+
+def test_a_fine_stripe_is_read_at_the_photos_own_detail():
+    cut = _striped_cut(period=8, size=(900, 1000))
+    ruler = {"underarm_left": {"x": 100.0, "y": 300.0}, "underarm_right": {"x": 740.0, "y": 300.0}}   # 640 px: 80 repeats
+    assert surface.fine_repeats(cut, ruler, across=False) == pytest.approx(80.0, rel=0.08)
+    d = surface.read(_form(kind="stripes", direction="horizontal", size="tiny",
+                           bands=[{"color": NAVY, "width": 2}, {"color": WHITE, "width": 3}]))
+    out = surface.drawn(d, cut, ruler, second=True)
+    assert out["scale_how"] == "fine" and out["repeats"] == pytest.approx(80.0, rel=0.08)
+    assert surface.fine_repeats(_striped_cut(period=80), ruler, across=False) is None   # broad stripes: not fine

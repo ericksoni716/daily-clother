@@ -23,7 +23,7 @@ import harness as H  # noqa: E402
 from closet.patterns import surface  # noqa: E402
 from closet.tagger.schema import NAMED_HEX  # noqa: E402
 
-ARM_MODEL = {"B": H.TAGGING, "C-sonnet": H.SORTING, "C-opus": H.DRAWING}
+ARM_MODEL = {"B": H.TAGGING, "C-sonnet": H.SORTING, "C-opus": H.DRAWING, "F": H.SORTING}   # F: the second form
 LOOP_MODEL = {"D": H.DRAWING, "D-small": H.TAGGING}
 ROUNDS = 3
 WORKERS = 3
@@ -52,7 +52,7 @@ def _fallback(gid: str) -> dict:
             "colors": [(NAMED_HEX.get(word, "#888888"), 1.0)], "fell": "no usable surface"}
 
 
-def surface_drawing(gid: str, name: str, raw, scale: float = 1.0) -> dict:
+def surface_drawing(gid: str, name: str, raw, scale: float = 1.0, second: bool = False) -> dict:
     """Read, draw, render and score one described surface; kept as `name`."""
     have = _drawings(gid).get(name)
     if have is not None:
@@ -62,10 +62,14 @@ def surface_drawing(gid: str, name: str, raw, scale: float = 1.0) -> dict:
     bottom = base["category"] if base["category"] in H.BOTTOMS else None
     desc = surface.read(raw) if raw is not None else None
     desc = desc or _fallback(gid)
-    d = surface.drawn(desc, cut, points, bottom=bottom, scale=scale)
+    extra = {}
+    if second:
+        extra = {"second": True, "aspect": H.aspect(gid) if desc.get("panels") else None,
+                 "pieced": H.pieced(gid) if desc["kind"] == "other" else None}
+    d = surface.drawn(desc, cut, points, bottom=bottom, scale=scale, **extra)
     png = H.draw(gid, name, H.svg_surface(base, d, name.replace("_", "")[:24]))
     score = H.loop_score(cut, png, d, points)
-    rec = {"raw": raw, "kind": desc["kind"], "fell": desc.get("fell"), "repeats": d["repeats"],
+    rec = {"raw": raw, "kind": desc["kind"], "fell": desc.get("fell"), "repeats": d["repeats"], "second": second,
            "scale_how": d["scale_how"], "widths": d["widths"], "scale": scale, "not_drawn": d["not_drawn"],
            "patterned": d["kept"] is not None or bool(d["blocks"]), "score": score}
     _keep_drawing(gid, name, rec)
@@ -116,8 +120,9 @@ def arm_a(gid: str) -> str:
 
 
 def describe(gid: str, arm: str, run: int) -> str:
-    rec = H.describe(gid, ARM_MODEL[arm], run)
-    d = surface_drawing(gid, f"{arm}_run{run}", rec.get("surface"))
+    second = arm == "F"
+    rec = H.describe2(gid, run) if second else H.describe(gid, ARM_MODEL[arm], run)
+    d = surface_drawing(gid, f"{arm}_run{run}", rec.get("surface"), second=second)
     return f"{arm} run {run}: {d['kind']} score {d['score']['score']} ({rec['seconds']} s)"
 
 

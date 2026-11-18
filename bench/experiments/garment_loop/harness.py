@@ -261,6 +261,51 @@ def describe(gid: str, model: str, run: int) -> dict:
     return rec
 
 
+SurfaceForm2 = create_model("ItemTagsSentSurface2", __base__=SENT,
+                            surface=(surface.Surface2, Field(description=surface.FIELD_TEXT_2["surface"])))
+
+
+def describe2(gid: str, run: int, model: str = SORTING) -> dict:
+    """Arm F: the description call with the second surface form (after the tuning half), on Sonnet."""
+    path = wdir(gid) / "calls" / f"F_run{run}.json"
+    rec = load_json(path)
+    if rec is None:
+        rec = plan_call(DESCRIBE_PROMPT, [cut_of(gid)], SurfaceForm2, model, CONFIG["models"][model]["effort"],
+                        claude_cli.SYSTEM)
+        rec["surface"] = rec["answer"].get("surface")
+        save_json(path, rec)
+    return rec
+
+
+def pieced(gid: str) -> dict | None:
+    """The app's own print pieced from the photo (`measure`'s print path, as arm A uses for a print), kept once
+    per garment; None when it cannot be made."""
+    path = wdir(gid) / "pieced.json"
+    if path.exists():
+        return load_json(path)
+    from closet.patterns import measure
+    try:
+        kept = measure.measure(cut_of(gid), "floral")
+    except Exception:     # the app keeps the item in its colour
+        kept = None
+    save_json(path, kept)
+    return kept
+
+
+def aspect(gid: str) -> float:
+    """The drawn garment's height over its width (its shape from the app's description, drawn plain once)."""
+    path = wdir(gid) / "aspect.json"
+    if path.exists():
+        return load_json(path)["aspect"]
+    base = base_description(gid)["answer"]
+    png = draw(gid, "_plain", svg_surface(base, {"kept": None, "body": "#888888", "blocks": []}, "plain"))
+    a = np.asarray(png)[..., 3] > 20
+    ys, xs = np.where(a)
+    value = float((ys.max() - ys.min() + 1) / (xs.max() - xs.min() + 1))
+    save_json(path, {"aspect": value})
+    return value
+
+
 class Patch(BaseModel):
     seen: str = Field(description="One short line: what differs between the drawing's cloth and the photo's, or "
                                   "'matches'.")

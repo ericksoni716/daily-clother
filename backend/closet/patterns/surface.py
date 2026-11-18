@@ -72,10 +72,75 @@ class Surface(BaseModel):
     colors: list[Colour] = Field(description=FIELD_TEXT["colors"])
 
 
+# ---- the second form (after the tuning half; DESIGN.md, log of changes) ---------------------------------------
+# Three gaps every arm shared on the tuning half: colour blocks the parts could not name (a panel across the chest,
+# wavy bands, a stripe at the join), prints drawn as their main colour (the app's own piecing from the photo did far
+# better), and fine patterns past 16 repeats across. The second form adds bands across the body to `blocks`, a
+# finer size word, and says that "other" is pieced from the photo; `drawn(..., second=True)` draws them.
+
+FIELD_TEXT_2 = {
+    **FIELD_TEXT,
+    "kind": ("plain: one colour. stripes: bands running one way. plaid: bands both ways, crossing (plaid, check, "
+             "gingham, tartan, madras, windowpane). blocks: plain cloth with whole parts or bands across the body in "
+             "other colours (a yoke, sleeves, collar or pocket; a chest panel, a band across the chest, an upper or "
+             "lower body in another colour). other: anything else (florals, camouflage, paisley, other prints, "
+             "patchwork): the app pieces it from the photo. When unsure, say less: plain or other."),
+    "size": ("stripes and plaid only, else null: how many repeats fit across the chest (trousers and shorts: across "
+             "the waist), counted the way the bands repeat: micro more than 20, tiny 9-20, small 5-8, medium 3-5, "
+             "large 2-3, huge under 2."),
+    "panels": ("blocks only, else empty: each band of another colour running across the whole body (sleeves "
+               "included), as how far down it starts and ends, from the collar (0) to the hem (100), in order from "
+               "the top. A chest panel is one band; a body in two colours is one band from where the second colour "
+               "starts to 100."),
+    "top": "Where the band starts, 0 at the collar to 100 at the hem.",
+    "bottom": "Where the band ends, 0 at the collar to 100 at the hem.",
+}
+
+Size2 = Literal["micro", "tiny", "small", "medium", "large", "huge"]
+
+
+class Panel(BaseModel):
+    top: int = Field(description=FIELD_TEXT_2["top"])
+    bottom: int = Field(description=FIELD_TEXT_2["bottom"])
+    color: str = Field(description=FIELD_TEXT["color"])
+
+
+class Surface2(BaseModel):
+    kind: Kind = Field(description=FIELD_TEXT_2["kind"])
+    bands: list[Band] = Field(description=FIELD_TEXT["bands"])
+    direction: Direction | None = Field(description=FIELD_TEXT["direction"])
+    size: Size2 | None = Field(description=FIELD_TEXT_2["size"])
+    blocks: list[Block] = Field(description=FIELD_TEXT["blocks"])
+    panels: list[Panel] = Field(description=FIELD_TEXT_2["panels"])
+    colors: list[Colour] = Field(description=FIELD_TEXT["colors"])
+
+
 # ---- reading an answer safely -----------------------------------------------------------------------------
 
 KINDS = ("plain", "stripes", "plaid", "blocks", "other")
 SCALE = (0.5, 2.0)     # how far one correction may make the repeat bigger or smaller
+# the second form's size words as repeats across the ruler, and the most repeats it draws (the first form keeps
+# `described`'s words and its cap of 16)
+SIZE_REPEATS_2 = {**described.SIZE_REPEATS, "micro": 40.0, "tiny": 13.0}
+REPEATS_2 = (0.5, 150.0)
+MAX_PANELS = 6
+
+
+def _panels(raw) -> list[tuple[float, float, str]]:
+    """Bands across the body as (top, bottom) fractions of collar to hem and a colour; nonsense dropped."""
+    out = []
+    for p in raw if isinstance(raw, list) else []:
+        if isinstance(p, BaseModel):
+            p = p.model_dump()
+        if not isinstance(p, dict) or not described._hex(p.get("color")):
+            continue
+        try:
+            top, bottom = (float(np.clip(float(p.get(k)), 0, 100)) / 100 for k in ("top", "bottom"))
+        except (TypeError, ValueError):
+            continue
+        if bottom - top >= 0.02:
+            out.append((top, bottom, described._hex(p["color"])))
+    return sorted(out)[:MAX_PANELS]
 
 
 def _colours(raw) -> list[tuple[str, float]]:
@@ -119,14 +184,15 @@ def read(raw) -> dict | None:
     bands = described._bands(raw.get("bands"))
     colours = _colours(raw.get("colors"))
     blocks = _blocks(raw.get("blocks"))
+    panels = _panels(raw.get("panels"))
     direction = raw.get("direction") if raw.get("direction") in ("horizontal", "vertical") else None
-    size = raw.get("size") if raw.get("size") in described.SIZE_REPEATS else None
+    size = raw.get("size") if raw.get("size") in SIZE_REPEATS_2 else None
     fell = None
     if kind in ("stripes", "plaid") and len({c for c, _ in bands}) < 2:
         kind, fell = "other", f"a {raw.get('kind')} with fewer than two colours"
     elif kind == "stripes" and direction is None:
         kind, fell = "other", "stripes with no direction"
-    elif kind == "blocks" and not blocks:
+    elif kind == "blocks" and not blocks and not panels:
         kind, fell = "plain", "blocks with no part"
     if not colours and bands:      # the main colours of a pattern drawn as less: its bands' shares
         totals: dict[str, float] = {}
@@ -136,7 +202,7 @@ def read(raw) -> dict | None:
     if not colours:
         return None
     return {"kind": kind, "bands": bands, "direction": direction, "size": size, "blocks": blocks,
-            "colors": colours, "fell": fell}
+            "panels": panels, "colors": colours, "fell": fell}
 
 
 def patched(raw: dict, patch) -> dict:
@@ -145,7 +211,7 @@ def patched(raw: dict, patch) -> dict:
     if isinstance(patch, BaseModel):
         patch = patch.model_dump()
     out = dict(raw)
-    for key in ("kind", "bands", "direction", "size", "blocks", "colors"):
+    for key in ("kind", "bands", "direction", "size", "blocks", "panels", "colors"):
         if isinstance(patch, dict) and patch.get(key) is not None:
             out[key] = patch[key]
     return out
@@ -236,28 +302,145 @@ def _kept_tile(img: np.ndarray, repeats: float, bottom: str | None, first: tuple
             "phase": [round(first[0], 4), round(first[1], 4)], "phase_right": None, "version": VERSION}
 
 
+def _stripe_repeats_unclipped(cut, ruler, direction, least_frac=0.01):
+    """`stripe_repeats` without the first form's cap (the second form's fine reading needs the raw count)."""
+    try:
+        a, b = ruler["underarm_left"], ruler["underarm_right"]
+        length = float(np.hypot(a["x"] - b["x"], a["y"] - b["y"]))
+    except (KeyError, TypeError):
+        return None
+    from .common import to_lab
+    from .straighten import _mask, _spacings
+    arr = np.asarray(cut.convert("RGBA"))
+    m = _mask(arr)
+    if m.sum() < 400 or length <= 0:
+        return None
+    found = _spacings(to_lab(np.ascontiguousarray(arr[..., :3])), m, direction == "vertical",
+                      max(3, int(least_frac * max(m.shape))))
+    return length / found[0] if found else None
+
+
+def plaid_repeats_2(cut: Image.Image, ruler: dict | None) -> float | None:
+    """`described.photo_repeats`, the same reading, with the second form's cap (REPEATS_2) instead of 16."""
+    try:
+        a, b = ruler["underarm_left"], ruler["underarm_right"]
+        chest = float(np.hypot(a["x"] - b["x"], a["y"] - b["y"]))
+    except (KeyError, TypeError):
+        return None
+    from .common import to_lab
+    from .straighten import _mask, _spacings
+    arr = np.asarray(cut.convert("RGBA"))
+    m = _mask(arr)
+    if m.sum() < 400 or not (0.15 * arr.shape[1] < chest <= arr.shape[1]):
+        return None
+    lab = to_lab(np.ascontiguousarray(arr[..., :3]))
+    least = max(5, int(0.03 * max(m.shape)))
+    across, down = _spacings(lab, m, True, least), _spacings(lab, m, False, least)
+    pairs = [(max(p, q) / min(p, q), (p + q) / 2) for p in across for q in down]
+    near = min(pairs, default=None)
+    if near is not None and near[0] <= described.SQUARE:
+        return float(np.clip(chest / near[1], *REPEATS_2))
+    if down and chest / down[0] >= 1:
+        return float(np.clip(chest / down[0], *REPEATS_2))
+    return None
+
+
+FINE_CROP = 400     # px: the fine reading looks at this square of the cloth at the photo's own detail
+FINE_AT_LEAST = 12  # repeats across: a fine reading that finds fewer is not a fine pattern, and is not used
+
+
+def fine_repeats(cut: Image.Image, ruler: dict | None, across: bool) -> float | None:
+    """For a pattern Claude calls micro or tiny: the repeat read from a square of cloth in the middle of the
+    garment at the photo's own detail (the whole-garment reading works on a picture shrunk to 420 px, where a
+    check a few pixels wide is gone). None unless it finds at least FINE_AT_LEAST repeats across the ruler."""
+    try:
+        a, b = ruler["underarm_left"], ruler["underarm_right"]
+        length = float(np.hypot(a["x"] - b["x"], a["y"] - b["y"]))
+    except (KeyError, TypeError):
+        return None
+    from .common import to_lab
+    from .straighten import _mask, _spacings
+    arr = np.asarray(cut.convert("RGBA"))
+    m = _mask(arr)
+    ys, xs = np.where(m)
+    if len(xs) < 400:
+        return None
+    side = min(FINE_CROP, int(xs.max() - xs.min()), int(ys.max() - ys.min()))
+    cy, cx = int(np.median(ys)), int(np.median(xs))
+    y0, x0 = max(0, cy - side // 2), max(0, cx - side // 2)
+    crop, mc = arr[y0:y0 + side, x0:x0 + side], m[y0:y0 + side, x0:x0 + side]
+    if mc.mean() < 0.6:
+        return None
+    found = _spacings(to_lab(np.ascontiguousarray(crop[..., :3])), mc, across, 3)
+    if not found:
+        return None
+    reps = length / found[0]
+    return float(min(reps, REPEATS_2[1])) if reps >= FINE_AT_LEAST else None
+
+
+def panel_tile(panels: list[tuple[float, float, str]], body: str, aspect: float, strength: float = STRENGTH,
+               width: int = 360) -> np.ndarray:
+    """A garment-sized picture for bands across the body: the body colour with each band from its top to its
+    bottom (fractions of the garment's height, collar to hem), edges softened a little; `aspect` is the drawn
+    garment's height over its width, so the picture laid over the garment once fits it."""
+    import cv2
+    h = max(8, int(round(width * aspect)))
+    lab = np.zeros((h, 3), np.float32)
+    lab[:] = described._lab([_soft(body, strength)])[0]
+    for top, bottom, colour in panels:
+        lab[int(top * h):max(int(top * h) + 1, int(bottom * h))] = described._lab([_soft(colour, strength)])[0]
+    lab = cv2.GaussianBlur(lab[None], (0, 0), max(0.6, 0.003 * h))[0] if h > 8 else lab
+    rgb = cv2.cvtColor(np.clip(lab, 0, 255).round().astype(np.uint8)[None], cv2.COLOR_LAB2RGB)[0]
+    return np.repeat(rgb[:, None, :], width, 1)
+
+
 def drawn(desc: dict, cut: Image.Image | None, ruler: dict | None, bottom: str | None = None, scale: float = 1.0,
-          strength: float = STRENGTH) -> dict:
+          strength: float = STRENGTH, second: bool = False, pieced: dict | None = None,
+          aspect: float | None = None) -> dict:
     """What the drawing takes for a description `read` gave: {"kept": a kept pattern or None, "body": the
     cloth's colour, "blocks": [(part, hex)], "repeats": repeats across the ruler as drawn (None for no pattern),
-    "scale_how": "photo" | "said", "widths": "photo" | "said" | None, "tile": the repeat as an RGB array or None,
-    "not_drawn": True when the cloth is a pattern the form cannot express}. `ruler` is a top's landmarks or
-    `waist_ruler` of a bottom, `bottom` the category of trousers, jeans or shorts (None for a top), `scale` the size
-    of the repeat against what the photo or the size word gives (2 = twice as big)."""
+    "scale_how": "photo" | "fine" | "said", "widths": "photo" | "said" | None, "tile": the repeat as an RGB
+    array or None, "not_drawn": True when the cloth is a pattern the form cannot express}. `ruler` is a top's
+    landmarks or `waist_ruler` of a bottom, `bottom` the category of trousers, jeans or shorts (None for a top),
+    `scale` the size of the repeat against what the photo or the size word gives (2 = twice as big).
+
+    With `second` (the second form): bands across the body are drawn as one garment-sized picture (`aspect`, the
+    drawn garment's height over its width, needed for that), "other" is drawn as `pieced` (the app's own print
+    pieced from the photo, `measure`'s kept tile) when there is one, the size words and cap are the second
+    form's, and a pattern called micro or tiny is read from the photo at its own detail first (`fine_repeats`)."""
     kind = desc["kind"]
     out = {"kept": None, "body": _soft(desc["colors"][0][0], strength), "blocks": [], "repeats": None,
            "scale_how": None, "widths": None, "tile": None, "not_drawn": kind == "other"}
     if kind == "blocks":
         out["blocks"] = [(p, _soft(c, strength)) for p, c in desc["blocks"]]
+        if second and desc.get("panels") and aspect:
+            img = panel_tile(desc["panels"], desc["colors"][0][0], aspect, strength)
+            out["kept"] = {"kind": "tile", "how": "panels", "image": tile_text(Image.fromarray(img), quality=92),
+                           "width_frac": 1.0, "length_frac": None, "phase": None, "phase_right": None,
+                           "version": VERSION}
+    if kind == "other" and second and pieced:
+        out.update(kept=pieced, not_drawn=False)
     if kind not in ("stripes", "plaid"):
         return out
-    repeats = described.SIZE_REPEATS.get(desc["size"] or "medium", 4.0)
+    words = SIZE_REPEATS_2 if second else described.SIZE_REPEATS
+    cap = REPEATS_2 if second else described.REPEATS
+    repeats = words.get(desc["size"] or "medium", 4.0)
     how = "said"
+    fine = None
+    if second and desc["size"] in ("micro", "tiny") and cut is not None and ruler:
+        fine = fine_repeats(cut, ruler, kind == "plaid" or desc["direction"] == "vertical")
+        if fine is not None:
+            repeats, how = fine, "fine"
     if kind == "plaid":
         d = {"across": list(desc["bands"]), "down": list(desc["bands"]), "repeats": repeats}
-        seen = described.photo_repeats(cut, ruler) if cut is not None and ruler else None
-        if seen is not None:
-            repeats, how = seen[0], "photo"
+        if fine is None and cut is not None and ruler:
+            if second:
+                seen = plaid_repeats_2(cut, ruler)
+            else:
+                seen = described.photo_repeats(cut, ruler)
+                seen = seen[0] if seen else None
+            if seen is not None:
+                repeats, how = seen, "photo"
         fitted = described.photo_widths(d, cut) if cut is not None else None
         if fitted is not None:
             d = fitted[0]
@@ -265,14 +448,15 @@ def drawn(desc: dict, cut: Image.Image | None, ruler: dict | None, bottom: str |
         first = (d["across"][0][1] / 2 / sum(w for _, w in d["across"]), d["down"][0][1] / 2 / sum(w for _, w in d["down"]))
         out["widths"] = "photo" if fitted else "said"
     else:
-        seen = stripe_repeats(cut, ruler, desc["direction"]) if cut is not None and ruler else None
-        if seen is not None:
-            repeats, how = seen, "photo"
+        if fine is None and cut is not None and ruler:
+            seen = _stripe_repeats_unclipped(cut, ruler, desc["direction"]) if second else stripe_repeats(cut, ruler, desc["direction"])
+            if seen is not None:
+                repeats, how = seen, "photo"
         bands = [(_soft(c, strength), w) for c, w in desc["bands"]]
         img = _stripe_tile(bands, desc["direction"])
         half = bands[0][1] / 2 / sum(w for _, w in bands)
         first = (half, 0.0) if desc["direction"] == "vertical" else (0.0, half)
         out["widths"] = "said"
-    repeats = float(np.clip(repeats / scale, *described.REPEATS))
+    repeats = float(np.clip(repeats / scale, *cap))
     out.update(kept=_kept_tile(img, repeats, bottom, first, "described"), repeats=repeats, scale_how=how, tile=img)
     return out

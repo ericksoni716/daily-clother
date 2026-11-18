@@ -36,6 +36,9 @@ DEMO_ITEMS = [
 ]
 # decided from the contact sheet before any run (see README): three wavy bands with no repeat are colour blocking
 REGROUPED = {"g54": "colour block"}
+# the owner's decision (18 November, before any arm ran): studio and catalogue photos are in the set, reported as
+# their own row too, because the owner may well import online photos of their garments
+STUDIO_IN = True
 
 
 def main() -> None:
@@ -48,13 +51,14 @@ def main() -> None:
         rec = {"id": r["id"], "path": str(PRIV / "photos" / Path(r["file"]).name), "source": "owner", "group": group,
                "family": FAMILY[group], "garment": r["garment"], "kind": KIND[r["garment"]],
                "conditions": r["conditions"], "size": [r["width"], r["height"]], "hard_case": r.get("hard_case"),
-               "tuning_only": False}
-        (kept if r["bar"] == "pass" else left_out).append(rec | {"bar_reason": r.get("bar_reason")})
+               "tuning_only": False, "studio": r["bar"] != "pass"}
+        ok = r["bar"] == "pass" or (STUDIO_IN and "studio/catalogue" in r["conditions"])
+        (kept if ok else left_out).append(rec | {"bar_reason": r.get("bar_reason")})
     for d in DEMO_ITEMS:
         kept.append({"id": d["id"], "path": str(DEMO / d["file"]), "source": "demo", "group": d["group"],
                      "family": FAMILY[d["group"]], "garment": d["garment"], "kind": KIND[d["garment"]],
                      "conditions": ["tidy (demo closet)"], "size": None, "hard_case": None,
-                     "tuning_only": d.get("tuning_only", False)})
+                     "tuning_only": d.get("tuning_only", False), "studio": False})
     rng = random.Random(SEED)
     split = {"tuning": [], "held-out": []}
     by_id = {r["id"]: r for r in kept}
@@ -65,8 +69,8 @@ def main() -> None:
         return sum(by_id[i][key] == value for i in split[half])
     # The balancing deal (DESIGN.md, log of changes): the first rule, dealt alternately within each group after
     # sorting by garment kind, sent all five jackets to the tuning half. Each photo, in its group's seeded shuffle,
-    # goes to the half with fewer of its group so far, then fewer of its garment kind, then (a known hard case)
-    # fewer hard cases, then fewer overall, then the held-out half.
+    # goes to the half with fewer of its group so far, then fewer of its garment kind, then (a studio photo) fewer
+    # studio photos, then (a known hard case) fewer hard cases, then fewer overall, then the held-out half.
     for group in GROUPS:
         members = [r for r in kept if r["group"] == group]
         split["tuning"] += [r["id"] for r in members if r["tuning_only"]]
@@ -74,6 +78,7 @@ def main() -> None:
         rng.shuffle(rest)
         for r in rest:
             half = min(("held-out", "tuning"), key=lambda h: (count(h, "group", group), count(h, "kind", r["kind"]),
+                                                               count(h, "studio", True) if r["studio"] else 0,
                                                                count(h, "hard", True) if r["hard"] else 0,
                                                                len(split[h]), h != "held-out"))
             split[half].append(r["id"])

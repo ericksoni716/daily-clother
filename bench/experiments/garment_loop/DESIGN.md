@@ -203,3 +203,16 @@ All before any arm was run and before any drawing of a test photo existed.
    measured on the demo closet's drawings; one value of 0.86 was a guess.
 4. **Strength 0.8 on every described colour**, not only a plaid's (plain, blocks and other too): one rule for
    described colours, written into `surface.py` before any run.
+5. **The owner's decisions on the set, 18 November** (before any arm ran): the gaps are accepted (no pale check
+   by a window, no dark plaid in dim light, no big plaid on a floor, no fine stripes on a small photo; five groups
+   have one photo a half). The 9 studio and catalogue photos are **in** the set, because the owner may import
+   online photos of their own garments; every table also reports them as their own row beside the home photos.
+   The split was dealt again with them (60 garments, 30 and 30), with "fewer studio photos" as a key after garment
+   kind so they spread over both halves (5 and 4).
+6. **Opus, not a stronger-vision model, for the visual helper jobs** (the owner's decision: Fable was too costly
+   here). One Fable batch had already written 9 reference sheets; they are kept. The other five Fable batches were
+   stopped by Fable's safeguards (`reasoning_extraction`) before writing anything; their brief had asked for the
+   counting written out step by step, and the Opus brief asks for the pixel positions of the counted line instead.
+   **Caveat:** the judges and most sheet writers are the same model as the loop's corrector (`drawing` role) and
+   C-opus, so a fault that model cannot see will be missed by both the loop and its judge; the measured lines
+   (scale against the sheet's count, colour shares, run-to-run) do not share that blind spot.

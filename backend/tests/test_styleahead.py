@@ -17,7 +17,7 @@ from closet.stylejobs import RETRY_S
 from closet.tagger.tagging import Unreachable
 
 from . import test_stylejobs as jobs
-from .test_day import HourlyOpenMeteo, reader, reading
+from .test_day import HourlyOpenMeteo, hour, reader, reading
 from .test_stylejobs import TODAY, answers, run, wardrobe
 
 styled = jobs.styled   # services whose stylist asks the stand-in, with held jobs and the test's clock
@@ -61,8 +61,8 @@ def opened(styled, days_ago: int = 1, choice: dict | None = None) -> None:
                            today_choice={} if choice is None else choice)
 
 
-def tick(styled, hour: int = 6) -> str:
-    at(styled, hour)
+def tick(styled, hour: int = 6, minute: int = 0) -> str:
+    at(styled, hour, minute)
     return styled.sv.ahead.tick()
 
 
@@ -213,7 +213,7 @@ def test_with_no_forecast_nothing_is_asked_nor_marked_and_a_later_look_with_one_
     assert tick(styled) == "no_forecast"
     assert nothing_asked(styled) and marked(styled) is None
     om.down = False
-    assert tick(styled) == "asked"
+    assert tick(styled, 6, 30) == "asked"   # tried again after TRY_AGAIN_S, not at once
     assert len(styled.held) == 1 and marked(styled) == TODAY.isoformat()
 
 
@@ -247,7 +247,7 @@ def test_with_no_route_to_claude_nothing_is_asked_nor_marked_and_the_next_look_a
     assert tick(styled) == "no_route"
     assert answers(styled.cfg) == [] and styled.held == [] and marked(styled) is None
     styled.claude.mode = "answers"
-    assert tick(styled) == "asked"
+    assert tick(styled, 6, 30) == "asked"   # tried again after TRY_AGAIN_S, not at once
     assert len(todays(styled)) == 1 and len(styled.held) == 1
 
 
@@ -482,3 +482,67 @@ def test_the_services_start_and_stop_the_ahead_with_the_other_schedulers(cfg):
     said.clear()
     sv.stop()
     assert "ahead stop" in said
+
+
+# ------------------------------------------------------------------ found in review (each shown failing first)
+def test_after_a_look_that_could_ask_nothing_the_next_try_waits_try_again_s(styled, om):
+    wardrobe(styled.c)
+    opened(styled)
+    om.down = True
+    assert tick(styled, 6) == "no_forecast"
+    asked_weather = len(om.calls)
+    om.down = False
+    at(styled, 6, 5)
+    assert styled.sv.ahead.tick() == "waiting"   # not every two minutes: the weather service is left alone
+    assert len(om.calls) == asked_weather and nothing_asked(styled)
+    at(styled, 6, styleahead.TRY_AGAIN_S // 60)
+    assert styled.sv.ahead.tick() == "asked"
+
+
+def test_the_days_first_look_keeps_its_hour_and_later_looks_that_day_do_not(styled, monkeypatch):
+    wardrobe(styled.c)
+    monkeypatch.setattr(styleahead, "now", lambda: datetime(2026, 11, 17, 8, 40))
+    first_open(styled, **FIRST)
+    assert styled.sv.state.get("today_first_hours") == [8]
+    monkeypatch.setattr(styleahead, "now", lambda: datetime(2026, 11, 17, 19, 5))
+    first_open(styled, **FIRST)
+    assert styled.sv.state.get("today_first_hours") == [8]
+
+
+def test_only_the_last_first_hours_are_kept_and_the_usual_hour_is_their_middle(styled):
+    state = styled.sv.state
+    assert styleahead.usual_hour(state) is None
+    for i, h in enumerate([6, 7, 7, 8, 9, 14, 8, 8, 7]):
+        styleahead.remember(state, FIRST, TODAY - timedelta(days=20 - i), h)
+    kept = state.get("today_first_hours")
+    assert kept == [7, 7, 8, 9, 14, 8, 8, 7][-styleahead.FIRST_HOURS:] and len(kept) == styleahead.FIRST_HOURS
+    assert styleahead.usual_hour(state) == 8   # one late morning does not move it
+    state.update(today_first_hours=["8", True, None, 30, 9])
+    assert styleahead.usual_hour(state) == 9   # only whole hours of a day count
+
+
+def test_the_question_ahead_is_for_the_hours_from_when_the_owner_usually_looks(styled, om):
+    # a morning that is freezing until nine and mild after: the owner looks at nine, so that is what is dressed for
+    om.hours["home"] = [hour(h, -2.0 if h < 9 else 8.0) for h in range(24)]
+    wardrobe(styled.c)
+    opened(styled, choice=FIRST)
+    styled.sv.state.update(today_first_hours=[9, 9, 9])
+    assert tick(styled, 6) == "asked"
+    run(styled)
+    [(brief, _)] = styled.stand_in.calls
+    assert "Hours dressed for: 9am to 10pm." in brief["day"]
+    [row] = todays(styled)
+    assert '"low_c": 8.0' in row["dressed"]
+    om.clock["now"] += 3 * 3600   # nine at home: the owner opens Today
+    st = first_open(styled, **FIRST)["context"]["stylist"]
+    assert st["state"] == "ready" and styled.held == [] and len(todays(styled)) == 1
+
+
+def test_a_look_later_than_usual_is_for_the_hours_still_to_come(styled, om):
+    wardrobe(styled.c)
+    opened(styled, choice=FIRST)
+    styled.sv.state.update(today_first_hours=[7, 7, 7])
+    om.clock["now"] += 5 * 3600   # eleven at home: the computer was asleep until now
+    assert tick(styled, 11) == "asked"
+    run(styled)
+    assert "Hours dressed for: 11am to 10pm." in styled.stand_in.calls[0][0]["day"]

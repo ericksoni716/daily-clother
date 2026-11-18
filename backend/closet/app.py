@@ -1014,7 +1014,7 @@ def create_app(sv: Services) -> FastAPI:
             finally:
                 conn.close()
             if state.get("profile") != "demo":   # what the page asked with is what is asked ahead tomorrow morning
-                styleahead.remember(state, body, wears.today())
+                styleahead.remember(state, body, wears.today(), styleahead.now().hour)
             return answer
 
         # asks Open-Meteo (a few seconds at most) and compares many outfits, so keep it off the event loop

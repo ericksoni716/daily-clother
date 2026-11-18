@@ -39,7 +39,8 @@ DEFAULTS: dict[str, Any] = {
     # occasion and mood it asked with, and the day Claude was last asked ahead
     "today_opened": None,
     "today_choice": None,
-    "today_asked_ahead": None,       # may Claude choose the outfits on Today (Settings, "Your style")? The rules engine does otherwise
+    "today_asked_ahead": None,
+    "today_first_hours": None,   # the hours of the owner's last first looks at Today, oldest first       # may Claude choose the outfits on Today (Settings, "Your style")? The rules engine does otherwise
     "day_note": None,         # the day in the owner's words, as Claude read it (closet/daynote.py); None: an ordinary day at home
     "trip_weather": None,     # forecasts and usual weather looked up for trips: {"forecast": {...}, "usual": {...}}
     "rewear": None,           # "Before it needs washing": kind -> wears (closet/trips.py KINDS); None: the defaults

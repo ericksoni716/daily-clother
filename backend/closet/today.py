@@ -137,7 +137,7 @@ def again_of(outfit: dict, rows: list[dict], leave_out: set[str]) -> dict:
 
 
 def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None = None, path=None,
-            ahead: bool = False) -> dict:
+            ahead: bool = False, from_hour: int | None = None) -> dict:
     """Outfits for today plus the context used. Raises outfits.ContextError with a sentence for a bad request.
 
     With a `stylist` (and `path`, the closet's database, for its thread), Claude chooses: its outfits for today
@@ -148,7 +148,8 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
 
     `ahead`: this is not the owner asking but Closet, ahead of their first look (`closet/styleahead.py`). Claude is
     then asked only for a day read from today's fresh forecast: outfits for a guessed or an old day would be asked
-    again as soon as the owner opened Today."""
+    again as soon as the owner opened Today. `from_hour` (with `ahead`): the hour the owner usually first looks, by
+    the clock; the day is read from then on when that is still to come, as it will be when they look."""
     if not isinstance(body, dict):
         raise outfits.ContextError("Send today's choices as an object, for example {\"occasion\": \"casual\"}.")
     unknown = sorted(set(body) - set(CHOICES) - set(WEATHER_FIELDS))
@@ -165,7 +166,10 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
         if found["weather"] and found["is_today"]:
             forecast, old = found["weather"], found["old"]
             message = found["message"] if old else None
-            reading = dayparts.read(forecast.get("hours") or [], daynote.outside(on), found["hour"])
+            at = found["hour"]
+            if ahead and from_hour is not None and at is not None:
+                at = max(at, from_hour)
+            reading = dayparts.read(forecast.get("hours") or [], daynote.outside(on), at)
         elif "low_c" not in given or "high_c" not in given:
             # never no outfit just because the weather is missing: dress for a mild day and say why
             mild = True

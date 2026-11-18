@@ -232,3 +232,9 @@ All before any arm was run and before any drawing of a test photo existed.
    Checked on the tuning half first (prompts and rules may be tuned there only, every change logged here). Then the
    held-out half is run once: A, B, C-sonnet and F, judged by Opus in one shuffled round so the four are compared
    on the same footing.
+8. **F checked on the tuning half and frozen unchanged** (judged with A, B and C-sonnet in a second round, `r2`).
+   One rule was considered and not adopted: letting the size word override the photo's whole-garment reading when
+   the two disagree (a gingham and a windowpane read at 1.9 and 1.4 repeats against counts of 25 and 30.5, where
+   Sonnet said "small"). The fine reading found nothing on either photo (one dim, one at an angle). The override
+   would have helped those two and a third partly and harmed a broad-striped sweater where the photo is right: a
+   threshold tuned on four garments, which the plan does not accept. F runs on the held-out half as it stands.

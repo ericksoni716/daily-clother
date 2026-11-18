@@ -126,6 +126,13 @@ rules** when Claude couldn't choose). It uses your Claude plan, or your API key
 first when that is switched on in Settings: about 5 cents each time, counted in
 the monthly limit.
 
+**Ready before you look.** While Closet is running on your computer, it asks
+Claude for the day's outfits by itself each morning (from five o'clock, or when
+the computer next wakes), for the occasion and mood you last used and the hours
+from when you usually first open Today. When you open Today, Claude's outfits
+are already there. It skips days when you haven't opened Today for more than
+three days, so nothing is spent while you are away.
+
 **Tell Claude what you think.** Under Claude's outfits, write to Claude about
 them in the box **Tell Claude what you think**: "too dressy", "swap the boots",
 or ask "why not the navy blazer?". Tap **Send** (or press Enter; Shift+Enter

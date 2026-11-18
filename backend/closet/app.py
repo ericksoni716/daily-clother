@@ -53,6 +53,7 @@ from . import (
     sources,
     spend,
     storage,
+    styleahead,
     stylejobs,
     styleprofile,
     tagjobs,
@@ -104,6 +105,7 @@ class Services:
     add_sorter: object = None                      # says what each photo chosen on Add shows (tagger/addsort.py)
     day_reader: object = None                      # reads the day in the owner's words (tagger/dayread.py)
     stylist: stylejobs.Stylist | None = None       # Claude choosing the day's outfits (closet/stylejobs.py); None: the rules only
+    ahead: styleahead.Ahead | None = None          # asks Claude for the day's outfits before the owner's first look
     on_quit: Callable[[], None] = lambda: None
     on_show: Callable[[], bool] = lambda: False   # shows Closet's own window; False when there is none (the browser is used)
     updater: updates.Updater | None = None   # new releases: checked once a day, installed when the owner says
@@ -130,6 +132,8 @@ class Services:
             self.updater.start()
         if self.price_checks:
             self.price_checks.start()
+        if self.ahead:
+            self.ahead.start()
 
     def wake(self) -> None:
         """Nudge both queues (a new item, another closet opened)."""
@@ -151,6 +155,8 @@ class Services:
             self.updater.stop()
         if self.price_checks:
             self.price_checks.stop()
+        if self.ahead:
+            self.ahead.stop()
         if self.tag_worker:
             self.tag_worker.stop()
         if self.pattern_worker:
@@ -343,14 +349,16 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                              finder or (no_finder if tagger is not None else real_finder))
     shopper = shop.Shopper(cfg, state, lambda profile: closet_inputs(cfg, profile), tag_worker.routes,
                            shop_asker or shop.ClaudeAsker(cfg, state, client=api_client))
-    return Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker,
-                    pattern_worker=pattern_worker, second_model=second if cutter is None else None,
-                    corrector=corrector or real_corrector,
-                    check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper),
-                    finder=finding, views=views_worker, draws=draw_worker, updater=updates.Updater(cfg, state),
-                    add_sorter=add_sorter or (no_add_sorter if tagger is not None else real_add_sorter),
-                    day_reader=day_reader or (no_day_reader if tagger is not None else real_day_reader),
-                    stylist=stylejobs.Stylist(choose, routes or (lambda: tagjobs.usable_routes(state))) if choose else None)
+    sv = Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker,
+                  pattern_worker=pattern_worker, second_model=second if cutter is None else None,
+                  corrector=corrector or real_corrector,
+                  check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper),
+                  finder=finding, views=views_worker, draws=draw_worker, updater=updates.Updater(cfg, state),
+                  add_sorter=add_sorter or (no_add_sorter if tagger is not None else real_add_sorter),
+                  day_reader=day_reader or (no_day_reader if tagger is not None else real_day_reader),
+                  stylist=stylejobs.Stylist(choose, routes or (lambda: tagjobs.usable_routes(state))) if choose else None)
+    sv.ahead = styleahead.Ahead(cfg, state, lambda: sv.stylist)
+    return sv
 
 
 def closet_inputs(cfg: Config, profile: str) -> tuple[list[dict], list[dict]]:
@@ -1000,11 +1008,14 @@ def create_app(sv: Services) -> FastAPI:
             # Claude chooses in the owner's own closet when it is switched on; the demo closet never asks Claude
             chooses = sv.stylist if state.get("profile") != "demo" and state.get("stylist_on") else None
             try:
-                return suggest_today(conn, state, body, chooses, path)
+                answer = suggest_today(conn, state, body, chooses, path)
             except outfits.ContextError as e:
                 raise HTTPException(422, str(e))
             finally:
                 conn.close()
+            if state.get("profile") != "demo":   # what the page asked with is what is asked ahead tomorrow morning
+                styleahead.remember(state, body, wears.today(), styleahead.now().hour)
+            return answer
 
         # asks Open-Meteo (a few seconds at most) and compares many outfits, so keep it off the event loop
         return await run_in_threadpool(work)

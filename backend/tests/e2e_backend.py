@@ -314,6 +314,7 @@ def build_services(cfg, **kwargs):
     sv = _build_services(cfg, **kwargs)
     if not os.environ.get("CLOSET_E2E_STYLIST"):
         sv.stylist = None   # no stylist at all: the real Claude would otherwise choose without the other stand-ins
+    sv.ahead = None   # nothing is asked ahead of the page in a browser test: every question is one a test caused
     return sv
 
 

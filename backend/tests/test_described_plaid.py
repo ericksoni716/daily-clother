@@ -254,21 +254,31 @@ def test_the_broad_colours_widths_are_recovered_from_the_photo():
 def test_bands_of_one_colour_keep_their_proportions():
     said = _said([(PURPLE, 8), (TAN, 3), (PURPLE, 4), (TAN, 3)])
     got, _ = described.photo_widths(said, _cloth([(PURPLE, 6), (TAN, 6), (PURPLE, 3), (TAN, 6)]))
-    (_, a), (_, b) = got["across"][0], got["across"][2]
+    a, b = sorted((w for c, w in got["across"] if c == PURPLE), reverse=True)
     assert a / b == pytest.approx(2.0)
 
 
 def test_no_width_moves_more_than_the_cap():
     # the photo is mostly tan; the description says a thin tan band: tan grows, but only so far
     got, shares = described.photo_widths(_said([(PURPLE, 16), (TAN, 4)]), _cloth([(PURPLE, 3), (TAN, 17)]))
-    assert shares[TAN][1] == pytest.approx(0.2 * described.MOVE, abs=0.01)
+    assert 0.2 < shares[TAN][1] <= 0.2 * shares["cap"] + 1e-3 and shares["cap"] <= described.MOVE
+
+
+def test_the_cap_follows_how_much_better_the_photo_explains_the_cloth():
+    truth = [(PURPLE, 9), (TAN, 9), (RED, 1)]
+    _, right = described.photo_widths(_said(truth), _cloth(truth))           # already right: nothing to gain
+    _, wrong = described.photo_widths(_said([(PURPLE, 15), (TAN, 3), (RED, 1)]), _cloth(truth))
+    assert right[PURPLE][1] == pytest.approx(right[PURPLE][0], abs=0.04)     # little to gain, little moved
+    assert wrong["cap"] > right["cap"] and wrong["cap"] > 2.0 and wrong[TAN][1] > 1.8 * wrong[TAN][0]
 
 
 def test_a_cutout_that_lost_a_colour_cannot_take_it_away():
-    # the white squares were cut out with the background: white's measured share is far too low; the cap holds it
+    # the white squares were cut out with the background: the cutout is full of holes, so its colours are not counted
     said = _said([(NAVY, 10), (WHITE, 8), (RED, 2)])
-    _, shares = described.photo_widths(said, _cloth([(NAVY, 10), (WHITE, 8), (RED, 2)], holes_of=WHITE))
-    assert shares[WHITE][1] >= shares[WHITE][0] / described.MOVE - 1e-6
+    cut = _cloth([(NAVY, 10), (WHITE, 8), (RED, 2)], holes_of=WHITE)
+    assert described.holes(np.asarray(cut)[..., 3]) > described.HOLES
+    assert described.photo_widths(said, cut) is None
+    assert described.holes(np.asarray(_cloth([(NAVY, 10), (WHITE, 8)]))[..., 3]) == 0
 
 
 @pytest.mark.parametrize("case", ["one colour", "no garment", "colours that are not there"])
@@ -290,6 +300,40 @@ def test_the_widths_stay_as_described_when_the_photo_cannot_say(case):
 def test_widths_from_the_photo_are_an_option_of_the_tile():
     raw = {"bands": [{"color": PURPLE, "width": 12}, {"color": TAN, "width": 6}, {"color": RED, "width": 1}]}
     cut = _cloth([(PURPLE, 9), (TAN, 9), (RED, 1)])
-    assert described.tile(raw, cut)["widths"] == "said"
+    # round four: on by default, as recommended (see DECISIONS)
+    assert described.tile(raw, cut)["widths"] == "photo"
     assert described.tile(raw)["widths"] == "said"
-    assert described.tile(raw, cut, widths=True)["widths"] == "photo"
+    assert described.tile(raw, cut, widths=False)["widths"] == "said"
+
+
+def test_the_ground_is_the_broadest_colour_whatever_was_listed_first():
+    assert described._ground_first([(RED, 1), (TAN, 3), (PURPLE, 4), (TAN, 5)]) == [(TAN, 5), (RED, 1), (TAN, 3), (PURPLE, 4)]
+    got, _ = described.photo_widths(_said([(TAN, 6), (PURPLE, 12), (RED, 1)]), _cloth([(PURPLE, 9), (TAN, 9), (RED, 1)]))
+    totals = {c: sum(w for c2, w in got["across"] if c2 == c) for c in (PURPLE, TAN)}
+    assert got["across"][0][0] == max(totals, key=totals.get)
+
+
+def test_nearly_alike_yarns_are_drawn_as_one_colour():
+    said = _said([(PURPLE, 8), (TAN, 4), ("#4d3e7c", 3), (RED, 1)])    # two purples a shade apart
+    got, _ = described.photo_widths(said, _cloth([(PURPLE, 11), (TAN, 4), (RED, 1)]))
+    assert len({c for c, _ in got["across"]}) == 3
+
+
+def test_hues_move_toward_the_photo_only_when_asked():
+    said = _said([(PURPLE, 9), (TAN, 9), (RED, 1)])
+    cut = _cloth([("#5a3c8a", 9), (TAN, 9), (RED, 1)])                  # the cloth's purple is redder
+    kept, _ = described.photo_widths(said, cut)
+    moved, _ = described.photo_widths(said, cut, hues=1.0)
+    assert PURPLE in {c for c, _ in kept["across"]} and PURPLE not in {c for c, _ in moved["across"]}
+    new = next(c for c, _ in moved["across"] if c not in (TAN, RED))
+    assert _lab(new)[1] > _lab(PURPLE)[1]                               # toward the redder purple
+
+
+def test_colours_are_softened_by_default_keeping_lightness_and_hue():
+    desc = described.softened(described.read(TARTAN), 0.5)
+    for (c0, w0), (c1, w1) in zip(described.read(TARTAN)["across"], desc["across"], strict=True):
+        a, b = _lab(c0) - [0, 128, 128], _lab(c1) - [0, 128, 128]
+        assert w0 == w1 and abs(a[0] - b[0]) <= 2 and np.hypot(*b[1:]) == pytest.approx(0.5 * np.hypot(*a[1:]), abs=2)
+    strong, soft = (_image(described.tile(TARTAN, strength=s)) for s in (1.0, described.STRENGTH))
+    chroma = lambda rgb: np.hypot(*(cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB)[..., 1:].astype(float) - 128).transpose(2, 0, 1)).mean()  # noqa: E731
+    assert chroma(soft) < chroma(strong)

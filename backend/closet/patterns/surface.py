@@ -21,6 +21,7 @@ from PIL import Image
 from pydantic import BaseModel, Field
 
 from ..drawing.stored import VERSION, tile_text
+from ..tagger import surfaceform
 from . import described
 from .described import Band
 
@@ -78,41 +79,12 @@ class Surface(BaseModel):
 # better), and fine patterns past 16 repeats across. The second form adds bands across the body to `blocks`, a
 # finer size word, and says that "other" is pieced from the photo; `drawn(..., second=True)` draws them.
 
-FIELD_TEXT_2 = {
-    **FIELD_TEXT,
-    "kind": ("plain: one colour. stripes: bands running one way. plaid: bands both ways, crossing (plaid, check, "
-             "gingham, tartan, madras, windowpane). blocks: plain cloth with whole parts or bands across the body in "
-             "other colours (a yoke, sleeves, collar or pocket; a chest panel, a band across the chest, an upper or "
-             "lower body in another colour). other: anything else (florals, camouflage, paisley, other prints, "
-             "patchwork): the app pieces it from the photo. When unsure, say less: plain or other."),
-    "size": ("stripes and plaid only, else null: how many repeats fit across the chest (trousers and shorts: across "
-             "the waist), counted the way the bands repeat: micro more than 20, tiny 9-20, small 5-8, medium 3-5, "
-             "large 2-3, huge under 2."),
-    "panels": ("blocks only, else empty: each band of another colour running across the whole body (sleeves "
-               "included), as how far down it starts and ends, from the collar (0) to the hem (100), in order from "
-               "the top. A chest panel is one band; a body in two colours is one band from where the second colour "
-               "starts to 100."),
-    "top": "Where the band starts, 0 at the collar to 100 at the hem.",
-    "bottom": "Where the band ends, 0 at the collar to 100 at the hem.",
-}
-
-Size2 = Literal["micro", "tiny", "small", "medium", "large", "huge"]
-
-
-class Panel(BaseModel):
-    top: int = Field(description=FIELD_TEXT_2["top"])
-    bottom: int = Field(description=FIELD_TEXT_2["bottom"])
-    color: str = Field(description=FIELD_TEXT["color"])
-
-
-class Surface2(BaseModel):
-    kind: Kind = Field(description=FIELD_TEXT_2["kind"])
-    bands: list[Band] = Field(description=FIELD_TEXT["bands"])
-    direction: Direction | None = Field(description=FIELD_TEXT["direction"])
-    size: Size2 | None = Field(description=FIELD_TEXT_2["size"])
-    blocks: list[Block] = Field(description=FIELD_TEXT["blocks"])
-    panels: list[Panel] = Field(description=FIELD_TEXT_2["panels"])
-    colors: list[Colour] = Field(description=FIELD_TEXT["colors"])
+# The second form is the one the app asks for (`closet.tagger.surfaceform`, plain data the drawing may import);
+# the names below keep the bench's harness working.
+FIELD_TEXT_2 = surfaceform.FIELD_TEXT
+Size2 = surfaceform.Size
+Panel = surfaceform.Panel
+Surface2 = surfaceform.Surface
 
 
 # ---- reading an answer safely -----------------------------------------------------------------------------
@@ -248,6 +220,23 @@ def waist_ruler(cut: Image.Image) -> dict | None:
         return None
     y, x0, x1 = best
     return {"underarm_left": {"x": float(x0), "y": float(y)}, "underarm_right": {"x": float(x1), "y": float(y)}}
+
+
+# A top's chest (between the landmarks' underarms) is about this share of its cutout's width: 0.61 is the median
+# over the garment loop test's 49 tops with landmarks, 84% of them within 15% of it and 94% within 25%
+CHEST_PER_CUTOUT = 0.61
+
+
+def outline_ruler(cut: Image.Image) -> dict | None:
+    """A top's chest ruler when its landmarks could not be had (Claude out of reach): CHEST_PER_CUTOUT of the
+    cutout's width, centred, a third of the way down, in the landmarks' shape."""
+    a = np.asarray(cut.convert("RGBA"))[..., 3] > 128
+    xs, ys = np.where(a.any(0))[0], np.where(a.any(1))[0]
+    if len(xs) < 20 or len(ys) < 20:
+        return None
+    mid, half = (xs[0] + xs[-1]) / 2, CHEST_PER_CUTOUT * (xs[-1] - xs[0]) / 2
+    y = float(ys[0] + (ys[-1] - ys[0]) / 3)
+    return {"underarm_left": {"x": float(mid - half), "y": y}, "underarm_right": {"x": float(mid + half), "y": y}}
 
 
 def stripe_repeats(cut: Image.Image, ruler: dict | None, direction: str) -> float | None:
@@ -460,3 +449,65 @@ def drawn(desc: dict, cut: Image.Image | None, ruler: dict | None, bottom: str |
     repeats = float(np.clip(repeats / scale, *cap))
     out.update(kept=_kept_tile(img, repeats, bottom, first, "described"), repeats=repeats, scale_how=how, tile=img)
     return out
+
+
+# ---- in the app: what the pattern job keeps for a described surface (`patjobs`, how "surface") -------------------
+
+BOTTOMS = ("jeans", "trousers", "shorts")
+
+
+def panel_stripes(desc: dict, strength: float = STRENGTH) -> dict | None:
+    """Bands across the body as the app's kept stripes: one set of horizontal bands over the garment's whole height,
+    not repeated, the body's colour between them (`closet.drawing.stored`, kind "stripes"). Overlapping bands are
+    cut where the one above ends. None when nothing is left."""
+    body = _soft(desc["colors"][0][0], strength)
+    bands: list[list] = []
+    at = 0.0
+    for top, bottom, colour in desc.get("panels") or []:
+        top = max(top, at)
+        if bottom - top < 0.01:
+            continue
+        if top - at >= 0.005:
+            bands.append([body, top - at])
+        bands.append([_soft(colour, strength), bottom - top])
+        at = bottom
+    if not bands:
+        return None
+    if 1 - at >= 0.005:
+        bands.append([body, 1 - at])
+    merged: list[list] = []
+    for c, f in bands:
+        if merged and merged[-1][0] == c:
+            merged[-1][1] += f
+        else:
+            merged.append([c, f])
+    total = sum(f for _, f in merged)
+    return {"kind": "stripes", "how": "panels", "orientation": "horizontal",
+            "bands": [[c, round(f / total, 6)] for c, f in merged], "trim_bands": None, "sleeves_banded": True,
+            "version": VERSION}
+
+
+def kept_for_item(cut: Image.Image, raw, landmarks: dict | None, category: str | None) -> dict | None:
+    """The kept pattern for an item whose description carries a surface (the second form): stripes and plaid
+    woven and sized from the photo (`drawn(..., second=True)`, with a top's landmarks or a bottom's waistband as the
+    ruler), bands across the body as `panel_stripes`, a print pieced from the photo by the app's own measuring.
+    None when the surface draws no pattern (plain, or parts in another colour, which the drawing takes from the
+    answer). A top without landmarks is sized against `outline_ruler`."""
+    desc = read(raw)
+    if surfaceform.kind_of(raw) == "other" or (desc is not None and desc["kind"] == "other"):
+        # a print, or stripes or a plaid said too thinly to weave: the app's own print piecing from the photo, which
+        # needs no colour from the answer (a print described with no colours is still pieced)
+        from .measure import measure
+        return measure(cut, "floral")
+    if desc is None:
+        return None
+    if desc["kind"] == "blocks":
+        return panel_stripes(desc) if desc.get("panels") else None
+    if desc["kind"] not in ("stripes", "plaid"):
+        return None
+    bottom = category if category in BOTTOMS else None
+    ruler = waist_ruler(cut) if bottom else landmarks or outline_ruler(cut)
+    out = drawn(desc, cut, ruler, bottom=bottom, second=True)
+    if out["kept"] is None:
+        return None
+    return {**out["kept"], "scale": out["scale_how"], "widths": out["widths"]}

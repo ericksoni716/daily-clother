@@ -23,7 +23,8 @@ from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError, Ta
 from .conftest import ANSWER, PASSPHRASE, FakeApi, fake_cutter, upload
 
 SECRET_KEY = "sk-ant-api03-test-only-not-a-real-key"
-ONE_CALL = spend.cost_usd("claude-haiku-5-5", 2000, 400)   # what FakeApi reports for each request
+# what FakeApi reports for each request to describe an item, on the describing model (Sonnet since 18 November)
+ONE_CALL = spend.cost_usd(spend.DESCRIBING_MODEL, 2000, 400)
 
 
 @pytest.fixture
@@ -136,7 +137,7 @@ def test_every_api_call_is_recorded_and_summed_for_the_month(client, services, c
     assert client.get(f"/api/items/{a['id']}").json()["tag_route"] == "api"
     rows = calls(cfg)
     assert [(r["route"], r["purpose"], r["model"], r["input_tokens"], r["output_tokens"]) for r in rows] == \
-        [("api", "tag_item", "claude-haiku-5-5", 2000, 400)] * 2
+        [("api", "tag_item", spend.DESCRIBING_MODEL, 2000, 400)] * 2
     assert all(r["cost_usd"] == pytest.approx(ONE_CALL) and r["prices_checked"] == spend.PRICES_CHECKED for r in rows)
     assert all(r["month"] == datetime.now().astimezone().strftime("%Y-%m") for r in rows)
     body = client.get("/api/tagging/spend").json()
@@ -276,11 +277,13 @@ def test_the_estimate_for_waiting_items(client, services, cfg, routes):
     assert body["waiting"] == {"items": 3, "photos": 3, "at_most_usd": pytest.approx(3 * spend.estimate_call(1))}
     assert body["per_photo_usd"] == pytest.approx(spend.estimate_call(1)) and body["left_usd"] == pytest.approx(1.5)
     # careful: the most a request could be billed (the longest answer allowed, generous prompt and photos)
-    # (the prompt and the whole form as a tool, 18,000 tokens, since 16 November; a photo 1,600)
+    # (the prompt and the whole form as a tool, 18,000 tokens, since 16 November; 20,000 with the cloth's surface,
+    # 18 November; a photo 1,600)
     # the whole prompt priced as written to the prompt cache (1.25x input), the dearest way it can go, since 17 November
-    assert spend.estimate_call(1) == pytest.approx(spend.cost_usd("claude-haiku-5-5", 0, 4000, cache_write=19600))
+    # on the describing model: Sonnet since 18 November (the garment loop test), Haiku before
+    assert spend.estimate_call(1) == pytest.approx(spend.cost_usd(spend.DESCRIBING_MODEL, 0, 4000, cache_write=21600))
     assert spend.estimate_call(1) > ONE_CALL and spend.estimate_call(2) > spend.estimate_call(1)
-    assert spend.estimate_call(1) < 0.01   # under a cent a photo at the prices written down
+    assert spend.estimate_call(1) < 0.10   # under ten cents a photo at the prices written down (about 2 cents measured)
 
 
 def test_a_new_month_starts_at_zero(client, services, cfg, monkeypatch, fake_api):

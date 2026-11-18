@@ -18,6 +18,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from . import surfaceform
 from .tagging import CONFIG, PROMPT, SENT, PlanSignIn, RouteUnavailable, TaggingError, TagResult, Unreachable, fitted
 
 SYSTEM = ("You tag photos of clothes for a private wardrobe app. Look at the image file or files named in the "
@@ -139,11 +140,28 @@ def plan_status(exe: str | None = None, timeout: float | None = None) -> tuple[b
     return True, ""
 
 
+def _undescribed(node) -> None:
+    if isinstance(node, dict):
+        node.pop("description", None)
+        for v in node.values():
+            _undescribed(v)
+    elif isinstance(node, list):
+        for v in node:
+            _undescribed(v)
+
+
 def strict_schema() -> dict:
     """The answer schema the plan route sends: the short form (`tagging.SENT`: its long word lists as plain text),
-    adjusted as the SDK adjusts a structured output's. (The API route sends the whole form as a plain tool.)"""
+    adjusted as the SDK adjusts a structured output's. (The API route sends the whole form as a plain tool.) The
+    cloth's surface goes without its descriptions, which the prompt carries instead (`surfaceform.NOTES`): with them
+    the command line is longer than Windows allows."""
     from anthropic.lib._parse._transform import transform_schema
-    return transform_schema(SENT)
+    schema = transform_schema(SENT)
+    for name in surfaceform.FORMS:
+        _undescribed(schema.get("$defs", {}).get(name + "Sent"))
+    if "surface" in schema.get("properties", {}):
+        schema["properties"]["surface"].pop("description", None)
+    return schema
 
 
 def _save(img: Image.Image, path: Path, max_edge: int = 1024) -> None:
@@ -174,7 +192,7 @@ def tag_item_cli(model: str, images: list[Image.Image], exe: str | None = None, 
             _save(im, Path(tmp) / name)
             names.append(name)
         listing = ", ".join(names)
-        prompt = (f"{PROMPT}\n\nThe image file{'s are' if len(names) > 1 else ' is'} in the current folder: {listing}. "
+        prompt = (f"{PROMPT}\n\n{surfaceform.NOTES}\n\nThe image file{'s are' if len(names) > 1 else ' is'} in the current folder: {listing}. "
                   "Open each with the Read tool, then give your answer.")
         cmd = print_command(exe, model, effort, strict_schema(), "Read", SYSTEM)
         for attempt in range(1, max_attempts + 1):

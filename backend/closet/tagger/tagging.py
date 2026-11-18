@@ -17,9 +17,10 @@ from pathlib import Path
 from typing import Literal, Protocol, Union, get_args, get_origin
 
 from PIL import Image
-from pydantic import BaseModel, ValidationError, create_model
+from pydantic import BaseModel, Field, ValidationError, create_model
 from pydantic.fields import FieldInfo
 
+from . import surfaceform
 from .schema import ItemTags
 
 CONFIG = json.loads((Path(__file__).parent / "models.json").read_text())
@@ -46,6 +47,8 @@ Fill in the attributes. Guidance:
 - shade: the owner's name for the main colour's shade (charcoal or slate for a grey, khaki or stone for a tan, raw_indigo for unwashed denim, oxblood for a deep burgundy ...), one of the shades of the colour you chose; 'unknown' when none is close.
 - Brand, size and material: only what you can actually read in a photo. Otherwise null.
 - needs_shot: leave null unless one more photo would settle something that matters for choosing outfits."""
+# the cloth's surface, as the garment loop test asked for it (bench/experiments/garment_loop, arm F)
+PROMPT = PROMPT + "\n" + surfaceform.GUIDANCE
 
 
 class TaggingError(RuntimeError):
@@ -202,7 +205,11 @@ def sent_form(model: type[BaseModel], keep_main: bool = True) -> type[BaseModel]
     return create_model(model.__name__ + "Sent", __config__=model.model_config, **fields)
 
 
-SENT = sent_form(ItemTags)
+# The form asked for: `ItemTags` with the surface required (null allowed), so every new description gives one; the
+# stored form keeps it optional so answers from before it was asked for stay valid.
+ASKED = create_model("ItemTags", __base__=ItemTags, __doc__=ItemTags.__doc__,
+                     surface=(surfaceform.Surface | None, Field(description=surfaceform.FIELD_TEXT["surface"])))
+SENT = sent_form(ASKED)
 
 
 def _fit(value, t):
@@ -274,7 +281,7 @@ def answer_tool() -> dict:
     """The full form as a tool that is not strict (no `strict`): the API does not compile it into a grammar. Its
     parts are written out in place, so it is one schema with no references."""
     from anthropic.lib._parse._transform import transform_schema
-    schema = transform_schema(ItemTags)
+    schema = transform_schema(ASKED)
     return {"name": ANSWER_TOOL,
             "description": "Record what the photos show about the item. For a field with a list, use only its words.",
             "input_schema": _inline(schema, schema.get("$defs", {}))}

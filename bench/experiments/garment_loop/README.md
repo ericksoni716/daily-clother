@@ -348,5 +348,6 @@ From this folder, with the backend's requirements installed and Claude Code sign
 in this conversation's record), `python judge.py collect`, `python analyse.py`, `python sheets.py`. Part 2:
 `python run.py describe F --half <half> --runs 1,2,3` (and `arm-a`, `describe B`, `describe C-sonnet` on the
 held-out half), then `python judge.py packs --half <half> [--round r2] --rubric A,B,C-sonnet,F --pair A,B,C-sonnet,F
---steady B,C-sonnet,F`, `collect`, `analyse.py` and `sheets.py` with the same `--half` and `--round`. Everything
+--steady B,C-sonnet,F`, `collect`, `analyse.py` and `sheets.py` with the same `--half` and `--round`. After the adoption: `python
+app_path.py` draws F's stored answers through the app's own code (no calls; sheets under `app_path/`). Everything
 private stays under `bench/private/garment_loop/`.

@@ -262,7 +262,10 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
         from .tagger import landmarks
         return landmarks.ask(cut, usable, client=api_client, meter=landmark_meter)
 
-    def real_measurer(cut, pattern, words, marks):
+    def real_measurer(cut, pattern, words, marks, surface=None, category=None):
+        if pattern == patjobs.SURFACE:   # the cloth Claude described, sized and pieced from the photo
+            from .patterns.surface import kept_for_item  # OpenCV: loaded only when a pattern is measured
+            return kept_for_item(cut, surface, marks, category)
         from .patterns.measure import measure  # OpenCV: loaded only when a pattern is measured
         return measure(cut, pattern, words, marks)
 

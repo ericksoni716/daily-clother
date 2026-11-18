@@ -9,9 +9,9 @@ import { label } from '../labels';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
 import {
-  canDress, chosenBy, dayParts, joinWords, longDate, keptFor, loadChoice, moodLabel, MOODS, occasionLabel, OCCASIONS, outfitIds, parseTemp, placeLabel, shortDate,
-  saveChoice, sameOutfit, stylistView, STYLIST_SLOW_S, timeOf, waitingLine, whatToAddFirst, wornNow, wornOrder, type Choice, type DayAnswer, type DayNote, type Outfit, type Place,
-  type StylistState, type TodayAnswer,
+  canDress, canSay, chosenBy, dayParts, joinWords, longDate, keptFor, loadChoice, lookingAt, MAX_SAY, moodLabel, MOODS, occasionLabel, OCCASIONS, outfitIds, parseTemp,
+  placeLabel, rememberWords, sameOutfit, sameOutfits, savedLine, shortDate, saveChoice, stylistView, STYLIST_SLOW_S, talkOf, timeOf, waitingLine, whatToAddFirst, withThing,
+  wornNow, wornOrder, type Choice, type DayAnswer, type DayNote, type Outfit, type Place, type RememberThing, type StylistState, type TalkTurn, type TodayAnswer,
   type TodayRequest, type TypedDay, type WornToday,
 } from '../today';
 import type { ItemSummary, Settings } from '../types';
@@ -85,6 +85,11 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const [choseOwn, setChoseOwn] = useState(false);
   // "Ask Claude again": the next request carries ask_again, once (never kept with the request or in the saved copy)
   const askAgain = useRef(false);
+  // The next answer is the one after Claude answered a message: it keeps the outfit in front of the owner when the
+  // outfits did not change, and shows the first when they did
+  const followUp = useRef(false);
+  const shown = useRef<Outfit[] | null>(null);
+  shown.current = phase.kind === 'ready' ? phase.answer.outfits : null;
 
   useEffect(() => {
     const updateDay = () => setToday(localDay());
@@ -151,8 +156,10 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         askAgain.current = false;
         answered.current = key;
         kept.setOutfits({ day: localDay(), saved_at: new Date().toISOString(), request: req, answer });
+        const keepPlace = followUp.current && !!shown.current && sameOutfits(shown.current, answer.outfits);
+        followUp.current = false;
         setPhase({ kind: 'ready', answer, savedAt: null });
-        setIndex(0);
+        if (!keepPlace) setIndex(0);
         setEditDay(false);
         setAsking(false);
       },
@@ -160,6 +167,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         if ((e as Error)?.name === 'AbortError') return;
         done = true;
         askAgain.current = false;
+        followUp.current = false;
         const err = e as ApiError;
         setAsking(false);
         if (err.status === 0) {
@@ -205,16 +213,21 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     memory = { profile, day: today, key: answered.current, phase, index, buildAround, leaveOut };
   }, [profile, today, phase, index, buildAround, leaveOut]);
 
-  // While Claude is choosing, ask every 2 seconds how it stands (cheap); once it is no longer choosing, ask Today
-  // again with the same choices so Claude's outfits (or the rules', with why) arrive by themselves.
+  // While Claude is choosing, or answering a message of the owner's, ask every 2 seconds how it stands (cheap); once
+  // it is done, ask Today again with the same choices so Claude's outfits (or the rules', with why) and its answer
+  // arrive by themselves.
   const stylist = phase.kind === 'ready' ? phase.answer.context.stylist ?? null : null;
   const claudeView = phase.kind === 'ready' ? stylistView(stylist, phase.savedAt !== null) : 'none';
-  const waitingOn = claudeView === 'waiting' && !choseOwn && !offline && stylist?.id ? phase : null;
+  const { talk, answering } = talkOf(stylist);
+  const waitingFor = offline ? null
+    : claudeView === 'waiting' ? (!choseOwn && stylist?.id ? stylist.id : null)
+      : claudeView === 'read' && phase.kind === 'ready' && phase.savedAt === null ? answering : null;
+  const talking = claudeView === 'read';
+  const waitingOn = useMemo(() => (waitingFor ? { id: waitingFor, talking, phase } : null), [waitingFor, talking, phase]);
   const gone = useRef(new Set<string>());
   useEffect(() => {
-    if (!waitingOn || waitingOn.kind !== 'ready') return;
-    const id = waitingOn.answer.context.stylist?.id;
-    if (!id) return;
+    if (!waitingOn) return;
+    const { id } = waitingOn;
     const ctrl = new AbortController();
     let stopped = false;
     const stop = () => {
@@ -227,6 +240,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         (a) => {
           if (stopped || a.state === 'working') return;
           stop();
+          if (waitingOn.talking) followUp.current = true;
           setAttempt((n) => n + 1);
         },
         (e) => {
@@ -235,6 +249,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
           // the question is gone (the closet changed, the program restarted): ask Today again, once
           if ((e as ApiError).status === 404 && !gone.current.has(id)) {
             gone.current.add(id);
+            if (waitingOn.talking) followUp.current = true;
             setAttempt((n) => n + 1);
           }
           // anything else (offline, a network error): stop quietly; the outfits shown stand
@@ -256,6 +271,35 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const allById = useAllItems();
   const nameOf = (id: string) => pieceName(allById.get(id), false, (c) => label('category', c));
   const locked = offline || (phase.kind === 'ready' && phase.savedAt !== null);
+
+  /** Sends the owner's message about the outfits on the page; gives back why it was not sent, or null. */
+  async function say(text: string): Promise<string | null> {
+    if (phase.kind !== 'ready') return null;
+    const req = requestRef.current;
+    // the carousel shows one outfit at a time: the one at its place is the one in front of the owner
+    const looking = lookingAt(index, phase.answer.outfits.length);
+    try {
+      const answer = await api.today({ ...req, say: text, ...(looking === null ? {} : { looking_at: looking }) });
+      kept.setOutfits({ day: localDay(), saved_at: new Date().toISOString(), request: req, answer });
+      setPhase({ kind: 'ready', answer, savedAt: null });
+      return null;
+    } catch (e) {
+      return (e as Error).message || "Your message wasn't sent. Try again.";
+    }
+  }
+
+  /** Keeps (or not) a thing Claude offered to remember; gives back why it could not, or null. */
+  async function settle(turnId: string, at: number, save: boolean): Promise<string | null> {
+    try {
+      const thing = await api.remember(turnId, at, save);
+      setPhase((p) => (p.kind === 'ready' ? { ...p, answer: withThing(p.answer, turnId, at, thing) } : p));
+      const saved = kept.outfits(localDay());
+      if (saved) kept.setOutfits({ ...saved, answer: withThing(saved.answer, turnId, at, thing) });
+      return null;
+    } catch (e) {
+      return (e as Error).message || 'That could not be saved. Try again.';
+    }
+  }
 
   async function wear(o: Outfit) {
     // one of the rules' outfits worn while Claude was still choosing: that is the owner's choice for today
@@ -495,7 +539,8 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         actions={pieceActions} items={items.active} onWear={wear} onUndo={undo} offline={offline}
         changed={!!buildAround || leaveOut.length > 0}
         onClear={() => { setBuildAround(null); setLeaveOut([]); }}
-        onRetry={() => setAttempt((n) => n + 1)} />
+        onRetry={() => setAttempt((n) => n + 1)}
+        talk={{ turns: talk, answering, onSay: say, onSettle: settle }} />
     </div>
   );
 
@@ -726,6 +771,18 @@ interface BodyProps {
   meanwhile: boolean;
   onMeanwhile(): void;
   onAskAgain(): void;
+  /** The day's conversation with Claude about the outfits, shown under them once Claude's are on the page. */
+  talk: TalkProps;
+}
+
+interface TalkProps {
+  turns: TalkTurn[];
+  /** The message Claude is answering now, or null. */
+  answering: string | null;
+  /** Sends a message; resolves to why it was not sent, or null. */
+  onSay(text: string): Promise<string | null>;
+  /** Keeps (`save`) or not a thing Claude offered to remember; resolves to why it could not, or null. */
+  onSettle(turnId: string, index: number, save: boolean): Promise<string | null>;
 }
 
 function Body(props: BodyProps) {
@@ -787,7 +844,8 @@ function Body(props: BodyProps) {
         <div className="today-stylist" data-testid="stylist-read">
           {stylist.read && <p>Claude on today: {stylist.read}</p>}
           {stylist.message && <p className="today-stylist-note muted" data-testid="stylist-note">{stylist.message}</p>}
-          <StylistAgain locked={props.actions.locked} busy={asking} onClick={onAskAgain}>Ask Claude again</StylistAgain>
+          <StylistAgain locked={props.actions.locked} busy={asking || !!props.talk.answering} onClick={onAskAgain}>Ask Claude again</StylistAgain>
+          <Conversation {...props.talk} locked={props.actions.locked} busy={asking} />
         </div>
       )}
       {!waiting && stylist?.state === 'failed' && (
@@ -816,6 +874,132 @@ function StylistWaiting({ meanwhile, onMeanwhile }: { meanwhile: boolean; onMean
         {!meanwhile && <Button small onClick={onMeanwhile}>Show Closet's own picks meanwhile</Button>}
       </div>
     </Card>
+  );
+}
+
+/**
+ * Talking to Claude about the outfits on the page: the day's messages and Claude's answers, the things it offered to
+ * remember, and the box to write in. Read-only when the page is locked (offline, or a copy saved earlier).
+ */
+function Conversation({ turns, answering, onSay, onSettle, locked, busy }: TalkProps & { locked: boolean; busy: boolean }) {
+  const [text, setText] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const box = useRef<HTMLTextAreaElement>(null);
+  // while a message is sent or answered (or the outfits are being asked for) nothing more can be sent; the box is
+  // read-only rather than disabled then, so it keeps the focus for the next message
+  const held = sending || busy || !!answering || turns.some((t) => t.state === 'working');
+  const title = locked ? OFFLINE_TITLE : undefined;
+
+  async function send(what: string, fromBox: boolean) {
+    if (!canSay(what) || held || locked) return;
+    // the focus stays in the box (it is read-only, not disabled, while Claude answers), ready for the next message
+    if (fromBox) box.current?.focus();
+    setSending(true);
+    setError(null);
+    const problem = await onSay(what.trim());
+    setSending(false);
+    if (problem) setError(problem);
+    else if (fromBox) setText('');
+  }
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    void send(text, true);
+  }
+
+  return (
+    <div className="today-talk">
+      <div aria-live="polite">
+        {turns.length > 0 && (
+          <ol className="today-talk-list" aria-label="Your conversation with Claude today" data-testid="talk">
+            {turns.map((t, at) => (
+              <li key={t.id} className="today-turn" data-testid="talk-turn">
+                <div className="today-said">
+                  <span className="today-who">You</span>
+                  <p>{t.said}</p>
+                </div>
+                {t.state === 'working' && !locked && (
+                  <p className="today-answering muted" role="status">
+                    <span className="today-stylist-mark" aria-hidden="true"><span /><span /><span /></span>
+                    Claude is answering…
+                  </p>
+                )}
+                {t.state === 'ready' && t.reply && (
+                  <div className="today-reply">
+                    <span className="today-who">Claude</span>
+                    <p>{t.reply}</p>
+                  </div>
+                )}
+                {t.state === 'ready' && t.remember.map((thing, i) => (
+                  <Keep key={i} thing={thing} locked={locked} onSettle={(save) => onSettle(t.id, i, save)} />
+                ))}
+                {t.state === 'failed' && (
+                  <div className="today-talk-failed">
+                    <p>{t.message}</p>
+                    {/* only the newest message can be sent again: an earlier one has been followed by another */}
+                    {at === turns.length - 1 && (
+                      <Button small disabled={locked || held} title={title} onClick={() => void send(t.said, false)}>Send again</Button>
+                    )}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+      <form className="today-say" onSubmit={submit}>
+        <label className="today-say-label" htmlFor="today-say-text">Tell Claude what you think</label>
+        <div className="today-say-row">
+          <textarea id="today-say-text" ref={box} rows={2} maxLength={MAX_SAY} value={text}
+            placeholder="Too dressy? Swap the boots? Ask why…" disabled={locked} title={title}
+            readOnly={!locked && held} aria-disabled={!locked && held ? true : undefined}
+            aria-invalid={error ? true : undefined} aria-describedby={error ? 'today-say-error' : undefined}
+            onChange={(e) => {
+              setText(e.target.value);
+              if (error) setError(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                void send(text, true);
+              }
+            }} />
+          <Button variant="primary" type="submit" disabled={locked || held || !canSay(text)} title={title}>Send</Button>
+        </div>
+        {error && <p className="form-error today-say-error" id="today-say-error" role="alert">{error}</p>}
+      </form>
+    </div>
+  );
+}
+
+/** A thing Claude offered to remember: kept only when the owner says so. */
+function Keep({ thing, locked, onSettle }: { thing: RememberThing; locked: boolean; onSettle(save: boolean): Promise<string | null> }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (thing.state === 'dismissed') return null;
+  if (thing.state === 'saved') {
+    return <p className="today-kept" data-testid="talk-kept"><CheckIcon />{savedLine(thing)}</p>;
+  }
+  const words = rememberWords(thing);
+  const title = locked ? OFFLINE_TITLE : undefined;
+  async function answer(save: boolean) {
+    setBusy(true);
+    setError(null);
+    const problem = await onSettle(save);
+    setBusy(false);
+    if (problem) setError(problem);
+  }
+  return (
+    <div className="today-keep" role="group" aria-label={words.question} data-testid="talk-keep">
+      <p className="today-keep-question">{words.question}</p>
+      <p className="today-keep-text"><q>{thing.text}</q></p>
+      <div className="today-keep-actions">
+        <Button small disabled={busy || locked} title={title} onClick={() => void answer(true)}>{words.save}</Button>
+        <Button small variant="ghost" disabled={busy || locked} title={title} onClick={() => void answer(false)}>No thanks</Button>
+      </div>
+      {error && <p className="form-error today-keep-error" role="alert">{error}</p>}
+    </div>
   );
 }
 

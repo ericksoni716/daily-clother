@@ -48,7 +48,11 @@ something shaped like a key and a file outside Closet's folder (both made up), s
 Claude choosing the day's outfits on Today is never the real Claude. With CLOSET_E2E_STYLIST empty there is no stylist
 at all, so Today is the rules engine's alone, as before. With CLOSET_E2E_STYLIST=1 a stand-in (`fake_stylist`) answers
 after 1.5 seconds (so the page's waiting card can be seen) with the rules' second and first outfits, in that order;
-with CLOSET_E2E_STYLIST=fails it cannot be reached.
+with CLOSET_E2E_STYLIST=fails it cannot be reached. A message from the owner about the outfits (the brief's `say`) is
+answered after 1.5 seconds too (6.5 when the message contains "slow", so a test can send another meanwhile), from words
+in the message itself: "fail" cannot be reached; "why" is a question, answered in words with the outfits left as they
+are; anything else turns the outfits around (the rules' first outfit first, then their third), and "never" or "always"
+also offers to keep the message for the owner's style, "fits" a note on the first outfit's top.
 
 The API key box keeps keys in a stand-in keychain (never the computer's), and the check with Anthropic is a
 stand-in too: a key ending in "refused" is turned down, any other well-formed key is accepted.
@@ -258,8 +262,11 @@ def _look(line: str) -> dict:
 
 def fake_stylist(brief, routes):
     """Stands in for Claude choosing the day's outfits: the rules' second outfit first (so Claude's first differs from
-    the rules' first), then their first; with only one, that one."""
+    the rules' first), then their first; with only one, that one. A message of the owner's (`say`) is answered by
+    `fake_reply`."""
     lines = [ln for ln in brief["shortlist"].splitlines() if ln.startswith("- ") and not ln.startswith("- The rules")]
+    if brief.get("say") is not None:
+        return fake_reply(brief["say"], lines, routes)
     chosen = [lines[1], lines[0]] if len(lines) > 1 else lines[:1]
     looks = []
     for i, line in enumerate(chosen):
@@ -269,8 +276,33 @@ def fake_stylist(brief, routes):
             "model": "stand-in", "input_tokens": 100, "output_tokens": 50}
 
 
+def fake_reply(say: str, lines: list[str], routes) -> dict:
+    """Stands in for Claude answering the owner's message, from words in it: "fail" cannot be reached; "why" (a
+    question) is answered in words and leaves the outfits as they are; anything else turns them around, so the first
+    outfit on the page changes (the rules' first outfit first, then their third, or second), and offers to keep the
+    message for the owner's style when it says "never" or "always", and a note on the first outfit's top when it says
+    "fits"."""
+    words = say.lower()
+    meta = {"read": "", "route": routes[0], "model": "stand-in", "input_tokens": 100, "output_tokens": 50}
+    if "fail" in words:
+        raise Unreachable("offline")
+    if "why" in words:
+        return {**meta, "looks": [], "reply": "Because the stand-in chose by number.", "remember": []}
+    chosen = [lines[0], lines[2] if len(lines) > 2 else lines[1]] if len(lines) > 1 else lines[:1]
+    looks = [{**_look(line), "why": "Turned around by the stand-in, as you asked.", "watch": ""} for line in chosen]
+    remember = []
+    if "never" in words or "always" in words:
+        text = say.strip()
+        remember.append({"about": 0, "text": text[:1].upper() + text[1:]})
+    if "fits" in words and looks:
+        remember.append({"about": looks[0]["base"], "text": "Fits well under a jacket."})
+    return {**meta, "looks": looks, "reply": "Done: the stand-in turned the outfits around.", "remember": remember}
+
+
 def slow_stylist(brief, routes):
-    time.sleep(1.5)   # long enough for the page to show Claude choosing
+    time.sleep(1.5)   # long enough for the page to show Claude choosing, or answering a message
+    if "slow" in str(brief.get("say") or "").lower():
+        time.sleep(5)   # a message that asks for it is answered slowly, so another can be sent meanwhile
     return fake_stylist(brief, routes)
 
 

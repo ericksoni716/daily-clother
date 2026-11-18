@@ -33,7 +33,7 @@ export interface Backend {
  * `tagFails`: with `fakes`, the first that many descriptions fail (see e2e_backend.py).
  * `seed`: 'demo' starts the owner's own closet as a copy of the demo closet (see e2e_backend.py).
  * `stylist`: Claude chooses Today's outfits through a stand-in (see e2e_backend.py): true answers after 1.5 s with the
- * rules' second and first outfits; 'fails' cannot be reached. Without it there is no stylist: Today is the rules' alone.
+ * rules' second and first outfits, and answers the owner's messages about them (see `fake_reply`); 'fails' cannot be reached. Without it there is no stylist: Today is the rules' alone.
  */
 export async function startBackend(opts: { model?: string; fakes?: boolean | 'api'; tagFails?: number; seed?: 'demo'; stylist?: boolean | 'fails' } = {}): Promise<Backend> {
   const port = await freePort();

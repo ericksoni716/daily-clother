@@ -154,24 +154,32 @@ def _sheet(gid: str, labelled: list[tuple[str, Image.Image]], height: int = 520)
     return out
 
 
+def _answers(folder: Path) -> dict:
+    """Every judge batch's answers in a folder (answers*.json, one file per batch), merged."""
+    merged = {}
+    for f in sorted(folder.glob("answers*.json")):
+        merged.update(json.loads(f.read_text()))
+    return merged
+
+
 def collect(half: str) -> None:
-    """Join the judges' answer files (rubric<p>/answers.json, pairwise/answers.json, steady/answers.json) to arms."""
+    """Join the judges' answer files (answers*.json in rubric<p>/, pairwise/ and steady/) to arms."""
     out = JUDGE / half
     key = H.load_json(out / "key.json")
     scores = {"rubric": [], "pairwise": [], "steady": []}
     for p in (1, 2, 3):
-        ans = H.load_json(out / f"rubric{p}" / "answers.json") or {}
+        ans = _answers(out / f"rubric{p}")
         for tok, a in ans.items():
             k = key["rubric"].get(tok.removesuffix(".jpg"))
             if k is None:
                 k = (H.load_json(out / "rejudge" / "key.json") or {}).get(tok.removesuffix(".jpg"))
             if k is not None:
                 scores["rubric"].append({**k, "pass": k.get("pass", p), "scores": a})
-    for tok, a in (H.load_json(out / "pairwise" / "answers.json") or {}).items():
+    for tok, a in _answers(out / "pairwise").items():
         k = key["pairwise"].get(tok.removesuffix(".jpg"))
         if k is not None:
             scores["pairwise"].append({**k, "answer": a})
-    for tok, a in (H.load_json(out / "steady" / "answers.json") or {}).items():
+    for tok, a in _answers(out / "steady").items():
         k = key["steady"].get(tok.removesuffix(".jpg"))
         if k is not None:
             scores["steady"].append({**k, "answer": a})

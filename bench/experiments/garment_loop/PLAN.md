@@ -102,14 +102,27 @@ At least 40 garments, more if they come cheaply, chosen before any run and not c
   stripes fine to wide, both directions, uneven; colour block; solids (controls); florals and other prints
   (controls for "say less"); a few with a logo or crest on patterned cloth.
 - **Garments**: shirts, tees, knits, jackets, trousers, shorts; not only tops.
-- **Photo conditions**: flat on a plain surface, on a bed, on a hanger, creased, dim, backlit, at an angle. Mostly
-  ordinary phone photos, not catalogue shots.
-- **Sources**: open-licence photos (the demo closet's photos in `backend/closet/demo_data/` and their
-  `CREDITS.md` show the standard); record each one's source and licence in a manifest committed here, and keep the
-  photos themselves under `bench/private/garment_loop/` (git-ignored). If the session's network cannot reach a
-  source, say so and ask the owner; do not substitute made-up images for real photos.
-- **The owner's own photos** (the six plaid shirts) join the set only if the owner uploads them to that session.
-  They stay in `bench/private/` and never enter a commit, a log or a fixture.
+- **Photo conditions: the kind of photo a person really takes.** The owner's test photos so far were chosen from
+  resale listings for exactly this: mediocre phone photos with creased or unbuttoned shirts, garments not laid out
+  squarely, on a bed, a floor or a hanger, against a busy room, in dim or mixed light, from an ordinary standing
+  angle. That is the bar. A photo fails it, and is left out, when it is a catalogue or studio shot, is worn by a
+  model, shows the garment from an angle nobody would photograph it from, or is so odd that it tells nothing about
+  ordinary use. Most of the set should be untidy in at least one of these ways; keep a few tidy flat-lays as
+  controls and mark them.
+- **Sources, in this order:**
+  1. **Photos the owner supplies**, of the kind above. These are the core of the set. They are other people's
+     photos or the owner's own: they stay under `bench/private/garment_loop/` (git-ignored), and neither they, nor
+     where they came from, nor anything drawn from them enters a commit, a log, a fixture or a pull request. Do not
+     collect photos from listing sites yourself: ask the owner for what is missing, by pattern, garment and
+     condition, as a short shopping list.
+  2. **Open-licence photos**, only where one meets the bar above (the owner found them mostly random and oddly
+     framed; expect to reject most). Record each one's source and licence in a manifest committed here; the photos
+     themselves also live under `bench/private/garment_loop/`.
+  3. The demo closet's photos (`backend/closet/demo_data/`), as tidy controls.
+  If the set cannot reach 40 garments that meet the bar, run with what there is, say how many, and do not pad it
+  with studio shots or made-up images.
+- **Coverage is by the owner's supply, so say what is thin.** Before any run, give the owner a table of the set by
+  pattern, garment type and photo condition, with the gaps named, so they can add photos or accept the gaps.
 
 Split the set in two before any run: a **tuning half** that prompts and rules may be adjusted on, and a **held-out
 half** that is run once at the end. Report the two separately. A result that holds only on the tuning half is a
@@ -189,6 +202,7 @@ the judge's notes).
   held-out half, what was changed along the way and why, and a plain recommendation: adopt the loop, adopt a
   stronger one-shot description, or neither, with what the app would need (form fields, calls per item, where the
   render-and-correct step would run, what the owner would see while it runs).
-- The manifest of test photos with sources and licences.
+- The manifest of the open-licence photos with sources and licences, and the table of the whole set by pattern,
+  garment type and photo condition (counts only; nothing that identifies a private photo).
 - Result sheets (photo, each arm's drawing, scores) under `bench/private/garment_loop/`, and their paths.
 - What is uncertain, and the three garments each arm did worst on, shown.

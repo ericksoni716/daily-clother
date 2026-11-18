@@ -15,9 +15,54 @@ export interface OutfitPieces {
 
 export interface Outfit {
   pieces: OutfitPieces;
-  score: number;
+  /** The rules' score out of 100; null for an outfit Claude chose (its reasons say why instead). */
+  score: number | null;
   reasons: string[];
   warnings: string[];
+  /** 'claude' when Claude chose it; absent when Closet's own rules did. */
+  by?: 'claude';
+}
+
+/** Claude choosing the day's outfits (the server's `closet/stylejobs.py`). */
+export interface StylistState {
+  /** 'working': still choosing, the outfits are the rules'; 'ready': Claude's come first; 'failed': the rules' (`message` says why). */
+  state: 'working' | 'ready' | 'failed';
+  /** The question, for `api.styleAnswer`; null when none was asked. */
+  id: string | null;
+  /** Claude's one sentence on what about the day shaped its choices (ready only). */
+  read: string | null;
+  /** Why Claude could not choose, in a sentence (failed). On ready, normally null; a sentence only on the request that
+   * carried `ask_again` and was refused by the daily limit ("…so these are still the ones it chose last"). */
+  message: string | null;
+  /** The day's conversation with Claude about the outfits, oldest first (absent in copies saved before it existed). */
+  talk?: TalkTurn[];
+  /** The id of the owner's message Claude is answering now, for `api.styleAnswer`; null when none. */
+  answering?: string | null;
+}
+
+/** Something Claude offered to remember from a message: about the owner's style, or about one piece. */
+export interface RememberThing {
+  kind: 'style' | 'piece';
+  /** The piece's id (kind 'piece'); null for the owner's style. */
+  item_id: string | null;
+  /** The piece's name (kind 'piece'); null for the owner's style. */
+  name: string | null;
+  text: string;
+  /** Only 'offered' things are asked about; nothing is kept until the owner saves it. */
+  state: 'offered' | 'saved' | 'dismissed';
+}
+
+/** One message of the owner's about the outfits, and Claude's answer to it. */
+export interface TalkTurn {
+  id: string;
+  /** What the owner wrote. */
+  said: string;
+  /** 'working': Claude is answering; 'ready': `reply` is Claude's words; 'failed': `message` says why it was not answered. */
+  state: 'working' | 'ready' | 'failed';
+  reply: string | null;
+  message: string | null;
+  remember: RememberThing[];
+  at: string;
 }
 
 /** The day the outfits were chosen for, as the server worked it out. */
@@ -36,6 +81,62 @@ export interface DayContext {
   message?: string | null;
   /** When the outfits start from one worn before: which of its pieces came back and which could not. */
   again?: { id: string; worn_on: string; kept: string[]; unavailable: string[] };
+  /** The hours dressed for, read from the forecast hour by hour; null when it has no hours or the day was typed. */
+  detail?: DayDetail | null;
+  /** The day in the owner's words, if a note holds today or is coming up. */
+  note?: DayNote | null;
+  /** Claude choosing the outfits; absent or null when Claude does not choose here (the demo closet, switched off). */
+  stylist?: StylistState | null;
+}
+
+/** What the hours the owner is out are like (the server's `closet/day.py`). */
+export interface DayDetail {
+  from_hour: number;
+  to_hour: number;
+  temp_low_c: number;
+  temp_high_c: number;
+  feels_low_c: number;
+  feels_high_c: number;
+  /** Whether it feels far enough from the thermometer to say so. */
+  feels_apart: boolean;
+  rain: { kind: string; from_hour: number; to_hour: number; chance: number | null; mm: number | null; most: boolean; words: string } | null;
+  wind: { kmh: number | null; gust_kmh: number | null; words: string | null } | null;
+  uv: number | null;
+  humid: boolean;
+  wet: boolean;
+  /** The day in short plain parts, the temperatures first: ["feels like 0° to 7°", "rain 2pm to 5pm", "windy"]. */
+  words: string[];
+}
+
+/** A note that today, or the days ahead, are not an ordinary day at home (the server's `closet/daynote.py`). */
+export interface DayNote {
+  text: string;
+  from: string;
+  to: string;
+  /** Whether it counts today (false: it is for days still ahead). */
+  active: boolean;
+  place: { name: string; latitude: number; longitude: number; timezone: string } | null;
+  /** The place Claude read from the sentence, kept when the map could not find it. */
+  place_asked: string | null;
+  outside: [number, number] | null;
+  exposure: 'inside' | 'mixed' | 'outside';
+  activity: string;
+  occasion: string | null;
+  /** What Closet took from it: ["Lisbon, Portugal", "until Sunday 15 November", "outside noon to 6pm"]. */
+  words: string[];
+}
+
+export interface DayAnswer {
+  note: DayNote | null;
+  message: string | null;
+  saved?: boolean;
+}
+
+/** `GET /api/style/answers/{id}`: how one question to Claude stands. */
+export interface StyleAnswer {
+  id: string;
+  state: StylistState['state'];
+  message: string | null;
 }
 
 export interface TodayAnswer {
@@ -54,6 +155,12 @@ export interface TodayRequest {
   rain?: boolean;
   /** A worn outfit's id: start from its pieces that are clean. */
   again?: string;
+  /** Ask Claude to choose afresh (one request only: never kept with the request). */
+  ask_again?: boolean;
+  /** A message to Claude about the outfits on the page (one request only: never kept with the request). */
+  say?: string;
+  /** Which outfit was in front of the owner as they wrote (0 is the first); only sent with `say`. */
+  looking_at?: number;
 }
 
 export interface WearManyAnswer {
@@ -143,7 +250,12 @@ export function tempRange(low: number, high: number): string {
  */
 export function dayParts(c: DayContext): string[] {
   const known = c.rain_chance !== null && c.rain_chance !== undefined;
-  const parts = [tempRange(c.low_c, c.high_c), c.rain ? (known ? `rain ${c.rain_chance}%` : 'rain likely') : 'no rain'];
+  const d = c.detail;
+  // with the forecast's hours: what the hours ahead feel like, when the rain falls, and the wind and sun if they matter
+  const parts = d
+    ? [d.feels_apart ? `feels like ${tempRange(d.feels_low_c, d.feels_high_c).replace(/^A/, 'a')}` : tempRange(d.temp_low_c, d.temp_high_c),
+      ...(d.rain ? [] : ['no rain']), ...d.words.slice(1)]
+    : [tempRange(c.low_c, c.high_c), c.rain ? (known ? `rain ${c.rain_chance}%` : 'rain likely') : 'no rain'];
   if (c.source === 'mild') parts.push('a mild day');
   else if (c.place) parts.push(shortPlace(c.place));
   else if (c.source === 'given') parts.push('your temperatures');
@@ -157,6 +269,12 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 export function longDate(day: string): string {
   const [y, m, d] = day.split('-').map(Number);
   return `${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${d} ${MONTHS[m - 1]}`;
+}
+
+/** "Wed 25 Nov" from "2026-11-25": the day where there is little room (Today's header on a phone). */
+export function shortDate(day: string): string {
+  const [y, m, d] = day.split('-').map(Number);
+  return `${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()].slice(0, 3)} ${d} ${MONTHS[m - 1]}`;
 }
 
 /** A temperature typed by hand ("5", "-3", "12.5", "12°"); null if it is not a number this app plans for. */
@@ -312,7 +430,7 @@ export function wornNow(local: WornToday | null, recent: WornRecord[] | null, fe
   const ids = outfitIds(pieces);
   return {
     day: today, worn_on: todays.worn_on, ids, recorded: ids, outfit_id: todays.id,
-    outfit: { pieces, score: todays.score ?? 0, reasons: todays.reasons, warnings: todays.warnings },
+    outfit: { pieces, score: todays.score, reasons: todays.reasons, warnings: todays.warnings },
   };
 }
 
@@ -354,4 +472,81 @@ export function timeOf(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+/**
+ * What Today shows about Claude choosing the outfits: nothing ('none': Claude does not choose here, or a saved copy
+ * kept while Claude was still choosing), the waiting card ('waiting'), Claude's sentence with "Ask Claude again"
+ * ('read'), or why Claude could not choose with "Try again" ('failed'). `saved`: the answer is a copy kept on this
+ * device, shown offline, so nothing can be waited for.
+ */
+export function stylistView(stylist: StylistState | null | undefined, saved: boolean): 'none' | 'waiting' | 'read' | 'failed' {
+  if (!stylist) return 'none';
+  if (stylist.state === 'working') return saved ? 'none' : 'waiting';
+  return stylist.state === 'ready' ? 'read' : 'failed';
+}
+
+/** The small line on an outfit saying who chose it, once Claude has answered (or could not); null otherwise. */
+export function chosenBy(outfit: Pick<Outfit, 'by'>, stylist: StylistState | null | undefined): string | null {
+  if (outfit.by === 'claude') return 'Chosen by Claude';
+  return stylist && (stylist.state === 'ready' || stylist.state === 'failed') ? "From Closet's rules" : null;
+}
+
+/** How long Claude has been choosing (seconds) before the waiting card says it is taking longer than usual. */
+export const STYLIST_SLOW_S = 90;
+
+/** The line under "Claude is choosing today's outfits…", after `seconds` of waiting. */
+export function waitingLine(seconds: number): string {
+  return seconds >= STYLIST_SLOW_S ? 'This is taking longer than usual.'
+    : 'This usually takes under a minute. They are kept for the rest of the day.';
+}
+
+// --------------------------------------------------------------------- talking to Claude about the outfits
+
+/** The longest message to Claude (the server's `styling.MAX_SAY`). */
+export const MAX_SAY = 500;
+
+/** The conversation and the message being answered, from a stylist state, also from a copy saved before they existed. */
+export function talkOf(stylist: StylistState | null | undefined): { talk: TalkTurn[]; answering: string | null } {
+  return { talk: Array.isArray(stylist?.talk) ? stylist.talk : [], answering: stylist?.answering ?? null };
+}
+
+/** Whether a message can be sent: something other than spaces. */
+export function canSay(text: string): boolean {
+  return text.trim().length > 0;
+}
+
+/**
+ * Which outfit is in front of the owner, for `looking_at`: the carousel shows one outfit at a time, so it is the one at
+ * its place (kept within the outfits shown); null when there is none.
+ */
+export function lookingAt(index: number, count: number): number | null {
+  if (count <= 0) return null;
+  return Math.max(0, Math.min(index, count - 1));
+}
+
+/** The question on a thing Claude offered to remember, and the button that keeps it. */
+export function rememberWords(thing: RememberThing): { question: string; save: string } {
+  return thing.kind === 'piece'
+    ? { question: `Keep this on ${thing.name || 'this piece'}?`, save: 'Save to its notes' }
+    : { question: 'Keep this for other days?', save: 'Save to Your style' };
+}
+
+/** The quiet line in place of a thing once it is saved. */
+export function savedLine(thing: RememberThing): string {
+  return thing.kind === 'piece' ? `Saved to ${thing.name || 'the piece'}'s notes.` : 'Saved to Your style.';
+}
+
+/** The answer with one thing of one turn as it now stands (after Save or No thanks); the same answer when not found. */
+export function withThing(answer: TodayAnswer, turnId: string, index: number, thing: RememberThing): TodayAnswer {
+  const stylist = answer.context.stylist;
+  const talk = talkOf(stylist).talk;
+  if (!stylist || !talk.some((t) => t.id === turnId && index >= 0 && index < t.remember.length)) return answer;
+  const next = talk.map((t) => (t.id !== turnId ? t : { ...t, remember: t.remember.map((r, i) => (i === index ? thing : r)) }));
+  return { ...answer, context: { ...answer.context, stylist: { ...stylist, talk: next } } };
+}
+
+/** Whether two lists of outfits are the same outfits in the same order (after Claude answered a message). */
+export function sameOutfits(a: Outfit[], b: Outfit[]): boolean {
+  return a.length === b.length && a.every((o, i) => outfitIds(o.pieces).join(',') === outfitIds(b[i].pieces).join(','));
 }

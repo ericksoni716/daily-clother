@@ -29,6 +29,7 @@ from . import (
     backup,
     climate,
     corrections,
+    daynote,
     db,
     demo,
     gate,
@@ -52,6 +53,9 @@ from . import (
     sources,
     spend,
     storage,
+    styleahead,
+    stylejobs,
+    styleprofile,
     tagjobs,
     tracejobs,
     trips,
@@ -98,6 +102,9 @@ class Services:
     views: shoeviews.Worker | None = None         # sorts a shoe's photos into views
     draws: shoedraw.Worker | None = None          # draws a shoe from its sorted photos
     add_sorter: object = None                      # says what each photo chosen on Add shows (tagger/addsort.py)
+    day_reader: object = None                      # reads the day in the owner's words (tagger/dayread.py)
+    stylist: stylejobs.Stylist | None = None       # Claude choosing the day's outfits (closet/stylejobs.py); None: the rules only
+    ahead: styleahead.Ahead | None = None          # asks Claude for the day's outfits before the owner's first look
     on_quit: Callable[[], None] = lambda: None
     on_show: Callable[[], bool] = lambda: False   # shows Closet's own window; False when there is none (the browser is used)
     updater: updates.Updater | None = None   # new releases: checked once a day, installed when the owner says
@@ -124,6 +131,8 @@ class Services:
             self.updater.start()
         if self.price_checks:
             self.price_checks.start()
+        if self.ahead:
+            self.ahead.start()
 
     def wake(self) -> None:
         """Nudge both queues (a new item, another closet opened)."""
@@ -145,6 +154,8 @@ class Services:
             self.updater.stop()
         if self.price_checks:
             self.price_checks.stop()
+        if self.ahead:
+            self.ahead.stop()
         if self.tag_worker:
             self.tag_worker.stop()
         if self.pattern_worker:
@@ -174,7 +185,9 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                    landmarker: patjobs.Landmarker | None = None, shop_asker: shop.Asker | None = None,
                    finder: sources.Finder | None = None, tracer: tracejobs.Tracer | None = None,
                    sorter: shoeviews.Sorter | None = None, drawer: shoedraw.Drawer | None = None,
-                   drawing_corrector: shoedraw.Corrector | None = None, add_sorter=None) -> Services:
+                   drawing_corrector: shoedraw.Corrector | None = None, add_sorter=None,
+                   day_reader=None, stylist_ask: stylejobs.Asker | None = None,
+                   stylist_look: stylejobs.Looker | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
@@ -283,6 +296,44 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
 
     def no_add_sorter(photos: list[Image.Image], usable: tuple[str, ...]):
         raise RouteUnavailable("tests standing in for Claude sort no photos on Add unless they ask to")
+    day_meter = spend.Meter(cfg, state, spend.PURPOSE_DAY, spend.estimate_day)
+
+    def real_day_reader(text: str, today, home: str | None, usable: tuple[str, ...]):
+        from .tagger import dayread
+        return dayread.ask(text, today, home, usable, client=api_client, meter=day_meter)
+
+    def no_day_reader(text: str, today, home: str | None, usable: tuple[str, ...]):
+        raise RouteUnavailable("tests standing in for Claude read no day notes unless they ask to")
+    style_meter = spend.Meter(cfg, state, spend.PURPOSE_STYLE, spend.estimate_style)
+
+    def real_stylist(brief: dict, usable: tuple[str, ...]) -> dict:
+        from .tagger import stylist
+        return stylist.given(stylist.ask(brief, usable, client=api_client, meter=style_meter))
+
+    def real_look(brief: dict, pictures: list, usable: tuple[str, ...]) -> dict:
+        from .tagger import stylist
+        return stylist.seen(stylist.look(brief, pictures, usable, client=api_client, meter=style_meter))
+
+    def draw_outfits(path, found: list[dict]) -> list:
+        """Each outfit drawn as worn on the figure, as a picture for Claude to look at."""
+        import io
+
+        from PIL import Image
+
+        from .drawing import drawn
+        from .tagger import stylist
+        conn = db.connect(path)
+        try:
+            return [Image.open(io.BytesIO(drawn.render_png(
+                illustrations.outfit_figure(conn, {k: v for k, v in o["pieces"].items() if v}),
+                stylist.PICTURE_WIDTH, background="#ffffff"))).convert("RGB") for o in found]
+        finally:
+            conn.close()
+
+    # tests standing in for Claude get no stylist unless they give one: Today is then the rules engine's, as before
+    choose = stylist_ask or (None if tagger is not None else real_stylist)
+    # the real stylist looks at its outfits as drawn; a stand-in does when the test gives a look of its own
+    looker = stylist_look or (real_look if choose is real_stylist else None)
     draw_meter = spend.Meter(cfg, state, spend.PURPOSE_DRAW, spend.estimate_draw)
 
     def real_drawer(photos: list, usable: tuple[str, ...], notes=(), style=None):
@@ -328,12 +379,17 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                              finder or (no_finder if tagger is not None else real_finder))
     shopper = shop.Shopper(cfg, state, lambda profile: closet_inputs(cfg, profile), tag_worker.routes,
                            shop_asker or shop.ClaudeAsker(cfg, state, client=api_client))
-    return Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker,
-                    pattern_worker=pattern_worker, second_model=second if cutter is None else None,
-                    corrector=corrector or real_corrector,
-                    check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper),
-                    finder=finding, views=views_worker, draws=draw_worker, updater=updates.Updater(cfg, state),
-                    add_sorter=add_sorter or (no_add_sorter if tagger is not None else real_add_sorter))
+    sv = Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker,
+                  pattern_worker=pattern_worker, second_model=second if cutter is None else None,
+                  corrector=corrector or real_corrector,
+                  check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper),
+                  finder=finding, views=views_worker, draws=draw_worker, updater=updates.Updater(cfg, state),
+                  add_sorter=add_sorter or (no_add_sorter if tagger is not None else real_add_sorter),
+                  day_reader=day_reader or (no_day_reader if tagger is not None else real_day_reader),
+                  stylist=stylejobs.Stylist(choose, routes or (lambda: tagjobs.usable_routes(state)), draw=draw_outfits,
+                                            look=looker) if choose else None)
+    sv.ahead = styleahead.Ahead(cfg, state, lambda: sv.stylist)
+    return sv
 
 
 def closet_inputs(cfg: Config, profile: str) -> tuple[list[dict], list[dict]]:
@@ -460,6 +516,7 @@ class SettingsPatch(BaseModel):
     life_prompt_dismissed: bool | None = None
     rewear: object = None
     laundry: object = None
+    stylist_on: bool | None = None
     model_config = {"extra": "forbid"}
 
 
@@ -981,12 +1038,17 @@ def create_app(sv: Services) -> FastAPI:
 
         def work() -> dict:
             conn = db.connect(path)
+            # Claude chooses in the owner's own closet when it is switched on; the demo closet never asks Claude
+            chooses = sv.stylist if state.get("profile") != "demo" and state.get("stylist_on") else None
             try:
-                return suggest_today(conn, state, body)
+                answer = suggest_today(conn, state, body, chooses, path)
             except outfits.ContextError as e:
                 raise HTTPException(422, str(e))
             finally:
                 conn.close()
+            if state.get("profile") != "demo":   # what the page asked with is what is asked ahead tomorrow morning
+                styleahead.remember(state, body, wears.today(), styleahead.now().hour)
+            return answer
 
         # asks Open-Meteo (a few seconds at most) and compares many outfits, so keep it off the event loop
         return await run_in_threadpool(work)
@@ -1097,6 +1159,60 @@ def create_app(sv: Services) -> FastAPI:
     sv.shopper.weighed = lambda profile, inputs: (
         None if profile != "demo" and state.get("life") is None else gap_analysis(profile, inputs))
     app.include_router(shop.router(sv.shopper, state, conn_dep, protected))
+    # ---------------------------------------------------------------- the day in the owner's words
+    def day_answer(message: str | None = None, saved: bool | None = None) -> dict:
+        out = {"note": daynote.describe(daynote.current(state, wears.today()), wears.today()), "message": message}
+        return out if saved is None else {**out, "saved": saved}
+
+    @app.get("/api/day", dependencies=protected)
+    async def get_day():
+        """The note about today or the days ahead, if one holds: {note, message}."""
+        return day_answer()
+
+    @app.put("/api/day", dependencies=protected)
+    async def put_day(request: Request):
+        """Reads a sentence about the owner's day with Claude and keeps it: {saved, note, message}. Nothing from the
+        closet is sent, only the sentence, today's date and the home place's name. `saved` false with a `message`
+        when Claude cannot be asked or found nothing in it; the note kept before stays."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        try:
+            text = daynote.check_text(body.get("text") if isinstance(body, dict) else None)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        if state.get("profile") == "demo":
+            return day_answer("The demo closet never asks Claude, so Closet can't read this here. "
+                              "Open your own closet to describe your day.", False)
+        assert sv.tag_worker, "build_services wires it"
+        # the API key first when it is switched on (the owner: "opus via api"), else the plan
+        usable = tuple(sorted(sv.tag_worker.routes(), key=lambda r: r != "api"))
+        if not usable and getattr(sv.day_reader, "needs_route", True):   # a stand-in (the browser tests) needs none
+            return day_answer("Claude can't be reached right now, so Closet couldn't read that. "
+                              "You can still change where you are, or type the temperatures, under Change.", False)
+        home = (state.get("place") or {}).get("name")
+        try:
+            reading = await run_in_threadpool(sv.day_reader, text, wears.today(), home, usable)
+        except CapReached:
+            return day_answer(f"{spend.LIMIT_REACHED} Closet couldn't read that.", False)
+        except (RouteUnavailable, Unreachable):
+            return day_answer("Claude can't be reached right now, so Closet couldn't read that. Try again in a moment.", False)
+        except TaggingError:
+            return day_answer("Claude gave no usable answer. Try again, or say it another way.", False)
+        from .tagger import dayread
+        if not dayread.said_something(reading):
+            return day_answer(daynote.NOTHING_READ, False)
+        note, message = await run_in_threadpool(daynote.make, text, reading, wears.today())
+        daynote.save(state, note)
+        return day_answer(message, True)
+
+    @app.delete("/api/day", dependencies=protected)
+    async def delete_day():
+        """Back to an ordinary day at home."""
+        daynote.clear(state)
+        return day_answer()
+
     @app.post("/api/add/sort", dependencies=protected)
     async def sort_add(request: Request):
         """What each photo chosen on Add shows (one piece, several, a shoe, and which photos are the same shoe), asked
@@ -1255,7 +1371,49 @@ def create_app(sv: Services) -> FastAPI:
             "life_prompt_dismissed": True if state.get("profile") == "demo" else state.get("life_prompt_dismissed"),
             "rewear": savedtrips.rewear(state),
             "laundry": wears.laundry_setting(state.get("laundry")),
+            "stylist_on": bool(state.get("stylist_on")),
         }
+
+    @app.get("/api/style/answers/{answer_id}", dependencies=protected)
+    def style_answer(answer_id: str, conn=Depends(conn_dep)):
+        """How a question to Claude about today's outfits stands, for the page waiting on it: {id, state, message}."""
+        found = stylejobs.Stylist.get(conn, answer_id, sv.stylist.clock() if sv.stylist else None)
+        if found is None:
+            raise HTTPException(404, "That answer is not known. Open Today again.")
+        return found
+
+    @app.post("/api/style/answers/{answer_id}/remember", dependencies=protected)
+    async def style_remember(answer_id: str, request: Request, conn=Depends(conn_dep)):
+        """The owner's answer to a thing Claude offered to remember: {"index": 0, "save": true} keeps it (in Your
+        style, or in the piece's "How I wear it"), {"save": false} does not. Gives the thing as it now stands."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        if not isinstance(body, dict) or not isinstance(body.get("save"), bool):
+            raise HTTPException(422, "Say which thing (index) and whether to keep it (save: true or false).")
+        try:
+            return stylejobs.settle(conn, answer_id, body.get("index"), body["save"])
+        except stylejobs.Refused as e:
+            raise HTTPException(422, str(e))
+
+    # ---------------------------------------------- the owner's style profile (Settings, "Your style")
+    @app.get("/api/style/profile", dependencies=protected)
+    def get_style_profile(conn=Depends(conn_dep)):
+        return styleprofile.current(conn)
+
+    @app.put("/api/style/profile", dependencies=protected)
+    async def put_style_profile(request: Request, conn=Depends(conn_dep)):
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        if not isinstance(body, dict) or "text" not in body:
+            raise HTTPException(422, "Send the text of your style.")
+        try:
+            return styleprofile.save(conn, body["text"])
+        except ValueError as e:
+            raise HTTPException(422, str(e))
 
     @app.get("/api/settings", dependencies=protected)
     def get_settings(conn=Depends(conn_dep)):
@@ -1289,6 +1447,8 @@ def create_app(sv: Services) -> FastAPI:
                     state.update(rewear=trips.check_rewear({**savedtrips.rewear(state), **body.rewear}))
                 except trips.PlanError as e:
                     raise HTTPException(422, str(e))
+        if "stylist_on" in sent and body.stylist_on is not None:
+            state.update(stylist_on=body.stylist_on)
         if "laundry" in sent:
             try:
                 state.update(laundry=wears.check_laundry_setting(body.laundry))

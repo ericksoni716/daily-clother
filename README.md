@@ -110,6 +110,72 @@ choose your place: tap **Change** beside the weather to search for it or tap
 When the weather cannot be fetched, Today still dresses you, for a mild day,
 and says so. Offline, Today shows the outfits it last found that day.
 
+**Claude chooses your outfits.** In your own closet, Claude looks at your
+clothes, what you wrote in **Your style** and on your pieces, what you wore
+lately and what you said about it, and the day, and chooses the outfits; each
+one says **Chosen by Claude**, with Claude's own words on why it works, and a
+line under the outfits says what about the day shaped the choice. Before
+offering them, Claude also looks at each outfit drawn on the figure, as you
+would in a mirror, and changes one that looks wrong. When you change the
+occasion or the mood, or ask again, this takes under a minute and Today
+shows that Claude is choosing; tap **Show Closet's own
+picks meanwhile** to see (and wear) Closet's own outfits while you wait. The
+outfits are then kept for the rest of the day. **Ask Claude again**, under the
+outfits, has Claude choose afresh. When Claude can't be reached, when the
+switch in **Settings → Your style** is off, and always in the demo closet,
+Closet's own rules choose, as before (outfits from them say **From Closet's
+rules** when Claude couldn't choose). It uses your Claude plan, or your API key
+first when that is switched on in Settings: about 8 cents each time (the choice
+and the look), counted in the monthly limit.
+
+**Ready before you look.** While Closet is running on your computer, it asks
+Claude for the day's outfits by itself each morning (from five o'clock, or when
+the computer next wakes), for the occasion and mood you last used and the hours
+from when you usually first open Today. When you open Today, Claude's outfits
+are already there. It skips days when you haven't opened Today for more than
+three days, so nothing is spent while you are away.
+
+**Tell Claude what you think.** Under Claude's outfits, write to Claude about
+them in the box **Tell Claude what you think**: "too dressy", "swap the boots",
+or ask "why not the navy blazer?". Tap **Send** (or press Enter; Shift+Enter
+starts a new line). Your message shows at once, with "Claude is answering…",
+and a few seconds later Claude's answer appears under it. When Claude changes
+the outfits, the first one is shown; when it only answers, the outfits stay as
+they were. What you said holds for the rest of the day, even when the weather
+or the occasion changes. If Claude couldn't be reached, the message says so,
+with **Send again**. The day's conversation stays on Today until tomorrow, and
+offline you can read it but not send.
+
+**Keep this for other days?** Sometimes Claude offers to remember something you
+said: about how you dress ("I never wear shorts in town"), or about one piece
+("Fits well under a jacket"). Nothing is kept unless you tap **Save**: **Save
+to Your style** adds it as a line in **Settings → Your style**, and **Save to
+its notes** adds it to that piece's **How I wear it**. **No thanks** lets it go.
+You can change or remove either later, where it was saved.
+
+The weather line is about the hours ahead of you, not the whole day: from now
+until ten at night (from seven in the morning if you look earlier). It says
+what those hours feel like when wind or damp make that different from the
+thermometer ("feels like 0–9°C"), when rain falls and how hard ("rain 2pm to
+5pm", "light rain around noon"), and the wind, strong sun or humid air when
+they matter. Today dresses you for that: what it feels like in those hours,
+and rain only if it falls in them.
+
+**Somewhere else, or out all day?** Tap **Change** beside the weather and,
+under **Somewhere else, or out all day?**, type it in a sentence: "In Lisbon
+until Friday", or "At a match today, outside from noon to six". Claude reads
+that one sentence (nothing from your closet is sent with it) and Closet shows
+what it took from it in a small line under the weather: until when, the hours
+you are outside, what for. While the note holds, Today uses that place's
+weather and those hours, and picks the occasion if the sentence made one clear
+(a wedding is formal). Your home place in Settings is not changed, and the note
+ends by itself after its last day; behind **Change** you can say it another way
+or tap **Clear the note**. A note about days still ahead ("in Rome this
+weekend") waits, marked **Coming up**, until its first day. This needs Claude to be reachable (your Claude plan, or the API
+key when it is switched on in Settings, which is used first for this); the
+demo closet never asks Claude, so the note can only be written from your own
+closet.
+
 Closet remembers what you wore together. The morning after, Today asks **How
 was yesterday's outfit?** above the outfits: tap **Loved it**, **Fine** or
 **Not again**, and if you like say why (**Too warm**, **Too cold**, **Too
@@ -697,8 +763,9 @@ over Tailscale the browser may not share its position (the address is not
 https); search by name there instead. **Back to New York** forgets your place.
 After you answer **How you live**, the same place is also used for long-term
 weather on What's missing. That lookup sends only the coordinates and keeps
-the result for six months. Your life answers and style words stay on your
-computer, in its settings; they are not in closet backups.
+the result for six months. Your life answers and the style words you gave with them stay on your
+computer, in its settings; they are not in closet backups. (**Your style** in
+Settings is a different thing: it is kept in your closet, so it is in backups.)
 
 ### Light or dark
 
@@ -707,6 +774,28 @@ one yourself, go to **Settings → Look** and pick **Light** or **Dark**; pick
 **Same as this device** to follow the device again. The choice is remembered
 on each device separately. Clothing pictures stay on a light background in
 dark mode, so their colours look right.
+
+### Your style, and how you wear each piece
+
+Claude chooses your outfits on Today (see above), and reads two things you
+write down for it.
+
+**Settings → Your style** is how you like to dress, in your own words, the way
+you would tell a friend who is choosing your clothes ("I run warm, so one layer
+fewer than most people", "No ties unless it is a wedding"). What you write
+there wins over the general menswear guide. Change it whenever you like and
+press **Save**; **Back to the starting text** puts back the few lines Closet
+starts with. It can be up to 4,000 characters long. The switch above it, **Let
+Claude choose my outfits**, turns Claude's choosing off and on; when it is off,
+Closet's own rules choose.
+
+**How I wear it**, under **More details** on an item's page, beside **Fit
+notes** and **Notes**, is your note on that one piece ("only with the navy
+suit", "runs warm", "for dinners out"). Your note on a piece wins over both
+your style and the guide.
+
+Both are kept in your closet itself, so they are in your backups, and the demo
+closet has its own. Nothing is sent to Claude when you save them.
 
 ## Demo closet
 

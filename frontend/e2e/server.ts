@@ -32,8 +32,10 @@ export interface Backend {
  * 'api': the plan cannot be used and the API key route talks to a stand-in that reports what each request used.
  * `tagFails`: with `fakes`, the first that many descriptions fail (see e2e_backend.py).
  * `seed`: 'demo' starts the owner's own closet as a copy of the demo closet (see e2e_backend.py).
+ * `stylist`: Claude chooses Today's outfits through a stand-in (see e2e_backend.py): true answers after 1.5 s with the
+ * rules' second and first outfits, and answers the owner's messages about them (see `fake_reply`); 'fails' cannot be reached. Without it there is no stylist: Today is the rules' alone.
  */
-export async function startBackend(opts: { model?: string; fakes?: boolean | 'api'; tagFails?: number; seed?: 'demo' } = {}): Promise<Backend> {
+export async function startBackend(opts: { model?: string; fakes?: boolean | 'api'; tagFails?: number; seed?: 'demo'; stylist?: boolean | 'fails' } = {}): Promise<Backend> {
   const port = await freePort();
   const dataDir = mkdtempSync(join(process.env.CLOSET_E2E_TMP || tmpdir(), 'closet-e2e-'));
   if (opts.model) {
@@ -46,7 +48,7 @@ export async function startBackend(opts: { model?: string; fakes?: boolean | 'ap
     env: {
       ...process.env, CLOSET_DATA_DIR: dataDir, CLOSET_PORT: String(port), CLOSET_NO_AUTO_DOWNLOAD: '1',
       CLOSET_E2E_FAKES: opts.fakes ? '1' : '', CLOSET_E2E_ROUTES: opts.fakes === 'api' ? 'api' : '', CLOSET_E2E_TAG_FAILS: String(opts.tagFails ?? 0),
-      CLOSET_E2E_SEED: opts.seed ?? '',
+      CLOSET_E2E_SEED: opts.seed ?? '', CLOSET_E2E_STYLIST: opts.stylist === 'fails' ? 'fails' : opts.stylist ? '1' : '',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

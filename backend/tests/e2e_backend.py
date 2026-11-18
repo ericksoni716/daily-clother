@@ -45,9 +45,19 @@ said to go against the photos, and the first check says it is good.
 With CLOSET_E2E_TAG_FAILS=N the first N descriptions fail with a reason Closet does not recognise, which quotes
 something shaped like a key and a file outside Closet's folder (both made up), so the page can show a failed item.
 
+Claude choosing the day's outfits on Today is never the real Claude. With CLOSET_E2E_STYLIST empty there is no stylist
+at all, so Today is the rules engine's alone, as before. With CLOSET_E2E_STYLIST=1 a stand-in (`fake_stylist`) answers
+after 1.5 seconds (so the page's waiting card can be seen) with the rules' second and first outfits, in that order;
+with CLOSET_E2E_STYLIST=fails it cannot be reached. A message from the owner about the outfits (the brief's `say`) is
+answered after 1.5 seconds too (6.5 when the message contains "slow", so a test can send another meanwhile), from words
+in the message itself: "fail" cannot be reached; "why" is a question, answered in words with the outfits left as they
+are; anything else turns the outfits around (the rules' first outfit first, then their third), and "never" or "always"
+also offers to keep the message for the owner's style, "fits" a note on the first outfit's top.
+
 The API key box keeps keys in a stand-in keychain (never the computer's), and the check with Anthropic is a
 stand-in too: a key ending in "refused" is turned down, any other well-formed key is accepted.
 """
+import json
 import os
 import shutil
 import sqlite3
@@ -60,7 +70,7 @@ from closet.tagger import routes as tagger_routes
 from closet.tagger import shoedrawing
 from closet.tagger.correcting import CorrectionResult
 from closet.tagger.shopping import Found, PriceAnswer, PriceSeen, ShopAnswer
-from closet.tagger.tagging import TaggingError, TagResult
+from closet.tagger.tagging import TaggingError, TagResult, Unreachable
 
 from .conftest import (
     ANSWER,
@@ -197,12 +207,124 @@ def seed_from_demo(cfg):
 
 
 def no_weather_service(url):
+    """The browser tests never reach the weather service. One place is stood in for, so a day somewhere else can be
+    tried: Lisbon is on the map, and its forecast is a mild, windy day with rain, the same in every hour (so the
+    words on Today do not depend on the hour the test runs at). Everything else is out of reach, as before."""
+    from datetime import UTC, datetime
+    from urllib.parse import parse_qs, urlsplit
+    parts = urlsplit(url)
+    params = {k: v[0] for k, v in parse_qs(parts.query).items()}
+    if parts.netloc == "geocoding-api.open-meteo.com" and params.get("name", "").lower().startswith("lisbon"):
+        return json.dumps({"results": [{"name": "Lisbon", "latitude": 38.71667, "longitude": -9.13333,
+                                        "timezone": "Europe/Lisbon", "country": "Portugal"}]}).encode()
+    if parts.netloc == "api.open-meteo.com" and params.get("latitude", "").startswith("38.7") and "hourly" in params:
+        day = datetime.now(UTC).date().isoformat()
+        every = {"temperature_2m": 17.0, "apparent_temperature": 13.0, "precipitation_probability": 70,
+                 "precipitation": 1.5, "wind_speed_10m": 38.0, "wind_gusts_10m": 50.0, "relative_humidity_2m": 60,
+                 "uv_index": 2.0, "weather_code": 61}
+        return json.dumps({"utc_offset_seconds": 0, "daily": {
+            "time": [day], "temperature_2m_min": [14.0], "temperature_2m_max": [18.0],
+            "precipitation_probability_max": [70], "weather_code": [61]},
+            "hourly": {"time": [f"{day}T{h:02d}:00" for h in range(24)], **{k: [v] * 24 for k, v in every.items()}}}).encode()
     raise urllib.error.URLError("the browser tests never reach the weather service")
 
 
+def fake_day_reader(text, today, home, routes):
+    """Stands in for Claude reading the day in the owner's words, from words in the sentence itself: "Lisbon" is a
+    place, "four days" four days, "outside" noon to six, "wedding" a formal day; anything else says nothing."""
+    words = text.lower()
+    return {"place": "Lisbon, Portugal" if "lisbon" in words else None, "starts_in_days": 0,
+            "days": 4 if "four days" in words else 1, "outside": (12, 18) if "outside" in words else None,
+            "exposure": "outside" if "outside" in words else "mixed",
+            "activity": "a wedding" if "wedding" in words else "walking the city" if "walking" in words else "",
+            "occasion": "formal" if "wedding" in words else None}
+
+
+fake_day_reader.needs_route = False   # as fake_add_sorter
+
+
+STYLIST_WORDS = {"base": "base", "mid layer": "mid", "outer layer": "outer", "bottom": "bottom", "shoes": "shoes"}
+
+
+def _look(line: str) -> dict:
+    """One line of the rules' shortlist ("- base 7; mid layer 11; ...; accessories 35, 36") as one of Claude's looks."""
+    look: dict = {"base": 0, "mid": 0, "outer": 0, "bottom": 0, "shoes": 0, "accessories": []}
+    for part in line[2:].split(";"):
+        part = part.strip()
+        if part.startswith("accessories "):
+            look["accessories"] = [int(n) for n in part[len("accessories "):].split(",") if n.strip().isdigit()]
+            continue
+        words, _, number = part.rpartition(" ")
+        if words in STYLIST_WORDS and number.isdigit():
+            look[STYLIST_WORDS[words]] = int(number)
+    return look
+
+
+def fake_stylist(brief, routes):
+    """Stands in for Claude choosing the day's outfits: the rules' second outfit first (so Claude's first differs from
+    the rules' first), then their first; with only one, that one. A message of the owner's (`say`) is answered by
+    `fake_reply`."""
+    lines = [ln for ln in brief["shortlist"].splitlines() if ln.startswith("- ") and not ln.startswith("- The rules")]
+    if brief.get("say") is not None:
+        return fake_reply(brief["say"], lines, routes)
+    chosen = [lines[1], lines[0]] if len(lines) > 1 else lines[:1]
+    looks = []
+    for i, line in enumerate(chosen):
+        looks.append({**_look(line), "why": "Chosen by the stand-in: these go together.",
+                      "watch": "" if i == 0 else "The stand-in has no eye for colour."})
+    return {"looks": looks, "read": "It is a made-up day, so the stand-in chose by number.", "route": routes[0],
+            "model": "stand-in", "input_tokens": 100, "output_tokens": 50}
+
+
+def fake_reply(say: str, lines: list[str], routes) -> dict:
+    """Stands in for Claude answering the owner's message, from words in it: "fail" cannot be reached; "why" (a
+    question) is answered in words and leaves the outfits as they are; anything else turns them around, so the first
+    outfit on the page changes (the rules' first outfit first, then their third, or second), and offers to keep the
+    message for the owner's style when it says "never" or "always", and a note on the first outfit's top when it says
+    "fits"."""
+    words = say.lower()
+    meta = {"read": "", "route": routes[0], "model": "stand-in", "input_tokens": 100, "output_tokens": 50}
+    if "fail" in words:
+        raise Unreachable("offline")
+    if "why" in words:
+        return {**meta, "looks": [], "reply": "Because the stand-in chose by number.", "remember": []}
+    chosen = [lines[0], lines[2] if len(lines) > 2 else lines[1]] if len(lines) > 1 else lines[:1]
+    looks = [{**_look(line), "why": "Turned around by the stand-in, as you asked.", "watch": ""} for line in chosen]
+    remember = []
+    if "never" in words or "always" in words:
+        text = say.strip()
+        remember.append({"about": 0, "text": text[:1].upper() + text[1:]})
+    if "fits" in words and looks:
+        remember.append({"about": looks[0]["base"], "text": "Fits well under a jacket."})
+    return {**meta, "looks": looks, "reply": "Done: the stand-in turned the outfits around.", "remember": remember}
+
+
+def slow_stylist(brief, routes):
+    time.sleep(1.5)   # long enough for the page to show Claude choosing, or answering a message
+    if "slow" in str(brief.get("say") or "").lower():
+        time.sleep(5)   # a message that asks for it is answered slowly, so another can be sent meanwhile
+    return fake_stylist(brief, routes)
+
+
+def failing_stylist(brief, routes):
+    raise Unreachable("offline")
+
+
 def build_services(cfg, **kwargs):
+    sv = _build_services(cfg, **kwargs)
+    if not os.environ.get("CLOSET_E2E_STYLIST"):
+        sv.stylist = None   # no stylist at all: the real Claude would otherwise choose without the other stand-ins
+    sv.ahead = None   # nothing is asked ahead of the page in a browser test: every question is one a test caused
+    return sv
+
+
+def _build_services(cfg, **kwargs):
     # sorting the photos on Add never reaches Claude from a browser test, with or without the other stand-ins
     kwargs.setdefault("add_sorter", fake_add_sorter)
+    kwargs.setdefault("day_reader", fake_day_reader)   # nor does reading the day in the owner's words
+    chooser = os.environ.get("CLOSET_E2E_STYLIST")
+    if chooser:   # nor does choosing the day's outfits
+        kwargs.setdefault("stylist_ask", failing_stylist if chooser == "fails" else slow_stylist)
     if not os.environ.get("CLOSET_E2E_FAKES"):
         return _real_build(cfg, **kwargs)
     if os.environ.get("CLOSET_E2E_SEED") == "demo":

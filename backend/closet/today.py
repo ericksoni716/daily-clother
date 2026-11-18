@@ -5,6 +5,9 @@ item to build around, items to leave out, how many outfits) and fills in the
 rest: the day's temperatures and rain from the forecast for the saved place
 (unless given), how many days ago each item was last worn from the wear log,
 and what the owner's ratings of outfits worn before ask (`outfits.feedback_from`).
+The forecast is read hour by hour for the hours the owner is out (`closet/day.py`): the engine dresses for what
+those hours feel like and whether it rains in them. A day note that holds today (`closet/daynote.py`: "in Lisbon
+until Friday, outside from noon") moves the weather to its place, the hours to its hours, and offers its occasion.
 Items in the laundry are left out by the engine itself. `again` starts from an
 outfit worn before: its pieces that can be worn today keep their places.
 """
@@ -14,11 +17,13 @@ import dataclasses
 import json
 from datetime import date
 
-from . import items, outfits, wears, weather, worn
+from . import day as dayparts
+from . import daynote, items, outfits, stylejobs, styleprofile, styling, wears, weather, worn
 from .state import State
 from .tagger.taxonomy import GARMENTS
 
-CHOICES = ("occasion", "mood", "build_around", "leave_out", "count", "again")
+CHOICES = ("occasion", "mood", "build_around", "leave_out", "count", "again", "ask_again", "say", "looking_at")
+TALK = ("again", "ask_again", "say", "looking_at")   # choices that are not the engine's
 WEATHER_FIELDS = ("low_c", "high_c", "rain")
 # The day dressed for when no forecast can be had and no temperatures were given (DECISIONS "Today's outfits by themselves")
 MILD = {"low_c": 14.0, "high_c": 20.0, "rain": False}
@@ -131,22 +136,40 @@ def again_of(outfit: dict, rows: list[dict], leave_out: set[str]) -> dict:
     return {"id": outfit["id"], "worn_on": outfit["worn_on"], "kept": kept, "unavailable": unavailable}
 
 
-def suggest(conn, state: State, body: object) -> dict:
-    """Outfits for today plus the context used. Raises outfits.ContextError with a sentence for a bad request."""
+def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None = None, path=None,
+            ahead: bool = False, from_hour: int | None = None) -> dict:
+    """Outfits for today plus the context used. Raises outfits.ContextError with a sentence for a bad request.
+
+    With a `stylist` (and `path`, the closet's database, for its thread), Claude chooses: its outfits for today
+    are given when they are ready, and the rules engine's meanwhile and whenever Claude cannot be asked;
+    `context.stylist` says which (`closet/stylejobs.py`). `ask_again` in the body asks Claude afresh; `say` sends
+    Claude a message about the outfits on the page (the conversation), which it answers in the background, and
+    `looking_at` says which of the outfits was in front of the owner as they wrote (0 is the first).
+
+    `ahead`: this is not the owner asking but Closet, ahead of their first look (`closet/styleahead.py`). Claude is
+    then asked only for a day read from today's fresh forecast: outfits for a guessed or an old day would be asked
+    again as soon as the owner opened Today. `from_hour` (with `ahead`): the hour the owner usually first looks, by
+    the clock; the day is read from then on when that is still to come, as it will be when they look."""
     if not isinstance(body, dict):
         raise outfits.ContextError("Send today's choices as an object, for example {\"occasion\": \"casual\"}.")
     unknown = sorted(set(body) - set(CHOICES) - set(WEATHER_FIELDS))
     if unknown:
         raise outfits.ContextError(f"These are not part of today's choices: {', '.join(unknown)}.")
     given = {k: body[k] for k in WEATHER_FIELDS if body.get(k) is not None}
+    note = daynote.current(state, wears.today())
+    on = note if daynote.active(note, wears.today()) else None   # a note for days still ahead changes nothing yet
 
-    forecast, place, old, message, mild = None, None, False, None, False
+    forecast, place, old, message, mild, reading = None, None, False, None, False, None
     if len(given) < len(WEATHER_FIELDS):
-        found = weather.lookup(state)
+        found = weather.lookup(state, on.get("place") if on else None)
         place = found["place"]
         if found["weather"] and found["is_today"]:
             forecast, old = found["weather"], found["old"]
             message = found["message"] if old else None
+            at = found["hour"]
+            if ahead and from_hour is not None and at is not None:
+                at = max(at, from_hour)
+            reading = dayparts.read(forecast.get("hours") or [], daynote.outside(on), at)
         elif "low_c" not in given or "high_c" not in given:
             # never no outfit just because the weather is missing: dress for a mild day and say why
             mild = True
@@ -161,8 +184,26 @@ def suggest(conn, state: State, body: object) -> dict:
         high = given["high_c"] if "high_c" in given else (max(MILD["high_c"], low) if number(low) else MILD["high_c"])
         day = {"low_c": low, "high_c": high, "rain": given.get("rain", MILD["rain"])}
     else:
-        day = {k: given[k] if k in given else (forecast[k] if forecast else False) for k in WEATHER_FIELDS}
-    request = {k: body[k] for k in CHOICES if body.get(k) is not None and k != "again"}
+        # the hours the owner is out, as they feel, where the forecast has them; else the whole day's low and high
+        dressed = ({"low_c": reading["feels_low_c"], "high_c": reading["feels_high_c"], "rain": reading["wet"]}
+                   if reading else forecast)
+        day = {k: given[k] if k in given else (dressed[k] if dressed else False) for k in WEATHER_FIELDS}
+    if body.get("ask_again") is not None and not isinstance(body["ask_again"], bool):
+        raise outfits.ContextError("ask_again must be true or false.")
+    say = body.get("say")
+    if say is not None:
+        say = " ".join(say.split()) if isinstance(say, str) else ""
+        if not say:
+            raise outfits.ContextError("Write what you want to tell Claude about these outfits.")
+        if len(say) > styling.MAX_SAY:
+            raise outfits.ContextError(f"A message to Claude can be at most {styling.MAX_SAY} characters long; "
+                                       f"this is {len(say):,}.")
+    looking_at = body.get("looking_at")
+    if looking_at is not None and (isinstance(looking_at, bool) or not isinstance(looking_at, int) or looking_at < 0):
+        raise outfits.ContextError("looking_at must be the place of the outfit on the page, 0 for the first.")
+    request = {k: body[k] for k in CHOICES if body.get(k) is not None and k not in TALK}
+    if on and on.get("occasion") and "occasion" not in request:
+        request["occasion"] = on["occasion"]
     ctx, count = outfits.parse_request({**request, **day, "worn_days_ago": worn_days_ago(conn)})
     rows = closet_rows(conn)
     if ctx.build_around and not any(r["id"] == ctx.build_around for r in rows):
@@ -188,7 +229,35 @@ def suggest(conn, state: State, body: object) -> dict:
         "rain_chance": forecast["rain_chance"] if forecast and "rain" not in given else None,
         "summary": forecast["summary"] if forecast else None,
         "message": message,
+        # the hours dressed for, read from the forecast (None when it has no hours, or every number was typed)
+        "detail": reading if from_forecast else None,
+        "note": daynote.describe(note, wears.today()),
     }
     if again is not None:
         context["again"] = again
-    return {**outfits.suggest(rows, ctx, count, feedback), "context": context}
+    answer = outfits.suggest(rows, ctx, count, feedback)
+    if say is not None and (stylist is None or not answer["outfits"]):
+        raise outfits.ContextError("Claude isn't choosing your outfits here, so the message wasn't sent.")
+    if ahead and (source != "forecast" or old):
+        stylist = None
+    if stylist is not None and answer["outfits"]:
+        recent = worn.list_outfits(conn, styling.HISTORY)["outfits"]
+        profile = styleprofile.text_for_stylist(conn)
+
+        def told():   # only when Claude is asked: the engine's longer shortlist, and everything Claude reads
+            shortlist = outfits.suggest(rows, ctx, max(count, styling.SHORTLIST), feedback)["outfits"]
+            return styling.brief(rows, context, ctx, wears.today(), recent, shortlist, profile)
+
+        try:
+            found = stylist.for_today(
+                conn, path, day=wears.today(), key=stylejobs.key_of(wears.today().isoformat(), context, ctx, rows, profile),
+                ctx=ctx, ids=set(styling.listed(rows, ctx).ids),
+                worn_today=any(o.get("worn_on") == wears.today().isoformat() for o in recent),
+                again=bool(body.get("ask_again")), brief=told, not_again=feedback.not_again,
+                say=say, engine=answer["outfits"], count=count, looking_at=looking_at)
+        except stylejobs.Refused as e:
+            raise outfits.ContextError(str(e)) from None
+        if found["state"] == stylejobs.READY:
+            answer["outfits"] = stylejobs.merged(found["outfits"], answer["outfits"], count)
+        context["stylist"] = stylejobs.public(found)
+    return {**answer, "context": context}

@@ -1,5 +1,5 @@
-import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting } from './types';
-import { forgetSaved, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
+import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, StyleProfile } from './types';
+import { forgetSaved, type DayAnswer, type RememberThing, type StyleAnswer, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
 import type { Insights } from './insights';
@@ -244,6 +244,11 @@ export const api = {
   },
   /** Another photo of a shoe, besides its main one (at most 5): Closet sorts it into its view. */
   /** What each photo chosen on Add shows (one piece, several, a shoe and which shoe), up to ten small copies at once. */
+  /** The note about today or the days ahead, if one holds. */
+  day: () => request<DayAnswer>('/api/day'),
+  /** Reads a sentence about the owner's day with Claude and keeps it; `saved` false with a `message` when it could not. */
+  saveDay: (text: string) => request<DayAnswer>('/api/day', { method: 'PUT', body: { text } }),
+  clearDay: () => request<DayAnswer>('/api/day', { method: 'DELETE' }),
   sortAdd: (photos: { blob: Blob; filename: string }[]) => {
     const form = new FormData();
     for (const p of photos) form.append('photos', p.blob, p.filename);
@@ -303,8 +308,12 @@ export const api = {
   downloadModel: () => request<ModelInfo>('/api/model/download', { method: 'POST' }),
   setModelUrl: (url: string) => request<ModelInfo>('/api/model/url', { method: 'PUT', body: { url } }),
   settings: () => request<Settings>('/api/settings'),
-  putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean; tagging_api_cap_usd?: number | null; tagging_route_order?: RouteOrder; life?: Life | null; life_prompt_dismissed?: boolean; rewear?: Partial<Rewear> | null; laundry?: Partial<LaundrySetting> }) =>
+  putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean; tagging_api_cap_usd?: number | null; tagging_route_order?: RouteOrder; life?: Life | null; life_prompt_dismissed?: boolean; rewear?: Partial<Rewear> | null; laundry?: Partial<LaundrySetting>; stylist_on?: boolean }) =>
     request<Settings>('/api/settings', { method: 'PUT', body: changes }),
+  /** The owner's style profile: the text in force, the starting one until they write their own. */
+  styleProfile: () => request<StyleProfile>('/api/style/profile'),
+  /** Keep a new version of the style profile; an empty text goes back to the starting one. */
+  saveStyleProfile: (text: string) => request<StyleProfile>('/api/style/profile', { method: 'PUT', body: { text } }),
   storage: () => request<Storage>('/api/storage'),
   saveApiKey: (key: string) => request<Settings>('/api/settings/api-key', { method: 'PUT', body: { key } }),
   removeApiKey: () => request<Settings>('/api/settings/api-key', { method: 'DELETE' }),
@@ -317,6 +326,12 @@ export const api = {
   weather: () => request<WeatherLookup>('/api/weather'),
   today: (choices: TodayRequest, signal?: AbortSignal) =>
     request<TodayAnswer>('/api/outfits/today', { method: 'POST', body: choices, signal }),
+  /** How a question to Claude about today's outfits stands, while Today waits on it (cheap to ask every few seconds). */
+  styleAnswer: (id: string, signal?: AbortSignal) =>
+    request<StyleAnswer>(`/api/style/answers/${encodeURIComponent(id)}`, { signal }),
+  /** The owner's answer to a thing Claude offered to remember in its answer to a message: keep it (`save`) or not. */
+  remember: (turnId: string, index: number, save: boolean) =>
+    request<RememberThing>(`/api/style/answers/${encodeURIComponent(turnId)}/remember`, { method: 'POST', body: { index, save } }),
   planTrip: (trip: TripRequest, signal?: AbortSignal) =>
     request<PlannedTrip>('/api/trips/plan', { method: 'POST', body: trip, signal }),
   saveTrip: (trip: TripRequest) => request<Trip>('/api/trips', { method: 'POST', body: trip }),

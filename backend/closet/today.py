@@ -18,11 +18,11 @@ import json
 from datetime import date
 
 from . import day as dayparts
-from . import daynote, items, outfits, wears, weather, worn
+from . import daynote, items, outfits, stylejobs, styleprofile, styling, wears, weather, worn
 from .state import State
 from .tagger.taxonomy import GARMENTS
 
-CHOICES = ("occasion", "mood", "build_around", "leave_out", "count", "again")
+CHOICES = ("occasion", "mood", "build_around", "leave_out", "count", "again", "ask_again")
 WEATHER_FIELDS = ("low_c", "high_c", "rain")
 # The day dressed for when no forecast can be had and no temperatures were given (DECISIONS "Today's outfits by themselves")
 MILD = {"low_c": 14.0, "high_c": 20.0, "rain": False}
@@ -135,8 +135,12 @@ def again_of(outfit: dict, rows: list[dict], leave_out: set[str]) -> dict:
     return {"id": outfit["id"], "worn_on": outfit["worn_on"], "kept": kept, "unavailable": unavailable}
 
 
-def suggest(conn, state: State, body: object) -> dict:
-    """Outfits for today plus the context used. Raises outfits.ContextError with a sentence for a bad request."""
+def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None = None, path=None) -> dict:
+    """Outfits for today plus the context used. Raises outfits.ContextError with a sentence for a bad request.
+
+    With a `stylist` (and `path`, the closet's database, for its thread), Claude chooses: its outfits for today
+    are given when they are ready, and the rules engine's meanwhile and whenever Claude cannot be asked;
+    `context.stylist` says which (`closet/stylejobs.py`). `ask_again` in the body asks Claude afresh."""
     if not isinstance(body, dict):
         raise outfits.ContextError("Send today's choices as an object, for example {\"occasion\": \"casual\"}.")
     unknown = sorted(set(body) - set(CHOICES) - set(WEATHER_FIELDS))
@@ -172,7 +176,9 @@ def suggest(conn, state: State, body: object) -> dict:
         dressed = ({"low_c": reading["feels_low_c"], "high_c": reading["feels_high_c"], "rain": reading["wet"]}
                    if reading else forecast)
         day = {k: given[k] if k in given else (dressed[k] if dressed else False) for k in WEATHER_FIELDS}
-    request = {k: body[k] for k in CHOICES if body.get(k) is not None and k != "again"}
+    if body.get("ask_again") is not None and not isinstance(body["ask_again"], bool):
+        raise outfits.ContextError("ask_again must be true or false.")
+    request = {k: body[k] for k in CHOICES if body.get(k) is not None and k not in ("again", "ask_again")}
     if on and on.get("occasion") and "occasion" not in request:
         request["occasion"] = on["occasion"]
     ctx, count = outfits.parse_request({**request, **day, "worn_days_ago": worn_days_ago(conn)})
@@ -206,4 +212,21 @@ def suggest(conn, state: State, body: object) -> dict:
     }
     if again is not None:
         context["again"] = again
-    return {**outfits.suggest(rows, ctx, count, feedback), "context": context}
+    answer = outfits.suggest(rows, ctx, count, feedback)
+    if stylist is not None and answer["outfits"]:
+        recent = worn.list_outfits(conn, styling.HISTORY)["outfits"]
+        profile = styleprofile.text_for_stylist(conn)
+
+        def told():   # only when Claude is asked: the engine's longer shortlist, and everything Claude reads
+            shortlist = outfits.suggest(rows, ctx, max(count, styling.SHORTLIST), feedback)["outfits"]
+            return styling.brief(rows, context, ctx, wears.today(), recent, shortlist, profile)
+
+        found = stylist.for_today(
+            conn, path, day=wears.today(), key=stylejobs.key_of(wears.today().isoformat(), context, ctx, rows, profile),
+            ctx=ctx, ids=set(styling.listed(rows, ctx).ids),
+            worn_today=any(o.get("worn_on") == wears.today().isoformat() for o in recent),
+            again=bool(body.get("ask_again")), brief=told, not_again=feedback.not_again)
+        if found["state"] == stylejobs.READY:
+            answer["outfits"] = stylejobs.merged(found["outfits"], answer["outfits"], count)
+        context["stylist"] = stylejobs.public(found)
+    return {**answer, "context": context}

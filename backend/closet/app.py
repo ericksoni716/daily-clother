@@ -53,6 +53,7 @@ from . import (
     sources,
     spend,
     storage,
+    stylejobs,
     styleprofile,
     tagjobs,
     tracejobs,
@@ -102,6 +103,7 @@ class Services:
     draws: shoedraw.Worker | None = None          # draws a shoe from its sorted photos
     add_sorter: object = None                      # says what each photo chosen on Add shows (tagger/addsort.py)
     day_reader: object = None                      # reads the day in the owner's words (tagger/dayread.py)
+    stylist: stylejobs.Stylist | None = None       # Claude choosing the day's outfits (closet/stylejobs.py); None: the rules only
     on_quit: Callable[[], None] = lambda: None
     on_show: Callable[[], bool] = lambda: False   # shows Closet's own window; False when there is none (the browser is used)
     updater: updates.Updater | None = None   # new releases: checked once a day, installed when the owner says
@@ -179,7 +181,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                    finder: sources.Finder | None = None, tracer: tracejobs.Tracer | None = None,
                    sorter: shoeviews.Sorter | None = None, drawer: shoedraw.Drawer | None = None,
                    drawing_corrector: shoedraw.Corrector | None = None, add_sorter=None,
-                   day_reader=None) -> Services:
+                   day_reader=None, stylist_ask: stylejobs.Asker | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
@@ -288,6 +290,16 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
 
     def no_day_reader(text: str, today, home: str | None, usable: tuple[str, ...]):
         raise RouteUnavailable("tests standing in for Claude read no day notes unless they ask to")
+    style_meter = spend.Meter(cfg, state, spend.PURPOSE_STYLE, spend.estimate_style)
+
+    def real_stylist(brief: dict, usable: tuple[str, ...]) -> dict:
+        from .tagger import stylist
+        result = stylist.ask(brief, usable, client=api_client, meter=style_meter)
+        return {"looks": stylist.looks(result.answer), "read": result.answer.read, "route": result.route,
+                "model": result.model, "input_tokens": result.input_tokens, "output_tokens": result.output_tokens}
+
+    # tests standing in for Claude get no stylist unless they give one: Today is then the rules engine's, as before
+    choose = stylist_ask or (None if tagger is not None else real_stylist)
     draw_meter = spend.Meter(cfg, state, spend.PURPOSE_DRAW, spend.estimate_draw)
 
     def real_drawer(photos: list, usable: tuple[str, ...], notes=(), style=None):
@@ -339,7 +351,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                     check_tagger=tagger or check_tagger, shopper=shopper, price_checks=shop.PriceScheduler(shopper),
                     finder=finding, views=views_worker, draws=draw_worker, updater=updates.Updater(cfg, state),
                     add_sorter=add_sorter or (no_add_sorter if tagger is not None else real_add_sorter),
-                    day_reader=day_reader or (no_day_reader if tagger is not None else real_day_reader))
+                    day_reader=day_reader or (no_day_reader if tagger is not None else real_day_reader),
+                    stylist=stylejobs.Stylist(choose, routes or (lambda: tagjobs.usable_routes(state))) if choose else None)
 
 
 def closet_inputs(cfg: Config, profile: str) -> tuple[list[dict], list[dict]]:
@@ -466,6 +479,7 @@ class SettingsPatch(BaseModel):
     life_prompt_dismissed: bool | None = None
     rewear: object = None
     laundry: object = None
+    stylist_on: bool | None = None
     model_config = {"extra": "forbid"}
 
 
@@ -985,8 +999,10 @@ def create_app(sv: Services) -> FastAPI:
 
         def work() -> dict:
             conn = db.connect(path)
+            # Claude chooses in the owner's own closet when it is switched on; the demo closet never asks Claude
+            chooses = sv.stylist if state.get("profile") != "demo" and state.get("stylist_on") else None
             try:
-                return suggest_today(conn, state, body)
+                return suggest_today(conn, state, body, chooses, path)
             except outfits.ContextError as e:
                 raise HTTPException(422, str(e))
             finally:
@@ -1313,7 +1329,16 @@ def create_app(sv: Services) -> FastAPI:
             "life_prompt_dismissed": True if state.get("profile") == "demo" else state.get("life_prompt_dismissed"),
             "rewear": savedtrips.rewear(state),
             "laundry": wears.laundry_setting(state.get("laundry")),
+            "stylist_on": bool(state.get("stylist_on")),
         }
+
+    @app.get("/api/style/answers/{answer_id}", dependencies=protected)
+    def style_answer(answer_id: str, conn=Depends(conn_dep)):
+        """How a question to Claude about today's outfits stands, for the page waiting on it: {id, state, message}."""
+        found = stylejobs.Stylist.get(conn, answer_id)
+        if found is None:
+            raise HTTPException(404, "That answer is not known. Open Today again.")
+        return found
 
     # ---------------------------------------------- the owner's style profile (Settings, "Your style")
     @app.get("/api/style/profile", dependencies=protected)
@@ -1365,6 +1390,8 @@ def create_app(sv: Services) -> FastAPI:
                     state.update(rewear=trips.check_rewear({**savedtrips.rewear(state), **body.rewear}))
                 except trips.PlanError as e:
                     raise HTTPException(422, str(e))
+        if "stylist_on" in sent and body.stylist_on is not None:
+            state.update(stylist_on=body.stylist_on)
         if "laundry" in sent:
             try:
                 state.update(laundry=wears.check_laundry_setting(body.laundry))

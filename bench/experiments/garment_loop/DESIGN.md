@@ -186,4 +186,20 @@ garment; the measured numbers will say.
 
 ## Log of changes
 
-(none yet)
+All before any arm was run and before any drawing of a test photo existed.
+
+1. **The split's deal** (section 2). The owner's 55 photos came in (46 pass the bar; the 9 left out are all
+   studio or catalogue shots). Dealt alternately within each group after sorting by garment kind, as written, all
+   five jackets went to the tuning half: in a group of two, the later kind always fell to the second place. With
+   none held out, "no garment type scores worse" could not be checked for jackets. Replaced by a balancing deal
+   (`freeze.py`): each photo, in its group's seeded shuffle (same seed), goes to the half with fewer of its group
+   so far, then fewer of its garment kind, then (for a known hard case) fewer hard cases, then fewer overall, then
+   the held-out half. The hard-case key changed nothing (group and kind settle every choice first): the four photos
+   marked "creased plaid on a hanger" are all in the tuning half; the held-out plaids are creased on floors, a bed
+   and at an angle. Accepted as it came out.
+2. **One photo moved group** from the contact sheet before freezing: three wavy bands with no repeat (filed as
+   uneven stripes) are colour blocking.
+3. **Bottoms' tile size**: `surface.WAIST_PER_OUTLINE` is per kind (trousers and jeans 0.885, shorts 0.73),
+   measured on the demo closet's drawings; one value of 0.86 was a guess.
+4. **Strength 0.8 on every described colour**, not only a plaid's (plain, blocks and other too): one rule for
+   described colours, written into `surface.py` before any run.

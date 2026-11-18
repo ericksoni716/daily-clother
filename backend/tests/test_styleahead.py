@@ -38,6 +38,10 @@ def om(monkeypatch):
     monkeypatch.setattr(wears, "today", lambda: om.day["d"])
     monkeypatch.setattr(weather, "_now", lambda: om.clock["now"])
     monkeypatch.setattr(weather, "fetch", om)
+    # the page's first look keeps the computer's hour (`styleahead.now`, not the Ahead's own clock that `at` sets):
+    # 7am, whatever hour the tests run at. Left to the real clock, a run after about 8pm remembered an evening first
+    # look, the day asked ahead was dressed for the evening's hours, drifted from the morning's, and was asked again
+    monkeypatch.setattr(styleahead, "now", lambda: datetime(om.day["d"].year, om.day["d"].month, om.day["d"].day, 7))
     return om
 
 

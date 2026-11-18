@@ -2,7 +2,9 @@ import { expect, PASS, PHOTOS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 // Its own backend: the plan can't be used and the API key route talks to a stand-in that reports what each
-// request used ($0.008 each at the prices written down), so nothing here reaches Anthropic or costs anything.
+// request used ($0.16 each on the describing model, Sonnet, at the prices written down; $0.094 is kept back for each
+// photo before it is sent), so nothing here reaches Anthropic or costs anything. A limit of $0.20 lets one photo through
+// and stops the next.
 test.describe('the API key with a monthly limit', () => {
   let backend: Backend;
 
@@ -32,11 +34,11 @@ test.describe('the API key with a monthly limit', () => {
     await expect(limit).toBeHidden();
     await section.getByText('Monthly limit and spending').click();
     await expect(section.getByText(/^We suggest \$5\.00 a month\. At the prices written down on 3 Nov 2026/)).toBeVisible();
-    await limit.fill('0.01');
+    await limit.fill('0.20');
     await section.getByText('Allow the API key', { exact: true }).click();
     await expect(allow).toBeChecked();
-    await expect(page.getByText('The API key may be used, up to $0.01 a month')).toBeVisible();
-    await expect(section.getByTestId('spend-month')).toContainText('$0.00 of your $0.01 limit spent; nothing sent with the API key.');
+    await expect(page.getByText('The API key may be used, up to $0.20 a month')).toBeVisible();
+    await expect(section.getByTestId('spend-month')).toContainText('$0.00 of your $0.20 limit spent; nothing sent with the API key.');
 
     // the first photo is described with the API key
     await page.goto(backend.url + '/add');
@@ -47,9 +49,9 @@ test.describe('the API key with a monthly limit', () => {
 
     await page.goto(backend.url + '/settings');
     await section.getByText('Monthly limit and spending').click();
-    await expect(section.getByText('$0.01 a month')).toBeVisible();
-    await expect(section.getByTestId('spend-month')).toContainText('$0.01 of your $0.01 limit spent; 1 request to Claude with the API key.');
-    await expect(section.getByTestId('spend-history')).toContainText('$0.01');
+    await expect(section.getByText('$0.20 a month')).toBeVisible();
+    await expect(section.getByTestId('spend-month')).toContainText('$0.16 of your $0.20 limit spent; 1 request to Claude with the API key.');
+    await expect(section.getByTestId('spend-history')).toContainText('$0.16');
     await expect(section.getByText(/^Costs are worked out from Anthropic's prices as written down on 3 Nov 2026\. Prices change/)).toBeVisible();
     await expect(section.getByText('20,000', { exact: true })).toBeHidden();   // token counts only in the details fold
     await section.getByText('Details', { exact: true }).click();
@@ -84,7 +86,7 @@ test.describe('the API key with a monthly limit', () => {
     await expect(page).toHaveURL(/\/settings$/);
     await expect(section.getByText(/This month's limit is reached/)).toBeVisible();
     await expect(section.getByTestId('spend-waiting')).toHaveText(
-      "If your plan can't be used, describing the item waiting with the API key would cost under 1¢ at most.");
+      "If your plan can't be used, describing the item waiting with the API key would cost about $0.09 at most.");
     await expect(section.getByTestId('tags-waiting')).toHaveText('1 item is waiting to be described.');
   });
 });

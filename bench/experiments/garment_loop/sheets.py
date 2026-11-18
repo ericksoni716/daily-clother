@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import textwrap
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -15,43 +16,67 @@ import harness as H  # noqa: E402
 import judge as J  # noqa: E402
 from PIL import Image, ImageDraw  # noqa: E402
 
-SHOWN = [("A", "A: the app today"), ("B", "B: small model, one shot"), ("C-sonnet", "C: Sonnet, one shot"),
-         ("C-opus", "C: Opus, one shot"), ("D3", "D: loop, 3 corrections"), ("E", "E: best of 3 loops"),
-         ("D-small3", "D-small: small model corrects")]
+SHOWN = [("A", "A  the app today"), ("B", "B  Haiku, one description"), ("C-sonnet", "C1  Sonnet, one description"),
+         ("C-opus", "C2  Opus, one description"), ("D3", "D  the loop, 3 corrections"),
+         ("E", "E  best of 3 loops"), ("D-small3", "D-small  Haiku corrects")]
+COLS, COL_W, TILE_H, GAP = 3, 430, 330, 24
 
 
-def sheet(gid: str, R: dict, out: Path, height: int = 360) -> Path:
-    font, small = J._font(26), J._font(19)
+def _notes(gid: str, arm: str, name: str) -> str:
+    """What the owner needs to read a drawing right: a loop that kept its start, how E was picked."""
+    if arm in ("D3", "D-small3") and name.startswith("B_run"):
+        return "kept its start: no correction scored better"
+    if arm == "E":
+        return "picked by the loop's own score"
+    return ""
 
-    def fit(im):
-        return im.resize((max(1, round(im.width * height / im.height)), height), Image.LANCZOS)
-    photo = fit(H.photo(gid).convert("RGBA"))
+
+def sheet(gid: str, R: dict, out: Path) -> Path:
+    big, font = J._font(28), J._font(18)
+
+    def fit(im, h=TILE_H, w=COL_W):
+        k = min(h / im.height, w / im.width)
+        return im.resize((max(1, round(im.width * k)), max(1, round(im.height * k))), Image.LANCZOS)
+    s_ = A.sheet(gid) or {}
+    placed = "; ".join(p.get("what", "") for p in s_.get("placed") or [])
+    title = f"{gid}: {s_.get('garment', '')}"
+    sub = (f"the reference sheet: {s_.get('kind', '')} cloth, ground {s_.get('ground', {}).get('name', '')}"
+           + (f", {s_.get('count')} repeats across" if s_.get("count") else "") + (f"; placed: {placed}" if placed else ""))
     tiles = []
-    for arm, title in SHOWN:
+    for arm, label in SHOWN:
         name = J.drawing_of(gid, arm)
         if name is None:
             continue
         s = R.get((gid, arm))
-        line = (f"{sum(s[k] for k in A.LINES):.1f}/15  g{s['ground']:.1f} c{s['colours']:.1f} s{s['scale']:.1f} "
-                f"st{s['structure']:.1f} p{s['pick']:.1f}") if s else "not judged"
-        tiles.append((title, line, (s or {}).get("fault") or "", fit(J._carded(J._png(gid, name)))))
-    cols, gap, head = 4, 20, 92
-    tw = max(t[3].width for t in tiles)
-    rows = 1 + (len(tiles) + cols - 1) // cols
-    W = cols * (tw + gap) + gap
-    img = Image.new("RGB", (W, rows * (height + head + gap) + gap), (255, 255, 255))
+        score = (f"{sum(s[k] for k in A.LINES):.1f} of 15 (ground {s['ground']:.1f}, colours {s['colours']:.1f}, "
+                 f"scale {s['scale']:.1f}, structure {s['structure']:.1f}, pick {s['pick']:.1f})") if s else "not judged"
+        text = [label] + textwrap.wrap(score, 44) + textwrap.wrap("fault: " + ((s or {}).get("fault") or "none"), 44)
+        note = _notes(gid, arm, name)
+        if note:
+            text += textwrap.wrap("(" + note + ")", 44)
+        tiles.append((text, fit(J._carded(J._png(gid, name)))))
+    head_h = 26 * max(len(t) for t, _ in tiles) + 8
+    rows = (len(tiles) + COLS - 1) // COLS
+    W = COLS * (COL_W + GAP) + GAP
+    top = 110
+    photo = fit(H.photo(gid).convert("RGBA"), h=TILE_H + 120, w=W - 2 * GAP)
+    H_ = top + photo.height + GAP + rows * (head_h + TILE_H + GAP) + 60
+    img = Image.new("RGB", (W, H_), (255, 255, 255))
     d = ImageDraw.Draw(img)
-    s_ = A.sheet(gid) or {}
-    d.text((gap, gap), f"{gid}: {s_.get('garment', '')}, {s_.get('kind', '')}", fill=(20, 20, 20), font=font)
-    d.text((gap, gap + 34), f"sheet: ground {s_.get('ground', {}).get('name', '')}, count {s_.get('count')}", fill=(80, 80, 80), font=small)
-    img.paste(photo, (gap, gap + head - 20), photo)
-    for i, (title, line, fault, t) in enumerate(tiles):
-        x = gap + (i % cols) * (tw + gap)
-        y = gap + (1 + i // cols) * (height + head + gap)
-        d.text((x, y), title, fill=(20, 20, 20), font=small)
-        d.text((x, y + 24), line, fill=(60, 60, 60), font=small)
-        d.text((x, y + 48), fault[:46], fill=(150, 40, 40), font=small)
-        img.paste(t, (x, y + head - 18), t)
+    d.text((GAP, 14), title, fill=(20, 20, 20), font=big)
+    for i, line in enumerate(textwrap.wrap(sub, 120)[:2]):
+        d.text((GAP, 54 + 24 * i), line, fill=(80, 80, 80), font=font)
+    img.paste(photo, (GAP, top), photo)
+    y0 = top + photo.height + GAP
+    for i, (text, t) in enumerate(tiles):
+        x = GAP + (i % COLS) * (COL_W + GAP)
+        y = y0 + (i // COLS) * (head_h + TILE_H + GAP)
+        for j, line in enumerate(text):
+            colour = (20, 20, 20) if j == 0 else (150, 40, 40) if line.startswith("fault") or (j > 1 and not line[0].isdigit() and "fault" in " ".join(text[1:j + 1])) and not line.startswith("(") else (90, 90, 90)
+            d.text((x, y + 26 * j), line, fill=colour, font=font)
+        img.paste(t, (x, y + head_h), t)
+    d.text((GAP, H_ - 40), "Scores: two blind judges averaged (a third where they differed by 2 or more); the fault line is "
+           "the first judge's.", fill=(90, 90, 90), font=font)
     path = out / f"{gid}.jpg"
     img.save(path, quality=88)
     return path

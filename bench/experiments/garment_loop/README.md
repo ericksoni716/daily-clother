@@ -112,7 +112,9 @@ The worst drawings were the same garments for every arm:
 1. **Colour blocks the drawing has no part for**: a panel across the chest, wavy bands, a stripe at the join. The
    form can name only a yoke, sleeves, collar or pocket; Claude names them right and has nowhere to put them.
 2. **Prints**, drawn as their main colour by design. The app today pieces a print from the photo and judges score
-   it 12.2 of 15 against about 5 for every described arm.
+   it 12.2 of 15 against about 5 for every described arm. (Its piecing is not clean either: on one print shirt on
+   a hanger it pieced the hanger into the collar, which the judges did not mark down; the final look at the sheets
+   caught it.)
 3. **Fine patterns** past the 16-repeat cap (above).
 
 ## Changes along the way

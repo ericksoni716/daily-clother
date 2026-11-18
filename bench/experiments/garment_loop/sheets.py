@@ -18,7 +18,7 @@ from PIL import Image, ImageDraw  # noqa: E402
 
 SHOWN = [("A", "A  the app today"), ("B", "B  Haiku, one description"), ("C-sonnet", "C1  Sonnet, one description"),
          ("C-opus", "C2  Opus, one description"), ("D3", "D  the loop, 3 corrections"),
-         ("E", "E  best of 3 loops"), ("D-small3", "D-small  Haiku corrects")]
+         ("E", "E  best of 3 loops"), ("D-small3", "D-small  Haiku corrects"), ("F", "F  Sonnet, second form")]
 COLS, COL_W, TILE_H, GAP = 3, 430, 330, 24
 
 
@@ -50,10 +50,10 @@ def sheet(gid: str, R: dict, out: Path) -> Path:
         s = R.get((gid, arm))
         score = (f"{sum(s[k] for k in A.LINES):.1f} of 15 (ground {s['ground']:.1f}, colours {s['colours']:.1f}, "
                  f"scale {s['scale']:.1f}, structure {s['structure']:.1f}, pick {s['pick']:.1f})") if s else "not judged"
-        text = [label] + textwrap.wrap(score, 44) + textwrap.wrap("fault: " + ((s or {}).get("fault") or "none"), 44)
+        text = [label] + textwrap.wrap(score, 36) + textwrap.wrap("fault: " + ((s or {}).get("fault") or "none"), 36)
         note = _notes(gid, arm, name)
         if note:
-            text += textwrap.wrap("(" + note + ")", 44)
+            text += textwrap.wrap("(" + note + ")", 36)
         tiles.append((text, fit(J._carded(J._png(gid, name)))))
     head_h = 26 * max(len(t) for t, _ in tiles) + 8
     rows = (len(tiles) + COLS - 1) // COLS

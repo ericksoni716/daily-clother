@@ -280,6 +280,14 @@ patterned cloth (the app lifts a graphic only on plain cloth); fine pinstripes t
 - 30 held-out garments, one logo on pattern, two shorts, four studio photos: the family rows are thin.
 - F's lead over C-sonnet is the same in both halves (+0.9) but within chance on each; its lead over the app today and
   over the describing model is clear in both.
+- From the final look at the result sheets: the garment's shape comes from the app's own description and is the
+  same for every arm, so when that description is wrong every arm suffers alike (a long-sleeved plain jumper drawn
+  short-sleeved with cables, which the judges partly marked against the cloth; a pullover rugby shirt drawn as an
+  open jacket). A striped body's stripes run into the collar and the inside of the neckband, where the real collar is
+  plain. A print drawn with the app's piecing is the photo's own cloth, so A's and F's scores on prints measure the
+  piecing, not a description (and the piecing can carry the photo's creases and, once in Part 1, a hanger).
+- A full score beside a small named fault on the sheets is expected: the score is two judges averaged, the fault
+  line is the first judge's.
 
 The result sheets (photo, every arm's drawing, scores) are private: `bench/private/garment_loop/results/held-out/`
 and, for the check on the tuning half, `bench/private/garment_loop/results/tuning-r2/`.

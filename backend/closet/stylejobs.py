@@ -4,7 +4,8 @@ Today always has the rules engine's outfits at once (`closet/today.py`). When Cl
 not switched off, a route to Claude usable), `Stylist.for_today` looks for Claude's answer for this day and these
 choices in `style_answers`:
 
-- **ready**: Claude's outfits are given, less any whose pieces can no longer be worn (put in the laundry since);
+- **ready**: Claude's outfits are given, less any whose pieces can no longer be worn (put in the laundry since).
+  When none is left and Claude is not asked again (an outfit was worn today), that is said and the engine's stand;
 - **working**: Claude is still choosing; Today shows that and asks again in a moment;
 - **failed**: why, in a sentence, and the engine's outfits stand. It is asked again by itself after `RETRY_S`;
 - none yet: a question is started on a thread of its own and "working" is answered.
@@ -17,7 +18,8 @@ worn today, and at most `MAX_PER_DAY` times a day. A piece added or washed durin
 sees it tomorrow, or when the owner asks.
 
 The thread only asks and stores: everything Claude is told (`styling.brief`) is put together by the request that
-starts it. A question lost when the program stopped (still "working" after `STALE_S`) is asked again.
+starts it. A question lost when the program stopped (still "working" after `STALE_S`) is asked again at once,
+unless an outfit has been worn today.
 """
 from __future__ import annotations
 
@@ -52,6 +54,9 @@ MESSAGES = {
     "no_route": ("Claude can't be reached right now (your Claude plan is not signed in on this computer and the API "
                  f"key is not switched on), so {RULES}"),
     "day_limit": f"Claude has chosen outfits {MAX_PER_DAY} times today, the most in one day, so {RULES}",
+    "day_limit_kept": (f"Claude has chosen outfits {MAX_PER_DAY} times today, the most in one day, so these are "
+                       "still the ones it chose last."),
+    "gone": f"The outfits Claude chose for today use pieces that can no longer be worn today, so {RULES}",
 }
 
 # What asks Claude: (brief, routes) -> {"looks": [...], "read": str, "route", "model", "input_tokens", "output_tokens"}
@@ -141,24 +146,27 @@ class Stylist:
         called only when a question is started; `path`: the closet's database, for the thread."""
         with self._lock:
             row = self._newest(conn, day.isoformat(), key)
+            lost = False
             if row is not None and row["state"] == WORKING:
                 if self._age(row) <= STALE_S:
                     return self._shape(row, [])
                 conn.execute("UPDATE style_answers SET state = ?, error = 'lost', finished_at = ? WHERE id = ?",
                              (FAILED, db.now(), row["id"]))
-                row = self._newest(conn, day.isoformat(), key)
+                row, lost = self._newest(conn, day.isoformat(), key), True
             kept = wearable(json.loads(row["outfits"] or "[]"), ids) if row is not None and row["state"] == READY else []
             due = (row is None or again
                    or (row["state"] == READY and not worn_today and (not kept or drifted(json.loads(row["dressed"]), ctx)))
-                   or (row["state"] == FAILED and not worn_today and self._age(row) >= RETRY_S))
+                   # a lost question is asked again at once; a failure after RETRY_S
+                   or (row["state"] == FAILED and not worn_today and (lost or self._age(row) >= RETRY_S)))
             if not due:
                 return self._shape(row, kept)
             usable = tuple(sorted(self.routes(), key=lambda r: r != "api"))   # the API key first (the owner: "opus via api")
             problem = ("no_route" if not usable else "day_limit" if conn.execute(
                 "SELECT COUNT(*) FROM style_answers WHERE day = ?", (day.isoformat(),)).fetchone()[0] >= MAX_PER_DAY else None)
             if problem:
-                if kept:   # what there is still stands
-                    return self._shape(row, kept)
+                if kept:   # what there is still stands; an owner who asked again is told why nothing changed
+                    said = MESSAGES["day_limit_kept"] if again and problem == "day_limit" else None
+                    return {**self._shape(row, kept), "message": said}
                 return {"state": FAILED, "id": None, "outfits": [], "read": None, "message": MESSAGES[problem]}
             told, listing = brief()
             answer_id = uuid.uuid4().hex
@@ -170,6 +178,10 @@ class Stylist:
         return {"state": WORKING, "id": answer_id, "outfits": [], "read": None, "message": None}
 
     def _shape(self, row, kept: list[dict]) -> dict:
+        if row["state"] == READY and not kept:
+            # Claude answered, but none of its outfits can be worn now (worn and in the laundry, say) and it is not
+            # asked again: the engine's stand, and that is said rather than "ready" over the rules' outfits
+            return {"state": FAILED, "id": row["id"], "outfits": [], "read": None, "message": MESSAGES["gone"]}
         if row["state"] == READY:
             return {"state": READY, "id": row["id"], "outfits": kept, "read": row["read"], "message": None}
         if row["state"] == WORKING:

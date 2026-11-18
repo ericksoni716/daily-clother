@@ -117,7 +117,7 @@ one says **Chosen by Claude**, with Claude's own words on why it works, and a
 line under the outfits says what about the day shaped the choice. Before
 offering them, Claude also looks at each outfit drawn on the figure, as you
 would in a mirror, and changes one that looks wrong. When you change the
-occasion or the mood, or ask again, this takes about half a minute and Today
+occasion or the mood, or ask again, this takes under a minute and Today
 shows that Claude is choosing; tap **Show Closet's own
 picks meanwhile** to see (and wear) Closet's own outfits while you wait. The
 outfits are then kept for the rest of the day. **Ask Claude again**, under the

@@ -48,8 +48,8 @@ describe('who chose an outfit', () => {
 
 describe('the line on the waiting card', () => {
   it('says how long it usually takes, then that it is taking longer', () => {
-    expect(waitingLine(0)).toBe('This usually takes about half a minute. They are kept for the rest of the day.');
-    expect(waitingLine(STYLIST_SLOW_S - 1)).toMatch(/about half a minute/);
+    expect(waitingLine(0)).toBe('This usually takes under a minute. They are kept for the rest of the day.');
+    expect(waitingLine(STYLIST_SLOW_S - 1)).toMatch(/under a minute/);
     expect(waitingLine(STYLIST_SLOW_S)).toBe('This is taking longer than usual.');
   });
 });

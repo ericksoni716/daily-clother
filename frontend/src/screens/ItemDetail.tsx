@@ -353,6 +353,9 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           <ChipGroup field="condition" options={vocab.condition} value={item.condition} disabled={locked} onChange={(v) => save({ condition: v })} />
           <PriceField cents={item.price_cents} disabled={locked} onSave={(c) => save({ price_cents: c })} toastError={(m) => toast(m, 'error')} />
           <TextField label="Date acquired" type="date" value={item.acquired_on} disabled={locked} onSave={(v) => save({ acquired_on: v })} />
+          <TextField label="How I wear it" multiline value={item.wear_notes} disabled={locked}
+            placeholder="e.g. only with the navy suit; runs warm; for dinners out"
+            hint="Claude reads this when it chooses your outfits." onSave={(v) => save({ wear_notes: v })} />
           <TextField label="Notes" multiline value={item.notes} disabled={locked} onSave={(v) => save({ notes: v })} />
         </div>
       </details>
@@ -713,26 +716,39 @@ interface TextFieldProps {
   placeholder?: string;
   type?: string;
   multiline?: boolean;
+  /** A short line under the field, read out with it. */
+  hint?: string;
   onSave(v: string | null): void;
 }
 
-function TextField({ label: text, value, disabled, placeholder, type = 'text', multiline, onSave }: TextFieldProps) {
+function TextField({ label: text, value, disabled, placeholder, type = 'text', multiline, hint, onSave }: TextFieldProps) {
   const [v, setV] = useFieldText(value ?? '');
+  const hintId = useId();
   const commit = () => {
     const t = v.trim();
     if (t !== (value ?? '')) onSave(t || null);
   };
   useWhenLeaving(commit);
-  return (
+  const described = hint ? hintId : undefined;
+  const field = (
     <label className="field">
       <span>{text}</span>
       {multiline ? (
-        <textarea value={v} rows={3} disabled={disabled} placeholder={placeholder} onChange={(e) => setV(e.target.value)} onBlur={commit} />
+        <textarea value={v} rows={3} disabled={disabled} placeholder={placeholder} aria-describedby={described}
+          onChange={(e) => setV(e.target.value)} onBlur={commit} />
       ) : (
-        <input type={type} value={v} disabled={disabled} placeholder={placeholder} onChange={(e) => setV(e.target.value)} onBlur={commit}
+        <input type={type} value={v} disabled={disabled} placeholder={placeholder} aria-describedby={described}
+          onChange={(e) => setV(e.target.value)} onBlur={commit}
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
       )}
     </label>
+  );
+  if (!hint) return field;
+  return (
+    <div className="field-with-hint">
+      {field}
+      <p className="hint" id={hintId}>{hint}</p>
+    </div>
   );
 }
 

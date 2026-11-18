@@ -24,10 +24,12 @@ from . import db
 from .config import Config
 from .state import State
 from .tagger.correcting import MAX_TOKENS as CORRECT_MAX_TOKENS
+from .tagger.dayread import MODEL as STYLING_MODEL
 from .tagger.garments import MODEL as GARMENTS_MODEL
 from .tagger.shoedrawing import MAX_TOKENS as DRAW_MAX_TOKENS
 from .tagger.shoedrawing import MODEL as DRAW_MODEL
 from .tagger.shopping import MAX_TOKENS as SHOP_MAX_TOKENS
+from .tagger.stylist import MAX_TOKENS as STYLE_MAX_TOKENS
 from .tagger.tagging import CONFIG, MAX_TOKENS, CapReached, RouteUnavailable
 from .tagger.views import MODEL as VIEWS_MODEL
 
@@ -39,6 +41,8 @@ PURPOSE_PRICES = "shop_prices"        # looking up the prices of a wish's finds 
 PURPOSE_GARMENTS = "find_garments"    # where each piece is in a photo of several (`tagger/garments.py`)
 PURPOSE_VIEWS = "sort_views"          # which view each photo of a shoe shows (`tagger/views.py`)
 PURPOSE_SORT_ADD = "sort_add"         # what each photo chosen on Add shows: a piece, several, a shoe (`tagger/addsort.py`)
+PURPOSE_DAY = "read_day"              # the day in the owner's words: where, when, the hours outside (`tagger/dayread.py`)
+PURPOSE_STYLE = "style_outfits"       # Claude choosing the day's outfits (`tagger/stylist.py`, `closet/stylejobs.py`)
 PURPOSE_DRAW = "draw_shoe"            # a shoe drawn from its photos, and its checks (`tagger/shoedrawing.py`)
 PURPOSE_CORRECT_DRAWING = "correct_drawing"   # a shoe's drawing changed from the owner's note, and its checks
 PRICES_CHECKED: str = CONFIG.get("prices_checked", "")
@@ -147,6 +151,25 @@ def estimate_sort_add(photos: int, model: str = VIEWS_MODEL) -> float:
     """The most one request to sort the photos chosen on Add should cost: a short prompt and schema, up to ten small
     photos, and the longest answer allowed."""
     return cost_usd(model, VIEWS_TEXT_TOKENS + SORT_ADD_IMAGE_TOKENS * max(1, photos), CORRECT_MAX_TOKENS)
+
+
+DAY_TEXT_TOKENS = 1500        # the question about the owner's day: instructions, the answer's form and one sentence
+
+
+def estimate_day(photos: int = 0, model: str = STYLING_MODEL) -> float:
+    """The most one request to read the day in the owner's words should cost: a short prompt, no photo, and the
+    longest answer allowed (`photos` is always 0; the meter passes it)."""
+    return cost_usd(model, DAY_TEXT_TOKENS, CORRECT_MAX_TOKENS)
+
+
+STYLE_TEXT_TOKENS = 16000     # what the stylist is told for a large closet: the guide, the profile, some 250 pieces
+
+
+def estimate_style(photos: int = 0, model: str = STYLING_MODEL) -> float:
+    """The most one request to choose the day's outfits should cost: a long text and the longest answer allowed.
+    The look at the outfits as drawn is priced the same: its text is a third of this and its few small pictures
+    (`photos`, about 500 tokens each) fit well inside the rest."""
+    return cost_usd(model, STYLE_TEXT_TOKENS, STYLE_MAX_TOKENS)
 
 
 def estimate_views(photos: int, model: str = VIEWS_MODEL) -> float:

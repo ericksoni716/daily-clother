@@ -7,9 +7,16 @@ words, what was worn lately and what the owner said, and the rules engine's shor
 outfits, best first, each with why it works today in a sentence or two for the owner. `styling.check` keeps the
 ones that can be worn.
 
-Asked on the model of the `styling` role (Opus). Not yet part of Today: `tools/style_demo_days.py` runs it on the
-demo closet to judge it and to measure a call. When it is wired in, it goes through the API key first when that is
-switched on, else the plan, as the day's note does (`tagger/dayread.py`), under the monthly limit.
+The conversation (the owner: "having a convo might result in better outfits if i can say specifically why i like or
+dont like a combination"): when the owner writes about the outfits on their screen, the brief carries `say` (their
+message) and `talk` (the outfits shown and what was said today), and the answer is a `Reply`: Claude's words back,
+the outfits again when something changes (none when they only asked a question), and at most two things worth
+remembering for other days, which the owner is asked about before anything is kept. A plain question later the
+same day still carries `talk`, so what the owner said holds for the rest of the day.
+
+Asked on the model of the `styling` role (Opus), through the API key first when that is switched on, else the plan,
+as the day's note is (`tagger/dayread.py`), under the monthly limit (`closet/stylejobs.py` asks; `closet/app.py`
+wires it). `tools/style_demo_days.py` runs it on the demo closet to judge it and to measure a call.
 """
 from __future__ import annotations
 
@@ -21,6 +28,7 @@ from .tagging import CONFIG, Meter
 MODEL = CONFIG["roles"]["styling"]
 COUNT = 3              # outfits asked for
 MAX_TOKENS = 3000      # the longest answer: three outfits with their sentences, and a line about the day
+TALK_MAX_TOKENS = 3600  # the same with words back to the owner and things to remember
 EFFORT = "medium"      # how hard Claude thinks about it (tools/style_demo_days.py tries the others)
 SYSTEM = ("You are the personal stylist inside a private wardrobe app. You choose what its owner wears today from "
           "their own clothes. Answer in the required JSON format. Do nothing else.")
@@ -46,8 +54,54 @@ class Looks(BaseModel):
     outfits: list[Look] = Field(description="The outfits, best first.")
 
 
-def prompt(brief: dict[str, str], count: int = COUNT) -> str:
+class Keep(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    about: int = Field(description="0 when it is about the owner's style in general, else the number of the piece "
+                                   "it is about.")
+    text: str = Field(description="One short sentence in the owner's own voice (\"I don't wear...\", \"Runs warm; "
+                                  "not above 15 degrees\"), saying only what they said.")
+
+
+class Reply(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    reply: str = Field(description="One to three plain sentences to the owner, answering what they just wrote.")
+    outfits: list[Look] = Field(description="The outfits again, best first, when something changes; empty when the "
+                                            "outfits on the owner's screen stand.")
+    remember: list[Keep] = Field(description="Things worth keeping for other days, to offer the owner; usually empty.")
+
+
+RULES = """- Each outfit has a base top, a bottom and shoes. Add a mid layer, an outer layer and accessories only as the day and the look call for them. Use only numbers from the closet list, and put each piece in a place its line allows.
+- Judge each outfit as a whole, the way a person with a good eye would look at it in a mirror: do the colours, textures, proportions and how dressed-up each piece is read as one idea? Would it be comfortable through the hours dressed for, in what the weather does in them, for what the owner is doing?
+- Dress for what it feels like in the hours given, not for a number alone: think about wind, rain and when it falls, sun, humidity, time spent outside, and whether a layer can come off indoors.
+- Learn from what the owner wore and said: lean towards what they loved, away from what they did not, and never offer again an outfit they said "not again" to. Avoid tops worn in the last couple of days unless there is a reason.
+- `why`: speak to the owner plainly, in one or two sentences, about this outfit as a whole today. No piece numbers; name pieces the way their lines do. Do not recite the weather back unless it shaped the choice.
+- `watch`: only a real caution, otherwise empty."""
+
+
+def _give(brief: dict[str, str], count: int) -> str:
+    """The last part of the question: what Claude gives back. One of two: outfits for the day, or an answer to
+    what the owner just wrote."""
     must = f"\n{brief['must']}\n" if brief.get("must") else ""
+    if brief.get("say"):
+        return f"""# What to give
+The owner has just written to you about the outfits on their screen (the last line of the conversation above). Answer them.
+
+- `reply`: one to three plain sentences to the owner: what you changed and why, or the answer to what they asked. Be straight: when the closet has nothing that does what they ask, say so and offer the nearest thing. No piece numbers; name pieces the way their lines do.
+- `outfits`: when they ask for a change, or fault an outfit or a piece, give {count} outfits again, the best first, each clearly different from the others. What they said holds for every one of them when it is about the day or their taste; an outfit they did not fault may stay as it was. When they only ask a question and the outfits can stand, give an empty list: their screen then keeps what it shows.
+{must}
+{RULES}
+- `remember`: usually empty. When what the owner wrote shows something that will hold on other days too (a taste, a rule of theirs, how a piece fits or how they wear it), offer to keep it: `about` is 0 for their style in general, or the number of the piece it is about; `text` is one short sentence in the owner's own voice, saying only what they said. At most two. Nothing that is only about today, and nothing their style profile or the piece's notes already say. The owner is asked before anything is kept."""
+    held = ("\n- What the owner told you earlier today (the conversation above) still holds: keep to it."
+            if brief.get("talk") else "")
+    return f"""# What to give
+{count} outfits for today, the best first, each one clearly different from the others (at least two pieces apart where the closet allows).
+{must}
+{RULES}{held}
+- `read`: one sentence on what about today shaped your choices."""
+
+
+def prompt(brief: dict[str, str], count: int = COUNT) -> str:
+    talk = f"\n\n# The conversation with the owner today\n{brief['talk']}" if brief.get("talk") else ""
     return f"""Choose what the owner wears today.
 
 # How the owner dresses (their style profile)
@@ -70,29 +124,31 @@ One piece per line: its number, name, kind and the place or places it can take i
 
 # A start from the app's rules
 The app's own rules would offer these today. Use them only so that nothing obvious is missed; choose better where you can.
-{brief["shortlist"]}
+{brief["shortlist"]}{talk}
 
-# What to give
-{count} outfits for today, the best first, each one clearly different from the others (at least two pieces apart where the closet allows).
-{must}
-- Each outfit has a base top, a bottom and shoes. Add a mid layer, an outer layer and accessories only as the day and the look call for them. Use only numbers from the closet list, and put each piece in a place its line allows.
-- Judge each outfit as a whole, the way a person with a good eye would look at it in a mirror: do the colours, textures, proportions and how dressed-up each piece is read as one idea? Would it be comfortable through the hours dressed for, in what the weather does in them, for what the owner is doing?
-- Dress for what it feels like in the hours given, not for a number alone: think about wind, rain and when it falls, sun, humidity, time spent outside, and whether a layer can come off indoors.
-- Learn from what the owner wore and said: lean towards what they loved, away from what they did not, and never offer again an outfit they said "not again" to. Avoid tops worn in the last couple of days unless there is a reason.
-- `why`: speak to the owner plainly, in one or two sentences, about this outfit as a whole today. No piece numbers; name pieces the way their lines do. Do not recite the weather back unless it shaped the choice.
-- `watch`: only a real caution, otherwise empty.
-- `read`: one sentence on what about today shaped your choices."""
+{_give(brief, count)}"""
 
 
 def ask(brief: dict[str, str], routes: tuple[str, ...], client=None, exe: str | None = None,
         meter: Meter | None = None, model: str = MODEL, effort: str | None = EFFORT, count: int = COUNT):
-    """Claude's answer to the brief: a `correcting.CorrectionResult` whose `answer` is a `Looks`. Raises
-    `RouteUnavailable` (or `CapReached`) when Claude cannot be asked, `Unreachable` when it cannot be reached,
-    `TaggingError` when it gives no usable answer."""
-    return correcting.ask(prompt(brief, count), [], routes, client=client, exe=exe, meter=meter, answer_model=Looks,
-                          system=SYSTEM, model=model, max_tokens=MAX_TOKENS, effort=effort)
+    """Claude's answer to the brief: a `correcting.CorrectionResult` whose `answer` is a `Looks`, or a `Reply` when
+    the brief carries the owner's message (`say`). Raises `RouteUnavailable` (or `CapReached`) when Claude cannot be
+    asked, `Unreachable` when it cannot be reached, `TaggingError` when it gives no usable answer."""
+    talking = bool(brief.get("say"))
+    return correcting.ask(prompt(brief, count), [], routes, client=client, exe=exe, meter=meter,
+                          answer_model=Reply if talking else Looks, system=SYSTEM, model=model,
+                          max_tokens=TALK_MAX_TOKENS if talking else MAX_TOKENS, effort=effort)
 
 
-def looks(answer: Looks) -> list[dict]:
+def looks(answer: Looks | Reply) -> list[dict]:
     """The answer's outfits as plain dictionaries, for `styling.check`."""
     return [look.model_dump() for look in answer.outfits]
+
+
+def given(result) -> dict:
+    """An answer as `closet/stylejobs.py` takes it: {looks, read, reply, remember, route, model, input_tokens,
+    output_tokens}. `read` is None for a `Reply`; `reply` and `remember` are for a `Looks`."""
+    a = result.answer
+    return {"looks": looks(a), "read": getattr(a, "read", None), "reply": getattr(a, "reply", None),
+            "remember": [k.model_dump() for k in getattr(a, "remember", [])], "route": result.route,
+            "model": result.model, "input_tokens": result.input_tokens, "output_tokens": result.output_tokens}

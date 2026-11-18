@@ -11,8 +11,9 @@ import { Link } from '../router';
 import { apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, monthName, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
 import { useCloset } from '../store';
 import { applyTheme, loadTheme, saveTheme, THEME_CHOICES, type Theme } from '../theme';
+import { styleChanged, styleCount } from '../style';
 import { MAX_REWEAR, REWEAR_KINDS, rewearWords } from '../trips';
-import type { LaundrySetting, ModelInfo, Profile, RewearKind, RouteOrder, Settings, Storage, TaggingRoute, TaggingSpend, TaggingStatus } from '../types';
+import type { LaundrySetting, ModelInfo, Profile, RewearKind, RouteOrder, Settings, Storage, StyleProfile, TaggingRoute, TaggingSpend, TaggingStatus } from '../types';
 
 /** One group of settings: a card with a heading. */
 function Section({ title, hint, children, id }: { title: string; hint?: string; children: ReactNode; id: string }) {
@@ -37,6 +38,70 @@ function LookSection() {
       <SegmentedControl label="Look" options={THEME_CHOICES} value={theme} className="settings-look"
         onChange={(t) => { setTheme(t); saveTheme(t); applyTheme(t); }} />
     </UiSection>
+  );
+}
+
+/** "Your style": how the owner likes to dress, in their own words. Claude reads it when it chooses the outfits; each
+ * closet (the owner's, the demo) keeps its own. */
+function StyleSection({ offline, profile, toast }: { offline: boolean; profile: Profile; toast(m: string, k?: 'ok' | 'error'): void }) {
+  const [style, setStyle] = useState<StyleProfile | null>(null);
+  const [draft, setDraft] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const countId = useId();
+
+  useEffect(() => {
+    if (offline) return;
+    let live = true;
+    api.styleProfile().then((p) => {
+      if (!live) return;
+      setStyle(p);
+      setDraft(p.text);
+      setError(null);
+    }).catch((e) => { if (live) setError((e as Error).message); });
+    return () => { live = false; };
+  }, [offline, profile]);
+
+  async function save(text: string) {
+    setBusy(true);
+    try {
+      const saved = await api.saveStyleProfile(text);
+      setStyle(saved);
+      setDraft(saved.text);
+      toast('Saved');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const count = style ? styleCount(draft.length, style.max_length) : null;
+  return (
+    <Section title="Your style" id="s-style"
+      hint="How you like to dress, in your own words. Claude reads this every time it chooses your outfits, and it wins over the general menswear guide. Write it the way you would tell a friend who is choosing your clothes.">
+      {error && <p className="form-error" role="alert">Couldn't load your style: {error}</p>}
+      {!style && !error && <p className="hint">{offline ? "Your style can't be shown while you're offline." : 'Loading your style…'}</p>}
+      {style && count && (
+        <form className="settings-style" onSubmit={(e: FormEvent) => { e.preventDefault(); void save(draft); }}>
+          <label className="field">
+            <span>About how I dress</span>
+            <textarea rows={8} maxLength={style.max_length} value={draft} disabled={offline || busy}
+              aria-describedby={countId} onChange={(e) => setDraft(e.target.value)} />
+          </label>
+          <p className={count.warn ? 'settings-style-count is-warn' : 'settings-style-count'} id={countId}>
+            <span className="visually-hidden">Characters used: </span>{count.text}
+          </p>
+          <p className="hint">For example: “I run warm, so one layer fewer than most people.” “No ties unless it is a wedding.” “I like navy with brown, and I never wear black shoes with jeans.”</p>
+          <div className="settings-style-actions">
+            <button type="submit" className="btn btn-primary" disabled={offline || busy || !styleChanged(draft, style.text)}>Save</button>
+            {!style.is_default && (
+              <button type="button" className="btn" disabled={offline || busy} onClick={() => void save('')}>Back to the starting text</button>
+            )}
+          </div>
+        </form>
+      )}
+    </Section>
   );
 }
 
@@ -110,6 +175,8 @@ export function SettingsScreen({ version }: { version: string }) {
         </Section>
 
         <LookSection />
+
+        <StyleSection offline={offline} profile={profile} toast={toast} />
 
         <TaggingSection offline={offline} settings={settings} onChange={setSettings} reload={load} toast={toast} />
 

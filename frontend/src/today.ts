@@ -211,6 +211,12 @@ export function longDate(day: string): string {
   return `${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${d} ${MONTHS[m - 1]}`;
 }
 
+/** "Wed 25 Nov" from "2026-11-25": the day where there is little room (Today's header on a phone). */
+export function shortDate(day: string): string {
+  const [y, m, d] = day.split('-').map(Number);
+  return `${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()].slice(0, 3)} ${d} ${MONTHS[m - 1]}`;
+}
+
 /** A temperature typed by hand ("5", "-3", "12.5", "12°"); null if it is not a number this app plans for. */
 export function parseTemp(text: string): number | null {
   const cleaned = text.replace(/[°\sC]/gi, '').replace(',', '.').replace('−', '-');

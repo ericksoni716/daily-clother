@@ -720,8 +720,9 @@ over Tailscale the browser may not share its position (the address is not
 https); search by name there instead. **Back to New York** forgets your place.
 After you answer **How you live**, the same place is also used for long-term
 weather on What's missing. That lookup sends only the coordinates and keeps
-the result for six months. Your life answers and style words stay on your
-computer, in its settings; they are not in closet backups.
+the result for six months. Your life answers and the style words you gave with them stay on your
+computer, in its settings; they are not in closet backups. (**Your style** in
+Settings is a different thing: it is kept in your closet, so it is in backups.)
 
 ### Light or dark
 
@@ -730,6 +731,27 @@ one yourself, go to **Settings → Look** and pick **Light** or **Dark**; pick
 **Same as this device** to follow the device again. The choice is remembered
 on each device separately. Clothing pictures stay on a light background in
 dark mode, so their colours look right.
+
+### Your style, and how you wear each piece
+
+Closet is getting ready for Claude to choose your outfits. That arrives in the
+next update; for now you can already write down two things Claude will read,
+and Closet keeps them for it.
+
+**Settings → Your style** is how you like to dress, in your own words, the way
+you would tell a friend who is choosing your clothes ("I run warm, so one layer
+fewer than most people", "No ties unless it is a wedding"). What you write
+there wins over the general menswear guide. Change it whenever you like and
+press **Save**; **Back to the starting text** puts back the few lines Closet
+starts with. It can be up to 4,000 characters long.
+
+**How I wear it**, under **More details** on an item's page, beside **Fit
+notes** and **Notes**, is your note on that one piece ("only with the navy
+suit", "runs warm", "for dinners out"). Your note on a piece wins over both
+your style and the guide.
+
+Both are kept in your closet itself, so they are in your backups, and the demo
+closet has its own. Nothing is sent to Claude when you save them.
 
 ## Demo closet
 

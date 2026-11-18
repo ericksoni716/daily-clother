@@ -6,13 +6,18 @@
 /* two tones: the day after the title, as large and light, in the title's second colour */
 .today-header .count { font-size: var(--text-2xl); font-weight: var(--weight-body); letter-spacing: -0.02em; line-height: 1.1; color: var(--ink-tone); }
 @media (min-width: 700px) { .today-header .count { font-size: var(--text-3xl); } }
+.today-header .count { white-space: nowrap; }
+.today-header .date-short { display: none; }
 .today-links { display: flex; gap: var(--space-2); flex: none; }
 .today-links .btn { padding: 0 var(--space-3); gap: 6px; }
 .today-links .btn svg { width: 18px; height: 18px; color: var(--ink-3); }
 /* on a phone the date goes under the title, so Worn and Trips fit beside it */
 @media (max-width: 599px) {
   .today-header .page-title-row { flex-direction: column; align-items: flex-start; gap: 0; }
-  .today-header .count { font-size: var(--text-lg); }   /* the day stays on one line beside Worn and Trips */
+  .today-header .count { font-size: var(--text-lg); }
+  /* the day stays on one line beside Worn and Trips whatever its name: "Wed 25 Nov", not "Wednesday 25 Nov" */
+  .today-header .date-long { display: none; }
+  .today-header .date-short { display: inline; }
   .today-day-line, .today-day-change .btn-link { font-size: var(--text-sm); }
   .today-outfits-head h2 { font-size: var(--text-sm); }
 }

@@ -27,7 +27,7 @@ from . import (
 )
 from .tagger.taxonomy import SHADES, nearest_shade
 
-TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "acquired_on", "notes", "rating_reason", "color_hex")
+TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "wear_notes", "acquired_on", "notes", "rating_reason", "color_hex")
 ENUM_FIELDS = tuple(vocab.ENUM_FIELDS)
 PATCHABLE = set(TEXT_FIELDS) | set(ENUM_FIELDS) | {"silhouette", "price_cents", "status"}
 RECENT_WEARS = 10
@@ -78,8 +78,8 @@ def summary(conn, row) -> dict:
 def detail(conn, row) -> dict:
     row = illustrations.current(conn, row)
     out = summary(conn, row)
-    for f in ("formality", "season", "brand", "size", "material", "fit_notes", "condition", "price_cents",
-              "acquired_on", "notes", "rating_reason", "illustration_svg", "cutout_error"):
+    for f in ("formality", "season", "brand", "size", "material", "fit_notes", "wear_notes", "condition",
+              "price_cents", "acquired_on", "notes", "rating_reason", "illustration_svg", "cutout_error"):
         out[f] = row[f]
     for f in ("silhouette", "confidence", "source"):
         out[f] = json.loads(row[f] or "{}")

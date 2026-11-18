@@ -27,6 +27,18 @@ const said = (r: Request) => r.url().endsWith('/api/outfits/today') && r.method(
 async function open(page: Page, url: string) {
   await page.setViewportSize({ width: 390, height: 844 });
   const session = await (await page.request.get(url + '/api/session')).json();
+  // The day is set before the first page opens: logging in can show Today for a moment, and a request of its own
+  // without this day would reach Closet late, look like the weather moving and make Claude choose afresh just as a
+  // test sends a message (which is then refused: seen once on GitHub).
+  await page.route('**/api/outfits/today', async (route: Route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    const response = await route.fetch({ postData: { ...body, ...DAY } });
+    const json = await response.json();
+    if (response.ok()) {
+      Object.assign(json.context, { source: 'forecast', place: 'Brooklyn, New York, United States', rain_chance: 70, summary: 'rain', old: false, message: null });
+    }
+    await route.fulfill({ response, json });
+  });
   await page.goto(url + '/');
   if (session.setup_required) {
     await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
@@ -39,15 +51,6 @@ async function open(page: Page, url: string) {
   }
   // logged in: the closet or Today opens (before that, leaving the page would lose the login)
   await expect(page.locator('#closet-title, #today-title').first()).toBeVisible();
-  await page.route('**/api/outfits/today', async (route: Route) => {
-    const body = route.request().postDataJSON() as Record<string, unknown>;
-    const response = await route.fetch({ postData: { ...body, ...DAY } });
-    const json = await response.json();
-    if (response.ok()) {
-      Object.assign(json.context, { source: 'forecast', place: 'Brooklyn, New York, United States', rain_chance: 70, summary: 'rain', old: false, message: null });
-    }
-    await route.fulfill({ response, json });
-  });
   await page.goto(url + '/today');
   await expect(read(page)).toBeVisible({ timeout: 20_000 });
   await expect(current(page).getByTestId('outfit-by')).toHaveText('Chosen by Claude');
@@ -87,8 +90,12 @@ test.describe('talking to Claude about the outfits', () => {
   test.afterAll(async () => {
     await backend?.stop();
   });
-  // a request still on its way when a test ends is not that test's failure
+  // A request still on its way when a test ends is not that test's failure. The page is emptied first, so that it
+  // asks nothing more once the day is no longer set for its requests: one request without the day, reaching Closet
+  // late, looks like the weather moving and makes Claude choose afresh while the next test sends a message, which
+  // is then refused (seen once on GitHub).
   test.afterEach(async ({ page }) => {
+    await page.goto('about:blank').catch(() => undefined);
     await page.unrouteAll({ behavior: 'ignoreErrors' });
   });
 

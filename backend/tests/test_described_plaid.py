@@ -135,3 +135,29 @@ def test_the_form_reads_an_answer_and_every_field_is_described():
     for m in (described.PlaidDescription, described.Band):
         assert all(f.description for f in m.model_fields.values())
     assert "plaid" in described.FIELD_TEXT and len(described.GUIDANCE) < 1200
+
+
+def test_a_described_plaid_can_take_its_colours_from_the_photo():
+    """Described in clean, strong colours; the photo's cloth is duller and browner. With the cutout, the repeat's
+    average colour becomes the garment's, and the bands stay where they were described."""
+    import base64
+    import io
+
+    import cv2
+    import numpy as np
+    from PIL import Image
+
+    from closet.patterns import described
+    desc = {"across": [{"color": "#3b3468", "width": 6}, {"color": "#d8c79c", "width": 2}], "down": [],
+            "same_both_ways": True, "repeats_across_chest": 4}
+    rng = np.random.default_rng(1)
+    cloth = np.clip(rng.normal((120, 100, 90), 18, (200, 160, 3)), 0, 255).astype(np.uint8)
+    cut = Image.fromarray(np.dstack([cloth, np.full((200, 160), 255, np.uint8)]), "RGBA")
+
+    def pixels(kept):
+        return np.asarray(Image.open(io.BytesIO(base64.b64decode(kept["image"]))).convert("RGB"))
+    plain, toned = pixels(described.tile(desc)), pixels(described.tile(desc, cut))
+    mean = lambda rgb: cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB).reshape(-1, 3).mean(0)  # noqa: E731
+    assert np.abs(mean(toned) - mean(cloth)).max() < 6 < np.abs(mean(plain) - mean(cloth)).max()
+    light = lambda rgb: cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB)[..., 0].astype(float).mean(0)  # noqa: E731
+    assert np.corrcoef(light(plain), light(toned))[0, 1] > 0.95      # the same bands in the same places

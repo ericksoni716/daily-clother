@@ -184,14 +184,40 @@ def weave(desc: dict) -> np.ndarray:
     return cv2.cvtColor(np.clip(lab, 0, 255).round().astype(np.uint8), cv2.COLOR_LAB2RGB)
 
 
-def tile(raw) -> dict | None:
+SPREAD = (0.5, 1.6)   # how far the photo may pull the described colours' contrast, per Lab channel
+
+
+def toned(img: np.ndarray, cut: Image.Image) -> np.ndarray:
+    """The described repeat in the photo's own colours. A description gets the bands and their order right but
+    names cleaner, stronger colours than the cloth has and often the wrong one as the ground; the photo is poor
+    at where the bands are but exact about what colour the garment is overall. So the repeat's colours are moved
+    as a whole until their average and their spread (lightness, green-red and blue-yellow each on its own) are
+    those of the garment's pixels, with the weave's grain smoothed out of both first."""
+    arr = np.asarray(cut.convert("RGBA"))
+    on = arr[..., 3] > 200
+    if on.sum() < 400:
+        return img
+    photo = cv2.cvtColor(cv2.GaussianBlur(np.ascontiguousarray(arr[..., :3]), (0, 0), 2.0), cv2.COLOR_RGB2LAB)[on].astype(np.float32)
+    lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB).astype(np.float32)
+    flat = cv2.GaussianBlur(np.pad(lab, ((6, 6), (6, 6), (0, 0)), mode="wrap"), (0, 0), 2.0)[6:-6, 6:-6].reshape(-1, 3)
+    lo, hi = np.percentile(photo, [2, 98], axis=0)        # a glint, a button, a sliver of background do not count
+    kept = photo[((photo >= lo) & (photo <= hi)).all(1)]
+    gain = np.clip(kept.std(0) / np.maximum(flat.std(0), 1e-3), *SPREAD)
+    out = (lab - flat.mean(0)) * gain + kept.mean(0)
+    return cv2.cvtColor(np.clip(out, 0, 255).round().astype(np.uint8), cv2.COLOR_LAB2RGB)
+
+
+def tile(raw, cut: Image.Image | None = None) -> dict | None:
     """The kept pattern for a described plaid (as `measure.measure` keeps a measured one), or None when the
     description has nothing to draw. Sized so `repeats_across_chest` repeats fit across the drawn chest; placed
-    with the middle of the first (widest) band each way on the button line."""
+    with the middle of the first (widest) band each way on the button line. With the item's cutout, its colours
+    are brought to the photo's (`toned`)."""
     desc = read(raw)
     if desc is None:
         return None
     img = weave(desc)
+    if cut is not None:
+        img = toned(img, cut)
     first_a = desc["across"][0][1] / 2 / sum(w for _, w in desc["across"])
     first_d = desc["down"][0][1] / 2 / sum(w for _, w in desc["down"])
     return {"kind": "tile", "how": "described", "image": tile_text(Image.fromarray(img), quality=92),

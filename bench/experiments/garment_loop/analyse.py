@@ -21,17 +21,17 @@ from closet.patterns import described  # noqa: E402
 from PIL import Image  # noqa: E402
 
 LINES = ("ground", "colours", "scale", "structure", "pick")
-ARMS = ["A", "B", "C-sonnet", "C-opus", "D1", "D2", "D3", "E", "D-small3"]
+ARMS = ["A", "B", "C-sonnet", "C-opus", "D1", "D2", "D3", "E", "D-small3", "F"]
 
 
 def sheet(gid: str) -> dict | None:
     return H.load_json(H.PRIV / "sheets" / f"{gid}.json")
 
 
-def rubric(half: str) -> dict:
+def rubric(half: str, rnd: str = "") -> dict:
     """{(gid, arm): {line: score}}: the two passes averaged; where they differ by 2 or more on a line and a third
     pass exists, the median of the three. Also the agreement between passes."""
-    scores = H.load_json(J.JUDGE / half / "scores.json") or {"rubric": []}
+    scores = H.load_json((J.JUDGE / half / rnd if rnd else J.JUDGE / half) / "scores.json") or {"rubric": []}
     by = {}
     for r in scores["rubric"]:
         by.setdefault((r["gid"], r["drawing"]), {})[r["pass"]] = r
@@ -148,7 +148,7 @@ def cost(gid: str, arm: str) -> dict:
     if arm == "A":
         rec = (H.load_json(H.wdir(gid) / "drawings.json") or {}).get("A", {})
         return {"calls": 0, "in": 0, "out": 0, "seconds": rec.get("seconds", 0.0), "usd": 0.0}
-    if arm in ("B", "C-sonnet", "C-opus"):
+    if arm in ("B", "C-sonnet", "C-opus", "F"):
         rs = recs(f"{arm}_run1.json")
     elif arm.startswith("D-small"):
         rs = recs("B_run1.json") + recs("D-small_chain1_round*.json")
@@ -164,13 +164,13 @@ def cost(gid: str, arm: str) -> dict:
             "usd": sum(r["price_usd"] for r in rs)}
 
 
-def main(half: str) -> None:
+def main(half: str, rnd: str = "") -> None:
     ids = json.loads((H.PRIV / "split.json").read_text())[half]
     s_of = {g: sheet(g) for g in ids}
-    rub = rubric(half)
+    rub = rubric(half, rnd)
     R = rub["scores"]
     steady_judge = {}
-    for r in (H.load_json(J.JUDGE / half / "scores.json") or {}).get("steady", []):
+    for r in (H.load_json((J.JUDGE / half / rnd if rnd else J.JUDGE / half) / "scores.json") or {}).get("steady", []):
         steady_judge[(r["gid"], r["arm"])] = bool(r["answer"].get("all_same"))
     table = {}
     for arm in ARMS:
@@ -191,7 +191,7 @@ def main(half: str) -> None:
         wrong = [g for g in patterned if shows(g) and (R[(g, arm)]["ground"] == 0 or R[(g, arm)]["pick"] == 0)]
         csd = [d for d in (colour_share_distance(g, arm, s_of[g]) for g in rows if s_of[g]) if d is not None]
         steady_arm = {"D3": "D3", "D-small3": "D-small3"}.get(arm, arm)
-        rr = [x for x in (run_to_run(g, steady_arm) for g in rows) if x is not None] if arm in J.STEADY_ARMS else []
+        rr = [x for x in (run_to_run(g, steady_arm) for g in rows) if x is not None] if arm in J.STEADY_ARMS + ["F"] else []
         same = [steady_judge[(g, steady_arm)] for g in rows if (g, steady_arm) in steady_judge]
         costs = [cost(g, arm) for g in rows]
         table[arm] = {
@@ -215,11 +215,13 @@ def main(half: str) -> None:
             table[arm][key] = {k: float(np.mean(v)) for k, v in sorted(sets.items())}
     out = {"half": half, "agreement": rub["agreement"], "arms": table}
     (H.PRIV / "results").mkdir(exist_ok=True)
-    H.save_json(H.PRIV / "results" / f"{half}.json", json.loads(json.dumps(out, default=float)))
+    H.save_json(H.PRIV / "results" / f"{half}{'-' + rnd if rnd else ''}.json", json.loads(json.dumps(out, default=float)))
     print(json.dumps(out, indent=1, default=lambda x: round(float(x), 3)))
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--half", default="tuning")
-    main(ap.parse_args().half)
+    ap.add_argument("--round", default="")
+    a = ap.parse_args()
+    main(a.half, a.round)

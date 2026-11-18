@@ -85,9 +85,11 @@ def sheet(gid: str, R: dict, out: Path) -> Path:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--half", default="tuning")
-    half = ap.parse_args().half
-    out = H.PRIV / "results" / half
+    ap.add_argument("--round", default="")
+    args = ap.parse_args()
+    half = args.half
+    out = H.PRIV / "results" / (half + (f"-{args.round}" if args.round else ""))
     out.mkdir(parents=True, exist_ok=True)
-    R = A.rubric(half)["scores"]
+    R = A.rubric(half, args.round)["scores"]
     for gid in json.loads((H.PRIV / "split.json").read_text())[half]:
         print(sheet(gid, R, out))

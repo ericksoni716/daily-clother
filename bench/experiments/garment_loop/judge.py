@@ -31,7 +31,7 @@ def drawing_of(gid: str, arm: str, run: int = 1) -> str | None:
     w = H.wdir(gid)
     if arm in ("A",):
         return "A" if (w / "draw" / "A.png").exists() else None
-    if arm in ("B", "C-sonnet", "C-opus"):
+    if arm in ("B", "C-sonnet", "C-opus", "F"):
         name = f"{arm}_run{run}"
         return name if (w / "draw" / f"{name}.png").exists() else None
     for tag in ("D-small", "D"):
@@ -77,15 +77,20 @@ def _carded(img: Image.Image) -> Image.Image:
     return card
 
 
-def packs(half: str) -> None:
+def packs(half: str, rnd: str = "", rubric_arms=None, pair_arms=None, steady_arms=None) -> None:
+    """The judging images for one half; a later round (`rnd`, its own folder) can judge another set of arms
+    without touching what an earlier round judged."""
+    rubric_arms, pair_arms, steady_arms = rubric_arms or RUBRIC_ARMS, pair_arms or PAIR_ARMS, steady_arms or STEADY_ARMS
     ids = json.loads((H.PRIV / "split.json").read_text())[half]
-    out = JUDGE / half
-    salt = random.Random(f"{half}-salt").random()
+    out = JUDGE / half / rnd if rnd else JUDGE / half
+    if (out / "key.json").exists():
+        sys.exit(f"{out} already has judging images; a new round needs its own name")
+    salt = random.Random(f"{half}-{rnd}-salt").random()
     key = {"rubric": {}, "pairwise": {}, "steady": {}}
     # the rubric: one image per distinct drawing, each pass its own names and order
     distinct = {}
     for gid in ids:
-        for arm in RUBRIC_ARMS:
+        for arm in rubric_arms:
             name = drawing_of(gid, arm)
             if name is not None:
                 distinct.setdefault((gid, name), []).append(arm)
@@ -105,7 +110,7 @@ def packs(half: str) -> None:
     folder.mkdir(parents=True, exist_ok=True)
     for gid in ids:
         shown = {}
-        for arm in PAIR_ARMS:
+        for arm in pair_arms:
             name = drawing_of(gid, arm)
             if name is not None:
                 shown.setdefault(name, []).append(arm)
@@ -118,7 +123,7 @@ def packs(half: str) -> None:
     folder = out / "steady"
     folder.mkdir(parents=True, exist_ok=True)
     for gid in ids:
-        for arm in STEADY_ARMS:
+        for arm in steady_arms:
             names = [drawing_of(gid, arm, r) for r in (1, 2, 3)]
             if None in names:
                 continue
@@ -162,9 +167,9 @@ def _answers(folder: Path) -> dict:
     return merged
 
 
-def collect(half: str) -> None:
+def collect(half: str, rnd: str = "") -> None:
     """Join the judges' answer files (answers*.json in rubric<p>/, pairwise/ and steady/) to arms."""
-    out = JUDGE / half
+    out = JUDGE / half / rnd if rnd else JUDGE / half
     key = H.load_json(out / "key.json")
     scores = {"rubric": [], "pairwise": [], "steady": []}
     for p in (1, 2, 3):
@@ -191,5 +196,15 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("step")
     ap.add_argument("--half", default="tuning")
+    ap.add_argument("--round", default="", help="a later round's folder name (e.g. r2)")
+    ap.add_argument("--rubric", help="arms for the rubric, comma-separated (default: the first round's)")
+    ap.add_argument("--pair", help="arms for the pairwise ranking")
+    ap.add_argument("--steady", help="arms for the steadiness check")
     args = ap.parse_args()
-    {"packs": packs, "collect": collect}[args.step](args.half)
+
+    def arms(v):
+        return v.split(",") if v else None
+    if args.step == "packs":
+        packs(args.half, args.round, arms(args.rubric), arms(args.pair), arms(args.steady))
+    else:
+        collect(args.half, args.round)

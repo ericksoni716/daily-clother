@@ -45,6 +45,11 @@ said to go against the photos, and the first check says it is good.
 With CLOSET_E2E_TAG_FAILS=N the first N descriptions fail with a reason Closet does not recognise, which quotes
 something shaped like a key and a file outside Closet's folder (both made up), so the page can show a failed item.
 
+Claude choosing the day's outfits on Today is never the real Claude. With CLOSET_E2E_STYLIST empty there is no stylist
+at all, so Today is the rules engine's alone, as before. With CLOSET_E2E_STYLIST=1 a stand-in (`fake_stylist`) answers
+after 1.5 seconds (so the page's waiting card can be seen) with the rules' second and first outfits, in that order;
+with CLOSET_E2E_STYLIST=fails it cannot be reached.
+
 The API key box keeps keys in a stand-in keychain (never the computer's), and the check with Anthropic is a
 stand-in too: a key ending in "refused" is turned down, any other well-formed key is accepted.
 """
@@ -61,7 +66,7 @@ from closet.tagger import routes as tagger_routes
 from closet.tagger import shoedrawing
 from closet.tagger.correcting import CorrectionResult
 from closet.tagger.shopping import Found, PriceAnswer, PriceSeen, ShopAnswer
-from closet.tagger.tagging import TaggingError, TagResult
+from closet.tagger.tagging import TaggingError, TagResult, Unreachable
 
 from .conftest import (
     ANSWER,
@@ -234,10 +239,59 @@ def fake_day_reader(text, today, home, routes):
 fake_day_reader.needs_route = False   # as fake_add_sorter
 
 
+STYLIST_WORDS = {"base": "base", "mid layer": "mid", "outer layer": "outer", "bottom": "bottom", "shoes": "shoes"}
+
+
+def _look(line: str) -> dict:
+    """One line of the rules' shortlist ("- base 7; mid layer 11; ...; accessories 35, 36") as one of Claude's looks."""
+    look: dict = {"base": 0, "mid": 0, "outer": 0, "bottom": 0, "shoes": 0, "accessories": []}
+    for part in line[2:].split(";"):
+        part = part.strip()
+        if part.startswith("accessories "):
+            look["accessories"] = [int(n) for n in part[len("accessories "):].split(",") if n.strip().isdigit()]
+            continue
+        words, _, number = part.rpartition(" ")
+        if words in STYLIST_WORDS and number.isdigit():
+            look[STYLIST_WORDS[words]] = int(number)
+    return look
+
+
+def fake_stylist(brief, routes):
+    """Stands in for Claude choosing the day's outfits: the rules' second outfit first (so Claude's first differs from
+    the rules' first), then their first; with only one, that one."""
+    lines = [ln for ln in brief["shortlist"].splitlines() if ln.startswith("- ") and not ln.startswith("- The rules")]
+    chosen = [lines[1], lines[0]] if len(lines) > 1 else lines[:1]
+    looks = []
+    for i, line in enumerate(chosen):
+        looks.append({**_look(line), "why": "Chosen by the stand-in: these go together.",
+                      "watch": "" if i == 0 else "The stand-in has no eye for colour."})
+    return {"looks": looks, "read": "It is a made-up day, so the stand-in chose by number.", "route": routes[0],
+            "model": "stand-in", "input_tokens": 100, "output_tokens": 50}
+
+
+def slow_stylist(brief, routes):
+    time.sleep(1.5)   # long enough for the page to show Claude choosing
+    return fake_stylist(brief, routes)
+
+
+def failing_stylist(brief, routes):
+    raise Unreachable("offline")
+
+
 def build_services(cfg, **kwargs):
+    sv = _build_services(cfg, **kwargs)
+    if not os.environ.get("CLOSET_E2E_STYLIST"):
+        sv.stylist = None   # no stylist at all: the real Claude would otherwise choose without the other stand-ins
+    return sv
+
+
+def _build_services(cfg, **kwargs):
     # sorting the photos on Add never reaches Claude from a browser test, with or without the other stand-ins
     kwargs.setdefault("add_sorter", fake_add_sorter)
     kwargs.setdefault("day_reader", fake_day_reader)   # nor does reading the day in the owner's words
+    chooser = os.environ.get("CLOSET_E2E_STYLIST")
+    if chooser:   # nor does choosing the day's outfits
+        kwargs.setdefault("stylist_ask", failing_stylist if chooser == "fails" else slow_stylist)
     if not os.environ.get("CLOSET_E2E_FAKES"):
         return _real_build(cfg, **kwargs)
     if os.environ.get("CLOSET_E2E_SEED") == "demo":

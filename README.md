@@ -110,6 +110,22 @@ choose your place: tap **Change** beside the weather to search for it or tap
 When the weather cannot be fetched, Today still dresses you, for a mild day,
 and says so. Offline, Today shows the outfits it last found that day.
 
+**Claude chooses your outfits.** In your own closet, Claude looks at your
+clothes, what you wrote in **Your style** and on your pieces, what you wore
+lately and what you said about it, and the day, and chooses the outfits; each
+one says **Chosen by Claude**, with Claude's own words on why it works, and a
+line under the outfits says what about the day shaped the choice. The first
+time each day, and when you change the occasion or the mood, this takes about
+20 seconds and Today shows that Claude is choosing; tap **Show Closet's own
+picks meanwhile** to see (and wear) Closet's own outfits while you wait. The
+outfits are then kept for the rest of the day. **Ask Claude again**, under the
+outfits, has Claude choose afresh. When Claude can't be reached, when the
+switch in **Settings → Your style** is off, and always in the demo closet,
+Closet's own rules choose, as before (outfits from them say **From Closet's
+rules** when Claude couldn't choose). It uses your Claude plan, or your API key
+first when that is switched on in Settings: about 5 cents each time, counted in
+the monthly limit.
+
 The weather line is about the hours ahead of you, not the whole day: from now
 until ten at night (from seven in the morning if you look earlier). It says
 what those hours feel like when wind or damp make that different from the
@@ -734,16 +750,17 @@ dark mode, so their colours look right.
 
 ### Your style, and how you wear each piece
 
-Closet is getting ready for Claude to choose your outfits. That arrives in the
-next update; for now you can already write down two things Claude will read,
-and Closet keeps them for it.
+Claude chooses your outfits on Today (see above), and reads two things you
+write down for it.
 
 **Settings → Your style** is how you like to dress, in your own words, the way
 you would tell a friend who is choosing your clothes ("I run warm, so one layer
 fewer than most people", "No ties unless it is a wedding"). What you write
 there wins over the general menswear guide. Change it whenever you like and
 press **Save**; **Back to the starting text** puts back the few lines Closet
-starts with. It can be up to 4,000 characters long.
+starts with. It can be up to 4,000 characters long. The switch above it, **Let
+Claude choose my outfits**, turns Claude's choosing off and on; when it is off,
+Closet's own rules choose.
 
 **How I wear it**, under **More details** on an item's page, beside **Fit
 notes** and **Notes**, is your note on that one piece ("only with the navy

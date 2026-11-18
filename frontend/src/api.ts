@@ -1,5 +1,5 @@
 import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, StyleProfile } from './types';
-import { forgetSaved, type DayAnswer, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
+import { forgetSaved, type DayAnswer, type StyleAnswer, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
 import type { Insights } from './insights';
@@ -307,7 +307,7 @@ export const api = {
   downloadModel: () => request<ModelInfo>('/api/model/download', { method: 'POST' }),
   setModelUrl: (url: string) => request<ModelInfo>('/api/model/url', { method: 'PUT', body: { url } }),
   settings: () => request<Settings>('/api/settings'),
-  putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean; tagging_api_cap_usd?: number | null; tagging_route_order?: RouteOrder; life?: Life | null; life_prompt_dismissed?: boolean; rewear?: Partial<Rewear> | null; laundry?: Partial<LaundrySetting> }) =>
+  putSettings: (changes: { backup_folder?: string | null; autostart?: boolean; place?: Place | null; tagging_api_enabled?: boolean; tagging_api_cap_usd?: number | null; tagging_route_order?: RouteOrder; life?: Life | null; life_prompt_dismissed?: boolean; rewear?: Partial<Rewear> | null; laundry?: Partial<LaundrySetting>; stylist_on?: boolean }) =>
     request<Settings>('/api/settings', { method: 'PUT', body: changes }),
   /** The owner's style profile: the text in force, the starting one until they write their own. */
   styleProfile: () => request<StyleProfile>('/api/style/profile'),
@@ -325,6 +325,9 @@ export const api = {
   weather: () => request<WeatherLookup>('/api/weather'),
   today: (choices: TodayRequest, signal?: AbortSignal) =>
     request<TodayAnswer>('/api/outfits/today', { method: 'POST', body: choices, signal }),
+  /** How a question to Claude about today's outfits stands, while Today waits on it (cheap to ask every few seconds). */
+  styleAnswer: (id: string, signal?: AbortSignal) =>
+    request<StyleAnswer>(`/api/style/answers/${encodeURIComponent(id)}`, { signal }),
   planTrip: (trip: TripRequest, signal?: AbortSignal) =>
     request<PlannedTrip>('/api/trips/plan', { method: 'POST', body: trip, signal }),
   saveTrip: (trip: TripRequest) => request<Trip>('/api/trips', { method: 'POST', body: trip }),

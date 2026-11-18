@@ -9,9 +9,9 @@ import { label } from '../labels';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
 import {
-  canDress, dayParts, joinWords, longDate, keptFor, loadChoice, moodLabel, MOODS, occasionLabel, OCCASIONS, outfitIds, parseTemp, placeLabel, shortDate,
-  saveChoice, sameOutfit, timeOf, whatToAddFirst, wornNow, wornOrder, type Choice, type DayAnswer, type DayNote, type Outfit, type Place,
-  type TodayAnswer,
+  canDress, chosenBy, dayParts, joinWords, longDate, keptFor, loadChoice, moodLabel, MOODS, occasionLabel, OCCASIONS, outfitIds, parseTemp, placeLabel, shortDate,
+  saveChoice, sameOutfit, stylistView, STYLIST_SLOW_S, timeOf, waitingLine, whatToAddFirst, wornNow, wornOrder, type Choice, type DayAnswer, type DayNote, type Outfit, type Place,
+  type StylistState, type TodayAnswer,
   type TodayRequest, type TypedDay, type WornToday,
 } from '../today';
 import type { ItemSummary, Settings } from '../types';
@@ -79,6 +79,12 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const [dismissed, setDismissed] = useState<string[]>(() => loadDismissed(profile));
   const [rated, setRated] = useState<WornOutfit | null>(null);
   const [loadingItems, setLoadingItems] = useState(items.active === null);
+  // Claude choosing: the question whose rules' outfits are shown meanwhile, and whether the owner chose one of them
+  // while Claude was still choosing (then the waiting card stays away for the rest of this visit)
+  const [meanwhileFor, setMeanwhileFor] = useState<string | null>(null);
+  const [choseOwn, setChoseOwn] = useState(false);
+  // "Ask Claude again": the next request carries ask_again, once (never kept with the request or in the saved copy)
+  const askAgain = useRef(false);
 
   useEffect(() => {
     const updateDay = () => setToday(localDay());
@@ -139,9 +145,10 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     const ctrl = new AbortController();
     let done = false;
     setAsking(true);
-    api.today(req, ctrl.signal).then(
+    api.today(askAgain.current ? { ...req, ask_again: true } : req, ctrl.signal).then(
       (answer) => {
         done = true;
+        askAgain.current = false;
         answered.current = key;
         kept.setOutfits({ day: localDay(), saved_at: new Date().toISOString(), request: req, answer });
         setPhase({ kind: 'ready', answer, savedAt: null });
@@ -152,6 +159,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
       (e) => {
         if ((e as Error)?.name === 'AbortError') return;
         done = true;
+        askAgain.current = false;
         const err = e as ApiError;
         setAsking(false);
         if (err.status === 0) {
@@ -197,6 +205,48 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     memory = { profile, day: today, key: answered.current, phase, index, buildAround, leaveOut };
   }, [profile, today, phase, index, buildAround, leaveOut]);
 
+  // While Claude is choosing, ask every 2 seconds how it stands (cheap); once it is no longer choosing, ask Today
+  // again with the same choices so Claude's outfits (or the rules', with why) arrive by themselves.
+  const stylist = phase.kind === 'ready' ? phase.answer.context.stylist ?? null : null;
+  const claudeView = phase.kind === 'ready' ? stylistView(stylist, phase.savedAt !== null) : 'none';
+  const waitingOn = claudeView === 'waiting' && !choseOwn && !offline && stylist?.id ? phase : null;
+  const gone = useRef(new Set<string>());
+  useEffect(() => {
+    if (!waitingOn || waitingOn.kind !== 'ready') return;
+    const id = waitingOn.answer.context.stylist?.id;
+    if (!id) return;
+    const ctrl = new AbortController();
+    let stopped = false;
+    const stop = () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+    const timer = window.setInterval(() => {
+      if (stopped) return;
+      api.styleAnswer(id, ctrl.signal).then(
+        (a) => {
+          if (stopped || a.state === 'working') return;
+          stop();
+          setAttempt((n) => n + 1);
+        },
+        (e) => {
+          if (stopped || (e as Error)?.name === 'AbortError') return;
+          stop();
+          // the question is gone (the closet changed, the program restarted): ask Today again, once
+          if ((e as ApiError).status === 404 && !gone.current.has(id)) {
+            gone.current.add(id);
+            setAttempt((n) => n + 1);
+          }
+          // anything else (offline, a network error): stop quietly; the outfits shown stand
+        },
+      );
+    }, 2000);
+    return () => {
+      stop();
+      ctrl.abort();
+    };
+  }, [waitingOn]);
+
   const choose = (next: Choice) => {
     setChoice(next);
     saveChoice(next);
@@ -208,6 +258,8 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const locked = offline || (phase.kind === 'ready' && phase.savedAt !== null);
 
   async function wear(o: Outfit) {
+    // one of the rules' outfits worn while Claude was still choosing: that is the owner's choice for today
+    if (claudeView === 'waiting') setChoseOwn(true);
     const day = localDay();
     setToday(day);
     const ids = outfitIds(o.pieces);
@@ -431,7 +483,15 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         </div>
       )}
 
-      <Body phase={phase} asking={asking} index={index} setIndex={setIndex} byId={byId} worn={worn} busy={busy}
+      <Body phase={phase} asking={asking} stylist={claudeView === 'none' ? null : stylist}
+        waiting={claudeView === 'waiting' && !choseOwn} meanwhile={!!stylist?.id && meanwhileFor === stylist.id}
+        onMeanwhile={() => setMeanwhileFor(stylist?.id ?? null)}
+        onAskAgain={() => {
+          askAgain.current = true;
+          setChoseOwn(false);
+          setAttempt((n) => n + 1);
+        }}
+        index={index} setIndex={setIndex} byId={byId} worn={worn} busy={busy}
         actions={pieceActions} items={items.active} onWear={wear} onUndo={undo} offline={offline}
         changed={!!buildAround || leaveOut.length > 0}
         onClear={() => { setBuildAround(null); setLeaveOut([]); }}
@@ -658,10 +718,18 @@ interface BodyProps {
   onUndo(): void;
   onClear(): void;
   onRetry(): void;
+  /** Claude choosing, as shown (null: nothing about Claude is shown). */
+  stylist: StylistState | null;
+  /** Claude is still choosing: the waiting card stands in for the outfits. */
+  waiting: boolean;
+  /** The owner asked to see the rules' outfits while Claude chooses. */
+  meanwhile: boolean;
+  onMeanwhile(): void;
+  onAskAgain(): void;
 }
 
 function Body(props: BodyProps) {
-  const { phase, asking, items, offline, changed, onClear, onRetry } = props;
+  const { phase, asking, items, offline, changed, onClear, onRetry, stylist, waiting, meanwhile, onMeanwhile, onAskAgain } = props;
   if (phase.kind === 'loading') {
     return (
       <div className="today-loading" role="status">
@@ -713,8 +781,47 @@ function Body(props: BodyProps) {
           <span>Saved earlier today{timeOf(savedAt) ? `, at ${timeOf(savedAt)}` : ''}. You're offline, so these can't be changed or worn until Closet on your computer can be reached.</span>
         </Notice>
       )}
-      <Carousel {...props} outfits={answer.outfits} />
+      {waiting && <StylistWaiting key={stylist?.id ?? ''} meanwhile={meanwhile} onMeanwhile={onMeanwhile} />}
+      {(!waiting || meanwhile) && <Carousel {...props} outfits={answer.outfits} />}
+      {!waiting && stylist?.state === 'ready' && (
+        <div className="today-stylist" data-testid="stylist-read">
+          {stylist.read && <p>Claude on today: {stylist.read}</p>}
+          {stylist.message && <p className="today-stylist-note muted" data-testid="stylist-note">{stylist.message}</p>}
+          <StylistAgain locked={props.actions.locked} busy={asking} onClick={onAskAgain}>Ask Claude again</StylistAgain>
+        </div>
+      )}
+      {!waiting && stylist?.state === 'failed' && (
+        <div className="today-stylist" data-testid="stylist-failed">
+          {stylist.message && <p>{stylist.message}</p>}
+          <StylistAgain locked={props.actions.locked} busy={asking} onClick={onAskAgain}>Try again</StylistAgain>
+        </div>
+      )}
     </>
+  );
+}
+
+/** In place of the outfits while Claude chooses them: what is happening, and the rules' outfits on request. */
+function StylistWaiting({ meanwhile, onMeanwhile }: { meanwhile: boolean; onMeanwhile(): void }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSlow(true), STYLIST_SLOW_S * 1000);
+    return () => window.clearTimeout(timer);
+  }, []);
+  return (
+    <Card className="today-stylist-wait" role="status" aria-labelledby="stylist-wait-title" data-testid="stylist-waiting">
+      <span className="today-stylist-mark" aria-hidden="true"><span /><span /><span /></span>
+      <div>
+        <h2 id="stylist-wait-title">Claude is choosing today's outfits…</h2>
+        <p className="muted">{waitingLine(slow ? STYLIST_SLOW_S : 0)}</p>
+        {!meanwhile && <Button small onClick={onMeanwhile}>Show Closet's own picks meanwhile</Button>}
+      </div>
+    </Card>
+  );
+}
+
+function StylistAgain({ locked, busy, onClick, children }: { locked: boolean; busy: boolean; onClick(): void; children: ReactNode }) {
+  return (
+    <button className="btn btn-link" disabled={locked || busy} title={locked ? OFFLINE_TITLE : undefined} onClick={onClick}>{children}</button>
   );
 }
 
@@ -766,7 +873,7 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
           <article key={outfitIds(o.pieces).join(',')} className="today-slide" aria-roledescription="slide"
             aria-label={`Outfit ${i + 1} of ${count}`} aria-hidden={i !== current} inert={i !== current}
             data-testid={i === current ? 'current-outfit' : undefined}>
-            <OutfitCard outfit={o} view={view} {...rest}
+            <OutfitCard outfit={o} view={view} {...rest} by={chosenBy(o, rest.stylist)}
               next={count > 1 ? { label: i < count - 1 ? 'See another idea' : 'Back to the best one', go: () => go(i < count - 1 ? i + 1 : 0) } : undefined} />
           </article>
         ))}
@@ -793,8 +900,10 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
   );
 }
 
-function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, next }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & {
+function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, next, by }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & {
   outfit: Outfit; view: TodayView;
+  /** Who chose it ("Chosen by Claude"), once Claude has answered; null otherwise. */
+  by: string | null;
   /** The next outfit, one tap from the main button: the arrows sit below the reasons, far down a phone's screen. */
   next?: { label: string; go(): void };
 }) {
@@ -854,6 +963,7 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, n
       </div>
 
       <div className="today-card-why">
+        {by && <p className="today-by muted" data-testid="outfit-by">{by}</p>}
         {outfit.warnings.length > 0 && (
           <div className="today-warnings" role="note" aria-label="Be aware">
             <WarnIcon />

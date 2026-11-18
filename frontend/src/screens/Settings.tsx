@@ -43,7 +43,9 @@ function LookSection() {
 
 /** "Your style": how the owner likes to dress, in their own words. Claude reads it when it chooses the outfits; each
  * closet (the owner's, the demo) keeps its own. */
-function StyleSection({ offline, profile, toast }: { offline: boolean; profile: Profile; toast(m: string, k?: 'ok' | 'error'): void }) {
+function StyleSection({ offline, profile, settings, onSettings, toast }: {
+  offline: boolean; profile: Profile; settings: Settings | null; onSettings(s: Settings): void; toast(m: string, k?: 'ok' | 'error'): void;
+}) {
   const [style, setStyle] = useState<StyleProfile | null>(null);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
@@ -80,6 +82,19 @@ function StyleSection({ offline, profile, toast }: { offline: boolean; profile: 
   return (
     <Section title="Your style" id="s-style"
       hint="How you like to dress, in your own words. Claude reads this every time it chooses your outfits, and it wins over the general menswear guide. Write it the way you would tell a friend who is choosing your clothes.">
+      {settings && (
+        <Toggle label="Let Claude choose my outfits"
+          hint={`When this is off, or Claude can't be reached, Closet's own rules choose.${profile === 'demo' ? ' In the demo closet they always do.' : ''}`}
+          checked={settings.stylist_on !== false} disabled={offline}
+          onChange={async (on) => {
+            try {
+              onSettings(await api.putSettings({ stylist_on: on }));
+              toast('Saved');
+            } catch (e) {
+              toast((e as Error).message, 'error');
+            }
+          }} />
+      )}
       {error && <p className="form-error" role="alert">Couldn't load your style: {error}</p>}
       {!style && !error && <p className="hint">{offline ? "Your style can't be shown while you're offline." : 'Loading your style…'}</p>}
       {style && count && (
@@ -176,7 +191,7 @@ export function SettingsScreen({ version }: { version: string }) {
 
         <LookSection />
 
-        <StyleSection offline={offline} profile={profile} toast={toast} />
+        <StyleSection offline={offline} profile={profile} settings={settings} onSettings={setSettings} toast={toast} />
 
         <TaggingSection offline={offline} settings={settings} onChange={setSettings} reload={load} toast={toast} />
 

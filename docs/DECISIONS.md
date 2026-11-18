@@ -971,6 +971,19 @@ owner's own and other real photos (bench/experiments/patterns, with notes there)
 | The item's main colour becomes the largest measured colour unless Claude's main colour covers at least ¾ as much, and its shade becomes the measured one; both stay the tagger's (confidence 0.9) and a colour or shade the owner set is never changed | The outfit engine and What's missing read `color` as before, so matching improves with no change there. The measured colour is part of Claude's side like the drawing, not an entry in the history; it is laid over again after describing again or undoing. |
 | The measured colours are kept inside `items.pattern_fill` with the pattern they were measured for, and used only while the item still has that pattern; the item page shows them as swatches beside the pattern word | No schema change. Items measured before this are not measured again for it: they get colours the next time they are described or their pattern changes. |
 
+### A plaid drawn from Claude's description (an experiment, not in the app yet)
+
+Measuring a plaid from its photo fails on creased, hanging or dark cloth (three of the owner's six plaid shirts in
+November). This tries the other way round: Claude says what the plaid is made of, in a few extra fields of the
+description it already gives, and Closet draws a clean plaid from that (`patterns/described.py`). Nothing in the
+app uses it yet: the description Closet asks for is unchanged.
+
+| Decision | Why |
+|---|---|
+| A plaid is described as the bands of one repeat going across and going down, each a colour (#rrggbb) and a width in the same units both ways, a yes/no for "the same both ways", and how many repeats fit across the chest from armpit to armpit. Thin lines are narrow bands; each list starts with the widest band, which is placed on the button line | A woven plaid is exactly two band sequences crossing, so this is all a drawing needs, and it is short: on the owner's six plaid shirts the plaid part of the answer was 160 to 260 characters, and for any other item it is just "null". No extra call and no extra photo. Claude writing the drawing itself (as for shoes) was ruled out as far too costly for hundreds of garments |
+| Where two bands cross, the colour is the two yarns' colours averaged (in the colour space the measuring uses), tipped a little towards one yarn and then the other along a faint twill diagonal; band edges are softened over a fraction of a percent of the repeat | It matches how a measured madras is rebuilt, and how real cloth looks: the crossings are the two yarns seen together, and a hard-edged grid reads as a printed graphic rather than as cloth. The twill is kept faint so the fabric's own texture (flannel, oxford) still decides the surface |
+| Odd answers are made safe, not trusted: bands with no readable colour or no width are dropped, neighbours of one colour merged, more than 40 bands cut, the repeats kept between 0.5 and 16; a description with nothing left, or one colour only, draws nothing (the item keeps its colour) | Whatever Claude writes, the drawing must not break or invent a plaid |
+
 ## Several items from one photo
 
 The owner photographs several pieces laid out together and gets one item per piece (#151). Video sweeps are out

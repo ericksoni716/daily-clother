@@ -301,3 +301,264 @@ def test_a_graphic_is_lifted_from_a_tee_and_drawn_at_its_place():
 def test_a_plain_tee_has_no_graphic_to_lift():
     from closet.patterns.measure import measure
     assert measure(_tee(logo=False), "graphic") is None
+
+
+# --- plaids the straight-on measure cannot find a repeat in ----------------------------------------------------
+
+def _seen_at_an_angle(tile, H=760, W=700, turn=7.0, tilt=0.00045, noise=6.0, box=(90, 70, 610, 690), seed=1):
+    """An endless plaid seen as a camera at the foot of a bed sees it: turned, and smaller towards the top of the
+    photo (a homography), with noise, cut to a box. Returns the RGBA cutout."""
+    Q_, P_ = tile.shape[:2]
+    a = np.radians(turn)
+    to_cloth = np.array([[np.cos(a), np.sin(a), 0], [-np.sin(a), np.cos(a), 0], [0, -tilt, 1.0]])
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float64)
+    p = np.stack([xx - W / 2, yy - H / 2, np.ones_like(xx)], -1) @ to_cloth.T
+    u, v = p[..., 0] / p[..., 2], p[..., 1] / p[..., 2]
+    big = np.tile(tile, (4, 4, 1)).astype(np.float32)
+    img = np.dstack([cv2.remap(big[..., c], (u % P_ + P_).astype(np.float32), (v % Q_ + Q_).astype(np.float32),
+                               cv2.INTER_LINEAR) for c in range(3)])
+    img += np.random.default_rng(seed).normal(0, noise, img.shape)
+    alpha = np.zeros((H, W), np.uint8)
+    x0, y0, x1, y1 = box
+    alpha[y0:y1, x0:x1] = 255
+    return Image.fromarray(np.dstack([np.clip(img, 0, 255).astype(np.uint8), alpha]), "RGBA")
+
+
+def _soft_overcheck():
+    """A soft dark plaid like a navy flannel: checks every 30 px in near-black, navy and charcoal, and a thin
+    white line over every other check only, both ways, so the true repeat is 60 x 60."""
+    black, navy, grey, white = (14, 15, 20), (26, 31, 52), (62, 62, 66), (150, 150, 150)
+    seq = np.zeros(60, int)
+    seq[15:30] = 1
+    seq[45:60] = 2
+    seq[7:9] = 3                      # the overcheck: in the first check, not in the second
+    cols = np.array([black, navy, grey, white], np.float32)
+    tile = (cols[seq][None, :, :] + cols[seq][:, None, :]) / 2
+    tile[seq == 3, :] = white          # a white yarn stays white where it crosses
+    tile[:, seq == 3] = white
+    return tile
+
+
+def _to_truth_size(image_text, truth):
+    import base64
+    import io
+    with Image.open(io.BytesIO(base64.b64decode(image_text))) as im:
+        return np.asarray(im.convert("RGB").resize((truth.shape[1], truth.shape[0]), Image.LANCZOS)).astype(np.float32)
+
+
+def test_a_plaid_photographed_at_an_angle_is_straightened_and_measured():
+    from closet.patterns import measure, straighten
+    cut = _seen_at_an_angle(TRUTH)
+    assert plaid.period(cut) is None                      # turned and tilted: no repeat along the rows and columns
+    logs = []
+    reg = straighten.regular(cut, logs.append)
+    assert reg is not None and reg.steps == ("tilt", "evened")
+    assert abs(reg.P / reg.Q - P / Q) < 0.08              # the repeat's own shape, whatever size it was evened to
+    kept = measure.measure(cut, "plaid")
+    assert kept["how"] == "straightened"
+    assert _best_shift_error(_to_truth_size(kept["image"], TRUTH), TRUTH) < 16
+    # the repeat's width on the garment: about one repeat (in the middle of the photo) over the cutout's width
+    assert kept["width_frac"] == pytest.approx(P / 520, rel=0.15)
+
+
+def test_an_overcheck_over_every_other_check_is_kept():
+    """The jacket this was written for: checks every 30 px and a white line over every second one. Going by the
+    checks alone the repeat is 30 and the white line averages away; it is 60, with the line in it."""
+    from closet.patterns import measure, straighten
+    tile = _soft_overcheck()
+    cut = _seen_at_an_angle(tile, noise=7.0, tilt=0.0004, turn=4.0)
+    reg = straighten.regular(cut)
+    assert reg is not None and abs(reg.P / reg.Q - 1) < 0.08
+    kept = measure.measure(cut, "plaid")
+    assert kept is not None and kept["how"] == "straightened"
+    got = _to_truth_size(kept["image"], tile)
+    assert _best_shift_error(got, tile) < 14
+    light = got.mean(2)
+    # one bright line each way in the repeat, well above the cloth around it
+    for profile in (light.mean(0), light.mean(1)):
+        assert profile.max() > np.median(profile) + 25
+        assert (profile > np.median(profile) + 25).sum() <= 6
+
+
+def test_a_plaid_seen_straight_on_is_measured_as_before():
+    from closet.patterns import measure
+    kept = measure.measure(_crumpled_plaid(), "plaid")
+    assert kept["how"] == "repeat" and kept["width_frac"] == pytest.approx(P / 480, rel=0.05)
+
+
+def test_cloth_with_no_checks_is_not_drawn_as_a_guess():
+    """Tagged plaid, but nothing in the photo repeats or crosses: no pattern is kept, so the item says the
+    checks could not be measured and is drawn in its colour (it used to be drawn as a smear)."""
+    from closet.patterns import measure
+    rng = np.random.default_rng(3)
+    blobs = cv2.GaussianBlur(rng.normal(0, 1, (600, 520, 3)).astype(np.float32), (0, 0), 22) * 420 + 110
+    alpha = np.zeros((600, 520), np.uint8)
+    alpha[40:560, 50:470] = 255
+    cut = Image.fromarray(np.dstack([np.clip(blobs, 0, 255).astype(np.uint8), alpha]), "RGBA")
+    assert measure.measure(cut, "plaid") is None
+
+
+def test_a_plaid_with_no_regular_repeat_is_still_measured_whole():
+    """A madras: bands of many widths that never repeat, crossing. Kept as one garment-sized tile."""
+    from closet.patterns import measure
+    rng = np.random.default_rng(5)
+
+    def bands(n):
+        out = []
+        while len(out) < n:
+            out += [rng.integers(40, 230, 3)] * int(rng.integers(6, 40))    # every band its own colour and width
+        return np.array(out[:n], np.float32)
+    img = (bands(420)[None, :, :] + bands(560)[:, None, :]) / 2 + rng.normal(0, 5, (560, 420, 3))
+    alpha = np.zeros((560, 420), np.uint8)
+    alpha[30:530, 40:380] = 255
+    cut = Image.fromarray(np.dstack([np.clip(img, 0, 255).astype(np.uint8), alpha]), "RGBA")
+    kept = measure.measure(cut, "plaid")
+    assert kept is not None and kept["how"] == "whole" and kept["width_frac"] > 0.5
+
+
+def _broad_plaid(P=120, Q=150, H=620, W=500, crease=9.0, seed=7):
+    """A hanging shirt's plaid: broad soft bands, a repeat a quarter of the garment wide, and upright creases
+    that pull the cloth sideways by up to `crease` px. Returns the cutout."""
+    rng = np.random.default_rng(seed)
+
+    def bands(n, widths, colours):
+        seq = np.concatenate([np.tile(c, (w, 1)) for w, c in zip(widths, colours, strict=True)]).astype(np.float32)
+        return cv2.GaussianBlur(np.tile(seq, (3, 1))[None], (0, 0), 3)[0][n:2 * n]
+    warp = bands(P, (40, 14, 30, 8, 28), [(70, 60, 110), (200, 190, 160), (60, 100, 110), (170, 90, 60), (90, 80, 120)])
+    weft = bands(Q, (56, 18, 36, 10, 30), [(80, 70, 120), (210, 200, 170), (70, 60, 100), (180, 100, 70), (60, 110, 120)])
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    sx = xx + crease * np.sin(xx / 37.0 + 1.3) + 0.5 * crease * np.sin(xx / 83.0 + yy / 300.0)
+    img = (warp[(sx.astype(int) % P)] + weft[(yy.astype(int) % Q)]) / 2 + rng.normal(0, 4, (H, W, 3))
+    alpha = np.zeros((H, W), np.uint8)
+    alpha[30:H - 30, 40:W - 40] = 255
+    return Image.fromarray(np.dstack([np.clip(img, 0, 255).astype(np.uint8), alpha]), "RGBA")
+
+
+def test_a_large_repeat_on_creased_cloth_is_read_from_the_whole_garments_bands():
+    """The owner's hanging plaid shirts (18 November): a repeat a quarter of the shirt wide, on creased cloth,
+    shows in too few small areas. The garment's whole band sequences give it, and it is kept once rebuilt."""
+    from closet.patterns import measure, straighten
+    cut = _broad_plaid()
+    readings = [(r.P, r.Q) for r in straighten.by_bands(cut)]
+    assert any(abs(p - 120) <= 8 and abs(q - 150) <= 8 for p, q in readings), readings
+    kept = measure.measure(cut, "plaid")
+    assert kept is not None and kept["how"] in ("straightened", "repeat")
+    assert kept["width_frac"] == pytest.approx(120 / 420, rel=0.12)
+
+
+def test_a_spacing_twice_a_shorter_one_is_the_shorter_one_again_unless_that_one_is_weak():
+    from closet.patterns import straighten
+    seq = np.full((400, 3), 100.0, np.float32)
+    for x in range(0, 400, 50):
+        seq[x:x + 12] = (200, 120, 140)
+    lags = dict(straighten._sequence_peaks(seq))
+    assert any(abs(lag - 50) <= 1 for lag in lags) and any(abs(lag - 100) <= 1 for lag in lags)
+    assert max(lags, key=lags.get) % 50 <= 1 or max(lags, key=lags.get) % 50 >= 49
+
+
+def test_strong_bands_one_way_are_matched_when_only_another_peak_counts_as_a_tie():
+    """Bold bands one way and faint ones the other (the owner's rust plaid): slid half a repeat along the bold
+    bands, the piece still matches nearly as well. That is the slope of the same match, not a rival match;
+    counted as a tie, no area of the shirt could be measured."""
+    yy, xx = np.mgrid[0:300, 0:300].astype(np.float32)
+    P = Q = 100
+    sig = np.cos(2 * np.pi * xx / P) + 0.2 * np.cos(2 * np.pi * yy / Q)
+    m = np.ones(sig.shape, bool)
+    ref = sig[:Q, :P]
+    _, strict, _ = flatten.local_offsets_match(sig, m, ref, P, Q)
+    _, by_peaks, _ = flatten.local_offsets_match(sig, m, ref, P, Q, peaks=True)
+    assert (strict > 0).sum() == 0 and (by_peaks > 0).sum() == by_peaks.size
+
+
+def test_a_cutout_full_of_holes_is_not_measured_whole_and_does_not_fail():
+    """A pale check against a bright window, cut out as a lattice of holes: nothing lines up, and it says so."""
+    rng = np.random.default_rng(2)
+    rgb = rng.integers(0, 255, (300, 240, 3)).astype(np.uint8)
+    alpha = np.zeros((300, 240), np.uint8)
+    alpha[::9, ::9] = 255
+    got = plaid.no_repeat(Image.fromarray(np.dstack([rgb, alpha]), "RGBA"), lean_deg=0.0)
+    assert got["agreement"] == 0.0 and got["tile"] is None
+
+
+# --- what a cutout holds, and one mask from two models ----------------------------------------------------------
+
+def _jacket_on_a_duvet(H=640, W=480):
+    """A dark plaid jacket (a box with two sleeves) lying on a white duvet that fills the top of the photo and runs
+    out of it, on a mid-grey floor. Returns (photo RGB, the jacket's mask, the duvet's mask), masks 0/255."""
+    rng = np.random.default_rng(2)
+    photo = np.full((H, W, 3), 120, np.float32)
+    duvet = np.zeros((H, W), np.uint8)
+    duvet[:330] = 255
+    photo[duvet > 0] = 235
+    jacket = np.zeros((H, W), np.uint8)
+    jacket[250:560, 170:330] = 255
+    cv2.fillPoly(jacket, [np.array([[170, 260], [170, 330], [70, 520], [40, 500]], np.int32)], 255)
+    cv2.fillPoly(jacket, [np.array([[330, 260], [330, 330], [420, 520], [450, 500]], np.int32)], 255)
+    cloth = np.tile(_soft_overcheck(), (H // 60 + 1, W // 60 + 1, 1))[:H, :W]
+    photo[jacket > 0] = cloth[jacket > 0]
+    photo += rng.normal(0, 4, photo.shape)
+    return Image.fromarray(np.clip(photo, 0, 255).astype(np.uint8), "RGB"), jacket, duvet
+
+
+def _share(mask, of):
+    return float(((np.asarray(mask) > 128) & (of > 0)).sum() / max(1, (of > 0).sum()))
+
+
+def test_bedding_only_one_model_kept_is_left_out_of_the_cutout():
+    photo, jacket, duvet = _jacket_on_a_duvet()
+    first = Image.fromarray(np.maximum(jacket, duvet), "L")        # the first model took the duvet too
+    second = Image.fromarray(jacket, "L")
+    assert masks.doubtful(photo, first)                            # on the photo's edge, and two kinds of surface
+    assert not masks.doubtful(photo, second)
+    settled = masks.settle(photo, first, second)
+    assert _share(settled, jacket) > 0.97
+    assert _share(settled, duvet & ~jacket) < 0.03
+
+
+def test_a_part_of_the_garment_only_one_model_found_is_kept():
+    photo, jacket, _ = _jacket_on_a_duvet()
+    no_sleeve = jacket.copy()
+    no_sleeve[:, :168] = 0                                         # the second model missed a sleeve
+    settled = masks.settle(photo, Image.fromarray(jacket, "L"), Image.fromarray(no_sleeve, "L"))
+    assert _share(settled, jacket) > 0.99
+    # and a part in another colour that lies inside the photo (a varsity jacket's white sleeves) is kept as well
+    white = np.asarray(photo).copy()
+    sleeve = (jacket > 0) & (no_sleeve == 0)
+    white[sleeve] = 240
+    settled = masks.settle(Image.fromarray(white, "RGB"), Image.fromarray(jacket, "L"), Image.fromarray(no_sleeve, "L"))
+    assert _share(settled, jacket) > 0.99
+
+
+def test_a_see_through_plaid_is_still_filled_in_by_the_second_model():
+    photo, jacket, _ = _jacket_on_a_duvet()
+    holes = jacket.copy()
+    for y in range(0, holes.shape[0], 28):
+        for x in range(0, holes.shape[1], 28):
+            holes[y:y + 16, x:x + 16] = 0                          # dark checks taken for background
+    first = Image.fromarray(holes, "L")
+    assert masks.doubtful(photo, first)
+    settled = masks.settle(photo, first, Image.fromarray(jacket, "L"))
+    assert _share(settled, jacket) > 0.99
+
+
+def test_a_cutout_of_two_surfaces_is_split_and_the_plaid_measured():
+    from closet.patterns import measure
+    photo, jacket, duvet = _jacket_on_a_duvet()
+    both = Image.fromarray(np.dstack([np.asarray(photo), np.maximum(jacket, duvet)]), "RGBA")
+    parts = masks.surfaces(both)
+    assert len(parts) == 2
+    assert _share(parts[0].split()[3], jacket) > 0.9               # the patterned cloth first
+    assert _share(parts[0].split()[3], duvet & ~jacket) < 0.1
+    alone = Image.fromarray(np.dstack([np.asarray(photo), jacket]), "RGBA")
+    assert masks.surfaces(alone) == [alone]                        # checks do not split one cloth in two
+    kept = measure.measure(both, "plaid")                          # the duvet does not stop the plaid being found
+    assert kept is not None and kept["kind"] == "tile" and kept["width_frac"] < 0.5
+
+
+def test_a_plaid_from_a_dark_photo_is_lightened_to_the_colour_it_is_called():
+    from closet.patterns import measure
+    cut = _seen_at_an_angle(_soft_overcheck() * 0.45, noise=3.0, tilt=0.0004, turn=4.0)   # the same cloth, underexposed
+    as_it_is = measure.measure(cut, "plaid", ["black"])
+    lit = measure.measure(cut, "plaid", ["navy", "white"])
+    assert "lit" not in as_it_is and lit["lit"] > 1.5
+    assert _to_truth_size(lit["image"], TRUTH).mean() > 1.5 * _to_truth_size(as_it_is["image"], TRUTH).mean()

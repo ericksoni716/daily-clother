@@ -312,3 +312,133 @@ def test_a_damaged_kept_graphic_is_not_drawn():
         assert stored.graphic_from({"version": stored.VERSION, "kind": "plain", "graphic": bad}) is None
     assert stored.graphic_from({"version": 99, "kind": "plain", "graphic": good}) is None
     assert stored.graphic_from(STRIPES) is None and stored.graphic_from("not json") is None
+
+
+# --- plaids older measuring code found no repeat in, and cutouts made again ----------------------------------
+
+TILE = {"version": stored.VERSION, "kind": "tile", "width_frac": 0.07, "how": "straightened"}
+
+
+def _tile(extra):
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), (30, 40, 70)).save(buf, "WEBP")
+    import base64
+    return {**TILE, "image": base64.b64encode(buf.getvalue()).decode(), **extra}
+
+
+def _set(cfg, item_id, **fields):
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        conn.execute(f"UPDATE items SET {', '.join(f'{k} = ?' for k in fields)} WHERE id = ?", [*fields.values(), item_id])
+    finally:
+        conn.close()
+
+
+def test_a_plaid_that_cannot_be_measured_says_what_photo_would_work(make, cfg):
+    sv, c = make(Measurer(result=None))
+    item = described(sv, c)
+    c.patch(f"/api/items/{item['id']}", json={"pattern": "plaid"})
+    sv.pattern_worker.drain()
+    got = c.get(f"/api/items/{item['id']}").json()
+    assert got["pattern_state"] == "failed" and got["pattern_error"] == patjobs.PLAID_FAILED
+    assert "laid flat" in got["pattern_error"] and "straight above" in got["pattern_error"]
+    assert got["illustration_svg"].startswith("<svg")                 # drawn in its colour, not as a guess
+
+
+@pytest.mark.parametrize("old", ["whole", "failed"])
+def test_a_plaid_older_code_found_no_repeat_in_is_cut_out_and_measured_again_once(make, cfg, old):
+    """What the jacket on the duvet had: the whole-garment measure meant for madras, kept as if it had worked."""
+    m = Measurer(result=_tile({}))
+    sv, c = make(m, Landmarker())
+    item = described(sv, c)
+    c.patch(f"/api/items/{item['id']}", json={"pattern": "plaid"})
+    sv.pattern_worker.drain()
+    assert len(m.calls) == 1
+    whole = _tile({"width_frac": 0.87})
+    del whole["how"]                                                    # as the older code kept it
+    if old == "whole":
+        _set(cfg, item["id"], pattern_fill=json.dumps({**whole, "pattern": "plaid", "colors": []}), pattern_state="done")
+    else:
+        _set(cfg, item["id"], pattern_fill=None, pattern_state="failed", pattern_error=patjobs.FAILED)
+    before = row(cfg, item["id"])
+    assert before["landmarks"]
+    sv.worker.drain()                                                   # finds it, and makes its cutout again first
+    after = row(cfg, item["id"])
+    assert after["cutout_state"] == "ready" and after["pattern_state"] == "waiting"
+    assert after["landmarks"] is None                                   # points in the old cutout's pixels
+    assert after["tag_state"] == "done" and after["tagged_at"] == before["tagged_at"]   # not described again
+    sv.pattern_worker.drain()
+    got = row(cfg, item["id"])
+    assert len(m.calls) == 2 and got["pattern_state"] == "done"
+    assert json.loads(got["pattern_fill"])["how"] == "straightened" and got["landmarks"]
+    sv.worker.drain()                                                   # once: not found again
+    sv.pattern_worker.drain()
+    assert len(m.calls) == 2 and row(cfg, item["id"])["pattern_state"] == "done"
+
+
+def test_a_plaid_that_still_cannot_be_measured_is_not_tried_for_ever(make, cfg):
+    m = Measurer(result=None)
+    sv, c = make(m)
+    item = described(sv, c)
+    c.patch(f"/api/items/{item['id']}", json={"pattern": "plaid"})
+    _set(cfg, item["id"], pattern_state="failed", pattern_error=patjobs.FAILED)
+    for _ in range(3):
+        sv.worker.drain()
+        sv.pattern_worker.drain()
+    assert len(m.calls) == 1 and row(cfg, item["id"])["pattern_error"] == patjobs.PLAID_FAILED
+
+
+def test_a_measured_repeat_and_other_patterns_are_left_alone(make, cfg):
+    m = Measurer(result=_tile({}))
+    sv, c = make(m)
+    item = described(sv, c)
+    c.patch(f"/api/items/{item['id']}", json={"pattern": "plaid"})
+    sv.pattern_worker.drain()
+    older = _tile({"width_frac": 0.12})
+    del older["how"]                                                    # a repeat the older code did find
+    _set(cfg, item["id"], pattern_fill=json.dumps({**older, "pattern": "plaid", "colors": []}))
+    sv.worker.drain()
+    sv.pattern_worker.drain()
+    assert len(m.calls) == 1 and row(cfg, item["id"])["pattern_state"] == "done"
+
+
+def test_a_pattern_waits_for_a_cutout_that_is_being_made(make, cfg):
+    m = Measurer(result=_tile({}))
+    sv, c = make(m)
+    item = described(sv, c)
+    c.patch(f"/api/items/{item['id']}", json={"pattern": "plaid"})
+    _set(cfg, item["id"], cutout_state="pending")
+    assert sv.pattern_worker.drain() == 0 and not m.calls               # measured from the new cutout, not the old
+    _set(cfg, item["id"], cutout_state="ready")
+    assert sv.pattern_worker.drain() == 1 and len(m.calls) == 1
+
+
+def test_the_demo_closet_is_not_measured_again(make, cfg):
+    sv, c = make(Measurer())
+    assert c.post("/api/profile", json={"profile": "demo"}).status_code == 200
+    conn = db.connect(cfg.db_path("demo"))
+    try:
+        jobs_before = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+        conn.execute("UPDATE items SET pattern_state = 'failed', pattern_error = ? WHERE pattern = 'plaid'", (patjobs.FAILED,))
+        sv.worker.is_ready = lambda: True
+        sv.worker.drain()
+        assert conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0] == jobs_before
+        assert conn.execute("SELECT COUNT(*) FROM items WHERE pattern_state = 'waiting'").fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_the_colour_claude_called_it_comes_first_whatever_an_earlier_measurement_made_it(make, cfg):
+    """A photo too dark turns a navy item's colour to black once measured; measured again, the word that says
+    how light it should be is still Claude's navy (or the owner's own colour)."""
+    m = Measurer()
+    sv, c = make(m)
+    item = described(sv, c)
+    c.patch(f"/api/items/{item['id']}", json={"pattern": "plaid"})
+    _set(cfg, item["id"], color="black")                      # as `palette.settle` leaves it; not the owner's choice
+    sv.pattern_worker.drain()
+    assert m.calls[-1][2][0] == "navy" and "black" in m.calls[-1][2]
+    assert c.patch(f"/api/items/{item['id']}", json={"color": "green"}).status_code == 200   # the owner's word wins
+    c.patch(f"/api/items/{item['id']}", json={"pattern": "stripe"})
+    sv.pattern_worker.drain()
+    assert m.calls[-1][2][0] == "green"

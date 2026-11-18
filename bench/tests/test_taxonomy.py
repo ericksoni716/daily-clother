@@ -162,6 +162,20 @@ def test_halo_fabrics_draw_differently():
     assert plain != fuzzy and "feDisplacementMap" in fuzzy and "feDisplacementMap" not in plain
 
 
+def test_flannel_surface_is_faint_and_shows_no_grid():
+    """The owner, 17 November: the brushed surface was "way too much": a grid of pale ovals over the cloth, which
+    blotched a measured plaid. It is a large tile of scattered marks now, each of them faint."""
+    from closet_bench.illustrate import _texture_tile
+    for lo, hi in (("#000", "#fff"), ("#fff", "#000")):
+        w, h, marks = _texture_tile("flannel", 1.0, lo, hi)
+        assert min(w, h) >= 60                      # far larger than any one mark, so no repeat is seen
+        strengths = [float(o) for o in re.findall(r'opacity="([.0-9]+)"', marks)]
+        assert strengths and max(strengths) <= 0.08
+        clouds = re.findall(r'<ellipse [^>]*fill="([^"]+)"', marks)
+        assert {lo, hi} == set(clouds)              # lighter and darker patches, on dark cloth and on pale
+        assert _texture_tile("flannel", 1.0, lo, hi)[2] == marks   # the same surface every time
+
+
 def test_wale_and_gauge_scale_the_texture():
     cord = [surface_extras({"fabric": "corduroy", "corduroy_wale": w}) for w in CORDUROY_WALES]
     assert all(c["texture"] == "corduroy" for c in cord)
@@ -355,14 +369,14 @@ UNCHANGED = {
     "dress_shirt": "97fcfe094fdf0a43",   # #182: poplin surface; no set-in armhole seam (16 Nov)
     "ocbd": "78f96d7fb5101a96",   # #182: oxford surface; no set-in armhole seam (16 Nov)
     "casual_button_up": "21c25749e1e518db",   # #163: new; point collar, chest pocket, vented straight hem; #182: poplin surface; no set-in armhole seam (16 Nov)
-    "flannel_shirt": "0d7c6068a2cc1248",   # #182: flannel surface; no set-in armhole seam (16 Nov)
+    "flannel_shirt": "dffb1d92de3265ff",   # a fainter, scattered flannel surface (17 Nov)
     "work_shirt": "756567cf7b4df9f6",   # #182: chambray surface; no set-in armhole seam (16 Nov)
     "western_shirt": "928a5c3b86dcdab0",   # no set-in armhole seam (16 Nov)
     "camp_collar_shirt": "628c2ff0ad8cccab",   # #182: challis surface; no set-in armhole seam (16 Nov)
     "popover_shirt": "a2f9b1c298ae486a",   # #182: oxford surface; no set-in armhole seam (16 Nov)
     "band_collar_shirt": "6c086d7d0639a1c5",   # #110: calmer linen; no set-in armhole seam (16 Nov)
     "guayabera": "77c40474d00fb80c",   # #110: calmer linen; no set-in armhole seam (16 Nov)
-    "overshirt": "0d89aeba7792e7dc",   # #182: flannel surface; no set-in armhole seam (16 Nov)
+    "overshirt": "67d8d4ad081738dd",   # a fainter, scattered flannel surface (17 Nov)
     "tuxedo_shirt": "a4e455b40181692b",   # #110: larger wing tips; #182: poplin surface; no set-in armhole seam (16 Nov)
     "crewneck_sweatshirt": "8ef1ba5c1c7c3579",   # #182: french terry surface
     "hoodie": "157658ecae83f007",   # no set-in armhole seam (16 Nov)

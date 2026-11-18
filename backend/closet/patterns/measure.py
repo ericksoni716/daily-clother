@@ -1,9 +1,15 @@
 """From an item's cutout to its kept pattern (`items.pattern_fill`, see `closet.drawing.stored`).
 
 One function, `measure`, picks the method for the pattern Claude saw:
-- plaid: the repeat found, the crumpled cloth flattened into one straight repeat (each front on its own when
-  the two agree), and with landmarks the repeat placed on each front beside the buttons; a plaid with no
-  regular repeat (madras) is measured whole and kept as one garment-sized tile;
+- plaid: three ways, each tried when the one before finds nothing, and each kept only when what it rebuilt,
+  laid back over the photo, explains the photo. Seen straight on: the repeat found, the crumpled cloth
+  flattened into one straight repeat (each front on its own when the two agree). Photographed at
+  an angle, turned, over a slope or in soft, low-contrast cloth: the cloth made regular from its own lines first
+  (`straighten`), then flattened. With no regular repeat (madras): measured whole and kept as one
+  garment-sized tile. With landmarks the repeat is placed on each front beside the buttons. A photo too dark
+  or too light for the colour the item is called has its repeat lightened or darkened to that colour
+  (`palette.exposure`). A plaid none of the three explains is not drawn as a guess: the item is drawn in its
+  colour and says so;
 - stripes: regular stripes folded onto one sharp repeat, or stripes with placed bands (a polo's chest band)
   drawn over a crisp ground, the collar (and, unless the photo shows bands on them, the sleeves) cut from that
   ground; colours corrected from Claude's colour words when it says the item has white or cream;
@@ -18,13 +24,24 @@ import cv2
 import numpy as np
 from PIL import Image
 
+from .. import palette
 from ..drawing import fills
 from ..drawing.stored import VERSION, graphic_part, tile_text
-from . import flatten, plaid, prints, stripes
-from .common import garment_mask, lab_to_rgb, quiet
+from . import flatten, plaid, prints, straighten, stripes
+from .common import garment_mask, quiet
+from .masks import surfaces
 
 MEASURED = ("plaid", "stripe", "floral", "camo", "other", "graphic")
 TILE_SCALE = 3   # a repeat is kept at three times the photo's detail, so its lines stay crisp when drawn large
+AGREES = 0.5         # a rebuilt repeat is kept when, laid back over the photo, it explains the photo this well
+MIN_AREAS = 12       # and, from a straightened photo, when it was measured in at least this many areas
+MIN_SHARE = 0.15     # covering at least this share of the garment (its body; sleeves lie at other angles)
+MAX_DRIFT = 3.0      # and when flattening straightened cloth moved it by no more than this many repeats: a repeat
+#                      far too short can "explain" any bands by sliding along them
+WHOLE_AGREES = 0.35  # a plaid measured whole (madras) is kept when its two crossing sequences explain the photo
+SEEN_AGAIN = 1.1      # the measured part must reach over more than one repeat each way, or nothing was seen to repeat
+CLEARLY = 0.05         # a longer repeat is kept over a shorter one only when it agrees this much better
+SURE = 0.8             # a reading that agrees this well is not bettered by trying more
 
 
 def _garment_width(cut: Image.Image) -> int:
@@ -40,32 +57,163 @@ def _tile(img_rgb: np.ndarray, scale: int = 1) -> str:
     return tile_text(im)
 
 
-def _plaid(cut, landmarks, log):
-    found = plaid.period(cut)
-    if found is None:
-        log("no regular repeat: measured whole")
-        r = plaid.no_repeat(cut, log=log)
-        return {"kind": "tile", "image": _tile(r["tile"]), "width_frac": round(float(r["width_frac"]), 4)}
-    P, Q = found
-    log(f"repeat {P} x {Q} px")
-    res = flatten.rectify_fronts(cut, P, Q, log=log)
+def _lit(out: dict | None, tile, scale: int, words, log) -> dict | None:
+    """The kept plaid with its tile, made lighter or darker when the photo was too dark or too light for the
+    colour the item is called (`palette.exposure`; the first of `words` is the item's main colour). `tile` is
+    the repeat in Lab as it was measured (fractions of a level kept, so a dark photo lightened four times over
+    does not show the steps between its few dark levels), or RGB pixels."""
+    if out is None:
+        return None
+    if tile.dtype == np.uint8:
+        rgb = tile.astype(np.float32) / 255
+    else:
+        lab = np.ascontiguousarray(tile, np.float32) * (100 / 255, 1, 1) - (0, 128, 128)
+        rgb = np.clip(cv2.cvtColor(lab.astype(np.float32), cv2.COLOR_LAB2RGB), 0, 1)
+    gain = palette.exposure(Image.fromarray((rgb * 255).round().astype(np.uint8)), words[0] if words else None)
+    if gain != 1.0:
+        log(f"the photo is too {'dark' if gain > 1 else 'light'} for {words[0]}: the repeat's light is multiplied by {gain}")
+        out["lit"] = gain
+        lin = np.where(rgb <= 0.04045, rgb / 12.92, ((rgb + 0.055) / 1.055) ** 2.4) * gain
+        rgb = np.clip(np.where(lin <= 0.0031308, 12.92 * lin, 1.055 * np.power(np.clip(lin, 0, None), 1 / 2.4) - 0.055), 0, 1)
+    return {**out, "image": _tile((rgb * 255).round().astype(np.uint8), scale)}
+
+
+def _placed(out, cut, tile_lab, info, P, Q, landmarks, log, soft=False):
+    """With Claude's landmarks, the repeat lined up beside the buttons, each front on its own (added to `out`)."""
+    if not landmarks or landmarks.get("button_line") is None:
+        return
+    try:
+        _, length_frac, anchor = plaid.placed_from_landmarks(info, P, Q, landmarks)
+        left = plaid.match_front(cut, tile_lab, P, Q, anchor, -1, soft=soft)
+        right = plaid.match_front(cut, tile_lab, P, Q, anchor, +1, soft=soft)
+        if left is not None and 0 < length_frac < 1:
+            out.update(length_frac=round(float(length_frac), 4), phase=[round(float(v), 4) for v in left[0]],
+                       phase_right=[round(float(v), 4) for v in right[0]] if right is not None else None)
+            log(f"placed: left front {left[1]} px, right front {right[1] if right else None} px from a check")
+    except (ValueError, IndexError, KeyError, TypeError) as e:   # placement is a bonus: keep the plaid without it
+        log(f"could not place the plaid: {type(e).__name__}")
+
+
+def _moved(landmarks, to_new):
+    """Claude's landmarks carried into the straightened picture (None when there are none or they do not fit)."""
+    if not landmarks:
+        return None
+    try:
+        out = {}
+        for key, v in landmarks.items():
+            if isinstance(v, dict) and "x" in v and "y" in v:
+                x, y = to_new([[v["x"], v["y"]]])[0]
+                out[key] = {**v, "x": float(x), "y": float(y)}
+            elif isinstance(v, list) and all(isinstance(b, dict) and "x" in b and "y" in b for b in v):
+                pts = to_new([[b["x"], b["y"]] for b in v]) if v else []
+                out[key] = [{**b, "x": float(x), "y": float(y)} for b, (x, y) in zip(v, pts, strict=True)]
+            else:
+                out[key] = v
+        return out
+    except (ValueError, TypeError, KeyError):
+        return None
+
+
+def _button_x(landmarks):
+    """Where the two fronts meet in the picture (the button line's x), or None."""
+    try:
+        xs = [b["x"] for b in landmarks.get("button_line") or []]
+        if len(xs) < 2:
+            xs = [landmarks["neck_center"]["x"], landmarks["hem_center"]["x"]]
+        return float(np.median(xs))
+    except (AttributeError, KeyError, TypeError):
+        return None
+
+
+def _straightened(cut, landmarks, log):
+    """A plaid the straight-on measure could not find a repeat in: the cloth made regular from its own lines
+    (`straighten.regular`), flattened with the matching meant for soft cloth, and kept only when the rebuilt
+    repeat explains the photo. When that reading does not, the repeats the garment's whole band sequences
+    suggest are tried in turn (`straighten.by_bands`: large repeats, creased or hanging cloth) and the one that
+    explains the photo best is kept, a shorter one unless a longer one is clearly better. Each kind of surface
+    in the cutout is tried, the patterned one first, so bedding the background model kept does not decide.
+    Returns the kept pattern or None."""
+    for part in surfaces(cut, log):
+        reg = straighten.regular(part, log)
+        got = _rebuilt(part, reg, landmarks, log) if reg is not None else None
+        if got is None:
+            best = None
+            for other in straighten.by_bands(part, (reg.P, reg.Q) if reg is not None else None, log):
+                if reg is not None and (other.P, other.Q) == (reg.P, reg.Q) and "evened" not in reg.steps:
+                    continue      # that very reading has just been tried
+                made = _rebuilt(part, other, landmarks, log)
+                if made is not None and (best is None or made[0] > best[0] + CLEARLY):
+                    best = made
+                if best is not None and best[0] >= SURE:
+                    break
+            got = best
+        if got is not None:
+            return got[1]
+    return None
+
+
+def _rebuilt(part, reg, landmarks, log):
+    """One reading of the cloth flattened and checked against the photo: (how well it agrees, the kept pattern
+    with its tile), or None when it does not explain the photo."""
+    marks = _moved(landmarks, reg.to_new)
+    res = flatten.rectify_fronts(reg.cut, reg.P, reg.Q, log=log, ref_lab=reg.ref, soft=True,
+                                 mid=_button_x(marks) if marks else None)
     if res is None:
         return None
     tile_lab, info = res
-    out = {"kind": "tile", "image": _tile(lab_to_rgb(tile_lab), TILE_SCALE),
-           "width_frac": round(P / max(1, _garment_width(cut)), 4)}
-    if landmarks and landmarks.get("button_line") is not None:
-        try:
-            _, length_frac, anchor = plaid.placed_from_landmarks(info, P, Q, landmarks)
-            left = plaid.match_front(cut, tile_lab, P, Q, anchor, -1)
-            right = plaid.match_front(cut, tile_lab, P, Q, anchor, +1)
-            if left is not None and 0 < length_frac < 1:
-                out.update(length_frac=round(float(length_frac), 4), phase=[round(float(v), 4) for v in left[0]],
-                           phase_right=[round(float(v), 4) for v in right[0]] if right is not None else None)
-                log(f"placed: left front {left[1]} px, right front {right[1] if right else None} px from a check")
-        except (ValueError, IndexError, KeyError, TypeError) as e:   # placement is a bonus: keep the plaid without it
-            log(f"could not place the plaid: {type(e).__name__}")
-    return out
+    agrees, share = flatten.agreement(reg.cut, tile_lab, info, reg.P, reg.Q)
+    ys, xs = np.where(info["used"])
+    spans = [float(np.subtract(*np.percentile(v, [95, 5]))) if len(v) else 0.0
+             for v in ((xs - info["ox"][ys, xs]) / reg.P, (ys - info["oy"][ys, xs]) / reg.Q)]
+    log(f"the rebuilt repeat ({reg.P} x {reg.Q} px) agrees {agrees:.2f} with the photo over {share:.0%} of the garment, "
+        f"{spans[0]:.1f} repeats across and {spans[1]:.1f} down")
+    if agrees < AGREES or info["areas"] < MIN_AREAS or share < MIN_SHARE:
+        return None     # a few patches that happen to match are not the garment's cloth
+    if min(spans) < SEEN_AGAIN:
+        return None     # never seen a second time: bands that do not repeat match one "repeat" wherever it was cut from
+    if max(info["drift"]) > MAX_DRIFT:
+        log(f"the map slides the cloth by {max(info['drift']):.0f} repeats: it follows the bands, it does not flatten them")
+        return None
+    # the repeat's width on the garment: one repeat at the middle of the cloth, back in the cutout's own pixels
+    m = garment_mask(part, thresh=128)
+    ys, xs = np.where(m)
+    c = np.array([xs.mean(), ys.mean()])
+    new = reg.to_new([c, c + (16, 0), c + (0, 16)])
+    jac = np.stack([new[1] - new[0], new[2] - new[0]], 1) / 16
+    across = float(np.linalg.norm(np.linalg.solve(jac, np.array([reg.P, 0.0]))))
+    out = {"kind": "tile", "how": "straightened", "width_frac": round(across / max(1, _garment_width(part)), 4)}
+    _placed(out, reg.cut, tile_lab, info, reg.P, reg.Q, marks, log, soft=True)
+    return agrees, (out, tile_lab, TILE_SCALE)
+
+
+def _plaid(cut, landmarks, words, log):
+    return _lit(*_plaid_tile(cut, landmarks, log), words, log)
+
+
+def _plaid_tile(cut, landmarks, log):
+    """(the kept plaid without its tile, the tile's pixels, how much larger to keep them), or (None, None, 1)."""
+    found = plaid.period(cut)
+    if found is not None:
+        P, Q = found
+        log(f"repeat {P} x {Q} px")
+        res = flatten.rectify_fronts(cut, P, Q, log=log)
+        if res is not None:
+            tile_lab, info = res
+            agrees, share = flatten.agreement(cut, tile_lab, info, P, Q)
+            log(f"the rebuilt repeat agrees {agrees:.2f} with the photo over {share:.0%} of the garment")
+            if agrees >= AGREES:     # a repeat found by chance in cloth that has none explains nothing: go on
+                out = {"kind": "tile", "how": "repeat", "width_frac": round(P / max(1, _garment_width(cut)), 4)}
+                _placed(out, cut, tile_lab, info, P, Q, landmarks, log)
+                return out, tile_lab, TILE_SCALE
+    log("no regular repeat seen straight on: straightening the cloth from its own lines")
+    made = _straightened(cut, landmarks, log)
+    if made is not None:
+        return made
+    r = plaid.no_repeat(cut, log=log)
+    log(f"no regular repeat: measured whole, which agrees {r['agreement']:.2f} with the photo")
+    if r["agreement"] < WHOLE_AGREES:
+        return None, None, 1     # neither a repeat nor two crossing sequences of bands explain this photo: say so
+    return {"kind": "tile", "how": "whole", "width_frac": round(float(r["width_frac"]), 4)}, r["tile"], 1
 
 
 def _gain_fix(hexes, gain):
@@ -142,7 +290,7 @@ def measure(cut: Image.Image, pattern: str, words: list[str] | None = None, land
         return None
     cut = cut.convert("RGBA")
     if pattern == "plaid":
-        out = _plaid(cut, landmarks, log)
+        out = _plaid(cut, landmarks, list(words or []), log)
     elif pattern == "stripe":
         out = _stripes(cut, list(words or []), landmarks, log)
     elif pattern == "graphic":

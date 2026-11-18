@@ -10,7 +10,8 @@ import warnings
 import cv2
 import numpy as np
 
-from .common import best_tile, garment_mask, quiet, signal, to_lab
+from .common import best_tile, garment_mask, quiet, signal, soft_tile, to_lab
+from .common import soft as soft_signal
 
 
 def subpix(r, i, j):
@@ -23,10 +24,13 @@ def subpix(r, i, j):
     return i + f(r[(i - 1) % H, j], r[i, j], r[(i + 1) % H, j]), j + f(r[i, (j - 1) % W], r[i, j], r[i, (j + 1) % W])
 
 
-def local_offsets_match(sig, m, ref, P, Q, stride_frac=0.34, cover=0.9, size=1.0, margin=0.1):
+def local_offsets_match(sig, m, ref, P, Q, stride_frac=0.34, cover=0.9, size=1.0, margin=0.1, peaks=False):
     """Offsets by normalised matching of one repeat-sized piece against the reference tiled around it.
     Returns (offsets (ox, oy) modulo (P, Q) per area, NaN where not measured; how sure each match is; the
-    areas' centres as (rows, columns))."""
+    areas' centres as (rows, columns)). An area whose best match is nearly tied with a match elsewhere is left
+    out. "Elsewhere" is anywhere more than a tenth of a repeat away; with `peaks`, only another peak there
+    counts (bold bands one way and faint ones the other match nearly as well slid along the bold bands: that
+    is the slope of the same match, not another one)."""
     H, W = m.shape
     th, tw = int(Q * size), int(P * size)
     big = np.tile(ref, (int(np.ceil((th + Q) / Q)) + 1, int(np.ceil((tw + P) / P)) + 1)).astype(np.float32)
@@ -51,6 +55,11 @@ def local_offsets_match(sig, m, ref, P, Q, stride_frac=0.34, cover=0.9, size=1.0
             dy = np.minimum(np.abs(yy - i), Q - np.abs(yy - i))
             dx = np.minimum(np.abs(xx - j), P - np.abs(xx - j))
             far[(dy <= max(2, Q // 10)) & (dx <= max(2, P // 10))] = -1
+            if peaks:   # the highest point of each other rise, not the slope of this one
+                ky, kx = max(2, Q // 10), max(2, P // 10)
+                around = cv2.dilate(np.pad(r, ((ky, ky), (kx, kx)), mode="wrap"),
+                                    np.ones((2 * ky + 1, 2 * kx + 1), np.uint8))[ky:-ky, kx:-kx]
+                far[r < around] = -1
             if r[i, j] - far.max() < margin:
                 continue
             fi, fj = subpix(r, i, j)
@@ -211,9 +220,11 @@ def measured_mask(un, centres, shape, half):
     return mk.astype(bool)
 
 
-def accumulate(lab, m, ox, oy, P, Q, up=2):
-    """Median of the garment pixels landing on each spot of one repeat (at `up` times the photo's detail).
-    Returns (the repeat in Lab, how many pixels landed on each spot)."""
+def accumulate(lab, m, ox, oy, P, Q, up=2, mean=False):
+    """Median of the garment pixels landing on each spot of one repeat (at `up` times the photo's detail), or
+    with `mean` their average: a woven grey is light and dark yarns side by side, and the middle one of them is
+    a dark yarn, where the eye sees their average. Returns (the repeat in Lab, how many pixels landed on each
+    spot)."""
     H, W = m.shape
     yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
     u = ((xx - ox) % P)[m]
@@ -221,16 +232,23 @@ def accumulate(lab, m, ox, oy, P, Q, up=2):
     bu = np.minimum((u * up).astype(int), P * up - 1)
     bv = np.minimum((v * up).astype(int), Q * up - 1)
     key = bv * (P * up) + bu
-    order = np.argsort(key, kind="stable")
-    key_s = key[order]
-    px = lab[m][order]
-    tile = np.full((Q * up * P * up, 3), np.nan, np.float32)
-    counts = np.zeros(Q * up * P * up, int)
-    starts = np.r_[0, np.where(np.diff(key_s))[0] + 1]
-    ends = np.r_[starts[1:], len(key_s)]
-    for s, e in zip(starts, ends, strict=True):
-        tile[key_s[s]] = np.median(px[s:e], 0)
-        counts[key_s[s]] = e - s
+    n = Q * up * P * up
+    if mean:
+        counts = np.bincount(key, minlength=n)
+        px = lab[m]
+        tile = np.stack([np.bincount(key, weights=px[:, c], minlength=n) for c in range(3)], 1)
+        tile = np.where(counts[:, None] > 0, tile / np.maximum(counts[:, None], 1), np.nan).astype(np.float32)
+    else:
+        order = np.argsort(key, kind="stable")
+        key_s = key[order]
+        px = lab[m][order]
+        tile = np.full((n, 3), np.nan, np.float32)
+        counts = np.zeros(n, int)
+        starts = np.r_[0, np.where(np.diff(key_s))[0] + 1]
+        ends = np.r_[starts[1:], len(key_s)]
+        for s, e in zip(starts, ends, strict=True):
+            tile[key_s[s]] = np.median(px[s:e], 0)
+            counts[key_s[s]] = e - s
     tile = tile.reshape(Q * up, P * up, 3)
     # fill any empty spot from its neighbours
     for _ in range(4):
@@ -244,22 +262,26 @@ def accumulate(lab, m, ox, oy, P, Q, up=2):
 
 
 def rectify(cut, P, Q, ref_lab=None, iters=3, center_gap=0.06, log=quiet, thresh=40, stride=0.2, deg=4, cover=0.75,
-            up=1, side=None):
-    """Flatten the plaid of a cutout whose repeat is P x Q px. `side` ("left" or "right") uses one front only.
+            up=1, side=None, soft=False, mid=None):
+    """Flatten the plaid of a cutout whose repeat is P x Q px. `side` ("left" or "right") uses one front only;
+    `mid` is where the fronts meet (the button line's x), the middle of the garment when not given. `soft`
+    matches with `common.soft` (for soft, nearly colourless cloth, whose grain and colour noise drown the
+    usual signal) and keeps the last pass that measured enough when a later one does not.
     Returns (one straight repeat in Lab, info with the offset map `ox`/`oy` and per-spot `counts`) or None
     when too few areas could be measured."""
     rgb = np.asarray(cut.convert("RGB"))
     lab = to_lab(rgb)
     m = garment_mask(cut, thresh=thresh)   # faint garment too: areas that are really background fail to match
     xs = np.where(m.any(0))[0]
-    mid, gap = (xs.min() + xs.max()) // 2, int(center_gap * (xs.max() - xs.min()))
+    gap = int(center_gap * (xs.max() - xs.min()))
+    mid = (xs.min() + xs.max()) // 2 if mid is None else int(mid)
     mm = m.copy()
-    mm[:, mid - gap: mid + gap] = False            # the button strip
+    mm[:, max(0, mid - gap): mid + gap] = False    # the button strip
     if side == "left":                               # one front only: the two fronts do not line up
         mm[:, mid:] = False
     elif side == "right":
         mm[:, :mid] = False
-    sig = signal(lab)
+    sig = soft_signal(lab, m, light=3 * max(P, Q)) if soft else signal(lab)
     if ref_lab is None:
         # first reference: the repeat-sized square that best matches its neighbours (no flattening yet)
         bt = best_tile(lab, mm, P, Q)
@@ -272,16 +294,23 @@ def rectify(cut, P, Q, ref_lab=None, iters=3, center_gap=0.06, log=quiet, thresh
         ref_lab = lab[y:y + Q, x:x + P]
     info = {}
     for it in range(iters):
-        if ref_lab.shape[:2] == (Q, P):
-            ref_sig = signal(ref_lab)
+        if soft:
+            ref_sig = soft_tile(ref_lab)
+            if ref_sig.shape != (Q, P):
+                ref_sig = cv2.resize(ref_sig, (P, Q), interpolation=cv2.INTER_AREA)
         else:
-            ref_sig = cv2.resize(signal(ref_lab), (P, Q), interpolation=cv2.INTER_AREA)
-        ref_sig = cv2.GaussianBlur(ref_sig, (0, 0), 0.7)   # grain must not steer the matching
-        off, conf, centres = local_offsets_match(sig, mm, ref_sig, P, Q, stride_frac=stride, cover=cover)
+            if ref_lab.shape[:2] == (Q, P):
+                ref_sig = signal(ref_lab)
+            else:
+                ref_sig = cv2.resize(signal(ref_lab), (P, Q), interpolation=cv2.INTER_AREA)
+            ref_sig = cv2.GaussianBlur(ref_sig, (0, 0), 0.7)   # grain must not steer the matching
+        off, conf, centres = local_offsets_match(sig, mm, ref_sig, P, Q, stride_frac=stride, cover=cover, peaks=soft)
         un = unwrap_ls(off, conf, P, Q, min_conf=0.5)
         n_ok = int((~np.isnan(un[..., 0])).sum())
-        if n_ok < 3:
+        if n_ok < 3 or (soft and info and n_ok < 0.5 * info["areas"]):
             log(f"  pass {it + 1}: only {n_ok} areas could be measured")
+            if soft and info:
+                break                                # the pass before measured more: its repeat is kept
             return None
         field = smooth_fill(un, deg=deg)
         ox, oy = full_field(field, centres, m.shape)
@@ -311,12 +340,13 @@ def rectify(cut, P, Q, ref_lab=None, iters=3, center_gap=0.06, log=quiet, thresh
         bad = (resid > lim).astype(np.uint8)
         # only disagreements that form lines or patches count, not the scattered grain of the cloth
         bad = cv2.morphologyEx(bad, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8)) > 0
-        tile, counts = accumulate(lab, use & ~bad, ox, oy, P, Q, up=up)
+        tile, counts = accumulate(lab, use & ~bad, ox, oy, P, Q, up=up, mean=soft)
         spread = (np.nanmax(un[..., 0]) - np.nanmin(un[..., 0]), np.nanmax(un[..., 1]) - np.nanmin(un[..., 1]))
         log(f"  pass {it + 1}: {n_ok} areas measured (median match {np.median(conf[conf > 0]):.2f}); the cloth drifts "
             f"{spread[0]:.0f} px across and {spread[1]:.0f} px down; {np.median(counts):.0f} pixels per spot")
         ref_lab = tile
-        info = dict(field=field, centres=centres, conf=conf, ox=ox, oy=oy, counts=counts)
+        info = dict(field=field, centres=centres, conf=conf, ox=ox, oy=oy, counts=counts, areas=n_ok, used=use & ~bad,
+                    drift=(float(spread[0]) / P, float(spread[1]) / Q))   # in repeats
     return ref_lab, info
 
 
@@ -348,3 +378,23 @@ def rectify_fronts(cut, P, Q, log=quiet, **kw):
     w = (ca + cb)[..., None]
     merged = (ta * ca[..., None] + tb * cb[..., None]) / np.maximum(w, 1)
     return merged, dict(ia, counts=ca + cb)
+
+
+def agreement(cut, tile_lab, info, P, Q):
+    """How well the rebuilt repeat explains the photo: the repeat laid back over the garment through the
+    flattening map and compared with the photo where it was measured (grain smoothed, slow light taken out).
+    Returns (the correlation, 1 = the same picture; the share of the garment that was measured)."""
+    lab = to_lab(np.asarray(cut.convert("RGB")))
+    used = info["used"]
+    garment = garment_mask(cut, thresh=128)
+    if used.sum() < 4 * P * Q:
+        return 0.0, float(used.sum() / max(1, garment.sum()))
+    H, W = used.shape
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    th, tw = tile_lab.shape[:2]
+    tu = np.minimum(((xx - info["ox"]) % P) * (tw / P), tw - 1).astype(int)
+    tv = np.minimum(((yy - info["oy"]) % Q) * (th / Q), th - 1).astype(int)
+    light = 3 * max(P, Q)
+    a = soft_signal(lab, used, light=light)[used]
+    b = soft_signal(tile_lab[tv, tu], used, light=light)[used]
+    return float(np.corrcoef(a, b)[0, 1]), float(used.sum() / max(1, garment.sum()))

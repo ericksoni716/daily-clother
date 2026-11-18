@@ -3,8 +3,10 @@ import { api, ApiError } from '../api';
 import { preparePhoto } from '../resize';
 import { FRONT_VIEWS, frontPreviewUrl, NUDGES, nudgeLabel, traceNotice } from '../shoe';
 import type { Item, TraceFix } from '../types';
+import { SHOE_RETAKEN } from '../retake';
 import { sha256 } from '../uploads';
 import { CameraIcon, WarnIcon } from './Icons';
+import { RetakeButton as Retake } from './RetakeButton';
 import './Shoe.css';
 
 interface Props {
@@ -14,33 +16,9 @@ interface Props {
   onError(message: string): void;
 }
 
-/** A new photo of the shoe in place of its photo: the owner's camera (or library), then cut out, described and
- * traced again. */
-export function RetakeButton({ item, disabled, onSaved, onError, primary = false }: Props & { primary?: boolean }) {
-  const input = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState(false);
-  const take = async (file: File | undefined) => {
-    if (!file) return;
-    setBusy(true);
-    try {
-      const [prepared, hash] = await Promise.all([preparePhoto(file), sha256(file).catch(() => null)]);
-      onSaved(await api.replacePhoto(item.id, prepared.blob, prepared.filename, hash), 'New photo added; the shoe is traced again from it');
-    } catch (e) {
-      onError((e as ApiError).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <>
-      <input ref={input} className="visually-hidden" type="file" accept="image/*" capture="environment" tabIndex={-1}
-        aria-hidden="true" data-testid="retake-input" onChange={(e) => { void take(e.target.files?.[0]); e.target.value = ''; }} />
-      <button type="button" className={`btn btn-small${primary ? ' btn-primary' : ''}`} disabled={disabled || busy}
-        onClick={() => input.current?.click()}>
-        <CameraIcon />{busy ? 'Sending the photo…' : 'Retake the photo'}
-      </button>
-    </>
-  );
+/** A new photo of the shoe in place of its photo: then cut out, described and traced again. */
+export function RetakeButton({ primary = false, ...props }: Props & { primary?: boolean }) {
+  return <Retake {...props} primary={primary} said={SHOE_RETAKEN} />;
 }
 
 /** The item page's line about a shoe's trace: while it is traced, or why it is drawn from its details, with a

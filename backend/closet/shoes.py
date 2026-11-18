@@ -10,10 +10,9 @@ five, sorted into views by Claude in the background, `shoeviews`), the owner's w
 from __future__ import annotations
 
 import json
-import uuid
 from pathlib import Path
 
-from . import db, illustrations, images, items, jobs, shoeviews, tracejobs
+from . import db, illustrations, items, shoeviews, tracejobs
 from .drawing import sideshoe
 from .tagger.views import VIEWS
 
@@ -33,15 +32,7 @@ def _save(conn, item_id: str, sets: dict) -> None:
     illustrations.redraw(conn, item_id)
 
 
-def _locked(conn, work):
-    conn.execute("BEGIN IMMEDIATE")
-    try:
-        work()
-        conn.execute("COMMIT")
-    except Exception:
-        if conn.in_transaction:
-            conn.execute("ROLLBACK")
-        raise
+_locked = items.locked
 
 
 def fix(conn, item_id: str, body) -> dict:
@@ -149,62 +140,19 @@ def retrace(conn, item_id: str) -> dict:
     return items.detail(conn, items.get(conn, item_id))
 
 
-def _store(images_dir: Path, item_id: str, data: bytes):
-    photo_id = uuid.uuid4().hex
-    return photo_id, images.store_upload(data, images_dir, item_id, photo_id)
-
-
-def _remove_files(images_dir: Path, photo) -> None:
-    for key in ("original_path", "thumb_path", "cutout_path", "cutout_thumb_path"):
-        if photo[key]:
-            (images_dir / photo[key]).unlink(missing_ok=True)
-
-
-def _elsewhere(conn, item_id: str, source_sha256: str) -> None:
-    other = conn.execute("SELECT item_id FROM photos WHERE source_sha256 = ? AND item_id != ? LIMIT 1",
-                         (source_sha256, item_id)).fetchone()
-    if other is not None:
-        raise items.ItemError("This photo is already in the closet, as another item.", 409)
+_store = items.store_photo
+_remove_files = items.remove_photo_files
+_elsewhere = items.refuse_elsewhere
 
 
 def replace_photo(conn, images_dir: Path, item_id: str, data: bytes, source_sha256: str | None = None,
                   demo: bool = False) -> dict:
     """A new photo of the shoe in place of the old one (the item page's "Retake the photo"): the background is
     removed again, Claude describes it again (not in the demo closet) and the shoe is traced again. The old trace
-    goes, the owner's fixes stay. Photos sorted into views (or waiting to be) are sorted again, with the new one."""
-    source_sha256 = items.photo_hash(data, source_sha256)
-    _traced_row(conn, item_id)
-    photo_id, stored = _store(images_dir, item_id, data)
-    old: list = []
-
-    def work():
-        row = _traced_row(conn, item_id)
-        if conn.execute("SELECT 1 FROM jobs WHERE kind = 'cutout' AND item_id = ? AND state = 'running'",
-                        (item_id,)).fetchone():
-            raise items.ItemError("The photo is still being cut out; try again in a moment.", 409)
-        _elsewhere(conn, item_id, source_sha256)
-        old.extend(conn.execute("SELECT * FROM photos WHERE item_id = ? AND kind = 'front'", (item_id,)).fetchall())
-        conn.execute("DELETE FROM jobs WHERE kind = 'cutout' AND item_id = ? AND state = 'queued'", (item_id,))
-        conn.execute("DELETE FROM photos WHERE item_id = ? AND kind = 'front'", (item_id,))
-        conn.execute("INSERT INTO photos (id, item_id, kind, original_path, thumb_path, width, height, bytes, sha256, "
-                     "source_sha256, created_at) VALUES (?, ?, 'front', ?, ?, ?, ?, ?, ?, ?, ?)",
-                     (photo_id, item_id, stored.original_path, stored.thumb_path, stored.width, stored.height,
-                      stored.bytes, stored.sha256, source_sha256, db.now()))
-        tracejobs.forget(conn, item_id)
-        if row["views_state"] is not None or row["views_error"] is not None:   # its photos were sorted, or meant to be
-            shoeviews.changed(conn, item_id, demo)
-        jobs.enqueue_cutout(conn, item_id, photo_id)
-        illustrations.redraw(conn, item_id)
-
-    try:
-        _locked(conn, work)
-    except Exception:
-        for name in (stored.original_path, stored.thumb_path):
-            (images_dir / name).unlink(missing_ok=True)
-        raise
-    for p in old:
-        _remove_files(images_dir, p)
-    return items.detail(conn, items.get(conn, item_id))
+    goes, the owner's fixes stay. Photos sorted into views (or waiting to be) are sorted again, with the new one.
+    The steps are shared with clothes (`items.replace_front`)."""
+    return items.replace_front(conn, images_dir, item_id, data, source_sha256,
+                               lambda row, sha: _traced_row(conn, item_id), demo=demo)
 
 
 SAME_PHOTO = "This photo is already one of this shoe's photos."

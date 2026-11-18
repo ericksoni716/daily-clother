@@ -226,7 +226,8 @@ export const api = {
   setShoeFront: (id: string, kind: 'shape' | 'photo' | null) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}/trace/front`, { method: 'PUT', body: { kind } }),
   retrace: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/retrace`, { method: 'POST' }),
-  /** A new photo of a shoe in place of its photo ("Retake the photo"). */
+  /** A new photo in place of the item's main photo ("Retake the photo"): a shoe is traced again from it, clothes
+   * are cut out, described and their pattern measured again. */
   replacePhoto: (id: string, photo: Blob, filename: string, sha256?: string | null) => {
     const form = new FormData();
     form.append('photo', photo, filename);

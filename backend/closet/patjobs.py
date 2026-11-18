@@ -9,8 +9,12 @@ without an answer the pattern is still measured, only not placed), then measures
 can take a minute or two on a large photo), keeps the result in `items.pattern_fill` with the colours measured from it (`palette`), lays those colours
 over the item's colour words (`palette.settle`: the owner's own colour always wins) and redraws the item.
 
-A measurement that fails never costs the item its drawing: it is drawn in its colour and says why. The demo
-closet is never measured: its drawings were made in advance.
+A measurement that fails never costs the item its drawing: it is drawn in its colour and says why, and for a
+plaid what kind of photo would work. The demo closet is never measured: its drawings were made in advance.
+
+Plaids that older measuring code could not find a repeat in (drawn from the whole-garment measure meant for
+madras, or not at all) are measured again once by this code, from a cutout made again (`stale`): a photo taken
+at an angle, or a cutout that kept the bedding, is what the newer code is for.
 """
 from __future__ import annotations
 
@@ -34,6 +38,8 @@ log = logging.getLogger("closet.patterns")
 MEASURED = ("plaid", "stripe", "floral", "camo", "other")
 TOPS = ("tee", "shirt", "polo", "sweater", "hoodie", "jacket", "coat")
 FAILED = "Closet could not measure the pattern from the photo, so the drawing shows only its colour."
+PLAID_FAILED = ("Closet could not measure the checks from this photo, so the drawing shows only the colour. A photo of "
+                "it laid flat on a plain surface, taken from straight above, usually works.")
 GRAPHIC = "graphic"
 GRAPHIC_FAILED = "Closet could not lift the print from the photo, so the drawing shows the item plain."
 NO_CUTOUT = "The pattern is measured from the photo with its background removed, which this item does not have yet."
@@ -78,6 +84,30 @@ def mark(conn, item_id: str) -> None:
                      (item_id,))
 
 
+def stale(conn) -> list[str]:
+    """Plaids the measuring code before `patterns.straighten` found no repeat in: kept as the whole-garment tile
+    meant for madras (no "how", and wider than half the garment, which a repeat never is), or failed. Each waits
+    to be measured again, once: what is kept afterwards says how it was measured, and a new failure says so in
+    newer words. Returns their ids, for their cutouts to be made again first (`jobs.Worker.drain`)."""
+    found = []
+    for row in conn.execute("SELECT id, pattern_fill, pattern_state, pattern_error FROM items WHERE pattern = 'plaid' "
+                            "AND pattern_state IN ('done', 'failed')").fetchall():
+        if row["pattern_state"] == "failed":
+            old = row["pattern_error"] == FAILED
+        else:
+            try:
+                kept = json.loads(row["pattern_fill"]) if row["pattern_fill"] else None
+            except ValueError:
+                kept = None
+            old = (isinstance(kept, dict) and kept.get("kind") == "tile" and "how" not in kept
+                   and isinstance(kept.get("width_frac"), (int, float)) and kept["width_frac"] > 0.5)
+        if old:
+            found.append(row["id"])
+    for item_id in found:
+        conn.execute("UPDATE items SET pattern_state = 'waiting', pattern_error = NULL WHERE id = ?", (item_id,))
+    return found
+
+
 def recover(conn) -> None:
     """A measurement interrupted by a quit starts again."""
     conn.execute("UPDATE items SET pattern_state = 'waiting' WHERE pattern_state = 'working'")
@@ -88,13 +118,18 @@ def waiting_count(conn) -> int:
 
 
 def _words(row) -> list[str]:
-    words = [row["color"]] if row["color"] else []
+    """The item's colour words, the main one first: the owner's own colour when they set it, else the colour
+    Claude called it (not the item's current colour, which an earlier measurement of a photo too dark may have
+    turned to black), then Claude's other colours and the item's current colour."""
+    words = palette.said(row)
     try:
         answer = json.loads(row["tag_answer"]) if row["tag_answer"] else {}
         words += [w for w in answer.get("secondary_colors") or [] if isinstance(w, str)]
-    except ValueError:
+    except (ValueError, AttributeError):
         pass
-    return words
+    if row["color"]:
+        words.append(row["color"])
+    return list(dict.fromkeys(words))
 
 
 def _cutout(conn, images_dir: Path, item_id: str) -> Image.Image | None:
@@ -109,7 +144,9 @@ def _cutout(conn, images_dir: Path, item_id: str) -> Image.Image | None:
 def run_one(conn, images_dir: Path, measurer: Measurer, landmarker: Landmarker | None, routes: Routes) -> str:
     """Measure the oldest waiting item. Returns 'empty' or 'done'."""
     conn.execute("BEGIN IMMEDIATE")
-    row = conn.execute("SELECT * FROM items WHERE pattern_state = 'waiting' ORDER BY updated_at LIMIT 1").fetchone()
+    # an item whose cutout is being made (again) waits for it: its pattern is measured from the new one
+    row = conn.execute("SELECT * FROM items WHERE pattern_state = 'waiting' AND (cutout_state IS NULL OR cutout_state "
+                       "NOT IN ('pending', 'processing')) ORDER BY updated_at LIMIT 1").fetchone()
     if row is None:
         conn.execute("COMMIT")
         return "empty"
@@ -117,7 +154,7 @@ def run_one(conn, images_dir: Path, measurer: Measurer, landmarker: Landmarker |
     conn.execute("UPDATE items SET pattern_state = 'working' WHERE id = ?", (item_id,))
     conn.execute("COMMIT")
     how = method(row) or row["pattern"]
-    failed = GRAPHIC_FAILED if how == GRAPHIC else FAILED
+    failed = GRAPHIC_FAILED if how == GRAPHIC else PLAID_FAILED if how == "plaid" else FAILED
     try:
         cut = _cutout(conn, images_dir, item_id)
         if cut is None:

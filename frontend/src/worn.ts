@@ -51,7 +51,7 @@ export interface WornPage {
 export interface OutfitSent {
   pieces: OutfitPieces;
   context: Partial<WornContext>;
-  score: number;
+  score: number | null;
   reasons: string[];
   warnings: string[];
 }

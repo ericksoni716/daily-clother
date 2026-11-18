@@ -15,9 +15,25 @@ export interface OutfitPieces {
 
 export interface Outfit {
   pieces: OutfitPieces;
-  score: number;
+  /** The rules' score out of 100; null for an outfit Claude chose (its reasons say why instead). */
+  score: number | null;
   reasons: string[];
   warnings: string[];
+  /** 'claude' when Claude chose it; absent when Closet's own rules did. */
+  by?: 'claude';
+}
+
+/** Claude choosing the day's outfits (the server's `closet/stylejobs.py`). */
+export interface StylistState {
+  /** 'working': still choosing, the outfits are the rules'; 'ready': Claude's come first; 'failed': the rules' (`message` says why). */
+  state: 'working' | 'ready' | 'failed';
+  /** The question, for `api.styleAnswer`; null when none was asked. */
+  id: string | null;
+  /** Claude's one sentence on what about the day shaped its choices (ready only). */
+  read: string | null;
+  /** Why Claude could not choose, in a sentence (failed). On ready, normally null; a sentence only on the request that
+   * carried `ask_again` and was refused by the daily limit ("…so these are still the ones it chose last"). */
+  message: string | null;
 }
 
 /** The day the outfits were chosen for, as the server worked it out. */
@@ -40,6 +56,8 @@ export interface DayContext {
   detail?: DayDetail | null;
   /** The day in the owner's words, if a note holds today or is coming up. */
   note?: DayNote | null;
+  /** Claude choosing the outfits; absent or null when Claude does not choose here (the demo closet, switched off). */
+  stylist?: StylistState | null;
 }
 
 /** What the hours the owner is out are like (the server's `closet/day.py`). */
@@ -85,6 +103,13 @@ export interface DayAnswer {
   saved?: boolean;
 }
 
+/** `GET /api/style/answers/{id}`: how one question to Claude stands. */
+export interface StyleAnswer {
+  id: string;
+  state: StylistState['state'];
+  message: string | null;
+}
+
 export interface TodayAnswer {
   outfits: Outfit[];
   missing: string[];
@@ -101,6 +126,8 @@ export interface TodayRequest {
   rain?: boolean;
   /** A worn outfit's id: start from its pieces that are clean. */
   again?: string;
+  /** Ask Claude to choose afresh (one request only: never kept with the request). */
+  ask_again?: boolean;
 }
 
 export interface WearManyAnswer {
@@ -370,7 +397,7 @@ export function wornNow(local: WornToday | null, recent: WornRecord[] | null, fe
   const ids = outfitIds(pieces);
   return {
     day: today, worn_on: todays.worn_on, ids, recorded: ids, outfit_id: todays.id,
-    outfit: { pieces, score: todays.score ?? 0, reasons: todays.reasons, warnings: todays.warnings },
+    outfit: { pieces, score: todays.score, reasons: todays.reasons, warnings: todays.warnings },
   };
 }
 
@@ -412,4 +439,31 @@ export function timeOf(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+
+/**
+ * What Today shows about Claude choosing the outfits: nothing ('none': Claude does not choose here, or a saved copy
+ * kept while Claude was still choosing), the waiting card ('waiting'), Claude's sentence with "Ask Claude again"
+ * ('read'), or why Claude could not choose with "Try again" ('failed'). `saved`: the answer is a copy kept on this
+ * device, shown offline, so nothing can be waited for.
+ */
+export function stylistView(stylist: StylistState | null | undefined, saved: boolean): 'none' | 'waiting' | 'read' | 'failed' {
+  if (!stylist) return 'none';
+  if (stylist.state === 'working') return saved ? 'none' : 'waiting';
+  return stylist.state === 'ready' ? 'read' : 'failed';
+}
+
+/** The small line on an outfit saying who chose it, once Claude has answered (or could not); null otherwise. */
+export function chosenBy(outfit: Pick<Outfit, 'by'>, stylist: StylistState | null | undefined): string | null {
+  if (outfit.by === 'claude') return 'Chosen by Claude';
+  return stylist && (stylist.state === 'ready' || stylist.state === 'failed') ? "From Closet's rules" : null;
+}
+
+/** How long Claude has been choosing (seconds) before the waiting card says it is taking longer than usual. */
+export const STYLIST_SLOW_S = 60;
+
+/** The line under "Claude is choosing today's outfits…", after `seconds` of waiting. */
+export function waitingLine(seconds: number): string {
+  return seconds >= STYLIST_SLOW_S ? 'This is taking longer than usual.'
+    : 'This usually takes about 20 seconds. They are kept for the rest of the day.';
 }

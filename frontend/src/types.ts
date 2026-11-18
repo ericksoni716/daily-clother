@@ -343,6 +343,8 @@ export interface Settings {
   rewear?: Rewear;
   /** Laundry that keeps itself: worn clothes go in by themselves after their count, and come out on the laundry day. */
   laundry?: LaundrySetting;
+  /** Whether Claude may choose the outfits on Today (Settings, Your style); otherwise Closet's own rules do. */
+  stylist_on?: boolean;
 }
 
 /** Laundry that keeps itself. `day`: Monday 0 to Sunday 6, or null for no set laundry day. */

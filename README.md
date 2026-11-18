@@ -633,7 +633,7 @@ draws the cloth much more faithfully than the smaller model used before 18
 November (stripes, checks and colours were tested side by side on 60 garments).
 At the prices Closet knows (prices change, so check Anthropic's pricing page),
 describing one photo cost about 2¢ in that test, and Closet counts up to about
-9¢ for each photo before it asks, to be sure of staying under your limit. To
+10¢ for each photo before it asks, to be sure of staying under your limit. To
 allow the API key you set a **monthly limit** in US dollars; $5 is suggested,
 enough for about 200 photos. Corrections you type and shopping searches still
 use the smaller, cheaper model. On your Claude plan the larger model uses a

@@ -114,17 +114,19 @@ and says so. Offline, Today shows the outfits it last found that day.
 clothes, what you wrote in **Your style** and on your pieces, what you wore
 lately and what you said about it, and the day, and chooses the outfits; each
 one says **Chosen by Claude**, with Claude's own words on why it works, and a
-line under the outfits says what about the day shaped the choice. The first
-time each day, and when you change the occasion or the mood, this takes about
-20 seconds and Today shows that Claude is choosing; tap **Show Closet's own
+line under the outfits says what about the day shaped the choice. Before
+offering them, Claude also looks at each outfit drawn on the figure, as you
+would in a mirror, and changes one that looks wrong. When you change the
+occasion or the mood, or ask again, this takes under a minute and Today
+shows that Claude is choosing; tap **Show Closet's own
 picks meanwhile** to see (and wear) Closet's own outfits while you wait. The
 outfits are then kept for the rest of the day. **Ask Claude again**, under the
 outfits, has Claude choose afresh. When Claude can't be reached, when the
 switch in **Settings → Your style** is off, and always in the demo closet,
 Closet's own rules choose, as before (outfits from them say **From Closet's
 rules** when Claude couldn't choose). It uses your Claude plan, or your API key
-first when that is switched on in Settings: about 5 cents each time, counted in
-the monthly limit.
+first when that is switched on in Settings: about 8 cents each time (the choice
+and the look), counted in the monthly limit.
 
 **Ready before you look.** While Closet is running on your computer, it asks
 Claude for the day's outfits by itself each morning (from five o'clock, or when

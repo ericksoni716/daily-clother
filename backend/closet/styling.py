@@ -21,6 +21,8 @@ colour, formality and warmth are Claude's to judge.
 
 The conversation (`closet/stylejobs.py`): `talk_words` writes what was said today, and for a message just written
 the outfits on the owner's screen; `keeps` shapes what Claude offers to remember for other days.
+
+The look at the drawn figure: `chosen_words` writes the outfits Claude chose beside the names of their pictures.
 """
 from __future__ import annotations
 
@@ -245,6 +247,15 @@ def _numbers(o: Mapping, listing: Listed) -> str:
              if placed.get(pl) and listing.number(placed[pl])]
     extras = [str(listing.number(a)) for a in placed.get("accessories") or [] if listing.number(a)]
     return "; ".join(parts + ([f"accessories {', '.join(extras)}"] if extras else []))
+
+
+def chosen_words(found: list[dict], listing: Listed) -> str:
+    """The outfits Claude chose, for its look at them as drawn: one line each, by the closet's numbers, with the
+    name of its picture and what Claude said about it."""
+    return "\n".join(
+        f"- Outfit {i} (outfit-{i}.png): {_numbers(o, listing)}."
+        + (f" Why you chose it: “{_text(o['reasons'][0])}”" if o.get("reasons") else "")
+        for i, o in enumerate(found, 1))
 
 
 def talk_words(turns: list[dict], listing: Listed, shown: list[dict] | None = None, say: str | None = None,

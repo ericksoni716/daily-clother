@@ -14,6 +14,12 @@ the outfits again when something changes (none when they only asked a question),
 remembering for other days, which the owner is asked about before anything is kept. A plain question later the
 same day still carries `talk`, so what the owner said holds for the rest of the day.
 
+The look (the owner's plan, 17 November: "it also looks at the drawn figure of each before offering it"): after
+choosing, Claude is shown each outfit drawn on the figure as worn (`closet/drawing/figure.py`) and asked to look
+at it as the owner would in a mirror, and at the set side by side; it keeps an outfit exactly or changes it
+(`look`, answered as a `Seen`). A second, shorter question: the day, the profile, the closet and the outfits
+chosen, without the guide and the history that the choice was already made with.
+
 Asked on the model of the `styling` role (Opus), through the API key first when that is switched on, else the plan,
 as the day's note is (`tagger/dayread.py`), under the monthly limit (`closet/stylejobs.py` asks; `closet/app.py`
 wires it). `tools/style_demo_days.py` runs it on the demo closet to judge it and to measure a call.
@@ -30,6 +36,10 @@ COUNT = 3              # outfits asked for
 MAX_TOKENS = 3000      # the longest answer: three outfits with their sentences, and a line about the day
 TALK_MAX_TOKENS = 3600  # the same with words back to the owner and things to remember
 EFFORT = "medium"      # how hard Claude thinks about it (tools/style_demo_days.py tries the others)
+LOOK_MAX_TOKENS = 2500  # the look's longest answer: the outfits again and a sentence on what was seen
+LOOK_EFFORT = "low"    # the look is a check of a choice already thought through
+LOOK_TIMEOUT = 90      # seconds the look may take through the plan (it usually takes about 15)
+PICTURE_WIDTH = 360    # how wide each outfit's picture is, in pixels (about 1,000 tall)
 SYSTEM = ("You are the personal stylist inside a private wardrobe app. You choose what its owner wears today from "
           "their own clothes. Answer in the required JSON format. Do nothing else.")
 
@@ -129,6 +139,59 @@ The app's own rules would offer these today. Use them only so that nothing obvio
 {_give(brief, count)}"""
 
 
+class Seen(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    saw: str = Field(description="One or two plain sentences on what the pictures showed that the list did not, and "
+                                 "what you changed; empty when nothing needed changing.")
+    outfits: list[Look] = Field(description="The final outfits, best first.")
+
+
+def look_prompt(brief: dict[str, str], count: int) -> str:
+    """The question for the look: `brief` is what the choice was made from, with `chosen` (`styling.chosen_words`)."""
+    talk = (f"\n\n# The conversation with the owner today\n{brief['talk']}\nWhat the owner told you today still "
+            "holds: do not undo it.") if brief.get("talk") else ""
+    return f"""You chose the outfits below for the owner to wear today. Each is now drawn on a figure, as worn: outfit-1.png is outfit 1, and so on. The drawings are made from what the app knows about each piece (its colour, pattern, cut, length and weight), so they show the colours side by side, the proportions and where each layer ends. They do not show texture, and the shades are approximate.
+
+Look at each picture the way the owner would look in a mirror before leaving, then at the pictures side by side:
+- Colours and patterns as they sit together on the body: does anything fight, or is the whole thing one flat tone?
+- Proportions and lengths: where each layer ends against the next, how the trousers meet the shoes, how much of each layer shows.
+- The set: are the outfits clearly different to the eye, or nearly the same picture?
+
+Change an outfit only where the picture shows something you would really fix before going out. Otherwise keep it exactly as it is, with the same numbers. Do not change anything for the sake of it, and do not undo what the day needs (warmth, rain, the occasion).
+
+# Today
+{brief["day"]}
+
+# How the owner dresses (their style profile)
+{brief["profile"]}
+
+# The closet: what can be worn today
+{brief["closet"]}
+
+# The outfits you chose
+{brief["chosen"]}{talk}
+
+# What to give
+- `outfits`: the final {count} outfits, best first. An outfit you keep has the same numbers and may keep its `why`; one you change has a `why` for the outfit as it now is, in one or two plain sentences to the owner (no piece numbers, and no talk of pictures or drawings). `watch`: only a real caution, otherwise empty. Each outfit has a base top, a bottom and shoes; use only numbers from the closet list, each piece in a place its line allows.
+- `saw`: one or two plain sentences on what the pictures showed that the list did not and what you changed; empty when you changed nothing."""
+
+
+def look(brief: dict[str, str], pictures: list, routes: tuple[str, ...], client=None, exe: str | None = None,
+         meter: Meter | None = None, model: str = MODEL, effort: str | None = LOOK_EFFORT):
+    """Claude's look at the outfits it chose, drawn as worn: `pictures` are the drawings, one for each line of
+    `brief["chosen"]`, in order. A `correcting.CorrectionResult` whose `answer` is a `Seen`. Raises as `ask` does."""
+    names = [f"outfit-{i}.png" for i in range(1, len(pictures) + 1)]
+    return correcting.ask(look_prompt(brief, len(pictures)), pictures, routes, client=client, exe=exe, meter=meter,
+                          answer_model=Seen, system=SYSTEM, model=model, names=names, max_tokens=LOOK_MAX_TOKENS,
+                          timeout=LOOK_TIMEOUT, effort=effort)
+
+
+def seen(result) -> dict:
+    """A look's answer as `closet/stylejobs.py` takes it: {looks, saw, route, model, input_tokens, output_tokens}."""
+    return {"looks": looks(result.answer), "saw": result.answer.saw, "route": result.route, "model": result.model,
+            "input_tokens": result.input_tokens, "output_tokens": result.output_tokens}
+
+
 def ask(brief: dict[str, str], routes: tuple[str, ...], client=None, exe: str | None = None,
         meter: Meter | None = None, model: str = MODEL, effort: str | None = EFFORT, count: int = COUNT):
     """Claude's answer to the brief: a `correcting.CorrectionResult` whose `answer` is a `Looks`, or a `Reply` when
@@ -140,7 +203,7 @@ def ask(brief: dict[str, str], routes: tuple[str, ...], client=None, exe: str | 
                           max_tokens=TALK_MAX_TOKENS if talking else MAX_TOKENS, effort=effort)
 
 
-def looks(answer: Looks | Reply) -> list[dict]:
+def looks(answer: Looks | Reply | Seen) -> list[dict]:
     """The answer's outfits as plain dictionaries, for `styling.check`."""
     return [look.model_dump() for look in answer.outfits]
 

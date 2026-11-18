@@ -32,6 +32,12 @@ answered, when no route to Claude can be used and at the day's limit. While a me
 question is started (asking again, the weather moving, other choices): the page waits on the message and asks
 Today again, so Claude's words back never sit beside outfits from another answer.
 
+**The look.** When the stylist can draw and look (`draw`, `look`), a plain question has a second part: the outfits
+Claude chose are drawn on the figure as worn, Claude is shown the pictures and keeps or changes each outfit; the
+answer is ready once that is done, and `seen` records what it saw. An answer to a message of the owner's is not
+looked at, so the conversation stays quick. The look can only improve an answer: when the outfits cannot be drawn,
+Claude cannot be asked again, or what it gives cannot be worn, the outfits first chosen stand.
+
 **Remembering.** Nothing is kept unless the owner says so (`settle`): a thing about their style is added to the
 style profile as a line, a thing about a piece to its "How I wear it" note. Both are part of what an answer is
 for, so the day's answers are moved to the new words: saving does not ask Claude again.
@@ -99,6 +105,11 @@ class Refused(Exception):
 # What asks Claude: (brief, routes) -> {"looks": [...], "read": str, "route", "model", "input_tokens", "output_tokens"}
 # and, when the brief carries the owner's message (`say`), "reply": str and "remember": [{about, text}] as well
 Asker = Callable[[dict, tuple[str, ...]], dict]
+# What draws the outfits chosen, each as worn on the figure: (the closet's database, outfits) -> one picture each
+Drawer = Callable[[Path, list[dict]], list]
+# What shows Claude those pictures: (brief with "chosen", pictures, routes) -> {"looks": [...], "saw": str, "route",
+# "model", "input_tokens", "output_tokens"}
+Looker = Callable[[dict, list, tuple[str, ...]], dict]
 
 
 def _hash(what: object) -> str:
@@ -163,8 +174,10 @@ class Stylist:
     used now; `start` runs a job (a thread by default; tests run it at once or hold it)."""
 
     def __init__(self, ask: Asker, routes: Callable[[], tuple[str, ...]], clock: Callable[[], float] = time.time,
-                 start: Callable[[Callable[[], None]], None] | None = None):
+                 start: Callable[[Callable[[], None]], None] | None = None, draw: Drawer | None = None,
+                 look: Looker | None = None):
         self.ask, self.routes, self.clock = ask, routes, clock
+        self.draw, self.look = draw, look   # both, or the outfits are not looked at as drawn
         self.start = start or (lambda job: threading.Thread(target=job, name="closet-stylist", daemon=True).start())
         self._lock = threading.Lock()
 
@@ -317,6 +330,51 @@ class Stylist:
         return {"state": FAILED, "id": row["id"], "outfits": [], "read": None,
                 "message": MESSAGES.get(row["error"] or "error", MESSAGES["error"])}
 
+    # ------------------------------------------------------------------ the look at the outfits as drawn
+    def _still_working(self, path: Path, answer_id: str) -> None:
+        """Note that a question is still being worked on, now: the time after which it counts as lost (`STALE_S`)
+        runs afresh for its second part, so a slow choice followed by a slow look is not asked again meanwhile."""
+        conn = db.connect(path)
+        try:
+            conn.execute("UPDATE style_answers SET asked_at = ? WHERE id = ? AND state = ?",
+                         (self.clock(), answer_id, WORKING))
+        finally:
+            conn.close()
+
+    def _looked(self, path: Path, told_id: str, told: dict, listing: styling.Listed, ctx: outfits.Context,
+                not_again: dict, usable: tuple[str, ...], found: list[dict]
+                ) -> tuple[list[dict], list[str], dict | None, dict]:
+        """Claude's look at the outfits it chose, drawn as worn: (the outfits now, what was left out of its second
+        answer, what is recorded as `seen` or None when no look was taken, the tokens it took). Never raises: when
+        the look cannot be taken or gives nothing wearable, `found` stands."""
+        nothing = {"input_tokens": 0, "output_tokens": 0}
+        if self.draw is None or self.look is None:
+            return found, [], None, nothing
+        began = time.monotonic()
+        try:
+            self._still_working(path, told_id)
+            pictures = self.draw(path, found)
+            if len(pictures) != len(found):
+                return found, [], None, nothing
+            meta = self.look({**told, "chosen": styling.chosen_words(found, listing)}, pictures, usable)
+            again, problems = styling.check(meta.get("looks") or [], listing, ctx, not_again)
+        except (CapReached, RouteUnavailable, Unreachable, TaggingError) as e:
+            log.info("the outfits were not looked at as drawn: %s", type(e).__name__)
+            return found, [], None, nothing
+        except Exception:
+            log.exception("looking at the outfits as drawn failed")
+            return found, [], None, nothing
+        spent = {k: int(meta.get(k) or 0) for k in nothing}
+        # the look's sentences count outfits within its own answer: told apart from the first answer's
+        problems = [f"After the look, {p[:1].lower()}{p[1:]}" for p in problems]
+        if not again:   # nothing wearable came back: what was first chosen stands
+            return found, problems, None, spent
+        # an outfit lost from the second answer (left out by the check, or not given again) keeps its place after
+        final = merged(again, found, len(found))
+        changed = sum(1 for o in final if not any(_same(o, before) for before in found))
+        saw = " ".join(str(meta.get("saw") or "").split())[:styling.MAX_REPLY] or None
+        return final, problems, {"saw": saw, "changed": changed, "seconds": round(time.monotonic() - began, 1)}, spent
+
     # ------------------------------------------------------------------ asking
     def _run(self, path: Path, answer_id: str, told: dict, listing: styling.Listed, ctx: outfits.Context,
              not_again: dict, usable: tuple[str, ...], shown: list[dict] | None = None, read: str | None = None) -> None:
@@ -324,7 +382,7 @@ class Stylist:
         page, which stand when Claude gives none."""
         started = time.monotonic()
         talking = shown is not None
-        found, problems, meta, error, reply, remember = [], [], {}, None, None, []
+        found, problems, meta, error, reply, remember, seen = [], [], {}, None, None, [], None
         try:
             meta = self.ask(told, usable)
             looks = meta.get("looks") or []
@@ -339,6 +397,10 @@ class Stylist:
                 found = shown   # Claude only answered: the outfits on the page stand
             if not found or (talking and not reply):
                 error = "answer"
+            elif not talking:
+                found, more, seen, spent = self._looked(path, answer_id, told, listing, ctx, not_again, usable, found)
+                problems = problems + more
+                meta = {**meta, **{k: int(meta.get(k) or 0) + spent[k] for k in spent}}
         except CapReached:
             error = "limit"
         except (RouteUnavailable, Unreachable):
@@ -354,17 +416,25 @@ class Stylist:
         try:
             conn.execute(
                 "UPDATE style_answers SET state = ?, outfits = ?, read = ?, problems = ?, error = ?, route = ?, model = ?, "
-                "input_tokens = ?, output_tokens = ?, seconds = ?, finished_at = ?, reply = ?, remember = ? "
+                "input_tokens = ?, output_tokens = ?, seconds = ?, finished_at = ?, reply = ?, remember = ?, seen = ? "
                 "WHERE id = ? AND state = ?",
                 (FAILED if error else READY, json.dumps([] if error else found), None if error else read,
                  json.dumps(problems), error, meta.get("route"),
                  meta.get("model"), int(meta.get("input_tokens") or 0), int(meta.get("output_tokens") or 0),
                  round(time.monotonic() - started, 1), db.now(), None if error else reply,
-                 json.dumps(remember) if remember and not error else None, answer_id, WORKING))
+                 json.dumps(remember) if remember and not error else None,
+                 json.dumps(seen) if seen and not error else None, answer_id, WORKING))
         except Exception:
             log.exception("Claude's outfits could not be kept")
         finally:
             conn.close()
+
+
+def _same(a: dict, b: dict) -> bool:
+    """Whether two outfits are the same pieces in the same places, accessories in any order."""
+    pa, pb = a.get("pieces") or {}, b.get("pieces") or {}
+    return (all((pa.get(pl) or None) == (pb.get(pl) or None) for pl in outfits.PLACES)
+            and sorted(pa.get("accessories") or []) == sorted(pb.get("accessories") or []))
 
 
 def _remembered(row) -> list[dict]:

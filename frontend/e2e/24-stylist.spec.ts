@@ -75,7 +75,7 @@ test.describe('outfits chosen by Claude', () => {
     await expect(waiting(page)).toBeVisible();
     await expect(waiting(page)).toHaveAttribute('role', 'status');
     await expect(waiting(page).getByRole('heading', { name: "Claude is choosing today's outfits…" })).toBeVisible();
-    await expect(waiting(page)).toContainText('This usually takes about 20 seconds. They are kept for the rest of the day.');
+    await expect(waiting(page)).toContainText('This usually takes under a minute. They are kept for the rest of the day.');
     await expect(page.getByTestId('current-outfit')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: /Best for today/ })).toHaveCount(0);
     expect(await axeViolations(page)).toEqual([]);

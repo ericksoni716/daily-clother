@@ -493,12 +493,12 @@ export function chosenBy(outfit: Pick<Outfit, 'by'>, stylist: StylistState | nul
 }
 
 /** How long Claude has been choosing (seconds) before the waiting card says it is taking longer than usual. */
-export const STYLIST_SLOW_S = 60;
+export const STYLIST_SLOW_S = 90;
 
 /** The line under "Claude is choosing today's outfits…", after `seconds` of waiting. */
 export function waitingLine(seconds: number): string {
   return seconds >= STYLIST_SLOW_S ? 'This is taking longer than usual.'
-    : 'This usually takes about 20 seconds. They are kept for the rest of the day.';
+    : 'This usually takes under a minute. They are kept for the rest of the day.';
 }
 
 // --------------------------------------------------------------------- talking to Claude about the outfits

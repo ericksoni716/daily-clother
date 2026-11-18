@@ -76,8 +76,8 @@ class Ahead:
             return "early"
         try:
             opened = date.fromisoformat(state.get("today_opened") or "")
-        except ValueError:
-            return "away"   # Today has never been opened: the owner does not use it (yet)
+        except (TypeError, ValueError):   # never opened (the owner does not use Today yet), or not a date at all
+            return "away"
         if (day - opened).days > AWAY_DAYS:
             return "away"
         choice = state.get("today_choice")

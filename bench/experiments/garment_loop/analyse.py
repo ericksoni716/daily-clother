@@ -64,11 +64,45 @@ def drawn_repeats(gid: str, arm: str) -> float | None:
         return None
     rec = (H.load_json(H.wdir(gid) / "drawings.json") or {}).get(name, {})
     if arm == "A":
-        kept = H.load_json(H.wdir(gid) / "armA_kept.json")
-        if kept and kept.get("kind") == "tile" and kept.get("width_frac") and kept.get("how") != "whole":
-            return described.CHEST_PER_OUTLINE / float(kept["width_frac"])
-        return None
+        return _measured_repeats(gid)
     return rec.get("repeats")
+
+
+def _measured_repeats(gid: str) -> float | None:
+    """Arm A's repeats across the ruler, in the photo's own terms: a measured tile's width is its repeat as a share
+    of the garment's width in the cutout (`measure._garment_width`); measured stripes run over the whole garment,
+    so their period is read off the band sequence (its strongest clear self-match). A whole-garment tile has no
+    repeat."""
+    kept = H.load_json(H.wdir(gid) / "armA_kept.json")
+    length = H.ruler_px(H.ruler(gid))
+    if not kept or not length:
+        return None
+    cut = H.cut_of(gid)
+    from closet.patterns.measure import _garment_width
+    if kept.get("kind") == "tile" and kept.get("width_frac") and kept.get("how") in ("repeat", "straightened"):
+        return length / (float(kept["width_frac"]) * _garment_width(cut))
+    if kept.get("kind") == "stripes" and kept.get("bands"):
+        n = 2000
+        seq = np.zeros((n, 3))
+        edges = np.cumsum([0.0] + [float(f) for _, f in kept["bands"]])
+        edges = edges / edges[-1] * n
+        for (hex_, _), a, b in zip(kept["bands"], edges[:-1], edges[1:], strict=True):
+            seq[int(a):int(np.ceil(b))] = H._cie(np.array([[int(hex_[i:i + 2], 16) for i in (1, 3, 5)]], np.uint8))[0]
+        x = seq - seq.mean(0)
+        ac = np.array([(x[:-k] * x[k:]).sum() / max(1e-6, (x * x).sum()) for k in range(1, n // 2)])
+        # the strongest clear self-match beyond the finest detail, then the shortest one nearly as strong (so a
+        # multiple of the repeat is not taken for it)
+        least = int(0.01 * n)
+        peaks = [(k + 1, ac[k]) for k in range(least, len(ac) - 1) if ac[k] > ac[k - 1] and ac[k] >= ac[k + 1] and ac[k] > 0.3]
+        if not peaks:
+            return None
+        top = max(v for _, v in peaks)
+        peaks = [min(k for k, v in peaks if v >= 0.85 * top)]
+        a = np.asarray(cut)[..., 3] > 128
+        ys, xs = np.where(a)
+        extent = (ys.max() - ys.min()) if kept.get("orientation") == "horizontal" else (xs.max() - xs.min())
+        return length / (peaks[0] / n * extent)
+    return None
 
 
 def _sheet_pixels(s: dict, n: int = 4000) -> np.ndarray:

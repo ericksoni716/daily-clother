@@ -130,11 +130,16 @@ def test_odd_bands_are_made_safe():
 
 
 def test_the_form_reads_an_answer_and_every_field_is_described():
-    model = described.PlaidDescription.model_validate(TARTAN)
-    assert described.read(model) == described.read(TARTAN)
+    # the form now asks for one list of bands (the same both ways) and a size word; the first form is still read
+    answer = {"bands": TARTAN["across"], "size": "small"}
+    model = described.PlaidDescription.model_validate(answer)
+    assert described.read(model) == described.read(answer) == {**described.read(TARTAN), "repeats": 6.5}
+    for size, repeats in described.SIZE_REPEATS.items():
+        assert described.read({**answer, "size": size})["repeats"] == repeats
+    assert described.read({**answer, "size": "enormous"})["repeats"] == 4.0     # an unknown word: a usual size
     for m in (described.PlaidDescription, described.Band):
         assert all(f.description for f in m.model_fields.values())
-    assert "plaid" in described.FIELD_TEXT and len(described.GUIDANCE) < 1200
+    assert "plaid" in described.FIELD_TEXT and len(described.GUIDANCE) < 300
 
 
 def test_a_described_plaid_can_take_its_colours_from_the_photo():
@@ -156,8 +161,56 @@ def test_a_described_plaid_can_take_its_colours_from_the_photo():
 
     def pixels(kept):
         return np.asarray(Image.open(io.BytesIO(base64.b64decode(kept["image"]))).convert("RGB"))
-    plain, toned = pixels(described.tile(desc)), pixels(described.tile(desc, cut))
+    # round two: toning is no longer done whenever the cutout is passed (it is passed for the scale); it is asked for
+    plain, toned = pixels(described.tile(desc, cut)), pixels(described.tile(desc, cut, tone=True))
     mean = lambda rgb: cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB).reshape(-1, 3).mean(0)  # noqa: E731
     assert np.abs(mean(toned) - mean(cloth)).max() < 6 < np.abs(mean(plain) - mean(cloth)).max()
     light = lambda rgb: cv2.cvtColor(rgb, cv2.COLOR_RGB2LAB)[..., 0].astype(float).mean(0)  # noqa: E731
     assert np.corrcoef(light(plain), light(toned))[0, 1] > 0.95      # the same bands in the same places
+
+
+# --- the scale read from the photo -------------------------------------------------------------------------
+
+def _garment(p, q, size=(640, 720), body=(60, 40, 580, 690)):
+    """A made-up garment: a plaid with a repeat p px across and q px down over a plain cutout outline."""
+    across = _desc([(NAVY, 0.5 * p), (WHITE, 0.08 * p), (GREEN, 0.3 * p), (RED, 0.12 * p)])["across"]
+    down = _desc([(NAVY, 0.5 * q), (WHITE, 0.08 * q), (GREEN, 0.3 * q), (RED, 0.12 * q)])["across"]
+    rep = described.weave(described.read({"across": across, "down": down}))
+    rep = cv2.resize(rep, (p, q), interpolation=cv2.INTER_AREA)
+    W, H = size
+    cloth = np.tile(rep, (H // q + 1, W // p + 1, 1))[:H, :W]
+    alpha = np.zeros((H, W), np.uint8)
+    x0, y0, x1, y1 = body
+    alpha[y0:y1, x0:x1] = 255
+    return Image.fromarray(np.dstack([cloth, alpha]), "RGBA")
+
+
+UNDERARMS = {"underarm_left": {"x": 100.0, "y": 200.0}, "underarm_right": {"x": 520.0, "y": 200.0}}   # 420 px apart
+
+
+def test_the_photo_settles_the_scale_when_its_repeat_is_square():
+    reps, how = described.photo_repeats(_garment(70, 70), UNDERARMS)
+    assert how == "across and down agree" and reps == pytest.approx(420 / 70, rel=0.06)
+
+
+def test_when_across_and_down_disagree_the_spacing_down_is_used():
+    reps, how = described.photo_repeats(_garment(60, 45), UNDERARMS)
+    assert how == "down" and reps == pytest.approx(420 / 45, rel=0.06)
+
+
+@pytest.mark.parametrize("marks", [None, {}, {"underarm_left": {"x": 1}},
+                                   {"underarm_left": {"x": 300, "y": 200}, "underarm_right": {"x": 310, "y": 200}}])
+def test_no_usable_underarms_leave_the_scale_to_the_description(marks):
+    assert described.photo_repeats(_garment(70, 70), marks) is None
+
+
+def test_a_plain_garment_says_nothing_about_scale():
+    assert described.photo_repeats(Image.new("RGBA", (640, 720), (40, 50, 80, 255)), UNDERARMS) is None
+
+
+def test_the_scale_from_the_photo_sizes_the_tile():
+    raw = {"bands": [{"color": NAVY, "width": 8}, {"color": WHITE, "width": 1}], "size": "medium"}
+    said, seen = described.tile(raw), described.tile(raw, _garment(70, 70), UNDERARMS)
+    assert said["length_frac"] == pytest.approx(described.CHEST_PER_LENGTH / described.SIZE_REPEATS["medium"], rel=0.01)
+    assert seen["length_frac"] == pytest.approx(described.CHEST_PER_LENGTH * 70 / 420, rel=0.07)
+    assert seen["scale"] == "across and down agree" and said["scale"] == "said"

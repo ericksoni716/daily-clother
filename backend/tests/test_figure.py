@@ -616,11 +616,12 @@ def test_the_wearer_is_a_person_about_seven_and_a_half_heads_tall():
     assert chin < fig.NECK_Y and chin < layout.get("base").box()[1]   # the chin above the collar
     heads = (GROUND_Y - top) / (chin - top)
     assert 7.0 <= heads <= 8.0
-    # the hands hang beside the thighs, clear of the trousers
+    # the hands hang beside the thighs: each hand's middle past the trousers (the owner, 18 November: arms hanging
+    # nearly straight down may touch the trousers, rather than held out clear of them)
     b = layout.get("bottom")
     for hand in body.hands:
         xs = [x for x, _ in _flat(hand)]
-        assert min(xs) > b.box()[2] or max(xs) < b.box()[0]
+        assert (min(xs) + max(xs)) / 2 > b.box()[2] or (min(xs) + max(xs)) / 2 < b.box()[0]
 
 
 def test_the_head_has_a_simple_face():
@@ -737,8 +738,10 @@ def test_his_arms_hang_naturally_with_the_wrists_at_the_crotch():
         assert abs(joint[0] - CX) < fig.SHOULDER_HALF_CM * K_PX and joint[1] > fig.SHOULDER_Y   # the joint in the shoulder
         out = math.degrees(math.atan2(abs(elbow[0] - CX) - abs(joint[0] - CX), elbow[1] - joint[1]))
         fore = math.degrees(math.atan2(abs(wrist[0] - CX) - abs(elbow[0] - CX), wrist[1] - elbow[1]))
-        assert 8 <= out <= 20                                                 # the upper arm a little out from the body
-        assert -6 <= fore <= 0 and out - fore >= 8                            # a bend at the elbow, the forearm back in a touch
+        # the arm hangs nearly straight down beside the body (the owner, 18 November: at 11 degrees out, with the
+        # elbows out, he looked hunched with his arms in front of him): the upper arm a touch out, the forearm back
+        assert 3 <= out <= 8
+        assert -6 <= fore <= 0 and out - fore >= 3
     # the elbow is at the waist, and the arm tapers from the shoulder to the wrist
     assert fig.CHEST_CM < fig.ELBOW_CM <= fig.WAIST_CM
     length = fig._arm_length()
@@ -1459,3 +1462,33 @@ def test_cropped_trousers_leave_a_gap_above_the_shoe(shoe, leg):
     assert 'fill="#2e7d4f"' in figure(dict(base=TEE, bottom=_legged(leg, "cropped"), shoes=HEM_SHOES[shoe],
                                            accessories=[socks]))
 
+
+
+def test_his_sleeves_hang_in_front_of_an_open_jacket():
+    """The arms are in front (the owner, 18 November): a sleeve of a jacket worn open is drawn over its fronts, with
+    nothing of the body (a pocket, the hem, a front's edge) on it and its edge along the sleeve; its armhole is a seam
+    only where it marks something (the owner, 16 November)."""
+    layout = plan(dict(base=SHIRT, outer=BLAZER, bottom=TROUSERS))
+    outer = layout.get("outer")
+    assert outer.open
+    only = fig._sleeve_only(outer.shape)
+    polys = [fig._numbers(d) for d, _ in outer.shape.sleeves]
+    for part in only.parts:   # only what lies on a sleeve is drawn on it
+        pts = fig._numbers(part.d)
+        assert sum(any(fig._within(q, poly) for poly in polys) for q in pts) >= fig.ON_SLEEVE * len(pts)
+    assert len(only.parts) < len(outer.shape.parts) and only.fronts is None
+    svg = figure(dict(base=SHIRT, outer=BLAZER, bottom=TROUSERS), uid="j")
+    over = [m.start() for m in re.finditer(r'mask="url\(#slj', svg)]
+    assert len(over) == 2   # the shirt's sleeves over its body, the jacket's over its fronts
+    assert 'data-part="armhole"' not in svg   # ordinary set-in sleeves: no armhole seam (16 November)
+    big = plan(dict(base=BIG_TEE)).get("base").spec.params   # a dropped shoulder: the seam marks it
+    assert templates.seam_shows(big.get("shoulder", "set-in"), tuple(big.get("colorblock") or ()))
+    assert svg.count("data-part") == 0 and 'data-part="armhole"' in figure(dict(base=BIG_TEE, bottom=TROUSERS), uid="k")
+    assert len(set(re.findall(r'<mask id="([^"]+)"', svg))) == len(re.findall(r'<mask id="([^"]+)"', svg))
+
+
+def test_a_sleeve_moved_past_its_armhole_keeps_its_ends():
+    d = "M 10,10 L 10,90 L 30,90 L 30,40 C 25,30 20,20 10,10 Z"
+    moved = fig._past_armhole(d)
+    assert moved.startswith("M 10,10 L 10,90 L 30,90 L 30,40 L ") and moved.endswith(" L 10.0,10.0 Z")
+    assert fig._past_armhole("M 0,0 L 5,5 Z") == "M 0,0 L 5,5 Z"   # no armhole: unchanged

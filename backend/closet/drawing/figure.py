@@ -115,7 +115,7 @@ from dataclasses import dataclass, field, replace
 from . import drawn, fitting, item, templates, worn
 from .fills import Graphic
 from .frontshoe import FrontShoe, bare_feet, front_shoe
-from .illustrate import CARD, INK, Fill, Spec, _draw, shade
+from .illustrate import CARD, INK, Fill, Spec, _draw, luminance, shade
 from .templates import CX, K_PX, LEG_WIDTHS, PX_CM, TOP_DEFAULTS, Shape, _block_for, build
 
 log = logging.getLogger("closet.drawing")
@@ -158,8 +158,8 @@ GROUND_CM = HEADS * HEAD_CM   # 180 cm
 # reach the middle of the thigh. The arm is thickest at the shoulder and tapers to the wrist.
 WRIST_CM = 96.0
 ELBOW_CM = 68.0
-ARM_IN_CM, ARM_DOWN_CM = 3.3, 5.0   # the shoulder joint (the top of the arm's middle): in from the shoulder point, under it
-UPPER_ARM_DEG = 11.0          # the upper arm hangs this far out from straight down: close to a relaxed hang
+ARM_IN_CM, ARM_DOWN_CM = 2.0, 5.0   # the shoulder joint (the top of the arm's middle): in from the shoulder point, under it
+UPPER_ARM_DEG = 5.0          # the upper arm hangs this far out from straight down: close to a relaxed hang
 FOREARM_DEG = 0.0             # and the forearm this far: it comes back in, to straight down, so the hands clear the hips
 ELBOW_BEND_CM = 8.0           # the bend at the elbow is rounded over this much of the arm either side of it
 # how thick the arm is (half its width), by how far down it from the shoulder joint (cm): the shoulder cap, the
@@ -191,6 +191,9 @@ CUFF_FROM, CUFF_TO = 0.8, 0.9   # a roomy sleeve is gathered in between these sh
 SLEEVE_SHARE_CM = 2.4         # a sleeve closer to the body's side than this is drawn on it: one line, not two (0: never)
 APART_RAMP = 0.4              # ...and once further, it is drawn where it is within this share of that again: no long
                               # narrow sliver between the two lines
+SEAM_W = 1.4                  # a sleeve's armhole seam on the figure: a thin line, as the seams on a garment
+UNDERARM_EASE_CM = 14.0       # a sleeve's inner edge has no ease at the underarm (the cloth is held between the arm and
+                              # his side): it comes to its full ease this far down the sleeve, or at its opening if sooner
 CAP_CM = 7.0                  # a sleeve's outer edge rounds from the shoulder's slope onto the arm over this much of it
 SHOULDER_SLOPE_DEG = 20.0     # the slope of a top's shoulder line, out from the neck, where it meets the sleeve
 HEAD_SHARE = 0.25             # the round of a sleeve's head, wider than the sleeve, is kept this share of the way down
@@ -749,9 +752,15 @@ def _on_arm(side: int, shoulder, armpit, reach: float, upper: float, cuff: float
         t = max(0.0, min(1.0, (u - CUFF_FROM) / (CUFF_TO - CUFF_FROM)))   # roomy down to the cuff, which gathers it in
         return e0 + (e1 - e0) * t * t * (3 - 2 * t)
 
+    over = min(1.0, UNDERARM_EASE_CM * K_PX / max(1.0, reach - pit))
+
+    def held(u: float) -> float:
+        t = max(0.0, min(1.0, u / over))   # no ease at the underarm, all of it UNDERARM_EASE_CM down the sleeve
+        return t * t * (3 - 2 * t)
+
     def edge(s: float, u: float, out: int):
         (x, y), t = _arm_at(side, s)
-        h = _arm_half(s) + ease(u)
+        h = _arm_half(s) + ease(u) * (1.0 if out > 0 else held(u))
         return (x + out * side * t[1] * h, y - out * side * t[0] * h)
 
     # the outer edge starts beside the shoulder point: above the joint, or below it for a dropped shoulder
@@ -1570,16 +1579,82 @@ def _arms_over(wearer: Body, layout: Layout, uid: str, defs: list[str]) -> str:
     return f'<g id="{uid}a" mask="url(#{uid}r)">{_skin(wearer.arms + wearer.hands)}{_lines(wearer.fingers)}</g>'
 
 
+ON_SLEEVE = 0.75   # a part of a top lies on a sleeve (a cuff, a button at the wrist) when this share of it is in one
+
+
+def _within(pt: tuple[float, float], poly: list[tuple[float, float]]) -> bool:
+    """Whether a point is inside a polygon (its corners, a path's points taken as one)."""
+    x, y = pt
+    inside = False
+    for (x0, y0), (x1, y1) in zip(poly, poly[1:] + poly[:1], strict=True):
+        if (y0 > y) != (y1 > y) and x < x0 + (y - y0) * (x1 - x0) / (y1 - y0):
+            inside = not inside
+    return inside
+
+
+ARMHOLE_COVER_PX = 12.0   # how far into the body a sleeve's cloth is drawn past its armhole, under the seam
+
+
+def _past_armhole(path: str) -> str:
+    """A sleeve's path ("... L underarm C c1 c2 shoulder Z") with its armhole moved ARMHOLE_COVER_PX in towards the
+    body's middle: drawn with this for its outline, the sleeve's cloth covers the armhole and its edge falls on the
+    body, outside what is kept of the sleeve."""
+    i = path.rfind(" C ")
+    if i < 0:
+        return path
+    head, under = path[:i], path[:i].split()[-1]
+    pts = _numbers(path[i + 1:])
+    if len(pts) < 3:
+        return path
+    side = 1.0 if pts[-1][0] < CX else -1.0   # the left sleeve moves right, the right one left
+    moved = [(x + side * ARMHOLE_COVER_PX, y) for x, y in pts]
+    ux, uy = _numbers(under)[0]
+    shoulder = pts[-1]
+    return (f"{head} L {ux + side * ARMHOLE_COVER_PX:.1f},{uy:.1f} C "
+            + " ".join(f"{x:.1f},{y:.1f}" for x, y in moved) + f" L {shoulder[0]:.1f},{shoulder[1]:.1f} Z")
+
+
+def _sleeve_only(shape: Shape) -> Shape:
+    """The top with only its sleeves: their outline, and of all that is drawn on the top, only what lies on a sleeve
+    (a cuff, the buttons at the wrist, a seam down the arm). The arm is in front of the body, so what of the body lies
+    where a sleeve hangs (the corner of a pocket, the hem, the edge of an open front) is behind the sleeve, hidden."""
+    polys = [_numbers(d) for d, _ in shape.sleeves]
+
+    def on(d: str) -> bool:
+        pts = _numbers(d)
+        return bool(pts) and sum(any(_within(q, poly) for poly in polys) for q in pts) >= ON_SLEEVE * len(pts)
+
+    def dot_on(t) -> bool:
+        return any(_within((t[0], t[1]), poly) for poly in polys)
+    return replace(shape, outline=" ".join(_past_armhole(d) for d, _ in shape.sleeves), parts=[q for q in shape.parts if on(q.d)],
+                   lines=[d for d in shape.lines if on(d)], dots=[t for t in shape.dots if dot_on(t)],
+                   snaps=[t for t in shape.snaps if dot_on(t)], seams=[d for d in shape.seams if on(d)],
+                   folds=[d for d in shape.folds if on(d)], blocks=[d for d in shape.blocks if on(d)], behind=[],
+                   fronts=None)
+
+
 def _sleeves_over(p: Placed, tid: str, defs: list[str]) -> str:
     """A top's sleeves again, over its own body: a sleeve is a tube round the arm, in front of the body panel, and
     what of a loose body reaches out past his sides (its side seam, from the underarm out) is behind the sleeve.
-    Drawn as the top with only its sleeves for an outline, cut to them: the cloth, the cuffs and the seams on them
-    as before, and the sleeve's own edges, its inner one over the body."""
+    Drawn as the top with only its sleeves (`_sleeve_only`), cut to them: the cloth, the cuffs and the seams on them,
+    and the sleeve's own edges, its inner one over the body. Its armhole is a seam on the body, not an edge: a thin
+    line from the shoulder round to the underarm where the seam marks something (`templates.seam_shows`: a dropped,
+    raglan or saddle shoulder, a sleeve in another colour), else no line."""
     paths = [d for d, _ in p.shape.sleeves]
+    only = _sleeve_only(p.shape)
     d, b, _, _ = _draw(replace(p.spec, graphic=None), "line", f"{tid}v", layered=True, dy=0.0,   # a print: on the body
-                       shape=replace(p.shape, outline=" ".join(paths)))
+                       shape=only)
+    # its edge is drawn along the sleeve, not along the outline drawn past its armhole (`_past_armhole`)
+    stroke = re.search(rf'<path d="{re.escape(only.outline)}" fill="none"( stroke="[^"]*" stroke-width="[^"]*")[^>]*/>', b)
+    if stroke:
+        b = b.replace(stroke.group(0), "")
+        b += "".join(f'<path d="{q[:q.rfind(" C ")] if " C " in q else q}" fill="none"{stroke.group(1)} '
+                     'stroke-linejoin="round" stroke-linecap="round"/>' for q in paths)
     t, far = _matrix(p.transforms[0]), 4000
-    keep = cut = ""
+    keep = seams = ""
+    base = p.spec.fill.color if p.spec.fill is not None and p.spec.fill.color else "#888888"
+    seam = shade(base, 0.32 if luminance(base) < 0.3 else -0.38)   # as the seams of a garment drawn on its own
+    shows_seam = templates.seam_shows(p.spec.params.get("shoulder", "set-in"), tuple(p.spec.params.get("colorblock") or ()))
     for path in paths:   # each sleeve path ends in its armhole: "... L underarm C . . shoulder Z"
         i = path.rfind(" C ")
         keep += f'<path d="{path}" transform="{t}" fill="#fff"/>'
@@ -1587,11 +1662,16 @@ def _sleeves_over(p: Placed, tid: str, defs: list[str]) -> str:
             continue
         keep += (f'<path d="{path[:i]}" transform="{t}" fill="none" stroke="#fff" stroke-width="{2 * EDGE + 2:.1f}" '
                  'stroke-linejoin="round"/>')
-        # not its armhole: a seam on the body, not an edge (a dropped one runs across the top of the arm)
-        cut += (f'<path d="M {path[:i].split()[-1]} {path[i + 1:].rstrip(" Z")}" transform="{t}" fill="none" '
-                f'stroke="#000" stroke-width="{2 * EDGE + 1:.1f}"/>')
-    defs += [d, f'<mask id="q{tid}" maskUnits="userSpaceOnUse" x="{-far}" y="{-far}" width="{2 * far}" '
-                f'height="{2 * far}">{keep}{cut}</mask>']
+        # not its armhole: a seam on the body, not an edge (a dropped one runs across the top of the arm). The
+        # sleeve's cloth is kept a little past it, over whatever edge lies under it, and its outline falls further in
+        armhole = f"M {path[:i].split()[-1]} {path[i + 1:].rstrip(' Z')}"
+        keep += f'<path d="{armhole}" transform="{t}" fill="none" stroke="#fff" stroke-width="{2 * EDGE + 2:.1f}"/>'
+        if shows_seam:   # only where it marks something (`templates.seam_shows`, the owner's 16 November rule)
+            seams += (f'<path data-part="armhole" d="{armhole}" transform="{t}" fill="none" stroke="{seam}" '
+                      f'stroke-width="{SEAM_W}" stroke-linecap="round" opacity=".85"/>')
+    # its own prefix: the garment's drawing has a "q" group of its own when it is worn open
+    defs += [d, f'<mask id="sl{tid}" maskUnits="userSpaceOnUse" x="{-far}" y="{-far}" width="{2 * far}" '
+                f'height="{2 * far}">{keep}</mask>']
     inside = ""
     for sl in fitting.sleeves(p.shape):   # the inside of the tube at the back of its opening, round the arm
         (ox, oy), (ix, iy) = p.point(sl.outer), p.point(sl.inner)
@@ -1603,7 +1683,7 @@ def _sleeves_over(p: Placed, tid: str, defs: list[str]) -> str:
         mx, my = (ox + ix) / 2 + nx * TUBE_INSIDE_CM * K_PX, (oy + iy) / 2 + ny * TUBE_INSIDE_CM * K_PX
         inside += (f'<path d="M {ox:.1f},{oy:.1f} Q {2 * mx - (ox + ix) / 2:.1f},{2 * my - (oy + iy) / 2:.1f} '
                    f'{ix:.1f},{iy:.1f} Z" fill="{INK}" opacity=".45"/>')
-    return f'<g mask="url(#q{tid})">{b}</g>{inside}'
+    return f'<g mask="url(#sl{tid})">{b}</g>{seams}{inside}'
 
 
 def _clip(cid: str, paths: list[str], t) -> str:
@@ -1716,7 +1796,9 @@ def _svg(layout: Layout, uid: str) -> str:
                          + (f'<use href="#{uid}w"/>' if lower else "") + "</g>")
             if stack:   # the neck stands in front of this one's collar at the back, behind what is under it
                 seen = chest + seen
-            stack = back + inner + seen + fronts
+            # its sleeves, with the arms in them, hang in front of its fronts: a pocket or a front's edge where a
+            # sleeve hangs is behind the sleeve
+            stack = back + inner + seen + fronts + (_sleeves_over(p, tid, defs) if p.shape.sleeves else "")
         else:
             stack = seen + b
             holes = [part.d for part in p.shape.parts if part.role == "hole"]

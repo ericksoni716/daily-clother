@@ -1,22 +1,26 @@
-# Drawing a garment's surface by describing, rendering and correcting it: results after the tuning half
+# Drawing a garment's surface by describing, rendering and correcting it: results
 
 Run on 18 November 2026 from `PLAN.md`, as designed in `DESIGN.md` (decided before any photo was seen; every change
-since is in its log). **The run stopped after the tuning half**, as the plan says to when the loop is not clearly
-ahead of one shot from a stronger model. The held-out half was not run. Nothing in the app changed.
+since is in its log). Nothing in the app changed: the code that would be app code is `closet/patterns/surface.py`,
+called by nothing.
 
-## In one paragraph
+## In short
 
-One loop of three corrections (arm D) drew garments about as well as one description from Sonnet (arm C), garment
-by garment, at three times the cost and three times the time; it was not clearly ahead, so the plan stops here.
-The best of three loops (arm E) was the best arm on the mean score, picking out, scale and colour shares (Sonnet got the
-ground colour right more often), but at twelve calls a garment
-(about 25 US cents at the API key's prices) and not clearly ahead of Sonnet either (+0.6 of 15 points a garment, the
-range of chance running from -0.2 to +1.6). The corrector sees the faults the judge sees (86% of the time); what
-holds the loop back is the measure that picks the version to keep, which agrees with the judge on only two pairs of
-drawings in three. No arm met the plan's success lines even on the tuning half: no arm picks out 80% of patterned
-garments, and none gets the scale within 25% on 80%. **Recommendation: adopt neither yet.** If one thing is taken
-further, take one description from Sonnet (simplest, steadiest, the ground colour right every time), together with
-the three gaps every arm shares (below), and test that on the held-out half.
+1. **The loop is not worth it.** One loop of three corrections (arm D) drew garments as well as one description
+   from Sonnet (arm C), garment by garment, at three times the cost; the run stopped after the tuning half as the
+   plan says. The corrector sees the faults; the measure that picks the version to keep agrees with the judge only
+   two times in three.
+2. **One description from Sonnet with the three gaps every arm shared fixed (arm F) is the best thing tested, and it
+   held on the held-out half**, run once: picked out 88% of patterned garments (the app today: 42%), the ground colour
+   right on 92% (54%), the scale within a quarter on 71% (35%), never confidently wrong (the app today: 8%), first in
+   the blind ranking on 18 of 30 garments, about 2 US cents and 12 seconds an item. It meets four of the plan's
+   lines and misses four, three of them narrowly (below).
+3. **Recommendation: adopt F**, the owner's choice after the tuning half, with the gaps listed under "What F still
+   gets wrong" as the next work.
+
+---
+
+# Part 1: the loop (tuning half)
 
 ## What was run
 
@@ -124,7 +128,7 @@ half), one photo regrouped, the bottoms' tile size per kind, one colour strength
 owner's decisions on the set and on Opus for the visual jobs. No prompt or rule was tuned after seeing a drawing: the
 run stopped first.
 
-## Recommendation
+## Recommendation after the tuning half (the owner then chose F: Part 2)
 
 Adopt **neither** the loop nor a one-shot description yet. The loop as built is not worth its cost: one chain matches
 one call to Sonnet. If the owner wants one direction taken further:
@@ -167,6 +171,118 @@ try next, with a better measure for picking the version (two in three is too wea
 
 The result sheets (photo, every arm's drawing, scores) are private, one per garment, in
 `bench/private/garment_loop/results/tuning/`.
+
+---
+
+# Part 2: one description from Sonnet with the three gaps fixed (arm F)
+
+After Part 1 the owner chose to take one Sonnet description, with the three gaps every arm shared fixed, to the
+held-out half (`DESIGN.md`, log 7 and 8). F is the description call on Sonnet with the **second surface form**
+(`surface.Surface2`): colour blocks may also be bands across the body (where each starts and ends from collar to
+hem, drawn as one garment-sized picture); a print ("other") is drawn with the app's own piecing from the photo, as
+arm A draws a print; fine patterns get a "micro" size word, a cap of 150 repeats across instead of 16, and a reading
+of the repeat at the photo's own detail when Sonnet calls the pattern micro or tiny. A, B and C-sonnet run exactly as
+in Part 1. F was checked on the tuning half, judged there together with A, B and C-sonnet, and frozen unchanged (one
+rule was considered and not adopted: a threshold that would have been tuned on four garments). Then the held-out half
+was run once: A, B, C-sonnet and F, three runs each, judged blind in one shuffled round (two passes, 77% of line
+scores exactly the same and 98% within one; 8 drawings judged a third time), ranked pairwise, and checked for
+steadiness.
+
+## The held-out half, every measure
+
+30 garments; 24 patterned by the reference sheets, 17 with a repeat, 4 studio photos.
+
+| Arm | Median total | Mean total | Picked out (2+) of patterned | Ground colour right (2+) | Scale within 25% (17) | Confidently wrong | Pattern on a solid | Print pieced from the photo | Colour-share distance | All 3 runs the same garment | Run-to-run difference | Calls | Seconds | US$ |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| A | 9.0 | 7.88 | 42% | 54% | 35% (approx.) | 8% | 0% | 3 of 3 | 16.7 | n/a | n/a | 0 | 326 (measuring) | 0 |
+| B | 10.75 | 10.05 | 62% | 92% | 41% | 0% | 0%* | 0 of 3 | 15.3 | 60% | 8.0 | 1 | 11 | 0.002 |
+| C-sonnet | 11.5 | 10.77 | 75% | 88% | 41% | 0% | 0%* | 0 of 3 | 12.2 | 80% | 5.4 | 1 | 10 | 0.025 |
+| **F** | **12.25** | **11.68** | **88%** | **92%** | **71%** | **0%** | 0%* | 3 of 3 | **11.8** | **83%** | **4.2** | 1 | 12 | 0.022 |
+
+\* One solid polo has a pocket in contrasting cloth; B, C and F all drew the grey pocket (judged right). It counts
+as a pattern on a solid in `results/held-out.json`; it is not one.
+
+Garment by garment (mean difference in rubric total, 95% resampling range): F minus C-sonnet +0.92 (-0.07 to +2.15;
+better on 14, worse on 12); F minus B +1.63 (+0.42 to +3.02); F minus A +3.80 (+2.23 to +5.48). On the tuning half
+F minus C-sonnet was +0.88 (+0.03 to +1.88): the same lead in both halves, just inside chance on the held-out one.
+
+Pairwise (average place, 0 best; times first of 30): F 0.30 (18), C-sonnet 0.44 (10), B 0.52 (9), A 0.74 (7).
+
+By family and kind of garment (mean rubric total, held-out):
+
+| | A | B | C-sonnet | F |
+|---|---|---|---|---|
+| Plaid and check (9) | 6.4 | 9.8 | 10.8 | 11.4 |
+| Stripes (7) | 5.1 | 12.2 | 12.4 | 11.6 |
+| Colour block (4) | 6.0 | 7.5 | 9.5 | 8.9 |
+| Print (3) | 14.3 | 5.3 | 4.7 | 13.8 |
+| Solid (4) | 10.0 | 10.6 | 11.9 | 12.6 |
+| Placed detail (2) | 12.2 | 13.8 | 14.0 | 14.0 |
+| Logo on pattern (1) | 11.5 | 11.5 | 11.5 | 10.5 |
+| Shirts (8) | 9.3 | 9.4 | 9.6 | 11.7 |
+| Tees and polos (10) | 9.4 | 11.8 | 11.8 | 12.6 |
+| Knits (4) | 5.1 | 9.4 | 11.8 | 11.1 |
+| Jackets (3) | 4.8 | 10.5 | 9.3 | 10.5 |
+| Trousers (3) | 7.7 | 7.7 | 12.3 | 13.2 |
+| Shorts (2) | 4.8 | 8.2 | 8.5 | 8.0 |
+| Home photos (26) | 8.0 | 10.5 | 10.9 | 11.7 |
+| Studio photos (4) | 6.9 | 7.0 | 9.9 | 11.5 |
+
+On the tuning half, judged in the same way (round `r2`): mean totals A 8.95, B 9.92, C-sonnet 10.55, F 11.43; F
+picked out 88% and had the ground colour right on 100%; first in the ranking on 19 of 30.
+
+## The plan's lines, for F on the held-out half
+
+| Line | Needed | F | |
+|---|---|---|---|
+| Picked out, patterned | 80% | 88% | met |
+| Median total above B | 2 points | 1.5 (mean 1.6) | missed narrowly |
+| Ground colour right | 90% | 92% | met |
+| Scale within 25% | 80% | 71% (C-sonnet 41%) | missed |
+| Confidently wrong | at most 5%, not above A's 8% | 0% | met |
+| No pattern on solids | 100% | 100% (the pocket above is right) | met |
+| Prints | draw no pattern | pieced from the photo, by the owner's choice | changed by design |
+| All 3 runs judged the same garment | 90% | 83% | missed |
+| Run-to-run difference a third below B | 5.3 or less | 4.2 | met |
+| No family or garment worse than A | none | prints 13.8 against 14.3 (the same piecing; within the judges' noise), one logo-on-stripes 10.5 against 11.5 | missed narrowly |
+| Simpler wins ties | C within 1 point and meeting the lines | C-sonnet is 0.9 behind but meets fewer lines (picked out 75%, scale 41%) | F |
+
+## What F still gets wrong (the three worst, and the pattern behind them)
+
+| | Rubric total | The judge's fault |
+|---|---|---|
+| Studio shorts in two colours | 6.0 | the yellow leg panel missing; drawn in one blue (one leg in another colour has no band or part) |
+| Small windowpane shirt | 7.5 | the check drawn about twice too fine and too faint (the fine reading's one overshoot) |
+| Colour-block windbreaker | 7.5 | chevron yoke and sleeve panels left out (diagonal blocks are neither bands nor parts) |
+
+Across both halves: a block that runs down one side or diagonally; a thin stripe band at a seam; a logo on
+patterned cloth (the app lifts a graphic only on plain cloth); fine pinstripes the fine reading misses (one at 2 for
+38 across); and three runs agreeing 83% of the time, not 90%.
+
+## What the app would need to adopt F
+
+- **The form**: the `surface` field (`surface.Surface2`, `FIELD_TEXT_2`, `GUIDANCE`) added to the description
+  call, and the description call moved to the `sorting` model (Sonnet). That makes every description about
+  2 US cents and 12 seconds at the API key's prices (about 11 times what the describing model costs now) through the
+  same routes and monthly limit; one call, no render step, nothing new for the owner to wait for.
+- **Drawing it**: `surface.drawn(..., second=True)` turns the answer into the kept pattern the drawing already reads
+  (`closet.drawing.stored`); bands across the body need the drawn garment's proportions (a plain drawing, as the
+  harness does); a print needs the app's print piecing, which `patjobs` already runs in the background; a plaid's
+  and a stripe's scale need the landmarks the app already asks for on a patterned top.
+- **The data**: the answer kept with the item's description (it is part of the tagger's answer); a migration only if
+  the kept pattern's format changes (it does not: a described tile is a kept tile).
+- **What the owner sees**: patterns drawn from the description straight away, a print a little later (as today).
+
+## What is uncertain (Part 2)
+
+- The judges are Opus; F is described by Sonnet. The judge is not the describer, but the caveat of Part 1 (one
+  family of models judging another's drawings) stands.
+- 30 held-out garments, one logo on pattern, two shorts, four studio photos: the family rows are thin.
+- F's lead over C-sonnet is the same in both halves (+0.9) but within chance on each; its lead over the app today and
+  over the describing model is clear in both.
+
+The result sheets (photo, every arm's drawing, scores) are private: `bench/private/garment_loop/results/held-out/`
+and, for the check on the tuning half, `bench/private/garment_loop/results/tuning-r2/`.
 
 ## The set
 
@@ -221,5 +337,8 @@ demo closet's are credited in `backend/closet/demo_data/CREDITS.md`.
 
 From this folder, with the backend's requirements installed and Claude Code signed in: `python freeze.py` (once),
 `python run.py prep --half tuning`, `bash run_half.sh tuning D-small`, `python judge.py packs`, the judges (briefs
-in this conversation's record), `python judge.py collect`, `python analyse.py`, `python sheets.py`. Everything
+in this conversation's record), `python judge.py collect`, `python analyse.py`, `python sheets.py`. Part 2:
+`python run.py describe F --half <half> --runs 1,2,3` (and `arm-a`, `describe B`, `describe C-sonnet` on the
+held-out half), then `python judge.py packs --half <half> [--round r2] --rubric A,B,C-sonnet,F --pair A,B,C-sonnet,F
+--steady B,C-sonnet,F`, `collect`, `analyse.py` and `sheets.py` with the same `--half` and `--round`. Everything
 private stays under `bench/private/garment_loop/`.

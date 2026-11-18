@@ -47,6 +47,13 @@ def soft(lab, m=None, grain=2.0, light=None):
         s += cv2.GaussianBlur(np.ascontiguousarray(lab[..., c], dtype=np.float32), (0, 0), grain)
     if light:
         w = np.ones(s.shape, np.float32) if m is None else m.astype(np.float32)
+        if light > 300:      # so slow a change is the same seen small, and a blur this wide takes minutes at full size
+            f = 60 / light
+            small = (max(1, round(s.shape[1] * f)), max(1, round(s.shape[0] * f)))
+            num = cv2.GaussianBlur(cv2.resize(s * w, small, interpolation=cv2.INTER_AREA), (0, 0), 60)
+            den = cv2.GaussianBlur(cv2.resize(w, small, interpolation=cv2.INTER_AREA), (0, 0), 60)
+            slow = cv2.resize(num / np.maximum(den, 1e-3), s.shape[::-1], interpolation=cv2.INTER_LINEAR)
+            return s - slow
         s = s - cv2.GaussianBlur(s * w, (0, 0), light) / np.maximum(cv2.GaussianBlur(w, (0, 0), light), 1e-3)
     return s
 

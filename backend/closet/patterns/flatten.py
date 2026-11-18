@@ -24,10 +24,13 @@ def subpix(r, i, j):
     return i + f(r[(i - 1) % H, j], r[i, j], r[(i + 1) % H, j]), j + f(r[i, (j - 1) % W], r[i, j], r[i, (j + 1) % W])
 
 
-def local_offsets_match(sig, m, ref, P, Q, stride_frac=0.34, cover=0.9, size=1.0, margin=0.1):
+def local_offsets_match(sig, m, ref, P, Q, stride_frac=0.34, cover=0.9, size=1.0, margin=0.1, peaks=False):
     """Offsets by normalised matching of one repeat-sized piece against the reference tiled around it.
     Returns (offsets (ox, oy) modulo (P, Q) per area, NaN where not measured; how sure each match is; the
-    areas' centres as (rows, columns))."""
+    areas' centres as (rows, columns)). An area whose best match is nearly tied with a match elsewhere is left
+    out. "Elsewhere" is anywhere more than a tenth of a repeat away; with `peaks`, only another peak there
+    counts (bold bands one way and faint ones the other match nearly as well slid along the bold bands: that
+    is the slope of the same match, not another one)."""
     H, W = m.shape
     th, tw = int(Q * size), int(P * size)
     big = np.tile(ref, (int(np.ceil((th + Q) / Q)) + 1, int(np.ceil((tw + P) / P)) + 1)).astype(np.float32)
@@ -52,6 +55,11 @@ def local_offsets_match(sig, m, ref, P, Q, stride_frac=0.34, cover=0.9, size=1.0
             dy = np.minimum(np.abs(yy - i), Q - np.abs(yy - i))
             dx = np.minimum(np.abs(xx - j), P - np.abs(xx - j))
             far[(dy <= max(2, Q // 10)) & (dx <= max(2, P // 10))] = -1
+            if peaks:   # the highest point of each other rise, not the slope of this one
+                ky, kx = max(2, Q // 10), max(2, P // 10)
+                around = cv2.dilate(np.pad(r, ((ky, ky), (kx, kx)), mode="wrap"),
+                                    np.ones((2 * ky + 1, 2 * kx + 1), np.uint8))[ky:-ky, kx:-kx]
+                far[r < around] = -1
             if r[i, j] - far.max() < margin:
                 continue
             fi, fj = subpix(r, i, j)
@@ -296,7 +304,7 @@ def rectify(cut, P, Q, ref_lab=None, iters=3, center_gap=0.06, log=quiet, thresh
             else:
                 ref_sig = cv2.resize(signal(ref_lab), (P, Q), interpolation=cv2.INTER_AREA)
             ref_sig = cv2.GaussianBlur(ref_sig, (0, 0), 0.7)   # grain must not steer the matching
-        off, conf, centres = local_offsets_match(sig, mm, ref_sig, P, Q, stride_frac=stride, cover=cover)
+        off, conf, centres = local_offsets_match(sig, mm, ref_sig, P, Q, stride_frac=stride, cover=cover, peaks=soft)
         un = unwrap_ls(off, conf, P, Q, min_conf=0.5)
         n_ok = int((~np.isnan(un[..., 0])).sum())
         if n_ok < 3 or (soft and info and n_ok < 0.5 * info["areas"]):

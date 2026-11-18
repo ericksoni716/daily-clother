@@ -526,6 +526,88 @@ def regular(cut: Image.Image, log=quiet) -> Regular | None:
     return Regular(Image.fromarray(out, "RGBA"), P, Q, to_new, ref, tuple(steps))
 
 
+# --- a repeat too large, or cloth too creased, for small areas to show it ------------------------------------
+
+def _sequence_peaks(seq):
+    """The spacings at which a band sequence (n, 3 in Lab, NaN where unknown) agrees with itself, as (lag, score)."""
+    known = ~np.isnan(seq[:, 0])
+    if known.sum() < 30:
+        return []
+    ks = np.where(known)[0]
+    core, ok = seq[ks.min():ks.max() + 1] * (100 / 255, 1, 1), known[ks.min():ks.max() + 1]
+    n = len(core)
+    w = ok.astype(np.float32)
+    k = int(0.5 * n) | 1
+    filled = np.where(ok[:, None], core, 0).astype(np.float32)
+    slow = cv2.blur(filled.reshape(1, n, 3), (k, 1)).reshape(n, 3) / np.maximum(cv2.blur(w.reshape(1, n), (k, 1)).reshape(n, 1), 1e-6)
+    x = cv2.GaussianBlur(np.where(ok[:, None], core - slow, 0).reshape(1, n, 3).astype(np.float32), (0, 0), 1.5).reshape(n, 3) * w[:, None]
+    c = np.full(n, -1.0)
+    for lag in range(4, int(n * 0.62)):
+        ww = w[:-lag] * w[lag:]
+        if ww.sum() < max(20, 0.5 * lag):
+            continue
+        u, v = x[:-lag], x[lag:]
+        c[lag] = ((u * v).sum(1) * ww).sum() / (np.sqrt(((u ** 2).sum(1) * ww).sum() * ((v ** 2).sum(1) * ww).sum()) + 1e-6)
+    return [(lag, float(c[lag])) for lag in range(5, n - 1) if c[lag] > c[lag - 1] and c[lag] >= c[lag + 1] and c[lag] > 0]
+
+
+def _spacings(lab, m, across, least, also=None):
+    """Up to two repeats worth trying along one axis, shortest first: the spacings at which the garment's whole
+    band sequence (`stripes.straightened_sequence`, strips of two widths lined up piece by piece, so creases
+    and drape drop out) agrees with itself, and `also` (what the small areas said); none shorter than `least`."""
+    from .stripes import straightened_sequence  # here: stripes imports nothing of this module, but is large
+    found = [(also, 1.0)] if also else []
+    f = min(1.0, 420 / max(m.shape))     # bands are broad: a small picture shows them as well, in a fraction of the time
+    if f < 1:
+        size = (max(1, round(m.shape[1] * f)), max(1, round(m.shape[0] * f)))
+        lab = cv2.resize(lab, size, interpolation=cv2.INTER_AREA)
+        m = cv2.resize(m.astype(np.uint8), size, interpolation=cv2.INTER_AREA) > 0
+    for frac in (0.25, 0.12):
+        r = straightened_sequence(lab.transpose(1, 0, 2) if across else lab, m.T if across else m, strip_frac=frac)
+        if r is not None:
+            found += [(round(lag / f), v) for lag, v in _sequence_peaks(r[0])]
+    top = max((v for _, v in found if v < 1.0), default=0)
+    strong = sorted((lag, v) for lag, v in found if v >= max(0.15, 0.4 * top) and lag >= least)
+    kept = []
+    for lag, v in strong:            # spacings within 6% of each other are one: the best of them
+        near = next((i for i, (k, _) in enumerate(kept) if abs(lag - k) <= 0.06 * k), None)
+        if near is None:
+            kept.append((lag, v))
+        elif v > kept[near][1]:
+            kept[near] = (lag, v)
+    # twice or three times a shorter spacing is that spacing again, unless the shorter one agrees much less well
+    # (bands that look alike at half the repeat)
+    kept = [(lag, v) for lag, v in kept
+            if not any(abs(lag - n * k) <= 0.06 * n * k and kv >= 0.7 * v for k, kv in kept for n in (2, 3))]
+    return [lag for lag, _ in sorted(sorted(kept, key=lambda p: -p[1])[:2])]
+
+
+def by_bands(cut: Image.Image, tried=None, log=quiet):
+    """Further readings of the cloth, for a plaid `regular` could not make regular or whose result did not
+    explain the photo: the photo's tilt undone and nothing more, with each repeat the garment's whole band
+    sequences suggest (and `tried`, the repeat the small areas saw). A large repeat shows in few small areas, and
+    creased or hanging cloth in none, but the sequences are measured over the whole garment. Yields `Regular`s,
+    shortest repeats first; the caller keeps the one whose rebuilt repeat explains the photo."""
+    arr = np.asarray(cut.convert("RGBA"))
+    lines = by_lines(cut)
+    Hp, size = lines if lines is not None else (np.eye(3), (arr.shape[1], arr.shape[0]))
+    out = cv2.warpPerspective(arr, Hp, size, flags=cv2.INTER_LINEAR, borderValue=(0, 0, 0, 0))
+    m = _mask(out)
+    if m.sum() < 400:
+        return
+    lab = to_lab(np.ascontiguousarray(out[..., :3]))
+    tried = tried or (None, None)
+    least = _size(m) / 12        # shorter repeats are for `regular`: many small areas show them, and show them better
+    across, down = _spacings(lab, m, True, least, tried[0]), _spacings(lab, m, False, least, tried[1])
+    log(f"  the whole garment's bands repeat every {across or 'no'} px across and every {down or 'no'} px down")
+    img = Image.fromarray(out, "RGBA")
+    for P in across:
+        for Q in down:
+            ref = _clearest(lab, m, P, Q)
+            if ref is not None:
+                yield Regular(img, P, Q, lambda pts: _apply(Hp, pts), ref, ("tilt", "bands") if lines is not None else ("bands",))
+
+
 def preview(tile_lab, size=300):
     """A square of the repeat tiled, for looking at (RGB array)."""
     t = lab_to_rgb(tile_lab)

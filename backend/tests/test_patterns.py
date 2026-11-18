@@ -416,6 +416,70 @@ def test_a_plaid_with_no_regular_repeat_is_still_measured_whole():
     assert kept is not None and kept["how"] == "whole" and kept["width_frac"] > 0.5
 
 
+def _broad_plaid(P=120, Q=150, H=620, W=500, crease=9.0, seed=7):
+    """A hanging shirt's plaid: broad soft bands, a repeat a quarter of the garment wide, and upright creases
+    that pull the cloth sideways by up to `crease` px. Returns the cutout."""
+    rng = np.random.default_rng(seed)
+
+    def bands(n, widths, colours):
+        seq = np.concatenate([np.tile(c, (w, 1)) for w, c in zip(widths, colours, strict=True)]).astype(np.float32)
+        return cv2.GaussianBlur(np.tile(seq, (3, 1))[None], (0, 0), 3)[0][n:2 * n]
+    warp = bands(P, (40, 14, 30, 8, 28), [(70, 60, 110), (200, 190, 160), (60, 100, 110), (170, 90, 60), (90, 80, 120)])
+    weft = bands(Q, (56, 18, 36, 10, 30), [(80, 70, 120), (210, 200, 170), (70, 60, 100), (180, 100, 70), (60, 110, 120)])
+    yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+    sx = xx + crease * np.sin(xx / 37.0 + 1.3) + 0.5 * crease * np.sin(xx / 83.0 + yy / 300.0)
+    img = (warp[(sx.astype(int) % P)] + weft[(yy.astype(int) % Q)]) / 2 + rng.normal(0, 4, (H, W, 3))
+    alpha = np.zeros((H, W), np.uint8)
+    alpha[30:H - 30, 40:W - 40] = 255
+    return Image.fromarray(np.dstack([np.clip(img, 0, 255).astype(np.uint8), alpha]), "RGBA")
+
+
+def test_a_large_repeat_on_creased_cloth_is_read_from_the_whole_garments_bands():
+    """The owner's hanging plaid shirts (18 November): a repeat a quarter of the shirt wide, on creased cloth,
+    shows in too few small areas. The garment's whole band sequences give it, and it is kept once rebuilt."""
+    from closet.patterns import measure, straighten
+    cut = _broad_plaid()
+    readings = [(r.P, r.Q) for r in straighten.by_bands(cut)]
+    assert any(abs(p - 120) <= 8 and abs(q - 150) <= 8 for p, q in readings), readings
+    kept = measure.measure(cut, "plaid")
+    assert kept is not None and kept["how"] in ("straightened", "repeat")
+    assert kept["width_frac"] == pytest.approx(120 / 420, rel=0.12)
+
+
+def test_a_spacing_twice_a_shorter_one_is_the_shorter_one_again_unless_that_one_is_weak():
+    from closet.patterns import straighten
+    seq = np.full((400, 3), 100.0, np.float32)
+    for x in range(0, 400, 50):
+        seq[x:x + 12] = (200, 120, 140)
+    lags = dict(straighten._sequence_peaks(seq))
+    assert any(abs(lag - 50) <= 1 for lag in lags) and any(abs(lag - 100) <= 1 for lag in lags)
+    assert max(lags, key=lags.get) % 50 <= 1 or max(lags, key=lags.get) % 50 >= 49
+
+
+def test_strong_bands_one_way_are_matched_when_only_another_peak_counts_as_a_tie():
+    """Bold bands one way and faint ones the other (the owner's rust plaid): slid half a repeat along the bold
+    bands, the piece still matches nearly as well. That is the slope of the same match, not a rival match;
+    counted as a tie, no area of the shirt could be measured."""
+    yy, xx = np.mgrid[0:300, 0:300].astype(np.float32)
+    P = Q = 100
+    sig = np.cos(2 * np.pi * xx / P) + 0.2 * np.cos(2 * np.pi * yy / Q)
+    m = np.ones(sig.shape, bool)
+    ref = sig[:Q, :P]
+    _, strict, _ = flatten.local_offsets_match(sig, m, ref, P, Q)
+    _, by_peaks, _ = flatten.local_offsets_match(sig, m, ref, P, Q, peaks=True)
+    assert (strict > 0).sum() == 0 and (by_peaks > 0).sum() == by_peaks.size
+
+
+def test_a_cutout_full_of_holes_is_not_measured_whole_and_does_not_fail():
+    """A pale check against a bright window, cut out as a lattice of holes: nothing lines up, and it says so."""
+    rng = np.random.default_rng(2)
+    rgb = rng.integers(0, 255, (300, 240, 3)).astype(np.uint8)
+    alpha = np.zeros((300, 240), np.uint8)
+    alpha[::9, ::9] = 255
+    got = plaid.no_repeat(Image.fromarray(np.dstack([rgb, alpha]), "RGBA"), lean_deg=0.0)
+    assert got["agreement"] == 0.0 and got["tile"] is None
+
+
 # --- what a cutout holds, and one mask from two models ----------------------------------------------------------
 
 def _jacket_on_a_duvet(H=640, W=480):

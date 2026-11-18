@@ -145,8 +145,16 @@ def no_repeat(cut, log=quiet, lean_deg=None):
     lab = to_lab(rgb)
     m = mask_of(up)
     # wide strips each way, so the bands running the other way average out
-    seq_d, y0, y1 = straightened_sequence(lab, m, strip_frac=0.25)
-    seq_a, x0, x1 = straightened_sequence(lab.transpose(1, 0, 2), m.T, strip_frac=0.25)
+    nothing = dict(tile=None, width_frac=0.0, agreement=0.0)
+    if m.sum() < 100:
+        log("  too little of the garment is left to measure it whole")       # a cutout that is a lattice of holes
+        return nothing
+    down = straightened_sequence(lab, m, strip_frac=0.25)
+    across = straightened_sequence(lab.transpose(1, 0, 2), m.T, strip_frac=0.25)
+    if down is None or across is None or np.isnan(down[0][:, 0]).all() or np.isnan(across[0][:, 0]).all():
+        log("  too little of the garment lines up to measure it whole")     # a cutout full of holes, a sliver
+        return nothing
+    (seq_d, y0, y1), (seq_a, x0, x1) = down, across
 
     def fill(seq, a, b):
         d = seq[a:b + 1].copy()

@@ -39,6 +39,9 @@ MIN_SHARE = 0.15     # covering at least this share of the garment (its body; sl
 MAX_DRIFT = 3.0      # and when flattening straightened cloth moved it by no more than this many repeats: a repeat
 #                      far too short can "explain" any bands by sliding along them
 WHOLE_AGREES = 0.35  # a plaid measured whole (madras) is kept when its two crossing sequences explain the photo
+SEEN_AGAIN = 1.1      # the measured part must reach over more than one repeat each way, or nothing was seen to repeat
+CLEARLY = 0.05         # a longer repeat is kept over a shorter one only when it agrees this much better
+SURE = 0.8             # a reading that agrees this well is not bettered by trying more
 
 
 def _garment_width(cut: Image.Image) -> int:
@@ -124,37 +127,63 @@ def _button_x(landmarks):
 
 def _straightened(cut, landmarks, log):
     """A plaid the straight-on measure could not find a repeat in: the cloth made regular from its own lines
-    (`straighten`), flattened with the matching meant for soft cloth, and kept only when the rebuilt repeat
-    explains the photo. Each kind of surface in the cutout is tried, the patterned one first, so bedding the
-    background model kept does not decide. Returns the kept pattern or None."""
+    (`straighten.regular`), flattened with the matching meant for soft cloth, and kept only when the rebuilt
+    repeat explains the photo. When that reading does not, the repeats the garment's whole band sequences
+    suggest are tried in turn (`straighten.by_bands`: large repeats, creased or hanging cloth) and the one that
+    explains the photo best is kept, a shorter one unless a longer one is clearly better. Each kind of surface
+    in the cutout is tried, the patterned one first, so bedding the background model kept does not decide.
+    Returns the kept pattern or None."""
     for part in surfaces(cut, log):
         reg = straighten.regular(part, log)
-        if reg is None:
-            continue
-        marks = _moved(landmarks, reg.to_new)
-        res = flatten.rectify_fronts(reg.cut, reg.P, reg.Q, log=log, ref_lab=reg.ref, soft=True,
-                                     mid=_button_x(marks) if marks else None)
-        if res is None:
-            continue
-        tile_lab, info = res
-        agrees, share = flatten.agreement(reg.cut, tile_lab, info, reg.P, reg.Q)
-        log(f"the rebuilt repeat ({reg.P} x {reg.Q} px) agrees {agrees:.2f} with the photo over {share:.0%} of the garment")
-        if agrees < AGREES or info["areas"] < MIN_AREAS or share < MIN_SHARE:
-            continue     # a few patches that happen to match are not the garment's cloth
-        if max(info["drift"]) > MAX_DRIFT:
-            log(f"the map slides the cloth by {max(info['drift']):.0f} repeats: it follows the bands, it does not flatten them")
-            continue
-        # the repeat's width on the garment: one repeat at the middle of the cloth, back in the cutout's own pixels
-        m = garment_mask(part, thresh=128)
-        ys, xs = np.where(m)
-        c = np.array([xs.mean(), ys.mean()])
-        new = reg.to_new([c, c + (16, 0), c + (0, 16)])
-        jac = np.stack([new[1] - new[0], new[2] - new[0]], 1) / 16
-        across = float(np.linalg.norm(np.linalg.solve(jac, np.array([reg.P, 0.0]))))
-        out = {"kind": "tile", "how": "straightened", "width_frac": round(across / max(1, _garment_width(part)), 4)}
-        _placed(out, reg.cut, tile_lab, info, reg.P, reg.Q, marks, log, soft=True)
-        return out, tile_lab, TILE_SCALE
+        got = _rebuilt(part, reg, landmarks, log) if reg is not None else None
+        if got is None:
+            best = None
+            for other in straighten.by_bands(part, (reg.P, reg.Q) if reg is not None else None, log):
+                if reg is not None and (other.P, other.Q) == (reg.P, reg.Q) and "evened" not in reg.steps:
+                    continue      # that very reading has just been tried
+                made = _rebuilt(part, other, landmarks, log)
+                if made is not None and (best is None or made[0] > best[0] + CLEARLY):
+                    best = made
+                if best is not None and best[0] >= SURE:
+                    break
+            got = best
+        if got is not None:
+            return got[1]
     return None
+
+
+def _rebuilt(part, reg, landmarks, log):
+    """One reading of the cloth flattened and checked against the photo: (how well it agrees, the kept pattern
+    with its tile), or None when it does not explain the photo."""
+    marks = _moved(landmarks, reg.to_new)
+    res = flatten.rectify_fronts(reg.cut, reg.P, reg.Q, log=log, ref_lab=reg.ref, soft=True,
+                                 mid=_button_x(marks) if marks else None)
+    if res is None:
+        return None
+    tile_lab, info = res
+    agrees, share = flatten.agreement(reg.cut, tile_lab, info, reg.P, reg.Q)
+    ys, xs = np.where(info["used"])
+    spans = [float(np.subtract(*np.percentile(v, [95, 5]))) if len(v) else 0.0
+             for v in ((xs - info["ox"][ys, xs]) / reg.P, (ys - info["oy"][ys, xs]) / reg.Q)]
+    log(f"the rebuilt repeat ({reg.P} x {reg.Q} px) agrees {agrees:.2f} with the photo over {share:.0%} of the garment, "
+        f"{spans[0]:.1f} repeats across and {spans[1]:.1f} down")
+    if agrees < AGREES or info["areas"] < MIN_AREAS or share < MIN_SHARE:
+        return None     # a few patches that happen to match are not the garment's cloth
+    if min(spans) < SEEN_AGAIN:
+        return None     # never seen a second time: bands that do not repeat match one "repeat" wherever it was cut from
+    if max(info["drift"]) > MAX_DRIFT:
+        log(f"the map slides the cloth by {max(info['drift']):.0f} repeats: it follows the bands, it does not flatten them")
+        return None
+    # the repeat's width on the garment: one repeat at the middle of the cloth, back in the cutout's own pixels
+    m = garment_mask(part, thresh=128)
+    ys, xs = np.where(m)
+    c = np.array([xs.mean(), ys.mean()])
+    new = reg.to_new([c, c + (16, 0), c + (0, 16)])
+    jac = np.stack([new[1] - new[0], new[2] - new[0]], 1) / 16
+    across = float(np.linalg.norm(np.linalg.solve(jac, np.array([reg.P, 0.0]))))
+    out = {"kind": "tile", "how": "straightened", "width_frac": round(across / max(1, _garment_width(part)), 4)}
+    _placed(out, reg.cut, tile_lab, info, reg.P, reg.Q, marks, log, soft=True)
+    return agrees, (out, tile_lab, TILE_SCALE)
 
 
 def _plaid(cut, landmarks, words, log):

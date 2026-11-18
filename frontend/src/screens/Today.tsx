@@ -9,7 +9,7 @@ import { label } from '../labels';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
 import {
-  canDress, dayParts, joinWords, longDate, keptFor, loadChoice, moodLabel, MOODS, occasionLabel, OCCASIONS, outfitIds, parseTemp, placeLabel,
+  canDress, dayParts, joinWords, longDate, keptFor, loadChoice, moodLabel, MOODS, occasionLabel, OCCASIONS, outfitIds, parseTemp, placeLabel, shortDate,
   saveChoice, sameOutfit, timeOf, whatToAddFirst, wornNow, wornOrder, type Choice, type DayAnswer, type DayNote, type Outfit, type Place,
   type TodayAnswer,
   type TodayRequest, type TypedDay, type WornToday,
@@ -285,7 +285,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   }
 
   const header = (
-    <PageHeader className="today-header" title="Today" titleId="today-title" count={longDate(today)}
+    <PageHeader className="today-header" title="Today" titleId="today-title" count={<><span className="date-long">{longDate(today)}</span><span className="date-short">{shortDate(today)}</span></>}
       secondary={(
         <div className="today-links">
           <Link to="/today/worn" className={buttonClass({ small: true })}><HistoryIcon /> Worn</Link>

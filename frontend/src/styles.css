@@ -714,6 +714,11 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .more-body .chip-group { margin: 4px 0 14px; }
 @media (min-width: 600px) { .more-body { grid-template-columns: 1fr 1fr; column-gap: 14px; } .more-body .chip-group, .more-body label:last-child { grid-column: 1 / -1; } }
 .detail-panel .more-body { grid-template-columns: 1fr; }
+/* a field with a short line under it (How I wear it): the line sits close under its field */
+.field-with-hint { min-width: 0; }
+.field-with-hint .field { margin-bottom: 0; }
+.field-with-hint .hint { margin: 6px 0 12px; }
+@media (min-width: 600px) { .more-body .field-with-hint { grid-column: 1 / -1; } }
 
 .tag-note { font-size: var(--text-sm); margin: -2px 0 14px; }
 .tag-body { padding: 4px 0 14px; }
@@ -829,6 +834,14 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .settings-rewear select, .settings-laundry select {
   min-height: var(--tap); padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--ink);
 }
+/* Your style: the owner's own words, a full-width box with its count and the buttons under it */
+.settings-style { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.settings-style > * { margin: 0; }
+.settings-style .field { margin: 0; }
+.settings-style textarea { min-height: calc(8 * 1.5em + 22px); line-height: 1.5; font-size: var(--text-md); }
+.settings-style-count { align-self: flex-end; font-size: var(--text-sm); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.settings-style-count.is-warn { color: var(--warn); font-weight: var(--weight-label); }
+.settings-style-actions { display: flex; flex-wrap: wrap; gap: 10px; padding-top: 4px; }
 .settings-spend { margin: 0; }
 .settings-spend summary { justify-content: space-between; }
 .settings-spend summary > span:first-child { flex: 1; }

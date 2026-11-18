@@ -565,6 +565,25 @@ Built first as code and a developer tool, not yet part of Today, so it could be 
 | Effort medium on Opus | Tried on the demo closet (38 wearable pieces) on four made-up days through the plan: every outfit of 12 was wearable. Medium took 16 to 23 seconds and would cost about 5 cents a call through the API key (4,500 tokens read, 1,400 to 2,100 written); low took 14 seconds and about 4 cents. Medium noticed more (a top worn two days ago, loafers on a wet walk home). The outfits are prepared ahead, so the seconds matter less than the eye. |
 | Claude drew on what was worn without being asked twice: "close to the cable sweater and parka look you loved on the 7th", "you said the hoodie was too warm on a day like this" | Recorded because it is the answer to "learning should be very deep": the wear history in the brief already does a good part of it, before any profile is learned. |
 
+#### The style profile and the note on a piece
+
+Kept and edited before the stylist is part of Today, so the owner can write them first (migration 0031,
+`closet/styleprofile.py`, Settings → **Your style**, the item page's **How I wear it**).
+
+| Decision | Why |
+|---|---|
+| The style profile lives in the closet's own database (`style_profile`), not in the program's settings | It is about the closet's owner and their clothes, as the ratings are: it goes into backups with them, and the demo closet has a profile of its own that cannot change the owner's. The day note and the life answers are about where the owner is and how they live, and stay in the settings. |
+| Every save adds a version (`text`, `source`, `created_at`); the newest is the profile in force, and a save the same as the one in force adds none | A later step lets Claude propose changes to the profile from what the owner wears and says (`source` `claude`); with the versions kept, any of them can be shown or put back. Nothing reads the older versions yet. |
+| An empty text means the starting profile (`styling.DEFAULT_PROFILE`), and the starting text saved unchanged is kept as an empty one. **Back to the starting text** saves an empty text | The starting lines can be improved in an update; an owner who never wrote their own then gets the new ones. `text_for_stylist` gives None for it, so `styling.brief` uses its own default. |
+| At most 4,000 characters, with the owner's line breaks kept | Room for a page of a person's habits (about 600 words, some 1,000 tokens on each call, a fraction of a cent), short enough that the profile cannot crowd out the closet in the brief. Line breaks are how people list things. |
+| How I wear it (`wear_notes`) is a field of its own beside Notes and Fit notes, not part of Notes | The stylist is told which is which ("how I wear it", "my note", "fit"): Notes holds anything (where it was bought, a repair), and a note on how a piece is worn is the one that wins over the profile and the guide. It is plain text with no limit of its own, like Fit notes; the stylist reads its first 240 characters (`styling.MAX_NOTE`). |
+
+#### Today's date on a phone
+
+| Decision | Why |
+|---|---|
+| On a phone Today's header shows the day as "Wed 25 Nov"; a computer keeps "Wednesday 25 Nov" | Found on Wednesday 18 November: the longest day name wrapped onto a second line beside **Worn** and **Trips** and pushed **I'm wearing this** under the tab bar, on Wednesdays only. A browser test now sets the page's clock to a Wednesday, so it is checked every day of the week. |
+
 ### One Add for clothes and shoes (17 November, asked for by the owner)
 
 | Decision | Why |

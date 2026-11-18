@@ -53,6 +53,7 @@ from . import (
     sources,
     spend,
     storage,
+    styleprofile,
     tagjobs,
     tracejobs,
     trips,
@@ -1313,6 +1314,24 @@ def create_app(sv: Services) -> FastAPI:
             "rewear": savedtrips.rewear(state),
             "laundry": wears.laundry_setting(state.get("laundry")),
         }
+
+    # ---------------------------------------------- the owner's style profile (Settings, "Your style")
+    @app.get("/api/style/profile", dependencies=protected)
+    def get_style_profile(conn=Depends(conn_dep)):
+        return styleprofile.current(conn)
+
+    @app.put("/api/style/profile", dependencies=protected)
+    async def put_style_profile(request: Request, conn=Depends(conn_dep)):
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        if not isinstance(body, dict) or "text" not in body:
+            raise HTTPException(422, "Send the text of your style.")
+        try:
+            return styleprofile.save(conn, body["text"])
+        except ValueError as e:
+            raise HTTPException(422, str(e))
 
     @app.get("/api/settings", dependencies=protected)
     def get_settings(conn=Depends(conn_dep)):

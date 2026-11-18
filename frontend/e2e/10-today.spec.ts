@@ -182,6 +182,26 @@ test('today on a phone: swipe to another outfit, open a piece, and come back to 
 });
 
 
+test('today on a phone on a Wednesday: the longest day name still fits on one line, so the outfit is not pushed down', async ({ page }) => {
+  // found on Wednesday 18 November: "Wednesday 18 Nov" wrapped beside Worn and Trips and pushed "I'm wearing this"
+  // under the tab bar. The page's clock is set to a Wednesday so this is checked on every day of the week.
+  await page.clock.setFixedTime(new Date(2026, 10, 25, 10, 0, 0));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await fakeWeather(page);
+  await openToday(page);
+  await expect(current(page).getByTestId('piece').first()).toBeVisible();
+  const date = page.locator('.today-header .count');
+  await expect(date).toContainText('Wed 25 Nov');
+  const lines = await date.evaluate((el) => el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight));
+  expect(lines).toBeLessThan(1.5);
+  const wear = (await current(page).getByRole('button', { name: "I'm wearing this" }).boundingBox())!;
+  expect(wear.y + wear.height).toBeLessThanOrEqual((await page.locator('nav.tabbar').boundingBox())!.y);
+  // a computer has the room for the whole name
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(page.locator('.today-header .count .date-long')).toBeVisible();
+  await expect(page.locator('.today-header .count .date-long')).toHaveText('Wednesday 25 Nov');
+});
+
 test('today refreshes suggestions when a piece is put in the laundry', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const asked = await fakeWeather(page);

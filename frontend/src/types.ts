@@ -99,6 +99,8 @@ export interface Item extends ItemSummary {
   size: string | null;
   material: string | null;
   fit_notes: string | null;
+  /** How the owner wears it, in their own words ("How I wear it"); Claude reads it when it chooses the outfits. */
+  wear_notes: string | null;
   condition: string | null;
   price_cents: number | null;
   acquired_on: string | null;
@@ -347,6 +349,16 @@ export interface Settings {
 export interface LaundrySetting {
   auto: boolean;
   day: number | null;
+}
+
+/** The owner's style profile (Settings, "Your style"): how they like to dress, in their own words. `text` is the one in
+ * force, the starting text (`default_text`) while `is_default`; `updated_at` is when it was last saved (null: never). */
+export interface StyleProfile {
+  text: string;
+  is_default: boolean;
+  updated_at: string | null;
+  default_text: string;
+  max_length: number;
 }
 
 /** The kinds of clothing the owner sets "Before it needs washing" for. */

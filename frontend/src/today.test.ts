@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   canDress, dayParts, forgetSaved, joinWords, keptFor, loadChoice, longDate, moodLabel, OCCASIONS, occasionLabel, outfitIds,
   parseTemp, placeLabel, rainWords, sameOutfit, saveChoice, SAVED_PREFIX, shortPlace, temps, whatToAddFirst, wornOrder,
-  type DayContext, type Outfit, type SavedOutfits, wornNow, type WornToday,
+  type DayContext, type Outfit, type SavedOutfits, wornNow, type WornToday, shortDate,
 } from './today';
 import type { ItemSummary } from './types';
 
@@ -108,6 +108,8 @@ describe('the day at a glance', () => {
   it('writes the date as a weekday, day and month', () => {
     expect(longDate('2026-11-12')).toBe('Thursday 12 Nov');
     expect(longDate('2027-01-01')).toBe('Friday 1 Jan');
+    expect(shortDate('2026-11-25')).toBe('Wed 25 Nov');
+    expect(shortDate('2027-01-01')).toBe('Fri 1 Jan');
   });
 });
 

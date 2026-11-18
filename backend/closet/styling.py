@@ -31,8 +31,8 @@ from . import day as dayparts
 from . import outfits
 
 GUIDE_FILE = Path(__file__).resolve().parents[2] / "docs" / "menswear-taxonomy.json"
-# How the owner dresses, until they write their own (BACKLOG: the profile is kept and edited in Settings in the next
-# step). The first line is the owner's, 17 November.
+# How the owner dresses, until they write their own in Settings, "Your style" (`closet/styleprofile.py`). The first
+# line is the owner's, 17 November.
 DEFAULT_PROFILE = """- I carry an umbrella, so a rain jacket is never a must. When it really rains, favour one if it suits the outfit, and boots or shoes that can take water.
 - Nothing else is written here yet: go by the guide and by what I have worn and said about it."""
 HISTORY = 12                 # the newest this many worn outfits are told

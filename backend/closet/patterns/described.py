@@ -237,18 +237,116 @@ def toned(img: np.ndarray, cut: Image.Image) -> np.ndarray:
     return cv2.cvtColor(np.clip(out, 0, 255).round().astype(np.uint8), cv2.COLOR_LAB2RGB)
 
 
-def tile(raw, cut: Image.Image | None = None, landmarks: dict | None = None, tone: bool = False) -> dict | None:
+# ---- the band widths from the photo -----------------------------------------------------------------------
+
+THIN = 0.10        # a colour covering less than this share of the described repeat is a line: its width stays
+MOVE = 1.6         # no colour's share moves further than this many times from Claude's, up or down
+SAME = 10.0        # yarn colours closer than this (CIE Lab) are one colour for the count
+FAR = 22.0         # a garment pixel farther than this from every crossing colour is not counted (holes, buttons)
+GOOD_FIT = 12.0    # the widths are moved only when the garment's pixels lie this close to the crossings (median)
+DIST_L = 0.5       # lightness counts half in the distance: exposure differs between a photo and named colours
+
+
+def _cie(lab8: np.ndarray) -> np.ndarray:
+    """OpenCV's 8-bit Lab as CIE L*a*b*."""
+    return lab8.astype(np.float32) * np.array([100 / 255, 1, 1], np.float32) - np.array([0, 128, 128], np.float32)
+
+
+def _stretched(photo: np.ndarray, ref: np.ndarray) -> np.ndarray:
+    """Each channel of the photo's colours stretched so its 5th to 95th percentiles are those of `ref`: the photo's
+    exposure and colour cast taken out, as far as a doubling or halving, so its colours can be compared with the
+    described ones. The extremes, not the average, are matched, so how much there is of each colour is kept."""
+    out = photo.copy()
+    for c in range(3):
+        p5, p95 = np.percentile(photo[:, c], [5, 95])
+        r5, r95 = np.percentile(ref[:, c], [5, 95])
+        g = float(np.clip((r95 - r5) / max(p95 - p5, 1e-3), 0.5, 2.0))
+        out[:, c] = (photo[:, c] - (p5 + p95) / 2) * g + (r5 + r95) / 2
+    return out
+
+
+def photo_widths(desc: dict, cut: Image.Image) -> tuple[dict, dict] | None:
+    """The description `read` gave with its broad colours' widths taken from the photo: each garment pixel (the
+    weave's grain smoothed) is matched to the nearest colour a crossing of two described yarns makes, and a yarn's
+    share of the cloth is its share of those pixels, half of every crossing with another yarn (in a woven plaid
+    yarn i crosses yarn j over w_i * w_j of the cloth, so these halves add up to w_i). Claude's band order and
+    colours stay; lines (colours under THIN) keep their width; no share moves more than MOVE times; bands of one
+    colour keep their proportions. Returns (the new description, {colour: (described share, new share)}), or None
+    when the photo's colours do not fit the described ones well enough to say."""
+    cols = list(dict.fromkeys(c for c, _ in desc["across"]))
+    if len(cols) < 2:
+        return None
+    arr = np.asarray(cut.convert("RGBA"))
+    on = cv2.erode((arr[..., 3] > 200).astype(np.uint8), np.ones((5, 5), np.uint8)).astype(bool)
+    if on.sum() < 400:
+        return None
+    px = cv2.GaussianBlur(np.ascontiguousarray(arr[..., :3]), (0, 0), 2.0)[on]
+    px = px[np.random.default_rng(0).choice(len(px), min(len(px), 40000), replace=False)]
+    photo = _cie(cv2.cvtColor(px[None], cv2.COLOR_RGB2LAB)[0])
+    yarn = _cie(_lab(cols))
+    # yarns nearly alike are one colour here: how the photo's pixels split between them would be chance
+    group = list(range(len(cols)))
+    for i in range(len(cols)):
+        for j in range(i):
+            if np.linalg.norm(yarn[i] - yarn[j]) < SAME:
+                group[i] = group[j]
+                break
+    groups = sorted(set(group))
+    claude = np.array([sum(w for c, w in desc["across"] if group[cols.index(c)] == g) for g in groups], float)
+    claude /= claude.sum()
+    ref = _cie(cv2.cvtColor(weave(desc), cv2.COLOR_RGB2LAB).reshape(-1, 3))
+    photo = _stretched(photo, ref)
+    gl = np.array([yarn[[i for i in range(len(cols)) if group[i] == g]].mean(0) for g in groups])
+    pairs = [(i, j) for i in range(len(groups)) for j in range(i, len(groups))]
+    mix = np.array([(gl[i] + gl[j]) / 2 for i, j in pairs])
+    d = np.sqrt((((photo[:, None, :] - mix[None]) * np.array([DIST_L, 1, 1], np.float32)) ** 2).sum(2))
+    near, nd = d.argmin(1), d.min(1)
+    counted = nd <= FAR
+    if np.median(nd) > GOOD_FIT or counted.mean() < 0.5:
+        return None
+    seen = np.zeros(len(groups))
+    for p, n in zip(*np.unique(near[counted], return_counts=True), strict=True):
+        i, j = pairs[p]
+        seen[i] += n / 2
+        seen[j] += n / 2
+    seen /= seen.sum()
+    broad = claude >= THIN
+    new = claude.copy()
+    if broad.sum() >= 2 and seen[broad].sum() > 0:
+        # the lines keep their share; the broad colours share the rest as the photo does, moving from Claude's
+        # shares toward the photo's only as far as no share goes past MOVE times its described one
+        c = claude[broad]
+        want = seen[broad] / seen[broad].sum() * c.sum()
+        step = want - c
+        room = np.where(step > 0, c * MOVE - c, c - c / MOVE)
+        t = float(min(1.0, *(room[step != 0] / np.abs(step[step != 0])))) if (step != 0).any() else 0.0
+        new[broad] = c + t * step
+    factor = {c: new[groups.index(group[i])] / claude[groups.index(group[i])] for i, c in enumerate(cols)}
+    out = {**desc, "across": [(c, w * factor[c]) for c, w in desc["across"]],
+           "down": [(c, w * factor.get(c, 1.0)) for c, w in desc["down"]]}
+    shares = {cols[[i for i in range(len(cols)) if group[i] == g][0]]: (round(float(claude[k]), 3), round(float(new[k]), 3))
+              for k, g in enumerate(groups)}
+    return out, shares
+
+
+def tile(raw, cut: Image.Image | None = None, landmarks: dict | None = None, tone: bool = False,
+         widths: bool = False) -> dict | None:
     """The kept pattern for a described plaid (as `measure.measure` keeps a measured one), or None when the
     description has nothing to draw. Sized so its repeats fit across the drawn chest: as many as the photo shows
     when the item's cutout and Claude's landmarks are given and the photo settles it (`photo_repeats`), else as
     many as Claude said; `scale` says which. Placed with the middle of the first band (the ground) each way on
-    the button line. With `tone`, its colours are brought to the photo's (`toned`; tried, not kept on)."""
+    the button line. With `widths`, the broad colours' widths come from the photo (`photo_widths`; `widths` in the
+    result says whether they did). With `tone`, its colours are brought to the photo's (`toned`; tried, not kept
+    on)."""
     desc = read(raw)
     if desc is None:
         return None
     seen = photo_repeats(cut, landmarks) if cut is not None and landmarks else None
     if seen is not None:
         desc["repeats"] = seen[0]
+    fitted = photo_widths(desc, cut) if widths and cut is not None else None
+    if fitted is not None:
+        desc = fitted[0]
     img = weave(desc)
     if tone and cut is not None:
         img = toned(img, cut)
@@ -258,4 +356,4 @@ def tile(raw, cut: Image.Image | None = None, landmarks: dict | None = None, ton
             "width_frac": round(CHEST_PER_OUTLINE / desc["repeats"], 4),
             "length_frac": round(CHEST_PER_LENGTH / desc["repeats"], 4),
             "phase": [round(first_a, 4), round(first_d, 4)], "phase_right": None,
-            "scale": seen[1] if seen else "said", "version": VERSION}
+            "scale": seen[1] if seen else "said", "widths": "photo" if fitted else "said", "version": VERSION}

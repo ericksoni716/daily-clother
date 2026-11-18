@@ -214,3 +214,82 @@ def test_the_scale_from_the_photo_sizes_the_tile():
     assert said["length_frac"] == pytest.approx(described.CHEST_PER_LENGTH / described.SIZE_REPEATS["medium"], rel=0.01)
     assert seen["length_frac"] == pytest.approx(described.CHEST_PER_LENGTH * 70 / 420, rel=0.07)
     assert seen["scale"] == "across and down agree" and said["scale"] == "said"
+
+
+# --- the band widths from the photo ------------------------------------------------------------------------
+
+TAN, PURPLE = "#c9b48a", "#4a3c7a"
+
+
+def _cloth(bands, light=1.0, holes_of=None, size=(480, 560)):
+    """A made-up photographed garment woven from `bands` [(hex, width)], its light multiplied by `light` (a dim
+    photo); with `holes_of`, the pixels nearest that colour are cut out (a cutout that lost its white squares)."""
+    rep = described.weave(described.read({"bands": [{"color": c, "width": w} for c, w in bands]}))
+    rep = cv2.resize(rep, (90, 90), interpolation=cv2.INTER_AREA)
+    W, H = size
+    cloth = np.tile(rep, (H // 90 + 1, W // 90 + 1, 1))[:H, :W]
+    alpha = np.full((H, W), 255, np.uint8)
+    if holes_of is not None:
+        target = np.array([int(holes_of[i:i + 2], 16) for i in (1, 3, 5)])
+        alpha[np.abs(cloth.astype(int) - target).sum(2) < 60] = 0
+    cloth = np.clip(cloth.astype(np.float32) * light, 0, 255).astype(np.uint8)
+    return Image.fromarray(np.dstack([cloth, alpha]), "RGBA")
+
+
+def _said(bands):
+    return described.read({"bands": [{"color": c, "width": w} for c, w in bands], "size": "medium"})
+
+
+def test_the_broad_colours_widths_are_recovered_from_the_photo():
+    # woven half purple, half tan, with a red line; described with purple as a wide ground, in a dim photo
+    truth = [(PURPLE, 9), (TAN, 9), (RED, 1)]
+    got, shares = described.photo_widths(_said([(PURPLE, 12), (TAN, 6), (RED, 1)]), _cloth(truth, light=0.7))
+    assert shares[PURPLE][0] == pytest.approx(12 / 19, abs=1e-3) and shares[TAN][0] == pytest.approx(6 / 19, abs=1e-3)
+    assert shares[PURPLE][1] == pytest.approx(9 / 19, abs=0.04) and shares[TAN][1] == pytest.approx(9 / 19, abs=0.04)
+    assert shares[RED][1] == shares[RED][0]                                # a line keeps its width
+    assert [c for c, _ in got["across"]] == [PURPLE, TAN, RED]               # the order and colours stay
+    assert got["across"] == got["down"]
+
+
+def test_bands_of_one_colour_keep_their_proportions():
+    said = _said([(PURPLE, 8), (TAN, 3), (PURPLE, 4), (TAN, 3)])
+    got, _ = described.photo_widths(said, _cloth([(PURPLE, 6), (TAN, 6), (PURPLE, 3), (TAN, 6)]))
+    (_, a), (_, b) = got["across"][0], got["across"][2]
+    assert a / b == pytest.approx(2.0)
+
+
+def test_no_width_moves_more_than_the_cap():
+    # the photo is mostly tan; the description says a thin tan band: tan grows, but only so far
+    got, shares = described.photo_widths(_said([(PURPLE, 16), (TAN, 4)]), _cloth([(PURPLE, 3), (TAN, 17)]))
+    assert shares[TAN][1] == pytest.approx(0.2 * described.MOVE, abs=0.01)
+
+
+def test_a_cutout_that_lost_a_colour_cannot_take_it_away():
+    # the white squares were cut out with the background: white's measured share is far too low; the cap holds it
+    said = _said([(NAVY, 10), (WHITE, 8), (RED, 2)])
+    _, shares = described.photo_widths(said, _cloth([(NAVY, 10), (WHITE, 8), (RED, 2)], holes_of=WHITE))
+    assert shares[WHITE][1] >= shares[WHITE][0] / described.MOVE - 1e-6
+
+
+@pytest.mark.parametrize("case", ["one colour", "no garment", "colours that are not there"])
+def test_the_widths_stay_as_described_when_the_photo_cannot_say(case):
+    said = _said([(PURPLE, 9), (TAN, 9), (RED, 2)])
+    if case == "one colour":
+        said, cut = {"across": [(PURPLE, 9.0)], "down": [(PURPLE, 9.0)]}, _cloth([(PURPLE, 9), (TAN, 9)])
+        assert described.photo_widths(said, cut) is None
+        return
+    if case == "no garment":
+        cut = Image.new("RGBA", (300, 300), (0, 0, 0, 0))
+    else:   # bright green and magenta checks for a purple and tan description
+        cut = _cloth([("#10e020", 9), ("#f010d0", 9)])
+    assert described.photo_widths(said, cut) is None
+    kept = described.tile({"bands": [{"color": c, "width": w} for c, w in said["across"]]}, cut, widths=True)
+    assert kept["widths"] == "said"
+
+
+def test_widths_from_the_photo_are_an_option_of_the_tile():
+    raw = {"bands": [{"color": PURPLE, "width": 12}, {"color": TAN, "width": 6}, {"color": RED, "width": 1}]}
+    cut = _cloth([(PURPLE, 9), (TAN, 9), (RED, 1)])
+    assert described.tile(raw, cut)["widths"] == "said"
+    assert described.tile(raw)["widths"] == "said"
+    assert described.tile(raw, cut, widths=True)["widths"] == "photo"

@@ -205,10 +205,11 @@ def sent_form(model: type[BaseModel], keep_main: bool = True) -> type[BaseModel]
     return create_model(model.__name__ + "Sent", __config__=model.model_config, **fields)
 
 
-# The form asked for: `ItemTags` with the surface required (null allowed), so every new description gives one; the
-# stored form keeps it optional so answers from before it was asked for stay valid.
+# The form asked for: `ItemTags` with the surface required (null allowed) and the lettering required (empty or null allowed), so
+# every new description gives both; the stored form keeps them optional so answers from before stay valid.
 ASKED = create_model("ItemTags", __base__=ItemTags, __doc__=ItemTags.__doc__,
-                     surface=(surfaceform.Surface | None, Field(description=surfaceform.FIELD_TEXT["surface"])))
+                     surface=(surfaceform.Surface | None, Field(description=surfaceform.FIELD_TEXT["surface"])),
+                     lettering=(list[surfaceform.Lettering] | None, Field(description=surfaceform.FIELD_TEXT["lettering"])))
 SENT = sent_form(ASKED)
 
 

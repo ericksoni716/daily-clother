@@ -6,6 +6,7 @@ the fourth traces the real outline from the cutout instead.
 from __future__ import annotations
 
 import colorsys
+import html
 import math
 import random
 import re
@@ -48,6 +49,12 @@ class Spec:
     button_color: str | None = None   # buttons and eyelets; None = pale, like the card
     trim_color: str | None = None     # a contrast collar, cuffs and ribbing; None = the garment's own cloth
     block_color: str | None = None    # colour-blocking: the second colour (a yoke, sleeves); None = a shade of the cloth
+    # each blocked part's own colour, as (part, hex) pairs (yoke, sleeves, left_sleeve_as_seen, right_sleeve_as_seen,
+    # collar, pocket; a side as seen); a part not given one is in `block_color`
+    block_colors: tuple[tuple[str, str], ...] = ()
+    # letters read on the front, drawn as text on a top: each a tuple of (key, value) pairs with the keys text,
+    # place, size, style and color (`tagger.surfaceform.lettering_of`); not drawn over a print lifted from the photo
+    lettering: tuple = ()
     texture: str | None = None        # corduroy | rib_knit | cable_knit | waffle: drawn tone-on-tone over the fill
     lace_color: str | None = None     # shoes: None = laces in the upper's colour
     collar_color: str | None = None   # a collar in its own colour (a rugby shirt's white twill); None = trim colour or the cloth
@@ -665,6 +672,43 @@ def _graphic_markup(g: fills.Graphic | None, box: tuple[float, float, float, flo
             f'clip-path="url(#{clip})" preserveAspectRatio="xMidYMid meet"/>')
 
 
+# Lettering on a top's front: where each place is, as (across, down) fractions of the torso (`Shape.body_box`; a
+# side as seen), and how wide each size may run, as a fraction of the torso's width
+LETTER_PLACES = {"center_chest": (0.5, 0.25), "left_chest_as_seen": (0.29, 0.22), "right_chest_as_seen": (0.71, 0.22),
+                 "middle": (0.5, 0.44)}
+LETTER_WIDTHS = {"small": 0.2, "medium": 0.42, "large": 0.68}
+LETTER_HEIGHTS = {"small": 0.045, "medium": 0.075, "large": 0.11}   # the tallest letters, as a fraction of its height
+LETTER_FONTS = {"sans": ('Helvetica Neue, Helvetica, Arial, sans-serif', "700", "normal"),
+                "serif": ("Georgia, 'Times New Roman', serif", "700", "normal"),
+                "script": ("'Brush Script MT', 'Segoe Script', cursive", "400", "italic")}
+
+
+def _lettering_markup(lettering, box: tuple[float, float, float, float], clip: str) -> str:
+    """Letters read on the front (`Spec.lettering`), as text over the cloth, each squeezed to fit its place."""
+    x0, y0, x1, y1 = box
+    bw, bh = x1 - x0, y1 - y0
+    out, below = [], {}
+    for raw in lettering:
+        item = dict(raw)
+        text, place = str(item.get("text") or ""), item.get("place")
+        if not text or place not in LETTER_PLACES:
+            continue
+        size = item.get("size") if item.get("size") in LETTER_WIDTHS else "medium"
+        family, weight, slant = LETTER_FONTS.get(item.get("style"), LETTER_FONTS["sans"])
+        width = bw * (min(LETTER_WIDTHS[size], 0.26) if place.endswith("_chest") and place != "center_chest"
+                      else LETTER_WIDTHS[size])
+        fs = min(width / (0.62 * len(text)), bh * LETTER_HEIGHTS[size])
+        length = min(width, 0.64 * len(text) * fs)
+        fx, fy = LETTER_PLACES[place]
+        y = y0 + fy * bh + fs * 0.36 + below.get(place, 0.0)
+        below[place] = below.get(place, 0.0) + fs * 1.3   # a second line at the same place goes under the first
+        out.append(f'<text x="{x0 + fx * bw:.1f}" y="{y:.1f}" text-anchor="middle" font-family="{html.escape(family)}" '
+                   f'font-weight="{weight}" font-style="{slant}" font-size="{fs:.1f}" textLength="{length:.1f}" '
+                   f'lengthAdjust="spacingAndGlyphs" fill="{html.escape(str(item.get("color") or "#222222"))}">'
+                   f"{html.escape(text)}</text>")
+    return f'<g clip-path="url(#{clip})">{"".join(out)}</g>' if out else ""
+
+
 # How far a cloth stands off what lies under it, in px, by weight (lightweight, midweight,
 # heavyweight, super heavy). A thick cloth is drawn with depth: shade inside its lower and
 # right edges, seams that sink into it, and a collar and pockets that stand proud of the body.
@@ -804,6 +848,23 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
 
     # colour-blocking and binding: the second colour, and the strip wrapped over the edges
     bpaint = spec.block_color or shade(base, 0.3 if dark_item else -0.3)
+    bcols = dict(spec.block_colors)
+
+    def block_paint(part: str) -> str:
+        return bcols.get(part) or bpaint
+
+    def side_of(d: str) -> str:
+        """Which side a part lies on, as seen (the drawing faces the viewer as the photo does)."""
+        xs = [float(v) for v in re.findall(r"-?\d+(?:\.\d+)?", d)[0::2]]
+        return "left_sleeve_as_seen" if (sum(xs) / max(1, len(xs))) < CX_ROT[0] else "right_sleeve_as_seen"
+
+    def sleeve_paint(d: str) -> str | None:
+        """A sleeve's own colour when it is cut in another colour (both sleeves, or this one), else None."""
+        if not shape.block_sleeves:
+            return None
+        if not bcols:
+            return bpaint
+        return bcols.get(side_of(d)) or bcols.get("sleeves")
     bound = any(part.role in ("binding", "binding_edge") for part in shape.parts)
     bind_c = spec.trim_color or shade(base, 0.32 if dark_item else -0.32)
 
@@ -827,11 +888,12 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
                     f'stroke-linejoin="round" opacity="{l_op}"/>'
                     f'<path d="{d}" fill="none" stroke="{bind_c}" stroke-width="{w}" stroke-linecap="round" stroke-linejoin="round"/>')
         if role == "block":   # a piece cut in the second colour (a pocket)
-            return f'<path d="{d}" fill="{bpaint}"/>'
+            return f'<path d="{d}" fill="{block_paint("pocket")}"/>'
         if role in ("collar_r", "collar_l") and color == "block":
-            return f'<path d="{d}" fill="{spec.collar_color or bpaint}"/>'
+            return f'<path d="{d}" fill="{spec.collar_color or block_paint("collar")}"/>'
         if role in ("lapel_r", "lapel_l") and color == "block":
-            return f'<path d="{d}" fill="{spec.collar_color or bpaint}"/>' + (f'<path d="{d}" fill="url(#t{uid})"/>' if tex_defs else "")
+            return (f'<path d="{d}" fill="{spec.collar_color or block_paint("collar")}"/>'
+                    + (f'<path d="{d}" fill="url(#t{uid})"/>' if tex_defs else ""))
         if role in ("collar_r", "collar_l"):
             # the same cloth as the body (turned, when patterned); its edges are a separate "edge" part
             if spec.collar_color or (spec.trim_color and not bound):
@@ -883,7 +945,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             return f'<path d="{d}" fill="{c}"/>' + (f'<path d="{d}" fill="#000" opacity=".06"/>' if style != "line" else "")
         if role == "hole":
             # inside the neck of a top, what shows is mostly the collar band, whose cloth runs round the neck
-            inner = paint if color != "block" else bpaint
+            inner = paint if color != "block" else block_paint("collar")
             if patterned and spec.template == "top" and color != "block":
                 st = spec.fill.stripes if spec.fill.kind == "stripes" else None
                 inner = turned("hn", 0 if (st is not None and st.orientation == "horizontal") else 90, ground=True)
@@ -891,8 +953,9 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
         # a shirt cuff is the body's own cloth: no tint where a line already marks it
         op = {"trim": 0.10, "band": 0.12, "cuff": 0.0 if style == "line" else 0.06}.get(role, 0.1)
         col = "#fff" if dark_item else "#000"
-        if color == "block" and role in ("band", "cuff"):
-            out = f'<path d="{d}" fill="{bpaint}"/>' + (f'<path d="{d}" fill="{col}" opacity="{op}"/>' if op else "")
+        cuffed = sleeve_paint(d) if color == "block" and role in ("band", "cuff") else None
+        if cuffed:   # the cuff of a sleeve cut in another colour, in that sleeve's colour
+            out = f'<path d="{d}" fill="{cuffed}"/>' + (f'<path d="{d}" fill="{col}" opacity="{op}"/>' if op else "")
         elif spec.trim_color and role in ("band", "cuff") and not bound:
             out = f'<path d="{d}" fill="{spec.trim_color}"/>'
         elif role == "cuff" and patterned and shape.sleeves:
@@ -925,20 +988,21 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
         cxn = shape.anchors["neck"][0]
         defs += f'<clipPath id="fr{uid}"><rect x="{cxn:.1f}" y="0" width="{W}" height="{H}"/></clipPath>'
         g.append(f'<path d="{shape.outline}" fill="url(#p{uid}r)" clip-path="url(#fr{uid})"/>')
-    if patterned and not shape.block_sleeves:
+    if patterned:
         # placed stripes (a polo's chest bands) are on the body only: sleeves are cut from the plain ground
         for n, (d, degrees) in enumerate(shape.sleeves):
-            g.append(f'<path d="{d}" fill="{turned(f"s{n}", degrees, ground=spec.fill.sleeves_from_trim)}"/>')
+            if sleeve_paint(d) is None:
+                g.append(f'<path d="{d}" fill="{turned(f"s{n}", degrees, ground=spec.fill.sleeves_from_trim)}"/>')
     if shape.blocks:   # a yoke in the second colour, cut by the garment's edge
-        g.append(f'<g clip-path="url(#{clip})">' + "".join(f'<path d="{d}" fill="{bpaint}"/>' for d in shape.blocks) + "</g>")
-    if shape.block_sleeves:
-        g += [f'<path d="{d}" fill="{bpaint}"/>' for d, _ in shape.sleeves]
+        g.append(f'<g clip-path="url(#{clip})">' + "".join(f'<path d="{d}" fill="{block_paint("yoke")}"/>'
+                                                           for d in shape.blocks) + "</g>")
+    g += [f'<path d="{d}" fill="{sleeve_paint(d)}"/>' for d, _ in shape.sleeves if sleeve_paint(d)]
     if tex_defs:   # the surface runs down the body and along each sleeve
         g.append(f'<path d="{shape.outline}" fill="url(#t{uid})"/>')
         for n, (d, degrees) in enumerate(shape.sleeves):
             defs += (f'<pattern id="t{uid}s{n}" href="#t{uid}" '
                      f'patternTransform="rotate({degrees:.1f} {CX_ROT[0]} {CX_ROT[1]})"/>')
-            g.append(f'<path d="{d}" fill="{bpaint if shape.block_sleeves else paint if not patterned else turned(f"s{n}", degrees, ground=spec.fill.sleeves_from_trim)}"/>'
+            g.append(f'<path d="{d}" fill="{sleeve_paint(d) or (paint if not patterned else turned(f"s{n}", degrees, ground=spec.fill.sleeves_from_trim))}"/>'
                      f'<path d="{d}" fill="url(#t{uid}s{n})"/>')
     if spec.colorwork and not patterned and spec.template == "top":   # a photo's fill already carries the pattern
         g.append(f'<g clip-path="url(#{clip})">{_colorwork(spec.colorwork, shape, base, spec.motif_colors, uid)}</g>')
@@ -996,6 +1060,8 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
                 continue
         g.append(piece)
     g.append(_graphic_markup(spec.graphic, shape.bbox, clip))
+    if spec.lettering and spec.graphic is None and spec.template == "top":   # a lifted print already shows its letters
+        g.append(_lettering_markup(spec.lettering, shape.body_box, clip))
     if style == "soft":
         g.append(f'<path d="{shape.outline}" fill="url(#g{uid})"/>')
     g.append(f'<g clip-path="url(#{clip})">')  # seams never run past the edge of the garment

@@ -60,9 +60,10 @@ HISTORY_MONTHS = 12
 TEXT_TOKENS = 20000
 IMAGE_TOKENS = 1600
 # Reading a correction: the longest prompt the app writes (a 500-character sentence, a shirt's description and every
-# value it may take, about 7,000 characters with the schema; counted at 1 token for every character pair, then the
-# whole doubled), a photo when one is sent, and the longest answer the request allows (`correcting.MAX_TOKENS`).
-CORRECT_TEXT_TOKENS = 9000
+# value it may take, with the longest cloth and lettering, about 18,000 characters with the schema since the cloth was
+# added (7,000 before); counted at 1 token for every character pair, then the whole doubled), a photo when one is sent,
+# and the longest answer the request allows (`correcting.MAX_TOKENS`).
+CORRECT_TEXT_TOKENS = 19000
 # Sorting a shoe's photos into views: the prompt with the answer's schema (about 3,000 characters, counted at 1 token
 # for every character pair, then the whole doubled and rounded up), each photo at no more than 1024 px a side, and the
 # longest answer the request allows (`correcting.MAX_TOKENS`; the answer itself is a few lines).

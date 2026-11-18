@@ -35,6 +35,7 @@ from .drawing import sideshoe, stored
 from .drawing.figure import K_PX, PLACES, Piece, as_worn, figure, plan
 from .drawing.frontshoe import FROM_PHOTO, FROM_SHAPE, Chosen, front_shoe
 from .drawing.traced import TracedShoe
+from .tagger import surfaceform
 from .tagger.schema import SILHOUETTE_FIELDS, Details
 
 log = logging.getLogger("closet.illustrations")
@@ -75,6 +76,7 @@ def drawn_answer(row, extra: dict | None = None) -> dict | None:
     answer = dict(answer)
     if source.get("pattern") == OWNER and answer.get("pattern") != row["pattern"]:
         answer.pop("surface", None)   # the owner's pattern word, not the cloth Claude described (`patjobs._surface`)
+    answer.update(surfaceform.own_cloth(row))   # the cloth and lettering in the owner's own words, over Claude's
     for field in ("category", "color", "pattern"):
         if source.get(field) == OWNER:
             answer[field] = row[field]

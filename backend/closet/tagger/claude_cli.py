@@ -150,17 +150,32 @@ def _undescribed(node) -> None:
             _undescribed(v)
 
 
+def _untitled(node) -> None:
+    """Drop the titles pydantic writes on every field (its name again, "Category Confidence"): they tell Claude
+    nothing the field's name does not, and cost about 2,800 characters of the command line."""
+    if isinstance(node, dict):
+        if isinstance(node.get("title"), str):
+            node.pop("title")
+        for v in node.values():
+            _untitled(v)
+    elif isinstance(node, list):
+        for v in node:
+            _untitled(v)
+
+
 def strict_schema() -> dict:
     """The answer schema the plan route sends: the short form (`tagging.SENT`: its long word lists as plain text),
     adjusted as the SDK adjusts a structured output's. (The API route sends the whole form as a plain tool.) The
-    cloth's surface goes without its descriptions, which the prompt carries instead (`surfaceform.NOTES`): with them
-    the command line is longer than Windows allows."""
+    cloth's surface and its lettering go without their descriptions, which the prompt carries instead
+    (`surfaceform.NOTES`): with them the command line is longer than Windows allows. No field carries a title."""
     from anthropic.lib._parse._transform import transform_schema
     schema = transform_schema(SENT)
     for name in surfaceform.FORMS:
         _undescribed(schema.get("$defs", {}).get(name + "Sent"))
-    if "surface" in schema.get("properties", {}):
-        schema["properties"]["surface"].pop("description", None)
+    for name in ("surface", "lettering"):
+        if name in schema.get("properties", {}):
+            schema["properties"][name].pop("description", None)
+    _untitled(schema)
     return schema
 
 

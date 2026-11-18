@@ -97,7 +97,8 @@ TOP_DEFAULTS = dict(
 #   gauge     extra_fine | fine | medium | chunky | super_chunky     knit gauge: the depth of rib bands
 #   binding   False | True             a contrast strip wrapped over the edges: the collar's top, the placket, the
 #             sleeve ends and the hem (role "binding" inside the garment, "binding_edge" on its outline)
-#   colorblock  a tuple of parts cut in the second colour: yoke | sleeves | collar | pocket
+#   colorblock  a tuple of parts cut in the second colour: yoke | sleeves | left_sleeve_as_seen | right_sleeve_as_seen |
+#               collar | pocket (a side as seen: the drawing faces the viewer as the photo does)
 #   stripes   none | sleeve | hoops    two stripes down the outside of each sleeve (a track jacket), or stripes round
 #             the arms and the body above the hem (a hockey jersey); in the trim colour
 #   belt      False | True | sash      a self belt buckled round the waist (a trench coat); a robe's knotted sash
@@ -370,7 +371,7 @@ def seam_shows(shoulder: str, colorblock: tuple = ()) -> bool:
     colour, where the seam is the edge between the two colours (a snap-front fleece, a varsity jacket's sleeves).
     An ordinary set-in sleeve's seam is not drawn, on a tailored jacket either (the owner, 16 November). A dolman
     sleeve has none to draw."""
-    return shoulder not in ("set-in", "dolman") or bool({"sleeves", "yoke"} & set(colorblock))
+    return shoulder not in ("set-in", "dolman") or bool({"sleeves", "left_sleeve_as_seen", "right_sleeve_as_seen", "yoke"} & set(colorblock))
 
 
 def top(**kw) -> Shape:
@@ -821,7 +822,8 @@ def top(**kw) -> Shape:
         region = [(Sl[0], 0.0), (S[0], 0.0)] + run + [_mirror(v) for v in run[::-1]]
         sh.blocks.append(_poly(region))
         sh.seams.append(f"M {_pt(_mirror(run[-1]))} L {_pt(run[-1])}")
-    sh.block_sleeves = "sleeves" in blocks and sleeved
+    # a sleeve in another colour (both, or one: the renderer paints each sleeve in its own, `illustrate`)
+    sh.block_sleeves = bool({"sleeves", "left_sleeve_as_seen", "right_sleeve_as_seen"} & set(blocks)) and sleeved
     on_sleeve = "block" if sh.block_sleeves else None
 
     # ---- yoke seams: near-parallel to the shoulder, from under the collar to the armhole

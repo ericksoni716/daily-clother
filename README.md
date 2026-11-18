@@ -48,7 +48,7 @@ have are hidden, and the history can undo it. The closet's **Filter** can show
 one group or one kind.
 Once it is described the item gets its drawing: switch between **Drawing**,
 **Cutout** and **Photo** above the item. Beside the drawing, **Not in the
-drawing** lists what it can't show yet (for example a logo, or stripes drawn as
+drawing** lists what it can't show yet (for example a picture logo, or stripes drawn as
 plain colour). When Claude describes the item it also describes its cloth: plain, stripes, plaid or checks, plain with parts or bands in another colour (sleeves, a yoke, a collar or pocket, a band across the chest), or a print. Parts in another colour are drawn at once. For stripes, plaid and checks Closet then weaves the colours Claude named and sizes them from the photo; bands across the body are drawn where Claude said they are; a print is pieced from the cloth in the photo (it says **Measuring the plaid from the photo** meanwhile; it can take a minute or two). Items described before 18 November are measured from the photo the older way until they are described again: a plaid straightened and lined up with the buttons, stripes where they really are. A plaid photographed at an angle, or lying on a bed, is measured too: Closet straightens the checks from their own lines and leaves the bedding out of the cutout. A plaid photographed too dark (a navy shirt on white bedding comes out nearly black) is brought back to the colour the item is called. If it still can't measure the checks, the item says so and is drawn in its colour (it is never drawn as a guess); a photo of it laid flat on a plain surface, taken from straight above, usually works: press **Retake the photo** beside that note and take one. The item keeps its wears, rating and everything you set; Closet removes the new photo's background, Claude describes it again and the pattern is measured again. The same button is in the note when the background couldn't be removed. Change the pattern on the item and it is measured again, from your word rather than Claude's description of the cloth. The drawing follows your changes: pick another colour or sleeve
 length and it is drawn again. **Photos | Drawings** above the closet shows the
 whole closet either way; this device remembers your choice.
@@ -67,7 +67,14 @@ its choices, drawn as small pictures of the item where the drawing would change,
 and pick one: the drawing changes at once. Or type what's wrong in **Or say
 what's wrong** ("it has three buttons", "it's a henley, not a tee") and tap
 **Ask Claude**: it lists the changes it understood, and nothing changes until
-you tap **Make these changes**. Your sentence and the item's description are
+you tap **Make these changes**. The cloth can be put right this way too: "the
+sleeves are different colours, red on the left and blue on the right", "it has
+navy and white stripes", or "there's a logo in the middle that says A.P.C.".
+Lettering is drawn as letters on the front; a logo that is a picture (an animal,
+a crest) can't be drawn, and Claude says so. When Claude describes an item it
+writes down any letters it can read on the front for certain, and leaves out
+pictures and anything it can't read. Left and right mean as you see the item in
+its photo and drawing, not the wearer's left. Your sentence and the item's description are
 sent; the photo (with its background removed) only if Claude can't understand
 the sentence without it, and it says so. Through the API key this counts towards
 your monthly spending limit like describing items; when the limit is reached,

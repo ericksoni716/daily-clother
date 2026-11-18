@@ -388,8 +388,10 @@ def test_the_schema_sent_to_the_api_stays_within_its_documented_limits():
             for v in node:
                 walk(v)
     walk(schema)
-    # flat helper objects, no recursion: the shape, a shot asked for, the details, and the cloth's surface with its parts
-    assert set(schema["$defs"]) == {"Silhouette", "ShotRequest", "Details", "Surface", "Band", "Colour", "Block", "Panel"}
+    # flat helper objects, no recursion: the shape, a shot asked for, the details, the cloth's surface with its parts,
+    # and its lettering
+    assert set(schema["$defs"]) == {"Silhouette", "ShotRequest", "Details", "Surface", "Band", "Colour", "Block", "Panel",
+                                    "Lettering"}
     # the API allows only a limited number of nullable properties in one schema; details must not add any
     details = schema["$defs"]["Details"]
     assert all("anyOf" not in v and v.get("type") != ["string", "null"] for v in details["properties"].values())

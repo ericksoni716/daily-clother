@@ -25,6 +25,7 @@ import hashlib
 import json
 
 from . import db, details, drawing, illustrations
+from .tagger import surfaceform
 
 # the item's own fields that describe it (all those an answer fills, `tagjobs.suggested_fields`); a change to one of
 # them is recorded
@@ -32,6 +33,8 @@ DESCRIBED = ("name", "category", "color", "color_hex", "pattern", "formality", "
 # the stored answer, with the photo it saw first (an answer put back takes its photo with it)
 ANSWER = ("tag_answer", "tag_schema_version", "tag_route", "tag_model", "tagged_at", "tag_photo_id")
 PATTERN = ("pattern_fill", "pattern_state", "pattern_error", "landmarks")
+# the owner's own words about the cloth and its lettering (`items.own_cloth`): recorded as a field, so it can be undone
+OWN = ("own_cloth",)
 WHO = ("owner", "claude")
 _MISSING = object()
 
@@ -44,6 +47,8 @@ def _json(text, default):
 
 
 def field_state(row, field: str) -> dict:
+    if field == "own_cloth":
+        return {"value": surfaceform.own_cloth(row) or None, "source": None, "confidence": None}
     value = _json(row["silhouette"], {}) if field == "silhouette" else row[field]
     return {"value": value, "source": _json(row["source"], {}).get(field), "confidence": _json(row["confidence"], {}).get(field)}
 
@@ -60,6 +65,8 @@ def drawn_state(row) -> str:
                  "silhouette": _json(row["silhouette"], {}),
                  "owner": sorted(f for f in (*illustrations.SHOWN, "color_hex") if source.get(f) == illustrations.OWNER),
                  "answer": _json(row["tag_answer"], None), "details": details.own(row)}
+    if surfaceform.own_cloth(row):   # only when the owner has said it, so older fingerprints stay valid
+        made_from["own_cloth"] = surfaceform.own_cloth(row)
     if row["pattern_fill"]:   # keep older fingerprints valid for drawings without a measured pattern
         made_from["pattern_fill"] = _json(row["pattern_fill"], None)
     shoe = illustrations.traced(row)
@@ -71,7 +78,7 @@ def drawn_state(row) -> str:
 def parts_between(before, after) -> list[dict]:
     """What changed in an item's description between two rows of it."""
     parts = []
-    for f in DESCRIBED:
+    for f in (*DESCRIBED, *OWN):
         b, a = field_state(before, f), field_state(after, f)
         if b != a:
             parts.append({"target": "field", "name": f, "before": b, "after": a})
@@ -97,8 +104,10 @@ def record(conn, before, after, by: str, kind: str, sentence: str | None = None,
         return None
     drawn = {"svg": before["illustration_svg"], "version": before["illustration_version"], "notes": before["illustration_notes"],
              "state": drawn_state(before)}
-    if before["pattern"] != after["pattern"] or before["tag_answer"] != after["tag_answer"]:
+    if (before["pattern"] != after["pattern"] or before["tag_answer"] != after["tag_answer"]
+            or surfaceform.own_cloth(before) != surfaceform.own_cloth(after)):
         drawn["pattern"] = {field: before[field] for field in (*PATTERN, "pattern", "tag_answer")}
+        drawn["pattern"]["own_cloth"] = before["own_cloth"] if "own_cloth" in before.keys() else None
     cur = conn.execute("INSERT INTO changes (item_id, at, by, kind, parts, sentence, drawing, undoes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                        (after["id"], db.now(), by, kind, json.dumps(parts), sentence, json.dumps(drawn), undoes))
     return cur.lastrowid

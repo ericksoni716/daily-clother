@@ -325,14 +325,57 @@ test.describe('talking to Claude about the outfits', () => {
     await expect(turns(page).last()).toContainText(REPLY);
   });
 
+  test('after a look at the closet that changed meanwhile, Today is asked again and a message waits for that answer, then is sent', async ({ page }) => {
+    test.setTimeout(120_000);
+    await open(page, backend.url);
+    const count = await turns(page).count();
+    // on another device, a piece that is in none of the outfits goes in the laundry: the closet differs, the outfits do not
+    const shown = await (await page.request.post(backend.url + '/api/outfits/today', { data: { occasion: 'casual', mood: 'usual', ...DAY } })).json();
+    const worn = new Set<string>(shown.outfits.flatMap((o: { pieces: Record<string, string | string[] | null> }) => Object.values(o.pieces).flat()));
+    const { items } = await (await page.request.get(backend.url + '/api/items?status=active&laundry=clean')).json();
+    const spare = items.find((i: { id: string; category: string }) => !worn.has(i.id) && i.category === 'shorts') ?? items.find((i: { id: string }) => !worn.has(i.id));
+    expect((await page.request.post(backend.url + `/api/items/${spare.id}/laundry`, { data: { state: 'laundry' } })).status()).toBe(200);
+    // the next time Today is asked (without a message), the answer takes three seconds
+    let hold = true;
+    await page.route('**/api/outfits/today', async (route: Route) => {
+      if (hold && !(route.request().postDataJSON() as { say?: string }).say) {
+        hold = false;
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+      await route.fallback();
+    });
+    // a look at the closet reads it again; back on Today the outfits are there as they were, and Today is asked again
+    const tabbar = page.locator('nav.tabbar');
+    await tabbar.getByRole('link', { name: 'Closet' }).click();
+    await expect(page.locator('#closet-title')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+    await tabbar.getByRole('link', { name: 'Today' }).click();
+    await expect(page.locator('.today-outfits.is-asking')).toHaveCount(1, { timeout: 15_000 });
+    const sent = page.waitForResponse((r) => said(r.request()));
+    await box(page).fill('Lighter shoes please');
+    await box(page).press('Enter');
+    const response = await sent;
+    expect(response.status(), await response.text()).toBe(200);
+    await expect(turns(page)).toHaveCount(count + 1, { timeout: 15_000 });
+    await expect(turns(page).last()).toContainText('Lighter shoes please');
+    await answered(page, REPLY);
+    await expect(box(page)).toHaveValue('');
+    expect((await page.request.post(backend.url + `/api/items/${spare.id}/laundry`, { data: { state: 'clean' } })).status()).toBe(200);
+  });
+
   test('a long unbroken message stays on a phone screen, and the conversation passes the checks on a phone and a computer, light and dark', async ({ page }) => {
     test.setTimeout(150_000);
     await open(page, backend.url);
     const long = 'Z'.repeat(400);
+    const count = await turns(page).count();
+    const sent = page.waitForResponse((r) => said(r.request()));
     await box(page).fill(long);
     await box(page).press('Enter');
-    await answered(page, REPLY);
+    const response = await sent;
+    expect(response.status(), await response.text()).toBe(200);
+    await expect(turns(page)).toHaveCount(count + 1);
     await expect(turns(page).last()).toContainText(long);
+    await answered(page, REPLY);
     expect(await sideways(page)).toEqual([]);
     expect(await axeViolations(page)).toEqual([]);
     await look(page, 'phone-light-long');

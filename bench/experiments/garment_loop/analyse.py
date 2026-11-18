@@ -178,6 +178,8 @@ def main(half: str, rnd: str = "") -> None:
         patterned = [g for g in rows if s_of[g] and s_of[g]["kind"] != "plain"]
         repeat = [g for g in rows if s_of[g] and s_of[g]["kind"] in ("stripes", "plaid") and s_of[g].get("count")]
         say_less = [g for g in rows if s_of[g] and s_of[g]["kind"] in ("plain", "other")]
+        solids = [g for g in rows if s_of[g] and s_of[g]["kind"] == "plain"]
+        prints = [g for g in rows if s_of[g] and s_of[g]["kind"] == "other"]
 
         def shows(g, arm=arm):
             name = J.drawing_of(g, arm)
@@ -202,6 +204,9 @@ def main(half: str, rnd: str = "") -> None:
             "scale_within_25": np.mean(scale_ok) if scale_ok else None, "with_repeat": len(scale_ok),
             "confidently_wrong": len(wrong) / len(patterned) if patterned else None,
             "pattern_on_plain_or_print": np.mean([shows(g) for g in say_less]) if say_less else None,
+            # split: on a solid any pattern is wrong; on a print, arm A and F draw the app's own piecing by design
+            "pattern_on_plain": np.mean([shows(g) for g in solids]) if solids else None,
+            "pattern_on_print": np.mean([shows(g) for g in prints]) if prints else None,
             "colour_share_distance": float(np.median(csd)) if csd else None,
             "judge_all_same": np.mean(same) if same else None,
             "run_to_run_makeup": float(np.mean([x[0] for x in rr])) if rr else None,

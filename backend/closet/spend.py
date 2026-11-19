@@ -53,16 +53,17 @@ MAX_CAP_USD = 1000.0        # a typing slip should not allow a large bill
 HISTORY_MONTHS = 12
 
 # A careful upper bound on one request to describe an item: the prompt and the whole answer form as a tool (about
-# 38,500 characters with the cloth's surface, counted at 1 token for every character pair, with room for what the API
-# adds for a tool), each photo at no more than 1024 px a side (about 1,400 tokens by Anthropic's rule of width x
-# height / 750, rounded up), and the longest answer the request allows. (8,000 while the form went as a compiled
-# structured output; 18,000 before the surface was asked for.)
-TEXT_TOKENS = 20000
+# 40,000 characters with the cloth's surface and its lettering, counted at 1 token for every character pair, with room
+# for what the API adds for a tool), each photo at no more than 1024 px a side (about 1,400 tokens by Anthropic's rule
+# of width x height / 750, rounded up), and the longest answer the request allows. (8,000 while the form went as a
+# compiled structured output; 18,000 before the surface was asked for; 20,000 before the lettering.)
+TEXT_TOKENS = 21000
 IMAGE_TOKENS = 1600
 # Reading a correction: the longest prompt the app writes (a 500-character sentence, a shirt's description and every
-# value it may take, about 7,000 characters with the schema; counted at 1 token for every character pair, then the
-# whole doubled), a photo when one is sent, and the longest answer the request allows (`correcting.MAX_TOKENS`).
-CORRECT_TEXT_TOKENS = 9000
+# value it may take, with the longest cloth and lettering, about 18,000 characters with the schema since the cloth was
+# added (7,000 before); counted at 1 token for every character pair, then the whole doubled), a photo when one is sent,
+# and the longest answer the request allows (`correcting.MAX_TOKENS`).
+CORRECT_TEXT_TOKENS = 19000
 # Sorting a shoe's photos into views: the prompt with the answer's schema (about 3,000 characters, counted at 1 token
 # for every character pair, then the whole doubled and rounded up), each photo at no more than 1024 px a side, and the
 # longest answer the request allows (`correcting.MAX_TOKENS`; the answer itself is a few lines).

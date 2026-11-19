@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field
 
 from .. import apikey
 from . import claude_cli
+from .surfaceform import Lettering, Surface
 from .tagging import (
     CACHED,
     CONFIG,
@@ -65,6 +66,14 @@ class CorrectionAnswer(BaseModel):
     not_understood: str = Field(description="What in the sentence could not be turned into the listed values, in a "
                                             "short plain sentence addressed to the owner; empty when everything was understood.")
     needs_photo: bool = Field(description="True when the sentence can only be understood by looking at the item.")
+    # the cloth and its lettering, rewritten whole when the sentence is about them (`corrections.understand`)
+    cloth: Surface | None = Field(default=None, description=(
+        "Null unless the owner's words are about the cloth: its colours, its stripes or checks, parts or sleeves in "
+        "another colour, a band across it. Then the whole cloth again, as `cloth` in the description, changed only "
+        "as they say."))
+    lettering: list[Lettering] | None = Field(default=None, description=(
+        "Null unless the owner's words are about letters or words on the item. Then the whole lettering again, as "
+        "`lettering` in the description, changed only as they say ([] when they say there is none)."))
 
 
 @dataclass
@@ -95,6 +104,7 @@ Turn what the owner says into changes: each change is one name from the list and
 - Change only what the owner's words say or plainly imply (for example "it's a henley, not a tee" sets the neckline to henley and the front to a henley placket; "three buttons" sets placket_buttons to 3). Do not change anything else.
 - Never guess. If part of what they say does not fit any listed value, or you cannot tell which value they mean, leave it out of the changes and say so in not_understood, in one short plain sentence to the owner.
 - Features are "yes" (it has it) or "no" (it does not).
+- The cloth and its lettering (`cloth` and `lettering` in the description) are not in the list: when the owner's words are about them, give the whole new cloth in `cloth` or the whole new lettering in `lettering`, keeping all they do not mention; otherwise leave both null. Lettering is only letters or words they give or you can read; a logo that is a picture or a symbol cannot be drawn, so say so in not_understood.
 - {"The image is the item with its background removed." if with_photo else "You have not been shown the item. If the sentence cannot be understood without seeing it (for example \"the colour is wrong\"), set needs_photo to true and give no changes."}"""
 
 

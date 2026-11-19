@@ -67,9 +67,12 @@ def _pattern_name(row) -> str | None:
 
 
 def _surface(row):
-    """The surface Claude described for the item (its stored answer's `surface`), or None for an answer from before
-    it was asked for, or when the item's pattern is no longer the one that answer gave (the owner changed it: their
+    """The cloth's surface for the item: the owner's own (`items.own_cloth`) when they corrected it, else the one
+    Claude described (its stored answer's `surface`); None for an answer from before it was asked for, or when the item's pattern is no longer the one that answer gave (the owner changed it: their
     word is measured from the photo as before)."""
+    own = surfaceform.own_cloth(row).get("surface")
+    if own is not None:   # the cloth in the owner's own words (a correction), over Claude's
+        return own
     try:
         answer = json.loads(row["tag_answer"]) if row["tag_answer"] else {}
     except ValueError:
@@ -98,7 +101,7 @@ def method(row) -> str | None:
 def mark(conn, item_id: str) -> None:
     """After a description arrives or the owner changes the pattern: measure it (again), or stop drawing a
     pattern that no longer applies. Inside the caller's transaction."""
-    row = conn.execute("SELECT category, pattern, tag_answer FROM items WHERE id = ?", (item_id,)).fetchone()
+    row = conn.execute("SELECT category, pattern, tag_answer, own_cloth FROM items WHERE id = ?", (item_id,)).fetchone()
     if row is None:
         return
     if method(row) is not None:

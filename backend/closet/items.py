@@ -25,6 +25,7 @@ from . import (
     tracejobs,
     vocab,
 )
+from .tagger import surfaceform
 from .tagger.taxonomy import SHADES, nearest_shade
 
 TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "wear_notes", "acquired_on", "notes", "rating_reason", "color_hex")
@@ -331,6 +332,11 @@ def _update(conn, item_id: str, changes: dict, record: bool) -> dict:
         if kept != owner:
             sets.append("own_details = ?")
             args.append(details.dump(kept))
+        cloth = surfaceform.own_cloth(row)
+        if "pattern" in changes and "surface" in cloth:   # a pattern word set now wins over a cloth said before
+            cloth.pop("surface")
+            sets.append("own_cloth = ?")
+            args.append(json.dumps(cloth, sort_keys=True) if cloth else None)
         sets += ["source = ?", "confidence = ?", "updated_at = ?"]
         args += [json.dumps(source), json.dumps(confidence), db.now(), item_id]
         conn.execute(f"UPDATE items SET {', '.join(sets)} WHERE id = ?", args)

@@ -8,7 +8,7 @@ drawing imports it, so nothing here may import OpenCV.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, get_args
 
 from pydantic import BaseModel, Field
 
@@ -24,7 +24,9 @@ FIELD_TEXT = {
     "size": ("stripes and plaid only, else null: how many repeats fit across the chest (trousers and shorts: across "
              "the waist), counted the way the bands repeat: micro more than 20, tiny 9-20, small 5-8, medium 3-5, "
              "large 2-3, huge under 2."),
-    "blocks": "blocks only, else empty: each part cut in another colour than the body.",
+    "blocks": ("blocks only, else empty: each part cut in another colour than the body. sleeves: both sleeves in one "
+               "colour; when the two differ, left_sleeve_as_seen and right_sleeve_as_seen: the sleeve on the left or "
+               "the right of the photo as you see it (not the wearer's left)."),
     "panels": ("blocks only, else empty: each band of another colour running across the whole body (sleeves "
                "included), as how far down it starts and ends, from the collar (0) to the hem (100), in order from "
                "the top. A chest panel is one band; a body in two colours is one band from where the second colour "
@@ -36,6 +38,16 @@ FIELD_TEXT = {
     "share": "Whole number; how much of the cloth it covers, against the others.",
     "top": "Where the band starts, 0 at the collar to 100 at the hem.",
     "bottom": "Where the band ends, 0 at the collar to 100 at the hem.",
+    "lettering": ("Letters or words on the front of the item that you can read for certain: a brand name, a "
+                  "wordmark, a slogan, a team name. Empty when there are none, when the mark is a picture or a symbol "
+                  "(an animal, a crest, a swoosh, a monogram you cannot read), or when you cannot read every letter. "
+                  "Never guess a letter."),
+    "text": "Exactly as written, capitals, dots and spaces kept; at most 30 characters.",
+    "place": ("left_chest_as_seen or right_chest_as_seen (the chest on the left or the right of the photo as you see "
+              "it, not the wearer's left), center_chest, or middle (across the middle of the front)."),
+    "letter_size": "small: a mark on the chest; medium: across part of the chest; large: across the whole chest.",
+    "letter_style": "sans: plain block letters; serif: letters with serifs; script: joined handwriting.",
+    "letter_color": "#rrggbb of the letters.",
 }
 
 GUIDANCE = ("- Surface: fill in `surface` from a quick look. A rough answer is fine; a drawing that says less is "
@@ -53,12 +65,21 @@ NOTES = "\n".join([
     "- panels: " + FIELD_TEXT["panels"] + " Each: top, " + FIELD_TEXT["top"] + " bottom, " + FIELD_TEXT["bottom"]
     + " color, " + FIELD_TEXT["color"],
     "- colors: " + FIELD_TEXT["colors"] + " Each: color, " + FIELD_TEXT["color"] + " share, " + FIELD_TEXT["share"],
+    "How to fill in `lettering`: " + FIELD_TEXT["lettering"] + " Each: text, " + FIELD_TEXT["text"] + " place, "
+    + FIELD_TEXT["place"] + " size, " + FIELD_TEXT["letter_size"] + " style, " + FIELD_TEXT["letter_style"]
+    + " color, " + FIELD_TEXT["letter_color"],
 ])
-FORMS = ("Surface", "Band", "Colour", "Block", "Panel")   # the models above, by name
+FORMS = ("Surface", "Band", "Colour", "Block", "Panel", "Lettering")   # the models above, by name
 
 Kind = Literal["plain", "stripes", "plaid", "blocks", "other"]
 Direction = Literal["horizontal", "vertical"]
-Part = Literal["yoke", "sleeves", "collar", "pocket"]
+# a side is as seen in the photo, and in the drawing, which faces the same way (not the wearer's left): Claude read the
+# wearer's side for a chest print and the photo's for the sleeves of one tee when asked for the wearer's
+Part = Literal["yoke", "sleeves", "left_sleeve_as_seen", "right_sleeve_as_seen", "collar", "pocket"]
+PARTS: tuple[str, ...] = ("yoke", "sleeves", "left_sleeve_as_seen", "right_sleeve_as_seen", "collar", "pocket")
+Place = Literal["left_chest_as_seen", "right_chest_as_seen", "center_chest", "middle"]
+LetterSize = Literal["small", "medium", "large"]
+LetterStyle = Literal["sans", "serif", "script"]
 Size = Literal["micro", "tiny", "small", "medium", "large", "huge"]
 
 
@@ -81,6 +102,14 @@ class Panel(BaseModel):
     top: int = Field(description=FIELD_TEXT["top"])
     bottom: int = Field(description=FIELD_TEXT["bottom"])
     color: str = Field(description=FIELD_TEXT["color"])
+
+
+class Lettering(BaseModel):
+    text: str = Field(description=FIELD_TEXT["text"])
+    place: Place = Field(description=FIELD_TEXT["place"])
+    size: LetterSize = Field(description=FIELD_TEXT["letter_size"])
+    style: LetterStyle = Field(description=FIELD_TEXT["letter_style"])
+    color: str = Field(description=FIELD_TEXT["letter_color"])
 
 
 class Surface(BaseModel):
@@ -180,16 +209,148 @@ def main_colour(raw) -> str | None:
     return None
 
 
-def block_parts(raw) -> tuple[tuple[str, ...], str | None]:
-    """The parts cut in another colour (yoke, sleeves, collar, pocket) and that colour (softened), from a blocks
-    surface; ((), None) otherwise. The drawing has one block colour: the first part's."""
+def block_colours(raw) -> dict[str, str]:
+    """The parts cut in another colour (yoke, sleeves, left_sleeve_as_seen, right_sleeve_as_seen, collar, pocket), each with its
+    colour (softened), from a blocks surface; empty otherwise. Both sleeves named one by one in one colour are
+    "sleeves"; a part said twice keeps its first colour."""
     if kind_of(raw) != "blocks":
-        return (), None
+        return {}
     data = raw.model_dump() if isinstance(raw, BaseModel) else raw
-    parts, colour = [], None
+    out: dict[str, str] = {}
     for b in data.get("blocks") or []:
-        if isinstance(b, dict) and b.get("part") in ("yoke", "sleeves", "collar", "pocket") and _hex(b.get("color")):
-            if b["part"] not in parts:
-                parts.append(b["part"])
-            colour = colour or softened(_hex(b["color"]))
-    return tuple(parts), colour
+        if isinstance(b, dict) and b.get("part") in PARTS and _hex(b.get("color")) and b["part"] not in out:
+            out[b["part"]] = softened(_hex(b["color"]))
+    if out.get("left_sleeve_as_seen") and out["left_sleeve_as_seen"] == out.get("right_sleeve_as_seen") \
+            and "sleeves" not in out:
+        out["sleeves"] = out.pop("left_sleeve_as_seen")
+        out.pop("right_sleeve_as_seen")
+    return out
+
+
+def block_parts(raw) -> tuple[tuple[str, ...], str | None]:
+    """The parts cut in another colour and the first part's colour (softened), from a blocks surface; ((), None)
+    otherwise (`block_colours` gives each part its own)."""
+    found = block_colours(raw)
+    return tuple(found), next(iter(found.values()), None)
+
+
+TEXT_MAX = 30
+
+
+def lettering_of(raw) -> list[dict]:
+    """The lettering that can be drawn, from a stored answer's `lettering`: each {"text", "place", "size", "style",
+    "color" (softened)}, at most three; text with no letter or digit, longer than TEXT_MAX or with an unknown place
+    is left out."""
+    out = []
+    for item in raw if isinstance(raw, list) else []:
+        if isinstance(item, BaseModel):
+            item = item.model_dump()
+        if not isinstance(item, dict):
+            continue
+        text = " ".join(str(item.get("text") or "").split())
+        if not text or len(text) > TEXT_MAX or not any(c.isalnum() for c in text):
+            continue
+        if item.get("place") not in get_args(Place):
+            continue
+        out.append({"text": text, "place": item["place"],
+                    "size": item.get("size") if item.get("size") in get_args(LetterSize) else "medium",
+                    "style": item.get("style") if item.get("style") in get_args(LetterStyle) else "sans",
+                    "color": softened(_hex(item.get("color")) or "#222222")})
+    return out[:3]
+
+
+# ---- the owner's own words about the cloth (`items.own_cloth`, laid over Claude's answer) ----------------------------
+
+def own_cloth(row) -> dict:
+    """The owner's cloth and lettering for an item row: {"surface": ..., "lettering": [...]}, each key only when the
+    owner set it (an empty dict when they set neither, or the row has no such column)."""
+    import json
+    try:
+        keys = row.keys()
+        text = row["own_cloth"] if "own_cloth" in keys else None
+        data = json.loads(text) if text else {}
+    except (ValueError, TypeError, AttributeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    out = {}
+    if kind_of(data.get("surface")) is not None:
+        out["surface"] = data["surface"]
+    if isinstance(data.get("lettering"), list):
+        out["lettering"] = data["lettering"]
+    return out
+
+
+# ---- the cloth in plain words (a correction's before and after, the item's history) ---------------------------------
+
+# the closet's colour words and their shades (`schema.NAMED_HEX`: a test keeps the two equal; schema imports this module)
+COLOUR_WORDS = {"black": "#1f1f22", "white": "#f6f5f2", "grey": "#8f9296", "navy": "#27344f", "blue": "#3f6fb0",
+                "light_blue": "#a9c3e0", "green": "#3f7d4f", "olive": "#6b6f45", "tan": "#c2a878", "brown": "#6b4a2f",
+                "cream": "#ece4d0", "red": "#b8332e", "burgundy": "#6e2633", "pink": "#e3a6b4", "orange": "#d9772b",
+                "yellow": "#e3c341", "purple": "#6a4c93"}
+PART_WORDS = {"yoke": "yoke", "sleeves": "sleeves", "left_sleeve_as_seen": "sleeve on the left",
+              "right_sleeve_as_seen": "sleeve on the right", "collar": "collar", "pocket": "pocket"}
+PLACE_WORDS = {"left_chest_as_seen": "on the chest, on the left", "right_chest_as_seen": "on the chest, on the right",
+               "center_chest": "across the chest", "middle": "across the middle"}
+
+
+def colour_word(hex_) -> str:
+    """The nearest of the closet's colour words to a colour, in words ("light blue")."""
+    h = _hex(hex_)
+    if h is None:
+        return "an unknown colour"
+    rgb = [int(h[i:i + 2], 16) for i in (1, 3, 5)]
+    best = min(COLOUR_WORDS, key=lambda w: sum((a - int(COLOUR_WORDS[w][i:i + 2], 16)) ** 2
+                                               for a, i in zip(rgb, (1, 3, 5), strict=True)))
+    return best.replace("_", " ")
+
+
+def _colours_in_words(hexes) -> str:
+    words = list(dict.fromkeys(colour_word(h) for h in hexes))
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " and " + words[-1] if words else ""
+
+
+def surface_words(raw) -> str:
+    """A described surface in plain words: "plain green with a red left sleeve and a blue right sleeve"."""
+    kind = kind_of(raw)
+    if kind is None:
+        return "not described"
+    data = raw.model_dump() if isinstance(raw, BaseModel) else raw
+    colours = [c.get("color") for c in data.get("colors") or [] if isinstance(c, dict)]
+    bands = [b.get("color") for b in data.get("bands") or [] if isinstance(b, dict)]
+    if kind == "plain":
+        return f"plain {colour_word(colours[0])}" if colours else "plain"
+    if kind == "stripes":
+        way = {"horizontal": "stripes across", "vertical": "stripes down"}.get(data.get("direction"), "stripes")
+        return f"{way} in {_colours_in_words(bands)}" if bands else way
+    if kind == "plaid":
+        return f"a check in {_colours_in_words(bands)}" if bands else "a check"
+    if kind == "other":
+        return f"a print in {_colours_in_words(colours)}" if colours else "a print"
+    body = f"plain {colour_word(colours[0])}" if colours else "plain"
+    said = [f"{colour_word(c)} {PART_WORDS[p]}" for p, c in
+            ((b.get("part"), b.get("color")) for b in data.get("blocks") or [] if isinstance(b, dict)) if p in PART_WORDS]
+    said += [f"a {colour_word(q.get('color'))} band across the body" for q in data.get("panels") or [] if isinstance(q, dict)]
+    return body + (" with " + ", ".join(said) if said else "")
+
+
+def lettering_words(raw) -> str:
+    """Lettering in plain words: '"A.P.C." in navy on the left chest'; "no lettering" for none."""
+    found = []
+    for item in raw if isinstance(raw, list) else []:
+        if isinstance(item, BaseModel):
+            item = item.model_dump()
+        if isinstance(item, dict) and item.get("text"):
+            found.append(f"“{item['text']}” in {colour_word(item.get('color'))} {PLACE_WORDS.get(item.get('place'), '')}".strip())
+    return "; ".join(found) if found else "no lettering"
+
+
+def own_cloth_words(value) -> str:
+    """The owner's cloth and lettering (`own_cloth`) in words; "Claude's" for what they have not set."""
+    value = value if isinstance(value, dict) else {}
+    parts = []
+    if "surface" in value:
+        parts.append("cloth: " + surface_words(value["surface"]))
+    if "lettering" in value:
+        parts.append("lettering: " + lettering_words(value["lettering"]))
+    return "; ".join(parts) if parts else "as Claude described it"

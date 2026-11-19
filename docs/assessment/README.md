@@ -8,6 +8,7 @@ changed. The detail, with file and line references, is in the reports beside thi
 | `repo-bloat.md` | Dead code, superseded drawing approaches, repo weight, stale docs |
 | `tests-audit.md` | Every test layer: counts, runtime, what to move, cut and add |
 | `patterns-reachability.md` | Whether measured stripes and plaid can be removed (no), with `patterns-check.sql` |
+| `frontshoe-reachability.md` | When the traced front view of shoes is shown on the figure, and what removing it takes |
 | `ux-settings.md` | Settings, phone access and the QR code, Updates |
 | `ux-items.md` | Adding items, progress, Fix details, the item page, taps, navigation |
 | `ux-pages.md` | Today, Closet, Missing, Insights, Worn, Trips, Review, first run |
@@ -34,6 +35,11 @@ history findings cover only that window.
 ## Owner decisions already made
 
 - Shoe tracing stays.
+- The item page reads a garment's look from one store: the description the drawing was made
+  from, with the owner's corrections folded over it. Layout choices are left to the agent.
+- Agents may edit the release workflow to add a What's new section to release notes. Starting
+  a release and making tags stay with the owner.
+- No history rewrite. Stop the screenshots growing instead.
 - Measured stripes and plaid stay. An ordinary action on a new item still reaches that code
   (changing the Pattern chip, Claude returning no cloth description, a typed correction, and
   background jobs for older items). `patterns-reachability.md` lists what would have to change

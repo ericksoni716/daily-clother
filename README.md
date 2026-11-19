@@ -393,12 +393,9 @@ sorted. If that photo does not work for that (it shows the pair, or the shoe
 from the front, say), the item page says so and the shoe keeps its plain
 drawing; **Retake** replaces the photo. In **Fix the details** you can change a colour of the drawing,
 remove or move a stripe or logo, **Re-trace** it, or **Use the plain drawing**.
-Your fixes stay when the shoe is drawn again. Fix the details also shows the
-shoe from the front, as the outfit figure wears it, in two ways side by side:
-**From the shoe's shape** and **From your photo**. Tap the one that looks more
-like your shoe. **Add a front photo** there helps **From your photo** get the
-toe, laces and logos right; once you add one, that view is used unless you
-chose otherwise.
+Your fixes stay when the shoe is drawn again. Until Claude has drawn the shoe
+for the outfit figure (below), the figure wears a plain drawing of its kind of
+shoe, seen from the front.
 
 Once the photos are sorted (and you have answered the question about the
 outside, if Closet asked it), Claude also draws the shoe from them for the

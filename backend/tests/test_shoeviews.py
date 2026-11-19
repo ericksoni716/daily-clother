@@ -523,63 +523,22 @@ def test_shoes_kept_before_are_not_sorted_until_a_photo_is_added(cfg, c, sv, sor
     assert got["views"]["state"] == "waiting" and got["photos"][0]["view"] is None
 
 
-# ------------------------------------------------------------------ the photo read for the front view
+# ------------------------------------------------------------------ no photo is read for a front view
 
-def test_the_front_view_reads_the_newest_photo_from_the_front_else_from_above(cfg, c, sv, sorter):
+def test_sorting_a_photo_from_the_front_or_above_leaves_the_trace_alone(cfg, c, sv, sorter):
+    """The traced front view was removed: a photo from the front or from above is no longer read for it, so sorting
+    one, the owner changing its view or removing it never traces the shoe again."""
     item = a_shoe(c)
-    sv.worker.drain()   # the cutout, so the shoe can wait to be traced
+    sv.worker.drain()
     a = add(c, item, 1).json()["photos"][-1]["id"]
-
-    def traced_with(look):
-        sql(cfg, "UPDATE items SET trace_state = 'done', front_look = ? WHERE id = ?", (look, item["id"]))
-
-    def look():
-        with closing(db.connect(cfg.db_path("main"))) as conn:
-            return shoeviews.look_id(conn, item["id"])
-
-    traced_with('{"read": "before"}')
-    assert look() is None
-    # an unsorted photo is not read: nothing changes on adding it
     b = add(c, item, 2).json()["photos"][-1]["id"]
-    assert row(cfg, item["id"])["trace_state"] == "done" and row(cfg, item["id"])["front_look"]
-    # sorted: the main photo from the front is never read; the photo from above is (no photo is a side view, so the
-    # main photo stays the main one: test_shoe_main_photo.py has what happens when one is)
-    sorter.reply = answer(("front", True), ("top", True), ("back", True))
-    sv.views.drain(now=later())
-    assert look() == a and row(cfg, item["id"])["front_look"] is None and row(cfg, item["id"])["trace_state"] == "waiting"
-    # the same answer again: the same photo, so what was read stays
-    traced_with('{"read": "a"}')
-    sql(cfg, "UPDATE items SET views_state = 'waiting' WHERE id = ?", (item["id"],))
-    sv.views.drain(now=later())
-    assert row(cfg, item["id"])["front_look"] == '{"read": "a"}' and row(cfg, item["id"])["trace_state"] == "done"
-    # a photo from the front comes before one from above
+    sql(cfg, "UPDATE items SET trace_state = 'done' WHERE id = ?", (item["id"],))
     sorter.reply = answer(("outer", True), ("top", True), ("front", True))
-    sql(cfg, "UPDATE items SET views_state = 'waiting' WHERE id = ?", (item["id"],))
     sv.views.drain(now=later())
-    assert look() == b and row(cfg, item["id"])["front_look"] is None and row(cfg, item["id"])["trace_state"] == "waiting"
-    # the owner says it shows something else: back to the one from above
-    traced_with('{"read": "b"}')
+    assert row(cfg, item["id"])["trace_state"] == "done"
     c.put(f"/api/items/{item['id']}/photos/{b}/view", json={"view": "back"})
-    assert look() == a and row(cfg, item["id"])["front_look"] is None and row(cfg, item["id"])["trace_state"] == "waiting"
-    # removed: nothing left to read
-    traced_with('{"read": "a"}')
     c.delete(f"/api/items/{item['id']}/photos/{a}")
-    assert look() is None and row(cfg, item["id"])["front_look"] is None and row(cfg, item["id"])["trace_state"] == "waiting"
-    # removing another photo leaves it alone
-    traced_with('{"read": "none"}')
-    c.delete(f"/api/items/{item['id']}/photos/{b}")
-    assert row(cfg, item["id"])["front_look"] == '{"read": "none"}' and row(cfg, item["id"])["trace_state"] == "done"
-
-
-def test_the_newest_of_two_photos_from_the_front_is_read(cfg, c, sv, sorter):
-    item = a_shoe(c)
-    add(c, item, 1)
-    add(c, item, 2)
-    sorter.reply = answer(("outer", True), ("front", True), ("front", True))
-    sv.views.drain(now=later())
-    newest = get(c, item)["photos"][2]["id"]
-    with closing(db.connect(cfg.db_path("main"))) as conn:
-        assert tracejobs.look_photo(conn, item["id"])["id"] == newest
+    assert row(cfg, item["id"])["trace_state"] == "done"
 
 
 # ------------------------------------------------------------------ the call to Claude

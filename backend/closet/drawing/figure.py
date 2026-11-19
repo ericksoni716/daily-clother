@@ -381,7 +381,6 @@ class Piece:
     silhouette: dict | None = None
     fill: Fill | None = None     # the item's pattern measured from its photo, as its own drawing uses it
     graphic: Graphic | None = None   # a print lifted from its photo (tops only), as its own drawing uses it
-    traced: object = None        # shoes: the shoe traced from its photo (`traced.TracedShoe` or its JSON), drawn from the front
     drawn: object = None         # shoes: the shoe Claude drew from its photos, as kept (`shoedraw`; read by `drawn.stored`),
     #                              drawn on the figure in place of the front view
 
@@ -401,7 +400,6 @@ class Placed:
     front: FrontShoe | None = None    # the shoes: one shoe seen from the front, in its own coordinates
     scale: float = 1.0
     holds: float = 0.0                # a top: how much further out (cm) it holds the elbows (`_fit_top`)
-    traced: object = None             # the shoes: their trace, when there is one (`frontshoe.usable_trace` decides)
     drawn: drawn.Stored | None = None  # the shoes: Claude's drawing of them, drawn in place of `front`
 
     def point(self, p, copy: int = 0) -> tuple[float, float]:
@@ -576,9 +574,8 @@ def _placed(place: str, piece, shoes: Placed | None = None, spread: float = 0.0)
         try:
             spec = make(piece)
             if spec.template == PLACE_TEMPLATE[place]:
-                return _place(place, spec, piece.category, piece.traced if make is _spec else None,
-                              shoes.front if shoes is not None else None, made=_drawing_of(piece) if place == "shoes" else None,
-                              spread=spread)
+                return _place(place, spec, piece.category, shoes.front if shoes is not None else None,
+                              made=_drawing_of(piece) if place == "shoes" else None, spread=spread)
         except Exception:
             log.exception("drawing a %s for an outfit failed", piece.category)
     return None
@@ -596,7 +593,7 @@ def _drawing_of(piece: Piece) -> drawn.Stored | None:
         return None
 
 
-def _place(place: str, spec: Spec, category: str | None = None, traced=None, shoe: FrontShoe | None = None,
+def _place(place: str, spec: Spec, category: str | None = None, shoe: FrontShoe | None = None,
            made: drawn.Stored | None = None, spread: float = 0.0) -> Placed:
     if spec.template == "top":
         spec.params.pop("state", None)
@@ -619,15 +616,14 @@ def _place(place: str, spec: Spec, category: str | None = None, traced=None, sho
     _draw(spec, "line", "probe", dy=0.0)
     # the shoes: the item's drawing is a side view; the figure draws the same shoe from the front (frontshoe), and
     # `_stand` puts the pair under the legs once the trousers are placed. The side view's sole colour is kept.
-    front = front_shoe(spec, K_PX, sole_default=shape.sole_default, traced=traced)
+    front = front_shoe(spec, K_PX, sole_default=shape.sole_default)
     if made is not None:   # Claude's drawing is drawn instead: the hem rests on its opening
         _on_drawing(front, made)
     box = _drawn_box(front, made) if made is not None else front.bbox
     flat = Shape(outline=front.outline, bbox=box, body_box=front.bbox, anchors=dict(front.anchors),
                  sole_default=shape.sole_default)
     return Placed(place, spec, flat, [(1.0, 0.0, 0.0, 1.0, CX - LEG_CM * K_PX, GROUND_Y),
-                                      (-1.0, 0.0, 0.0, 1.0, CX + LEG_CM * K_PX, GROUND_Y)], K_PX, front=front, traced=traced,
-                  drawn=made)
+                                      (-1.0, 0.0, 0.0, 1.0, CX + LEG_CM * K_PX, GROUND_Y)], K_PX, front=front, drawn=made)
 
 
 IDENTITY = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
@@ -1086,8 +1082,7 @@ def _stand(shoes: Placed, layout: Layout) -> Placed:
     is the left one mirrored. With trousers on, the wearer's ankle stands in each shoe (a bare foot in a sandal)."""
     left, right, _ = _legs(layout)
     if layout.get("bottom") is not None:
-        shoes.front = front_shoe(shoes.spec, K_PX, sole_default=shoes.shape.sole_default, ankle=_ankle(), toes=TOE_LINE,
-                                 traced=shoes.traced)
+        shoes.front = front_shoe(shoes.spec, K_PX, sole_default=shoes.shape.sole_default, ankle=_ankle(), toes=TOE_LINE)
         if shoes.drawn is not None:
             _on_drawing(shoes.front, shoes.drawn)
         shoes.shape = Shape(outline=shoes.front.outline, body_box=shoes.front.bbox,
@@ -1815,7 +1810,7 @@ def _svg(layout: Layout, uid: str) -> str:
             ankle_path = _moved(wearer.legs[0], (t[0], 0.0, 0.0, 1.0, -t[0] * t[4], -t[5]))
         front = front_shoe(shoes.spec, K_PX, sole_default=shoes.shape.sole_default, uid=f"{uid}s",
                            ankle=(dressed.ankle or _ankle()) if shoes.front is not None and shoes.front.ankle else None,
-                           ankle_path=ankle_path, toes=TOE_LINE, traced=shoes.traced)
+                           ankle_path=ankle_path, toes=TOE_LINE)
         defs.append(front.defs)
         pair = "".join(f'<g transform="{_matrix(t)}">{front.body}</g>' for t in shoes.transforms)
         if legs:

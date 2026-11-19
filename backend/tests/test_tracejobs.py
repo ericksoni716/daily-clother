@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 from closet import app as app_module
 from closet import db, illustrations, tracejobs
-from closet.drawing import frontshoe, sideshoe, traced
+from closet.drawing import sideshoe, traced
 from closet.drawing import trace as T
 from closet.tagger.schema import Details, ItemTags, Silhouette
 from closet.tagger.tagging import TagResult
@@ -378,14 +378,23 @@ def test_the_owner_can_choose_the_plain_drawing(make, shoe):
     assert c.put(f"/api/items/{item['id']}/trace/plain", json={"plain": "yes"}).status_code == 422
 
 
-def test_the_as_worn_figure_gets_the_trace_unless_the_owner_chose_the_plain_drawing(cfg, make, shoe):
+def test_the_as_worn_figure_draws_a_traced_shoe_from_its_template(cfg, make, shoe):
+    """The traced front view is gone: with no drawing by Claude, the figure draws a traced shoe as it draws the plain
+    drawing, from the template's front view for its style."""
     sv, c = make(Tracer(shoe))
     item = a_shoe(sv, c)
-    stored = row(cfg, item["id"])
-    # with no front photo, the figure draws "From the shoe's shape" by default (#205)
-    assert illustrations.describe(stored).traced == frontshoe.Chosen(stored["trace"], frontshoe.FROM_SHAPE, None)
+    assert item["trace"]["drawn"]
+
+    def worn():
+        conn = db.connect(cfg.db_path("main"))
+        try:
+            return illustrations.outfit_figure(conn, {"shoes": item["id"]})
+        finally:
+            conn.close()
+    traced_figure = worn()
+    assert not hasattr(illustrations.describe(row(cfg, item["id"])), "traced")
     c.put(f"/api/items/{item['id']}/trace/plain", json={"plain": True})
-    assert illustrations.describe(row(cfg, item["id"])).traced is None
+    assert worn() == traced_figure
 
 
 def test_only_a_shoe_has_trace_actions(make, shoe):
@@ -462,19 +471,10 @@ def test_a_photo_from_the_front_or_top_is_kept_and_replaces_only_one_named_the_s
     assert r.status_code == 422 and c.get(f"/api/items/{item['id']}").json()["cutout_state"] == "ready"
 
 
-# ------------------------------------------------------------------ the front view on the figure (#205)
+# ------------------------------------------------------------------ the traced front view, removed
 
-class Looker(Tracer):
-    """A tracer that also reads a front photo (as `tracejobs.tracer` does), with a made-up reading."""
-    LOOK = {"toe": "#b0282c", "vamp": "#b0282c", "laces": 5, "lace_color": "#f2f0ea", "marks": [], "aspect": 0.8}
-
-    def __init__(self, shoe):
-        super().__init__(shoe)
-        self.looked = []
-        self.look = lambda img, sole: self.looked.append(sole) or dict(self.LOOK)
-
-
-def test_the_migration_adds_the_front_view_columns(cfg, make):
+def test_the_front_view_columns_stay_unread(cfg, make):
+    """The traced front view was removed; its columns (migration 0025) are kept, unread, rather than dropped."""
     make(Tracer(None))
     conn = db.connect(cfg.db_path("main"))
     try:
@@ -483,60 +483,20 @@ def test_the_migration_adds_the_front_view_columns(cfg, make):
         conn.close()
 
 
-def test_the_owner_chooses_the_front_view_and_sees_both(cfg, make, shoe):
-    sv, c = make(Tracer(shoe))
-    item = a_shoe(sv, c)
-    assert item["trace"]["front"] == {"kind": "shape", "chosen": None, "photo": False}
-    url = f"/api/items/{item['id']}/trace/front"
-    previews = {k: c.get(f"{url}.svg", params={"kind": k}) for k in ("shape", "photo")}
-    for r in previews.values():
-        assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg+xml")
-        assert r.text.startswith("<svg") and "<script" not in r.text
-    assert previews["shape"].text != previews["photo"].text
-    assert c.get(f"{url}.svg", params={"kind": "side"}).status_code == 404
-    got = c.put(url, json={"kind": "photo"}).json()
-    assert got["trace"]["front"] == {"kind": "photo", "chosen": "photo", "photo": False}
-    assert illustrations.describe(row(cfg, item["id"])).traced.kind == "photo"
-    assert c.put(url, json={"kind": None}).json()["trace"]["front"]["kind"] == "shape"
-    assert c.put(url, json={"kind": "sideways"}).status_code == 422
-    assert c.put(url, json={}).status_code == 422
-    c.put(f"/api/items/{item['id']}/trace/plain", json={"plain": True})
-    assert c.get(f"{url}.svg", params={"kind": "shape"}).status_code == 404   # the plain drawing has no traced front
-    other = upload(c, key="k2").json()
-    assert c.put(f"/api/items/{other['id']}/trace/front", json={"kind": "shape"}).status_code == 409
-
-
-def test_a_front_photo_is_read_for_the_front_view_and_becomes_the_default(cfg, make, shoe):
-    tracer = Looker(shoe)
+def test_there_is_no_front_view_to_choose_and_a_front_photo_is_not_traced_again(cfg, make, shoe):
+    tracer = Tracer(shoe)
     sv, c = make(tracer)
     item = a_shoe(sv, c)
-    assert tracer.looked == [] and row(cfg, item["id"])["front_look"] is None
+    assert "front" not in item["trace"]
+    url = f"/api/items/{item['id']}/trace/front"
+    assert c.put(url, json={"kind": "photo"}).status_code in (404, 405)
+    assert c.get(f"{url}.svg", params={"kind": "shape"}).status_code in (404, 405)
     r = c.post(f"/api/items/{item['id']}/photos", files={"photo": ("f.jpg", jpeg(S.front_photo()[0]), "image/jpeg")},
                data={"view": "front"})
-    assert r.status_code == 201 and r.json()["trace"]["state"] == "waiting"
+    assert r.status_code == 201 and r.json()["trace"]["state"] == "done"
     sv.worker.drain()
-    got = c.get(f"/api/items/{item['id']}").json()
-    assert len(tracer.calls) == 2 and len(tracer.looked) == 1 and 0.05 <= tracer.looked[0] <= 0.4
-    assert got["trace"]["front"] == {"kind": "photo", "chosen": None, "photo": True}
-    chosen = illustrations.describe(row(cfg, item["id"])).traced
-    assert chosen.kind == "photo" and json.loads(chosen.front) == Looker.LOOK
-    # the owner's choice wins over the default
-    assert c.put(f"/api/items/{item['id']}/trace/front", json={"kind": "shape"}).json()["trace"]["front"]["kind"] == "shape"
-
-
-def test_a_tracer_that_cannot_read_a_front_photo_keeps_the_side_trace(cfg, make, shoe):
-    sv, c = make(Tracer(shoe))
-    item = a_shoe(sv, c)
-    c.post(f"/api/items/{item['id']}/photos", files={"photo": ("f.jpg", jpeg(S.front_photo()[0]), "image/jpeg")},
-           data={"view": "front"})
-    sv.worker.drain()
-    got = c.get(f"/api/items/{item['id']}").json()
-    assert got["trace"]["state"] == "done" and got["trace"]["front"] == {"kind": "shape", "chosen": None, "photo": False}
-
-
-def test_the_real_reader_reads_a_synthetic_front_photo(cfg, tmp_path, shoe):
-    look = tracejobs.tracer().look(S.front_photo(S.Shoe(**S.RED_BLACK_RUNNER))[0], 0.22)
-    assert look is not None and look["vamp"] and look["aspect"] > 0
+    assert len(tracer.calls) == 1 and row(cfg, item["id"])["front_look"] is None
+    assert not hasattr(tracejobs.tracer(), "look")
 
 
 # ------------------------------------------------------------------ no instant check on Add any more

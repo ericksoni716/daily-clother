@@ -305,26 +305,8 @@ test.describe('a shoe drawn from its photo', () => {
     await fix.getByRole('button', { name: 'Undo my fixes' }).click();
     await expect(fix.getByText('(removed)')).toHaveCount(0);
 
-    // its front view on the outfit figure: the two drawings side by side, the shape one drawn until a front photo
-    const front = fix.getByTestId('shoe-front');
-    const shape = front.getByRole('button', { name: /From the shoe's shape/ });
-    const fromPhoto = front.getByRole('button', { name: /From your photo/ });
-    await expect(shape).toHaveAttribute('aria-pressed', 'true');
-    await expect(fromPhoto).toHaveAttribute('aria-pressed', 'false');
-    for (const img of await front.locator('img').all()) {
-      await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
-    }
-    await expect(front.getByRole('button', { name: 'Add a front photo' })).toBeVisible();
-    await fromPhoto.click();
-    await expect(fromPhoto).toHaveAttribute('aria-pressed', 'true');
-    await expect(shape).toHaveAttribute('aria-pressed', 'false');
-    expect(await sideways(page)).toEqual([]);
-    expect(await axeViolations(page, '[data-testid="shoe-front"]')).toEqual([]);
-    await front.scrollIntoViewIfNeeded();
-    await expect(page.locator('.toast')).toHaveCount(0, { timeout: 15_000 });
-    await front.screenshot({ path: resolve(SCREENSHOTS, 'shoe-front-choice.png') });
-    await shape.click();
-    await expect(shape).toHaveAttribute('aria-pressed', 'true');
+    // no choice of front view for the outfit figure: it draws the shoe's template until Claude has drawn it
+    await expect(fix.getByTestId('shoe-front')).toHaveCount(0);
 
     // the plain drawing, and back
     await fix.getByRole('button', { name: 'Use the plain drawing' }).click();

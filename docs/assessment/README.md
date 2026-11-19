@@ -34,8 +34,9 @@ history findings cover only that window.
 
 ## Owner decisions already made
 
-- Work is pushed straight to `main`, rebased onto `origin/main` first. Releases and tags stay
-  with the owner.
+- Work reaches `main` through a pull request that merges when CI is green; `main` does not
+  accept direct pushes, and the owner chose to keep that rule. Rebase onto `origin/main`
+  first. Releases and tags stay with the owner.
 - Which model does what: Fable runs the conversation, plans and reviews; a subagent that
   writes code runs on Opus; a small mechanical task (a search, a lookup, a rename) can go to
   Sonnet. One conversation per step of the order of work below.

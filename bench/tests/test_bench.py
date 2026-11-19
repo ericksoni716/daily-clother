@@ -365,11 +365,14 @@ def test_recorded_answers_are_validated_like_live_ones(tmp_path):
 
 
 def test_the_schema_sent_to_the_api_stays_within_its_documented_limits():
-    """No optional properties, no numeric or length constraints, every object closed, nothing recursive."""
+    """No optional properties, no numeric or length constraints, every object closed, nothing recursive. The form
+    sent is `tagging.ASKED`: the stored form (`ItemTags`) keeps the cloth's surface optional, so that answers from
+    before schema 6 stay valid, and the form sent asks for it."""
     import json
 
     from anthropic.lib._parse._transform import transform_schema
-    schema = transform_schema(ItemTags)
+    from closet.tagger import tagging
+    schema = transform_schema(tagging.ASKED)
     text = json.dumps(schema)
     for banned in ("minimum", "maximum", "multipleOf", "minLength", "maxLength", "minItems", "maxItems"):
         assert f'"{banned}"' not in text
@@ -385,7 +388,10 @@ def test_the_schema_sent_to_the_api_stays_within_its_documented_limits():
             for v in node:
                 walk(v)
     walk(schema)
-    assert set(schema["$defs"]) == {"Silhouette", "ShotRequest", "Details"}  # three flat helper objects, no recursion
+    # flat helper objects, no recursion: the shape, a shot asked for, the details, the cloth's surface with its parts,
+    # and its lettering
+    assert set(schema["$defs"]) == {"Silhouette", "ShotRequest", "Details", "Surface", "Band", "Colour", "Block", "Panel",
+                                    "Lettering"}
     # the API allows only a limited number of nullable properties in one schema; details must not add any
     details = schema["$defs"]["Details"]
     assert all("anyOf" not in v and v.get("type") != ["string", "null"] for v in details["properties"].values())

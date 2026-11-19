@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import anthropic
 import httpx2 as httpx
 import pytest
+from anthropic.lib._parse._transform import transform_schema
 from PIL import Image
 
 from closet import app as app_module
@@ -164,8 +165,17 @@ def test_the_estimate_is_careful():
     allowed.update({f"silhouette.{k}": list(v) for k, v in vocab.SILHOUETTE.items()})
     for n in details.names_for("shirt"):
         allowed[n] = [str(v) for v in details.values(n)]
-    text = correcting.prompt("x" * 500, {n: "a_long_value_name" for n in allowed}, allowed, with_photo=True)
-    assert len(text) / 2 < spend.CORRECT_TEXT_TOKENS   # never fewer than 2 characters to a token
+    description = {n: "a_long_value_name" for n in allowed}
+    # the longest cloth and lettering the description can carry (since schema 7), and the form sent with them
+    description["cloth"] = {"kind": "plaid", "bands": [{"color": "#123456", "width": 12}] * 12, "direction": None,
+                            "size": "medium", "blocks": [{"part": "left_sleeve_as_seen", "color": "#123456"}] * 6,
+                            "panels": [{"top": 10, "bottom": 20, "color": "#123456"}] * 6,
+                            "colors": [{"color": "#123456", "share": 10}] * 8}
+    description["lettering"] = [{"text": "X" * 30, "place": "center_chest", "size": "large", "style": "script",
+                                 "color": "#123456"}] * 3
+    text = correcting.prompt("x" * 500, description, allowed, with_photo=True)
+    schema = json.dumps(transform_schema(CorrectionAnswer))
+    assert (len(text) + len(schema)) / 2 * 2 <= spend.CORRECT_TEXT_TOKENS   # 2 characters to a token, then doubled
     assert spend.estimate_correction(0) < spend.estimate_correction(1)
     assert spend.estimate_correction(1) >= spend.cost_usd(spend.TAGGING_MODEL, spend.CORRECT_TEXT_TOKENS + spend.IMAGE_TOKENS,
                                                           correcting.MAX_TOKENS)
@@ -352,7 +362,9 @@ def test_a_long_answer_is_streamed_as_the_sdk_requires():
     got = correcting.ask("x", [], ("api",), client=api, meter=meter, max_tokens=correcting.NONSTREAMING_MAX_TOKENS + 1)
     sent = api.requests[0]
     assert got.answer == api.drawing and "output_format" not in sent
-    assert sent["output_config"]["format"]["schema"]["properties"].keys() == {"changes", "not_understood", "needs_photo"}
+    # the cloth and its lettering, rewritten whole when a sentence is about them, since schema 7
+    assert sent["output_config"]["format"]["schema"]["properties"].keys() == {"changes", "not_understood", "needs_photo",
+                                                                              "cloth", "lettering"}
     assert sent["max_tokens"] == correcting.NONSTREAMING_MAX_TOKENS + 1
     assert meter.checked == [(correcting.MODEL, 0)] and meter.recorded == [("api", correcting.MODEL, 2000, 400)]
     correcting.ask("x", [], ("api",), client=api, max_tokens=correcting.NONSTREAMING_MAX_TOKENS)

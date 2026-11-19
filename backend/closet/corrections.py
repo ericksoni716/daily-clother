@@ -20,6 +20,7 @@ from pathlib import Path
 from PIL import Image
 
 from . import db, details, history, illustrations, items, kinds, palette, patjobs, tagjobs, tracejobs, vocab
+from .tagger import surfaceform
 from .tagger.correcting import CorrectionResult
 from .tagger.schema import NAMED_HEX, ItemTags
 from .tagger.tagging import CapReached, RouteUnavailable
@@ -135,9 +136,23 @@ def apply(conn, item_id: str, changes: dict, kind: str = "detail", sentence: str
             now = _description(before)
             if any(now.get(name, _UNSET) != was for name, was in expected.items()):
                 raise items.ItemError(CHANGED, 409)
-        coarse, picked = _split(before, changes, kind == "sentence")
+        changes = dict(changes)
+        cloth = {name: _cloth_read(name, changes.pop(name)) for name in CLOTH if name in changes and kind == "sentence"}
+        coarse, picked = _split(before, changes, kind == "sentence") if changes else ({}, {})
         if coarse:
             items.update(conn, item_id, coarse, record=False)
+        if cloth:   # after the fields: a pattern word set in the same sentence does not put this cloth aside
+            own = surfaceform.own_cloth(items.get(conn, item_id))
+            for name, value in cloth.items():
+                key = "surface" if name == "cloth" else "lettering"
+                if value is None:
+                    own.pop(key, None)
+                else:
+                    own[key] = value
+            conn.execute("UPDATE items SET own_cloth = ?, updated_at = ? WHERE id = ?",
+                         (json.dumps(own, sort_keys=True) if own else None, db.now(), item_id))
+            if "cloth" in cloth:
+                patjobs.mark(conn, item_id)   # drawn and measured again from the owner's cloth
         row = items.get(conn, item_id)
         allowed = details.names_of(row)
         owner = details.own(row)
@@ -209,12 +224,68 @@ def _allowed(row) -> dict[str, list]:
     return out
 
 
+CLOTH = ("cloth", "lettering")   # rewritten whole by a sentence, kept as the owner's own (`items.own_cloth`)
+
+
+def _text(value) -> str | None:
+    return json.dumps(value, sort_keys=True) if value is not None else None
+
+
+def _cloth_now(row) -> dict:
+    """The cloth and lettering the item is drawn with now (the owner's over Claude's), as JSON text or None."""
+    try:
+        drawn = illustrations.drawn_answer(row) or {}
+    except Exception:
+        drawn = {}
+    surface = drawn.get("surface") if surfaceform.kind_of(drawn.get("surface")) else None
+    lettering = drawn.get("lettering") if isinstance(drawn.get("lettering"), list) else None
+    return {"cloth": _text(surface), "lettering": _text(lettering)}
+
+
 def _description(row) -> dict:
     sil = illustrations._json(row["silhouette"], {})
     out = {f: row[f] for f in details.FIELDS}
     out.update({f"silhouette.{k}": sil.get(k) for k in vocab.SILHOUETTE})
     out.update(_current(row))
+    out.update(_cloth_now(row))
     return out
+
+
+def _for_claude(now: dict) -> dict:
+    """The description as Claude reads it: the cloth and lettering as data, not as text."""
+    return {**now, **{k: json.loads(now[k]) if now.get(k) else None for k in CLOTH}}
+
+
+def _cloth_changes(answer, now: dict) -> list[dict]:
+    """The cloth and lettering a sentence rewrote, as changes for the owner to confirm."""
+    out = []
+    for name in CLOTH:
+        said = getattr(answer, name, None)
+        if said is None:
+            continue
+        value = said.model_dump(mode="json") if hasattr(said, "model_dump") else [x.model_dump(mode="json") for x in said]
+        text = _text(value)
+        if text == now.get(name) or (name == "lettering" and not value and not json.loads(now.get(name) or "null")):
+            continue   # the same, or no lettering said where there was none
+        out.append({"name": name, "title": details.title(name), "value": text, "before": now.get(name),
+                    "before_words": details.words(name, now.get(name)), "after_words": details.words(name, text)})
+    return out
+
+
+def _cloth_read(name: str, value):
+    """A confirmed cloth or lettering (JSON text) checked against the description's own form; None gives it back to
+    Claude's description."""
+    if value is None:
+        return None
+    try:
+        data = json.loads(value) if isinstance(value, str) else value
+        if name == "cloth":
+            return surfaceform.Surface.model_validate(data).model_dump(mode="json")
+        if not isinstance(data, list):
+            raise ValueError
+        return [surfaceform.Lettering.model_validate(x).model_dump(mode="json") for x in data]
+    except ValueError:
+        raise items.ItemError(f"The {name} could not be read.") from None
 
 
 def _photo(conn, images_dir: Path, row) -> tuple[list, str | None]:
@@ -243,13 +314,13 @@ def understand(conn, images_dir: Path, item_id: str, sentence, routes: tuple[str
     allowed, now = _allowed(row), _description(row)
     sent, no_photo = SENT_TEXT, None
     try:
-        result = corrector(text, now, allowed, [], routes)
+        result = corrector(text, _for_claude(now), allowed, [], routes)
         answer = result.answer
-        if answer.needs_photo and not answer.changes:
+        if answer.needs_photo and not answer.changes and not _cloth_changes(answer, now):
             photos, no_photo = _photo(conn, images_dir, row)
             if photos:
                 sent = SENT_PHOTO
-                answer = corrector(text, now, allowed, photos, routes).answer
+                answer = corrector(text, _for_claude(now), allowed, photos, routes).answer
     except CapReached:
         return {**waiting, "message": LIMIT, "limit": True}
     except RouteUnavailable:
@@ -271,6 +342,7 @@ def understand(conn, images_dir: Path, item_id: str, sentence, routes: tuple[str
             continue
         out.append({"name": name, "title": details.title(name), "value": value, "before": now.get(name),
                     "before_words": details.words(name, now.get(name)), "after_words": details.words(name, value)})
+    out += _cloth_changes(answer, now)
     unclear = (answer.not_understood or "").strip()
     if no_photo:
         unclear = " ".join(filter(None, [unclear, no_photo]))
@@ -355,6 +427,9 @@ def undo(conn, item_id: str, change_id: int) -> dict:
             if part["target"] == "field":
                 fields.append(name)
                 value = was.get("value")
+                if name == "own_cloth":
+                    sets[name] = json.dumps(value, sort_keys=True) if value else None
+                    continue
                 sets[name] = json.dumps(value or {}) if name == "silhouette" else value
                 for store, key in ((source, "source"), (confidence, "confidence")):
                     if was.get(key) is None:
@@ -376,8 +451,9 @@ def undo(conn, item_id: str, change_id: int) -> dict:
             fields = list(history.DESCRIBED)
         _given_back(row, sets, source, confidence, fields)
         saved_pattern = illustrations._json(entry["drawing"], {}).get("pattern")
-        restore_pattern = (("pattern" in sets or "tag_answer" in sets) and isinstance(saved_pattern, dict)
-                           and all(saved_pattern.get(field) == sets.get(field, row[field]) for field in ("pattern", "tag_answer")))
+        restore_pattern = (("pattern" in sets or "tag_answer" in sets or "own_cloth" in sets) and isinstance(saved_pattern, dict)
+                           and all(saved_pattern.get(field) == sets.get(field, row[field])
+                                   for field in ("pattern", "tag_answer", "own_cloth")))
         if restore_pattern:
             sets.update({field: saved_pattern.get(field) for field in history.PATTERN})
             if sets["pattern_state"] == "working":
@@ -385,7 +461,7 @@ def undo(conn, item_id: str, change_id: int) -> dict:
         sets.update(source=json.dumps(source), confidence=json.dumps(confidence), own_details=details.dump(owner),
                     updated_at=db.now())
         conn.execute(f"UPDATE items SET {', '.join(f'{k} = ?' for k in sets)} WHERE id = ?", [*sets.values(), item_id])
-        if not restore_pattern and ("pattern" in sets or "tag_answer" in sets):
+        if not restore_pattern and ("pattern" in sets or "tag_answer" in sets or "own_cloth" in sets):
             patjobs.mark(conn, item_id)
         if "category" in sets:
             tracejobs.mark(conn, item_id, again=False)

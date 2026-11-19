@@ -64,6 +64,7 @@ BY_KIND: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
 
 # the names in sentences: "You changed the <title> from ... to ..."
 TITLES = {
+    "cloth": "cloth", "lettering": "lettering", "own_cloth": "cloth and lettering",
     "fit_detail": "cut", "sleeve_length": "sleeve length", "neckline": "neckline", "collar": "collar",
     "placket": "front", "placket_buttons": "number of buttons", "button_color": "button colour", "cuff": "cuffs",
     "sleeve_construction": "sleeve seams", "pockets": "pockets", "hem": "hem", "fabric": "fabric", "fiber": "fibre",
@@ -173,6 +174,15 @@ def title(name: str) -> str:
 
 def words(name: str, value) -> str:
     """A value in plain words, e.g. ("placket", "half_placket_popover") -> "a half placket"."""
+    if name in ("cloth", "lettering", "own_cloth"):   # the cloth and its lettering, as JSON text or as read
+        from .tagger import surfaceform
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except ValueError:
+                return value
+        return {"cloth": surfaceform.surface_words, "lettering": surfaceform.lettering_words,
+                "own_cloth": surfaceform.own_cloth_words}[name](value)
     if value is None or value == "" or value == {}:
         return "nothing"
     if isinstance(value, dict):   # a shape: "short sleeves, collar"

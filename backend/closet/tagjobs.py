@@ -28,14 +28,16 @@ from . import db, failures, history, illustrations, palette, patjobs, spend, tra
 from .config import Config
 from .state import State
 from .tagger import routes as tagger_routes
-from .tagger import taxonomy
+from .tagger import surfaceform, taxonomy
 from .tagger.schema import NAMED_HEX, SCHEMA_VERSION, ItemTags
 from .tagger.tagging import CONFIG, CapReached, Meter, PlanSignIn, RouteUnavailable, TagResult, Unreachable
 
 log = logging.getLogger("closet.tagjobs")
 KIND = "tag"
 MAX_ATTEMPTS = 3   # as for cutouts
-MODEL = CONFIG["roles"]["tagging"]
+# the description call (and "Would this work?"): Sonnet since the garment loop test, which drew the cloth best from
+# its description (bench/experiments/garment_loop; DECISIONS, "The cloth drawn from its description")
+MODEL = CONFIG["roles"]["describing"]
 
 # photos (first: the front cutout) and the routes to try, in order -> the answer
 Tagger = Callable[[list[Image.Image], tuple[str, ...]], TagResult]
@@ -200,8 +202,13 @@ def suggest_name(tags: ItemTags) -> str:
 
 
 def color_hex(tags: ItemTags) -> str | None:
-    """The colour an item is drawn in from its answer: the owner's shade the tagger named, or the denim wash's,
-    when it is a shade of the answer's colour word; otherwise the word's own colour."""
+    """The colour an item is drawn in from its answer: for plain cloth, blocks or a print, the main colour of the
+    surface Claude described (as it looks on the cloth, softened as described colours are drawn); else the owner's
+    shade the tagger named, or the denim wash's, when it is a shade of the answer's colour word; otherwise the
+    word's own colour. A patterned item's colour comes later from its measured pattern (`palette.settle`)."""
+    described = surfaceform.main_colour(tags.surface)
+    if described:
+        return described
     for shade in (tags.details.shade, taxonomy.DENIM_WASH_SHADE.get(tags.details.denim_wash)):
         if shade in taxonomy.SHADES and taxonomy.SHADES[shade][1] == tags.color:
             return taxonomy.SHADES[shade][0]

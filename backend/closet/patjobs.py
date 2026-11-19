@@ -31,6 +31,7 @@ from PIL import Image
 from . import db, illustrations, palette
 from .config import Config
 from .state import State
+from .tagger import surfaceform
 from .tagger.tagging import RouteUnavailable
 
 log = logging.getLogger("closet.patterns")
@@ -41,6 +42,9 @@ FAILED = "Closet could not measure the pattern from the photo, so the drawing sh
 PLAID_FAILED = ("Closet could not measure the checks from this photo, so the drawing shows only the colour. A photo of "
                 "it laid flat on a plain surface, taken from straight above, usually works.")
 GRAPHIC = "graphic"
+# the cloth as Claude described it (`tagger.surfaceform`): drawn from the description, sized and pieced from the photo
+# (`patterns.surface.kept_for_item`); an answer without a surface is measured as before
+SURFACE = "surface"
 GRAPHIC_FAILED = "Closet could not lift the print from the photo, so the drawing shows the item plain."
 NO_CUTOUT = "The pattern is measured from the photo with its background removed, which this item does not have yet."
 
@@ -62,19 +66,42 @@ def _pattern_name(row) -> str | None:
     return found.get("pattern_name") if isinstance(found, dict) else None
 
 
+def _surface(row):
+    """The cloth's surface for the item: the owner's own (`items.own_cloth`) when they corrected it, else the one
+    Claude described (its stored answer's `surface`); None for an answer from before it was asked for, or when the item's pattern is no longer the one that answer gave (the owner changed it: their
+    word is measured from the photo as before)."""
+    own = surfaceform.own_cloth(row).get("surface")
+    if own is not None:   # the cloth in the owner's own words (a correction), over Claude's
+        return own
+    try:
+        answer = json.loads(row["tag_answer"]) if row["tag_answer"] else {}
+    except ValueError:
+        return None
+    if not isinstance(answer, dict) or ("pattern" in answer and answer["pattern"] != row["pattern"]):
+        return None
+    raw = answer.get("surface")
+    return raw if surfaceform.kind_of(raw) is not None else None
+
+
 def method(row) -> str | None:
-    """What is measured for an item row (category, pattern, tag_answer): GRAPHIC for a top with a graphic, its
-    pattern word for a pattern measured from the photo, or None for nothing."""
+    """What is measured for an item row (category, pattern, tag_answer): GRAPHIC for a top with a graphic on plain
+    cloth (a graphic on cloth described as a print is the print, pieced), SURFACE for a described surface that needs the photo (stripes, plaid, bands across the body, a print),
+    else for an answer without a surface its pattern word for a pattern measured from the photo, or None for
+    nothing (plain cloth and parts in another colour are drawn from the answer alone)."""
     pattern = row["pattern"]
-    if row["category"] in TOPS and (pattern == GRAPHIC or (pattern == "other" and _pattern_name(row) == "novelty")):
+    surface = _surface(row)
+    graphic = row["category"] in TOPS and (pattern == GRAPHIC or (pattern == "other" and _pattern_name(row) == "novelty"))
+    if graphic and surfaceform.kind_of(surface) in (None, "plain"):   # a print on plain cloth: lifted from the photo
         return GRAPHIC
+    if surface is not None:
+        return SURFACE if surfaceform.needs_photo(surface) else None
     return pattern if wanted(pattern) else None
 
 
 def mark(conn, item_id: str) -> None:
     """After a description arrives or the owner changes the pattern: measure it (again), or stop drawing a
     pattern that no longer applies. Inside the caller's transaction."""
-    row = conn.execute("SELECT category, pattern, tag_answer FROM items WHERE id = ?", (item_id,)).fetchone()
+    row = conn.execute("SELECT category, pattern, tag_answer, own_cloth FROM items WHERE id = ?", (item_id,)).fetchone()
     if row is None:
         return
     if method(row) is not None:
@@ -154,14 +181,17 @@ def run_one(conn, images_dir: Path, measurer: Measurer, landmarker: Landmarker |
     conn.execute("UPDATE items SET pattern_state = 'working' WHERE id = ?", (item_id,))
     conn.execute("COMMIT")
     how = method(row) or row["pattern"]
-    failed = GRAPHIC_FAILED if how == GRAPHIC else PLAID_FAILED if how == "plaid" else FAILED
+    surface = _surface(row) if how == SURFACE else None
+    plaid = how == "plaid" or surfaceform.kind_of(surface) == "plaid"
+    failed = GRAPHIC_FAILED if how == GRAPHIC else PLAID_FAILED if plaid else FAILED
     try:
         cut = _cutout(conn, images_dir, item_id)
         if cut is None:
             conn.execute("UPDATE items SET pattern_state = 'failed', pattern_error = ? WHERE id = ?", (NO_CUTOUT, item_id))
             return "done"
         marks = json.loads(row["landmarks"]) if row["landmarks"] else None
-        if marks is None and landmarker is not None and row["category"] in TOPS and how != GRAPHIC:
+        ruler = how != GRAPHIC and (how != SURFACE or surfaceform.needs_ruler(surface))
+        if marks is None and landmarker is not None and row["category"] in TOPS and ruler:
             usable = routes()
             if usable:
                 try:
@@ -172,7 +202,8 @@ def run_one(conn, images_dir: Path, measurer: Measurer, landmarker: Landmarker |
                 except Exception:
                     log.warning("asking for an item's landmarks failed; measuring without them", exc_info=True)
         t0 = time.monotonic()
-        kept = palette.keep(measurer(cut, how, _words(row), marks), row["pattern"])
+        extra = {"surface": surface, "category": row["category"]} if how == SURFACE else {}
+        kept = palette.keep(measurer(cut, how, _words(row), marks, **extra), row["pattern"])
         log.info("measured a %s in %.1f s", how, time.monotonic() - t0)
     except Exception as e:   # never lost: the item says why and is drawn in its colour
         log.warning("measuring an item's pattern failed: %s", type(e).__name__, exc_info=True)

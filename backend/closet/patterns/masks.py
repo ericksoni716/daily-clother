@@ -8,7 +8,8 @@ and the two masks combined.
 It can also keep what the garment lies on: a white duvet behind a dark jacket. `doubtful` says when a mask
 looks like more than one garment (see-through, running out of the photo's frame, or two kinds of surface), and
 `settle` then takes what the two models agree on and keeps what only one of them saw unless it is another
-surface that runs out of the frame. `surfaces` is the same idea for a cutout already made, used when a pattern
+surface that runs out of the frame. `doubtful_cutout` asks `doubtful` of a cutout the first model made alone,
+while the second was not there yet. `surfaces` is the same idea for a cutout already made, used when a pattern
 is measured.
 """
 import cv2
@@ -72,6 +73,12 @@ def _on_frame(m):
     return float(edge.mean())
 
 
+def _two_kinds(lab, m) -> bool:
+    """Does the mask hold two kinds of surface, each a fair share of it?"""
+    two = _two(lab, m)
+    return two is not None and two[1] >= APART and two[2].min() >= 0.12
+
+
 def doubtful(img, mask) -> bool:
     """Does the first model's mask look like more or less than one garment? See-through inside its outline (a
     plaid's dark checks left out), running out of the photo's frame, or holding two kinds of surface (a dark
@@ -82,8 +89,23 @@ def doubtful(img, mask) -> bool:
     lab, m = _small(np.asarray(img.convert("RGB")), mask)
     if _on_frame(m) > OUT_OF_FRAME:
         return True
-    two = _two(lab, m)
-    return two is not None and two[1] >= APART and two[2].min() >= 0.12
+    return _two_kinds(lab, m)
+
+
+def doubtful_cutout(cut, photo_size) -> bool:
+    """`doubtful` for a cutout already made by the first model alone (an RGBA image, cropped from a photo
+    `photo_size` = (width, height) across): would the second model have been asked? Its transparency is the
+    first model's mask. The cutout is cropped with a margin, so where the garment touches the cutout's edge it
+    touches the photo's: how far it runs out of the frame is that, against the photo's whole edge."""
+    arr = np.asarray(cut.convert("RGBA"))
+    alpha = arr[..., 3]
+    if see_through(alpha) > SEE_THROUGH:
+        return True
+    touching = int((np.r_[alpha[0], alpha[-1], alpha[1:-1, 0], alpha[1:-1, -1]] > 128).sum())
+    if touching / max(1, 2 * (photo_size[0] + photo_size[1]) - 4) > OUT_OF_FRAME:
+        return True
+    lab, m = _small(arr[..., :3], alpha)
+    return _two_kinds(lab, m)
 
 
 def settle(img, first, second, log=lambda s: None):

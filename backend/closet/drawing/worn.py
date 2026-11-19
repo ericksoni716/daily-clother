@@ -138,7 +138,7 @@ def place(where: str, spec: Spec, layout):
         spec = replace(spec, params={**spec.params, "px": k})
         shape = build(spec.template, spec.params)
         (u, v), turn, sx = HELD[style]
-        gx, gy = _grip(fig)
+        gx, gy = _grip(fig, layout.spread)
         a = math.radians(turn)
         m = (sx * math.cos(a), math.sin(a), -sx * math.sin(a), math.cos(a))
         px, py = CX + u * k, v * k
@@ -159,9 +159,10 @@ def _head_k(fig) -> float:
     return K_PX * fig.HEAD_CM / 23.5
 
 
-def _grip(fig) -> tuple[float, float]:
-    """Where the viewer's right hand closes round a handle: across its fingers, as the figure draws the hand."""
-    w, d = fig._arm_at(-1, fig._arm_length(-1))
+def _grip(fig, spread: float = 0.0) -> tuple[float, float]:
+    """Where the viewer's right hand closes round a handle: across its fingers, as the figure draws the hand (its
+    elbows held `spread` cm out, `figure._spread`)."""
+    w, d = fig._arm_at(-1, fig._arm_length(-1, spread), spread)
     h = fig._unit(d[0] * 0.6, d[1] * 0.6 + 0.4)
     kh = K_PX * fig.HAND_SCALE
     return 2 * CX - (w[0] + GRIP_CM * h[0] * kh), w[1] + GRIP_CM * h[1] * kh
@@ -297,7 +298,7 @@ def _carry(fig, layout, bag, uid: str, out: Worn) -> str:
 
     if style in HELD:   # in the hand: the hand again, over the handle
         wearer = layout.body
-        y = _grip(fig)[1] - 3.0 * k   # from just above where it closes: the wrist's edge stays under the sleeve
+        y = _grip(fig, layout.spread)[1] - 3.0 * k   # from just above where it closes: the wrist's edge stays under the sleeve
         out.defs.append(f'<clipPath id="{uid}h"><rect x="-4000" y="{y:.1f}" width="8000" height="4000"/></clipPath>')
         hand = fig._skin([wearer.hands[1]]) + fig._lines(wearer.fingers[len(wearer.fingers) // 2:])
         return drawn + f'<g clip-path="url(#{uid}h)">{hand}</g>'
@@ -418,8 +419,8 @@ def _square(fig, layout, spec: Spec, uid: str, out: Worn) -> None:
 
 def _watch(fig, layout, spec: Spec, uid: str, out: Worn) -> None:
     from . import fitting
-    wx, wy = fig._arm_points(+1)[2]
-    half = fig._arm_half(fig._arm_length(+1)) / K_PX + WATCH_EASE_CM
+    wx, wy = fig._arm_points(+1, layout.spread)[2]
+    half = fig._arm_half(fig._arm_length(+1, layout.spread)) / K_PX + WATCH_EASE_CM
     y = wy - WATCH_UP_CM * K_PX
     # a sleeve over the wrist hides it; one that ends on the watch hides the top of it
     cuff = -1e9

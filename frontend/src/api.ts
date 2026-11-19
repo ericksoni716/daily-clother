@@ -222,9 +222,6 @@ export const api = {
     request<Item>(`/api/items/${encodeURIComponent(id)}/trace/fix`, { method: 'POST', body: fix }),
   setTracePlain: (id: string, plain: boolean) =>
     request<Item>(`/api/items/${encodeURIComponent(id)}/trace/plain`, { method: 'PUT', body: { plain } }),
-  /** Which front view the outfit figure draws for a traced shoe; null goes back to the default. */
-  setShoeFront: (id: string, kind: 'shape' | 'photo' | null) =>
-    request<Item>(`/api/items/${encodeURIComponent(id)}/trace/front`, { method: 'PUT', body: { kind } }),
   retrace: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/retrace`, { method: 'POST' }),
   /** A new photo in place of the item's main photo ("Retake the photo"): a shoe is traced again from it, clothes
    * are cut out, described and their pattern measured again. */
@@ -233,14 +230,6 @@ export const api = {
     form.append('photo', photo, filename);
     if (sha256) form.append('photo_sha256', sha256);
     return request<Item>(`/api/items/${encodeURIComponent(id)}/photo`, { method: 'POST', form });
-  },
-  /** A photo of a shoe from the front or from above, named by the owner (it replaces one named the same). */
-  addShoeView: (id: string, photo: Blob, filename: string, view: 'front' | 'top', sha256?: string | null) => {
-    const form = new FormData();
-    form.append('photo', photo, filename);
-    form.append('view', view);
-    if (sha256) form.append('photo_sha256', sha256);
-    return request<Item>(`/api/items/${encodeURIComponent(id)}/photos`, { method: 'POST', form });
   },
   /** Another photo of a shoe, besides its main one (at most 5): Closet sorts it into its view. */
   /** What each photo chosen on Add shows (one piece, several, a shoe and which shoe), up to ten small copies at once. */

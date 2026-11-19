@@ -507,8 +507,8 @@ def test_small_accessories_sit_right_on_every_fit(fit):
     dressed, _ = _worn(base=shirt, bottom=TROUSERS, accessories=[SMALL["tie"]])
     knot = _at(dressed.tie)
     assert knot[0] == pytest.approx(CX) and fig.NECK_Y < knot[1] < fig.NECK_Y + 10 * K_PX
-    dressed, _ = _worn(base=_tee(fit), bottom=SHORTS, accessories=[SMALL["watch"]])
-    wx, wy = fig._arm_points(+1)[2]
+    dressed, layout = _worn(base=_tee(fit), bottom=SHORTS, accessories=[SMALL["watch"]])
+    wx, wy = fig._arm_points(+1, layout.spread)[2]   # the wrist, wherever a full tee holds the arm
     x, y = _at(dressed.over)
     assert x == pytest.approx(wx, abs=0.1) and wy - 2 * K_PX < y < wy
     for leg in ("slim", "straight", "wide"):
@@ -616,11 +616,12 @@ def test_the_wearer_is_a_person_about_seven_and_a_half_heads_tall():
     assert chin < fig.NECK_Y and chin < layout.get("base").box()[1]   # the chin above the collar
     heads = (GROUND_Y - top) / (chin - top)
     assert 7.0 <= heads <= 8.0
-    # the hands hang beside the thighs, clear of the trousers
+    # the hands hang beside the thighs: each hand's middle past the trousers (the owner, 18 November: arms hanging
+    # nearly straight down may touch the trousers, rather than held out clear of them)
     b = layout.get("bottom")
     for hand in body.hands:
         xs = [x for x, _ in _flat(hand)]
-        assert min(xs) > b.box()[2] or max(xs) < b.box()[0]
+        assert (min(xs) + max(xs)) / 2 > b.box()[2] or (min(xs) + max(xs)) / 2 < b.box()[0]
 
 
 def test_the_head_has_a_simple_face():
@@ -737,8 +738,10 @@ def test_his_arms_hang_naturally_with_the_wrists_at_the_crotch():
         assert abs(joint[0] - CX) < fig.SHOULDER_HALF_CM * K_PX and joint[1] > fig.SHOULDER_Y   # the joint in the shoulder
         out = math.degrees(math.atan2(abs(elbow[0] - CX) - abs(joint[0] - CX), elbow[1] - joint[1]))
         fore = math.degrees(math.atan2(abs(wrist[0] - CX) - abs(elbow[0] - CX), wrist[1] - elbow[1]))
-        assert 8 <= out <= 20                                                 # the upper arm a little out from the body
-        assert -6 <= fore <= 0 and out - fore >= 8                            # a bend at the elbow, the forearm back in a touch
+        # the arm hangs nearly straight down beside the body (the owner, 18 November: at 11 degrees out, with the
+        # elbows out, he looked hunched with his arms in front of him): the upper arm a touch out, the forearm back
+        assert 3 <= out <= 8
+        assert -6 <= fore <= 0 and out - fore >= 3
     # the elbow is at the waist, and the arm tapers from the shoulder to the wrist
     assert fig.CHEST_CM < fig.ELBOW_CM <= fig.WAIST_CM
     length = fig._arm_length()
@@ -1459,3 +1462,140 @@ def test_cropped_trousers_leave_a_gap_above_the_shoe(shoe, leg):
     assert 'fill="#2e7d4f"' in figure(dict(base=TEE, bottom=_legged(leg, "cropped"), shoes=HEM_SHOES[shoe],
                                            accessories=[socks]))
 
+
+
+def test_his_sleeves_hang_in_front_of_an_open_jacket():
+    """The arms are in front (the owner, 18 November): a sleeve of a jacket worn open is drawn over its fronts, with
+    nothing of the body (a pocket, the hem, a front's edge) on it and its edge along the sleeve; its armhole is a seam
+    only where it marks something (the owner, 16 November)."""
+    layout = plan(dict(base=SHIRT, outer=BLAZER, bottom=TROUSERS))
+    outer = layout.get("outer")
+    assert outer.open
+    only = fig._sleeve_only(outer.shape)
+    polys = [fitting.points(d) for d, _ in outer.shape.sleeves]
+    for part in only.parts:   # only what lies on a sleeve is drawn on it
+        pts = fig._spaced(part.d)
+        assert sum(any(fig._within(q, poly) for poly in polys) for q in pts) >= fig.ON_SLEEVE * len(pts)
+    assert len(only.parts) < len(outer.shape.parts) and only.fronts is None
+    svg = figure(dict(base=SHIRT, outer=BLAZER, bottom=TROUSERS), uid="j")
+    over = [m.start() for m in re.finditer(r'mask="url\(#slj', svg)]
+    assert len(over) == 2   # the shirt's sleeves over its body, the jacket's over its fronts
+    assert 'data-part="armhole"' not in svg   # ordinary set-in sleeves: no armhole seam (16 November)
+    big = plan(dict(base=BIG_TEE)).get("base").spec.params   # a dropped shoulder: the seam marks it
+    assert templates.seam_shows(big.get("shoulder", "set-in"), tuple(big.get("colorblock") or ()))
+    assert svg.count("data-part") == 0 and 'data-part="armhole"' in figure(dict(base=BIG_TEE, bottom=TROUSERS), uid="k")
+    assert len(set(re.findall(r'<mask id="([^"]+)"', svg))) == len(re.findall(r'<mask id="([^"]+)"', svg))
+
+
+CHORE = Piece("jacket", answer("jacket", collar="point", placket="front_placket", pockets="three_patch_chore",
+                               fit_detail="oversized"), "#b89a6c")
+
+
+def _swung(svg: str) -> tuple[float, float]:
+    """How the viewer's right front of a layer worn open is swung, read from its drawing: by how much it is
+    narrowed, and about which x."""
+    for a, e in re.findall(r'matrix\(([\d.]+) 0 0 1 (-?[\d.]+) 0\)', svg):
+        turn = float(a)
+        if 0 < turn < 1 and float(e) / (1 - turn) > CX:
+            return turn, float(e) / (1 - turn)
+    raise AssertionError("no front swung open")
+
+
+@pytest.mark.parametrize("place", ["base", "outer"])
+def test_a_roomy_jackets_pockets_are_in_front_of_his_arms(place):
+    """The owner, 19 November: on an oversized jacket the arms do not cover the front pockets. The arms hang beside
+    its body, held out by it, and every pocket (each line drawn on the front's right half) is clear of the sleeve's
+    inner edge, closed or worn open."""
+    pieces = dict(base=SHIRT, outer=CHORE, bottom=JEANS) if place == "outer" else dict(base=CHORE, bottom=JEANS)
+    top = plan(pieces).get(place)
+    assert top.open == (place == "outer")
+    turn, hinge = _swung(figure(pieces, uid="p")) if top.open else (1.0, CX)
+    half = (top.shape.body_box[2] - top.shape.body_box[0]) / 2
+    sleeve = next(s for s in fitting.sleeves(top.shape) if s.side == 1)
+    lines = [fitting.points(d) for d in top.shape.lines]
+    lines = [pts for pts in lines if min(x for x, _ in pts) > CX + 3 * K_PX]
+    assert len(lines) >= 4   # the chest pocket and a lower one, each its outline and its top
+    for pts in lines:
+        for x, y in pts:
+            if top.open and abs(x - CX) < half:
+                x = hinge + (x - hinge) * turn
+            inner = _sleeve_across(top, sleeve, y)[0]
+            assert x < inner - 0.5 * K_PX, (place, round((x - CX) / K_PX, 1), round((inner - CX) / K_PX, 1))
+
+
+def test_only_a_stiff_roomy_top_holds_his_arms_off_it():
+    """A regular top's body stands just behind his arms, and a soft roomy one (an oversized tee or hoodie, a relaxed
+    tee) goes round behind them: the arms hang as ever. A stiff roomy one (the oversized chore jacket) holds the elbows,
+    and the hands with them, a little off it: up to ARM_OUT_MAX_CM."""
+    for pieces in OUTFITS.values():
+        assert plan(pieces).spread == 0.0
+    hoodie = Piece("hoodie", None, "#8b8e92", silhouette={"neck": "hood", "fit": "oversized"})
+    for top in (BIG_TEE, _tee("relaxed"), hoodie, BLAZER):
+        assert plan(dict(base=top, bottom=JEANS)).spread == 0.0, top.category
+    layout = plan(dict(base=SHIRT, outer=CHORE, bottom=JEANS))
+    assert 0.5 < layout.spread <= fig.ARM_OUT_MAX_CM
+    out = fig._arm_points(+1, layout.spread)
+    assert out[0] == fig._arm_points(+1)[0]   # from the same shoulder
+    assert out[2][0] == pytest.approx(fig._arm_points(+1)[2][0] + layout.spread * K_PX)
+    arm = layout.body.arms[0]   # the drawn arm goes out with it
+    assert min(float(x) for x in re.findall(r"(-?[\d.]+),", arm)) < fig._arm_points(-1)[2][0] - fig._arm_half(
+        fig._arm_length()) - 0.5 * K_PX
+
+
+def test_a_dropped_shoulder_rounds_into_its_sleeve():
+    """The owner, 19 November: no padded look. A shoulder seam out on his arm rounds from the shoulder's slope over
+    the top of his arm with no corner, and the sleeve hangs on from the seam, close to straight down: it does not
+    puff out past it."""
+    set_in = (Piece("jacket", answer("jacket", collar="point", placket="front_placket", pockets="three_patch_chore",
+                                     fit_detail="oversized", sleeve_construction="set_in"), "#b89a6c"),
+              Piece("hoodie", answer("hoodie", fit_detail="oversized", neckline="hood", cuff="rib_knit", pockets="kangaroo",
+                                     hem="ribbed_band", sleeve_construction="set_in"), "#8b8e92"))
+    for piece in (CHORE, BIG_TEE, Piece("hoodie", None, "#8b8e92", silhouette={"neck": "hood", "fit": "oversized"}), *set_in):
+        top = plan(dict(base=piece)).get("base")
+        pts = fitting.points(top.shape.outline)
+        sleeve = next(s for s in fitting.sleeves(top.shape) if s.side == 1)
+        assert sleeve.shoulder[0] > CX + (fig.SHOULDER_HALF_CM + 3) * K_PX   # dropped
+        i = min(range(len(pts)), key=lambda k: math.dist(pts[k], sleeve.shoulder))
+        line = []
+        while pts[i][0] > CX + (fig.NECK_HALF_CM + 3) * K_PX:   # back along the shoulder line, toward the neck
+            line.insert(0, pts[i])
+            i -= 1
+        turns = [math.degrees(math.atan2(b[1] - a[1], b[0] - a[0])) for a, b in zip(line, line[1:], strict=False)
+                 if math.dist(a, b) > 1]
+        assert max(b - a for a, b in zip(turns, turns[1:], strict=False)) < 28, (piece.category, [round(t) for t in turns])
+        # and from beside his shoulder point, over the seam and 8 cm down the sleeve, it only ever turns one way: no
+        # dip at the seam (the owner, 19 November)
+        k = min(range(len(pts)), key=lambda j: math.dist(pts[j], sleeve.shoulder))
+        run = [q for q in line if q[0] > CX + (fig.SHOULDER_HALF_CM - 6) * K_PX] + [pts[k]]
+        j = k + 1
+        while j < len(pts) and pts[j][1] < sleeve.shoulder[1] + 8 * K_PX:
+            run.append(pts[j])
+            j += 1
+        bends = [math.degrees(math.atan2(b[1] - a[1], b[0] - a[0])) for a, b in zip(run, run[1:], strict=False)
+                 if math.dist(a, b) > 1]
+        assert min(b - a for a, b in zip(bends, bends[1:], strict=False)) > -12, (piece.category, [round(t) for t in bends])
+        sx, sy = sleeve.shoulder
+        for x, y in sleeve.poly:   # its outer edge, the first 8 cm below the seam
+            if sy < y < sy + 8 * K_PX and x > sx:
+                assert x - sx < (y - sy) * math.tan(math.radians(25)) + 0.5 * K_PX, (piece.category, (y - sy) / K_PX)
+
+
+def test_a_hem_band_stays_behind_the_sleeves():
+    """Seen on 19 November: an oversized hoodie's ribbed hem band showed over its sleeves, drawn again with them. Only
+    what lies along a sleeve is drawn on it, judged along its length: a band whose short ends are on the sleeves is
+    still the body's."""
+    hoodie = Piece("hoodie", answer("hoodie", fit_detail="oversized", neckline="hood", cuff="rib_knit", pockets="kangaroo",
+                                    hem="ribbed_band"), "#8b8e92")
+    assert any(p.role == "band" for p in plan(dict(base=hoodie)).get("base").shape.parts)
+    for pieces in (dict(base=hoodie, bottom=JEANS), dict(base=BIG_TEE, bottom=JEANS), dict(base=SHIRT, outer=CHORE, bottom=JEANS)):
+        top = plan(pieces).get("outer" if "outer" in pieces else "base")
+        for part in fig._sleeve_only(top.shape).parts:
+            xs = [x for x, _ in fitting.points(part.d)]
+            assert not min(xs) < CX < max(xs), part.role   # nothing across the middle is on a sleeve
+
+
+def test_a_sleeve_moved_past_its_armhole_keeps_its_ends():
+    d = "M 10,10 L 10,90 L 30,90 L 30,40 C 25,30 20,20 10,10 Z"
+    moved = fig._past_armhole(d)
+    assert moved.startswith("M 10,10 L 10,90 L 30,90 L 30,40 L ") and moved.endswith(" L 10.0,10.0 Z")
+    assert fig._past_armhole("M 0,0 L 5,5 Z") == "M 0,0 L 5,5 Z"   # no armhole: unchanged

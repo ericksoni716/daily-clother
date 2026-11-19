@@ -373,6 +373,52 @@ def test_a_cutout_made_before_the_second_model_came_is_made_again_when_it_would_
         conn.close()
 
 
+def test_items_described_from_a_cutout_made_again_since_are_described_again_once(client, services, cfg, claude):
+    """0.9 cut the owner's see-through pieces out again with the second model but kept what Claude had said from
+    the see-through cutouts: the striped shirt was drawn as a print pieced from the photo and called black. Each
+    item described from an older cutout of its photo is described again, once, from the one it has now."""
+    services.worker.is_ready = lambda: True
+    claude.mode = "answers"
+    shirt, other = upload(client, key="shirt").json(), upload(client, key="other").json()
+    assert drain(services) == 2 and services.tag_worker.drain() == 2
+    asked = len(claude.calls)
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        def state(item):
+            return conn.execute("SELECT tag_state FROM items WHERE id = ?", (item["id"],)).fetchone()[0]
+
+        photo = conn.execute("SELECT id FROM photos WHERE item_id = ?", (shirt["id"],)).fetchone()[0]
+        t = db.now()   # the shirt's photo cut out again after it was described, as 0.9 did without describing it
+        conn.execute("INSERT INTO jobs (kind, item_id, photo_id, state, created_at, updated_at) "
+                     "VALUES ('cutout', ?, ?, 'done', ?, ?)", (shirt["id"], photo, t, t))
+        drain(services)
+        assert state(shirt) == "waiting" and state(other) == "done"
+        assert services.tag_worker.drain() == 1 and len(claude.calls) == asked + 1
+        assert state(shirt) == "done"
+        drain(services)                                # once: described from the cutout it has now
+        assert services.tag_worker.drain() == 0 and len(claude.calls) == asked + 1
+    finally:
+        conn.close()
+
+
+def test_a_piece_cut_out_again_by_the_second_model_is_described_again(client, services, cfg, claude):
+    """From now on: when the second model cuts out again a photo Claude already described, Claude describes the
+    item again from the new cutout instead of its pattern being measured under the old description."""
+    look, second = {"as": "striped"}, {"ready": False}
+    services.worker.is_ready = lambda: True
+    services.worker.second = lambda: second["ready"]
+    services.worker.cutter = _cutter(look)
+    claude.mode = "answers"
+    shirt = upload(client, key="shirt").json()
+    assert drain(services) == 1 and services.tag_worker.drain() == 1
+    asked = len(claude.calls)
+    second["ready"], look["as"] = True, "solid"
+    assert drain(services) == 1                         # cut out again by the two models
+    assert client.get(f"/api/items/{shirt['id']}").json()["tag_state"] == "waiting"
+    assert services.tag_worker.drain() == 1 and len(claude.calls) == asked + 1
+    assert drain(services) == 0 and services.tag_worker.drain() == 0
+
+
 def test_a_cutout_made_with_the_second_model_there_is_not_looked_at_again(client, services, cfg):
     look = {"as": "striped"}                           # both models leave it see-through: making it again won't help
     services.worker.is_ready = lambda: True

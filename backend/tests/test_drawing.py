@@ -411,3 +411,29 @@ def test_a_tailored_jacket_has_no_armhole_seam_but_the_seams_it_had_otherwise():
     from closet.drawing.templates import TOP_DEFAULTS, build
     sh = build("top", {**TOP_DEFAULTS, "block": "jacket", "neck": "collar", "collar": "notch", "front": "buttons"})
     assert not [d for d in sh.seams if " C " in d and _near_a_shoulder(d, sh)]
+
+
+def test_a_fine_stripe_keeps_its_line_on_the_drawing():
+    """A pinstripe's repeat is about three units wide on the drawing. Its picture used to reach 0.4 units past its
+    cell, to hide seams between tiles: that stretched it by 13% and cut off its last part, the white line, so the
+    owner's navy pinstripe shirt (19 November) was drawn plain navy. The overlap is now a small share of the tile."""
+    import io
+    import re
+
+    import numpy as np
+    import resvg_py
+    from PIL import Image
+
+    from closet.drawing import fills
+    tile = np.zeros((360, 360, 3), np.uint8)
+    tile[:] = (47, 62, 99)                       # navy
+    tile[:, 309:] = (244, 244, 242)              # and a white line, the last seventh of the repeat
+    fill = Fill("swatch", "#2f3e63", swatch=fills.Swatch(Image.fromarray(tile), 0.0099, (0, 0, 0, 0), "measured"))
+    svg = item.drawing_from_fields("shirt", "#2f3e63", "stripe", {"sleeve": "short"}, fill=fill).svg
+    cell = float(re.search(r'<pattern id="p[^"]*" patternUnits="userSpaceOnUse"[^>]* width="([0-9.]+)"', svg).group(1))
+    picture = float(re.search(r'<image href="data:[^"]*" width="([0-9.]+)"', svg).group(1))
+    assert cell < 4 and picture - cell <= 0.02 * cell + 0.005   # a fine tile, barely stretched
+    # rendered large enough that the line is a few pixels wide: about a seventh of the chest is white line
+    grey = np.asarray(Image.open(io.BytesIO(bytes(resvg_py.svg_to_bytes(svg_string=svg, width=2400)))).convert("L"))
+    chest = grey[int(grey.shape[0] * 0.5):int(grey.shape[0] * 0.6), int(2400 * 0.36):int(2400 * 0.46)]
+    assert 0.08 < (chest > 150).mean() < 0.25, f"{(chest > 150).mean():.0%} of the chest is white line"

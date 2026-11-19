@@ -168,6 +168,36 @@ def test_other_is_drawn_from_the_apps_own_piecing_in_the_second_form_only():
     assert surface.drawn(d, None, None, second=True)["not_drawn"] is True     # nothing pieced: says less
 
 
+def test_a_fine_stripe_called_small_is_still_read_at_the_photos_own_detail():
+    """Claude's size word is often wrong: the owner's navy linen pinstripe (about 48 across the chest) called
+    "small" was sized from the whole-garment reading, which cannot see a pinstripe, and drawn as two broad bands."""
+    cut = _striped_cut(period=8, size=(900, 1000))
+    ruler = {"underarm_left": {"x": 100.0, "y": 300.0}, "underarm_right": {"x": 740.0, "y": 300.0}}   # 640 px: 80 repeats
+    for size in ("small", "medium"):
+        d = surface.read(_form(kind="stripes", direction="horizontal", size=size,
+                               bands=[{"color": NAVY, "width": 2}, {"color": WHITE, "width": 3}]))
+        out = surface.drawn(d, cut, ruler, second=True)
+        assert out["scale_how"] == "fine" and out["repeats"] == pytest.approx(80.0, rel=0.08)
+
+
+def test_a_knit_is_not_taken_for_a_fine_pattern_when_claude_says_bigger():
+    """Stripes broader than the square of cloth the fine reading looks at, on a knit: the square shows only the
+    stitches repeating (the demo's plain graphic tee reads as 48 repeats across this way). For a word bigger than
+    tiny the fine repeat must swing the cloth's colour as a band does."""
+    cut = _striped_cut(period=2000, size=(900, 1000))
+    arr = np.asarray(cut).copy()
+    yy = np.mgrid[0:arr.shape[0], 0:arr.shape[1]][0]
+    arr[..., :3] = np.clip(arr[..., :3].astype(int) + np.round(3 * np.sin(2 * np.pi * yy / 6))[..., None], 0, 255)
+    cut = Image.fromarray(arr, "RGBA")
+    ruler = {"underarm_left": {"x": 100.0, "y": 300.0}, "underarm_right": {"x": 740.0, "y": 300.0}}
+    assert surface.fine_repeats(cut, ruler, across=False) is not None                  # the stitches, read as fine
+    assert surface.fine_repeats(cut, ruler, across=False, strong=surface.FINE_STRONG) is None
+    d = surface.read(_form(kind="stripes", direction="horizontal", size="medium",
+                           bands=[{"color": NAVY, "width": 1}, {"color": WHITE, "width": 1}]))
+    out = surface.drawn(d, cut, ruler, second=True)
+    assert out["scale_how"] != "fine" and out["repeats"] < surface.FINE_AT_LEAST
+
+
 def test_the_second_form_draws_fine_patterns_past_sixteen_across():
     d = surface.read(_form(kind="plaid", size="micro", bands=[{"color": NAVY, "width": 1}, {"color": WHITE, "width": 1}]))
     assert surface.drawn(d, None, None, second=True)["repeats"] == pytest.approx(40.0)

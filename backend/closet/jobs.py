@@ -9,7 +9,9 @@ photo that became its main one once its photos were sorted, `shoeviews.promote`)
 A shoe whose cutout is ready waits to be traced (`tracejobs.py`): this worker
 traces waiting shoes once no cutout is left to make. A cutout made while the
 second background model was not there yet is looked at again once it is, and
-made again when the second model would change it (`recheck`).
+made again when the second model would change it (`recheck`). An item Claude
+described from an earlier cutout of the same photo is described again from the
+new one (`redescribe`).
 """
 from __future__ import annotations
 
@@ -31,6 +33,11 @@ FAILED = ("The background could not be removed from this photo. You can try agai
           "against a plainer background.")
 
 Cutter = Callable[[Image.Image], Image.Image]  # photo -> RGBA cutout
+
+# an item (`i`) Claude described from its photo before that photo's latest cutout was made: what Claude saw was the
+# older cutout (see-through, or with the bed it lay on), so its colour, pattern and cloth may have come from that
+OLDER_CUTOUT = ("i.tag_photo_id IS NOT NULL AND i.tagged_at IS NOT NULL AND EXISTS (SELECT 1 FROM jobs c "
+                "WHERE c.kind = 'cutout' AND c.state = 'done' AND c.photo_id = i.tag_photo_id AND c.updated_at > i.tagged_at)")
 
 
 def enqueue_cutout(conn, item_id: str, photo_id: str) -> None:
@@ -115,8 +122,8 @@ def run_one(conn, images_dir: Path, cutter: Cutter, tag: bool = True, second: bo
     conn.execute("UPDATE items SET cutout_state = 'ready', cutout_error = NULL, updated_at = ? WHERE id = ?", (t, job["item_id"]))
     # Claude's landmarks are points in the old cutout's own pixels: they are asked for again with the new one
     conn.execute("UPDATE items SET landmarks = NULL WHERE id = ?", (job["item_id"],))
-    if tag and not _described_since(conn, job["item_id"], photo):
-        tagjobs.enqueue(conn, job["item_id"])
+    if tag and (not _described_since(conn, job["item_id"], photo) or _described_from_older_cutout(conn, job["item_id"])):
+        tagjobs.enqueue(conn, job["item_id"])   # a new photo, or the photo Claude described cut out again
     elif tag:   # described already: its pattern is measured again, from the new cutout (never in the demo closet)
         patjobs.mark(conn, job["item_id"])
     tracejobs.mark(conn, job["item_id"])   # a shoe's new photo is traced again
@@ -183,6 +190,26 @@ def recheck(conn, images_dir: Path, limit: int = RECHECK_BATCH) -> int:
     return len(rows)
 
 
+def redescribe(conn) -> int:
+    """Items Claude described from a cutout that was made again afterwards (the second background model redid a
+    see-through one, or a plaid's was made again to leave out the bedding): each is described again, once, from the
+    cutout it has now. Fields and details the owner set stay theirs. Archived items wait until they are back.
+    Returns how many were queued."""
+    conn.execute("BEGIN IMMEDIATE")
+    found = [r["id"] for r in conn.execute(
+        f"SELECT i.id FROM items i WHERE i.status = 'active' AND i.tag_state = 'done' AND i.cutout_state = 'ready' "
+        f"AND {OLDER_CUTOUT}").fetchall()]
+    queued = sum(tagjobs.enqueue(conn, item_id) for item_id in found)
+    conn.execute("COMMIT")
+    if queued:
+        log.info("%s items described from an older cutout are described again", queued)
+    return queued
+
+
+def _described_from_older_cutout(conn, item_id: str) -> bool:
+    return conn.execute(f"SELECT 1 FROM items i WHERE i.id = ? AND {OLDER_CUTOUT}", (item_id,)).fetchone() is not None
+
+
 def _described_since(conn, item_id: str, photo) -> bool:
     """Claude has described the item since this photo was added, so it has seen the photo already: a shoe's photo
     that became its main one once its photos were sorted is cut out, not described again. A new or retaken photo
@@ -231,7 +258,7 @@ class Worker:
         """Run queued jobs until none are left (or the model is not ready): the cutouts first, then the shoes
         waiting to be traced, one at a time, so a new photo's cutout never waits for a trace; then, a few at a
         time, the cutouts made before the second background model was there (`recheck`)."""
-        done = 0
+        done = again = 0
         if not self.is_ready():
             return done
         profile = self.state.get("profile")
@@ -247,6 +274,7 @@ class Worker:
                     tracejobs.stale(conn)
             if profile != "demo":
                 remeasure(conn)
+                again = redescribe(conn)   # described from a cutout made again since: described again
             images_dir = self.cfg.images_dir(profile)
             while not self._stop.is_set() and self.is_ready():
                 second = self.second is None or self.second()
@@ -257,6 +285,6 @@ class Worker:
                         break
         finally:
             conn.close()
-        if done:
-            self.on_done()   # wake the tagging worker for the cutouts just made
+        if done or again:
+            self.on_done()   # wake the tagging worker for the cutouts just made, or the items to describe again
         return done

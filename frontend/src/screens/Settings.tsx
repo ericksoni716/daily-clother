@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
-import { ModelProgress, modelStateText } from '../components/ModelBanner';
+import { ModelProgress, modelStateText, secondModelText } from '../components/ModelBanner';
 import { PhoneAccess } from '../components/PhoneAccess';
 import { WhereYouAre } from '../components/WhereYouAre';
 import { LifeQuestions } from '../components/LifeQuestions';
@@ -231,6 +231,7 @@ export function SettingsScreen({ version }: { version: string }) {
 
 function ModelSection({ model, refresh, toast, disabled }: { model: ModelInfo; refresh(): Promise<void>; toast(m: string, k?: 'ok' | 'error'): void; disabled: boolean }) {
   const [busy, setBusy] = useState(false);
+  const second = model.second;
 
   async function download() {
     setBusy(true);
@@ -253,6 +254,18 @@ function ModelSection({ model, refresh, toast, disabled }: { model: ModelInfo; r
         <button className="btn btn-primary" disabled={busy || disabled} onClick={download}>
           {model.state === 'failed' ? 'Try the download again' : 'Download the model'}
         </button>
+      )}
+      {model.state === 'ready' && second && second.state !== 'ready' && (
+        <div data-testid="second-model">
+          <p className="hint">{secondModelText(second)}</p>
+          {second.state === 'failed' && second.error && <p className="form-error">{second.error}</p>}
+          {second.state === 'downloading' && <ModelProgress model={second} />}
+          {second.state !== 'downloading' && (
+            <button className="btn" disabled={busy || disabled} onClick={download}>
+              {second.state === 'failed' ? 'Try the download again' : 'Download the second model'}
+            </button>
+          )}
+        </div>
       )}
     </Sub>
   );
@@ -289,6 +302,14 @@ function ModelAddress({ model, refresh, toast, disabled }: { model: ModelInfo; r
       </form>
       <p className="hint">Can't download here? Get the file from that address on another computer and put it here, then come back to this page:</p>
       <p><code className="path">{model.path}</code></p>
+      {model.second && (
+        <>
+          <p className="hint">The second model works the same way. Its file is at this address:</p>
+          <p><code className="path">{model.second.url}</code></p>
+          <p className="hint">and goes here:</p>
+          <p><code className="path">{model.second.path}</code></p>
+        </>
+      )}
     </Sub>
   );
 }

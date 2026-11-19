@@ -7,7 +7,9 @@ Once a cutout is ready the item is queued for tagging (`tagjobs.py`), in the
 same table, unless Claude has described it since that photo was added (a shoe's
 photo that became its main one once its photos were sorted, `shoeviews.promote`).
 A shoe whose cutout is ready waits to be traced (`tracejobs.py`): this worker
-traces waiting shoes once no cutout is left to make.
+traces waiting shoes once no cutout is left to make. A cutout made while the
+second background model was not there yet is looked at again once it is, and
+made again when the second model would change it (`recheck`).
 """
 from __future__ import annotations
 
@@ -65,10 +67,12 @@ def pending_count(conn) -> int:
     return conn.execute("SELECT COUNT(*) FROM jobs WHERE kind = 'cutout' AND state IN ('queued', 'running')").fetchone()[0]
 
 
-def run_one(conn, images_dir: Path, cutter: Cutter, tag: bool = True) -> bool:
+def run_one(conn, images_dir: Path, cutter: Cutter, tag: bool = True, second: bool = True) -> bool:
     """Process the oldest queued cutout job. Returns False when there is none.
 
     With `tag`, a finished cutout queues the item for tagging (not in the demo closet, which is never sent to Claude).
+    `second` says whether the second background model was there for the cutter to ask; a cutout made without it is
+    looked at again once it comes (`recheck`).
     """
     conn.execute("BEGIN IMMEDIATE")
     job = conn.execute("SELECT * FROM jobs WHERE kind = 'cutout' AND state = 'queued' ORDER BY id LIMIT 1").fetchone()
@@ -105,7 +109,8 @@ def run_one(conn, images_dir: Path, cutter: Cutter, tag: bool = True) -> bool:
         conn.execute("COMMIT")   # deleted while its cutout ran: what was just written goes too
         shutil.rmtree(images_dir / job["item_id"], ignore_errors=True)
         return True
-    conn.execute("UPDATE photos SET cutout_path = ?, cutout_thumb_path = ? WHERE id = ?", (rel, rel_thumb, job["photo_id"]))
+    conn.execute("UPDATE photos SET cutout_path = ?, cutout_thumb_path = ?, cutout_second = ? WHERE id = ?",
+                 (rel, rel_thumb, int(second), job["photo_id"]))
     conn.execute("UPDATE jobs SET state = 'done', error = NULL, updated_at = ? WHERE id = ?", (t, job["id"]))
     conn.execute("UPDATE items SET cutout_state = 'ready', cutout_error = NULL, updated_at = ? WHERE id = ?", (t, job["item_id"]))
     # Claude's landmarks are points in the old cutout's own pixels: they are asked for again with the new one
@@ -136,6 +141,48 @@ def remeasure(conn) -> int:
     return len(found)
 
 
+RECHECK_BATCH = 20   # cutouts looked at between two rounds of the queue, so a new photo never waits long behind them
+
+
+def recheck(conn, images_dir: Path, limit: int = RECHECK_BATCH) -> int:
+    """Cutouts made while the second background model was not there (it was still downloading, its download had
+    failed, or Closet had none yet), looked at once it is: each is made again when the second model would change
+    it, that is when the first model's cutout is see-through in the shape of its own pattern, runs out of the
+    photo's frame or keeps two kinds of surface (`masks.doubtful_cutout`). Each is looked at once; at most `limit`
+    per call, oldest first. Returns how many were looked at (0: none left)."""
+    rows = conn.execute(
+        "SELECT p.id, p.item_id, p.cutout_path, p.original_path, p.width, p.height FROM photos p "
+        "JOIN items i ON i.id = p.item_id "
+        "WHERE p.kind = 'front' AND p.cutout_path IS NOT NULL AND coalesce(p.cutout_second, 0) = 0 "
+        "AND i.cutout_state = 'ready' AND i.status = 'active' ORDER BY p.created_at, p.id LIMIT ?", (limit,)).fetchall()
+    if not rows:
+        return 0
+    from .patterns import masks  # OpenCV: loaded only once a cutout is made
+    for row in rows:
+        try:
+            size = (row["width"], row["height"])
+            if not all(size):
+                with Image.open(images_dir / row["original_path"]) as photo:
+                    size = photo.size
+            with Image.open(images_dir / row["cutout_path"]) as cut:
+                again = masks.doubtful_cutout(cut, size)
+        except (OSError, ValueError) as e:   # a picture that cannot be read is left as it is
+            log.warning("could not look at the cutout of photo %s again: %s", row["id"], type(e).__name__)
+            again = False
+        conn.execute("BEGIN IMMEDIATE")
+        still = conn.execute(   # not replaced, deleted or queued since it was read
+            "SELECT 1 FROM photos p JOIN items i ON i.id = p.item_id WHERE p.id = ? AND p.cutout_path = ? "
+            "AND i.cutout_state = 'ready'", (row["id"], row["cutout_path"])).fetchone()
+        if still is not None:
+            if again:
+                log.info("the cutout of item %s was made without the second background model: making it again",
+                         row["item_id"])
+                enqueue_cutout(conn, row["item_id"], row["id"])
+            conn.execute("UPDATE photos SET cutout_second = 1 WHERE id = ?", (row["id"],))
+        conn.execute("COMMIT")
+    return len(rows)
+
+
 def _described_since(conn, item_id: str, photo) -> bool:
     """Claude has described the item since this photo was added, so it has seen the photo already: a shoe's photo
     that became its main one once its photos were sorted is cut out, not described again. A new or retaken photo
@@ -148,9 +195,12 @@ class Worker:
     """One thread that drains the active closet's queue whenever the model is ready."""
 
     def __init__(self, cfg: Config, state: State, is_ready: Callable[[], bool], cutter: Cutter,
-                 on_done: Callable[[], None] = lambda: None, tracer: tracejobs.Tracer | None = None):
+                 on_done: Callable[[], None] = lambda: None, tracer: tracejobs.Tracer | None = None,
+                 second: Callable[[], bool] | None = None):
         self.cfg, self.state, self.is_ready, self.cutter, self.on_done = cfg, state, is_ready, cutter, on_done
         self.tracer = tracer   # None: shoes are not traced (tests that do not ask for it)
+        # whether the second background model is ready; None: there is none to wait for (a cutter standing in)
+        self.second = second
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -179,7 +229,8 @@ class Worker:
 
     def drain(self) -> int:
         """Run queued jobs until none are left (or the model is not ready): the cutouts first, then the shoes
-        waiting to be traced, one at a time, so a new photo's cutout never waits for a trace."""
+        waiting to be traced, one at a time, so a new photo's cutout never waits for a trace; then, a few at a
+        time, the cutouts made before the second background model was there (`recheck`)."""
         done = 0
         if not self.is_ready():
             return done
@@ -196,11 +247,14 @@ class Worker:
                     tracejobs.stale(conn)
             if profile != "demo":
                 remeasure(conn)
+            images_dir = self.cfg.images_dir(profile)
             while not self._stop.is_set() and self.is_ready():
-                if run_one(conn, self.cfg.images_dir(profile), self.cutter, tag=profile != "demo"):
+                second = self.second is None or self.second()
+                if run_one(conn, images_dir, self.cutter, tag=profile != "demo", second=second):
                     done += 1
-                elif self.tracer is None or tracejobs.run_one(conn, self.cfg.images_dir(profile), self.tracer) == "empty":
-                    break
+                elif self.tracer is None or tracejobs.run_one(conn, images_dir, self.tracer) == "empty":
+                    if self.second is None or not second or not recheck(conn, images_dir):
+                        break
         finally:
             conn.close()
         if done:

@@ -289,6 +289,8 @@ export interface ModelInfo {
   path: string;
   sha256: string;
   name: string;
+  /** The second model, asked as well for striped and checked clothes; null when there is none (tests). */
+  second?: ModelInfo | null;
 }
 
 export interface BackupRecord {

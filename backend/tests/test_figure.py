@@ -1546,7 +1546,11 @@ def test_a_dropped_shoulder_rounds_into_its_sleeve():
     """The owner, 19 November: no padded look. A shoulder seam out on his arm rounds from the shoulder's slope over
     the top of his arm with no corner, and the sleeve hangs on from the seam, close to straight down: it does not
     puff out past it."""
-    for piece in (CHORE, BIG_TEE, Piece("hoodie", None, "#8b8e92", silhouette={"neck": "hood", "fit": "oversized"})):
+    set_in = (Piece("jacket", answer("jacket", collar="point", placket="front_placket", pockets="three_patch_chore",
+                                     fit_detail="oversized", sleeve_construction="set_in"), "#b89a6c"),
+              Piece("hoodie", answer("hoodie", fit_detail="oversized", neckline="hood", cuff="rib_knit", pockets="kangaroo",
+                                     hem="ribbed_band", sleeve_construction="set_in"), "#8b8e92"))
+    for piece in (CHORE, BIG_TEE, Piece("hoodie", None, "#8b8e92", silhouette={"neck": "hood", "fit": "oversized"}), *set_in):
         top = plan(dict(base=piece)).get("base")
         pts = fitting.points(top.shape.outline)
         sleeve = next(s for s in fitting.sleeves(top.shape) if s.side == 1)
@@ -1559,6 +1563,17 @@ def test_a_dropped_shoulder_rounds_into_its_sleeve():
         turns = [math.degrees(math.atan2(b[1] - a[1], b[0] - a[0])) for a, b in zip(line, line[1:], strict=False)
                  if math.dist(a, b) > 1]
         assert max(b - a for a, b in zip(turns, turns[1:], strict=False)) < 28, (piece.category, [round(t) for t in turns])
+        # and from beside his shoulder point, over the seam and 8 cm down the sleeve, it only ever turns one way: no
+        # dip at the seam (the owner, 19 November)
+        k = min(range(len(pts)), key=lambda j: math.dist(pts[j], sleeve.shoulder))
+        run = [q for q in line if q[0] > CX + (fig.SHOULDER_HALF_CM - 6) * K_PX] + [pts[k]]
+        j = k + 1
+        while j < len(pts) and pts[j][1] < sleeve.shoulder[1] + 8 * K_PX:
+            run.append(pts[j])
+            j += 1
+        bends = [math.degrees(math.atan2(b[1] - a[1], b[0] - a[0])) for a, b in zip(run, run[1:], strict=False)
+                 if math.dist(a, b) > 1]
+        assert min(b - a for a, b in zip(bends, bends[1:], strict=False)) > -12, (piece.category, [round(t) for t in bends])
         sx, sy = sleeve.shoulder
         for x, y in sleeve.poly:   # its outer edge, the first 8 cm below the seam
             if sy < y < sy + 8 * K_PX and x > sx:

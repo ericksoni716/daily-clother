@@ -865,8 +865,9 @@ def _on_arm(side: int, shoulder, armpit, reach: float, upper: float, cuff: float
     def fn(u: float, v: float):
         if v > 1:   # past the inner edge is the body beside the underarm: it stays close to the sleeve's edge there
             v = 1 + (v - 1) * 0.25
-        elif v < 0:   # past the outer edge is the round of the sleeve's head on the flat drawing: only at its top
-            v *= max(0.0, 1 - max(0.0, u) / HEAD_SHARE)
+        elif v < 0:   # past the outer edge is the round of the sleeve's head on the flat drawing: only at its top,
+            # and none where its seam is out on his arm (the body's shoulder line rounds over his shoulder there)
+            v *= 0.0 if dropped else max(0.0, 1 - max(0.0, u) / HEAD_SHARE)
         o, i = edge(up + u * (reach - up), u, 1), edge(pit + u * (reach - pit), u, -1)
         f = (1 - max(0.0, u)) ** 2 if u < 1 else 0.0   # from the shoulder point and the underarm onto the arm
         if u < cap:   # ...sooner on the outside: round over the shoulder's cap, on from the shoulder's slope

@@ -34,7 +34,13 @@ history findings cover only that window.
 
 ## Owner decisions already made
 
-- Shoe tracing stays.
+- Work is pushed straight to `main`, rebased onto `origin/main` first. Releases and tags stay
+  with the owner.
+- Which model does what: Fable runs the conversation, plans and reviews; a subagent that
+  writes code runs on Opus; a small mechanical task (a search, a lookup, a rename) can go to
+  Sonnet. One conversation per step of the order of work below.
+- Shoe tracing for the closet picture stays. The traced front view on the figure (A and B) was
+  removed on 19 November: a shoe wears the template until Claude's drawing arrives.
 - The item page reads a garment's look from one store: the description the drawing was made
   from, with the owner's corrections folded over it. Layout choices are left to the agent.
 - Agents may edit the release workflow to add a What's new section to release notes. Starting
@@ -95,11 +101,6 @@ Low and medium risk, about 15 to 17 thousand lines and about 50 MB:
 5. Move the backend tests out of `bench/tests`; delete the shims.
 6. Unused `tools/make_*` scripts, the one dead endpoint, small frontend duplicates.
 7. Fix the docs that contradict the code (listed in `repo-bloat.md`).
-
-Open question for the owner: the traced front view of shoes on the figure (the A/B variant,
-about 2.4 thousand lines and 70 tests). The decision log says the Claude drawing replaced it
-and it matched 3 of 10 against 8 of 10, but it is still wired in as a fallback. This is
-separate from shoe tracing for the closet picture, which stays.
 
 ## Tests
 

@@ -139,12 +139,13 @@ export function ClosetProvider({ profile, onProfile, onLogout, onQuit, toast, ch
     return () => window.clearInterval(t);
   }, [anyBusy, anyDescribing, anyAwaiting, fast, offline, loadItems, refreshModel]);
 
-  // Poll the model while it downloads.
+  // Poll the models while either downloads.
+  const downloading = model?.state === 'downloading' || model?.second?.state === 'downloading';
   useEffect(() => {
-    if (model?.state !== 'downloading' || offline) return;
+    if (!downloading || offline) return;
     const t = window.setInterval(() => void refreshModel(), 1500);
     return () => window.clearInterval(t);
-  }, [model?.state, offline, refreshModel]);
+  }, [downloading, offline, refreshModel]);
 
   // A finished upload shows up in the grid straight away.
   useEffect(() => {

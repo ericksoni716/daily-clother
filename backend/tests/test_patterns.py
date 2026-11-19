@@ -541,6 +541,27 @@ def test_a_see_through_plaid_is_still_filled_in_by_the_second_model():
     assert _share(settled, jacket) > 0.99
 
 
+def test_a_cutout_the_first_model_made_alone_says_whether_the_second_would_change_it():
+    """A cutout made while the second model was not there yet, looked at once it is: its transparency is the first
+    model's mask, cropped with a margin from the photo."""
+    from closet.cutout import make_cutout
+    photo, jacket, duvet = _jacket_on_a_duvet()
+    holes = jacket.copy()
+    for y in range(0, holes.shape[0], 28):
+        for x in range(0, holes.shape[1], 28):
+            holes[y:y + 16, x:x + 16] = 0                          # dark checks taken for background
+
+    def cut(mask):
+        return make_cutout(photo, Image.fromarray(mask, "L"))[0]
+
+    assert masks.doubtful_cutout(cut(holes), photo.size)           # see-through in the shape of its pattern
+    assert masks.doubtful_cutout(cut(np.maximum(jacket, duvet)), photo.size)   # kept the duvet: out of the frame
+    assert not masks.doubtful_cutout(cut(jacket), photo.size)      # the jacket alone: nothing to change
+    # the same answers as asking the photo and the full mask, as the cutter does
+    for mask in (holes, np.maximum(jacket, duvet), jacket):
+        assert masks.doubtful_cutout(cut(mask), photo.size) == masks.doubtful(photo, Image.fromarray(mask, "L"))
+
+
 def test_a_cutout_of_two_surfaces_is_split_and_the_plaid_measured():
     from closet.patterns import measure
     photo, jacket, duvet = _jacket_on_a_duvet()

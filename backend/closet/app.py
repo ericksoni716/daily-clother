@@ -736,21 +736,6 @@ def create_app(sv: Services) -> FastAPI:
         body = await shoe_body(request)
         return shoes.set_plain(conn, item_id, body.get("plain") if isinstance(body, dict) else None)
 
-    @app.put("/api/items/{item_id}/trace/front", dependencies=protected)
-    async def front_trace(item_id: str, request: Request, conn=Depends(conn_dep)):
-        body = await shoe_body(request)
-        if not isinstance(body, dict) or "kind" not in body:
-            raise HTTPException(422, "Send the front view as {\"kind\": \"shape\"}, \"photo\" or null.")
-        return shoes.set_front(conn, item_id, body["kind"])
-
-    @app.get("/api/items/{item_id}/trace/front.svg", dependencies=protected)
-    def front_preview(item_id: str, kind: str, conn=Depends(conn_dep)):
-        svg = illustrations.front_preview(items.get(conn, item_id), kind)
-        if svg is None:
-            raise HTTPException(404, "This shoe has no front view from its trace.")
-        return Response(svg, media_type="image/svg+xml", headers={
-            "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
-
     @app.post("/api/items/{item_id}/retrace", status_code=202, dependencies=protected)
     def retrace(item_id: str, conn=Depends(conn_dep)):
         item = shoes.retrace(conn, item_id)
@@ -758,7 +743,7 @@ def create_app(sv: Services) -> FastAPI:
         return item
 
     def views_soon() -> None:
-        """A shoe's photos changed: traced again when the photo read for its front view changed, and sorted again."""
+        """A shoe's photos changed: a new main photo is cut out and traced again, and the photos are sorted again."""
         sv.worker.wake()
         if sv.views:
             sv.views.wake()
@@ -795,7 +780,7 @@ def create_app(sv: Services) -> FastAPI:
         if not isinstance(body, dict) or "view" not in body:
             raise HTTPException(422, "Send the view as {\"view\": \"outer\"} (or inner, top, front, back, sole, other).")
         item = shoes.set_view(conn, item_id, photo_id, body["view"])
-        sv.worker.wake()   # traced again when the photo read for the front view changed
+        sv.worker.wake()   # the answer may make another photo the main one: it is cut out and traced
         if sv.draws:
             sv.draws.wake()   # the answer may have settled the views: a shoe sorted for the first time is drawn next
         return item

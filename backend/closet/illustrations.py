@@ -16,7 +16,7 @@ is kept, in plain words, for the item page.
 A shoe traced from its photo (`tracejobs`) is drawn from its trace instead, with the owner's fixes laid over it
 (`drawing.sideshoe`), unless the owner chose the plain drawing for it; a shoe not traced, or whose photo the
 tracing turned down, keeps the template drawing. On the outfit figure, a shoe Claude drew from its photos
-(`shoedraw`) is drawn from that drawing; without one, from its front view as before.
+(`shoedraw`) is drawn from that drawing; without one, from the template's front view for its style, traced or not.
 
 The demo closet's drawings were made in advance by `tools/make_demo.py` (with
 fills taken from the photos) and carry the version they were made with, so they
@@ -32,8 +32,7 @@ from dataclasses import replace
 from . import details, drawing, kinds
 from .drawing import item as draw
 from .drawing import sideshoe, stored
-from .drawing.figure import K_PX, PLACES, Piece, as_worn, figure, plan
-from .drawing.frontshoe import FROM_PHOTO, FROM_SHAPE, Chosen, front_shoe
+from .drawing.figure import PLACES, Piece, as_worn, figure
 from .drawing.traced import TracedShoe
 from .tagger import surfaceform
 from .tagger.schema import SILHOUETTE_FIELDS, Details
@@ -110,23 +109,21 @@ def shown_details(row) -> dict:
 def describe(row, extra: dict | None = None) -> Piece:
     """What the item's drawing is made from: the answer it is drawn from (`drawn_answer`: Claude's, with the owner's
     fields and own details laid over it) and its own colour; or, with no answer, its coarse fields. The outfit
-    figure draws each piece from this too, so the owner's corrections show there as well. A traced shoe carries its
-    trace, so the figure draws its front view from it (the owner's fixes to the side drawing are not used there); a
-    shoe Claude drew from its photos carries that drawing (`drawn_of`), which the figure draws instead."""
+    figure draws each piece from this too, so the owner's corrections show there as well. A shoe Claude drew from its
+    photos carries that drawing (`drawn_of`), which the figure draws instead of the template's front view."""
     source = _json(row["source"], {})
     silhouette = _json(row["silhouette"], {})
     answer = drawn_answer(row, extra)
-    shoe = front_of(row)
     if answer is None:
         piece = Piece(row["category"], None, row["color_hex"], row["color"], row["pattern"], silhouette)
         return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row),
-                       traced=shoe, drawn=drawn_of(row))
+                       drawn=drawn_of(row))
     # the item's own colour (from the answer, the photo or the owner), unless the owner chose a colour word
     # and left a colour from before beside it
     own_hex = source.get("color_hex") == OWNER or source.get("color") != OWNER
     piece = Piece(answer.get("category"), answer, row["color_hex"] if own_hex else None, row["color"], row["pattern"],
                   silhouette)
-    return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row), traced=shoe, drawn=drawn_of(row))
+    return replace(piece, fill=pattern_fill(row, piece), graphic=pattern_graphic(row), drawn=drawn_of(row))
 
 
 def worn(row) -> list[dict]:
@@ -178,43 +175,6 @@ def drawn_of(row) -> dict | None:
         return None
     d = _json(row["drawn"], None)
     return d if isinstance(d, dict) else None
-
-
-def front_of(row) -> Chosen | None:
-    """A traced shoe's front view for the figure: its trace, the front drawing the owner chose (`shoe_front`; by
-    default "From your photo" when a front photo was measured, otherwise "From the shoe's shape"), and what the
-    front photo showed. None when the shoe's drawing is not the traced one."""
-    shoe = traced(row)
-    if shoe is None:
-        return None
-    keys = row.keys() if hasattr(row, "keys") else row
-    look = row["front_look"] if "front_look" in keys else None
-    kind = row["shoe_front"] if "shoe_front" in keys else None
-    if kind not in (FROM_SHAPE, FROM_PHOTO):
-        kind = FROM_PHOTO if look else FROM_SHAPE
-    return Chosen(shoe[0], kind, look)
-
-
-def front_preview(row, kind: str) -> str | None:
-    """A traced shoe's front view as the figure would draw it with `kind` (FROM_SHAPE or FROM_PHOTO): the small
-    previews Fix the details shows side by side. None for a shoe not drawn from its trace. Never raises."""
-    try:
-        chosen = front_of(row)
-        if chosen is None or kind not in (FROM_SHAPE, FROM_PHOTO):
-            return None
-        piece = replace(describe(row), traced=replace(chosen, kind=kind))
-        placed = plan({"shoes": piece}).get("shoes")
-        if placed is None:
-            return None
-        uid = f"p{kind[:2]}{row['id'][:6]}"
-        shoe = front_shoe(placed.spec, K_PX, sole_default=placed.shape.sole_default, uid=uid, traced=piece.traced)
-        x0, y0, x1, y1 = shoe.bbox
-        w, h = x1 - x0 + 4, y1 - y0 + 4
-        return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{x0 - 2:.1f} {y0 - 2:.1f} {w:.1f} {h:.1f}" '
-                f'width="{w * 2:.0f}" height="{h * 2:.0f}"><defs>{shoe.defs}</defs>{shoe.body}</svg>')
-    except Exception:
-        log.exception("could not draw a shoe's front preview")
-        return None
 
 
 def make(row, extra: dict | None = None) -> draw.Drawing:

@@ -16,10 +16,6 @@ The owner is asked only when it matters and Claude could not tell (`question`): 
 different (a logo, stripe or panel on one side only: `items.sides_differ`) and a side photo is unsure, or two photos
 claim the same side. The item page then asks which photo shows the outside.
 
-The photo read for the shoe's front view is the newest from the front, else the newest from above
-(`tracejobs.look_photo`); when sorting or the owner changes which photo that is, what was read from the old one
-goes and the shoe is traced again (`look_moved`).
-
 Same rules as describing (`tagjobs.py`): when Claude cannot be reached the shoe waits, with its attempt given back
 and a plain note; another failure is tried again, three times in all, then the item says so. The demo closet is
 never sent to Claude, and shoes kept before this are not sorted until a photo is added or removed.
@@ -80,19 +76,6 @@ def changed(conn, item_id: str, demo: bool = False) -> None:
     else:
         conn.execute("UPDATE items SET views_state = 'waiting', views_error = NULL, views_attempts = 0 WHERE id = ?",
                      (item_id,))
-
-
-def look_id(conn, item_id: str) -> str | None:
-    photo = tracejobs.look_photo(conn, item_id)
-    return photo["id"] if photo is not None else None
-
-
-def look_moved(conn, item_id: str, before: str | None) -> None:
-    """When the photo read for the front view (`tracejobs.look_photo`) is another one than `before`, what was read
-    from the old one goes and the shoe is traced again, the new one read with it. Inside the caller's transaction."""
-    if look_id(conn, item_id) != before:
-        conn.execute("UPDATE items SET front_look = NULL WHERE id = ?", (item_id,))
-        tracejobs.mark(conn, item_id)
 
 
 def photos_of(conn, item_id: str) -> list:
@@ -183,7 +166,6 @@ def read(answer, count: int) -> dict[int, tuple[str, bool]]:
 def apply(conn, item_id: str, photo_ids: list[str], said: dict[int, tuple[str, bool]], sides_differ: bool) -> None:
     """Claude's views for these photos (in the order they were sent), inside the caller's transaction. A photo whose
     view the owner gave keeps it."""
-    before = look_id(conn, item_id)
     for n, photo_id in enumerate(photo_ids, 1):
         view, sure = said[n]
         conn.execute("UPDATE photos SET view = ?, view_sure = ?, view_by = 'model' WHERE id = ? AND item_id = ? "
@@ -191,14 +173,12 @@ def apply(conn, item_id: str, photo_ids: list[str], said: dict[int, tuple[str, b
     conn.execute("UPDATE items SET sides_differ = ?, views_error = NULL, views_attempts = 0, updated_at = ? WHERE id = ?",
                  (int(sides_differ), db.now(), item_id))
     settle(conn, item_id)
-    look_moved(conn, item_id, before)
 
 
 def answer(conn, item_id: str, photo_id: str, view: str) -> None:
     """The owner says which view a photo shows (inside the caller's transaction): kept as the owner's, sure, and never
     changed by sorting again. When it is the outer or inner side and exactly one other photo is a side photo, that one
     is the other side, also as the owner's."""
-    before = look_id(conn, item_id)
     conn.execute("UPDATE photos SET view = ?, view_sure = 1, view_by = 'owner' WHERE id = ? AND item_id = ?",
                  (view, photo_id, item_id))
     if view in SIDES:
@@ -210,7 +190,6 @@ def answer(conn, item_id: str, photo_id: str, view: str) -> None:
     if row is not None and row["views_state"] in ("asking", "sorted"):
         settle(conn, item_id)
     conn.execute("UPDATE items SET updated_at = ? WHERE id = ?", (db.now(), item_id))
-    look_moved(conn, item_id, before)
 
 
 def shown(conn, row) -> dict | None:

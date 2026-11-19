@@ -208,14 +208,6 @@ def test_while_the_owner_is_asked_the_main_photo_waits_for_the_answer(cfg, make)
     assert got["views"]["state"] == "sorted" and got["cutout_state"] == "pending"
 
 
-def test_the_old_main_photo_from_the_front_is_read_for_the_front_view_once_it_is_not_the_main_one(cfg, make):
-    m = make(answer(("front", S_), ("outer", S_)))
-    item, (first, outer) = a_shoe(m, 1)
-    m.sv.views.drain(now=later())
-    with closing(db.connect(cfg.db_path("main"))) as conn:
-        assert tracejobs.look_photo(conn, item["id"])["id"] == first
-
-
 def test_a_shoe_kept_from_before_is_unaffected_until_its_photos_are_sorted_again(cfg, make):
     m = make(answer(("top", S_), ("outer", S_), ("front", S_)))
     item, (first, outer) = a_shoe(m, 1)

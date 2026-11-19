@@ -4,8 +4,7 @@ The owner's fixes to the traced drawing (`fix`), choosing
 the plain drawing for a shoe (`set_plain`), tracing it again (`retrace`), a new photo in place of the old one
 (`replace_photo`, the item page's "Retake the photo"), the shoe's other photos (`add_photo`, `remove_photo`: up to
 five, sorted into views by Claude in the background, `shoeviews`), the owner's word on which view a photo shows
-(`set_view`), and which front view the figure draws (`set_front`). The tracing itself runs in the cut-out queue
-(`tracejobs`).
+(`set_view`). The tracing itself runs in the cut-out queue (`tracejobs`).
 """
 from __future__ import annotations
 
@@ -16,7 +15,6 @@ from . import db, illustrations, items, shoeviews, tracejobs
 from .drawing import sideshoe
 from .tagger.views import VIEWS
 
-FRONTS = ("shape", "photo")   # the shoe's front view on the figure (`drawing.frontshoe`'s FROM_SHAPE, FROM_PHOTO)
 MAX_MARK_FIXES = 40
 
 def _traced_row(conn, item_id: str):
@@ -119,16 +117,6 @@ def set_plain(conn, item_id: str, plain) -> dict:
     return items.detail(conn, items.get(conn, item_id))
 
 
-def set_front(conn, item_id: str, kind) -> dict:
-    """The owner chooses the shoe's front view on the outfit figure: "shape" (the template for its style, in the
-    traced colours), "photo" (turned from its photos), or null (the default: "photo" when a front photo was
-    measured, otherwise "shape")."""
-    if kind is not None and kind not in FRONTS:
-        raise items.ItemError("Choose the front view: shape or photo (or null for the default).")
-    _locked(conn, lambda: (_traced_row(conn, item_id), _save(conn, item_id, {"shoe_front": kind})))
-    return items.detail(conn, items.get(conn, item_id))
-
-
 def retrace(conn, item_id: str) -> dict:
     """Trace the shoe from its photo again, in the background; the owner's fixes are kept."""
     def work():
@@ -194,7 +182,6 @@ def add_photo(conn, images_dir: Path, item_id: str, data: bytes, view=None, sour
         extra = conn.execute("SELECT COUNT(*) FROM photos WHERE item_id = ? AND kind != 'front'", (item_id,)).fetchone()[0]
         if extra - len(gone) >= shoeviews.MAX_EXTRA:
             raise items.ItemError(TOO_MANY, 409)
-        before = shoeviews.look_id(conn, item_id)
         old.extend(replaced)
         conn.executemany("DELETE FROM photos WHERE id = ?", [(p,) for p in gone])
         conn.execute("INSERT INTO photos (id, item_id, kind, view, view_sure, view_by, original_path, thumb_path, width, "
@@ -203,7 +190,6 @@ def add_photo(conn, images_dir: Path, item_id: str, data: bytes, view=None, sour
                       stored.thumb_path, stored.width, stored.height, stored.bytes, stored.sha256, source_sha256, db.now()))
         conn.execute("UPDATE items SET updated_at = ? WHERE id = ?", (db.now(), item_id))
         shoeviews.changed(conn, item_id, demo)       # sorted again, with the new photo
-        shoeviews.look_moved(conn, item_id, before)  # a new photo from the front is read for the front view
 
     try:
         _locked(conn, work)
@@ -228,12 +214,10 @@ def remove_photo(conn, images_dir: Path, item_id: str, photo_id: str, demo: bool
             raise items.ItemError(NO_SUCH_PHOTO, 404)
         if photo["kind"] == "front":
             raise items.ItemError(MAIN_PHOTO, 409)
-        before = shoeviews.look_id(conn, item_id)
         conn.execute("DELETE FROM photos WHERE id = ?", (photo_id,))
         conn.execute("UPDATE items SET updated_at = ? WHERE id = ?", (db.now(), item_id))
         if shoeviews.may_have_photos(row["category"]):
             shoeviews.changed(conn, item_id, demo)
-        shoeviews.look_moved(conn, item_id, before)   # the photo read for the front view went: the next one is read
         gone.append(photo)
 
     _locked(conn, work)

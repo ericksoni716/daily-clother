@@ -336,12 +336,32 @@ def plaid_repeats_2(cut: Image.Image, ruler: dict | None) -> float | None:
 
 FINE_CROP = 400     # px: the fine reading looks at this square of the cloth at the photo's own detail
 FINE_AT_LEAST = 12  # repeats across: a fine reading that finds fewer is not a fine pattern, and is not used
+FINE_STRONG = 8.0   # for a size word bigger than tiny, the fine repeat must swing the cloth's colour at least this
+#                     much (Lab, 0 to 255): the owner's linen pinstripe swings 21, a plain knit's own stitches 3
 
 
-def fine_repeats(cut: Image.Image, ruler: dict | None, across: bool) -> float | None:
-    """For a pattern Claude calls micro or tiny: the repeat read from a square of cloth in the middle of the
-    garment at the photo's own detail (the whole-garment reading works on a picture shrunk to 420 px, where a
-    check a few pixels wide is gone). None unless it finds at least FINE_AT_LEAST repeats across the ruler."""
+def _swing(lab: np.ndarray, m: np.ndarray, across: bool, spacing: int) -> float:
+    """How far the cloth's colour swings at a repeat of `spacing` px: the colour along the bands (their median, so
+    a crease counts little), less its slow change over three repeats, from its 5th to its 95th percentile."""
+    import warnings
+
+    import cv2
+    with warnings.catch_warnings():   # a line of the square outside the garment has no colour: it is left out
+        warnings.simplefilter("ignore", RuntimeWarning)
+        prof = np.stack([np.nanmedian(np.where(m, lab[..., c], np.nan), axis=0 if across else 1) for c in range(3)], 1)
+    prof = prof[~np.isnan(prof).any(1)].astype(np.float32)
+    if len(prof) < 3 * spacing:
+        return 0.0
+    k = max(3, 3 * spacing) | 1
+    rest = prof - np.stack([cv2.blur(prof[:, c].reshape(1, -1), (k, 1)).ravel() for c in range(3)], 1)
+    return float(np.linalg.norm(np.percentile(rest, 95, axis=0) - np.percentile(rest, 5, axis=0)))
+
+
+def fine_repeats(cut: Image.Image, ruler: dict | None, across: bool, strong: float = 0.0) -> float | None:
+    """The repeat read from a square of cloth in the middle of the garment at the photo's own detail (the
+    whole-garment reading works on a picture shrunk to 420 px, where a check a few pixels wide, or a pinstripe, is
+    gone). None unless it finds at least FINE_AT_LEAST repeats across the ruler, and, with `strong`, unless the
+    colour swings at least that much at that repeat (`_swing`), so a weave or knit is not taken for a pattern."""
     try:
         a, b = ruler["underarm_left"], ruler["underarm_right"]
         length = float(np.hypot(a["x"] - b["x"], a["y"] - b["y"]))
@@ -360,8 +380,11 @@ def fine_repeats(cut: Image.Image, ruler: dict | None, across: bool) -> float | 
     crop, mc = arr[y0:y0 + side, x0:x0 + side], m[y0:y0 + side, x0:x0 + side]
     if mc.mean() < 0.6:
         return None
-    found = _spacings(to_lab(np.ascontiguousarray(crop[..., :3])), mc, across, 3)
+    lab = to_lab(np.ascontiguousarray(crop[..., :3]))
+    found = _spacings(lab, mc, across, 3)
     if not found:
+        return None
+    if strong and _swing(lab.astype(np.float32), mc, across, int(found[0])) < strong:
         return None
     reps = length / found[0]
     return float(min(reps, REPEATS_2[1])) if reps >= FINE_AT_LEAST else None
@@ -396,7 +419,8 @@ def drawn(desc: dict, cut: Image.Image | None, ruler: dict | None, bottom: str |
     With `second` (the second form): bands across the body are drawn as one garment-sized picture (`aspect`, the
     drawn garment's height over its width, needed for that), "other" is drawn as `pieced` (the app's own print
     pieced from the photo, `measure`'s kept tile) when there is one, the size words and cap are the second
-    form's, and a pattern called micro or tiny is read from the photo at its own detail first (`fine_repeats`)."""
+    form's, and the pattern is read from the photo at its own detail first (`fine_repeats`; for a size word bigger
+    than tiny only a repeat with a real swing of colour counts)."""
     kind = desc["kind"]
     out = {"kept": None, "body": _soft(desc["colors"][0][0], strength), "blocks": [], "repeats": None,
            "scale_how": None, "widths": None, "tile": None, "not_drawn": kind == "other"}
@@ -416,8 +440,12 @@ def drawn(desc: dict, cut: Image.Image | None, ruler: dict | None, bottom: str |
     repeats = words.get(desc["size"] or "medium", 4.0)
     how = "said"
     fine = None
-    if second and desc["size"] in ("micro", "tiny") and cut is not None and ruler:
-        fine = fine_repeats(cut, ruler, kind == "plaid" or desc["direction"] == "vertical")
+    if second and cut is not None and ruler:
+        # whatever the size word: Claude's word is often wrong (Sonnet says "small" for 2 to 38 repeats) and the
+        # whole-garment reading below cannot see a pinstripe (the owner's linen shirt, called small: 2.6 repeats for
+        # 48). For a word bigger than tiny the fine repeat must also be a real band, not the weave (FINE_STRONG)
+        tiny = desc["size"] in ("micro", "tiny")
+        fine = fine_repeats(cut, ruler, kind == "plaid" or desc["direction"] == "vertical", 0.0 if tiny else FINE_STRONG)
         if fine is not None:
             repeats, how = fine, "fine"
     if kind == "plaid":

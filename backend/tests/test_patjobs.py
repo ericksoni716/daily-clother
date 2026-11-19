@@ -366,12 +366,16 @@ def test_a_plaid_older_code_found_no_repeat_in_is_cut_out_and_measured_again_onc
     after = row(cfg, item["id"])
     assert after["cutout_state"] == "ready" and after["pattern_state"] == "waiting"
     assert after["landmarks"] is None                                   # points in the old cutout's pixels
-    assert after["tag_state"] == "done" and after["tagged_at"] == before["tagged_at"]   # not described again
+    # described again: Claude described the old cutout, the jacket with the duvet (the owner's decision, 19 November)
+    assert after["tag_state"] == "waiting"
+    sv.tag_worker.drain()
+    assert row(cfg, item["id"])["tagged_at"] > before["tagged_at"]
     sv.pattern_worker.drain()
     got = row(cfg, item["id"])
-    assert len(m.calls) == 2 and got["pattern_state"] == "done"
+    assert len(m.calls) == 2 and got["pattern_state"] == "done" and got["pattern"] == "plaid"   # the owner's word
     assert json.loads(got["pattern_fill"])["how"] == "straightened" and got["landmarks"]
     sv.worker.drain()                                                   # once: not found again
+    sv.tag_worker.drain()
     sv.pattern_worker.drain()
     assert len(m.calls) == 2 and row(cfg, item["id"])["pattern_state"] == "done"
 
@@ -384,6 +388,7 @@ def test_a_plaid_that_still_cannot_be_measured_is_not_tried_for_ever(make, cfg):
     _set(cfg, item["id"], pattern_state="failed", pattern_error=patjobs.FAILED)
     for _ in range(3):
         sv.worker.drain()
+        sv.tag_worker.drain()      # its cutout made again, it is described again (once) before it is measured
         sv.pattern_worker.drain()
     assert len(m.calls) == 1 and row(cfg, item["id"])["pattern_error"] == patjobs.PLAID_FAILED
 

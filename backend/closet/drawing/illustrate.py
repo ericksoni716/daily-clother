@@ -20,6 +20,8 @@ from .templates import CX, CX_ROT, K_PX, H, Shape, W, _x_on, build
 
 STYLES = ("flat", "line", "soft", "traced")
 PLACE_AT = 0.35      # where along the centre line, from neck to hem, a placed pattern is lined up
+TILE_OVERLAP = 0.4         # units a pattern tile's picture reaches past its cell, so no seam shows between tiles
+TILE_OVERLAP_SHARE = 0.01  # but never more than this share of the tile: a fine repeat would lose its last part
 CARD = "#f1eee8"
 INK = "#26231f"
 
@@ -173,7 +175,10 @@ def _defs_for_fill(fill: Fill, shape: Shape, uid: str, garment_w: float, garment
             if len(row) >= 2:   # buttons down the front: the height is taken along the button run
                 ay = row[0] + PLACE_AT * (row[-1] - row[0])
             px, py = ax - sw.phase[0] * tw, ay - sw.phase[1] * th
-        img = f'<image href="{uri}" width="{tw + 0.4:.2f}" height="{th + 0.4:.2f}" preserveAspectRatio="none"/>'
+        # a tile overlaps the next a little so no hairline seam shows between them, but only by a small share of
+        # its own size: a fixed 0.4 units stretched a pinstripe's 3-unit repeat by 13% and cut off its white line
+        pad = min(TILE_OVERLAP, TILE_OVERLAP_SHARE * min(tw, th))
+        img = f'<image href="{uri}" width="{tw + pad:.2f}" height="{th + pad:.2f}" preserveAspectRatio="none"/>'
         out = (f'<pattern id="p{uid}" patternUnits="userSpaceOnUse" x="{px:.1f}" y="{py:.1f}" width="{tw:.2f}" height="{th:.2f}">'
                f'{img}</pattern>')
         if sw.phase is not None and sw.phase_right is not None and "neck" in shape.anchors:

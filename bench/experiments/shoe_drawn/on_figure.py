@@ -36,11 +36,21 @@ sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(ROOT / "tools"))
 
 from make_figure_sheet import to_png  # noqa: E402
-from make_traced_front_sheet import answer  # noqa: E402
 
 from closet.drawing import figure as F  # noqa: E402
 from closet.drawing import worn as W  # noqa: E402
 from closet.drawing.figure import K_PX, Piece, figure, plan  # noqa: E402
+from closet.tagger.schema import Details, ItemTags, Silhouette  # noqa: E402
+
+
+def answer(category: str, style: str, silhouette: dict | None = None, **details) -> dict:
+    """A made-up tagger answer for a piece (kept here from the removed tools/make_traced_front_sheet.py)."""
+    return ItemTags(
+        category=category, category_confidence=0.9, color="navy", color_confidence=0.9, secondary_colors=[],
+        pattern="solid", pattern_confidence=0.9, formality="casual", formality_confidence=0.9, season="all",
+        season_confidence=0.9, silhouette=Silhouette.of(**(silhouette or {})), silhouette_confidence=0.9,
+        details=Details.plain(**({"shoe_style": style} if style else {}), **details), details_confidence=0.9, brand=None,
+        size=None, material=None, needs_shot=None).model_dump(mode="json")
 
 EX = HERE / "EXAMPLES"
 FRAME_LEG = (62.0, 138.0)   # the frame's leg, left and right edge

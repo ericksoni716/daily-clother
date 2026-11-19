@@ -1,5 +1,10 @@
 # The front of a traced shoe: the line-up experiment
 
+**Frozen (November 2026).** The traced front view this experiment drew on (`frontshoe`'s traced code,
+`frontlook.py` and `tools/make_traced_front_sheet.py`) was removed from the app, so `common.py`, `drape.py`,
+`sheets.py` and `page_assets.py` no longer run as they are. The folder stays as the record of the line-up and for
+its photo fetcher; see "The traced front view is removed" in `docs/DECISIONS.md`.
+
 The work this belongs to is in `docs/BACKLOG.md` (Track 1, "A traced shoe's front, from a front photo") and what
 was decided with the owner is in `docs/DECISIONS.md` ("A traced shoe's front on the figure"). Read both first.
 

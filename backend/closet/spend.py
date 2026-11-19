@@ -47,15 +47,17 @@ PURPOSE_DRAW = "draw_shoe"            # a shoe drawn from its photos, and its ch
 PURPOSE_CORRECT_DRAWING = "correct_drawing"   # a shoe's drawing changed from the owner's note, and its checks
 PRICES_CHECKED: str = CONFIG.get("prices_checked", "")
 TAGGING_MODEL: str = CONFIG["roles"]["tagging"]
+DESCRIBING_MODEL: str = CONFIG["roles"]["describing"]   # the description call (`tagjobs.MODEL`)
 SUGGESTED_CAP_USD = 5.0     # see DECISIONS, "Spend cap for the API key"
 MAX_CAP_USD = 1000.0        # a typing slip should not allow a large bill
 HISTORY_MONTHS = 12
 
 # A careful upper bound on one request to describe an item: the prompt and the whole answer form as a tool (about
-# 35,000 characters, counted at 1 token for every character pair, with room for what the API adds for a tool), each
-# photo at no more than 1024 px a side (about 1,400 tokens by Anthropic's rule of width x height / 750, rounded up),
-# and the longest answer the request allows. (8,000 while the form went as a compiled structured output.)
-TEXT_TOKENS = 18000
+# 38,500 characters with the cloth's surface, counted at 1 token for every character pair, with room for what the API
+# adds for a tool), each photo at no more than 1024 px a side (about 1,400 tokens by Anthropic's rule of width x
+# height / 750, rounded up), and the longest answer the request allows. (8,000 while the form went as a compiled
+# structured output; 18,000 before the surface was asked for.)
+TEXT_TOKENS = 20000
 IMAGE_TOKENS = 1600
 # Reading a correction: the longest prompt the app writes (a 500-character sentence, a shirt's description and every
 # value it may take, about 7,000 characters with the schema; counted at 1 token for every character pair, then the
@@ -128,7 +130,7 @@ def _worst(model: str, input_tokens: int, output_tokens: int) -> float:
     return cost_usd(model, 0, output_tokens, cache_write=input_tokens)
 
 
-def estimate_call(photos: int, model: str = TAGGING_MODEL) -> float:
+def estimate_call(photos: int, model: str = DESCRIBING_MODEL) -> float:
     """The most one request to describe an item with this many photos should cost."""
     return _worst(model, TEXT_TOKENS + IMAGE_TOKENS * max(1, photos), MAX_TOKENS)
 
@@ -278,7 +280,7 @@ def summary(cfg: Config, state: State, conn) -> dict:
         "reached": left is not None and left < one,
         "per_photo_usd": round(one, 6), "per_find_usd": round(estimate_garments(1), 6), "waiting": waiting(conn) if state.get("profile") != "demo" else
         {"items": 0, "photos": 0, "at_most_usd": 0.0},
-        "model": TAGGING_MODEL, "prices_checked": PRICES_CHECKED, "turned_off": state.get("tagging_api_off"),
+        "model": DESCRIBING_MODEL, "prices_checked": PRICES_CHECKED, "turned_off": state.get("tagging_api_off"),
         "history": months,
     }
 

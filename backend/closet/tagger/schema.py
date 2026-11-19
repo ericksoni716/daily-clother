@@ -19,7 +19,8 @@ from typing import Literal, get_args
 
 from pydantic import BaseModel, Field, model_validator
 
-from . import taxonomy
+from . import surfaceform, taxonomy
+from .surfaceform import Surface
 from .taxonomy import (
     ACCESSORIES,
     ACCESSORY_GARMENTS,
@@ -126,7 +127,7 @@ Feature = Literal["v_insert", "pleats", "pressed_crease", "contrast_stitching", 
 
 # Stored with every answer the app keeps. Raise it whenever `ItemTags` changes shape or vocabulary, so stored
 # answers can be told apart (a test holds a fingerprint of the schema and fails until this is raised).
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6   # 6: the cloth's `surface` (closet.tagger.surfaceform)
 
 FIELDS = ("category", "color", "pattern", "formality", "season")
 DETAIL_FIELDS = ("garment", "fit_detail", "sleeve_length", "neckline", "collar", "placket", "placket_buttons", "button_color", "cuff",
@@ -272,6 +273,9 @@ class ItemTags(BaseModel):
     size: str | None = Field(description="Only if legible on a tag. Otherwise null.")
     material: str | None = Field(description="Only if legible on a tag. Otherwise null.")
     needs_shot: ShotRequest | None = Field(description="Null unless one more photo would settle something that matters and cannot be told from these.")
+    # optional when read, so answers stored before it was asked for stay valid; the form sent asks for it
+    # (`tagging.ASKED`)
+    surface: Surface | None = Field(default=None, description=surfaceform.FIELD_TEXT["surface"])
 
 
 NAMED_HEX = {"black": "#1f1f22", "white": "#f6f5f2", "grey": "#8f9296", "navy": "#27344f", "blue": "#3f6fb0",
@@ -384,6 +388,9 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
         more["motif_colors"] = tuple(NAMED_HEX[c] for c in tags.secondary_colors if c in NAMED_HEX)
     if p.get("colorblock"):   # the second colour: the first of the other colours seen
         more["block_color"] = NAMED_HEX.get(tags.secondary_colors[0])
+    parts, block = surfaceform.block_parts(tags.surface)
+    if parts:   # the parts Claude described in another colour (the cloth's surface), in that colour
+        p["colorblock"], more["block_color"] = parts, block
     if "v_insert" in d.features:
         p["neck_detail"] = "v-insert"
     if p.get("stripes") == "hoops" and not extras["trim_color"] and tags.secondary_colors:

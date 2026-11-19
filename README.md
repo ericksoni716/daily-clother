@@ -49,7 +49,7 @@ one group or one kind.
 Once it is described the item gets its drawing: switch between **Drawing**,
 **Cutout** and **Photo** above the item. Beside the drawing, **Not in the
 drawing** lists what it can't show yet (for example a logo, or stripes drawn as
-plain colour). For stripes, plaid and prints, Closet measures the pattern from the photo after Claude has described the item (it says **Measuring the plaid from the photo** meanwhile; it can take a minute or two) and the drawing shows it: a plaid straightened and lined up with the buttons, stripes where they really are, a print pieced from the cloth. A plaid photographed at an angle, or lying on a bed, is measured too: Closet straightens the checks from their own lines and leaves the bedding out of the cutout. A plaid photographed too dark (a navy shirt on white bedding comes out nearly black) is brought back to the colour the item is called. If it still can't measure the checks, the item says so and is drawn in its colour (it is never drawn as a guess); a photo of it laid flat on a plain surface, taken from straight above, usually works: press **Retake the photo** beside that note and take one. The item keeps its wears, rating and everything you set; Closet removes the new photo's background, Claude describes it again and the pattern is measured again. The same button is in the note when the background couldn't be removed. Change the pattern on the item and it is measured again. The drawing follows your changes: pick another colour or sleeve
+plain colour). When Claude describes the item it also describes its cloth: plain, stripes, plaid or checks, plain with parts or bands in another colour (sleeves, a yoke, a collar or pocket, a band across the chest), or a print. Parts in another colour are drawn at once. For stripes, plaid and checks Closet then weaves the colours Claude named and sizes them from the photo; bands across the body are drawn where Claude said they are; a print is pieced from the cloth in the photo (it says **Measuring the plaid from the photo** meanwhile; it can take a minute or two). Items described before 18 November are measured from the photo the older way until they are described again: a plaid straightened and lined up with the buttons, stripes where they really are. A plaid photographed at an angle, or lying on a bed, is measured too: Closet straightens the checks from their own lines and leaves the bedding out of the cutout. A plaid photographed too dark (a navy shirt on white bedding comes out nearly black) is brought back to the colour the item is called. If it still can't measure the checks, the item says so and is drawn in its colour (it is never drawn as a guess); a photo of it laid flat on a plain surface, taken from straight above, usually works: press **Retake the photo** beside that note and take one. The item keeps its wears, rating and everything you set; Closet removes the new photo's background, Claude describes it again and the pattern is measured again. The same button is in the note when the background couldn't be removed. Change the pattern on the item and it is measured again, from your word rather than Claude's description of the cloth. The drawing follows your changes: pick another colour or sleeve
 length and it is drawn again. **Photos | Drawings** above the closet shows the
 whole closet either way; this device remembers your choice.
 **What Claude saw**, at the bottom of the item page, lists the details it
@@ -621,11 +621,16 @@ on **Allow the API key** and set a monthly limit (under **Monthly limit and
 spending**, just below the switch). A key saved here is used instead
 of one set as `ANTHROPIC_API_KEY`.
 
-**What the API key costs.** At the prices Closet knows (written down on
-3 November 2026 — prices change, so check Anthropic's pricing page), one photo
-costs well under 1¢, about $0.003 at most. To allow the API key you set a
-**monthly limit** in US dollars; $5 is suggested, enough for well over a
-thousand photos. Before every request Closet adds what this month has cost so
+**What the API key costs.** Clothes are described by Claude Sonnet, which
+draws the cloth much more faithfully than the smaller model used before 18
+November (stripes, checks and colours were tested side by side on 60 garments).
+At the prices Closet knows (prices change, so check Anthropic's pricing page),
+describing one photo cost about 2¢ in that test, and Closet counts up to about
+9¢ for each photo before it asks, to be sure of staying under your limit. To
+allow the API key you set a **monthly limit** in US dollars; $5 is suggested,
+enough for about 200 photos. Corrections you type and shopping searches still
+use the smaller, cheaper model. On your Claude plan the larger model uses a
+little more of the plan's allowance for each photo. Before every request Closet adds what this month has cost so
 far to the most that request could cost, and if that would pass the limit it
 does not ask: the item waits and says the monthly limit was reached. Your plan
 is still used whenever it can be. **Monthly limit and spending** shows what this month has cost, how

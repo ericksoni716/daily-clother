@@ -73,6 +73,8 @@ def drawn_answer(row, extra: dict | None = None) -> dict | None:
             return None
     said = kinds.said_kind(answer)
     answer = dict(answer)
+    if source.get("pattern") == OWNER and answer.get("pattern") != row["pattern"]:
+        answer.pop("surface", None)   # the owner's pattern word, not the cloth Claude described (`patjobs._surface`)
     for field in ("category", "color", "pattern"):
         if source.get(field) == OWNER:
             answer[field] = row[field]

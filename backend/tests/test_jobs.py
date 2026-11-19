@@ -196,6 +196,52 @@ def test_download_verifies_the_checksum_and_becomes_ready(tmp_path, server):
     assert again.ready and again.start_download() is False
 
 
+def test_the_second_model_downloads_from_its_own_address_setting(tmp_path, server):
+    """The second model keeps its download address under its own setting. That setting was missing from the
+    settings' defaults, so reading it failed inside the download thread: since 0.5.0 the second model never
+    downloaded, stayed "downloading" for good, and every cutout was made by the first model alone."""
+    from closet.modelstore import SECOND_MODEL
+    m = ModelStore(tmp_path / "models", State(tmp_path / "settings.json"), name=SECOND_MODEL, url_key="second_model_url",
+                   sha256=DIGEST, default_url=server)
+    assert m.info()["url"] == server
+    assert m.start_download() is True
+    m.wait(10)
+    assert m.ready
+
+
+def test_a_download_that_breaks_unexpectedly_fails_and_can_be_tried_again(tmp_path, server, monkeypatch):
+    """Whatever goes wrong inside the download thread, the model is never left "downloading" for good."""
+    m = store(tmp_path, server)
+    real = m._download_file
+    monkeypatch.setattr(m, "_download_file", lambda: {}["missing"])
+    assert m.start_download() is True
+    m.wait(10)
+    assert m.info()["state"] == "failed" and m.info()["error"]
+    monkeypatch.setattr(m, "_download_file", real)
+    assert m.start_download() is True
+    m.wait(10)
+    assert m.ready
+
+
+def test_a_real_closet_reports_both_models(cfg):
+    """Built as the program builds it (the real cutter, so the real second model): GET /api/model answers."""
+    from fastapi.testclient import TestClient
+
+    from closet import app as app_module
+
+    from .conftest import PASSPHRASE
+    sv = app_module.build_services(cfg, web_dir=None)
+    try:
+        client = TestClient(app_module.create_app(sv))
+        assert client.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
+        body = client.get("/api/model").json()
+        assert body["name"] == "isnet-general-use" and body["state"] == "missing"
+        assert body["second"]["name"] == "u2net" and body["second"]["state"] == "missing"
+        assert body["second"]["url"].endswith("/u2net.onnx")
+    finally:
+        sv.stop()
+
+
 def test_an_interrupted_download_resumes_where_it_stopped(tmp_path, server):
     Handler.truncate_at = 300_000
     m = store(tmp_path, server)
@@ -267,6 +313,94 @@ def test_model_endpoints_report_state_and_take_a_custom_address(client):
     assert client.put("/api/model/url", json={"url": "ftp://x"}).status_code == 422
     assert client.put("/api/model/url", json={"url": "https://example.com/m.onnx"}).json()["url"] == "https://example.com/m.onnx"
     assert client.put("/api/model/url", json={"url": ""}).json()["url"].startswith("https://github.com/")
+
+
+def _cutter(look: dict):
+    """Stands in for the models: a box in the middle of the photo, solid, or see-through in stripes the way the
+    first model leaves a striped shirt (`look["as"]`)."""
+    import numpy as np
+    from PIL import Image
+
+    from closet.cutout import make_cutout
+
+    def cut(img):
+        w, h = img.size
+        mask = np.zeros((h, w), np.uint8)
+        mask[h // 6:h * 5 // 6, w // 4:w * 3 // 4] = 255
+        if look["as"] == "striped":
+            mask[:, np.arange(w) % 4 != 0] = 0
+        return make_cutout(img, Image.fromarray(mask, "L"))[0]
+    return cut
+
+
+def test_a_cutout_made_before_the_second_model_came_is_made_again_when_it_would_change_it(client, services, cfg):
+    """The owner's striped shirt, cut out by the first model alone while the second was still downloading (or
+    failed to): see-through, and left that way. Once the second model is here, it is made again, once."""
+    look, second = {"as": "striped"}, {"ready": False}
+    services.worker.is_ready = lambda: True
+    services.worker.second = lambda: second["ready"]
+    services.worker.cutter = _cutter(look)
+    shirt = upload(client, key="shirt").json()
+    assert drain(services) == 1
+    look["as"] = "solid"
+    plain = upload(client, key="plain").json()    # made alone too, but nothing the second model would change
+    assert drain(services) == 1
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        def recorded(item):
+            return conn.execute("SELECT cutout_second FROM photos WHERE item_id = ?", (item["id"],)).fetchone()[0]
+
+        def cutouts(item):
+            return conn.execute("SELECT count(*) FROM jobs WHERE kind = 'cutout' AND item_id = ?", (item["id"],)).fetchone()[0]
+
+        assert recorded(shirt) == 0 and recorded(plain) == 0
+        conn.execute("UPDATE photos SET cutout_second = NULL WHERE item_id = ?", (shirt["id"],))   # made before 0035
+        assert drain(services) == 0                    # still no second model: nothing is looked at
+        second["ready"] = True                         # it has come: the two together cut the shirt out solid
+        assert drain(services) == 1
+        assert cutouts(shirt) == 2 and cutouts(plain) == 1
+        assert recorded(shirt) == 1 and recorded(plain) == 1
+        body = client.get(f"/api/items/{shirt['id']}").json()
+        assert body["cutout_state"] == "ready"
+        from PIL import Image
+
+        from closet.patterns import masks
+        with Image.open(cfg.images_dir("main") / body["photos"][0]["cutout_url"].removeprefix("/media/")) as cut:
+            assert masks.see_through(cut.getchannel("A")) < masks.SEE_THROUGH
+        assert drain(services) == 0                    # each is looked at once
+        assert cutouts(shirt) == 2
+    finally:
+        conn.close()
+
+
+def test_a_cutout_made_with_the_second_model_there_is_not_looked_at_again(client, services, cfg):
+    look = {"as": "striped"}                           # both models leave it see-through: making it again won't help
+    services.worker.is_ready = lambda: True
+    services.worker.second = lambda: True
+    services.worker.cutter = _cutter(look)
+    item = upload(client).json()
+    assert drain(services) == 1
+    assert drain(services) == 0
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        assert conn.execute("SELECT cutout_second FROM photos").fetchone()[0] == 1
+        assert conn.execute("SELECT count(*) FROM jobs WHERE kind = 'cutout' AND item_id = ?", (item["id"],)).fetchone()[0] == 1
+    finally:
+        conn.close()
+
+
+def test_model_endpoints_give_the_second_model_and_download_both(client, services, tmp_path, server):
+    assert client.get("/api/model").json()["second"] is None       # a cutter standing in: there is no second model
+    services.second_model = store(tmp_path / "second", server)
+    body = client.get("/api/model").json()
+    assert body["state"] == "missing" and body["second"]["state"] == "missing"
+    services.model = store(tmp_path / "first", server)
+    services.model.dir.mkdir(parents=True)
+    services.model.path.write_bytes(PAYLOAD)                       # the first one is here already
+    body = client.post("/api/model/download").json()
+    assert body["state"] == "ready" and body["second"]["state"] in ("downloading", "ready")
+    services.second_model.wait(10)
+    assert client.get("/api/model").json()["second"]["state"] == "ready"
 
 
 def test_worker_thread_picks_up_jobs_when_woken(client, services):

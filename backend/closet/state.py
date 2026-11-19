@@ -26,6 +26,7 @@ DEFAULTS: dict[str, Any] = {
     "backup_folder": None,
     "last_backup": None,      # {"at", "ok", "error", "folder", "kind"}
     "model_url": None,        # override for the model download address
+    "second_model_url": None,  # the same for the second background model (closet/modelstore.py SECOND_MODEL)
     "profile": "main",
     "tagging_api_enabled": False,  # may tagging use the API key (billed)? Off until the owner turns it on in Settings
     "tagging_api_cap_usd": None,   # the API key's monthly spending limit in US dollars; needed to turn the key on

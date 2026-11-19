@@ -127,6 +127,10 @@ class ModelStore:
             log.warning("model download could not finish: %s", type(e).__name__)
             self._fail("The model download could not finish. Check that the data folder is writable and has "
                        "enough free space, then try again.")
+        except Exception:   # never left "downloading" for good, which would also refuse every new try
+            log.exception("model download of %s broke", self.name)
+            self._fail("The model download stopped because of a problem in Closet. Try again; if it keeps "
+                       "happening, the log has the details.")
 
     def _download_file(self) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)

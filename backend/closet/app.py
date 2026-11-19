@@ -216,7 +216,9 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     holder: dict = {}
     model = ModelStore(cfg.models_dir, state, on_ready=lambda: holder["worker"].wake())
 
-    second = ModelStore(cfg.models_dir, state, name=SECOND_MODEL, url_key="second_model_url")
+    # once it is here, the cutouts made without it are looked at again (`jobs.recheck`)
+    second = ModelStore(cfg.models_dir, state, name=SECOND_MODEL, url_key="second_model_url",
+                        on_ready=lambda: holder["worker"].wake())
 
     def real_cutter(img: Image.Image) -> Image.Image:
         mask = predict_mask(img, MODEL, model.path)
@@ -254,7 +256,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
         if holder.get("patterns") is not None:
             holder["patterns"].wake()
 
-    worker = jobs.Worker(cfg, state, lambda: model.ready, cutter or real_cutter, on_done=cutouts_made, tracer=tracer)
+    worker = jobs.Worker(cfg, state, lambda: model.ready, cutter or real_cutter, on_done=cutouts_made, tracer=tracer,
+                         second=(lambda: second.ready) if cutter is None else None)
     holder["worker"] = worker
     landmark_meter = spend.Meter(cfg, state, spend.PURPOSE_LANDMARKS, spend.estimate_landmarks)
 
@@ -1336,16 +1339,28 @@ def create_app(sv: Services) -> FastAPI:
         return Response(status_code=204)
 
     # ---------------------------------------------------------------- model
+    def model_payload() -> dict:
+        """The first model's state, with the second's (asked as well for patterned clothes) as `second`: null when
+        there is none (a cutter standing in, in tests)."""
+        sv.model.refresh()
+        info = sv.model.info()
+        info["second"] = None
+        if sv.second_model is not None:
+            sv.second_model.refresh()   # also notices a file put in the models folder by hand
+            info["second"] = sv.second_model.info()
+        return info
+
     @app.get("/api/model", dependencies=protected)
     def model_info():
-        sv.model.refresh()
-        return sv.model.info()
+        return model_payload()
 
     @app.post("/api/model/download", status_code=202, dependencies=protected)
-    def model_download():
-        sv.model.refresh()
-        sv.model.start_download()
-        return sv.model.info()
+    def model_download():   # both models: whichever is not ready yet
+        for store in (sv.model, sv.second_model):
+            if store is not None:
+                store.refresh()
+                store.start_download()
+        return model_payload()
 
     @app.put("/api/model/url", dependencies=protected)
     def model_url(body: ModelUrl):
@@ -1353,7 +1368,7 @@ def create_app(sv: Services) -> FastAPI:
         if url and not url.lower().startswith("https://"):
             raise HTTPException(422, "The download address must start with https://")
         state.update(model_url=url)
-        return sv.model.info()
+        return model_payload()
 
     # ------------------------------------------------------------- settings
     def settings_payload(conn) -> dict:

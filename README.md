@@ -762,6 +762,14 @@ changed there too. **Settings → Your closet → Background removal** says whet
 the model is ready. **Advanced** also shows where your closet is stored and the
 version of Closet.
 
+Closet also downloads a second model, `u2net.onnx`, about the same size. It
+fixes cutouts the first one gets wrong: a striped or checked shirt whose darker
+stripes were taken for background, or the bed a piece lies on kept with it.
+**Background removal** says if it is still downloading or didn't download, with
+a button to try again, and **Advanced** shows its address and where to put it by
+hand. Photos cut out before it is there are looked at again once it is, and the
+ones it would do better are cut out again.
+
 ### Where you are
 
 Closet uses New York's weather until you choose your place. In **Settings →

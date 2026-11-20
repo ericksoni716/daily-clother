@@ -143,7 +143,7 @@ def undo(conn, qid: str) -> dict:
         row = conn.execute("SELECT line_id FROM style_questions WHERE id = ?", (q.id,)).fetchone()
         if row is not None and row["line_id"] is not None:
             try:
-                styleprofile.remove_line(conn, row["line_id"])
+                styleprofile.take_back(conn, row["line_id"])
             except LookupError:
                 pass   # removed in Settings since
         conn.execute("DELETE FROM style_questions WHERE id = ?", (q.id,))

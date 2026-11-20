@@ -506,7 +506,7 @@ def unkeep(conn, thing: dict) -> None:
                     items.update(conn, thing["item_id"], {"wear_notes": rest or None})
         elif thing.get("line_id") is not None:
             try:
-                styleprofile.remove_line(conn, thing.pop("line_id"), "claude")
+                styleprofile.take_back(conn, thing.pop("line_id"), "claude")
             except LookupError:
                 pass   # removed in Settings since: nothing to take back
     except (ValueError, items.ItemError) as e:

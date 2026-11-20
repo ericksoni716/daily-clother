@@ -19,6 +19,7 @@ from closet.tagger.correcting import Change, CorrectionAnswer, CorrectionResult
 from closet.tagger.garments import Garment, Garments
 from closet.tagger.schema import Details, ItemTags, Silhouette
 from closet.tagger.shoedrawing import CheckAnswer, CorrectAnswer, CorrectCheckAnswer, DrawAnswer
+from closet.tagger.stylist import ChatReply
 from closet.tagger.tagging import RouteUnavailable, TaggingError, TagResult
 from closet.tagger.views import PhotoView, ShoeViews
 
@@ -233,7 +234,7 @@ class FakeApi:
     which is streamed (`messages.stream`), it answers `drawing` (`draw_answer`) or `checked` (`check_answer`), as text
     in the answer's schema, turned or not; asked to change a drawing from the owner's note, or to check the change,
     `corrected` (`correct_answer`) or `correct_checked` (`correct_check_answer`); asked to judge drawings, the first,
-    with no fault named.
+    with no fault named. A message in the style conversation is answered with `chat` (a few words, one line to keep).
     """
 
     def __init__(self, input_tokens: int = 2000, output_tokens: int = 400):
@@ -254,6 +255,7 @@ class FakeApi:
         self.corrected = correct_answer()
         self.correct_checked = correct_check_answer()
         self.tag_answers: list = [ANSWER]   # what describing an item answers, in turn: models, dicts, or None (no call)
+        self.chat = ChatReply(reply="Noted: a little lighter than most.", remember=["I run warm."])
 
     def create(self, **kw):
         """Describing an item on the API-key route: the answer comes back as a call of the form's tool."""
@@ -308,7 +310,8 @@ class FakeApi:
         if self.error:
             raise self.error
         usage = SimpleNamespace(input_tokens=self.input_tokens, output_tokens=self.output_tokens)
-        answer = {CorrectionAnswer: self.correction, Garments: self.garments}.get(kw.get("output_format"), ANSWER)
+        answer = {CorrectionAnswer: self.correction, Garments: self.garments,
+                  ChatReply: self.chat}.get(kw.get("output_format"), ANSWER)
         if kw.get("output_format") is ShoeViews:
             sent = kw["messages"][0]["content"]
             answer = self.views or views_answer(sum(1 for part in sent if part.get("type") == "image"))

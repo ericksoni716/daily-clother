@@ -273,6 +273,20 @@ def remove_line(conn, line_id: int, source: str = "owner") -> dict:
     return {**current(conn), "removed": removed}
 
 
+def take_back(conn, line_id: int, source: str = "owner") -> None:
+    """Undo a line added by `add_line` (Undo on a line kept from a conversation, or on an answer): it is removed, and
+    when what is left is only the starting lines kept for that first change, the starting profile is in force again,
+    as it was before. Raises LookupError for a line not in force."""
+    def work():
+        remove_line(conn, line_id, source)
+        left = _rows(conn)
+        if left and all(r["source"] == "start" for r in left) and [r["text"] for r in left] == _kept_starting():
+            conn.execute("UPDATE style_lines SET removed_at = ? WHERE removed_at IS NULL", (db.now(),))
+            _write(conn, source)
+
+    _transaction(conn, work)
+
+
 def restore_line(conn, line_id: int) -> dict:
     """Put a removed line back where it was, with where it came from. Gives back the profile; raises LookupError for
     a line that was not removed, ValueError when the text would grow too long."""

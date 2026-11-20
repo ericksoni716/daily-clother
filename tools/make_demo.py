@@ -2,9 +2,12 @@
 
     python tools/make_demo.py --models-dir <folder holding isnet-general-use.onnx>
 
-Writes backend/closet/demo_data/: items.json, images/ and the two small files
-the program's self-check uses. Seven items are open-licence photos run through
-the real pipeline; the rest have no photo: the first ones (DRAWN) are drawn from
+Writes backend/closet/demo_data/: items.json, images/ and the small file the
+program's self-check uses. Seven items are open-licence photos (bench/hardcases/)
+run through the app's own pipeline: cut out with closet.cutout (the model file
+is not downloaded here: --models-dir names a folder holding it), their pattern
+measured from the cutout as the app measures one (closet.patterns), and drawn
+from their stored answer as the app draws a described item. The rest have no photo: the first ones (DRAWN) are drawn from
 templates, the newer ones (TAGGED) from their tags alone, the way the app draws
 an item, with their plaid or floral drawn from a pattern tile made here (no
 photo, no network). Their kept pattern goes with them, as a measured one would.
@@ -49,19 +52,17 @@ import uuid
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "bench"))
 sys.path.insert(0, str(ROOT / "backend"))
 
 from PIL import Image, ImageDraw  # noqa: E402
 
-from closet import palette  # noqa: E402
+from closet import cutout, images, palette, patjobs, tagjobs  # noqa: E402
 from closet.drawing import DRAWING_VERSION, drawn, fills, stored  # noqa: E402
 from closet.drawing.illustrate import Fill, Spec, render  # noqa: E402
 from closet.drawing.item import drawing_from_answer  # noqa: E402
+from closet.modelstore import MODEL  # noqa: E402
 from closet.tagger.schema import NAMED_HEX, SCHEMA_VERSION, Details, ItemTags, Silhouette  # noqa: E402
 from closet.tagger.taxonomy import FOOTWEAR, nearest_shade  # noqa: E402
-from closet_bench import cutout as C  # noqa: E402
-from closet_bench.hardcases import build_spec  # noqa: E402
 
 OUT = ROOT / "backend" / "closet" / "demo_data"
 STYLE = "line"   # the owner chose style B: bold outline, thin inner lines
@@ -157,6 +158,15 @@ DRAWN_SHOES = {
 }
 DRAWN_AT = "2026-11-15T12:00:00+00:00"   # kept fixed, so running this twice changes no file
 
+def plain(*colours: tuple[str, int]) -> dict:
+    """A plain cloth's surface as Claude describes it (`tagger.surfaceform`): its colours as they look, with shares."""
+    return dict(kind="plain", bands=[], direction=None, size=None, blocks=[], panels=[],
+                colors=[dict(color=c, share=s) for c, s in colours])
+
+
+PHOTOS_DIR = ROOT / "bench" / "hardcases"
+PHOTO_EDGE = 1100   # the demo's photos are kept smaller than the app keeps one (images.MAX_EDGE), to keep the program small
+
 # id in bench/hardcases/cases.json -> name, category, colour word, pattern, silhouette, formality, season, extras
 PHOTOS = {
     "plaid-flannel": ("Plaid flannel shirt", "shirt", "green", "plaid", dict(sleeve="long", neck="collar"), "casual", "cool",
@@ -164,12 +174,14 @@ PHOTOS = {
     "plaid-madras": ("Madras plaid shirt", "shirt", "multi", "plaid", dict(sleeve="long", neck="collar"), "casual", "warm",
                      dict(tags=dict(fabric="madras", pattern_name="madras_plaid", weight="lightweight"))),
     "marl-sweater": ("Marl turtleneck", "sweater", "grey", "solid", dict(sleeve="long", neck="turtle"), "casual", "cool",
-                     dict(tags=dict(color_texture="marled"))),
+                     dict(tags=dict(color_texture="marled"), surface=plain(("#8a8270", 70), ("#b0a894", 30)))),
     "graphic-tee": ("Paper plane tee", "tee", "white", "graphic", dict(sleeve="short", neck="crew"), "casual", "warm",
                     dict(rating="like", seen=["paper plane print on the chest"])),
-    "jeans": ("Light wash jeans", "jeans", "blue", "solid", dict(leg="straight", pant_length="full"), "casual", "all", {}),
+    "jeans": ("Light wash jeans", "jeans", "blue", "solid", dict(leg="straight", pant_length="full"), "casual", "all",
+              dict(tags=dict(denim_wash="light"), surface=plain(("#7094cf", 100)))),
     "sneakers-pair": ("White canvas sneakers", "sneakers", "white", "solid", dict(shoe_height="low"), "casual", "all", dict(rating="love")),
-    "sneaker-held": ("White leather sneakers", "sneakers", "white", "solid", dict(shoe_height="low"), "casual", "all", {}),
+    "sneaker-held": ("White leather sneakers", "sneakers", "white", "solid", dict(shoe_height="low"), "casual", "all",
+                     dict(footwear="leather_court_sneaker", tags=dict(sole="cupsole"))),
 }
 
 
@@ -566,7 +578,7 @@ def demo_answer(name: str, category: str, color: str, pattern: str, sil: dict, f
                     formality_confidence=sure("formality"), season=season, season_confidence=sure("season"),
                     silhouette=Silhouette.of(**sil), silhouette_confidence=sure("silhouette"),
                     details=Details.plain(**d), details_confidence=1.0, brand=extra.get("brand"), size=extra.get("size"),
-                    material=None, needs_shot=None)
+                    material=None, needs_shot=None, surface=extra.get("surface"))
     return tags.model_dump(mode="json")
 
 
@@ -612,6 +624,45 @@ def answers(cases: dict) -> dict[str, dict]:
         out[name] = demo_answer(name, category, color, extra.get("pattern", "solid"), sil, formality, season, template, params, extra,
                                 paint if isinstance(paint, str) else None)   # a patterned one has no one shade
     return out
+
+
+def load_photo(path: Path, edge: int) -> Image.Image:
+    """A photo read as the app reads an upload (`images.decode`: turned upright, RGB), made no larger than `edge`."""
+    img = images.decode(path.read_bytes())
+    img.thumbnail((edge, edge), Image.LANCZOS)
+    return img
+
+
+def photo_item(cid: str, cut: Image.Image, answer: dict) -> dict:
+    """A photographed item as the app makes it once Claude has described it: its colour from the answer
+    (`tagjobs.color_hex`); its pattern, when the app measures one, measured from the cutout (`patterns.measure`,
+    without Claude's landmarks, as when none can be asked for) and kept with its colours, whose main one becomes the
+    item's colour to draw it in (`palette.settle`; its colour word stays the one given here, as when the owner has
+    set it: the app would name a madras "grey"); and its drawing made from the answer and the kept pattern, as
+    `illustrations.make` draws it."""
+    from closet.patterns.measure import measure  # OpenCV: loaded only here, as in the app
+    name, category, color, pattern, sil, formality, season, extra = PHOTOS[cid]
+    item_id = iid(name)
+    hex_ = tagjobs.color_hex(ItemTags.model_validate(answer))
+    row = {"category": category, "pattern": pattern, "tag_answer": json.dumps(answer), "own_cloth": None}
+    how = patjobs.method(row)
+    kept = None
+    if how is not None:
+        words = list(dict.fromkeys([answer["color"], *answer.get("secondary_colors", []), color]))
+        kept = palette.keep(measure(cut, how, words, None), pattern)
+        assert kept is not None, f"the pattern of {name} could not be measured"
+        main = palette.main_colour(palette.named(kept["colors"], palette.said({"source": None, "tag_answer": row["tag_answer"],
+                                                                                  "color": color})), answer["color"])
+        if main is not None:
+            hex_ = main["hex"]
+    drawing = drawing_from_answer(answer, hex_, uid=item_id[:8], fill=stored.fill_from(kept, hex_) if kept else None,
+                                  graphic=stored.graphic_from(kept) if kept else None)
+    assert drawing.svg, f"{name} could not be drawn"
+    return dict(id=item_id, name=name, category=category, color=color, color_hex=hex_, pattern=pattern,
+                silhouette=sil, formality=formality, season=season, location=extra.get("location", "closet"),
+                rating=extra.get("rating"), rating_reason=extra.get("rating_reason"),
+                illustration_svg=drawing.svg, illustration_notes=list(drawing.not_drawn) or None, pattern_fill=kept,
+                photo=dict(id=uuid.uuid5(NS, name + "/photo").hex, original=f"{cid}.webp", cutout=f"{cid}.cut.webp"))
 
 
 def add_history(items: list[dict]) -> None:
@@ -740,14 +791,15 @@ def add_drawings(items: list[dict]) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--models-dir", type=Path, default=ROOT / "bench" / "models")
+    ap.add_argument("--models-dir", type=Path, default=ROOT / "bench" / "models",
+                    help=f"the folder holding {MODEL}.onnx (closet/cutout.py has its address and checksum)")
     ap.add_argument("--answers-only", action="store_true", help="only rewrite the stored tagging answers in items.json")
     ap.add_argument("--prices-only", action="store_true", help="only rewrite the prices in items.json")
     ap.add_argument("--history-only", action="store_true", help="only rewrite the wear history and worn outfits in items.json")
     ap.add_argument("--traces-only", action="store_true", help="only rewrite the traced shoes in items.json")
     ap.add_argument("--drawings-only", action="store_true", help="only rewrite the drawn shoe in items.json")
     a = ap.parse_args()
-    cases = {c["id"]: c for c in json.loads((ROOT / "bench" / "hardcases" / "cases.json").read_text())["cases"]}
+    cases = {c["id"]: c for c in json.loads((PHOTOS_DIR / "cases.json").read_text())["cases"]}
     if a.prices_only:
         data = json.loads((OUT / "items.json").read_text(encoding="utf-8"))
         for it in data["items"]:
@@ -788,23 +840,20 @@ def main() -> None:
             add_verdicts()
         print(f"{'answers' if a.answers_only else 'history'} written for {len(data['items'])} items (schema version {SCHEMA_VERSION})")
         return
+    model = a.models_dir / f"{MODEL}.onnx"
+    if not model.exists() or cutout.sha256_of(model) != cutout.MODELS[MODEL].sha256:
+        sys.exit(f"{model} is missing or fails its checksum; download it from {cutout.MODELS[MODEL].url}")
     if (OUT / "images").exists():
         shutil.rmtree(OUT / "images")
     (OUT / "images").mkdir(parents=True)
+    by_name = answers(cases)
     items = []
-    for cid, (name, category, color, pattern, sil, formality, season, extra) in PHOTOS.items():
-        case = cases[cid]
-        photo = C.load_photo(ROOT / "bench" / "hardcases" / "photos" / case["photo"], 1100)
-        cut, _ = C.make_cutout(photo, C.predict_mask(photo, "isnet-general-use", a.models_dir))
-        spec, info = build_spec(case, cut)
-        item_id = iid(name)
+    for cid, entry in PHOTOS.items():
+        photo = load_photo(PHOTOS_DIR / "photos" / cases[cid]["photo"], PHOTO_EDGE)
+        cut, _ = cutout.make_cutout(photo, cutout.predict_mask(photo, MODEL, model))
         photo.save(OUT / "images" / f"{cid}.webp", "WEBP", quality=82, method=6)
         cut.save(OUT / "images" / f"{cid}.cut.webp", "WEBP", quality=80, method=6)
-        items.append(dict(id=item_id, name=name, category=category, color=color, color_hex=info["base"], pattern=pattern,
-                          silhouette=sil, formality=formality, season=season, location=extra.get("location", "closet"),
-                          rating=extra.get("rating"), rating_reason=extra.get("rating_reason"),
-                          illustration_svg=render(spec, STYLE, uid=item_id[:8]),
-                          photo=dict(id=uuid.uuid5(NS, name + "/photo").hex, original=f"{cid}.webp", cutout=f"{cid}.cut.webp")))
+        items.append(photo_item(cid, cut, by_name[entry[0]]))
     for name, category, color, paint, template, params, sil, formality, season, extra in DRAWN:
         fill = paint if isinstance(paint, Fill) else Fill("solid", paint)
         item_id = iid(name)
@@ -818,7 +867,6 @@ def main() -> None:
     items += [tagged_item(entry) for entry in TAGGED]
     add_history(items)
     add_prices(items)
-    by_name = answers(cases)
     for it in items:
         it["answer"] = by_name[it["name"]]
     add_traces(items)
@@ -831,9 +879,9 @@ def main() -> None:
                                                ensure_ascii=False, indent=1), encoding="utf-8")
     add_verdicts()
     # files for `closet selfcheck`
-    C.load_photo(ROOT / "bench" / "hardcases" / "photos" / "jeans.jpg", 640).save(OUT / "selfcheck.webp", "WEBP", quality=80)
+    load_photo(PHOTOS_DIR / "photos" / "jeans.jpg", 640).save(OUT / "selfcheck.webp", "WEBP", quality=80)
     # tiny.heic, the other file `closet selfcheck` reads, stays in demo_data as it is (it came from the packaging spike)
-    credits = (ROOT / "bench" / "hardcases" / "ATTRIBUTION.md").read_text()
+    credits = (PHOTOS_DIR / "ATTRIBUTION.md").read_text()
     (OUT / "CREDITS.md").write_text("Demo closet photos.\n\n" + credits.split("\n", 2)[2])
     total = sum(f.stat().st_size for f in OUT.rglob("*") if f.is_file())
     print(f"{len(items)} items, {total // 1024} KB in {OUT}")

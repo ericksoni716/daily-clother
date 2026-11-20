@@ -267,6 +267,18 @@ def test_the_demo_closets_drawings_are_the_ones_made_in_advance(client, cfg):
     assert red["illustration_svg"] != polo["illustration_svg"] and "#b33a3a" in red["illustration_svg"]
 
 
+def test_the_demo_closets_photographed_and_described_items_are_drawn_as_the_app_draws_them(client, cfg):
+    # tools/make_demo.py draws them from their stored answer and kept pattern, the way the app draws a described item,
+    # so drawing them again in the demo closet makes the same drawing
+    data = json.loads((bundle_dir() / "demo_data" / "items.json").read_text(encoding="utf-8"))
+    assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
+    client.get("/api/items")
+    chosen = [it for it in data["items"] if it.get("photo") or it.get("wave")]
+    assert sum(1 for it in chosen if it.get("photo")) == 7
+    for it in chosen:
+        assert illustrations.make(stored(cfg, it["id"], "demo")).svg == it["illustration_svg"], it["name"]
+
+
 def test_the_migration_keeps_the_drawings_made_before_it(cfg, monkeypatch):
     path = cfg.db_path("main")
     path.parent.mkdir(parents=True, exist_ok=True)

@@ -1,13 +1,21 @@
 import { resolve } from 'node:path';
 import jsQR from 'jsqr';
-import type { Page } from '@playwright/test';
+import type { APIRequestContext, Page } from '@playwright/test';
 import { axeViolations } from './a11y';
-import { expect, login, test } from './fixtures';
+import { expect, login, PASS, test } from './fixtures';
 
 /** Phone access: a QR code of the address that reaches Closet, only when there is one. Tailscale is faked. */
 
 const SHOTS = resolve(import.meta.dirname, '../../docs/screenshots');
 const ADDRESS = 'https://closet-pc.example-tailnet.ts.net:8443';
+
+// The phone reaches Closet by a name of its own (Tailscale's), not 127.0.0.1. Here a made-up name leads the browser
+// to the same backend, so the page sees what it sees on the phone: an address that is not this computer's.
+const PHONE_HOST = 'closet-phone.test';
+const executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined;
+test.use({
+  launchOptions: { ...(executablePath ? { executablePath } : {}), args: [`--host-resolver-rules=MAP ${PHONE_HOST} 127.0.0.1`] },
+});
 
 async function fakePhone(page: Page, address: string | null) {
   await page.route('**/api/settings', async (route) => {
@@ -77,6 +85,61 @@ test('phone access: no code when no share reaches Closet, only the plain explana
   await expect(section.getByText('tailscale serve --bg --https=8443 8765')).toBeVisible();
   await expect(section.locator('.phone-qr')).toHaveCount(0);
   await expect(section.getByRole('img')).toHaveCount(0);
+});
+
+test.describe('opened on the phone', () => {
+  test.use({
+    viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true,
+    // eslint-disable-next-line no-empty-pattern -- Playwright fixtures take their dependencies as a pattern
+    baseURL: async ({}, use) => {
+      await use(process.env.E2E_BASE_URL!.replace('127.0.0.1', PHONE_HOST));
+    },
+  });
+
+  /** Logs in through the page by the phone's name. The test runner itself cannot resolve that name, so the settings
+   * the page is shown are fetched from 127.0.0.1 and given the share's address. */
+  async function openSettings(page: Page, request: APIRequestContext) {
+    const local = process.env.E2E_BASE_URL!;
+    const s = await (await request.get(`${local}/api/session`)).json();
+    if (s.setup_required) expect((await request.post(`${local}/api/setup`, { data: { passphrase: PASS } })).status()).toBe(204);
+    else expect((await request.post(`${local}/api/login`, { data: { passphrase: PASS } })).status()).toBe(204);
+    const original = await (await request.get(`${local}/api/settings`)).json();
+    await page.route('**/api/settings', (route) => route.request().method() === 'GET'
+      ? route.fulfill({ json: { ...original, phone: { tailscale_installed: true, running: true, address: ADDRESS,
+        command: 'tailscale serve --bg --https=8443 8765', stop_command: 'tailscale serve --https=8443 off', others_share: true } } })
+      : route.fallback());
+    await page.goto('/');
+    expect(new URL(page.url()).hostname).toBe(PHONE_HOST);
+    const field = page.getByLabel('Passphrase');
+    await expect(field.or(page.locator('#closet-title, #today-title'))).toBeVisible();
+    if (await field.isVisible()) {
+      await field.fill(PASS);
+      await page.getByRole('button', { name: 'Open my closet' }).click();
+    }
+    await expect(page.locator('#closet-title, #today-title')).toBeVisible();
+    await page.goto('/settings');
+    await expect(page.getByRole('region', { name: 'Updates', exact: true })).toBeVisible();
+  }
+
+  test('in Safari: no code, address or commands, only how to add Closet to the Home Screen', async ({ page, request }) => {
+    await openSettings(page, request);
+    const section = page.getByRole('region', { name: 'Phone access', exact: true });
+    await expect(section.getByText('tap Share in Safari and then Add to Home Screen')).toBeVisible();
+    await expect(section.locator('.phone-qr')).toHaveCount(0);
+    await expect(section.getByRole('img')).toHaveCount(0);
+    await expect(section.getByRole('link')).toHaveCount(0);
+    await expect(section.locator('code')).toHaveCount(0);
+    await expect(page.getByText(ADDRESS)).toHaveCount(0);
+    await expect(page.getByText('tailscale serve')).toHaveCount(0);
+  });
+
+  test('from the Home Screen: no Phone access group at all', async ({ page, request }) => {
+    await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
+    await openSettings(page, request);
+    await expect(page.getByRole('heading', { name: 'Phone access' })).toHaveCount(0);
+    await expect(page.locator('.phone-qr')).toHaveCount(0);
+    await expect(page.getByText('Add to Home Screen')).toHaveCount(0);
+  });
 });
 
 test.describe('pictures', () => {

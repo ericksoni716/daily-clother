@@ -1,11 +1,13 @@
 /* Fixing an item's details and its history (components/FixDetails.tsx). */
 
-.fix { margin: 0 0 16px; }
 .fix-open { flex: none; }
-.fix-panel {
-  display: grid; gap: 14px; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius-sm);
-  background: var(--surface);
-}
+/* On a computer the sheet is a popover centred under the picture, as wide as the picture's column allows. */
+.picture-controls:has(> .fix-anchor) { position: relative; }
+.fix-sheet.sheet-popover { left: 50%; transform: translateX(-50%); width: min(26rem, 100%); }
+.fix [hidden] { display: none; }
+.fix-panel { display: grid; gap: 14px; }
+.fix-panel:focus { outline: none; }
+.fix .fix-switch { min-height: var(--tap); justify-self: start; padding: 0; }
 .fix-head { display: flex; gap: 12px; align-items: center; }
 .fix-head p { margin: 0; font-size: var(--text-sm); }
 .fix-drawing { width: 96px; height: 96px; object-fit: contain; flex: none; background: var(--surface-2); border-radius: var(--radius-sm); }
@@ -33,13 +35,19 @@
 .fix-tile:disabled { opacity: 0.6; cursor: progress; }
 .fix-same { margin: 0; font-size: var(--text-sm); }
 .fix-give-back { justify-self: start; }
-.fix-say { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
-.fix-say form { display: grid; gap: 6px; }
-.fix-say-row { display: flex; gap: 8px; }
-.fix-say-row input {
-  flex: 1; min-width: 0; min-height: var(--tap); padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-sm);
-  background: var(--bg); color: var(--ink); font: inherit;
+.fix-say { display: grid; gap: 8px; }
+.fix-say:focus { outline: none; }
+.fix-say form { display: grid; gap: 10px; }
+.fix-say-head { display: flex; gap: 12px; align-items: center; }
+.fix-say-head .fix-drawing { width: 72px; height: 72px; }
+.fix-say-label { font-size: var(--text-md); font-weight: var(--weight-label); }
+.fix-say textarea {
+  width: 100%; min-height: 88px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--inset); color: var(--ink); font: inherit; resize: vertical;
 }
+.fix-say textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.fix-say textarea:disabled { color: var(--ink-3); border-style: dashed; }
+.fix-ask { justify-self: start; }
 .fix-note { margin: 0; font-size: var(--text-sm); }
 .fix-confirm { padding: 10px 12px; border-radius: var(--radius-sm); background: var(--surface-2); }
 .fix-confirm p { margin: 0 0 6px; }
@@ -51,6 +59,6 @@
 .fix-history-line { margin: 0 0 2px; }
 
 @media (max-width: 520px) {
-  .fix-say-row { flex-direction: column; }
+  .fix-ask { justify-self: stretch; }
   .fix-tiles { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
 }

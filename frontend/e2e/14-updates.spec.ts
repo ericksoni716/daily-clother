@@ -1,4 +1,5 @@
 import { type Page } from '@playwright/test';
+import { axeViolations } from './a11y';
 import { expect, login, test } from './fixtures';
 
 // GitHub is never asked from a test: the shared server runs from source (it never checks by itself), and the
@@ -34,7 +35,8 @@ test('settings: the Updates section shows this version and keeps the choice', as
 
 const RELEASE = {
   version: '0.3.0',
-  notes: 'Trips pack better.\n<b>Not bold</b>',
+  // what the server sends: the release's "## What's new" section, as Markdown (backend/closet/updates.py)
+  notes: '### Changed\n\n- Trips pack **better**, and the list\n  wraps onto a second line.\n- <b>Not bold</b>\n\n### Fixed\n\n1. A sock no longer goes missing.',
   page: 'https://github.com/ericksoni716/daily-clother/releases/tag/v0.3.0',
   published_at: '2026-11-12T10:00:00Z',
 };
@@ -85,9 +87,22 @@ test('updates (stand-in): the banner offers the new version, Install restarts Cl
 
   const section = await openUpdates(page);
   await expect(section.getByTestId('update-available')).toHaveText('Closet 0.3.0 is ready to install.');
-  // the notes are text, never HTML
-  await expect(section.getByLabel("What's new in 0.3.0")).toHaveText(/Trips pack better\.\s*<b>Not bold<\/b>/);
-  await expect(section.locator('.update-notes b')).toHaveCount(0);
+  // the notes start folded; opened, their headings, lists and bold are drawn, and HTML in them stays text
+  const notes = section.getByTestId('update-notes');
+  const whatsNew = notes.getByText("What's new in 0.3.0", { exact: true });
+  await expect(whatsNew).toBeVisible();
+  await expect(notes.getByRole('heading', { name: 'Changed' })).toBeHidden();
+  await whatsNew.click();
+  await expect(notes.getByRole('heading', { name: 'Changed', level: 3 })).toBeVisible();
+  await expect(notes.getByRole('heading', { name: 'Fixed', level: 3 })).toBeVisible();
+  await expect(notes.getByRole('listitem').first()).toHaveText('Trips pack better, and the list wraps onto a second line.');
+  await expect(notes.locator('strong')).toHaveText('better');
+  await expect(notes.locator('ol > li')).toHaveText('A sock no longer goes missing.');
+  await expect(notes.getByText('<b>Not bold</b>', { exact: true })).toBeVisible();
+  await expect(notes.locator('b')).toHaveCount(0);
+  await expect(section).not.toContainText('##');
+  await expect(section).not.toContainText('**');
+  expect(await axeViolations(page, '[data-testid="update-notes"]')).toEqual([]);
   await expect(section.getByRole('link', { name: 'The release page' })).toHaveAttribute('href', RELEASE.page);
   await section.getByRole('button', { name: 'Check now' }).click();
   await expect.poll(() => checks).toBe(1);
@@ -105,8 +120,11 @@ test('updates (stand-in): the banner offers the new version, Install restarts Cl
 
 test('updates (stand-in): a problem before restarting is shown and Closet keeps running', async ({ page }) => {
   let phase: 'ready' | 'failed' = 'ready';
+  // a release from before the notes had a What's new section: the server sends no notes
+  const available = { ...RELEASE, notes: '' };
   await page.route('**/api/updates', (route) => route.fulfill({
-    json: phase === 'ready' ? standIn() : standIn({ ready: false, problem: "Closet couldn't back up your closets, so it didn't install the update." }),
+    json: phase === 'ready' ? standIn({ available })
+      : standIn({ available, ready: false, problem: "Closet couldn't back up your closets, so it didn't install the update." }),
   }));
   await page.route('**/api/updates/install', (route) => {
     phase = 'failed';
@@ -115,6 +133,8 @@ test('updates (stand-in): a problem before restarting is shown and Closet keeps 
   await page.route('**/api/health', (route) => route.fulfill({ json: { ok: true, version: '0.2.1' } }));
   await login(page);
   const section = await openUpdates(page);
+  await expect(section.getByTestId('update-available')).toBeVisible();
+  await expect(section.getByTestId('update-notes')).toHaveCount(0);   // no notes, nothing to open
   await section.getByRole('button', { name: 'Install now' }).click();
   await expect(section.getByTestId('update-problem')).toHaveText(/couldn't back up/);
   await expect(page.getByRole('alertdialog')).toHaveCount(0);

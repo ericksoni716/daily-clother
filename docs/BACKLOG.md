@@ -14,15 +14,26 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Quick wins** (step 2 of the order of work, done 20 November). Left:
+  - After the next release, the first pull request that touches `CHANGELOG.md` moves the
+    released lines from *Unreleased* under a `## <version>` heading (`docs/DEVELOPING.md`,
+    "Releasing").
+  - Fix the details: the details one by one are a view inside the sheet, not a route of
+    their own (`/item/<id>/details`), and "Changed as you said" has no Undo, because a toast
+    cannot carry a button yet. Undo is still in History.
+  - Several browser tests still write pictures into `docs/screenshots/` (`10-today`,
+    `11-corrections`, `14-theme`, `15-closet-design`, `18-phone-qr`, `20-shoe` and others),
+    so running them changes tracked files. Step 3 moves them to the tests' own output.
+  - The notice about background removal on the closet still links to Settings, where the
+    model is now only under Advanced. Drop the link or open Advanced with it.
+  - On the phone, Settings still offers Quit, Start with the computer and the backup
+    folder (step 6).
+  - `formatBytes` in `frontend/src/labels.ts` has no caller left.
 - **Context for agents** (step 1 of the order of work in `assessment/README.md`, done 19 November):
   `CLAUDE.md`, `docs/DEVELOPING.md`, `docs/DESIGN.md`, `docs/USING.md`, `CHANGELOG.md` and
   `frontend/scripts/phone-check.mjs` exist. Left:
-  - The release workflow does not read `CHANGELOG.md` yet. Turning *Unreleased* into the
-    release's What's new, and showing it in Updates, belongs to step 2 ("render release
-    notes properly").
-  - `docs/DESIGN.md` states where the app is headed; some screens do not meet it yet (a press
-    still shrinks the button, Settings is one long page). `DECISIONS.md`, "The design
-    system", still describes the 97% press; change it there when step 2 changes the CSS.
+  - `docs/DESIGN.md` states where the app is headed; some screens do not meet it yet
+    (Settings is one long page).
   - Not ported from Homestead: a sweep that counts each screen's words against the budget in
     `DESIGN.md`, a `/design-review` skill, and a README for `components/ui/`. Worth doing
     with step 6 or 8, when screens are reshaped.

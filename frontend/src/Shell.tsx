@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { CloudOffIcon, GearIcon, HangerIcon, PlusIcon, SuitcaseIcon, SunIcon } from './components/Icons';
 import { useLanding } from './landing';
-import { Button, buttonClass } from './components/ui';
+import { Button, buttonClass, ErrorBoundary } from './components/ui';
 import { navSection, tabFor } from './nav';
 import { Link, parseRoute, usePath, useMediaQuery, WIDE } from './router';
 import { useCloset } from './store';
@@ -48,7 +48,7 @@ export function Shell({ version }: { version: string }) {
       <Sidebar section={section} offline={offline} toReview={toReview} />
       <div className="shell-main">
         <TopBanners />
-        <main id="main" className="shell-content" tabIndex={-1}>{content}</main>
+        <main id="main" className="shell-content" tabIndex={-1}><ErrorBoundary resetKey={path}>{content}</ErrorBoundary></main>
       </div>
       <TabBar section={section} offline={offline} toReview={toReview} />
     </div>

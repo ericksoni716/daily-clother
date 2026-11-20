@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { ChipGroup } from '../components/ui/Chips';
-import { confirmKeys, Notice, PHONE, Section, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
-import { FixDetails, FixDetailsButton, ItemHistory } from '../components/FixDetails';
+import { BackLink, confirmKeys, Notice, PHONE, Section, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
+import { FixDetails, ItemHistory } from '../components/FixDetails';
 import { KindPicker } from '../components/KindPicker';
 import { RetakeButton } from '../components/RetakeButton';
 import { ShoeDrawn } from '../components/ShoeDrawn';
@@ -224,11 +224,12 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       {locked && <Notice as="p">You're offline, so this item can't be changed right now.</Notice>}
 
       <Picture item={item} busyText={busyLabel(model)}
-        fix={<FixDetailsButton open={fixing} disabled={locked} onToggle={() => {
-          setFixing((f) => !f);
-          setFocus(null);
-        }} />} />
-      <FixDetails item={item} open={fixing} focus={focus} disabled={locked} onSaved={fixed} onError={failed} />
+        fix={<FixDetails item={item} open={fixing} focus={focus} demo={profile === 'demo'} disabled={locked}
+          onOpen={() => {
+            setFocus(null);
+            setFixing(true);
+          }}
+          onClose={() => setFixing(false)} onSaved={fixed} onError={failed} />} />
       <TraceNotice item={item} disabled={locked} onSaved={fixed} onError={failed} />
       <ShoePhotos item={item} disabled={locked} onSaved={fixed} onError={failed} />
       <ShoeDrawn item={item} disabled={locked} demo={profile === 'demo'} onSaved={fixed} onError={failed} />
@@ -596,7 +597,7 @@ function DetailTop({ inPanel, backTo }: { inPanel?: boolean; backTo: string }) {
   if (inPanel) return null;
   return (
     <div className="detail-top">
-      <Link to={backTo} className="btn btn-ghost back-link"><BackIcon /> Closet</Link>
+      <BackLink to={backTo} className="btn btn-ghost back-link"><BackIcon /> Closet</BackLink>
     </div>
   );
 }

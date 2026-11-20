@@ -501,3 +501,60 @@ def test_the_model_download_passes_the_trusted_context(tmp_path, monkeypatch):
     assert isinstance(seen["context"], ssl.SSLContext)
     info = store.info()
     assert info["state"] == "failed" and "certificate" in info["error"]
+
+
+def _until(check, seconds=10.0):
+    deadline = time.monotonic() + seconds
+    while not check():
+        assert time.monotonic() < deadline, "timed out"
+        time.sleep(0.01)
+
+
+def test_a_failed_download_is_tried_again_by_itself_until_it_works(tmp_path, server, monkeypatch):
+    """No button to press: a minute later, ten minutes later, then every hour, stopping once the model is here."""
+    m = store(tmp_path, server)
+    real, tries, waits = m._download_file, [], []
+
+    def flaky():
+        tries.append(1)
+        if len(tries) <= 3:
+            raise OSError("no connection")
+        real()
+
+    monkeypatch.setattr(m, "_download_file", flaky)
+    assert m.keep_trying(wait=lambda seconds: waits.append(seconds) or False) is True
+    _until(lambda: not m.retrying)
+    assert m.ready and len(tries) == 4
+    assert waits == [60.0, 600.0, 3600.0]
+
+
+def test_trying_again_stops_when_the_program_closes(tmp_path):
+    m = store(tmp_path, "http://127.0.0.1:9/none")   # nothing listens there: each try fails at once
+    assert m.keep_trying(delays=(3600.0,)) is True
+    _until(lambda: m.info()["state"] == "failed")
+    assert m.retrying and m.keep_trying() is False   # one at a time
+    started = time.monotonic()
+    m.stop()
+    assert not m.retrying and time.monotonic() - started < 5
+
+
+def test_the_program_keeps_trying_the_download_unless_told_not_to(tmp_path, claude):
+    """CLOSET_NO_AUTO_DOWNLOAD (the tests', the browser tests') leaves the models alone; otherwise both are
+    downloaded at start and tried again while they fail, without holding the start up."""
+    from closet import app as app_module
+    from closet.config import Config
+
+    for auto in (False, True):
+        cfg = Config(data_dir=tmp_path / f"Closet-{auto}", auto_download_model=auto)
+        sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, tagger=claude,
+                                       routes=lambda: claude.routes(), corrector=claude.correct)
+        sv.state.update(model_url="http://127.0.0.1:9/none", second_model_url="http://127.0.0.1:9/none")
+        try:
+            started = time.monotonic()
+            sv.start()
+            assert time.monotonic() - started < 5
+            stores = [s for s in (sv.model, sv.second_model) if s is not None]
+            assert stores and all(s.retrying is auto for s in stores)
+        finally:
+            sv.stop()
+        assert not any(s.retrying for s in stores)

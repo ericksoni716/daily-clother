@@ -55,6 +55,31 @@ export function stillFor<T>(answer: T | null, askedAt: string | null, stamp: str
   return answer && askedAt === stamp ? answer : null;
 }
 
+/** "Fix the details" shows one of two views: the box to say what's wrong, or the details one by one. */
+export type FixView = 'say' | 'list';
+
+export const FIX_DEMO = 'The demo closet is never sent to Claude, so you change its details one by one here.';
+export const FIX_AWAY = "Claude can't be reached right now, so you change the details one by one here.";
+
+/**
+ * What "Fix the details" opens on. It opens on the box to say what's wrong, unless the demo closet is open (never sent
+ * to Claude), Claude could not be reached the last time a sentence was sent, or a detail was asked for by name (a
+ * word of the fit line); then it opens on the details one by one, with a line saying why when there is one. The box is
+ * focused only on a computer: on a phone, focusing it opens the keyboard over everything.
+ */
+export function fixOpening({ demo, away, focus, phone }: { demo: boolean; away: boolean; focus: boolean; phone: boolean }): {
+  view: FixView; why: string | null; canSay: boolean; autofocus: boolean;
+} {
+  const why = demo ? FIX_DEMO : away ? FIX_AWAY : null;
+  const view: FixView = why || focus ? 'list' : 'say';
+  return { view, why, canSay: !demo, autofocus: view === 'say' && !phone };
+}
+
+/** Whether an answer to a sentence says Claude could not be reached (not the monthly limit, which says so itself). */
+export function claudeAway(answer: Pick<CorrectionAnswer, 'state' | 'limit'>): boolean {
+  return answer.state === 'waiting' && !answer.limit;
+}
+
 /** The changes to confirm, each with the value it replaces, so the server can refuse if the item changed since. */
 export function confirmedChanges(changes: CorrectionChange[]): { name: string; value: unknown; before: unknown }[] {
   return changes.map((c) => ({ name: c.name, value: c.value, before: c.before }));

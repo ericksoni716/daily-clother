@@ -8,7 +8,7 @@ export type UpdateBusy = 'checking' | 'downloading' | 'backing-up' | 'replacing'
 
 export interface UpdateRelease {
   version: string;
-  /** The first lines of the release's notes, as plain text: shown as text, never as HTML. */
+  /** The release's "What's new" section as Markdown ("" when it has none), read by components/ui/Markdown: never HTML. */
   notes: string;
   page: string;
   published_at: string | null;

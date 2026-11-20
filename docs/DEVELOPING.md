@@ -65,8 +65,9 @@ Claude's description of the cloth into a fill (`surface.py`, `described.py`).
 Outside the server: `backend/tests/` (one `test_<module>.py` per module; `conftest.py` has the
 stand-ins, `e2e_backend.py` starts the app for the browser tests), `bench/` (recognition and
 drawing experiments; `closet_bench` modules named like the tagger's and the drawing's are the
-same code, re-exported), `tools/` (developer scripts that draw sheets to look at; never
-shipped), `packaging/` (the PyInstaller build and its smoke test).
+same code, re-exported), `tools/` (developer scripts that draw sheets to look at, and
+`whats_new.py`, which the release runs for its notes; never shipped), `packaging/` (the
+PyInstaller build and its smoke test).
 
 ### Frontend (`frontend/`)
 
@@ -78,7 +79,7 @@ shipped), `packaging/` (the PyInstaller build and its smoke test).
 | `src/store.tsx` | `useCloset`: the items, the vocabulary, the model's state, offline, the open closet (real or demo), the toast. It polls while items are being worked on. |
 | `src/api.ts` | The one client, `api.*`, with a readable `ApiError`, and what a closing page may still send. `src/types.ts` has the response types, kept by hand. |
 | `src/screens/` | One file per screen, with its CSS beside it: `Today`, `Worn`, `Closet`, `ItemDetail`, `Add`, `Several`, `Review`, `Missing`, `WouldWork`, `Shop`, `Insights`, `Trips`, `Settings`, and `Setup`, `Login`, `Static` before the shell. |
-| `src/components/ui/` | The shared pieces every screen is built from, exported from `index.ts`: `Button`, `Card` and `Section`, `Chips`, `EmptyState`, `ItemThumb`, `Notice`, `PageHeader`, `SegmentedControl`, `Sheet` (and `PHONE`, the phone-or-wider query), with `focus.ts` for keeping Tab inside what is open. |
+| `src/components/ui/` | The shared pieces every screen is built from, exported from `index.ts`: `Button`, `Card` and `Section`, `Chips`, `EmptyState`, `ItemThumb`, `Markdown` (a small safe part of Markdown, read by `src/markdown.ts`, drawn as text), `Notice`, `PageHeader`, `SegmentedControl`, `Sheet` (and `PHONE`, the phone-or-wider query), with `focus.ts` for keeping Tab inside what is open. |
 | `src/components/` | Pieces used by more than one screen or too big to sit in one: `FixDetails`, `KindPicker`, `ItemPic`, `OutfitFigure`, the shoe pieces (`ShoePhotos`, `ShoeTrace`, `ShoeDrawn`), `LifeQuestions`, `WhereYouAre`, `PhoneAccess`, `Updates`, `ModelBanner`, `RestoreNotice`, `RetakeButton`, `AddedItem`, `Icons`. |
 | `src/<feature>.ts` | The logic and the words of a feature, with no React in it and its test beside it (`today.ts` and `today.test.ts`, `trips.ts`, `gaps.ts`, `insights.ts`, `worn.ts`, `wouldwork.ts`, `shop.ts`, `shoe.ts`, `spend.ts`, `updates.ts`, `corrections.ts`, `tagging.ts`, `drawing.ts`, `figure.ts`, `kinds.ts`, `review.ts`, `several.ts`, `addsort.ts`, `added.ts`). `labels.ts` has the plain words for the server's vocabulary. |
 | `src/uploadQueue.ts`, `src/uploads.ts`, `src/resize.ts` | Adding photos: resized in the browser, two at a time, each retried under one key. |
@@ -214,5 +215,15 @@ say so. There is no `0002`. The demo closet is a database too and is migrated th
 
 The owner starts a release (Actions, **release**); nobody makes a tag by hand, and agents do
 not start it. `CHANGELOG.md` under `## Unreleased` is where what changed is written as it
-merges. The release workflow does not read it yet; making it the release's What's new is
-part of step 2 of the assessment's order of work.
+merges.
+
+The release's notes start with a `## What's new` section taken from the changelog by
+`tools/whats_new.py`, at the commit being released: the `## <version>` section if the
+changelog has one with something in it, otherwise `## Unreleased`. When both are empty the
+section is left out, and nothing about the changelog can stop a release. Settings > Updates
+shows only that section (`_notes` in `backend/closet/updates.py`), behind "What's new in
+<version>"; a release without it shows no notes.
+
+`main` takes no direct pushes, so the release workflow does not rewrite the changelog. After
+a release, the next pull request that touches `CHANGELOG.md` moves the released lines from
+`## Unreleased` under a new `## <version>` heading, so Unreleased starts empty again.

@@ -40,7 +40,12 @@ describe('design tokens', () => {
   });
 
   it('uses only the type scale for font sizes', () => {
-    expect(values('font-size').filter((v) => !/^var\(--text-(xs|sm|md|lg|xl|2xl|3xl)\)$/.test(v.value))).toEqual([]);
+    // !important only for the 16px fields on a touch screen (below), which must win over a field's own size
+    expect(values('font-size').filter((v) => !/^var\(--text-(xs|sm|md|lg|xl|2xl|3xl)\)$/.test(v.value) && v.value !== 'var(--text-md) !important')).toEqual([]);
+  });
+
+  it('gives fields 16px on a touch screen, so Safari does not zoom in when you tap one', () => {
+    expect(styles).toMatch(/@media \(pointer: coarse\) \{[^@]*select, textarea \{ font-size: var\(--text-md\) !important; \}/);
   });
 
   it('uses only the radius tokens', () => {
@@ -90,6 +95,16 @@ describe('design tokens', () => {
     }));
     expect(off).toEqual([]);
     expect(tokens).toMatch(/--ease-out: cubic-bezier\(0\.22, 1, 0\.36, 1\);/);
+  });
+
+  it('shows a press by tone, never by size', () => {
+    // no pressed rule anywhere changes size; a press dims to --press-dim after --press-delay (homestead's touch CSS)
+    const pressed = rules.flatMap((f) => [...f.text.matchAll(/([^{}]*:active[^{}]*)\{([^}]*)\}/g)]
+      .filter((m) => /transform|scale|zoom|width|height/.test(m[2])).map((m) => `${f.name}: ${m[1].trim()}`));
+    expect(pressed).toEqual([]);
+    expect(styles).toMatch(/:active[^{]*\{\s*opacity: var\(--press-dim\); transition-duration: 0s; transition-delay: var\(--press-delay\);/);
+    expect(tokens).toMatch(/--press-dim: 0\.5;/);
+    expect(tokens).toMatch(/--press-delay: 70ms;/);
   });
 
   it('defines every token it uses', () => {

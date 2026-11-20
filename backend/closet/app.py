@@ -112,7 +112,7 @@ class Services:
 
     def start(self) -> None:
         if not self.model.ready and self.cfg.auto_download_model:
-            self.model.start_download()
+            self.model.keep_trying()   # a failed download heals by itself (modelstore.RETRY_DELAYS)
         self.worker.start()
         if self.tag_worker:
             self.tag_worker.start()
@@ -125,7 +125,7 @@ class Services:
         if self.draws:
             self.draws.start()
         if self.second_model is not None and not self.second_model.ready and self.cfg.auto_download_model:
-            self.second_model.start_download()
+            self.second_model.keep_trying()
         self.scheduler.start()
         if self.updater is not None:
             self.updater.start()

@@ -91,6 +91,9 @@
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --dur-quick: 150ms;
   --dur-move: 300ms;
+  /* a press: what you pressed dims to this while your finger is on it, starting this long in (Touch, below) */
+  --press-dim: 0.5;
+  --press-delay: 70ms;
 }
 
 /* Dark: the device's setting unless Settings → Look chose light; or Look chose dark. Same hues, other lightness. */
@@ -212,7 +215,6 @@ body {
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
-  overflow-x: hidden;
 }
 
 h1, h2, h3 { line-height: 1.2; margin: 0; }
@@ -257,11 +259,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
   min-height: var(--tap); padding: 0 18px; border-radius: var(--radius-pill);
   border: 1px solid var(--line); background: var(--surface); color: var(--ink);
   font-weight: var(--weight-label); text-decoration: none; cursor: pointer; white-space: nowrap;
-  transition: background-color var(--dur-quick) var(--ease-out), border-color var(--dur-quick) var(--ease-out), transform var(--dur-quick) var(--ease-out);
+  transition: background-color var(--dur-quick) var(--ease-out), border-color var(--dur-quick) var(--ease-out), opacity var(--dur-quick) var(--ease-out);
 }
 .btn:hover:not(:disabled) { border-color: var(--line-strong); }
-.btn:active:not(:disabled, .is-disabled) { transform: scale(0.97); }
-@media (prefers-reduced-motion: reduce) { .btn:active:not(:disabled, .is-disabled) { transform: none; } }
 /* Not usable: a flat inset fill, a dashed edge and faint text, so it never reads as a slow page. */
 .btn:disabled, .btn.is-disabled, .btn-primary:disabled, .btn-primary.is-disabled, .btn-danger:disabled {
   background: var(--inset); border: 1px dashed var(--line-strong); color: var(--ink-3); cursor: not-allowed; filter: none;
@@ -322,7 +322,8 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .address code { display: inline-block; padding: 6px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); user-select: all; }
 
 /* ---------------------------------------------------------------- shell */
-.shell { min-height: 100dvh; }
+/* the small viewport, so a short page keeps its height while Safari's toolbar shows and hides */
+.shell { min-height: 100svh; }
 .shell-main { padding-top: env(safe-area-inset-top); padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom)); min-width: 0; }
 .shell-content { padding: 16px max(var(--gutter), env(safe-area-inset-right)) 28px max(var(--gutter), env(safe-area-inset-left)); outline: none; }
 
@@ -390,10 +391,15 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .update-mode-choice > * { white-space: nowrap; }
 .update-release { display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; }
 .update-release > * { margin: 0; }
-.update-notes {
-  white-space: pre-line; padding: var(--space-3) var(--space-3); border-radius: var(--radius-sm); background: var(--inset);
-  font-size: var(--text-sm); width: 100%; overflow-wrap: anywhere;
-}
+.update-release > .update-notes { width: 100%; margin: 0; }
+.update-notes .markdown { padding: 0 0 var(--space-3); font-size: var(--text-sm); overflow-wrap: anywhere; }
+/* release notes and anything else drawn by components/ui/Markdown.tsx */
+.markdown > * { margin: 0 0 var(--space-2); }
+.markdown > :last-child { margin-bottom: 0; }
+.markdown-heading { font-size: var(--text-sm); font-weight: var(--weight-heading); }
+.markdown > .markdown-heading:not(:first-child) { margin-top: var(--space-4); }
+.markdown ul, .markdown ol { padding-left: var(--space-5); }
+.markdown li + li { margin-top: var(--space-1); }
 
 @media (min-width: 1000px) {
   .shell { display: grid; grid-template-columns: var(--sidebar-w) minmax(0, 1fr); }
@@ -553,7 +559,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* ---------------------------------------------------------------- model notice, progress & notices */
 .model-notice .notice-action { align-items: center; gap: var(--space-1); margin-left: auto; }
 .notice-close { padding: 0 10px; min-width: var(--tap); }
-.progress-wrap { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
 .progress { flex: 1; height: 8px; appearance: none; border: none; border-radius: var(--radius-pill); background: var(--surface-2); overflow: hidden; max-width: 24rem; }
 .progress::-webkit-progress-bar { background: var(--surface-2); border-radius: var(--radius-pill); }
 .progress::-webkit-progress-value { background: var(--accent-bg); border-radius: var(--radius-pill); }
@@ -758,7 +763,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .big-button:first-child { background: var(--accent-bg); color: var(--accent-ink); border-color: var(--accent-bg); }
 .big-button svg { width: 30px; height: 30px; flex: none; }
-.big-button:active { transform: scale(0.99); }
 .dropzone {
   display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4px;
   min-height: 250px; margin: 18px 0; padding: 28px; border-radius: var(--radius-lg); border: 2px dashed var(--line); background: var(--surface);
@@ -873,8 +877,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .state-line { display: flex; align-items: center; gap: 8px; }
 .state-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ink-3); flex: none; }
 .state-ready .state-dot { background: var(--ok); }
-.state-downloading .state-dot { background: var(--accent); }
-.state-failed .state-dot { background: var(--danger); }
 .state-missing .state-dot { background: var(--caution); }
 .path { display: block; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--surface-2); word-break: break-all; font-size: var(--text-sm); }
 .facts { margin: 0; }
@@ -925,3 +927,40 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .measured-colours { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 40px; }
 .measured-colours .swatch { width: 14px; height: 14px; }
 .detail-row-value .measured-colours { min-height: 0; }
+
+/* the message shown in place of a screen that failed to draw (components/ui/ErrorBoundary.tsx) */
+.crash-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
+.crash-whole { min-height: 100svh; display: grid; place-items: center; padding: var(--space-4) var(--gutter); }
+
+/* ---------------------------------------------------------------- touch
+   How the app feels under a finger, as in the owner's other app. A press is shown by a change of tone, never of
+   size. Safari only applies :active with a touch listener on the page (main.tsx). */
+
+/* Nothing pokes past the side of the screen, even for a frame: Safari zooms the page out to fit anything that does.
+   clip rather than hidden, so a sticky header still sticks. */
+html, body { overflow-x: clip; }
+
+@media (pointer: coarse) {
+  /* iPhone Safari zooms into a field with text under 16px when you tap it, and does not zoom back out. Touch
+     screens get 16px fields; mouse screens keep the compact size. */
+  input:not([type='checkbox']):not([type='radio']):not([type='range']), select, textarea { font-size: var(--text-md) !important; }
+
+  /* Dragging past the top or bottom of the page does not drag the whole app along. */
+  html, body { overscroll-behavior-y: contain; }
+
+  /* Press and hold does nothing, as in an app: no link preview or "Save image" menu, and a long press on a control
+     does not select its words. Fields and the words you read stay selectable. */
+  html { -webkit-touch-callout: none; }
+  :where(a, button, label, summary, [role='button'], [role='tab'], [role='link'], [role='menuitem'], nav) { -webkit-user-select: none; user-select: none; }
+  :where(input, textarea, [contenteditable='true']) { -webkit-touch-callout: default; -webkit-user-select: text; user-select: text; }
+
+  /* What you pressed dims while your finger is on it, so a tap on the wrong target shows before it lands. Dimming
+     starts a moment in, so a touch that turns into a scroll does not flash every row it crosses, and fades back
+     on release. Only the innermost thing pressed dims, not a card around it. */
+  :where(a[href], button:not(:disabled), [role='button'], [role='tab'], [role='option'], [role='menuitem'], summary, label:has(input)) {
+    transition: opacity var(--dur-quick) var(--ease-out);
+  }
+  :where(a[href], button:not(:disabled), [role='button'], [role='tab'], [role='option'], [role='menuitem'], summary, label:has(input)):active:not(:has(:is(a[href], button:not(:disabled), [role='button'], [role='tab'], [role='option'], [role='menuitem'], summary, label:has(input)):active)) {
+    opacity: var(--press-dim); transition-duration: 0s; transition-delay: var(--press-delay);
+  }
+}

@@ -1,10 +1,12 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import {
-  capitalise, changeLine, confirmedChanges, detailSummary, historyLine, historyWhen, stillFor, svgSource,
-  type CorrectionAnswer, type DetailChoices, type DetailOptions, type HistoryEntry,
+  capitalise, changeLine, claudeAway, confirmedChanges, detailSummary, fixOpening, historyLine, historyWhen, stillFor,
+  svgSource, type CorrectionAnswer, type DetailChoices, type DetailOptions, type FixView, type HistoryEntry,
 } from '../corrections';
+import { useMediaQuery } from '../router';
 import type { Item } from '../types';
+import { buttonClass, PHONE, Sheet } from './ui';
 import { ShoeDrawingFix } from './ShoeTrace';
 import './FixDetails.css';
 
@@ -13,16 +15,29 @@ const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
 
 interface Props {
   item: Item;
-  /** "Fix the details" only: whether its panel is open (its button is FixDetailsButton, beside the picture). */
-  open?: boolean;
-  /** "Fix the details" only: a detail to open at once (a word of the item's fit line was tapped); `at` tells a
-   * second tap on the same word from the first. */
-  focus?: { field: string; at: number } | null;
   /** Offline: nothing can be changed. */
   disabled: boolean;
   onSaved(item: Item, saidAs: string): void;
   onError(message: string): void;
 }
+
+type Focus = { field: string; at: number } | null;
+
+interface FixProps extends Props {
+  /** Whether its sheet is open. */
+  open: boolean;
+  /** A detail to open at once (a word of the item's fit line was tapped); `at` tells a second tap on the same word
+   * from the first. */
+  focus?: Focus;
+  /** The demo closet is open: it is never sent to Claude, so there is no box to say what's wrong. */
+  demo: boolean;
+  onOpen(): void;
+  onClose(): void;
+}
+
+/** Claude could not be reached the last time a sentence was sent, so "Fix the details" opens on the details one by one
+ * until a sentence is read again (kept while the app is open). */
+let away = false;
 
 /** The details to fix here: the kind itself is chosen in the "What is it?" row, so it is left out. */
 function fixable(options: DetailOptions | null | undefined): DetailOptions['groups'] {
@@ -43,27 +58,46 @@ function useLatest<T>(value: T) {
   return ref;
 }
 
-/** The button that opens and closes "Fix the details"; it sits beside the picture's switch. */
-export function FixDetailsButton({ open, disabled, onToggle }: { open: boolean; disabled: boolean; onToggle(): void }) {
+/**
+ * "Fix the details": a button beside the picture's switch that opens a sheet over the page (a popover under the
+ * picture on a computer). The sheet opens on a box to say what's wrong; the details themselves, by group, are one tap
+ * away in the same sheet. Nothing is put into the page.
+ */
+export function FixDetails({ item, open, focus = null, demo, disabled, onOpen, onClose, onSaved, onError }: FixProps) {
+  const button = useRef<HTMLButtonElement>(null);
   return (
-    <button type="button" className="btn btn-small fix-open" aria-expanded={open} disabled={disabled}
-      title={disabled ? OFFLINE_TITLE : undefined} onClick={onToggle}>
-      {open ? 'Close the details' : 'Fix the details'}
-    </button>
+    <span className="fix-anchor">
+      <button ref={button} type="button" className="btn btn-small fix-open" aria-expanded={open} aria-haspopup="dialog"
+        disabled={disabled} title={disabled ? OFFLINE_TITLE : undefined} onClick={() => (open ? onClose() : onOpen())}>
+        Fix the details
+      </button>
+      {open && (
+        <Sheet title="Fix the details" popover keep={button} className="fix-sheet" testId="fix-details" onClose={onClose}>
+          <FixBody item={item} focus={focus} demo={demo} disabled={disabled} onSaved={onSaved} onError={onError}
+            onDone={onClose} />
+        </Sheet>
+      )}
+    </span>
   );
 }
 
-/** "Fix the details": the details for this kind of garment, picked by looking, or said in a sentence. */
-export function FixDetails({ item, open = false, focus = null, disabled, onSaved, onError }: Props) {
+/** What the sheet holds: the box to say what's wrong, or the details for this kind of garment, picked by looking. */
+function FixBody({ item, focus, demo, disabled, onSaved, onError, onDone }: Props & { focus: Focus; demo: boolean; onDone(): void }) {
+  const phone = useMediaQuery(PHONE);
+  const [opening] = useState(() => fixOpening({ demo, away, focus: !!focus, phone }));
+  const [view, setView] = useState<FixView>(opening.view);
   const [options, setOptions] = useState<DetailOptions | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [picking, setPicking] = useState<string | null>(focus?.field ?? null);
   const [choices, setChoices] = useState<DetailChoices | null>(null);
   const [focused, setFocused] = useState(focus);
-  const panel = useRef<HTMLElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  const back = useRef<HTMLButtonElement>(null);
+  const list = useRef<HTMLDivElement>(null);
   if (focus !== focused) {   // a word of the fit line was tapped: open its detail
     setFocused(focus);
     if (focus) {
+      setView('list');
       setChoices(null);
       setPicking(focus.field);
     }
@@ -74,7 +108,7 @@ export function FixDetails({ item, open = false, focus = null, disabled, onSaved
   const report = useLatest(onError);
 
   useEffect(() => {
-    if (!open || disabled) return;
+    if (disabled) return;
     let gone = false;
     api.detailOptions(id).then((o) => {
       if (gone) return;
@@ -82,19 +116,30 @@ export function FixDetails({ item, open = false, focus = null, disabled, onSaved
       setLoadError(null);
     }, (e: ApiError) => !gone && setLoadError(e.message));
     return () => void (gone = true);
-  }, [open, disabled, id, stamp]);
+  }, [disabled, id, stamp]);
 
   useEffect(() => {
-    if (!open || !picking || disabled) return;
+    if (!picking || disabled) return;
     let gone = false;
     api.detailChoices(id, picking).then((c) => !gone && setChoices(c), (e: ApiError) => !gone && report.current(e.message));
     return () => void (gone = true);
-  }, [open, picking, disabled, id, stamp, report]);
+  }, [picking, disabled, id, stamp, report]);
 
   useEffect(() => {   // ...and bring it into view once the details are there
-    if (!open || !focus || !options) return;
+    if (!focus || !options) return;
     panel.current?.querySelector(`[data-detail="${focus.field}"]`)?.scrollIntoView?.({ block: 'center' });
-  }, [open, focus, options]);
+  }, [focus, options]);
+
+  /** Change view in place: the sheet starts again at its top, and focus moves into the view now shown. */
+  const show = (next: FixView) => {
+    setView(next);
+    requestAnimationFrame(() => {
+      panel.current?.closest('.sheet')?.scrollTo?.({ top: 0 });
+      const into = next === 'list' ? back.current ?? list.current
+        : panel.current?.querySelector<HTMLElement>(phone ? '.fix-say' : '.fix-say textarea');
+      into?.focus({ preventScroll: true });
+    });
+  };
 
   const pick = async (name: string, value: unknown, saidAs: string) => {
     setBusy(true);
@@ -108,14 +153,26 @@ export function FixDetails({ item, open = false, focus = null, disabled, onSaved
   };
 
   const alt = item.name || 'Item';
-  if (!open) return null;
+  const drawing = item.illustration_url && <img className="fix-drawing" src={item.illustration_url} alt={`${alt}, drawing as it is now`} />;
+  const link = buttonClass({ variant: 'link', className: 'fix-switch' });
   return (
-    <section className="fix" aria-label="Fix the details" ref={panel}>
-      {disabled && open && <p className="muted">{OFFLINE}</p>}
-      {open && !disabled && (
-        <div className="fix-panel">
+    <div className="fix" ref={panel}>
+      {disabled && <p className="muted">{OFFLINE}</p>}
+      {!disabled && opening.canSay && (
+        <div hidden={view !== 'say'}>
+          <SayIt item={item} drawing={drawing} autofocus={opening.autofocus} onSaved={(saved, saidAs) => {
+            onSaved(saved, saidAs);
+            onDone();
+          }} />
+          <button type="button" className={link} onClick={() => show('list')}>Change the details one by one</button>
+        </div>
+      )}
+      {!disabled && (
+        <div className="fix-panel" hidden={view !== 'list'} ref={list} tabIndex={-1} aria-label="The details one by one">
+          {opening.canSay && <button ref={back} type="button" className={link} onClick={() => show('say')}>Say what's wrong instead</button>}
+          {opening.why && <p className="notice" role="status">{opening.why}</p>}
           <div className="fix-head">
-            {item.illustration_url && <img className="fix-drawing" src={item.illustration_url} alt={`${alt}, drawing as it is now`} />}
+            {drawing}
             <p className="muted">
               Tap a detail to change it. What you set here stays when Claude describes the item again, and can be undone from the history.
             </p>
@@ -150,10 +207,9 @@ export function FixDetails({ item, open = false, focus = null, disabled, onSaved
               </ul>
             </section>
           ))}
-          {options?.kind && <SayIt item={item} onSaved={onSaved} />}
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -210,8 +266,17 @@ function Choices({ item, choices, busy, hasAnswer, onPick, onGiveBack }: Choices
   );
 }
 
-function SayIt({ item, onSaved }: { item: Item; onSaved: Props['onSaved'] }) {
+/** The box to say what's wrong in a sentence: Claude reads it, says what it understood, and nothing changes until the
+ * owner says so. */
+function SayIt({ item, drawing, autofocus, onSaved }: { item: Item; drawing: ReactNode; autofocus: boolean; onSaved: Props['onSaved'] }) {
   const field = useId();
+  const box = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (!autofocus) return;
+    // after the sheet has taken focus for itself (its own effect runs after this one)
+    const frame = requestAnimationFrame(() => box.current?.focus({ preventScroll: true }));
+    return () => cancelAnimationFrame(frame);
+  }, [autofocus]);
   const [text, setText] = useState('');
   const [asking, setAsking] = useState(false);
   const [asked, setAsked] = useState<{ answer: CorrectionAnswer; stamp: string } | null>(null);
@@ -227,7 +292,9 @@ function SayIt({ item, onSaved }: { item: Item; onSaved: Props['onSaved'] }) {
     setProblem(null);
     const at = stamp;
     try {
-      setAsked({ answer: await api.correct(item.id, text.trim()), stamp: at });
+      const got = await api.correct(item.id, text.trim());
+      away = claudeAway(got);
+      setAsked({ answer: got, stamp: at });
     } catch (e) {
       setProblem((e as ApiError).message);
     } finally {
@@ -252,17 +319,23 @@ function SayIt({ item, onSaved }: { item: Item; onSaved: Props['onSaved'] }) {
   };
 
   return (
-    <div className="fix-say">
+    <div className="fix-say" tabIndex={-1}>
       <form onSubmit={(e) => {
         e.preventDefault();
         if (text.trim()) void ask();
       }}>
-        <label htmlFor={field} className="chip-group-title">Or say what's wrong</label>
-        <div className="fix-say-row">
-          <input id={field} type="text" maxLength={500} value={text} placeholder="e.g. it has three buttons" disabled={asking}
-            onChange={(e) => setText(e.target.value)} />
-          <button type="submit" className="btn btn-small" disabled={asking || !text.trim()}>{asking && !answer ? 'Asking Claude…' : 'Ask Claude'}</button>
+        <div className="fix-say-head">
+          {drawing}
+          <label htmlFor={field} className="fix-say-label">What's wrong with it?</label>
         </div>
+        <textarea ref={box} id={field} rows={3} maxLength={500} value={text} placeholder="e.g. it has three buttons" disabled={asking}
+          onChange={(e) => setText(e.target.value)} onKeyDown={(e) => {
+            // Enter sends the sentence, as a one-line box did; Shift+Enter starts a new line
+            if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
+            e.preventDefault();
+            e.currentTarget.form?.requestSubmit();
+          }} />
+        <button type="submit" className={`btn fix-ask${answer?.state === 'understood' ? '' : ' btn-primary'}`} disabled={asking || !text.trim()}>{asking && !answer ? 'Asking Claude…' : 'Ask Claude'}</button>
         <p className="muted fix-note">Claude is sent your sentence and the item's description; its photo only if the sentence can't be understood without it.</p>
       </form>
       {problem && <p className="notice notice-warn" role="alert">{problem}</p>}

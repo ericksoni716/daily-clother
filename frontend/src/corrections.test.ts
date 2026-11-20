@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { changeLine, confirmedChanges, detailSummary, historyLine, partPhrase, shownParts, stillFor, svgSource, type HistoryEntry, type HistoryPart } from './corrections';
+import { changeLine, claudeAway, confirmedChanges, detailSummary, FIX_AWAY, FIX_DEMO, fixOpening, historyLine, partPhrase, shownParts, stillFor, svgSource, type HistoryEntry, type HistoryPart } from './corrections';
 
 const entry = (over: Partial<HistoryEntry>): HistoryEntry => ({
   id: 1, at: '2026-11-13T09:41:00Z', by: 'owner', kind: 'detail', sentence: null, undoes: null, undone: false,
@@ -102,5 +102,35 @@ describe('a field confirmed as the owner’s', () => {
   it('says it was confirmed, not changed', () => {
     const same = part({ target: 'field', name: 'color', title: 'colour', before: 'navy', after: 'navy', before_words: 'navy', after_words: 'navy', same: true });
     expect(historyLine(entry({ kind: 'field', parts: [same] }))).toBe('You confirmed the colour as navy');
+  });
+});
+
+describe('what "Fix the details" opens on', () => {
+  const at = (o: Partial<{ demo: boolean; away: boolean; focus: boolean; phone: boolean }>) =>
+    fixOpening({ demo: false, away: false, focus: false, phone: false, ...o });
+
+  it('opens on the box to say what is wrong, focused only on a computer', () => {
+    expect(at({})).toEqual({ view: 'say', why: null, canSay: true, autofocus: true });
+    expect(at({ phone: true })).toEqual({ view: 'say', why: null, canSay: true, autofocus: false });
+  });
+
+  it('opens on the details one by one in the demo closet, saying why, with no box to go back to', () => {
+    expect(at({ demo: true })).toEqual({ view: 'list', why: FIX_DEMO, canSay: false, autofocus: false });
+    expect(at({ demo: true, away: true, focus: true })).toMatchObject({ view: 'list', why: FIX_DEMO, canSay: false });
+  });
+
+  it('opens on the details one by one when Claude could not be reached, and the box can be tried again', () => {
+    expect(at({ away: true })).toEqual({ view: 'list', why: FIX_AWAY, canSay: true, autofocus: false });
+  });
+
+  it('opens on the details one by one when a detail was asked for, with nothing to explain', () => {
+    expect(at({ focus: true })).toEqual({ view: 'list', why: null, canSay: true, autofocus: false });
+  });
+
+  it('knows an answer that says Claude could not be reached from the monthly limit', () => {
+    expect(claudeAway({ state: 'waiting' })).toBe(true);
+    expect(claudeAway({ state: 'waiting', limit: true })).toBe(false);
+    expect(claudeAway({ state: 'understood' })).toBe(false);
+    expect(claudeAway({ state: 'failed' })).toBe(false);
   });
 });

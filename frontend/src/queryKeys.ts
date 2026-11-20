@@ -33,16 +33,18 @@ export const queryKeys = {
   source: (id: string) => ['source', id] as const,
 
   // Getting dressed
-  /** `POST /api/outfits/today` with the owner's choices. It can ask Claude, so no edit makes it stale by itself. */
-  today: (choices: TodayRequest) => ['today', choices] as const,
+  /** `POST /api/outfits/today` with the owner's choices, on a day, for the closet as it stands (`closet`: what of the
+   * closet the answer depends on, see `closetKey` in today.ts). It can ask Claude, so no edit makes it stale by itself. */
+  today: (choices: TodayRequest, day = '', closet = '') => ['today', choices, day, closet] as const,
   /** `GET /api/style/answers/{id}`: a question to Claude about today's outfits, while Today waits on it. */
   styleAnswer: (id: string) => ['styleAnswer', id] as const,
   /** `GET /api/day`: the note about today or the days ahead. */
   day: () => ['day'] as const,
   /** `GET /api/weather`. */
   weather: () => ['weather'] as const,
-  /** `POST /api/outfits/figure`: the As worn figure for some pieces (an SVG). */
-  figure: (pieces: FigurePieces) => ['figure', pieces] as const,
+  /** `POST /api/outfits/figure`: the As worn figure for some pieces (an SVG), with the layers under it when `layered`.
+   * `version` changes when any piece's drawing does (`figureVersion`), so a figure once drawn never goes stale. */
+  figure: (pieces: FigurePieces, version = '', layered = false) => ['figure', pieces, version, layered] as const,
   /** `GET /api/outfits/worn`: outfits worn, a page at a time (`before` is the page's cursor, null for the first). */
   worn: (before: string | null = null) => ['worn', before] as const,
 

@@ -825,7 +825,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* long values (addresses, paths, commands) wrap rather than run off a phone's screen */
 .settings code, .facts dd, .address code { overflow-wrap: anywhere; }
 .settings-groups { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.settings-section { padding: 18px; gap: 10px; }
+.settings-section { padding: 16px 18px; gap: 10px; }
 /* a part of a group, under a smaller heading and a line */
 .settings-sub { display: flex; flex-direction: column; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
 .settings-sub > * { margin: 0; }
@@ -852,23 +852,31 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .settings-spend-body { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 14px; }
 .settings-spend-body > * { margin: 0; }
 .settings-spend-body .more { margin: 0; }
-/* the technical settings, folded away */
-.settings-advanced { padding: 0 18px; }
-.settings-advanced summary {
-  display: flex; align-items: center; gap: 8px; min-height: 56px; cursor: pointer; list-style: none;
-  font-size: var(--text-lg); font-weight: var(--weight-heading);
+/* a line with its action beside it ("Weather for New York · Change"); the action drops below on a narrow phone */
+.settings-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+.settings-row { flex-wrap: nowrap; }
+.settings-row > p { margin: 0; flex: 1 1 0; min-width: 0; }
+.settings-row > .btn { flex: none; }
+.settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.settings-actions > .hint { margin: 0; }
+/* what Claude reads about your style, three lines at most; the whole text is one tap away */
+.style-summary {
+  margin: 0; white-space: pre-line; color: var(--ink-2);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden;
 }
-.settings-advanced summary::-webkit-details-marker { display: none; }
-.settings-advanced summary::after {
-  content: ''; width: 8px; height: 8px; margin-left: auto; border-right: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3);
-  transform: rotate(45deg); transition: transform var(--dur-quick) var(--ease-out);
-}
-.settings-advanced[open] summary::after { transform: rotate(-135deg); }
-.settings-advanced-body { display: flex; flex-direction: column; gap: 14px; padding-bottom: 18px; }
+.settings-section > .more, .settings-section .more { margin: 0; }
+.settings-rewear-fold .hint { margin: 0 0 8px; }
+.phone-code > p { margin: 0 0 10px; }
+.state-problem { color: var(--danger); }
+.state-problem .state-dot { background: var(--danger); }
+/* Advanced settings, then Log out and Quit, at the end of the page */
+.settings-foot { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.settings-advanced-link { display: inline-flex; align-items: center; min-height: var(--tap); color: var(--accent); text-underline-offset: 3px; }
 /* Log out and Quit: a row at the end of the page, not a card */
 .settings-leave { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 4px 0; }
 .settings-leave .confirm { flex-basis: 100%; }
-.settings-look { align-self: flex-start; flex-wrap: wrap; }
+.settings-look { align-self: flex-start; max-width: 100%; }
+.settings-look > * { padding: 0 12px; white-space: nowrap; }
 .settings-section > * { margin: 0; }
 .settings-section > .btn { align-self: flex-start; }
 .settings-section .form-error { margin: 0; }

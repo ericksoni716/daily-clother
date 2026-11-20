@@ -34,9 +34,7 @@
 .life-invitation p { margin: 0; font-size: var(--text-sm); }
 .life-about { margin-top: 16px; padding-top: 4px; border-top: 1px solid var(--line); }
 .life-about .life-context-note p { margin: 0 0 4px; }
-.life-context-note, .life-style-echo { margin: 9px 0 0; font-size: var(--text-sm); color: var(--ink-3); line-height: 1.5; overflow-wrap: anywhere; }
-.life-style-echo q { color: var(--ink); }
-.life-style-echo span { display: block; font-size: var(--text-xs); }
+.life-context-note { margin: 9px 0 0; font-size: var(--text-sm); color: var(--ink-3); line-height: 1.5; overflow-wrap: anywhere; }
 .life-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
 .life-filters .chip { min-height: 44px; min-width: 44px; padding-inline: 10px; }
 .gap-situations { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }

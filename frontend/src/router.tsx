@@ -223,6 +223,7 @@ export type Route =
   | { name: 'several'; id: string }
   | { name: 'insights' }
   | { name: 'settings' }
+  | { name: 'advanced' }
   | { name: 'review' }
   | { name: 'trips'; tripId: string | null };
 
@@ -231,6 +232,7 @@ export function parseRoute(path: string): Route {
   const several = path.match(/^\/add\/several\/([^/]+)\/?$/);
   if (several) return { name: 'several', id: decodeURIComponent(several[1]) };
   if (path === '/settings') return { name: 'settings' };
+  if (path === '/settings/advanced') return { name: 'advanced' };
   if (path === '/insights') return { name: 'insights' };
   if (path === '/today/worn') return { name: 'worn' };
   const today = path.match(/^\/today(?:\/item\/([^/]+))?\/?$/);

@@ -269,7 +269,7 @@ function LifeBasis({ context, locked, busy, onOpen, onDismiss }: {
 
 /** What the suggestions are based on, in full: shown inside How you live when it is opened from What's missing. */
 function LifeAbout({ context }: { context: NonNullable<GapsAnswer['context']> }) {
-  const { life, climate, taste } = context;
+  const { climate, taste } = context;
   return (
     <section className="life-about" aria-label="What the suggestions are based on" data-testid="life-about">
       <p className="life-context-note">Based on: {basisWords(context)}.</p>
@@ -281,7 +281,6 @@ function LifeAbout({ context }: { context: NonNullable<GapsAnswer['context']> })
         {taste.used && taste.summary && <p>{taste.summary}</p>}
         <p>Lounging means relaxed clothes at home; Closet can't identify sleepwear. Exercise suggestions are general, not specific to a sport.</p>
       </div>
-      {life?.style_words && <p className="life-style-echo">Your words: <q>{life.style_words}</q> <span>Kept as a note, not used to rank suggestions.</span></p>}
     </section>
   );
 }

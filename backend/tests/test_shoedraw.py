@@ -38,12 +38,15 @@ class Drawer:
         self.calls: list[list[tuple]] = []
         self.notes: list[list[str]] = []
         self.styles: list[str | None] = []   # the item's shoe style it was told
+        self.measures: list[dict | None] = []   # the measures from the trace it was told
+        self.side: SD.Sided | None = None   # the side drawn with it, if any
         self.during = None
 
-    def __call__(self, photos, routes, notes=(), style=None):
+    def __call__(self, photos, routes, notes=(), style=None, measures=None):
         self.calls.append([(p.view, p.sure, p.image.size) for p in photos])
         self.notes.append(list(notes))
         self.styles.append(style)
+        self.measures.append(measures)
         assert routes == ("plan",)
         if self.during:
             self.during()
@@ -51,7 +54,7 @@ class Drawer:
             raise self.error
         calls = [SD.Call("draw", "plan", SD.MODEL, 40_000, 10_000, 6_000, 0.24, 70.0),
                  SD.Call("check", "plan", SD.MODEL, 30_000, 10_000, 3_000, 0.14, 40.0)]
-        return SD.Drawn(drawn.side(self.left), None, dict(SHEET), 1, 112.4, calls, True, [])
+        return SD.Drawn(drawn.side(self.left), None, dict(SHEET), 1, 112.4, calls, True, [], side=self.side)
 
 
 @pytest.fixture
@@ -364,8 +367,9 @@ def test_a_shoe_only_has_drawn_details(made):
     # step E added what the page needs for the owner's correction, and going back to the drawing before
     assert set(drawn_of(m, item)) == {"state", "message", "url", "rounds", "seconds", "cost_usd", "route", "made_at",
                                       "photos_changed", "about_usd", "correcting", "note", "corrected", "changed",
-                                      "against_photos", "has_previous", "previous_newer"}
+                                      "against_photos", "has_previous", "previous_newer", "side", "side_shown"}
     assert drawn_of(m, item)["about_usd"] == shoedraw.ABOUT_USD
+    assert drawn_of(m, item)["side"] is None and drawn_of(m, item)["side_shown"] is False
     assert {k: drawn_of(m, item)[k] for k in ("correcting", "note", "corrected", "changed", "against_photos",
                                               "has_previous", "previous_newer")} == {
         "correcting": False, "note": None, "corrected": False, "changed": None, "against_photos": None,
@@ -394,9 +398,9 @@ def test_drawing_goes_through_the_api_key_and_its_monthly_limit(cfg):
         assert get(c, item)["drawn"]["message"] == shoedraw.LIMIT
         c.put("/api/settings", json={"tagging_api_cap_usd": 20.0})
         # two candidates and a check each, the judge, two turns and a check each, the judge again (no fault named:
-        # no fix)
-        calls = SD.CANDIDATES * 2 + 1 + SD.TURNS * 2 + 1
-        assert sv.draws.drain() == 1 and api.calls == calls == 10
+        # no fix); beside the turns, the side and its check, counted in the drawing's calls and its cost
+        calls = SD.CANDIDATES * 2 + 1 + SD.TURNS * 2 + 1 + 2
+        assert sv.draws.drain() == 1 and api.calls == calls == 12
         # every request is cached up to its last photo (the shoe's two photos come first in each), and nowhere else
         for request in api.requests:
             content = request["messages"][0]["content"]

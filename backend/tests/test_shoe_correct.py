@@ -436,7 +436,7 @@ def test_through_the_api_key_and_its_monthly_limit(cfg):
         sorter.reply = answer(("outer", True), ("inner", True))
         sv.views.drain(now=later())
         c.put("/api/settings", json={"tagging_api_enabled": True, "tagging_api_cap_usd": 20.0})
-        drawing = SD.CANDIDATES * 2 + 1 + SD.TURNS * 2 + 1   # as in test_shoedraw: no fault named, so no fix
+        drawing = SD.CANDIDATES * 2 + 1 + SD.TURNS * 2 + 1 + 2   # as in test_shoedraw: no fix, and the side
         assert sv.draws.drain() == 1 and api.calls == drawing
         with closing(db.connect(cfg.db_path("main"))) as conn:
             so_far = spend.spent(conn)

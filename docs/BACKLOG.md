@@ -14,13 +14,22 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Style through conversation** (first part of step 8 of the order of work, 20 November).
+  Left:
+  - Today does not ask the questions the stylist cannot infer yet (the assessment: at most one
+    a day, inside Today's conversation, when it bears on the outfit); only the style
+    conversation in Settings asks them.
+  - Ratings of worn outfits do not offer lines for Your style, and How you live is still a form
+    rather than asked one question at a time.
+  - A line kept from the style conversation makes Today ask Claude again on its next open (as a
+    change by hand does); it could move the day's answer instead, as a line kept on Today does.
+  - Lines cannot be reordered except by Edit the text.
+  - The second half of step 8 (the four-place structure and shared components) is separate.
 - **Settings regrouped** (step 6 of the order of work, done 20 November). Left:
   - The main page is about 1,820px and 201 words on a 390px phone with the demo closet and
     no phone share (about 2.2 screens), down from about 6,100px and 1,105 words, not the 1.5
     screens the outline hoped for; the Phone group's setup steps take the most room until
     the share works. A Homestead-style `Fold` per group would shorten it further.
-  - "Talk to Claude about your style" waits for the style conversation (step 8); Your style
-    shows the text, not lines marked with where each came from.
   - Not done, because they change what Closet does on the computer without being asked: start
     at login turned on at first run, and a backup folder proposed by itself (iCloud Drive or
     OneDrive). A folder picker for the backup folder in Closet's own window is not done

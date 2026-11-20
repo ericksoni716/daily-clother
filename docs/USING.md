@@ -48,7 +48,7 @@ it is choosing. "I'm wearing this" records the outfit and its wears. "Not this p
 a piece out, and a piece can be chosen to build around. A note about the day ("In Lisbon
 until Friday") changes what is dressed for. Under the outfits you can write to Claude about
 them; it answers, may change the outfits, and may offer something to remember, which is kept
-only when you tap it. In the evening, or the next day, Today asks how the outfit went.
+only when you tap it, with Undo beside it once kept. In the evening, or the next day, Today asks how the outfit went.
 Tapping a piece opens it (`/today/item/<id>`).
 
 Temperatures can be typed when the forecast cannot be fetched. The demo closet's outfits are
@@ -175,9 +175,20 @@ to tick off, on the computer or the phone.
 
 `/settings`. A short page, shown all at once when the settings are in, in eight groups:
 
-- **Your style**: the start of what Claude reads about how you dress (three lines), with
-  **Edit the text** opening the whole of it in a sheet, and the switch **Let Claude choose my
-  outfits**. Lines kept from the conversation on Today are added to it.
+- **Your style**: what Claude reads about how you dress, as lines. The first three show, each
+  with where it came from underneath ("Starting rule", "You said this on 12 Nov", "From a
+  conversation yesterday", "Your answer today"), and "And 2 more lines." when there are more.
+  **Talk to Claude about your style** opens the conversation in a sheet: with nothing said yet
+  that day it asks one question the stylist can't tell from your clothes (whether you run warm,
+  what you wear for work, colours you never wear, how dressed-up you like weekends, how you
+  like things to fit, anything you never wear), answered with a tap, in your own words, or
+  skipped, each with Undo, and never asked twice. Anything you write gets a short answer, and
+  Claude may offer a line to keep: it goes into Your style only when you tap **Save to Your
+  style**, and Undo takes it out again. When Claude can't be reached, or in the demo closet,
+  the sheet says so and the box is closed. **See all lines** (or **Change the lines**) opens
+  every line, each with **Change** and **Remove** (with Undo), and **Add a line** at the end.
+  **Edit the text** opens the whole of it as one text in a sheet. Then the switch **Let Claude
+  choose my outfits**. Lines kept from the conversation on Today are added to it too.
 - **Everyday**: "Weather for New York" with **Change**, which opens the place search, Use my
   location, today's weather and what is sent where (the weather is only looked up then); How
   you live with **Edit my answers**; the laundry switch and laundry day, and **Wears between

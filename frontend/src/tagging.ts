@@ -1,23 +1,12 @@
 /** Plain words for an item being described by Claude, and for what Claude saw. */
 import { humanize } from './labels';
-import type { TagState } from './types';
 
-/** What the item page says about describing the item, or null when there is nothing to say.
- *  `error`, while it waits, is why it can't go yet (the API key's monthly limit was reached). */
-export function tagNotice(state: TagState | undefined, route: string | null, error: string | null = null): string | null {
-  switch (state) {
-    case 'waiting':
-      if (error) return `Waiting to be described by Claude. ${error}`;
-      return 'Waiting to be described by Claude. It starts by itself once Claude can be reached.';
-    case 'working':
-      return 'Claude is describing this item…';
-    case 'done':
-      return route === 'demo'
-        ? 'Described in advance for the demo; change anything you like.'
-        : "Suggested by Claude; change anything that's wrong.";
-    default:
-      return null;
-  }
+/** The hint under the item page's Details once Claude has described the item (how far describing has got is said by
+ * the item's progress, progress.ts). */
+export function describedHint(route: string | null): string {
+  return route === 'demo'
+    ? 'Described in advance for the demo; change anything you like.'
+    : "Suggested by Claude; change anything that's wrong.";
 }
 
 const TITLES: Record<string, string> = {

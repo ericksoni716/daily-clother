@@ -1,17 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { describedBy, detailLines, tagNotice } from './tagging';
+import { describedBy, describedHint, detailLines } from './tagging';
 
 describe('tagging wording', () => {
-  it('says what is happening to the description', () => {
-    expect(tagNotice('waiting', null)).toMatch(/^Waiting to be described by Claude/);
-    expect(tagNotice('waiting', null, "This month's spending limit for the API key has been reached."))
-      .toBe("Waiting to be described by Claude. This month's spending limit for the API key has been reached.");
-    expect(tagNotice('working', null)).toBe('Claude is describing this item…');
-    expect(tagNotice('done', 'plan')).toBe("Suggested by Claude; change anything that's wrong.");
-    expect(tagNotice('done', 'demo')).toMatch(/in advance for the demo/);
-    expect(tagNotice('none', null)).toBeNull();
-    expect(tagNotice('failed', null)).toBeNull();   // the failure has its own notice, with the reason
-    expect(tagNotice(undefined, null)).toBeNull();
+  it('says who suggested the details once Claude has described the item', () => {
+    expect(describedHint('plan')).toBe("Suggested by Claude; change anything that's wrong.");
+    expect(describedHint('demo')).toMatch(/in advance for the demo/);
   });
 
   it('lists the details in plain words and leaves out what does not apply', () => {

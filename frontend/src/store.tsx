@@ -1,12 +1,12 @@
 import { QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, connection } from './api';
-import { itemQuery, itemsQuery, modelQuery, usePoll, vocabQuery } from './queries';
+import { itemsQuery, modelQuery, progressQuery, vocabQuery } from './queries';
 import { makeQueryClient } from './queryClient';
 import { queryKeys } from './queryKeys';
-import type { Item, ItemSummary, Profile } from './types';
+import type { Profile, ProgressList } from './types';
 import { uploads } from './uploads';
-import { closetPoll, downloading, DOWNLOAD_MS, justFinished, measuring } from './work';
+import { downloading, DOWNLOAD_MS, movedOn, progressPoll } from './work';
 
 /** The open closet: which one, whether Closet can be reached, and what is done to it as a whole. This changes only
  * when the closet is switched or the connection comes and goes, so reading it never draws a screen again on its own. */
@@ -58,59 +58,37 @@ export function ClosetProvider(props: Props) {
   );
 }
 
-/** The ids of items known in full whose pattern is being measured or whose shoe is being traced, as one string. */
-function measuringIds(qc: ReturnType<typeof useQueryClient>): string {
-  return qc.getQueryCache().findAll({ queryKey: ['item'] })
-    .filter((q) => {
-      const item = q.state.data as Item | undefined;
-      return item && measuring(item);
-    })
-    .map((q) => (q.state.data as Item).id).sort().join(',');
-}
-
-/** "id:cutout:tag" for every item in the list, to see when a step finishes. */
-const stepsOf = (list: ItemSummary[]) => list.map((i) => `${i.id}:${i.cutout_state}:${i.tag_state}`).join(',');
-
 function OpenCloset({ profile, onProfile, onLogout, onQuit, toast, children }: Props) {
   const qc = useQueryClient();
   const offline = useOffline();
 
-  // Read at once when the closet opens. The list is followed here for the polling only: a poll that brings the same
-  // list changes nothing, so neither this nor any screen draws again.
+  // Read at once when the closet opens. The list is followed here so a poll can bring it up to date: a read that
+  // brings the same list changes nothing, so neither this nor any screen draws again.
   useQuery(vocabQuery());
-  const items = useQuery(itemsQuery('active')).data;
-  const model = useQuery({ ...modelQuery(), refetchInterval: (q) => (downloading(q.state.data) && !offline ? DOWNLOAD_MS : false) }).data;
-  const working = useSyncExternalStore(
-    useCallback((onChange) => qc.getQueryCache().subscribe(onChange), [qc]),
-    () => measuringIds(qc),
-  );
+  useQuery(itemsQuery('active'));
+  useQuery({ ...modelQuery(), refetchInterval: (q) => (downloading(q.state.data) && !offline ? DOWNLOAD_MS : false) });
 
-  // Poll while items are cut out, described, measured, traced or drawn: every 2 s while the model (or Claude) is
-  // working on them; slower while a pattern is measured, and slower still while the model is missing or failed or
-  // items wait for a way to reach Claude, since nothing changes until then.
-  const plan = closetPoll(items, model, working ? working.split(',').length : 0, offline);
-  usePoll(plan.ms, () => {
-    void qc.refetchQueries({ queryKey: queryKeys.items('active'), exact: true }, { cancelRefetch: false });
-    if (plan.model) void qc.refetchQueries({ queryKey: queryKeys.model(), exact: true }, { cancelRefetch: false });
-    // items measured or traced: asked for in full, unless their page is open and asks for them itself
-    for (const id of working ? working.split(',') : []) {
-      const q = qc.getQueryCache().find({ queryKey: queryKeys.item(id), exact: true });
-      if (q && q.getObserversCount() === 0) void qc.refetchQueries({ queryKey: queryKeys.item(id), exact: true }, { cancelRefetch: false });
-    }
-  });
+  // The work under way, polled here for every screen: every 2 s while anything is being done (a cutout, a
+  // description, a pattern measured, a shoe traced or drawn), every 10 s while items only wait for something outside,
+  // and not at all when nothing is under way (an edit that starts work makes it stale, so it is asked again then).
+  const progress = useQuery({
+    ...progressQuery(),
+    enabled: !offline,
+    refetchInterval: (q) => progressPoll(q.state.data, offline) ?? false,
+  }).data;
 
-  // A cutout or description just finished: its item is read in full once, to learn whether a pattern is now
-  // measured or a shoe traced, which the list does not say.
-  const before = useRef<ItemSummary[] | undefined>(undefined);
-  const steps = items ? stepsOf(items) : '';
+  // When an item's work moves on (a step finishes, it stops waiting, it is done), the closet's lists and that item's
+  // page are read again, once: the poll itself never reads the whole list.
+  const before = useRef<ProgressList | undefined>(undefined);
   useEffect(() => {
-    const now = qc.getQueryData<ItemSummary[]>(queryKeys.items('active'));
-    if (!now) return;
-    for (const id of justFinished(before.current, now)) {
-      void qc.fetchQuery(itemQuery(id)).catch(() => undefined);
-    }
-    before.current = now;
-  }, [steps, qc]);
+    if (!progress) return;
+    const moved = movedOn(before.current, progress);
+    before.current = progress;
+    if (!moved.length) return;
+    void qc.invalidateQueries({ queryKey: queryKeys.items('active'), exact: true });
+    void qc.invalidateQueries({ queryKey: queryKeys.items('archived'), exact: true });
+    for (const id of moved) void qc.invalidateQueries({ queryKey: queryKeys.item(id), exact: true });
+  }, [progress, qc]);
 
   // Back online: ask again for everything on screen. While offline, check the server every few seconds.
   const wasOffline = useRef(offline);
@@ -129,7 +107,10 @@ function OpenCloset({ profile, onProfile, onLogout, onQuit, toast, children }: P
     let done = uploads.snapshot.filter((e) => e.status === 'done').length;
     return uploads.subscribe((entries) => {
       const now = entries.filter((e) => e.status === 'done').length;
-      if (now > done) void qc.invalidateQueries({ queryKey: queryKeys.items('active'), exact: true });
+      if (now > done) {
+        void qc.invalidateQueries({ queryKey: queryKeys.items('active'), exact: true });
+        void qc.invalidateQueries({ queryKey: queryKeys.progress(), exact: true });
+      }
       done = now;
     });
   }, [qc]);

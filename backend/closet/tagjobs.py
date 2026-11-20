@@ -326,6 +326,9 @@ class Worker:
     def __init__(self, cfg: Config, state: State, routes: Routes, tagger: Tagger, idle: float = 60):
         self.cfg, self.state, self.routes, self.tagger, self.idle = cfg, state, routes, tagger, idle
         self.on_described: Callable[[], None] = lambda: None   # an item was described (patterns are measured, shoes traced next)
+        # the last try found no way to reach Claude (no route could be used, or Claude was out of reach): waiting items
+        # say they wait for Claude rather than for their turn (`progress.Waits`); cleared once an item is described
+        self.blocked = False
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -369,9 +372,13 @@ class Worker:
                 routes = self.routes()
                 if not routes:
                     note_waiting(conn, None)   # nothing can be tried at all: neither note is what they wait for
+                    self.blocked = True
                     break
-                if run_one(conn, self.cfg.images_dir(profile), routes, self.tagger) != "done":
+                result = run_one(conn, self.cfg.images_dir(profile), routes, self.tagger)
+                if result != "done":
+                    self.blocked = result == "blocked"
                     break
+                self.blocked = False
                 done += 1
                 self.on_described()
         finally:

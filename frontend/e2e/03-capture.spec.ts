@@ -1,6 +1,6 @@
 import { expect, login, PHOTOS, test, useProfile } from './fixtures';
 
-test('upload a photo: it shows up with its waiting badge', async ({ page }) => {
+test('upload a photo: it shows up waiting for background removal', async ({ page }) => {
   await login(page);
   await useProfile(page, 'main');
   const before = (await (await page.request.get('/api/items')).json()).items.length;
@@ -15,7 +15,7 @@ test('upload a photo: it shows up with its waiting badge', async ({ page }) => {
   await page.getByTestId('library-input').setInputFiles(`${PHOTOS}marl-sweater.jpg`);
 
   const row = page.getByTestId('queue-row').filter({ hasText: 'marl-sweater' });
-  await expect(row.getByTestId('queue-status')).toHaveText('Added', { timeout: 30_000 });
+  await expect(row.getByTestId('queue-item')).toBeVisible({ timeout: 30_000 });
 
   // the browser resized it: what arrived is at most 2400px on the long edge, re-encoded as JPEG
   const items = (await (await page.request.get('/api/items')).json()).items;
@@ -26,11 +26,11 @@ test('upload a photo: it shows up with its waiting badge', async ({ page }) => {
   await page.getByRole('link', { name: 'See them in your closet' }).click();
   const tile = page.getByTestId('tile').first();
   await expect(tile).toBeVisible();
-  await expect(tile).toContainText('Waiting for the model');
+  await expect(tile.getByTestId('step-mark')).toContainText('Step 1 of 3. Waiting until background removal is set up.');
   await expect(page.getByTestId('model-banner')).toContainText('not set up yet');
 
   await tile.click();
-  await expect(page.locator('.detail-panel')).toContainText('Waiting for the model');
+  await expect(page.locator('.detail-panel').getByTestId('progress-strip')).toContainText('Waiting until background removal is set up');
 });
 
 test('a file that is not a photo shows the server message in the queue', async ({ page }) => {
@@ -65,7 +65,7 @@ test('a dropped connection is retried with the same key and never duplicates', a
   await page.goto('/add');
   await page.getByTestId('library-input').setInputFiles(`${PHOTOS}jeans.jpg`);
   const row = page.getByTestId('queue-row').filter({ hasText: 'jeans' });
-  await expect(row.getByTestId('queue-status')).toHaveText('Added', { timeout: 30_000 });
+  await expect(row.getByTestId('queue-item')).toBeVisible({ timeout: 30_000 });
   expect(keys.length).toBe(2);
   expect(keys[0]).toBe(keys[1]);
   const after = (await (await page.request.get('/api/items')).json()).items.length;

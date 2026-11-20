@@ -22,7 +22,7 @@ test.describe('the drawing, with a stand-in for Claude', () => {
 
     await page.goto(backend.url + '/add');
     await page.getByTestId('library-input').setInputFiles(`${PHOTOS}graphic-tee.jpg`);
-    await expect(page.getByTestId('queue-status')).toHaveText('Added', { timeout: 30_000 });
+    await expect(page.getByTestId('queue-item')).toBeVisible({ timeout: 30_000 });
     await page.getByRole('link', { name: 'See them in your closet' }).click();
 
     const tile = page.getByTestId('tile').first();

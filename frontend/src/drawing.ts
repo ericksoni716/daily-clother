@@ -1,5 +1,5 @@
-/** Plain words for an item's drawing, and the closet grid's choice between photos and drawings. */
-import type { TagState } from './types';
+/** Plain words for an item's drawing, and the closet grid's choice between photos and drawings. What the drawing's
+ * place says while there is none is in progress.ts. */
 
 /** What is beside the drawing: the things Claude saw and the drawing's own notes, once each, as plain sentences. */
 export function notInDrawing(seen: readonly string[] | null | undefined, notes: readonly string[] | null | undefined): string[] {
@@ -12,14 +12,6 @@ export function notInDrawing(seen: readonly string[] | null | undefined, notes: 
     out.push(text[0].toUpperCase() + text.slice(1));
   }
   return out;
-}
-
-/** What the drawing's place says when there is no drawing to show, or null when there is one. */
-export function drawingPlaceholder(tagState: TagState | undefined, category: string | null, hasDrawing: boolean): string | null {
-  if (hasDrawing) return null;
-  if (tagState === 'waiting' || tagState === 'working') return 'Waiting to be described; the drawing comes after.';
-  if (!category) return 'Choose what kind of item it is below, and a drawing is made.';
-  return 'There is no drawing for this kind of item yet.';
 }
 
 export type GridView = 'photos' | 'drawings';

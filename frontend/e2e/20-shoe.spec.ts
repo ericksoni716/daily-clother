@@ -230,7 +230,7 @@ test.describe('a shoe drawn from its photo', () => {
     const before = (await picture.getAttribute('src'))!;
     await box.fill('the laces should be black');
     await sendNote.click();
-    await expect(drawnSection.getByRole('status')).toHaveText('Changing the drawing: “the laces should be black”');
+    await expect(drawnSection.getByRole('status')).toHaveText('Changing the drawing as you asked: “the laces should be black”');
     await expect(box).toHaveCount(0);
     await expect(picture).toHaveAttribute('src', before);   // the drawing stays shown until the change is done
     const changedLine = drawnSection.getByTestId('shoe-drawn-changed');

@@ -109,32 +109,47 @@ test('a delayed save cannot roll back a newer edit of the same field', async ({ 
 });
 
 test('slow polling makes progress when a poll takes longer than the interval', async ({ page }) => {
+  // The closet follows the work under way through GET /api/progress (src/work.ts): here one item is being described,
+  // and the poll's second answer is slow. When it lands, saying the item is done, the closet's list is read again.
   await login(page);
   await useProfile(page, 'demo');
   await expect(page.getByTestId('tile').first()).toBeVisible();
   const list = await (await page.request.get('/api/items')).json();
-  list.items[0] = { ...list.items[0], name: 'Slow poll initial', tag_state: 'working' };
-  let first = true;
+  const item = list.items[0];
+  const describing = { stage: 'describing', step: 2, of: 3, state: 'working', title: 'Describing and drawing',
+    words: 'Claude is describing it', about: '', waiting_for: null, why: null, error: null, can_retry: false, retry: null };
+  let released = false;
+  let firstProgress = true;
   const pending: (() => void)[] = [];
   await page.route('**/api/items?status=active', async (route) => {
-    if (!first) await new Promise<void>((resolve) => pending.push(resolve));
-    const name = first ? 'Slow poll initial' : 'Slow poll refreshed';
-    first = false;
-    await route.fulfill({ json: { items: [{ ...list.items[0], name }, ...list.items.slice(1)] } });
+    const name = released ? 'Slow poll refreshed' : 'Slow poll initial';
+    await route.fulfill({ json: { items: [{ ...item, name }, ...list.items.slice(1)] } });
+  });
+  await page.route('**/api/progress', async (route) => {
+    if (firstProgress) {
+      firstProgress = false;
+      return route.fulfill({ json: { items: [{ id: item.id, name: item.name, category: item.category, color: item.color,
+        status: 'active', thumb_url: item.thumb_url, progress: describing }], going: 1, waiting: 0, why: null } });
+    }
+    await new Promise<void>((resolve) => pending.push(resolve));
+    await route.fulfill({ json: { items: [], going: 0, waiting: 0, why: null } });
   });
   await page.clock.install();
   try {
     await page.locator('nav.sidebar').getByRole('link', { name: 'Settings', exact: true }).click();
     await page.locator('nav.sidebar').getByRole('link', { name: /^Closet/ }).click();
     await expect(page.getByTestId('tile').filter({ hasText: 'Slow poll initial' })).toBeVisible();
+    await expect(page.getByTestId('working-line')).toHaveText('Working on 1 item');
     await page.clock.fastForward(2000);
     await expect.poll(() => pending.length).toBe(1);
     // the next tick does not pile a second request on the one still on its way, nor call it off: it lands
     await page.clock.fastForward(2000);
     await page.clock.fastForward(2000);
     expect(pending.length).toBe(1);
+    released = true;
     pending[0]();
     await expect(page.getByTestId('tile').filter({ hasText: 'Slow poll refreshed' })).toBeVisible();
+    await expect(page.getByTestId('working-line')).toHaveCount(0);
   } finally {
     pending.forEach((release) => release());
   }

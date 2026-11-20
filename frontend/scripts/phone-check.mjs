@@ -36,7 +36,13 @@ const LONG = {
   item: 'Heavyweight brushed cotton flannel overshirt in faded forest green and charcoal buffalo check',
   place: 'Upper Wickhamstead-under-Lyme-on-the-Marsh, Greater Fenwold Coastal District, Nowhereshire',
   wish: 'A lightweight packable waterproof shell jacket with a hood that folds into the collar',
+  line: 'Never anything double-breasted, never anything with a crest or a logo-embroidered-chest-pocket-of-any-kind',
 };
+// Sheets opened by a button on a screen, pictured as well: the style conversation and every line of Your style.
+const SHEETS = [
+  { route: '/settings', button: 'Talk to Claude about your style', sheet: 'style-talk-sheet', name: 'settings-style-talk' },
+  { route: '/settings', button: /^(See all lines|Change the lines)$/, sheet: 'style-lines-sheet', name: 'settings-style-lines' },
+];
 // A made-up place: the weather is given with the trip, so its coordinates are never looked up.
 const PLACE = { name: LONG.place, latitude: 50, longitude: 0, timezone: 'Europe/London' };
 
@@ -127,6 +133,12 @@ async function setUp(base) {
     const trip = await call('/api/trips', 'POST', { place: PLACE, first_day: first, last_day: last, weather });
     // A wish by name needs neither the weather nor Claude.
     await call('/api/wishlist', 'POST', { name: LONG.wish });
+    // Your style: an answer to a question, a long line of your own, and a message to Claude (the stand-in answers it in
+    // a second and a half, with a line to keep), so Settings and the conversation show each kind of line
+    await call('/api/style/questions/warmth', 'POST', { choice: 'I run warm' });
+    await call('/api/style/lines', 'POST', { text: LONG.line });
+    await call('/api/style/talk', 'POST', { say: 'I always feel warm on the bus, even in winter' });
+    for (let i = 0; i < 40 && (await call('/api/style/talk')).answering; i++) await new Promise((r) => setTimeout(r, 250));
     return { state: await api.storageState(), itemId: item.id, tripId: trip.id };
   } finally {
     await api.dispose();
@@ -203,6 +215,21 @@ async function check(base, { state, itemId, tripId }) {
           const { extra, culprits } = await page.evaluate(overflow);
           if (extra > 1) failures.push(`${route} at ${size}px ${scheme} is ${extra}px wider than the screen: ${culprits.join(', ')}`);
           if (errors.length) failures.push(`${route} at ${size}px ${scheme} threw: ${errors.join(' | ')}`);
+          await page.close();
+        }
+        for (const { route, button, sheet, name } of SHEETS) {
+          const page = await context.newPage();
+          const errors = [];
+          page.on('pageerror', (e) => errors.push(e.message));
+          await page.goto(base + route);
+          await settle(page);
+          await page.getByRole('button', { name: button }).first().click();
+          await page.getByTestId(sheet).waitFor({ state: 'visible', timeout: 10_000 }).catch(() => failures.push(`${name} at ${size}px did not open`));
+          await page.waitForTimeout(600);
+          await page.screenshot({ path: join(OUT, `${size}-${scheme}-${name}.png`) });
+          const { extra, culprits } = await page.evaluate(overflow);
+          if (extra > 1) failures.push(`${name} at ${size}px ${scheme} is ${extra}px wider than the screen: ${culprits.join(', ')}`);
+          if (errors.length) failures.push(`${name} at ${size}px ${scheme} threw: ${errors.join(' | ')}`);
           await page.close();
         }
         await context.close();

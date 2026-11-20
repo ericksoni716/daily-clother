@@ -10,6 +10,19 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ## Unreleased
 
+### Added
+
+- You can talk to Claude about your style from Settings: Your style, Talk to Claude about your
+  style. With nothing said yet that day it asks one question it can't tell from your clothes
+  (whether you run warm, what you wear for work, colours you never wear…), answered with a tap
+  or in your own words, or skipped. Claude answers what you write and may offer a line to keep,
+  which goes into Your style only when you save it.
+- Your style is now a list of lines, each saying where it came from: a starting rule, something
+  you said, a line kept from a conversation, or your answer to a question, with the day. Each
+  line can be changed or removed (with Undo), and you can add one by hand. What Claude reads is
+  the same as before until you change a line.
+- A line you kept from a conversation, on Today or in Settings, can be taken back with Undo.
+
 ### Changed
 
 - Settings is a short page in eight groups: Your style, Everyday (the weather's place, how you

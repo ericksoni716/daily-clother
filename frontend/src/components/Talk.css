@@ -1,0 +1,50 @@
+/* Talking to Claude (components/Talk.tsx): on Today under Claude's line, and in Settings, Your style. The day's
+   messages (yours on a soft fill, Claude's set off by a line in the accent), the things it offers to remember as small
+   cards, then the box to write in. */
+.talk { max-width: 40rem; color: var(--ink-2); font-size: var(--text-sm); line-height: 1.4; }
+.talk p { margin: 0 0 var(--space-1); }
+.talk-list { list-style: none; margin: 0 0 var(--space-3); padding: 0; display: grid; gap: var(--space-4); }
+.talk-turn { display: grid; gap: var(--space-2); min-width: 0; }
+.talk-said, .talk-reply { min-width: 0; border-radius: var(--radius-sm); padding: 8px 12px; }
+.talk-said { background: var(--surface-2); color: var(--ink); }
+.talk-reply { border-left: 3px solid var(--accent); border-top-left-radius: 0; border-bottom-left-radius: 0; color: var(--ink); }
+.talk .talk-said p, .talk .talk-reply p { margin: 0; overflow-wrap: anywhere; white-space: pre-line; }
+.talk-who {
+  display: block; margin-bottom: 2px; font-family: var(--font-label); color: var(--label-ink); font-size: var(--text-xs);
+  font-weight: var(--weight-heading); text-transform: uppercase; letter-spacing: 0.08em;
+}
+.talk p.talk-answering { display: flex; align-items: center; gap: var(--space-2); margin: 0; padding: 0 12px; }
+.talk-mark { flex: none; display: inline-flex; gap: 4px; }
+.talk-mark span {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--accent);
+  animation: talk-dot 1.4s var(--ease-out) infinite both;
+}
+.talk-mark span:nth-child(2) { animation-delay: 0.2s; }
+.talk-mark span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes talk-dot { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .talk-mark span { animation: none; opacity: 0.6; } }
+.talk-failed { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); padding: 0 12px; }
+.talk .talk-failed p { margin: 0; flex: 1 1 14rem; min-width: 0; color: var(--warn); }
+
+.talk-keep {
+  margin-left: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm);
+  background: var(--surface); min-width: 0;
+}
+.talk .talk-keep p { margin: 0 0 var(--space-1); overflow-wrap: anywhere; }
+.talk p.talk-keep-question { color: var(--ink); font-weight: var(--weight-label); }
+.talk-keep-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-top: var(--space-2); }
+.talk .talk-keep-error { margin: var(--space-2) 0 0; font-size: var(--text-sm); }
+.talk-kept { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-2); margin-left: 12px; }
+.talk p.talk-kept-line { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--accent); font-weight: var(--weight-label); }
+.talk-kept svg { flex: none; width: 18px; height: 18px; }
+
+.talk-say-label { display: block; margin-bottom: 6px; font-size: var(--text-sm); font-weight: var(--weight-label); color: var(--ink-3); }
+.talk-say-row { display: flex; gap: var(--space-2); align-items: flex-end; }
+.talk-say textarea {
+  flex: 1; min-width: 0; min-height: var(--tap); padding: 10px 12px; border-radius: var(--radius-sm); resize: vertical;
+  border: 1px solid var(--line); background: var(--inset); color: var(--ink); font: inherit; font-size: var(--text-md); line-height: 1.4;
+}
+.talk-say textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.talk-say textarea:disabled, .talk-say textarea[aria-disabled='true'] { color: var(--ink-3); border-style: dashed; }
+.talk-say .btn { flex: none; }
+.talk .talk-say-error { margin: var(--space-2) 0 0; font-size: var(--text-sm); }

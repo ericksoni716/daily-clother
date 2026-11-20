@@ -26,14 +26,17 @@ test.describe('your style and how I wear it', () => {
     await page.getByRole('button', { name: 'Start with my own closet' }).click();
     const starting = (await (await page.request.get(backend.url + '/api/style/profile')).json()).default_text as string;
 
-    // Settings → Your style, the first group: the starting text, short, with the whole of it to edit in a sheet
+    // Settings → Your style, the first group: the starting lines, each marked as one, with the whole text to edit in
+    // a sheet
     await page.goto(backend.url + '/settings');
     const section = page.locator('section[aria-labelledby="s-style"]');
     await expect(section.getByRole('heading', { name: 'Your style' })).toBeVisible();
     const headings = await page.locator('.settings-section h2').allTextContents();
     expect(headings[0]).toBe('Your style');
-    await expect(section.getByTestId('style-summary')).toHaveText(starting);
-    expect(await section.getByTestId('style-summary').evaluate((el) => getComputedStyle(el).webkitLineClamp)).toBe('3');
+    const summary = section.getByTestId('style-summary-line');
+    const startingLines = starting.split('\n').map((l) => l.replace(/^- /, ''));
+    await expect(summary).toHaveText(startingLines.map((l) => `${l}Starting rule`));
+    expect(await summary.first().locator('.style-line-text').evaluate((el) => getComputedStyle(el).webkitLineClamp)).toBe('2');
     const edit = section.getByRole('button', { name: 'Edit the text' });
     const box = section.getByRole('textbox', { name: 'About how I dress' });
     await expect(box).toHaveCount(0);
@@ -54,7 +57,7 @@ test.describe('your style and how I wear it', () => {
     await expect(save).toBeDisabled();
     await expect(back).toBeVisible();
     await page.reload();
-    await expect(section.getByTestId('style-summary')).toHaveText(MINE);
+    await expect(summary).toHaveText(MINE.split('\n').map((l) => `${l}You said this today`));
     await edit.click();
     await expect(box).toHaveValue(MINE);
     await expect(back).toBeVisible();
@@ -83,7 +86,7 @@ test.describe('your style and how I wear it', () => {
     await expect(box).toHaveValue(starting);
     await expect(back).toHaveCount(0);
     await page.reload();
-    await expect(section.getByTestId('style-summary')).toHaveText(starting);
+    await expect(summary).toHaveText(startingLines.map((l) => `${l}Starting rule`));
     await edit.click();
     await expect(box).toHaveValue(starting);
 

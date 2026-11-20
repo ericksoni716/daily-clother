@@ -215,3 +215,57 @@ def given(result) -> dict:
     return {"looks": looks(a), "read": getattr(a, "read", None), "reply": getattr(a, "reply", None),
             "remember": [k.model_dump() for k in getattr(a, "remember", [])], "route": result.route,
             "model": result.model, "input_tokens": result.input_tokens, "output_tokens": result.output_tokens}
+
+
+# ------------------------------------------------------------------ the style conversation
+# Settings, Your style, "Talk to Claude about your style" (`closet/stylechat.py`): the owner writes about how they
+# dress, not about a day's outfits. A short question, text only: the style profile, the conversation so far that day
+# and the owner's message; no closet, no guide, no day. Claude answers in a few sentences and may offer lines to keep in
+# the profile, which the owner is asked about before anything is kept. Kept cheap on purpose (the assessment's "Do not
+# copy": no streaming, no tools): low effort and a short answer.
+CHAT_MAX_TOKENS = 1200   # the longest answer: a few sentences and two short lines to keep
+CHAT_EFFORT = "low"      # a conversation, not a choice to think through
+CHAT_SYSTEM = ("You are the personal stylist inside a private wardrobe app. You talk with its owner about how they "
+               "like to dress, so that you choose their outfits better on other days. Answer in the required JSON "
+               "format. Do nothing else.")
+
+
+class ChatReply(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    reply: str = Field(description="One to three plain sentences to the owner, answering what they just wrote.")
+    remember: list[str] = Field(description="Lines worth adding to the owner's style profile, each one short sentence "
+                                            "in the owner's own voice; usually empty.")
+
+
+def chat_prompt(brief: dict[str, str]) -> str:
+    """The question for the style conversation: `brief` has `profile` (the profile in force), `talk` (the day's
+    conversation before this message, or empty) and `say` (the owner's message)."""
+    talk = f"\n\n# The conversation so far today\n{brief['talk']}" if brief.get("talk") else ""
+    return f"""Talk with the owner about how they like to dress.
+
+# How the owner dresses (their style profile)
+These are the lines you read every time you choose the owner's outfits. This is the owner speaking.
+{brief["profile"]}{talk}
+
+# What the owner just wrote
+{brief["say"]}
+
+# What to give
+- `reply`: one to three plain sentences to the owner. Answer what they wrote, the way a good personal stylist would: straight, warm and specific. When what they said is unclear, or leaves out something that would change what you choose for them (the weather, an occasion, a fit), ask one short question back. Do not list rules, and do not repeat their profile back to them.
+- `remember`: usually empty. When what the owner wrote shows something that will hold on other days (a taste, a rule of theirs, how they like things to fit, what they wear for work or at weekends), offer to add it to their profile: one short sentence in the owner's own voice ("I run warm, so one layer fewer than most people"), saying only what they said. At most two. Nothing that is only about one day, and nothing the profile already says. The owner is asked before anything is kept."""
+
+
+def chat(brief: dict[str, str], routes: tuple[str, ...], client=None, exe: str | None = None,
+         meter: Meter | None = None, model: str = MODEL, effort: str | None = CHAT_EFFORT):
+    """Claude's answer in the style conversation: a `correcting.CorrectionResult` whose `answer` is a `ChatReply`.
+    Raises as `ask` does."""
+    return correcting.ask(chat_prompt(brief), [], routes, client=client, exe=exe, meter=meter, answer_model=ChatReply,
+                          system=CHAT_SYSTEM, model=model, max_tokens=CHAT_MAX_TOKENS, effort=effort)
+
+
+def chatted(result) -> dict:
+    """A style conversation's answer as `closet/stylechat.py` takes it: {reply, remember, route, model, input_tokens,
+    output_tokens}, `remember` as a list of sentences."""
+    a = result.answer
+    return {"reply": a.reply, "remember": list(a.remember), "route": result.route, "model": result.model,
+            "input_tokens": result.input_tokens, "output_tokens": result.output_tokens}

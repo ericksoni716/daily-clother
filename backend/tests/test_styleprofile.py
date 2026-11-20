@@ -79,8 +79,11 @@ def test_how_i_wear_it_is_in_the_line_claude_reads_for_the_piece(client, cfg):
 # ------------------------------------------------------------------ the style profile
 def test_the_starting_profile_is_in_force_until_the_owner_writes_one(client, services):
     body = client.get("/api/style/profile").json()
+    starting = [ln for ln in styling.DEFAULT_PROFILE.splitlines() if ln.strip()]
     assert body == {"text": styling.DEFAULT_PROFILE, "is_default": True, "updated_at": None,
-                    "default_text": styling.DEFAULT_PROFILE, "max_length": styleprofile.MAX_TEXT}
+                    "default_text": styling.DEFAULT_PROFILE, "max_length": styleprofile.MAX_TEXT,
+                    "lines": [{"id": -1 - i, "text": ln, "source": "start", "created_at": None}
+                              for i, ln in enumerate(starting)]}
 
 
 def test_a_saved_profile_is_read_back_with_its_line_breaks(client, cfg):

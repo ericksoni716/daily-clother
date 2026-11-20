@@ -59,6 +59,13 @@ in the message itself: "fail" cannot be reached; "why" is a question, answered i
 are; anything else turns the outfits around (the rules' first outfit first, then their third), and "never" or "always"
 also offers to keep the message for the owner's style, "fits" a note on the first outfit's top.
 
+The style conversation (Settings, Your style, "Talk to Claude about your style") is never the real Claude either: a
+stand-in (`fake_chat`) answers every message after 1.5 seconds, from made-up scripts chosen by words in the message:
+"fail" cannot be reached; "warm" or "cold" is answered with a line to keep about feeling the cold; "never" or
+"always" offers to keep the message itself; anything else is answered with a question back and nothing to keep. With
+CLOSET_E2E_FAKES a route to Claude looks usable, so the conversation can be shown; without them the
+real routes say whether one is, and on a computer with neither the conversation says Claude can't be reached.
+
 The API key box keeps keys in a stand-in keychain (never the computer's), and the check with Anthropic is a
 stand-in too: a key ending in "refused" is turned down, any other well-formed key is accepted.
 """
@@ -328,6 +335,25 @@ def failing_stylist(brief, routes):
     raise Unreachable("offline")
 
 
+def fake_chat(brief, routes):
+    """Stands in for Claude in the style conversation, from words in the owner's message (see the module's words)."""
+    time.sleep(1.5)   # long enough for the page to show Claude answering
+    words = brief["say"].lower()
+    meta = {"route": routes[0], "model": "stand-in", "input_tokens": 80, "output_tokens": 40}
+    if "fail" in words:
+        raise Unreachable("offline")
+    if "warm" in words or "cold" in words:
+        hot = "warm" in words
+        return {**meta, "reply": f"Noted. I'll dress you a little {'lighter' if hot else 'warmer'} than the weather "
+                                 "suggests.",
+                "remember": ["I run warm, so one layer fewer than most people." if hot else
+                             "I feel the cold, so one layer more than most people."]}
+    if "never" in words or "always" in words:
+        text = brief["say"].strip()
+        return {**meta, "reply": "Understood. I'll keep to that.", "remember": [text[:1].upper() + text[1:]]}
+    return {**meta, "reply": "Thanks. What do you usually wear for work?", "remember": []}
+
+
 def build_services(cfg, **kwargs):
     sv = _build_services(cfg, **kwargs)
     if not os.environ.get("CLOSET_E2E_STYLIST"):
@@ -340,6 +366,7 @@ def _build_services(cfg, **kwargs):
     # sorting the photos on Add never reaches Claude from a browser test, with or without the other stand-ins
     kwargs.setdefault("add_sorter", fake_add_sorter)
     kwargs.setdefault("day_reader", fake_day_reader)   # nor does reading the day in the owner's words
+    kwargs.setdefault("chat_ask", fake_chat)   # nor does the style conversation
     chooser = os.environ.get("CLOSET_E2E_STYLIST")
     if chooser:   # nor does choosing the day's outfits
         kwargs.setdefault("stylist_ask", failing_stylist if chooser == "fails" else slow_stylist)

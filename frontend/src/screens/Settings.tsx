@@ -5,6 +5,8 @@ import { PhoneAccess } from '../components/PhoneAccess';
 import { ADD_TO_HOME_SCREEN, deviceOf, fromHomeScreen, phoneAccessShows } from '../here';
 import { WhereYouAre } from '../components/WhereYouAre';
 import { LifeQuestions } from '../components/LifeQuestions';
+import { LineWords, StyleLines } from '../components/StyleLines';
+import { StyleTalk } from '../components/StyleTalk';
 import { StatusLine, Toggle } from '../components/Toggle';
 import { UpdatesLine } from '../components/Updates';
 import { Button, buttonClass, confirmKeys, Notice, PageHeader, Section as UiSection, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
@@ -15,7 +17,7 @@ import { phonePoll, settingsQuery, settingsSaved, taggingQuery, useSaveSettings,
 import { backupLine, claudeLine, computerOnly, mainGroups, type Device, type Group } from '../settingsLines';
 import { useApp } from '../store';
 import { applyTheme, loadTheme, saveTheme, THEME_CHOICES, type Theme } from '../theme';
-import { styleChanged, styleCount } from '../style';
+import { moreLines, profileLines, shownLines, styleChanged, styleCount } from '../style';
 import { MAX_REWEAR, REWEAR_KINDS, rewearWords } from '../trips';
 import type { LaundrySetting, Profile, RewearKind, Settings, StyleProfile, TaggingSpend } from '../types';
 
@@ -46,24 +48,42 @@ function LookSection() {
 }
 
 /**
- * Your style: what Claude reads about how you dress, shown short, with the text to edit in a sheet, and the switch
- * that lets Claude choose. Each closet (the owner's, the demo) keeps its own. Drawn from the settings' answer, which
- * fills its key.
+ * Your style: what Claude reads about how you dress, as lines with where each came from (the first few here, every one
+ * in a sheet to change, remove or add to), the conversation with Claude about it, the whole text to edit in a sheet,
+ * and the switch that lets Claude choose. Each closet (the owner's, the demo) keeps its own. Drawn from the settings'
+ * answer, which fills its key.
  */
 function StyleSection({ offline, profile, settings, toast }: {
   offline: boolean; profile: Profile; settings: Settings; toast: Toast;
 }) {
   const saveSettings = useSaveSettings();
   const style = useQuery<StyleProfile>({ queryKey: queryKeys.styleProfile(), queryFn: api.styleProfile, enabled: false }).data ?? settings.style_profile;
-  const [editing, setEditing] = useState(false);
+  const [open, setOpen] = useState<'talk' | 'lines' | 'text' | null>(null);
+  const lines = profileLines(style);
+  const { shown, more } = shownLines(lines);
+  const toggle = (which: 'talk' | 'lines' | 'text') => setOpen(open === which ? null : which);
   return (
     <Section title="Your style" id="s-style">
-      <p className="style-summary" data-testid="style-summary">{style.text}</p>
-      <div className="settings-actions">
-        <Button small disabled={offline} aria-expanded={editing} onClick={() => setEditing(!editing)}>{editing ? 'Done' : 'Edit the text'}</Button>
-        {/* "Talk to Claude about your style" goes here, once the style conversation exists (step 8 of the order of work) */}
+      <ol className="style-summary" aria-label="What Claude reads about how you dress" data-testid="style-summary">
+        {shown.map((line) => <li key={line.id} className="style-line-words" data-testid="style-summary-line"><LineWords line={line} /></li>)}
+      </ol>
+      {more > 0 && <p className="muted style-more">{moreLines(more)}</p>}
+      <div className="settings-actions style-actions">
+        <Button small variant="primary" disabled={offline} aria-expanded={open === 'talk'} onClick={() => toggle('talk')}>Talk to Claude about your style</Button>
+        <Button small disabled={offline} aria-expanded={open === 'lines'} onClick={() => toggle('lines')}>{more > 0 ? 'See all lines' : 'Change the lines'}</Button>
+        <Button small variant="ghost" disabled={offline} aria-expanded={open === 'text'} onClick={() => toggle('text')}>Edit the text</Button>
       </div>
-      {editing && <StyleEditor offline={offline} style={style} toast={toast} onClose={() => setEditing(false)} />}
+      {open === 'talk' && (
+        <Sheet title="Talk about your style" onClose={() => setOpen(null)} testId="style-talk-sheet">
+          <StyleTalk offline={offline} />
+        </Sheet>
+      )}
+      {open === 'lines' && (
+        <Sheet title="Your style" onClose={() => setOpen(null)} testId="style-lines-sheet">
+          <StyleLines lines={lines} offline={offline} toast={toast} />
+        </Sheet>
+      )}
+      {open === 'text' && <StyleEditor offline={offline} style={style} toast={toast} onClose={() => setOpen(null)} />}
       <Toggle label="Let Claude choose my outfits"
         hint={`When this is off, or Claude can't be reached, Closet's own rules choose.${profile === 'demo' ? ' In the demo closet they always do.' : ''}`}
         checked={settings.stylist_on !== false} disabled={offline}

@@ -90,13 +90,12 @@ test.describe('your style and how I wear it', () => {
     await edit.click();
     await expect(box).toHaveValue(starting);
 
-    // a piece: How I wear it, under More details, kept through a reload
+    // a piece: its one notes box, under About it, kept through a reload
     await page.goto(backend.url + '/');
     await page.getByTestId('tile').filter({ hasText: 'Oatmeal henley' }).click();
-    await page.getByText('More details').click();
-    const wear = page.getByRole('textbox', { name: 'How I wear it' });
-    await expect(wear).toHaveAttribute('placeholder', 'e.g. only with the navy suit; runs warm; for dinners out');
-    await expect(page.getByText('Claude reads this when it chooses your outfits.')).toBeVisible();
+    const wear = page.getByRole('textbox', { name: 'Notes for you and Claude' });
+    await expect(wear).toHaveAttribute('placeholder', 'e.g. only with the navy suit; runs small in the shoulders; great for dinners out');
+    await expect(page.getByText('Claude reads these when it chooses your outfits.')).toBeVisible();
     await wear.fill('Under the navy blazer, for dinners out');
     await wear.blur();
     await expect(page.locator('.toast').filter({ hasText: /could|error/i })).toHaveCount(0);
@@ -104,8 +103,7 @@ test.describe('your style and how I wear it', () => {
     await expect.poll(async () => (await (await page.request.get(`${backend.url}/api/items/${id}`)).json()).wear_notes)
       .toBe('Under the navy blazer, for dinners out');
     await page.reload();
-    await page.getByText('More details').click();
-    await expect(page.getByRole('textbox', { name: 'How I wear it' })).toHaveValue('Under the navy blazer, for dinners out');
-    await expect(page.getByRole('textbox', { name: 'Notes', exact: true })).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Notes for you and Claude' })).toHaveValue('Under the navy blazer, for dinners out');
+    await expect(page.locator('.detail textarea:not([aria-label="Name"])')).toHaveCount(1);   // one box for notes, not four
   });
 });

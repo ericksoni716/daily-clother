@@ -25,6 +25,20 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- An item's page is shorter and says each thing once. Under the name, one line says what it
+  is, its colour and how it sits, read from the same description the drawing is made from, so
+  the words and the drawing always agree; "Something wrong? Tell Claude" under it opens Fix the
+  details. Then Wearing and washing, and About it: how you feel about it and one box, Notes
+  for you and Claude, which shows every note you had kept in the older boxes. The rest is
+  folded: Details, Shopping facts, History, and describing again, archiving or deleting.
+- What Claude saw is gone from the item page: the details one by one in Fix the details show
+  the same values, marked when you set them, with when Claude described it. What the drawing
+  leaves out is a small mark on the drawing. The shape (sleeves, neckline, length, fit) is no
+  longer asked among the Details; you change it in Fix the details.
+- Outfits, the stylist, what's missing and packing now read a piece's sleeves, fit and the
+  weight of its cloth as you corrected them in Fix the details, as the drawing does. Searching
+  the closet also finds words in a piece's notes, whichever box they were kept in.
+
 - Settings is a short page in eight groups: Your style, Everyday (the weather's place, how you
   live, the laundry), Claude, Updates, Phone, This device, Your data, then Log out. Claude,
   Updates and your backups each say how they stand in one line, in red with the one thing to

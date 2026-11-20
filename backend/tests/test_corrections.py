@@ -135,7 +135,9 @@ def test_a_picked_detail_changes_the_drawing_and_survives_describe_it_again(clie
     assert r.status_code == 200
     picked = r.json()
     assert picked["own_details"] == {"placket_buttons": 1, "v_insert": "yes"}
-    assert picked["details"]["placket_buttons"] == 3   # Claude's answer is never edited
+    assert picked["details"]["placket_buttons"] == 1   # the look the page shows is the drawing's, with the owner's detail
+    with closing(db.connect(cfg.db_path("main"))) as conn:   # and Claude's answer is never edited
+        assert json.loads(items.get(conn, item["id"])["tag_answer"])["details"]["placket_buttons"] == 3
     after = svg(client, picked)
     assert after != before
 

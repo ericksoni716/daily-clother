@@ -193,10 +193,9 @@ test.describe('talking to Claude about the outfits', () => {
     expect((await (await page.request.get(backend.url + `/api/items/${thing.item_id}`)).json()).wear_notes).toContain('Fits well under a jacket.');
     expect((await (await page.request.get(backend.url + '/api/style/profile')).json()).text).not.toContain('Always roll the sleeves');
 
-    // the item page shows it under "How I wear it"
+    // the item page shows it in the item's one notes box
     await page.goto(backend.url + `/today/item/${encodeURIComponent(thing.item_id!)}`);
-    await page.getByText('More details').click();
-    await expect(page.getByRole('textbox', { name: 'How I wear it' })).toHaveValue(/Fits well under a jacket\./);
+    await expect(page.getByRole('textbox', { name: 'Notes for you and Claude' })).toHaveValue(/Fits well under a jacket\./);
   });
 
   test('Enter sends and Shift+Enter does not; a question is answered and the outfits and the place stay', async ({ page }) => {

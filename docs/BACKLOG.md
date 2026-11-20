@@ -25,6 +25,23 @@ only here); take a line out when it is done.
     change by hand does); it could move the day's answer instead, as a line kept on Today does.
   - Lines cannot be reordered except by Edit the text.
   - The second half of step 8 (the four-place structure and shared components) is separate.
+- **The item page consolidated** (step 7 of the order of work, done 20 November). Left:
+  - The failure notices (the pattern could not be measured, the cutout or the description
+    failed) are now together under the picture, but still come into the page above the name
+    when a step fails while you look. Laying them over the picture as the strip is would need
+    room for their longer text and Try again.
+  - The `silhouette` column still holds a copy of Claude's shape for an item Claude described.
+    Nothing reads it for the look any more (only the history and `drawn_answer`, which ignores
+    it unless the shape is the owner's); dropping the copy would need a migration and a change
+    to how the history records a new description.
+  - The details one by one are still a view in the sheet, not a route (`/item/<id>/details`),
+    and the old notes boxes are only emptied once you edit the one box; a closet keeps them
+    until then.
+  - "What is it?" still says "Kind not said yet" and shows the group in place of a kind the
+    assessment called jargon; the Details rows for formality and season are rarely changed and
+    could go further down.
+  - The phone check shows the item page with its folds closed; there is no picture of them
+    open except from a browser test run by hand.
 - **Settings regrouped** (step 6 of the order of work, done 20 November). Left:
   - The main page is about 1,820px and 201 words on a 390px phone with the demo closet and
     no phone share (about 2.2 screens), down from about 6,100px and 1,105 words, not the 1.5
@@ -50,9 +67,6 @@ only here); take a line out when it is done.
     same as one being measured.
   - The item page's strip says the short reason a piece waits; the long sentence (the monthly
     limit's) is only on Add and in the "Working on N items" list.
-  - The pattern-failed notice and the cutout and description failure notices still sit above
-    the name and push it down when they appear (as before). They could move into the strip's
-    place under the picture.
   - The demo closet never has work under way, so the phone check shows none of this; the
     browser test `30-progress` takes the pictures instead (in its own output folder).
 - **Data loading** (step 4 of the order of work, done 20 November). Left:

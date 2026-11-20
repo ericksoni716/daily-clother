@@ -1,4 +1,4 @@
-import { expect, PASS, PHOTOS, test } from './fixtures';
+import { expect, openFold, PASS, PHOTOS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 // Its own backend, with stand-ins for the model and for Claude: nothing here reaches the real Claude.
@@ -31,18 +31,28 @@ test.describe('with a stand-in for Claude', () => {
 
     await tile.click();
     const detail = page.locator('.detail-panel');
-    await expect(detail.getByText("Suggested by Claude; change anything that's wrong.")).toBeVisible();
     await expect(detail.getByRole('textbox', { name: 'Name' })).toHaveValue('Navy polo');
-    const seen = detail.locator('details', { hasText: 'What Claude saw' });
-    await expect(seen.getByText('embroidered chest logo')).toBeHidden();   // folded away until opened
-    await seen.getByText('What Claude saw').click();
-    await expect(seen.getByText('Seen but not drawn yet')).toBeVisible();
-    await expect(seen.getByText('embroidered chest logo')).toBeVisible();
-    await expect(seen.getByText('Flat knit')).toBeVisible();
+    // one line under the name, from the description the drawing was made from ("What Claude saw" is gone: the
+    // details one by one show the same values, and what was seen but not drawn is a mark on the drawing)
+    await expect(detail.getByTestId('look-line')).toHaveText(/ · Navy.* · Short sleeves$/);
+    await detail.getByRole('group', { name: 'Picture' }).getByRole('button', { name: 'Drawing' }).click();
+    await detail.getByRole('button', { name: 'Not in the drawing' }).click();
+    await expect(page.getByRole('dialog', { name: 'Not in the drawing' }).getByText(/embroidered chest logo/i)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await detail.getByRole('button', { name: 'Something wrong? Tell Claude' }).click();
+    const sheet = page.getByRole('dialog', { name: 'Fix the details' });
+    await sheet.getByRole('button', { name: 'Change the details one by one' }).click();
+    await expect(sheet.getByTestId('described-by')).toHaveText(/^Described with your Claude plan on .*\.$/);
+    await expect(sheet.getByRole('button', { name: /^Collar: flat knit/ })).toBeVisible();
+    await page.keyboard.press('Escape');
 
+    const id = new URL(page.url()).pathname.split('/').at(-1)!;
+    const described = async () => (await (await page.request.get(`${backend.url}/api/items/${id}`)).json()).tag_state;
+    await openFold(detail, 'Describe it again, archive or delete');
     await detail.getByRole('button', { name: 'Describe it again' }).click();
     await expect(page.getByText('Asking Claude to describe it again')).toBeVisible();
-    await expect(detail.getByText("Suggested by Claude; change anything that's wrong.")).toBeVisible({ timeout: 30_000 });
+    await expect.poll(described, { timeout: 30_000 }).toBe('done');
+    await expect(detail.getByTestId('look-line')).toHaveText(/ · Navy.* · Short sleeves$/);
 
     await page.goto(backend.url + '/settings/advanced');
     const section = page.getByRole('region', { name: 'Claude' });

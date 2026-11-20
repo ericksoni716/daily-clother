@@ -75,8 +75,12 @@ test.describe('a new photo of a piece of clothing', () => {
     expect(after.wear_count).toBe(1);
 
     // the background could not be removed: the button is beside "Try the cutout again", and only there
+    // (the page reads the failure from the item's progress, which the server works out from these fields)
     await showWith(page, id, { cutout_state: 'failed', cutout_error: 'The background could not be removed from this photo.',
-      pattern: 'plaid', pattern_state: 'failed', pattern_error: PLAID_FAILED });
+      pattern: 'plaid', pattern_state: 'failed', pattern_error: PLAID_FAILED,
+      progress: { stage: 'cutout', step: 1, of: 3, state: 'failed', title: 'Cutting out', words: "The background couldn't be removed",
+        about: '', waiting_for: null, why: null, error: 'The background could not be removed from this photo.', can_retry: true,
+        retry: 'cutout' } });
     const notice = page.locator('.notice-warn').filter({ hasText: "The background couldn't be removed." });
     await expect(notice.getByRole('button', { name: 'Try the cutout again' })).toBeVisible();
     await expect(notice.getByRole('button', { name: 'Retake the photo' })).toBeVisible();

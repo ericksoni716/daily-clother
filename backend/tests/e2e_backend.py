@@ -38,7 +38,8 @@ each drawing made safe, rendered and checked) with a stand-in for Claude's answe
 straight on or turned, is the dress shoe the owner liked (`conftest.draw_answer`), the first check of each says it is
 good and the judge keeps the first with no fault named (so nothing is fixed), as if on the Claude plan, with made-up
 token counts; beside the turns the side is drawn as a plain low shoe (`conftest.side_answer`), said good at its first
-check. With CLOSET_E2E_ROUTES=api the real
+check, except the first side, which cannot be used (so the first drawing keeps the trace as its picture, whatever
+finishes first). With CLOSET_E2E_ROUTES=api the real
 API route asks `conftest.FakeApi`, which answers the same. Changing a drawing from the owner's note runs the real steps
 too: whatever the note, after a second each, the dress shoe comes back with black laces (`conftest.correct_answer`),
 said to go against the photos, and the first check says it is good.
@@ -162,11 +163,20 @@ def fake_sorter(photos, routes):
     return views_answer(len(photos))
 
 
+_sides = {"asked": 0}
+
+
 def fake_asker(text, images, routes, answer_model=None, model="", **kw):
     """Claude's answers to the drawing and its check, after a second each: the dress shoe, said to be good, straight
     on or turned; to the judge: the first, with no fault named; to a correction and its check: the dress shoe with
-    black laces, said to go against the photos, and good; and to the side and its check: a plain low shoe, good."""
+    black laces, said to go against the photos, and good; and to the side and its check: a plain low shoe, good,
+    except the first side this backend is asked for, which cannot be used (lettering only), so the first drawing has
+    no side and the page shows the trace until the shoe is drawn again."""
     time.sleep(1)   # long enough for the page to show it drawing
+    if answer_model is shoedrawing.SideAnswer:
+        _sides["asked"] += 1
+        if _sides["asked"] == 1:
+            return CorrectionResult(side_answer("<text>shoe</text>"), routes[0], model, 42_000, 6_500, 12_000)
     if answer_model is shoedrawing.Verdict:
         answer = shoedrawing.Verdict(observations="The panels as the photos show them.", best="a",
                                      ranking=["a", "b"], faults=["A: none", "B: none"])

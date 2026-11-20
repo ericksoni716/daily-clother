@@ -28,6 +28,14 @@ after another.
 Same rules as sorting the photos: when Claude cannot be reached the shoe waits, with its attempt given back and a
 plain note; another failure is tried again, three times in all, then the item says so (a correction that fails
 leaves the drawing as it was). The demo closet is never sent to Claude.
+
+The shoe is drawn from its side with its drawing (`shoedrawing.draw`), and kept in the drawing's `side` entry: the
+item's own drawing is made from it (`illustrations.make`), so the stored illustration is made again whenever the
+drawing changes. A correction keeps the side as it is. A kept drawing with no side (drawn before sides were, or whose
+side failed) is drawn its side by itself (`run_side`), in a place no waiting shoe needs, one side at a time
+(`SIDES_AT_ONCE`), the shoe marked busy meanwhile so it is neither drawn twice nor drawn or changed, at most
+`SIDE_TRIES` times, with the same waiting when Claude cannot be reached; its tries are counted in the drawing itself
+(`side_tries`), so a new drawing starts again from none.
 """
 from __future__ import annotations
 
@@ -35,20 +43,21 @@ import hashlib
 import json
 import logging
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from pathlib import Path
 
 from PIL import Image
 
-from . import db, failures, shoeviews, tracejobs
+from . import db, failures, illustrations, shoeviews, tracejobs
 from .config import Config
 from .state import State
-from .tagger.shoedrawing import Drawn, Photo, clean_note, notes_of
+from .tagger.shoedrawing import Drawn, Photo, Sided, clean_note, notes_of
 from .tagger.tagging import CapReached, RouteUnavailable, Unreachable
 
 log = logging.getLogger("closet.shoedraw")
 
 MAX_ATTEMPTS = 3      # as for describing and sorting
+SIDE_TRIES = 3        # a side drawn by itself, at most this many times for one drawing
 ABOUT_USD = 2.0       # roughly what one drawing costs on the API key, until this shoe has one of its own: two
                       # drawings straight on, two turns, the judge and a fix came to $1.38 to $3.13 on the owner's five
                       # pairs through the app's own code, $1.93 on average (17 November 2026), before the cache
@@ -57,6 +66,9 @@ SHOES = tracejobs.SHOES
 # then two turns), so two shoes are four calls at once, and a rate limit met inside a check quietly costs that drawing
 # a check (a check that fails keeps the drawing so far) rather than stopping it. See DECISIONS.md.
 AT_ONCE = 2
+# Sides drawn by themselves (`run_side`) at the same time, within AT_ONCE. One: a side makes one call at a time, and
+# with one place left free a shoe that becomes due is started at once rather than waiting minutes for sides.
+SIDES_AT_ONCE = 1
 WAIT = 5.0            # seconds a drain with a shoe in hand waits for a wake before looking for another due shoe
 
 # the shoe's photos (the main one first, each with its view), the routes to try and, as `notes`, the owner's notes on
@@ -65,6 +77,9 @@ Drawer = Callable[..., Drawn]
 # the shoe's photos, the drawing kept (as `items.drawn`), the owner's note and the routes to try -> the drawing changed
 # (`shoedrawing.Corrected`)
 Corrector = Callable[[list[Photo], dict, str, tuple[str, ...]], Drawn]
+# the shoe's photos and the routes to try, with `sheet` (the drawing's), `notes` (the owner's) and `measures` (from its
+# trace) -> the side drawn by itself (`shoedrawing.Sided`)
+Sider = Callable[..., Sided]
 Routes = Callable[[], tuple[str, ...]]
 
 WAITING = "The shoe is drawn from its photos in a moment."
@@ -175,6 +190,7 @@ def back(conn, item_id: str) -> None:
     conn.execute("UPDATE items SET drawn = drawn_prev, drawn_prev = drawn, updated_at = ?, "
                  "drawn_error = CASE WHEN drawn_state = 'done' THEN NULL ELSE drawn_error END WHERE id = ?",
                  (db.now(), item_id))
+    illustrations.redraw(conn, item_id)   # the item's drawing is the side of the drawing now shown, or the trace
 
 
 def _shoe(value) -> bool:
@@ -251,7 +267,11 @@ def shown(conn, row) -> dict | None:
     corrected: this drawing is the one before changed from a note, with that note, what Claude says changed
     (changed) and, when the note asks for something the photos do not show, one plain sentence saying so
     (against_photos). has_previous: the drawing before the last change is kept (`back` swaps them), and
-    previous_newer: that one is the newer of the two (the owner went back)."""
+    previous_newer: that one is the newer of the two (the owner went back).
+
+    side: the shoe drawn from its side with this drawing, or null: url (`drawn/side.svg`, on its card, versioned) and
+    features (what makes the shoe itself from the side). side_shown: the item's own drawing is that side (the owner
+    has not chosen the plain drawing), so the trace's colours and marks do not show."""
     if not tracejobs.wanted(row["category"]):
         return None
     d = _drawn(row)
@@ -263,6 +283,8 @@ def shown(conn, row) -> dict | None:
     notes = notes_of(d) if d else []
     corrected = bool(d and d.get("corrected") and notes)
     last = notes[-1] if corrected and not busy else {}
+    side = side_of(d)
+    side_version = hashlib.sha256(f"{side['svg']}{side.get('made_at')}".encode()).hexdigest()[:16] if side else ""
     return {
         "state": row["drawn_state"], "message": _message(row),
         "url": f"/api/items/{row['id']}/drawn.svg?v={version}" if d else None,
@@ -275,6 +297,9 @@ def shown(conn, row) -> dict | None:
         "corrected": corrected, "changed": last.get("changed"), "against_photos": last.get("against_photos"),
         "has_previous": d is not None and prev is not None,
         "previous_newer": d is not None and prev is not None and str(prev.get("made_at") or "") > str(d.get("made_at") or ""),
+        "side": {"url": f"/api/items/{row['id']}/drawn/side.svg?v={side_version}",
+                 "features": [f for f in side.get("features") or [] if isinstance(f, str)]} if side else None,
+        "side_shown": side is not None and not row["trace_plain"],
     }
 
 
@@ -285,12 +310,15 @@ def _about(d: dict | None) -> float:
     return round(usd, 2) if isinstance(usd, (int, float)) and not isinstance(usd, bool) and usd > 0 else ABOUT_USD
 
 
-def due(conn):
+def due(conn, skip: Collection[str] = ()):
     """The waiting shoe to work on next: a correction from the owner's note (whatever its photos' views), or a drawing
-    whose photos are sorted."""
+    whose photos are sorted. `skip`: shoes being worked on right now (a side being drawn): one waits until that is
+    done."""
+    skip = tuple(skip)
+    keep = f" AND id NOT IN ({','.join('?' * len(skip))})" if skip else ""
     return conn.execute(f"SELECT * FROM items WHERE drawn_state = 'waiting' AND category IN {SHOES} "
-                        f"AND (drawn_note IS NOT NULL OR views_state = 'sorted') ORDER BY updated_at, id LIMIT 1"
-                        ).fetchone()
+                        f"AND (drawn_note IS NOT NULL OR views_state = 'sorted'){keep} ORDER BY updated_at, id LIMIT 1",
+                        skip).fetchone()
 
 
 def note_waiting(conn, why: str | None) -> None:
@@ -335,6 +363,24 @@ def style_of(row) -> str | None:
         return None
 
 
+def side_measures(row) -> dict | None:
+    """The shoe's heights as shares of its length, measured from its trace (`drawnside.measures`), for drawing its
+    side; None when it has no finished trace or it cannot be read."""
+    from .drawing import drawnside
+
+    if row["trace_state"] != "done":
+        return None
+    shoe = tracejobs.shoe_of(row)
+    m = drawnside.measures(shoe.profile) if shoe is not None else None
+    return m.to_json() if m is not None else None
+
+
+def side_of(kept) -> dict | None:
+    """The side entry of a drawing as kept with the item, when it has one that can be shown."""
+    side = kept.get("side") if isinstance(kept, dict) else None
+    return side if isinstance(side, dict) and isinstance(side.get("svg"), str) and side["svg"].strip() else None
+
+
 def _open(images_dir: Path, photos: list) -> list[Photo]:
     if not photos:
         raise LookupError("the shoe has no photo")
@@ -354,14 +400,15 @@ def _no_corrector(photos, kept, note, routes):
 
 
 def run_one(conn, images_dir: Path, routes: tuple[str, ...], drawer: Drawer, corrector: Corrector = _no_corrector,
-            claimed: Callable[[str], None] | None = None) -> str:
+            claimed: Callable[[str], None] | None = None, skip: Callable[[], Collection[str]] | None = None) -> str:
     """Draw the shoe that is due first (`due`), or make the correction it waits for. Returns 'empty' (none is due),
     'done' (one was worked on) or 'blocked' (Claude could not be reached after all: it waits again and keeps its
     attempts). The drawing it had is kept as the one before (`drawn_prev`). `claimed` is told the item's id while
-    it is taken, inside the transaction that takes it, so no other connection can see it taken before then."""
+    it is taken, inside the transaction that takes it, so no other connection can see it taken before then. `skip`
+    gives the shoes not to take (being worked on now: a side being drawn), read inside that transaction."""
     conn.execute("BEGIN IMMEDIATE")
     try:
-        row = due(conn)
+        row = due(conn, skip() if skip else ())
         if row is None:
             conn.execute("COMMIT")
             return "empty"
@@ -385,7 +432,8 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], drawer: Drawer, cor
                 raise _NothingToChange("the shoe has no drawing to change")
             made = corrector(_open(images_dir, photos), kept, note, routes)
         else:   # the owner's notes on the drawing it replaces are kept to
-            made = drawer(_open(images_dir, photos), routes, notes=[n["note"] for n in notes], style=style_of(row))
+            made = drawer(_open(images_dir, photos), routes, notes=[n["note"] for n in notes], style=style_of(row),
+                          measures=side_measures(row))
         if not isinstance(made, Drawn):
             raise TypeError("the drawer did not return a drawing")
     except (RouteUnavailable, Unreachable) as e:   # out of reach (no route, no network, overloaded): it waits
@@ -419,10 +467,13 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], drawer: Drawer, cor
             new = made.to_json([p["id"] for p in photos], at, notes)
             if note and kept:   # what drawing it again would cost: the drawing this one was changed from
                 new["drawn_cost_usd"] = kept.get("drawn_cost_usd") if kept.get("corrected") else kept.get("cost_usd")
+                new["side"] = kept.get("side")   # a correction is of the front: the side stays as it is
+                new["side_tries"] = kept.get("side_tries") or 0
             # the drawing it had becomes the one before (one level); a first drawing leaves none
             conn.execute("UPDATE items SET drawn_prev = COALESCE(drawn, drawn_prev), drawn = ?, drawn_state = 'done', "
                          "drawn_error = NULL, drawn_attempts = 0, drawn_note = NULL, updated_at = ? WHERE id = ?",
                          (json.dumps(new), at, item_id))
+            illustrations.redraw(conn, item_id)   # its side, when it has one, is the item's drawing now
         note_waiting(conn, None)   # Claude could be reached: the others are no longer held up
         conn.execute("COMMIT")
     except Exception:
@@ -432,6 +483,101 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], drawer: Drawer, cor
     return "done"
 
 
+def side_due(conn, skip: Collection[str] = ()):
+    """The shoe whose drawing is drawn its side next (`run_side`): a shoe with a drawing kept that has no side, has not
+    used its `SIDE_TRIES`, and is neither waiting nor being drawn or changed nor in `skip` (being worked on now, its
+    side above all: its tries are counted when it is taken, but it has no side until it is done); never one made for
+    the demo closet. The oldest first."""
+    skip = set(skip)
+    rows = conn.execute(f"SELECT * FROM items WHERE drawn IS NOT NULL AND category IN {SHOES} "
+                        "AND (drawn_state IS NULL OR drawn_state NOT IN ('waiting', 'drawing', 'correcting')) "
+                        "ORDER BY updated_at, id").fetchall()
+    for row in rows:
+        kept = _drawn(row)
+        if row["id"] in skip or kept is None or side_of(kept) is not None or kept.get("route") == "demo":
+            continue
+        tries = kept.get("side_tries")
+        if not isinstance(tries, int) or isinstance(tries, bool) or tries < SIDE_TRIES:
+            return row
+    return None
+
+
+def _set_tries(conn, item_id: str, made_at, change: Callable[[int], int]) -> None:
+    """Change the side's tries counted in the item's drawing, while it is still the drawing made at `made_at`."""
+    row = conn.execute("SELECT drawn FROM items WHERE id = ?", (item_id,)).fetchone()
+    kept = _drawn(row) if row is not None else None
+    if kept is None or kept.get("made_at") != made_at:
+        return
+    tries = kept.get("side_tries") if isinstance(kept.get("side_tries"), int) else 0
+    kept["side_tries"] = max(0, change(tries))
+    conn.execute("UPDATE items SET drawn = ? WHERE id = ?", (json.dumps(kept), item_id))
+
+
+def run_side(conn, images_dir: Path, routes: tuple[str, ...], sider: Sider,
+             claimed: Callable[[str], None] | None = None, skip: Callable[[], Collection[str]] | None = None) -> str:
+    """Draw the side of the shoe that is due first (`side_due`) by itself, and keep it with its drawing. Returns
+    'empty', 'done' or 'blocked' (Claude could not be reached: the try is given back). A side that fails uses a try; a
+    missing photo uses them all. The side is kept only on the drawing it was made for: if the owner went back to the
+    drawing before meanwhile, it goes with the drawing it was made for (now the one before). `claimed` is told the
+    item's id while it is taken, inside the transaction that takes it, and `skip` gives the shoes not to take, read
+    inside it, as for `run_one`: so the same side is never drawn twice at once, and a shoe whose side is drawn is not
+    drawn or changed until it is done (`due` skips it too)."""
+    with _write(conn):
+        row = side_due(conn, skip() if skip else ())
+        if row is None:
+            return "empty"
+        item_id, kept = row["id"], _drawn(row)
+        made_at = kept.get("made_at")
+        _set_tries(conn, item_id, made_at, lambda n: n + 1)   # counted before: a quit in the middle still used it
+        photos = shoeviews.photos_of(conn, item_id)
+        if claimed is not None:
+            claimed(item_id)
+    try:
+        side = sider(_open(images_dir, photos), routes, sheet=kept.get("sheet") if isinstance(kept.get("sheet"), dict)
+                     else None, notes=[n["note"] for n in notes_of(kept)], measures=side_measures(row))
+        if not isinstance(side, Sided):
+            raise TypeError("the side drawer did not return a side drawing")
+    except (RouteUnavailable, Unreachable):   # out of reach: it waits, without losing its try
+        log.info("drawing a shoe's side is waiting: no route to Claude can be used right now")
+        with _write(conn):
+            _set_tries(conn, item_id, made_at, lambda n: n - 1)
+        return "blocked"
+    except Exception as e:   # only its kind is logged; the item's drawing stays as it is
+        log.warning("drawing a shoe's side failed: %s", type(e).__name__)
+        if isinstance(e, (LookupError, OSError)):   # a photo is missing: it is not tried again for this drawing
+            with _write(conn):
+                _set_tries(conn, item_id, made_at, lambda n: SIDE_TRIES)
+        return "done"
+    with _write(conn):
+        now = conn.execute("SELECT drawn, drawn_prev FROM items WHERE id = ?", (item_id,)).fetchone()
+        for column in ("drawn", "drawn_prev"):
+            d = _drawn(now, column) if now is not None else None
+            if d is not None and d.get("made_at") == made_at and side_of(d) is None:
+                d["side"] = side.to_json(db.now())
+                conn.execute(f"UPDATE items SET {column} = ? WHERE id = ?", (json.dumps(d), item_id))
+                illustrations.redraw(conn, item_id)
+                break
+    return "done"
+
+
+class _write:
+    """One write transaction on `conn`, rolled back if it fails."""
+
+    def __init__(self, conn):
+        self.conn = conn
+
+    def __enter__(self):
+        self.conn.execute("BEGIN IMMEDIATE")
+        return self.conn
+
+    def __exit__(self, kind, value, tb):
+        if kind is None:
+            self.conn.execute("COMMIT")
+        elif self.conn.in_transaction:
+            self.conn.execute("ROLLBACK")
+        return False
+
+
 class Worker:
     """Draws the open closet's waiting shoes, and makes the owner's corrections, up to `AT_ONCE` at the same time, each
     on a thread and a database connection of its own. Never the demo's.
@@ -439,12 +585,15 @@ class Worker:
     One loop thread drains; a drain hands each due shoe to a thread of its own and returns once none is due and none
     is being worked on. A shoe being drawn right now is never set back to waiting (`recover` leaves this worker's
     shoes alone), whatever drains or wakes come meanwhile, and the same shoe is never drawn twice: it is taken inside
-    one `BEGIN IMMEDIATE` transaction (`run_one`)."""
+    one `BEGIN IMMEDIATE` transaction (`run_one`). When no shoe is due, a free place draws the side of a shoe drawn
+    without one (`run_side`, with `sider`; none: not done), at most `SIDES_AT_ONCE` at a time. A shoe whose side is
+    drawn is marked busy the same way: no other place takes it, to draw its side again, to draw it or to change it,
+    until its side is done."""
 
     def __init__(self, cfg: Config, state: State, routes: Routes, drawer: Drawer, idle: float = 60,
-                 corrector: Corrector = _no_corrector):
+                 corrector: Corrector = _no_corrector, sider: Sider | None = None):
         self.cfg, self.state, self.routes, self.drawer, self.idle = cfg, state, routes, drawer, idle
-        self.corrector = corrector
+        self.corrector, self.sider = corrector, sider
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -504,10 +653,14 @@ class Worker:
         if not path.exists():
             return 0
         key, images = str(path), self.cfg.images_dir(profile)
-        run = {"active": 0, "done": 0, "blocked": False}
+        run = {"active": 0, "sides": 0, "done": 0, "blocked": False}
+
+        def busy() -> list[str]:   # the shoes of this closet being worked on now
+            with self._lock:
+                return [item for db_path, item in self._busy if db_path == key]
         threads: list[threading.Thread] = []
 
-        def slot(routes: tuple[str, ...], settled: threading.Event, result: dict) -> None:
+        def slot(job: str, routes: tuple[str, ...], settled: threading.Event, result: dict) -> None:
             """One shoe on a connection of its own: `settled` is set once it is taken, or once it is clear none was
             (`result`'s status then says 'empty')."""
             taken: list[str] = []
@@ -521,8 +674,9 @@ class Worker:
             try:
                 conn = db.connect(path)
                 try:
-                    status = run_one(conn, images, routes, self.drawer, self.corrector,
-                                     claimed=lambda item_id: (claimed(item_id), settled.set()))
+                    took = lambda item_id: (claimed(item_id), settled.set())   # noqa: E731
+                    status = (run_one(conn, images, routes, self.drawer, self.corrector, claimed=took, skip=busy)
+                              if job == "draw" else run_side(conn, images, routes, self.sider, claimed=took, skip=busy))
                 finally:
                     conn.close()
             except Exception:   # this shoe only; the others carry on, and the next drain looks again
@@ -533,6 +687,7 @@ class Worker:
                         self._busy.discard((key, item_id))
                 with self._changed:
                     run["active"] -= 1
+                    run["sides"] -= job == "side"
                     run["done"] += status == "done"
                     run["blocked"] = run["blocked"] or status == "blocked"
                     self._changed.notify_all()
@@ -551,7 +706,11 @@ class Worker:
                         self._changed.wait(timeout=WAIT)
                     if stopping():
                         break
-                if due(conn) is None:   # a quick look first (a shoe another thread is taking may still show)
+                waiting = due(conn, busy()) is not None
+                with self._changed:
+                    side_room = run["sides"] < SIDES_AT_ONCE
+                siding = not waiting and side_room and self.sider is not None and side_due(conn, busy()) is not None
+                if not waiting and not siding:   # a quick look first (a shoe another thread is taking may still show)
                     with self._changed:
                         if run["active"] == 0 or stopping():
                             break
@@ -559,12 +718,16 @@ class Worker:
                     continue
                 routes = self.routes()   # asked before each shoe, so turning the API key off takes effect at once
                 if not routes:
-                    note_waiting(conn, NO_ROUTE)
+                    if waiting:
+                        note_waiting(conn, NO_ROUTE)
                     break
                 settled, result = threading.Event(), {}
+                job = "draw" if waiting else "side"
                 with self._changed:
                     run["active"] += 1
-                t = threading.Thread(target=slot, args=(routes, settled, result), name="shoe-drawing-one", daemon=True)
+                    run["sides"] += job == "side"
+                t = threading.Thread(target=slot, args=(job, routes, settled, result), name="shoe-drawing-one",
+                                     daemon=True)
                 threads.append(t)
                 t.start()
                 settled.wait()   # taken, so the next look sees it taken; or none was (another drain took it)

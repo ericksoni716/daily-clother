@@ -15,25 +15,33 @@ function AddressCode({ address }: { address: string }) {
   );
 }
 
-/** How to reach Closet from the phone; `phone` is null while it is still being looked up. */
+/** How to reach Closet from the phone, on the computer; `phone` is null while it is still being looked up. Once a
+ * share reaches Closet it is one line, with the code folded under it; until then, the command to run once. */
 export function PhoneAccess({ phone }: { phone: PhoneInfo | null }) {
-  if (!phone) return <p className="muted">Checking…</p>;
+  if (!phone) return <p className="state-line state-waiting" aria-busy="true"><span className="state-dot" aria-hidden="true" /><span>Looking for Tailscale…</span></p>;
   if (phone.address) {
     return (
-      <div>
-        <p>On your iPhone, with Tailscale connected, point the camera at this code, or open the address below in Safari. Then choose Share › Add to Home Screen:</p>
-        <AddressCode address={phone.address} />
-        <p className="address"><a href={phone.address} target="_blank" rel="noreferrer">{phone.address}</a></p>
-        {phone.stop_command && (
-          <p className="muted small">
-            To stop sharing Closet (anything else you share stays as it is): <code>{phone.stop_command}</code>
-          </p>
-        )}
-      </div>
+      <>
+        <p className="state-line state-ready">
+          <span className="state-dot" aria-hidden="true" />
+          <span>Shared with your phone at <strong className="path" data-testid="phone-address">{phone.address}</strong></span>
+        </p>
+        <details className="more phone-code" data-testid="phone-code">
+          <summary>Show the QR code</summary>
+          <p>On your iPhone, with Tailscale connected, point the camera at this code. Then choose Share › Add to Home Screen.</p>
+          <AddressCode address={phone.address} />
+          <p className="address"><a href={phone.address} target="_blank" rel="noreferrer">{phone.address}</a></p>
+          {phone.stop_command && (
+            <p className="muted small">
+              To stop sharing Closet (anything else you share stays as it is): <code>{phone.stop_command}</code>
+            </p>
+          )}
+        </details>
+      </>
     );
   }
   return (
-    <div>
+    <>
       {phone.tailscale_installed && phone.running && <p>Closet is not shared with your phone yet.</p>}
       <p>
         {phone.tailscale_installed
@@ -48,6 +56,6 @@ export function PhoneAccess({ phone }: { phone: PhoneInfo | null }) {
         </p>
       )}
       <p className="muted small">The README has the steps.</p>
-    </div>
+    </>
   );
 }

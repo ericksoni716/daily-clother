@@ -59,7 +59,8 @@ test('settings opened offline recover when the computer is reachable again', asy
   await expect(page.getByRole('button', { name: 'Log out' })).toBeDisabled();
   await context.setOffline(false);
   await expect(page.getByText('Offline: showing your saved closet')).toBeHidden({ timeout: 15_000 });
-  await expect(page.getByRole('textbox', { name: 'Backup folder', exact: true })).toBeEnabled();
+  await expect(page.getByRole('switch', { name: 'Let Claude choose my outfits' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Log out' })).toBeEnabled();
 });
 
 test('logging out clears the saved closet', async ({ page }) => {

@@ -177,7 +177,7 @@ async function scrollThrough(page) {
 
 async function check(base, { state, itemId, tripId }) {
   const pages = ['/today', '/today/worn', '/', `/item/${encodeURIComponent(itemId)}`, '/archived', '/add', '/review',
-    '/trips', `/trips/${encodeURIComponent(tripId)}`, '/missing', '/missing/check', '/insights', '/settings'];
+    '/trips', `/trips/${encodeURIComponent(tripId)}`, '/missing', '/missing/check', '/insights', '/settings', '/settings/advanced'];
   const executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined;
   const browser = await chromium.launch(executablePath ? { executablePath } : {});
   const failures = [];

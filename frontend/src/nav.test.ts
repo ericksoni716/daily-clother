@@ -30,6 +30,7 @@ describe('the lit navigation link', () => {
     ['/add', 'add', 'add'],
     ['/add/several/s1', 'add', 'add'],
     ['/settings', 'settings', 'settings'],
+    ['/settings/advanced', 'settings', 'settings'],
   ])('%s lights %s in the sidebar and %s on the phone', (path, sidebar, tab) => {
     expect(lit(path)).toEqual({ sidebar, tab });
   });

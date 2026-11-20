@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { lazy, Suspense, useState, type ReactNode } from 'react';
 import { CloudOffIcon, GearIcon, HangerIcon, PlusIcon, SuitcaseIcon, SunIcon } from './components/Icons';
 import { useLanding } from './landing';
 import { Button, buttonClass, ErrorBoundary } from './components/ui';
@@ -20,6 +20,9 @@ import { BagIcon, MissingScreen } from './screens/Missing';
 import { Restarting, UpdateBanner, useUpdateStatus } from './components/Updates';
 import { RestoreNotice } from './components/RestoreNotice';
 
+/** The Advanced settings: set once and rarely opened, so its code is fetched only when it is. */
+const AdvancedScreen = lazy(() => import('./screens/Advanced').then((m) => ({ default: m.AdvancedScreen })));
+
 export function Shell({ version }: { version: string }) {
   const path = usePath();
   const route = parseRoute(path);
@@ -34,6 +37,9 @@ export function Shell({ version }: { version: string }) {
   else if (route.name === 'add') content = <AddScreen />;
   else if (route.name === 'several') content = <SeveralScreen key={route.id} id={route.id} />;
   else if (route.name === 'settings') content = <SettingsScreen version={version} />;
+  else if (route.name === 'advanced') {
+    content = <Suspense fallback={<p className="hint" aria-busy="true">Opening the advanced settings…</p>}><AdvancedScreen version={version} /></Suspense>;
+  }
   else if (route.name === 'insights') content = <InsightsScreen />;
   else if (route.name === 'review') content = <ReviewScreen />;
   else if (route.name === 'trips') content = <TripsScreen tripId={route.tripId} />;

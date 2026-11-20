@@ -20,3 +20,8 @@ export function phoneAccessShows(hostname: string, homeScreen: boolean): 'connec
 }
 
 export const ADD_TO_HOME_SCREEN = 'To open Closet like an app, tap Share in Safari and then Add to Home Screen.';
+
+/** The computer Closet runs on, or the phone: what Settings offers depends on it (see `computerOnly` in settingsLines.ts). */
+export function deviceOf(hostname: string): 'computer' | 'phone' {
+  return onThisComputer(hostname) ? 'computer' : 'phone';
+}

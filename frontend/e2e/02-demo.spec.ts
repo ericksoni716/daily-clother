@@ -8,6 +8,7 @@ test('open the demo closet: 49 items, the demo strip, filter by category', async
   await login(page);
   await useProfile(page, 'main');
   await page.locator('nav.sidebar').getByRole('link', { name: 'Settings' }).click();
+  await page.getByRole('link', { name: 'Advanced settings' }).click();
   await page.getByText('Show the demo closet').click();
 
   await expect(page.getByText('Demo closet', { exact: true }).first()).toBeVisible();

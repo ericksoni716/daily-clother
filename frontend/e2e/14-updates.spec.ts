@@ -14,15 +14,17 @@ async function openUpdates(page: Page) {
   return page.getByRole('region', { name: 'Updates' });
 }
 
-test('settings: the Updates section shows this version and keeps the choice', async ({ page }) => {
+test('settings: Updates is one line with this version; the choice is on Advanced and is kept', async ({ page }) => {
   await login(page);
-  const section = await openUpdates(page);
-  await expect(section.getByTestId('update-version')).toHaveText((await (await page.request.get('/api/updates')).json()).version);
+  const version = (await (await page.request.get('/api/updates')).json()).version;
+  const line = (await openUpdates(page)).getByTestId('update-line');
+  await expect(line).toHaveText(new RegExp(`^Closet ${version.replace(/\./g, '\\.')}`));
+  await page.getByRole('link', { name: 'Advanced settings' }).click();
+  const section = page.getByRole('region', { name: 'Updates' });
+  await expect(section.getByTestId('update-version')).toHaveText(version);
   const choice = section.getByRole('group', { name: 'When a new version is out' });
   await expect(choice.getByRole('button', { name: 'Ask first' })).toHaveAttribute('aria-pressed', 'true');
   await expect(section.getByTestId('update-mode-hint')).toContainText('asks before installing');
-  // run from source, Closet only reports new versions
-  await expect(section.getByText(/can't replace itself/)).toBeVisible();
   await expect(page.getByTestId('update-banner')).toHaveCount(0);
 
   await choice.getByRole('button', { name: 'Never', exact: true }).click();
@@ -31,6 +33,8 @@ test('settings: the Updates section shows this version and keeps the choice', as
   await page.reload();
   await expect(choice.getByRole('button', { name: 'Never', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(section.getByTestId('update-checked')).toHaveText(/never to check/);
+  await page.goto('/settings');
+  await expect(line).toHaveText(`Closet ${version} · not looking for new versions`);
 });
 
 const RELEASE = {
@@ -112,8 +116,13 @@ test('updates (stand-in): the banner offers the new version, Install restarts Cl
   await expect(section).not.toContainText('##');
   await expect(section).not.toContainText('**');
   expect(await axeViolations(page, '[data-testid="update-notes"]')).toEqual([]);
-  await expect(section.getByRole('link', { name: 'The release page' })).toHaveAttribute('href', RELEASE.page);
-  await section.getByRole('button', { name: 'Check now' }).click();
+  await expect(section.getByRole('button', { name: 'Install now' })).toBeVisible();
+
+  // how updates are fetched, Check now and the release page are on Advanced
+  await page.getByRole('link', { name: 'Advanced settings' }).click();
+  const manage = page.getByRole('region', { name: 'Updates' });
+  await expect(manage.getByRole('link', { name: 'The release page' })).toHaveAttribute('href', RELEASE.page);
+  await manage.getByRole('button', { name: 'Check now' }).click();
   await expect.poll(() => checks).toBe(1);
 
   await banner.getByRole('button', { name: 'Install' }).click();
@@ -122,8 +131,10 @@ test('updates (stand-in): the banner offers the new version, Install restarts Cl
 
   // once the new Closet answers, the page reloads by itself
   await expect(page.getByRole('alertdialog')).toHaveCount(0, { timeout: 15_000 });
-  await expect(section.getByTestId('update-version')).toHaveText('0.3.0');
-  await expect(section.getByTestId('update-last')).toHaveText(/Updated from 0.2.1 to 0.3.0/);
+  await expect(manage.getByTestId('update-version')).toHaveText('0.3.0');
+  await expect(manage.getByTestId('update-last')).toHaveText(/Updated from 0.2.1 to 0.3.0/);
+  await page.goto('/settings');
+  await expect(section.getByTestId('update-line')).toHaveText('Closet 0.3.0 · up to date');
   await expect(banner).toHaveCount(0);
 });
 

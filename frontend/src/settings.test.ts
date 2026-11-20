@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { queryKeys } from './queryKeys';
-import { PHONE_MS, phonePoll, routeIds, settingsSaved, settingsWritten, writePart, writeSettings } from './settings';
+import { PHONE_MS, PHONE_SLOW_MS, phonePoll, routeIds, settingsSaved, settingsWritten, writePart, writeSettings } from './settings';
 import type { ModelInfo, Settings, StyleProfile, TaggingSpend } from './types';
 import { updates, type UpdateStatus } from './updates';
 
@@ -88,6 +88,9 @@ describe('phonePoll', () => {
     expect(phonePoll('connect', settings({ phone: null }), false)).toBe(PHONE_MS);
     expect(phonePoll('connect', settings({ phone: phone(null) }), false)).toBe(PHONE_MS);
     expect(phonePoll('connect', settings({ phone: phone('https://pc.example.ts.net') }), false)).toBe(false);
+  });
+  it('slows down to every half minute while Tailscale is not installed on the computer at all', () => {
+    expect(phonePoll('connect', settings({ phone: { ...phone(null), tailscale_installed: false, running: false } }), false)).toBe(PHONE_SLOW_MS);
   });
   it('never on the phone, offline, or before the first answer', () => {
     expect(phonePoll('add-to-home-screen', settings(), false)).toBe(false);

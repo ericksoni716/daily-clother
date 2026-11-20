@@ -13,7 +13,7 @@ differ, the last line of a section says where the screen is headed.
 - Every day: [Today](#today) · [Worn](#worn)
 - Your clothes: [Closet](#closet) · [An item](#an-item) · [Add](#add) · [Several pieces in one photo](#several-pieces-in-one-photo) · [Review](#review)
 - Buying and packing: [What's missing](#whats-missing) · [Would this work?](#would-this-work) · [Insights](#insights) · [Trips](#trips)
-- [Settings](#settings) · [Things that work the same everywhere](#things-that-work-the-same-everywhere)
+- [Settings](#settings) · [Advanced settings](#advanced-settings) · [Things that work the same everywhere](#things-that-work-the-same-everywhere)
 
 ## Navigation
 
@@ -158,32 +158,46 @@ to tick off, on the computer or the phone.
 
 ## Settings
 
-`/settings`. One column of groups, all open, shown together once the settings are in:
+`/settings`. A short page, shown all at once when the settings are in, in eight groups:
 
-- **Your closet**: the demo closet switch, start with the computer, laundry (worn clothes go to
-  the laundry by themselves, and laundry day), how many wears each kind of clothing takes
-  before washing, backups (a folder on the computer, the last good backup, Back up now) and
-  storage.
-- **Where you are**: the place the weather is for.
-- **How you live**: the questions What's missing uses.
-- **Look**: light, dark or the same as the device, kept on this device.
-- **Your style**: whether Claude chooses your outfits, and your style in your own words,
-  which Claude reads every time. Lines kept from the conversation on Today are added to it.
-- **Describing clothes**: how Claude is reached (your Claude plan, an API key, and which is
-  tried first), the key itself, and the key's monthly limit and spending.
+- **Your style**: the start of what Claude reads about how you dress (three lines), with
+  **Edit the text** opening the whole of it in a sheet, and the switch **Let Claude choose my
+  outfits**. Lines kept from the conversation on Today are added to it.
+- **Everyday**: "Weather for New York" with **Change**, which opens the place search, Use my
+  location, today's weather and what is sent where (the weather is only looked up then); How
+  you live with **Edit my answers**; the laundry switch and laundry day, and **Wears between
+  washes** folded under them.
+- **Claude**: one line saying how Closet reaches Claude ("Using your Claude plan"), or one red
+  sentence and Check again when it can't; **Manage** opens Advanced.
+- **Updates**: one line ("Closet 0.9.0 · up to date", or "Closet 0.9.1 is ready to install."
+  with what is new folded under it and **Install now**).
+- **Phone**: on the computer only. Until Tailscale shares Closet, the command to run once;
+  after that one line with the address and **Show the QR code** folded under it. While Settings
+  is open and the phone is not connected, it checks again every few seconds (every half
+  minute when Tailscale is not installed). On the phone in Safari, one line on adding Closet to
+  the Home Screen; nothing once it is opened from there.
+- **This device**: light, dark or the same as the device, kept on this device.
+- **Your data**: one line on the backups (where they go and the last good one), or that there
+  are none yet, with **Choose a backup folder** on the computer.
+- **Advanced settings** (a link), then Log out, and Quit Closet on the computer only.
+
+## Advanced settings
+
+`/settings/advanced`, from the foot of Settings or Manage beside Claude; "‹ Settings" goes
+back. Its code loads only when it is opened. In order:
+
+- **Your closet**: the demo closet switch, and Start Closet when I log in (computer only).
+- **Claude**: the plan and the API key in the order they are tried, each with its state; the
+  key box (paste, replace, remove); which to use; Allow the API key; the monthly limit and the
+  month's spending, folded; how many items wait to be described, only when some do.
 - **Updates**: the version, when it last checked, whether to install by itself, ask first or
-  never check, Check now, what is new in a release (folded until you open it), and Install.
-- **Phone access**: on the computer, the address to open on the iPhone and its QR code,
-  once Tailscale is sharing Closet. On the phone, one line on adding Closet to the Home
-  Screen, and nothing when it is opened from there. While Settings is open on the computer and
-  the phone is not connected yet, it checks again every few seconds, so a share you set up
-  in the Terminal appears by itself.
-- **Advanced** (closed until opened): where the background-removal files come from and
-  where to put them by hand, the data folder, the version.
-- Log out, and Quit Closet.
-
-*Headed for:* seven short groups with an Advanced screen, shown all at once (assessment,
-"Proposed Settings").
+  never check, Check now, and how the last install went.
+- **Backups**: the backup line, the folder (typed on the computer only) and Back up now.
+- **Storage**: one line ("Closet uses 2.9 MB for 49 items · 59 GB free on this disk"), with
+  what takes the space folded under it.
+- **Background removal**: the download address, and on the computer where to put the files
+  by hand, folded.
+- **This copy of Closet**: the data folder (computer only) and the version.
 
 ## Things that work the same everywhere
 
@@ -191,8 +205,8 @@ to tick off, on the computer or the phone.
   still waiting when the page closes is sent as it closes.
 - **Offline.** On a phone that cannot reach the computer, the saved closet, trips and
   suggestions are shown and nothing can be changed or added until it is back.
-- **The demo closet.** About 40 sample pieces in a closet of its own, opened and left from
-  Settings, with a strip at the top while it is open. It is never backed up and never sent
+- **The demo closet.** About 50 sample pieces in a closet of its own, opened and left from
+  Advanced settings, with a strip at the top while it is open. It is never backed up and never sent
   to Claude.
 - **Background removal.** The two files that cut clothes out of photos download by
   themselves when Closet starts, and again after a failure (a minute later, ten minutes
@@ -204,5 +218,5 @@ to tick off, on the computer or the phone.
   closet's tiles and the item page each say what is happening in their own words today
   (*headed for:* one progress line and one set of words).
 - **Claude.** Describing, sorting photos, corrections in your words, the stylist and shop
-  searches go through your Claude plan or your API key, in the order chosen in Settings. The
-  key has a monthly limit; when it is reached, pieces wait and the page says so.
+  searches go through your Claude plan or your API key, in the order chosen in Advanced
+  settings. The key has a monthly limit; when it is reached, pieces wait and the page says so.

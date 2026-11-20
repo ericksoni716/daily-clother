@@ -65,7 +65,7 @@ export function ModelBanner() {
           {state !== 'missing'
             ? <Button variant="primary" small disabled={busy} onClick={start}>Try again</Button>
             : <Button small disabled={busy} onClick={start}>Download</Button>}
-          <Link to="/settings" className={buttonClass({ variant: 'link', small: true })} aria-label="Background removal settings">Settings</Link>
+          <Link to="/settings/advanced" className={buttonClass({ variant: 'link', small: true })} aria-label="Background removal settings">Settings</Link>
           <Button variant="ghost" small className="notice-close" aria-label="Hide this for now" title="Hide this for now" onClick={hide}>
             <CloseIcon />
           </Button>

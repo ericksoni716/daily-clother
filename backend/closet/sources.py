@@ -25,6 +25,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from PIL import Image
 from pydantic import BaseModel, ConfigDict
@@ -505,8 +506,9 @@ def router(conn_dep, images_dir: Callable[[], Path], state: State, protected, wa
     async def upload(response: Response, photo: UploadFile = File(...), client_key: str | None = Form(None),
                      photo_sha256: str | None = Form(None), conn=Depends(conn_dep)):
         data = await photo.read(images.MAX_UPLOAD_BYTES + 1)
-        out, created = create(conn, images_dir(), data, client_key, photo_sha256 or None,
-                              state.get("profile") == "demo")
+        # the photo is decoded, resized and kept: on a worker thread, so other requests are answered meanwhile
+        out, created = await run_in_threadpool(create, conn, images_dir(), data, client_key, photo_sha256 or None,
+                                               state.get("profile") == "demo")
         response.status_code = 201 if created else 200
         if created:
             wake_finder()

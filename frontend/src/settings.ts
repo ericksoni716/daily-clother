@@ -66,6 +66,11 @@ export function writePart(qc: QueryClient, part: { model: ModelInfo } | { style_
   qc.setQueryData<Settings>(queryKeys.settings(), (s) => (s ? { ...s, ...part } : s));
 }
 
+/** Reads Your style again and writes it where Settings shows it (after a line is kept, taken back or answered). */
+export async function refreshStyle(qc: QueryClient): Promise<void> {
+  writePart(qc, { style_profile: await api.styleProfile() });
+}
+
 /**
  * What a settings save has already written, so is not asked again: the settings and the spending always (the answer
  * carries them); the weather unless the place changed; how Claude is reached unless the order of the routes changed

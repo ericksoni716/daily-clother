@@ -1,5 +1,6 @@
 import type { Life } from './life';
 import type { UpdateStatus } from './updates';
+import type { TalkTurn } from './today';
 
 export type CutoutState = 'none' | 'pending' | 'processing' | 'ready' | 'failed';
 /** Being described by Claude: none (never asked), waiting, working, done, failed. */
@@ -403,6 +404,45 @@ export interface StyleProfile {
   updated_at: string | null;
   default_text: string;
   max_length: number;
+  /** The profile's lines in order, each with where it came from. Absent in a copy saved before lines existed. */
+  lines?: StyleLine[];
+}
+
+/** Where a line of Your style came from: a starting line, written by you, kept from a conversation, or an answer. */
+export type StyleLineSource = 'start' | 'owner' | 'talk' | 'question';
+
+/** One line of Your style. While the starting profile is in force its lines have ids -1, -2… and no date. */
+export interface StyleLine {
+  id: number;
+  /** The line as written, with its "- " when it has one. */
+  text: string;
+  source: StyleLineSource;
+  /** UTC, when the line was written or last changed by you; null for a starting line not yet changed. */
+  created_at: string | null;
+}
+
+/** A question the stylist cannot learn from your clothes, asked one at a time in the style conversation. */
+export interface StyleQuestion {
+  id: string;
+  ask: string;
+  why: string;
+  /** What each answer button says. */
+  choices: string[];
+}
+
+/** The style conversation as it stands: the day's turns, the one being answered, the next question while nothing has
+ * been said today, and why a message can't be sent now (or null). */
+export interface StyleTalk {
+  turns: TalkTurn[];
+  answering: string | null;
+  question: StyleQuestion | null;
+  refused: string | null;
+}
+
+/** After answering or skipping a question: the line kept (null for a skip) and the next question. */
+export interface QuestionAnswer {
+  line: StyleLine | null;
+  question: StyleQuestion | null;
 }
 
 /** The kinds of clothing the owner sets "Before it needs washing" for. */

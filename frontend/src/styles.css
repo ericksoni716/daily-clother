@@ -850,11 +850,36 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .settings-row > .btn { flex: none; }
 .settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 .settings-actions > .hint { margin: 0; }
-/* what Claude reads about your style, three lines at most; the whole text is one tap away */
-.style-summary {
-  margin: 0; white-space: pre-line; color: var(--ink-2);
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden;
+/* what Claude reads about your style: its first lines, each with where it came from under it in small type; every
+   line is one tap away, in a sheet to change, remove or add to */
+.style-summary, .style-line-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; min-width: 0; }
+.style-line-words { margin: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.style-line-text { color: var(--ink); overflow-wrap: anywhere; }
+.style-line-source { font-size: var(--text-sm); color: var(--ink-3); }
+.style-summary .style-line-text {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
 }
+p.style-more { margin: 0; font-size: var(--text-sm); }
+.style-line { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 4px 8px;
+  padding-bottom: 10px; border-bottom: 1px solid var(--line); min-width: 0; }
+.style-line .style-line-words { flex: 1 1 14rem; }
+.style-line-actions { display: flex; flex-wrap: wrap; gap: 4px 8px; flex: none; }
+.style-line-edit { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.style-line-edit .field, .style-line-add .field { margin: 0; flex: 1 1 14rem; }
+.style-line-add { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-top: 14px; }
+.style-removed { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-bottom: 10px; }
+.style-removed p { margin: 0; flex: 1 1 12rem; min-width: 0; overflow-wrap: anywhere; color: var(--ink-2); }
+/* talking about your style: a question the stylist can't infer (a tap on an answer, your own words, or Skip), then
+   the conversation (components/Talk.css) */
+.style-talk { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.style-talk > .hint, .style-talk > .notice { margin: 0; }
+.style-question { padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); min-width: 0; }
+.style-question h3 { margin: 0 0 4px; font-size: var(--text-md); }
+.style-question .hint { margin: 0 0 10px; }
+.style-question-choices { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.style-question-own .field { margin: 0 0 8px; }
+.style-question-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.style-answered .talk-kept { margin-left: 0; }
 .settings-section > .more, .settings-section .more { margin: 0; }
 .settings-rewear-fold .hint { margin: 0 0 8px; }
 .phone-code > p { margin: 0 0 10px; }

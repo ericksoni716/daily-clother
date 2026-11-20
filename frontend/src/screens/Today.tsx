@@ -4,6 +4,7 @@ import { api, ApiError } from '../api';
 import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, HistoryIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
 import { itemName, Pic } from '../components/ItemPic';
 import { OutfitFigure } from '../components/OutfitFigure';
+import { Talk, type TalkProps, type TalkWords } from '../components/Talk';
 import { BackLink, Button, buttonClass, Card, EmptyState, ItemThumb, Notice, PageHeader, SegmentedControl } from '../components/ui';
 import { WhereYouAre } from '../components/WhereYouAre';
 import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
@@ -14,10 +15,10 @@ import { Link, navigate } from '../router';
 import { settingsQuery } from '../settings';
 import { useApp } from '../store';
 import {
-  canDress, canSay, chosenBy, closetKey, dayParts, joinWords, longDate, keptFor, loadChoice, lookingAt, MAX_SAY, moodLabel, MOODS, newestOn, occasionLabel,
-  OCCASIONS, outfitIds, parseTemp, placeLabel, rememberWords, sameOutfit, sameOutfits, savedLine, shortDate, saveChoice, stylistView, STYLIST_SLOW_S, talkOf,
-  timeOf, waitingLine, whatToAddFirst, withThing, wornNow, wornOrder, type Choice, type DayAnswer, type DayNote, type Outfit, type Place, type RememberThing,
-  type StylistState, type TalkTurn, type TodayAnswer, type TodayRequest, type TypedDay, type WornToday,
+  canDress, chosenBy, closetKey, dayParts, joinWords, longDate, keptFor, loadChoice, lookingAt, moodLabel, MOODS, newestOn, occasionLabel,
+  OCCASIONS, outfitIds, parseTemp, placeLabel, sameOutfit, sameOutfits, shortDate, saveChoice, stylistView, STYLIST_SLOW_S, talkOf,
+  timeOf, waitingLine, whatToAddFirst, withThing, wornNow, wornOrder, type Choice, type DayAnswer, type DayNote, type Outfit, type Place, type RememberHow,
+  type StylistState, type TodayAnswer, type TodayRequest, type TypedDay, type WornToday,
 } from '../today';
 import type { ItemSummary } from '../types';
 import { localDay } from '../wears';
@@ -28,6 +29,10 @@ import { changePages, OutfitPics, RateOutfit, useAllItems, wornQuery } from './W
 import './Today.css';
 
 const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
+const TODAY_TALK: TalkWords = {
+  list: 'Your conversation with Claude today', box: 'Tell Claude what you think',
+  placeholder: 'Too dressy? Swap the boots? Ask why…', id: 'today-say-text',
+};
 /** How often to ask how Claude stands while it chooses or answers a message. */
 const STYLE_POLL_MS = 2000;
 
@@ -300,15 +305,15 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     }
   }
 
-  /** Keeps (or not) a thing Claude offered to remember; gives back why it could not, or null. */
-  async function settle(turnId: string, at: number, save: boolean): Promise<string | null> {
+  /** Keeps (or not) a thing Claude offered to remember, or takes one back; gives back why it could not, or null. */
+  async function settle(turnId: string, at: number, how: RememberHow): Promise<string | null> {
     try {
-      const thing = await api.remember(turnId, at, save);
+      const thing = await api.remember(turnId, at, how);
       writeAnswer((a) => withThing(a, turnId, at, thing));
       const copy = kept.outfits(localDay());
       if (copy) kept.setOutfits({ ...copy, answer: withThing(copy.answer, turnId, at, thing) });
-      // kept in Your style, or in a piece's "How I wear it" (which draws the piece again)
-      if (save) {
+      // kept in Your style, or in a piece's "How I wear it" (which draws the piece again), or taken back out
+      if (how.save || how.undo) {
         void touch(qc, 'styleProfile');
         void touch(qc, 'item');
       }
@@ -557,7 +562,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         changed={!!buildAround || leaveOut.length > 0}
         onClear={() => { setBuildAround(null); setLeaveOut([]); }}
         onRetry={ask}
-        talk={{ turns: talk, answering, onSay: say, onSettle: settle }} />
+        talk={{ turns: talk, answering, onSay: say, onSettle: (id, at, save) => settle(id, at, { save }), onUndo: (id, at) => settle(id, at, { undo: true }) }} />
     </div>
   );
 
@@ -783,16 +788,6 @@ interface BodyProps {
   talk: TalkProps;
 }
 
-interface TalkProps {
-  turns: TalkTurn[];
-  /** The message Claude is answering now, or null. */
-  answering: string | null;
-  /** Sends a message; resolves to why it was not sent, or null. */
-  onSay(text: string): Promise<string | null>;
-  /** Keeps (`save`) or not a thing Claude offered to remember; resolves to why it could not, or null. */
-  onSettle(turnId: string, index: number, save: boolean): Promise<string | null>;
-}
-
 function Body(props: BodyProps) {
   const { phase, asking, items, offline, changed, onClear, onRetry, stylist, waiting, meanwhile, onMeanwhile, onAskAgain } = props;
   if (phase.kind === 'loading') {
@@ -853,7 +848,7 @@ function Body(props: BodyProps) {
           {stylist.read && <p>Claude on today: {stylist.read}</p>}
           {stylist.message && <p className="today-stylist-note muted" data-testid="stylist-note">{stylist.message}</p>}
           <StylistAgain locked={props.actions.locked} busy={asking || !!props.talk.answering} onClick={onAskAgain}>Ask Claude again</StylistAgain>
-          <Conversation {...props.talk} locked={props.actions.locked} busy={asking} />
+          <Talk {...props.talk} locked={props.actions.locked} busy={asking} words={TODAY_TALK} lockedTitle={OFFLINE_TITLE} />
         </div>
       )}
       {!waiting && stylist?.state === 'failed' && (
@@ -882,132 +877,6 @@ function StylistWaiting({ meanwhile, onMeanwhile }: { meanwhile: boolean; onMean
         {!meanwhile && <Button small onClick={onMeanwhile}>Show Closet's own picks meanwhile</Button>}
       </div>
     </Card>
-  );
-}
-
-/**
- * Talking to Claude about the outfits on the page: the day's messages and Claude's answers, the things it offered to
- * remember, and the box to write in. Read-only when the page is locked (offline, or a copy saved earlier).
- */
-function Conversation({ turns, answering, onSay, onSettle, locked, busy }: TalkProps & { locked: boolean; busy: boolean }) {
-  const [text, setText] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
-  const box = useRef<HTMLTextAreaElement>(null);
-  // while a message is sent or answered (or the outfits are being asked for) nothing more can be sent; the box is
-  // read-only rather than disabled then, so it keeps the focus for the next message
-  const held = sending || busy || !!answering || turns.some((t) => t.state === 'working');
-  const title = locked ? OFFLINE_TITLE : undefined;
-
-  async function send(what: string, fromBox: boolean) {
-    if (!canSay(what) || held || locked) return;
-    // the focus stays in the box (it is read-only, not disabled, while Claude answers), ready for the next message
-    if (fromBox) box.current?.focus();
-    setSending(true);
-    setError(null);
-    const problem = await onSay(what.trim());
-    setSending(false);
-    if (problem) setError(problem);
-    else if (fromBox) setText('');
-  }
-
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    void send(text, true);
-  }
-
-  return (
-    <div className="today-talk">
-      <div aria-live="polite">
-        {turns.length > 0 && (
-          <ol className="today-talk-list" aria-label="Your conversation with Claude today" data-testid="talk">
-            {turns.map((t, at) => (
-              <li key={t.id} className="today-turn" data-testid="talk-turn">
-                <div className="today-said">
-                  <span className="today-who">You</span>
-                  <p>{t.said}</p>
-                </div>
-                {t.state === 'working' && !locked && (
-                  <p className="today-answering muted" role="status">
-                    <span className="today-stylist-mark" aria-hidden="true"><span /><span /><span /></span>
-                    Claude is answering…
-                  </p>
-                )}
-                {t.state === 'ready' && t.reply && (
-                  <div className="today-reply">
-                    <span className="today-who">Claude</span>
-                    <p>{t.reply}</p>
-                  </div>
-                )}
-                {t.state === 'ready' && t.remember.map((thing, i) => (
-                  <Keep key={i} thing={thing} locked={locked} onSettle={(save) => onSettle(t.id, i, save)} />
-                ))}
-                {t.state === 'failed' && (
-                  <div className="today-talk-failed">
-                    <p>{t.message}</p>
-                    {/* only the newest message can be sent again: an earlier one has been followed by another */}
-                    {at === turns.length - 1 && (
-                      <Button small disabled={locked || held} title={title} onClick={() => void send(t.said, false)}>Send again</Button>
-                    )}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ol>
-        )}
-      </div>
-      <form className="today-say" onSubmit={submit}>
-        <label className="today-say-label" htmlFor="today-say-text">Tell Claude what you think</label>
-        <div className="today-say-row">
-          <textarea id="today-say-text" ref={box} rows={2} maxLength={MAX_SAY} value={text}
-            placeholder="Too dressy? Swap the boots? Ask why…" disabled={locked} title={title}
-            readOnly={!locked && held} aria-disabled={!locked && held ? true : undefined}
-            aria-invalid={error ? true : undefined} aria-describedby={error ? 'today-say-error' : undefined}
-            onChange={(e) => {
-              setText(e.target.value);
-              if (error) setError(null);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                void send(text, true);
-              }
-            }} />
-          <Button variant="primary" type="submit" disabled={locked || held || !canSay(text)} title={title}>Send</Button>
-        </div>
-        {error && <p className="form-error today-say-error" id="today-say-error" role="alert">{error}</p>}
-      </form>
-    </div>
-  );
-}
-
-/** A thing Claude offered to remember: kept only when the owner says so. */
-function Keep({ thing, locked, onSettle }: { thing: RememberThing; locked: boolean; onSettle(save: boolean): Promise<string | null> }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  if (thing.state === 'dismissed') return null;
-  if (thing.state === 'saved') {
-    return <p className="today-kept" data-testid="talk-kept"><CheckIcon />{savedLine(thing)}</p>;
-  }
-  const words = rememberWords(thing);
-  const title = locked ? OFFLINE_TITLE : undefined;
-  async function answer(save: boolean) {
-    setBusy(true);
-    setError(null);
-    const problem = await onSettle(save);
-    setBusy(false);
-    if (problem) setError(problem);
-  }
-  return (
-    <div className="today-keep" role="group" aria-label={words.question} data-testid="talk-keep">
-      <p className="today-keep-question">{words.question}</p>
-      <p className="today-keep-text"><q>{thing.text}</q></p>
-      <div className="today-keep-actions">
-        <Button small disabled={busy || locked} title={title} onClick={() => void answer(true)}>{words.save}</Button>
-        <Button small variant="ghost" disabled={busy || locked} title={title} onClick={() => void answer(false)}>No thanks</Button>
-      </div>
-      {error && <p className="form-error today-keep-error" role="alert">{error}</p>}
-    </div>
   );
 }
 

@@ -70,6 +70,8 @@ export const queryKeys = {
   settings: () => ['settings'] as const,
   /** `GET /api/style/profile`: Your style. */
   styleProfile: () => ['styleProfile'] as const,
+  /** `GET /api/style/talk`: the style conversation and its next question. */
+  styleTalk: () => ['styleTalk'] as const,
   storage: () => ['storage'] as const,
   /** `GET /api/tagging`: how Claude is reached. */
   tagging: () => ['tagging'] as const,
@@ -122,6 +124,8 @@ export const TOUCHES = {
   /** The API key saved or removed. */
   apiKey: ['settings', 'tagging', 'spend', 'progress'],
   styleProfile: ['styleProfile'],
+  /** The style conversation: a message, a line kept or taken back, a question answered or skipped. */
+  styleTalk: ['styleTalk'],
   /** The background-removal model: a download started, its address changed. */
   model: ['model', 'progress'],
   /** New versions of Closet: how they are fetched, a check, an install. */

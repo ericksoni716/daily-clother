@@ -52,6 +52,9 @@ export interface RememberThing {
   state: 'offered' | 'saved' | 'dismissed';
 }
 
+/** The owner's answer to a thing Claude offered to remember: keep it or not (`save`), or take back one kept (`undo`). */
+export type RememberHow = { save: boolean; undo?: never } | { undo: true; save?: never };
+
 /** One message of the owner's about the outfits, and Claude's answer to it. */
 export interface TalkTurn {
   id: string;

@@ -142,12 +142,12 @@ with a spend ceiling printed before it starts.
   and which model tags what: decided from that run, not before.
 - Striped, floral and camouflage items on real photos.
 - A style choice from the owner.
-- The first Windows build of the packaging spike.
+- The first Windows build of the packaging spike. (The spike has since been removed; the release builds the Windows program.)
 
 ## Cost estimate for tagging (not measured)
 
 From token arithmetic only: one cutout at 1024px is roughly 1,400 input
 tokens, the prompt about 350, and the answer about 300–500 output tokens. At
-the prices in `bench/closet_bench/models.json` that is about $0.0004 per item
+the prices in `backend/closet/tagger/models.json` (then in the bench) that is about $0.0004 per item
 on Haiku 5.5, $0.008 on Sonnet 5.5 and $0.017 on Opus 5.5, so 300 items cost
 roughly $0.15, $2.50 or $5. The bench reports the real figures.

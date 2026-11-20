@@ -1,5 +1,6 @@
-"""A garment's surface described by Claude as parameters for the app's own drawing. AN EXPERIMENT
-(`bench/experiments/garment_loop`, now only in the git history), not called by the app.
+"""A garment's surface described by Claude as parameters for the app's own drawing. First an experiment
+(`bench/experiments/garment_loop`, now only in the git history); the app uses it since 18 November: the pattern
+job keeps what `kept_for_item` makes of the description (DECISIONS, "The cloth drawn from its description").
 
 One general form instead of one per pattern: bands one way (stripes), bands both ways (plaid, check, gingham,
 tartan, madras), plain cloth with parts in another colour (blocks), plain, and "other" for what the form cannot

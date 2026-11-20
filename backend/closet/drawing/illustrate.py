@@ -1218,7 +1218,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
 
 def trace_outline(cutout: Image.Image, box: tuple[float, float, float, float], smooth: float = 0.004) -> tuple[str, tuple[float, float, float, float]]:
     """Vectorise the cutout's real outline, scaled to fit `box` on the canvas."""
-    import cv2  # the bench's traced style only: the app's program has no OpenCV
+    import cv2  # the bench's traced style only; the app draws from tags and never calls this
     a = (np.asarray(cutout.split()[-1]) > 128).astype(np.uint8)
     k = max(3, (max(a.shape) // 150) | 1)
     a = cv2.morphologyEx(a, cv2.MORPH_OPEN, np.ones((k, k), np.uint8))

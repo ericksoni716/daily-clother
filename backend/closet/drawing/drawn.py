@@ -33,7 +33,7 @@ from pathlib import Path
 
 INK = "#26221f"                    # the bold outline and the inner lines
 TODAY_LINE = 2.2 / (4 * 0.297)     # how much thicker the figure draws them: its shoe outline is 2.2 px, and the
-#                                    frame's bold outline (4 units) lands at 1.2 px on it (on_figure.py's TODAY_LINE)
+#                                    frame's bold outline (4 units) lands at 1.2 px on it (on_figure.py's TODAY_LINE, in the git history)
 THIN_INK = 4.5                     # ink strokes up to this wide are lines; thicker ones draw laces and bows, kept
 FRAME = (0.0, 200.0)
 GROUND = 240.0

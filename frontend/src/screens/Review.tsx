@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type SVGProps } from 'react';
-import { api, ApiError } from '../api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useEffect, useMemo, useRef, useState, type SVGProps } from 'react';
+import { api } from '../api';
 import { ChipGroup } from '../components/ui/Chips';
 import { Button, EmptyState, PageHeader } from '../components/ui';
 import { CloudOffIcon, HangerIcon } from '../components/Icons';
 import { FIELD_TITLES, label } from '../labels';
 import { notReadyText, progressText, reviewChanges, reviewRows, skippedText, sureText, type ReviewRow } from '../review';
-import { itemPath, Link, usePath } from '../router';
-import { useCloset } from '../store';
-import type { Profile, ReviewItem, ReviewQueue } from '../types';
+import { itemSaved, itemsQuery, reviewQuery } from '../queries';
+import { queryKeys } from '../queryKeys';
+import { itemPath, Link } from '../router';
+import { useApp } from '../store';
+import type { ItemSummary, ReviewItem, ReviewQueue } from '../types';
 import './Review.css';
 
 export const ReviewIcon = (p: SVGProps<SVGSVGElement>) => (
@@ -18,34 +21,25 @@ export const ReviewIcon = (p: SVGProps<SVGSVGElement>) => (
 );
 
 // ------------------------------------------------------------ the badge
-// How many items wait for review, per closet; the navigation shows it.
-const counts = new Map<Profile, number>();
-const listeners = new Set<() => void>();
-const subscribe = (l: () => void) => {
-  listeners.add(l);
-  return () => void listeners.delete(l);
-};
+/** "id:tag_state" for every item: the review queue changes when a description arrives, fails or is asked again. */
+const tagStates = (list: ItemSummary[]) => list.map((i) => `${i.id}:${i.tag_state}`).join(',');
 
-/** The number of items waiting for review, kept up to date as items change; null until known. */
+/**
+ * The number of items waiting for review; null until known. Asked again after an edit that touches the queue (see
+ * `TOUCHES`) and when an item's description changes state, not on every move between screens.
+ */
 export function useReviewCount(): number | null {
-  const { profile, offline, items } = useCloset();
-  const path = usePath();
-  const count = useSyncExternalStore(subscribe, () => counts.get(profile) ?? null);
-  // asked again whenever an item changes (described, edited, confirmed) and on every move between screens
-  const changes = (items.active ?? []).map((i) => `${i.id}:${i.tag_state}:${i.updated_at}`).join(',');
+  const { offline } = useApp();
+  const qc = useQueryClient();
+  const count = useQuery({ ...reviewQuery(), enabled: !offline, select: (q) => q.count }).data;
+  const states = useQuery({ ...itemsQuery('active'), enabled: false, select: tagStates }).data;
+  const seen = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (offline) return;
-    let live = true;
-    api.review().then((q) => {
-      if (!live) return;
-      counts.set(profile, q.count);
-      listeners.forEach((l) => l());
-    }).catch(() => undefined);
-    return () => {
-      live = false;
-    };
-  }, [profile, offline, changes, path]);
-  return count;
+    if (states === undefined) return;
+    if (seen.current !== undefined && seen.current !== states) void qc.invalidateQueries({ queryKey: queryKeys.review() });
+    seen.current = states;
+  }, [states, qc]);
+  return count ?? null;
 }
 
 /** What a screen reader hears after a link that leads to the review queue. */
@@ -69,27 +63,25 @@ export function ReviewBadge({ count, quiet = false }: { count: number | null; qu
 
 // ------------------------------------------------------------ the screen
 export function ReviewScreen() {
-  const { offline } = useCloset();
+  const { offline } = useApp();
+  const review = useQuery({ ...reviewQuery(), enabled: !offline });
+  const { refetch } = review;
+  // The queue as it was when the screen opened, kept while it is worked through: each confirmed piece makes the
+  // shared query read again behind it (the badge follows), which must not move the card.
   const [queue, setQueue] = useState<ReviewQueue | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [index, setIndex] = useState(0);
   const [skipped, setSkipped] = useState(0);
+  if (offline && queue) setQueue(null);   // back online, it is taken afresh
+  else if (!offline && !queue && review.data && !review.isFetching) setQueue(review.data);
+  const error = review.error ? review.error.message : null;
 
   const load = useCallback(async () => {
-    try {
-      const q = await api.review();
-      setQueue(q);
-      setIndex(0);
-      setSkipped(0);
-      setError(null);
-    } catch (e) {
-      setError((e as ApiError).message);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!offline) void load();
-  }, [offline, load]);
+    const r = await refetch();
+    if (!r.data) return;
+    setQueue(r.data);
+    setIndex(0);
+    setSkipped(0);
+  }, [refetch]);
 
   const next = useCallback((didSkip: boolean) => {
     if (!queue) return;
@@ -156,7 +148,8 @@ function NothingToReview({ queue }: { queue: ReviewQueue }) {
 }
 
 function ReviewCard({ item, onDone, onSkip }: { item: ReviewItem; onDone(): void; onSkip(): void }) {
-  const { upsert, toast } = useCloset();
+  const { toast } = useApp();
+  const qc = useQueryClient();
   const rows = useMemo(() => reviewRows(item.fields), [item.fields]);
   const [chosen, setChosen] = useState<Record<string, string>>({});
   const [active, setActive] = useState(0);
@@ -172,14 +165,14 @@ function ReviewCard({ item, onDone, onSkip }: { item: ReviewItem; onDone(): void
     try {
       let saved = Object.keys(changes).length ? await api.patch(item.id, changes) : null;
       if (keep.length) saved = await api.confirm(item.id, keep);
-      if (saved) upsert(saved);
+      if (saved) itemSaved(qc, saved);
       toast(Object.keys(changes).length ? 'Saved your changes' : 'Confirmed');
       onDone();
     } catch (e) {
       toast((e as Error).message, 'error');
       setBusy(false);
     }
-  }, [busy, rows, chosen, item.id, upsert, toast, onDone]);
+  }, [busy, rows, chosen, item.id, qc, toast, onDone]);
 
   // On a computer: up and down move between fields, left and right (or 1–9) choose, Enter confirms, S skips.
   useEffect(() => {

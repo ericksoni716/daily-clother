@@ -1,9 +1,12 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../api';
 import { CloseIcon } from './Icons';
 import { Button, buttonClass, Notice } from './ui';
 import { Link } from '../router';
-import { useCloset } from '../store';
+import { useEdit, useModel } from '../queries';
+import { queryKeys } from '../queryKeys';
+import { useApp } from '../store';
 
 const HIDDEN_KEY = 'closet.modelNotice.hidden';
 
@@ -21,7 +24,10 @@ function hiddenFor(): string | null {
  * problem shows it again.
  */
 export function ModelBanner() {
-  const { model, refreshModel, offline, toast } = useCloset();
+  const { offline, toast } = useApp();
+  const model = useModel();
+  const qc = useQueryClient();
+  const edit = useEdit('model');
   const [busy, setBusy] = useState(false);
   const [hidden, setHidden] = useState(hiddenFor);
   if (!model || offline) return null;
@@ -34,8 +40,7 @@ export function ModelBanner() {
   async function start() {
     setBusy(true);
     try {
-      await api.downloadModel();
-      await refreshModel();
+      qc.setQueryData(queryKeys.model(), await edit(() => api.downloadModel()));
       toast('Downloading the background-removal model');
     } catch (e) {
       toast((e as Error).message, 'error');

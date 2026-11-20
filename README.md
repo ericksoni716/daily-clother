@@ -32,7 +32,7 @@ Closet then opens in its own window, titled **Closet**:
 
 1. Choose a passphrase (at least 8 characters). This is the only login.
 2. The background-removal model (about 170 MB) downloads once, with progress
-   shown at the top of the closet and in Settings. You can add photos
+   shown at the top of the closet. You can add photos
    straight away; they are processed when the download finishes.
 
 After you add a photo, Closet removes its background, then asks Claude to
@@ -132,7 +132,7 @@ outfits, has Claude choose afresh. When Claude can't be reached, when the
 switch in **Settings → Your style** is off, and always in the demo closet,
 Closet's own rules choose, as before (outfits from them say **From Closet's
 rules** when Claude couldn't choose). It uses your Claude plan, or your API key
-first when that is switched on in Settings: about 8 cents each time (the choice
+first when that is switched on in **Settings → Advanced settings**: about 8 cents each time (the choice
 and the look), counted in the monthly limit.
 
 **Ready before you look.** While Closet is running on your computer, it asks
@@ -219,8 +219,8 @@ vacation. Say how people dress at work, and roughly how many weeks you spend
 away and whether those places are warm or cold. Days can overlap: work and
 exercise can happen on the same day. **Not now** leaves the original suggestions
 unchanged. You can answer later or change your answers from **Based on…** on
-What's missing, or **Settings → How you live**. Tapping **Based on…** opens
-your answers, with the weather note, explanation and your style words under them. With every situation set to
+What's missing, or **Settings → Everyday → Edit my answers**. Tapping **Based on…** opens
+your answers, with the weather note and explanation under them. With every situation set to
 **Never**, choose some situations before asking what is missing.
 
 Once answered, common days matter more than rare ones. A saved place lets
@@ -289,8 +289,8 @@ laundry by itself once it has been worn as often as **Before it needs
 washing** says (a shirt or tee after one wear, a sweater or trousers after
 three; shoes, jackets, coats and accessories never). On your **laundry day**
 everything in the laundry is clean again. Undo a wear and a piece it put in
-comes back out. To change the day, or turn it off, open **Settings → Your
-closet → Laundry**. To catch up after a wash on another day, the closet says
+comes back out. To change the day, or turn it off, open **Settings →
+Everyday**. To catch up after a wash on another day, the closet says
 how many pieces are in the laundry: tap **Show**, then **All clean**. On an
 outfit in **Worn**, **⋯ → Put these in the laundry** does it by hand.
 
@@ -519,29 +519,28 @@ about Closet and **Private** or **Public** networks appears anyway, click
 **Cancel**: nothing needs to be let through. The phone comes in through
 Tailscale, which runs on this PC and passes the phone's requests to Closet here.
 
-**5. Check that Claude can be reached.** In Closet open **Settings → Describing
-clothes**. Under **Your Claude plan, through Claude Code** it should say **Ready
-to use.** If it says Claude Code is not installed, quit Closet (**Quit** at the
+**5. Check that Claude can be reached.** In Closet open **Settings**. Under
+**Claude** it should say **Using your Claude plan.** (**Manage** shows the details.) If it says Claude Code is not installed, quit Closet (**Quit** at the
 bottom of Settings) and open it again so it sees the new program; if it says
 installed but not signed in, do step 1's `claude` sign-in again, then press
 **Check again**.
 
-**6. Start at login.** In Closet's **Settings → Your closet**, turn on **Start
-Closet when I log in**. From then on Closet starts by itself when you sign in to
+**6. Start at login.** In Closet's **Settings → Advanced settings → Your
+closet**, turn on **Start Closet when I log in**. From then on Closet starts by itself when you sign in to
 Windows, with no window (double-click `Closet.exe` to open it). If you ever move
 `Closet.exe`, turn it off and on again so it points to the new place.
 
 **7. Reach it from the iPhone.** Install Tailscale on the PC (tailscale.com,
 **Download**, Windows) and on the iPhone (App Store), and sign in to both with
 the same account. Then follow "Use it from your iPhone" below: run the
-PowerShell command **Settings → Phone access** shows (usually
+PowerShell command **Settings → Phone** shows (usually
 `tailscale serve --bg 8765`), then open the address Settings shows in Safari on
 the phone.
 
 **8. Where your closet is kept.** Everything is in the `Closet` folder in your
 user folder, `C:\Users\you\Closet` (to open it: press Windows+R, type
 `%USERPROFILE%\Closet` and press Enter). Its `logs\closet.log` is what to send if
-something goes wrong. Choose a backup folder in **Settings → Your closet →
+something goes wrong. Choose a backup folder in **Settings → Advanced settings →
 Backups** (a OneDrive folder is ideal). An API key, if you save one, is kept in
 **Windows Credential Manager** (Control Panel → Credential Manager → Windows
 Credentials, as `Closet/anthropic-api-key`), not in that folder.
@@ -554,13 +553,13 @@ the public internet.
 1. On the computer, make sure Tailscale is running and signed in. In the
    Tailscale admin console, under **DNS**, turn on **MagicDNS** and **HTTPS
    certificates** (once per account).
-2. Open Closet's **Settings → Phone access**. It shows the command to run on
+2. Open Closet's **Settings → Phone**. It shows the command to run on
    this computer, usually `tailscale serve --bg 8765`. Open a terminal
    (PowerShell on Windows) and run it once. Open Settings again (it can take
    half a minute to notice): **Phone access** now shows Closet's address, like
    `https://your-pc.your-tailnet.ts.net`.
 3. On the iPhone, with Tailscale connected, point the Camera app at the QR
-   code under the address in Settings and tap the link it shows (or type the
+   code in Settings (**Show the QR code** under the address) and tap the link it shows (or type the
    address into Safari). Log in with your passphrase.
 4. Tap **Share → Add to Home Screen**. Open Closet from the new icon.
 
@@ -571,7 +570,7 @@ plain address would open that other app instead of Closet. Closet notices this
 and suggests a command that gives Closet its own port instead, such as
 `tailscale serve --bg --https=8443 8765`. Closet's address then ends in that
 port, like `https://your-pc.your-tailnet.ts.net:8443`. Always use the address
-**Settings → Phone access** shows: it is the one that really reaches Closet.
+**Settings → Phone** shows: it is the one that really reaches Closet.
 If it says Closet is not shared yet, run the command it shows.
 
 To see what this computer shares, run `tailscale serve status`. Closet's share
@@ -584,7 +583,7 @@ the home screen again.
 
 `tailscale serve` shares only inside your own Tailscale network. Do not use
 `tailscale funnel`, which would publish the address to the internet. To stop
-sharing Closet, run the command under **Settings → Phone access**, such as
+sharing Closet, run the command under **Show the QR code** in **Settings → Phone**, such as
 `tailscale serve --https=443 off` (or `--https=8443`, the port in Closet's
 address). It stops only Closet's share. Do not use `tailscale serve reset`: it
 also stops every other app's share on this computer.
@@ -600,12 +599,12 @@ collar, buttons and so on). It does this through **Claude Code**, a free
 program from Anthropic that uses your Claude plan, so nothing extra is charged
 per photo. An API key can be used instead, but it is billed per photo by
 Anthropic, is only used when the plan can't be, and only if you turn on
-**Allow the API key** in **Settings → Describing clothes**. It is off until you do.
-**Settings → Describing clothes** shows each of the two once, with one line
+**Allow the API key** in **Settings → Advanced settings → Claude**. It is off until you do.
+That group shows each of the two once, with one line
 saying whether Closet can use it right now, which it will try first, and how
 many items are waiting to be described.
 
-**Which to use.** Under the API key box in **Settings → Describing clothes** you choose the
+**Which to use.** Under the API key box in **Settings → Advanced settings → Claude** you choose the
 order: **Use my Claude plan first, the key only if the plan can't** (the
 usual one), **Use the API key first** (if you would rather pay per photo than use
 up your plan), **Only my Claude plan**, or **Only the API key**. The two that put
@@ -617,7 +616,7 @@ corrections you type, and "Would this work?".
 
 **Adding an API key.** Make a key in your Anthropic account (console.anthropic.com,
 **API keys**), copy it, and paste it into **Paste your API key** in **Settings →
-Describing clothes**, then **Save key**. Closet asks Anthropic whether it accepts the key
+Advanced settings → Claude**, then **Save key**. Closet asks Anthropic whether it accepts the key
 (this costs nothing) and keeps it in your computer's own keychain (the Mac's
 keychain, or Windows Credential Manager), never in a file. It is never shown
 again; **Replace key** and **Remove key** are there when you need them. Then turn
@@ -667,9 +666,8 @@ your browser; sign in with your Claude account, then come back and type
 `/exit` to close it. This sign-in is remembered.
 
 **Check it:** type `claude auth status` and press Enter. It says you are logged
-in (and which account) when everything is ready. Then open **Settings →
-Describing clothes** in Closet and press **Check again**: "Your Claude plan, through
-Claude Code" should say **Ready to use**. If it says Claude Code is not installed,
+in (and which account) when everything is ready. Then open **Settings** in Closet: under **Claude** it should say
+**Using your Claude plan.** (press **Check again** if it shows a red line). If it says Claude Code is not installed,
 quit Closet and start it again so it sees the new program.
 
 **If an item says Anthropic turned down the account Claude Code is signed in
@@ -684,12 +682,12 @@ describe it needs **Try again**.
 
 From the version after the one that added this, Closet updates itself. Once a
 day while it runs (and whenever you press **Check now** in **Settings →
-Updates**) it asks GitHub whether a newer release is out; it sends nothing
-about you or your clothes. In **Settings → Updates** choose:
+Advanced settings → Updates**) it asks GitHub whether a newer release is out; it sends nothing
+about you or your clothes. In **Settings → Advanced settings → Updates** choose:
 
 - **Ask me first** (the standard choice): Closet downloads the new version and
   checks it, then a slim bar at the top says "Closet 0.3.0 is ready ·
-  Install". Settings shows the version and what's new. Nothing changes until
+  Install". **Settings → Updates** shows the version and what's new. Nothing changes until
   you press **Install**.
 - **Install updates by themselves**: the same, without asking.
 - **Never check**: Closet only looks when you press **Check now**.
@@ -714,13 +712,13 @@ above); this folder is not touched. If an update changes the database, a copy is
 `Closet\backups` first. An older program refuses to open a closet written by a
 newer one instead of damaging it.
 
-**Settings → Your closet → Storage** shows how much space this folder takes: photos,
-cutouts, thumbnails, backups kept on this computer and the background-removal
-model, plus how much free space the disk has left.
+**Settings → Advanced settings → Storage** shows how much space this folder takes, and how
+much free space the disk has left; open **What takes the space** for photos, cutouts,
+thumbnails, backups kept on this computer and the background-removal model.
 
 ### Backups
 
-In **Settings → Your closet → Backups**, choose a folder (a cloud-synced folder is ideal).
+In **Settings → Advanced settings → Backups**, choose a folder (a cloud-synced folder is ideal).
 Closet backs up there once a day while it is running, catches up at the next
 start if the computer was off, and shows the date of the last good backup. It
 keeps the 14 most recent database snapshots, each with the photos and cutouts
@@ -753,7 +751,8 @@ new one. Your closet is untouched.
 
 If the computer cannot download the model, download
 `isnet-general-use.onnx` on another machine from the address shown in
-**Settings → Advanced** (open it near the bottom of the page), and put it in
+**Settings → Advanced settings → Background removal** (the link is at the foot of
+Settings), and put it in
 `Closet\models`. Closet checks the file and starts using it. The address can be
 changed there too. A notice on the closet says when the model is missing or
 did not download. **Advanced** also shows where your closet is stored and the
@@ -770,7 +769,7 @@ ones it would do better are cut out again.
 ### Where you are
 
 Closet uses New York's weather until you choose your place. In **Settings →
-Where you are** (or **Change** on Today), search for your town or city and
+Everyday**, press **Change** next to the place (or **Change** on Today), search for your town or city and
 choose it from the list, or tap **Use my location**. Only the name you search
 for and the chosen place's location are sent, to the free weather service
 Open-Meteo; nothing about your clothes is. **Use my location** asks your
@@ -780,14 +779,14 @@ over Tailscale the browser may not share its position (the address is not
 https); search by name there instead. **Back to New York** forgets your place.
 After you answer **How you live**, the same place is also used for long-term
 weather on What's missing. That lookup sends only the coordinates and keeps
-the result for six months. Your life answers and the style words you gave with them stay on your
+the result for six months. Your life answers stay on your
 computer, in its settings; they are not in closet backups. (**Your style** in
 Settings is a different thing: it is kept in your closet, so it is in backups.)
 
 ### Light or dark
 
 Closet follows your computer's or phone's light or dark setting. To choose
-one yourself, go to **Settings → Look** and pick **Light** or **Dark**; pick
+one yourself, go to **Settings → This device** and pick **Light** or **Dark**; pick
 **Same as this device** to follow the device again. The choice is remembered
 on each device separately. Clothing pictures stay on a light background in
 dark mode, so their colours look right.
@@ -800,10 +799,10 @@ write down for it.
 **Settings → Your style** is how you like to dress, in your own words, the way
 you would tell a friend who is choosing your clothes ("I run warm, so one layer
 fewer than most people", "No ties unless it is a wedding"). What you write
-there wins over the general menswear guide. Change it whenever you like and
-press **Save**; **Back to the starting text** puts back the few lines Closet
-starts with. It can be up to 4,000 characters long. The switch above it, **Let
-Claude choose my outfits**, turns Claude's choosing off and on; when it is off,
+there wins over the general menswear guide. Settings shows its first lines; press
+**Edit the text** to change it, then **Save**; **Back to the starting text** puts back
+the few lines Closet starts with. It can be up to 4,000 characters long. The switch
+under it, **Let Claude choose my outfits**, turns Claude's choosing off and on; when it is off,
 Closet's own rules choose.
 
 **How I wear it**, under **More details** on an item's page, beside **Fit
@@ -816,7 +815,7 @@ closet has its own. Nothing is sent to Claude when you save them.
 
 ## Demo closet
 
-**Show the demo closet** in **Settings → Your closet** opens a sample closet of about 40 items (with worn outfits, two wishes with made-up shop finds and a saved trip) so you can try
+**Show the demo closet** in **Settings → Advanced settings → Your closet** opens a sample closet of about 50 items (with worn outfits, two wishes with made-up shop finds and a saved trip) so you can try
 everything without your own photos, with a few outfits worn in the last two
 weeks (yesterday's not rated yet, so Today asks about it). It is kept separate from your real closet
 and is never backed up. A slim strip at the top of every screen says you are
@@ -843,4 +842,4 @@ photographed from the side is, so you can try **Fix the details** on them.
 
 ## Planning a trip
 
-Open **Trips** (in the sidebar; on the phone, the **Trips** button at the top of Today or in Settings) and choose **Plan a trip**. Search for where you are going, pick the first and last day (up to 30 days), the occasion, and whether you can do laundry there (on one day of the trip, or every few days). Closet shows the weather (the forecast, or what those dates are usually like), what to pack with how many days each piece is worn, basics like socks, and an outfit for each day. Use "Not this one" to swap a piece out and "Take something else" to insist on one. Save the trip, then tick things off as you pack, on the computer or the phone. Under the list, "Why these counts" says how each count was worked out ("5 shirts: one a day, laundry on day 4") and where each wash falls. How many times you wear each kind of clothing before it needs washing is set in **Settings → Your closet → Before it needs washing** (a shirt once, a sweater or trousers three times, a jacket the whole trip, to start with); on a hot or humid day, what you wear next to the skin is counted as worn once.
+Open **Trips** (in the sidebar; on the phone, the **Trips** button at the top of Today) and choose **Plan a trip**. Search for where you are going, pick the first and last day (up to 30 days), the occasion, and whether you can do laundry there (on one day of the trip, or every few days). Closet shows the weather (the forecast, or what those dates are usually like), what to pack with how many days each piece is worn, basics like socks, and an outfit for each day. Use "Not this one" to swap a piece out and "Take something else" to insist on one. Save the trip, then tick things off as you pack, on the computer or the phone. Under the list, "Why these counts" says how each count was worked out ("5 shirts: one a day, laundry on day 4") and where each wash falls. How many times you wear each kind of clothing before it needs washing is set in **Settings → Everyday → Wears between washes** (a shirt once, a sweater or trousers three times, a jacket the whole trip, to start with); on a hot or humid day, what you wear next to the skin is counted as worn once.

@@ -44,9 +44,11 @@ test.describe('with a stand-in for Claude', () => {
     await expect(page.getByText('Asking Claude to describe it again')).toBeVisible();
     await expect(detail.getByText("Suggested by Claude; change anything that's wrong.")).toBeVisible({ timeout: 30_000 });
 
-    await page.goto(backend.url + '/settings');
-    const section = page.getByRole('region', { name: 'Describing clothes' });
-    await expect(section.getByTestId('tags-waiting')).toHaveText('No items are waiting to be described.');
+    await page.goto(backend.url + '/settings/advanced');
+    const section = page.getByRole('region', { name: 'Claude' });
+    await expect(section.getByTestId('route-plan')).toBeVisible();
+    // nothing is waiting, so nothing is said about it (step 6 removed "No items are waiting")
+    await expect(section.getByTestId('tags-waiting')).toHaveCount(0);
     const allow = section.getByRole('switch', { name: /Allow the API key/ });
     await expect(allow).not.toBeChecked();
   });

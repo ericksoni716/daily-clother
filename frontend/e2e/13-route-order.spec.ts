@@ -22,8 +22,8 @@ test.describe('choosing which route to Claude is tried first', () => {
     await page.getByRole('button', { name: 'Set passphrase' }).click();
     await page.getByRole('button', { name: 'Start with my own closet' }).click();
 
-    await page.goto(backend.url + '/settings');
-    const section = page.getByRole('region', { name: 'Describing clothes' });
+    await page.goto(backend.url + '/settings/advanced');
+    const section = page.getByRole('region', { name: 'Claude' });
     const choice = section.getByTestId('route-order');
     const planFirst = choice.getByRole('radio', { name: "Use my Claude plan first, the key only if the plan can't" });
     const keyFirst = choice.getByRole('radio', { name: /^Use the API key first/ });

@@ -12,6 +12,28 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- Settings is a short page in eight groups: Your style, Everyday (the weather's place, how you
+  live, the laundry), Claude, Updates, Phone, This device, Your data, then Log out. Claude,
+  Updates and your backups each say how they stand in one line, in red with the one thing to
+  do when something is wrong. Your style shows the start of what Claude reads, with the whole
+  text a tap away under Edit the text. The place, and what is sent where to look up the
+  weather, open under Change.
+- Everything you set once is on a screen of its own, Advanced settings, at the foot of
+  Settings and under Manage beside Claude: the demo closet, start at login, the API key, which
+  way to Claude is tried first, the monthly limit and spending, how updates are fetched, the
+  backup folder and Back up now, storage, where the background-removal files come from, the
+  data folder and the version. The Settings link on the closet's background-removal notice
+  opens it.
+- On your phone, Settings no longer offers Quit Closet, starting Closet at login, typing a
+  backup folder, or the background-removal files to put in place by hand: they are about the
+  computer.
+- Gone from Settings: the Plan a trip link (Trips is on Today), "No items are waiting to be
+  described", the token counts under the spending, the second list of months, and the
+  sentence that a copy run from source can't replace itself. How you live no longer asks for
+  your style in a few words, which nothing used; Your style is where Claude reads it.
+- Settings on the computer checks for a phone share every half minute instead of every few
+  seconds while Tailscale is not installed, and looks the weather up only when you open
+  Change.
 - A shoe on the dressed figure wears the plain front view until Claude's drawing of it is
   ready. The front view traced from your photo is gone, and with it the front view picker
   and "Add a front photo" in Fix the details. Tracing a shoe from its side photo for the

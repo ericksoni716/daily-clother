@@ -5,7 +5,9 @@ import { queryKeys } from '../queryKeys';
 import { HangerIcon } from './Icons';
 import { Button, Markdown, Notice, SegmentedControl } from './ui';
 import { formatSize } from '../labels';
-import { availableLine, busyLine, checkedLine, lastInstallLine, MODES, showBanner, updates, useUpdates, type UpdateMode, type UpdateStatus } from '../updates';
+import { busyLine, checkedLine, lastInstallLine, MODES, showBanner, updates, useUpdates, type UpdateMode, type UpdateStatus } from '../updates';
+import { updatesLine } from '../settingsLines';
+import { StatusLine } from './Toggle';
 
 type Toast = (m: string, k?: 'ok' | 'error') => void;
 
@@ -66,9 +68,65 @@ export function Restarting() {
   );
 }
 
-/** The Updates section in Settings. Its status comes with the settings (which put it in the page's one copy); what
- * a choice or a check answers goes there and under its own key. */
-export function UpdatesSection({ offline, toast }: { offline: boolean; toast: Toast }) {
+/** While something happens in the background (a download, a backup), asks again every few seconds. */
+function useWhileBusy(offline: boolean) {
+  const { status, installing } = useUpdates();
+  const busy = status?.busy ?? null;
+  useEffect(() => {
+    if (offline || !busy || installing) return;
+    const t = window.setInterval(() => void updates.refresh(), 2000);
+    return () => window.clearInterval(t);
+  }, [offline, busy, installing]);
+}
+
+/**
+ * The Updates group on the Settings page: one line ("Closet 0.4.0 · up to date", "Closet 0.4.1 is ready to
+ * install."), what is new folded under it, and Install. Its status comes with the settings, which put it in the
+ * page's one copy; how updates are fetched and Check now are on the Advanced screen (`UpdatesManage`).
+ */
+export function UpdatesLine({ offline, toast, version }: { offline: boolean; toast: Toast; version: string }) {
+  const { status, installing } = useUpdates();
+  const [installBusy, setInstallBusy] = useState(false);
+  useWhileBusy(offline);
+  const line = updatesLine(status, version, offline);
+  const release = status?.available ?? null;
+  const testId = status?.problem ? 'update-problem' : release ? 'update-available' : 'update-line';
+
+  async function installNow() {
+    setInstallBusy(true);
+    try {
+      await updates.install(toast);
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setInstallBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <StatusLine line={line} testId={testId} />
+      {release?.notes.trim() && (
+        <details className="more update-notes" data-testid="update-notes">
+          <summary>What's new in {release.version}</summary>
+          <Markdown text={release.notes} />
+        </details>
+      )}
+      {line.action === 'install' && (
+        <div className="settings-actions">
+          <Button variant="primary" disabled={offline || !!status?.busy || !!installing || installBusy} onClick={installNow}>Install now</Button>
+          <span className="hint">{status?.download_size ? `${formatSize(status.download_size)}. ` : ''}Your closets are backed up first.</span>
+        </div>
+      )}
+      {line.action === 'download' && release && (
+        <p className="hint"><a href={release.page} target="_blank" rel="noreferrer noopener">Download it from the release page</a></p>
+      )}
+    </>
+  );
+}
+
+/** How updates are fetched, Check now, and how the last check and install went: on the Advanced screen. */
+export function UpdatesManage({ offline, toast }: { offline: boolean; toast: Toast }) {
   const qc = useQueryClient();
   const { status, installing } = useUpdates();
   const answered = (s: UpdateStatus) => {
@@ -76,18 +134,10 @@ export function UpdatesSection({ offline, toast }: { offline: boolean; toast: To
     qc.setQueryData(queryKeys.updates(), s);
   };
   const [checking, setChecking] = useState(false);
-  const [installBusy, setInstallBusy] = useState(false);
-
-  // while something happens in the background (a download, a backup), ask again every few seconds
-  const busy = status?.busy ?? null;
-  useEffect(() => {
-    if (offline || !busy || installing) return;
-    const t = window.setInterval(() => void updates.refresh(), 2000);
-    return () => window.clearInterval(t);
-  }, [offline, busy, installing]);
+  useWhileBusy(offline);
 
   if (!status) {
-    return <p className="hint">{offline ? "Updates can't be checked while you're offline." : 'Finding out about new versions…'}</p>;
+    return <p className="hint">{offline ? "Updates can't be checked while you're offline." : 'This copy of Closet has no updater.'}</p>;
   }
 
   async function choose(mode: UpdateMode) {
@@ -114,20 +164,10 @@ export function UpdatesSection({ offline, toast }: { offline: boolean; toast: To
     }
   }
 
-  async function installNow() {
-    setInstallBusy(true);
-    try {
-      await updates.install(toast);
-    } catch (e) {
-      toast((e as Error).message, 'error');
-    } finally {
-      setInstallBusy(false);
-    }
-  }
-
-  const release = status.available;
+  const busy = status.busy;
   const last = lastInstallLine(status);
   const locked = offline || !!busy || !!installing;
+  const mode = MODES.find((m) => m.value === status.mode);
   return (
     <>
       <dl className="facts">
@@ -143,36 +183,12 @@ export function UpdatesSection({ offline, toast }: { offline: boolean; toast: To
         <p className="update-modes-label">When a new version is out</p>
         <SegmentedControl label="When a new version is out" options={MODES.map((m) => ({ value: m.value, label: m.short }))}
           small value={status.mode} onChange={(m) => { if (!offline && m !== status.mode) void choose(m); }} className="update-mode-choice" />
-        <p className="hint" data-testid="update-mode-hint">
-          <strong>{MODES.find((m) => m.value === status.mode)?.label}.</strong> {MODES.find((m) => m.value === status.mode)?.hint}
-        </p>
+        <p className="hint" data-testid="update-mode-hint"><strong>{mode?.label}.</strong> {mode?.hint}</p>
       </div>
       <Button disabled={locked || checking} onClick={checkNow}>{checking ? 'Checking…' : 'Check now'}</Button>
       {busy && !installing && <p className="state-line" role="status">{busyLine(busy)}</p>}
-      {availableLine(status) && <p className="state-line" data-testid="update-available"><strong>{availableLine(status)}</strong></p>}
-      {release && (
-        <div className="update-release" data-testid="update-release">
-          {release.notes.trim() && (
-            <details className="more update-notes" data-testid="update-notes">
-              <summary>What's new in {release.version}</summary>
-              <Markdown text={release.notes} />
-            </details>
-          )}
-          <p className="hint">
-            <a href={release.page} target="_blank" rel="noreferrer noopener">The release page</a>
-            {status.download_size && status.can_install ? ` · ${formatSize(status.download_size)} download` : ''}
-          </p>
-          {status.problem && <Notice as="p" tone="error" role="alert" testId="update-problem">{status.problem}</Notice>}
-          {status.can_install && (
-            <>
-              <Button variant="primary" disabled={locked || installBusy} onClick={installNow}>Install now</Button>
-              <p className="hint">Your closets are backed up first. Closet restarts as the new version and this page reconnects by itself.</p>
-            </>
-          )}
-        </div>
-      )}
-      {!status.can_install && !release && (
-        <p className="hint">This copy of Closet can't replace itself; new versions are only reported here, with a link to download them.</p>
+      {status.available && (
+        <p className="hint"><a href={status.available.page} target="_blank" rel="noreferrer noopener">The release page</a></p>
       )}
     </>
   );

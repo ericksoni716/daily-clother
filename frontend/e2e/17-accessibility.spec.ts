@@ -112,8 +112,10 @@ for (const [layout, use] of LAYOUTS) {
         await check(page, 'add', phone, shot);
 
         await visit(page, '/settings', 'h1');
-        await page.getByText('Advanced', { exact: true }).click();
         await check(page, 'settings', phone, shot);
+
+        await visit(page, '/settings/advanced', 'h1');
+        await check(page, 'advanced', phone, shot);
       });
     });
   }

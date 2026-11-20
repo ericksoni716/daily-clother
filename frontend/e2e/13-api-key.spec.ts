@@ -23,8 +23,8 @@ test.describe('the API key box in Settings', () => {
     await page.getByRole('button', { name: 'Set passphrase' }).click();
     await page.getByRole('button', { name: 'Start with my own closet' }).click();
 
-    await page.goto(backend.url + '/settings');
-    const section = page.getByRole('region', { name: 'Describing clothes' });
+    await page.goto(backend.url + '/settings/advanced');
+    const section = page.getByRole('region', { name: 'Claude' });
     const box = section.getByTestId('api-key');
     await expect(box).toContainText('No API key yet.');
     // the key is described once, in its own row of the list of routes

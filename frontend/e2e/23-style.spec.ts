@@ -26,13 +26,18 @@ test.describe('your style and how I wear it', () => {
     await page.getByRole('button', { name: 'Start with my own closet' }).click();
     const starting = (await (await page.request.get(backend.url + '/api/style/profile')).json()).default_text as string;
 
-    // Settings → Your style, right after Look: the starting text, and nothing to save yet
+    // Settings → Your style, the first group: the starting text, short, with the whole of it to edit in a sheet
     await page.goto(backend.url + '/settings');
     const section = page.locator('section[aria-labelledby="s-style"]');
     await expect(section.getByRole('heading', { name: 'Your style' })).toBeVisible();
     const headings = await page.locator('.settings-section h2').allTextContents();
-    expect(headings.indexOf('Your style')).toBe(headings.indexOf('Look') + 1);
+    expect(headings[0]).toBe('Your style');
+    await expect(section.getByTestId('style-summary')).toHaveText(starting);
+    expect(await section.getByTestId('style-summary').evaluate((el) => getComputedStyle(el).webkitLineClamp)).toBe('3');
+    const edit = section.getByRole('button', { name: 'Edit the text' });
     const box = section.getByRole('textbox', { name: 'About how I dress' });
+    await expect(box).toHaveCount(0);
+    await edit.click();
     await expect(box).toHaveValue(starting);
     const save = section.getByRole('button', { name: 'Save', exact: true });
     const back = section.getByRole('button', { name: 'Back to the starting text' });
@@ -49,6 +54,8 @@ test.describe('your style and how I wear it', () => {
     await expect(save).toBeDisabled();
     await expect(back).toBeVisible();
     await page.reload();
+    await expect(section.getByTestId('style-summary')).toHaveText(MINE);
+    await edit.click();
     await expect(box).toHaveValue(MINE);
     await expect(back).toBeVisible();
 
@@ -68,7 +75,7 @@ test.describe('your style and how I wear it', () => {
     const sectionSize = (await section.boundingBox())!;
     expect(boxSize.width).toBeGreaterThan(sectionSize.width - 2 * 24);   // the full width of the card, inside its padding
     await box.blur();
-    await page.evaluate(() => document.querySelector('section[aria-labelledby="s-style"]')!.scrollIntoView({ block: 'start' }));
+    await page.evaluate(() => document.querySelector('[data-testid="style-sheet"]')!.scrollIntoView({ block: 'start' }));
     await page.screenshot({ path: test.info().outputPath('settings-style.png') });
 
     // Back to the starting text: the starting words again, kept
@@ -76,6 +83,8 @@ test.describe('your style and how I wear it', () => {
     await expect(box).toHaveValue(starting);
     await expect(back).toHaveCount(0);
     await page.reload();
+    await expect(section.getByTestId('style-summary')).toHaveText(starting);
+    await edit.click();
     await expect(box).toHaveValue(starting);
 
     // a piece: How I wear it, under More details, kept through a reload

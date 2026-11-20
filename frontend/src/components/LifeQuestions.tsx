@@ -93,12 +93,6 @@ export function LifeQuestions({ initial, locked, demo, about, onSaved, onClose }
             </label>
           </div>}
           {life.situations.vacation > 0 && <p className="hint" id={`${id}-weeks-hint`}>Enter more than 0 weeks, or set Vacation to Never.</p>}
-          <label className="field life-style">
-            <span>My style in a few words <span className="muted">(optional)</span></span>
-            <input value={life.style_words} onChange={(e) => setLife({ ...life, style_words: e.target.value })}
-              maxLength={200} placeholder="e.g. relaxed, simple, a little colour" aria-describedby={`${id}-style-hint`} />
-          </label>
-          <p className="hint" id={`${id}-style-hint`}>Kept in your own words, not interpreted or used to rank suggestions yet.</p>
         </div>
       </fieldset>
       {error && <p role="alert" className="form-error">{error}</p>}

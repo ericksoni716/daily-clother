@@ -56,8 +56,12 @@ for (const theme of ['light', 'dark'] as const) {
     await fakePhone(page, ADDRESS);
     await login(page);
     await page.goto('/settings');
-    const section = page.getByRole('region', { name: 'Phone access', exact: true });
+    const section = page.getByRole('region', { name: 'Phone', exact: true });
+    // once a share reaches Closet the group is one line, with the code folded under it
+    await expect(section.getByTestId('phone-address')).toHaveText(ADDRESS);
     const code = section.getByRole('img', { name: `QR code of ${ADDRESS}` });
+    await expect(code).toBeHidden();
+    await section.getByText('Show the QR code').click();
     await expect(code).toBeVisible();
     await expect(code).toHaveAttribute('data-payload', ADDRESS);
     const box = (await code.boundingBox())!;
@@ -78,7 +82,7 @@ test('phone access: no code when no share reaches Closet, only the plain explana
   await fakePhone(page, null);
   await login(page);
   await page.goto('/settings');
-  const section = page.getByRole('region', { name: 'Phone access', exact: true });
+  const section = page.getByRole('region', { name: 'Phone', exact: true });
   await expect(section.getByText('Closet is not shared with your phone yet.')).toBeVisible();
   await expect(section.getByText('tailscale serve --bg --https=8443 8765')).toBeVisible();
   await expect(section.locator('.phone-qr')).toHaveCount(0);
@@ -121,7 +125,7 @@ test.describe('opened on the phone', () => {
 
   test('in Safari: no code, address or commands, only how to add Closet to the Home Screen', async ({ page, request }) => {
     await openSettings(page, request);
-    const section = page.getByRole('region', { name: 'Phone access', exact: true });
+    const section = page.getByRole('region', { name: 'Phone', exact: true });
     await expect(section.getByText('tap Share in Safari and then Add to Home Screen')).toBeVisible();
     await expect(section.locator('.phone-qr')).toHaveCount(0);
     await expect(section.getByRole('img')).toHaveCount(0);
@@ -131,10 +135,26 @@ test.describe('opened on the phone', () => {
     await expect(page.getByText('tailscale serve')).toHaveCount(0);
   });
 
-  test('from the Home Screen: no Phone access group at all', async ({ page, request }) => {
+  test('what only makes sense on the computer is not offered: Quit, start at login, folders and files', async ({ page, request }) => {
+    await openSettings(page, request);
+    await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Quit Closet' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Choose a backup folder' })).toHaveCount(0);
+    await page.getByRole('link', { name: 'Advanced settings' }).click();
+    await expect(page.getByRole('heading', { name: 'Advanced', level: 1 })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Backups' })).toBeVisible();
+    await expect(page.getByRole('switch', { name: /Show the demo closet/ })).toBeVisible();
+    await expect(page.getByRole('switch', { name: /Start Closet when I log in/ })).toHaveCount(0);
+    await expect(page.getByRole('textbox', { name: 'Backup folder' })).toHaveCount(0);
+    await expect(page.getByText('Put the files in place by hand')).toHaveCount(0);
+    await expect(page.getByText('Your closet is stored in')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Quit Closet' })).toHaveCount(0);
+  });
+
+  test('from the Home Screen: no Phone group at all', async ({ page, request }) => {
     await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
     await openSettings(page, request);
-    await expect(page.getByRole('heading', { name: 'Phone access' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Phone', exact: true })).toHaveCount(0);
     await expect(page.locator('.phone-qr')).toHaveCount(0);
     await expect(page.getByText('Add to Home Screen')).toHaveCount(0);
   });
@@ -147,8 +167,9 @@ test.describe('pictures', () => {
       await fakePhone(page, ADDRESS);
       await login(page);
       await page.goto('/settings');
-      const section = page.getByRole('region', { name: 'Phone access', exact: true });
+      const section = page.getByRole('region', { name: 'Phone', exact: true });
       await section.scrollIntoViewIfNeeded();
+      await section.getByText('Show the QR code').click();
       await expect(section.locator('.phone-qr')).toBeVisible();
       await page.evaluate(() => document.getElementById('s-phone')?.scrollIntoView({ block: 'start' }));
       // the code and the address under it are both in the picture, above the phone's tab bar

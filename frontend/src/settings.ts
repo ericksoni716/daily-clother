@@ -16,6 +16,8 @@ import { updates } from './updates';
 /** How often Settings asks again, on the computer, while the phone has no address yet (a share just set up in the
  * Terminal shows without a reload). The server looks Tailscale up again when its last lookup is 10 s old. */
 export const PHONE_MS = 3000;
+/** How often, while Tailscale is not installed on the computer at all: installing it takes minutes, not seconds. */
+export const PHONE_SLOW_MS = 30_000;
 
 export type SettingsChange = Parameters<typeof api.putSettings>[0];
 
@@ -95,11 +97,13 @@ export function useSaveSettings(): (changes: SettingsChange) => Promise<Settings
 
 /**
  * How often to ask for the settings again: on the computer, every few seconds while the phone has no address (or
- * is still being looked up), so a share set up meanwhile shows; never on the phone, offline or once there is one.
+ * is still being looked up), so a share set up meanwhile shows; every half minute while Tailscale is not even
+ * installed; never on the phone, offline or once there is one.
  */
 export function phonePoll(shows: 'connect' | 'add-to-home-screen' | 'nothing', s: Settings | undefined, offline: boolean): number | false {
   if (offline || shows !== 'connect' || !s) return false;
-  return s.phone?.address ? false : PHONE_MS;
+  if (s.phone?.address) return false;
+  return s.phone && !s.phone.tailscale_installed ? PHONE_SLOW_MS : PHONE_MS;
 }
 
 /** The routes to Claude in the order chosen, as the server tries them (`tagger/routes.py`, `ORDERS`). */

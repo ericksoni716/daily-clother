@@ -104,6 +104,7 @@ const ROUTES: [path: string, sidebar: string, tab: string][] = [
   ['/missing/check', "What's missing", 'Missing'],
   ['/add', 'Add clothes', 'Add'],
   ['/settings', 'Settings', 'Settings'],
+  ['/settings/advanced', 'Settings', 'Settings'],
 ];
 
 test('aria-current marks the right link on every route, on a computer and a phone', async ({ page }) => {

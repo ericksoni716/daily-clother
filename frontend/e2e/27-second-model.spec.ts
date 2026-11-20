@@ -55,8 +55,10 @@ test('a second model that did not download is shown in the closet and can be tri
   for (const name of ['Download the model', 'Download the second model', 'Try the download again']) {
     await expect(page.getByRole('button', { name })).toHaveCount(0);
   }
-  await page.locator('details#s-advanced').getByText('Advanced', { exact: true }).click();
-  const address = page.getByRole('region', { name: 'Background-removal model' });
+  await page.getByRole('link', { name: 'Advanced settings' }).click();
+  const address = page.getByRole('region', { name: 'Background removal' });
+  await expect(address.getByLabel('Download address')).toHaveValue('https://example.com/isnet-general-use.onnx');
+  await address.getByText('Put the files in place by hand').click();
   await expect(address).toContainText('https://example.com/u2net.onnx');
   await expect(address).toContainText('/data/models/u2net.onnx');
 
@@ -80,6 +82,8 @@ test('a first model that did not download says why in the closet, and Try again 
   const banner = page.getByTestId('model-banner');
   await expect(banner).toContainText("the model download didn't work");
   await expect(banner).toContainText('Could not reach the download server');
+  // its link goes where the model's address and files are: the Advanced settings
+  await expect(banner.getByRole('link', { name: 'Background removal settings' })).toHaveAttribute('href', '/settings/advanced');
   await banner.getByRole('button', { name: 'Try again' }).click();
   await expect(banner).toHaveCount(0);
   expect(asked).toBe(1);

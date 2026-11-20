@@ -23,8 +23,11 @@ test.describe('the API key with a monthly limit', () => {
     await page.getByRole('button', { name: 'Set passphrase' }).click();
     await page.getByRole('button', { name: 'Start with my own closet' }).click();
 
+    // Settings says in one red line that Claude can't be reached; the key and its limit are on Advanced
     await page.goto(backend.url + '/settings');
-    const section = page.getByRole('region', { name: 'Describing clothes' });
+    await expect(page.getByTestId('claude-line')).toContainText("Closet can't reach Claude yet.", { timeout: 20_000 });
+    await page.goto(backend.url + '/settings/advanced');
+    const section = page.getByRole('region', { name: 'Claude' });
     await expect(section.getByTestId('route-plan')).toContainText('not installed', { timeout: 20_000 });
     const allow = section.getByRole('switch', { name: /Allow the API key/ });
     await expect(allow).not.toBeChecked();
@@ -48,14 +51,17 @@ test.describe('the API key with a monthly limit', () => {
     await expect(page.getByTestId('tile').first()).toContainText('Navy polo', { timeout: 60_000 });
 
     await page.goto(backend.url + '/settings');
+    // $0.04 is left, less than one more photo could cost: the key can't be used again this month
+    await expect(page.getByTestId('claude-line')).toHaveText("This month's limit for the API key is reached, and your Claude plan can't be used.", { timeout: 20_000 });
+    await page.goto(backend.url + '/settings/advanced');
     await section.getByText('Monthly limit and spending').click();
     await expect(section.getByText('$0.20 a month')).toBeVisible();
     await expect(section.getByTestId('spend-month')).toContainText('$0.16 of your $0.20 limit spent; 1 request to Claude with the API key.');
     await expect(section.getByTestId('spend-history')).toContainText('$0.16');
-    await expect(section.getByText(/^Costs are worked out from Anthropic's prices as written down on 3 Nov 2026\. Prices change/)).toBeVisible();
-    await expect(section.getByText('20,000', { exact: true })).toBeHidden();   // token counts only in the details fold
-    await section.getByText('Details', { exact: true }).click();
-    await expect(section.getByText('20,000', { exact: true })).toBeVisible();
+    await expect(section.locator('dd', { hasText: '$0.16' })).toHaveCount(1);   // the months are listed once
+    await expect(section.getByText(/^Costs are worked out from Anthropic's prices as written down on 3 Nov 2026\. Your Anthropic account shows what was really charged/)).toBeVisible();
+    // the token counts are no longer shown (the assessment's step 6 removed the Details table)
+    await expect(section.getByText('20,000', { exact: true })).toHaveCount(0);
 
     // the next one would pass the limit: it is not sent, and it says why
     await page.goto(backend.url + '/add');
@@ -84,6 +90,9 @@ test.describe('the API key with a monthly limit', () => {
     await expect(notice).toContainText("This month's spending limit for the API key has been reached, and your Claude plan can't be used right now.");
     await notice.getByRole('link', { name: 'Open Settings' }).click();
     await expect(page).toHaveURL(/\/settings$/);
+    const line = page.getByTestId('claude-line');
+    await expect(line).toHaveText("This month's limit for the API key is reached, and your Claude plan can't be used.", { timeout: 20_000 });
+    await page.getByRole('link', { name: 'Manage how Closet reaches Claude' }).click();
     await expect(section.getByText(/This month's limit is reached/)).toBeVisible();
     await expect(section.getByTestId('spend-waiting')).toHaveText(
       "If your plan can't be used, describing the item waiting with the API key would cost about $0.10 at most.");

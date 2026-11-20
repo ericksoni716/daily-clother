@@ -151,6 +151,7 @@ test.describe('outfits chosen by Claude', () => {
     await toggle.click();
     await expect(page.getByText('Saved', { exact: true })).toBeVisible();
     await expect(toggle).not.toBeChecked();
+    await section.getByRole('button', { name: 'Edit the text' }).click();
     await expect(section.getByRole('textbox', { name: 'About how I dress' })).toBeEnabled();
     await page.goto(backend.url + '/today');
     await expect(current(page).getByTestId('piece').first()).toBeVisible();

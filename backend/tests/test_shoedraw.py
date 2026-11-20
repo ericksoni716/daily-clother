@@ -21,7 +21,7 @@ from closet.drawing import drawn
 from closet.tagger import shoedrawing as SD
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError
 
-from .conftest import PASSPHRASE, SHEET, FakeApi, FakeClaude, fake_cutter, upload
+from .conftest import CUT, PASSPHRASE, SHEET, FakeApi, FakeClaude, fake_cutter, upload
 from .test_figure_drawn import answer as tags
 from .test_shoeviews import Sorter, a_shoe, add, answer, get, later, row, sql
 
@@ -491,7 +491,7 @@ def test_a_shoe_only_has_drawn_details(made):
 
 # ------------------------------------------------------------------ through the API key and its monthly limit
 
-def test_drawing_goes_through_the_api_key_and_its_monthly_limit(cfg):
+def test_drawing_goes_through_the_api_key_and_its_monthly_limit(cfg, cut_clock):
     api = FakeApi(input_tokens=20_000, output_tokens=5_000)
     api.cache_write, api.cache_read = 1_000, 4_000   # each request writes some of the photos to the cache, reads some
     sorter = Sorter()
@@ -525,9 +525,9 @@ def test_drawing_goes_through_the_api_key_and_its_monthly_limit(cfg):
         # what the cache wrote and read is counted at its own price, in the drawing's cost and in the month's spend
         one = spend.cost_usd(SD.MODEL, 20_000, 5_000, cache_write=1_000, cache_read=4_000)
         assert one == pytest.approx(spend.cost_usd(SD.MODEL, 20_000, 5_000) + (1_000 * 4.00 * 1.25 + 4_000 * 0.20) / 1e6)
-        # each check says good and stops being read there: its output is counted as the most it could be
+        # each check says good and stops being read there: its output is estimated from its time
         cut = SD.CANDIDATES + SD.TURNS
-        short = spend.cost_usd(SD.MODEL, 20_000, SD.MAX_TOKENS, cache_write=1_000, cache_read=4_000)
+        short = spend.cost_usd(SD.MODEL, 20_000, CUT, cache_write=1_000, cache_read=4_000)
         assert [s["whole"] for s in api.streams].count(False) == cut
         assert got["cost_usd"] == pytest.approx((calls - cut) * one + cut * short)
         with closing(db.connect(cfg.db_path("main"))) as conn:
@@ -537,7 +537,7 @@ def test_drawing_goes_through_the_api_key_and_its_monthly_limit(cfg):
         assert len(rows) == calls and spend.PURPOSE_DRAW == "draw_shoe"
         assert all(r["route"] == "api" and r["model"] == SD.MODEL for r in rows)
         assert all(r["input_tokens"] == 25_000 for r in rows)
-        assert sorted(round(r["cost_usd"], 9) for r in rows) == pytest.approx([one] * (calls - cut) + [short] * cut)
+        assert sorted(round(r["cost_usd"], 9) for r in rows) == pytest.approx(sorted([one] * (calls - cut) + [short] * cut))
         assert month >= (calls - cut) * one + cut * short - 1e-9
         assert spend.estimate_draw(8) > 0.5   # one request's careful estimate is over the first limit
     finally:

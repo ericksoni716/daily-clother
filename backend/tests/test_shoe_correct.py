@@ -29,6 +29,7 @@ from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError
 from .conftest import (
     AGAINST,
     BLACK_LACES,
+    CUT,
     PASSPHRASE,
     SHEET,
     FakeApi,
@@ -423,7 +424,7 @@ def test_a_shoe_deleted_while_it_is_changed_is_left_alone(made):
     assert m.c.get(f"/api/items/{item['id']}").status_code == 404
 
 
-def test_through_the_api_key_and_its_monthly_limit(cfg):
+def test_through_the_api_key_and_its_monthly_limit(cfg, cut_clock):
     api = FakeApi(input_tokens=20_000, output_tokens=5_000)
     sorter = Sorter()
     sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, routes=lambda: ("api",), api_client=api,
@@ -450,9 +451,9 @@ def test_through_the_api_key_and_its_monthly_limit(cfg):
         got = get(c, item)["drawn"]
         assert got["state"] == "done" and got["corrected"] and got["route"] == "api" and got["rounds"] == 1
         assert got["against_photos"] == AGAINST and got["changed"] == "The laces are black now."
-        # the change, and its check, which said good and stopped being read there (its output as the most it could be)
+        # the change, and its check, which said good and stopped being read there (its output estimated from its time)
         assert got["cost_usd"] == pytest.approx(spend.cost_usd(SD.MODEL, 20_000, 5_000)
-                                                + spend.cost_usd(SD.MODEL, 20_000, SD.MAX_TOKENS))
+                                                + spend.cost_usd(SD.MODEL, 20_000, CUT))
         with closing(db.connect(cfg.db_path("main"))) as conn:
             rows = [dict(r) for r in conn.execute("SELECT purpose, route, model FROM claude_calls ORDER BY rowid")]
         assert [r["purpose"] for r in rows] == ["draw_shoe"] * drawing + ["correct_drawing"] * 2
@@ -686,7 +687,7 @@ class Meter:
         pass
 
 
-def test_through_the_api_key_a_correction_is_streamed_and_counted():
+def test_through_the_api_key_a_correction_is_streamed_and_counted(cut_clock):
     api, meter = FakeApi(input_tokens=25_000, output_tokens=7_000), Meter()
     made = SD.correct(photos(), a_drawing(), BLACK_LACES, ("api",), client=api, meter=meter)
     assert api.calls == 2 and made.rounds == 1 and made.good and made.route == "api"
@@ -700,8 +701,8 @@ def test_through_the_api_key_a_correction_is_streamed_and_counted():
     names = [c["text"] for c in api.requests[1]["messages"][0]["content"] if c["type"] == "text"]
     assert "before.png:" in names and "drawing.png:" in names
     assert meter.checked == [(SD.MODEL, 6), (SD.MODEL, 7)]
-    # the check said good and stopped being read there: counted once, its output as the most it could be
-    assert meter.recorded == [("api", SD.MODEL, 25_000, 7_000), ("api", SD.MODEL, 25_000, SD.MAX_TOKENS)]
+    # the check said good and stopped being read there: counted once, its output estimated from its time
+    assert meter.recorded == [("api", SD.MODEL, 25_000, 7_000), ("api", SD.MODEL, 25_000, CUT)]
     assert [s["whole"] for s in api.streams] == [True, False]
 
 

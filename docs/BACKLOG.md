@@ -17,8 +17,9 @@ only here); take a line out when it is done.
 - **Shoe drawing made faster** (20 November): two shoes at once, and a check that says good
   stops being read there. Left: the plan route still reads every check's whole answer; nobody
   has yet timed a real shoe with either change, so "four to ten minutes" in the app is
-  unchanged; and a check cut short is counted at its `max_tokens` (an upper bound), so a
-  drawing's shown cost is higher than billed until a real run says by how much.
+  unchanged; and a check cut short is counted from its time at 200 tokens a second
+  (`correcting.CUT_TOKENS_PER_SECOND`), an estimate nobody has yet checked against a real
+  run's billed output.
 - **Four places and shared components** (step 8 of the order of work, second part, 20 November).
   Left:
   - Reading load (the phone check's count at 393px, demo closet): Today about 500 words on the

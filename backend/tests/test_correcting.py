@@ -20,7 +20,7 @@ from closet.tagger import routes as tagger_routes
 from closet.tagger.correcting import CorrectionAnswer
 from closet.tagger.tagging import CapReached, RouteUnavailable
 
-from .conftest import ANSWER, FakeApi, fake_cutter, upload
+from .conftest import ANSWER, CUT, FakeApi, fake_cutter, upload
 
 SECRET_KEY = "sk-ant-api03-test-only-not-a-real-key"
 DESCRIPTION = {"category": "polo", "color": "navy", "placket_buttons": 3}
@@ -433,7 +433,7 @@ def cut_at_needs_photo(seen: list):
     return correcting.CutShort("needs_photo", answer)
 
 
-def test_a_streamed_answer_stops_being_read_once_the_caller_has_its_answer():
+def test_a_streamed_answer_stops_being_read_once_the_caller_has_its_answer(cut_clock):
     api, meter, seen = FakeApi(input_tokens=1_500, output_tokens=900), Meter(), []
     api.cache_write = api.cache_read = 0
     api.drawing = ANSWERED
@@ -441,9 +441,9 @@ def test_a_streamed_answer_stops_being_read_once_the_caller_has_its_answer():
     assert got.cut_short and got.answer == ANSWERED and got.route == "api"
     assert seen == [{"changes": [{"name": "color", "value": "navy"}], "not_understood": "All understood."}]
     assert api.calls == 1 and not api.streams[0]["whole"] and '"lettering"' not in api.streams[0]["text"]
-    # counted once: the prompt as `message_start` gave it, the output as the most the request could have written
-    assert meter.recorded == [("api", correcting.MODEL, 1_500, 40_000)]
-    assert (got.input_tokens, got.output_tokens) == (1_500, 40_000)
+    # counted once: the prompt as `message_start` gave it, the output as the most it could have written in its time
+    assert meter.recorded == [("api", correcting.MODEL, 1_500, CUT)]
+    assert (got.input_tokens, got.output_tokens) == (1_500, CUT)
     assert api.requests[0]["max_tokens"] == 40_000 and "cut_short" not in api.requests[0]   # the request is the same
 
 
@@ -475,7 +475,7 @@ def sse(*events: dict) -> bytes:
     return "".join(f"event: {e['type']}\ndata: {json.dumps(e)}\n\n" for e in events).encode()
 
 
-def test_the_real_sdk_stream_is_closed_early_with_the_prompts_usage_from_message_start():
+def test_the_real_sdk_stream_is_closed_early_with_the_prompts_usage_from_message_start(cut_clock):
     """Through the SDK's own `messages.stream` over a stand-in transport (no network): the thinking block streams
     empty, as the drawing model's does, the text arrives in pieces, and the stream is left before the rest."""
     answer = json.dumps(ANSWERED.model_dump())
@@ -511,9 +511,26 @@ def test_the_real_sdk_stream_is_closed_early_with_the_prompts_usage_from_message
                                  cut_short=cut_at_needs_photo(seen))
     assert got.cut_short and got.answer == ANSWERED and len(seen) == 1
     assert sent[0]["stream"] is True and sent[0]["max_tokens"] == 40_000
-    # the prompt exactly as message_start gave it (plain and read from the cache); the output as max_tokens, not the
-    # 5,000 the last message_delta would have said, which was never read
-    assert meter.recorded == [("api", correcting.MODEL, 1_200, 40_000, {"cache_write": 0, "cache_read": 300})]
-    assert (got.input_tokens, got.cache_read_tokens, got.output_tokens) == (1_500, 300, 40_000)
+    # the prompt exactly as message_start gave it (plain and read from the cache); the output estimated from the time
+    # the request had, not the 5,000 the last message_delta would have said, which was never read
+    assert meter.recorded == [("api", correcting.MODEL, 1_200, CUT, {"cache_write": 0, "cache_read": 300})]
+    assert (got.input_tokens, got.cache_read_tokens, got.output_tokens) == (1_500, 300, CUT)
     whole = correcting.correct_api(client, correcting.MODEL, "x", [], max_tokens=40_000)
     assert not whole.cut_short and whole.answer == ANSWERED and whole.output_tokens == 5_000
+
+
+@pytest.mark.parametrize("seconds, want", [(0, 0), (0.001, 1), (10, 2_000), (12.3, 2_460), (199.99, 39_998),
+                                           (200, 40_000), (3_600, 40_000), (-1, 0)])
+def test_the_output_of_an_answer_cut_short_is_estimated_from_its_time_and_never_past_max_tokens(seconds, want):
+    assert correcting.CUT_TOKENS_PER_SECOND == 200
+    assert correcting.cut_output(seconds, 40_000) == want
+
+
+def test_an_answer_cut_short_after_a_very_long_wait_is_counted_at_max_tokens(monkeypatch):
+    times = iter([0.0, 3_600.0])   # sent, then closed an hour later
+    monkeypatch.setattr(correcting, "clock", lambda: next(times))
+    api, meter = FakeApi(input_tokens=1_500, output_tokens=900), Meter()
+    api.drawing = ANSWERED
+    got = correcting.ask("x", [], ("api",), client=api, meter=meter, max_tokens=40_000, cut_short=cut_at_needs_photo([]))
+    assert got.cut_short and got.output_tokens == 40_000 and meter.recorded == [("api", correcting.MODEL, 1_500, 40_000)]
+

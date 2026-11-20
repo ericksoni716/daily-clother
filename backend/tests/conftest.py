@@ -2,6 +2,7 @@ import io
 import json
 import re
 import sys
+import threading
 import urllib.error
 import zlib
 from types import SimpleNamespace
@@ -15,6 +16,7 @@ from closet import app as app_module
 from closet import weather
 from closet.config import Config
 from closet.drawing import drawn
+from closet.tagger import correcting
 from closet.tagger.correcting import Change, CorrectionAnswer, CorrectionResult
 from closet.tagger.garments import Garment, Garments
 from closet.tagger.schema import Details, ItemTags, Silhouette
@@ -221,6 +223,23 @@ class FakeClaude:
         changes, unclear, photo = SENTENCES.get(sentence, ([], f"I could not understand “{sentence}”.", False))
         return CorrectionResult(CorrectionAnswer(changes=[Change(name=n, value=v) for n, v in changes], not_understood=unclear,
                                                  needs_photo=photo), routes[0], "fake")
+
+
+CUT_SECONDS = 10.0   # how long every request cut short takes on the fake clock (`cut_clock`)
+CUT = 2_000          # the output a request cut short after CUT_SECONDS is counted at (200 tokens a second)
+
+
+@pytest.fixture
+def cut_clock(monkeypatch):
+    """The clock that times a request cut short (`correcting.clock`): each thread's calls step by CUT_SECONDS, so
+    every request cut short took exactly that long, whatever the threads drawing side by side do."""
+    local = threading.local()
+
+    def tick():
+        local.now = getattr(local, "now", 0.0) + CUT_SECONDS
+        return local.now
+    monkeypatch.setattr(correcting, "clock", tick)
+    return tick
 
 
 class FakeStream:

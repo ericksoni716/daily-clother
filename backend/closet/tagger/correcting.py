@@ -14,10 +14,12 @@ from __future__ import annotations
 
 import functools
 import json
+import math
 import os
 import re
 import subprocess
 import tempfile
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -54,6 +56,12 @@ NONSTREAMING_MAX_TOKENS = 128_000 * 600 // 3600
 # How far into a streamed answer's text the place to cut it short is looked for (`CutShort`); past it, the answer is
 # read to its end as usual. A check's `good` and `problems` take a few hundred characters.
 CUT_LOOK_CHARS = 20_000
+# The output of a request cut short is not reported (it comes in the last `message_delta`, never read), so it is
+# estimated from the time the request had: a model cannot have written more tokens than its writing speed allows in
+# that time. 200 tokens a second is well above what the drawing model writes at, so the estimate errs high as long as
+# that holds; it is still an estimate, not a count, and never more than the request's `max_tokens`.
+CUT_TOKENS_PER_SECOND = 200
+clock = time.monotonic   # the clock that times a request cut short (tests replace it)
 IMAGE_NAME = re.compile(r"[a-z0-9][a-z0-9-]*\.(jpg|png)")   # the names a caller may give the images it sends
 SYSTEM = ("You correct the description of one item of clothing in a private wardrobe app, following what its owner "
           "says. If an image file is named in the request, look at it with the Read tool. Answer in the required JSON "
@@ -91,8 +99,8 @@ class CorrectionResult:
                                  # or the prompt cache (the API route, `cache_photos`)
     cache_write_tokens: int = 0  # of input_tokens, those written to the prompt cache (the API route)
     cut_short: bool = False      # the answer stopped being read early (`CutShort`): output_tokens is then not a count
-                                 # but the most the request could have written, its max_tokens (an estimate that errs
-                                 # high: see `correct_api`)
+                                 # but an estimate that errs high, from the seconds the request had at
+                                 # CUT_TOKENS_PER_SECOND, at most max_tokens (`cut_output`)
 
 
 @dataclass
@@ -161,9 +169,17 @@ def fields_before(text: str, key: str) -> dict | None:
 
 @dataclass
 class _Cut:
-    """A streamed answer cut short: the answer the caller made, and the usage `message_start` gave."""
+    """A streamed answer cut short: the answer the caller made, the usage `message_start` gave, and the seconds from
+    the request being sent to the stream being closed."""
     answer: BaseModel
     usage: object
+    seconds: float
+
+
+def cut_output(seconds: float, max_tokens: int) -> int:
+    """The output tokens a request cut short after `seconds` is counted at: the most it could have written in that
+    time at `CUT_TOKENS_PER_SECOND`, rounded up, and never more than its `max_tokens`. An estimate, not a count."""
+    return min(max_tokens, math.ceil(max(0.0, seconds) * CUT_TOKENS_PER_SECOND))
 def prompt(sentence: str, description: dict, allowed: dict[str, list], with_photo: bool) -> str:
     lines = "\n".join(f"- {name}: {', '.join(str(v) for v in vals)}" for name, vals in allowed.items())
     return f"""The owner of this item says its description is wrong. Their words:
@@ -207,7 +223,9 @@ def _png_block(img: Image.Image, max_edge: int = 1024) -> dict:
 def _streamed(client, cut_short: CutShort | None = None, **kwargs):
     """One request streamed, as the SDK requires for a long answer; the whole message once it has come. With
     `cut_short`, the answer's text is looked at as it arrives, and once the caller gives an answer in its place the
-    stream is closed and that answer comes back (`_Cut`) with the usage `message_start` gave."""
+    stream is closed and that answer comes back (`_Cut`) with the usage `message_start` gave and the seconds the
+    request had (timed by `clock`, from just before it is sent)."""
+    sent = clock()
     with client.messages.stream(**kwargs) as stream:
         if cut_short is None:
             return stream.get_final_message()
@@ -234,7 +252,7 @@ def _streamed(client, cut_short: CutShort | None = None, **kwargs):
             except Exception:   # anything unexpected: read to its end
                 answer = None
             if answer is not None:
-                return _Cut(answer, stream.current_message_snapshot.usage)   # leaving closes the stream
+                return _Cut(answer, stream.current_message_snapshot.usage, clock() - sent)   # leaving closes it
         return stream.get_final_message()
 
 
@@ -261,10 +279,12 @@ def correct_api(client, model: str, text: str, images: list[Image.Image], meter:
     may stop being read early (`CutShort`), when it is streamed; ignored when it is not.
 
     A request cut short is counted once, as any other: its prompt's tokens (plain, written to the cache, read from it)
-    exactly as `message_start` gave them, and its output as `max_tokens`. The output's true count only comes in the
-    last `message_delta`, after the whole answer, and part of it is thinking that is never shown (the drawing model
-    streams its thinking as empty blocks), so it cannot be counted from what arrived; `max_tokens` is the most the
-    request could have written, so the estimate errs high, never low (`CorrectionResult.cut_short`)."""
+    exactly as `message_start` gave them, and its output estimated (`cut_output`). The output's true count only comes
+    in the last `message_delta`, after the whole answer, and part of it is thinking that is never shown (the drawing
+    model streams its thinking as empty blocks), so it cannot be counted from what arrived. It is estimated as the
+    most the model could have written in the seconds from the request being sent to the stream being closed, at
+    `CUT_TOKENS_PER_SECOND`, at most `max_tokens`: high, as long as the model writes slower than that
+    (`CorrectionResult.cut_short`). The meter held this request at its `max_tokens`, as any other."""
     import anthropic
     from anthropic.lib._parse._transform import transform_schema
 
@@ -314,7 +334,7 @@ def correct_api(client, model: str, text: str, images: list[Image.Image], meter:
                 raise ApiRefused(f"the API key cannot be used right now ({e.status_code})", reason) from e
             raise TaggingError(f"{model} rejected the request ({e.status_code})") from e
         cut = isinstance(resp, _Cut)
-        out = max_tokens if cut else resp.usage.output_tokens   # cut short: the most it could have been (above)
+        out = cut_output(resp.seconds, max_tokens) if cut else resp.usage.output_tokens   # cut short: estimated
         tokens_in += resp.usage.input_tokens
         tokens_out += out
         cached = cached_tokens(resp.usage)

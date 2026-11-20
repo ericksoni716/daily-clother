@@ -20,7 +20,7 @@ from closet.tagger.correcting import CorrectionResult
 from closet.tagger.shoedrawing import CheckAnswer, DrawAnswer, Photo
 from closet.tagger.tagging import CONFIG, RouteUnavailable, TaggingError
 
-from .conftest import SHEET, FakeApi, check_answer, draw_answer
+from .conftest import CUT, SHEET, FakeApi, check_answer, draw_answer
 
 DRESS = drawn.example("dress-shoe")
 LIFTED = f'<g transform="translate(0 -20)">{DRESS}</g>'   # the dress shoe floating above the ground
@@ -219,7 +219,7 @@ class Meter:
         pass
 
 
-def test_through_the_api_key_the_calls_are_streamed_and_counted():
+def test_through_the_api_key_the_calls_are_streamed_and_counted(cut_clock):
     api, meter = FakeApi(input_tokens=25_000, output_tokens=7_000), Meter()
     made = SD.draw_straight(photos(), ("api",), client=api, meter=meter)
     assert api.calls == 2 and made.rounds == 1 and made.good and made.route == "api"
@@ -233,13 +233,13 @@ def test_through_the_api_key_the_calls_are_streamed_and_counted():
     assert [i["source"]["media_type"] for i in images] == ["image/jpeg"] * 5 + ["image/png"] * 3
     assert api.requests[1]["messages"][0]["content"][-2]["source"]["media_type"] == "image/png"   # drawing.png
     assert meter.checked == [(SD.MODEL, 8), (SD.MODEL, 6)]
-    # the check says good, so its answer stopped being read there: counted once, its output as the most it could be
-    assert meter.recorded == [("api", SD.MODEL, 25_000, 7_000), ("api", SD.MODEL, 25_000, SD.MAX_TOKENS)]
+    # the check says good, so its answer stopped being read there: counted once, its output estimated from its time
+    assert meter.recorded == [("api", SD.MODEL, 25_000, 7_000), ("api", SD.MODEL, 25_000, CUT)]
     assert made.totals()["cost_usd"] == pytest.approx(spend.cost_usd(SD.MODEL, 25_000, 7_000)
-                                                      + spend.cost_usd(SD.MODEL, 25_000, SD.MAX_TOKENS))
+                                                      + spend.cost_usd(SD.MODEL, 25_000, CUT))
 
 
-def test_through_the_api_key_the_photos_are_cached_and_the_cache_counted():
+def test_through_the_api_key_the_photos_are_cached_and_the_cache_counted(cut_clock):
     """Every call for a shoe starts with its photos: the request is cached up to the last of them, and what the cache
     wrote and read is passed on to the meter and priced at its own rate."""
     class CacheMeter(Meter):
@@ -254,7 +254,7 @@ def test_through_the_api_key_the_photos_are_cached_and_the_cache_counted():
         marked = [i for i, block in enumerate(content) if "cache_control" in block]
         assert marked == [9] and content[8]["text"] == "photo-5.jpg:" and content[9]["type"] == "image"
     cached = {"cache_write": 3_000, "cache_read": 20_000}   # a check cut short has them too, from `message_start`
-    assert meter.recorded == [("api", SD.MODEL, 5_000, 7_000, cached), ("api", SD.MODEL, 5_000, SD.MAX_TOKENS, cached)]
+    assert meter.recorded == [("api", SD.MODEL, 5_000, 7_000, cached), ("api", SD.MODEL, 5_000, CUT, cached)]
     call = made.calls[0]
     assert (call.input_tokens, call.cache_write_tokens, call.cache_read_tokens) == (28_000, 3_000, 20_000)
     assert call.cost_usd == pytest.approx(spend.cost_usd(SD.MODEL, 5_000, 7_000, 3_000, 20_000))
@@ -352,7 +352,7 @@ def test_a_back_pull_tab_drawn_in_front_of_the_leg_goes_back_to_claude():
 BOAT = drawn.example("boat-shoe")
 
 
-def test_a_check_that_says_good_stops_being_read_before_the_drawing_and_the_drawing_is_kept():
+def test_a_check_that_says_good_stops_being_read_before_the_drawing_and_the_drawing_is_kept(cut_clock):
     api, meter = FakeApi(input_tokens=25_000, output_tokens=7_000), Meter()
     made = SD.draw_straight(photos(), ("api",), client=api, meter=meter)
     draw, look = api.streams
@@ -361,7 +361,7 @@ def test_a_check_that_says_good_stops_being_read_before_the_drawing_and_the_draw
     assert made.good and made.rounds == 1 and made.left == drawn.side(draw_answer().left.model_dump())
     assert made.sheet == draw_answer().sheet.model_dump()
     assert [c.cut_short for c in made.calls] == [False, True]
-    assert made.calls[1].output_tokens == SD.MAX_TOKENS   # the most it could have written, never less
+    assert made.calls[1].output_tokens == CUT == 10 * correcting.CUT_TOKENS_PER_SECOND   # ten seconds at 200 a second
     assert len(meter.recorded) == 2   # each request counted once
 
 

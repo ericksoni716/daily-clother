@@ -700,7 +700,7 @@ class Call:
     seconds: float
     cache_write_tokens: int = 0   # of input_tokens, those written to the prompt cache (the API route)
     cut_short: bool = False       # a check whose answer stopped being read once it said good (`_good_as_is`):
-                                  # output_tokens is the request's max_tokens, the most it could have written
+                                  # output_tokens is then an estimate that errs high (`correcting.cut_output`)
 
 
 @dataclass

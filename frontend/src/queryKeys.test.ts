@@ -29,6 +29,7 @@ const SAMPLE: { [K in KeyName]: () => readonly unknown[] } = {
   insights: () => queryKeys.insights(),
   settings: () => queryKeys.settings(),
   styleProfile: () => queryKeys.styleProfile(),
+  styleTalk: () => queryKeys.styleTalk(),
   storage: () => queryKeys.storage(),
   tagging: () => queryKeys.tagging(),
   spend: () => queryKeys.spend(),

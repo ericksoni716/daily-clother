@@ -882,3 +882,34 @@ def test_a_thing_about_true_or_false_is_dropped(styled):
     assert styling.keeps([{"about": False, "text": "No ties."}, {"about": True, "text": "No ties."},
                           {"about": None, "text": "No hats."}], listing) == [
         {"kind": "style", "item_id": None, "name": None, "text": "No hats.", "state": "offered"}]
+
+
+# ------------------------------------------------------------------ remembering: taking back
+def test_undo_takes_a_style_line_back_out_and_offers_it_again_without_asking_claude(styled):
+    _, aid, _ = offered(styled)
+    remember(styled.c, aid, index=0, save=True)
+    keys = [r["key"] for r in answers(styled.cfg)]
+    r = remember(styled.c, aid, index=0, undo=True)
+    assert r.status_code == 200 and r.json()["state"] == "offered"
+    assert styled.c.get("/api/style/profile").json()["is_default"] is True
+    after = answers(styled.cfg)
+    assert [r["key"] for r in after] != keys and len(after) == len(keys)   # moved back to the words, not asked again
+    assert today(styled.c)["context"]["stylist"]["talk"][0]["remember"][0]["state"] == "offered"
+    assert styled.held == []
+
+
+def test_undo_takes_a_piece_line_back_out_of_its_note(styled):
+    def setup(ids):
+        assert styled.c.patch(f"/api/items/{ids['tee']}", json={"wear_notes": "Tucked in."}).status_code == 200
+    ids, aid, _ = offered(styled, setup=setup)
+    remember(styled.c, aid, index=1, save=True)
+    assert remember(styled.c, aid, index=1, undo=True).json()["state"] == "offered"
+    assert wear_notes(styled, ids["tee"]) == "Tucked in."
+
+
+def test_undo_of_a_thing_not_kept_changes_nothing(styled):
+    _, aid, _ = offered(styled)
+    assert remember(styled.c, aid, index=0, undo=True).json()["state"] == "offered"
+    remember(styled.c, aid, index=0, save=False)
+    assert remember(styled.c, aid, index=0, undo=True).json()["state"] == "dismissed"
+    assert profile_rows(styled) == []

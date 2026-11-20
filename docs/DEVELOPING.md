@@ -38,7 +38,7 @@ a real closet is never touched.
 | What an item is | `kinds.py` (its kind, from the taxonomy), `vocab.py` (the small coarse vocabulary), `details.py` (the details the owner can set), `corrections.py` (picking a detail, saying what is wrong, undo), `history.py`, `review.py` (the review queue). |
 | Shoes | `shoeviews.py` (photos sorted into views), `tracejobs.py` and `shoes.py` (traced from the side photo, for the closet picture), `shoedraw.py` (drawn by Claude for the figure). |
 | Getting dressed | `outfits.py` (outfits by rule; pure), `outfit_rules.py` (the owner's rules, read from the taxonomy file), `today.py` (weather, wears and laundry fed to the engine), `weather.py`, `climate.py`, `day.py`, `daynote.py` (the day in the owner's words), `wears.py` (what was worn, and laundry), `worn.py` (outfits worn, and ratings), `taste.py` (what ratings teach). |
-| Claude as stylist | `styling.py` (what the stylist is told and what is kept; pure), `stylejobs.py` (asked in the background, kept for the day), `styleahead.py` (asked before the first look), `styleprofile.py` (Your style). |
+| Claude as stylist | `styling.py` (what the stylist is told and what is kept; pure), `stylejobs.py` (asked in the background, kept for the day; also what the style conversation shares with it: the routes in order, why a question failed, keeping and taking back a thing to remember), `styleahead.py` (asked before the first look), `styleprofile.py` (Your style: its lines with where each came from, and the text built from them), `stylechat.py` (the style conversation in Settings), `stylequestions.py` (the questions the stylist cannot infer, asked one at a time). |
 | What to buy, what to pack | `gaps.py` (what's missing, by rule; pure), `life.py` (how the owner lives), `wishlist.py`, `shop.py` (finds for a wish, and prices), `wouldwork.py` (pure) and `wouldjobs.py` (Would this work?), `insights.py` (pure), `trips.py` (packing by rule; pure), `tripweather.py`, `savedtrips.py`. |
 | Reaching Claude | `apikey.py` (the key, in the computer's keychain), `spend.py` (every call recorded, the monthly limit, estimates). The calls themselves are in `tagger/`. |
 
@@ -49,7 +49,7 @@ with `COVERAGE`; `surfaceform.py` is the cloth's surface on the same call. One m
 other question: `addsort.py` (what each photo on Add shows), `garments.py` (boxes round
 several pieces), `landmarks.py`, `correcting.py` (the owner's sentence into changes),
 `views.py` (which side of a shoe), `shoedrawing.py` (a shoe drawn), `dayread.py` (the day's
-note), `stylist.py` (the outfits), `shopping.py` (shops and prices).
+note), `stylist.py` (the outfits, and the style conversation), `shopping.py` (shops and prices).
 
 `drawing/` draws. `templates.py` (the garment shapes), `illustrate.py` and `fills.py` (shape
 plus fill), `item.py` (one item, as the app calls it), `stored.py` (a measured pattern as a
@@ -89,8 +89,8 @@ PyInstaller build and its smoke test).
 | `src/progress.ts` | An item's progress as the page shows it: which entry wins, the strip's dots and note, the tile's mark, the "Working on N items" line, a row's title on Add, the drawing's placeholder. The words come from the server (`progress.py`). |
 | `src/screens/` | One file per screen, with its CSS beside it: `Today`, `Worn`, `Closet`, `ItemDetail`, `Add`, `Several`, `Review`, `Missing`, `WouldWork`, `Shop`, `Insights`, `Trips`, `Settings` and `Advanced` (`/settings/advanced`, loaded only when opened, with `React.lazy` in `Shell.tsx`), and `Setup`, `Login`, `Static` before the shell. |
 | `src/components/ui/` | The shared pieces every screen is built from, exported from `index.ts`: `Button`, `Card` and `Section`, `Chips`, `EmptyState`, `ItemThumb`, `Markdown` (a small safe part of Markdown, read by `src/markdown.ts`, drawn as text), `Notice`, `PageHeader`, `SegmentedControl`, `Sheet` (and `PHONE`, the phone-or-wider query), with `focus.ts` for keeping Tab inside what is open. |
-| `src/components/` | Pieces used by more than one screen or too big to sit in one: `FixDetails`, `KindPicker`, `ItemPic`, `OutfitFigure`, `Progress` (the strip and the step's mark) and `WorkingLine`, the shoe pieces (`ShoePhotos`, `ShoeTrace`, `ShoeDrawn`), `LifeQuestions`, `WhereYouAre`, `PhoneAccess`, `Updates` (the banner, the Settings line `UpdatesLine` and the Advanced part `UpdatesManage`), `Toggle` (the switch and `StatusLine`), `ModelBanner`, `RestoreNotice`, `RetakeButton`, `AddedItem`, `Icons`. |
-| `src/<feature>.ts` | The logic and the words of a feature, with no React in it and its test beside it (`today.ts` and `today.test.ts`, `trips.ts`, `gaps.ts`, `insights.ts`, `worn.ts`, `wouldwork.ts`, `shop.ts`, `shoe.ts`, `spend.ts`, `updates.ts`, `corrections.ts`, `tagging.ts`, `drawing.ts`, `progress.ts`, `figure.ts`, `kinds.ts`, `review.ts`, `several.ts`, `addsort.ts`, `added.ts`). `labels.ts` has the plain words for the server's vocabulary. |
+| `src/components/` | Pieces used by more than one screen or too big to sit in one: `FixDetails`, `KindPicker`, `ItemPic`, `OutfitFigure`, `Progress` (the strip and the step's mark) and `WorkingLine`, the shoe pieces (`ShoePhotos`, `ShoeTrace`, `ShoeDrawn`), `LifeQuestions`, `WhereYouAre`, `PhoneAccess`, `Talk` (talking to Claude: the turns, the things to remember with Save and Undo, the box; on Today and in Settings), `StyleTalk` (the style conversation and its questions) and `StyleLines` (every line of Your style, to change, remove or add), `Updates` (the banner, the Settings line `UpdatesLine` and the Advanced part `UpdatesManage`), `Toggle` (the switch and `StatusLine`), `ModelBanner`, `RestoreNotice`, `RetakeButton`, `AddedItem`, `Icons`. |
+| `src/<feature>.ts` | The logic and the words of a feature, with no React in it and its test beside it (`today.ts` and `today.test.ts`, `trips.ts`, `gaps.ts`, `insights.ts`, `worn.ts`, `wouldwork.ts`, `shop.ts`, `shoe.ts`, `spend.ts`, `updates.ts`, `corrections.ts`, `tagging.ts`, `drawing.ts`, `progress.ts`, `style.ts` (Your style: its lines, where each came from, the conversation's polling), `figure.ts`, `kinds.ts`, `review.ts`, `several.ts`, `addsort.ts`, `added.ts`). `labels.ts` has the plain words for the server's vocabulary. |
 | `src/uploadQueue.ts`, `src/uploads.ts`, `src/resize.ts` | Adding photos: resized in the browser, two at a time, each retried under one key. |
 | `src/leave.ts`, `src/landing.ts`, `src/theme.ts`, `src/location.ts` | Saves still waiting when the page closes; which screen the app opens on; light or dark; asking the browser where you are. |
 | `src/styles.css` | The tokens (`:root`) and the shared styles. `src/design.test.ts` fails on a size, radius, colour or motion value that is not a token. |
@@ -206,7 +206,8 @@ cd frontend && npm run build && npm run phone-check      # or: node scripts/phon
 It starts a backend of its own on a temporary data folder (the same stand-ins as the browser
 tests, with a copy of the demo closet as the owner's closet), gives a few things long names,
 opens every screen at 375, 393, 402, 430 and 440px wide, light and once dark, and takes a
-full-page picture of each into `frontend/phone-shots/`. It fails when a screen is wider than
+full-page picture of each into `frontend/phone-shots/`, then opens the sheets of Settings → Your
+style (the conversation, every line) and pictures those. It fails when a screen is wider than
 the phone or throws an error. `CLOSET_PYTHON` names the Python with the backend's
 requirements, as for the browser tests. A new screen is added to its list of routes.
 

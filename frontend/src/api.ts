@@ -1,5 +1,5 @@
-import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, ProgressList, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, StyleProfile } from './types';
-import { forgetSaved, type DayAnswer, type RememberThing, type StyleAnswer, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
+import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, ProgressList, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, QuestionAnswer, StyleProfile, StyleTalk } from './types';
+import { forgetSaved, type DayAnswer, type RememberHow, type RememberThing, type StyleAnswer, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
 import type { Insights } from './insights';
@@ -320,9 +320,27 @@ export const api = {
   /** How a question to Claude about today's outfits stands, while Today waits on it (cheap to ask every few seconds). */
   styleAnswer: (id: string, signal?: AbortSignal) =>
     request<StyleAnswer>(`/api/style/answers/${encodeURIComponent(id)}`, { signal }),
-  /** The owner's answer to a thing Claude offered to remember in its answer to a message: keep it (`save`) or not. */
-  remember: (turnId: string, index: number, save: boolean) =>
-    request<RememberThing>(`/api/style/answers/${encodeURIComponent(turnId)}/remember`, { method: 'POST', body: { index, save } }),
+  /** The owner's answer to a thing Claude offered to remember in its answer to a message: keep it or not, or take it back. */
+  remember: (turnId: string, index: number, how: RememberHow) =>
+    request<RememberThing>(`/api/style/answers/${encodeURIComponent(turnId)}/remember`, { method: 'POST', body: { index, ...how } }),
+  /** The style conversation as it stands (Settings, Your style). */
+  styleTalk: () => request<StyleTalk>('/api/style/talk'),
+  /** Send a message about your style; gives the conversation, with it being answered. */
+  sayStyle: (say: string) => request<StyleTalk>('/api/style/talk', { method: 'POST', body: { say } }),
+  /** The owner's answer to a line Claude offered to keep in the style conversation. */
+  rememberStyle: (turnId: string, index: number, how: RememberHow) =>
+    request<RememberThing>(`/api/style/talk/${encodeURIComponent(turnId)}/remember`, { method: 'POST', body: { index, ...how } }),
+  /** Answer a question the stylist cannot infer: one of its choices, your own words, or skip it. */
+  answerQuestion: (id: string, answer: { choice: string } | { text: string } | { skip: true }) =>
+    request<QuestionAnswer>(`/api/style/questions/${encodeURIComponent(id)}`, { method: 'POST', body: answer }),
+  /** Take back an answer (or a skip): the question is asked again. */
+  undoQuestion: (id: string) => request<QuestionAnswer>(`/api/style/questions/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  /** Add a line of your own at the end of Your style. */
+  addStyleLine: (text: string) => request<StyleProfile>('/api/style/lines', { method: 'POST', body: { text } }),
+  editStyleLine: (id: number, text: string) => request<StyleProfile>(`/api/style/lines/${id}`, { method: 'PATCH', body: { text } }),
+  /** Take a line out of Your style; `removed` is its id, to put it back. */
+  removeStyleLine: (id: number) => request<StyleProfile & { removed: number }>(`/api/style/lines/${id}`, { method: 'DELETE' }),
+  restoreStyleLine: (id: number) => request<StyleProfile>(`/api/style/lines/${id}/restore`, { method: 'POST' }),
   planTrip: (trip: TripRequest, signal?: AbortSignal) =>
     request<PlannedTrip>('/api/trips/plan', { method: 'POST', body: trip, signal }),
   saveTrip: (trip: TripRequest) => request<Trip>('/api/trips', { method: 'POST', body: trip }),

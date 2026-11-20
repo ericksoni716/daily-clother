@@ -14,13 +14,22 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Style through conversation** (first part of step 8 of the order of work, 20 November).
+  Left:
+  - Today does not ask the questions the stylist cannot infer yet (the assessment: at most one
+    a day, inside Today's conversation, when it bears on the outfit); only the style
+    conversation in Settings asks them.
+  - Ratings of worn outfits do not offer lines for Your style, and How you live is still a form
+    rather than asked one question at a time.
+  - A line kept from the style conversation makes Today ask Claude again on its next open (as a
+    change by hand does); it could move the day's answer instead, as a line kept on Today does.
+  - Lines cannot be reordered except by Edit the text.
+  - The second half of step 8 (the four-place structure and shared components) is separate.
 - **Settings regrouped** (step 6 of the order of work, done 20 November). Left:
   - The main page is about 1,820px and 201 words on a 390px phone with the demo closet and
     no phone share (about 2.2 screens), down from about 6,100px and 1,105 words, not the 1.5
     screens the outline hoped for; the Phone group's setup steps take the most room until
     the share works. A Homestead-style `Fold` per group would shorten it further.
-  - "Talk to Claude about your style" waits for the style conversation (step 8); Your style
-    shows the text, not lines marked with where each came from.
   - Not done, because they change what Closet does on the computer without being asked: start
     at login turned on at first run, and a backup folder proposed by itself (iCloud Drive or
     OneDrive). A folder picker for the backup folder in Closet's own window is not done
@@ -63,6 +72,16 @@ only here); take a line out when it is done.
     Claude Code detail, a failed check, a disk whose free space cannot be read. (The main
     page's Claude line keeps one line's height while it checks.)
 - **Repo clean-up and the slow-test split** (step 3 of the order of work, done 20 November). Left:
+  - The Windows backend job in CI has failed since the tests from `bench/tests` moved into
+    `backend/tests`, on seven tests that ran only on Linux before. It is not a required check,
+    so pull requests merge past it. Five in `test_templates_and_tagger.py` start a stand-in
+    for Claude Code that is a script with a `#!` line, which Windows cannot start (a `.cmd`
+    around it will not do: the command line is longer than `cmd.exe` takes). Two
+    (`test_demo.py` and `test_illustrations.py`, on the Paper plane tee) compare a drawing
+    with the demo closet's to the letter, and the picture cut from the photo comes out as
+    different PNG text on Windows. Both fixes change what a test checks on Windows (not
+    running the five there, or comparing the picture by its pixels), so they wait for the
+    owner's word.
   - `docs/screenshots/` still holds about 150 pictures (25 MB) that DECISIONS or this file
     name, most of them only by a pattern in a finished item (`figure-*.png`, `fit-*.png`,
     `*-depth-*.png`, `drawing-faults-*.png`). Deleting those, and rewriting history to

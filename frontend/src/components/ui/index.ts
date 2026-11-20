@@ -1,3 +1,4 @@
+export { BackLink } from './BackLink';
 export { Button, buttonClass, type ButtonVariant } from './Button';
 export { Card, Section } from './Card';
 export { ChipGroup } from './Chips';

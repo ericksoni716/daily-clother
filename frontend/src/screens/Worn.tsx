@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, PlusIcon } from '../components/Icons';
-import { Button, Card, EmptyState, ItemThumb, PageHeader, trapTab } from '../components/ui';
+import { BackLink, Button, Card, EmptyState, ItemThumb, PageHeader, trapTab } from '../components/ui';
 import { label } from '../labels';
-import { Link, navigate } from '../router';
+import { navigate } from '../router';
 import { useCloset } from '../store';
 import { occasionLabel } from '../today';
 import type { ItemSummary } from '../types';
@@ -194,7 +194,7 @@ export function WornScreen() {
   return (
     <div className="worn">
       <div className="detail-top">
-        <Link to="/today" className="btn btn-ghost back-link"><ChevronLeftIcon /> Today</Link>
+        <BackLink to="/today" className="btn btn-ghost back-link"><ChevronLeftIcon /> Today</BackLink>
       </div>
       <PageHeader title="Worn" count={list && <>{list.length}{next ? '+' : ''} {list.length === 1 ? 'outfit' : 'outfits'}</>}
         secondary={!adding && (

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { BackIcon } from '../Icons';
-import { Link } from '../../router';
+import { BackLink } from './BackLink';
 import { cls } from './cls';
 
 interface Props {
@@ -30,7 +30,7 @@ export function PageHeader({ title, titleId, count, countTestId, subtitle, back,
     <header className={cls('page-header', className)}>
       {back || subtitle ? (
         <div className="page-heading">
-          {back && <Link to={back.to} className={cls('btn btn-ghost btn-small page-back', back.className)}><BackIcon /> {back.label}</Link>}
+          {back && <BackLink to={back.to} className={cls('btn btn-ghost btn-small page-back', back.className)}><BackIcon /> {back.label}</BackLink>}
           {titleRow}
           {subtitle && <p className="muted page-subtitle">{subtitle}</p>}
         </div>

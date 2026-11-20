@@ -7,7 +7,7 @@ import {
   colorWords, type Gap, type GapsAnswer, groupReasons, helpOf, HIDE_REASONS, type HideReason, loadSavedGaps, lookForLines,
   type LookFor, otherFindings, reasonLabel, saveGaps, type Wish,
 } from '../gaps';
-import { Button, Card, Notice, PageHeader, SegmentedControl } from '../components/ui';
+import { BackLink, Button, Card, Notice, PageHeader, SegmentedControl } from '../components/ui';
 import { swatchOf } from '../labels';
 import { Link, navigate } from '../router';
 import { useCloset } from '../store';
@@ -163,7 +163,7 @@ export function MissingScreen({ itemId, check, wishId, wide }: { itemId: string 
     return (
       <div className="missing-item">
         <div className="detail-top">
-          <Link to="/missing" className="btn btn-ghost back-link"><ChevronLeftIcon /> What's missing</Link>
+          <BackLink to="/missing" className="btn btn-ghost back-link"><ChevronLeftIcon /> What's missing</BackLink>
         </div>
         <ItemDetail key={itemId} id={itemId} status="active" inPanel />
       </div>
@@ -218,7 +218,7 @@ export function MissingScreen({ itemId, check, wishId, wide }: { itemId: string 
         {itemId ? (
           <>
             <div className="missing-panel-top">
-              <Link to="/missing" className="btn btn-ghost btn-small back-link"><ChevronLeftIcon /> Back to the wishlist</Link>
+              <BackLink to="/missing" className="btn btn-ghost btn-small back-link"><ChevronLeftIcon /> Back to the wishlist</BackLink>
             </div>
             <ItemDetail key={itemId} id={itemId} status="active" inPanel />
           </>

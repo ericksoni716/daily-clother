@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type
 import { api, ApiError, connection } from '../api';
 import { ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
 import { OutfitFigure } from '../components/OutfitFigure';
-import { Card, EmptyState, PageHeader, SegmentedControl } from '../components/ui';
+import { BackLink, Card, EmptyState, PageHeader, SegmentedControl } from '../components/ui';
 import { loadGridView, type GridView } from '../drawing';
 import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
@@ -79,7 +79,7 @@ const TRIPS_BACK = { to: '/trips', label: 'Trips' };
 function BackToTrips() {
   return (
     <div className="detail-top">
-      <Link to="/trips" className="btn btn-ghost back-link"><ChevronLeftIcon /> Trips</Link>
+      <BackLink to="/trips" className="btn btn-ghost back-link"><ChevronLeftIcon /> Trips</BackLink>
     </div>
   );
 }

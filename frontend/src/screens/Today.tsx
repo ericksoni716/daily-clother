@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { api, ApiError } from '../api';
 import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, HistoryIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
 import { OutfitFigure } from '../components/OutfitFigure';
-import { Button, buttonClass, Card, EmptyState, ItemThumb, Notice, PageHeader, SegmentedControl } from '../components/ui';
+import { BackLink, Button, buttonClass, Card, EmptyState, ItemThumb, Notice, PageHeader, SegmentedControl } from '../components/ui';
 import { WhereYouAre } from '../components/WhereYouAre';
 import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
@@ -373,7 +373,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     return (
       <div className="today-item">
         <div className="detail-top">
-          <Link to="/today" className="btn btn-ghost back-link"><ChevronLeftIcon /> Today</Link>
+          <BackLink to="/today" className="btn btn-ghost back-link"><ChevronLeftIcon /> Today</BackLink>
         </div>
         <ItemDetail key={itemId} id={itemId} status="active" inPanel />
       </div>
@@ -551,7 +551,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
       {itemId && (
         <aside className="detail-panel" aria-label="Item details">
           <div className="today-panel-top">
-            <Link to="/today" className="btn btn-ghost btn-small back-link"><ChevronLeftIcon /> Back to the outfit</Link>
+            <BackLink to="/today" className="btn btn-ghost btn-small back-link"><ChevronLeftIcon /> Back to the outfit</BackLink>
           </div>
           <ItemDetail key={itemId} id={itemId} status="active" inPanel />
         </aside>

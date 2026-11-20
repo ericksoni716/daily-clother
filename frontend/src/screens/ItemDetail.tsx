@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { ChipGroup } from '../components/ui/Chips';
-import { confirmKeys, Notice, PHONE, Section, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
+import { BackLink, confirmKeys, Notice, PHONE, Section, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
 import { FixDetails, FixDetailsButton, ItemHistory } from '../components/FixDetails';
 import { KindPicker } from '../components/KindPicker';
 import { RetakeButton } from '../components/RetakeButton';
@@ -596,7 +596,7 @@ function DetailTop({ inPanel, backTo }: { inPanel?: boolean; backTo: string }) {
   if (inPanel) return null;
   return (
     <div className="detail-top">
-      <Link to={backTo} className="btn btn-ghost back-link"><BackIcon /> Closet</Link>
+      <BackLink to={backTo} className="btn btn-ghost back-link"><BackIcon /> Closet</BackLink>
     </div>
   );
 }

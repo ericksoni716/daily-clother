@@ -108,7 +108,7 @@ test('a delayed save cannot roll back a newer edit of the same field', async ({ 
   }
 });
 
-test('slow polling makes progress even while a newer poll is pending', async ({ page }) => {
+test('slow polling makes progress when a poll takes longer than the interval', async ({ page }) => {
   await login(page);
   await useProfile(page, 'demo');
   await expect(page.getByTestId('tile').first()).toBeVisible();
@@ -129,8 +129,10 @@ test('slow polling makes progress even while a newer poll is pending', async ({ 
     await expect(page.getByTestId('tile').filter({ hasText: 'Slow poll initial' })).toBeVisible();
     await page.clock.fastForward(2000);
     await expect.poll(() => pending.length).toBe(1);
+    // the next tick does not pile a second request on the one still on its way, nor call it off: it lands
     await page.clock.fastForward(2000);
-    await expect.poll(() => pending.length).toBe(2);
+    await page.clock.fastForward(2000);
+    expect(pending.length).toBe(1);
     pending[0]();
     await expect(page.getByTestId('tile').filter({ hasText: 'Slow poll refreshed' })).toBeVisible();
   } finally {

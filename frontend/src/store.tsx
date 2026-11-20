@@ -1,34 +1,70 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { api, connection } from './api';
-import type { ItemSummary, ModelInfo, Profile, Vocab } from './types';
+import { dropItem, itemQuery, itemsQuery, modelQuery, usePoll, useItems, useModel, useVocab, vocabQuery, writeItem } from './queries';
+import { makeQueryClient } from './queryClient';
+import { queryKeys, type ItemStatus } from './queryKeys';
+import type { Item, ItemSummary, ModelInfo, Profile, Vocab } from './types';
 import { uploads } from './uploads';
+import { closetPoll, downloading, DOWNLOAD_MS, justFinished, measuring } from './work';
 
-type Status = 'active' | 'archived';
-
-interface ClosetState {
+/** The open closet: which one, whether Closet can be reached, and what is done to it as a whole. This changes only
+ * when the closet is switched or the connection comes and goes, so reading it never draws a screen again on its own. */
+interface AppState {
   profile: Profile;
   offline: boolean;
-  vocab: Vocab | null;
-  model: ModelInfo | null;
-  items: Record<Status, ItemSummary[] | null>;
-  loadError: string | null;
-  loadItems(status: Status): Promise<void>;
-  refreshModel(): Promise<void>;
-  /** Put a changed item into the lists (moving it if its status changed). */
-  upsert(item: ItemSummary): void;
-  drop(id: string): void;
   switchProfile(profile: Profile): Promise<void>;
   logout(): Promise<void>;
   quit(): Promise<void>;
   toast(message: string, kind?: 'ok' | 'error'): void;
 }
 
-const Ctx = createContext<ClosetState | null>(null);
+/**
+ * What screens not yet moved onto the query cache read: `useApp()` plus the items, vocabulary and model from the
+ * cache, and the old ways to change them. New code reads `useApp()`, `useItems()`, `useVocab()` and `useModel()`
+ * (src/queries.ts) and saves with `useEdit` or `useItemEdit`; this goes once the last screen has moved.
+ */
+interface ClosetState extends AppState {
+  vocab: Vocab | null;
+  model: ModelInfo | null;
+  items: Record<ItemStatus, ItemSummary[] | null>;
+  loadError: string | null;
+  /** Reads the list again now. */
+  loadItems(status: ItemStatus): Promise<void>;
+  refreshModel(): Promise<void>;
+  /** Put a changed item into the lists (moving it if its status changed). */
+  upsert(item: ItemSummary): void;
+  drop(id: string): void;
+}
 
-export function useCloset(): ClosetState {
+const Ctx = createContext<AppState | null>(null);
+
+export function useApp(): AppState {
   const v = useContext(Ctx);
-  if (!v) throw new Error('useCloset outside ClosetProvider');
+  if (!v) throw new Error('useApp outside ClosetProvider');
   return v;
+}
+
+/** @deprecated for new code: see `ClosetState`. */
+export function useCloset(): ClosetState {
+  const app = useApp();
+  const qc = useQueryClient();
+  const active = useItems('active');
+  const archived = useItems('archived', false).data ?? null;
+  const vocab = useVocab();
+  const model = useModel();
+  const loadItems = useCallback(async (status: ItemStatus) => {
+    await qc.fetchQuery({ ...itemsQuery(status), staleTime: 0 }).catch(() => undefined);
+  }, [qc]);
+  const refreshModel = useCallback(async () => {
+    await qc.refetchQueries({ queryKey: queryKeys.model(), exact: true });
+  }, [qc]);
+  const upsert = useCallback((item: ItemSummary) => writeItem(qc, item), [qc]);
+  const drop = useCallback((id: string) => dropItem(qc, id), [qc]);
+  return {
+    ...app, vocab, model, items: { active: active.data ?? null, archived },
+    loadError: active.error ? active.error.message : null, loadItems, refreshModel, upsert, drop,
+  };
 }
 
 export function useOffline(): boolean {
@@ -43,14 +79,6 @@ export function useOffline(): boolean {
   return off;
 }
 
-const busy = (i: ItemSummary) => i.cutout_state === 'pending' || i.cutout_state === 'processing';
-const describing = (i: ItemSummary) => i.tag_state === 'working';
-const awaiting = (i: ItemSummary) => i.tag_state === 'waiting';
-/** A shoe waiting to be drawn for the outfit figure, being drawn, or its drawing being changed from the owner's note:
- * the list is asked again so the figure follows. */
-const drawingShoe = (i: ItemSummary) =>
-  i.drawn_state === 'waiting' || i.drawn_state === 'drawing' || i.drawn_state === 'correcting';
-
 interface Props {
   profile: Profile;
   onProfile(profile: Profile): void;
@@ -60,150 +88,100 @@ interface Props {
   children: ReactNode;
 }
 
-export function ClosetProvider({ profile, onProfile, onLogout, onQuit, toast, children }: Props) {
+/** The open closet, with a query cache of its own (App mounts a new one when the closet is switched). */
+export function ClosetProvider(props: Props) {
+  const [client] = useState(makeQueryClient);
+  return (
+    <QueryClientProvider client={client}>
+      <OpenCloset {...props} />
+    </QueryClientProvider>
+  );
+}
+
+/** The ids of items known in full whose pattern is being measured or whose shoe is being traced, as one string. */
+function measuringIds(qc: ReturnType<typeof useQueryClient>): string {
+  return qc.getQueryCache().findAll({ queryKey: ['item'] })
+    .filter((q) => {
+      const item = q.state.data as Item | undefined;
+      return item && measuring(item);
+    })
+    .map((q) => (q.state.data as Item).id).sort().join(',');
+}
+
+/** "id:cutout:tag" for every item in the list, to see when a step finishes. */
+const stepsOf = (list: ItemSummary[]) => list.map((i) => `${i.id}:${i.cutout_state}:${i.tag_state}`).join(',');
+
+function OpenCloset({ profile, onProfile, onLogout, onQuit, toast, children }: Props) {
+  const qc = useQueryClient();
   const offline = useOffline();
-  const [vocab, setVocab] = useState<Vocab | null>(null);
-  const [model, setModel] = useState<ModelInfo | null>(null);
-  const [items, setItems] = useState<Record<Status, ItemSummary[] | null>>({ active: null, archived: null });
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const generation = useRef(0);
-  const reads = useRef({ active: 0, archived: 0 });
-  const applied = useRef({ active: 0, archived: 0 });
-  const changes = useRef(0);
 
-  const loadItems = useCallback(async (status: Status): Promise<void> => {
-    const gen = generation.current;
-    const read = ++reads.current[status];
-    const revision = changes.current;
-    try {
-      const list = await api.items(status);
-      if (gen !== generation.current || read < applied.current[status]) return;
-      if (revision !== changes.current) {
-        void loadItems(status);
-        return;
-      }
-      applied.current[status] = read;
-      setItems((prev) => ({ ...prev, [status]: list }));
-      setLoadError(null);
-    } catch (e) {
-      if (gen !== generation.current || read < applied.current[status]) return;
-      setLoadError((e as Error).message);
+  // Read at once when the closet opens. The list is followed here for the polling only: a poll that brings the same
+  // list changes nothing, so neither this nor any screen draws again.
+  useQuery(vocabQuery());
+  const items = useQuery(itemsQuery('active')).data;
+  const model = useQuery({ ...modelQuery(), refetchInterval: (q) => (downloading(q.state.data) && !offline ? DOWNLOAD_MS : false) }).data;
+  const working = useSyncExternalStore(
+    useCallback((onChange) => qc.getQueryCache().subscribe(onChange), [qc]),
+    () => measuringIds(qc),
+  );
+
+  // Poll while items are cut out, described, measured, traced or drawn: every 2 s while the model (or Claude) is
+  // working on them; slower while a pattern is measured, and slower still while the model is missing or failed or
+  // items wait for a way to reach Claude, since nothing changes until then.
+  const plan = closetPoll(items, model, working ? working.split(',').length : 0, offline);
+  usePoll(plan.ms, () => {
+    void qc.refetchQueries({ queryKey: queryKeys.items('active'), exact: true }, { cancelRefetch: false });
+    if (plan.model) void qc.refetchQueries({ queryKey: queryKeys.model(), exact: true }, { cancelRefetch: false });
+    // items measured or traced: asked for in full, unless their page is open and asks for them itself
+    for (const id of working ? working.split(',') : []) {
+      const q = qc.getQueryCache().find({ queryKey: queryKeys.item(id), exact: true });
+      if (q && q.getObserversCount() === 0) void qc.refetchQueries({ queryKey: queryKeys.item(id), exact: true }, { cancelRefetch: false });
     }
-  }, []);
+  });
 
-  const refreshModel = useCallback(async () => {
-    try {
-      setModel(await api.model());
-    } catch {
-      /* not saved offline; keep what we had */
-    }
-  }, []);
-
-  const loadAll = useCallback(() => {
-    api.vocab().then(setVocab).catch(() => undefined);
-    void loadItems('active');
-    void refreshModel();
-  }, [loadItems, refreshModel]);
-
+  // A cutout or description just finished: its item is read in full once, to learn whether a pattern is now
+  // measured or a shoe traced, which the list does not say.
+  const before = useRef<ItemSummary[] | undefined>(undefined);
+  const steps = items ? stepsOf(items) : '';
   useEffect(() => {
-    loadAll();
-  }, [loadAll, profile]);
+    const now = qc.getQueryData<ItemSummary[]>(queryKeys.items('active'));
+    if (!now) return;
+    for (const id of justFinished(before.current, now)) {
+      void qc.fetchQuery(itemQuery(id)).catch(() => undefined);
+    }
+    before.current = now;
+  }, [steps, qc]);
 
-  // Back online: fetch fresh data. While offline, check the server every few seconds.
+  // Back online: ask again for everything on screen. While offline, check the server every few seconds.
   const wasOffline = useRef(offline);
   useEffect(() => {
-    if (wasOffline.current && !offline) loadAll();
+    if (wasOffline.current && !offline) void qc.invalidateQueries();
     wasOffline.current = offline;
     if (!offline) return;
     const t = window.setInterval(() => {
       api.session().catch(() => undefined);
     }, 5000);
     return () => window.clearInterval(t);
-  }, [offline, loadAll]);
-
-  // Poll while cutouts are being made or items are being described.
-  // Every 2 s while the model (or Claude) is working on them; slower while the model is missing or failed
-  // or items wait for a way to reach Claude, since nothing changes until then (the model state is still followed).
-  const all = [...(items.active ?? []), ...(items.archived ?? [])];
-  const anyBusy = all.some(busy);
-  const anyDescribing = all.some(describing);
-  const anyAwaiting = all.some(awaiting) || all.some(drawingShoe);
-  const modelStuck = model?.state === 'missing' || model?.state === 'failed';
-  const fast = (anyBusy && !modelStuck) || anyDescribing;
-  useEffect(() => {
-    if (!(anyBusy || anyDescribing || anyAwaiting) || offline) return;
-    const t = window.setInterval(() => {
-      void loadItems('active');
-      if (anyBusy) void refreshModel();
-    }, fast ? 2000 : 10_000);
-    return () => window.clearInterval(t);
-  }, [anyBusy, anyDescribing, anyAwaiting, fast, offline, loadItems, refreshModel]);
-
-  // Poll the models while either downloads.
-  const downloading = model?.state === 'downloading' || model?.second?.state === 'downloading';
-  useEffect(() => {
-    if (!downloading || offline) return;
-    const t = window.setInterval(() => void refreshModel(), 1500);
-    return () => window.clearInterval(t);
-  }, [downloading, offline, refreshModel]);
+  }, [offline, qc]);
 
   // A finished upload shows up in the grid straight away.
   useEffect(() => {
     let done = uploads.snapshot.filter((e) => e.status === 'done').length;
     return uploads.subscribe((entries) => {
       const now = entries.filter((e) => e.status === 'done').length;
-      if (now > done) void loadItems('active');
+      if (now > done) void qc.invalidateQueries({ queryKey: queryKeys.items('active'), exact: true });
       done = now;
     });
-  }, [loadItems]);
-
-  const upsert = useCallback((item: ItemSummary) => {
-    changes.current++;
-    setItems((prev) => {
-      const next = { ...prev };
-      for (const s of ['active', 'archived'] as Status[]) {
-        const list = prev[s];
-        if (!list) continue;
-        const has = list.some((x) => x.id === item.id);
-        if (item.status === s) {
-          next[s] = has ? list.map((x) => (x.id === item.id ? { ...x, ...pickSummary(item) } : x)) : [pickSummary(item), ...list];
-        } else if (has) {
-          next[s] = list.filter((x) => x.id !== item.id);
-        }
-      }
-      return next;
-    });
-  }, []);
-
-  const drop = useCallback((id: string) => {
-    changes.current++;
-    setItems((prev) => ({
-      active: prev.active?.filter((x) => x.id !== id) ?? null,
-      archived: prev.archived?.filter((x) => x.id !== id) ?? null,
-    }));
-  }, []);
+  }, [qc]);
 
   const switchProfile = useCallback(async (p: Profile) => {
     await api.setProfile(p);
-    generation.current++;
-    setItems({ active: null, archived: null });
-    onProfile(p);
+    onProfile(p);   // App mounts a new provider, with a new cache, for the other closet
   }, [onProfile]);
 
-  const value = useMemo<ClosetState>(() => ({
-    profile, offline, vocab, model, items, loadError, loadItems, refreshModel, upsert, drop, switchProfile,
-    logout: onLogout, quit: onQuit, toast,
-  }), [profile, offline, vocab, model, items, loadError, loadItems, refreshModel, upsert, drop, switchProfile, onLogout, onQuit, toast]);
+  const value = useMemo<AppState>(() => ({
+    profile, offline, switchProfile, logout: onLogout, quit: onQuit, toast,
+  }), [profile, offline, switchProfile, onLogout, onQuit, toast]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
-}
-
-const SUMMARY_KEYS: (keyof ItemSummary)[] = ['id', 'name', 'category', 'color', 'color_hex', 'pattern', 'location', 'rating',
-  'status', 'cutout_state', 'tag_state', 'tag_error', 'thumb_url', 'has_illustration', 'illustration_url', 'has_photo', 'last_worn', 'wear_count',
-  'wears_since_wash', 'laundry', 'created_at', 'updated_at', 'kind', 'kind_name', 'group', 'drawn_state', 'drawn_version'];
-
-function pickSummary(item: ItemSummary): ItemSummary {
-  const out = {} as Record<string, unknown>;
-  for (const k of SUMMARY_KEYS) out[k] = item[k];
-  return out as unknown as ItemSummary;
 }

@@ -18,9 +18,17 @@ test('settings: search for a place (faked), choose it and see it saved', async (
     },
   }));
   await login(page);
+  const weatherAsked = { n: 0 };
+  page.on('request', (r) => { if (r.url().endsWith('/api/weather')) weatherAsked.n += 1; });
   await page.locator('nav.sidebar').getByRole('link', { name: 'Settings' }).click();
 
-  const section = page.getByRole('region', { name: 'Where you are' });
+  // Settings → Everyday says the place in one line; the search, and what is sent where, are behind Change
+  const everyday = page.getByRole('region', { name: 'Everyday' });
+  await expect(everyday.getByTestId('weather-place')).toHaveText('New York, United States');
+  await expect(everyday.getByLabel('Choose another place')).toHaveCount(0);
+  expect(weatherAsked.n).toBe(0);   // nothing to show the weather in yet, so it is not looked up
+  await everyday.getByRole('button', { name: 'Change' }).click();
+  const section = page.getByTestId('place-sheet');
   // with nothing chosen, Closet uses New York
   await expect(section.getByTestId('saved-place')).toHaveText('New York, United States');
   await expect(section.getByText('New York until you choose a place.')).toBeVisible();
@@ -37,8 +45,12 @@ test('settings: search for a place (faked), choose it and see it saved', async (
   const saved = await (await page.request.get('/api/settings')).json();
   expect(saved.place).toEqual(BROOKLYN);
 
+  await expect(everyday.getByTestId('weather-place')).toHaveText(BROOKLYN.name);
+
   // still there after a reload, and the owner can go back to New York
   await page.reload();
+  await expect(everyday.getByTestId('weather-place')).toHaveText(BROOKLYN.name);
+  await everyday.getByRole('button', { name: 'Change' }).click();
   await expect(section.getByTestId('saved-place')).toHaveText(BROOKLYN.name);
   await section.getByRole('button', { name: 'Back to New York' }).click();
   await expect(section.getByTestId('saved-place')).toHaveText('New York, United States');

@@ -5,7 +5,7 @@ import { expect, login, test, useProfile } from './fixtures';
 
 const example: Life = {
   situations: { work: 4, everyday: 4, going_out: 1, lounging: 0, exercise: 0, vacation: .25 },
-  work_dress: 'smart_casual', vacation_climate: 'warm', vacation_weeks: 3, style_words: 'Relaxed, simple, a little colour',
+  work_dress: 'smart_casual', vacation_climate: 'warm', vacation_weeks: 3, style_words: '',
 };
 
 function suggestion(id: string, name: string, situation: SituationId, situationName: string): Gap {
@@ -145,7 +145,6 @@ test('review 10: the Based on row can be read in full, opens How you live, and l
   const about = dialog.getByTestId('life-about');
   await expect(about).toContainText('Based on: work 4 days a week, smart casual');
   await expect(about).toContainText('vacation 3 weeks a year, warm');
-  await expect(about.getByText('Your words:', { exact: false })).toContainText(example.style_words);
   await expect(about.getByRole('link', { name: 'Where you are in Settings' })).toBeVisible();
   await expect(about.getByText(/Closet can't identify sleepwear/)).toBeVisible();
   await dialog.getByRole('button', { name: 'Cancel' }).click();
@@ -287,7 +286,7 @@ for (const [layout, viewport] of [
     await questions.getByLabel('Vacation frequency').selectOption('0.25');
     await questions.getByLabel('Vacation weeks per year').fill('3');
     await questions.getByLabel('Vacation weather').selectOption('warm');
-    await questions.getByLabel('My style in a few words').fill(example.style_words);
+    await expect(questions.getByLabel('My style in a few words')).toHaveCount(0);   // gone in step 6: nothing used it
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
     await page.evaluate(() => window.scrollTo(0, 0));
     if (layout === 'phone') {
@@ -320,8 +319,6 @@ for (const [layout, viewport] of [
     expect(state.writes).toEqual([{ life: example, life_prompt_dismissed: true }]);
     const basis = page.getByTestId('life-basis');
     await openLife(page);
-    await expect(questions.getByText('Your words:', { exact: false })).toContainText(example.style_words);
-    await expect(questions.getByText('Kept as a note, not used to rank suggestions.')).toBeVisible();
     await expect(questions.getByRole('link', { name: 'Where you are in Settings' })).toBeVisible();
     await questions.getByRole('button', { name: 'Cancel' }).click();
     await expect(questions).toHaveCount(0);
@@ -382,11 +379,11 @@ test('non-preset frequencies survive edits; failed saves retain answers and can 
   const state = await open(page, life);
   const form = await openLife(page);
   await expect(form.getByLabel('Work frequency')).toHaveValue('3.5');
-  await form.getByLabel('My style in a few words').fill('Quiet and comfortable');
+  await form.getByLabel('Vacation weather').selectOption('cold');
   state.failSave = true;
   await form.getByRole('button', { name: 'Save my answers' }).click();
   await expect(form.getByRole('alert')).toHaveText('These answers could not be saved. Try again.');
-  await expect(form.getByLabel('My style in a few words')).toHaveValue('Quiet and comfortable');
+  await expect(form.getByLabel('Vacation weather')).toHaveValue('cold');
   state.failSave = false;
   await form.getByLabel('Vacation weeks per year').fill('53');
   await form.getByRole('button', { name: 'Save my answers' }).click();
@@ -466,13 +463,12 @@ test('real settings and gaps endpoints keep the same answers across screens and 
     await form.getByLabel('Vacation frequency').selectOption('1');
     await form.getByLabel('Vacation weeks per year').fill('1.5');
     await form.getByLabel('Vacation weather').selectOption('cold');
-    await form.getByLabel('My style in a few words').fill('Simple layers');
     await form.getByRole('button', { name: 'Save my answers' }).click();
     await expect(form).toHaveCount(0);
     const settings = await (await page.request.get('/api/settings')).json();
     expect(settings.life.vacation_weeks).toBe(1.5);
     expect(settings.life.work_dress).toBe('business');
-    expect(settings.life.style_words).toBe('Simple layers');
+    expect(settings.life.style_words).toBe('');   // no longer asked (step 6); kept by the server as before
     const gaps = await (await page.request.get('/api/gaps')).json();
     expect(gaps.context.life).toEqual(settings.life);
     await page.reload();

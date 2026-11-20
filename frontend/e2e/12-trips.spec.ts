@@ -142,7 +142,9 @@ test('"Before it needs washing" is set in Settings, per kind of clothing', async
   await login(page);
   try {
     await page.goto('/settings');
-    const section = page.getByRole('region', { name: 'Before it needs washing' });
+    // Settings → Everyday, folded under the laundry
+    const section = page.getByTestId('rewear');
+    await section.getByText('Wears between washes').click();
     const tops = section.getByLabel('Shirts, tees and polos');
     await expect(tops).toHaveValue('1');
     await expect(section.getByLabel('Knitwear and sweatshirts')).toHaveValue('3');
@@ -153,7 +155,8 @@ test('"Before it needs washing" is set in Settings, per kind of clothing', async
     await tops.selectOption({ label: 'Worn up to 2 times' });
     await saved;
     await page.reload();
-    await expect(page.getByRole('region', { name: 'Before it needs washing' }).getByLabel('Shirts, tees and polos')).toHaveValue('2');
+    await section.getByText('Wears between washes').click();
+    await expect(section.getByLabel('Shirts, tees and polos')).toHaveValue('2');
     const settings = await (await page.request.get('/api/settings')).json();
     expect(settings.rewear).toEqual({ tops: 2, knits: 3, bottoms: 3, outer: null, basics: 1 });
   } finally {

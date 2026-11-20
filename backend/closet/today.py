@@ -18,7 +18,7 @@ import json
 from datetime import date
 
 from . import day as dayparts
-from . import daynote, items, outfits, stylejobs, styleprofile, styling, wears, weather, worn
+from . import daynote, items, look, outfits, stylejobs, styleprofile, styling, vocab, wears, weather, worn
 from .state import State
 from .tagger.taxonomy import GARMENTS
 
@@ -39,8 +39,6 @@ KNIT_GAUGE_WEIGHT = {
 # A fleece's weight is its pile's: polar fleece is heavyweight, sherpa as heavy as cloth comes.
 FLEECE_KINDS = ("fleece_pullover", "fleece_jacket")
 FLEECE_WEIGHT = {"polar_fleece": "heavyweight", "sherpa": "super_heavy"}
-# The answer's sleeve length as the silhouette's sleeve (none, short or long).
-SLEEVE_LENGTH = {"sleeveless": "none", "short": "short", "elbow": "short", "three_quarter": "long", "long": "long"}
 # Bare fibres say less about weight than the tagger's look at the cloth, so the owner's typing them does not overrule it.
 FIBRE_WORDS = ("wool", "cotton")
 LEFT_OUT = ("illustration_svg", "confidence", "source", "tag_answer")  # the engine reads what is taken from these instead
@@ -60,27 +58,31 @@ def _owner_weight(text: object) -> str | None:
 
 
 def cloth(row) -> dict:
-    """What is known about an item's cloth, in the keys the engine reads: `weight_class`, the silhouette's sleeve
-    and `kind`, the garment in the owner's taxonomy (the owner's own choice on the item page, else the tagger's;
-    None when neither said).
+    """What is known about an item's cloth, in the keys the engine reads: `weight_class`, the silhouette (its coarse
+    shape) and `kind`, the garment in the owner's taxonomy (the owner's own choice on the item page, else the
+    tagger's; None when neither said).
 
-    Order of trust, for the weight as for the sleeve:
+    The look is read from one place (`look`): the description the drawing was made from, with the owner's
+    corrections folded over it, so the engine, the stylist, gaps and trips dress the same garment the page draws. The
+    silhouette is its shape as drawn (`look.shape`): the details decide (the owner's over Claude's), the coarse shape
+    fills in.
+
+    Order of trust for the weight:
       1. what the owner set by hand: a material or name whose `source` is "user" (as `items.update` records it)
-         and whose words give a weight (a bare fibre, "wool" or "cotton", is not enough); a sleeve in the
-         silhouette (the owner's, or the answer's copied there when it was described);
+         and whose words give a weight (a bare fibre, "wool" or "cotton", is not enough);
       2. for a fleece (pullover or jacket), its pile: sherpa super heavy, polar fleece or anything else heavyweight;
-      3. the tagger's stored answer: its weight unless "unknown", then for knitwear its knit gauge; its sleeve length;
+      3. the look's details (the owner's over the tagger's): its weight unless "unknown", then for knitwear its knit
+         gauge;
       4. the words in the name and material, and 5. the category: the engine's own guess (`outfits._weight`, and the
          category's usual sleeve), used when steps 1 to 3 leave `weight_class` empty or the sleeve unsaid.
     A stored answer that is missing, empty or not valid JSON counts as nothing known.
     """
     source = _json(row["source"])
     source = source if isinstance(source, dict) else {}
-    answer = _json(row["tag_answer"])
-    details = answer.get("details") if isinstance(answer, dict) else None
+    found = look.answer(row)
+    details = found.get("details") if isinstance(found, dict) else None
     details = details if isinstance(details, dict) else {}
-    silhouette = _json(row["silhouette"])
-    silhouette = dict(silhouette) if isinstance(silhouette, dict) else {}
+    silhouette = look.shape_of(found) if found is not None else _plain_shape(row)
 
     own = _json(row["own_details"]) if "own_details" in row.keys() else None
     own = own if isinstance(own, dict) else {}
@@ -96,9 +98,14 @@ def cloth(row) -> dict:
         weight = details["weight"]
     if weight is None and isinstance(details.get("knit_gauge"), str):
         weight = KNIT_GAUGE_WEIGHT.get(details["knit_gauge"])
-    if not silhouette.get("sleeve") and isinstance(details.get("sleeve_length"), str) and details["sleeve_length"] in SLEEVE_LENGTH:
-        silhouette["sleeve"] = SLEEVE_LENGTH[details["sleeve_length"]]
     return {"weight_class": weight, "silhouette": silhouette, "kind": kind}
+
+
+def _plain_shape(row) -> dict:
+    """The coarse shape of an item with no description and no details of the owner's: its own fields, as the drawing
+    of such an item reads them (`details.plain_answer`)."""
+    found = _json(row["silhouette"])
+    return {k: v for k, v in found.items() if k in vocab.SILHOUETTE and v in vocab.SILHOUETTE[k]} if isinstance(found, dict) else {}
 
 
 def closet_rows(conn) -> list[dict]:

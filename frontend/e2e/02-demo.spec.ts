@@ -1,4 +1,4 @@
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, login, openFold, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
@@ -48,8 +48,11 @@ test('item detail: switch pictures, change a chip, it persists', async ({ page }
   await picture.getByRole('button', { name: 'Photo' }).click();
   await expect(panel.getByRole('img', { name: /original photo/ })).toBeVisible();
 
-  // tops show sleeve and neck questions, not leg or shoe height
-  await expect(panel.getByRole('button', { name: /^Sleeves:/ })).toBeVisible();
+  // one line under the name says what it is and how it sits, read from the description the drawing was made from;
+  // the shape is not asked again among the details
+  await expect(panel.getByTestId('look-line')).toHaveText(/ · .*sleeves/i);
+  await openFold(panel, 'Details');
+  await expect(panel.getByRole('button', { name: /^Sleeves:/ })).toHaveCount(0);
   await expect(panel.getByRole('button', { name: /^Leg:/ })).toHaveCount(0);
 
   // Each change is its own save. Wait for the server's answer to each one: the "Saved" message
@@ -57,7 +60,7 @@ test('item detail: switch pictures, change a chip, it persists', async ({ page }
   // change has been stored, and reloading too soon would cancel a save still on its way.
   const stored = () => page.waitForResponse((r) => r.request().method() === 'PATCH' && r.url().includes('/api/items/') && r.ok());
 
-  // each detail is a row; it opens its choices in place
+  // each detail is a row in the Details fold; it opens its choices in place
   await panel.getByRole('button', { name: /^Formality:/ }).click();
   const formality = panel.getByRole('group', { name: 'Formality' });
   const target = (await formality.getByRole('button', { name: 'Smart casual' }).getAttribute('aria-pressed')) === 'true' ? 'Business' : 'Smart casual';
@@ -67,13 +70,14 @@ test('item detail: switch pictures, change a chip, it persists', async ({ page }
   await expect(formality.getByRole('button', { name: target })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('status').filter({ hasText: 'Saved' })).toBeVisible();
 
-  await panel.getByRole('button', { name: /^How you feel about it:/ }).click();
+  // About it: how you feel about it, and one box for your notes
   answer = stored();
-  await page.getByRole('group', { name: 'How you feel about it' }).getByRole('button', { name: 'Love' }).click();
+  await panel.getByRole('group', { name: 'How you feel about it' }).getByRole('button', { name: 'Love' }).click();
   await answer;
   answer = stored();
-  await page.getByLabel('Why? (optional)').fill('Warmest shirt I own');
-  await page.getByLabel('Why? (optional)').press('Enter');
+  const notes = panel.getByRole('textbox', { name: 'Notes for you and Claude' });
+  await notes.fill('Warmest shirt I own');
+  await notes.blur();
   await answer;
   await expect(page.getByRole('status').filter({ hasText: 'Saved' })).toBeVisible();
 
@@ -81,14 +85,14 @@ test('item detail: switch pictures, change a chip, it persists', async ({ page }
   await expect(panel.getByText('smart_casual')).toHaveCount(0);
 
   await page.reload();
+  await openFold(page.locator('.detail-panel'), 'Details');
   await expect(page.locator('.detail-panel').getByRole('button', { name: `Formality: ${target}` })).toBeVisible();
   await page.locator('.detail-panel').getByRole('button', { name: /^Formality:/ }).click();
   const again = page.locator('.detail-panel').getByRole('group', { name: 'Formality' });
   await expect(again.getByRole('button', { name: target })).toHaveAttribute('aria-pressed', 'true');
-  await page.locator('.detail-panel').getByRole('button', { name: /^How you feel about it:/ }).click();
   await expect(page.locator('.detail-panel').getByRole('group', { name: 'How you feel about it' }).getByRole('button', { name: 'Love' }))
     .toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByLabel('Why? (optional)')).toHaveValue('Warmest shirt I own');
+  await expect(page.locator('.detail-panel').getByRole('textbox', { name: 'Notes for you and Claude' })).toHaveValue('Warmest shirt I own');
 });
 
 test('trousers: the drawing comes with a small one from the back', async ({ page }) => {
@@ -115,6 +119,7 @@ test('a rejected change is undone and the server message shown', async ({ page }
   await useProfile(page, 'demo');
   await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
   const panel = page.locator('.detail-panel');
+  await openFold(panel, 'Details');
   await panel.getByRole('button', { name: /^Pattern:/ }).click();
   await expect(panel.getByRole('group', { name: 'Pattern' })).toBeVisible();
   await page.route('**/api/items/*', async (route) => {
@@ -143,6 +148,7 @@ test('the colours measured from a pattern show as swatches beside the pattern wo
   });
   await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
   const panel = page.locator('.detail-panel');
+  await openFold(panel, 'Details');
   // read first: the Details row shows the swatches beside the pattern word, and says them
   const row = panel.getByRole('button', { name: 'Pattern: Stripe. Colours measured from the photo: Navy 60%, white 40%' });
   await expect(row.getByTestId('pattern-colours').locator('.swatch')).toHaveCount(2);
@@ -160,6 +166,7 @@ test('archive and unarchive, delete with confirmation', async ({ page }) => {
   await useProfile(page, 'demo');
   await page.getByTestId('tile').filter({ hasText: 'Olive shorts' }).click();
   const panel = page.locator('.detail-panel');
+  await openFold(panel, 'Archive or delete');
   await panel.getByRole('button', { name: 'Archive' }).click();
   await expect(panel.getByRole('button', { name: 'Unarchive' })).toBeVisible();
   await expect(page.getByTestId('tile').filter({ hasText: 'Olive shorts' })).toHaveCount(0);
@@ -169,11 +176,13 @@ test('archive and unarchive, delete with confirmation', async ({ page }) => {
   await page.getByRole('button', { name: /^Filter/ }).click();
   await page.getByRole('dialog', { name: 'Filter' }).getByRole('group', { name: 'Which clothes' }).getByRole('link', { name: 'Archived' }).click();
   await page.getByTestId('tile').filter({ hasText: 'Olive shorts' }).click();
+  await openFold(page.locator('.detail-panel'), 'Put it back or delete it');
   await page.locator('.detail-panel').getByRole('button', { name: 'Unarchive' }).click();
   await expect(page.locator('.detail-panel').getByRole('button', { name: 'Archive', exact: true })).toBeVisible();
 
   await page.goto('/');
   await page.getByTestId('tile').filter({ hasText: 'White tee' }).click();
+  await openFold(page.locator('.detail-panel'), 'Archive or delete');
   await page.locator('.detail-panel').getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByText('Delete this item for good?')).toBeVisible();
   await page.getByRole('button', { name: 'Keep it' }).click();

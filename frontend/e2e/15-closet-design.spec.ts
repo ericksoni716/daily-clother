@@ -1,4 +1,4 @@
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, login, openFold, test, useProfile } from './fixtures';
 
 /** Design 3: the Closet grid and the item page, on a phone and a computer, saved as pictures. */
 
@@ -55,7 +55,8 @@ test.describe('phone', () => {
     await page.waitForLoadState('networkidle');
     await page.screenshot({ path: test.info().outputPath(`item-phone.png`) });
 
-    // a field opens as a sheet; one tap there changes it
+    // a field, in the Details fold, opens as a sheet; one tap there changes it
+    await openFold(page, 'Details');
     await page.getByRole('button', { name: /^Season/ }).click();
     const season = page.getByRole('dialog', { name: 'Season' });
     await expect(season).toBeVisible();
@@ -119,6 +120,7 @@ test.describe('computer', () => {
     expect(await panel.evaluate((el) => el.scrollHeight <= el.clientHeight + 1)).toBe(true);
 
     // a field opens in place
+    await openFold(panel, 'Details');
     await panel.getByRole('button', { name: /^Formality/ }).click();
     await expect(panel.getByRole('group', { name: 'Formality' })).toBeVisible();
     await page.waitForLoadState('networkidle');

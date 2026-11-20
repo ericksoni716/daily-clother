@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode
 import { api, ApiError } from '../api';
 import { ModelProgress, modelStateText, secondModelText } from '../components/ModelBanner';
 import { PhoneAccess } from '../components/PhoneAccess';
+import { ADD_TO_HOME_SCREEN, fromHomeScreen, phoneAccessShows } from '../here';
 import { WhereYouAre } from '../components/WhereYouAre';
 import { LifeQuestions } from '../components/LifeQuestions';
 import { UpdatesSection } from '../components/Updates';
@@ -125,6 +126,8 @@ export function SettingsScreen({ version }: { version: string }) {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [lifeOpen, setLifeOpen] = useState(false);
+  // connecting the phone is done on the computer; the phone itself is only told how to keep Closet on its Home Screen
+  const phoneShows = phoneAccessShows(window.location.hostname, fromHomeScreen(window));
 
   const load = useCallback(async () => {
     try {
@@ -199,9 +202,9 @@ export function SettingsScreen({ version }: { version: string }) {
           <UpdatesSection offline={offline} toast={toast} />
         </Section>
 
-        {settings && (
+        {settings && phoneShows !== 'nothing' && (
           <Section title="Phone access" id="s-phone">
-            <PhoneAccess phone={settings.phone} />
+            {phoneShows === 'connect' ? <PhoneAccess phone={settings.phone} /> : <p>{ADD_TO_HOME_SCREEN}</p>}
           </Section>
         )}
 

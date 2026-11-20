@@ -122,7 +122,7 @@ def test_vocabulary_is_served_and_matches_the_tagger(client):
     assert client.get("/api/vocab").json()["category"] == vocab.CATEGORY
     from typing import get_args
 
-    from closet.tagger import schema  # the bench's closet_bench.schema is this same module
+    from closet.tagger import schema
     assert list(get_args(schema.Category)) == vocab.CATEGORY
     assert list(get_args(schema.Color)) == vocab.COLOR
     assert list(get_args(schema.Pattern)) == vocab.PATTERN

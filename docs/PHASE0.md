@@ -9,10 +9,13 @@ yet.
 
 ## What was tested
 
-`python -m closet_bench.hardcases` (in `bench/`) runs each photo through
-background removal, takes colour, fabric and prints from the photo, draws the
-item from a parametric template, and writes `bench/out/hardcases/report.html`
-with the photo, the cutout and four styles side by side.
+`python -m closet_bench.hardcases` (in `bench/`) ran each photo through
+background removal, took colour, fabric and prints from the photo, drew the
+item from a parametric template, and wrote `bench/out/hardcases/report.html`
+with the photo, the cutout and four styles side by side. That command, the
+tagging bench and the three styles not chosen are gone now; they are in the git
+history. The photos are still in `bench/hardcases/`, where the demo closet is
+made from them (`tools/make_demo.py`).
 
 The attributes for these items (category, sleeve, neck, pattern type, colour
 word) were set by hand while developing. They stand in for the tagging call
@@ -84,7 +87,7 @@ The answers were validated and scored by the same bench code
 - Every mistake came with a confidence of 0.7 or less, and every answer at 0.8 or above was right. That supports showing only low-confidence fields for review, with 0.8 as a first threshold.
 - The models are under-confident rather than over-confident: about a third of fields would be shown for review although most of those were right.
 - For the two plaid shirts the models disagreed on the main colour (multi, green, navy). The colour word for patterned items is better taken from the colours measured in the photo than asked of the model.
-- With these tags, not hand-set ones, the illustrations still came out right (see `bench/out/standin/report.html` after running the command in `bench/README.md`).
+- With these tags, not hand-set ones, the illustrations still came out right (the report was `bench/out/standin/report.html`, made by the tagging bench, which is now only in the git history).
 
 What this does not show: seven items is far too few to rank the models; the
 subagents are not the API call (different surrounding instructions, and one

@@ -4,9 +4,8 @@ Moved here from the bench so the app and the bench share one copy; the bench
 uses these modules. `item` is what the app calls: an item's stored tagger answer,
 or just its coarse fields, in; the SVG out.
 
-OpenCV is imported only inside the functions that read a photo (shoe tracing in
-`trace.py` and `traced.py`, the fills measured from a cutout, the bench's
-"traced" style), so drawing an item from its tags never loads it.
+OpenCV is imported only inside the functions that read a photo (lifting a print
+off a cutout, tracing a shoe), so the app's program draws from tags without it.
 """
 
 # Raised whenever a template, the renderer or the fills change what a drawing looks like. The app keeps the

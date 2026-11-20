@@ -630,7 +630,7 @@ def _contours(binary: np.ndarray, eps: float, min_area: float) -> list[list[np.n
 
 
 def silhouette(mask: np.ndarray, sigma: float) -> np.ndarray:
-    """The cut-out's outline with specks and jaggies smoothed away (as the bench's traced style does)."""
+    """The cut-out's outline with specks and jaggies smoothed away (as the phase-0 traced style did)."""
     import cv2
     k = max(3, (max(mask.shape) // 150) | 1)
     a = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((k, k), np.uint8))

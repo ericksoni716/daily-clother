@@ -63,9 +63,9 @@ front), `drawn.py`, `turned.py`, `photocheck.py` (drawn by Claude), with worked 
 Claude's description of the cloth into a fill (`surface.py`, `described.py`).
 
 Outside the server: `backend/tests/` (one `test_<module>.py` per module; `conftest.py` has the
-stand-ins, `e2e_backend.py` starts the app for the browser tests), `bench/` (the phase 0 bench
-commands: illustration hard cases, tagging accuracy, shoe tracing; `closet_bench` modules named
-like the tagger's and the drawing's are the same code, re-exported for those commands; the
+stand-ins, `e2e_backend.py` starts the app for the browser tests), `bench/` (the shoe tracing
+bench, `closet_bench/trace_shoes.py`, whose `fills` and `illustrate` are the drawing's same
+modules, re-exported for it; and `hardcases/`, the demo closet's open-licence photos; the
 tests of the tagger and the drawing are in `backend/tests/`, `test_taxonomy.py` and
 `test_templates_and_tagger.py`), `tools/` (developer scripts that draw sheets to look at, and
 `whats_new.py`, which the release runs for its notes; never shipped), `packaging/` (the

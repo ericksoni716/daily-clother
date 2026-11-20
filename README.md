@@ -833,8 +833,8 @@ photographed from the side is, so you can try **Fix the details** on them.
   then `python -m closet` from `backend/` (tests: `python -m pytest`).
 - `frontend/` — React + TypeScript + Vite; see `frontend/README.md`.
 - `packaging/` — the PyInstaller build and its smoke test; see its README.
-- `bench/` — the phase 0 bench: tagging accuracy, illustration hard cases and
-  shoe tracing, run by hand; see its README.
+- `bench/` — the shoe tracing bench, run by hand, and the demo closet's open-licence
+  photos; see its README.
 - `docs/` — `DEVELOPING.md` (where each thing lives, and how to add to it),
   `DESIGN.md` (the principles and a checklist for any change), `USING.md` (what
   each screen does), `DECISIONS.md` (what and why), `BACKLOG.md` (what is left),

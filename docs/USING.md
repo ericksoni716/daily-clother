@@ -66,9 +66,14 @@ the laundry. "Record an outfit" adds one by hand from pieces.
 
 `/` (and `/archived`). A grid of your clothes with search, one Filter button (kind,
 category, group, laundry, and In use or Archived) whose choices stay visible as chips, and a
-switch between Photos and Drawings. A tile shows the piece's picture and name, and says when
-its background is still being removed or could not be. Notes at the top say how many pieces
-need a quick check and how many are in the laundry. On a computer, choosing a piece opens it
+switch between Photos and Drawings. A tile shows the piece's picture and name, and, while
+Closet is working on it, a small round mark with the step it is at (1 cutting out, 2
+describing and drawing, 3 finishing the drawing): turning while it is being done, dashed while
+it waits, a warning sign when a step failed. While anything is being worked on, one line,
+"Working on 3 items", floats above the grid and the tab bar; tapping it lists those pieces,
+each with what is happening to it, and says once why they wait when it is something you can
+see to in Settings. Notes at the top say how many pieces need a quick check and how many are
+in the laundry. On a computer, choosing a piece opens it
 in a panel beside the grid; on a phone it opens as its own page.
 
 ## An item
@@ -92,7 +97,15 @@ A shoe also shows its photos sorted into views, its traced side drawing with its
 and the drawing Claude makes for the figure, which takes several minutes and can be
 corrected with a note.
 
-While a piece is being cut out, described, measured or drawn, notices on the page say so.
+While Closet is working on a piece, one strip over the bottom of its picture says how far it
+has got: three dots for the three steps (cutting out, on the computer; describing and drawing,
+by Claude, after which the drawing appears at once; and, for patterned clothes and shoes,
+finishing the drawing: measuring the pattern, or sorting a shoe's photos, tracing it and
+Claude drawing it), what is happening now, and where it runs and how long it takes, or what it
+waits for (with Open Settings when that is where to see to it). The strip goes when the work
+is done, and nothing on the page moves when it comes or goes. A cutout or a description that
+failed says so under the picture, with Try again. A shoe's photos and its drawing for the
+figure say the same words while their part is under way.
 
 *Headed for:* one description of the piece's look from one source; one rating and one notes
 box (assessment, step 7).
@@ -103,8 +116,10 @@ box (assessment, step 7).
 the library, choose a folder, or drop them on the page. Closet asks Claude what each photo
 shows (one piece, several pieces, or a view of a shoe) and sorts them; a shoe's photos are
 gathered into one shoe. Photos are made smaller in the browser and sent two at a time; a
-list shows each one's progress and what it became, can be paused, retried and cleared, and
-survives closing the tab. The same photo is not added twice. After that the piece is cut
+list shows each one's upload until it is in, then, in the same row, how far Closet has got
+with the piece (with the step's mark) and, once described, what Claude called it; it can be
+paused, retried and cleared, and survives closing the tab. Why pieces wait, when it is
+something you can see to in Settings, is said once above the rows. The same photo is not added twice. After that the piece is cut
 out, described and drawn in the background; you do not have to wait on this screen.
 
 ## Several pieces in one photo

@@ -11,7 +11,7 @@ import { groupsIn, groupTitle, kindsOf, type KindGroup } from '../kinds';
 import { categoryPlural, label, tileCaption } from '../labels';
 import { itemPath, Link, navigate } from '../router';
 import { progressOf } from '../progress';
-import { itemSaved, itemsQuery, useProgress, useVocab } from '../queries';
+import { itemSaved, itemsQuery, progressQuery, useVocab } from '../queries';
 import { useApp } from '../store';
 import type { ItemSummary, Laundry, Progress } from '../types';
 import { ItemDetail } from './ItemDetail';
@@ -35,7 +35,8 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const qc = useQueryClient();
   // asked for again each time the closet opens (what is kept shows at once meanwhile): it is the main screen
   const items = useQuery({ ...itemsQuery(status), refetchOnMount: 'always' });
-  const work = useProgress();
+  // the work under way is asked again too (it may have been started elsewhere); the closet's provider polls it after
+  const work = useQuery({ ...progressQuery(), refetchOnMount: 'always', enabled: !offline }).data ?? null;
   const vocab = useVocab();
   const [washing, setWashing] = useState(false);
   const list = items.data ?? null;

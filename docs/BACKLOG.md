@@ -14,10 +14,22 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **One progress model** (step 5 of the order of work, done 20 November). Left:
+  - Why the work waits is known on the server only for the monthly limit, Claude Code's
+    sign-in, background removal and "Claude could not be reached on the last try" (kept in
+    memory by the describing queue). A description waiting because no way to reach Claude is
+    set up at all says "Waiting until Claude can be reached"; it could say what to set up.
+  - Measuring a pattern and tracing a shoe have no job row, so "next in line" for them is a
+    guess from the state alone; an item whose measuring is stuck behind a slow one looks the
+    same as one being measured.
+  - The item page's strip says the short reason a piece waits; the long sentence (the monthly
+    limit's) is only on Add and in the "Working on N items" list.
+  - The pattern-failed notice and the cutout and description failure notices still sit above
+    the name and push it down when they appear (as before). They could move into the strip's
+    place under the picture.
+  - The demo closet never has work under way, so the phone check shows none of this; the
+    browser test `30-progress` takes the pictures instead (in its own output folder).
 - **Data loading** (step 4 of the order of work, done 20 November). Left:
-  - The closet's poll learns about pattern measuring and shoe tracing by reading full items,
-    because the list from `/api/items` does not carry those states: about two extra reads per
-    photo in a big import. Step 5's one progress endpoint should replace this.
   - The cache is not saved on the device. Doing that (Homestead's `offline.ts`) would replace
     `saveTrips`, `saveGaps` and the other hand-made offline copies.
   - Settings on a computer asks again every 3 seconds for as long as it is open and no phone

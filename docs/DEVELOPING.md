@@ -34,7 +34,7 @@ a real closet is never touched.
 | The program | `cli.py` (entry point: start, restore, backup, reset-passphrase), `config.py` (where things live, from the environment), `state.py` (program-wide settings in one JSON file; `DEFAULTS` lists every key), `instance.py` (one copy at a time, and its port), `window.py`, `window_mac.py` (Closet's own window), `tray.py`, `autostart.py`, `net.py` (outbound HTTPS in the packaged program), `updates.py` (checking for a release, fetching it, swapping it in). |
 | The web API | `app.py`: `build_services` wires the settings, the database and every background worker (tests pass stand-ins here), and `create_app` defines every route. `gate.py` (login and size limits, before a body is read), `limits.py`, `auth.py` (one passphrase, sessions), `phone.py` (the Tailscale address for the phone, looked up in the background by `phone.Watch`). |
 | Data | `db.py` (SQLite, and migrations by `PRAGMA user_version`), `migrations/NNNN_name.sql`, `items.py` (reading and changing items), `images.py` (a photo into the files the closet keeps), `backup.py`, `storage.py`, `demo.py` and `demo_data/` (the demo closet, a database of its own). |
-| A photo becomes an item | `jobs.py` (the cutout queue, in the `jobs` table), `cutout.py`, `modelstore.py` (the background-removal models), `tagjobs.py` (the queue that asks Claude to describe an item, and `apply_answer`), `illustrations.py` (each item's drawing, kept up to date), `patjobs.py` (measuring a pattern), `palette.py`, `sources.py` (several items from one photo), `failures.py` (why a step failed, in words safe to show). |
+| A photo becomes an item | `jobs.py` (the cutout queue, in the `jobs` table), `cutout.py`, `modelstore.py` (the background-removal models), `tagjobs.py` (the queue that asks Claude to describe an item, and `apply_answer`), `illustrations.py` (each item's drawing, kept up to date), `patjobs.py` (measuring a pattern), `progress.py` (how far the work on an item has got, in the page's words, and `GET /api/progress`), `palette.py`, `sources.py` (several items from one photo), `failures.py` (why a step failed, in words safe to show). |
 | What an item is | `kinds.py` (its kind, from the taxonomy), `vocab.py` (the small coarse vocabulary), `details.py` (the details the owner can set), `corrections.py` (picking a detail, saying what is wrong, undo), `history.py`, `review.py` (the review queue). |
 | Shoes | `shoeviews.py` (photos sorted into views), `tracejobs.py` and `shoes.py` (traced from the side photo, for the closet picture), `shoedraw.py` (drawn by Claude for the figure). |
 | Getting dressed | `outfits.py` (outfits by rule; pure), `outfit_rules.py` (the owner's rules, read from the taxonomy file), `today.py` (weather, wears and laundry fed to the engine), `weather.py`, `climate.py`, `day.py`, `daynote.py` (the day in the owner's words), `wears.py` (what was worn, and laundry), `worn.py` (outfits worn, and ratings), `taste.py` (what ratings teach). |
@@ -78,17 +78,18 @@ PyInstaller build and its smoke test).
 | `src/main.tsx`, `src/App.tsx` | Start-up: first run, login, the "can't reach Closet" screens. |
 | `src/Shell.tsx` | The frame: sidebar on a computer, tab bar on a phone, the banners, and which screen a route shows. `src/nav.ts` says which link is lit. |
 | `src/router.tsx` | The router, written by hand: `parseRoute` (every route), `navigate`, `Link`, `itemPath`, the `WIDE` media query. |
-| `src/store.tsx` | `ClosetProvider`: the open closet's query cache, `useApp()` (which closet, offline, the toast, switching closets, logging out), and the one poll of the closet's list while items are worked on. |
+| `src/store.tsx` | `ClosetProvider`: the open closet's query cache, `useApp()` (which closet, offline, the toast, switching closets, logging out), and the one poll of the work under way (`GET /api/progress`), which reads the lists and an item again when its work moves on. |
 | `src/api.ts` | The one client, `api.*`, with a readable `ApiError`, and what a closing page may still send. `src/types.ts` has the response types, kept by hand. |
 | `src/queryKeys.ts` | Every query key, and `TOUCHES`: which keys each kind of edit makes stale. Keys are made here and nowhere else. |
 | `src/settings.ts` | The settings read, which also fills the model, updates, style and spend keys; the slow checks Settings makes beside it; what a settings save has already written; when to ask again for the phone's address. `src/savedCopy.ts` chooses between what was read and this device's copy. |
 | `src/queryClient.ts` | The query cache's defaults (fresh for a minute, asked again on coming back after 10 seconds away). |
-| `src/queries.ts` | The queries more than one screen reads (`useItems`, `useItemSummary`, `itemQuery`, `useVocab`, `useModel`, …), writing a saved item into the cache (`itemSaved`, `writeItem`, `dropItem`), saving (`useEdit`, `useItemEdit`) and `usePoll`. |
-| `src/work.ts` | How often to ask again while work runs (`closetPoll`, `itemPoll`), as pure functions. |
+| `src/queries.ts` | The queries more than one screen reads (`useItems`, `useItemSummary`, `itemQuery`, `useVocab`, `useModel`, `useProgress`, `useItemProgress`, …), writing a saved item into the cache (`itemSaved`, `writeItem`, `dropItem`), saving (`useEdit`, `useItemEdit`) and `usePoll`. |
+| `src/work.ts` | How often to ask for the work under way (`progressPoll`) and which items to read again when it moves on (`movedOn`), as pure functions. |
+| `src/progress.ts` | An item's progress as the page shows it: which entry wins, the strip's dots and note, the tile's mark, the "Working on N items" line, a row's title on Add, the drawing's placeholder. The words come from the server (`progress.py`). |
 | `src/screens/` | One file per screen, with its CSS beside it: `Today`, `Worn`, `Closet`, `ItemDetail`, `Add`, `Several`, `Review`, `Missing`, `WouldWork`, `Shop`, `Insights`, `Trips`, `Settings`, and `Setup`, `Login`, `Static` before the shell. |
 | `src/components/ui/` | The shared pieces every screen is built from, exported from `index.ts`: `Button`, `Card` and `Section`, `Chips`, `EmptyState`, `ItemThumb`, `Markdown` (a small safe part of Markdown, read by `src/markdown.ts`, drawn as text), `Notice`, `PageHeader`, `SegmentedControl`, `Sheet` (and `PHONE`, the phone-or-wider query), with `focus.ts` for keeping Tab inside what is open. |
-| `src/components/` | Pieces used by more than one screen or too big to sit in one: `FixDetails`, `KindPicker`, `ItemPic`, `OutfitFigure`, the shoe pieces (`ShoePhotos`, `ShoeTrace`, `ShoeDrawn`), `LifeQuestions`, `WhereYouAre`, `PhoneAccess`, `Updates`, `ModelBanner`, `RestoreNotice`, `RetakeButton`, `AddedItem`, `Icons`. |
-| `src/<feature>.ts` | The logic and the words of a feature, with no React in it and its test beside it (`today.ts` and `today.test.ts`, `trips.ts`, `gaps.ts`, `insights.ts`, `worn.ts`, `wouldwork.ts`, `shop.ts`, `shoe.ts`, `spend.ts`, `updates.ts`, `corrections.ts`, `tagging.ts`, `drawing.ts`, `figure.ts`, `kinds.ts`, `review.ts`, `several.ts`, `addsort.ts`, `added.ts`). `labels.ts` has the plain words for the server's vocabulary. |
+| `src/components/` | Pieces used by more than one screen or too big to sit in one: `FixDetails`, `KindPicker`, `ItemPic`, `OutfitFigure`, `Progress` (the strip and the step's mark) and `WorkingLine`, the shoe pieces (`ShoePhotos`, `ShoeTrace`, `ShoeDrawn`), `LifeQuestions`, `WhereYouAre`, `PhoneAccess`, `Updates`, `ModelBanner`, `RestoreNotice`, `RetakeButton`, `AddedItem`, `Icons`. |
+| `src/<feature>.ts` | The logic and the words of a feature, with no React in it and its test beside it (`today.ts` and `today.test.ts`, `trips.ts`, `gaps.ts`, `insights.ts`, `worn.ts`, `wouldwork.ts`, `shop.ts`, `shoe.ts`, `spend.ts`, `updates.ts`, `corrections.ts`, `tagging.ts`, `drawing.ts`, `progress.ts`, `figure.ts`, `kinds.ts`, `review.ts`, `several.ts`, `addsort.ts`, `added.ts`). `labels.ts` has the plain words for the server's vocabulary. |
 | `src/uploadQueue.ts`, `src/uploads.ts`, `src/resize.ts` | Adding photos: resized in the browser, two at a time, each retried under one key. |
 | `src/leave.ts`, `src/landing.ts`, `src/theme.ts`, `src/location.ts` | Saves still waiting when the page closes; which screen the app opens on; light or dark; asking the browser where you are. |
 | `src/styles.css` | The tokens (`:root`) and the shared styles. `src/design.test.ts` fails on a size, radius, colour or motion value that is not a token. |
@@ -248,8 +249,9 @@ The page reads through TanStack Query. Why, and the numbers: [DECISIONS.md](DECI
 - **Polling while work runs.** Decide how often as a pure function of the data, in `src/<feature>.ts` with a test
   (as `src/work.ts` does). When only one screen watches the query, give it
   `refetchInterval: (q) => (running(q.state.data) ? 2000 : false)`. When several screens show the same data, poll
-  once, in one place, with `usePoll(ms, tick)` (the closet's list is polled in `ClosetProvider`, so a screen never
-  polls items itself). A tick asks with `{ cancelRefetch: false }`, so a slow answer is not called off.
+  once, in one place (the work under way, `GET /api/progress`, is polled in `ClosetProvider`, which reads the
+  closet's list and an item again when its work moves on, so a screen never polls items itself), with the query's
+  own `refetchInterval` or `usePoll(ms, tick)`. A tick asks with `{ cancelRefetch: false }`, so a slow answer is not called off.
 - **Offline.** A query keeps what it had when a read fails; `useApp().offline` says Closet cannot be reached.
   Coming back online asks again for everything on screen.
 
@@ -307,12 +309,13 @@ say so. There is no `0002`. The demo closet is a database too and is migrated th
 3. What was interrupted is picked up at the next start (`requeue_interrupted`).
 4. A failure is stored through `failures.py`, so what is shown and logged holds no key and
    no path.
-5. What the page says about it is one phrase in one place. The assessment's step 5 is one
-   progress model for all of this; until it lands, reuse the words in `src/tagging.ts` and
-   `src/added.ts`, don't add a fifth set.
-6. If the page should follow it, the closet's poll (`closetPoll` in `src/work.ts`) needs to know when it runs:
-   from the item's summary when the list carries its state, else from the full item, as measuring a pattern
-   does today.
+5. What the page says about it is one phrase in one place: `backend/closet/progress.py`. Add its
+   states to `progress.of` (which step it belongs to, and whether it is working, next in line or
+   waiting for something named), its words beside the others there, and its columns to
+   `_UNDER_WAY`, with a case in `tests/test_progress.py`. Don't write status words in a screen.
+6. The page then follows it by itself: `GET /api/progress` lists the item while its work runs,
+   the closet's provider polls that, and the item and the lists are read again when its stage
+   changes. An edit that starts the work should name `progress` in `TOUCHES`.
 
 ## Releasing
 

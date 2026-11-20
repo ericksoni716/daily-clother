@@ -12,6 +12,14 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- Closet says how far it has got with each new piece in one set of words, in one place each:
+  a strip over the bottom of the piece's picture with its three steps (cutting out, describing
+  and drawing, and for patterned clothes and shoes finishing the drawing), a small mark with
+  the step on its closet tile, and one line, "Working on 3 items", above the closet that lists
+  them. On Add, a row shows the upload until the photo is in, then the piece's progress
+  instead of both at once. Short steps are no longer skipped: Closet checks every 2 seconds
+  while anything is being done, measuring a pattern and drawing a shoe included, and asks
+  only for the pieces being worked on.
 - A shoe on the dressed figure wears the plain front view until Claude's drawing of it is
   ready. The front view traced from your photo is gone, and with it the front view picker
   and "Add a front photo" in Fix the details. Tracing a shoe from its side photo for the

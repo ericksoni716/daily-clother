@@ -220,11 +220,12 @@ export function WardrobeScreen({ itemId, check, wishId, wish, wide }: {
     </div>
   );
 
-  if (!wide) return main;
+  // the same element around the page on a phone and a computer, so crossing between them (a window resized, a tablet
+  // turned) keeps what is open on the page instead of drawing it afresh
   return (
-    <div className="master-detail missing">
+    <div className={wide ? 'master-detail missing' : 'wardrobe-page'}>
       {main}
-      <aside className="detail-panel missing-side" aria-label={itemId ? 'Item details' : 'Thinking of buying something?'}>
+      {wide && <aside className="detail-panel missing-side" aria-label={itemId ? 'Item details' : 'Thinking of buying something?'}>
         {itemId ? (
           <>
             <div className="missing-panel-top">
@@ -233,7 +234,7 @@ export function WardrobeScreen({ itemId, check, wishId, wish, wide }: {
             <ItemDetail key={itemId} id={itemId} status="active" inPanel />
           </>
         ) : thinking}
-      </aside>
+      </aside>}
     </div>
   );
 }

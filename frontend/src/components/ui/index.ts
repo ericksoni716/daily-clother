@@ -3,6 +3,7 @@ export { Button, buttonClass, type ButtonVariant } from './Button';
 export { Card, Section } from './Card';
 export { ChipGroup } from './Chips';
 export { EmptyState } from './EmptyState';
+export { CRASH, ErrorBoundary } from './ErrorBoundary';
 export { ItemThumb } from './ItemThumb';
 export { Notice, type NoticeTone } from './Notice';
 export { PageHeader } from './PageHeader';

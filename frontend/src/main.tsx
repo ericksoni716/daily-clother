@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { listenForLeaving } from './leave';
 import './styles.css';
 import { applyTheme, loadTheme } from './theme';
@@ -13,7 +14,9 @@ startHistory();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <ErrorBoundary whole>
+      <App />
+    </ErrorBoundary>
   </StrictMode>,
 );
 

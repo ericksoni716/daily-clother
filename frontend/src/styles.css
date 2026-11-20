@@ -925,3 +925,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .measured-colours { display: inline-flex; align-items: center; gap: var(--space-1); min-height: 40px; }
 .measured-colours .swatch { width: 14px; height: 14px; }
 .detail-row-value .measured-colours { min-height: 0; }
+
+/* the message shown in place of a screen that failed to draw (components/ui/ErrorBoundary.tsx) */
+.crash-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); }
+.crash-whole { min-height: 100svh; display: grid; place-items: center; padding: var(--space-4) var(--gutter); }

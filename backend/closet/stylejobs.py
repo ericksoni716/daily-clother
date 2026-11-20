@@ -112,6 +112,25 @@ Drawer = Callable[[Path, list[dict]], list]
 Looker = Callable[[dict, list, tuple[str, ...]], dict]
 
 
+def api_first(routes: tuple[str, ...] | list[str]) -> tuple[str, ...]:
+    """The routes to Claude that can be used, the API key first (the owner: "opus via api"). Shared with the style
+    conversation (`closet/stylechat.py`)."""
+    return tuple(sorted(routes, key=lambda r: r != "api"))
+
+
+def failure(e: BaseException, what: str) -> str:
+    """Why a question to Claude failed, as kept with it: limit, unreachable, answer or error (logged as `what`).
+    Shared with the style conversation (`closet/stylechat.py`)."""
+    if isinstance(e, CapReached):
+        return "limit"
+    if isinstance(e, (RouteUnavailable, Unreachable)):
+        return "unreachable"
+    if isinstance(e, TaggingError):
+        return "answer"
+    log.exception(what)
+    return "error"
+
+
 def _hash(what: object) -> str:
     return hashlib.sha256(json.dumps(what, sort_keys=True, default=str).encode("utf-8")).hexdigest()
 
@@ -269,7 +288,7 @@ class Stylist:
                 if row is not None and (kept or row["state"] != READY):
                     return self._shape(row, kept)
                 return {"state": WORKING, "id": answering["id"], "outfits": [], "read": None, "message": None}
-            usable = tuple(sorted(self.routes(), key=lambda r: r != "api"))   # the API key first (the owner: "opus via api")
+            usable = api_first(self.routes())
             problem = ("no_route" if not usable else "day_limit" if conn.execute(
                 "SELECT COUNT(*) FROM style_answers WHERE day = ?", (day.isoformat(),)).fetchone()[0] >= MAX_PER_DAY else None)
             if problem:
@@ -304,7 +323,7 @@ class Stylist:
             raise Refused(REFUSED["nothing"])
         if self._answering(conn, day.isoformat()) is not None:
             raise Refused(REFUSED["busy"])
-        usable = tuple(sorted(self.routes(), key=lambda r: r != "api"))
+        usable = api_first(self.routes())
         if not usable:
             raise Refused(REFUSED["no_route"])
         if conn.execute("SELECT COUNT(*) FROM style_answers WHERE day = ?", (day.isoformat(),)).fetchone()[0] >= MAX_PER_DAY:
@@ -401,15 +420,8 @@ class Stylist:
                 found, more, seen, spent = self._looked(path, answer_id, told, listing, ctx, not_again, usable, found)
                 problems = problems + more
                 meta = {**meta, **{k: int(meta.get(k) or 0) + spent[k] for k in spent}}
-        except CapReached:
-            error = "limit"
-        except (RouteUnavailable, Unreachable):
-            error = "unreachable"
-        except TaggingError:
-            error = "answer"
-        except Exception:   # never left "working": the owner gets the engine's outfits and a sentence
-            log.exception("choosing the outfits failed")
-            error = "error"
+        except Exception as e:   # never left "working": the owner gets the engine's outfits and a sentence
+            error = failure(e, "choosing the outfits failed")
         if problems:
             log.info("the stylist's answer: %d kept, %d left out", len(found), len(problems))
         conn = db.connect(path)
@@ -437,7 +449,8 @@ def _same(a: dict, b: dict) -> bool:
             and sorted(pa.get("accessories") or []) == sorted(pb.get("accessories") or []))
 
 
-def _remembered(row) -> list[dict]:
+def remembered(row) -> list[dict]:
+    """What a row offered to remember, as kept (`remember`, JSON); empty when it offered nothing."""
     try:
         found = json.loads(row["remember"]) if row["remember"] else []
     except ValueError:
@@ -454,56 +467,91 @@ def talk_of(conn, day: str) -> list[dict]:
     return [{"id": r["id"], "said": r["said"], "state": r["state"], "reply": r["reply"] if r["state"] == READY else None,
              "message": (TALK_MESSAGES.get(r["error"] or "error", TALK_MESSAGES["error"]) if r["state"] == FAILED
                          else None),
-             "remember": _remembered(r) if r["state"] == READY else [], "at": r["created_at"]} for r in rows]
+             "remember": [public_thing(k) for k in remembered(r)] if r["state"] == READY else [],
+             "at": r["created_at"]} for r in rows]
 
 
-def settle(conn, answer_id: str, index: int, save: bool) -> dict:
+def keep(conn, thing: dict, gone: str) -> None:
+    """Keep a thing Claude offered to remember (inside the caller's transaction): a thing about the owner's style as a
+    new line of the style profile (marked as kept from a conversation, its id kept with the thing as `line_id`), a
+    thing about a piece as a new line of its "How I wear it" note. A line already there is not added twice. Raises
+    `Refused` with a sentence when it cannot be kept; `gone`: the sentence for a piece no longer in the closet. Shared
+    with the style conversation (`closet/stylechat.py`)."""
+    try:
+        if thing.get("kind") == styling.PIECE:
+            item = conn.execute("SELECT wear_notes FROM items WHERE id = ?", (thing.get("item_id"),)).fetchone()
+            if item is None:
+                raise Refused(gone)
+            old = (item["wear_notes"] or "").strip()
+            if thing["text"] not in (line.strip().removeprefix("- ").strip() for line in old.splitlines()):
+                items.update(conn, thing["item_id"], {"wear_notes": f"{old}\n{thing['text']}" if old else thing["text"]})
+                thing["added"] = True
+        elif not styleprofile.has_line(conn, thing["text"]):
+            thing["line_id"] = styleprofile.add_line(conn, thing["text"], "talk")["id"]
+    except (ValueError, items.ItemError) as e:
+        raise Refused(str(e)) from None
+
+
+def unkeep(conn, thing: dict) -> None:
+    """Take back a thing kept by `keep` (inside the caller's transaction): its line comes out of the style profile,
+    or out of the piece's note, when it is still there as it was kept. Shared with the style conversation."""
+    try:
+        if thing.get("kind") == styling.PIECE:
+            if thing.pop("added", False):
+                item = conn.execute("SELECT wear_notes FROM items WHERE id = ?", (thing.get("item_id"),)).fetchone()
+                lines = (item["wear_notes"] or "").split("\n") if item is not None else []
+                if thing["text"] in lines:
+                    at = len(lines) - 1 - lines[::-1].index(thing["text"])
+                    rest = "\n".join(lines[:at] + lines[at + 1:]).strip()
+                    items.update(conn, thing["item_id"], {"wear_notes": rest or None})
+        elif thing.get("line_id") is not None:
+            try:
+                styleprofile.remove_line(conn, thing.pop("line_id"), "claude")
+            except LookupError:
+                pass   # removed in Settings since: nothing to take back
+    except (ValueError, items.ItemError) as e:
+        raise Refused(str(e)) from None
+
+
+def settle(conn, answer_id: str, index: int, save: bool, undo: bool = False) -> dict:
     """The owner's answer to a thing Claude offered to remember: keep it (`save`) or not. Kept, a thing about their
     style becomes a new line of the style profile and a thing about a piece a new line of its "How I wear it" note,
-    and the day's answers are moved to the new words so that Claude is not asked again for it. Gives the thing back
-    as it now stands. Raises `Refused` with a sentence when it is unknown or cannot be kept; answering twice
-    changes nothing."""
+    and the day's answers are moved to the new words so that Claude is not asked again for it. `undo` takes back a
+    thing kept, which is offered again. Gives the thing back as it now stands. Raises `Refused` with a sentence when
+    it is unknown or cannot be kept; answering twice changes nothing."""
     row = conn.execute("SELECT * FROM style_answers WHERE id = ?", (answer_id,)).fetchone()
-    found = _remembered(row) if row is not None else []
+    found = remembered(row) if row is not None else []
     if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < len(found):
         raise Refused("That is no longer on the page. Open Today again.")
     thing = found[index]
-    if thing.get("state") != OFFERED:
-        return thing
-    def written(old: str) -> bool:   # the same line is there already (not merely inside a longer one)
-        return thing["text"] in (line.strip().removeprefix("- ").strip() for line in old.splitlines())
+    if thing.get("state") != (SAVED if undo else OFFERED):
+        return public_thing(thing)
 
     conn.execute("BEGIN IMMEDIATE")   # the words, the day's answers and the thing change together or not at all
     try:
-        if save:
+        if save or undo:
             before = words_of(_spoken(conn), styleprofile.text_for_stylist(conn))
-            try:
-                if thing.get("kind") == styling.PIECE:
-                    item = conn.execute("SELECT wear_notes FROM items WHERE id = ?", (thing.get("item_id"),)).fetchone()
-                    if item is None:
-                        raise Refused("That piece is no longer in your closet.")
-                    old = (item["wear_notes"] or "").strip()
-                    if not written(old):
-                        items.update(conn, thing["item_id"],
-                                     {"wear_notes": f"{old}\n{thing['text']}" if old else thing["text"]})
-                else:
-                    old = styleprofile.text_for_stylist(conn) or styling.DEFAULT_KEPT
-                    if not written(old):
-                        styleprofile.save(conn, f"{old.rstrip()}\n- {thing['text']}", "claude")
-            except (ValueError, items.ItemError) as e:
-                raise Refused(str(e)) from None
+            if undo:
+                unkeep(conn, thing)
+            else:
+                keep(conn, thing, "That piece is no longer in your closet.")
             after = words_of(_spoken(conn), styleprofile.text_for_stylist(conn))
             if after != before:   # the answers for the words as they were now stand for the new ones
                 conn.execute("UPDATE style_answers SET key = substr(key, 1, instr(key, ':')) || ? WHERE day = ? AND "
                              "substr(key, instr(key, ':') + 1) = ? AND instr(key, ':') > 0", (after, row["day"], before))
-        thing["state"] = SAVED if save else DISMISSED
+        thing["state"] = OFFERED if undo else SAVED if save else DISMISSED
         conn.execute("UPDATE style_answers SET remember = ? WHERE id = ?", (json.dumps(found), answer_id))
         conn.execute("COMMIT")
     except Exception:
         if conn.in_transaction:
             conn.execute("ROLLBACK")
         raise
-    return thing
+    return public_thing(thing)
+
+
+def public_thing(thing: dict) -> dict:
+    """A thing to remember as the page is given it: {kind, item_id, name, text, state}."""
+    return {k: thing.get(k) for k in ("kind", "item_id", "name", "text", "state")}
 
 
 def _spoken(conn) -> list[dict]:

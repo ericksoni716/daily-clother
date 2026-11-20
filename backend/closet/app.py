@@ -55,8 +55,10 @@ from . import (
     spend,
     storage,
     styleahead,
+    stylechat,
     stylejobs,
     styleprofile,
+    stylequestions,
     tagjobs,
     tracejobs,
     trips,
@@ -107,6 +109,7 @@ class Services:
     day_reader: object = None                      # reads the day in the owner's words (tagger/dayread.py)
     stylist: stylejobs.Stylist | None = None       # Claude choosing the day's outfits (closet/stylejobs.py); None: the rules only
     ahead: styleahead.Ahead | None = None          # asks Claude for the day's outfits before the owner's first look
+    chat: stylechat.Chat | None = None             # the conversation about the owner's style (Settings, Your style)
     on_quit: Callable[[], None] = lambda: None
     on_show: Callable[[], bool] = lambda: False   # shows Closet's own window; False when there is none (the browser is used)
     updater: updates.Updater | None = None   # new releases: checked once a day, installed when the owner says
@@ -191,7 +194,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                    sorter: shoeviews.Sorter | None = None, drawer: shoedraw.Drawer | None = None,
                    drawing_corrector: shoedraw.Corrector | None = None, add_sorter=None,
                    day_reader=None, stylist_ask: stylejobs.Asker | None = None,
-                   stylist_look: stylejobs.Looker | None = None) -> Services:
+                   stylist_look: stylejobs.Looker | None = None, chat_ask: stylechat.Asker | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
@@ -204,7 +207,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     standing in for Claude sort none unless they give one. `drawer` stands in for Claude drawing a shoe from its
     sorted photos (tests); tests standing in for Claude draw none unless they give one. `drawing_corrector` stands in
     for Claude changing a shoe's drawing from the owner's note (tests); tests standing in for Claude change none unless
-    they give one.
+    they give one. `chat_ask` stands in for Claude in the style conversation (tests); tests standing in for Claude have
+    no conversation unless they give one.
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
@@ -340,6 +344,14 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
         finally:
             conn.close()
 
+    chat_meter = spend.Meter(cfg, state, spend.PURPOSE_STYLE_CHAT, spend.estimate_style_chat)
+
+    def real_chat(brief: dict, usable: tuple[str, ...]) -> dict:
+        from .tagger import stylist
+        return stylist.chatted(stylist.chat(brief, usable, client=api_client, meter=chat_meter))
+
+    talk = chat_ask or (None if tagger is not None else real_chat)
+
     # tests standing in for Claude get no stylist unless they give one: Today is then the rules engine's, as before
     choose = stylist_ask or (None if tagger is not None else real_stylist)
     # the real stylist looks at its outfits as drawn; a stand-in does when the test gives a look of its own
@@ -397,7 +409,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                   add_sorter=add_sorter or (no_add_sorter if tagger is not None else real_add_sorter),
                   day_reader=day_reader or (no_day_reader if tagger is not None else real_day_reader),
                   stylist=stylejobs.Stylist(choose, routes or (lambda: tagjobs.usable_routes(state)), draw=draw_outfits,
-                                            look=looker) if choose else None)
+                                            look=looker) if choose else None,
+                  chat=stylechat.Chat(talk, routes or (lambda: tagjobs.usable_routes(state))) if talk else None)
     sv.ahead = styleahead.Ahead(cfg, state, lambda: sv.stylist)
     return sv
 
@@ -1423,13 +1436,145 @@ def create_app(sv: Services) -> FastAPI:
             body = await request.json()
         except ValueError:
             raise HTTPException(400, "The request was not valid JSON.")
-        if not isinstance(body, dict) or not isinstance(body.get("save"), bool):
-            raise HTTPException(422, "Say which thing (index) and whether to keep it (save: true or false).")
+        save, undo = remember_body(body)
         try:
             # keeping a thing in a piece's "How I wear it" redraws the piece: on a worker thread
-            return await run_in_threadpool(stylejobs.settle, conn, answer_id, body.get("index"), body["save"])
+            return await run_in_threadpool(stylejobs.settle, conn, answer_id, body.get("index"), save, undo)
         except stylejobs.Refused as e:
             raise HTTPException(422, str(e))
+
+    def remember_body(body: object) -> tuple[bool, bool]:
+        """(save, undo) from {"index", "save": true or false} or {"index", "undo": true}."""
+        if isinstance(body, dict) and body.get("undo") is True:
+            return False, True
+        if not isinstance(body, dict) or not isinstance(body.get("save"), bool):
+            raise HTTPException(422, "Say which thing (index) and whether to keep it (save: true or false).")
+        return body["save"], False
+
+    # ---------------------------------------------- the style conversation (Settings, Your style)
+    def demo_now() -> bool:
+        return state.get("profile") == "demo"
+
+    def chat_state(conn) -> dict:
+        if sv.chat is None:
+            return stylechat.state_of(conn, wears.today(), None, "demo" if demo_now() else "off")
+        return sv.chat.state(conn, wears.today(), demo_now())
+
+    @app.get("/api/style/talk", dependencies=protected)
+    def get_style_talk(conn=Depends(conn_dep)):
+        """The day's style conversation: {turns, answering, question, refused}."""
+        return chat_state(conn)
+
+    @app.post("/api/style/talk", dependencies=protected)
+    async def post_style_talk(request: Request, conn=Depends(conn_dep)):
+        """Send a message about the owner's style: {"say": "..."}. Gives the conversation, with it being answered."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        if not isinstance(body, dict) or "say" not in body:
+            raise HTTPException(422, "Send what you want to tell Claude (say).")
+        path = cfg.db_path(state.get("profile"))
+
+        def work() -> dict:
+            if sv.chat is None:
+                raise HTTPException(422, stylechat.REFUSED["demo" if demo_now() else "off"])
+            try:
+                return sv.chat.say(conn, path, body["say"], wears.today(), demo_now())
+            except (ValueError, stylejobs.Refused) as e:
+                raise HTTPException(422, str(e))
+
+        return await run_in_threadpool(work)
+
+    @app.post("/api/style/talk/{turn_id}/remember", dependencies=protected)
+    async def style_talk_remember(turn_id: str, request: Request, conn=Depends(conn_dep)):
+        """The owner's answer to a line Claude offered to keep in the style conversation: {"index": 0, "save": true}
+        keeps it in Your style, {"save": false} does not, {"undo": true} takes back one kept."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        save, undo = remember_body(body)
+        try:
+            return await run_in_threadpool(stylechat.settle, conn, turn_id, body.get("index"), save, undo)
+        except stylejobs.Refused as e:
+            raise HTTPException(422, str(e))
+
+    @app.post("/api/style/questions/{question_id}", dependencies=protected)
+    async def style_question(question_id: str, request: Request, conn=Depends(conn_dep)):
+        """Answer a question the stylist cannot infer: {"choice": "..."} or {"text": "..."}, or {"skip": true}.
+        Gives {line, question}: the line kept in Your style (None for a skip) and the next question."""
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        if not isinstance(body, dict):
+            raise HTTPException(422, "Send a choice, your own words (text), or skip.")
+
+        def work() -> dict:
+            try:
+                if body.get("skip") is True:
+                    return stylequestions.skip(conn, question_id)
+                return stylequestions.answer(conn, question_id, body.get("choice"), body.get("text"))
+            except LookupError as e:
+                raise HTTPException(404, str(e))
+            except ValueError as e:
+                raise HTTPException(422, str(e))
+
+        return await run_in_threadpool(work)
+
+    @app.delete("/api/style/questions/{question_id}", dependencies=protected)
+    def undo_style_question(question_id: str, conn=Depends(conn_dep)):
+        """Take back an answer (its line comes out of Your style) or a skip: the question is asked again."""
+        try:
+            return stylequestions.undo(conn, question_id)
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+
+    # ---------------------------------------------- the lines of Your style
+    async def line_text(request: Request) -> object:
+        try:
+            body = await request.json()
+        except ValueError:
+            raise HTTPException(400, "The request was not valid JSON.")
+        if not isinstance(body, dict) or "text" not in body:
+            raise HTTPException(422, "Send the line (text).")
+        return body["text"]
+
+    def line_work(call, *args) -> dict:
+        try:
+            return call(*args)
+        except LookupError as e:
+            raise HTTPException(404, str(e))
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+
+    @app.post("/api/style/lines", dependencies=protected)
+    async def add_style_line(request: Request, conn=Depends(conn_dep)):
+        """Add a line of the owner's at the end of Your style: {"text": "..."}. Gives the profile."""
+        text = await line_text(request)
+
+        def add() -> dict:
+            styleprofile.add_line(conn, text, "owner")
+            return styleprofile.current(conn)
+
+        return await run_in_threadpool(line_work, add)
+
+    @app.patch("/api/style/lines/{line_id}", dependencies=protected)
+    async def edit_style_line(line_id: int, request: Request, conn=Depends(conn_dep)):
+        """Change one line of Your style: {"text": "..."}. Gives the profile."""
+        text = await line_text(request)
+        return await run_in_threadpool(line_work, styleprofile.edit_line, conn, line_id, text)
+
+    @app.delete("/api/style/lines/{line_id}", dependencies=protected)
+    def remove_style_line(line_id: int, conn=Depends(conn_dep)):
+        """Take a line out of Your style. Gives the profile, with the id of the line removed (`removed`) to put back."""
+        return line_work(styleprofile.remove_line, conn, line_id)
+
+    @app.post("/api/style/lines/{line_id}/restore", dependencies=protected)
+    def restore_style_line(line_id: int, conn=Depends(conn_dep)):
+        """Put a removed line back where it was. Gives the profile."""
+        return line_work(styleprofile.restore_line, conn, line_id)
 
     # ---------------------------------------------- the owner's style profile (Settings, "Your style")
     @app.get("/api/style/profile", dependencies=protected)

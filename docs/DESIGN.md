@@ -99,7 +99,8 @@ Going back returns to where you were, at the scroll position you left.
 
 One curve and two lengths (`--ease-out`, `--dur-quick`, `--dur-move`), only where they
 explain a change: something arriving or leaving. Nothing moves when the device asks for
-reduced motion, except the spinner. A press is shown by a change of tone, not of size (buttons still shrink 3% today; that goes in step 2 of the assessment).
+reduced motion, except the spinner. A press is shown by a change of tone, not of size: on a
+touch screen what you pressed dims a moment after your finger lands.
 Anything tappable is at least 44px on a phone, with an invisible hit area if it looks
 smaller.
 

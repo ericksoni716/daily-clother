@@ -755,15 +755,15 @@ If the computer cannot download the model, download
 `isnet-general-use.onnx` on another machine from the address shown in
 **Settings → Advanced** (open it near the bottom of the page), and put it in
 `Closet\models`. Closet checks the file and starts using it. The address can be
-changed there too. **Settings → Your closet → Background removal** says whether
-the model is ready. **Advanced** also shows where your closet is stored and the
+changed there too. A notice on the closet says when the model is missing or
+did not download. **Advanced** also shows where your closet is stored and the
 version of Closet.
 
 Closet also downloads a second model, `u2net.onnx`, about the same size. It
 fixes cutouts the first one gets wrong: a striped or checked shirt whose darker
 stripes were taken for background, or the bed a piece lies on kept with it.
-**Background removal** says if it is still downloading or didn't download, with
-a button to try again, and **Advanced** shows its address and where to put it by
+If it didn't download, the notice on the closet says so, with a button to try
+again, and Closet also tries again by itself; **Advanced** shows its address and where to put it by
 hand. Photos cut out before it is there are looked at again once it is, and the
 ones it would do better are cut out again.
 

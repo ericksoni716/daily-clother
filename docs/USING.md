@@ -25,10 +25,11 @@ Add clothes, then Today, Closet (with Review under it while there is something t
 Trips and What's missing, with Settings at the foot.
 
 The app opens on Today once the closet has enough clothes to dress from, and on the closet
-before that. Routes are in `frontend/src/router.tsx`.
+before that. A back link ("‹ Closet") goes back to the page you came from, where you left
+it; on a page opened straight from its address it opens the page it names. Back and Forward
+bring a page back to where you had scrolled it. Routes are in `frontend/src/router.tsx`.
 
-*Headed for:* four places and Add (assessment, "Proposed structure"), and "‹ Closet" going
-back instead of opening the closet afresh.
+*Headed for:* four places and Add (assessment, "Proposed structure").
 
 ## First run and login
 
@@ -76,8 +77,12 @@ in a panel beside the grid; on a phone it opens as its own page.
 and "Wearing and washing": Wore it today, put in the laundry or mark clean, and recent wears.
 Then Details as rows of a label and a value; tapping a row opens its choices (a sheet on a
 phone). "What is it?" changes the kind, and the last row is how you feel about it, with an
-optional why. "Fix the details" opens the details the drawing is made from and a box to say
-what is wrong in your own words. Three folds follow, closed until opened: More details (How
+optional why. "Fix the details", under the picture, opens a sheet over the page (on
+a computer, a box under the picture) with the drawing and a box, "What's wrong with it?":
+Claude reads your sentence, says what it understood, and nothing changes until you choose
+Make these changes. "Change the details one by one" shows every detail the drawing is made
+from, by group, in the same sheet. In the demo closet, or when Claude could not be reached,
+it opens on the details one by one and says why. Three folds follow, closed until opened: More details (How
 I wear it, fit notes, notes, brand, size, material, date acquired), What Claude saw (its
 description, what was seen but is not drawn yet, and Describe it again) and History (every
 change, each of which can be undone). Archive and Delete are at the bottom; a new photo can
@@ -89,8 +94,8 @@ corrected with a note.
 
 While a piece is being cut out, described, measured or drawn, notices on the page say so.
 
-*Headed for:* Fix the details opening on the text box in a sheet; one description of the
-piece's look from one source; one rating and one notes box (assessment, steps 2 and 7).
+*Headed for:* one description of the piece's look from one source; one rating and one notes
+box (assessment, step 7).
 
 ## Add
 
@@ -155,8 +160,7 @@ to tick off, on the computer or the phone.
 
 `/settings`. One column of groups, all open:
 
-- **Your closet**: the demo closet switch, start with the computer, background removal (the
-  two files that cut clothes out of photos, and their download), laundry (worn clothes go to
+- **Your closet**: the demo closet switch, start with the computer, laundry (worn clothes go to
   the laundry by themselves, and laundry day), how many wears each kind of clothing takes
   before washing, backups (a folder on the computer, the last good backup, Back up now) and
   storage.
@@ -168,15 +172,16 @@ to tick off, on the computer or the phone.
 - **Describing clothes**: how Claude is reached (your Claude plan, an API key, and which is
   tried first), the key itself, and the key's monthly limit and spending.
 - **Updates**: the version, when it last checked, whether to install by itself, ask first or
-  never check, Check now, what is new in a release, and Install.
-- **Phone access**: the address to open on the iPhone and its QR code, once Tailscale is
-  sharing Closet.
+  never check, Check now, what is new in a release (folded until you open it), and Install.
+- **Phone access**: on the computer, the address to open on the iPhone and its QR code,
+  once Tailscale is sharing Closet. On the phone, one line on adding Closet to the Home
+  Screen, and nothing when it is opened from there.
 - **Advanced** (closed until opened): where the background-removal files come from and
   where to put them by hand, the data folder, the version.
 - Log out, and Quit Closet.
 
 *Headed for:* seven short groups with an Advanced screen, shown all at once (assessment,
-"Proposed Settings"); the QR code only on the computer.
+"Proposed Settings").
 
 ## Things that work the same everywhere
 
@@ -187,6 +192,11 @@ to tick off, on the computer or the phone.
 - **The demo closet.** About 40 sample pieces in a closet of its own, opened and left from
   Settings, with a strip at the top while it is open. It is never backed up and never sent
   to Claude.
+- **Background removal.** The two files that cut clothes out of photos download by
+  themselves when Closet starts, and again after a failure (a minute later, ten minutes
+  later, then every hour). A notice on the closet says when they are missing or failed.
+- **When a screen fails.** It says so, with Try again and Reload Closet, and the tab bar
+  stays so you can go elsewhere.
 - **Work in the background.** Cutting out, describing, measuring a pattern and drawing a
   shoe carry on with the page closed and are picked up again after a restart. Add, the
   closet's tiles and the item page each say what is happening in their own words today

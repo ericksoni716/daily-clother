@@ -318,7 +318,7 @@ The owner finds the most capable model (Fable) better at drawing and at judging 
 
 Checkpoints, not stops:
 - [ ] **A shoe's drawing takes four to ten minutes (the owner, 20 November: "really long").** Reviewed by reading `tagger/shoedrawing.py` `draw`: 6 to 14 calls one after another (two straight-on drawings each checked, a judge, two turns each checked, a judge, then a fix with its checks and a judge), each writing a whole drawing. Nothing below has been tried; the order is from the least risk to the drawings:
-  - `shoedraw` draws one shoe at a time (one thread), so ten new shoes take over an hour. Two or three at once changes no drawing; the plan's rate limits are the only risk.
+  - Done (20 November): `shoedraw` draws two shoes at once (`AT_ONCE`); before, one at a time, so ten new shoes took over an hour. See DECISIONS, "Two shoes drawn at once".
   - A small tool that reads the kept drawings' `calls` (each call's kind and seconds are stored) and says where the time went and how often the fix after the second judge was kept. If it is rarely kept, dropping it takes the longest chain from 14 calls to 10.
   - A check that says good with no automatic problem still copies the whole drawing out, and `_check` throws the copy away. Stop reading the answer once `good` is true (a streamed answer, the prompt unchanged), not the "lean check" the owner turned down on 17 November.
   - The plan route starts Claude Code for every call and opens each image as a step of its own; not measured against the API route.

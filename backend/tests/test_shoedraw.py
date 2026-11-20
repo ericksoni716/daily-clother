@@ -7,6 +7,8 @@ Claude is never called: a stand-in sorter and a stand-in drawer answer.
 """
 import json
 import logging
+import threading
+import time
 from contextlib import closing
 from types import SimpleNamespace
 
@@ -338,6 +340,121 @@ def test_a_shoe_deleted_while_it_is_drawn_is_left_alone(made):
     m.drawer.during = lambda: m.c.delete(f"/api/items/{item['id']}")
     assert m.sv.draws.drain() == 1
     assert m.c.get(f"/api/items/{item['id']}").status_code == 404
+
+
+# ------------------------------------------------------------------ two shoes at once
+
+def shoes(m, n: int) -> list[dict]:
+    """`n` shoes waiting to be drawn, each with a second photo of its own, sorted."""
+    items = [a_shoe(m.c, f"k{i}") for i in range(1, n + 1)]
+    for i, item in enumerate(items, 1):
+        assert add(m.c, item, i).status_code == 201
+    m.sorter.reply = answer(("outer", True), ("inner", True))
+    m.sv.views.drain(now=later())
+    assert all(row(m.sv.cfg, i["id"])["drawn_state"] == "waiting" for i in items)
+    return items
+
+
+def test_two_shoes_due_are_drawn_at_the_same_time(made):
+    m = made
+    items = shoes(m, 2)
+    together = threading.Barrier(2, timeout=10)   # passed only when both drawings are under way
+    m.drawer.during = together.wait
+    assert m.sv.draws.drain() == 2
+    assert [drawn_of(m, i)["state"] for i in items] == ["done", "done"] and len(m.drawer.calls) == 2
+
+
+def test_three_shoes_are_never_drawn_more_than_two_at_once_nor_one_twice(made):
+    m = made
+    items = shoes(m, 3)
+    lock, now, most = threading.Lock(), [0], [0]
+
+    def during():
+        with lock:
+            now[0] += 1
+            most[0] = max(most[0], now[0])
+        time.sleep(0.3)
+        with lock:
+            now[0] -= 1
+    m.drawer.during = during
+    assert m.sv.draws.drain() == 3
+    assert most[0] == shoedraw.AT_ONCE == 2
+    assert len(m.drawer.calls) == 3 and all(drawn_of(m, i)["state"] == "done" for i in items)
+
+
+def test_two_drains_at_once_never_draw_the_same_shoe_twice(made):
+    m = made
+    item = sorted_shoe(m)
+    m.drawer.during = lambda: time.sleep(0.3)
+    got = []
+    others = [threading.Thread(target=lambda: got.append(m.sv.draws.drain())) for _ in range(2)]
+    for t in others:
+        t.start()
+    for t in others:
+        t.join(timeout=10)
+    assert sorted(got) == [0, 1] and len(m.drawer.calls) == 1 and drawn_of(m, item)["state"] == "done"
+
+
+def test_a_shoe_being_drawn_is_not_set_back_by_a_second_drain_or_a_wake(made):
+    m = made
+    item = sorted_shoe(m)
+    seen = []
+
+    def during():   # a wake, and a second drain, while the shoe is drawn
+        m.sv.draws.wake()
+        second = threading.Thread(target=lambda: seen.append(m.sv.draws.drain()))
+        second.start()
+        second.join(timeout=10)
+        seen.append(row(m.sv.cfg, item["id"])["drawn_state"])
+    m.drawer.during = during
+    assert m.sv.draws.drain() == 1
+    assert seen == [0, "drawing"] and len(m.drawer.calls) == 1
+    assert drawn_of(m, item)["state"] == "done" and row(m.sv.cfg, item["id"])["drawn_attempts"] == 0
+
+
+def test_a_shoe_that_becomes_due_during_a_drawing_is_started_at_once(made):
+    m = made
+    first = sorted_shoe(m, key="k1")
+    second = a_shoe(m.c, "k2")
+    assert add(m.c, second, 2).status_code == 201
+    together = threading.Barrier(2, timeout=10)
+
+    def during():
+        if len(m.drawer.calls) == 1:   # the first shoe: the second is sorted, the worker woken, both meet
+            m.sv.views.drain(now=later())
+            m.sv.draws.wake()
+        together.wait()
+    m.drawer.during = during
+    assert m.sv.draws.drain() == 2
+    assert drawn_of(m, first)["state"] == "done" and drawn_of(m, second)["state"] == "done"
+
+
+def test_out_of_reach_stops_both_and_keeps_their_attempts(made):
+    m = made
+    items = shoes(m, 3)
+    m.drawer.error = CapReached("this month's spending limit for the API key has been reached")
+    assert m.sv.draws.drain() == 0
+    assert len(m.drawer.calls) <= shoedraw.AT_ONCE   # stopped for now, not tried over and over
+    for i in items:
+        assert drawn_of(m, i)["state"] == "waiting" and drawn_of(m, i)["message"] == shoedraw.LIMIT
+        assert row(m.sv.cfg, i["id"])["drawn_attempts"] == 0
+
+
+def test_out_of_reach_lets_the_other_shoe_finish(made):
+    m = made
+    items = shoes(m, 2)
+    gone = threading.Event()
+
+    def during():
+        if len(m.drawer.calls) == 1:   # the first is held up; the second is finished after it
+            gone.set()
+            raise RouteUnavailable("Claude Code is not signed in")
+        assert gone.wait(timeout=10)
+    m.drawer.during = during
+    assert m.sv.draws.drain() == 1
+    states = sorted(drawn_of(m, i)["state"] for i in items)
+    assert states == ["done", "waiting"] and len(m.drawer.calls) == 2
+    assert all(row(m.sv.cfg, i["id"])["drawn_attempts"] == 0 for i in items)
 
 
 # ------------------------------------------------------------------ the drawing on two legs

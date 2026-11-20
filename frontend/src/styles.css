@@ -706,6 +706,20 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .more summary::before { content: ''; width: 8px; height: 8px; border-right: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3); transform: rotate(-45deg); transition: transform var(--dur-quick) var(--ease-out); margin: 0 6px 0 4px; }
 .more[open] summary::before { transform: rotate(45deg); }
 .more-body { padding: 4px 0 14px; display: grid; gap: 4px; }
+/* Fold, HowItWorks, ShowMore and SaveStatus (components/ui/) */
+.fold-body { padding: 0 0 var(--space-4); }
+.how { margin: var(--space-3) 0 0; font-size: var(--text-sm); color: var(--ink-2); }
+.how summary { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--tap); cursor: pointer; list-style: none; color: var(--ink-3); font-weight: var(--weight-label); }
+.how summary::-webkit-details-marker { display: none; }
+.how-mark { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line-strong); font-size: var(--text-xs); line-height: 1; }
+.how[open] summary { color: var(--ink-2); }
+.how-body { padding: 0 0 var(--space-2); line-height: 1.45; }
+.how-body p { margin: 0 0 var(--space-2); }
+.show-more { padding-left: 0; padding-right: 0; }
+.save-status { display: inline-block; min-height: 1.4em; font-size: var(--text-sm); color: var(--ink-3); }
+.save-status.is-failed { color: var(--danger); }
+.save-status .btn-link { min-height: 0; padding: 0; }
+
 .more-body .chip-group { margin: 4px 0 14px; }
 @media (min-width: 600px) { .more-body { grid-template-columns: 1fr 1fr; column-gap: 14px; } .more-body .chip-group, .more-body label:last-child { grid-column: 1 / -1; } }
 .detail-panel .more-body { grid-template-columns: 1fr; }

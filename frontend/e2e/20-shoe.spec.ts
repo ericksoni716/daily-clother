@@ -198,6 +198,13 @@ test.describe('a shoe drawn from its photo', () => {
     const picture = drawnSection.getByRole('img', { name: /as Claude drew it from its photos/ });
     await expect.poll(() => picture.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
     await expect(drawnSection).not.toContainText('The photos changed');
+    // beside the turns, the shoe's side, with what makes it itself: it is the shoe's own drawing now, so the page no
+    // longer says the shoe is drawn from its details because of its photo
+    const side = drawnSection.getByRole('img', { name: 'The shoe from the side, drawn by Claude for the closet' });
+    await expect.poll(() => side.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
+    await expect(drawnSection.getByTestId('shoe-drawn-side')).toHaveText(
+      'From the side: white leather upper with a plain toe; flat cream sole.');
+    await expect(fallback).toHaveCount(0);
     expect(await sideways(page)).toEqual([]);
     expect(await axeViolations(page)).toEqual([]);
     await drawnSection.scrollIntoViewIfNeeded();

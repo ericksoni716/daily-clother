@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   backLabel, canCorrect, changedLine, dollars, DRAWN_DEMO, drawingShoe, drawnLine, drawnOffer, drawnTime,
   drawQuestion, extraPhotos, NOTE_MAX, NO_SIDE, noSidePhoto,
-  MAX_EXTRA_PHOTOS, MAX_PHOTOS, NUDGE_CM, NUDGES, nudgeLabel, outsideQuestion, photoRoom, shoeAddedLine,
-  sortingViews, tooManyPhotos, traceNotice, tracing, VIEW_WORDS, viewLabel,
+  MAX_EXTRA_PHOTOS, MAX_PHOTOS, NUDGE_CM, NUDGES, nudgeLabel, outsideQuestion, photoRoom, shoeAddedLine, shoeFixMode,
+  sideLine, sortingViews, tooManyPhotos, traceNotice, tracing, VIEW_WORDS, viewLabel,
 } from './shoe';
 import type { Photo, ShoeDrawn, ShoeTrace, ShoeViews } from './types';
 
@@ -31,6 +31,10 @@ describe('the item page about a shoe trace', () => {
     const why = "The photo shows the shoe from the front, so it's drawn from its details instead.";
     expect(traceNotice(trace('refused', why))).toEqual({ tone: 'warn', text: why, retake: true });
     expect(traceNotice(trace('failed', 'It could not be traced.'))?.retake).toBe(true);
+  });
+
+  it('says nothing about the photo once the drawing is Claude\'s side: it is not drawn from its details then', () => {
+    expect(traceNotice(trace('refused', 'The photo shows the pair.'), true)).toBeNull();
   });
 });
 
@@ -127,7 +131,7 @@ describe("a shoe's photos sorted into views", () => {
 const drawn = (state: ShoeDrawn['state'], over: Partial<ShoeDrawn> = {}): ShoeDrawn => ({
   state, message: null, url: null, rounds: null, seconds: null, cost_usd: null, route: null, made_at: null,
   photos_changed: false, about_usd: 0.6, correcting: false, note: null, corrected: false, changed: null,
-  against_photos: null, has_previous: false, previous_newer: false, ...over,
+  against_photos: null, has_previous: false, previous_newer: false, side: null, side_shown: false, ...over,
 });
 const done = (over: Partial<ShoeDrawn> = {}) => drawn('done', {
   url: '/api/items/x/drawn.svg?v=1', rounds: 2, seconds: 112.4, cost_usd: 0.6149, route: 'plan', ...over,
@@ -222,5 +226,24 @@ describe("the owner's note on a shoe's drawing", () => {
     expect(backLabel(done({ has_previous: true, previous_newer: true }))).toBe('Go to the newer drawing');
     expect(backLabel(done())).toBeNull();
     expect(backLabel(drawn('waiting', { url: '/x', has_previous: true }))).toBeNull();
+  });
+});
+
+describe("a shoe's side drawn by Claude", () => {
+  const side = { url: '/api/items/x/drawn/side.svg?v=1', features: ['Perforated toe box', 'orange mark on the side.'] };
+
+  it('says what makes the shoe itself from the side, in one line', () => {
+    expect(sideLine(done({ side }))).toBe('From the side: perforated toe box; orange mark on the side.');
+    expect(sideLine(done({ side: { ...side, features: ['', ' '] } }))).toBeNull();
+    expect(sideLine(done())).toBeNull();
+    expect(sideLine(null)).toBeNull();
+  });
+
+  it("offers the trace's fixes only while the trace is the picture", () => {
+    const traced = trace('done', null);
+    expect(shoeFixMode({ trace: traced, drawn: done() })).toBe('trace');
+    expect(shoeFixMode({ trace: traced, drawn: done({ side, side_shown: true }) })).toBe('side');
+    expect(shoeFixMode({ trace: { ...traced, plain: true }, drawn: done({ side }) })).toBe('plain');
+    expect(shoeFixMode({ trace: traced, drawn: null })).toBe('trace');
   });
 });

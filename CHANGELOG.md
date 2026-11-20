@@ -40,6 +40,14 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 - If a phone or a browser tab still shows the page from before this update, saving something
   there says the page is from an older Closet and asks you to reload it.
 
+### Fixed
+
+- On Windows, when Claude Code was installed through npm (a `claude.cmd`, not a `claude.exe`),
+  describing an item through your Claude plan could never start, because Windows cannot pass
+  that long a request to it, and the error only said the command line was too long. The app
+  now says why, suggests Claude Code's PowerShell installer, and uses your API key instead when
+  you have one.
+
 ## 0.10.0
 
 ### Added

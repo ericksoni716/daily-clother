@@ -52,6 +52,11 @@ def sign_in_problem(text: str) -> str | None:
 CREATE_NO_WINDOW = 0x08000000   # Windows: start a console program without a console window flashing up
 # The most characters a command line can have on Windows (CreateProcess), the program's own path included
 WINDOWS_COMMAND_LIMIT = 32_767
+# The most characters cmd.exe takes in a command (Microsoft: "Command prompt line string limitation"), and Windows
+# starts a .cmd, such as the `claude.cmd` an npm install of Claude Code leaves, through cmd.exe
+CMD_COMMAND_LIMIT = 8_191
+NPM_TOO_LONG = ("Claude Code was installed through npm, and Windows cannot start the claude.cmd it left with a request "
+                "this long (install Claude Code with its PowerShell installer, which gives a claude.exe)")
 
 
 def find_claude(platform: str | None = None, which=None, home: Path | None = None,
@@ -97,8 +102,12 @@ def print_command(exe: str, model: str, effort: str, schema: dict, tools: str, s
     cmd = [exe, "-p", "--model", model, "--effort", effort, "--output-format", "json",
            "--json-schema", json.dumps(schema, separators=(",", ":")), "--tools", tools, "--allowedTools", tools,
            "--strict-mcp-config", "--no-session-persistence", "--system-prompt", system]
-    if (platform or sys.platform) == "win32" and len(subprocess.list2cmdline(cmd)) >= WINDOWS_COMMAND_LIMIT:
-        raise TaggingError("the request is too long for Windows to start Claude Code with")
+    if (platform or sys.platform) == "win32":
+        length = len(subprocess.list2cmdline(cmd))
+        if str(exe).lower().endswith((".cmd", ".bat")) and length >= CMD_COMMAND_LIMIT:
+            raise RouteUnavailable(NPM_TOO_LONG)
+        if length >= WINDOWS_COMMAND_LIMIT:
+            raise TaggingError("the request is too long for Windows to start Claude Code with")
     return cmd
 
 

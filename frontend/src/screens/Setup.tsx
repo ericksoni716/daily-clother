@@ -1,9 +1,7 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { api, ApiError } from '../api';
 import { HangerIcon, CheckIcon } from '../components/Icons';
-import type { Profile, Settings } from '../types';
-import { PhoneAccess } from '../components/PhoneAccess';
-import { PHONE_MS } from '../settings';
+import type { Profile } from '../types';
 import { Button, Card } from '../components/ui';
 
 const MIN = 8;
@@ -54,32 +52,13 @@ export function SetupScreen({ onDone }: { onDone(): Promise<void> }) {
   );
 }
 
+/**
+ * After the passphrase: the choice between your own closet and the demo. How to reach Closet from the phone (the
+ * Tailscale command) is not said here: it is in Settings, Phone, where it can be followed and checked.
+ */
 export function ReadyScreen({ onChoose }: { onChoose(profile: Profile): Promise<void> }) {
-  const [settings, setSettings] = useState<Settings | null>(null);
   const [busy, setBusy] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  // Outside the open closet, so not through the query cache: read here, and again every few seconds until the
-  // server's first look for Tailscale is in (it answers `phone: null` until then).
-  useEffect(() => {
-    let stopped = false;
-    let timer = 0;
-    const again = () => {
-      if (!stopped) timer = window.setTimeout(read, PHONE_MS);
-    };
-    const read = () => {
-      api.settings().then((s) => {
-        if (stopped) return;
-        setSettings(s);
-        if (!s.phone) again();
-      }, again);
-    };
-    read();
-    return () => {
-      stopped = true;
-      window.clearTimeout(timer);
-    };
-  }, []);
 
   async function choose(p: Profile) {
     setBusy(p);
@@ -97,10 +76,7 @@ export function ReadyScreen({ onChoose }: { onChoose(profile: Profile): Promise<
         <div className="brand-mark brand-mark-ok"><CheckIcon /></div>
         <h1>You're set</h1>
         <p className="muted">Your passphrase is saved. Everything stays on this computer.</p>
-        <section className="ready-phone">
-          <h2>Use it from your iPhone</h2>
-          <PhoneAccess phone={settings?.phone ?? null} />
-        </section>
+        <p className="muted ready-phone" data-testid="ready-phone">To use it from your iPhone too, open Settings once you're in: Phone says how.</p>
         {error && <p className="form-error" role="alert">{error}</p>}
         <div className="stack">
           <Button variant="primary" block onClick={() => choose('main')} disabled={!!busy}>Start with my own closet</Button>

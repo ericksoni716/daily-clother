@@ -26,7 +26,7 @@ async function standInSettings(page: Page, answer: () => Record<string, unknown>
   });
 }
 
-test('a second model that did not download is shown in the closet and can be tried again from there', async ({ page }) => {
+test('a second model that did not download is shown on Add and can be tried again from there', async ({ page }) => {
   let now = FAILED;
   let asked = 0;
   await page.route('**/api/model', (route) => route.fulfill({ json: model({ second: now }) }));
@@ -37,6 +37,7 @@ test('a second model that did not download is shown in the closet and can be tri
     return route.fulfill({ status: 202, json: model({ second: now }) });
   });
   await login(page);
+  await page.goto('/add');
 
   const banner = page.getByTestId('model-banner');
   await expect(banner).toContainText("the second model didn't download");
@@ -62,13 +63,13 @@ test('a second model that did not download is shown in the closet and can be tri
   await expect(address).toContainText('https://example.com/u2net.onnx');
   await expect(address).toContainText('/data/models/u2net.onnx');
 
-  now = second();   // it has come: nothing is shown in the closet
-  await page.goto('/');
-  await expect(page.locator('#closet-title')).toBeVisible();
+  now = second();   // it has come: nothing is shown on Add
+  await page.goto('/add');
+  await expect(page.locator('#add-title')).toBeVisible();
   await expect(page.getByTestId('model-banner')).toHaveCount(0);
 });
 
-test('a first model that did not download says why in the closet, and Try again starts it', async ({ page }) => {
+test('a first model that did not download says why on Add, and Try again starts it', async ({ page }) => {
   let now = model({ state: 'failed', downloaded_bytes: 0, total_bytes: null, second: second({ state: 'missing', downloaded_bytes: 0, total_bytes: null }),
     error: 'Could not reach the download server. Check the internet connection and try again.' });
   let asked = 0;
@@ -79,6 +80,7 @@ test('a first model that did not download says why in the closet, and Try again 
     return route.fulfill({ status: 202, json: now });
   });
   await login(page);
+  await page.goto('/add');
   const banner = page.getByTestId('model-banner');
   await expect(banner).toContainText("the model download didn't work");
   await expect(banner).toContainText('Could not reach the download server');

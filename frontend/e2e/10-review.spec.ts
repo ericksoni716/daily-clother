@@ -17,10 +17,16 @@ test('review in the demo closet: confirm one, change one, skip one', async ({ pa
   const badge = sidebar.getByTestId('review-badge');
   await expect(badge).toHaveText(String(before));
 
-  // the closet says so too, and Review sits under Closet in the sidebar
-  await expect(page.getByTestId('review-notice')).toContainText(`${before} pieces need a quick check`);
-  await sidebar.getByRole('link', { name: 'Review' }).click();
-  await expect(sidebar.getByRole('link', { name: 'Review' })).toHaveAttribute('aria-current', 'page');
+  // the closet says so too, in its status line: "5 to check" shows only those pieces, and leads to the review
+  await expect(page.getByTestId('to-check')).toHaveText(`${before} to check`);
+  await page.getByTestId('to-check').click();
+  await expect(page.getByTestId('tile')).toHaveCount(before);
+  await expect(page.getByRole('button', { name: 'Remove filter: Needs a check' })).toBeVisible();
+  await page.getByTestId('review-notice').getByRole('link', { name: 'Check them one at a time' }).click();
+  await expect(page).toHaveURL(/\/review$/);
+  // the review is part of the closet: Closet stays lit, and "‹ Closet" goes back
+  await expect(sidebar.getByRole('link', { name: /^Closet/ })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('link', { name: 'Closet', exact: true })).toBeVisible();
   const progress = page.getByTestId('review-progress');
   const card = page.getByTestId('review-card');
   const fields = card.getByTestId('review-field');
@@ -75,14 +81,14 @@ test('review is unavailable offline, and says what is not described yet when emp
     json: { count: 0, items: [], waiting: 2, failed: 1, waiting_items: [{ id: 'a', name: 'Navy polo', category: 'polo' }, { id: 'b', name: null, category: 'jeans' }],
       failed_items: [{ id: 'c', name: 'Grey hoodie', category: 'hoodie' }] },
   }));
-  // nothing to review: no notice on the closet and no Review link until the queue is opened by its address
+  // nothing to review: nothing to check in the closet's status line until the queue is opened by its address
   await page.goto('/');
   await expect(page.locator('#closet-title')).toBeVisible();
+  await expect(page.getByTestId('to-check')).toHaveCount(0);
   await expect(page.getByTestId('review-notice')).toHaveCount(0);
-  await expect(page.locator('nav.sidebar').getByRole('link', { name: 'Review' })).toHaveCount(0);
   await page.goto('/review');
   await expect(page.getByTestId('review-empty')).toContainText('Nothing to review');
-  await expect(page.locator('nav.sidebar').getByRole('link', { name: 'Review' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('nav.sidebar').getByRole('link', { name: /^Closet/ })).toHaveAttribute('aria-current', 'page');
   await expect(page.getByTestId('review-not-ready')).toHaveText("2 items are still waiting to be described. 1 item couldn't be described.");
   await expect(page.getByRole('link', { name: 'Grey hoodie' })).toHaveAttribute('href', '/item/c');
   await expect(page.getByRole('link', { name: 'Jeans' })).toHaveAttribute('href', '/item/b');

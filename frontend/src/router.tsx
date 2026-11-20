@@ -1,5 +1,6 @@
 import { useEffect, useState, useSyncExternalStore, type AnchorHTMLAttributes, type MouseEvent } from 'react';
 import { flushSaves } from './leave';
+import { movedTo } from './places';
 
 const listeners = new Set<() => void>();
 const notify = () => {
@@ -218,33 +219,39 @@ export type Route =
   | { name: 'closet'; status: 'active' | 'archived'; itemId: string | null }
   | { name: 'today'; itemId: string | null }
   | { name: 'worn' }
-  | { name: 'missing'; itemId: string | null; check: boolean; wishId: string | null }
+  | { name: 'wardrobe'; itemId: string | null; check: boolean; wishId: string | null; wish: string | null }
   | { name: 'add' }
   | { name: 'several'; id: string }
-  | { name: 'insights' }
   | { name: 'settings' }
   | { name: 'advanced' }
   | { name: 'review' }
   | { name: 'trips'; tripId: string | null };
 
+const id = (part: string | undefined) => (part ? decodeURIComponent(part) : null);
+
+/** The screen an address shows. An address that has moved (`movedTo` in places.ts) shows the screen it moved to. */
 export function parseRoute(path: string): Route {
+  const moved = movedTo(path);
+  if (moved) return parseRoute(moved.split(/[?#]/)[0]);
   if (path === '/add') return { name: 'add' };
   const several = path.match(/^\/add\/several\/([^/]+)\/?$/);
   if (several) return { name: 'several', id: decodeURIComponent(several[1]) };
   if (path === '/settings') return { name: 'settings' };
   if (path === '/settings/advanced') return { name: 'advanced' };
-  if (path === '/insights') return { name: 'insights' };
   if (path === '/today/worn') return { name: 'worn' };
   const today = path.match(/^\/today(?:\/item\/([^/]+))?\/?$/);
-  if (today) return { name: 'today', itemId: today[1] ? decodeURIComponent(today[1]) : null };
+  if (today) return { name: 'today', itemId: id(today[1]) };
   if (path === '/review') return { name: 'review' };
   const trips = path.match(/^\/trips(?:\/([^/]+))?\/?$/);
-  if (trips) return { name: 'trips', tripId: trips[1] ? decodeURIComponent(trips[1]) : null };
-  const missing = path.match(/^\/missing(?:\/item\/([^/]+))?\/?$/);
-  if (missing) return { name: 'missing', itemId: missing[1] ? decodeURIComponent(missing[1]) : null, check: false, wishId: null };
-  // Would this work?, started from the screen or from a wish
-  const check = path.match(/^\/missing\/check(?:\/wish\/([^/]+))?\/?$/);
-  if (check) return { name: 'missing', itemId: null, check: true, wishId: check[1] ? decodeURIComponent(check[1]) : null };
+  if (trips) return { name: 'trips', tripId: id(trips[1]) };
+  const wardrobe = path.match(/^\/wardrobe(?:\/item\/([^/]+))?\/?$/);
+  if (wardrobe) return { name: 'wardrobe', itemId: id(wardrobe[1]), check: false, wishId: null, wish: null };
+  // Would this work?, started from the page or from a wish
+  const check = path.match(/^\/wardrobe\/check(?:\/wish\/([^/]+))?\/?$/);
+  if (check) return { name: 'wardrobe', itemId: null, check: true, wishId: id(check[1]), wish: null };
+  // a wish on its own page: its note, its shop finds and prices
+  const wish = path.match(/^\/wardrobe\/wish\/([^/]+)\/?$/);
+  if (wish) return { name: 'wardrobe', itemId: null, check: false, wishId: null, wish: decodeURIComponent(wish[1]) };
   const archived = path.startsWith('/archived');
   const m = path.match(/^\/(?:archived\/)?item\/([^/]+)$/);
   return { name: 'closet', status: archived ? 'archived' : 'active', itemId: m ? decodeURIComponent(m[1]) : null };
@@ -270,7 +277,8 @@ export function Link({ to, onClick, ...rest }: AnchorHTMLAttributes<HTMLAnchorEl
 }
 
 export function useMediaQuery(query: string): boolean {
-  const [match, setMatch] = useState(() => window.matchMedia(query).matches);
+  // false where there is no window to ask (the component tests draw to markup in Node)
+  const [match, setMatch] = useState(() => typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia(query).matches);
   useEffect(() => {
     const mq = window.matchMedia(query);
     const on = () => setMatch(mq.matches);

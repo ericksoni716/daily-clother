@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  canSay, chosenBy, lookingAt, rememberWords, sameOutfits, savedLine, STYLIST_SLOW_S, stylistView, talkOf, waitingLine, withThing,
+  canSay, chosenBy, lookingAt, readFor, rememberWords, sameOutfits, savedLine, STYLIST_SLOW_S, stylistView, talkOf, waitingLine, withThing,
   type Outfit, type RememberThing, type StylistState, type TalkTurn, type TodayAnswer,
 } from './today';
 
@@ -43,6 +43,19 @@ describe('who chose an outfit', () => {
     expect(chosenBy({}, stylist('working'))).toBeNull();
     expect(chosenBy({}, null)).toBeNull();
     expect(chosenBy({}, undefined)).toBeNull();
+  });
+});
+
+describe("Claude's reading of the day", () => {
+  it("is said with the outfits Claude chose, once it has answered", () => {
+    expect(readFor({ by: 'claude' }, stylist('ready', { read: 'A cold, dry day.' }))).toBe('A cold, dry day.');
+  });
+
+  it("is not said with the rules' outfits, while Claude chooses, or when it said nothing", () => {
+    expect(readFor({}, stylist('ready', { read: 'A cold, dry day.' }))).toBeNull();
+    expect(readFor({ by: 'claude' }, stylist('working', { read: 'A cold, dry day.' }))).toBeNull();
+    expect(readFor({ by: 'claude' }, stylist('ready'))).toBeNull();
+    expect(readFor({ by: 'claude' }, null)).toBeNull();
   });
 });
 

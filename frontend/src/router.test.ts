@@ -95,11 +95,11 @@ describe('where a new page opens', () => {
     expect(startsAtTop('/', '/item/abc', true)).toBe(false);
     expect(startsAtTop('/item/abc', '/item/def', true)).toBe(false);
     expect(startsAtTop('/item/abc', '/', true)).toBe(false);
-    expect(startsAtTop('/missing', '/missing/item/abc', true)).toBe(false);
+    expect(startsAtTop('/wardrobe', '/wardrobe/item/abc', true)).toBe(false);
   });
 
   it('opens a different screen at its top on a computer', () => {
     expect(startsAtTop('/item/abc', '/today', true)).toBe(true);
-    expect(startsAtTop('/missing', '/missing/check', true)).toBe(true);
+    expect(startsAtTop('/wardrobe', '/wardrobe/check', true)).toBe(true);
   });
 });

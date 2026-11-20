@@ -76,8 +76,9 @@ PyInstaller build and its smoke test).
 | Place | What's in it |
 | --- | --- |
 | `src/main.tsx`, `src/App.tsx` | Start-up: first run, login, the "can't reach Closet" screens. |
-| `src/Shell.tsx` | The frame: sidebar on a computer, tab bar on a phone, the banners, and which screen a route shows. `src/nav.ts` says which link is lit. |
-| `src/router.tsx` | The router, written by hand: `parseRoute` (every route), `navigate`, `Link`, `itemPath`, the `WIDE` media query. |
+| `src/Shell.tsx` | The frame: sidebar on a computer, tab bar on a phone (the four places and Add), the banners, which screen a route shows, and taking the new address in place of a moved one. |
+| `src/places.ts` | The four places and Add: `placeOf` (which place a route belongs to, the link lit in the sidebar and the tab bar) and `movedTo` (where the addresses of merged places lead now). |
+| `src/router.tsx` | The router, written by hand: `parseRoute` (every route; a moved address parses as the screen it moved to), `navigate`, `Link`, `itemPath`, the `WIDE` media query. |
 | `src/store.tsx` | `ClosetProvider`: the open closet's query cache, `useApp()` (which closet, offline, the toast, switching closets, logging out), and the one poll of the work under way (`GET /api/progress`), which reads the lists and an item again when its work moves on. |
 | `src/api.ts` | The one client, `api.*`, with a readable `ApiError`, and what a closing page may still send. `src/types.ts` has the response types, kept by hand. |
 | `src/queryKeys.ts` | Every query key, and `TOUCHES`: which keys each kind of edit makes stale. Keys are made here and nowhere else. |
@@ -87,8 +88,8 @@ PyInstaller build and its smoke test).
 | `src/queries.ts` | The queries more than one screen reads (`useItems`, `useItemSummary`, `itemQuery`, `useVocab`, `useModel`, `useProgress`, `useItemProgress`, …), writing a saved item into the cache (`itemSaved`, `writeItem`, `dropItem`), saving (`useEdit`, `useItemEdit`) and `usePoll`. |
 | `src/work.ts` | How often to ask for the work under way (`progressPoll`) and which items to read again when it moves on (`movedOn`), as pure functions. |
 | `src/progress.ts` | An item's progress as the page shows it: which entry wins, the strip's dots and note, the tile's mark, the "Working on N items" line, a row's title on Add, the drawing's placeholder. The words come from the server (`progress.py`). |
-| `src/screens/` | One file per screen, with its CSS beside it: `Today`, `Worn`, `Closet`, `ItemDetail`, `Add`, `Several`, `Review`, `Missing`, `WouldWork`, `Shop`, `Insights`, `Trips`, `Settings` and `Advanced` (`/settings/advanced`, loaded only when opened, with `React.lazy` in `Shell.tsx`), and `Setup`, `Login`, `Static` before the shell. |
-| `src/components/ui/` | The shared pieces every screen is built from, exported from `index.ts`: `Button`, `Card` and `Section`, `Chips`, `EmptyState`, `ItemThumb`, `Markdown` (a small safe part of Markdown, read by `src/markdown.ts`, drawn as text), `Notice`, `PageHeader`, `SegmentedControl`, `Sheet` (and `PHONE`, the phone-or-wider query), with `focus.ts` for keeping Tab inside what is open. |
+| `src/screens/` | One file per screen, with its CSS beside it. Today: `Today`, `Worn` (the history, and `RecentOutfits` and the rating that Today shows), `Trips`. Closet: `Closet`, `ItemDetail`, `Review`. Add: `Add`, `Several`. Wardrobe: `Wardrobe` (the page: it reads the gaps, the wishlist and the insights, and lays them out), with its parts in `Missing` (worth buying, the wishlist, a wish's card), `Insights` (not worn, worn most, More numbers), `Shop` (finds for a wish) and `WouldWork`. Settings: `Settings` and `Advanced` (`/settings/advanced`, loaded only when opened, with `React.lazy` in `Shell.tsx`). `Setup`, `Login`, `Static` come before the shell. |
+| `src/components/ui/` | The shared pieces every screen is built from, exported from `index.ts` and listed with the tokens in its `README.md`: `Button`, `Card` and `Section`, `Chips`, `EmptyState`, `Fold`, `HowItWorks`, `ItemThumb`, `Markdown` (a small safe part of Markdown, read by `src/markdown.ts`, drawn as text), `Notice`, `PageHeader`, `SaveStatus` (with `useSaveStatus`), `SegmentedControl`, `Sheet` (and `PHONE`, the phone-or-wider query), `ShowMore`, with `focus.ts` for keeping Tab inside what is open. Their tests are `ui.test.ts`, drawn to markup in Node. |
 | `src/components/` | Pieces used by more than one screen or too big to sit in one: `FixDetails`, `ItemAbout` (the item page's summary line and notes box, with their test drawn by `react-dom/server`), `KindPicker`, `ItemPic`, `OutfitFigure`, `Progress` (the strip and the step's mark) and `WorkingLine`, the shoe pieces (`ShoePhotos`, `ShoeTrace`, `ShoeDrawn`), `LifeQuestions`, `WhereYouAre`, `PhoneAccess`, `Talk` (talking to Claude: the turns, the things to remember with Save and Undo, the box; on Today and in Settings), `StyleTalk` (the style conversation and its questions) and `StyleLines` (every line of Your style, to change, remove or add), `Updates` (the banner, the Settings line `UpdatesLine` and the Advanced part `UpdatesManage`), `Toggle` (the switch and `StatusLine`), `ModelBanner`, `RestoreNotice`, `RetakeButton`, `AddedItem`, `Icons`. |
 | `src/<feature>.ts` | The logic and the words of a feature, with no React in it and its test beside it (`today.ts` and `today.test.ts`, `trips.ts`, `gaps.ts`, `insights.ts`, `worn.ts`, `wouldwork.ts`, `shop.ts`, `shoe.ts`, `spend.ts`, `updates.ts`, `corrections.ts`, `tagging.ts`, `drawing.ts`, `progress.ts`, `look.ts` (the item page's summary line and its one notes box), `style.ts` (Your style: its lines, where each came from, the conversation's polling), `figure.ts`, `kinds.ts`, `review.ts`, `several.ts`, `addsort.ts`, `added.ts`). `labels.ts` has the plain words for the server's vocabulary. |
 | `src/uploadQueue.ts`, `src/uploads.ts`, `src/resize.ts` | Adding photos: resized in the browser, two at a time, each retried under one key. |
@@ -96,7 +97,7 @@ PyInstaller build and its smoke test).
 | `src/styles.css` | The tokens (`:root`) and the shared styles. `src/design.test.ts` fails on a size, radius, colour or motion value that is not a token. |
 | `sw/sw.js`, `public/` | The service worker (written by hand; the build fills in the files to keep) and the manifest and icons. |
 | `e2e/` | The browser tests: `server.ts` starts a backend on a fresh data folder, `fixtures.ts` logs in, `a11y.ts` runs axe. |
-| `scripts/` | `phone-check.mjs` (below) and `make-icons.mjs`. |
+| `scripts/` | `phone-check.mjs` (below; it also counts each screen's words) and `make-icons.mjs`. |
 
 ## Structure rules
 
@@ -211,18 +212,31 @@ style (the conversation, every line) and pictures those. It fails when a screen 
 the phone or throws an error. `CLOSET_PYTHON` names the Python with the backend's
 requirements, as for the browser tests. A new screen is added to its list of routes.
 
+It also prints how much each screen asks you to read, at 393px in light: the words on the
+page, the words in the first phone screen (above the tab bar) and the page's height, and
+lists as warnings the screens over the budget in [DESIGN.md](DESIGN.md) (about 150 words in
+the first screen, 350 on the page). It does not fail on them yet. `PHONE_CHECK_SIZES=393`
+pictures only that width, for a quick look while working.
+
 It is run by hand, before a pull request that changes anything visible. CI does not run it.
 
 ## Adding a screen
 
-Before adding one, read the Screens section of [DESIGN.md](DESIGN.md): the assessment's
-direction is fewer places, so a new card on an existing screen is the usual answer.
+Before adding one, read the Screens section of [DESIGN.md](DESIGN.md): the app has four
+places and Add, so a new card, fold or sheet on an existing screen is the usual answer, and a
+new screen is a page one level down inside one of the places, never a fifth tab without a
+decision in DECISIONS.
 
-1. The route in `parseRoute` (`src/router.tsx`), and its section in `src/nav.ts`.
-2. `src/screens/<Name>.tsx`, built from `components/ui/`: a `PageHeader`, then `Section`s.
-   Its words and decisions in `src/<name>.ts` with a test. Its data read and saved as *Reading and
-   saving data* says.
-3. The branch in `Shell.tsx` that shows it, and the link that reaches it.
+1. The route in `parseRoute` (`src/router.tsx`), under its place's address (`/today/…`,
+   `/wardrobe/…`), and its place in `placeOf` (`src/places.ts`), with a case in
+   `places.test.ts`. If it replaces an address, that address goes in `movedTo` so bookmarks
+   still land.
+2. `src/screens/<Name>.tsx`, built from `components/ui/` (see its `README.md`): a `PageHeader`
+   with `back={{ to: '/<place>', label: '<Place>' }}`, then `Section`s; `ShowMore`, `Fold`
+   and `HowItWorks` keep it inside the word budget. Its words and decisions in
+   `src/<name>.ts` with a test. Its data read and saved as *Reading and saving data* says,
+   sharing the queries the place's page already reads.
+3. The branch in `Shell.tsx` that shows it, and the link on its place's page that reaches it.
 4. Its route in `scripts/phone-check.mjs`.
 5. One browser test for what the owner does there, and the screen added to the lists in
    `e2e/17-accessibility.spec.ts`.

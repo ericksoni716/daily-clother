@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef, useState, type SVGProps } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { ChipGroup } from '../components/ui/Chips';
 import { Button, EmptyState, PageHeader } from '../components/ui';
@@ -8,17 +8,10 @@ import { FIELD_TITLES, label } from '../labels';
 import { notReadyText, progressText, reviewChanges, reviewRows, skippedText, sureText, type ReviewRow } from '../review';
 import { itemSaved, itemsQuery, reviewQuery } from '../queries';
 import { queryKeys } from '../queryKeys';
-import { itemPath, Link } from '../router';
+import { itemPath, Link, useMediaQuery } from '../router';
 import { useApp } from '../store';
 import type { ItemSummary, ReviewItem, ReviewQueue } from '../types';
 import './Review.css';
-
-export const ReviewIcon = (p: SVGProps<SVGSVGElement>) => (
-  <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round"
-    strokeLinejoin="round" aria-hidden="true" {...p}>
-    <path d="M20 11.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h8.5" /><path d="m8.5 11.5 3 3L20 6" />
-  </svg>
-);
 
 // ------------------------------------------------------------ the badge
 /** "id:tag_state" for every item: the review queue changes when a description arrives, fails or is asked again. */
@@ -115,7 +108,7 @@ export function ReviewScreen() {
 
   return (
     <section className="review" aria-labelledby="review-title">
-      <PageHeader title="Review" titleId="review-title" countTestId="review-progress"
+      <PageHeader title="Review" titleId="review-title" countTestId="review-progress" back={{ to: '/', label: 'Closet' }}
         count={!offline && current && progressText(index + 1, total)} />
       {body}
     </section>
@@ -146,6 +139,9 @@ function NothingToReview({ queue }: { queue: ReviewQueue }) {
     </EmptyState>
   );
 }
+
+/** A computer with a mouse or a trackpad, where the keys on the card can be used. */
+const KEYBOARD = '(hover: hover) and (pointer: fine)';
 
 function ReviewCard({ item, onDone, onSkip }: { item: ReviewItem; onDone(): void; onSkip(): void }) {
   const { toast } = useApp();
@@ -215,6 +211,8 @@ function ReviewCard({ item, onDone, onSkip }: { item: ReviewItem; onDone(): void
     return () => window.removeEventListener('keydown', onKey);
   }, [rows, active, chosen, busy, choose, confirm, onSkip]);
 
+  // the keys are said only where there is a keyboard and a mouse: never on a phone
+  const keys = useMediaQuery(KEYBOARD);
   const pictureClass = item.picture_kind === 'cutout' ? 'pic-cutout' : item.picture_kind === 'photo' ? 'pic-photo-full' : 'pic-illustration';
 
   return (
@@ -242,9 +240,9 @@ function ReviewCard({ item, onDone, onSkip }: { item: ReviewItem; onDone(): void
           <button className="btn btn-primary" disabled={busy} onClick={() => void confirm()}>That's right</button>
           <button className="btn" disabled={busy} onClick={onSkip}>Skip for now</button>
         </div>
-        <p className="muted review-keys">
+        {keys && <p className="muted review-keys">
           On a computer: <kbd>←</kbd> <kbd>→</kbd> or <kbd>1</kbd>–<kbd>9</kbd> to choose{rows.length > 1 ? <>, <kbd>↑</kbd> <kbd>↓</kbd> for the next field</> : null}, <kbd>Enter</kbd> for “That's right”, <kbd>S</kbd> to skip.
-        </p>
+        </p>}
       </div>
     </article>
   );

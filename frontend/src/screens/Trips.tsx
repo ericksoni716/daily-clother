@@ -37,7 +37,8 @@ export function TripsScreen({ tripId }: { tripId: string | null }) {
  * The saved trips. Each answer is kept on this device for offline; when Closet on the computer cannot be reached, the
  * copy kept is given instead (or the error, when there is none).
  */
-const tripsQuery = (profile: string) => queryOptions({
+/** The list of trips (kept on this device for offline); Today reads it too, for the trip it mentions. */
+export const tripsQuery = (profile: string) => queryOptions({
   queryKey: queryKeys.trips(),
   queryFn: async () => {
     try {
@@ -134,7 +135,8 @@ function TripList() {
   const { upcoming, past } = upcomingFirst(trips ?? []);
   return (
     <div className="trips">
-      <PageHeader title="Trips" titleId="trips-title" primary={trips && trips.length > 0 && planButton} />
+      <PageHeader title="Trips" titleId="trips-title" back={{ to: '/today', label: 'Today' }}
+        primary={trips && trips.length > 0 && planButton} />
       <p className="hint trips-intro">Closet says what to pack: the fewest pieces from your closet that dress every day of a trip, for the weather there.</p>
       {error && <p className={trips ? 'form-error' : 'notice'} role="alert">{error}</p>}
       {!trips && !error && <p className="muted"><span className="spinner" aria-hidden="true" /> Loading your trips…</p>}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  colorWords, type Gap, type GapsAnswer, groupReasons, HELP_LEVELS, helpOf, HIDE_REASONS, loadSavedGaps, lookForLines, type LookFor,
-  orWords, otherFindings, reasonLabel, saveGaps, whatWords,
+  colorWords, type Gap, groupReasons, HELP_LEVELS, helpOf, HIDE_REASONS, loadSavedGaps, lookForLines, type LookFor,
+  orWords, reasonLabel, saveGaps, whatWords,
 } from './gaps';
 import { forgetSaved } from './today';
 
@@ -153,25 +153,6 @@ describe('not for me', () => {
     expect(HIDE_REASONS.map((r) => r.value)).toEqual(['have_one', 'never_wear', 'too_expensive', 'other']);
     expect(reasonLabel('too_expensive')).toBe('Too expensive');
     expect(reasonLabel(null)).toBe('');
-  });
-});
-
-describe('the quieter findings', () => {
-  it('lists the notes and the pieces worn far more than the rest', () => {
-    const answer: Pick<GapsAnswer, 'gaps' | 'notes'> = {
-      notes: [{ kind: 'never_worn', text: 'Not worn since the log began: your black tee.', items: ['t1'] }],
-      gaps: [
-        gap(),
-        gap({ id: 'jeans-casual', found_by: ['worn_most'], why: ['You wore your dark jeans 6 times, against 1.5.'], evidence: { days: [], items: ['j1', 'x'] } }),
-        gap({ id: 'tee-casual', found_by: ['worn_most', 'basic'], why: ['A plain tee goes under everything.', 'You wore your white tee 5 times.'] }),
-      ],
-    };
-    expect(otherFindings(answer)).toEqual([
-      { kind: 'never_worn', title: 'Not worn yet', text: 'Not worn since the log began: your black tee.', items: ['t1'] },
-      { kind: 'worn_most', title: 'Worn far more than the rest', text: 'You wore your dark jeans 6 times, against 1.5.', items: ['j1'] },
-      { kind: 'worn_most', title: 'Worn far more than the rest', text: 'You wore your white tee 5 times.', items: [] },
-    ]);
-    expect(otherFindings(null)).toEqual([]);
   });
 });
 

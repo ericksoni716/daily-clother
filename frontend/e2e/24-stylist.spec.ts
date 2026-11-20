@@ -39,12 +39,14 @@ async function aDay(page: Page) {
   });
 }
 
-/** Claude's outfits are on screen: the first is Claude's, with the stand-in's sentence, and the line below says so. */
+/** Claude's outfits are on screen: the first is Claude's, with the stand-in's sentence and its reading of the day. */
 async function claudes(page: Page) {
   await expect(waiting(page)).toHaveCount(0, { timeout: 15_000 });
   await expect(current(page).getByTestId('outfit-by')).toHaveText('Chosen by Claude');
   await expect(current(page).getByRole('list', { name: 'Why this works' })).toContainText('Chosen by the stand-in: these go together.');
-  await expect(read(page)).toContainText('Claude on today: It is a made-up day, so the stand-in chose by number.');
+  // Claude's reading of the day is said in the outfit's "Why this works", under who chose it, not in a line of its own
+  await expect(current(page).getByTestId('outfit-read')).toHaveText('It is a made-up day, so the stand-in chose by number.');
+  await expect(page.getByText(/^Claude on today/)).toHaveCount(0);
   await expect(read(page).getByRole('button', { name: 'Ask Claude again' })).toBeEnabled();
 }
 
@@ -179,7 +181,7 @@ test.describe('outfits chosen by Claude', () => {
     const pieces = await current(page).getByTestId('piece').count();
     await current(page).getByRole('button', { name: "I'm wearing this" }).click();
     await expect(page.getByText("Noted: you're wearing this today")).toBeVisible();
-    await page.getByRole('link', { name: 'Worn', exact: true }).click();
+    await page.getByTestId('recent-outfits').getByRole('link', { name: 'See all' }).click();
     await expect(page).toHaveURL(/\/today\/worn$/);
     const todays = page.getByTestId('worn-outfit').first();
     await expect(todays.getByRole('heading', { name: 'Today' })).toBeVisible();

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type SVGProps } from 'react';
-import { api, ApiError } from '../api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type SVGProps } from 'react';
+import { api } from '../api';
 import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, PlusIcon, WarnIcon } from '../components/Icons';
 import { LifeQuestions } from '../components/LifeQuestions';
 import { Pieces } from '../components/ItemPic';
@@ -10,7 +11,10 @@ import {
 import { BackLink, Button, Card, Notice, PageHeader, SegmentedControl } from '../components/ui';
 import { swatchOf } from '../labels';
 import { Link, navigate } from '../router';
-import { useCloset } from '../store';
+import { touch, useItems } from '../queries';
+import { queryKeys, type EditKind, type KeyName } from '../queryKeys';
+import { shownWithCopy, useTellFailure } from '../savedCopy';
+import { useApp } from '../store';
 import { timeOf } from '../today';
 import { wishById } from '../wouldwork';
 import type { ItemSummary } from '../types';
@@ -30,96 +34,93 @@ export const BagIcon = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+type Lists = { gaps: GapsAnswer; wishes: Wish[] };
+
 type Phase =
   | { kind: 'loading' }
   | { kind: 'ready'; gaps: GapsAnswer; wishes: Wish[]; savedAt: string | null }
   | { kind: 'error'; message: string; offline: boolean };
 
-/** Kept while the app is open, so coming back from an item shows the list at once (it is asked again quietly). */
-let memory: { profile: string; phase: Phase; tab: Tab } | null = null;
+const OFFLINE_EMPTY = "You're offline, and nothing was saved on this device yet. What's missing shows here once Closet on your computer can be reached.";
+
+/** Wish edits that cannot change any wish's finds (a new wish's finds are read when its card shows). */
+const NOT_FINDS = ['finds'] as const;
+
+/** The tab chosen, kept while the app is open (the lists themselves are kept by the query cache). */
+let memory: { profile: string; tab: Tab } | null = null;
 
 type Tab = 'gaps' | 'wishlist';
 
+/** The copy of both lists kept on this device, for when Closet cannot be reached. */
+function savedLists(profile: string): { data: Lists; savedAt: string } | null {
+  const saved = loadSavedGaps(profile);
+  return saved?.gaps ? { data: { gaps: saved.gaps, wishes: saved.wishes ?? [] }, savedAt: saved.saved_at } : null;
+}
+
 export function MissingScreen({ itemId, check, wishId, wide }: { itemId: string | null; check: boolean; wishId: string | null; wide: boolean }) {
-  const { profile, items, loadItems, offline, toast } = useCloset();
-  const remembered = memory && memory.profile === profile ? memory : null;
-  const [phase, setPhase] = useState<Phase>(remembered?.phase ?? { kind: 'loading' });
-  const [tab, setTab] = useState<Tab>(remembered?.tab ?? 'gaps');
-  const [asking, setAsking] = useState(false);
+  const { profile, offline, toast } = useApp();
+  const qc = useQueryClient();
+  const items = useItems('active').data;
+  const [tab, setTab] = useState<Tab>(memory && memory.profile === profile ? memory.tab : 'gaps');
   const [busy, setBusy] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
   const [lifeOpen, setLifeOpen] = useState(false);
   const [situation, setSituation] = useState<SituationId | 'all'>('all');
-  const shown = useRef(phase);
-  useEffect(() => {
-    shown.current = phase;
-  }, [phase]);
+
+  // Both lists are read through the cache, and each answer is kept on this device for when Closet cannot be reached.
+  // Coming back shows them at once; coming back online asks again for both (ClosetProvider).
+  const gapsQ = useQuery({
+    queryKey: queryKeys.gaps(),
+    queryFn: async () => {
+      const gaps = await api.gaps();
+      saveGaps(profile, { gaps });
+      return gaps;
+    },
+  });
+  const wishesQ = useQuery({
+    queryKey: queryKeys.wishlist(),
+    queryFn: async () => {
+      const wishes = await api.wishlist();
+      saveGaps(profile, { wishes });
+      return wishes;
+    },
+  });
+  const lists = useMemo<Lists | undefined>(
+    () => (gapsQ.data && wishesQ.data ? { gaps: gapsQ.data, wishes: wishesQ.data } : undefined), [gapsQ.data, wishesQ.data]);
+  const failed = gapsQ.error ?? wishesQ.error;
+  const shown = shownWithCopy(lists, failed, () => savedLists(profile), OFFLINE_EMPTY);
+  const phase: Phase = shown.kind === 'ready' ? { kind: 'ready', ...shown.data, savedAt: shown.savedAt } : shown;
+  const asking = gapsQ.isFetching || wishesQ.isFetching;
+  useTellFailure(failed, !!lists, Math.max(gapsQ.errorUpdatedAt, wishesQ.errorUpdatedAt), toast);
+  const retry = () => {
+    void gapsQ.refetch();
+    void wishesQ.refetch();
+  };
 
   useEffect(() => {
-    if (items.active === null) void loadItems('active');
-  }, [items.active, loadItems]);
+    memory = { profile, tab };
+  }, [profile, tab]);
 
-  const load = useCallback(async (signal?: { cancelled: boolean }) => {
-    setAsking(true);
-    try {
-      const [gaps, wishes] = await Promise.all([api.gaps(), api.wishlist()]);
-      if (signal?.cancelled) return;
-      saveGaps(profile, { gaps, wishes });
-      setPhase({ kind: 'ready', gaps, wishes, savedAt: null });
-    } catch (e) {
-      if (signal?.cancelled) return;
-      const err = e as ApiError;
-      if (err.status === 0) {
-        const saved = loadSavedGaps(profile);
-        if (saved?.gaps) setPhase({ kind: 'ready', gaps: saved.gaps, wishes: saved.wishes ?? [], savedAt: saved.saved_at });
-        else setPhase({ kind: 'error', offline: true, message: "You're offline, and nothing was saved on this device yet. What's missing shows here once Closet on your computer can be reached." });
-      } else if (shown.current.kind === 'ready' && shown.current.savedAt === null) {
-        toast(err.message, 'error');
-      } else {
-        setPhase({ kind: 'error', offline: false, message: err.message });
-      }
-    } finally {
-      if (!signal?.cancelled) setAsking(false);
-    }
-  }, [profile, toast]);
-
-  useEffect(() => {
-    const signal = { cancelled: false };
-    void load(signal);
-    return () => {
-      signal.cancelled = true;
-    };
-  }, [load, attempt]);
-
-  // Back online after showing a saved copy (or nothing): ask again.
-  const showingSaved = (phase.kind === 'ready' && phase.savedAt !== null) || (phase.kind === 'error' && phase.offline);
-  const wasOffline = useRef(offline);
-  useEffect(() => {
-    if (wasOffline.current && !offline && showingSaved) setAttempt((n) => n + 1);
-    wasOffline.current = offline;
-  }, [offline, showingSaved]);
-
-  useEffect(() => {
-    memory = { profile, phase, tab };
-  }, [profile, phase, tab]);
-
-  // back from a check (which may have put something on the wishlist or marked a wish bought): ask for the lists again
+  // back from a check (the wish it was started from may have changed meanwhile): ask for the lists again
   const wasChecking = useRef(check);
   useEffect(() => {
-    if (wasChecking.current && !check) setAttempt((n) => n + 1);
+    if (wasChecking.current && !check) {
+      void qc.invalidateQueries({ queryKey: queryKeys.gaps() });
+      void qc.invalidateQueries({ queryKey: queryKeys.wishlist() });
+    }
     wasChecking.current = check;
-  }, [check]);
+  }, [check, qc]);
 
-  const byId = useMemo(() => new Map((items.active ?? []).map((i) => [i.id, i])), [items.active]);
+  const byId = useMemo(() => new Map((items ?? []).map((i) => [i.id, i])), [items]);
   const locked = offline || (phase.kind === 'ready' && phase.savedAt !== null);
 
-  /** Runs a change on the server, then asks for the list again (the analysis is kept on the server, so it is quick). */
-  async function change(key: string, run: () => Promise<unknown>, done?: string): Promise<boolean> {
+  /** Runs a change on the server, then asks again for what it changed (the analysis is kept on the server, so it is
+   * quick) before the buttons are given back. */
+  async function change(key: string, kind: EditKind, run: () => Promise<unknown>, done?: string, written: readonly KeyName[] = []): Promise<boolean> {
     setBusy(key);
     try {
       await run();
       if (done) toast(done);
-      await load();
+      await touch(qc, kind, written);
       return true;
     } catch (e) {
       toast((e as Error).message, 'error');
@@ -129,23 +130,24 @@ export function MissingScreen({ itemId, check, wishId, wide }: { itemId: string 
     }
   }
 
+  const wishChange = (key: string, run: () => Promise<unknown>, done: string) => change(key, 'wish', run, done, NOT_FINDS);
   const actions: Actions = {
     locked,
     busy,
-    wish: (g) => change(g.id, () => api.addWish({ gap_id: g.id }), 'On your wishlist'),
-    hide: (g, reason) => change(g.id, () => api.hideGap(g.id, reason), 'Hidden. You can bring it back below.'),
-    unhide: (id) => change(id, () => api.unhideGap(id), 'Brought back'),
-    undoHolds: (g) => change(g.id, async () => {
+    wish: (g) => wishChange(g.id, () => api.addWish({ gap_id: g.id }), 'On your wishlist'),
+    hide: (g, reason) => change(g.id, 'gap', () => api.hideGap(g.id, reason), 'Hidden. You can bring it back below.'),
+    unhide: (id) => change(id, 'gap', () => api.unhideGap(id), 'Brought back'),
+    undoHolds: (g) => change(g.id, 'gap', async () => {
       for (const id of new Set(g.held_back_by?.map((hold) => hold.gap_id))) await api.unhideGap(id);
     }, 'Brought back'),
-    confirmHide: (id) => change(id, () => api.hideGap(id, 'never_wear'), 'Applied to similar suggestions'),
-    addByHand: (name, note) => change('new-wish', () => api.addWish({ name, note }), 'On your wishlist'),
-    saveNote: (w, note) => change(w.id, () => api.changeWish(w.id, { note }), 'Note saved'),
-    savePrice: (w, changes) => change(w.id, () => api.changeWish(w.id, changes), 'Price range saved'),
+    confirmHide: (id) => change(id, 'gap', () => api.hideGap(id, 'never_wear'), 'Applied to similar suggestions'),
+    addByHand: (name, note) => wishChange('new-wish', () => api.addWish({ name, note }), 'On your wishlist'),
+    saveNote: (w, note) => wishChange(w.id, () => api.changeWish(w.id, { note }), 'Note saved'),
+    savePrice: (w, changes) => wishChange(w.id, () => api.changeWish(w.id, changes), 'Price range saved'),
     bought: async (w) => {
-      if (await change(w.id, () => api.wishBought(w.id), `Taken off the list. Add a photo of your new ${w.name.replace(/^(A|An) /, '').toLowerCase()}.`)) navigate('/add');
+      if (await wishChange(w.id, () => api.wishBought(w.id), `Taken off the list. Add a photo of your new ${w.name.replace(/^(A|An) /, '').toLowerCase()}.`)) navigate('/add');
     },
-    remove: (w) => change(w.id, () => api.removeWish(w.id), 'Removed from the list'),
+    remove: (w) => wishChange(w.id, () => api.removeWish(w.id), 'Removed from the list'),
   };
 
   const wishes = phase.kind === 'ready' ? phase.wishes : null;
@@ -197,14 +199,14 @@ export function MissingScreen({ itemId, check, wishId, wide }: { itemId: string 
       )}
       {phase.kind === 'ready' && (wide || tab === 'gaps') && <>
         {!lifeOpen && <LifeBasis context={phase.gaps.context} locked={locked} busy={busy !== null} onOpen={() => setLifeOpen(true)}
-          onDismiss={() => void change('life-dismiss', () => api.putSettings({ life_prompt_dismissed: true }))} />}
+          onDismiss={() => void change('life-dismiss', 'settings', () => api.putSettings({ life_prompt_dismissed: true }))} />}
         {lifeOpen && <LifeQuestions initial={phase.gaps.context?.life ?? null} locked={locked}
           about={phase.gaps.context && <LifeAbout context={phase.gaps.context} />}
-          demo={profile === 'demo'} onSaved={async () => { setSituation('all'); await load(); toast('Your answers are saved'); }}
+          demo={profile === 'demo'} onSaved={async () => { setSituation('all'); await touch(qc, 'settings'); toast('Your answers are saved'); }}
           onClose={() => setLifeOpen(false)} />}
       </>}
       {wide || tab === 'gaps'
-        ? <Body phase={phase} byId={byId} actions={actions} offline={offline} onRetry={() => setAttempt((n) => n + 1)}
+        ? <Body phase={phase} byId={byId} actions={actions} offline={offline} onRetry={retry}
           situation={situation} onSituation={setSituation} onLife={() => setLifeOpen(true)} />
         : wishlist}
     </div>

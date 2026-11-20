@@ -708,7 +708,9 @@ def create_app(sv: Services) -> FastAPI:
             raise HTTPException(400, "The request was not valid JSON.")
         if not isinstance(changes, dict):
             raise HTTPException(422, "Send an object of fields to change.")
-        saved = items.update(conn, item_id, changes)
+        # a change redraws the item (and a busy closet can keep the write waiting): on a worker thread, so the other
+        # requests (the closet's polling among them) are answered meanwhile
+        saved = await run_in_threadpool(items.update, conn, item_id, changes)
         _traced_soon(saved)
         return saved
 
@@ -732,12 +734,14 @@ def create_app(sv: Services) -> FastAPI:
 
     @app.post("/api/items/{item_id}/trace/fix", dependencies=protected)
     async def fix_trace(item_id: str, request: Request, conn=Depends(conn_dep)):
-        return shoes.fix(conn, item_id, await shoe_body(request))
+        body = await shoe_body(request)
+        return await run_in_threadpool(shoes.fix, conn, item_id, body)   # redraws the shoe
 
     @app.put("/api/items/{item_id}/trace/plain", dependencies=protected)
     async def plain_trace(item_id: str, request: Request, conn=Depends(conn_dep)):
         body = await shoe_body(request)
-        return shoes.set_plain(conn, item_id, body.get("plain") if isinstance(body, dict) else None)
+        return await run_in_threadpool(shoes.set_plain, conn, item_id,   # redraws the shoe
+                                       body.get("plain") if isinstance(body, dict) else None)
 
     @app.post("/api/items/{item_id}/retrace", status_code=202, dependencies=protected)
     def retrace(item_id: str, conn=Depends(conn_dep)):
@@ -782,7 +786,7 @@ def create_app(sv: Services) -> FastAPI:
         body = await shoe_body(request)
         if not isinstance(body, dict) or "view" not in body:
             raise HTTPException(422, "Send the view as {\"view\": \"outer\"} (or inner, top, front, back, sole, other).")
-        item = shoes.set_view(conn, item_id, photo_id, body["view"])
+        item = await run_in_threadpool(shoes.set_view, conn, item_id, photo_id, body["view"])
         sv.worker.wake()   # the answer may make another photo the main one: it is cut out and traced
         if sv.draws:
             sv.draws.wake()   # the answer may have settled the views: a shoe sorted for the first time is drawn next
@@ -810,17 +814,22 @@ def create_app(sv: Services) -> FastAPI:
     async def correct_drawing(item_id: str, request: Request, conn=Depends(conn_dep)):
         body = await shoe_body(request)
         note = body.get("note") if isinstance(body, dict) else None
-        conn.execute("BEGIN IMMEDIATE")
-        try:
-            shoedraw.correct(conn, item_id, note, state.get("profile") == "demo")
-            conn.execute("COMMIT")
-        except Exception:
-            if conn.in_transaction:
-                conn.execute("ROLLBACK")
-            raise
+        demo_closet = state.get("profile") == "demo"
+
+        def work() -> None:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                shoedraw.correct(conn, item_id, note, demo_closet)
+                conn.execute("COMMIT")
+            except Exception:
+                if conn.in_transaction:
+                    conn.execute("ROLLBACK")
+                raise
+
+        await run_in_threadpool(work)
         if sv.draws:
             sv.draws.wake()
-        return items.detail(conn, items.get(conn, item_id))
+        return await run_in_threadpool(lambda: items.detail(conn, items.get(conn, item_id)))
 
     @app.post("/api/items/{item_id}/drawn/back", dependencies=protected)
     def drawn_back(item_id: str, conn=Depends(conn_dep)):
@@ -1203,7 +1212,9 @@ def create_app(sv: Services) -> FastAPI:
             return {"sorted": False, "photos": plain, "needed": needed,
                     "message": "Claude can't be reached right now, so Closet couldn't sort these: sort them yourself."}
         try:
-            photos = [images.decode(await f.read(images.MAX_UPLOAD_BYTES + 1)) for f in sent]
+            sent_data = [await f.read(images.MAX_UPLOAD_BYTES + 1) for f in sent]
+            # decoding a phone's photos takes a fifth of a second or more each: on a worker thread
+            photos = await run_in_threadpool(lambda: [images.decode(data) for data in sent_data])
         except images.ImageError as e:
             raise HTTPException(400, str(e))
         for photo, f in zip(photos, sent, strict=True):
@@ -1406,7 +1417,8 @@ def create_app(sv: Services) -> FastAPI:
         if not isinstance(body, dict) or not isinstance(body.get("save"), bool):
             raise HTTPException(422, "Say which thing (index) and whether to keep it (save: true or false).")
         try:
-            return stylejobs.settle(conn, answer_id, body.get("index"), body["save"])
+            # keeping a thing in a piece's "How I wear it" redraws the piece: on a worker thread
+            return await run_in_threadpool(stylejobs.settle, conn, answer_id, body.get("index"), body["save"])
         except stylejobs.Refused as e:
             raise HTTPException(422, str(e))
 
@@ -1424,7 +1436,7 @@ def create_app(sv: Services) -> FastAPI:
         if not isinstance(body, dict) or "text" not in body:
             raise HTTPException(422, "Send the text of your style.")
         try:
-            return styleprofile.save(conn, body["text"])
+            return await run_in_threadpool(styleprofile.save, conn, body["text"])
         except ValueError as e:
             raise HTTPException(422, str(e))
 

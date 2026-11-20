@@ -1,13 +1,16 @@
 """Settings in one quick request: phone access looked up in the background, the cheap parts of the page in the one
-payload, and the keychain and start at login read once."""
+payload, the keychain and start at login read once, and the slow work of a request kept off the event loop."""
+import asyncio
 import json
 import threading
 import time
 from types import SimpleNamespace
 
-from closet import apikey, autostart, phone
+from closet import apikey, autostart, illustrations, phone, sources
 from closet import app as app_module
 from closet.tagger import routes as tagger_routes
+
+from .conftest import pile_bytes, upload
 
 HOST = "my-pc.example-tailnet.ts.net"
 SHARED = json.dumps({"TCP": {"443": {"HTTPS": True}},
@@ -157,3 +160,41 @@ def test_the_route_check_is_kept_a_few_seconds_and_asked_again_when_its_answer_m
     now[0] += app_module.TAGGING_FRESH_SECONDS
     client.get("/api/tagging")
     assert len(asked) == 4   # old: Claude Code's sign-in is asked again
+
+
+# ---------------------------------------------------------------- slow work off the event loop
+def on_event_loop() -> bool:
+    """Whether the caller runs on the event loop, where it would hold up every other request (a worker thread has
+    no running loop). Asked of the work itself, so the answer does not depend on how long anything takes."""
+    try:
+        asyncio.get_running_loop()
+        return True
+    except RuntimeError:
+        return False
+
+
+def test_an_item_is_redrawn_off_the_event_loop(client, monkeypatch):
+    item = upload(client).json()
+    real, seen = illustrations.redraw, []
+
+    def redraw(conn, item_id):
+        seen.append(on_event_loop())
+        real(conn, item_id)
+    monkeypatch.setattr(illustrations, "redraw", redraw)
+    r = client.patch(f"/api/items/{item['id']}", json={"color": "navy"})
+    assert r.status_code == 200 and r.json()["color"] == "navy"
+    assert seen == [False]
+    # what a wrong change answers is unchanged
+    assert client.patch(f"/api/items/{item['id']}", content=b"not json").status_code == 400
+    assert client.patch("/api/items/nothing", json={"color": "navy"}).status_code == 404
+
+
+def test_a_photo_of_several_pieces_is_kept_off_the_event_loop(client, monkeypatch):
+    real, seen = sources.create, []
+
+    def create(*args, **kwargs):
+        seen.append(on_event_loop())
+        return real(*args, **kwargs)
+    monkeypatch.setattr(sources, "create", create)
+    r = client.post("/api/sources", files={"photo": ("pile.png", pile_bytes(), "image/png")}, data={"client_key": "s1"})
+    assert r.status_code == 201 and seen == [False]

@@ -32,7 +32,7 @@ a real closet is never touched.
 | Area | Modules |
 | --- | --- |
 | The program | `cli.py` (entry point: start, restore, backup, reset-passphrase), `config.py` (where things live, from the environment), `state.py` (program-wide settings in one JSON file; `DEFAULTS` lists every key), `instance.py` (one copy at a time, and its port), `window.py`, `window_mac.py` (Closet's own window), `tray.py`, `autostart.py`, `net.py` (outbound HTTPS in the packaged program), `updates.py` (checking for a release, fetching it, swapping it in). |
-| The web API | `app.py`: `build_services` wires the settings, the database and every background worker (tests pass stand-ins here), and `create_app` defines every route. `gate.py` (login and size limits, before a body is read), `limits.py`, `auth.py` (one passphrase, sessions), `phone.py` (the Tailscale address for the phone). |
+| The web API | `app.py`: `build_services` wires the settings, the database and every background worker (tests pass stand-ins here), and `create_app` defines every route. `gate.py` (login and size limits, before a body is read), `limits.py`, `auth.py` (one passphrase, sessions), `phone.py` (the Tailscale address for the phone, looked up in the background by `phone.Watch`). |
 | Data | `db.py` (SQLite, and migrations by `PRAGMA user_version`), `migrations/NNNN_name.sql`, `items.py` (reading and changing items), `images.py` (a photo into the files the closet keeps), `backup.py`, `storage.py`, `demo.py` and `demo_data/` (the demo closet, a database of its own). |
 | A photo becomes an item | `jobs.py` (the cutout queue, in the `jobs` table), `cutout.py`, `modelstore.py` (the background-removal models), `tagjobs.py` (the queue that asks Claude to describe an item, and `apply_answer`), `illustrations.py` (each item's drawing, kept up to date), `patjobs.py` (measuring a pattern), `palette.py`, `sources.py` (several items from one photo), `failures.py` (why a step failed, in words safe to show). |
 | What an item is | `kinds.py` (its kind, from the taxonomy), `vocab.py` (the small coarse vocabulary), `details.py` (the details the owner can set), `corrections.py` (picking a detail, saying what is wrong, undo), `history.py`, `review.py` (the review queue). |
@@ -225,7 +225,12 @@ direction is fewer places, so a new card on an existing screen is the usual answ
 1. The work, as a function in the feature's module, tested there.
 2. The route in `create_app` (`app.py`), beside the feature's other routes, with
    `dependencies=protected` unless it has to answer before login. The request body is a
-   Pydantic model; what comes back is a plain dict.
+   Pydantic model; what comes back is a plain dict. Make the route a plain `def` (FastAPI runs
+   it on a worker thread). An `async def` route runs on the one event loop, so it must not
+   draw, decode a photo, start a command, ask Claude or write to the closet itself: it awaits
+   the body, then hands that work to `run_in_threadpool` (the `conn` from `conn_dep` may be
+   used there). Anything Settings shows that is quick to read goes into `settings_payload`
+   as well.
 3. If it takes an upload, its limit in `limits.py`.
 4. The call in `src/api.ts` and its type in `src/types.ts`.
 5. One success and one test per refusal, through `TestClient`.

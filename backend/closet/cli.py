@@ -137,6 +137,16 @@ def serve(args, cfg: config.Config) -> int:
         return 2
 
 
+def server_config(app, host: str, port: int):
+    """How uvicorn serves Closet. `proxy_headers` is off: uvicorn otherwise believes `X-Forwarded-For` on any
+    connection from this computer (every connection to Closet is one, Tailscale Serve and Cloudflare's connector
+    included), so whoever sent it would choose the address the Tailscale check asks Windows about (closet/tailnet.py)."""
+    import uvicorn
+
+    return uvicorn.Config(app, host=host, port=port, log_config=None, loop="asyncio", http="h11", ws="none",
+                          lifespan="off", access_log=False, proxy_headers=False)
+
+
 def _serve(args, cfg: config.Config, release_startup) -> int:
     import uvicorn
 
@@ -194,8 +204,7 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
     # a cookie; by this computer's own name nothing else gets in (closet/gate.py). Made once and kept in the settings.
     key = gate.window_key(services.state)
     app = create_app(services, window_key=key)
-    server = uvicorn.Server(uvicorn.Config(app, host=cfg.host, port=port, log_config=None, loop="asyncio",
-                                           http="h11", ws="none", lifespan="off", access_log=False))
+    server = uvicorn.Server(server_config(app, cfg.host, port))
     server.install_signal_handlers = lambda: None  # we run it off the main thread
     url = f"http://127.0.0.1:{port}/"
     opened = gate.keyed_url(url, key)   # never logged or printed: `url` is
@@ -463,6 +472,12 @@ def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -
         from . import window as app_window
         return app_window.check_bundled()
 
+    def cloudflare():
+        # the door through Cloudflare checks an RS256 signature (closet/access.py): sign a token with a key made here
+        # and check it the way a request's is checked, so a build without PyJWT's RSA (cryptography) fails here
+        from . import access
+        return access.selfcheck()
+
     def https():
         import urllib.request
         from urllib.parse import urlsplit
@@ -486,6 +501,7 @@ def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -
     check("tagger", tagger)
     check("updater", updater)
     check("window", window)
+    check("cloudflare", cloudflare)
     if with_cutout:
         check("cutout", cutout)
     if with_https:  # the same connection the model download makes; needs the internet

@@ -90,6 +90,32 @@ test('phone access: no code when no share reaches Closet, only the plain explana
   await expect(section.getByRole('img')).toHaveCount(0);
 });
 
+test('the door through Cloudflare: folded under Phone on the computer, filled in and turned off again', async ({ page }) => {
+  await login(page);
+  await page.goto('/settings');
+  const section = page.getByRole('region', { name: 'Phone', exact: true });
+  const door = section.getByTestId('cloudflare-door');
+  await door.getByText('Without Tailscale, through Cloudflare').click();
+  await expect(door.getByTestId('cloudflare-status')).toHaveText('This is off until all three are filled in.');
+  await door.getByLabel('Your Cloudflare team').fill('yourteam');
+  await door.getByLabel("The Access application's audience tag").fill('a1b2c3d4e5f60718293a4b5c6d7e8f90');
+  await door.getByLabel("Closet's address on Cloudflare").fill('closet example.com');
+  await door.getByRole('button', { name: 'Save' }).click();
+  await expect(door.getByRole('alert')).toContainText('closet.example.com');   // the server's sentence, as typed wrong
+  await door.getByLabel("Closet's address on Cloudflare").fill('https://closet.example.com/');
+  await door.getByRole('button', { name: 'Save' }).click();
+  await expect(door.getByText('Also through Cloudflare, at closet.example.com')).toBeVisible();
+  await expect(door.getByTestId('cloudflare-status')).toHaveText('Closet answers at https://closet.example.com once Cloudflare has checked who you are.');
+  await expect(door.getByLabel('Your Cloudflare team')).toHaveValue('yourteam.cloudflareaccess.com');
+  expect(await axeViolations(page)).toEqual([]);
+  await door.scrollIntoViewIfNeeded();
+  await door.screenshot({ path: test.info().outputPath('cloudflare-door.png') });
+  await door.getByLabel("The Access application's audience tag").fill('');
+  await door.getByRole('button', { name: 'Save' }).click();
+  await expect(door.getByText('Without Tailscale, through Cloudflare')).toBeVisible();
+  await expect(page.getByTestId('came-in')).toHaveCount(0);   // on the computer itself, nothing about how it came in
+});
+
 test.describe('opened on the phone', () => {
   test.use({
     viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true,
@@ -101,14 +127,14 @@ test.describe('opened on the phone', () => {
 
   /** Logs in through the page by the phone's name. The test runner itself cannot resolve that name, so the settings
    * the page is shown are fetched from 127.0.0.1 and given the share's address. */
-  async function openSettings(page: Page, request: APIRequestContext) {
+  async function openSettings(page: Page, request: APIRequestContext, cameIn?: object) {
     const local = process.env.E2E_BASE_URL!;
     const s = await (await request.get(`${local}/api/session`)).json();
     if (s.setup_required) expect((await request.post(`${local}/api/setup`, { data: { passphrase: PASS } })).status()).toBe(204);
     else expect((await request.post(`${local}/api/login`, { data: { passphrase: PASS } })).status()).toBe(204);
     const original = await (await request.get(`${local}/api/settings`)).json();
     await page.route('**/api/settings', (route) => route.request().method() === 'GET'
-      ? route.fulfill({ json: { ...original, phone: { tailscale_installed: true, running: true, address: ADDRESS,
+      ? route.fulfill({ json: { ...original, ...(cameIn ? { came_in: cameIn } : {}), phone: { tailscale_installed: true, running: true, address: ADDRESS,
         command: 'tailscale serve --bg --https=8443 8765', stop_command: 'tailscale serve --https=8443 off', others_share: true } } })
       : route.fallback());
     await page.goto('/');
@@ -134,6 +160,13 @@ test.describe('opened on the phone', () => {
     await expect(section.locator('code')).toHaveCount(0);
     await expect(page.getByText(ADDRESS)).toHaveCount(0);
     await expect(page.getByText('tailscale serve')).toHaveCount(0);
+    await expect(page.getByTestId('cloudflare-door')).toHaveCount(0);   // set up on the computer, where its connector is
+  });
+
+  test('This device says how the phone came in: through Tailscale, and as whom', async ({ page, request }) => {
+    await openSettings(page, request, { via: 'tailscale', login: 'owner@example.com', name: 'Sam Owner' });
+    const device = page.getByRole('region', { name: 'This device', exact: true });
+    await expect(device.getByTestId('came-in')).toHaveText('This device came in through Tailscale as Sam Owner (owner@example.com).');
   });
 
   test('what only makes sense on the computer is not offered: Quit, start at login, folders and files', async ({ page, request }) => {

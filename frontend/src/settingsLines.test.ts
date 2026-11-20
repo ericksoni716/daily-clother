@@ -146,7 +146,7 @@ describe('what a phone and the computer are shown', () => {
   });
 
   it('offers Quit, start at login, folders and files to put in place only on the computer', () => {
-    expect(computerOnly('computer')).toEqual({ quit: true, autostart: true, backupFolder: true, modelFiles: true, dataFolder: true });
+    expect(computerOnly('computer')).toEqual({ quit: true, autostart: true, backupFolder: true, modelFiles: true, dataFolder: true, cloudflare: true });
     expect(Object.values(computerOnly('phone')).some(Boolean)).toBe(false);
   });
 

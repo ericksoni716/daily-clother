@@ -49,7 +49,14 @@ with the window's key and then asks for the passphrase as above. The address typ
 browser, or an old bookmark to it, shows only a page titled "Open Closet from its icon" (any
 other address that leads to Closet says "Closet is not at this address"). A page left open
 from before an update that tries to save says "This page is from an older Closet. Reload the
-page, then try again." These come from the server (`backend/closet/gate.py`), not the page.
+page, then try again." At the Cloudflare address (README, "Use it without Tailscale, through
+Cloudflare"), Cloudflare asks for its emailed code first; a visit that reaches Closet without
+Cloudflare's sign-in shows "Sign in through Cloudflare first", and Tailscale's public Funnel
+shows "Closet is not on the open internet". These come from the server
+(`backend/closet/gate.py`), not the page. When Cloudflare's sign-in runs out while the page is
+open there, the page loads itself again in full so Cloudflare can ask for a new code, at most
+once every two minutes (`frontend/src/signin.ts`); on the computer and through Tailscale,
+losing the connection shows the offline banner as before.
 
 ## Today
 
@@ -238,9 +245,17 @@ would hold it back, when you would wear it, and example outfits.
 - **Phone**: on the computer only. Until Tailscale shares Closet, the command to run once;
   after that one line with the address and **Show the QR code** folded under it. While Settings
   is open and the phone is not connected, it checks again every few seconds (every half
-  minute when Tailscale is not installed). On the phone in Safari, one line on adding Closet to
-  the Home Screen; nothing once it is opened from there.
-- **This device**: light, dark or the same as the device, kept on this device.
+  minute when Tailscale is not installed). Under it, on the computer, **Without Tailscale,
+  through Cloudflare** is folded: what an address through Cloudflare means, a link to the
+  README's steps, the three boxes (your Cloudflare team, the Access application's audience tag,
+  Closet's address on Cloudflare) and **Save**, with a sentence saying it is off until all three
+  are filled in. Once they are, the fold is titled "Also through Cloudflare, at
+  closet.example.com". A wrong value shows the server's sentence under the boxes. On the phone in
+  Safari, one line on adding Closet to the Home Screen; nothing once it is opened from there.
+- **This device**: on a device that came in from outside, one sentence on how: "This device
+  came in through Tailscale as you@example.com", "…through Tailscale, but Tailscale did not say
+  who is using it", or "…through Cloudflare, signed in as you@example.com". Then light, dark or
+  the same as the device, kept on this device.
 - **Your data**: one line on the backups (where they go and the last good one), or that there
   are none yet, with **Choose a backup folder** on the computer.
 - **Advanced settings** (a link), then Log out, and Quit Closet on the computer only.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fromHomeScreen, onThisComputer, phoneAccessShows } from './here';
+import { cameInLine, fromHomeScreen, onThisComputer, phoneAccessShows, throughCloudflare } from './here';
 
 describe('onThisComputer', () => {
   it.each([
@@ -40,5 +40,38 @@ describe('phoneAccessShows', () => {
   it('on the phone, says how to add it to the Home Screen, unless it is already opened from there', () => {
     expect(phoneAccessShows('closet-pc.example-tailnet.ts.net', false)).toBe('add-to-home-screen');
     expect(phoneAccessShows('closet-pc.example-tailnet.ts.net', true)).toBe('nothing');
+  });
+});
+
+describe('throughCloudflare', () => {
+  it.each([
+    ['closet.example.com', true],
+    ['CLOSET.EXAMPLE.COM', true],
+    ['closet-pc.example-tailnet.ts.net', false],
+    ['closet-pc.example-tailnet.ts.net.', false],
+    ['127.0.0.1', false],
+    ['localhost', false],
+    ['[::1]', false],
+  ])('%s → %s', (hostname, expected) => {
+    expect(throughCloudflare(hostname)).toBe(expected);
+  });
+});
+
+describe('cameInLine', () => {
+  it('says nothing on the computer itself', () => {
+    expect(cameInLine({ via: 'computer', login: null, name: null })).toBeNull();
+    expect(cameInLine(undefined)).toBeNull();
+  });
+  it('says who Tailscale said is using a device, or that it did not say', () => {
+    expect(cameInLine({ via: 'tailscale', login: 'owner@example.com', name: 'owner@example.com' }))
+      .toBe('This device came in through Tailscale as owner@example.com.');
+    expect(cameInLine({ via: 'tailscale', login: 'owner@example.com', name: 'Sam Owner' }))
+      .toBe('This device came in through Tailscale as Sam Owner (owner@example.com).');
+    expect(cameInLine({ via: 'tailscale', login: null, name: null }))
+      .toBe('This device came in through Tailscale, but Tailscale did not say who is using it.');
+  });
+  it('says which email signed in through Cloudflare', () => {
+    expect(cameInLine({ via: 'cloudflare', login: 'owner@example.com', name: 'owner@example.com' }))
+      .toBe('This device came in through Cloudflare, signed in as owner@example.com.');
   });
 });

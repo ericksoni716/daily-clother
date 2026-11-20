@@ -15,6 +15,15 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 - AVIF photos work wherever you add a photo: on Add, when you take a piece's photo again, as
   a shoe's other photos and in Would this work?. Many shops save their pictures as AVIF, so a
   photo saved from a shop's page now goes in like any other.
+- Closet can have an address of its own through Cloudflare, for a browser that cannot use
+  Tailscale: set it up with the README's steps, then fill in the three values under **Settings →
+  Phone → Without Tailscale, through Cloudflare** on the computer. Cloudflare asks for a code sent
+  to your email, Closet checks Cloudflare's sign-in on every request, and your passphrase is still
+  asked. It is off until you set it up, and those values can never be changed from a browser
+  that came in through Cloudflare.
+- On a phone or a browser that came in from outside, **Settings → This device** says how: through
+  Tailscale and as whom (or that Tailscale did not say), or through Cloudflare and with which
+  email.
 
 ### Changed
 
@@ -39,6 +48,8 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   Your phone, through Tailscale, and your passphrase work as before.
 - If a phone or a browser tab still shows the page from before this update, saving something
   there says the page is from an older Closet and asks you to reload it.
+- Closet no longer answers through Tailscale Funnel, Tailscale's way of putting an address on
+  the open internet; the phone through Tailscale works as before.
 
 ### Fixed
 

@@ -6,6 +6,7 @@
  *   say "Offline".
  * - Images never change at a given address, so a saved copy is used first.
  * - Nothing but GET is ever saved, and never login/setup/logout.
+ * - A page loaded with `?signin=` (after Cloudflare's sign-in ran out) always waits for the network.
  * - Saves (anything but GET) go straight to the server without passing through here, where the
  *   browser supports it: one sent as the page is reloaded or closed was otherwise sometimes lost.
  */
@@ -90,9 +91,21 @@ async function cacheFirst(request) {
   return response;
 }
 
+// The page loaded again after Cloudflare's sign-in ran out (src/signin.ts) carries this: the network's answer is always
+// waited for, so Cloudflare's redirect to its sign-in reaches the browser; the saved page only if the network fails.
+const SIGNIN_PARAM = 'signin';
+
 async function page(request) {
   const shell = await caches.open(SHELL);
   const saved = await shell.match('/');
+  if (new URL(request.url).searchParams.has(SIGNIN_PARAM)) {
+    try {
+      return await fetch(request);
+    } catch (err) {
+      if (saved) return saved;
+      throw err;
+    }
+  }
   try {
     return saved ? await withinOr(fetch(request), PAGE_WAIT_MS, async () => saved.clone()) : await fetch(request);
   } catch (err) {

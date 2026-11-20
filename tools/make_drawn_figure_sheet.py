@@ -2,7 +2,7 @@
 
     python tools/make_drawn_figure_sheet.py [--out docs/screenshots]
 
-For the saved example drawings (the runner, drawn left and right, from bench/experiments/shoe_drawn/EXAMPLES/; the
+For the saved example drawings (the runner, drawn left and right, from backend/tests/data/shoe_drawn/; the
 boot, its pull tab the one at the front, shown in front of the leg, from backend/closet/drawing/shoe_examples/; the dress
 shoe and the boat shoe), today's figure beside the app's own drawing of the same outfit with the drawing kept on the
 shoe, as `POST /api/outfits/figure` draws it (`illustrations.describe` gives the shoe its stored drawing; the figure
@@ -31,7 +31,7 @@ from closet.drawing import drawn  # noqa: E402
 from closet.drawing.figure import Piece, figure, plan  # noqa: E402
 from closet.tagger.schema import Details, ItemTags, Silhouette  # noqa: E402
 
-BENCH = ROOT / "bench" / "experiments" / "shoe_drawn" / "EXAMPLES"
+BENCH = ROOT / "backend" / "tests" / "data" / "shoe_drawn"
 OUT = ROOT / "docs" / "screenshots"
 CASES = [("shorts and a crew sock", "shorts"), ("full-length trousers", "full"), ("ankle-length trousers", "ankle")]
 

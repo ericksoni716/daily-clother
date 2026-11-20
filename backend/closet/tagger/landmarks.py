@@ -4,7 +4,7 @@ A patterned top's drawing lines its plaid up with the buttons, each front on its
 a polo's chest bands continue onto its sleeves. That takes a few points on the photo: the buttons, the neck and
 hem at the centre front, the shoulders and the underarms. Finding them in the image alone was tried and was
 not reliable on patterned cloth (pocket edges and round shapes in a plaid were taken for buttons); Claude
-finds them well (see bench/experiments/patterns/landmarks_prompt.md). The answer is checked where it is used:
+finds them well (see bench/experiments/patterns/landmarks_prompt.md in the git history). The answer is checked where it is used:
 an underarm point must lie on the garment's outline, or it is not trusted.
 
 Asked through the same routes and the same monthly limit as describing an item, and only for patterned tops.

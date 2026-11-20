@@ -12,6 +12,6 @@
 - `masks`:   how see-through a background-removal mask left a patterned garment, one mask from two models'
              masks (bedding left out), and a cutout of two surfaces split into the two.
 
-These were chosen from the experiments in `bench/experiments/patterns/`. Everything here uses OpenCV; the
+These were chosen from the experiments in `bench/experiments/patterns/` (no longer in the repository; in its git history). Everything here uses OpenCV; the
 drawing code (`closet.drawing`) never imports this package, so drawing an item stays free of OpenCV.
 """

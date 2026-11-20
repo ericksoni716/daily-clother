@@ -131,7 +131,7 @@ TRACED = {
 }
 
 # The demo shoe drawn as Claude draws a shoe from its photos (step D shows it on the figure): made in advance from the
-# boot the owner liked (bench/experiments/shoe_drawn/EXAMPLES/boot.svg: all in front of the leg, its pull tab the one at
+# boot the owner liked (backend/tests/data/shoe_drawn/boot.svg: all in front of the leg, its pull tab the one at
 # the front, which the owner wants shown: closet/drawing/shoe_examples/boot.*.svg, nothing behind), with a feature
 # sheet written for it; never sent to
 # Claude. name -> the split example, and its sheet (as `tagger/shoedrawing.Sheet` has it)

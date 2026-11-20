@@ -1,7 +1,7 @@
 """The cloth's surface, as Claude describes it on the description call: one kind of pattern with only that kind's
 fields filled, for the app's own drawing (`closet.patterns.surface` turns it into what the drawing takes).
 
-The form is the "second form" of the garment loop test (`bench/experiments/garment_loop`, arm F), adopted by the
+The form is the "second form" of the garment loop test (`bench/experiments/garment_loop`, arm F, now in the git history), adopted by the
 owner on 18 November: stripes, plaid and checks as one repeat of bands; plain cloth with parts or bands across the
 body in other colours; plain; or "other" for a print, which the app pieces from the photo. Plain data only: the
 drawing imports it, so nothing here may import OpenCV.

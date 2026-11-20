@@ -1,5 +1,5 @@
 """A garment's surface described by Claude as parameters for the app's own drawing. AN EXPERIMENT
-(`bench/experiments/garment_loop`), not called by the app.
+(`bench/experiments/garment_loop`, now only in the git history), not called by the app.
 
 One general form instead of one per pattern: bands one way (stripes), bands both ways (plaid, check, gingham,
 tartan, madras), plain cloth with parts in another colour (blocks), plain, and "other" for what the form cannot

@@ -13,7 +13,7 @@ from PIL import Image
 from closet.drawing import drawn
 from closet.drawing.drawn import DrawingError
 
-BENCH = Path(__file__).resolve().parents[2] / "bench" / "experiments" / "shoe_drawn" / "EXAMPLES"
+BENCH = Path(__file__).resolve().parent / "data" / "shoe_drawn"   # the drawings the owner liked, from the bench experiment
 LOW = {"silhouette": {"height": "low"}, "opening_front_y": 32.0, "one_side_mark": False}
 SHEETS = {"trainer": {**LOW, "opening_front_y": 26.0}, "dress-shoe": LOW,
           "boat-shoe": {**LOW, "silhouette": {"height": "low_profile"}, "opening_front_y": 79.0}}

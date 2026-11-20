@@ -47,7 +47,7 @@ Fill in the attributes. Guidance:
 - shade: the owner's name for the main colour's shade (charcoal or slate for a grey, khaki or stone for a tan, raw_indigo for unwashed denim, oxblood for a deep burgundy ...), one of the shades of the colour you chose; 'unknown' when none is close.
 - Brand, size and material: only what you can actually read in a photo. Otherwise null.
 - needs_shot: leave null unless one more photo would settle something that matters for choosing outfits."""
-# the cloth's surface, as the garment loop test asked for it (bench/experiments/garment_loop, arm F)
+# the cloth's surface, as the garment loop test asked for it (bench/experiments/garment_loop, arm F, now in the git history)
 PROMPT = PROMPT + "\n" + surfaceform.GUIDANCE
 
 

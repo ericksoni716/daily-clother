@@ -72,6 +72,9 @@
 .shoe-drawn-picture {
   width: 100%; max-width: 320px; height: auto; border-radius: var(--radius-sm); background: var(--card-figure);
 }
+/* the side (on its own card) and the drawing for the figure, side by side; on a phone each takes half the width */
+.shoe-drawn-pictures.is-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-width: 520px; align-items: end; }
+.shoe-drawn-pictures.is-two .shoe-drawn-picture { max-width: none; }
 .shoe-drawn .confirm { background: var(--surface-2); }
 .shoe-drawn-say { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 10px; }
 .shoe-drawn-say-row { display: flex; gap: 8px; }

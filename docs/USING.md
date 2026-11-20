@@ -142,9 +142,14 @@ on a phone), Shopping facts (brand, size, material, price, date acquired, condit
 and Delete. A new photo can be taken in place of the old one, and a cutout that failed can be
 tried again.
 
-A shoe also shows its photos sorted into views, its traced side drawing with its own fixes,
-and the drawing Claude makes for the figure, which takes several minutes and can be
-corrected with a note. Two shoes are drawn at the same time; a third waits for one of them.
+A shoe also shows its photos sorted into views and, under "Drawn by Claude from its photos",
+the two drawings Claude makes from them: the shoe from the side, which becomes its picture in
+the closet, with a line on what makes it itself, and the drawing for the figure. Both are made
+together, in several minutes; the drawing for the figure can be corrected with a note. Until
+Claude's side drawing exists, or when it cannot be made, the picture is traced from the side
+photo, with its own fixes in Fix the details; once it exists, Fix the details offers only the
+plain drawing. Two shoes are drawn at the same time; a third waits for one of them. A shoe
+drawn before gets its side drawn by itself, in the background.
 
 While Nines is working on a piece, one strip over the bottom of its picture says how far it
 has got: three dots for the three steps (cutting out, on the computer; describing and drawing,

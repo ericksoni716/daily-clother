@@ -15,6 +15,13 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 - AVIF photos work wherever you add a photo: on Add, when you take a piece's photo again, as
   a shoe's other photos and in Would this work?. Many shops save their pictures as AVIF, so a
   photo saved from a shop's page now goes in like any other.
+- Claude now draws each shoe from its side too, from its photos, in the same clean style as
+  your other drawings, with its own panels, marks and sole. That drawing becomes the shoe's
+  picture in the closet, and the shoe's page shows it beside the drawing for the figure, with a
+  line on what makes the shoe itself. It is made alongside the drawing for the figure, sharing
+  its calls to Claude, so it adds little wait; shoes drawn before get theirs by themselves. Until it exists, or
+  if it can't be made, the picture is traced from the side photo as before, and that trace now
+  also gives Claude the shoe's proportions.
 - Nines can have an address of its own through Cloudflare, for a browser that cannot use
   Tailscale: set it up with the README's steps, then fill in the three values under **Settings →
   Phone → Without Tailscale, through Cloudflare** on the computer. Cloudflare asks for a code sent
@@ -40,6 +47,9 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   for the whole drawing to be written out again. What is drawn is the same. Such a check is
   counted at the most Claude could have written in the time it took, so the cost shown for a
   drawing, and the month's spending, can be a little higher than what was billed.
+- While a shoe's picture is Claude's side drawing, Fix the details no longer offers the traced
+  drawing's colours, marks and Re-trace, which would not change it; Use the plain drawing stays,
+  and Use Claude's drawing brings it back.
 - On a phone, the "Add" label in the bar at the bottom sits on the same line as Today, Closet,
   Wardrobe and Settings, and its round button rises a little above the bar instead of pushing
   the label down to the edge.

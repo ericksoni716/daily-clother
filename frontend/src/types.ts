@@ -231,6 +231,12 @@ export interface ShoeDrawn {
   has_previous: boolean;
   /** That kept drawing is the newer one (the owner went back): the same button goes forward again. */
   previous_newer: boolean;
+  /** The shoe drawn by Claude from its side with this drawing, on its card, and what makes the shoe itself from the
+   * side; null when it has none (yet). */
+  side: { url: string; features: string[] } | null;
+  /** The item's own drawing (the closet tile, the item page's drawing) is that side: the trace's colours and marks do
+   * not show. False when the owner chose the plain drawing. */
+  side_shown: boolean;
 }
 
 /** A shoe's photos sorted into views by Claude, so the owner never has to say which is which. */

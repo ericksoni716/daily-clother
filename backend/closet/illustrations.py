@@ -13,9 +13,10 @@ again the first time it is asked for, so a template change never redraws a
 whole closet at start-up. Drawing never fails an item: what could not be drawn
 is kept, in plain words, for the item page.
 
-A shoe traced from its photo (`tracejobs`) is drawn from its trace instead, with the owner's fixes laid over it
-(`drawing.sideshoe`), unless the owner chose the plain drawing for it; a shoe not traced, or whose photo the
-tracing turned down, keeps the template drawing. On the outfit figure, a shoe Claude drew from its photos
+A shoe Claude drew from its side (`shoedraw`, the drawing's `side` entry) is drawn from that, on the templates' card
+(`drawing.drawnside`), unless the owner chose the plain drawing for it. Without it, a shoe traced from its photo
+(`tracejobs`) is drawn from its trace, with the owner's fixes laid over it (`drawing.sideshoe`), again unless the
+owner chose the plain drawing; a shoe not traced, or whose photo the tracing turned down, keeps the template drawing. On the outfit figure, a shoe Claude drew from its photos
 (`shoedraw`) is drawn from that drawing; without one, from the template's front view for its style, traced or not.
 
 The demo closet's drawings were made in advance by `tools/make_demo.py` (with
@@ -30,8 +31,8 @@ import sqlite3
 from dataclasses import replace
 
 from . import details, drawing, kinds
+from .drawing import drawnside, sideshoe, stored
 from .drawing import item as draw
-from .drawing import sideshoe, stored
 from .drawing.figure import PLACES, Piece, as_worn, figure
 from .drawing.traced import TracedShoe
 from .tagger import surfaceform
@@ -155,14 +156,30 @@ def pattern_graphic(row):
 
 
 def traced(row) -> tuple[str, str | None] | None:
-    """The item's trace and the owner's fixes to it (JSON), when its drawing is the traced one: a shoe, traced,
-    and the owner has not chosen the plain drawing. None otherwise."""
+    """The item's trace and the owner's fixes to it (JSON), when its drawing is the traced one: a shoe, traced, with
+    no side drawn by Claude (`side_of`), and the owner has not chosen the plain drawing. None otherwise."""
+    return None if side_of(row) is not None else _trace(row)
+
+
+def _trace(row) -> tuple[str, str | None] | None:
+    """The trace and its fixes for a shoe traced, unless the owner chose the plain drawing (whatever Claude drew)."""
     keys = row.keys() if hasattr(row, "keys") else row
     if "trace" not in keys or not row["trace"] or row["trace_state"] != "done" or row["trace_plain"]:
         return None
-    if row["category"] not in draw.SHOES:
+    return (row["trace"], row["trace_fixes"]) if row["category"] in draw.SHOES else None
+
+
+def side_of(row) -> str | None:
+    """Claude's drawing of a shoe from its side (its kept drawing's `side` entry), when the item's drawing is that: a
+    shoe whose drawing has a side, and the owner has not chosen the plain drawing. None otherwise. It wins over the
+    trace, which stays for when it cannot be made or read."""
+    keys = row.keys() if hasattr(row, "keys") else row
+    if "trace_plain" in keys and row["trace_plain"]:
         return None
-    return row["trace"], row["trace_fixes"]
+    d = drawn_of(row)
+    side = d.get("side") if d else None
+    svg = side.get("svg") if isinstance(side, dict) else None
+    return svg if isinstance(svg, str) and svg.strip() else None
 
 
 def drawn_of(row) -> dict | None:
@@ -180,7 +197,13 @@ def drawn_of(row) -> dict | None:
 def make(row, extra: dict | None = None) -> draw.Drawing:
     """The drawing for an item row as it stands now (with `extra` details laid over it, for a preview). Never raises."""
     try:
-        shoe = traced(row)
+        side = side_of(row)
+        if side is not None:
+            try:
+                return draw.Drawing(drawnside.card_svg(side), ())
+            except Exception:   # a side that cannot be read: the trace, or the template drawing
+                log.exception("could not draw a shoe's side drawn by Claude")
+        shoe = _trace(row)   # no side, or one that could not be read
         if shoe is not None:
             try:
                 return draw.Drawing(sideshoe.drawing(TracedShoe.from_json(shoe[0]), _json(shoe[1], None), uid=row["id"][:8]), ())

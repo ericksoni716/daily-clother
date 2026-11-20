@@ -1,3 +1,4 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { ChipGroup } from '../components/ui/Chips';
@@ -13,13 +14,15 @@ import { FIELD_TITLES, formatPrice, label, shadeLabel, measuredColours, parsePri
 import { SaveLine, useWhenLeaving } from '../leave';
 import { Link, navigate, useMediaQuery } from '../router';
 import { silhouetteGroups } from '../silhouette';
-import { useCloset } from '../store';
+import { dropItem, itemQuery, itemSaved, touch, useItemSummary, useModel, usePoll, useVocab, writeSummary } from '../queries';
+import { queryKeys, type EditKind } from '../queryKeys';
+import { useApp } from '../store';
+import { itemPoll } from '../work';
 import { drawingPlaceholder, loadGridView, notInDrawing } from '../drawing';
 import { describedBy, detailLines, tagNotice } from '../tagging';
 import { kindDrawing, kindLine, type KindGroup } from '../kinds';
 import { retakeOffer, retakeSaid } from '../retake';
 import { sureText } from '../review';
-import { drawingShoe, sortingViews, tracing } from '../shoe';
 import type { Item, ItemPatch, PatternColour } from '../types';
 import { localDay, sinceWash, wearDay, wearSummary } from '../wears';
 import { busyLabel } from './Closet';
@@ -47,140 +50,85 @@ function applyPatch(item: Item, changes: ItemPatch): Item {
 }
 
 export function ItemDetail({ id, status, inPanel }: Props) {
-  const { vocab, upsert, drop, toast, offline, model, items, profile } = useCloset();
-  const [item, setItem] = useState<Item | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { toast, offline, profile } = useApp();
+  const qc = useQueryClient();
+  const vocab = useVocab();
+  const model = useModel();
+  // The closet's summary of it, shown at once while the full item is read (or when it cannot be, offline).
+  const summary = useItemSummary(id);
+  const query = useQuery(itemQuery(id));
+  const item = query.data ?? null;
+  const error = query.error ? query.error.message : null;
   const [fixing, setFixing] = useState(false);
   const [focus, setFocus] = useState<{ field: string; at: number } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
+  // Saves still on their way: the item is not read again meanwhile, so what the owner just chose stays on screen.
   const inflight = useRef(0);
-  const editVersion = useRef(0);
   const saves = useRef(new SaveLine());
   const backTo = status === 'archived' ? '/archived' : '/';
 
-  const load = useCallback(async () => {
-    if (inflight.current) return;
-    const version = editVersion.current;
-    try {
-      const it = await api.item(id);
-      if (version !== editVersion.current || inflight.current) return;
-      setItem(it);
-      setError(null);
-    } catch (e) {
-      if (version !== editVersion.current || inflight.current) return;
-      setError((e as ApiError).message);
-    }
-  }, [id]);
+  const load = useCallback(() => {
+    if (!inflight.current) void qc.refetchQueries({ queryKey: queryKeys.item(id), exact: true }, { cancelRefetch: false });
+  }, [qc, id]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const wasOffline = useRef(offline);
-  useEffect(() => {
-    if (wasOffline.current && !offline) void load();
-    wasOffline.current = offline;
-  }, [offline, load]);
-
-  // Follow the cutout while it is being made, and the description while it is waited for or being written
-  // (slowly while it waits: nothing changes until Claude can be reached). The closet grid follows along.
-  const busy = item?.cutout_state === 'pending' || item?.cutout_state === 'processing';
-  const describing = item?.tag_state === 'working';
-  const awaiting = item?.tag_state === 'waiting';
+  // Follow the cutout while it is being made, the description while it is waited for or being written, a pattern
+  // measured, a shoe traced, sorted or drawn (src/work.ts says how often). The closet grid follows along, since every
+  // item read puts its summary into the lists.
+  usePoll(itemPoll(item, offline), load);
   const measuring = item?.pattern_state === 'waiting' || item?.pattern_state === 'working';
-  const traced = tracing(item?.trace);
-  const sorting = sortingViews(item?.views);   // a shoe's photos sorted into views
-  const sortingNow = item?.views?.state === 'sorting';
-  const drawing = drawingShoe(item?.drawn);   // a shoe drawn from its photos, four to ten minutes
-  const followed = useRef('');
-  useEffect(() => {
-    if (!(busy || describing || awaiting || measuring || traced || sorting || drawing) || offline) return;
-    const t = window.setInterval(async () => {
-      if (inflight.current) return;
-      const version = editVersion.current;
-      try {
-        const fresh = await api.item(id);
-        if (inflight.current || version !== editVersion.current) return;
-        setItem(fresh);
-        const states = `${fresh.cutout_state}/${fresh.tag_state}/${fresh.pattern_state}/${fresh.trace?.state ?? ''}/${fresh.views?.state ?? ''}/${fresh.drawn?.state ?? ''}`;
-        if (states !== followed.current) upsert(fresh);
-        followed.current = states;
-      } catch {
-        /* the next tick tries again */
-      }
-    }, busy || describing || traced || sortingNow ? 2000 : sorting || drawing ? 4000 : measuring ? 5000 : 10_000);
-    return () => window.clearInterval(t);
-  }, [busy, describing, awaiting, measuring, traced, sorting, sortingNow, drawing, offline, id, upsert]);
 
   const retag = useCallback(async () => {
-    editVersion.current++;
     try {
-      const saved = await api.retag(id);
-      setItem(saved);
-      upsert(saved);
+      itemSaved(qc, await api.retag(id));
       toast('Asking Claude to describe it again');
     } catch (e) {
       toast((e as Error).message, 'error');
     }
-  }, [id, upsert, toast]);
+  }, [id, qc, toast]);
 
   const save = useCallback(async (changes: ItemPatch, saidAs = 'Saved') => {
     if (!item) return;
-    editVersion.current++;
+    const key = queryKeys.item(id);
     const before = item;
-    setItem((cur) => (cur ? applyPatch(cur, changes) : cur));
+    void qc.cancelQueries({ queryKey: key, exact: true });
+    qc.setQueryData<Item>(key, (cur) => (cur ? applyPatch(cur, changes) : cur));
     inflight.current++;
     try {
       const saved = await saves.current.add(() => api.patch(id, changes));
       inflight.current--;
-      if (!inflight.current) setItem(saved);
-      upsert(saved);
+      if (!inflight.current) itemSaved(qc, saved);
+      else {   // a later save is still on its way: the page keeps what was chosen, the lists take this answer
+        writeSummary(qc, saved);
+        void touch(qc, 'item', ['items', 'item']);
+      }
       toast(saidAs);
     } catch (e) {
       inflight.current--;
       toast((e as ApiError).message, 'error');
       if (!inflight.current) {
-        setItem(before);
-        void load();
+        qc.setQueryData(key, before);
+        load();
       }
     }
-  }, [item, id, upsert, toast, load]);
+  }, [item, id, qc, toast, load]);
 
   // Wears and the laundry are changed through their own calls, each answering with the whole item.
-  const act = useCallback(async (call: () => Promise<Item>, saidAs: string): Promise<Item | undefined> => {
-    editVersion.current++;
+  const act = useCallback(async (call: () => Promise<Item>, kind: EditKind, saidAs: string): Promise<Item | undefined> => {
     inflight.current++;
     try {
       const saved = await call();
       inflight.current--;
-      setItem(saved);
-      upsert(saved);
+      itemSaved(qc, saved, kind);
       toast(saidAs);
       return saved;
     } catch (e) {
       inflight.current--;
       toast((e as ApiError).message, 'error');
-      if (!inflight.current) void load();
+      load();
     }
-  }, [upsert, toast, load]);
+  }, [qc, toast, load]);
 
-  if (error && !item) {
-    const summary = items.active?.find((x) => x.id === id) ?? items.archived?.find((x) => x.id === id);
-    if (offline && summary) {
-      // Not saved for offline use yet: show what the closet list knows.
-      const asItem = { ...summary, photos: [], silhouette: {}, illustration_svg: null, seen_not_drawn: [], drawing_notes: [] } as unknown as Item;
-      return (
-        <article className="detail" aria-label={summary.name || 'Item'}>
-          <DetailTop inPanel={inPanel} backTo={backTo} />
-          <Picture item={asItem} busyText={busyLabel(model)} fallbackThumb={summary.thumb_url} />
-          <Notice as="p">You're offline, so this item can't be changed right now. Its full details show once Closet can be reached again.</Notice>
-          <header className="detail-head">
-            <h2 className="detail-title">{summary.name || label('category', summary.category) || 'Item'}</h2>
-            <p className="detail-meta">{[label('category', summary.category), label('color', summary.color), label('pattern', summary.pattern), label('location', summary.location)].filter(Boolean).join(' · ')}</p>
-          </header>
-        </article>
-      );
-    }
+  if (error && !item && !(offline && summary)) {
     return (
       <div className="detail">
         <DetailTop inPanel={inPanel} backTo={backTo} />
@@ -189,6 +137,22 @@ export function ItemDetail({ id, status, inPanel }: Props) {
     );
   }
   if (!item || !vocab) {
+    if (summary) {
+      // What the closet list knows, until the full item is here; offline and not saved for offline use, that is all.
+      const asItem = { ...summary, photos: [], silhouette: {}, illustration_svg: null, seen_not_drawn: [], drawing_notes: [] } as unknown as Item;
+      const away = !!error && offline;
+      return (
+        <article className="detail" aria-label={summary.name || 'Item'} aria-busy={away ? undefined : 'true'}>
+          <DetailTop inPanel={inPanel} backTo={backTo} />
+          <Picture item={asItem} busyText={busyLabel(model)} fallbackThumb={summary.thumb_url} />
+          {away && <Notice as="p">You're offline, so this item can't be changed right now. Its full details show once Closet can be reached again.</Notice>}
+          <header className="detail-head">
+            <h2 className="detail-title">{summary.name || label('category', summary.category) || 'Item'}</h2>
+            <p className="detail-meta">{[label('category', summary.category), label('color', summary.color), label('pattern', summary.pattern), label('location', summary.location)].filter(Boolean).join(' · ')}</p>
+          </header>
+        </article>
+      );
+    }
     return (
       <div className="detail" aria-busy="true">
         <DetailTop inPanel={inPanel} backTo={backTo} />
@@ -205,9 +169,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   const canRetag = profile !== 'demo' && item.cutout_state === 'ready' && item.has_photo &&
     (item.tag_state === 'done' || item.tag_state === 'none');
   const fixed = (saved: Item, saidAs: string) => {
-    editVersion.current++;
-    setItem(saved);
-    upsert(saved);
+    itemSaved(qc, saved);
     toast(saidAs);
   };
   const failed = (message: string) => toast(message, 'error');
@@ -253,9 +215,8 @@ export function ItemDetail({ id, status, inPanel }: Props) {
             <FailureDetails item={item} stage="cutout" />
             <div className="row">
               <button className="btn btn-small" disabled={locked} onClick={async () => {
-                editVersion.current++;
                 try {
-                  setItem(await api.retryCutout(id));
+                  itemSaved(qc, await api.retryCutout(id));
                   toast('Trying the cutout again');
                 } catch (e) {
                   toast((e as Error).message, 'error');
@@ -280,9 +241,9 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       </header>
 
       <WearPanel item={item} disabled={locked}
-        onWear={() => act(() => api.wear(id), 'Noted: worn today')}
-        onUnwear={(day, said) => act(() => api.unwear(id, day), said)}
-        onLaundry={(state) => act(() => api.setLaundry(id, state), state === 'laundry' ? 'In the laundry' : 'Marked clean')} />
+        onWear={() => act(() => api.wear(id), 'wear', 'Noted: worn today')}
+        onUnwear={(day, said) => act(() => api.unwear(id, day), 'wear', said)}
+        onLaundry={(state) => act(() => api.setLaundry(id, state), 'laundry', state === 'laundry' ? 'In the laundry' : 'Marked clean')} />
 
       {item.tag_state === 'failed' ? (
         <div className="notice notice-warn">
@@ -396,7 +357,8 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       }} onDelete={async () => {
         try {
           await api.remove(id);
-          drop(id);
+          dropItem(qc, id);
+          void touch(qc, 'removeItem', ['items', 'item']);
           toast('Deleted');
           navigate(backTo, { replace: true });   // Back must not return to the page of an item that is gone
         } catch (e) {

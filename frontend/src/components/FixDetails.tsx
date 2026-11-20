@@ -1,9 +1,12 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import {
   capitalise, changeLine, claudeAway, confirmedChanges, detailSummary, fixOpening, historyLine, historyWhen, stillFor,
   svgSource, type CorrectionAnswer, type DetailChoices, type DetailOptions, type FixView, type HistoryEntry,
 } from '../corrections';
+import { detailOptionsQuery } from '../queries';
+import { queryKeys } from '../queryKeys';
 import { useMediaQuery } from '../router';
 import type { Item } from '../types';
 import { buttonClass, PHONE, Sheet } from './ui';
@@ -86,10 +89,7 @@ function FixBody({ item, focus, demo, disabled, onSaved, onError, onDone }: Prop
   const phone = useMediaQuery(PHONE);
   const [opening] = useState(() => fixOpening({ demo, away, focus: !!focus, phone }));
   const [view, setView] = useState<FixView>(opening.view);
-  const [options, setOptions] = useState<DetailOptions | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [picking, setPicking] = useState<string | null>(focus?.field ?? null);
-  const [choices, setChoices] = useState<DetailChoices | null>(null);
   const [focused, setFocused] = useState(focus);
   const panel = useRef<HTMLDivElement>(null);
   const back = useRef<HTMLButtonElement>(null);
@@ -98,32 +98,28 @@ function FixBody({ item, focus, demo, disabled, onSaved, onError, onDone }: Prop
     setFocused(focus);
     if (focus) {
       setView('list');
-      setChoices(null);
       setPicking(focus.field);
     }
   }
   const [busy, setBusy] = useState(false);
-  const stamp = stampOf(item);
   const id = item.id;
   const report = useLatest(onError);
 
+  // Kept in the cache by item: asked again only after a save that touches them (`TOUCHES.item`) or when the item is
+  // described again, not each time the item is read while work runs.
+  const optionsQuery = useQuery({ ...detailOptionsQuery(id), enabled: !disabled });
+  const options: DetailOptions | null = optionsQuery.data ?? null;
+  const loadError = optionsQuery.error && !options ? optionsQuery.error.message : null;
+  const choicesQuery = useQuery({
+    queryKey: queryKeys.itemDetails(id, picking ?? ''),
+    queryFn: () => api.detailChoices(id, picking as string),
+    enabled: !!picking && !disabled,
+  });
+  const choices: DetailChoices | null = choicesQuery.data ?? null;
+  const choicesError = choicesQuery.error?.message;
   useEffect(() => {
-    if (disabled) return;
-    let gone = false;
-    api.detailOptions(id).then((o) => {
-      if (gone) return;
-      setOptions(o);
-      setLoadError(null);
-    }, (e: ApiError) => !gone && setLoadError(e.message));
-    return () => void (gone = true);
-  }, [disabled, id, stamp]);
-
-  useEffect(() => {
-    if (!picking || disabled) return;
-    let gone = false;
-    api.detailChoices(id, picking).then((c) => !gone && setChoices(c), (e: ApiError) => !gone && report.current(e.message));
-    return () => void (gone = true);
-  }, [picking, disabled, id, stamp, report]);
+    if (choicesError) report.current(choicesError);
+  }, [choicesError, report]);
 
   useEffect(() => {   // ...and bring it into view once the details are there
     if (!focus || !options) return;
@@ -189,10 +185,7 @@ function FixBody({ item, focus, demo, disabled, onSaved, onError, onDone }: Prop
                   return (
                     <li key={d.name} data-detail={d.name}>
                       <button type="button" className={`fix-detail${on ? ' is-on' : ''}`} aria-expanded={on}
-                        aria-label={`${detailSummary(d)}${d.own ? ' (set by you)' : ''}`} onClick={() => {
-                          setChoices(null);
-                          setPicking(on ? null : d.name);
-                        }}>
+                        aria-label={`${detailSummary(d)}${d.own ? ' (set by you)' : ''}`} onClick={() => setPicking(on ? null : d.name)}>
                         <span className="fix-detail-title">{capitalise(d.title)}</span>
                         <span className="fix-detail-value">{d.words}{d.own && <span className="fix-own"> · set by you</span>}</span>
                       </button>
@@ -366,24 +359,22 @@ function SayIt({ item, drawing, autofocus, onSaved }: { item: Item; drawing: Rea
 /** The "History" fold: every change to the item's description, newest first, each undoable where allowed. */
 export function ItemHistory({ item, disabled, onSaved, onError }: Props) {
   const [open, setOpen] = useState(false);
-  const [entries, setEntries] = useState<HistoryEntry[] | null>(null);
   const [busy, setBusy] = useState(false);
-  const stamp = stampOf(item);
   const id = item.id;
   const report = useLatest(onError);
-
+  const qc = useQueryClient();
+  const history = useQuery({ queryKey: queryKeys.history(id), queryFn: () => api.history(id), enabled: open && !disabled });
+  const entries: HistoryEntry[] | null = history.data ?? null;
+  const historyError = history.error?.message;
   useEffect(() => {
-    if (!open || disabled) return;
-    let gone = false;
-    api.history(id).then((h) => !gone && setEntries(h), (e: ApiError) => !gone && report.current(e.message));
-    return () => void (gone = true);
-  }, [open, disabled, id, stamp, report]);
+    if (historyError) report.current(historyError);
+  }, [historyError, report]);
 
   const undo = async (entry: HistoryEntry) => {
     setBusy(true);
     try {
       const done = await api.undo(id, entry.id);
-      setEntries(done.history);
+      qc.setQueryData(queryKeys.history(id), done.history);
       onSaved(done.item, 'Undone');
     } catch (e) {
       onError((e as ApiError).message);

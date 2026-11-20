@@ -78,20 +78,28 @@ in a panel beside the grid; on a phone it opens as its own page.
 
 ## An item
 
-`/item/<id>`. The picture (photo, cutout or drawing, and for some pieces the back), the name,
-and "Wearing and washing": Wore it today, put in the laundry or mark clean, and recent wears.
-Then Details as rows of a label and a value; tapping a row opens its choices (a sheet on a
-phone). "What is it?" changes the kind, and the last row is how you feel about it, with an
-optional why. "Fix the details", under the picture, opens a sheet over the page (on
-a computer, a box under the picture) with the drawing and a box, "What's wrong with it?":
-Claude reads your sentence, says what it understood, and nothing changes until you choose
-Make these changes. "Change the details one by one" shows every detail the drawing is made
-from, by group, in the same sheet. In the demo closet, or when Claude could not be reached,
-it opens on the details one by one and says why. Three folds follow, closed until opened: More details (How
-I wear it, fit notes, notes, brand, size, material, date acquired), What Claude saw (its
-description, what was seen but is not drawn yet, and Describe it again) and History (every
-change, each of which can be undone). Archive and Delete are at the bottom; a new photo can
-be taken in place of the old one, and a cutout that failed can be tried again.
+`/item/<id>`. The picture (photo, cutout or drawing, and for some pieces the back), with a small
+mark on the drawing that lists what it leaves out. Under the name, one line says what the piece
+is, its colour and how it sits ("Polo · Navy · Regular fit · Short sleeves"). It is read from the
+same description the drawing is made from, with your corrections over it, so it never says
+something the drawing does not show; each word of how it sits opens its detail to fix.
+"Something wrong? Tell Claude" opens Fix the details: a sheet over the page (on a computer, a
+box under the button) with the drawing and a box, "What's wrong with it?". Claude reads your
+sentence, says what it understood, and nothing changes until you choose Make these changes.
+"Change the details one by one" shows every detail the drawing is made from, by group, marked
+when you set it, with when Claude described the piece. In the demo closet, or when Claude could
+not be reached, the button says "Something wrong? Change the details" and the sheet opens on the
+details one by one, saying why.
+
+Then "Wearing and washing": Wore it today, put in the laundry or mark clean, and recent wears.
+About it holds how you feel about it and one box, Notes for you and Claude, which Claude reads
+when it chooses your outfits; it shows every note kept about the piece, and once you change it
+the whole text is kept there. Four folds follow, closed until opened: Details (what it is,
+colour, pattern, where it lives, formality, season, each a row that opens its choices, a sheet
+on a phone), Shopping facts (brand, size, material, price, date acquired, condition), History
+(every change, each of which can be undone), and the last one, with Describe it again, Archive
+and Delete. A new photo can be taken in place of the old one, and a cutout that failed can be
+tried again.
 
 A shoe also shows its photos sorted into views, its traced side drawing with its own fixes,
 and the drawing Claude makes for the figure, which takes several minutes and can be
@@ -106,9 +114,6 @@ waits for (with Open Settings when that is where to see to it). The strip goes w
 is done, and nothing on the page moves when it comes or goes. A cutout or a description that
 failed says so under the picture, with Try again. A shoe's photos and its drawing for the
 figure say the same words while their part is under way.
-
-*Headed for:* one description of the piece's look from one source; one rating and one notes
-box (assessment, step 7).
 
 ## Add
 

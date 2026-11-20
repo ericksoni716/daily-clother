@@ -13,7 +13,7 @@
 .review-sure { margin: 8px 0 0; font-size: var(--text-sm); color: var(--ink-3); }
 .review-actions { gap: 10px; flex-wrap: wrap; }
 .review-actions .btn { min-width: 9rem; }
-.review-keys { font-size: var(--text-sm); margin-top: 14px; display: none; }
+.review-keys { font-size: var(--text-sm); margin-top: 14px; }
 .review-keys kbd {
   font: inherit; font-size: var(--text-xs); padding: 1px 6px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface);
 }
@@ -36,9 +36,6 @@
     margin: 0 calc(-1 * var(--gutter)); padding: 10px var(--gutter); background: color-mix(in srgb, var(--bg) 94%, transparent);
   }
   .review-actions .btn { flex: 1; }
-}
-@media (hover: hover) and (pointer: fine) {
-  .review-keys { display: block; }
 }
 @media (min-width: 1000px) {
   .review-card { grid-template-columns: minmax(0, 17rem) minmax(0, 1fr); align-items: start; gap: 24px; }

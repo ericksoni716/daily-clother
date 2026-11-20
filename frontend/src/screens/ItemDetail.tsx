@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { ChipGroup } from '../components/ui/Chips';
 import { BackLink, confirmKeys, Notice, PHONE, Section, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
@@ -10,17 +10,17 @@ import { ShoeDrawn } from '../components/ShoeDrawn';
 import { ShoePhotos } from '../components/ShoePhotos';
 import { TraceNotice } from '../components/ShoeTrace';
 import { ProgressStrip } from '../components/Progress';
-import { BackIcon, ChevronIcon, HangerIcon, WarnIcon } from '../components/Icons';
-import { FIELD_TITLES, formatPrice, label, shadeLabel, measuredColours, parsePrice, ratingLabel, SWATCH, swatchOf, tileCaption, wornWords } from '../labels';
+import { BackIcon, ChevronIcon, HangerIcon, InfoIcon, WarnIcon } from '../components/Icons';
+import { FIELD_TITLES, formatPrice, label, shadeLabel, measuredColours, parsePrice, ratingLabel, SWATCH, swatchOf } from '../labels';
+import { fixLabel, lastFoldTitle } from '../look';
+import { LookLine, NotesBox, useFieldText } from '../components/ItemAbout';
 import { SaveLine, useWhenLeaving } from '../leave';
 import { navigate, useMediaQuery } from '../router';
-import { silhouetteGroups } from '../silhouette';
 import { dropItem, itemQuery, itemSaved, touch, useItemProgress, useItemSummary, useVocab, writeSummary } from '../queries';
 import { queryKeys, type EditKind } from '../queryKeys';
 import { useApp } from '../store';
 import { loadGridView, notInDrawing } from '../drawing';
 import { busy, drawingOnItsWay, drawingPlaceholder } from '../progress';
-import { describedBy, describedHint, detailLines } from '../tagging';
 import { kindDrawing, kindLine, type KindGroup } from '../kinds';
 import { retakeOffer, retakeSaid } from '../retake';
 import { sureText } from '../review';
@@ -35,18 +35,12 @@ interface Props {
   inPanel?: boolean;
 }
 
+/** What a save shows at once, before the server answers. The look (the shape and the details) is never changed here:
+ * it is corrected in "Fix the details", and the server answers with the drawing and the words together. */
 function applyPatch(item: Item, changes: ItemPatch): Item {
-  const { silhouette, ...rest } = changes;
-  const next: Item = { ...item, ...(rest as Partial<Item>) };
-  if (silhouette) {
-    const merged = { ...item.silhouette };
-    for (const [k, v] of Object.entries(silhouette)) {
-      if (v === null) delete merged[k];
-      else merged[k] = v;
-    }
-    next.silhouette = merged;
-  }
-  return next;
+  const rest: Partial<ItemPatch> = { ...changes };
+  delete rest.silhouette;
+  return { ...item, ...(rest as Partial<Item>) };
 }
 
 export function ItemDetail({ id, status, inPanel }: Props) {
@@ -144,8 +138,9 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           <Picture item={asItem} progress={progress} fallbackThumb={summary.thumb_url} />
           {away && <Notice as="p">You're offline, so this item can't be changed right now. Its full details show once Closet can be reached again.</Notice>}
           <header className="detail-head">
-            <h2 className="detail-title">{summary.name || label('category', summary.category) || 'Item'}</h2>
-            <p className="detail-meta">{[label('category', summary.category), label('color', summary.color), label('pattern', summary.pattern), label('location', summary.location)].filter(Boolean).join(' · ')}</p>
+            <h2 className="detail-title"><span className="name-field name-field-static">{summary.name || label('category', summary.category) || 'Item'}</span></h2>
+            <LookLine item={summary} disabled />
+            <button type="button" className="btn btn-link fix-open" disabled>{fixLabel(profile === 'demo')}</button>
           </header>
         </article>
       );
@@ -159,22 +154,23 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   }
 
   const locked = offline;
-  const groups = silhouetteGroups(item.category);
-  const tagText = item.tag_state === 'done' ? describedHint(item.tag_route) : null;
+  const demo = profile === 'demo';
   const failure = progress?.state === 'failed' ? progress : null;
-  const lines = detailLines(item.details);
-  const seen = item.seen_not_drawn ?? [];
-  const canRetag = profile !== 'demo' && item.cutout_state === 'ready' && item.has_photo &&
+  const canRetag = !demo && item.cutout_state === 'ready' && item.has_photo &&
     (item.tag_state === 'done' || item.tag_state === 'none');
   const fixed = (saved: Item, saidAs: string) => {
     itemSaved(qc, saved);
     toast(saidAs);
   };
   const failed = (message: string) => toast(message, 'error');
+  const openFix = (field: string | null) => {
+    setFocus(field ? { field, at: Date.now() } : null);
+    setFixing(true);
+  };
   // clothes: a new photo when the background couldn't be removed or the pattern couldn't be measured (one button)
   const offer = retakeOffer(item);
   const retake = offer && (
-    <RetakeButton item={item} disabled={locked} said={retakeSaid(item, profile === 'demo')} onError={failed}
+    <RetakeButton item={item} disabled={locked} said={retakeSaid(item, demo)} onError={failed}
       onSaved={fixed} />
   );
 
@@ -183,16 +179,10 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       <DetailTop inPanel={inPanel} backTo={backTo} />
       {locked && <Notice as="p">You're offline, so this item can't be changed right now.</Notice>}
 
-      <Picture item={item} progress={progress}
-        fix={<FixDetails item={item} open={fixing} focus={focus} demo={profile === 'demo'} disabled={locked}
-          onOpen={() => {
-            setFocus(null);
-            setFixing(true);
-          }}
-          onClose={() => setFixing(false)} onSaved={fixed} onError={failed} />} />
+      <Picture item={item} progress={progress} />
       <TraceNotice item={item} disabled={locked} onSaved={fixed} onError={failed} />
       <ShoePhotos item={item} disabled={locked} onSaved={fixed} onError={failed} />
-      <ShoeDrawn item={item} disabled={locked} demo={profile === 'demo'} onSaved={fixed} onError={failed} />
+      <ShoeDrawn item={item} disabled={locked} demo={demo} onSaved={fixed} onError={failed} />
 
       {item.pattern_state === 'failed' && item.pattern_error && (
         <div className="tag-note pattern-failed" data-testid="pattern-failed">
@@ -200,23 +190,25 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           {offer === 'pattern' && <div className="row">{retake}</div>}
         </div>
       )}
-      {failure?.retry === 'cutout' && (
+      {failure && (failure.retry === 'cutout' || failure.retry === 'describe') && (
         <div className="notice notice-warn" data-testid="progress-failed">
           <WarnIcon />
           <div>
             <p><strong>{failure.words}.</strong>{failure.error ? ` ${failure.error}` : ''}</p>
-            <FailureDetails item={item} stage="cutout" />
-            <div className="row">
-              <button className="btn btn-small" disabled={locked} onClick={async () => {
-                try {
-                  itemSaved(qc, await api.retryCutout(id));
-                  toast('Trying the cutout again');
-                } catch (e) {
-                  toast((e as Error).message, 'error');
-                }
-              }}>Try the cutout again</button>
-              {offer === 'cutout' && retake}
-            </div>
+            <FailureDetails item={item} stage={failure.retry === 'cutout' ? 'cutout' : 'description'} />
+            {failure.retry === 'cutout' ? (
+              <div className="row">
+                <button className="btn btn-small" disabled={locked} onClick={async () => {
+                  try {
+                    itemSaved(qc, await api.retryCutout(id));
+                    toast('Trying the cutout again');
+                  } catch (e) {
+                    toast((e as Error).message, 'error');
+                  }
+                }}>Try the cutout again</button>
+                {offer === 'cutout' && retake}
+              </div>
+            ) : <button className="btn btn-small" disabled={locked} onClick={retag}>Try again</button>}
           </div>
         </div>
       )}
@@ -226,11 +218,9 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           <NameField value={item.name} placeholder={label('category', item.category) || 'Name this item'} disabled={locked}
             onSave={(name) => save({ name })} />
         </h2>
-        {tileCaption(item.category, item.color) && <p className="detail-meta">{tileCaption(item.category, item.color)}</p>}
-        <WornLine item={item} disabled={locked} onPick={(field) => {
-          setFixing(true);
-          setFocus({ field, at: Date.now() });
-        }} />
+        <LookLine item={item} disabled={locked} onPick={openFix} />
+        <FixDetails item={item} label={fixLabel(demo)} open={fixing} focus={focus} demo={demo} disabled={locked}
+          onOpen={() => openFix(null)} onClose={() => setFixing(false)} onSaved={fixed} onError={failed} />
       </header>
 
       <WearPanel item={item} disabled={locked}
@@ -238,121 +228,75 @@ export function ItemDetail({ id, status, inPanel }: Props) {
         onUnwear={(day, said) => act(() => api.unwear(id, day), 'wear', said)}
         onLaundry={(state) => act(() => api.setLaundry(id, state), 'laundry', state === 'laundry' ? 'In the laundry' : 'Marked clean')} />
 
-      {failure?.retry === 'describe' && (
-        <div className="notice notice-warn" data-testid="progress-failed">
-          <WarnIcon />
-          <div>
-            <p><strong>{failure.words}.</strong>{failure.error ? ` ${failure.error}` : ''}</p>
-            <FailureDetails item={item} stage="description" />
-            <button className="btn btn-small" disabled={locked} onClick={retag}>Try again</button>
-          </div>
-        </div>
-      )}
-
-      <Section id={`details-${item.id}`} title="Details" className="detail-fields"
-        hint={tagText ?? undefined}>
-        <Editing.Provider value={{ editing, setEditing }}>
-        <ul className="detail-rows">
-          <KindRow item={item} groups={vocab.kind_groups} disabled={locked} onSaved={fixed} onError={failed} />
-          <DetailRow field="color" value={shadeLabel(label('color', item.color), item.shade)} swatch={item.color ? (item.color_hex ?? swatchOf(item.color)) : undefined} disabled={locked}>
-            {(done) => <ChipGroup field="color" options={vocab.color} value={item.color} disabled={locked} swatches
-              onChange={(v) => { done(); void save({ color: v, color_hex: v ? (SWATCH[v]?.startsWith('#') ? SWATCH[v] : null) : null }); }} />}
-          </DetailRow>
-          <DetailRow field="pattern" value={label('pattern', item.pattern)} disabled={locked}
-            extra={<MeasuredColours colours={item.pattern_colors} />}
-            extraWords={item.pattern_colors?.length ? `Colours measured from the photo: ${measuredColours(item.pattern_colors)}` : undefined}>
-            {(done) => <ChipGroup field="pattern" options={vocab.pattern} value={item.pattern} disabled={locked}
-              beside={<MeasuredColours colours={item.pattern_colors} />}
-              onChange={(v) => { done(); void save({ pattern: v }); }} />}
-          </DetailRow>
-          {(['formality', 'season', 'location'] as const).map((f) => (
-            <DetailRow key={f} field={f} value={label(f, item[f])} disabled={locked}>
-              {(done) => <ChipGroup field={f} options={vocab[f]} value={item[f]} disabled={locked}
-                onChange={(v) => { done(); void save({ [f]: v }); }} />}
-            </DetailRow>
-          ))}
-          {groups.map((g) => (
-            <DetailRow key={g} field={g} value={label(g, item.silhouette?.[g])} disabled={locked}>
-              {(done) => <ChipGroup field={g} options={vocab.silhouette[g] ?? []} value={item.silhouette?.[g]} disabled={locked}
-                onChange={(v) => { done(); void save({ silhouette: { [g]: v } }); }} />}
-            </DetailRow>
-          ))}
-          <DetailRow field="rating" value={[item.rating ? ratingLabel(item.rating) : '', item.rating_reason].filter(Boolean).join(' · ')} disabled={locked}>
-            {() => (
-              <>
-                <ChipGroup field="rating" options={vocab.rating} value={item.rating} disabled={locked} labelOf={ratingLabel}
-                  onChange={(v) => save(v ? { rating: v } : { rating: null, rating_reason: null })} />
-                {item.rating && (
-                  <TextField label="Why? (optional)" value={item.rating_reason} disabled={locked} placeholder="e.g. great fit, itchy collar"
-                    onSave={(v) => save({ rating_reason: v })} />
-                )}
-              </>
-            )}
-          </DetailRow>
-        </ul>
-        </Editing.Provider>
+      <Section id={`about-${item.id}`} title="About it" className="detail-about">
+        <ChipGroup field="rating" options={vocab.rating} value={item.rating} disabled={locked} labelOf={ratingLabel}
+          onChange={(v) => save({ rating: v })} />
+        <NotesBox item={item} disabled={locked} onSave={(patch) => save(patch)} />
       </Section>
 
+      <details className="more detail-fold" data-testid="details-fold">
+        <summary>Details</summary>
+        <Editing.Provider value={{ editing, setEditing }}>
+          <ul className="detail-rows">
+            <KindRow item={item} groups={vocab.kind_groups} disabled={locked} onSaved={fixed} onError={failed} />
+            <DetailRow field="color" value={shadeLabel(label('color', item.color), item.shade)} swatch={item.color ? (item.color_hex ?? swatchOf(item.color)) : undefined} disabled={locked}>
+              {(done) => <ChipGroup field="color" options={vocab.color} value={item.color} disabled={locked} swatches
+                onChange={(v) => { done(); void save({ color: v, color_hex: v ? (SWATCH[v]?.startsWith('#') ? SWATCH[v] : null) : null }); }} />}
+            </DetailRow>
+            <DetailRow field="pattern" value={label('pattern', item.pattern)} disabled={locked}
+              extra={<MeasuredColours colours={item.pattern_colors} />}
+              extraWords={item.pattern_colors?.length ? `Colours measured from the photo: ${measuredColours(item.pattern_colors)}` : undefined}>
+              {(done) => <ChipGroup field="pattern" options={vocab.pattern} value={item.pattern} disabled={locked}
+                beside={<MeasuredColours colours={item.pattern_colors} />}
+                onChange={(v) => { done(); void save({ pattern: v }); }} />}
+            </DetailRow>
+            {(['location', 'formality', 'season'] as const).map((f) => (
+              <DetailRow key={f} field={f} value={label(f, item[f])} disabled={locked}>
+                {(done) => <ChipGroup field={f} options={vocab[f]} value={item[f]} disabled={locked}
+                  onChange={(v) => { done(); void save({ [f]: v }); }} />}
+              </DetailRow>
+            ))}
+          </ul>
+        </Editing.Provider>
+      </details>
+
       <details className="more">
-        <summary>More details</summary>
+        <summary>Shopping facts</summary>
         <div className="more-body">
           <TextField label="Brand" value={item.brand} disabled={locked} onSave={(v) => save({ brand: v })} />
           <TextField label="Size" value={item.size} disabled={locked} onSave={(v) => save({ size: v })} />
           <TextField label="Material" value={item.material} disabled={locked} placeholder="e.g. cotton, wool blend" onSave={(v) => save({ material: v })} />
-          <TextField label="Fit notes" value={item.fit_notes} disabled={locked} placeholder="e.g. runs small in the shoulders" onSave={(v) => save({ fit_notes: v })} />
-          <ChipGroup field="condition" options={vocab.condition} value={item.condition} disabled={locked} onChange={(v) => save({ condition: v })} />
           <PriceField cents={item.price_cents} disabled={locked} onSave={(c) => save({ price_cents: c })} toastError={(m) => toast(m, 'error')} />
           <TextField label="Date acquired" type="date" value={item.acquired_on} disabled={locked} onSave={(v) => save({ acquired_on: v })} />
-          <TextField label="How I wear it" multiline value={item.wear_notes} disabled={locked}
-            placeholder="e.g. only with the navy suit; runs warm; for dinners out"
-            hint="Claude reads this when it chooses your outfits." onSave={(v) => save({ wear_notes: v })} />
-          <TextField label="Notes" multiline value={item.notes} disabled={locked} onSave={(v) => save({ notes: v })} />
+          <ChipGroup field="condition" options={vocab.condition} value={item.condition} disabled={locked} onChange={(v) => save({ condition: v })} />
         </div>
       </details>
 
-      {(lines.length > 0 || seen.length > 0) && (
-        <details className="more">
-          <summary>What Claude saw</summary>
-          <div className="tag-body">
-            {lines.length > 0 && (
-              <dl className="tag-details">
-                {lines.map((l) => (
-                  <div key={l.title}><dt>{l.title}</dt><dd>{l.value}</dd></div>
-                ))}
-              </dl>
-            )}
-            {seen.length > 0 && (
-              <>
-                <h3 className="tag-seen-title">Seen but not drawn yet</h3>
-                <ul className="tag-seen">{seen.map((f) => <li key={f}>{f}</li>)}</ul>
-              </>
-            )}
-            {describedBy(item.tag_route, item.tagged_at) && <p className="muted">{describedBy(item.tag_route, item.tagged_at)}</p>}
-          </div>
-        </details>
-      )}
-
       <ItemHistory item={item} disabled={locked} onSaved={fixed} onError={failed} />
 
-      {canRetag && (
-        <div className="row tag-again">
-          <button className="btn" disabled={locked} onClick={retag}>Describe it again</button>
+      <details className="more">
+        <summary>{lastFoldTitle(item.status === 'archived', canRetag)}</summary>
+        <div className="tag-body">
+          {canRetag && (
+            <div className="row tag-again">
+              <button className="btn" disabled={locked} onClick={retag}>Describe it again</button>
+            </div>
+          )}
+          <Actions item={item} disabled={locked} onArchive={async (archived) => {
+            await save({ status: archived ? 'archived' : 'active' }, archived ? 'Archived' : 'Back in your closet');
+          }} onDelete={async () => {
+            try {
+              await api.remove(id);
+              dropItem(qc, id);
+              void touch(qc, 'removeItem', ['items', 'item']);
+              toast('Deleted');
+              navigate(backTo, { replace: true });   // Back must not return to the page of an item that is gone
+            } catch (e) {
+              toast((e as Error).message, 'error');
+            }
+          }} />
         </div>
-      )}
-
-      <Actions item={item} disabled={locked} onArchive={async (archived) => {
-        await save({ status: archived ? 'archived' : 'active' }, archived ? 'Archived' : 'Back in your closet');
-      }} onDelete={async () => {
-        try {
-          await api.remove(id);
-          dropItem(qc, id);
-          void touch(qc, 'removeItem', ['items', 'item']);
-          toast('Deleted');
-          navigate(backTo, { replace: true });   // Back must not return to the page of an item that is gone
-        } catch (e) {
-          toast((e as Error).message, 'error');
-        }
-      }} />
+      </details>
     </article>
   );
 }
@@ -552,7 +496,7 @@ function DetailTop({ inPanel, backTo }: { inPanel?: boolean; backTo: string }) {
   );
 }
 
-function Picture({ item, progress, fallbackThumb, fix }: { item: Item; progress: Progress | null; fallbackThumb?: string | null; fix?: ReactNode }) {
+function Picture({ item, progress, fallbackThumb }: { item: Item; progress: Progress | null; fallbackThumb?: string | null }) {
   const photo = item.photos[0];
   const hasDrawing = !!(item.illustration_url || item.has_illustration);
   const placeholder = drawingPlaceholder(progress, item.category, hasDrawing);
@@ -581,11 +525,14 @@ function Picture({ item, progress, fallbackThumb, fix }: { item: Item; progress:
   else pic = <div className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></div>;
 
   return (
-    <div className={`detail-picture-wrap${missing.length ? ' has-notes' : ''}`}>
+    <div className="detail-picture-wrap">
       <div className="detail-picture-main">
-        <div className={`detail-picture view-${view ?? 'none'}`}>
-          {pic}
-          {busy(progress) && <ProgressStrip progress={progress} />}
+        <div className="detail-picture-frame">
+          <div className={`detail-picture view-${view ?? 'none'}`}>
+            {pic}
+            {busy(progress) && <ProgressStrip progress={progress} />}
+          </div>
+          {missing.length > 0 && <NotDrawn missing={missing} />}
         </div>
         {view === 'drawing' && !placeholder && item.back_url && (
           <figure className="back-view">
@@ -593,35 +540,33 @@ function Picture({ item, progress, fallbackThumb, fix }: { item: Item; progress:
             <figcaption>From the back</figcaption>
           </figure>
         )}
-        {(views.length > 1 || fix) && (
+        {views.length > 1 && (
           <div className="picture-controls">
-            {views.length > 1 && (
-              <SegmentedControl label="Picture" small value={view} options={views.map((v) => ({ value: v.key, label: v.label }))} onChange={setChosen} />
-            )}
-            {fix}
+            <SegmentedControl label="Picture" small value={view} options={views.map((v) => ({ value: v.key, label: v.label }))} onChange={setChosen} />
           </div>
         )}
       </div>
-      {missing.length > 0 && (
-        <section className="drawing-notes" aria-labelledby="drawing-notes-title">
-          <h3 id="drawing-notes-title">Not in the drawing</h3>
-          <ul>{missing.map((m) => <li key={m}>{m}</li>)}</ul>
-        </section>
-      )}
     </div>
   );
 }
 
-/** Fresh data may update an untouched field, but must not replace text still being typed. */
-function useFieldText(value: string) {
-  const [text, setText] = useState(value);
-  const previous = useRef(value);
-  useEffect(() => {
-    const before = previous.current;
-    previous.current = value;
-    setText((current) => current === before ? value : current);
-  }, [value]);
-  return [text, setText] as const;
+/** What the drawing leaves out or shows only roughly: a small mark on the drawing that opens the list. */
+function NotDrawn({ missing }: { missing: string[] }) {
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  return (
+    <>
+      <button ref={button} type="button" className="btn btn-ghost not-drawn-open" aria-expanded={open} aria-haspopup="dialog"
+        aria-label="Not in the drawing" title="Not in the drawing" onClick={() => setOpen(!open)}>
+        <InfoIcon />
+      </button>
+      {open && (
+        <Sheet title="Not in the drawing" popover keep={button} className="not-drawn-sheet" testId="not-drawn" onClose={() => setOpen(false)}>
+          <ul className="not-drawn-list">{missing.map((m) => <li key={m}>{m}</li>)}</ul>
+        </Sheet>
+      )}
+    </>
+  );
 }
 
 function NameField({ value, placeholder, disabled, onSave }: { value: string | null; placeholder: string; disabled: boolean; onSave(v: string | null): void }) {
@@ -754,24 +699,6 @@ function Actions({ item, disabled, onArchive, onDelete }: { item: Item; disabled
 }
 
 /** The colours measured from the pattern, as small swatches beside the pattern word. */
-/** How it sits on the outfit figure, in a short line under its name ("Relaxed fit · hip length · long sleeves"): each
- * word opens its detail in "Fix the details", where the owner can correct it and the figure is drawn again. */
-function WornLine({ item, disabled, onPick }: { item: Item; disabled: boolean; onPick(field: string): void }) {
-  const words = wornWords(item.as_worn);
-  if (!words.length) return null;
-  return (
-    <p className="detail-worn" data-testid="worn-line" aria-label="How it is worn">
-      {words.map((w, i) => (
-        <span key={w.part} className="detail-worn-item">
-          {i > 0 && <span className="detail-worn-sep" aria-hidden="true"> · </span>}
-          <button type="button" className="btn-link detail-worn-word" disabled={disabled}
-            title={`Fix the ${w.text.toLowerCase()} in the details`} onClick={() => onPick(w.field)}>{w.text}</button>
-        </span>
-      ))}
-    </p>
-  );
-}
-
 function MeasuredColours({ colours }: { colours?: PatternColour[] }) {
   if (!colours?.length) return null;
   const words = `Colours measured from the photo: ${measuredColours(colours)}`;

@@ -40,7 +40,10 @@ test.describe('an item whose description failed', () => {
 
     await detail.getByRole('button', { name: 'Try again' }).click();
     await expect(page.getByText('Asking Claude to describe it again')).toBeVisible();
-    await expect(detail.getByText("Suggested by Claude; change anything that's wrong.")).toBeVisible({ timeout: 30_000 });
+    const id = new URL(page.url()).pathname.split('/').at(-1)!;
+    await expect.poll(async () => (await (await page.request.get(`${backend.url}/api/items/${id}`)).json()).tag_state,
+      { timeout: 30_000 }).toBe('done');
+    await expect(detail.getByTestId('look-line')).toHaveText(/ · Navy/);
     await expect(detail.getByTestId('failure-details')).toHaveCount(0);
   });
 });

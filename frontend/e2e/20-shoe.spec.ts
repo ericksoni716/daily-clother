@@ -281,7 +281,7 @@ test.describe('a shoe drawn from its photo', () => {
     expect(await axeViolations(page)).toEqual([]);
     await page.screenshot({ path: test.info().outputPath('shoe-item-traced.png') });
 
-    await page.getByRole('button', { name: 'Fix the details' }).click();
+    await page.getByRole('button', { name: 'Something wrong? Change the details' }).click();
     const fix = page.getByTestId('shoe-fix');
     await expect(fix).toBeVisible();
     await expect(fix.getByLabel('Colour of the laces')).toBeAttached();

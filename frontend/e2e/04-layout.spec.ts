@@ -1,4 +1,4 @@
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, login, openFold, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
@@ -33,6 +33,7 @@ test.describe('phone', () => {
     await expect(page.locator('.detail-panel')).toHaveCount(0);
     await expect(page.getByTestId('tile')).toHaveCount(0);
     // a detail opens its choices in a sheet from the bottom of the screen
+    await openFold(page, 'Details');
     await page.getByRole('button', { name: /^What is it\?:/ }).click();
     const picker = page.getByRole('dialog', { name: 'What is it?' });
     await expect(picker.getByRole('searchbox')).toBeVisible();
@@ -141,6 +142,7 @@ test.describe('desktop', () => {
     await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
     await expect(page).toHaveURL(/\/item\//);
     const panel = page.locator('aside.detail-panel');
+    await openFold(panel, 'Details');
     await panel.getByRole('button', { name: /^What is it\?:/ }).click();
     await expect(panel.getByRole('dialog', { name: 'What is it?' }).getByRole('group', { name: 'Groups' })).toBeVisible();
 

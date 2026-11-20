@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, login, PASS, test, useProfile } from './fixtures';
+import { expect, login, openFold, PASS, test, useProfile } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 
@@ -21,7 +21,7 @@ test('in the demo closet: pick the number of buttons, see the drawing change, un
 
   await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
   const detail = page.locator('.detail-panel');
-  await detail.getByRole('button', { name: 'Fix the details' }).click();
+  await detail.getByRole('button', { name: 'Something wrong? Change the details' }).click();
   // the demo closet is never sent to Claude: the sheet opens on the details one by one, says why, and has no box
   const sheet = page.getByRole('dialog', { name: 'Fix the details' });
   await expect(sheet.getByText('The demo closet is never sent to Claude, so you change its details one by one here.')).toBeVisible();
@@ -49,7 +49,7 @@ test('in the demo closet: pick the number of buttons, see the drawing change, un
   await detail.getByRole('button', { name: `Undo: ${line}` }).click();
   await expect(detail.getByText(`You put the number of buttons back to ${now}`)).toBeVisible();
   await expect(detail.getByText(`${line} (undone)`)).toBeVisible();
-  await detail.getByRole('button', { name: 'Fix the details' }).click();
+  await detail.getByRole('button', { name: 'Something wrong? Change the details' }).click();
   await expect(drawing).toHaveAttribute('src', before);
   await expect(sheet.getByRole('button', { name: `Number of buttons: ${now}` })).toBeVisible();
 });
@@ -62,6 +62,7 @@ test('in the demo closet: say what it is with the kind picker, see the drawing c
   const drawing = detail.getByRole('img', { name: 'Grey hoodie, drawing' });
   await expect(drawing).toBeVisible();
   const before = (await drawing.getAttribute('src'))!;
+  await openFold(detail, 'Details');
   const row = detail.getByTestId('what-is-it');
   const was = (await row.getAttribute('aria-label'))!;
   await expect(row).toHaveAccessibleName(/^What is it\?: .*Kind not said yet$/);
@@ -79,6 +80,7 @@ test('in the demo closet: say what it is with the kind picker, see the drawing c
 
   await expect(picker).toHaveCount(0);
   await expect(row).toHaveAccessibleName('What is it?: Fleece pullover · Activewear. Set by you');
+  await expect(detail.getByTestId('look-line')).toHaveText(/^Fleece pullover · /);   // the line under the name follows
   await expect(detail.getByTestId('kind-pic')).toBeVisible();
   await expect(drawing).not.toHaveAttribute('src', before);
   await page.waitForLoadState('networkidle');
@@ -116,7 +118,7 @@ test('on a phone the details fit the screen', async ({ page }) => {
   await login(page);
   await useProfile(page, 'demo');
   await page.getByTestId('tile').filter({ hasText: 'Blue oxford shirt' }).click();
-  await page.getByRole('button', { name: 'Fix the details' }).click();
+  await page.getByRole('button', { name: 'Something wrong? Change the details' }).click();
   const sheet = page.getByRole('dialog', { name: 'Fix the details' });
   await sheet.getByRole('button', { name: /^Collar:/ }).click();
   const choices = sheet.getByRole('group', { name: 'Choices for the collar' });
@@ -132,13 +134,13 @@ test('offline: fixing the details and undoing are off, and say why', async ({ pa
   await page.reload();
   await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
   const panel = page.locator('.detail-panel');
-  await expect(panel.getByRole('button', { name: 'Fix the details' })).toBeEnabled();
+  await expect(panel.getByRole('button', { name: 'Something wrong? Change the details' })).toBeEnabled();
   await page.waitForLoadState('networkidle');
 
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByText('Offline: showing your saved closet')).toBeVisible();
-  const fix = panel.getByRole('button', { name: 'Fix the details' });
+  const fix = panel.getByRole('button', { name: 'Something wrong? Change the details' });
   await expect(fix).toBeDisabled();
   await expect(fix).toHaveAttribute('title', /needs Closet on your computer/i);
   await panel.locator('summary', { hasText: 'History' }).click();
@@ -146,7 +148,7 @@ test('offline: fixing the details and undoing are off, and say why', async ({ pa
   await context.setOffline(false);
 });
 
-test('in the demo closet: the fit line says how it sits, and a word opens its detail to fix', async ({ page }) => {
+test('in the demo closet: the line under the name says how it sits, and a word opens its detail to fix', async ({ page }) => {
   await login(page);
   await useProfile(page, 'demo');
   const listed = (await (await page.request.get('/api/items')).json()).items as { id: string; name: string }[];
@@ -156,23 +158,23 @@ test('in the demo closet: the fit line says how it sits, and a word opens its de
 
   await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
   const detail = page.locator('.detail-panel');
-  const line = detail.getByTestId('worn-line');
-  await expect(line).toHaveText(/^Regular fit · short sleeves$/);
-  await line.getByRole('button', { name: 'short sleeves' }).click();
+  const line = detail.getByTestId('look-line');
+  await expect(line).toHaveText(/ · Navy.* · Regular fit · Short sleeves$/);
+  await line.getByRole('button', { name: 'Short sleeves' }).click();
 
   // "Fix the details" opens on the details one by one, at the sleeve length, with its choices
   const sheet = page.getByRole('dialog', { name: 'Fix the details' });
-  await expect(detail.getByRole('button', { name: 'Fix the details' })).toHaveAttribute('aria-expanded', 'true');
+  await expect(detail.getByRole('button', { name: 'Something wrong? Change the details' })).toHaveAttribute('aria-expanded', 'true');
   const choices = sheet.getByRole('group', { name: 'Choices for the sleeve length' });
   await expect(choices).toBeVisible();
   await choices.getByRole('button', { name: 'long', exact: true }).click();
-  await expect(line).toHaveText(/^Regular fit · long sleeves$/);
+  await expect(line).toHaveText(/ · Navy.* · Regular fit · Long sleeves$/);
   await sheet.getByRole('button', { name: 'Done' }).click();
 
   // put it back for the specs after this one
   await detail.locator('summary', { hasText: 'History' }).click();
   await detail.getByRole('button', { name: /^Undo: You changed the sleeve length/ }).click();
-  await expect(line).toHaveText(/^Regular fit · short sleeves$/);
+  await expect(line).toHaveText(/ · Navy.* · Regular fit · Short sleeves$/);
 });
 
 // Its own backend: the owner's closet starts as a copy of the demo closet, and sentences are read by a stand-in for
@@ -217,14 +219,14 @@ test.describe('saying what is wrong, with a stand-in for Claude', () => {
     const { id, buttons } = await polo(page);
     const [sentence, want] = buttons.value === 2 ? ['it has three buttons', '3'] : ['it has two buttons', '2'];
     await page.goto(`${backend.url}/item/${id}`);
-    const fix = page.getByRole('button', { name: 'Fix the details' });
+    const fix = page.getByRole('button', { name: 'Something wrong? Tell Claude' });
     await fix.click();
     const sheet = page.getByRole('dialog', { name: 'Fix the details' });
     await expect(sheet.getByRole('img', { name: 'Navy polo, drawing as it is now' })).toBeVisible();
     const box = sheet.getByLabel("What's wrong with it?");
     await expect(box).toBeFocused();   // on a computer, ready to type
     await expect(box).toHaveAttribute('placeholder', 'e.g. it has three buttons');
-    await expect(fix).toHaveText('Fix the details');   // the button keeps its words while the sheet is open
+    await expect(fix).toHaveText('Something wrong? Tell Claude');   // the button keeps its words while the sheet is open
 
     await box.fill(sentence);
     await sheet.getByRole('button', { name: 'Ask Claude' }).click();
@@ -254,9 +256,13 @@ test.describe('saying what is wrong, with a stand-in for Claude', () => {
     await expect(name).toBeVisible();
     await page.waitForLoadState('networkidle');
     const where = async () => ({ y: (await name.boundingBox())!.y, scrollY: await page.evaluate(() => window.scrollY) });
+    // The button sits near the foot of a small phone's first screen, where the tab bar can cover it. Bring it to
+    // the middle first, as a thumb would, so the tap itself has no reason to scroll and any move is the sheet's.
+    const tell = page.getByRole('button', { name: 'Something wrong? Tell Claude' });
+    await tell.evaluate((el) => el.scrollIntoView({ block: 'center' }));
     const before = await where();
 
-    await page.getByRole('button', { name: 'Fix the details' }).click();
+    await tell.click();
     const box = page.getByRole('dialog', { name: 'Fix the details' }).getByLabel("What's wrong with it?");
     await expect(box).toBeInViewport({ ratio: 1 });
     await expect(box).not.toBeFocused();   // on a phone, focus would open the keyboard over everything

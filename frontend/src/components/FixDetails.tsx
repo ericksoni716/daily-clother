@@ -6,6 +6,7 @@ import {
   svgSource, type CorrectionAnswer, type DetailChoices, type DetailOptions, type FixView, type HistoryEntry,
 } from '../corrections';
 import { detailOptionsQuery } from '../queries';
+import { describedBy } from '../tagging';
 import { queryKeys } from '../queryKeys';
 import { useMediaQuery } from '../router';
 import type { Item } from '../types';
@@ -27,6 +28,8 @@ interface Props {
 type Focus = { field: string; at: number } | null;
 
 interface FixProps extends Props {
+  /** The button's words ("Something wrong? Tell Claude"); they stay the same while the sheet is open. */
+  label: string;
   /** Whether its sheet is open. */
   open: boolean;
   /** A detail to open at once (a word of the item's fit line was tapped); `at` tells a second tap on the same word
@@ -62,17 +65,17 @@ function useLatest<T>(value: T) {
 }
 
 /**
- * "Fix the details": a button beside the picture's switch that opens a sheet over the page (a popover under the
- * picture on a computer). The sheet opens on a box to say what's wrong; the details themselves, by group, are one tap
- * away in the same sheet. Nothing is put into the page.
+ * "Fix the details": one button under the item's summary line ("Something wrong? Tell Claude") that opens a sheet over
+ * the page (a popover under the button on a computer). The sheet opens on a box to say what's wrong; the details
+ * themselves, by group, are one tap away in the same sheet. Nothing is put into the page.
  */
-export function FixDetails({ item, open, focus = null, demo, disabled, onOpen, onClose, onSaved, onError }: FixProps) {
+export function FixDetails({ item, label, open, focus = null, demo, disabled, onOpen, onClose, onSaved, onError }: FixProps) {
   const button = useRef<HTMLButtonElement>(null);
   return (
     <span className="fix-anchor">
-      <button ref={button} type="button" className="btn btn-small fix-open" aria-expanded={open} aria-haspopup="dialog"
+      <button ref={button} type="button" className="btn btn-link fix-open" aria-expanded={open} aria-haspopup="dialog"
         disabled={disabled} title={disabled ? OFFLINE_TITLE : undefined} onClick={() => (open ? onClose() : onOpen())}>
-        Fix the details
+        {label}
       </button>
       {open && (
         <Sheet title="Fix the details" popover keep={button} className="fix-sheet" testId="fix-details" onClose={onClose}>
@@ -173,6 +176,7 @@ function FixBody({ item, focus, demo, disabled, onSaved, onError, onDone }: Prop
               Tap a detail to change it. What you set here stays when Claude describes the item again, and can be undone from the history.
             </p>
           </div>
+          {describedBy(item.tag_route, item.tagged_at) && <p className="muted fix-note" data-testid="described-by">{describedBy(item.tag_route, item.tagged_at)}</p>}
           {item.trace && <ShoeDrawingFix item={item} disabled={disabled} onSaved={onSaved} onError={onError} />}
           {loadError && <p className="notice notice-warn" role="alert">{loadError}</p>}
           {options?.message && <p className="notice">{options.message}</p>}

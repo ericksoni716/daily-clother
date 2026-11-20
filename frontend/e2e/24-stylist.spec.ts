@@ -23,7 +23,15 @@ async function aDay(page: Page) {
   await page.route('**/api/outfits/today', async (route: Route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
     const response = await route.fetch({ postData: { ...body, low_c: 3.2, high_c: 9.8, rain: true } });
-    const json = await response.json();
+    let json;
+    try {
+      json = await response.json();
+    } catch (error) {
+      // The page went to another address while this request was on its way (logging in shows Today, and the test
+      // then opens Today itself), so the browser dropped the answer and nothing waits for it. Any other error is real.
+      if (/disposed/.test(String(error))) return;
+      throw error;
+    }
     if (response.ok()) {
       Object.assign(json.context, { source: 'forecast', place: 'Brooklyn, New York, United States', rain_chance: 70, summary: 'rain', old: false, message: null });
     }

@@ -61,3 +61,6 @@ export const CloseIcon = (p: P) => (
 export const HistoryIcon = (p: P) => (
   <svg {...base} {...p}><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1M3.5 4.5v4h4M12 7.5V12l3 2" /></svg>
 );
+export const InfoIcon = (p: P) => (
+  <svg {...base} {...p}><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.2M12 7.8v.1" /></svg>
+);

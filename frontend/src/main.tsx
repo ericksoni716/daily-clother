@@ -12,6 +12,9 @@ applyTheme(loadTheme());
 listenForLeaving(window, document);
 startHistory();
 
+// Safari only shows a press (:active, styles.css "touch") when the page listens for touches.
+document.addEventListener('touchstart', () => undefined, { passive: true });
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary whole>

@@ -6,6 +6,9 @@ from PIL import Image
 
 from closet.patterns import common, flatten, masks, plaid, prints, stripes
 
+# Pure image measuring that takes seconds a test: left out of pull requests unless closet/patterns changes (docs/DEVELOPING.md).
+pytestmark = pytest.mark.slow
+
 # --- a made-up crumpled plaid ------------------------------------------------------------------------------
 
 P, Q = 40, 48

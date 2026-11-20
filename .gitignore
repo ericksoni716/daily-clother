@@ -15,3 +15,5 @@ private/
 .env*
 # screenshots the phone check leaves (frontend/scripts/phone-check.mjs)
 phone-shots/
+# sheets the developer tools draw (tools/make_*_sheet.py)
+tools/out/

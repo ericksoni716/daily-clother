@@ -1,7 +1,7 @@
 """The cloth's surface, as Claude describes it on the description call: one kind of pattern with only that kind's
 fields filled, for the app's own drawing (`closet.patterns.surface` turns it into what the drawing takes).
 
-The form is the "second form" of the garment loop test (`bench/experiments/garment_loop`, arm F), adopted by the
+The form is the "second form" of the garment loop test (`bench/experiments/garment_loop`, arm F, now in the git history), adopted by the
 owner on 18 November: stripes, plaid and checks as one repeat of bands; plain cloth with parts or bands across the
 body in other colours; plain; or "other" for a print, which the app pieces from the photo. Plain data only: the
 drawing imports it, so nothing here may import OpenCV.
@@ -225,13 +225,6 @@ def block_colours(raw) -> dict[str, str]:
         out["sleeves"] = out.pop("left_sleeve_as_seen")
         out.pop("right_sleeve_as_seen")
     return out
-
-
-def block_parts(raw) -> tuple[tuple[str, ...], str | None]:
-    """The parts cut in another colour and the first part's colour (softened), from a blocks surface; ((), None)
-    otherwise (`block_colours` gives each part its own)."""
-    found = block_colours(raw)
-    return tuple(found), next(iter(found.values()), None)
 
 
 TEXT_MAX = 30

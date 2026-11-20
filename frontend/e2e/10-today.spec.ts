@@ -1,9 +1,7 @@
-import { resolve } from 'node:path';
 import type { Page, Route } from '@playwright/test';
 import { expect, login, test, useProfile } from './fixtures';
 
 const BROOKLYN = 'Brooklyn, New York, United States';
-const SHOTS = resolve(import.meta.dirname, '..', '..', 'docs', 'screenshots');
 
 test.afterEach(async ({ page, context }) => {
   // every tab the test opened, not only `page`: a faked request still in flight fails once its tab closes, and the
@@ -420,17 +418,3 @@ test('the app opens on Today once the closet can dress the owner', async ({ page
   await expect(current(fresh).getByTestId('piece').first()).toBeVisible();
   await fresh.unrouteAll({ behavior: 'wait' });
 });
-
-for (const [label, viewport] of [['phone', { width: 390, height: 844 }], ['computer', { width: 1280, height: 800 }]] as const) {
-  test(`screenshot of Today on a ${label} (${viewport.width}×${viewport.height})`, async ({ page }, testInfo) => {
-    await page.setViewportSize(viewport);
-    await fakeWeather(page);
-    await openToday(page);
-    await expect(current(page).getByTestId('piece').first()).toBeVisible();
-    await expect.poll(() => current(page).locator('img').evaluateAll((imgs) => imgs.every((i) => (i as HTMLImageElement).complete))).toBe(true);
-    await page.evaluate(() => window.scrollTo(0, 0));
-    const path = resolve(SHOTS, `today-${label}.png`);
-    await page.screenshot({ path });
-    await testInfo.attach(`Today on a ${label}`, { path, contentType: 'image/png' });
-  });
-}

@@ -1,9 +1,7 @@
-import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { expect, login, PASS, test, useProfile } from './fixtures';
 import { startBackend, type Backend } from './server';
 
-const SHOTS = resolve(import.meta.dirname, '../../docs/screenshots');
 
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
@@ -76,7 +74,7 @@ test('in the demo closet: say what it is with the kind picker, see the drawing c
   await expect(found.getByRole('button', { name: 'Joggers' })).toHaveCount(0);
   await expect(found.locator('img').first()).toBeVisible();
   await page.waitForLoadState('networkidle');
-  await page.screenshot({ path: `${SHOTS}/kind-picker-computer.png` });
+  await page.screenshot({ path: test.info().outputPath(`kind-picker-computer.png`) });
   await found.getByRole('button', { name: 'Fleece pullover', exact: true }).click();
 
   await expect(picker).toHaveCount(0);
@@ -84,7 +82,7 @@ test('in the demo closet: say what it is with the kind picker, see the drawing c
   await expect(detail.getByTestId('kind-pic')).toBeVisible();
   await expect(drawing).not.toHaveAttribute('src', before);
   await page.waitForLoadState('networkidle');
-  await page.screenshot({ path: `${SHOTS}/kind-chosen-computer.png` });
+  await page.screenshot({ path: test.info().outputPath(`kind-chosen-computer.png`) });
 
   // the picker marks the kind it is now
   await row.click();

@@ -25,7 +25,7 @@ describing an item (`correcting.ask`, purpose `draw_shoe`), on the model of the 
 Every drawing is made safe (`drawn.sanitise`) before it is rendered, checked or kept. A check call that fails keeps
 the drawing made so far: it was paid for, and it is still a drawing of the shoe. The owner's notes are passed to a
 later drawing from scratch ("Draw again") and to its checks, so they are not lost. The brief below is the
-experiment's (`bench/experiments/shoe_drawn/BRIEF3.md`, `ARCH.md` and `CORRECT.md`) with the owner's decisions since,
+experiment's (`bench/experiments/shoe_drawn/BRIEF3.md`, `ARCH.md` and `CORRECT.md`, now in the git history) with the owner's decisions since,
 in one prompt for a model that can do nothing but look at the images.
 """
 from __future__ import annotations

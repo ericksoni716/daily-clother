@@ -1,4 +1,5 @@
-"""A plaid drawn from Claude's description of it, not measured from the photo. AN EXPERIMENT, not yet in the app.
+"""A plaid drawn from Claude's description of it, not measured from the photo. First an experiment; the app now
+weaves a described plaid or stripe with it through `surface` (the description's surface, adopted 18 November).
 
 Measuring a plaid from its photo (`measure`) fails on creased, hanging or dark cloth. Here Claude would describe
 the plaid in a few extra fields of the description it already gives for every item (no extra call, no extra

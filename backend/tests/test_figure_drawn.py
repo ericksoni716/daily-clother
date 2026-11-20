@@ -17,7 +17,7 @@ from closet.drawing import figure as fig
 from closet.drawing.figure import K_PX, Piece, figure, plan
 from closet.tagger.schema import Details, ItemTags, Silhouette
 
-BENCH = Path(__file__).resolve().parents[2] / "bench" / "experiments" / "shoe_drawn" / "EXAMPLES"
+BENCH = Path(__file__).resolve().parent / "data" / "shoe_drawn"   # the drawings the owner liked, from the bench experiment
 
 
 def answer(category: str, style: str = "", silhouette: dict | None = None, **details) -> dict:

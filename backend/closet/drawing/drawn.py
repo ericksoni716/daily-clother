@@ -12,7 +12,7 @@ all in front.
 - `sanitise` keeps only plain shapes with plain numbers and plain colours: whatever Claude writes, nothing that could
   run, link, load or hide can reach the page or the files. `side` makes both parts of a shoe safe.
 - `preview_svg` puts the pair on two legs in socks, as the experiment's preview did (`bench/experiments/shoe_drawn/
-  render3.js`, without its tilt), with the ink lines as thick as the outfit figure will draw them. The item page
+  render3.js` in the git history, without its tilt), with the ink lines as thick as the outfit figure will draw them. The item page
   shows it, and Claude looks at it to check its drawing (`check_png`, rendered by resvg).
 - `checks` measures renders of the drawing against the frame and says in plain words what is wrong: it stands on
   the ground, stays in the frame, is not too tall, the leg goes into it, and nothing in front of the leg hides it
@@ -33,7 +33,7 @@ from pathlib import Path
 
 INK = "#26221f"                    # the bold outline and the inner lines
 TODAY_LINE = 2.2 / (4 * 0.297)     # how much thicker the figure draws them: its shoe outline is 2.2 px, and the
-#                                    frame's bold outline (4 units) lands at 1.2 px on it (on_figure.py's TODAY_LINE)
+#                                    frame's bold outline (4 units) lands at 1.2 px on it (on_figure.py's TODAY_LINE, in the git history)
 THIN_INK = 4.5                     # ink strokes up to this wide are lines; thicker ones draw laces and bows, kept
 FRAME = (0.0, 200.0)
 GROUND = 240.0

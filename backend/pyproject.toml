@@ -7,7 +7,10 @@ requires-python = ">=3.12"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
-markers = ["windows: runs only on Windows (the CI's Windows job); skipped on other computers"]
+markers = [
+    "windows: runs only on Windows (the CI's Windows job); skipped on other computers",
+    "slow: a pure image test that takes seconds; a plain pytest runs it, CI runs it nightly and when its code changes (docs/DEVELOPING.md)",
+]
 
 [tool.ruff]
 line-length = 130

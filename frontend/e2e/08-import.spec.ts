@@ -1,11 +1,9 @@
-import { mkdirSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
 import type { BrowserContext, Page } from '@playwright/test';
 import { axeViolations, sideways } from './a11y';
 import { expect, login, PASS, PHOTOS, test, useProfile } from './fixtures';
 import { startBackend, type Backend } from './server';
 
-const SCREENSHOTS = resolve(import.meta.dirname, '../../docs/screenshots');
 const PHONE = { width: 390, height: 844 };
 
 type Garment = { colour: string; kind: 'tee' | 'sweater' | 'trousers' };
@@ -165,7 +163,6 @@ test.describe('the import list shows what each photo became', () => {
 
     test('each row shows its item and what Claude called it, opens it, and keeps it offline', async ({ page, context }) => {
       test.setTimeout(150_000);
-      mkdirSync(SCREENSHOTS, { recursive: true });
       await openCloset(page, backend.url);
 
       await page.goto(backend.url + '/add');
@@ -241,7 +238,7 @@ test.describe('the import list shows what each photo became', () => {
       expect(await sideways(page)).toEqual([]);
       expect(await axeViolations(page, '.queue')).toEqual([]);
       for (const row of await rows.all()) expect((await row.boundingBox())!.height).toBeLessThanOrEqual(70);
-      await page.screenshot({ path: resolve(SCREENSHOTS, 'add-import-phone.png') });
+      await page.screenshot({ path: test.info().outputPath('add-import-phone.png') });
     });
   });
 
@@ -272,7 +269,7 @@ test.describe('the import list shows what each photo became', () => {
       await expect(rows.filter({ hasText: 'tan-chinos.png' }).getByTestId('queue-title')).toHaveText('Claude is describing it…');
       for (const row of await rows.all()) expect((await row.boundingBox())!.height).toBeLessThanOrEqual(70);
       await page.locator('.queue').scrollIntoViewIfNeeded();
-      await page.screenshot({ path: resolve(SCREENSHOTS, 'add-import-computer.png') });
+      await page.screenshot({ path: test.info().outputPath('add-import-computer.png') });
     });
   });
 });

@@ -1,7 +1,5 @@
-import { resolve } from 'node:path';
 import { expect, login, test, useProfile } from './fixtures';
 
-const SHOTS = resolve(import.meta.dirname, '../../docs/screenshots');
 
 const PLACE = { name: 'Lisbon, Portugal', latitude: 38.7167, longitude: -9.1333, timezone: 'Europe/Lisbon' };
 
@@ -256,7 +254,7 @@ for (const viewport of [{ name: 'computer', width: 1280, height: 800 }, { name: 
       expect(height).toBeGreaterThan(200);
       expect(height).toBeLessThanOrEqual(311);
       await page.getByRole('heading', { name: 'Day by day' }).evaluate((h) => { h.scrollIntoView({ block: 'start' }); window.scrollBy(0, -90); });
-      await page.screenshot({ path: `${SHOTS}/trip-as-worn-${viewport.name}.png` });
+      await page.screenshot({ path: test.info().outputPath(`trip-as-worn-${viewport.name}.png`) });
 
       // remembered on this device, and the same choice as Today's
       await page.reload();

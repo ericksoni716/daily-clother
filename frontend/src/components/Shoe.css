@@ -32,10 +32,6 @@
 .shoe-tips { margin: 0; padding-left: 1.2rem; display: grid; gap: 4px; }
 .shoe-add .row { gap: 8px; flex-wrap: wrap; }
 .shoe-add .row > .btn { flex: 1 1 auto; justify-content: center; }
-.shoe-photo-none {
-  width: 100%; aspect-ratio: 1; display: grid; place-items: center; border-radius: var(--radius-sm);
-  border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-3);
-}
 
 /* A shoe's photos, each with the view Closet sorted it into, and the question about the outside (components/
    ShoePhotos.tsx); the same row of photos on Add's "A shoe", before they are sent. */

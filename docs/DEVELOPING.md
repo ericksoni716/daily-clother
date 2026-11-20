@@ -63,9 +63,11 @@ front), `drawn.py`, `turned.py`, `photocheck.py` (drawn by Claude), with worked 
 Claude's description of the cloth into a fill (`surface.py`, `described.py`).
 
 Outside the server: `backend/tests/` (one `test_<module>.py` per module; `conftest.py` has the
-stand-ins, `e2e_backend.py` starts the app for the browser tests), `bench/` (recognition and
-drawing experiments; `closet_bench` modules named like the tagger's and the drawing's are the
-same code, re-exported), `tools/` (developer scripts that draw sheets to look at, and
+stand-ins, `e2e_backend.py` starts the app for the browser tests), `bench/` (the shoe tracing
+bench, `closet_bench/trace_shoes.py`, whose `fills` and `illustrate` are the drawing's same
+modules, re-exported for it; and `hardcases/`, the demo closet's open-licence photos; the
+tests of the tagger and the drawing are in `backend/tests/`, `test_taxonomy.py` and
+`test_templates_and_tagger.py`), `tools/` (developer scripts that draw sheets to look at, and
 `whats_new.py`, which the release runs for its notes; never shipped), `packaging/` (the
 PyInstaller build and its smoke test).
 
@@ -136,7 +138,8 @@ Pick the lowest layer that can show the behaviour, and test it once.
    No fixed sleeps. A screenshot goes to `testInfo.outputPath()`, never into `docs/`.
 5. **A bug fix**: a test at the lowest layer that reproduces the bug, written first.
 6. **Anything over a second**: make the input smaller, or mark it `slow` and say so in the
-   pull request. An image test uses the smallest image that shows the case.
+   pull request. An image test uses the smallest image that shows the case. See *Slow
+   tests* below for which tests may be marked and where they run.
 7. **Migrations**: `test_db.py` already brings every version up to date. Add a test only
    when the migration changes data that is already there.
 8. **Design rules**: once, as a rule over every file, as `design.test.ts` does. Not per
@@ -147,6 +150,45 @@ Pick the lowest layer that can show the behaviour, and test it once.
 
 A new screen, sheet or sentence is also looked at: run the phone check (below) and open the
 pictures.
+
+### Slow tests
+
+Some backend tests carry the `slow` marker: pure image tests that take seconds each and do
+not depend on the computer they run on. Today that is all of `test_patterns.py` (measuring
+stripes, plaid and prints), the image tests in `test_trace.py` that take over a second
+(shoe tracing; a few cheap ones stay unmarked so every pull request still traces a shoe),
+`test_shoedrawing_turned.py` (shoes drawn by Claude), and the few tests in `test_turned.py`
+and `test_surface.py` that take seconds. A whole file is marked with
+`pytestmark = pytest.mark.slow` at the top; a single test with `@pytest.mark.slow`.
+
+A test gets the marker only when it is an image algorithm with no platform code in it, it
+still takes over a second after its input has been made as small as the case allows, and
+the code it covers has its path in the `slow` job of `.github/workflows/ci.yml`. A route
+or rule test that is slow because it builds the demo closet is made faster instead, not
+marked. The marker never skips anything by itself:
+
+```bash
+cd backend
+python -m pytest -q                       # everything, slow tests included: the check before a pull request
+python -m pytest -q -n auto -m "not slow" # the quick set, while you work
+python -m pytest -q -n auto -m slow       # only the slow ones
+```
+
+Where they run in CI:
+
+- **On every pull request and push to `main`**, the Linux and Windows backend jobs run
+  `-m "not slow"`.
+- **When a pull request touches the code they cover** (`closet/patterns/`,
+  `closet/drawing/trace.py`, `traced.py`, `drawn.py`, `turned.py`,
+  `closet/tagger/shoedrawing.py`, the made-up shoe photos in `tests/shoe_photos.py`, a file
+  with slow tests in it, the requirements files, `pyproject.toml` or `ci.yml`), the `slow`
+  job runs `-m slow` on Linux. The required check
+  waits for it; when nothing it covers changed, it passes without running them. On a push
+  to `main` it compares with the commit before only.
+- **On the night after `main` changed** (and when started by hand), the `nightly` workflow
+  runs every test on Linux and Windows; a night with no new merge runs nothing. A failure there reaches the owner as GitHub's usual email.
+
+If a slow test covers new code, add that code's path to the pattern in the `slow` job.
 
 ## The phone check
 

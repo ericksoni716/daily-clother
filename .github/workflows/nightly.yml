@@ -1,0 +1,106 @@
+name: nightly
+
+# Every backend test, the slow ones included, on Linux and on Windows, on the
+# night after main changed (nothing runs on a night with no new merge) and
+# whenever someone starts it by hand (Actions, nightly, Run workflow).
+#
+# Pull requests leave out the tests marked `slow` (pure image tests: pattern
+# measuring, shoe tracing, shoes drawn by Claude) unless they change the code
+# those tests cover; see the `slow` job in ci.yml. This run is what catches the
+# rest, by the next morning.
+#
+# GitHub only runs a scheduled workflow from the default branch, so this runs
+# on main and nowhere else, and only once this file is on main. When it fails,
+# GitHub sends its usual "run failed" email to the owner; nothing else is
+# needed to be told.
+#
+# No artifact uploads and no caches of any kind: the owner's Actions storage
+# quota is exhausted (as in ci.yml).
+on:
+  schedule:
+    - cron: "17 3 * * *"   # 03:17 UTC every day
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONUTF8: "1"
+  FORCE_COLOR: "1"
+
+jobs:
+  # A night with nothing new on main has nothing to find: the tests already ran on this commit. So the scheduled run
+  # goes on only when main's last commit (a pull request's merge) is less than 25 hours old. A run started by hand
+  # always goes on.
+  changed:
+    name: Did main change since last night?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.age.outputs.run }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: How old is main's last commit?
+        id: age
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          hours=$(( ( $(date +%s) - $(git log -1 --format=%ct) ) / 3600 ))
+          if [ "$EVENT" = workflow_dispatch ] || [ "$hours" -lt 25 ]; then run=true; else run=false; fi
+          echo "main's last commit is $hours hours old; run the tests: $run"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+  linux:
+    name: Every backend test (Linux)
+    needs: changed
+    if: needs.changed.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements-dev.txt
+
+      - name: Backend tests, slow ones included (pytest, one worker per core)
+        working-directory: backend
+        run: python -m pytest -q -n auto
+
+  # As the Windows job in ci.yml: PYTHONUTF8 off, as in the packaged program.
+  windows:
+    name: Every backend test (Windows)
+    needs: changed
+    if: needs.changed.outputs.run == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      PYTHONUTF8: "0"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements-dev.txt
+
+      - name: Backend tests, slow ones included (pytest, one worker per core)
+        working-directory: backend
+        run: python -m pytest -q -n auto

@@ -1,4 +1,3 @@
-import { resolve } from 'node:path';
 import type { Page, Route } from '@playwright/test';
 import { expect, login, test, useProfile } from './fixtures';
 
@@ -202,7 +201,7 @@ test('worn: the list fits a phone', async ({ page }, testInfo) => {
   expect(overflow).toBeLessThanOrEqual(0);
 
   await expect.poll(() => page.locator('.worn-list img').evaluateAll((imgs) => imgs.every((i) => (i as HTMLImageElement).complete))).toBe(true);
-  const path = resolve(import.meta.dirname, '..', '..', 'docs', 'screenshots', 'worn-phone.png');
+  const path = testInfo.outputPath('worn-phone.png');
   await page.screenshot({ path });
   await testInfo.attach('Worn on a phone', { path, contentType: 'image/png' });
 });

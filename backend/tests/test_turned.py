@@ -71,6 +71,7 @@ def test_the_turn_is_smooth_and_leaves_the_collar_and_a_shaft_upright():
     assert mx == pytest.approx(200.0 - x) and my == pytest.approx(y)   # the right shoe turns the other way
 
 
+@pytest.mark.slow
 def test_a_long_edge_follows_the_turn_and_a_shaft_stays_upright_above_the_hinge():
     """A boot's sides drawn as single lines from the top of its shaft down into its foot: each piece of a line is moved
     with the surface under it, so above the hinge the shaft does not lean (moving only a line's two ends leaned it
@@ -105,6 +106,7 @@ def test_a_boots_shaft_stands_upright_in_the_guide_turned_or_not():
             assert abs(l1 - l0) < 3 and abs(r1 - r0) < 3, (style, turn)
 
 
+@pytest.mark.slow
 def test_a_turned_boot_whose_shaft_leans_is_found_and_an_upright_one_is_not():
     boot = drawn.split_example("boot")
     sheet = {"silhouette": {"height": "ankle"}, "instep_y": 84.0, "opening_front_y": -32.0, "top_y": -46.0}
@@ -120,6 +122,7 @@ def test_a_turned_boot_whose_shaft_leans_is_found_and_an_upright_one_is_not():
                                                                      '</g>'}), oxford, SHEET) == []
 
 
+@pytest.mark.slow
 def test_a_turned_drawing_keeps_its_paint_and_is_safe():
     out = turned.turn_side(drawn.side(TRAINER), "low_sneaker", SHEET)
     assert out == drawn.side(out)   # already made safe
@@ -155,6 +158,7 @@ def _hatched(lines: int) -> drawn.Side:
                                               f'<path d="{d}" stroke="#26221f" stroke-width="1.6" fill="none"/>'})
 
 
+@pytest.mark.slow
 def test_a_turn_too_long_at_first_is_split_more_coarsely_and_one_still_too_long_is_refused():
     sheet = {"silhouette": {"height": "ankle"}, "instep_y": 85.0, "opening_front_y": -34.0}
     side = _hatched(150)

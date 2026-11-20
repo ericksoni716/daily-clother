@@ -149,7 +149,8 @@ def cutters(cutout: str = "auto", model: str = "isnet-general-use", models_dir: 
     out = []
     if cutout in ("auto", "model"):
         if cutout == "model" and not (models_dir / f"{model}.onnx").exists():
-            raise SystemExit(f"the cut-out model is not in {models_dir}: run the hard cases once, or use --cutout grabcut")
+            raise SystemExit(f"the cut-out model is not in {models_dir}: put {model}.onnx there "
+                             "(backend/closet/cutout.py has its address and checksum), or use --cutout grabcut")
         out.append((model, lambda img: model_mask(img, model, models_dir)))
     if cutout in ("auto", "grabcut"):
         out.append(("grabcut", grabcut_mask))

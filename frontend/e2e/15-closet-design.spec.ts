@@ -1,9 +1,7 @@
-import { resolve } from 'node:path';
 import { expect, login, test, useProfile } from './fixtures';
 
 /** Design 3: the Closet grid and the item page, on a phone and a computer, saved as pictures. */
 
-const SHOTS = resolve(import.meta.dirname, '../../docs/screenshots');
 
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
@@ -32,7 +30,7 @@ test.describe('phone', () => {
     expect(Math.abs(search.y + search.height / 2 - (filter.y + filter.height / 2))).toBeLessThan(4);
     expect(Math.abs(show.y + show.height / 2 - (filter.y + filter.height / 2))).toBeLessThan(4);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-    await page.screenshot({ path: `${SHOTS}/closet-phone.png` });
+    await page.screenshot({ path: test.info().outputPath(`closet-phone.png`) });
 
     // the toolbar stays at the top while the clothes scroll under it
     await page.mouse.wheel(0, 900);
@@ -43,7 +41,7 @@ test.describe('phone', () => {
     await expect(sheet).toBeVisible();
     // it rises from the bottom edge of the screen
     await expect.poll(async () => { const b = (await sheet.boundingBox())!; return Math.round(b.y + b.height); }).toBe(844);
-    await page.screenshot({ path: `${SHOTS}/closet-filter-phone.png` });
+    await page.screenshot({ path: test.info().outputPath(`closet-filter-phone.png`) });
     await sheet.getByRole('group', { name: 'Filter by category' }).getByRole('button', { name: 'Sweaters', exact: true }).click();
     await sheet.getByRole('button', { name: 'Done' }).click();
     await expect(sheet).toHaveCount(0);
@@ -55,14 +53,14 @@ test.describe('phone', () => {
     await first.click();
     await expect(page.getByRole('heading', { level: 2 }).getByRole('textbox', { name: 'Name' })).toHaveValue(name);
     await page.waitForLoadState('networkidle');
-    await page.screenshot({ path: `${SHOTS}/item-phone.png` });
+    await page.screenshot({ path: test.info().outputPath(`item-phone.png`) });
 
     // a field opens as a sheet; one tap there changes it
     await page.getByRole('button', { name: /^Season/ }).click();
     const season = page.getByRole('dialog', { name: 'Season' });
     await expect(season).toBeVisible();
     await expect.poll(async () => { const b = (await season.boundingBox())!; return Math.round(b.y + b.height); }).toBe(844);
-    await page.screenshot({ path: `${SHOTS}/item-field-phone.png` });
+    await page.screenshot({ path: test.info().outputPath(`item-field-phone.png`) });
     await page.keyboard.press('Escape');
     await expect(season).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
@@ -102,12 +100,12 @@ test.describe('computer', () => {
     await expect(page.getByTestId('tile').first()).toBeVisible();
     await expect(page.locator('.detail-panel')).toHaveCount(0);
     await page.waitForLoadState('networkidle');
-    await page.screenshot({ path: `${SHOTS}/closet-computer.png` });
+    await page.screenshot({ path: test.info().outputPath(`closet-computer.png`) });
 
     await page.getByRole('button', { name: /^Filter/ }).click();
     const popover = page.getByRole('dialog', { name: 'Filter' });
     await expect(popover).toBeVisible();
-    await page.screenshot({ path: `${SHOTS}/closet-filter-computer.png` });
+    await page.screenshot({ path: test.info().outputPath(`closet-filter-computer.png`) });
     await page.keyboard.press('Escape');
     await expect(popover).toHaveCount(0);
 
@@ -124,6 +122,6 @@ test.describe('computer', () => {
     await panel.getByRole('button', { name: /^Formality/ }).click();
     await expect(panel.getByRole('group', { name: 'Formality' })).toBeVisible();
     await page.waitForLoadState('networkidle');
-    await page.screenshot({ path: `${SHOTS}/item-computer.png` });
+    await page.screenshot({ path: test.info().outputPath(`item-computer.png`) });
   });
 });

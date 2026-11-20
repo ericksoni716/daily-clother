@@ -1,7 +1,7 @@
-"""Compose an illustration: shape (from attributes) + fill (from the photo).
+"""Compose an illustration: shape (from attributes) + fill (a colour, or a pattern measured from the photo).
 
-Four styles are offered for comparison. Three draw the parametric template;
-the fourth traces the real outline from the cutout instead.
+One style is drawn: "line" (style B, the owner's choice), a bold outline with thin inner lines. Phase 0 compared
+it with three others (flat, soft shaded and traced from the cutout), which are in the git history.
 """
 from __future__ import annotations
 
@@ -13,12 +13,10 @@ import re
 from dataclasses import dataclass, field
 
 import numpy as np
-from PIL import Image
 
 from . import fills
 from .templates import CX, CX_ROT, K_PX, H, Shape, W, _x_on, build
 
-STYLES = ("flat", "line", "soft", "traced")
 PLACE_AT = 0.35      # where along the centre line, from neck to hem, a placed pattern is lined up
 TILE_OVERLAP = 0.4         # units a pattern tile's picture reaches past its cell, so no seam shows between tiles
 TILE_OVERLAP_SHARE = 0.01  # but never more than this share of the tile: a fine repeat would lose its last part
@@ -726,11 +724,7 @@ def _svg(body: str, defs: str, card: bool = True) -> str:
             f"<defs>{defs}</defs>{bg}{body}</svg>")
 
 
-def render(spec: Spec, style: str, cutout: Image.Image | None = None, uid: str = "a") -> str:
-    if style == "traced":
-        if cutout is None:
-            raise ValueError("traced style needs the cutout")
-        return _render_traced(spec, cutout, uid)
+def render(spec: Spec, style: str, uid: str = "a") -> str:
     defs, body, _, _ = _draw(spec, style, uid)
     return _svg(body, defs)
 
@@ -755,7 +749,9 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     back in two pieces, (the inside of its back, its two fronts), so another garment can be drawn between.
     `inside` is markup (in the garment's own coordinates) drawn over the inside of its neck, under its collar:
     what the wearer shows there. `shape` is the garment's shape when it is not the one its template builds (the
-    figure fits it to the wearer). Only the outfit figure uses these two."""
+    figure fits it to the wearer). Only the outfit figure uses these two. `style` is "line", the one style drawn."""
+    if style != "line":
+        raise ValueError(f"no drawing style {style!r}: only 'line' is drawn")
     params = spec.params if not spec.weight or "weight" in spec.params else {**spec.params, "weight": spec.weight}
     if shape is None:
         shape = build(spec.template, params)
@@ -815,33 +811,18 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             return float(np.degrees(np.arctan2(vy, vx)))     # turns (1, 0) onto the leaf
         return float(np.degrees(np.arctan2(-vx, vy)))        # turns (0, 1) onto the leaf
 
-    if style == "flat":
-        o_stroke, o_w, l_stroke, l_w, l_op = "none", 0, ("#ffffff" if dark_item else "#000000"), 2.2, 0.22
-        if luminance(base) > 0.72:  # pale items need an edge to stand off the card
-            o_stroke, o_w = shade(base, -0.2), 1.6
-    elif style == "line":
-        # a bold edge and inner lines about a third of its weight, as in a fashion flat;
-        # on a dark cloth the inner lines are a lighter tone of it, since ink would vanish
-        o_stroke, o_w, l_stroke, l_w, l_op = INK, 3.8, (shade(base, 0.42) if dark_item else INK), 1.5, 0.95
-    else:  # soft
-        o_stroke, o_w, l_stroke, l_w, l_op = shade(base, 0.2 if dark_item else -0.28), 2.4, shade(base, 0.2 if dark_item else -0.28), 1.8, 0.7
-        defs += (f'<linearGradient id="g{uid}" x1="0" y1="0" x2="1" y2="1">'
-                 '<stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/>'
-                 '<stop offset="1" stop-color="#000" stop-opacity=".2"/></linearGradient>'
-                 f'<filter id="s{uid}" x="-10%" y="-10%" width="120%" height="130%">'
-                 '<feDropShadow dx="0" dy="6" stdDeviation="7" flood-color="#000" flood-opacity=".18"/></filter>')
+    # a bold edge and inner lines about a third of its weight, as in a fashion flat;
+    # on a dark cloth the inner lines are a lighter tone of it, since ink would vanish
+    o_stroke, o_w, l_stroke, l_w, l_op = INK, 3.8, (shade(base, 0.42) if dark_item else INK), 1.5, 0.95
 
     # A fine cloth is drawn with a finer line. A heavy one is only a little bolder: its
     # thickness is shown as depth (see DEPTH_PX), which reads as cloth where a bold line does not.
     ow_k, lw_k = {"lightweight": (0.8, 0.88), "heavyweight": (1.07, 1.03), "super_heavy": (1.14, 1.06)}.get(spec.weight or "", (1.0, 1.0))
     o_w, l_w = o_w * ow_k, l_w * lw_k
-    # On a patterned cloth, seams drawn tone-on-tone disappear. There they are
-    # drawn darker over a pale halo, and the garment gets an edge in every style.
+    # On a patterned cloth, seams drawn tone-on-tone disappear. There they are drawn in ink over a pale halo.
     if patterned:
-        l_stroke, l_op = (INK if style == "line" else shade(base, -0.42)), (0.95 if style == "line" else 0.85)
+        l_stroke, l_op = INK, 0.95
         l_w = max(l_w, 1.8)
-        if not o_w:
-            o_stroke, o_w = shade(base, -0.38), 2.2
     halo = (lambda d, extra=2.2: f'<path d="{d}" fill="none" stroke="#fff" stroke-width="{l_w + extra}" stroke-linecap="round" '
             f'stroke-linejoin="round" opacity=".32"/>') if patterned else (lambda d, extra=0: "")
 
@@ -928,7 +909,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             c = part_color(color)
             body = f'<path d="{d}" fill="{c}"/>' if c else (f'<path d="{d}" fill="{paint}"/>'
                                                            f'<path d="{d}" fill="{"#fff" if dark_item else "#000"}" opacity=".08"/>')
-            return body + f'<path d="{d}" fill="none" stroke="{l_stroke if style != "flat" else shade(c or base, -0.3)}" stroke-width="{l_w}" stroke-linejoin="round" opacity="{l_op}"/>'
+            return body + f'<path d="{d}" fill="none" stroke="{l_stroke}" stroke-width="{l_w}" stroke-linejoin="round" opacity="{l_op}"/>'
         if role == "mark":     # a small piece in its own colour with no edge (a watch's hands and hour marks)
             return f'<path d="{d}" fill="{part_color(color) or paint}"/>'
         if role == "shade":    # cloth in shadow (the fold of a pleat): a darker tone of the cloth, no edge
@@ -946,8 +927,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
                 return f'<path d="{d}" fill="url(#f{uid})"' + (' opacity=".5"' if color == "faint" else "") + "/>"
             return f'<path d="{d}" fill="#fff" opacity="{op:.2f}"/>'
         if role == "sole":
-            c = sole_c
-            return f'<path d="{d}" fill="{c}"/>' + (f'<path d="{d}" fill="#000" opacity=".06"/>' if style != "line" else "")
+            return f'<path d="{d}" fill="{sole_c}"/>'
         if role == "hole":
             # inside the neck of a top, what shows is mostly the collar band, whose cloth runs round the neck
             inner = paint if color != "block" else block_paint("collar")
@@ -956,7 +936,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
                 inner = turned("hn", 0 if (st is not None and st.orientation == "horizontal") else 90, ground=True)
             return f'<path d="{d}" fill="{inner}"/><path d="{d}" fill="{in_c}" opacity="{in_op}"/>'
         # a shirt cuff is the body's own cloth: no tint where a line already marks it
-        op = {"trim": 0.10, "band": 0.12, "cuff": 0.0 if style == "line" else 0.06}.get(role, 0.1)
+        op = {"trim": 0.10, "band": 0.12, "cuff": 0.0}.get(role, 0.1)
         col = "#fff" if dark_item else "#000"
         cuffed = sleeve_paint(d) if color == "block" and role in ("band", "cuff") else None
         if cuffed:   # the cuff of a sleeve cut in another colour, in that sleeve's colour
@@ -970,11 +950,10 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             out = f'<path d="{d}" fill="{turned(f"c{n}", shape.sleeves[n][1] + 90, ground=spec.fill.sleeves_from_trim)}"/>'
         else:
             out = f'<path d="{d}" fill="{paint}"/>' + (f'<path d="{d}" fill="{col}" opacity="{op}"/>' if op else "")
-        if style in ("line", "soft"):
-            out += f'<path d="{d}" fill="none" stroke="{l_stroke}" stroke-width="{l_w}" stroke-linejoin="round" opacity="{l_op}"/>'
+        out += f'<path d="{d}" fill="none" stroke="{l_stroke}" stroke-width="{l_w}" stroke-linejoin="round" opacity="{l_op}"/>'
         return out
 
-    g = [f'<g transform="translate(0 {dy:.1f})"' + (f' filter="url(#s{uid})"' if style == "soft" else "") + ">"]
+    g = [f'<g transform="translate(0 {dy:.1f})">']
     wt = {"lightweight": 0, "midweight": 1, "heavyweight": 2, "super_heavy": 3}.get(params.get("weight"), 1)
     depth = DEPTH_PX[wt] if spec.template == "top" else 0
     # always a darker tone of the cloth (a lighter one reads as gloss); the darker the cloth, the more it takes to show
@@ -985,9 +964,7 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     behind = "".join(overlay(part.d, part.role, part.color) for part in shape.behind)
     if not shape.fronts:
         g.append(behind)
-    # the garment body; a same-paint stroke rounds the corners in the flat style
-    round_stroke = f' stroke="{paint}" stroke-width="5" stroke-linejoin="round"' if style == "flat" and not patterned else ""
-    g.append(f'<path d="{shape.outline}" fill="{paint}"{round_stroke}/>')
+    g.append(f'<path d="{shape.outline}" fill="{paint}"/>')   # the garment body
     sw_ = spec.fill.swatch if spec.fill.kind == "swatch" else None
     if sw_ is not None and sw_.phase is not None and sw_.phase_right is not None and "neck" in shape.anchors:
         cxn = shape.anchors["neck"][0]
@@ -1067,8 +1044,6 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     g.append(_graphic_markup(spec.graphic, shape.bbox, clip))
     if spec.lettering and spec.graphic is None and spec.template == "top":   # a lifted print already shows its letters
         g.append(_lettering_markup(spec.lettering, shape.body_box, clip))
-    if style == "soft":
-        g.append(f'<path d="{shape.outline}" fill="url(#g{uid})"/>')
     g.append(f'<g clip-path="url(#{clip})">')  # seams never run past the edge of the garment
     for d in shape.lines:
         g.append(sunk(d))
@@ -1079,24 +1054,17 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
     g.append("</g>")
     def button(x, y, r):
         m = f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 1.3}" fill="#fff" opacity=".45"/>' if patterned else ""
-        if style == "line":
-            fill = spec.button_color or CARD
-            if shape.tailored:   # a jacket's buttons always stand out from its cloth
-                fill = legible(fill, base, BUTTON_CONTRAST)
-            ring = shade(fill, 0.45) if luminance(fill) < 0.08 and dark_item else INK
-            return m + f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{fill}" stroke="{ring}" stroke-width="1.1"/>'
-        if spec.button_color or shape.tailored:
-            fill = spec.button_color or l_stroke
-            if shape.tailored:
-                fill = legible(fill, base, BUTTON_CONTRAST)
-            return m + f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{fill}" stroke="{l_stroke}" stroke-width=".8"/>'
-        return m + f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{l_stroke}" opacity="{min(1, l_op + 0.25)}"/>'
+        fill = spec.button_color or CARD
+        if shape.tailored:   # a jacket's buttons always stand out from its cloth
+            fill = legible(fill, base, BUTTON_CONTRAST)
+        ring = shade(fill, 0.45) if luminance(fill) < 0.08 and dark_item else INK
+        return m + f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r}" fill="{fill}" stroke="{ring}" stroke-width="1.1"/>'
 
     def stud(x, y, r):   # a press stud: a metal ring round a cap
         cap = spec.button_color or "#ece6da"
         ring = "#8d8a84" if luminance(cap) > 0.35 else "#c9c5bd"
         m = f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 1.5}" fill="#fff" opacity=".45"/>' if patterned else ""
-        return m + (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 0.9:.1f}" fill="{ring}" stroke="{INK if style == "line" else l_stroke}" stroke-width=".9"/>'
+        return m + (f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r + 0.9:.1f}" fill="{ring}" stroke="{INK}" stroke-width=".9"/>'
                     f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r * 0.62:.1f}" fill="{cap}"/>'
                     f'<circle cx="{x - r * 0.18:.1f}" cy="{y - r * 0.18:.1f}" r="{r * 0.2:.1f}" fill="#fff" opacity=".7"/>')
 
@@ -1213,50 +1181,3 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
              poly([(cx - 48, box[1]), (cx + 48, box[1]), (cx + 48, sh_y + 12), (cx - 48, sh_y + 12)])]
     return defs, ((back, fronts) if layered else back + fronts), dy, shows
 
-
-# ------------------------------------------------------------------ traced
-
-def trace_outline(cutout: Image.Image, box: tuple[float, float, float, float], smooth: float = 0.004) -> tuple[str, tuple[float, float, float, float]]:
-    """Vectorise the cutout's real outline, scaled to fit `box` on the canvas."""
-    import cv2  # the bench's traced style only: the app's program has no OpenCV
-    a = (np.asarray(cutout.split()[-1]) > 128).astype(np.uint8)
-    k = max(3, (max(a.shape) // 150) | 1)
-    a = cv2.morphologyEx(a, cv2.MORPH_OPEN, np.ones((k, k), np.uint8))
-    a = cv2.GaussianBlur(a * 255, (0, 0), max(a.shape) / 300)
-    a = (a > 127).astype(np.uint8)
-    cs, _ = cv2.findContours(a, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-    c = max(cs, key=cv2.contourArea)
-    c = cv2.approxPolyDP(c, smooth * cv2.arcLength(c, True), True)[:, 0, :].astype(np.float32)
-    x, y, w, h = cv2.boundingRect(c.astype(np.int32))
-    bx0, by0, bx1, by1 = box
-    s = min((bx1 - bx0) / w, (by1 - by0) / h)
-    ox = bx0 + ((bx1 - bx0) - w * s) / 2 - x * s
-    oy = by0 + ((by1 - by0) - h * s) / 2 - y * s
-    pts = c * s + np.array([ox, oy], dtype=np.float32)
-    # Catmull-Rom through the simplified points, written as cubic beziers
-    n = len(pts)
-    d = [f"M {pts[0][0]:.1f},{pts[0][1]:.1f}"]
-    for i in range(n):
-        p0, p1, p2, p3 = pts[(i - 1) % n], pts[i], pts[(i + 1) % n], pts[(i + 2) % n]
-        c1 = p1 + (p2 - p0) / 8
-        c2 = p2 - (p3 - p1) / 8
-        d.append(f"C {c1[0]:.1f},{c1[1]:.1f} {c2[0]:.1f},{c2[1]:.1f} {p2[0]:.1f},{p2[1]:.1f}")
-    d.append("Z")
-    placed = (ox + x * s, oy + y * s, ox + (x + w) * s, oy + (y + h) * s)
-    # the cutout's own frame (including its padding) in canvas coordinates
-    frame = (ox, oy, ox + cutout.width * s, oy + cutout.height * s)
-    return " ".join(d), frame if frame else placed
-
-
-def _render_traced(spec: Spec, cutout: Image.Image, uid: str) -> str:
-    d, frame = trace_outline(cutout, (30, 30, W - 30, H - 30))
-    fx0, fy0, fx1, fy1 = frame
-    dummy = Shape(outline=d, bbox=frame)
-    defs, paint = _defs_for_fill(spec.fill, dummy, uid, fx1 - fx0, fy1 - fy0)
-    clip = f"c{uid}"
-    defs += f'<clipPath id="{clip}"><path d="{d}"/></clipPath>'
-    base = spec.fill.color
-    edge = shade(base, 0.2 if luminance(base) < 0.22 else -0.3)
-    body = (f'<path d="{d}" fill="{paint}"/>' + _graphic_markup(spec.graphic, frame, clip)
-            + f'<path d="{d}" fill="none" stroke="{edge}" stroke-width="2.6" stroke-linejoin="round"/>')
-    return _svg(body, defs)

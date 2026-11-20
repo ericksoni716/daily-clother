@@ -1,6 +1,6 @@
 """Draw a sheet of outfits as worn, from the demo closet's items (developer tool; not shipped).
 
-    python tools/make_figure_sheet.py [OUT.svg] [--png OUT.png]
+    python tools/make_figure_sheet.py [OUT.svg] [--png OUT.png]   (OUT.svg: tools/out/outfit-figures.svg)
 
 Each figure is drawn by `closet.drawing.figure` from the items' stored descriptions,
 the way `POST /api/outfits/figure` draws them. The outfits cover cold, mild and hot
@@ -25,7 +25,7 @@ from closet.drawing.figure import figure  # noqa: E402
 from closet.illustrations import describe  # noqa: E402
 
 DEMO = ROOT / "backend" / "closet" / "demo_data" / "items.json"
-OUT = ROOT / "docs" / "screenshots" / "outfit-figures.svg"
+OUT = ROOT / "tools" / "out" / "outfit-figures.svg"   # git-ignored; nothing new goes into docs/screenshots/
 
 # caption, then the demo items by name for each place
 OUTFITS = [

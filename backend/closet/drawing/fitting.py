@@ -184,15 +184,6 @@ def _unbilinear(q, p: Point) -> tuple[float, float]:
     return u, v
 
 
-def quad_map(src: Sleeve, dst: tuple[Point, Point, Point, Point]) -> Callable[[Point], Point]:
-    """The map taking the sleeve's four corners onto `dst` (shoulder, outer, inner, underarm), straight between."""
-    q = (src.shoulder, src.outer, src.inner, src.armpit)
-
-    def fn(p: Point) -> Point:
-        return _bilinear(dst, *_unbilinear(q, p))
-    return fn
-
-
 def sleeve_map(src: Sleeve, to: Callable[[float, float], Point]) -> Callable[[Point], Point]:
     """The map taking the sleeve's cloth to `to(u, v)`: `u` from its armhole (0) to its opening (1), `v` from its
     outer (0) to its inner edge (1), so a sleeve can be bent as the arm is."""
@@ -200,23 +191,6 @@ def sleeve_map(src: Sleeve, to: Callable[[float, float], Point]) -> Callable[[Po
 
     def fn(p: Point) -> Point:
         return to(*_unbilinear(q, p))
-    return fn
-
-
-def affine(src: tuple[Point, Point], dst: tuple[Point, Point], across: float) -> Callable[[Point], Point]:
-    """The map taking the segment `src` onto `dst` (turned and stretched along it), scaling across it by `across`."""
-    (a0, a1), (b0, b1) = src, dst
-    la = math.hypot(a1[0] - a0[0], a1[1] - a0[1]) or 1.0
-    lb = math.hypot(b1[0] - b0[0], b1[1] - b0[1])
-    g = ((a1[0] - a0[0]) / la, (a1[1] - a0[1]) / la)
-    h = ((b1[0] - b0[0]) / (lb or 1.0), (b1[1] - b0[1]) / (lb or 1.0))
-    s = lb / la
-
-    def fn(p: Point) -> Point:
-        u = (p[0] - a0[0]) * g[0] + (p[1] - a0[1]) * g[1]
-        v = -(p[0] - a0[0]) * g[1] + (p[1] - a0[1]) * g[0]
-        u, v = u * s, v * across
-        return (b0[0] + u * h[0] - v * h[1], b0[1] + u * h[1] + v * h[0])
     return fn
 
 

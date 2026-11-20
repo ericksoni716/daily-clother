@@ -1,10 +1,8 @@
-import { resolve } from 'node:path';
 import type { Page, Route } from '@playwright/test';
 import { axeViolations } from './a11y';
 import { expect, PASS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
-const SHOTS = resolve(import.meta.dirname, '..', '..', 'docs', 'screenshots');
 
 const current = (page: Page) => page.getByTestId('current-outfit');
 const waiting = (page: Page) => page.getByTestId('stylist-waiting');
@@ -79,7 +77,7 @@ test.describe('outfits chosen by Claude', () => {
     await expect(page.getByTestId('current-outfit')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: /Best for today/ })).toHaveCount(0);
     expect(await axeViolations(page)).toEqual([]);
-    await page.screenshot({ path: resolve(SHOTS, 'today-stylist-waiting.png') });
+    await page.screenshot({ path: test.info().outputPath('today-stylist-waiting.png') });
 
     // the rules' outfits meanwhile, below the card, as they always look (and nothing yet says who chose them)
     await waiting(page).getByRole('button', { name: "Show Closet's own picks meanwhile" }).click();
@@ -104,7 +102,7 @@ test.describe('outfits chosen by Claude', () => {
     // who chose it is below the button, with the reasons
     expect((await current(page).getByTestId('outfit-by').boundingBox())!.y).toBeGreaterThan(box.y + box.height);
     expect(await axeViolations(page)).toEqual([]);
-    await page.screenshot({ path: resolve(SHOTS, 'today-stylist.png') });
+    await page.screenshot({ path: test.info().outputPath('today-stylist.png') });
 
     // the second outfit is Claude's too, with its caution; after Claude's come the rules'
     await page.getByRole('button', { name: 'Outfit 2', exact: true }).click();

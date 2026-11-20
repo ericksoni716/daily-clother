@@ -1373,11 +1373,6 @@ COVERAGE["fabric_effects"].update({
 })
 
 
-def coverage_counts() -> dict[str, tuple[int, int, int]]:
-    """(drawn, approximate, not drawn) per axis."""
-    return {ax: tuple(sum(1 for s, _ in vals.values() if s == st) for st in (D, A_, N_)) for ax, vals in COVERAGE.items()}
-
-
 # Trousers and shorts whose kind changes the drawing, as `pants` template parameters laid over the ones the
 # details give (the details still decide the rest: a drawstring, pleats, a crease).
 BOTTOM_DRAWINGS: dict[str, dict] = {

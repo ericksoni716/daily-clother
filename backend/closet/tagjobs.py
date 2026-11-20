@@ -36,7 +36,7 @@ log = logging.getLogger("closet.tagjobs")
 KIND = "tag"
 MAX_ATTEMPTS = 3   # as for cutouts
 # the description call (and "Would this work?"): Sonnet since the garment loop test, which drew the cloth best from
-# its description (bench/experiments/garment_loop; DECISIONS, "The cloth drawn from its description")
+# its description (bench/experiments/garment_loop, now in the git history; DECISIONS, "The cloth drawn from its description")
 MODEL = CONFIG["roles"]["describing"]
 
 # photos (first: the front cutout) and the routes to try, in order -> the answer

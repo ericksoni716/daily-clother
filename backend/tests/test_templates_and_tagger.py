@@ -1,3 +1,5 @@
+"""The drawing templates and renderer (`closet.drawing`) and the tagger with its two routes to Claude
+(`closet.tagger`), moved here from the bench's tests unchanged."""
 import io
 import re
 import xml.dom.minidom
@@ -6,11 +8,11 @@ import numpy as np
 import pytest
 from PIL import Image, ImageDraw
 
-from closet_bench import fills, tagging
-from closet_bench.bench import compare, summarize
-from closet_bench.illustrate import STYLES, Fill, Spec, layer, render
-from closet_bench.schema import Details, ItemTags, Silhouette, drawing_extras, drawing_for, silhouette_params
-from closet_bench.templates import PANTS_DEFAULTS, SNEAKER_DEFAULTS, TOP_DEFAULTS, build
+from closet.drawing import fills
+from closet.drawing.illustrate import Fill, Spec, layer, render
+from closet.drawing.templates import PANTS_DEFAULTS, SNEAKER_DEFAULTS, TOP_DEFAULTS, build
+from closet.tagger import tagging
+from closet.tagger.schema import Details, ItemTags, Silhouette, drawing_extras, drawing_for, silhouette_params
 
 
 def make_tags(**kw):
@@ -53,10 +55,9 @@ def test_every_parameter_value_draws_valid_svg(template, options):
     for name, values in options.items():
         for v in values:
             spec = Spec(template, {name: v}, Fill("solid", "#336699"), texture="corduroy", trim_color="#ffffff", button_color="#111111")
-            for style in ("flat", "line", "soft"):
-                svg = render(spec, style)
-                xml.dom.minidom.parseString(svg)
-                assert "nan" not in svg.lower()
+            svg = render(spec, "line")
+            xml.dom.minidom.parseString(svg)
+            assert "nan" not in svg.lower()
 
 
 def test_defaults_cover_the_documented_vocabulary():
@@ -108,69 +109,7 @@ def test_sleeves_end_outside_the_body_and_inside_the_canvas(fit, sleeve):
     assert shape.sleeves and shape.bbox[2] <= 396
 
 
-def test_traced_style_follows_the_cutout():
-    svg = render(Spec("top", {}, Fill("solid", "#336699")), "traced", cutout=garment())
-    xml.dom.minidom.parseString(svg)
-    assert set(STYLES) == {"flat", "line", "soft", "traced"}
-
-
-# ---- fills
-
-def test_dominant_colour_of_plain_cloth():
-    (hex_, share), *_ = fills.dominant_colors(garment(color=(200, 60, 60)))
-    r, g, b = (int(hex_[i:i + 2], 16) for i in (1, 3, 5))
-    assert abs(r - 200) < 12 and abs(g - 60) < 12 and abs(b - 60) < 12 and share > 0.9
-
-
-def test_shadowed_white_is_one_colour_family_and_snaps_to_white():
-    im = garment(color=(235, 235, 235))
-    px = np.asarray(im).copy()
-    ramp = np.linspace(235, 175, 250).astype(np.uint8)[:, None, None]  # lower half falls into shade
-    px[250:, :, :3] = np.where(px[250:, :, 3:] > 0, ramp, 0)
-    (hex_, share), *_ = fills.dominant_colors(Image.fromarray(px, "RGBA"))
-    assert share > 0.9
-    snapped = fills.snap_to_named(hex_, "white")
-    assert all(int(snapped[i:i + 2], 16) >= 232 for i in (1, 3, 5))
-    assert fills.snap_to_named("#6a8fd0", "blue") == "#6a8fd0"
-
-
-def test_stripes_are_measured_from_the_photo():
-    im = garment()
-    px = np.asarray(im).copy()
-    for y in range(40, 460):
-        px[y, 40:360, :3] = (20, 30, 90) if ((y - 40) // 20) % 2 == 0 else (240, 240, 235)
-    st = fills.measure_stripes(Image.fromarray(px, "RGBA"), "horizontal", 2)
-    assert len(st.bands) == 2
-    for _, width in st.bands:
-        assert abs(width * 500 - 20) <= 3
-
-
-def test_stripe_measurement_does_not_depend_on_previous_random_state():
-    import cv2
-
-    colours = np.array([[197, 77, 130], [169, 72, 49], [139, 155, 193], [44, 141, 81], [58, 107, 206]],
-                       dtype=np.uint8)
-    pixels = np.full((200, 100, 4), 255, dtype=np.uint8)
-    pixels[:, :, :3] = colours[(np.arange(200) // 10) % len(colours), None, :]
-    cutout = Image.fromarray(pixels)
-    drawings = []
-    for seed in (0, 1, 2, 3):
-        cv2.setRNGSeed(seed)
-        stripes = fills.measure_stripes(cutout)
-        drawings.append(render(Spec("top", {}, Fill("stripes", "#888888", stripes=stripes)), "line"))
-    assert all(svg == drawings[0] for svg in drawings)
-
-
-def test_plaid_swatch_finds_the_repeat():
-    yy, xx = np.mgrid[0:500, 0:400]
-    plaid = np.stack([120 + 80 * np.sin(xx * 2 * np.pi / 40), 120 + 80 * np.sin(yy * 2 * np.pi / 50),
-                      np.full_like(xx, 90, dtype=float)], -1).astype(np.uint8)
-    alpha = np.zeros((500, 400), np.uint8)
-    alpha[40:460, 40:360] = 255
-    sw = fills.pick_swatch(Image.fromarray(np.dstack([plaid, alpha]), "RGBA"))
-    assert sw.method == "periodic"
-    assert sw.period[0] % 40 in (0, 1, 39) and sw.period[1] % 50 in (0, 1, 49)
-
+# ---- fills used by the app
 
 def test_graphic_is_lifted_with_transparent_background():
     im = garment(color=(240, 238, 230))
@@ -212,9 +151,9 @@ class FakeClient:
 
 
 def test_schema_rejects_values_outside_the_vocabulary():
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  (a validation error of any kind)
         make_tags(category="spaceship")
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017  (a validation error of any kind)
         make_tags(color_confidence=1.4)
 
 
@@ -239,22 +178,6 @@ def test_cutout_is_sent_as_an_opaque_jpeg():
     assert Image.open(io.BytesIO(base64.b64decode(block["source"]["data"]))).mode == "RGB"
 
 
-def test_compare_skips_blank_key_cells_and_scores_silhouette():
-    out = compare(make_tags(), dict(category="shirt", color="navy", pattern="", sleeve="long", neck="crew"))
-    assert set(out) == {"category", "color", "sleeve", "neck"}
-    assert out["category"]["correct"] and not out["color"]["correct"]
-    assert out["sleeve"]["correct"] and not out["neck"]["correct"]
-
-
-def test_summary_reports_accuracy_and_calibration():
-    rows = [{"color": dict(correct=True, confidence=0.95, got="blue", want="blue")}] * 8 + \
-           [{"color": dict(correct=False, confidence=0.95, got="blue", want="navy")}] * 2
-    s = summarize(rows)["color"]
-    assert s["n"] == 10 and s["accuracy"] == pytest.approx(0.8)
-    assert s["calibration_gap"] == pytest.approx(0.15)
-    assert s["bins"][-1]["n"] == 10 and s["bins"][0]["n"] == 0
-
-
 def test_tags_map_to_template_parameters():
     assert silhouette_params(make_tags())[0] == "top"
     t, p = silhouette_params(make_tags(category="jeans", silhouette=Silhouette.of(leg="tapered")))
@@ -268,7 +191,7 @@ def test_pants_and_shoe_details_reach_the_drawing():
     assert (p["waist"], p["cargo"], p["hem"], p["pleats"]) == ("drawstring", True, "rib", 1)
     jeans = silhouette_params(make_tags(category="jeans", silhouette=Silhouette.of(), details=Details.plain(features=["contrast_stitching"])))[1]
     assert jeans["stitch"] == "contrast" and "waist" not in jeans      # belt loops and a fly unless the tagger saw otherwise
-    shoe = lambda category, **d: silhouette_params(make_tags(category=category, silhouette=Silhouette.of(), details=Details.plain(**d)))[1]
+    shoe = lambda category, **d: silhouette_params(make_tags(category=category, silhouette=Silhouette.of(), details=Details.plain(**d)))[1]  # noqa: E731
     assert shoe("boots")["style"] == "boot" and shoe("dress_shoes")["style"] == "derby"
     assert shoe("boots", shoe_style="chelsea_boot")["style"] == "chelsea_boot"
     assert shoe("sneakers", shoe_style="runner", features=["side_stripe", "chunky_sole"]) == dict(height="low", style="runner", sole="chunky", stripe="side")
@@ -333,37 +256,6 @@ def test_weight_and_fibre_are_tagged_and_handed_to_the_drawing():
     assert drawing_for(cords)[2]["texture"] == "corduroy"
 
 
-def test_organic_swatch_wraps_without_a_seam():
-    rng = np.random.default_rng(1)
-    noise = cv2_blur(rng.integers(0, 255, (500, 400, 3)).astype(np.uint8))
-    alpha = np.zeros((500, 400), np.uint8)
-    alpha[40:460, 40:360] = 255
-    sw = fills.pick_swatch(Image.fromarray(np.dstack([noise, alpha]), "RGBA"), organic=True)
-    assert sw.method == "fade"
-    t = np.asarray(sw.image).astype(float)
-    seam = np.abs(t[:, 0] - t[:, -1]).mean()      # across the wrap
-    inside = np.abs(t[:, 1:] - t[:, :-1]).mean()  # between ordinary neighbours
-    assert seam < 2.5 * inside
-
-
-def cv2_blur(a):
-    import cv2
-    return cv2.GaussianBlur(a, (0, 0), 6)
-
-
-def test_recorded_answers_are_validated_like_live_ones(tmp_path):
-    from closet_bench.bench import recorded_tagger
-    (tmp_path / "m").mkdir()
-    (tmp_path / "m" / "a.json").write_text(make_tags().model_dump_json())
-    (tmp_path / "m" / "b.json").write_text('{"category": "spaceship"}')
-    tag = recorded_tagger(tmp_path)
-    assert tag("m", "a.jpg", []).tags.pattern == "plaid"
-    with pytest.raises(tagging.TaggingError, match="does not fit the schema"):
-        tag("m", "b.jpg", [])
-    with pytest.raises(tagging.TaggingError, match="no recorded answer"):
-        tag("m", "c.jpg", [])
-
-
 def test_the_schema_sent_to_the_api_stays_within_its_documented_limits():
     """No optional properties, no numeric or length constraints, every object closed, nothing recursive. The form
     sent is `tagging.ASKED`: the stored form (`ItemTags`) keeps the cloth's surface optional, so that answers from
@@ -371,6 +263,7 @@ def test_the_schema_sent_to_the_api_stays_within_its_documented_limits():
     import json
 
     from anthropic.lib._parse._transform import transform_schema
+
     from closet.tagger import tagging
     schema = transform_schema(tagging.ASKED)
     text = json.dumps(schema)
@@ -497,7 +390,7 @@ def fake_claude(tmp_path, monkeypatch):
 
 
 def test_plan_route_tags_through_claude_code_without_ever_seeing_the_api_key(fake_claude):
-    from closet_bench import claude_cli
+    from closet.tagger import claude_cli
     exe, calls = fake_claude
     r = claude_cli.tag_item_cli("claude-haiku-5-5", [garment(), garment()], exe=exe)
     assert r.route == "plan" and r.tags.category == "tee" and r.cost_usd == pytest.approx(0.0017)
@@ -513,7 +406,7 @@ def test_plan_route_tags_through_claude_code_without_ever_seeing_the_api_key(fak
 
 
 def test_when_the_plan_runs_out_the_api_key_takes_over_for_the_rest_of_the_run(fake_claude, monkeypatch):
-    from closet_bench.routes import Router
+    from closet.tagger.routes import Router
     exe, calls = fake_claude
     monkeypatch.setenv("FAKE_CLAUDE_MODE", "limit")
     router = Router("auto", client=FakeClient([Reply(make_tags()), Reply(make_tags())]), claude_exe=exe)
@@ -526,7 +419,8 @@ def test_when_the_plan_runs_out_the_api_key_takes_over_for_the_rest_of_the_run(f
 def test_when_api_credits_run_out_the_plan_takes_over(fake_claude):
     import anthropic
     import httpx2 as httpx
-    from closet_bench.routes import Router
+
+    from closet.tagger.routes import Router
     exe, _ = fake_claude
 
     class Broke:
@@ -541,8 +435,8 @@ def test_when_api_credits_run_out_the_plan_takes_over(fake_claude):
 
 
 def test_both_routes_dry_gives_one_clear_message(fake_claude, monkeypatch):
-    from closet_bench.routes import Router
-    from closet_bench.tagging import RouteUnavailable
+    from closet.tagger.routes import Router
+    from closet.tagger.tagging import RouteUnavailable
     exe, _ = fake_claude
     monkeypatch.setenv("FAKE_CLAUDE_MODE", "limit")
     monkeypatch.delenv("ANTHROPIC_API_KEY")
@@ -551,7 +445,7 @@ def test_both_routes_dry_gives_one_clear_message(fake_claude, monkeypatch):
 
 
 def test_a_plan_answer_with_no_structured_output_is_a_failure_not_a_fallback(fake_claude, monkeypatch):
-    from closet_bench.routes import Router
+    from closet.tagger.routes import Router
     exe, calls = fake_claude
     monkeypatch.setenv("FAKE_CLAUDE_MODE", "silent")
     router = Router("auto", client=FakeClient([Reply(make_tags())]), claude_exe=exe)
@@ -561,8 +455,8 @@ def test_a_plan_answer_with_no_structured_output_is_a_failure_not_a_fallback(fak
 
 
 def test_plan_route_without_claude_code_installed_is_reported_as_unavailable(monkeypatch):
-    from closet_bench import claude_cli
-    from closet_bench.tagging import RouteUnavailable
+    from closet.tagger import claude_cli
+    from closet.tagger.tagging import RouteUnavailable
     monkeypatch.setattr(claude_cli, "find_claude", lambda: None)
     with pytest.raises(RouteUnavailable, match="not installed"):
         claude_cli.tag_item_cli("claude-haiku-5-5", [garment()])

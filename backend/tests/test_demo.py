@@ -36,10 +36,13 @@ def test_the_demo_shows_what_the_app_can_do():
     chinos = next(i for i in items if i["name"] == "Stone pleated chinos")["answer"]["details"]
     assert chinos["trouser_front"] == "single_pleat" and chinos["hem_finish"] == "turn_up" and chinos["crease"]
     assert chinos["waistband"] == "side_adjusters" and chinos["trouser_pockets"] and chinos["back_details"]
-    # the drawn plaid and floral come from made-up pattern tiles, kept as the app keeps a measured pattern
+    # the drawn plaid and floral come from made-up pattern tiles, kept as the app keeps a measured pattern; the
+    # photographed plaids keep the pattern measured from their photo, as the app keeps it
     tiles = [i for i in items if (i.get("pattern_fill") or {}).get("kind") == "tile"]
-    assert {i["pattern"] for i in tiles} == {"plaid", "floral"} and all(i["pattern_fill"]["colors"] for i in tiles)
-    assert all(not i.get("photo") for i in tiles)
+    assert all(i["pattern_fill"]["colors"] for i in tiles)
+    assert {i["pattern"] for i in tiles if not i.get("photo")} == {"plaid", "floral"}
+    plaids = [i for i in items if i.get("photo") and i["pattern"] == "plaid"]
+    assert len(plaids) == 2 and all(i in tiles for i in plaids)
 
 
 def test_the_demo_overcoat_is_drawn_as_a_coat_not_a_blazer():

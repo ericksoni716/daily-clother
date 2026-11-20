@@ -453,6 +453,15 @@ def health(port):
         return False
 
 
+def quit_from_settings(cfg, info):
+    """Quit in Settings, as another copy asks for it: the real request, then wait until the server has gone.
+
+    `stop_running` also waits for the copy's process to end, but here the copy runs inside this test process, which
+    never ends; so it is not left to wait (timeout 0) and the test waits for what Quit does instead."""
+    instance.stop_running(cfg, info, timeout=0)
+    wait_for(lambda: instance.running_instance(cfg) is None, 10, "Closet to quit")
+
+
 @pytest.fixture
 def launcher(cfg, monkeypatch):
     """Runs the real launcher with a faked window, tray and browser; the server and its endpoints are the real ones."""
@@ -493,6 +502,7 @@ def launcher(cfg, monkeypatch):
         return code
 
     env.run = run
+    env.quit = lambda info: quit_from_settings(cfg, info)
     yield env
     for sig, handler in handlers.items():
         signal.signal(sig, handler)
@@ -536,11 +546,11 @@ def test_by_default_there_is_no_tray_icon_and_closing_the_window_keeps_closet_ru
         info = instance.running_info(cfg)
         seen["shown"] = instance.show_running(info)        # opening the program again brings it back
         wait_for(lambda: win.on_screen)
-        instance.stop_running(cfg, info, timeout=10)       # Quit in Settings
+        env.quit(info)                                     # Quit in Settings
     assert launcher.run(a, drive) == 0
     assert launcher.icons == []
     assert seen == {"closed": True, "shown": True}
-    assert not health(a.port)
+    assert not health(a.port) and not cfg.lock_path.exists()
 
 
 def test_started_at_login_no_window_opens(cfg, launcher):
@@ -605,9 +615,10 @@ def test_without_a_tray_or_a_window_the_running_copy_says_so(cfg, launcher):
     def drive(env):
         info = instance.running_info(cfg)
         assert instance.show_running(info) is False        # so a second launch opens the browser
-        instance.stop_running(cfg, info, timeout=10)
+        env.quit(info)
     assert launcher.run(a, drive) == 0
     assert launcher.toolkit.window is None and launcher.icons == []
+    assert not health(a.port) and not cfg.lock_path.exists()
 
 
 def test_when_the_window_cannot_open_the_browser_opens_as_before(cfg, launcher):

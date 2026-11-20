@@ -29,6 +29,9 @@ from closet.tagger.tagging import RouteUnavailable, TaggingError
 
 from .conftest import SHEET, black_laces
 
+# Whole shoe drawings that take seconds a test: left out of pull requests unless their code changes (docs/DEVELOPING.md).
+pytestmark = pytest.mark.slow
+
 DRESS = drawn.example("dress-shoe")
 LACES = drawn.sanitise(black_laces(DRESS))   # the dress shoe with black laces: another drawing that passes every check
 LIFTED = f'<g transform="translate(0 -20)">{DRESS}</g>'   # off the ground: a measured fault

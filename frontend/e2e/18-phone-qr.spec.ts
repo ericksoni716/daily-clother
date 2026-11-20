@@ -1,4 +1,3 @@
-import { resolve } from 'node:path';
 import jsQR from 'jsqr';
 import type { APIRequestContext, Page } from '@playwright/test';
 import { axeViolations } from './a11y';
@@ -6,7 +5,6 @@ import { expect, login, PASS, test } from './fixtures';
 
 /** Phone access: a QR code of the address that reaches Closet, only when there is one. Tailscale is faked. */
 
-const SHOTS = resolve(import.meta.dirname, '../../docs/screenshots');
 const ADDRESS = 'https://closet-pc.example-tailnet.ts.net:8443';
 
 // The phone reaches Closet by a name of its own (Tailscale's), not 127.0.0.1. Here a made-up name leads the browser
@@ -158,7 +156,7 @@ test.describe('pictures', () => {
       const link = (await section.getByRole('link', { name: ADDRESS }).boundingBox())!;
       expect(link.y + link.height).toBeLessThanOrEqual(bar && bar.height ? bar.y : viewport.height);
       expect((await section.locator('.phone-qr').boundingBox())!.y).toBeGreaterThanOrEqual(0);
-      await page.screenshot({ path: `${SHOTS}/phone-access-qr-${layout}.png` });
+      await page.screenshot({ path: test.info().outputPath(`phone-access-qr-${layout}.png`) });
     });
   }
 });

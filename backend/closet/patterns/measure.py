@@ -300,14 +300,3 @@ def measure(cut: Image.Image, pattern: str, words: list[str] | None = None, land
     if out is not None:
         out["version"] = VERSION
     return out
-
-
-def see_through_mask(mask: Image.Image) -> float:
-    """How much of a cutout's outline the background model left see-through (see `masks.see_through`)."""
-    from .masks import see_through
-    return see_through(mask)
-
-
-def combine_masks(a: Image.Image, b: Image.Image) -> Image.Image:
-    """Two background models' masks of the same photo, combined: kept where either keeps it."""
-    return Image.fromarray(cv2.max(np.asarray(a), np.asarray(b)), "L")

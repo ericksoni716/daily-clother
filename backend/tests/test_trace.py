@@ -40,12 +40,14 @@ def test_a_plain_side_view_passes():
     assert r.oriented.flipped is False
 
 
+@pytest.mark.slow
 def test_the_toe_may_point_either_way():
     r = read(S.draw(S.Shoe(), noise=3, toe="right")[0])
     assert r.gate.ok, reasons(r)
     assert r.oriented.flipped is True
 
 
+@pytest.mark.slow
 def test_a_shoe_in_a_white_padded_square_does_not_touch_the_edge():
     # a product photo: the shoe well inside a square of plain white, cut out by the model up to its own edge
     img, truth = S.draw(S.Shoe(), size=(1000, 1000), ground=(255, 255, 255), gradient=False, at=(0.02, 0.62),
@@ -55,6 +57,7 @@ def test_a_shoe_in_a_white_padded_square_does_not_touch_the_edge():
     assert r.gate.ok, reasons(r)
 
 
+@pytest.mark.slow
 def test_a_shoe_cut_off_by_the_frame_is_turned_down():
     img, truth = S.draw(S.Shoe())
     img, truth = img.crop((300, 0, 1000, 560)), truth[:, 300:]
@@ -64,6 +67,7 @@ def test_a_shoe_cut_off_by_the_frame_is_turned_down():
         assert "runs off the edge of the photo" in reasons(r)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("shoe", [
     S.Shoe(toe_spring_cm=2.4, rocker_cm=0.5, heel_bevel_cm=1.2),                # a trainer with toe spring
     S.Shoe(upper=(120, 84, 52), midsole=(60, 50, 44), outsole=None, top=list(frontshoe._BOOT), shaft_cm=17,
@@ -87,6 +91,7 @@ def test_a_sole_resting_on_neither_heel_nor_ball_is_not_side_on():
     assert T.sole_lift(truth) < T.GATE["sole_lift"][0] / 2
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("pair", [(0.12, 0.1), (0.02, 0.25), (-0.10, 0.12)], ids=["behind", "in-depth", "heel-back"])
 def test_a_pair_overlapping_is_only_advice_from_the_outline(pair):
     # the outline's shape does not tell a pair from one shoe on real photos, so it advises and turns nothing down
@@ -101,6 +106,7 @@ def test_the_pair_signals_never_turn_a_photo_down():
     assert not set(T.ADVICE) & set(T.GATE)
 
 
+@pytest.mark.slow
 def test_two_shoes_apart_are_caught():
     img, _ = S.draw(S.Shoe(), size=(1600, 560), at=(0.02, 0.8), px_per_cm=22)
     second, _ = S.draw(S.Shoe(), size=(1600, 560), at=(0.55, 0.8), px_per_cm=22)
@@ -120,6 +126,7 @@ def answer(**said):
     return tags.model_dump(mode="json")
 
 
+@pytest.mark.slow
 def test_the_tagger_saying_pair_turns_a_pair_down():
     img = S.draw(GLOSSY_BLACK, pair=(0.04, 0.12), noise=3)[0]
     told = T.told_from(answer(shoes_in_photo="pair", shoe_view="side"))
@@ -131,6 +138,7 @@ def test_the_tagger_saying_pair_turns_a_pair_down():
     assert traced.traced_shoe(r).gate["told"] == told
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("view,words", [("front", "from the front"), ("back", "from the back"), ("top", "from above"),
                                         ("angled", "at an angle")])
 def test_the_tagger_saying_the_view_is_not_the_side_turns_it_down(view, words):
@@ -139,6 +147,7 @@ def test_the_tagger_saying_the_view_is_not_the_side_turns_it_down(view, words):
     assert not r.gate.ok and r.gate.reasons == [f"not side-on: Claude sees the shoe {words}"]
 
 
+@pytest.mark.slow
 def test_one_shoe_from_the_side_passes_and_an_older_answer_says_nothing():
     img = S.draw(S.Shoe(), noise=3)[0]
     assert T.trace_photo(img, None, told=T.told_from(answer(shoes_in_photo="one", shoe_view="side"))).gate.ok
@@ -164,6 +173,7 @@ LUG_BOOT = S.Shoe(upper=(120, 80, 50), midsole=(40, 35, 30), outsole=(40, 35, 30
 GLOSSY_BLACK = S.Shoe(upper=(28, 28, 32), midsole=(30, 30, 34), outsole=(20, 20, 22), gloss=True, sole_cm=2.4, sole_toe_cm=1.8)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("shoe,size", [
     (S.Shoe(), (1000, 560)),
     (S.Shoe(toe_spring_cm=2.4, rocker_cm=0.5), (1000, 560)),
@@ -189,6 +199,7 @@ PULL_TAB_RUNNER = S.Shoe(upper=(40, 40, 45), midsole=(245, 245, 245), outsole=(3
                          sole_toe_cm=2.2, toe_spring_cm=1.8, heel_bevel_cm=1.0)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("shoe,size", [(WORK_BOOT, (1000, 760)), (HIGH_COLLAR_BOOT, (1000, 900)), (PULL_TAB_RUNNER, (1000, 560))],
                          ids=["deep-lug-work-boot", "high-collar-boot", "runner-heel-pull-tab"])
 def test_clean_single_shoes_like_the_ones_once_turned_down_pass(shoe, size):
@@ -199,12 +210,14 @@ def test_clean_single_shoes_like_the_ones_once_turned_down_pass(shoe, size):
         assert not any("shoe" in x and "two" in x for x in r.gate.reasons)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("pair", [(0.04, 0.12), (0.0, 0.12)], ids=["offset-along-and-in-depth", "straight-behind"])
 def test_a_glossy_pair_side_by_side_offset_in_depth_is_advised(pair):
     r = read(S.draw(GLOSSY_BLACK, pair=pair, noise=3)[0])
     assert any("second top edge" in x for x in r.gate.notes), r.gate.notes
 
 
+@pytest.mark.slow
 def test_a_white_shoe_on_a_light_grey_ground_passes():
     img, truth = S.draw(S.Shoe(upper=(248, 248, 246), midsole=(240, 240, 236), outsole=None), ground=(230, 230, 228),
                         shade_edge=10, noise=2)
@@ -214,6 +227,7 @@ def test_a_white_shoe_on_a_light_grey_ground_passes():
     assert iou > 0.98
 
 
+@pytest.mark.slow
 def test_a_shoe_that_does_not_stand_out_is_turned_down():
     img, _ = S.draw(S.Shoe(upper=(196, 190, 180), midsole=(200, 194, 184), outsole=None), noise=2)
     r = read(img)
@@ -221,6 +235,7 @@ def test_a_shoe_that_does_not_stand_out_is_turned_down():
     assert "hardly stands out" in reasons(r)
 
 
+@pytest.mark.slow
 def test_a_cut_out_that_leaks_falls_back_to_the_other_way():
     img, truth = S.draw(S.Shoe(upper=(248, 248, 246), midsole=(240, 240, 236), outsole=None), ground=(230, 230, 228),
                         shade_edge=10, noise=2)
@@ -238,6 +253,7 @@ def test_a_cut_out_that_leaks_falls_back_to_the_other_way():
     assert r.attempts[0].reasons and not r.attempts[1].reasons
 
 
+@pytest.mark.slow
 def test_when_every_cut_out_fails_the_one_with_fewest_reasons_is_kept():
     img, truth = S.draw(S.Shoe(), noise=3)
     r = read(img, [("model", lambda _i: None), ("grabcut", T.grabcut_mask)])
@@ -247,6 +263,7 @@ def test_when_every_cut_out_fails_the_one_with_fewest_reasons_is_kept():
     assert not r.gate.ok and r.oriented is None
 
 
+@pytest.mark.slow
 def test_refining_smooths_a_jagged_cut_out_edge():
     img, truth = S.draw(S.Shoe(upper=(248, 248, 246), midsole=(240, 240, 236), outsole=None), ground=(230, 230, 228),
                         shade_edge=10, noise=2)
@@ -264,6 +281,7 @@ def test_refining_smooths_a_jagged_cut_out_edge():
     assert iou(refined) > iou(jagged)
 
 
+@pytest.mark.slow
 def test_a_blurred_photo_is_turned_down():
     r = read(S.draw(S.Shoe(), blur=10, noise=2)[0])
     assert not r.gate.ok
@@ -308,6 +326,7 @@ def test_the_profile_is_recovered(rich):
         assert abs(rich.profile.top_above_sole(u) - v) < 0.7
 
 
+@pytest.mark.slow
 def test_toe_spring_is_measured():
     shoe = S.Shoe(toe_spring_cm=1.6)
     flat = traced.traced_shoe(read(S.draw(S.Shoe(), noise=1)[0]))
@@ -338,6 +357,7 @@ def test_the_parts_colours_are_recovered(rich):
     assert toe[:, 0].min() > 0.7 and heel[:, 0].max() < 0.3
 
 
+@pytest.mark.slow
 def test_parts_follow_the_traced_panels_not_straight_lines():
     # a red mudguard from u 0.55 round the toe crosses the vamp and toe cap zones: it stays one piece
     shoe = S.Shoe(upper=(30, 30, 30), mudguard=(200, 40, 40), heel_counter=(200, 40, 40), laces=S.WHITE)
@@ -382,6 +402,7 @@ def test_a_part_not_seen_is_inferred():
     assert p == "#123456"
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("shoe,count", [
     (S.Shoe(upper=(225, 225, 228), laces=(30, 30, 30), lace_style="cross", lace_count=7), 7),
     (S.Shoe(upper=(200, 40, 40), laces=(240, 240, 240), eyelets=S.SILVER, lace_style="cross", lace_count=7), 7),
@@ -417,6 +438,7 @@ def test_the_stripes_are_a_mark(rich):
     assert all(m.kind == "stripes" for m in rich.marks)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("noise", [2, 4])
 def test_thin_tapered_stripes_are_one_set_and_not_the_laces(noise):
     """A light court shoe with three thin (0.8 cm), tapered, soft-edged red stripes from near its top edge down
@@ -436,6 +458,7 @@ def test_thin_tapered_stripes_are_one_set_and_not_the_laces(noise):
     assert not any(lab == "laces" for r in t.regions if colour_close(r.color, spec["stripes"], 20) for lab in r.labels)
 
 
+@pytest.mark.slow
 def test_the_style_hint_follows_the_profile(rich):
     assert rich.style in frontshoe.TRAINERS
     dress = S.Shoe(upper=(70, 40, 30), midsole=(40, 30, 25), outsole=None, top=list(frontshoe._DRESS), sole_cm=1.2,
@@ -446,6 +469,7 @@ def test_the_style_hint_follows_the_profile(rich):
     assert traced.traced_shoe(read(S.draw(boot, noise=1)[0])).style in ("boot", "high_top", "chelsea_boot")
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("shoe", [
     RUNNER,
     S.Shoe(upper=(30, 30, 30), midsole=(240, 240, 240), outsole=(200, 30, 30), heel_tab_cm=2.5, sole_cm=4.0,
@@ -478,6 +502,7 @@ def test_a_newer_record_is_refused(rich):
         traced.TracedShoe.from_json(json.dumps(d))
 
 
+@pytest.mark.slow
 def test_a_turned_down_photo_keeps_its_reasons_and_less_confidence():
     r = read(S.draw(S.Shoe(), blur=10, noise=2)[0])
     t = traced.traced_shoe(r)

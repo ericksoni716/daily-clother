@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, HistoryIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
+import { itemName, Pic } from '../components/ItemPic';
 import { OutfitFigure } from '../components/OutfitFigure';
 import { BackLink, Button, buttonClass, Card, EmptyState, ItemThumb, Notice, PageHeader, SegmentedControl } from '../components/ui';
 import { WhereYouAre } from '../components/WhereYouAre';
@@ -1182,18 +1183,4 @@ function Piece({ id, place, item, isBase, open, onMore }: {
       </button>
     </div>
   );
-}
-
-function Pic({ item }: { item: ItemSummary | undefined }): ReactNode {
-  const alt = itemName(item);
-  if (!item) return <span className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></span>;
-  if (item.cutout_state === 'ready' && item.thumb_url) return <img className="pic-cutout" src={item.thumb_url} alt={alt} />;
-  if (item.illustration_url) return <img className="pic-illustration" src={item.illustration_url} alt={alt} />;
-  if (item.thumb_url) return <img className="pic-photo" src={item.thumb_url} alt={alt} />;
-  return <span className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></span>;
-}
-
-function itemName(item: ItemSummary | undefined): string {
-  if (!item) return 'An item';
-  return item.name || label('category', item.category) || 'An item';
 }

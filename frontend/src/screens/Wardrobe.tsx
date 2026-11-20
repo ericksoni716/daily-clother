@@ -25,7 +25,7 @@ import { LifeAbout, LifeBasis, savedLists, savedWhen, Thinking, WishCard, WorthB
 import { WouldWork } from './WouldWork';
 import './Missing.css';
 
-const OFFLINE_EMPTY = "You're offline, and nothing was saved on this device yet. Your wardrobe shows here once Closet on your computer can be reached.";
+const OFFLINE_EMPTY = "You're offline, and nothing was saved on this device yet. Your wardrobe shows here once Nines on your computer can be reached.";
 
 /** Wish edits that cannot change any wish's finds (a new wish's finds are read when its card shows). */
 const NOT_FINDS = ['finds'] as const;
@@ -242,7 +242,7 @@ export function WardrobeScreen({ itemId, check, wishId, wish, wide }: {
 function SavedEarlier({ at }: { at: string }) {
   return (
     <Notice as="p" tone="warning" className="missing-saved" role="status" icon={<WarnIcon />}>
-      <span>Saved earlier{savedWhen(at)}. You're offline, so nothing here can be changed until Closet on your computer can be reached.</span>
+      <span>Saved earlier{savedWhen(at)}. You're offline, so nothing here can be changed until Nines on your computer can be reached.</span>
     </Notice>
   );
 }

@@ -57,7 +57,7 @@ describe('the API key box', () => {
     const saved = { ...none, set: true, source: 'keychain' as const };
     expect(apiKeySavedLine({ ...saved, checked: true }, false)).toBe('Key saved. Anthropic accepted it. Turn on Allow the API key below to use it.');
     expect(apiKeySavedLine({ ...saved, checked: true }, true)).toBe('Key saved. Anthropic accepted it.');
-    expect(apiKeySavedLine({ ...saved, checked: false }, true)).toMatch(/^Key saved\. Closet couldn't reach Anthropic/);
+    expect(apiKeySavedLine({ ...saved, checked: false }, true)).toMatch(/^Key saved\. Nines couldn't reach Anthropic/);
   });
 });
 
@@ -72,10 +72,10 @@ describe('which route is tried first', () => {
   });
 
   it('names the first route in the order that is ready, the key only once it is allowed', () => {
-    expect(firstRouteLine(['plan', 'api'], [plan, api], true)).toBe('Closet will try your Claude plan first.');
-    expect(firstRouteLine(['api', 'plan'], [api, plan], true)).toBe('Closet will try your API key first.');
-    expect(firstRouteLine(['api', 'plan'], [api, plan], false)).toBe('Closet will try your Claude plan first.');
-    expect(firstRouteLine(['plan', 'api'], [{ ...plan, available: false }, api], true)).toBe('Closet will try your API key first.');
+    expect(firstRouteLine(['plan', 'api'], [plan, api], true)).toBe('Nines will try your Claude plan first.');
+    expect(firstRouteLine(['api', 'plan'], [api, plan], true)).toBe('Nines will try your API key first.');
+    expect(firstRouteLine(['api', 'plan'], [api, plan], false)).toBe('Nines will try your Claude plan first.');
+    expect(firstRouteLine(['plan', 'api'], [{ ...plan, available: false }, api], true)).toBe('Nines will try your API key first.');
     expect(firstRouteLine(['api'], [api], false)).toBe('');
     expect(firstRouteLine(['plan'], [{ ...plan, available: false }], true)).toBe('');
   });

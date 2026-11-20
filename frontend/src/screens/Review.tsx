@@ -91,7 +91,7 @@ export function ReviewScreen() {
   if (offline) {
     body = (
       <EmptyState big icon={<CloudOffIcon />} title="Reviewing is unavailable offline"
-        body="It needs Closet on your computer to be reachable. This page carries on by itself once it is." />
+        body="It needs Nines on your computer to be reachable. This page carries on by itself once it is." />
     );
   } else if (current) {
     body = <ReviewCard key={current.id} item={current} onDone={() => next(false)} onSkip={() => next(true)} />;

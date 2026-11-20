@@ -1,8 +1,12 @@
-# Closet
+# Nines
 
 A private, single-user wardrobe app. It runs as a small program on your own
 computer; you use it in its own window there and as a home-screen app on your
 iPhone. Your closet never leaves your computer.
+
+Nines was called Closet until November 2026. The program you download is still
+called Closet (`Closet.exe`, `Closet.app`) for now; it will be renamed in a later
+version.
 
 **Status: stop A (the first of the app's try-it stops; see `docs/BACKLOG.md`).**
 You can capture items with one photo each, get the background removed, browse
@@ -19,23 +23,23 @@ page. There is nothing else to install.
 
 **Windows:** double-click `Closet.exe`. The first time, Windows shows
 "Windows protected your PC": click **More info**, then **Run anyway**.
-Starting takes a few seconds; then Closet opens in a window of its own. Setting up a Windows PC to be the hub your phone reaches, step by
-step, is in "Setting up Closet on a Windows PC (the hub)" below.
+Starting takes a few seconds; then Nines opens in a window of its own. Setting up a Windows PC to be the hub your phone reaches, step by
+step, is in "Setting up Nines on a Windows PC (the hub)" below.
 
 **Mac (Apple Silicon):** unzip `Closet-mac-arm64.zip` and double-click
 **Closet**. The first time, macOS says it cannot verify the app: click **Done**,
 open **System Settings → Privacy & Security**, scroll down to the message about
-Closet, click **Open Anyway**, confirm with your password, then **Open**.
+Closet (the program is still called that), click **Open Anyway**, confirm with your password, then **Open**.
 Requires macOS 14 or later.
 
-Closet then opens in its own window, titled **Closet**:
+Nines then opens in its own window, titled **Nines**:
 
 1. Choose a passphrase (at least 8 characters). This is the only login.
 2. The background-removal model (about 170 MB) downloads once, with progress
    shown at the top of the closet. You can add photos
    straight away; they are processed when the download finishes.
 
-After you add a photo, Closet removes its background, then asks Claude to
+After you add a photo, Nines removes its background, then asks Claude to
 describe the item (see "Installing Claude Code" below). The name, category,
 colour, pattern, formality, season, shape and material fill in by themselves a
 little later; the item page says "Suggested by Claude" and you can change
@@ -49,7 +53,7 @@ one group or one kind.
 Once it is described the item gets its drawing: switch between **Drawing**,
 **Cutout** and **Photo** above the item. Beside the drawing, **Not in the
 drawing** lists what it can't show yet (for example a picture logo, or stripes drawn as
-plain colour). When Claude describes the item it also describes its cloth: plain, stripes, plaid or checks, plain with parts or bands in another colour (sleeves, a yoke, a collar or pocket, a band across the chest), or a print. Parts in another colour are drawn at once. For stripes, plaid and checks Closet then weaves the colours Claude named and sizes them from the photo; bands across the body are drawn where Claude said they are; a print is pieced from the cloth in the photo (it says **Measuring the plaid from the photo** meanwhile; it can take a minute or two). Items described before 18 November are measured from the photo the older way until they are described again: a plaid straightened and lined up with the buttons, stripes where they really are. A plaid photographed at an angle, or lying on a bed, is measured too: Closet straightens the checks from their own lines and leaves the bedding out of the cutout. A plaid photographed too dark (a navy shirt on white bedding comes out nearly black) is brought back to the colour the item is called. If it still can't measure the checks, the item says so and is drawn in its colour (it is never drawn as a guess); a photo of it laid flat on a plain surface, taken from straight above, usually works: press **Retake the photo** beside that note and take one. The item keeps its wears, rating and everything you set; Closet removes the new photo's background, Claude describes it again and the pattern is measured again. The same button is in the note when the background couldn't be removed. Change the pattern on the item and it is measured again, from your word rather than Claude's description of the cloth. The drawing follows your changes: pick another colour or sleeve
+plain colour). When Claude describes the item it also describes its cloth: plain, stripes, plaid or checks, plain with parts or bands in another colour (sleeves, a yoke, a collar or pocket, a band across the chest), or a print. Parts in another colour are drawn at once. For stripes, plaid and checks Nines then weaves the colours Claude named and sizes them from the photo; bands across the body are drawn where Claude said they are; a print is pieced from the cloth in the photo (it says **Measuring the plaid from the photo** meanwhile; it can take a minute or two). Items described before 18 November are measured from the photo the older way until they are described again: a plaid straightened and lined up with the buttons, stripes where they really are. A plaid photographed at an angle, or lying on a bed, is measured too: Nines straightens the checks from their own lines and leaves the bedding out of the cutout. A plaid photographed too dark (a navy shirt on white bedding comes out nearly black) is brought back to the colour the item is called. If it still can't measure the checks, the item says so and is drawn in its colour (it is never drawn as a guess); a photo of it laid flat on a plain surface, taken from straight above, usually works: press **Retake the photo** beside that note and take one. The item keeps its wears, rating and everything you set; Nines removes the new photo's background, Claude describes it again and the pattern is measured again. The same button is in the note when the background couldn't be removed. Change the pattern on the item and it is measured again, from your word rather than Claude's description of the cloth. The drawing follows your changes: pick another colour or sleeve
 length and it is drawn again. **Photos | Drawings** above the closet shows the
 whole closet either way; this device remembers your choice.
 **What Claude saw**, at the bottom of the item page, lists the details it
@@ -83,18 +87,18 @@ lower on the item page, lists every change to the description, newest first;
 **Undo** puts one back, as long as nothing changed the same thing since. In the
 demo closet you can pick and undo, but sentences are not sent to Claude.
 
-Closing Closet's window does not stop Closet: it keeps running in the
+Closing Nines' window does not stop Nines: it keeps running in the
 background, with no icon, so your phone can still reach it and the nightly
 backup still runs. Opening the program again (double-clicking it) brings the
 window back. To stop the program use **Quit** at the bottom of Settings (on a
 Mac, **Quit** in the Closet menu, ⌘Q, quits it too). If you would rather have an
-icon near the clock (in the menu bar on a Mac), start Closet with `--tray`. The window remembers your login
+icon near the clock (in the menu bar on a Mac), start Nines with `--tray`. The window remembers your login
 the way a browser does; links to shops and other sites open in your usual
-browser. If the window cannot open on your computer, Closet opens in your
+browser. If the window cannot open on your computer, Nines opens in your
 browser instead, as it used to; on Windows that happens if the Microsoft Edge
 WebView2 Runtime is missing (it comes with Windows 11 and current Windows 10).
 If the copy that is running is an older version (you downloaded an update but
-the old one was still open), Closet says so and asks whether to close the old
+the old one was still open), Nines says so and asks whether to close the old
 one and use the new one; your closet is the same either way. On Windows the
 window has **Yes** (use the new one) and **No** (keep the old one). If start at
 login was on, it now starts the new program.
@@ -131,17 +135,17 @@ line under the outfits says what about the day shaped the choice. Before
 offering them, Claude also looks at each outfit drawn on the figure, as you
 would in a mirror, and changes one that looks wrong. When you change the
 occasion or the mood, or ask again, this takes under a minute and Today
-shows that Claude is choosing; tap **Show Closet's own
-picks meanwhile** to see (and wear) Closet's own outfits while you wait. The
+shows that Claude is choosing; tap **Show Nines' own
+picks meanwhile** to see (and wear) Nines' own outfits while you wait. The
 outfits are then kept for the rest of the day. **Ask Claude again**, under the
 outfits, has Claude choose afresh. When Claude can't be reached, when the
 switch in **Settings → Your style** is off, and always in the demo closet,
-Closet's own rules choose, as before (outfits from them say **From Closet's
+Nines' own rules choose, as before (outfits from them say **From Nines'
 rules** when Claude couldn't choose). It uses your Claude plan, or your API key
 first when that is switched on in **Settings → Advanced settings**: about 8 cents each time (the choice
 and the look), counted in the monthly limit.
 
-**Ready before you look.** While Closet is running on your computer, it asks
+**Ready before you look.** While Nines is running on your computer, it asks
 Claude for the day's outfits by itself each morning (from five o'clock, or when
 the computer next wakes), for the occasion and mood you last used and the hours
 from when you usually first open Today. When you open Today, Claude's outfits
@@ -177,7 +181,7 @@ and rain only if it falls in them.
 **Somewhere else, or out all day?** Tap **Change** beside the weather and,
 under **Somewhere else, or out all day?**, type it in a sentence: "In Lisbon
 until Friday", or "At a match today, outside from noon to six". Claude reads
-that one sentence (nothing from your closet is sent with it) and Closet shows
+that one sentence (nothing from your closet is sent with it) and Nines shows
 what it took from it in a small line under the weather: until when, the hours
 you are outside, what for. While the note holds, Today uses that place's
 weather and those hours, and picks the occasion if the sentence made one clear
@@ -189,7 +193,7 @@ key when it is switched on in Settings, which is used first for this); the
 demo closet never asks Claude, so the note can only be written from your own
 closet.
 
-Closet remembers what you wore together. The morning after, Today asks **How
+Nines remembers what you wore together. The morning after, Today asks **How
 was yesterday's outfit?** above the outfits: tap **Loved it**, **Fine** or
 **Not again**, and if you like say why (**Too warm**, **Too cold**, **Too
 dressed up**, **Got compliments** and a few more); **Not now** puts the
@@ -202,8 +206,8 @@ few you wore, each rated with a tap, and asks about yesterday's first. **See all
 **Worn**, every outfit you wore, newest first: rate one, or tap its rating to change it; under **⋯** are
 **Wear this again** (Today starts from it, with what is clean) and **Remove**
 (the wears it recorded go too). **Record an outfit** is for a day you got
-dressed without Closet. Offline, the list shows what it last saw, and rating
-waits until Closet on your computer can be reached.
+dressed without Nines. Offline, the list shows what it last saw, and rating
+waits until Nines on your computer can be reached.
 
 **Wardrobe** looks at your closet and what you wear and suggests what to buy
 under **Worth buying**: the three most helpful first, then **See all** for the rest. Each suggestion says why, in sentences about your own clothes, what to
@@ -217,7 +221,7 @@ keep a note there (size, shop, budget; it says **Saved** as it saves), shop for 
 when you have it tap **I bought it**: it leaves the list and **Add** opens so you can
 photograph it. Your decisions are kept when the
 suggestions are worked out again, and the demo closet keeps its own. Offline,
-the screen shows what it last found, and nothing can be changed until Closet on
+the screen shows what it last found, and nothing can be changed until Nines on
 your computer can be reached again. A closet with fewer than 8 pieces is too
 small to judge yet.
 
@@ -232,7 +236,7 @@ your answers, with the weather note and explanation under them. With every situa
 **Never**, choose some situations before asking what is missing.
 
 Once answered, common days matter more than rare ones. A saved place lets
-Closet use the last four full years of weather there; with no place or no
+Nines use the last four full years of weather there; with no place or no
 weather available it says so and gives each season equal weight. Vacation
 uses your warm/cold answer, not the weather at home. The situation buttons
 show just the suggestions for that part of your life.
@@ -254,7 +258,7 @@ running gear from gym clothes or judge sports performance.
 work?** on a wish) checks a piece before you buy it. Take or choose a photo of
 it (in a shop, or a picture saved from a shop's page) and Claude describes it,
 or describe it by hand: the kind, the colour, how dressy, the season, how heavy
-the cloth is and whether it keeps the rain off. Closet then tries it with your
+the cloth is and whether it keeps the rain off. Nines then tries it with your
 clothes and answers in a few words, **Fills a gap**, **Works, and adds
 something**, **Works, but you have it already** or **Hard to wear with what you
 have**, with the reasons: the gap it would fill, the pieces of yours it goes
@@ -268,17 +272,17 @@ answer is ready, and a photo is described
 the same way as a new item (your Claude plan first, the API key only when you
 have switched it on, within its monthly limit). In the demo closet only
 **describe it by hand** works, since the demo closet never sends anything to
-Claude. Checks are kept only while Closet is running.
+Claude. Checks are kept only while Nines is running.
 
 **Find some** on a wish asks Claude to search the web for up to 8 things on
 sale now that match it: what the suggestion says to look for, your note, and
 the **Price range** if you set one on the wish. It takes a minute or two. Each
 one found shows its picture, shop and price, and how it would work with your
 clothes, with the same answers and reasons as **Would this work?**. **Open in
-shop** opens the shop's page in a new tab (from Closet's own window, in your
+shop** opens the shop's page in a new tab (from Nines' own window, in your
 usual browser); nothing is ever bought or opened for
 you, and **Remove** takes one off. **Check prices** looks at their prices again,
-and while Closet is running it does so by itself once a day; when a price has
+and while Nines is running it does so by itself once a day; when a price has
 gone down the wish shows it ("Was $180.00, now $144.00"). Searching goes the
 same way as describing an item: your Claude plan first, the API key only when
 you have switched it on, and never past its monthly limit (when only the key
@@ -319,13 +323,13 @@ numbers.
 Open **Add** (the round button in the middle of the bar at the bottom of a
 phone; **Add clothes** at the top of the menu on a computer) and add any photos
 at all: one piece of clothing per photo (the usual way, below), several pieces
-laid out together, or a shoe from a few sides (both further down). Closet asks
+laid out together, or a shoe from a few sides (both further down). Nines asks
 Claude what each photo shows, a fraction of a cent with the API key, and which
 photos are the same shoe:
 
 - When every photo is one piece, they go straight in.
 - When there is a photo of several pieces or a shoe, the photos wait in a list
-  under **Your photos**, each saying what Closet made of it (**One piece**,
+  under **Your photos**, each saying what Nines made of it (**One piece**,
   **Several pieces**, **Shoe 1**, **Another shoe**). Change any that are wrong,
   remove one with **×**, and tap **Add these**.
 - When Claude can't be asked (and always in the demo closet), the list says so
@@ -373,11 +377,11 @@ so you can take one after another (tap **Take the photo** for each, then
 **Close the camera**); where the page can't show the camera, your phone's
 camera app takes one photo each time.
 
-Closet groups the photos of the same shoe as **Shoe 1** (a second shoe is
+Nines groups the photos of the same shoe as **Shoe 1** (a second shoe is
 **Shoe 2**) and shows each shoe as a checklist (**✓ Outer side · ✓ Front ·
 Inner side**). It says when one is missing; the shoe can still be added, but the
 drawing is better with all three. A photo that shows the pair is held back:
-remove it and take one of a single shoe, or tap **It's one shoe** if Closet got
+remove it and take one of a single shoe, or tap **It's one shoe** if Nines got
 it wrong. Nothing is sent until you tap **Add these**; a seventh photo of one
 shoe is left out, and the page says so.
 Once it is added, the page shows the shoe the same way as the list of photos
@@ -385,21 +389,21 @@ above:
 its picture and, once Claude has described it, what Claude called it; tap it
 (or **See the shoe**) to open it.
 
-You don't have to say which photo is which: Closet sorts them itself a few
+You don't have to say which photo is which: Nines sorts them itself a few
 seconds after the last one, and shows what each photo is under it on the shoe's
 page (outer side, inner side, from above, front, back, sole). The outer side
 then becomes the shoe's picture in the closet (or the inner side, if no photo
 shows the outer one); the first photo you added stays the picture when it
 already shows a side, or when none does. If none of the photos shows the shoe
 from the side, the shoe's page says a photo of its side would help the drawing.
-If a shoe has a logo or stripe on one side only and Closet can't tell the
+If a shoe has a logo or stripe on one side only and Nines can't tell the
 outside from the inside, the shoe's page asks you which photo shows the outside
 (the outside is the side that faces away from the other shoe when you wear
 them); tap it, and the outside becomes the picture. On the shoe's page you can
 also add more photos (**Add photos**) or remove one with its **×**; the main
 photo (the picture, shown first) is replaced with **Retake** instead.
 
-Closet draws the shoe's side from its main photo a moment after the photos are
+Nines draws the shoe's side from its main photo a moment after the photos are
 sorted. If that photo does not work for that (it shows the pair, or the shoe
 from the front, say), the item page says so and the shoe keeps its plain
 drawing; **Retake** replaces the photo. In **Fix the details** you can change a colour of the drawing,
@@ -409,11 +413,11 @@ for the outfit figure (below), the figure wears a plain drawing of its kind of
 shoe, seen from the front.
 
 Once the photos are sorted (and you have answered the question about the
-outside, if Closet asked it), Claude also draws the shoe from them for the
+outside, if Nines asked it), Claude also draws the shoe from them for the
 outfit figure, its toe turned out a little, as you stand. It notes what kind of
 shoe it is, its colours and parts, and draws it straight on twice, checking
 each against your photos; it then compares the two with your photos and keeps
-the closer. Closet turns that drawing with its own 3D shoe, so every
+the closer. Nines turns that drawing with its own 3D shoe, so every
 panel and stitch turns the right way, and Claude draws the turned shoe twice
 from it, keeps the better one and fixes what still differs from your photos.
 This takes four to ten minutes and happens once, by itself. **Drawn for the
@@ -459,7 +463,7 @@ the page says so; send the note again, or say it another way.
 ### Several pieces in one photo
 
 To add a pile at once, lay the pieces out with a little space between them (on
-the bed or the floor), and take or choose the photo on **Add**. Closet sorts it
+the bed or the floor), and take or choose the photo on **Add**. Nines sorts it
 as **Several pieces**; tap **Add it**. Claude draws a numbered box around each
 piece; this takes a few seconds, and goes through your Claude plan or the API
 key exactly as describing does (the page says what one photo can cost with the
@@ -488,7 +492,7 @@ to see only those pieces, then **Check them one at a time**: the review shows, o
 time, only what Claude was unsure about. Tap another value if its guess is
 wrong, then **That's right**, or **Skip for now**.
 
-## Setting up Closet on a Windows PC (the hub)
+## Setting up Nines on a Windows PC (the hub)
 
 The PC that keeps your closet and that the phone reaches is the "hub". Do these
 steps once, in this order. Each says what you should see.
@@ -498,45 +502,45 @@ Claude Code" below (the PowerShell line). When `claude` asks how to sign in,
 choose your **Claude account with subscription** (your Pro or Max plan), not an
 Anthropic Console account: the Console one is billed per use. Then type
 `claude auth status` and press Enter: it should say you are logged in, with your
-own e-mail address. Use the PowerShell line rather than `npm`: Closet looks for
+own e-mail address. Use the PowerShell line rather than `npm`: Nines looks for
 `claude.exe`, which that line (and `winget`) installs.
 
-**2. Put Closet in a folder of its own.** Download `Closet.exe` from the
+**2. Put Nines in a folder of its own.** Download `Closet.exe` from the
 **Releases** page. In File Explorer make a folder such as
 `C:\Users\you\Apps\Closet` and move `Closet.exe` into it. Not in **Program
-Files**: Closet replaces itself when it updates, and Windows only lets it do that
+Files**: Nines replaces itself when it updates, and Windows only lets it do that
 in a folder of your own. Not in **Downloads** either, so it is not tidied away.
 
 **3. Open it the first time.** Double-click `Closet.exe`.
 - If your browser said "Closet.exe isn't commonly downloaded", click **⋯** beside
   it, then **Keep**, then **Show more → Keep anyway**.
 - Windows then shows "Windows protected your PC" ("unknown publisher"): click
-  **More info**, then **Run anyway**. It asks only this once. (Closet is not
+  **More info**, then **Run anyway**. It asks only this once. (Nines is not
   signed with a paid certificate, which is all this message means.)
 - If Windows says **Smart App Control** blocked it, there is no **Run anyway**:
-  Smart App Control only allows signed programs. Tell whoever looks after Closet
+  Smart App Control only allows signed programs. Tell whoever looks after Nines
   rather than turning it off.
 
-A few seconds later Closet opens in its own window (it is the page at
+A few seconds later Nines opens in its own window (it is the page at
 `http://127.0.0.1:8765`, which also works in a browser). Choose your
 passphrase; the background-removal model starts downloading. Closing the
-window leaves Closet running in the background; double-click `Closet.exe` to
+window leaves Nines running in the background; double-click `Closet.exe` to
 bring it back.
 
-**4. The firewall.** Closet only listens on this PC itself (127.0.0.1), never on
+**4. The firewall.** Nines only listens on this PC itself (127.0.0.1), never on
 the network, so Windows normally asks nothing. If a "Windows Security" window
-about Closet and **Private** or **Public** networks appears anyway, click
+about Nines and **Private** or **Public** networks appears anyway, click
 **Cancel**: nothing needs to be let through. The phone comes in through
-Tailscale, which runs on this PC and passes the phone's requests to Closet here.
+Tailscale, which runs on this PC and passes the phone's requests to Nines here.
 
-**5. Check that Claude can be reached.** In Closet open **Settings**. Under
-**Claude** it should say **Using your Claude plan.** (**Manage** shows the details.) If it says Claude Code is not installed, quit Closet (**Quit** at the
+**5. Check that Claude can be reached.** In Nines open **Settings**. Under
+**Claude** it should say **Using your Claude plan.** (**Manage** shows the details.) If it says Claude Code is not installed, quit Nines (**Quit** at the
 bottom of Settings) and open it again so it sees the new program; if it says
 installed but not signed in, do step 1's `claude` sign-in again, then press
 **Check again**.
 
-**6. Start at login.** In Closet's **Settings → Advanced settings → Your
-closet**, turn on **Start Closet when I log in**. From then on Closet starts by itself when you sign in to
+**6. Start at login.** In Nines' **Settings → Advanced settings → Your
+closet**, turn on **Start Nines when I log in**. From then on Nines starts by itself when you sign in to
 Windows, with no window (double-click `Closet.exe` to open it). If you ever move
 `Closet.exe`, turn it off and on again so it points to the new place.
 
@@ -563,55 +567,55 @@ the public internet.
 1. On the computer, make sure Tailscale is running and signed in. In the
    Tailscale admin console, under **DNS**, turn on **MagicDNS** and **HTTPS
    certificates** (once per account).
-2. Open Closet's **Settings → Phone**. It shows the command to run on
+2. Open Nines' **Settings → Phone**. It shows the command to run on
    this computer, usually `tailscale serve --bg 8765`. Open a terminal
    (PowerShell on Windows) and run it once. Open Settings again (it can take
-   half a minute to notice): **Phone access** now shows Closet's address, like
+   half a minute to notice): **Phone access** now shows Nines' address, like
    `https://your-pc.your-tailnet.ts.net`.
 3. On the iPhone, with Tailscale connected, point the Camera app at the QR
    code in Settings (**Show the QR code** under the address) and tap the link it shows (or type the
    address into Safari). Log in with your passphrase.
-4. Tap **Share → Add to Home Screen**. Open Closet from the new icon.
+4. Tap **Share → Add to Home Screen**. Open Nines from the new icon.
 
 **If another app on this computer already uses Tailscale Serve.** Tailscale
 gives each computer one usual address, and only one app can have it. If another
 app already has it, `tailscale serve --bg 8765` would clash with it, and the
-plain address would open that other app instead of Closet. Closet notices this
-and suggests a command that gives Closet its own port instead, such as
-`tailscale serve --bg --https=8443 8765`. Closet's address then ends in that
+plain address would open that other app instead of Nines. Nines notices this
+and suggests a command that gives Nines its own port instead, such as
+`tailscale serve --bg --https=8443 8765`. Nines' address then ends in that
 port, like `https://your-pc.your-tailnet.ts.net:8443`. Always use the address
-**Settings → Phone** shows: it is the one that really reaches Closet.
-If it says Closet is not shared yet, run the command it shows.
+**Settings → Phone** shows: it is the one that really reaches Nines.
+If it says Nines is not shared yet, run the command it shows.
 
-To see what this computer shares, run `tailscale serve status`. Closet's share
+To see what this computer shares, run `tailscale serve status`. Nines' share
 is the line that points to `http://127.0.0.1:8765`.
 
-**If Closet's address changes** (for example it moved to `:8443`), the icon on
+**If Nines' address changes** (for example it moved to `:8443`), the icon on
 the iPhone's home screen still opens the old one. Press and hold that icon
 and delete it, then open the new address in Safari, log in, and add it to
 the home screen again.
 
 `tailscale serve` shares only inside your own Tailscale network. Do not use
 `tailscale funnel`, which would publish the address to the internet. To stop
-sharing Closet, run the command under **Show the QR code** in **Settings → Phone**, such as
-`tailscale serve --https=443 off` (or `--https=8443`, the port in Closet's
-address). It stops only Closet's share. Do not use `tailscale serve reset`: it
+sharing Nines, run the command under **Show the QR code** in **Settings → Phone**, such as
+`tailscale serve --https=443 off` (or `--https=8443`, the port in Nines'
+address). It stops only Nines' share. Do not use `tailscale serve reset`: it
 also stops every other app's share on this computer.
 
-The computer must be on and Closet running for the phone to add or change
+The computer must be on and Nines running for the phone to add or change
 anything. When it is not, the phone still shows your closet from its last
 visit, read-only.
 
 ## Installing Claude Code
 
-Closet will ask Claude to describe your clothes (what kind of garment, colour,
+Nines will ask Claude to describe your clothes (what kind of garment, colour,
 collar, buttons and so on). It does this through **Claude Code**, a free
 program from Anthropic that uses your Claude plan, so nothing extra is charged
 per photo. An API key can be used instead, but it is billed per photo by
 Anthropic, is only used when the plan can't be, and only if you turn on
 **Allow the API key** in **Settings → Advanced settings → Claude**. It is off until you do.
 That group shows each of the two once, with one line
-saying whether Closet can use it right now, which it will try first, and how
+saying whether Nines can use it right now, which it will try first, and how
 many items are waiting to be described.
 
 **Which to use.** Under the API key box in **Settings → Advanced settings → Claude** you choose the
@@ -621,12 +625,12 @@ up your plan), **Only my Claude plan**, or **Only the API key**. The two that pu
 the key first can only be chosen once a key is saved, and removing the key puts
 you back on the plan first. Whatever you choose, the key is still only used once
 **Allow the API key** is on with a monthly limit. The choice applies to everything
-Closet asks Claude: describing clothes, finding where a patterned top's seams are,
+Nines asks Claude: describing clothes, finding where a patterned top's seams are,
 corrections you type, and "Would this work?".
 
 **Adding an API key.** Make a key in your Anthropic account (console.anthropic.com,
 **API keys**), copy it, and paste it into **Paste your API key** in **Settings →
-Advanced settings → Claude**, then **Save key**. Closet asks Anthropic whether it accepts the key
+Advanced settings → Claude**, then **Save key**. Nines asks Anthropic whether it accepts the key
 (this costs nothing) and keeps it in your computer's own keychain (the Mac's
 keychain, or Windows Credential Manager), never in a file. It is never shown
 again; **Replace key** and **Remove key** are there when you need them. Then turn
@@ -637,19 +641,19 @@ of one set as `ANTHROPIC_API_KEY`.
 **What the API key costs.** Clothes are described by Claude Sonnet, which
 draws the cloth much more faithfully than the smaller model used before 18
 November (stripes, checks and colours were tested side by side on 60 garments).
-At the prices Closet knows (prices change, so check Anthropic's pricing page),
-describing one photo cost about 2¢ in that test, and Closet counts up to about
+At the prices Nines knows (prices change, so check Anthropic's pricing page),
+describing one photo cost about 2¢ in that test, and Nines counts up to about
 10¢ for each photo before it asks, to be sure of staying under your limit. To
 allow the API key you set a **monthly limit** in US dollars; $5 is suggested,
 enough for about 200 photos. Corrections you type and shopping searches still
 use the smaller, cheaper model. On your Claude plan the larger model uses a
-little more of the plan's allowance for each photo. Before every request Closet adds what this month has cost so
+little more of the plan's allowance for each photo. Before every request Nines adds what this month has cost so
 far to the most that request could cost, and if that would pass the limit it
 does not ask: the item waits and says the monthly limit was reached. Your plan
 is still used whenever it can be. **Monthly limit and spending** shows what this month has cost, how
 many requests were made, what the waiting items would cost at most and the
 last few months. If Anthropic refuses the key or says the account is out of
-credit, Closet turns the API key off and says why in Settings. What Closet
+credit, Nines turns the API key off and says why in Settings. What Nines
 shows is worked out from its own price list; your Anthropic account shows what
 was really charged.
 
@@ -676,9 +680,9 @@ your browser; sign in with your Claude account, then come back and type
 `/exit` to close it. This sign-in is remembered.
 
 **Check it:** type `claude auth status` and press Enter. It says you are logged
-in (and which account) when everything is ready. Then open **Settings** in Closet: under **Claude** it should say
+in (and which account) when everything is ready. Then open **Settings** in Nines: under **Claude** it should say
 **Using your Claude plan.** (press **Check again** if it shows a red line). If it says Claude Code is not installed,
-quit Closet and start it again so it sees the new program.
+quit Nines and start it again so it sees the new program.
 
 **If an item says Anthropic turned down the account Claude Code is signed in
 to:** Claude Code on your computer is signed in to an account that no longer
@@ -690,27 +694,27 @@ describe it needs **Try again**.
 
 ### Updates
 
-From the version after the one that added this, Closet updates itself. Once a
+From the version after the one that added this, Nines updates itself. Once a
 day while it runs (and whenever you press **Check now** in **Settings →
 Advanced settings → Updates**) it asks GitHub whether a newer release is out; it sends nothing
 about you or your clothes. In **Settings → Advanced settings → Updates** choose:
 
-- **Ask me first** (the standard choice): Closet downloads the new version and
-  checks it, then a slim bar at the top says "Closet 0.3.0 is ready ·
+- **Ask me first** (the standard choice): Nines downloads the new version and
+  checks it, then a slim bar at the top says "Nines 0.3.0 is ready ·
   Install". **Settings → Updates** shows the version and what's new. Nothing changes until
   you press **Install**.
 - **Install updates by themselves**: the same, without asking.
-- **Never check**: Closet only looks when you press **Check now**.
+- **Never check**: Nines only looks when you press **Check now**.
 
 Installing backs up every closet first (into `Closet\backups`, and into your
 backup folder if you chose one), replaces the program, and starts the new
-version on the same address; the page says Closet is restarting and
+version on the same address; the page says Nines is restarting and
 reconnects by itself. If the new version does not start within a minute, the
 old one is put back and Settings says why. A download that does not match
 GitHub's checksum is never installed.
 
 The version that first has this has to be installed by hand, as before: quit
-Closet, replace the program, open it. On Linux, or when Closet runs from
+Nines, replace the program, open it. On Linux, or when Nines runs from
 source, it only tells you a new version is out, with a link.
 
 ## Your data
@@ -729,7 +733,7 @@ thumbnails, backups kept on this computer and the background-removal model.
 ### Backups
 
 In **Settings → Advanced settings → Backups**, choose a folder (a cloud-synced folder is ideal).
-Closet backs up there once a day while it is running, catches up at the next
+Nines backs up there once a day while it is running, catches up at the next
 start if the computer was off, and shows the date of the last good backup. It
 keeps the 14 most recent database snapshots, each with the photos and cutouts
 it had; a picture that did not change is stored only once. The settings file
@@ -737,7 +741,7 @@ with your passphrase is not included.
 
 ### Restore
 
-Quit Closet, then in a terminal:
+Quit Nines, then in a terminal:
 
 ```
 Closet.exe restore "D:\path\to\your backup folder"
@@ -747,14 +751,14 @@ Closet.exe restore "D:\path\to\your backup folder"
 closet that was there before is moved aside into a `replaced-…` folder, not
 deleted.
 
-If the computer loses power or Closet is stopped while a restore is putting
+If the computer loses power or Nines is stopped while a restore is putting
 files in place, the next start finishes the restore, or puts your closet back as
 it was before it, never half of each. A message at the top of the screen says
 which, until you press **OK**.
 
 ### Forgotten passphrase
 
-Quit Closet and run `Closet.exe reset-passphrase`. The next start asks for a
+Quit Nines and run `Closet.exe reset-passphrase`. The next start asks for a
 new one. Your closet is untouched.
 
 ### Placing the model by hand
@@ -763,27 +767,27 @@ If the computer cannot download the model, download
 `isnet-general-use.onnx` on another machine from the address shown in
 **Settings → Advanced settings → Background removal** (the link is at the foot of
 Settings), and put it in
-`Closet\models`. Closet checks the file and starts using it. The address can be
+`Closet\models`. Nines checks the file and starts using it. The address can be
 changed there too. A notice on **Add** says when the model is missing or
 did not download. **Advanced** also shows where your closet is stored and the
-version of Closet.
+version of Nines.
 
-Closet also downloads a second model, `u2net.onnx`, about the same size. It
+Nines also downloads a second model, `u2net.onnx`, about the same size. It
 fixes cutouts the first one gets wrong: a striped or checked shirt whose darker
 stripes were taken for background, or the bed a piece lies on kept with it.
 If it didn't download, the notice on the closet says so, with a button to try
-again, and Closet also tries again by itself; **Advanced** shows its address and where to put it by
+again, and Nines also tries again by itself; **Advanced** shows its address and where to put it by
 hand. Photos cut out before it is there are looked at again once it is, and the
 ones it would do better are cut out again.
 
 ### Where you are
 
-Closet uses New York's weather until you choose your place. In **Settings →
+Nines uses New York's weather until you choose your place. In **Settings →
 Everyday**, press **Change** next to the place (or **Change** on Today), search for your town or city and
 choose it from the list, or tap **Use my location**. Only the name you search
 for and the chosen place's location are sent, to the free weather service
 Open-Meteo; nothing about your clothes is. **Use my location** asks your
-browser (or, in Closet's window, your computer) where you are only when you tap it, and sends that position, rounded
+browser (or, in Nines' window, your computer) where you are only when you tap it, and sends that position, rounded
 to about a kilometre, to OpenStreetMap to find the town's name. On the phone
 over Tailscale the browser may not share its position (the address is not
 https); search by name there instead. **Back to New York** forgets your place.
@@ -795,7 +799,7 @@ Settings is a different thing: it is kept in your closet, so it is in backups.)
 
 ### Light or dark
 
-Closet follows your computer's or phone's light or dark setting. To choose
+Nines follows your computer's or phone's light or dark setting. To choose
 one yourself, go to **Settings → This device** and pick **Light** or **Dark**; pick
 **Same as this device** to follow the device again. The choice is remembered
 on each device separately. Clothing pictures stay on a light background in
@@ -811,9 +815,9 @@ you would tell a friend who is choosing your clothes ("I run warm, so one layer
 fewer than most people", "No ties unless it is a wedding"). What you write
 there wins over the general menswear guide. Settings shows its first lines; press
 **Edit the text** to change it, then **Save**; **Back to the starting text** puts back
-the few lines Closet starts with. It can be up to 4,000 characters long. The switch
+the few lines Nines starts with. It can be up to 4,000 characters long. The switch
 under it, **Let Claude choose my outfits**, turns Claude's choosing off and on; when it is off,
-Closet's own rules choose.
+Nines' own rules choose.
 
 **How I wear it**, under **More details** on an item's page, beside **Fit
 notes** and **Notes**, is your note on that one piece ("only with the navy
@@ -852,4 +856,4 @@ photographed from the side is, so you can try **Fix the details** on them.
 
 ## Planning a trip
 
-Open **Trips** (the link at the foot of Today; when a trip is less than two weeks away, Today shows a **Packing for a trip?** row that opens it) and choose **Plan a trip**. Search for where you are going, pick the first and last day (up to 30 days), the occasion, and whether you can do laundry there (on one day of the trip, or every few days). Closet shows the weather (the forecast, or what those dates are usually like), what to pack with how many days each piece is worn, basics like socks, and an outfit for each day. Use "Not this one" to swap a piece out and "Take something else" to insist on one. Save the trip, then tick things off as you pack, on the computer or the phone. Under the list, "Why these counts" says how each count was worked out ("5 shirts: one a day, laundry on day 4") and where each wash falls. How many times you wear each kind of clothing before it needs washing is set in **Settings → Everyday → Wears between washes** (a shirt once, a sweater or trousers three times, a jacket the whole trip, to start with); on a hot or humid day, what you wear next to the skin is counted as worn once.
+Open **Trips** (the link at the foot of Today; when a trip is less than two weeks away, Today shows a **Packing for a trip?** row that opens it) and choose **Plan a trip**. Search for where you are going, pick the first and last day (up to 30 days), the occasion, and whether you can do laundry there (on one day of the trip, or every few days). Nines shows the weather (the forecast, or what those dates are usually like), what to pack with how many days each piece is worn, basics like socks, and an outfit for each day. Use "Not this one" to swap a piece out and "Take something else" to insist on one. Save the trip, then tick things off as you pack, on the computer or the phone. Under the list, "Why these counts" says how each count was worked out ("5 shirts: one a day, laundry on day 4") and where each wash falls. How many times you wear each kind of clothing before it needs washing is set in **Settings → Everyday → Wears between washes** (a shirt once, a sweater or trousers three times, a jacket the whole trip, to start with); on a hot or humid day, what you wear next to the skin is counted as worn once.

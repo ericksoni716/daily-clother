@@ -19,7 +19,7 @@ export class ApiError extends Error {
   }
 }
 
-export const UNREACHABLE = "Can't reach Closet. Check that it is running on your computer.";
+export const UNREACHABLE = "Can't reach Nines. Check that it is running on your computer.";
 
 /** Header the service worker adds when it answers from its saved copy. */
 export const FROM_CACHE_HEADER = 'x-closet-from-cache';
@@ -65,7 +65,7 @@ function fallbackMessage(status: number): string {
   if (status === 401) return 'Log in to continue.';
   if (status === 404) return 'That could not be found.';
   if (status === 413) return 'That file is too large.';
-  if (status >= 500) return 'Something went wrong on the computer running Closet. Try again in a moment.';
+  if (status >= 500) return 'Something went wrong on the computer running Nines. Try again in a moment.';
   return 'That did not work. Try again.';
 }
 

@@ -19,10 +19,10 @@ interface State {
 /** Words of the message shown in place of what failed (exported for its test). */
 export const CRASH = {
   screen: 'Something went wrong on this screen.',
-  whole: 'Something went wrong, and Closet could not show anything.',
-  body: 'Anything you saved is kept. You can try again, or reload Closet.',
+  whole: 'Something went wrong, and Nines could not show anything.',
+  body: 'Anything you saved is kept. You can try again, or reload Nines.',
   retry: 'Try again',
-  reload: 'Reload Closet',
+  reload: 'Reload Nines',
 };
 
 /**
@@ -41,7 +41,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: unknown, info: ErrorInfo) {
-    console.error('Closet could not show this screen:', error, info.componentStack);
+    console.error('Nines could not show this screen:', error, info.componentStack);
   }
 
   render() {

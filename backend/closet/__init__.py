@@ -5,4 +5,4 @@ try:  # written by the release build; absent when running from source
 except ImportError:
     __version__ = "0.1.0-dev"
 
-APP_NAME = "Closet"
+APP_NAME = "Nines"

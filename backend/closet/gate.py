@@ -28,9 +28,9 @@ class TooLarge(Exception):
 
 def too_large_message(limit: int) -> str:
     if limit >= limits.UPLOAD_BYTES:
-        return (f"That photo is too large to send: Closet takes photos of up to {limits.PHOTO_BYTES // limits.MB} MB. "
+        return (f"That photo is too large to send: Nines takes photos of up to {limits.PHOTO_BYTES // limits.MB} MB. "
                 "Choose a smaller photo.")
-    return "That is more than Closet reads in one request. Try again with less."
+    return "That is more than Nines reads in one request. Try again with less."
 
 
 class Gate:

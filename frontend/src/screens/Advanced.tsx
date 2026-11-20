@@ -56,8 +56,8 @@ export function AdvancedScreen({ version }: { version: string }) {
 
       <div className="settings-groups">
         {only.autostart && settings.autostart !== null && (
-          <Section title="Starting Closet" id="s-start">
-            <Toggle label="Start Closet when I log in" hint="Closet opens quietly in the background when you sign in to this computer."
+          <Section title="Starting Nines" id="s-start">
+            <Toggle label="Start Nines when I log in" hint="Nines opens quietly in the background when you sign in to this computer."
               checked={settings.autostart} disabled={offline}
               onChange={async (on) => {
                 try {
@@ -80,7 +80,7 @@ export function AdvancedScreen({ version }: { version: string }) {
         <StorageSection offline={offline} profile={profile} />
         <ModelAddress model={model ?? settings.model} only={only} toast={toast} disabled={offline} />
 
-        <Section title="This copy of Closet" id="s-about">
+        <Section title="This copy of Nines" id="s-about">
           <dl className="facts">
             {only.dataFolder && (
               <>
@@ -229,7 +229,7 @@ function StorageSection({ offline, profile }: { offline: boolean; profile: Profi
   else if (error && !storage) {
     body = (
       <>
-        <p className="form-error" role="alert">Couldn't work out how much space Closet uses: {error.message}</p>
+        <p className="form-error" role="alert">Couldn't work out how much space Nines uses: {error.message}</p>
         <button className="btn" disabled={isFetching} onClick={() => void refetch()}>Try again</button>
       </>
     );
@@ -247,7 +247,7 @@ function StorageSection({ offline, profile }: { offline: boolean; profile: Profi
       <>
         <p className="storage-total" aria-busy={!storage} data-testid="storage-line">
           {storage ? storageLine(formatSize(storage.total_bytes), storage.items, storage.free_bytes !== null ? formatSize(storage.free_bytes) : null)
-            : <span className="muted">Adding up how much space Closet uses…</span>}
+            : <span className="muted">Adding up how much space Nines uses…</span>}
         </p>
         <details className="more">
           <summary>What takes the space</summary>
@@ -307,7 +307,7 @@ function TaggingSection({ offline, settings, toast }: TaggingProps) {
   if (error) {
     routeState = (
       <>
-        <p className="form-error" role="alert">Couldn't check how Closet can reach Claude: {error}</p>
+        <p className="form-error" role="alert">Couldn't check how Nines can reach Claude: {error}</p>
         <button className="btn" disabled={tagging.isFetching} onClick={() => void tagging.refetch()}>Try again</button>
       </>
     );
@@ -315,7 +315,7 @@ function TaggingSection({ offline, settings, toast }: TaggingProps) {
     // the same shape as the answer (a line, then the button), so nothing below moves when it lands
     routeState = (
       <>
-        <p className="hint" aria-busy="true">Checking how Closet can reach Claude…</p>
+        <p className="hint" aria-busy="true">Checking how Nines can reach Claude…</p>
         {checkAgain}
       </>
     );
@@ -331,15 +331,15 @@ function TaggingSection({ offline, settings, toast }: TaggingProps) {
         {first && <p className="hint" data-testid="route-first">{first}</p>}
         {!planInOrder && none ? (
           <p className="form-error">
-            Closet can't reach Claude yet: you chose to use only the API key, and it isn't ready. Allow it below with a monthly limit, or choose to use your Claude plan.
+            Nines can't reach Claude yet: you chose to use only the API key, and it isn't ready. Allow it below with a monthly limit, or choose to use your Claude plan.
           </p>
         ) : apiOnlyOff ? (
           <p className="form-error">
-            Closet can't reach Claude yet: your API key is set but not allowed below. <a href={README_CLAUDE_CODE} target="_blank" rel="noreferrer">Install Claude Code and sign in</a> to use your plan instead, or allow the key.
+            Nines can't reach Claude yet: your API key is set but not allowed below. <a href={README_CLAUDE_CODE} target="_blank" rel="noreferrer">Install Claude Code and sign in</a> to use your plan instead, or allow the key.
           </p>
         ) : none ? (
           <p className="form-error">
-            Closet can't reach Claude yet. <a href={README_CLAUDE_CODE} target="_blank" rel="noreferrer">Install Claude Code and sign in</a>, then check again.
+            Nines can't reach Claude yet. <a href={README_CLAUDE_CODE} target="_blank" rel="noreferrer">Install Claude Code and sign in</a>, then check again.
           </p>
         ) : planMissing && (
           <p className="hint">
@@ -368,9 +368,9 @@ function TaggingSection({ offline, settings, toast }: TaggingProps) {
 
   return (
     <Section title="Claude" id="s-tagging">
-      {offline ? <p className="hint">How Closet reaches Claude can't be checked while you're offline.</p> : (
+      {offline ? <p className="hint">How Nines reaches Claude can't be checked while you're offline.</p> : (
         <>
-          <p className="hint">Closet tries these in this order and uses the first one that works.</p>
+          <p className="hint">Nines tries these in this order and uses the first one that works.</p>
           <ol className="route-list">
             {order.map((id) => (
               <li key={id} data-testid={`route-${id}`}>
@@ -463,11 +463,11 @@ function ApiKeyBox({ offline, settings, toast }: { offline: boolean; settings: S
       )}
       {askForKey && (
         <p className="hint">
-          Make one in your <a href={ANTHROPIC_KEYS} target="_blank" rel="noreferrer">Anthropic account, under API keys</a>, and paste it here. Closet checks it with Anthropic (this costs nothing) and keeps it in {info.where}. It is never shown again, not even here.
+          Make one in your <a href={ANTHROPIC_KEYS} target="_blank" rel="noreferrer">Anthropic account, under API keys</a>, and paste it here. Nines checks it with Anthropic (this costs nothing) and keeps it in {info.where}. It is never shown again, not even here.
         </p>
       )}
       {!info.can_save && !info.set && (
-        <p className="hint">This computer has no keychain Closet can keep a key in. Set ANTHROPIC_API_KEY on the computer instead.</p>
+        <p className="hint">This computer has no keychain Nines can keep a key in. Set ANTHROPIC_API_KEY on the computer instead.</p>
       )}
       {info.source === 'keychain' && !replacing && (
         removing ? (
@@ -566,7 +566,7 @@ function ApiKeySpend({ offline, settings, toast }: { offline: boolean; settings:
       {settings.tagging_api_off && <p className="form-error" role="alert">{turnedOffLine(settings.tagging_api_off)}</p>}
       <RouteOrderChoice offline={offline} settings={settings} toast={toast} />
       <Toggle label="Allow the API key"
-        hint="Lets Closet use your API key, in the order chosen above. Each photo is billed to your Anthropic account, and Closet stops before this month's spending would pass the limit below."
+        hint="Lets Nines use your API key, in the order chosen above. Each photo is billed to your Anthropic account, and Nines stops before this month's spending would pass the limit below."
         checked={settings.tagging_api_enabled} disabled={offline}
         onChange={(on) => {
           if (!on) return void save({ tagging_api_enabled: false }, 'The API key will not be used');

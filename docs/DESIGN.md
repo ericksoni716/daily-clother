@@ -1,6 +1,6 @@
 # Design principles
 
-What makes a change to Closet feel like the rest of it. Read this before adding a screen, a
+What makes a change to Nines feel like the rest of it. Read this before adding a screen, a
 card or a sentence, and use the checklist at the end on every change. What each screen does
 today is in [USING.md](USING.md); how the code is laid out is in
 [DEVELOPING.md](DEVELOPING.md); the review these principles come from is

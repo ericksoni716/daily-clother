@@ -134,7 +134,7 @@ def _forecast(place: dict) -> dict:
         "temperature_unit": "celsius", "forecast_days": FORECAST_DAYS})
     daily = data.get("daily")
     if not isinstance(daily, dict) or not isinstance(daily.get("time"), list):
-        raise weather.WeatherError("The weather service gave an answer Closet could not read.")
+        raise weather.WeatherError("The weather service gave an answer Nines could not read.")
 
     def column(name: str) -> list:
         values = daily.get(name)
@@ -161,7 +161,7 @@ def _forecast(place: dict) -> dict:
                     "source": "forecast"}
         _add_feels(out[day], _number(feels[i]) if i < len(feels) else None)
     if not out:
-        raise weather.WeatherError("The weather service gave an answer Closet could not read.")
+        raise weather.WeatherError("The weather service gave an answer Nines could not read.")
     return out
 
 

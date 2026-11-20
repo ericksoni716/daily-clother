@@ -83,7 +83,7 @@ def is_frozen() -> bool:
 def open_url(url: str, accept: str):
     """An HTTPS answer to read from. Tests replace this so nothing is fetched."""
     if not url.lower().startswith("https://"):
-        raise UpdateError("Closet only downloads updates over a secure (https) connection.")
+        raise UpdateError("Nines only downloads updates over a secure (https) connection.")
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": accept,
                                                "X-GitHub-Api-Version": "2022-11-28"})
     return urllib.request.urlopen(req, timeout=30, context=net.ssl_context())
@@ -146,7 +146,7 @@ def _expected_sha256(asset: dict) -> str:
     digest = (asset.get("digest") or "").strip().lower()
     algorithm, _, value = digest.partition(":")
     if algorithm != "sha256" or not re.fullmatch(r"[0-9a-f]{64}", value):
-        raise UpdateError("GitHub gave no checksum for this download, so Closet will not install it. "
+        raise UpdateError("GitHub gave no checksum for this download, so Nines will not install it. "
                           "You can still download it by hand from the release page.")
     return value
 
@@ -163,16 +163,16 @@ def _read_error(e: BaseException) -> str:
     if isinstance(e, urllib.error.HTTPError):
         remaining = e.headers.get("X-RateLimit-Remaining") if e.headers is not None else None
         if e.code == 429 or (e.code == 403 and remaining == "0"):
-            return "GitHub asked Closet to wait before asking again. It will check again later by itself."
+            return "GitHub asked Nines to wait before asking again. It will check again later by itself."
         if e.code == 404:
-            return "No release of Closet has been published yet."
-        return f"GitHub answered with an error ({e.code}). Closet will check again later by itself."
+            return "No release of Nines has been published yet."
+        return f"GitHub answered with an error ({e.code}). Nines will check again later by itself."
     if net.is_certificate_error(e):
-        return ("Closet could not check GitHub's security certificate, so it did not ask. A network that inspects "
+        return ("Nines could not check GitHub's security certificate, so it did not ask. A network that inspects "
                 "secure connections can cause this. It will check again later by itself.")
     if isinstance(e, UpdateError):
         return str(e)
-    return "Closet could not reach GitHub (this computer may be offline). It will check again later by itself."
+    return "Nines could not reach GitHub (this computer may be offline). It will check again later by itself."
 
 
 # ------------------------------------------------------------------ where the program is, and replacing it
@@ -240,7 +240,7 @@ def swap(where: Layout, package: Path, sha256: str, run=None) -> None:
         _exchange(where, staged)
         return
     if where.platform != "darwin":
-        raise UpdateError("Closet can only replace itself on Windows and on a Mac.")
+        raise UpdateError("Nines can only replace itself on Windows and on a Mac.")
     stage = where.installed.with_name(f".{where.installed.stem}-update")
     shutil.rmtree(stage, ignore_errors=True)
     try:
@@ -250,7 +250,7 @@ def swap(where: Layout, package: Path, sha256: str, run=None) -> None:
             raise UpdateError("The update could not be unpacked. Nothing was changed.")
         apps = [p for p in stage.iterdir() if p.suffix == ".app" and p.is_dir()]
         if len(apps) != 1 or not (apps[0] / where.inner).is_file():
-            raise UpdateError("The update did not hold the Closet program. Nothing was changed.")
+            raise UpdateError("The update did not hold the Nines program. Nothing was changed.")
         new_app = apps[0]
         # only this bundle, which Closet downloaded and checked itself, loses the "downloaded from the internet" mark
         run(["xattr", "-dr", "com.apple.quarantine", str(new_app)])
@@ -457,26 +457,26 @@ def watch(cfg: Config, plan: dict, start=None, timeout: float | None = None, pol
         pass
     if proc is not None and proc.poll() is None:
         _kill(proc.pid)
-    note = f"Closet {plan['to']} was installed but did not start: {problem}. "
+    note = f"Nines {plan['to']} was installed but did not start: {problem}. "
     try:
         restore(where)
     except OSError as e:
         log.exception("could not put the old program back")
         note += (f"The old program could not be put back by itself ({e}); it was kept as {where.old}. "
-                 "Download Closet again from the releases page.")
+                 "Download Nines again from the releases page.")
         _write_outcome(cfg, {"at": _now(), "from": plan["from"], "to": plan["to"], "ok": False, "note": note})
         return False
     still = instance.running_info(cfg)
     if still and still.get("pid") == plan.get("old_pid"):
-        note += f"Closet {plan['from']} kept running and is still in place."
+        note += f"Nines {plan['from']} kept running and is still in place."
     else:
         if restore_closets(cfg, plan.get("snapshots") or {}):
             note += "Your closet was put back as it was just before the update. "
         try:
             start(where, [a for a in plan["args"] if a != "--replace"])
-            note += f"Closet {plan['from']} was put back and started again."
+            note += f"Nines {plan['from']} was put back and started again."
         except Exception as e:
-            note += f"Closet {plan['from']} was put back; start it again yourself ({e})."
+            note += f"Nines {plan['from']} was put back; start it again yourself ({e})."
     _write_outcome(cfg, {"at": _now(), "from": plan["from"], "to": plan["to"], "ok": False, "note": note})
     return False
 
@@ -639,7 +639,7 @@ class Updater:
         """Download this computer's file of `release` into the data folder and check it against GitHub's digest."""
         asset = asset_for(release, self.platform)
         if asset is None:
-            raise UpdateError(f"Closet {release['version']} has no download for this computer.")
+            raise UpdateError(f"Nines {release['version']} has no download for this computer.")
         expected = _expected_sha256(asset)
         folder = self.cfg.data_dir / "updates"
         folder.mkdir(parents=True, exist_ok=True)
@@ -692,7 +692,7 @@ class Updater:
         """Back up, put the new program in place, and start the helper that hands over to it. Raises UpdateError."""
         where = self.where
         if not self.can_install or where is None:
-            raise UpdateError("Only the downloaded Closet program on Windows or a Mac can update itself. "
+            raise UpdateError("Only the downloaded Nines program on Windows or a Mac can update itself. "
                               "Download the new version from the release page.")
         self.busy = "downloading"
         package = self.prepare(release)
@@ -712,7 +712,7 @@ class Updater:
             self.spawn(where.old_program, path)
         except Exception as e:
             restore(where)
-            raise UpdateError(f"Closet could not start the new version ({e}), so it put this one back.")
+            raise UpdateError(f"Nines could not start the new version ({e}), so it put this one back.")
         self.busy = "restarting"
         log.info("handing over to Closet %s", release["version"])
 
@@ -722,10 +722,10 @@ class Updater:
         if release is None:
             raise UpdateError("There is no newer version to install.")
         if not self.can_install:
-            raise UpdateError("Only the downloaded Closet program on Windows or a Mac can update itself. "
+            raise UpdateError("Only the downloaded Nines program on Windows or a Mac can update itself. "
                               "Download the new version from the release page.")
         if not self._begin():
-            raise UpdateError("Closet is already checking for or installing an update.")
+            raise UpdateError("Nines is already checking for or installing an update.")
         self.busy = "downloading"
 
         def job() -> None:

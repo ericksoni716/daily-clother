@@ -25,7 +25,7 @@ import { TilePicture } from './Closet';
 import './Today.css';
 import './Trips.css';
 
-const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
+const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
 
 export function TripsScreen({ tripId }: { tripId: string | null }) {
   if (tripId === 'new') return <PlanTrip />;
@@ -125,7 +125,7 @@ function TripList() {
   const query = useQuery(tripsQuery(profile));
   const trips = query.data ?? kept;
   const error = !query.error ? null : (query.error as ApiError).status === 0
-    ? "You're offline, and the list of trips was not saved on this device. It shows here once Closet on your computer can be reached."
+    ? "You're offline, and the list of trips was not saved on this device. It shows here once Nines on your computer can be reached."
     : query.error.message;
 
   const planButton = offline
@@ -137,12 +137,12 @@ function TripList() {
     <div className="trips">
       <PageHeader title="Trips" titleId="trips-title" back={{ to: '/today', label: 'Today' }}
         primary={trips && trips.length > 0 && planButton} />
-      <p className="hint trips-intro">Closet says what to pack: the fewest pieces from your closet that dress every day of a trip, for the weather there.</p>
+      <p className="hint trips-intro">Nines says what to pack: the fewest pieces from your closet that dress every day of a trip, for the weather there.</p>
       {error && <p className={trips ? 'form-error' : 'notice'} role="alert">{error}</p>}
       {!trips && !error && <p className="muted"><span className="spinner" aria-hidden="true" /> Loading your trips…</p>}
       {trips && trips.length === 0 && (
         <EmptyState big icon={<SuitcaseIcon />} title="No trips yet"
-          body="Choose where you're going and when, and Closet works out what to take." action={planButton} />
+          body="Choose where you're going and when, and Nines works out what to take." action={planButton} />
       )}
       {upcoming.length > 0 && <TripCards title="Coming up" trips={upcoming} />}
       {past.length > 0 && <TripCards title="Past trips" trips={past} />}
@@ -268,7 +268,7 @@ function PlanTrip() {
   return (
     <div className="trips trip-planning" aria-busy={asking}>
       <PageHeader title="Plan a trip" titleId="trips-title" back={TRIPS_BACK} />
-      {offline && <p className="notice" role="status">You're offline. Planning a trip needs Closet on your computer to be reachable.</p>}
+      {offline && <p className="notice" role="status">You're offline. Planning a trip needs Nines on your computer to be reachable.</p>}
       <TripForm draft={draft} setDraft={(d) => { setDraft(d); setPlanned(null); }} today={today} locked={offline} asking={asking} onSubmit={submit} />
       {error && <p className="form-error" role="alert">{error}</p>}
       {planned && (
@@ -389,7 +389,7 @@ function PlacePicker({ place, locked, onChoose }: { place: Place | null; locked:
         </label>
         <button className="btn" type="submit" disabled={locked || busy || !query.trim()}>{busy ? 'Searching…' : 'Search'}</button>
       </form>
-      <p className="hint">To look up the weather there, Closet sends Open-Meteo (open-meteo.com) only the place name you search for, then its location and the dates; nothing about your clothes.</p>
+      <p className="hint">To look up the weather there, Nines sends Open-Meteo (open-meteo.com) only the place name you search for, then its location and the dates; nothing about your clothes.</p>
       {error && <p className="form-error" role="alert">{error}</p>}
       {results && results.length === 0 && <p className="hint">No places found for “{searched}”. Try the name of a nearby town or city.</p>}
       {results && results.length > 0 && (
@@ -429,7 +429,7 @@ function SavedTrip({ id }: { id: string }) {
     if (pending.current === 0) setTicked(null);   // the trip as saved has arrived
   }, [query.data]);
   const error = !query.error ? null : (query.error as ApiError).status === 0
-    ? "You're offline, and this trip was not saved on this device. It shows here once Closet on your computer can be reached."
+    ? "You're offline, and this trip was not saved on this device. It shows here once Nines on your computer can be reached."
     : query.error.message;
   const [busy, setBusy] = useState(false);
   // Its days may have come into the forecast since it was planned: say so, but never change the plan by itself.
@@ -530,7 +530,7 @@ function SavedTrip({ id }: { id: string }) {
       {locked && (
         <p className="notice notice-warn" role="status">
           <WarnIcon />
-          <span>You're offline: this is the copy saved on this device. Ticking and changes wait until Closet on your computer can be reached.</span>
+          <span>You're offline: this is the copy saved on this device. Ticking and changes wait until Nines on your computer can be reached.</span>
         </p>
       )}
       {newWeather && !locked && (
@@ -713,7 +713,7 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
                         <div className="today-piece-menu trip-menu" role="group" aria-label={`Choices for ${name}`}>
                           <div className="row">
                             <button className="btn btn-small" disabled={changes.locked} title={title} onClick={() => { setMenuFor(null); changes.swap(piece.id); }}>Not this one</button>
-                            {piece.pinned && <button className="btn btn-small" disabled={changes.locked} title={title} onClick={() => { setMenuFor(null); changes.unpin(piece.id); }}>Let Closet choose</button>}
+                            {piece.pinned && <button className="btn btn-small" disabled={changes.locked} title={title} onClick={() => { setMenuFor(null); changes.unpin(piece.id); }}>Let Nines choose</button>}
                             <Link className="btn btn-small btn-ghost" to={`/item/${encodeURIComponent(piece.id)}`}>See it</Link>
                             <button className="btn btn-small btn-ghost" onClick={() => setMenuFor(null)}>Close</button>
                           </div>

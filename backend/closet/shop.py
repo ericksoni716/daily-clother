@@ -67,8 +67,8 @@ LIMIT = (spend.LIMIT_REACHED.split(" It will be described")[0] + " Try again whe
 NOTHING = "Claude found nothing on sale that matches. Try again later, or say more in the note."
 NOT_UNDERSTOOD = "Claude's answer could not be used. Try again in a while."
 FAILED = "Something went wrong while looking. Try again."
-NOT_SAVED = "Closet found some but could not keep them: your closet was busy saving something else. Try again."
-BUSY = "Closet is already looking for this one. Wait for it to finish."
+NOT_SAVED = "Nines found some but could not keep them: your closet was busy saving something else. Try again."
+BUSY = "Nines is already looking for this one. Wait for it to finish."
 NO_FINDS = "There is nothing to check yet: find some first."
 
 

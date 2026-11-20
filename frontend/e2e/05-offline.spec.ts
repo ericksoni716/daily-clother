@@ -28,7 +28,7 @@ test('offline: the saved closet still opens, read-only, with a banner', async ({
   // adding is disabled with an explanation
   const add = page.locator('nav.sidebar').getByText('Add');
   await expect(add).toHaveAttribute('aria-disabled', 'true');
-  await expect(page.locator('nav.sidebar [aria-disabled="true"]')).toHaveAttribute('title', /needs Closet on your computer/);
+  await expect(page.locator('nav.sidebar [aria-disabled="true"]')).toHaveAttribute('title', /needs Nines on your computer/);
 
   // editing is disabled too (the page reloaded on the saved item)
   const panel = page.locator('.detail-panel');
@@ -75,7 +75,7 @@ test('logging out clears the saved closet', async ({ page }) => {
   expect(await page.evaluate(async () => (await caches.keys()).includes('closet-data'))).toBe(true);
   await page.goto('/settings');
   await page.getByRole('button', { name: 'Log out' }).click();
-  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome back to Nines' })).toBeVisible();
   const names = await page.evaluate(() => caches.keys());
   expect(names.filter((n) => n === 'closet-data' || n === 'closet-media')).toEqual([]);
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { isShoe, retakeOffer, retakeSaid, SHOE_RETAKEN } from './retake';
 import type { ShoeTrace } from './types';
 
-const PLAID_FAILED = 'Closet could not measure the checks from this photo, so the drawing shows only the colour.';
+const PLAID_FAILED = 'Nines could not measure the checks from this photo, so the drawing shows only the colour.';
 const trace: ShoeTrace = { state: null, message: null, drawn: false, plain: false, fixed: false, parts: [], marks: [] };
 const shirt = (over: Partial<Parameters<typeof retakeOffer>[0]> = {}) => ({
   pattern: 'solid', pattern_state: null, pattern_error: null, cutout_state: 'ready' as const, trace: null, ...over,
@@ -38,9 +38,9 @@ describe('"Retake the photo" for clothes', () => {
   });
 
   it('says what happens next in plain words', () => {
-    expect(retakeSaid(shirt(), false)).toBe('New photo added. Closet removes its background, then Claude describes it again');
+    expect(retakeSaid(shirt(), false)).toBe('New photo added. Nines removes its background, then Claude describes it again');
     const plaid = retakeSaid(shirt({ pattern: 'plaid', pattern_state: 'failed', pattern_error: PLAID_FAILED }), false);
-    expect(plaid).toBe('New photo added. Closet removes its background, Claude describes it again, then its pattern is measured again');
+    expect(plaid).toBe('New photo added. Nines removes its background, Claude describes it again, then its pattern is measured again');
     expect(retakeSaid(shirt({ pattern: 'stripe' }), false)).toContain('pattern is measured again');
     expect(retakeSaid(shirt({ pattern: 'plaid' }), true))
       .toBe('New photo added. Its background is removed again; the demo closet keeps its description');

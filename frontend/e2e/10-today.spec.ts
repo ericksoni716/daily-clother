@@ -387,7 +387,7 @@ test('today offline: the outfits fetched earlier are shown as saved, and the but
   expect(await pieceNames(page)).toEqual(names);
   const wear = current(page).getByRole('button', { name: "I'm wearing this" });
   await expect(wear).toBeDisabled();
-  await expect(wear).toHaveAttribute('title', /needs Closet on your computer/i);
+  await expect(wear).toHaveAttribute('title', /needs Nines on your computer/i);
   await expect(page.getByRole('group', { name: 'Occasion' }).getByRole('button', { name: 'Formal' })).toBeDisabled();
 });
 

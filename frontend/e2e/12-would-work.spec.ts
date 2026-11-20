@@ -189,7 +189,7 @@ test('would this work? is off while offline, with the same words as the other bu
   await expect(page.getByText('Offline: showing your saved closet')).toBeVisible();
   const off = page.locator('.thinking-check').getByText('Would this work?');
   await expect(off).toHaveAttribute('aria-disabled', 'true');
-  await expect(off).toHaveAttribute('title', /needs Closet on your computer/i);
+  await expect(off).toHaveAttribute('title', /needs Nines on your computer/i);
 });
 
 for (const [label, viewport] of [['computer', { width: 1280, height: 800 }], ['phone', { width: 390, height: 844 }]] as const) {

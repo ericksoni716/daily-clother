@@ -85,7 +85,7 @@ function StyleSection({ offline, profile, settings, toast }: {
       )}
       {open === 'text' && <StyleEditor offline={offline} style={style} toast={toast} onClose={() => setOpen(null)} />}
       <Toggle label="Let Claude choose my outfits"
-        hint={`When this is off, or Claude can't be reached, Closet's own rules choose.${profile === 'demo' ? ' In the demo closet they always do.' : ''}`}
+        hint={`When this is off, or Claude can't be reached, Nines' own rules choose.${profile === 'demo' ? ' In the demo closet they always do.' : ''}`}
         checked={settings.stylist_on !== false} disabled={offline}
         onChange={async (on) => {
           try {
@@ -291,7 +291,7 @@ function ClaudeSection({ offline, settings }: { offline: boolean; settings: Sett
       </StatusLine>
       <div className="settings-actions">
         {line.action && checkAgain}
-        <ToAdvanced label="Manage how Closet reaches Claude">Manage</ToAdvanced>
+        <ToAdvanced label="Manage how Nines reaches Claude">Manage</ToAdvanced>
       </div>
     </Section>
   );
@@ -314,7 +314,7 @@ export function Leave({ offline, device }: { offline: boolean; device: Device })
   return (
     <div className="settings-leave" role="group" aria-label="Leave">
       {/* offline the server cannot end the login, so the phone would only look logged out until it is back in reach */}
-      <button className="btn" disabled={offline} title={offline ? "You're offline: log out once Closet on your computer can be reached" : undefined}
+      <button className="btn" disabled={offline} title={offline ? "You're offline: log out once Nines on your computer can be reached" : undefined}
         onClick={() => void logout()}>Log out</button>
       {computerOnly(device).quit && <QuitButton onQuit={quit} disabled={offline} toast={toast} />}
     </div>
@@ -393,10 +393,10 @@ export function SettingsScreen({ version }: { version: string }) {
 function QuitButton({ onQuit, disabled, toast }: { onQuit(): Promise<void>; disabled: boolean; toast: Toast }) {
   const [confirming, setConfirming] = useState(false);
   const back = useConfirmFocus(confirming);
-  if (!confirming) return <button ref={back} className="btn btn-block btn-danger-quiet" disabled={disabled} onClick={() => setConfirming(true)}>Quit Closet</button>;
+  if (!confirming) return <button ref={back} className="btn btn-block btn-danger-quiet" disabled={disabled} onClick={() => setConfirming(true)}>Quit Nines</button>;
   return (
     <div className="confirm" role="alertdialog" aria-labelledby="quit-q" onKeyDown={confirmKeys(() => setConfirming(false))}>
-      <p id="quit-q"><strong>Quit Closet?</strong> Your phone won't be able to reach it until you start it again on this computer.</p>
+      <p id="quit-q"><strong>Quit Nines?</strong> Your phone won't be able to reach it until you start it again on this computer.</p>
       <div className="row">
         <button className="btn btn-danger" autoFocus onClick={() => onQuit().catch((e) => toast((e as Error).message, 'error'))}>Quit</button>
         <button className="btn" onClick={() => setConfirming(false)}>Cancel</button>

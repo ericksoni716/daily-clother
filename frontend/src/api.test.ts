@@ -141,7 +141,7 @@ describe("a shoe's photos", () => {
 });
 
 describe('a computer that does not answer', () => {
-  it('gives up on the opening questions after a while and shows Closet as out of reach', async () => {
+  it('gives up on the opening questions after a while and shows Nines as out of reach', async () => {
     vi.useFakeTimers();
     try {
       vi.stubGlobal('fetch', vi.fn((_path: string, init: RequestInit) => new Promise((_resolve, reject) => {

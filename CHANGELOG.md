@@ -18,6 +18,11 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- The app is called Nines now, as in "dressed to the nines", with a new icon: an empty dinner
+  jacket in the air. Your clothes, your closet and the place called Closet are as they were.
+  On your iPhone the home-screen icon and name change once you add the app to the Home Screen
+  again. The program on your computer is still called Closet for now; its new name follows in
+  a later version.
 - Two shoes are drawn from their photos at the same time instead of one after another, so a
   shoe you add while another is being drawn no longer waits for it. Each drawing is made
   exactly as before.

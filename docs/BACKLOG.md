@@ -14,6 +14,8 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- The rename to Nines (20 November) left the program file and the release assets named Closet: decided by the owner and still to do. The updater must find the new asset name while copies already installed still look for `Closet.exe` and `Closet-mac-arm64.zip`; then the names in `packaging/closet.spec` (including `CFBundleName`), `packaging/smoke_test.py`, `ASSETS` in `updates.py`, the release workflow, the start-at-login entry (`autostart.NAME`) and any shortcut that points at the old file name. See DECISIONS, "The name: Nines".
+- Also left by the rename: comments, docstrings and log lines in the code still say Closet, and older docs (past CHANGELOG entries, DECISIONS entries before it, the assessment) keep the old name.
 - **Shoe drawing made faster** (20 November): two shoes at once, and a check that says good
   stops being read there. Left: the plan route still reads every check's whole answer; nobody
   has yet timed a real shoe with either change, so "four to ten minutes" in the app is
@@ -440,7 +442,7 @@ Original phase 5.
 - Multi-item photos: done in #151 (Claude finds the pieces, the owner checks the boxes; see DECISIONS, "Several items from one photo"). Video sweeps are out (owner's decision). Still to learn: how well Claude boxes a cluttered bed.
 - Taste learning analytics, cost per wear, never worn (rest of original phase 6).
 - Trip packing (historical weather beyond the 16-day forecast, count-only basics).
-- "Your nines" (the owner's idea, 20 November; it goes with renaming the app to Nines, which is not decided yet): the nine pieces worn most, shown as a three-by-three square in the Wardrobe.
+- "Your nines" (the owner's idea, 20 November; the app is now called Nines): the nine pieces worn most, shown as a three-by-three square in the Wardrobe.
 - Extras: calendar-aware suggestions, offline edit queue. Cut: resale suggestions, seasonal storage rotation.
 
 ### Definition of done for a stop

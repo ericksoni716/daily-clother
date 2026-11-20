@@ -262,7 +262,7 @@ def test_the_window_is_titled_closet_and_fits_the_phone_layout(window_at):
     w, toolkit, _ = window_at()
     assert w.prepare()
     win = toolkit.window
-    assert win.title == "Closet"
+    assert win.title == "Nines"
     assert win.options["text_select"] is True and win.options["url"] == URL and win.options["hidden"] is False
     assert win.options["min_size"][0] <= 400 and (win.options["width"], win.options["height"]) == app_window.SIZE
     assert app_window._fit((1280, 860), (1366, 768)) == (1229, 691)
@@ -668,6 +668,18 @@ def test_an_update_opens_the_window_only_when_it_was_showing():
     assert cli._launch_args(SimpleNamespace(no_tray=True, tray=False, browser=True), 9000) == [
         "--no-tray", "--browser", "--no-browser", "--port", "9000"]
     assert cli._launch_args(SimpleNamespace(no_tray=False, tray=True, browser=False), 9000) == ["--tray", "--no-browser", "--port", "9000"]
+
+
+def test_the_icon_is_the_jacket_on_its_rounded_square_at_any_size():
+    """The tray's and the packaged program's icon (closet/icon.png): a cream rounded square, transparent outside it,
+    with the dark jacket in the middle."""
+    for size in (16, 64, 256):
+        im = tray.icon_image(size)
+        assert im.size == (size, size) and im.mode == "RGBA"
+    im = tray.icon_image(256)
+    assert im.getpixel((0, 0))[3] == 0                      # a cut corner
+    assert im.getpixel((128, 6))[:3] == (246, 242, 234)     # the cream square, top middle
+    assert sum(im.getpixel((150, 140))[:3]) < 120            # the jacket's dark cloth
 
 
 def test_the_tray_knows_whose_loop_it_runs_on():

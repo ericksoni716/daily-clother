@@ -15,8 +15,8 @@ test('a screen that fails to draw says so, keeps the tab bar, and leaving it cle
   const alert = page.getByRole('alert').filter({ hasText: 'Something went wrong on this screen.' });
   await expect(alert).toBeVisible();
   await expect(alert.getByRole('button', { name: 'Try again' })).toBeVisible();
-  await expect(alert.getByRole('button', { name: 'Reload Closet' })).toBeVisible();
-  expect(errors.some((e) => e.includes('Closet could not show this screen'))).toBe(true);
+  await expect(alert.getByRole('button', { name: 'Reload Nines' })).toBeVisible();
+  expect(errors.some((e) => e.includes('Nines could not show this screen'))).toBe(true);
 
   await page.screenshot({ path: testInfo.outputPath('screen-failed-phone.png') });
   const tabbar = page.locator('nav.tabbar');

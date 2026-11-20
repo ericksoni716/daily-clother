@@ -14,8 +14,8 @@ export function retakeSaid(item: Retaken, demo: boolean): string {
   if (demo) return 'New photo added. Its background is removed again; the demo closet keeps its description';
   const patterned = item.pattern_state != null || (item.pattern != null && item.pattern !== 'solid');
   return patterned
-    ? 'New photo added. Closet removes its background, Claude describes it again, then its pattern is measured again'
-    : 'New photo added. Closet removes its background, then Claude describes it again';
+    ? 'New photo added. Nines removes its background, Claude describes it again, then its pattern is measured again'
+    : 'New photo added. Nines removes its background, then Claude describes it again';
 }
 
 /** Where the item page offers a piece of clothing a new photo: in the notice that its background couldn't be

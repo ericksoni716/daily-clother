@@ -1,6 +1,6 @@
 # Instructions for coding agents
 
-Closet is a private, single-user wardrobe app: a local Python (FastAPI + SQLite)
+Nines is a private, single-user wardrobe app: a local Python (FastAPI + SQLite)
 server with a React + TypeScript PWA, packaged as one program for Windows and
 macOS. Before changing anything, read what the change touches:
 

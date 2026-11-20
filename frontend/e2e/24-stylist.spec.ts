@@ -90,13 +90,13 @@ test.describe('outfits chosen by Claude', () => {
     await page.screenshot({ path: test.info().outputPath('today-stylist-waiting.png') });
 
     // the rules' outfits meanwhile, below the card, as they always look (and nothing yet says who chose them)
-    await waiting(page).getByRole('button', { name: "Show Closet's own picks meanwhile" }).click();
+    await waiting(page).getByRole('button', { name: "Show Nines' own picks meanwhile" }).click();
     await expect(current(page).getByTestId('piece').first()).toBeVisible();
     await expect(waiting(page)).toBeVisible();
     expect((await waiting(page).boundingBox())!.y).toBeLessThan((await current(page).boundingBox())!.y);
     await expect(current(page).getByRole('button', { name: "I'm wearing this" })).toBeEnabled();
     await expect(current(page).getByTestId('outfit-by')).toHaveCount(0);
-    await expect(waiting(page).getByRole('button', { name: "Show Closet's own picks meanwhile" })).toHaveCount(0);
+    await expect(waiting(page).getByRole('button', { name: "Show Nines' own picks meanwhile" })).toHaveCount(0);
     const rulesFirst = await current(page).getByTestId('piece').allTextContents();
 
     // then Claude's arrive by themselves
@@ -121,7 +121,7 @@ test.describe('outfits chosen by Claude', () => {
     await expect(current(page).getByRole('note', { name: 'Be aware' })).toContainText('The stand-in has no eye for colour.');
     await page.getByRole('button', { name: 'Outfit 3', exact: true }).click();
     await expect(page.getByRole('heading', { name: /3 of/ })).toBeVisible();
-    await expect(current(page).getByTestId('outfit-by')).toHaveText("From Closet's rules");
+    await expect(current(page).getByTestId('outfit-by')).toHaveText("From Nines' rules");
     await page.getByRole('button', { name: 'Outfit 1', exact: true }).click();
 
     // the answer is kept: a reload shows Claude's outfits at once
@@ -157,7 +157,7 @@ test.describe('outfits chosen by Claude', () => {
     const section = page.locator('section[aria-labelledby="s-style"]');
     const toggle = section.getByRole('switch', { name: 'Let Claude choose my outfits' });
     await expect(toggle).toBeChecked();
-    await expect(section).toContainText("When this is off, or Claude can't be reached, Closet's own rules choose.");
+    await expect(section).toContainText("When this is off, or Claude can't be reached, Nines' own rules choose.");
     await toggle.click();
     await expect(page.getByText('Saved', { exact: true })).toBeVisible();
     await expect(toggle).not.toBeChecked();
@@ -199,14 +199,14 @@ test.describe('when Claude cannot be reached', () => {
     await backend?.stop();
   });
 
-  test("Today shows Closet's own outfits, says why, and offers to try again", async ({ page }) => {
+  test("Today shows Nines' own outfits, says why, and offers to try again", async ({ page }) => {
     test.setTimeout(120_000);
     await setUp(page, backend.url);
     await page.goto(backend.url + '/today');
     const failed = page.getByTestId('stylist-failed');
-    await expect(failed).toContainText("Claude couldn't be reached, so these are from Closet's own rules.", { timeout: 15_000 });
+    await expect(failed).toContainText("Claude couldn't be reached, so these are from Nines' own rules.", { timeout: 15_000 });
     await expect(waiting(page)).toHaveCount(0);
-    await expect(current(page).getByTestId('outfit-by')).toHaveText("From Closet's rules");
+    await expect(current(page).getByTestId('outfit-by')).toHaveText("From Nines' rules");
     await expect(current(page).getByRole('button', { name: "I'm wearing this" })).toBeEnabled();
     await expect(failed.getByRole('button', { name: 'Try again' })).toBeEnabled();
     expect(await axeViolations(page)).toEqual([]);

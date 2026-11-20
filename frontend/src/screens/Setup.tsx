@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { api, ApiError } from '../api';
-import { HangerIcon, CheckIcon } from '../components/Icons';
+import { CheckIcon } from '../components/Icons';
+import { NinesMark, NinesName } from '../components/NinesMark';
 import type { Profile } from '../types';
 import { Button, Card } from '../components/ui';
 
@@ -31,8 +32,8 @@ export function SetupScreen({ onDone }: { onDone(): Promise<void> }) {
     <main className="center-screen">
       <Card className="auth-card">
         <form onSubmit={submit} noValidate>
-          <div className="brand-mark"><HangerIcon /></div>
-          <h1>Welcome to Closet</h1>
+          <NinesMark className="nines-mark-auth" />
+          <h1>Welcome to <NinesName /></h1>
           <p className="muted">Choose a passphrase. You'll use it to open your closet on this computer and on your phone.</p>
           <label className="field">
             <span>Passphrase</span>

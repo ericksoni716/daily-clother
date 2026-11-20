@@ -1,21 +1,22 @@
-import { useQuery } from '@tanstack/react-query';
+/**
+ * The parts of the Wardrobe page about how the closet is used: what is not worn (to archive or keep), what is worn
+ * most, and, behind "More numbers", how wears are spread, what the closet is made of and cost per wear. The page,
+ * which reads the answer, is Wardrobe.tsx.
+ */
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { api } from '../api';
-import { HangerIcon, WarnIcon } from '../components/Icons';
-import { Card as UiCard, ItemThumb, PageHeader, SegmentedControl } from '../components/ui';
+import { HangerIcon } from '../components/Icons';
+import { Card as UiCard, Fold, ItemThumb, SegmentedControl } from '../components/ui';
 import { loadGridView, type GridView } from '../drawing';
 import {
   barWidth, costCaption, FIELD_WORDS, forgetKept, groupLabel, keepPiece, keptPieces, loadSavedInsights,
-  MAKEUP_FIELDS, makeupHero, plural, saveInsights, shortDate, spreadHero, unwornCaption, unwornHero, windowLabel, wornMostHero, type CostPiece, type Counted, type Insights, type MakeupField, type Unworn,
+  MAKEUP_FIELDS, makeupHero, plural, shortDate, spreadHero, unwornCaption, unwornHero, windowLabel, wornMostHero, type CostPiece, type Counted, type Insights, type MakeupField, type Unworn,
   type UnwornPiece,
 } from '../insights';
 import { categoryPlural, label } from '../labels';
-import { itemPath, Link } from '../router';
-import { useItemEdit, useItems } from '../queries';
-import { queryKeys } from '../queryKeys';
-import { shownWithCopy, useTellFailure } from '../savedCopy';
+import { Link } from '../router';
+import { useItemEdit } from '../queries';
 import { useApp } from '../store';
-import { timeOf } from '../today';
 import type { ItemSummary } from '../types';
 import { localDay } from '../wears';
 import { TilePicture } from './Closet';
@@ -23,58 +24,46 @@ import './Insights.css';
 
 const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
 
-const OFFLINE_EMPTY = "You're offline, and nothing was saved on this device yet. Insights shows here once Closet on your computer can be reached.";
+export const INSIGHTS_OFFLINE = "You're offline, and how your clothes are used was not saved on this device yet. It shows here once Closet on your computer can be reached.";
 
 /** This closet's own copy kept on this device, never another closet's. */
-function savedAnswer(profile: string): { data: Insights; savedAt: string } | null {
+export function savedInsights(profile: string): { data: Insights; savedAt: string } | null {
   const saved = loadSavedInsights(profile);
   return saved ? { data: saved.answer, savedAt: saved.saved_at } : null;
 }
 
-export function InsightsScreen() {
-  const { profile, offline, toast } = useApp();
-  const items = useItems('active').data;
+/** An item opened from the Wardrobe opens there (beside the page on a computer), with "‹ Wardrobe" to come back. */
+const piecePath = (id: string) => `/wardrobe/item/${encodeURIComponent(id)}`;
+
+/**
+ * How the closet is used, as sections of the Wardrobe page. `locked`: offline, or showing a copy saved earlier, so
+ * nothing can be archived.
+ */
+export function Usage({ answer, byId, locked }: { answer: Insights; byId: ById; locked: boolean }) {
+  const { profile, toast } = useApp();
   const today = localDay();
   const [kept, setKept] = useState(() => keptPieces(profile, today));
   const [archiving, setArchiving] = useState<string | null>(null);
   // pieces archived from here, until the answer is read again without them
   const [gone, setGone] = useState<{ from: Insights | undefined; ids: string[] }>({ from: undefined, ids: [] });
   const saveItem = useItemEdit('item');
-
-  // Read through the cache, and kept on this device for when Closet cannot be reached. Coming back shows it at once;
-  // a wear recorded or an item changed makes it stale; coming back online asks again (ClosetProvider).
-  const query = useQuery({
-    queryKey: queryKeys.insights(),
-    queryFn: async () => {
-      const answer = await api.insights();
-      saveInsights(profile, answer);
-      return answer;
-    },
-  });
-  const phase = shownWithCopy(query.data, query.error, () => savedAnswer(profile), OFFLINE_EMPTY);
-  useTellFailure(query.error, query.data !== undefined, query.errorUpdatedAt, toast);
-  const goneIds = gone.from === query.data ? gone.ids : [];
-
+  const goneIds = gone.from === answer ? gone.ids : [];
   // the same picture the closet grid shows: photos or drawings, as chosen there
   const view = useMemo<GridView>(loadGridView, []);
-  const locked = offline || (phase.kind === 'ready' && phase.savedAt !== null);
 
-  const byId = useMemo(() => new Map((items ?? []).map((i) => [i.id, i])), [items]);
-
-  const answerNow = query.data;
   const archive = useCallback(async (id: string) => {
     setArchiving(id);
     try {
-      // the item goes into the lists, and Insights is made stale, so it is read again without it
+      // the item goes into the lists, and the answer is made stale, so it is read again without it
       await saveItem(() => api.patch(id, { status: 'archived' }));
-      setGone((g) => ({ from: answerNow, ids: g.from === answerNow ? [...g.ids, id] : [id] }));
+      setGone((g) => ({ from: answer, ids: g.from === answer ? [...g.ids, id] : [id] }));
       toast('Archived. It is kept under Archived in your closet.');
     } catch (e) {
       toast((e as Error).message, 'error');
     } finally {
       setArchiving(null);
     }
-  }, [saveItem, toast, answerNow]);
+  }, [saveItem, toast, answer]);
 
   const keep = useCallback((id: string) => {
     const until = keepPiece(profile, id, today);
@@ -88,41 +77,28 @@ export function InsightsScreen() {
   }, [profile]);
 
   return (
-    <section className="insights" aria-labelledby="insights-title">
-      <PageHeader className="insights-header" title="Insights" titleId="insights-title"
-        back={{ to: '/', label: 'Closet', className: 'insights-back' }}
-        subtitle="How your clothes are being used, from what you have recorded as worn." />
-
-      {phase.kind === 'loading' && (
-        <div className="insights-grid" aria-hidden="true">{Array.from({ length: 4 }, (_, i) => <div key={i} className="insights-skeleton" />)}</div>
-      )}
-      {phase.kind === 'error' && (
-        <div className={phase.offline ? 'empty' : ''}>
-          <p className={phase.offline ? 'muted' : 'form-error'} role="alert">{phase.message}</p>
-          {!phase.offline && <button className="btn" onClick={() => void query.refetch()}>Try again</button>}
+    <ViewContext.Provider value={view}>
+      <section className="wardrobe-section insights" aria-labelledby="unworn-title">
+        <h2 id="unworn-title" className="missing-section-title">Not worn</h2>
+        <div className="insights-grid">
+          <UnwornCard finding={answer.never_worn} testid="never-worn" byId={byId} kept={kept} gone={goneIds} offline={locked}
+            archiving={archiving} onArchive={archive} onKeep={keep} onShowKept={showKept} />
+          <UnwornCard finding={answer.not_worn_lately} testid="not-worn-lately" byId={byId} kept={kept} gone={goneIds} offline={locked}
+            archiving={archiving} onArchive={archive} onKeep={keep} onShowKept={showKept} />
         </div>
-      )}
-      {phase.kind === 'ready' && phase.savedAt && (
-        <p className="notice notice-warn" role="status">
-          <WarnIcon />
-          <span>Saved earlier{savedWhen(phase.savedAt)}. You're offline, so nothing here can be changed until Closet on your computer can be reached.</span>
-        </p>
-      )}
-      {phase.kind === 'ready' && (
-        <ViewContext.Provider value={view}>
-          <div className="insights-grid">
-            <UnwornCard finding={phase.data.never_worn} testid="never-worn" byId={byId} kept={kept} gone={goneIds} offline={locked}
-              archiving={archiving} onArchive={archive} onKeep={keep} onShowKept={showKept} />
-            <UnwornCard finding={phase.data.not_worn_lately} testid="not-worn-lately" byId={byId} kept={kept} gone={goneIds} offline={locked}
-              archiving={archiving} onArchive={archive} onKeep={keep} onShowKept={showKept} />
-            <WornMostCard answer={phase.data} byId={byId} />
-            <SpreadCard answer={phase.data} byId={byId} />
-            <MakeupCard answer={phase.data} />
-            <CostCard answer={phase.data} byId={byId} />
-          </div>
-        </ViewContext.Provider>
-      )}
-    </section>
+      </section>
+      <section className="wardrobe-section insights" aria-labelledby="worn-most-title">
+        <h2 id="worn-most-title" className="missing-section-title">Worn most</h2>
+        <WornMostCard answer={answer} byId={byId} />
+      </section>
+      <Fold title="More numbers" lazy className="insights more-numbers" testId="more-numbers">
+        <div className="insights-grid">
+          <SpreadCard answer={answer} byId={byId} />
+          <MakeupCard answer={answer} />
+          <CostCard answer={answer} byId={byId} />
+        </div>
+      </Fold>
+    </ViewContext.Provider>
   );
 }
 
@@ -135,7 +111,7 @@ function Card({ title, hero, sentence, testid, wide, children }: {
   const id = `insights-${testid}`;
   return (
     <UiCard as="section" className={`insights-card${wide ? ' is-wide' : ''}`} aria-labelledby={id} data-testid={testid}>
-      <h2 id={id}>{title}</h2>
+      <h3 id={id} className="insights-card-title">{title}</h3>
       {hero && <p className="insights-hero" data-testid="insight-hero">{hero}</p>}
       <p className="insights-sentence">{sentence}</p>
       {children}
@@ -160,7 +136,7 @@ function Piece({ id, byId, caption, title, children }: { id: string; byId: ById;
   const item = byId.get(id);
   return (
     <li className="insights-piece" data-testid="insight-piece">
-      <Link to={itemPath(id, 'active')} className="insights-piece-link" title={title}>
+      <Link to={piecePath(id)} className="insights-piece-link" title={title}>
         <ItemThumb className="insights-piece-pic" picture={<Picture item={item} />} />
         <span className="insights-piece-name">{nameOf(item)}</span>
         <span className="insights-piece-caption">{caption}</span>
@@ -254,7 +230,7 @@ function Bars({ rows, byId }: { rows: Counted[]; byId: ById }) {
     <ul className="insights-bars">
       {rows.map((r) => (
         <li key={r.id}>
-          <Link to={itemPath(r.id, 'active')} className="insights-bar-row">
+          <Link to={piecePath(r.id)} className="insights-bar-row">
             <ItemThumb className="insights-bar-pic" picture={<Picture item={byId.get(r.id)} />} />
             <span className="insights-bar-text">
               <span className="insights-bar-name">{nameOf(byId.get(r.id))}</span>
@@ -332,12 +308,4 @@ function MakeupCard({ answer }: { answer: Insights }) {
       )}
     </Card>
   );
-}
-
-function savedWhen(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const time = timeOf(iso);
-  if (new Date().toDateString() === d.toDateString()) return time ? ` today, at ${time}` : ' today';
-  return `, on ${d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}`;
 }

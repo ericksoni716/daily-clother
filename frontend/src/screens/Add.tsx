@@ -5,6 +5,7 @@ import { byId, itemIdOf, waitingReason } from '../added';
 import { AddedPicture, AddedRow } from '../components/AddedItem';
 import { CameraIcon, CheckIcon, CloseIcon, CloudOffIcon, ImagesIcon, WarnIcon } from '../components/Icons';
 import { sendShoePhotos } from '../components/ShoePhotos';
+import { ModelBanner } from '../components/ModelBanner';
 import { Card, Notice, PageHeader } from '../components/ui';
 import {
   applySort, batches, choicesFor, choose, missingLine, NEEDED_DEFAULT, pairs, shoeCheck, shoes, SHOE_PHOTOS, SORT_EDGE,
@@ -405,6 +406,8 @@ export function AddScreen() {
   return (
     <section className="add" aria-labelledby="add-title">
       <PageHeader title="Add clothes" titleId="add-title" />
+      {/* said once, here, where it matters: new photos keep their background until the cutting-out files are in */}
+      <ModelBanner />
       {profile === 'demo' && <Notice as="p">You're in the demo closet, so new photos are added to the demo. Use "Back to my closet" above to add to your own.</Notice>}
 
       {offline ? (

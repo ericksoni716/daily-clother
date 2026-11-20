@@ -495,6 +495,12 @@ export function chosenBy(outfit: Pick<Outfit, 'by'>, stylist: StylistState | nul
   return stylist && (stylist.state === 'ready' || stylist.state === 'failed') ? "From Closet's rules" : null;
 }
 
+/** Claude's reading of the day, said in "Why this works" of an outfit Claude chose (it was a line of its own under the
+ * outfits); null for the rules' outfits and before Claude has answered. */
+export function readFor(outfit: Pick<Outfit, 'by'>, stylist: StylistState | null | undefined): string | null {
+  return outfit.by === 'claude' && stylist?.state === 'ready' ? stylist.read || null : null;
+}
+
 /** How long Claude has been choosing (seconds) before the waiting card says it is taking longer than usual. */
 export const STYLIST_SLOW_S = 90;
 

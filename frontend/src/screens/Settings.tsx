@@ -168,7 +168,7 @@ function EverydaySection({ offline, profile, settings, toast }: { offline: boole
         </Sheet>
       )}
       <div className="settings-row">
-        <p>{profile === 'demo' ? 'How you live: example answers.' : settings.life ? 'How you live: your answers are saved.' : "What's missing doesn't know how you live yet."}</p>
+        <p>{profile === 'demo' ? 'How you live: example answers.' : settings.life ? 'How you live: your answers are saved.' : 'Wardrobe does not know how you live yet.'}</p>
         {!lifeOpen && (
           <Button small disabled={offline} onClick={() => setLifeOpen(true)}>
             {profile === 'demo' ? 'See example answers' : settings.life ? 'Edit my answers' : 'Tell it how you live'}

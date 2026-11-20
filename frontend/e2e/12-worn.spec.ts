@@ -29,15 +29,18 @@ async function openToday(page: Page) {
 const current = (page: Page) => page.getByTestId('current-outfit');
 const question = (page: Page) => page.getByTestId('worn-question');
 const cards = (page: Page) => page.getByTestId('worn-outfit');
+/** Worn is reached from Recent outfits on Today: its "See all". */
+const seeAll = (page: Page) => page.getByTestId('recent-outfits').getByRole('link', { name: 'See all' });
 
 test('worn: wear an outfit, rate it, Today learns from it, wear one again, remove it', async ({ page }) => {
   await fakeWeather(page);
   await openToday(page);
 
-  // yesterday's demo outfit has no rating, so Today asks about it, above today's outfits
+  // yesterday's demo outfit has no rating, so Today asks about it, under today's outfits, first in Recent outfits
   await expect(current(page).getByTestId('piece').first()).toBeVisible();
   await expect(question(page).getByRole('heading', { name: "How was yesterday's outfit?" })).toBeVisible();
-  expect((await question(page).boundingBox())!.y).toBeLessThan((await current(page).boundingBox())!.y);
+  expect((await question(page).boundingBox())!.y).toBeGreaterThan((await current(page).boundingBox())!.y);
+  await expect(page.getByTestId('recent-outfits').getByTestId('worn-question')).toBeVisible();
   await question(page).getByRole('button', { name: 'Loved it' }).click();
   await expect(question(page).getByRole('group', { name: 'Why' })).toBeVisible();
   await question(page).getByRole('button', { name: 'Got compliments' }).click();
@@ -49,8 +52,11 @@ test('worn: wear an outfit, rate it, Today learns from it, wear one again, remov
   await current(page).getByRole('button', { name: "I'm wearing this" }).click();
   await expect(current(page).getByTestId('worn-today')).toHaveText("You're wearing this today");
   const worn = await current(page).getByTestId('piece').count();
+  // it shows at once in Recent outfits, where it can be rated in place
+  const recentToday = page.getByTestId('recent-outfit').filter({ has: page.getByRole('heading', { name: 'Today' }) });
+  await expect(recentToday.getByRole('group', { name: 'How it went' }).getByRole('button', { name: 'Loved it' })).toBeVisible();
 
-  await page.getByRole('link', { name: 'Worn', exact: true }).click();
+  await seeAll(page).click();
   await expect(page).toHaveURL(/\/today\/worn$/);
   const todays = cards(page).first();
   await expect(todays.getByRole('heading', { name: 'Today' })).toBeVisible();
@@ -101,8 +107,8 @@ test('worn: wear an outfit, rate it, Today learns from it, wear one again, remov
   await expect.poll(async () => (await washing()).length).toBeGreaterThan(0);
   expect((await washing()).every((i) => ['tee', 'shirt', 'polo', 'sweater', 'hoodie', 'jeans', 'trousers', 'shorts'].includes(i.category))).toBe(true);
   await page.goto('/');
+  await page.getByTestId('in-laundry').click();
   const notice = page.getByTestId('laundry-notice');
-  await notice.getByRole('button', { name: 'Show' }).click();
   await notice.getByRole('button', { name: 'All clean' }).click();
   await expect.poll(async () => (await washing()).length).toBe(0);
   await expect(notice).toHaveCount(0);
@@ -114,7 +120,7 @@ test('worn: wear an outfit, rate it, Today learns from it, wear one again, remov
     .toContainText('Dressed a little warmer than usual: you were cold on a day like this on');
 
   // wear one again: the loved outfit of six days ago comes back where its pieces are clean
-  await page.getByRole('link', { name: 'Worn', exact: true }).click();
+  await seeAll(page).click();
   const older = cards(page).filter({ has: page.getByTestId('worn-rating').getByText('Loved it · got compliments') }).last();
   await expect(older.getByRole('heading')).not.toHaveText('Yesterday');
   await older.getByRole('button', { name: 'More for this outfit' }).click();
@@ -194,7 +200,7 @@ test('worn: the list fits a phone', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await fakeWeather(page);
   await openToday(page);
-  await page.getByRole('link', { name: 'Worn', exact: true }).click();
+  await seeAll(page).click();
   await expect(cards(page).first()).toBeVisible();
   await expect(cards(page).first().getByRole('button', { name: 'More for this outfit' })).toBeVisible();
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

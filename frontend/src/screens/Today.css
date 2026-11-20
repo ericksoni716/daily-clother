@@ -8,14 +8,11 @@
 @media (min-width: 700px) { .today-header .count { font-size: var(--text-3xl); } }
 .today-header .count { white-space: nowrap; }
 .today-header .date-short { display: none; }
-.today-links { display: flex; gap: var(--space-2); flex: none; }
-.today-links .btn { padding: 0 var(--space-3); gap: 6px; }
-.today-links .btn svg { width: 18px; height: 18px; color: var(--ink-3); }
-/* on a phone the date goes under the title, so Worn and Trips fit beside it */
+/* on a phone the date goes under the title, a size smaller */
 @media (max-width: 599px) {
   .today-header .page-title-row { flex-direction: column; align-items: flex-start; gap: 0; }
   .today-header .count { font-size: var(--text-lg); }
-  /* the day stays on one line beside Worn and Trips whatever its name: "Wed 25 Nov", not "Wednesday 25 Nov" */
+  /* the day stays on one line whatever its name: "Wed 25 Nov", not "Wednesday 25 Nov" */
   .today-header .date-long { display: none; }
   .today-header .date-short { display: inline; }
   .today-day-line, .today-day-change .btn-link { font-size: var(--text-sm); }
@@ -147,7 +144,7 @@
 .today-reasons { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; color: var(--ink-2); }
 .today-reasons li { display: flex; gap: 8px; align-items: flex-start; line-height: 1.4; }
 .today-reasons svg { flex: none; width: 18px; height: 18px; margin-top: 2px; color: var(--accent); }
-.today-hint { margin: var(--space-3) 0 0; }
+.today-read { margin: 0 0 var(--space-3); color: var(--ink-2); line-height: 1.4; }
 
 /* Wide card: pieces with the button under them on the left, why on the right. */
 @container (min-width: 640px) {
@@ -169,32 +166,26 @@
   .today-piece-name { margin-top: 4px; }
 }
 
-/* the way to the other outfits: clear arrows either side of the dots */
-.today-nav { display: flex; align-items: center; justify-content: center; gap: var(--space-2); margin-top: var(--space-2); }
-.today-arrow { flex: none; width: var(--tap); height: var(--tap); }
-.today-arrow:not(:disabled) { border-color: var(--line-strong); }
-.today-thumbs { display: flex; justify-content: center; gap: 0; min-width: 0; flex-wrap: wrap; }
+/* the way to the other outfits: a swipe, or a dot for each */
+.today-nav { display: flex; align-items: center; justify-content: center; gap: 0; margin-top: var(--space-2); }
 .today-thumb {
   display: grid; place-items: center; min-width: var(--tap); min-height: var(--tap); padding: 0; border: none; background: none; cursor: pointer;
 }
-.today-thumb-pics { display: none; }
 .today-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--line-strong); transition: background var(--dur-quick) var(--ease-out), transform var(--dur-quick) var(--ease-out); }
 .today-thumb.is-on .today-dot { background: var(--accent-bg); transform: scale(1.3); }
+@media (min-width: 1000px) { .today-nav { justify-content: flex-start; } }
+.today-how { margin-top: var(--space-1); }
 
-@media (min-width: 1000px) {
-  .today-nav { justify-content: flex-start; gap: var(--space-3); margin-top: var(--space-3); }
-  .today-thumbs { justify-content: flex-start; gap: 10px; }
-  .today-thumb { padding: 6px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); }
-  .today-thumb.is-on { box-shadow: 0 0 0 2px var(--accent); border-color: transparent; }
-  .today-thumb:hover:not(.is-on) { border-color: var(--ink-3); }
-  .today-thumb-pics { display: grid; grid-template-columns: repeat(4, 34px); gap: 3px; }
-  .today-thumb-pics > * {
-    position: relative; display: block; width: 34px; height: 39px; border-radius: var(--radius-sm); background: var(--card); overflow: hidden; object-fit: contain;
-  }
-  .today-thumb-pics > .pic-cutout { padding: 2px; filter: none; }
-  .today-thumb-pics > .pic-photo { object-fit: cover; }
-  .today-dot { display: none; }
+/* ---------------------------------------------------------------- below the outfits: a trip near, recent outfits, Trips */
+.today-trip {
+  display: flex; align-items: center; gap: var(--space-3); min-height: var(--tap); margin: var(--space-5) 0 0; padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); text-decoration: none;
 }
+.today-trip:hover { border-color: var(--line-strong); }
+.today-trip > svg { flex: none; width: 22px; height: 22px; color: var(--accent); }
+.today-trip > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.today-trip-chevron { flex: none; width: 18px; height: 18px; color: var(--ink-3); }
+.today-more { margin: var(--space-5) 0 0; color: var(--ink-2); font-size: var(--text-sm); }
 
 /* ---------------------------------------------------------------- other states */
 .today-saved { align-items: center; }

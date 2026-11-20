@@ -64,3 +64,7 @@ export const HistoryIcon = (p: P) => (
 export const InfoIcon = (p: P) => (
   <svg {...base} {...p}><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.2M12 7.8v.1" /></svg>
 );
+/** A wardrobe with two doors: the Wardrobe place, what to buy and how the closet is used. */
+export const WardrobeIcon = (p: P) => (
+  <svg {...base} {...p}><rect x="4.5" y="3" width="15" height="16.5" rx="1.5" /><path d="M12 3v16.5M10 10.5v2M14 10.5v2M6.5 19.5V21M17.5 19.5V21" /></svg>
+);

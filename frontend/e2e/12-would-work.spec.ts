@@ -18,7 +18,7 @@ test.afterEach(async ({ page, context }) => {
 async function openMissing(page: Page) {
   await login(page);
   await useProfile(page, 'demo');
-  await page.goto('/missing');
+  await page.goto('/wardrobe');
   await expect(page.getByTestId('gap').first()).toBeVisible({ timeout: 30_000 });
 }
 
@@ -43,7 +43,7 @@ test('would this work?, described by hand in the demo closet on a computer, on a
   await page.setViewportSize({ width: 1280, height: 800 });
   await openMissing(page);
   await page.getByRole('link', { name: 'Would this work?' }).click();
-  await expect(page).toHaveURL(/\/missing\/check$/);
+  await expect(page).toHaveURL(/\/wardrobe\/check$/);
   const panel = page.getByTestId('would-work');
   // a full-width page of its own: what it is on the left, the answer on the right; no suggestions, no side panel
   await expect(page.getByRole('heading', { level: 1, name: 'Would this work?' })).toBeVisible();
@@ -84,16 +84,16 @@ test('would this work?, described by hand in the demo closet on a computer, on a
 
   // a piece of the closet opens from the answer; coming back shows the answer again
   await answer.getByRole('list', { name: 'Your pieces it pairs with best' }).getByRole('link').first().click();
-  await expect(page).toHaveURL(/\/missing\/item\//);
+  await expect(page).toHaveURL(/\/wardrobe\/item\//);
   await page.goBack();
   await expect(page.getByTestId('would-work-answer')).toBeVisible();
   // ...and it is still on the wishlist once: the button does not add it again
   await expect(panel.getByRole('button', { name: 'On your wishlist' })).toBeDisabled();
   expect((await (await page.request.get('/api/wishlist')).json()).wishes).toHaveLength(1);
-  // back to What's missing: the wishlist is in the side panel, with the new wish in it
+  // back to the Wardrobe: the wishlist is in the side panel, with the new wish in it
   await panel.locator('.wouldwork-back').click();
-  await expect(page).toHaveURL(/\/missing$/);
-  await expect(page.getByRole('complementary', { name: 'Your wishlist' }).getByTestId('wish')).toHaveCount(1);
+  await expect(page).toHaveURL(/\/wardrobe$/);
+  await expect(page.getByRole('complementary', { name: 'Thinking of buying something?' }).getByTestId('wish-row')).toHaveCount(1);
 });
 
 test('would this work?: leaving while the check is being sent and coming back picks it up', async ({ page }) => {
@@ -113,10 +113,10 @@ test('would this work?: leaving while the check is being sent and coming back pi
   await expect(panel.getByTestId('would-work-waiting')).toContainText('Sending');
   await expect.poll(() => held !== null).toBe(true);
   // away to the closet, then back while the request is still on its way
-  await page.getByRole('link', { name: 'Closet', exact: true }).first().click();
-  await expect(page).not.toHaveURL(/\/missing/);
+  await page.getByRole('link', { name: /^Closet/ }).first().click();
+  await expect(page).not.toHaveURL(/\/wardrobe/);
   await page.goBack();
-  await expect(page).toHaveURL(/\/missing\/check$/);
+  await expect(page).toHaveURL(/\/wardrobe\/check$/);
   await expect(page.getByTestId('would-work-waiting')).toContainText('Sending');
   await held!.continue();
   await expect(page.getByTestId('would-work-answer')).toBeVisible({ timeout: 30_000 });
@@ -155,9 +155,9 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   await page.request.post('/api/wishlist', { data: { gap_id: rain.id } });
   // back from the check, the lists are asked for again: the wish shows without reloading the page
   await page.locator('.wouldwork-back').click();
-  await page.getByRole('button', { name: /^Wishlist · 1/ }).click();
-  await page.getByTestId('wish').first().getByRole('button', { name: 'I found one: would it work?' }).click();
-  await expect(page).toHaveURL(/\/missing\/check\/wish\//);
+  await page.getByTestId('wish-row').first().click();
+  await page.getByTestId('wish').getByRole('button', { name: 'I found one: would it work?' }).click();
+  await expect(page).toHaveURL(/\/wardrobe\/check\/wish\//);
   const fromWish = page.getByTestId('would-work');
   await expect(fromWish).toContainText(`Checking a find for ${rain.name}`);
   await expect(fromWish.getByRole('group', { name: 'What kind of piece' }).getByRole('button', { name: 'Coat', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -176,8 +176,8 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
   expect(wishes).toHaveLength(1);
   expect(wishes[0].note).toContain('keeps the rain off');
   await page.locator('.wouldwork-back').click();
-  await page.getByRole('button', { name: /^Wishlist · 1/ }).click();
-  await expect(page.getByTestId('wish').first().getByRole('textbox', { name: 'Note' })).toHaveValue(/keeps the rain off/);
+  await page.getByTestId('wish-row').first().click();
+  await expect(page.getByTestId('wish').getByRole('textbox', { name: 'Note' })).toHaveValue(/keeps the rain off/);
 });
 
 test('would this work? is off while offline, with the same words as the other buttons', async ({ page, context }) => {
@@ -187,7 +187,7 @@ test('would this work? is off while offline, with the same words as the other bu
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByText('Offline: showing your saved closet')).toBeVisible();
-  const off = page.locator('.missing-header').getByText('Would this work?');
+  const off = page.locator('.thinking-check').getByText('Would this work?');
   await expect(off).toHaveAttribute('aria-disabled', 'true');
   await expect(off).toHaveAttribute('title', /needs Closet on your computer/i);
 });
@@ -197,7 +197,7 @@ for (const [label, viewport] of [['computer', { width: 1280, height: 800 }], ['p
     await page.setViewportSize(viewport);
     await login(page);
     await useProfile(page, 'demo');
-    await page.goto('/missing/check');
+    await page.goto('/wardrobe/check');
     await checkCoat(page);
     await expect.poll(() => page.locator('main img').evaluateAll((imgs) => imgs.every((i) => (i as HTMLImageElement).complete))).toBe(true);
     await page.evaluate(() => window.scrollTo(0, 0));

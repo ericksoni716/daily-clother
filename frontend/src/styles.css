@@ -313,8 +313,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .brand-mark { width: 56px; height: 56px; border-radius: var(--radius-md); background: var(--accent-bg); color: var(--accent-ink); display: grid; place-items: center; margin-bottom: 12px; }
 .brand-mark svg { width: 32px; height: 32px; }
 .brand-mark-ok svg { width: 30px; height: 30px; stroke-width: 2.4; }
-.ready-phone { margin: 18px 0; padding: 14px; border-radius: var(--radius-sm); background: var(--surface-2); }
-.ready-phone h2 { font-size: var(--text-md); margin-bottom: 6px; }
+.ready-phone { margin: var(--space-4) 0; }
 .phone-qr { display: block; width: 200px; height: 200px; margin: 8px 0; }
 .address { font-size: var(--text-md); word-break: break-all; }
 .address code { display: inline-block; padding: 6px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); user-select: all; }
@@ -411,8 +410,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
   .sidebar ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
   .sidebar-add { margin: 0 0 var(--space-5); }
   .sidebar ul.sidebar-bottom { margin-top: auto; padding-top: var(--space-4); }
-  .nav-link.nav-sublink { min-height: 36px; margin-left: var(--space-6); font-size: var(--text-sm); }
-  .nav-link.nav-sublink svg { width: 18px; height: 18px; }
   .sidebar-brand { display: flex; align-items: center; gap: 10px; font-weight: var(--weight-heading); font-size: var(--text-lg); padding: 0 10px 22px; }
   .brand-dot { width: 34px; height: 34px; border-radius: var(--radius-sm); background: var(--accent-bg); color: var(--accent-ink); display: grid; place-items: center; }
   .brand-dot svg { width: 22px; height: 22px; }
@@ -570,8 +567,12 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .notice.has-action { align-items: center; flex-wrap: wrap; }
 .notice-text { flex: 1 1 14rem; min-width: 0; }
 .notice-action { flex: none; display: flex; gap: 8px; }
-/* the review queue on the closet: one slim line */
-.review-notice { padding-top: var(--space-1); padding-bottom: var(--space-1); }
+/* the closet's one status line: "5 to check · 4 in the laundry", each part a filter, then what to do with those */
+.closet-status { margin: calc(-1 * var(--space-2)) 0 var(--space-3); }
+.closet-status-line { margin: 0; color: var(--ink-3); font-size: var(--text-sm); }
+.closet-status-part { padding: 0; font-size: var(--text-sm); font-weight: var(--weight-label); }
+.closet-status-part.is-on { text-decoration-thickness: 2px; color: var(--ink); }
+.closet-status-next { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-3); margin: var(--space-2) 0 0; font-size: var(--text-sm); }
 
 /* ---------------------------------------------------------------- shared components (components/ui) */
 /* :where() keeps these at no weight, so a screen's own class can still set size and padding. */
@@ -716,6 +717,20 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .more summary::before { content: ''; width: 8px; height: 8px; border-right: 2px solid var(--ink-3); border-bottom: 2px solid var(--ink-3); transform: rotate(-45deg); transition: transform var(--dur-quick) var(--ease-out); margin: 0 6px 0 4px; }
 .more[open] summary::before { transform: rotate(45deg); }
 .more-body { padding: 4px 0 14px; display: grid; gap: 4px; }
+/* Fold, HowItWorks, ShowMore and SaveStatus (components/ui/) */
+.fold-body { padding: 0 0 var(--space-4); }
+.how { margin: var(--space-3) 0 0; font-size: var(--text-sm); color: var(--ink-2); }
+.how summary { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--tap); cursor: pointer; list-style: none; color: var(--ink-3); font-weight: var(--weight-label); }
+.how summary::-webkit-details-marker { display: none; }
+.how-mark { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line-strong); font-size: var(--text-xs); line-height: 1; }
+.how[open] summary { color: var(--ink-2); }
+.how-body { padding: 0 0 var(--space-2); line-height: 1.45; }
+.how-body p { margin: 0 0 var(--space-2); }
+.show-more { padding-left: 0; padding-right: 0; }
+.save-status { display: inline-block; min-height: 1.4em; font-size: var(--text-sm); color: var(--ink-3); }
+.save-status.is-failed { color: var(--danger); }
+.save-status .btn-link { min-height: 0; padding: 0; }
+
 .more-body .chip-group { margin: 4px 0 14px; }
 @media (min-width: 600px) { .more-body { grid-template-columns: 1fr 1fr; column-gap: 14px; } .more-body .chip-group, .more-body label:last-child { grid-column: 1 / -1; } }
 .detail-panel .more-body { grid-template-columns: 1fr; }

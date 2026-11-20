@@ -157,11 +157,15 @@ test('today on a phone: swipe to another outfit, open a piece, and come back to 
   for (const w of await current(page).locator('.today-piece-card').evaluateAll((cards) => cards.map((c) => c.getBoundingClientRect().width))) {
     expect(w).toBeGreaterThanOrEqual(100);
   }
-  for (const name of ['Previous outfit', 'Next outfit']) {
-    const arrow = (await page.getByRole('button', { name }).boundingBox())!;
-    expect(arrow.width).toBeGreaterThanOrEqual(44);
-    expect(arrow.height).toBeGreaterThanOrEqual(44);
+  // a swipe or a dot reaches the other outfits (the arrows are gone): each dot is a 44px target
+  const dots = page.getByRole('group', { name: 'Choose an outfit' }).getByRole('button');
+  expect(await dots.count()).toBeGreaterThan(1);
+  for (const dot of await dots.all()) {
+    const b = (await dot.boundingBox())!;
+    expect(b.width).toBeGreaterThanOrEqual(44);
+    expect(b.height).toBeGreaterThanOrEqual(44);
   }
+  await expect(page.getByRole('button', { name: 'Next outfit' })).toHaveCount(0);
 
   // swipe (a sideways scroll of the outfits)
   await page.locator('.today-track').evaluate((el) => el.scrollTo({ left: el.clientWidth, behavior: 'instant' }));
@@ -338,7 +342,7 @@ test('today when the forecast cannot be fetched: an outfit for a mild day, a not
   await expect(current(page).getByTestId('piece').first()).toBeVisible();
 
   // "Use the forecast again" goes back to the forecast (still the mild day here)
-  await page.getByRole('button', { name: 'Change' }).click();
+  await page.getByRole('button', { name: 'Change', exact: true }).click();
   await panel.getByRole('button', { name: 'Use the forecast again' }).click();
   await expect(page.getByTestId('day-line')).toContainText('a mild day');
 });
@@ -356,7 +360,7 @@ test('today: "Use my location" asks the browser only on a tap and saves the plac
   await expect(current(page).getByTestId('piece').first()).toBeVisible();
   expect(near).toEqual([]);
 
-  await page.getByRole('button', { name: 'Change' }).click();
+  await page.getByRole('button', { name: 'Change', exact: true }).click();
   await page.getByRole('button', { name: 'Use my location' }).click();
   await expect(page.getByText(`Saved: ${BROOKLYN}`).first()).toBeVisible();
   expect(near).toHaveLength(1);

@@ -221,7 +221,7 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
   return (
     <section className={`wouldwork${wide ? ' is-wide' : ''}`} aria-labelledby={titleId} data-testid="would-work">
       <PageHeader className="wouldwork-head" title="Would this work?" titleId={titleId}
-        back={{ to: '/missing', label: "What's missing", className: 'wouldwork-back' }}
+        back={{ to: '/wardrobe', label: 'Wardrobe', className: 'wouldwork-back' }}
         subtitle={wish ? <>Checking a find for <strong>{wish.name}</strong> against your closet.</> : 'Check a piece against your closet before you buy it.'} />
       {wide ? (
         <div className="wouldwork-columns">
@@ -374,7 +374,7 @@ function Answer({ check, answer, byId }: { check: Check; answer: WouldAnswer; by
                             <ItemThumb className="gap-thumb wouldwork-this" title={`This piece (${placeLabel(place).toLowerCase()})`}
                               picture={<span>This piece</span>} />
                           ) : (
-                            <ItemThumb item={byId.get(id)} to={`/missing/item/${encodeURIComponent(id)}`} className="gap-thumb" title={itemName(byId.get(id))} />
+                            <ItemThumb item={byId.get(id)} to={`/wardrobe/item/${encodeURIComponent(id)}`} className="gap-thumb" title={itemName(byId.get(id))} />
                           )}
                         </li>
                       ))}
@@ -392,7 +392,7 @@ function Answer({ check, answer, byId }: { check: Check; answer: WouldAnswer; by
               <ul className="gap-thumbs" aria-label="Pieces you have like it">
                 {answer.repeats.items.map((r) => (
                   <li key={r.id} className="wouldwork-repeat">
-                    <ItemThumb item={byId.get(r.id)} to={`/missing/item/${encodeURIComponent(r.id)}`} className="gap-thumb"
+                    <ItemThumb item={byId.get(r.id)} to={`/wardrobe/item/${encodeURIComponent(r.id)}`} className="gap-thumb"
                       title={`${itemName(byId.get(r.id))}: ${wornWords(r.worn).toLowerCase()}`} />
                     <span className={r.hardly_worn ? 'wouldwork-worn is-hardly' : 'wouldwork-worn'}>{wornWords(r.worn)}</span>
                   </li>

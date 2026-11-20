@@ -19,7 +19,7 @@ export function itemName(item: ItemSummary | undefined): string {
   return item.name || label('category', item.category) || 'An item';
 }
 
-/** Small pictures of items that open the item on the What's missing screen; `max` shown, then "and N more". */
+/** Small pictures of items that open the item in the Wardrobe; `max` shown, then "and N more". */
 export function Pieces({ ids, byId, max, label: groupLabel }: { ids: string[]; byId: Map<string, ItemSummary>; max: number; label: string }) {
   const shown = ids.slice(0, max);
   const more = ids.length - shown.length;
@@ -29,7 +29,7 @@ export function Pieces({ ids, byId, max, label: groupLabel }: { ids: string[]; b
         const item = byId.get(id);
         return (
           <li key={id}>
-            <ItemThumb item={item} to={`/missing/item/${encodeURIComponent(id)}`} className="gap-thumb" title={itemName(item)} testId="gap-piece" />
+            <ItemThumb item={item} to={`/wardrobe/item/${encodeURIComponent(id)}`} className="gap-thumb" title={itemName(item)} testId="gap-piece" />
           </li>
         );
       })}

@@ -1,11 +1,11 @@
 import { hashKey, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
-import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, HistoryIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
+import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
 import { itemName, Pic } from '../components/ItemPic';
 import { OutfitFigure } from '../components/OutfitFigure';
 import { Talk, type TalkProps, type TalkWords } from '../components/Talk';
-import { BackLink, Button, buttonClass, Card, EmptyState, ItemThumb, Notice, PageHeader, SegmentedControl } from '../components/ui';
+import { BackLink, Button, Card, EmptyState, Fold, HowItWorks, ItemThumb, Notice, PageHeader, SegmentedControl } from '../components/ui';
 import { WhereYouAre } from '../components/WhereYouAre';
 import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
@@ -16,7 +16,7 @@ import { settingsQuery } from '../settings';
 import { useApp } from '../store';
 import {
   canDress, chosenBy, closetKey, dayParts, joinWords, longDate, keptFor, loadChoice, lookingAt, moodLabel, MOODS, newestOn, occasionLabel,
-  OCCASIONS, outfitIds, parseTemp, placeLabel, sameOutfit, sameOutfits, shortDate, saveChoice, stylistView, STYLIST_SLOW_S, talkOf,
+  OCCASIONS, outfitIds, parseTemp, placeLabel, readFor, sameOutfit, sameOutfits, shortDate, saveChoice, stylistView, STYLIST_SLOW_S, talkOf,
   timeOf, waitingLine, whatToAddFirst, withThing, wornNow, wornOrder, type Choice, type DayAnswer, type DayNote, type Outfit, type Place, type RememberHow,
   type StylistState, type TodayAnswer, type TodayRequest, type TypedDay, type WornToday,
 } from '../today';
@@ -24,8 +24,10 @@ import type { ItemSummary } from '../types';
 import { localDay } from '../wears';
 import { localDay as dayNow } from '../wears';
 import { dismiss, loadDismissed, pendingQuestion, pieceName, questionFor, withoutOutfit, wornDay, type WornOutfit } from '../worn';
+import { tripComingUp } from '../trips';
 import { ItemDetail } from './ItemDetail';
-import { changePages, OutfitPics, RateOutfit, useAllItems, wornQuery } from './Worn';
+import { tripsQuery } from './Trips';
+import { changePages, OutfitPics, RateOutfit, RecentOutfits, useAllItems, wornQuery } from './Worn';
 import './Today.css';
 
 const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
@@ -131,6 +133,8 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   // the same first page of worn outfits as the Worn screen, read once for both (and kept for offline)
   const recentRead = useQuery(wornQuery(profile)).data;
   const recent = recentRead?.page.outfits ?? null;
+  // the same list of trips as the Trips screen, read once for both: a trip near enough to pack for gets a row
+  const coming = tripComingUp(useQuery(tripsQuery(profile)).data, today);
   const question = rated ?? pendingQuestion(recent, dismissed, dayNow());
   // what is worn today: this device's memory, put right by the server's list (another device, the Worn screen)
   const worn = useMemo(() => wornNow(wornOnDay?.day === today ? wornOnDay : null, offline ? null : recent, recentRead?.at ?? null, today),
@@ -407,13 +411,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   }
 
   const header = (
-    <PageHeader className="today-header" title="Today" titleId="today-title" count={<><span className="date-long">{longDate(today)}</span><span className="date-short">{shortDate(today)}</span></>}
-      secondary={(
-        <div className="today-links">
-          <Link to="/today/worn" className={buttonClass({ small: true })}><HistoryIcon /> Worn</Link>
-          <Link to="/trips" className={buttonClass({ small: true })}><SuitcaseIcon /> Trips</Link>
-        </div>
-      )} />
+    <PageHeader className="today-header" title="Today" titleId="today-title" count={<><span className="date-long">{longDate(today)}</span><span className="date-short">{shortDate(today)}</span></>} />
   );
 
   // An empty closet: nothing to dress, so no weather or choices either, only what to add.
@@ -522,23 +520,6 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         </div>
       )}
 
-      {question && (
-        <Card as="section" className="worn-question" aria-label={questionFor(question, dayNow())} data-testid="worn-question">
-          <div className="worn-question-head">
-            <h2>{questionFor(question, dayNow())}</h2>
-            <OutfitPics outfit={question} byId={allById} linked={false} />
-            <button className="btn btn-icon btn-ghost worn-question-close" aria-label="Not now"
-              onClick={() => { setDismissed(dismiss(profile, question.id)); setRated(null); }}>×</button>
-          </div>
-          <RateOutfit outfit={question} offline={offline} compact onRated={setRated} />
-          {rated && (
-            <div className="row">
-              <button className="btn btn-small" onClick={() => { setDismissed(dismiss(profile, rated.id)); setRated(null); }}>Done</button>
-            </div>
-          )}
-        </Card>
-      )}
-
       {worn && phase.kind === 'ready' && !phase.answer.outfits.some((o) => sameOutfit(outfitIds(o.pieces), worn.ids)) && (
         <div className="notice today-worn-note" role="status">
           <CheckIcon />
@@ -563,6 +544,37 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         onClear={() => { setBuildAround(null); setLeaveOut([]); }}
         onRetry={ask}
         talk={{ turns: talk, answering, onSay: say, onSettle: (id, at, save) => settle(id, at, { save }), onUndo: (id, at) => settle(id, at, { undo: true }) }} />
+
+      {coming && (
+        <Link to={`/trips/${encodeURIComponent(coming.trip.id)}`} className="today-trip" data-testid="today-trip">
+          <SuitcaseIcon />
+          <span><strong>Packing for a trip?</strong> <span className="muted">{coming.words}</span></span>
+          <ChevronIcon className="today-trip-chevron" />
+        </Link>
+      )}
+
+      {recent && (
+        <RecentOutfits outfits={recent.filter((o) => o.id !== question?.id)} byId={allById} offline={offline}>
+          {question && (
+            <Card as="section" className="worn-question" aria-label={questionFor(question, dayNow())} data-testid="worn-question">
+              <div className="worn-question-head">
+                <h3>{questionFor(question, dayNow())}</h3>
+                <OutfitPics outfit={question} byId={allById} linked={false} />
+                <button className="btn btn-icon btn-ghost worn-question-close" aria-label="Not now"
+                  onClick={() => { setDismissed(dismiss(profile, question.id)); setRated(null); }}>×</button>
+              </div>
+              <RateOutfit outfit={question} offline={offline} compact onRated={setRated} />
+              {rated && (
+                <div className="row">
+                  <button className="btn btn-small" onClick={() => { setDismissed(dismiss(profile, rated.id)); setRated(null); }}>Done</button>
+                </div>
+              )}
+            </Card>
+          )}
+        </RecentOutfits>
+      )}
+
+      <p className="today-more">Going away? <Link to="/trips">Trips</Link> says what to pack.</p>
     </div>
   );
 
@@ -674,13 +686,7 @@ function DayPanel({ phase, typed, locked, offline, toast, onTyped, onClose, onPl
   return (
     <Card as="section" className="today-day-panel" id="today-day-panel" aria-labelledby="day-title">
       {phase.kind === 'needs-day' && <p className="today-day-why">{phase.message}</p>}
-      {phase.kind === 'ready' && (
-        <>
-          <h2 id="day-note-title">Somewhere else, or out all day?</h2>
-          <DayNoteForm note={phase.answer.context.note ?? null} locked={locked} onNote={onNote} />
-        </>
-      )}
-      <h2 id="day-title" className={phase.kind === 'ready' ? 'today-day-next' : undefined}>Where are you?</h2>
+      <h2 id="day-title">Where are you?</h2>
       <WhereYouAre inline place={settings ? settings.place : undefined} home={settings?.home_place} offline={offline} toast={toast}
         onChange={onPlace} />
       <h3 className="today-typed-title">Or type today's temperatures</h3>
@@ -689,6 +695,11 @@ function DayPanel({ phase, typed, locked, offline, toast, onTyped, onClose, onPl
         <p className="hint">
           You typed today's temperatures. <button className="btn btn-link" disabled={locked} onClick={() => onTyped(null)}>Use the forecast again</button>
         </p>
+      )}
+      {phase.kind === 'ready' && (
+        <Fold title="Somewhere else, or out all day?" className="today-note-fold" testId="day-note-fold" open={!!phase.answer.context.note}>
+          <DayNoteForm note={phase.answer.context.note ?? null} locked={locked} onNote={onNote} />
+        </Fold>
       )}
     </Card>
   );
@@ -843,9 +854,14 @@ function Body(props: BodyProps) {
       )}
       {waiting && <StylistWaiting key={stylist?.id ?? ''} meanwhile={meanwhile} onMeanwhile={onMeanwhile} />}
       {(!waiting || meanwhile) && <Carousel {...props} outfits={answer.outfits} />}
+      {(!waiting || meanwhile) && (
+        <HowItWorks title="Changing an outfit" className="today-how" testId="today-how">
+          <p>Tap a piece to see it. Its <MoreIcon className="inline-icon" aria-label="more" /> button leaves it out, or builds every outfit around it.</p>
+          <p>As worn draws the outfit from the pieces' own drawings; choose Pieces to change one.</p>
+        </HowItWorks>
+      )}
       {!waiting && stylist?.state === 'ready' && (
         <div className="today-stylist" data-testid="stylist-read">
-          {stylist.read && <p>Claude on today: {stylist.read}</p>}
           {stylist.message && <p className="today-stylist-note muted" data-testid="stylist-note">{stylist.message}</p>}
           <StylistAgain locked={props.actions.locked} busy={asking || !!props.talk.answering} onClick={onAskAgain}>Ask Claude again</StylistAgain>
           <Talk {...props.talk} locked={props.actions.locked} busy={asking} words={TODAY_TALK} lockedTitle={OFFLINE_TITLE} />
@@ -935,36 +951,32 @@ function Carousel({ outfits, index, setIndex, asking, ...rest }: BodyProps & { o
             aria-label={`Outfit ${i + 1} of ${count}`} aria-hidden={i !== current} inert={i !== current}
             data-testid={i === current ? 'current-outfit' : undefined}>
             <OutfitCard outfit={o} view={view} {...rest} by={chosenBy(o, rest.stylist)}
+              read={readFor(o, rest.stylist)}
               next={count > 1 ? { label: i < count - 1 ? 'See another idea' : 'Back to the best one', go: () => go(i < count - 1 ? i + 1 : 0) } : undefined} />
           </article>
         ))}
       </div>
 
       {count > 1 && (
-        <div className="today-nav">
-          <button className="btn btn-icon today-arrow" aria-label="Previous outfit" disabled={current === 0} onClick={() => go(current - 1)}><ChevronLeftIcon /></button>
-          <div className="today-thumbs" role="group" aria-label="Choose an outfit">
-            {outfits.map((o, i) => (
-              <button key={i} className={`today-thumb${i === current ? ' is-on' : ''}`} aria-label={`Outfit ${i + 1}`}
-                aria-pressed={i === current} onClick={() => go(i)}>
-                <span className="today-thumb-pics" aria-hidden="true">
-                  {wornOrder(o.pieces).slice(0, 4).map((p) => <Pic key={p.id} item={rest.byId.get(p.id)} />)}
-                </span>
-                <span className="today-dot" aria-hidden="true" />
-              </button>
-            ))}
-          </div>
-          <button className="btn btn-icon today-arrow" aria-label="Next outfit" disabled={current === count - 1} onClick={() => go(current + 1)}><ChevronIcon /></button>
+        <div className="today-nav" role="group" aria-label="Choose an outfit">
+          {outfits.map((_, i) => (
+            <button key={i} className={`today-thumb${i === current ? ' is-on' : ''}`} aria-label={`Outfit ${i + 1}`}
+              aria-pressed={i === current} onClick={() => go(i)}>
+              <span className="today-dot" aria-hidden="true" />
+            </button>
+          ))}
         </div>
       )}
     </section>
   );
 }
 
-function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, next, by }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & {
+function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, next, by, read }: Omit<BodyProps, 'phase' | 'asking' | 'index' | 'setIndex'> & {
   outfit: Outfit; view: TodayView;
   /** Who chose it ("Chosen by Claude"), once Claude has answered; null otherwise. */
   by: string | null;
+  /** Claude's reading of the day, under who chose it, for an outfit Claude chose. */
+  read: string | null;
   /** The next outfit, one tap from the main button: the arrows sit below the reasons, far down a phone's screen. */
   next?: { label: string; go(): void };
 }) {
@@ -1025,6 +1037,7 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, n
 
       <div className="today-card-why">
         {by && <p className="today-by muted" data-testid="outfit-by">{by}</p>}
+        {read && <p className="today-read" data-testid="outfit-read">{read}</p>}
         {outfit.warnings.length > 0 && (
           <div className="today-warnings" role="note" aria-label="Be aware">
             <WarnIcon />
@@ -1035,9 +1048,6 @@ function OutfitCard({ outfit, view, byId, worn, busy, actions, onWear, onUndo, n
         <ul className="today-reasons" aria-label="Why this works">
           {outfit.reasons.map((r) => <li key={r}><CheckIcon /><span>{r}</span></li>)}
         </ul>
-        <p className="hint today-hint">{view === 'worn' ? 'Drawn as worn, from the pieces\' own drawings. Choose Pieces to see one, leave it out or build around it.' : (
-          <>Tap a piece to see it. Its <MoreIcon className="inline-icon" /> button leaves it out or builds every outfit around it.</>
-        )}</p>
       </div>
     </Card>
   );

@@ -7,6 +7,8 @@ test('upload a photo: it shows up waiting for background removal', async ({ page
 
   await page.getByRole('link', { name: 'Add' }).first().click();
   await expect(page.getByTestId('dropzone')).toBeVisible();
+  // the cutting-out files are not set up here, and Add says so (once: the closet does not repeat it)
+  await expect(page.getByTestId('model-banner')).toContainText('not set up yet');
   // one column, at most 720px wide, beside the sidebar
   const sidebar = (await page.locator('nav.sidebar').boundingBox())!;
   const add = (await page.locator('section.add').boundingBox())!;
@@ -27,7 +29,8 @@ test('upload a photo: it shows up waiting for background removal', async ({ page
   const tile = page.getByTestId('tile').first();
   await expect(tile).toBeVisible();
   await expect(tile.getByTestId('step-mark')).toContainText('Step 1 of 3. Waiting until background removal is set up.');
-  await expect(page.getByTestId('model-banner')).toContainText('not set up yet');
+  // the banner is said once, on Add, where new photos come in, and not on the closet
+  await expect(page.getByTestId('model-banner')).toHaveCount(0);
 
   await tile.click();
   await expect(page.locator('.detail-panel').getByTestId('progress-strip')).toContainText('Waiting until background removal is set up');

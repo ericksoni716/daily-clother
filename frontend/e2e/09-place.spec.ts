@@ -27,7 +27,7 @@ test('settings: search for a place (faked), choose it and see it saved', async (
   await expect(everyday.getByTestId('weather-place')).toHaveText('New York, United States');
   await expect(everyday.getByLabel('Choose another place')).toHaveCount(0);
   expect(weatherAsked.n).toBe(0);   // nothing to show the weather in yet, so it is not looked up
-  await everyday.getByRole('button', { name: 'Change' }).click();
+  await everyday.getByRole('button', { name: 'Change', exact: true }).click();
   const section = page.getByTestId('place-sheet');
   // with nothing chosen, Closet uses New York
   await expect(section.getByTestId('saved-place')).toHaveText('New York, United States');
@@ -50,7 +50,7 @@ test('settings: search for a place (faked), choose it and see it saved', async (
   // still there after a reload, and the owner can go back to New York
   await page.reload();
   await expect(everyday.getByTestId('weather-place')).toHaveText(BROOKLYN.name);
-  await everyday.getByRole('button', { name: 'Change' }).click();
+  await everyday.getByRole('button', { name: 'Change', exact: true }).click();
   await expect(section.getByTestId('saved-place')).toHaveText(BROOKLYN.name);
   await section.getByRole('button', { name: 'Back to New York' }).click();
   await expect(section.getByTestId('saved-place')).toHaveText('New York, United States');

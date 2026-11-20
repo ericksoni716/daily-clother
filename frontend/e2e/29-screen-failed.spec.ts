@@ -10,7 +10,7 @@ test('a screen that fails to draw says so, keeps the tab bar, and leaving it cle
   await login(page);
   // an answer of a shape the screen cannot draw
   await page.route('**/api/insights', (route) => route.fulfill({ json: { nothing: 'expected' } }));
-  await page.goto('/insights');
+  await page.goto('/wardrobe');
 
   const alert = page.getByRole('alert').filter({ hasText: 'Something went wrong on this screen.' });
   await expect(alert).toBeVisible();

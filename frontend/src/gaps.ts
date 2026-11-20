@@ -232,36 +232,6 @@ function plainWords(value: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-// --------------------------------------------------------------------- the quieter findings
-
-export interface OtherFinding {
-  kind: string;
-  title: string;
-  text: string;
-  items: string[];
-}
-
-const NOTE_TITLES: Record<string, string> = { never_worn: 'Not worn yet' };
-
-/**
- * What the analysis says besides the gaps: its notes (pieces never worn), and the pieces worn far more than the
- * rest, taken from the gaps the wear log found (the gap itself stays in the list above).
- */
-export function otherFindings(answer: Pick<GapsAnswer, 'gaps' | 'notes'> | null | undefined): OtherFinding[] {
-  if (!answer) return [];
-  const out: OtherFinding[] = (answer.notes ?? []).map((n) => ({
-    kind: n.kind, title: NOTE_TITLES[n.kind] ?? 'Also worth knowing', text: n.text, items: n.items ?? [],
-  }));
-  for (const g of answer.gaps ?? []) {
-    if (!g.found_by.includes('worn_most')) continue;
-    const text = g.why.find((w) => w.startsWith('You wore'));
-    if (!text) continue;
-    const alone = g.found_by.length === 1;
-    out.push({ kind: 'worn_most', title: 'Worn far more than the rest', text, items: alone ? g.evidence.items.slice(0, 1) : [] });
-  }
-  return out;
-}
-
 // --------------------------------------------------------------------- kept on this device
 
 /** The last answer fetched, kept per closet so the screen can show it offline. Removed on logout with the rest. */

@@ -102,6 +102,16 @@ export function isDone(state: CheckState): boolean {
   return state === 'ready' || state === 'failed';
 }
 
+/**
+ * How often a check is asked for again: until it is answered or has failed; more slowly while Closet cannot be reached
+ * for a moment; and no more once the server says it has forgotten the check (404). Asking never starts a check.
+ */
+export function checkPoll(check: Pick<Check, 'state'> | null | undefined, error: { status?: number } | null): number | false {
+  if (error) return error.status === 404 ? false : POLL_MS * 2;
+  if (!check || isDone(check.state)) return false;
+  return POLL_MS;
+}
+
 /** What is happening while the owner waits. */
 export function waitingWords(check: Pick<Check, 'state' | 'way'>): string {
   if (check.state === 'describing') return 'Claude is looking at the photo. This can take up to a minute…';

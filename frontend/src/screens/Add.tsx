@@ -295,8 +295,6 @@ export function AddScreen() {
   const looking = (list: SourcePhoto[] | undefined) => !!list?.some((s) => s.state === 'finding' && !s.note);
   const open = useQuery({
     queryKey: queryKeys.sources(), queryFn: api.sources, enabled: !offline,
-    // read each time Add opens, until the photo of several pieces says what its saves touch (`useEdit('source')`)
-    staleTime: 0,
     refetchInterval: (q) => (looking(q.state.data) ? OPEN_POLL_MS : false),
   }).data ?? [];
   const sentSeveral = queue.filter((e) => e.sourceId).length;

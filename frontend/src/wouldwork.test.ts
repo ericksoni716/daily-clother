@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { LookFor, Wish } from './gaps';
 import {
-  type Check, checkKinds, fillNote, fillWords, isDone, noteFor, pieceFromLook, pieceToSend, stillToChoose, verdictTone, waitingWords, WEIGHTS, weightLabel, wishById,
+  type Check, checkKinds, checkPoll, POLL_MS, fillNote, fillWords, isDone, noteFor, pieceFromLook, pieceToSend, stillToChoose, verdictTone, waitingWords, WEIGHTS, weightLabel, wishById,
   wishFrom, wornWords,
 } from './wouldwork';
 
@@ -104,5 +104,19 @@ describe('who a gap it fills is for', () => {
     expect(fillNote({ situations: ['Work', 'Everyday', 'Going out'], low: false })).toBe('for work, everyday and going out');
     expect(fillNote({ situations: ['Exercise'], low: true })).toBe('for exercise, low on your list');
     expect(fillNote({ situations: [], low: true })).toBe('low on your list');
+  });
+});
+
+describe('asking how a check is getting on', () => {
+  it('asks again until the check is answered or has failed', () => {
+    expect(checkPoll({ state: 'describing' }, null)).toBe(POLL_MS);
+    expect(checkPoll({ state: 'checking' }, null)).toBe(POLL_MS);
+    expect(checkPoll({ state: 'ready' }, null)).toBe(false);
+    expect(checkPoll({ state: 'failed' }, null)).toBe(false);
+    expect(checkPoll(undefined, null)).toBe(false);
+  });
+  it('asks more slowly while Closet cannot be reached, and stops once the check is forgotten', () => {
+    expect(checkPoll({ state: 'checking' }, { status: 0 })).toBe(POLL_MS * 2);
+    expect(checkPoll({ state: 'checking' }, { status: 404 })).toBe(false);
   });
 });

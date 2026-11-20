@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { api, ApiError } from '../api';
+import { useQuery } from '@tanstack/react-query';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { api } from '../api';
 import { HangerIcon, WarnIcon } from '../components/Icons';
 import { Card as UiCard, ItemThumb, PageHeader, SegmentedControl } from '../components/ui';
 import { loadGridView, type GridView } from '../drawing';
@@ -10,7 +11,10 @@ import {
 } from '../insights';
 import { categoryPlural, label } from '../labels';
 import { itemPath, Link } from '../router';
-import { useCloset } from '../store';
+import { useItemEdit, useItems } from '../queries';
+import { queryKeys } from '../queryKeys';
+import { shownWithCopy, useTellFailure } from '../savedCopy';
+import { useApp } from '../store';
 import { timeOf } from '../today';
 import type { ItemSummary } from '../types';
 import { localDay } from '../wears';
@@ -19,89 +23,58 @@ import './Insights.css';
 
 const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
 
-type Phase =
-  | { kind: 'loading' }
-  | { kind: 'ready'; answer: Insights; savedAt: string | null }
-  | { kind: 'error'; message: string; offline: boolean };
+const OFFLINE_EMPTY = "You're offline, and nothing was saved on this device yet. Insights shows here once Closet on your computer can be reached.";
 
-/** What was shown while the app is open, so coming back from an item shows it at once (and it is fetched again). */
-let memory: { profile: string; phase: Phase } | null = null;
+/** This closet's own copy kept on this device, never another closet's. */
+function savedAnswer(profile: string): { data: Insights; savedAt: string } | null {
+  const saved = loadSavedInsights(profile);
+  return saved ? { data: saved.answer, savedAt: saved.saved_at } : null;
+}
 
 export function InsightsScreen() {
-  const { profile, items, loadItems, offline, upsert, toast } = useCloset();
-  const [phase, setPhase] = useState<Phase>(() => (memory && memory.profile === profile ? memory.phase : { kind: 'loading' }));
-  const shown = useRef(phase);
-  const [attempt, setAttempt] = useState(0);
+  const { profile, offline, toast } = useApp();
+  const items = useItems('active').data;
   const today = localDay();
   const [kept, setKept] = useState(() => keptPieces(profile, today));
   const [archiving, setArchiving] = useState<string | null>(null);
-  const [gone, setGone] = useState<string[]>([]);
+  // pieces archived from here, until the answer is read again without them
+  const [gone, setGone] = useState<{ from: Insights | undefined; ids: string[] }>({ from: undefined, ids: [] });
+  const saveItem = useItemEdit('item');
 
-  useEffect(() => {
-    if (items.active === null) void loadItems('active');
-  }, [items.active, loadItems]);
-
-  useEffect(() => {
-    shown.current = phase;
-    memory = { profile, phase };
-  }, [profile, phase]);
-
-  useEffect(() => {
-    let live = true;
-    api.insights().then(
-      (answer) => {
-        if (!live) return;
-        saveInsights(profile, answer);
-        setPhase({ kind: 'ready', answer, savedAt: null });
-        setGone([]);
-      },
-      (e) => {
-        if (!live) return;
-        const err = e as ApiError;
-        if (err.status === 0) {
-          // offline: only this closet's own saved answer, never another closet's
-          const saved = loadSavedInsights(profile);
-          if (saved) setPhase({ kind: 'ready', answer: saved.answer, savedAt: saved.saved_at });
-          else setPhase({ kind: 'error', offline: true, message: "You're offline, and nothing was saved on this device yet. Insights shows here once Closet on your computer can be reached." });
-        } else if (shown.current.kind === 'ready' && shown.current.savedAt === null) {
-          toast(err.message, 'error');
-        } else {
-          setPhase({ kind: 'error', offline: false, message: err.message });
-        }
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [profile, attempt, toast]);
-
-  // Back online: ask again.
-  const wasOffline = useRef(offline);
-  useEffect(() => {
-    if (wasOffline.current && !offline) setAttempt((n) => n + 1);
-    wasOffline.current = offline;
-  }, [offline]);
+  // Read through the cache, and kept on this device for when Closet cannot be reached. Coming back shows it at once;
+  // a wear recorded or an item changed makes it stale; coming back online asks again (ClosetProvider).
+  const query = useQuery({
+    queryKey: queryKeys.insights(),
+    queryFn: async () => {
+      const answer = await api.insights();
+      saveInsights(profile, answer);
+      return answer;
+    },
+  });
+  const phase = shownWithCopy(query.data, query.error, () => savedAnswer(profile), OFFLINE_EMPTY);
+  useTellFailure(query.error, query.data !== undefined, query.errorUpdatedAt, toast);
+  const goneIds = gone.from === query.data ? gone.ids : [];
 
   // the same picture the closet grid shows: photos or drawings, as chosen there
   const view = useMemo<GridView>(loadGridView, []);
   const locked = offline || (phase.kind === 'ready' && phase.savedAt !== null);
 
-  const byId = useMemo(() => new Map((items.active ?? []).map((i) => [i.id, i])), [items.active]);
+  const byId = useMemo(() => new Map((items ?? []).map((i) => [i.id, i])), [items]);
 
+  const answerNow = query.data;
   const archive = useCallback(async (id: string) => {
     setArchiving(id);
     try {
-      const item = await api.patch(id, { status: 'archived' });
-      upsert(item);
-      setGone((g) => [...g, id]);
+      // the item goes into the lists, and Insights is made stale, so it is read again without it
+      await saveItem(() => api.patch(id, { status: 'archived' }));
+      setGone((g) => ({ from: answerNow, ids: g.from === answerNow ? [...g.ids, id] : [id] }));
       toast('Archived. It is kept under Archived in your closet.');
-      setAttempt((n) => n + 1);
     } catch (e) {
       toast((e as Error).message, 'error');
     } finally {
       setArchiving(null);
     }
-  }, [upsert, toast]);
+  }, [saveItem, toast, answerNow]);
 
   const keep = useCallback((id: string) => {
     const until = keepPiece(profile, id, today);
@@ -126,7 +99,7 @@ export function InsightsScreen() {
       {phase.kind === 'error' && (
         <div className={phase.offline ? 'empty' : ''}>
           <p className={phase.offline ? 'muted' : 'form-error'} role="alert">{phase.message}</p>
-          {!phase.offline && <button className="btn" onClick={() => setAttempt((n) => n + 1)}>Try again</button>}
+          {!phase.offline && <button className="btn" onClick={() => void query.refetch()}>Try again</button>}
         </div>
       )}
       {phase.kind === 'ready' && phase.savedAt && (
@@ -138,14 +111,14 @@ export function InsightsScreen() {
       {phase.kind === 'ready' && (
         <ViewContext.Provider value={view}>
           <div className="insights-grid">
-            <UnwornCard finding={phase.answer.never_worn} testid="never-worn" byId={byId} kept={kept} gone={gone} offline={locked}
+            <UnwornCard finding={phase.data.never_worn} testid="never-worn" byId={byId} kept={kept} gone={goneIds} offline={locked}
               archiving={archiving} onArchive={archive} onKeep={keep} onShowKept={showKept} />
-            <UnwornCard finding={phase.answer.not_worn_lately} testid="not-worn-lately" byId={byId} kept={kept} gone={gone} offline={locked}
+            <UnwornCard finding={phase.data.not_worn_lately} testid="not-worn-lately" byId={byId} kept={kept} gone={goneIds} offline={locked}
               archiving={archiving} onArchive={archive} onKeep={keep} onShowKept={showKept} />
-            <WornMostCard answer={phase.answer} byId={byId} />
-            <SpreadCard answer={phase.answer} byId={byId} />
-            <MakeupCard answer={phase.answer} />
-            <CostCard answer={phase.answer} byId={byId} />
+            <WornMostCard answer={phase.data} byId={byId} />
+            <SpreadCard answer={phase.data} byId={byId} />
+            <MakeupCard answer={phase.data} />
+            <CostCard answer={phase.data} byId={byId} />
           </div>
         </ViewContext.Provider>
       )}

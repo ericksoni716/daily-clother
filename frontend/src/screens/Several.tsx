@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
 import { api, ApiError } from '../api';
 import { CheckIcon, ImagesIcon } from '../components/Icons';
 import { Button, Card, ItemThumb, Notice, PageHeader } from '../components/ui';
 import { Link, navigate } from '../router';
-import { addLabel, boxStyle, CORNERS, cropStyle, moveBox, moveCorner, newBox, pointAt, sameBox, type Corner } from '../several';
-import { useCloset } from '../store';
+import { addLabel, boxStyle, CORNERS, cropStyle, moveBox, moveCorner, newBox, pointAt, sameBox, sourcePoll, type Corner } from '../several';
+import { touch } from '../queries';
+import { queryKeys } from '../queryKeys';
+import { useApp } from '../store';
 import type { BoxEdges, SourceBox, SourcePhoto } from '../types';
 import './Several.css';
 
-const POLL_MS = 2000;
 const NUDGE = 0.01;   // an arrow key moves the chosen box this much of the photo
 
 type Drag = { id: string; mode: Corner | 'move'; start: BoxEdges; from: { x: number; y: number }; pointerId: number };
@@ -17,44 +19,36 @@ const edges = (b: BoxEdges): BoxEdges => ({ x0: b.x0, y0: b.y0, x1: b.x1, y1: b.
 
 /** Checking the boxes around the pieces in a photo of several, then adding each piece as an item. */
 export function SeveralScreen({ id }: { id: string }) {
-  const { loadItems, toast, offline } = useCloset();
-  const [src, setSrc] = useState<SourcePhoto | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { toast, offline } = useApp();
+  const qc = useQueryClient();
+  const key = queryKeys.source(id);
+  // Asked again every few seconds while Claude looks for the pieces, never while the page is hidden.
+  const query = useQuery({ queryKey: key, queryFn: () => api.source(id), refetchInterval: (q) => sourcePoll(q.state.data) });
+  const src = query.data ?? null;
+  const error = query.error ? query.error.message : null;
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ id: string; box: BoxEdges } | null>(null);
   const [busy, setBusy] = useState(false);
   const stage = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      setSrc(await api.source(id));
-      setError(null);
-    } catch (e) {
-      setError((e as ApiError).message);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  // while Claude looks for the pieces, look again every few seconds
   const finding = src?.state === 'finding';
-  useEffect(() => {
-    if (!finding) return;
-    const t = window.setInterval(() => void load(), POLL_MS);
-    return () => window.clearInterval(t);
-  }, [finding, load]);
+
+  /** The photo as a change to its boxes left it: put in as it came back, and Add's list of photos (not on screen, so
+   * not asked for now) made stale. The boxes change nothing else, so nothing else is asked for again. */
+  const boxesSaved = (next: SourcePhoto) => {
+    void qc.cancelQueries({ queryKey: key, exact: true });   // a poll from before the change must not undo it
+    qc.setQueryData(key, next);
+    void qc.invalidateQueries({ queryKey: queryKeys.sources(), exact: true });
+  };
 
   /** Runs a change to the boxes; the photo as it is afterwards comes back. */
   async function change(run: () => Promise<SourcePhoto>) {
     setBusy(true);
     try {
-      setSrc(await run());
+      boxesSaved(await run());
     } catch (e) {
       toast((e as ApiError).message, 'error');
-      void load();
+      void query.refetch();
     } finally {
       setBusy(false);
     }
@@ -108,13 +102,15 @@ export function SeveralScreen({ id }: { id: string }) {
     setBusy(true);
     try {
       const done = await api.addSourceItems(id);
-      await loadItems('active');
+      void qc.cancelQueries({ queryKey: key, exact: true });
+      qc.setQueryData(key, done);
+      await touch(qc, 'source', ['source']);   // the new items are in the closet's list before it opens
       const n = done.items.length;
       toast(`${n === 1 ? 'The item was' : `${n} items were`} added. Closet cuts ${n === 1 ? 'it' : 'each'} out and describes ${n === 1 ? 'it' : 'them'} next.`);
       navigate('/');
     } catch (e) {
       toast((e as ApiError).message, 'error');
-      void load();
+      void query.refetch();
       setBusy(false);
     }
   }
@@ -124,6 +120,9 @@ export function SeveralScreen({ id }: { id: string }) {
     setBusy(true);
     try {
       await api.forgetSource(id);
+      // forgotten: not asked for again, and Add's list of photos is stale
+      qc.removeQueries({ queryKey: key, exact: true });
+      void touch(qc, 'source', ['source']);
       navigate('/add');
     } catch (e) {
       toast((e as ApiError).message, 'error');

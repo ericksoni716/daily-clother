@@ -59,6 +59,12 @@ export interface FindsAnswer {
 
 export const SHOP_POLL_MS = 2000;
 
+/** How often a wish's finds are asked for again: while a search or a price check runs, and not at all otherwise. Only
+ * the owner starts one (a search costs money), so asking again never starts anything. */
+export function shopPoll(answer: Pick<FindsAnswer, 'run'> | null | undefined): number | false {
+  return answer?.run?.state === 'running' ? SHOP_POLL_MS : false;
+}
+
 /** "$120.00", "€89.50"; the currency's code when the browser does not know it. */
 export function priceWords(price: number | null | undefined, currency: string): string {
   if (price === null || price === undefined || !Number.isFinite(price)) return 'Price not shown';

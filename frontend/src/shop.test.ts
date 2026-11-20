@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dropWords, priceWords, rangeWords, typedPrice, webLink } from './shop';
+import { dropWords, priceWords, rangeWords, SHOP_POLL_MS, shopPoll, typedPrice, webLink } from './shop';
 
 describe('shopping words', () => {
   it('shows prices in their currency', () => {
@@ -35,5 +35,18 @@ describe('shopping words', () => {
     expect(typedPrice('$1,200')).toBe(1200);
     expect(typedPrice('-5')).toBeUndefined();
     expect(typedPrice('cheap')).toBeUndefined();
+  });
+});
+
+describe('asking for the finds again', () => {
+  const run = (state: 'running' | 'done' | 'failed') => ({ run: { kind: 'find' as const, state, message: null, added: null, started_at: '', finished_at: null } });
+  it('asks again while a search or a price check runs, and stops once it is over', () => {
+    expect(shopPoll(run('running'))).toBe(SHOP_POLL_MS);
+    expect(shopPoll(run('done'))).toBe(false);
+    expect(shopPoll(run('failed'))).toBe(false);
+  });
+  it('does not ask again when nothing was ever started, or nothing has been read', () => {
+    expect(shopPoll({ run: null })).toBe(false);
+    expect(shopPoll(undefined)).toBe(false);
   });
 });

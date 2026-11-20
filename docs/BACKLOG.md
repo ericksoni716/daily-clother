@@ -14,6 +14,11 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **The computer's own door** (the first of three pull requests to the other app's access
+  model, 20 November): the address check, the page's header and the window's key. Left: who
+  someone is through Tailscale Serve and Cloudflare Access (the next pull request), then
+  removing the passphrase (the third). Nobody has yet tried the key on the real Windows and Mac
+  window (WebView2 and WebKit keeping the cookie across restarts).
 - **Shoe drawing made faster** (20 November): two shoes at once, and a check that says good
   stops being read there. Left: the plan route still reads every check's whole answer; nobody
   has yet timed a real shoe with either change, so "four to ten minutes" in the app is

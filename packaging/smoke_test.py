@@ -19,8 +19,12 @@ Default mode:
   2. `PROGRAM --no-browser --no-tray --port N` (no tray, no window):
      /api/health answers within
      the startup timeout with app == "closet", model_state == "missing",
-     setup_required == true; GET / is the built page (id="root") and the
-     scripts and styles it links to are served with the right types;
+     setup_required == true; the key of Closet's own window is in force:
+     GET / -> 401 (the page saying to open Closet from its icon), a request
+     by another name -> 403, GET /?key=<window_key from settings.json> -> 303
+     to / with the key's cookie; with that cookie (and, on every call, the
+     header Closet's own page sends) GET / is the built page (id="root") and
+     the scripts and styles it links to are served with the right types;
      POST /api/instance/show -> 403 without the token from closet.lock,
      200 with it and shown == false (this copy has no window);
      POST /api/setup -> 204 + session cookie; GET /api/items -> 200;
@@ -68,8 +72,15 @@ MIGRATIONS = Path(__file__).resolve().parent.parent / "backend" / "closet" / "mi
 BASE_CHECKS = ("webp", "heic", "avif", "onnxruntime", "database", "web_page", "drawing", "model_state", "tagger",
                "updater", "window")
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    """A redirect is answered as it is, so its cookie can be read."""
+
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
 # Never route loopback requests through a proxy from the environment.
-_opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+_opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
 
 
 class SmokeFailure(Exception):
@@ -202,9 +213,12 @@ def run_selfcheck(program: Path, data_dir: Path, work: Path, cutout: bool, timeo
 
 # ---------------------------------------------------------------- server
 def request(method: str, url: str, body: dict | None = None, cookie: str | None = None,
-            timeout: float = 30) -> tuple[int, dict, bytes]:
+            timeout: float = 30, host: str | None = None) -> tuple[int, dict, bytes]:
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(url, method=method, data=data)
+    req.add_header("X-Closet-Client", "1")   # as Closet's own page sends on every call
+    if host:
+        req.add_header("Host", host)
     if data is not None:
         req.add_header("Content-Type", "application/json")
     if cookie:
@@ -213,7 +227,7 @@ def request(method: str, url: str, body: dict | None = None, cookie: str | None 
         with _opener.open(req, timeout=timeout) as resp:
             return resp.status, dict(resp.headers.items()) | {"_set_cookie": resp.headers.get_all("Set-Cookie") or []}, resp.read()
     except urllib.error.HTTPError as exc:
-        return exc.code, {"_set_cookie": []}, exc.read()
+        return exc.code, dict(exc.headers.items()) | {"_set_cookie": exc.headers.get_all("Set-Cookie") or []}, exc.read()
 
 
 def expect(method: str, url: str, status: int, **kwargs) -> tuple[dict, bytes]:
@@ -238,17 +252,41 @@ def as_json(method: str, url: str, body: bytes) -> dict:
 ASSET_TYPES = {".js": "javascript", ".css": "text/css"}
 
 
-def check_assets(base: str, page: str) -> None:
+def check_assets(base: str, page: str, cookie: str) -> None:
     assets = sorted(set(re.findall(r'(?:src|href)="(/assets/[^"?#]+)"', page)))
     if not any(a.endswith(".js") for a in assets):
         raise SmokeFailure(f"GET / links to no script under /assets/: {page[:500]!r}")
     for path in assets:
-        headers, body = expect("GET", base + path, 200)
+        headers, body = expect("GET", base + path, 200, cookie=cookie)
         kind = next((v for k, v in headers.items() if k.lower() == "content-type"), "")
         wanted = ASSET_TYPES.get(os.path.splitext(path)[1])
         if not body or (wanted and wanted not in kind):
             raise SmokeFailure(f"GET {path} -> {len(body)} bytes of {kind!r}, expected some {wanted or 'content'}")
         log(f"  GET {path} -> 200, {len(body):,} bytes of {kind}")
+
+
+def open_with_key(base: str, data_dir: Path) -> str:
+    """Opens Closet the way its window does: with the key the program keeps in settings.json, which the server swaps
+    for a cookie. Before that, this computer's address is refused, and so is any other name. Returns the cookie."""
+    _, body = expect("GET", base + "/", 401)
+    if b"Open Closet from its icon" not in body:
+        raise SmokeFailure(f"GET / without the key is not the page saying to open Closet from its icon: {body[:300]!r}")
+    expect("GET", base + "/api/health", 403, host="closet.example")
+    try:
+        key = json.loads((data_dir / "settings.json").read_text(encoding="utf-8"))["window_key"]
+    except (OSError, ValueError, KeyError) as exc:
+        raise SmokeFailure(f"settings.json in {data_dir} has no window_key: {exc!r}") from exc
+    if not isinstance(key, str) or len(key) < 40:
+        raise SmokeFailure("the window_key in settings.json is not a long random key")
+    headers, _ = expect("GET", f"{base}/?key={key}", 303)
+    location = next((v for k, v in headers.items() if k.lower() == "location"), None)
+    cookies = [c.split(";", 1)[0].strip() for c in headers["_set_cookie"]]
+    cookie = next((c for c in cookies if c.startswith("closet_key_") and c.endswith("=" + key)), None)
+    if location != "/" or not cookie:
+        raise SmokeFailure(f"GET /?key= led to {location!r} with cookies {[c.split('=')[0] for c in cookies]!r}, "
+                           "expected / and the key's cookie")
+    log("  GET / -> 401 without the key, 403 by another name; GET /?key= -> 303 to / with the key's cookie")
+    return cookie
 
 
 def check_show(base: str, data_dir: Path) -> None:
@@ -351,20 +389,22 @@ def _drive_server(proc: subprocess.Popen, base: str, data_dir: Path, startup_tim
     if wrong:
         raise SmokeFailure(f"/api/health has {wrong}, expected {wanted}")
 
-    _, body = expect("GET", base + "/", 200)
+    door = open_with_key(base, data_dir)
+    _, body = expect("GET", base + "/", 200, cookie=door)
     page = body.decode("utf-8", "replace")
     if 'id="root"' not in page:
         raise SmokeFailure(f'GET / is not the built page (no id="root"): {page[:300]!r}')
     log(f'  GET / -> 200, built page ({len(body)} bytes, has id="root")')
-    check_assets(base, page)
+    check_assets(base, page, door)
 
     check_show(base, data_dir)
 
-    headers, _ = expect("POST", base + "/api/setup", 204, body={"passphrase": PASSPHRASE})
+    headers, _ = expect("POST", base + "/api/setup", 204, body={"passphrase": PASSPHRASE}, cookie=door)
     cookies = [c.split(";", 1)[0].strip() for c in headers["_set_cookie"]]
-    cookie = next((c for c in cookies if c.startswith("closet_session=") and len(c) > len("closet_session=")), None)
-    if not cookie:
+    session = next((c for c in cookies if c.startswith("closet_session=") and len(c) > len("closet_session=")), None)
+    if not session:
         raise SmokeFailure(f"POST /api/setup gave no closet_session cookie (Set-Cookie: {headers['_set_cookie']!r})")
+    cookie = f"{door}; {session}"
     log("  POST /api/setup -> 204 with a session cookie")
 
     _, body = expect("GET", base + "/api/items", 200, cookie=cookie)

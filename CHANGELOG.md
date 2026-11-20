@@ -32,6 +32,13 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 - **Show the demo closet** is now the last thing on Advanced settings, in a group of its own,
   instead of the first. While the demo closet shows, the strip at the top of every screen
   still has Leave.
+- On the computer, Closet now opens only from its own icon. An old bookmark to
+  `http://127.0.0.1:8765`, or the address typed into a browser, shows a page asking you to
+  open Closet from its icon; once you do, Closet's window (or the browser it opens) works as
+  before, also after a restart. This keeps websites you visit from reaching your closet.
+  Your phone, through Tailscale, and your passphrase work as before.
+- If a phone or a browser tab still shows the page from before this update, saving something
+  there says the page is from an older Closet and asks you to reload it.
 
 ## 0.10.0
 

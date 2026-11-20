@@ -256,9 +256,13 @@ test.describe('saying what is wrong, with a stand-in for Claude', () => {
     await expect(name).toBeVisible();
     await page.waitForLoadState('networkidle');
     const where = async () => ({ y: (await name.boundingBox())!.y, scrollY: await page.evaluate(() => window.scrollY) });
+    // The button sits near the foot of a small phone's first screen, where the tab bar can cover it. Bring it to
+    // the middle first, as a thumb would, so the tap itself has no reason to scroll and any move is the sheet's.
+    const tell = page.getByRole('button', { name: 'Something wrong? Tell Claude' });
+    await tell.evaluate((el) => el.scrollIntoView({ block: 'center' }));
     const before = await where();
 
-    await page.getByRole('button', { name: 'Something wrong? Tell Claude' }).click();
+    await tell.click();
     const box = page.getByRole('dialog', { name: 'Fix the details' }).getByLabel("What's wrong with it?");
     await expect(box).toBeInViewport({ ratio: 1 });
     await expect(box).not.toBeFocused();   // on a phone, focus would open the keyboard over everything

@@ -146,6 +146,39 @@ export function pendingQuestion(list: WornOutfit[] | null | undefined, dismissed
     ?? (hour >= ASK_TODAY_FROM_HOUR ? open.find((o) => o.worn_on === today) : undefined) ?? null;
 }
 
+// --------------------------------------------------------------------- pages as read, changed by a save
+
+/** The outfits of the pages read so far, in order, each once (a page read again may overlap the next). */
+export function joinPages(pages: readonly (WornPage | undefined)[]): WornOutfit[] {
+  const seen = new Set<string>();
+  const out: WornOutfit[] = [];
+  for (const page of pages) {
+    for (const o of page?.outfits ?? []) {
+      if (seen.has(o.id)) continue;
+      seen.add(o.id);
+      out.push(o);
+    }
+  }
+  return out;
+}
+
+/** A page with this outfit put in where it was (a rating changed); the same page when it does not hold it. */
+export function withOutfit(page: WornPage, o: WornOutfit): WornPage {
+  return page.outfits.some((x) => x.id === o.id) ? { ...page, outfits: page.outfits.map((x) => (x.id === o.id ? o : x)) } : page;
+}
+
+/** A page without this outfit (removed); the same page when it does not hold it. */
+export function withoutOutfit(page: WornPage, id: string): WornPage {
+  return page.outfits.some((x) => x.id === id) ? { ...page, outfits: page.outfits.filter((x) => x.id !== id) } : page;
+}
+
+/** The first page with an outfit just recorded put in by its day, newest first. */
+export function withRecorded(page: WornPage, o: WornOutfit): WornPage {
+  const rest = page.outfits.filter((x) => x.id !== o.id);
+  const at = rest.findIndex((x) => x.worn_on <= o.worn_on);
+  return { ...page, outfits: at === -1 ? [...rest, o] : [...rest.slice(0, at), o, ...rest.slice(at)] };
+}
+
 // --------------------------------------------------------------------- kept on this device
 
 type KV = Pick<Storage, 'getItem' | 'setItem'>;

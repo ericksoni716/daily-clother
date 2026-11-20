@@ -574,7 +574,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         </RecentOutfits>
       )}
 
-      <p className="today-more"><Link to="/trips">Trips</Link>: plan what to pack for a trip, or open one you planned.</p>
+      <p className="today-more">Going away? <Link to="/trips">Trips</Link> says what to pack.</p>
     </div>
   );
 

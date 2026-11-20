@@ -50,8 +50,8 @@ CHECK_EVERY = 24 * 3600       # a successful check is good for a day
 RETRY_AFTER = 3600            # an unanswered check is tried again after an hour
 START_WITHIN = 60             # seconds the new program has to answer before the old one is put back
 TIDY_WAIT = 90                # how long the new program waits for the helper's verdict before tidying up
-NOTES_LINES = 12
-NOTES_CHARS = 1500
+NOTES_CHARS = 3000            # the What's new section is cut at the end of a line past this
+WHATS_NEW = re.compile(r"^##\s+What['’]s new\s*#*\s*$", re.IGNORECASE)
 MAX_ANSWER = 2_000_000        # bytes of GitHub's answer read at most
 MAX_DOWNLOAD = 1_500_000_000  # a program larger than this is not what was released
 KEEP_SNAPSHOTS = 3            # pre-update copies of each closet kept in the local backups folder
@@ -90,18 +90,26 @@ def open_url(url: str, accept: str):
 
 
 def _notes(body: object) -> str:
-    """The first lines of the release's notes, as plain text (shown as text, never as a web page)."""
+    """The release's "## What's new" section, as the Markdown text it was written in. The page reads a small, safe
+    part of Markdown from it; nothing here or there is ever shown as a web page. A release without that section
+    (those before it was written) gives "": its notes are install steps, not what is new. A long section is cut
+    at the end of a line, with "…" after it."""
     if not isinstance(body, str):
         return ""
     lines = [ln.rstrip() for ln in body.replace("\r\n", "\n").split("\n")]
-    while lines and not lines[0].strip():
-        lines.pop(0)
-    text = "\n".join(lines[:NOTES_LINES]).strip()
-    if len(text) > NOTES_CHARS:
-        text = text[:NOTES_CHARS].rstrip() + "…"
-    elif len(lines) > NOTES_LINES and any(ln.strip() for ln in lines[NOTES_LINES:]):
-        text += "\n…"
-    return text
+    start = next((i for i, ln in enumerate(lines) if WHATS_NEW.match(ln)), None)
+    if start is None:
+        return ""
+    section: list[str] = []
+    for ln in lines[start + 1:]:
+        if re.match(r"^#{1,2}\s", ln):   # the next "## " (or "# ") heading ends it; "### Fixed" does not
+            break
+        section.append(ln)
+    text = "\n".join(section).strip()
+    if len(text) <= NOTES_CHARS:
+        return text
+    cut = text.rfind("\n", 0, NOTES_CHARS + 1)
+    return (text[:cut] if cut > 0 else text[:NOTES_CHARS]).rstrip() + "\n\n…"
 
 
 def parse_release(data: object) -> dict | None:

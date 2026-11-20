@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { HangerIcon } from './Icons';
-import { Button, Notice, SegmentedControl } from './ui';
+import { Button, Markdown, Notice, SegmentedControl } from './ui';
 import { formatSize } from '../labels';
 import { availableLine, busyLine, checkedLine, lastInstallLine, MODES, showBanner, updates, useUpdates, type UpdateMode } from '../updates';
 
@@ -144,7 +144,12 @@ export function UpdatesSection({ offline, toast }: { offline: boolean; toast: To
       {availableLine(status) && <p className="state-line" data-testid="update-available"><strong>{availableLine(status)}</strong></p>}
       {release && (
         <div className="update-release" data-testid="update-release">
-          {release.notes && <div className="update-notes" role="note" aria-label={`What's new in ${release.version}`}>{release.notes}</div>}
+          {release.notes.trim() && (
+            <details className="more update-notes" data-testid="update-notes">
+              <summary>What's new in {release.version}</summary>
+              <Markdown text={release.notes} />
+            </details>
+          )}
           <p className="hint">
             <a href={release.page} target="_blank" rel="noreferrer noopener">The release page</a>
             {status.download_size && status.can_install ? ` · ${formatSize(status.download_size)} download` : ''}

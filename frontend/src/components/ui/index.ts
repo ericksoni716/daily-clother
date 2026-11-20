@@ -5,6 +5,7 @@ export { ChipGroup } from './Chips';
 export { EmptyState } from './EmptyState';
 export { CRASH, ErrorBoundary } from './ErrorBoundary';
 export { ItemThumb } from './ItemThumb';
+export { Markdown } from './Markdown';
 export { Notice, type NoticeTone } from './Notice';
 export { PageHeader } from './PageHeader';
 export { SegmentedControl, type Segment } from './SegmentedControl';

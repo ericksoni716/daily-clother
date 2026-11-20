@@ -322,9 +322,23 @@ jobs:
 
       - name: Publish the release (creates the tag)
         run: |
+          # What's new: CHANGELOG.md's section for this version (else Unreleased), read at the released
+          # commit by tools/whats_new.py. This job has no checkout, so both files are fetched here. If
+          # anything goes wrong, or there is nothing to say, the section is left out; the release goes on.
+          whats_new=""
+          if gh api -H "Accept: application/vnd.github.raw" "repos/$GITHUB_REPOSITORY/contents/tools/whats_new.py?ref=$GITHUB_SHA" > whats_new.py 2>/dev/null &&
+             gh api -H "Accept: application/vnd.github.raw" "repos/$GITHUB_REPOSITORY/contents/CHANGELOG.md?ref=$GITHUB_SHA" > CHANGELOG.md 2>/dev/null; then
+            whats_new=$(python3 whats_new.py "$VERSION" CHANGELOG.md 2>/dev/null) || whats_new=""
+          fi
           {
             echo "Closet $VERSION, built from $GITHUB_SHA."
             echo
+            if [ -n "$whats_new" ]; then
+              echo "## What's new"
+              echo
+              printf '%s\n' "$whats_new"
+              echo
+            fi
             if [ "$BUILD_WINDOWS" = true ]; then
               cat <<'NOTES'
           ## First run on Windows

@@ -115,12 +115,55 @@ def test_only_a_newer_final_release_counts(updater, github):
     assert github.asked and all(u == updates.API_URL for u in github.asked)
 
 
-def test_release_notes_are_plain_text_and_short():
-    body = "\n\n" + "\n".join(f"<b>line {i}</b>" for i in range(30))
-    notes = updates.parse_release(release(body=body))["notes"]
-    assert notes.startswith("<b>line 0</b>")   # as written: the page shows it as text, never as HTML
-    assert notes.count("\n") == updates.NOTES_LINES and notes.endswith("…")
-    assert updates.parse_release(release(body=None))["notes"] == ""
+RELEASE_BODY = """Closet 0.3.0, built from 0123abc.
+
+## What's new
+
+### Changed
+
+- Trips pack **lighter**, and the list
+  wraps onto a second line.
+- <b>Not bold</b>
+
+### Fixed
+
+1. A sock no longer goes missing.
+
+## First run on Windows
+
+1. Download **Closet.exe** below.
+
+## Good to know
+
+The demo closet works at once.
+"""
+
+
+def test_release_notes_are_only_the_whats_new_section_as_written():
+    notes = updates.parse_release(release(body=RELEASE_BODY.replace("\n", "\r\n")))["notes"]
+    assert notes == ("### Changed\n\n- Trips pack **lighter**, and the list\n  wraps onto a second line.\n"
+                     "- <b>Not bold</b>\n\n### Fixed\n\n1. A sock no longer goes missing.")
+    # the install steps are not what is new
+    assert "First run" not in notes and "Closet.exe" not in notes and "built from" not in notes
+    # a curly apostrophe or other capitals name the section too; the last section runs to the end
+    curly = "## What’s New\n\n- One thing.\n"
+    assert updates.parse_release(release(body=curly))["notes"] == "- One thing."
+
+
+def test_a_release_without_whats_new_has_no_notes():
+    # releases before the section was written: install steps only, so nothing shown under "What's new"
+    old = RELEASE_BODY.split("## What's new")[0] + "## First run on Windows\n\n1. Download it.\n"
+    for body in (old, "Faster outfits.\n\nFixes a crash.", "", None, 12):
+        assert updates.parse_release(release(body=body))["notes"] == ""
+    assert updates.parse_release(release(body="## What's new\n\n## First run\n\n1. x"))["notes"] == ""
+
+
+def test_long_release_notes_are_cut_at_the_end_of_a_line():
+    lines = [f"- Change number {i} is described in a sentence of some length." for i in range(200)]
+    notes = updates.parse_release(release(body="## What's new\n\n" + "\n".join(lines)))["notes"]
+    assert notes.endswith("\n\n…") and len(notes) <= updates.NOTES_CHARS + 3
+    kept = notes[:-3].split("\n")
+    assert kept == lines[:len(kept)] and len(kept) > 10   # whole lines only, from the start
 
 
 def test_rate_limit_and_offline_are_noted_quietly(updater, github):

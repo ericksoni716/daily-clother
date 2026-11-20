@@ -440,6 +440,7 @@ Original phase 5.
 - Multi-item photos: done in #151 (Claude finds the pieces, the owner checks the boxes; see DECISIONS, "Several items from one photo"). Video sweeps are out (owner's decision). Still to learn: how well Claude boxes a cluttered bed.
 - Taste learning analytics, cost per wear, never worn (rest of original phase 6).
 - Trip packing (historical weather beyond the 16-day forecast, count-only basics).
+- "Your nines" (the owner's idea, 20 November; it goes with renaming the app to Nines, which is not decided yet): the nine pieces worn most, shown as a three-by-three square in the Wardrobe.
 - Extras: calendar-aware suggestions, offline edit queue. Cut: resale suggestions, seasonal storage rotation.
 
 ### Definition of done for a stop

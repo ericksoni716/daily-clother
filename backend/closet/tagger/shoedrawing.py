@@ -13,7 +13,9 @@ describing an item (`correcting.ask`, purpose `draw_shoe`), on the model of the 
 2. **Check**: it is shown the photos again and a render of its drawing on two legs, large and at phone size
    (`drawn.check_png`), with its sheet, its SVG and what the automatic checks found (`drawn.checks`). It compares the
    drawing with the photos and either says it is good or gives the drawing fixed. This stops as soon as it says good
-   and the automatic checks find nothing, and after three checks in any case.
+   and the automatic checks find nothing, and after three checks in any case. On the API route, a check whose
+   drawing would be thrown away if it says good stops being read once it does (`_good_as_is`): the request is the
+   same, only the copy of the drawing that follows is not waited for.
 
 3. **Correct** (step E, `correct`): the owner's one-line note on a drawing. Claude is shown the photos, the drawing
    as it is (its render, sheet and SVG), the owner's earlier notes and the new note, and changes only what the note
@@ -697,6 +699,8 @@ class Call:
     cost_usd: float     # what the API key would charge for it
     seconds: float
     cache_write_tokens: int = 0   # of input_tokens, those written to the prompt cache (the API route)
+    cut_short: bool = False       # a check whose answer stopped being read once it said good (`_good_as_is`):
+                                  # output_tokens is the request's max_tokens, the most it could have written
 
 
 @dataclass
@@ -812,11 +816,13 @@ def _caller(routes: tuple[str, ...], client, exe: str | None, meter: Meter | Non
     """One call to Claude on the drawing model, recorded in `calls` with its tokens, cost and seconds. `cache_photos`:
     every call's images start with the shoe's photos, this many: on the API route the request is cached up to the
     last of them, so each later call reads them back from the cache."""
-    def ask(kind: str, text: str, images: list[Image.Image], image_names: list[str], answer_model):
+    def ask(kind: str, text: str, images: list[Image.Image], image_names: list[str], answer_model,
+            cut_short: correcting.CutShort | None = None):
         t = clock()
+        extra = {"cut_short": cut_short} if cut_short is not None else {}
         result = asker(text, images, routes, client=client, exe=exe, meter=meter, answer_model=answer_model,
                        system=SYSTEM, model=MODEL, names=image_names, max_tokens=MAX_TOKENS, timeout=TIMEOUT,
-                       effort=EFFORT, cache_photos=cache_photos)
+                       effort=EFFORT, cache_photos=cache_photos, **extra)
         cached = getattr(result, "cache_read_tokens", 0) or 0
         written = getattr(result, "cache_write_tokens", 0) or 0
         if result.route == "api":   # what it cost, the cache's writes and reads at their own prices
@@ -825,7 +831,7 @@ def _caller(routes: tuple[str, ...], client, exe: str | None, meter: Meter | Non
         else:
             cost = api_cost(result.model, result.input_tokens, cached, result.output_tokens)
         calls.append(Call(kind, result.route, result.model, result.input_tokens, cached, result.output_tokens, cost,
-                          clock() - t, written))
+                          clock() - t, written, bool(getattr(result, "cut_short", False))))
         return result.answer
     return ask
 
@@ -841,6 +847,24 @@ class _Checked:
     answers: list = field(default_factory=list)   # each check's answer, in turn
 
 
+def _good_as_is(answer_model, left: drawn.Side, right: drawn.Side | None, sheet: dict) -> correcting.CutShort:
+    """A check's answer may stop being read once it says good, when that answer's drawing would be thrown away
+    anyway. In each check's schema, `good` and `problems` (and, in a check of a correction, `against_photos`) come
+    before `sheet`, and structured output keeps the schema's order, so they are whole once `"sheet"` has started; what
+    follows is the drawing written out again. When those fields say good, the answer is made of them and the drawing
+    already held (`left`, `right`, `sheet`). Not good, a field missing or one more, or anything that does not fit the
+    schema: None, and the answer is read to its end. Claude's own `problems` do not matter here, as they do not in
+    `_check`: a good answer with no automatic problem ends the checks either way."""
+    asked = set(answer_model.model_fields) - {"sheet", "left", "right"}
+
+    def answer(fields: dict):
+        if fields.get("good") is not True or set(fields) != asked:
+            return None
+        return answer_model.model_validate({**fields, "sheet": sheet, "left": left.to_json(),
+                                            "right": right.to_json() if right else None})
+    return correcting.CutShort("sheet", answer)
+
+
 def _check(ask, left: drawn.Side, right: drawn.Side | None, sheet: dict, max_rounds: int,
            prompt: Callable[[dict, drawn.Side, drawn.Side | None, list[str]], str],
            images: Callable[[drawn.Side, drawn.Side | None], tuple[list[Image.Image], list[str]]],
@@ -849,13 +873,15 @@ def _check(ask, left: drawn.Side, right: drawn.Side | None, sheet: dict, max_rou
     """The check rounds: each shows Claude the drawing and what the automatic checks (`checker`) found, and takes its
     fix. They stop as soon as Claude says good and the automatic checks find nothing, and after `max_rounds` in any
     case. A check that fails keeps the drawing so far; a fix that cannot be used is set aside and the drawing before it
-    is checked again."""
+    is checked again. When the automatic checks found nothing and no fix was set aside, a good answer's drawing would
+    be thrown away, so its reading stops once it says good (`_good_as_is`; the API route only)."""
     problems, note = checker(left, right, sheet), []
     rounds, good, answers = 0, False, []
     while rounds < max_rounds:
         shots, names = images(left, right)
         try:
-            answer = ask("check", prompt(sheet, left, right, problems + note), shots, names, answer_model)
+            cut = _good_as_is(answer_model, left, right, sheet) if not problems and not note else None
+            answer = ask("check", prompt(sheet, left, right, problems + note), shots, names, answer_model, cut_short=cut)
         except TaggingError as e:   # Claude out of reach, or no usable answer: the drawing so far is kept
             log.info("checking a shoe's drawing stopped after %s rounds: %s", rounds, type(e).__name__)
             break

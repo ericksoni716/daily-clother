@@ -525,15 +525,20 @@ def test_drawing_goes_through_the_api_key_and_its_monthly_limit(cfg):
         # what the cache wrote and read is counted at its own price, in the drawing's cost and in the month's spend
         one = spend.cost_usd(SD.MODEL, 20_000, 5_000, cache_write=1_000, cache_read=4_000)
         assert one == pytest.approx(spend.cost_usd(SD.MODEL, 20_000, 5_000) + (1_000 * 4.00 * 1.25 + 4_000 * 0.20) / 1e6)
-        assert got["cost_usd"] == pytest.approx(calls * one)
+        # each check says good and stops being read there: its output is counted as the most it could be
+        cut = SD.CANDIDATES + SD.TURNS
+        short = spend.cost_usd(SD.MODEL, 20_000, SD.MAX_TOKENS, cache_write=1_000, cache_read=4_000)
+        assert [s["whole"] for s in api.streams].count(False) == cut
+        assert got["cost_usd"] == pytest.approx((calls - cut) * one + cut * short)
         with closing(db.connect(cfg.db_path("main"))) as conn:
             rows = [dict(r) for r in conn.execute("SELECT purpose, route, model, input_tokens, cost_usd FROM "
                                                   "claude_calls WHERE purpose = 'draw_shoe'")]
             month = spend.spent(conn)
         assert len(rows) == calls and spend.PURPOSE_DRAW == "draw_shoe"
         assert all(r["route"] == "api" and r["model"] == SD.MODEL for r in rows)
-        assert all(r["input_tokens"] == 25_000 and r["cost_usd"] == pytest.approx(one) for r in rows)
-        assert month >= calls * one - 1e-9
+        assert all(r["input_tokens"] == 25_000 for r in rows)
+        assert sorted(round(r["cost_usd"], 9) for r in rows) == pytest.approx([one] * (calls - cut) + [short] * cut)
+        assert month >= (calls - cut) * one + cut * short - 1e-9
         assert spend.estimate_draw(8) > 0.5   # one request's careful estimate is over the first limit
     finally:
         sv.stop()

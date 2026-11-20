@@ -233,8 +233,10 @@ def test_through_the_api_key_the_calls_are_streamed_and_counted():
     assert [i["source"]["media_type"] for i in images] == ["image/jpeg"] * 5 + ["image/png"] * 3
     assert api.requests[1]["messages"][0]["content"][-2]["source"]["media_type"] == "image/png"   # drawing.png
     assert meter.checked == [(SD.MODEL, 8), (SD.MODEL, 6)]
-    assert meter.recorded == [("api", SD.MODEL, 25_000, 7_000)] * 2
-    assert made.totals()["cost_usd"] == pytest.approx(2 * spend.cost_usd(SD.MODEL, 25_000, 7_000))
+    # the check says good, so its answer stopped being read there: counted once, its output as the most it could be
+    assert meter.recorded == [("api", SD.MODEL, 25_000, 7_000), ("api", SD.MODEL, 25_000, SD.MAX_TOKENS)]
+    assert made.totals()["cost_usd"] == pytest.approx(spend.cost_usd(SD.MODEL, 25_000, 7_000)
+                                                      + spend.cost_usd(SD.MODEL, 25_000, SD.MAX_TOKENS))
 
 
 def test_through_the_api_key_the_photos_are_cached_and_the_cache_counted():
@@ -251,7 +253,8 @@ def test_through_the_api_key_the_photos_are_cached_and_the_cache_counted():
         content = request["messages"][0]["content"]
         marked = [i for i, block in enumerate(content) if "cache_control" in block]
         assert marked == [9] and content[8]["text"] == "photo-5.jpg:" and content[9]["type"] == "image"
-    assert meter.recorded == [("api", SD.MODEL, 5_000, 7_000, {"cache_write": 3_000, "cache_read": 20_000})] * 2
+    cached = {"cache_write": 3_000, "cache_read": 20_000}   # a check cut short has them too, from `message_start`
+    assert meter.recorded == [("api", SD.MODEL, 5_000, 7_000, cached), ("api", SD.MODEL, 5_000, SD.MAX_TOKENS, cached)]
     call = made.calls[0]
     assert (call.input_tokens, call.cache_write_tokens, call.cache_read_tokens) == (28_000, 3_000, 20_000)
     assert call.cost_usd == pytest.approx(spend.cost_usd(SD.MODEL, 5_000, 7_000, 3_000, 20_000))
@@ -342,3 +345,56 @@ def test_a_back_pull_tab_drawn_in_front_of_the_leg_goes_back_to_claude():
     assert "hides the leg above its opening" in asker.calls[1]["text"]   # for a boot too, found and sent back
     assert "hides the leg above its opening" in asker.calls[2]["text"]   # said good, but still found: not accepted
     assert made.good and made.problems == [] and made.left.behind == drawn.sanitise(TAB) and made.rounds == 3
+
+
+# ------------------------------------------------------------------ a check that says good stops being read there
+
+BOAT = drawn.example("boat-shoe")
+
+
+def test_a_check_that_says_good_stops_being_read_before_the_drawing_and_the_drawing_is_kept():
+    api, meter = FakeApi(input_tokens=25_000, output_tokens=7_000), Meter()
+    made = SD.draw_straight(photos(), ("api",), client=api, meter=meter)
+    draw, look = api.streams
+    assert draw["whole"] and not look["whole"]
+    assert '"good": true' in look["text"] and '"sheet"' in look["text"] and '"left"' not in look["text"]
+    assert made.good and made.rounds == 1 and made.left == drawn.side(draw_answer().left.model_dump())
+    assert made.sheet == draw_answer().sheet.model_dump()
+    assert [c.cut_short for c in made.calls] == [False, True]
+    assert made.calls[1].output_tokens == SD.MAX_TOKENS   # the most it could have written, never less
+    assert len(meter.recorded) == 2   # each request counted once
+
+
+def test_check_hands_back_the_drawing_it_holds_when_the_answer_is_cut_short():
+    held = drawn.side(shoe(DRESS))
+
+    def ask(kind, text, images, names, answer_model, cut_short=None):
+        assert cut_short is not None and cut_short.at == "sheet"
+        return cut_short.answer({"good": True, "problems": ["Claude's own words do not matter here."]})
+    done = SD._check(ask, held, None, dict(SHEET), SD.MAX_ROUNDS, lambda *a: "check", lambda lf, rt: ([], []),
+                     CheckAnswer, checker=lambda lf, rt, sheet: [])
+    assert done.good and done.rounds == 1 and done.left is held and done.right is None and done.sheet == SHEET
+    assert done.answers[0].left.model_dump() == held.to_json()   # the answer is made of the drawing already held
+    # anything but good is not cut: the answer is read to its end
+    cut = SD._good_as_is(CheckAnswer, held, None, dict(SHEET))
+    assert cut.answer({"good": False, "problems": ["The toe."]}) is None
+    assert cut.answer({"good": True}) is None and cut.answer({"good": True, "problems": [], "x": 1}) is None
+    assert cut.answer({"good": "yes", "problems": []}) is None
+
+
+def test_a_check_that_is_not_good_is_read_whole_and_its_fix_used():
+    api = FakeApi()
+    api.checked = CheckAnswer.model_validate({"good": False, "problems": ["The toe."], "sheet": SHEET,
+                                              "left": shoe(BOAT), "right": None})
+    made = SD.draw_straight(photos(), ("api",), client=api)
+    assert [s["whole"] for s in api.streams] == [True] * (1 + SD.MAX_ROUNDS)
+    assert made.left == drawn.side(shoe(BOAT)) and not made.good and made.rounds == SD.MAX_ROUNDS
+    assert not any(c.cut_short for c in made.calls)
+
+
+def test_a_check_given_automatic_problems_is_read_whole():
+    api = FakeApi()
+    api.drawing = drew(LIFTED)   # off the ground: the automatic checks find it, so a good answer's fix is used
+    made = SD.draw_straight(photos(), ("api",), client=api)
+    assert [s["whole"] for s in api.streams] == [True, True, False]   # the second check finds nothing to fix
+    assert made.left == drawn.side(shoe(DRESS)) and made.good and made.rounds == 2

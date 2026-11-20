@@ -1,9 +1,11 @@
 import type { Item, Photo, ShoeDrawn, ShoeTrace, ShoeView, ShoeViews } from './types';
 
 /** What the item page says about a shoe's trace once it is done: why it is drawn from its details, with a retake.
- * While it is traced the item's progress says so (progress.ts). */
-export function traceNotice(trace: ShoeTrace | null | undefined): { tone: 'warn'; text: string; retake: boolean } | null {
-  if (!trace?.message) return null;
+ * While it is traced the item's progress says so (progress.ts). Nothing once the shoe's drawing is Claude's side
+ * (`sideShown`): it is not drawn from its details then. */
+export function traceNotice(trace: ShoeTrace | null | undefined, sideShown = false):
+  { tone: 'warn'; text: string; retake: boolean } | null {
+  if (!trace?.message || sideShown) return null;
   if (trace.state === 'refused' || trace.state === 'failed') return { tone: 'warn', text: trace.message, retake: true };
   return null;
 }
@@ -161,3 +163,20 @@ export function drawQuestion(drawn: ShoeDrawn, again: boolean): string {
     ? `The new drawing replaces this one when it is done, in four to ten minutes. It costs ${cost}.`
     : `It takes four to ten minutes and costs ${cost}.`;
 }
+
+/** The line under a shoe's side drawn by Claude: what makes it itself from the side. Null without a side, or when
+ * Claude named nothing. */
+export function sideLine(drawn: ShoeDrawn | null | undefined): string | null {
+  const features = drawn?.side?.features.filter((f) => f.trim()) ?? [];
+  if (!features.length) return null;
+  const said = features.join('; ');
+  return `From the side: ${said.charAt(0).toLowerCase()}${said.slice(1)}.`.replace(/\.\.$/, '.');
+}
+
+/** What "The shoe's drawing" in Fix the details says and offers: the traced drawing with its fixes ('trace'), Claude's
+ * side drawing, which the trace's fixes do not change ('side'), or the plain drawing the owner chose ('plain'). */
+export function shoeFixMode(item: Pick<Item, 'drawn' | 'trace'>): 'trace' | 'side' | 'plain' {
+  if (item.trace?.plain) return 'plain';
+  return item.drawn?.side_shown ? 'side' : 'trace';
+}
+export const SIDE_FIX = "The picture is Claude's drawing of the shoe, so the traced colours and marks are not used.";

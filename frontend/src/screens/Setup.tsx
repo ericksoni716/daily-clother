@@ -3,6 +3,7 @@ import { api, ApiError } from '../api';
 import { HangerIcon, CheckIcon } from '../components/Icons';
 import type { Profile, Settings } from '../types';
 import { PhoneAccess } from '../components/PhoneAccess';
+import { PHONE_MS } from '../settings';
 import { Button, Card } from '../components/ui';
 
 const MIN = 8;
@@ -58,8 +59,26 @@ export function ReadyScreen({ onChoose }: { onChoose(profile: Profile): Promise<
   const [busy, setBusy] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Outside the open closet, so not through the query cache: read here, and again every few seconds until the
+  // server's first look for Tailscale is in (it answers `phone: null` until then).
   useEffect(() => {
-    api.settings().then(setSettings).catch(() => undefined);
+    let stopped = false;
+    let timer = 0;
+    const again = () => {
+      if (!stopped) timer = window.setTimeout(read, PHONE_MS);
+    };
+    const read = () => {
+      api.settings().then((s) => {
+        if (stopped) return;
+        setSettings(s);
+        if (!s.phone) again();
+      }, again);
+    };
+    read();
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+    };
   }, []);
 
   async function choose(p: Profile) {

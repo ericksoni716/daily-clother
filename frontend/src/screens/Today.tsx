@@ -11,6 +11,7 @@ import { label } from '../labels';
 import { touch, useEdit, useItems, writeItem } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { Link, navigate } from '../router';
+import { settingsQuery } from '../settings';
 import { useApp } from '../store';
 import {
   canDress, canSay, chosenBy, closetKey, dayParts, joinWords, longDate, keptFor, loadChoice, lookingAt, MAX_SAY, moodLabel, MOODS, newestOn, occasionLabel,
@@ -18,7 +19,7 @@ import {
   timeOf, waitingLine, whatToAddFirst, withThing, wornNow, wornOrder, type Choice, type DayAnswer, type DayNote, type Outfit, type Place, type RememberThing,
   type StylistState, type TalkTurn, type TodayAnswer, type TodayRequest, type TypedDay, type WornToday,
 } from '../today';
-import type { ItemSummary, Settings } from '../types';
+import type { ItemSummary } from '../types';
 import { localDay } from '../wears';
 import { localDay as dayNow } from '../wears';
 import { dismiss, loadDismissed, pendingQuestion, pieceName, questionFor, withoutOutfit, wornDay, type WornOutfit } from '../worn';
@@ -662,12 +663,8 @@ function DayPanel({ phase, typed, locked, offline, toast, onTyped, onClose, onPl
   phase: Phase; typed: TypedDay | null; locked: boolean; offline: boolean; toast: (m: string, k?: 'ok' | 'error') => void;
   onTyped(t: Omit<TypedDay, 'day'> | null): void; onClose?: () => void; onPlace(): void; onNote(answer: DayAnswer): void;
 }) {
-  const qc = useQueryClient();
-  const settings = useQuery({ queryKey: queryKeys.settings(), queryFn: api.settings, enabled: !offline }).data ?? null;
-  const setSettings = (s: Settings) => {
-    qc.setQueryData(queryKeys.settings(), s);
-    void touch(qc, 'settings', ['settings']);   // the weather and what's missing follow the place
-  };
+  // the same settings as the Settings screen, read once for both; a place chosen is written in by WhereYouAre
+  const settings = useQuery({ ...settingsQuery(), enabled: !offline }).data ?? null;
 
   return (
     <Card as="section" className="today-day-panel" id="today-day-panel" aria-labelledby="day-title">
@@ -680,10 +677,7 @@ function DayPanel({ phase, typed, locked, offline, toast, onTyped, onClose, onPl
       )}
       <h2 id="day-title" className={phase.kind === 'ready' ? 'today-day-next' : undefined}>Where are you?</h2>
       <WhereYouAre inline place={settings ? settings.place : undefined} home={settings?.home_place} offline={offline} toast={toast}
-        onChange={(s) => {
-          setSettings(s);
-          onPlace();
-        }} />
+        onChange={onPlace} />
       <h3 className="today-typed-title">Or type today's temperatures</h3>
       <TypedForm typed={typed} locked={locked} onTyped={onTyped} onCancel={onClose} />
       {typed && (

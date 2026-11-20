@@ -87,7 +87,7 @@ numbers only, never file names.
 |---|---|
 | `closet_bench/cutout.py` | Background removal with ONNX models, crop, WebP cutout |
 | `closet_bench/fills.py`, `illustrate.py` | The drawing. These now live in the backend, in `backend/closet/drawing/` (colours, fabric swatches, stripes and prints taken from the photo; the four styles, shape + fill = SVG). The bench names are the same modules, so the bench commands' imports work unchanged. OpenCV is imported only inside the parts that read a photo (the fills and the "traced" style), so the app's program draws without it |
-| `closet_bench/schema.py`, `tagging.py`, `taxonomy.py`, `routes.py` | The tagger. These now live in the backend, in `backend/closet/tagger/` (attribute vocabulary and answer shape; the prompt and the API-key route; the owner's taxonomy as the drawing sees it; plan first, API key as fallback). The bench names are the same modules, so the bench commands' imports work unchanged |
+| `closet_bench/schema.py`, `tagging.py`, `routes.py` | The tagger. These now live in the backend, in `backend/closet/tagger/` (attribute vocabulary and answer shape; the prompt and the API-key route; plan first, API key as fallback). The bench names are the same modules, so the bench commands' imports work unchanged |
 | `backend/closet/tagger/models.json` | The one place model IDs and prices live |
 | `closet_bench/hardcases.py`, `bench.py`, `trace_shoes.py` | The three commands above (the shoe tracing and its gate live in `backend/closet/drawing/trace.py` and `traced.py`) |
 | `tests/` | `python -m pytest tests`: the bench's own code (scoring, the phase 0 fills, shoe tracing). The tests of the tagger and the drawing are in `backend/tests/` (`test_taxonomy.py`, `test_templates_and_tagger.py`) |

@@ -994,31 +994,6 @@ def create_app(sv: Services) -> FastAPI:
                             headers={"Cache-Control": "private, max-age=31536000, immutable"})
 
     # -------------------------------------------------------------- outfits
-    @app.post("/api/outfits/suggest", dependencies=protected)
-    async def suggest_outfits(request: Request):
-        try:
-            body = await request.json()
-        except ValueError:
-            raise HTTPException(400, "The request was not valid JSON.")
-        try:
-            ctx, count = outfits.parse_request(body)
-        except outfits.ContextError as e:
-            raise HTTPException(422, str(e))
-        path = cfg.db_path(state.get("profile"))
-
-        def work() -> dict:
-            conn = db.connect(path)
-            try:
-                rows = closet_rows(conn)
-            finally:
-                conn.close()
-            if ctx.build_around and not any(r["id"] == ctx.build_around for r in rows):
-                raise HTTPException(422, "The item to build around is not in this closet.")
-            return outfits.suggest(rows, ctx, count)
-
-        # comparing thousands of combinations takes a moment; do it in a worker thread so other requests keep being answered
-        return await run_in_threadpool(work)
-
     @app.post("/api/outfits/today", dependencies=protected)
     async def outfits_today(request: Request):
         try:

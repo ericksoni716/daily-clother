@@ -227,13 +227,6 @@ def block_colours(raw) -> dict[str, str]:
     return out
 
 
-def block_parts(raw) -> tuple[tuple[str, ...], str | None]:
-    """The parts cut in another colour and the first part's colour (softened), from a blocks surface; ((), None)
-    otherwise (`block_colours` gives each part its own)."""
-    found = block_colours(raw)
-    return tuple(found), next(iter(found.values()), None)
-
-
 TEXT_MAX = 30
 
 

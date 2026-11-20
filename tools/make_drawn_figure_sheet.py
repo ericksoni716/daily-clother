@@ -1,6 +1,6 @@
 """Shoes Claude drew, on the app's As worn figure (developer tool; not shipped): sheets to look at.
 
-    python tools/make_drawn_figure_sheet.py [--out docs/screenshots]
+    python tools/make_drawn_figure_sheet.py [--out tools/out]
 
 For the saved example drawings (the runner, drawn left and right, from backend/tests/data/shoe_drawn/; the
 boot, its pull tab the one at the front, shown in front of the leg, from backend/closet/drawing/shoe_examples/; the dress
@@ -32,7 +32,7 @@ from closet.drawing.figure import Piece, figure, plan  # noqa: E402
 from closet.tagger.schema import Details, ItemTags, Silhouette  # noqa: E402
 
 BENCH = ROOT / "backend" / "tests" / "data" / "shoe_drawn"
-OUT = ROOT / "docs" / "screenshots"
+OUT = ROOT / "tools" / "out"   # git-ignored; nothing new goes into docs/screenshots/
 CASES = [("shorts and a crew sock", "shorts"), ("full-length trousers", "full"), ("ankle-length trousers", "ankle")]
 
 

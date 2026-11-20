@@ -404,11 +404,6 @@ def by_repeat(sig, m, P, Q, log=quiet):
 
 # --- the two together, and the repeat's true length -----------------------------------------------------------
 
-def _delta_e(lab_a, lab_b):
-    d = lab_a - lab_b
-    return np.sqrt((d[..., 0] * (100 / 255)) ** 2 + d[..., 1] ** 2 + d[..., 2] ** 2)
-
-
 def _halves_differ(lab, m, P, Q, across):
     """Is the repeat really two of these (2P across, or 2Q down)? Each small area of the garment, two doubled
     repeats long, is averaged along the lines (so the weave's grain drops out) and the two halves of each

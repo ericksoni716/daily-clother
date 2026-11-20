@@ -8,8 +8,6 @@ import pytest
 from closet import outfits
 from closet.config import bundle_dir
 
-from .conftest import upload
-
 CORE = ("base", "mid", "outer", "bottom", "shoes")
 BOTTOMS = ("jeans", "trousers", "shorts")
 SHOES = ("sneakers", "boots", "dress_shoes", "sandals")
@@ -381,14 +379,12 @@ def test_requests_are_checked_in_plain_words(body, words):
 DAY = {"low_c": 2, "high_c": 6, "rain": True, "occasion": "business"}
 
 
-def test_suggest_needs_login(anon):
-    assert anon.post("/api/outfits/suggest", json=DAY).status_code == 401
-
-
-def test_suggest_answers_with_outfits_for_the_open_closet(client):
+def test_today_answers_with_outfits_for_the_open_closet(client):
+    """The answer's shape at the API, the day given so the weather is not looked up (moved from the removed
+    `POST /api/outfits/suggest`; logging in, plain-word errors and the two closets are checked in test_weather.py)."""
     assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
     demo_ids = {i["id"] for i in client.get("/api/items").json()["items"]}
-    r = client.post("/api/outfits/suggest", json={**DAY, "count": 4, "worn_days_ago": {}, "leave_out": [], "mood": "sharp"})
+    r = client.post("/api/outfits/today", json={**DAY, "count": 4, "leave_out": [], "mood": "sharp"})
     assert r.status_code == 200
     body = r.json()
     assert body["missing"] == [] and len(body["outfits"]) == 4
@@ -398,30 +394,8 @@ def test_suggest_answers_with_outfits_for_the_open_closet(client):
         assert set(ids_of(o)) <= demo_ids and o["pieces"]["outer"]
     # build around an item of the demo closet
     shirt = next(i["id"] for i in client.get("/api/items", params={"q": "oxford"}).json()["items"])
-    r = client.post("/api/outfits/suggest", json={**DAY, "build_around": shirt})
+    r = client.post("/api/outfits/today", json={**DAY, "build_around": shirt})
     assert r.status_code == 200 and all(shirt in ids_of(o) for o in r.json()["outfits"])
-
-
-def test_suggest_validation_errors_are_plain_words(client):
-    r = client.post("/api/outfits/suggest", json={"low_c": 10, "high_c": 4})
-    assert r.status_code == 422 and r.json()["detail"] == "The low temperature is above the high one."
-    r = client.post("/api/outfits/suggest", content=b"{not json", headers={"content-type": "application/json"})
-    assert r.status_code == 400
-    r = client.post("/api/outfits/suggest", json={**DAY, "build_around": "missing"})
-    assert r.status_code == 422 and r.json()["detail"] == "The item to build around is not in this closet."
-
-
-def test_demo_and_main_closets_are_separate(client):
-    main_item = upload(client).json()
-    for field, value in (("category", "tee"), ("color", "white")):
-        client.patch(f"/api/items/{main_item['id']}", json={field: value})
-    r = client.post("/api/outfits/suggest", json=DAY).json()
-    assert r["outfits"] == [] and any("shoes" in m for m in r["missing"])
-    client.post("/api/profile", json={"profile": "demo"})
-    r = client.post("/api/outfits/suggest", json=DAY).json()
-    assert r["outfits"] and all(main_item["id"] not in ids_of(o) for o in r["outfits"])
-    r = client.post("/api/outfits/suggest", json={**DAY, "build_around": main_item["id"]})
-    assert r.status_code == 422
 
 
 def test_colour_families_come_from_the_owners_taxonomy():

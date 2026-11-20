@@ -18,8 +18,8 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 - Claude now draws each shoe from its side too, from its photos, in the same clean style as
   your other drawings, with its own panels, marks and sole. That drawing becomes the shoe's
   picture in the closet, and the shoe's page shows it beside the drawing for the figure, with a
-  line on what makes the shoe itself. It is made at the same time as the drawing for the
-  figure, so it adds no wait; shoes drawn before get theirs by themselves. Until it exists, or
+  line on what makes the shoe itself. It is made alongside the drawing for the figure, sharing
+  its calls to Claude, so it adds little wait; shoes drawn before get theirs by themselves. Until it exists, or
   if it can't be made, the picture is traced from the side photo as before, and that trace now
   also gives Claude the shoe's proportions.
 

@@ -15,7 +15,7 @@ from closet.tagger import shoedrawing as SD
 from closet.tagger.shoedrawing import SideAnswer, SideCheckAnswer
 from closet.tagger.tagging import RouteUnavailable, TaggingError
 
-from .conftest import SHEET, SIDE_FEATURES, SIDE_MEASURES, SIDE_SVG, side_answer, side_check_answer
+from .conftest import SHEET, SIDE_FEATURES, SIDE_MEASURES, SIDE_SVG, FakeApi, side_answer, side_check_answer
 from .test_shoedrawing import Asker, clock, photos
 
 MEASURED = Measures(**SIDE_MEASURES)
@@ -166,3 +166,32 @@ def test_a_side_raises_as_a_drawing_does():
 def test_features_are_kept_short_and_plain():
     assert SD._features(["  a   white\nshoe ", "", "x" * 300]) == ["a white shoe", "x" * 119 + "…"]
     assert len(SD._features([f"f{i}" for i in range(10)])) == SD.FEATURES_MAX
+
+
+# ------------------------------------------------------------------ a side check that says good stops being read there
+
+def test_a_side_check_that_says_good_stops_being_read_before_the_drawing(cut_clock):
+    api = FakeApi(input_tokens=25_000, output_tokens=7_000)
+    made = SD.draw_side(photos(), ("api",), client=api)
+    draw, look = api.streams
+    assert draw["whole"] and not look["whole"]
+    assert '"good": true' in look["text"] and '"svg"' in look["text"] and "<path" not in look["text"]
+    assert made.good and made.rounds == 1 and made.svg == drawnside.sanitise(SIDE_SVG)
+    assert [c.cut_short for c in made.calls] == [False, True]
+
+
+def test_a_side_check_given_a_measured_fault_is_read_whole():
+    api = FakeApi()
+    api.side = side_answer(LOW)
+    made = SD.draw_side(photos(), ("api",), client=api, measures=SIDE_MEASURES)
+    assert [s["whole"] for s in api.streams] == [True, True, False]   # the fix is used; its check finds nothing
+    assert made.good and made.rounds == 2 and made.svg == drawnside.sanitise(SIDE_SVG)
+
+
+def test_the_side_hook_cuts_only_a_good_answer():
+    cut = SD._side_good_as_is(drawnside.sanitise(SIDE_SVG))
+    assert cut.at == "svg"
+    kept = cut.answer({"good": True, "problems": [], "features": SIDE_FEATURES})
+    assert kept.svg == drawnside.sanitise(SIDE_SVG) and kept.features == SIDE_FEATURES
+    assert cut.answer({"good": False, "problems": ["The toe."], "features": SIDE_FEATURES}) is None
+    assert cut.answer({"good": True, "problems": []}) is None

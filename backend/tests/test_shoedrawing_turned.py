@@ -5,6 +5,7 @@ it; the photos cut to the shoe; a sandal kept straight on; failures keeping what
 stand-in answers each kind of question, from several threads at once.
 """
 import threading
+import time
 
 import numpy as np
 import pytest
@@ -136,7 +137,7 @@ def clock():
 def in_turn(monkeypatch, request):
     """The candidates and the turns made one after another, so each stand-in answer goes to a known one (they run
     side by side in the app: `test_candidates_are_made_side_by_side`)."""
-    if request.node.name == "test_candidates_are_made_side_by_side":
+    if request.node.name in ("test_candidates_are_made_side_by_side", "test_a_drawing_never_has_more_than_two_calls_at_once"):
         return
 
     def one_by_one(n, job):
@@ -206,6 +207,24 @@ def test_the_side_is_drawn_beside_the_turns_and_kept_with_the_drawing():
     assert kept["side"]["svg"] == made.side.svg and kept["side"]["features"] == SIDE_FEATURES
     assert kept["input_tokens"] == 30_000 * len(made.calls)
     assert kept["side"]["cost_usd"] == pytest.approx(sum(c.cost_usd for c in made.side.calls))
+
+
+def test_a_drawing_never_has_more_than_two_calls_at_once():
+    """The candidates, the turns and the side, each side by side as in the app: never more than two calls under way."""
+    claude = Claude()
+    lock, now, most = threading.Lock(), [0], [0]
+
+    def counted(text, images, routes, **kw):
+        with lock:
+            now[0] += 1
+            most[0] = max(most[0], now[0])
+        time.sleep(0.05)
+        with lock:
+            now[0] -= 1
+        return claude(text, images, routes, **kw)
+    made = SD.draw(photos(), ("plan",), asker=counted, clock=clock(), style="oxford")
+    assert made.side is not None and made.view == "turned"
+    assert most[0] == SD.CALLS_AT_ONCE == 2
 
 
 def test_a_side_that_fails_never_costs_the_front():

@@ -42,6 +42,7 @@ import io
 import json
 import logging
 import re
+import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
@@ -65,6 +66,9 @@ MAX_ROUNDS = 3         # check calls at most, after a drawing (straight on, or t
 CANDIDATES = 2         # straight-on drawings made side by side, of which the judge keeps one (the owner's choice
                        # over three, 17 November 2026: see DECISIONS.md)
 TURNS = 2              # turns of the kept drawing made side by side, of which the judge keeps one
+CALLS_AT_ONCE = 2      # calls one drawing makes at the same time, the side's included: two, as before the side, so two
+                       # shoes drawn at once (`shoedraw.AT_ONCE`) never run more than four Claude Code processes on the
+                       # plan (see DECISIONS.md, "A shoe's side drawn by Claude")
 FIX_NOTE_MAX = 900     # the judge's faults on the kept turn, given back as a note to fix
 MAX_CORRECT_ROUNDS = 2 # check calls at most, after a correction from the owner's note
 NOTE_MAX = 200         # the owner's note on a drawing, in characters
@@ -1120,7 +1124,8 @@ def draw(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | N
     3. TURNS turns of it are made side by side (`_turn`), and the judge keeps the best; its faults are given back as a
        note to fix (`_correcting`), and the fixed turn is kept only when the judge prefers it.
     4. At the same time as the turns, the shoe is drawn from its side (`_side`, with the chosen straight-on drawing's
-       sheet, and `measures` from its trace when it has one), unless `side` is False. A side that fails, for whatever
+       sheet, and `measures` from its trace when it has one), unless `side` is False. Its calls and the turns' share
+       the drawing's `CALLS_AT_ONCE` places (`_limited`), so the drawing never has more than two calls under way. A side that fails, for whatever
        reason, is left out (`Drawn.side` None): it never costs the front drawing.
 
     `style`: the item's shoe style, from its description (`style_of` reads the sheet when there is none); a sandal is
@@ -1135,7 +1140,8 @@ def draw(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | N
     shots = [shown(p.image) for p in photos]
     names = photo_names(len(photos))
     calls: list[Call] = []
-    ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_photos=len(shots))
+    slots = threading.BoundedSemaphore(CALLS_AT_ONCE)
+    ask = _limited(_caller(routes, client, exe, meter, asker, clock, calls, cache_photos=len(shots)), slots)
     notes = list(notes)
 
     made, failed = _parallel(CANDIDATES, lambda i: _straight(ask, photos, shots, names, notes, style, front))
@@ -1147,8 +1153,8 @@ def draw(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | N
     straight = cands[i]
     rounds = sum(c.rounds for c in cands)
     side_calls: list[Call] = []
-    wait_side = (_side_job(_caller(routes, client, exe, meter, asker, clock, side_calls, cache_photos=len(shots)),
-                           side_calls, photos, shots, names, straight.sheet, notes, measures, clock)
+    wait_side = (_side_job(_limited(_caller(routes, client, exe, meter, asker, clock, side_calls,
+                                            cache_photos=len(shots)), slots), side_calls, photos, shots, names, straight.sheet, notes, measures, clock)
                  if side else (lambda: None))
     try:
         made = _turned_or_straight(ask, photos, shots, names, notes, style, straight, rounds, start, clock, calls)
@@ -1158,6 +1164,15 @@ def draw(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | N
     made.side = made_side
     made.seconds = clock() - start
     return made
+
+
+def _limited(ask, slots: threading.BoundedSemaphore):
+    """`ask`, made to wait for one of a drawing's `CALLS_AT_ONCE` places before each call: the turns and the side then
+    share two places, as the turns alone had them."""
+    def limited(*args, **kwargs):
+        with slots:
+            return ask(*args, **kwargs)
+    return limited
 
 
 def _turned_or_straight(ask, photos: list[Photo], shots: list[Image.Image], names: list[str], notes: list[str],
@@ -1448,12 +1463,27 @@ def _style_images() -> list[Image.Image]:
     return [_png(drawn.render_png(svg, 400, 460)) for svg in drawnside.style_svgs().values()]
 
 
+def _side_good_as_is(svg: str) -> correcting.CutShort:
+    """A side check's answer may stop being read once it says good, as a check of the front does (`_good_as_is`): in
+    its schema `good`, `problems` and `features` come before `svg`, and a good answer with no automatic problem ends
+    the checks with the drawing already held, so its copy of the drawing is not waited for. Not good, or a field
+    missing or one more: None, and the answer is read to its end."""
+    asked = set(SideCheckAnswer.model_fields) - {"svg"}
+
+    def answer(fields: dict):
+        if fields.get("good") is not True or set(fields) != asked:
+            return None
+        return SideCheckAnswer.model_validate({**fields, "svg": svg})
+    return correcting.CutShort("svg", answer)
+
+
 def _side(ask, photos: list[Photo], shots: list[Image.Image], names: list[str], sheet: Mapping | None,
           notes: Sequence[str], measures: drawnside.Measures | None, clock: Callable[[], float],
           calls: list[Call]) -> Sided:
     """One side drawing and its check rounds, at most `MAX_SIDE_ROUNDS`: they stop as soon as Claude says good and the
-    automatic checks (`drawnside.checks`, with the measures) find nothing. A check that fails keeps the drawing made so
-    far; a fix that cannot be used is set aside and the drawing before it is checked again. `calls` collects this
+    automatic checks (`drawnside.checks`, with the measures) find nothing; when they found nothing and no fix was set
+    aside, a good answer stops being read there (`_side_good_as_is`; the API route only). A check that fails keeps the
+    drawing made so far; a fix that cannot be used is set aside and the drawing before it is checked again. `calls` collects this
     side's calls (the caller's `ask` records every call it makes in its own list too)."""
     start = clock()
     first_at = len(calls)
@@ -1464,8 +1494,10 @@ def _side(ask, photos: list[Photo], shots: list[Image.Image], names: list[str], 
     problems, note, rounds, good = drawnside.checks(svg, measures), [], 0, False
     while rounds < MAX_SIDE_ROUNDS:
         try:
+            cut = _side_good_as_is(svg) if not problems and not note else None
             got = ask("side-check", side_check_prompt(photos, written, svg, problems + note, notes, measures),
-                      shots + [_png(drawnside.check_png(svg))], names + ["drawing.png"], SideCheckAnswer)
+                      shots + [_png(drawnside.check_png(svg))], names + ["drawing.png"], SideCheckAnswer,
+                      cut_short=cut)
         except TaggingError as e:   # Claude out of reach, or no usable answer: the drawing so far is kept
             log.info("checking a shoe's side drawing stopped after %s rounds: %s", rounds, type(e).__name__)
             break
@@ -1488,10 +1520,9 @@ def _side(ask, photos: list[Photo], shots: list[Image.Image], names: list[str], 
 
 def _side_job(ask, calls: list[Call], photos: list[Photo], shots: list[Image.Image], names: list[str], sheet: Mapping,
               notes: Sequence[str], measures, clock: Callable[[], float]) -> Callable[[], Sided | None]:
-    """The side drawn in a thread of its own, beside the turns (it adds no wait unless it takes longer than they do),
-    through `ask`, which records its calls in `calls`: a function that waits for it and gives it, or None when it
+    """The side drawn in a thread of its own, beside the turns and sharing their places (`_limited`), through `ask`,
+    which records its calls in `calls`: a function that waits for it and gives it, or None when it
     failed for whatever reason (logged by its kind)."""
-    import threading
 
     got: dict = {}
     m = drawnside.Measures.from_json(measures)

@@ -33,6 +33,13 @@ task touches:
 - The detailed findings behind a step of the order of work are in the report beside
   `docs/assessment/README.md` that its table names. Read that one report, not all eight.
 
+Before changing code, look at the last run of the `nightly` workflow on `main` (the
+repository's Actions; it runs every test, the slow ones included, on the night after `main`
+changed). If it failed, say so first and fix that before the task, or tell the owner why it
+cannot be fixed now: pull requests leave the slow tests out, so a failure there is one no
+pull request showed. If it cannot be read from where the conversation runs, say that rather
+than assume it passed.
+
 Anything a later conversation would need goes in these files, not only in the chat: a
 decision and its reason in `docs/DECISIONS.md`, what is left of a piece of work under *Left
 over from finished work* in `docs/BACKLOG.md`.

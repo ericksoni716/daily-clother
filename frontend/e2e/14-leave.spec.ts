@@ -1,4 +1,4 @@
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, login, openFold, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
@@ -11,9 +11,10 @@ test('edit, reload at once: the edit is there', async ({ page }) => {
   await useProfile(page, 'demo');
   await page.getByTestId('tile').filter({ hasText: 'Oatmeal henley' }).click();
   const panel = page.locator('.detail-panel');
-  const notes = () => page.locator('.detail-panel').getByRole('textbox', { name: 'Notes', exact: true });
+  const notes = () => page.locator('.detail-panel').getByRole('textbox', { name: 'Notes for you and Claude' });
 
   // a chip: reload straight after the tap, without waiting for the answer
+  await openFold(panel, 'Details');
   await panel.getByRole('button', { name: /^Formality:/ }).click();
   const formality = panel.getByRole('group', { name: 'Formality' });
   await expect(formality).toBeVisible();
@@ -21,16 +22,15 @@ test('edit, reload at once: the edit is there', async ({ page }) => {
     ? 'Smart casual' : 'Casual';
   await formality.getByRole('button', { name: target, exact: true }).click();
   await page.reload();
+  await openFold(page.locator('.detail-panel'), 'Details');
   await page.locator('.detail-panel').getByRole('button', { name: /^Formality:/ }).click();
   await expect(page.locator('.detail-panel').getByRole('group', { name: 'Formality' }).getByRole('button', { name: target, exact: true }))
     .toHaveAttribute('aria-pressed', 'true');
 
   // notes still being typed (the field never left): reload at once
   const note = `Kept through a reload ${Date.now()}`;
-  await page.locator('.detail-panel').getByText('More details').click();
   await notes().fill(note);
   await page.reload();
-  await page.locator('.detail-panel').getByText('More details').click();
   await expect(notes()).toHaveValue(note);
 
   // and the same when the page is closed instead
@@ -40,5 +40,6 @@ test('edit, reload at once: the edit is there', async ({ page }) => {
   const id = items.find((x) => x.name === 'Oatmeal henley')!.id;
   const request = page.context().request;
   await page.close();
-  await expect.poll(async () => (await (await request.get(`/api/items/${id}`)).json()).notes).toBe(closing);
+  // the one notes box keeps its whole text where the stylist reads it
+  await expect.poll(async () => (await (await request.get(`/api/items/${id}`)).json()).wear_notes).toBe(closing);
 });

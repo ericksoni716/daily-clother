@@ -1,4 +1,4 @@
-import { expect, PASS, PHOTOS, test } from './fixtures';
+import { expect, openFold, PASS, PHOTOS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 // Its own backend, with stand-ins for the model and for Claude: nothing here reaches the real Claude.
@@ -36,8 +36,12 @@ test.describe('the drawing, with a stand-in for Claude', () => {
     const drawing = detail.getByRole('img', { name: 'Navy polo, drawing' });
     await expect(drawing).toBeVisible();
     const before = await drawing.getAttribute('src');
-    const notes = detail.getByRole('region', { name: 'Not in the drawing' });
+    // what the drawing leaves out: a mark on the drawing that opens the list
+    await detail.getByRole('button', { name: 'Not in the drawing' }).click();
+    const notes = page.getByRole('dialog', { name: 'Not in the drawing' });
     await expect(notes.getByText('Embroidered chest logo')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await openFold(detail, 'Details');
 
     // the owner's colour wins over Claude's, and the drawing follows it
     const stored = page.waitForResponse((r) => r.request().method() === 'PATCH' && r.url().includes('/api/items/') && r.ok());

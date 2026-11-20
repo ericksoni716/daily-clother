@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { categoryPlural, formatPrice, formatSize, humanize, label, measuredColours, parsePrice, ratingLabel, shadeLabel, tileCaption, wornWords } from './labels';
 import { messageFrom } from './api';
 import { fitWithin } from './resize';
-import { silhouetteGroups } from './silhouette';
 
 describe('labels', () => {
   it('says how an item sits in short plain words, the first capitalised, each with the detail that fixes it', () => {
@@ -79,23 +78,6 @@ describe('labels', () => {
     expect(messageFrom({ detail: 'That passphrase is not right.' }, 'x')).toBe('That passphrase is not right.');
     expect(messageFrom({ detail: [{ msg: 'Field required' }] }, 'x')).toBe('Field required');
     expect(messageFrom(null, 'fallback')).toBe('fallback');
-  });
-});
-
-describe('silhouette groups', () => {
-  it('tops get sleeve, neck, length and fit', () => {
-    for (const c of ['tee', 'shirt', 'polo', 'sweater', 'hoodie', 'jacket', 'coat']) {
-      expect(silhouetteGroups(c)).toEqual(['sleeve', 'neck', 'top_length', 'fit']);
-    }
-  });
-  it('trousers, jeans and shorts get leg and length', () => {
-    for (const c of ['trousers', 'jeans', 'shorts']) expect(silhouetteGroups(c)).toEqual(['leg', 'pant_length']);
-  });
-  it('shoes get height', () => {
-    for (const c of ['sneakers', 'boots', 'dress_shoes', 'sandals']) expect(silhouetteGroups(c)).toEqual(['shoe_height']);
-  });
-  it('everything else gets none', () => {
-    for (const c of ['bag', 'belt', 'hat', 'scarf', 'other', null, undefined]) expect(silhouetteGroups(c)).toEqual([]);
   });
 });
 

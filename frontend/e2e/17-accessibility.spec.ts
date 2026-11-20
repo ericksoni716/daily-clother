@@ -1,7 +1,7 @@
 import { mkdirSync } from 'node:fs';
 import type { Page, Route } from '@playwright/test';
 import { axeViolations, sideways, smallTargets } from './a11y';
-import { ensureSetUp, expect, login, test, useProfile } from './fixtures';
+import { ensureSetUp, expect, login, openFold, test, useProfile } from './fixtures';
 
 /**
  * Accessibility over the main screens of the demo closet, on a phone and a computer, in light and dark: axe-core
@@ -74,6 +74,7 @@ for (const [layout, use] of LAYOUTS) {
         await page.getByTestId('tile').first().click();
         await expect(page.getByRole('textbox', { name: 'Name' })).toBeVisible();
         await check(page, 'item', phone, shot);
+        await openFold(page, 'Details');
         await page.getByRole('button', { name: /^Season/ }).click();
         await expect(page.getByRole('group', { name: 'Season' })).toBeVisible();
         await check(page, 'item field', phone, shot);

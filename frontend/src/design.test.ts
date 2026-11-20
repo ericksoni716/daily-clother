@@ -78,7 +78,8 @@ describe('design tokens', () => {
     // facts about an item and the small heads over a group, like notes on a sketch (16 November)
     const labels = rules.flatMap((f) => [...f.text.matchAll(/([^{}]*)\{([^}]*text-transform:\s*uppercase[^}]*)\}/g)]
       .map((m) => ({ name: `${f.name}: ${m[1].trim()}`, body: m[2] })));
-    expect(labels.length).toBeGreaterThan(8);
+    // a guard that the pattern still finds them (two went with "What Claude saw" and the old drawing notes, 20 November)
+    expect(labels.length).toBeGreaterThan(6);
     expect(labels.filter((l) => !/font-family:\s*var\(--font-label\)/.test(l.body) || !/color:\s*var\(--label-ink\)/.test(l.body)).map((l) => l.name)).toEqual([]);
   });
 

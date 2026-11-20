@@ -1,4 +1,4 @@
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, login, openFold, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page, context }) => {
   await context.setOffline(false);
@@ -14,7 +14,7 @@ test('offline: the saved closet still opens, read-only, with a banner', async ({
   await expect(page.getByTestId('tile')).toHaveCount(49);
   // open one item while online, so its full details are saved too
   await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
-  await expect(page.locator('.detail-panel').getByRole('button', { name: /^What is it\?:/ })).toBeVisible();
+  await expect(page.locator('.detail-panel').getByRole('textbox', { name: 'Notes for you and Claude' })).toBeVisible();
   await page.waitForLoadState('networkidle');
 
   await context.setOffline(true);
@@ -33,7 +33,9 @@ test('offline: the saved closet still opens, read-only, with a banner', async ({
   // editing is disabled too (the page reloaded on the saved item)
   const panel = page.locator('.detail-panel');
   await expect(panel.getByText("You're offline, so this item can't be changed right now.")).toBeVisible();
+  await openFold(panel, 'Details');
   await expect(panel.getByRole('button', { name: /^What is it\?:/ })).toBeDisabled();
+  await openFold(panel, 'Archive or delete');
   await expect(panel.getByRole('button', { name: 'Archive' })).toBeDisabled();
 
   // an item never opened before still shows what the closet knows about it
@@ -45,6 +47,7 @@ test('offline: the saved closet still opens, read-only, with a banner', async ({
   await context.setOffline(false);
   await expect(page.getByText('Offline: showing your saved closet')).toBeHidden({ timeout: 15_000 });
   await expect(panel.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('Grey hoodie');
+  await openFold(panel, 'Archive or delete');
   await expect(panel.getByRole('button', { name: 'Archive', exact: true })).toBeEnabled();
 });
 

@@ -644,28 +644,39 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .back-view figcaption { color: var(--ink-3); font-size: var(--text-sm); }
 .detail-panel .back-view { max-width: 20rem; }
 .detail-picture-main { display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; max-width: 26rem; }
-.drawing-notes { width: 100%; max-width: 26rem; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); font-size: var(--text-sm); }
-.drawing-notes h3 { font-family: var(--font-label); font-size: var(--text-xs); font-weight: var(--weight-heading); color: var(--label-ink); text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 6px; }
-.drawing-notes ul { margin: 0; padding-left: 18px; }
-.drawing-notes li + li { margin-top: 4px; }
-@media (min-width: 700px) {
-  .detail-picture-wrap.has-notes { flex-direction: row; align-items: flex-start; justify-content: center; }
-  .detail-picture-wrap.has-notes .drawing-notes { max-width: 13rem; }
-  .detail-panel .detail-picture-wrap.has-notes { flex-direction: column; align-items: center; }
-  .detail-panel .detail-picture-wrap.has-notes .drawing-notes { max-width: 20rem; }
+.detail-picture-frame { position: relative; width: 100%; max-width: 26rem; }
+.detail-panel .detail-picture-frame { max-width: 20rem; }
+.detail-picture-frame .detail-picture { max-width: none; }
+/* what the drawing leaves out: a small mark on the picture's corner that opens the list */
+.not-drawn-open {
+  position: absolute; top: var(--space-2); right: var(--space-2); z-index: 1; width: var(--tap); min-height: var(--tap); padding: 0;
+  justify-content: center; border-radius: var(--radius-pill); background: var(--card-veil); color: var(--card-ink);
 }
+.not-drawn-open:hover:not(:disabled) { background: var(--card-veil); }
+.not-drawn-sheet.sheet-popover { left: auto; right: 0; top: calc(var(--space-2) + var(--tap) + var(--space-1)); width: min(20rem, calc(100vw - 32px)); }
+.not-drawn-list { margin: 0; padding-left: 18px; font-size: var(--text-sm); }
+.not-drawn-list li + li { margin-top: 4px; }
 
 .picture-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--space-2); width: 100%; }
 
 /* the name, read first: a heading that can be typed over */
 .detail-head { margin: var(--space-2) 0 var(--space-4); }
 .detail-title { font-size: var(--text-xl); font-weight: var(--weight-heading); letter-spacing: -0.015em; }
-.detail-meta { margin: var(--space-1) 0 0; color: var(--ink-3); font-size: var(--text-sm); }
-/* each word is a 44px-tall tap target that looks like a link */
-.detail-worn { display: flex; flex-wrap: wrap; align-items: center; margin: 0; color: var(--ink-3); font-size: var(--text-sm); }
-.detail-worn .detail-worn-word { min-height: var(--tap); padding: 0; font-size: var(--text-sm); color: var(--ink-2); text-decoration-color: var(--ink-3); }
-.detail-worn-item { display: inline-flex; align-items: center; }
-.detail-worn-sep { padding: 0 var(--space-1); }
+/* the one line about its look, under the name: it keeps one line's height while the item is read; the words of how it
+   sits are each a 44px-tall tap target that looks like a link */
+.detail-look { display: flex; flex-wrap: wrap; align-items: center; min-height: var(--tap); margin: 0; color: var(--ink-2); font-size: var(--text-sm); }
+.detail-look .detail-look-word { min-height: var(--tap); padding: 0; font-size: var(--text-sm); color: var(--ink-2); text-decoration-color: var(--ink-3); }
+.detail-look-part { display: inline-flex; align-items: center; }
+.detail-look-sep { padding: 0 var(--space-1); color: var(--ink-3); }
+.detail-head .fix-anchor { position: relative; display: inline-block; }
+.detail-head .fix-open { min-height: var(--tap); padding: 0; font-size: var(--text-sm); }
+.name-field-static { padding: 4px 0; min-height: var(--tap); line-height: 1.25; }
+/* About it: how you feel about it, and the one notes box */
+.detail-about { margin: 0 0 var(--space-5); }
+.detail-about .chip-group { margin: 0 0 var(--space-3); }
+.detail-about .field-with-hint .hint { margin-bottom: 0; }
+/* the Details fold holds rows of a label and a value */
+.detail-fold .detail-rows { padding: 0 0 var(--space-2); }
 .name-field { display: block; }
 .name-field textarea {
   display: block; font-size: var(--text-xl); font-weight: inherit; letter-spacing: inherit; line-height: 1.25; border-color: transparent;
@@ -676,7 +687,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .name-field textarea:disabled { color: var(--ink); border-color: transparent; }
 
 /* Details: every field as a label and its value; tapping one opens its choices */
-.detail-fields { margin: 0 0 var(--space-5); padding: var(--space-3) var(--space-4) var(--space-2); gap: var(--space-1); }
 .detail-rows { list-style: none; margin: 0; padding: 0; }
 .detail-row + .detail-row { border-top: 1px solid var(--line-soft); }
 .detail-row-button {
@@ -719,11 +729,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .pattern-failed p { margin: 0 0 8px; }
 .tag-body { padding: 4px 0 14px; }
 .tag-body .muted { font-size: var(--text-sm); margin: 10px 0 0; }
-.tag-details { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 14px; }
-.tag-details dt { font-family: var(--font-label); font-size: var(--text-xs); font-weight: var(--weight-heading); color: var(--label-ink); text-transform: uppercase; letter-spacing: 0.08em; }
-.tag-details dd { margin: 0; }
-.tag-seen-title { font-size: var(--text-md); margin: 16px 0 6px; }
-.tag-seen { margin: 0; padding-left: 20px; }
 .tag-again { margin: 0 0 18px; }
 
 /* status: worn, washed and the two things to do about it */

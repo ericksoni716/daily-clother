@@ -1,9 +1,7 @@
 /* Fixing an item's details and its history (components/FixDetails.tsx). */
 
 .fix-open { flex: none; }
-/* On a computer the sheet is a popover centred under the picture, as wide as the picture's column allows. */
-.picture-controls:has(> .fix-anchor) { position: relative; }
-.fix-sheet.sheet-popover { left: 50%; transform: translateX(-50%); width: min(26rem, 100%); }
+/* On a computer the sheet is a popover under its button, under the item's name. */
 .fix [hidden] { display: none; }
 .fix-panel { display: grid; gap: 14px; }
 .fix-panel:focus { outline: none; }

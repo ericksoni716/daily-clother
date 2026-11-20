@@ -55,16 +55,16 @@ test('browser Back saves a text field without waiting for blur', async ({ page }
   const id = new URL(page.url()).pathname.split('/').at(-1)!;
   const original = await (await page.request.get(`/api/items/${id}`)).json();
   try {
-    await page.locator('.detail-panel').getByText('More details').click();
-    const notes = page.getByRole('textbox', { name: 'Notes', exact: true });
+    const notes = page.getByRole('textbox', { name: 'Notes for you and Claude' });
     await notes.fill('Saved by browser Back');
     await expect(notes).toBeFocused();
     await page.goBack();
     await expect(page.locator('.detail-panel')).toHaveCount(0);
-    await expect.poll(async () => (await (await page.request.get(`/api/items/${id}`)).json()).notes)
+    await expect.poll(async () => (await (await page.request.get(`/api/items/${id}`)).json()).wear_notes)
       .toBe('Saved by browser Back');
   } finally {
-    await page.request.patch(`/api/items/${id}`, { data: { notes: original.notes } });
+    const { wear_notes, fit_notes, notes: kept, rating_reason } = original;
+    await page.request.patch(`/api/items/${id}`, { data: { wear_notes, fit_notes, notes: kept, rating_reason } });
   }
 });
 

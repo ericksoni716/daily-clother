@@ -1,4 +1,4 @@
-import { test as base, expect, type Page } from '@playwright/test';
+import { test as base, expect, type Locator, type Page } from '@playwright/test';
 
 export const PASS = 'a calm green closet';
 
@@ -50,3 +50,12 @@ export async function useProfile(page: Page, profile: 'main' | 'demo') {
 }
 
 export const PHOTOS = new URL('../../bench/hardcases/photos/', import.meta.url).pathname;
+
+/** Opens one of the item page's folds (Details, Shopping facts, History, the last one) by its title, if it is closed. */
+export async function openFold(scope: Page | Locator, title: string | RegExp) {
+  const page = 'goto' in scope ? scope : scope.page();
+  const fold = scope.locator('details.more').filter({ has: page.locator('summary', { hasText: title }) }).first();
+  if ((await fold.getAttribute('open')) === null) await fold.locator('summary').first().click();
+  await expect(fold).toHaveAttribute('open', '');
+  return fold;
+}

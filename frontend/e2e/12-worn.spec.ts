@@ -33,6 +33,10 @@ const cards = (page: Page) => page.getByTestId('worn-outfit');
 const seeAll = (page: Page) => page.getByTestId('recent-outfits').getByRole('link', { name: 'See all' });
 
 test('worn: wear an outfit, rate it, Today learns from it, wear one again, remove it', async ({ page }) => {
+  // from six in the evening Today asks about today's outfit in place of its card: this test is about the day before then
+  const morning = new Date();
+  morning.setHours(10, 0, 0, 0);
+  await page.clock.setFixedTime(morning);
   await fakeWeather(page);
   await openToday(page);
 

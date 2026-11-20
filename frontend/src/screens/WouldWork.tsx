@@ -267,7 +267,7 @@ function Describe({ draft, setDraft, error, demo, locked, kinds, vocab, onPhoto,
           </button>
         </div>
         <input ref={camera} type="file" accept="image/*" capture="environment" hidden onChange={onPhoto} data-testid="would-work-camera" />
-        <input ref={library} type="file" accept="image/*,.heic,.heif" hidden onChange={onPhoto} data-testid="would-work-photo" />
+        <input ref={library} type="file" accept="image/*,.heic,.heif,.avif" hidden onChange={onPhoto} data-testid="would-work-photo" />
         <p className="muted wouldwork-small">
           {demo ? DEMO_PHOTO : 'Claude describes it, as it does a new item. The photo is not added to your closet and is deleted once the answer is ready.'}
         </p>

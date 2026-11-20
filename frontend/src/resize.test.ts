@@ -7,8 +7,9 @@ describe('splitPhotos', () => {
     const { photos, skipped } = splitPhotos([
       f('shirt.jpg', 'image/jpeg'), f('IMG_0001.HEIC'), f('notes.txt', 'text/plain'), f('.DS_Store'),
       f('._shirt.jpg', 'image/jpeg'), f('clip.mov', 'video/quicktime'), f('scan.png', 'image/png'),
+      f('shop.avif', 'image/avif'), f('saved-from-a-shop.AVIF'),
     ]);
-    expect(photos.map((p) => p.name)).toEqual(['shirt.jpg', 'IMG_0001.HEIC', 'scan.png']);
+    expect(photos.map((p) => p.name)).toEqual(['shirt.jpg', 'IMG_0001.HEIC', 'scan.png', 'shop.avif', 'saved-from-a-shop.AVIF']);
     expect(skipped.map((p) => p.name)).toEqual(['notes.txt', '.DS_Store', '._shirt.jpg', 'clip.mov']);
   });
 });

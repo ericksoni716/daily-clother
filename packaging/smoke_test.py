@@ -65,8 +65,8 @@ from pathlib import Path
 DEMO_ITEMS = 49
 PASSPHRASE = "smoke-test-passphrase"
 MIGRATIONS = Path(__file__).resolve().parent.parent / "backend" / "closet" / "migrations"
-BASE_CHECKS = ("webp", "heic", "onnxruntime", "database", "web_page", "drawing", "model_state", "tagger", "updater",
-               "window")
+BASE_CHECKS = ("webp", "heic", "avif", "onnxruntime", "database", "web_page", "drawing", "model_state", "tagger",
+               "updater", "window")
 
 # Never route loopback requests through a proxy from the environment.
 _opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))

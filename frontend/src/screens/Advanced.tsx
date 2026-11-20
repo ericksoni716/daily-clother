@@ -55,15 +55,8 @@ export function AdvancedScreen({ version }: { version: string }) {
       {!offline && read.error && <p className="form-error" role="alert">{read.error.message}</p>}
 
       <div className="settings-groups">
-        <Section title="Your closet" id="s-closet">
-          <Toggle
-            label="Show the demo closet"
-            hint="About 50 sample clothes to try things out with. Your own closet is kept apart and not touched."
-            checked={profile === 'demo'}
-            disabled={offline}
-            onChange={(on) => switchProfile(on ? 'demo' : 'main').catch((e) => toast((e as Error).message, 'error'))}
-          />
-          {only.autostart && settings.autostart !== null && (
+        {only.autostart && settings.autostart !== null && (
+          <Section title="Starting Closet" id="s-start">
             <Toggle label="Start Closet when I log in" hint="Closet opens quietly in the background when you sign in to this computer."
               checked={settings.autostart} disabled={offline}
               onChange={async (on) => {
@@ -74,8 +67,8 @@ export function AdvancedScreen({ version }: { version: string }) {
                   toast((e as Error).message, 'error');
                 }
               }} />
-          )}
-        </Section>
+          </Section>
+        )}
 
         <TaggingSection offline={offline} settings={settings} toast={toast} />
 
@@ -98,6 +91,18 @@ export function AdvancedScreen({ version }: { version: string }) {
             <dt>Version</dt>
             <dd>{settings.version ?? version}</dd>
           </dl>
+        </Section>
+
+        {/* last: once your own clothes are in, the sample closet is rarely wanted; while it shows, the strip at the
+            top of every screen has Leave, so the way back never depends on finding this */}
+        <Section title="The demo closet" id="s-demo">
+          <Toggle
+            label="Show the demo closet"
+            hint="About 50 sample clothes to try things out with. Your own closet is kept apart and not touched."
+            checked={profile === 'demo'}
+            disabled={offline}
+            onChange={(on) => switchProfile(on ? 'demo' : 'main').catch((e) => toast((e as Error).message, 'error'))}
+          />
         </Section>
       </div>
     </div>

@@ -461,7 +461,7 @@ export function AddScreen() {
               data-testid="dropzone">
               <ImagesIcon />
               <p className="dropzone-title">Drop photos here</p>
-              <p className="muted small">Or a whole folder of them, folders inside it included. JPEG, PNG, WebP and HEIC all work; anything else is skipped.</p>
+              <p className="muted small">Or a whole folder of them, folders inside it included. JPEG, PNG, WebP, HEIC and AVIF all work, so do photos saved from a shop’s page; anything else is skipped.</p>
               <div className="row dropzone-buttons">
                 <button className="btn btn-primary" onClick={() => library.current?.click()}>Choose photos</button>
                 <button className="btn" onClick={() => folder.current?.click()}>Choose a folder</button>

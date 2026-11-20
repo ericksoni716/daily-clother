@@ -651,6 +651,7 @@ def test_only_one_copy_runs_per_data_folder(cfg):
 def test_selfcheck_reports_each_library(cfg):
     result = cli.selfcheck(False, cfg)
     assert result["webp"]["ok"] and result["onnxruntime"]["ok"] and result["database"]["ok"]
+    assert result["avif"]["ok"] and "decoded 32x24" in result["avif"]["detail"]
     assert result["model_state"] == {"ok": True, "detail": "missing"}
     assert result["tagger"]["ok"]
     assert "49 items" in result["database"]["detail"]

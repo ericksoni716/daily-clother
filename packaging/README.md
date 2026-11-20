@@ -4,7 +4,7 @@ The build of Closet is **`closet.spec`** (PyInstaller).
 
 | File | Purpose |
 | --- | --- |
-| `closet.spec` | Builds the program from `backend/closet` plus its data (`migrations/`, `demo_data/`, `web/`), onnxruntime, pillow-heif's native libraries, pystray and pywebview (Closet's own window: its scripts everywhere, the Edge WebView2 libraries and pythonnet on Windows, WebKit through PyObjC on the Mac). Stops if `web/index.html`, the migrations, the demo data, pywebview's scripts or (on Windows) its WebView2 libraries are missing. |
+| `closet.spec` | Builds the program from `backend/closet` plus its data (`migrations/`, `demo_data/`, `web/`), onnxruntime, pillow-heif's native libraries, Pillow's AVIF plugin (named as a hidden import), pystray and pywebview (Closet's own window: its scripts everywhere, the Edge WebView2 libraries and pythonnet on Windows, WebKit through PyObjC on the Mac). Stops if `web/index.html`, the migrations, the demo data, pywebview's scripts or (on Windows) its WebView2 libraries are missing. |
 | `requirements-build.txt` | PyInstaller and its hooks, exact pins. Install with `backend/requirements.txt`. |
 | `smoke_test.py` | Drives a built program end to end. Standard library only. |
 | `../.github/workflows/release.yml` | Manual release: build, test, publish. |
@@ -54,11 +54,12 @@ Each run gets a fresh temporary data folder (`CLOSET_DATA_DIR`) and
 `ANTHROPIC_API_KEY` is removed from the program's environment, so it never
 calls Claude with a key.
 
-- `selfcheck --out FILE` exits 0 and every check is ok (webp, heic,
+- `selfcheck --out FILE` exits 0 and every check is ok (webp, heic, avif,
   onnxruntime, database, web_page, drawing, model_state, tagger, updater,
   window), with `model_state`
   = `missing`. The drawing check draws a shirt from its tags with the
-  bundled `closet.drawing` package. The window check loads Closet's window
+  bundled `closet.drawing` package. The avif check makes a small AVIF
+  picture and reads it back the way an upload is read. The window check loads Closet's window
   library without opening a window: on Windows pythonnet and the Edge
   WebView2 libraries, on the Mac WebKit through PyObjC, on Linux pywebview
   itself.

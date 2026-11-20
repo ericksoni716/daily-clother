@@ -153,7 +153,8 @@ On a computer with a mouse it also says which keys do the same; on a phone it do
 `/add`. One place for everything. When the files that cut clothes out of photos are not set
 up, or did not download, a notice at the top says so (only here: new photos keep their
 background until they are in). Take photos with the camera on the page, choose them from
-the library, choose a folder, or drop them on the page. Closet asks Claude what each photo
+the library, choose a folder, or drop them on the page. JPEG, PNG, WebP, HEIC and AVIF photos
+all work, so a photo saved from a shop's page goes in too. Closet asks Claude what each photo
 shows (one piece, several pieces, or a view of a shoe) and sorts them; a shoe's photos are
 gathered into one shoe. Photos are made smaller in the browser and sent two at a time; a
 list shows each one's upload until it is in, then, in the same row, how far Closet has got
@@ -242,7 +243,8 @@ would hold it back, when you would wear it, and example outfits.
 `/settings/advanced`, from the foot of Settings or Manage beside Claude; "‹ Settings" goes
 back. Its code loads only when it is opened. In order:
 
-- **Your closet**: the demo closet switch, and Start Closet when I log in (computer only).
+- **Starting Closet**: Start Closet when I log in (computer only; the group is not there on a
+  phone).
 - **Claude**: the plan and the API key in the order they are tried, each with its state; the
   key box (paste, replace, remove); which to use; Allow the API key; the monthly limit and the
   month's spending, folded; how many items wait to be described, only when some do.
@@ -254,6 +256,9 @@ back. Its code loads only when it is opened. In order:
 - **Background removal**: the download address, and on the computer where to put the files
   by hand, folded.
 - **This copy of Closet**: the data folder (computer only) and the version.
+- **The demo closet**: the switch that shows the sample closet instead of yours, last because
+  it is rarely wanted once your own clothes are in. While the demo closet shows, the strip at
+  the top of every screen has Leave, so the way back is always in sight.
 
 ## Things that work the same everywhere
 

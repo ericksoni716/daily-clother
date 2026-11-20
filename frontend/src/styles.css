@@ -559,7 +559,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* ---------------------------------------------------------------- model notice, progress & notices */
 .model-notice .notice-action { align-items: center; gap: var(--space-1); margin-left: auto; }
 .notice-close { padding: 0 10px; min-width: var(--tap); }
-.progress-wrap { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
 .progress { flex: 1; height: 8px; appearance: none; border: none; border-radius: var(--radius-pill); background: var(--surface-2); overflow: hidden; max-width: 24rem; }
 .progress::-webkit-progress-bar { background: var(--surface-2); border-radius: var(--radius-pill); }
 .progress::-webkit-progress-value { background: var(--accent-bg); border-radius: var(--radius-pill); }
@@ -878,8 +877,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .state-line { display: flex; align-items: center; gap: 8px; }
 .state-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ink-3); flex: none; }
 .state-ready .state-dot { background: var(--ok); }
-.state-downloading .state-dot { background: var(--accent); }
-.state-failed .state-dot { background: var(--danger); }
 .state-missing .state-dot { background: var(--caution); }
 .path { display: block; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--surface-2); word-break: break-all; font-size: var(--text-sm); }
 .facts { margin: 0; }

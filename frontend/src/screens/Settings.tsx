@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
-import { ModelProgress, modelStateText, secondModelText } from '../components/ModelBanner';
 import { PhoneAccess } from '../components/PhoneAccess';
 import { ADD_TO_HOME_SCREEN, fromHomeScreen, phoneAccessShows } from '../here';
 import { WhereYouAre } from '../components/WhereYouAre';
@@ -171,7 +170,6 @@ export function SettingsScreen({ version }: { version: string }) {
                 }
               }} />
           )}
-          {model && <ModelSection model={model} refresh={refreshModel} toast={toast} disabled={offline} />}
           {settings?.laundry && <LaundrySection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
           {settings?.rewear && <RewearSection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
           {settings && <BackupSection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
@@ -229,48 +227,6 @@ export function SettingsScreen({ version }: { version: string }) {
         </div>
       </div>
     </div>
-  );
-}
-
-function ModelSection({ model, refresh, toast, disabled }: { model: ModelInfo; refresh(): Promise<void>; toast(m: string, k?: 'ok' | 'error'): void; disabled: boolean }) {
-  const [busy, setBusy] = useState(false);
-  const second = model.second;
-
-  async function download() {
-    setBusy(true);
-    try {
-      await api.downloadModel();
-      await refresh();
-    } catch (e) {
-      toast((e as Error).message, 'error');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Sub title="Background removal" id="s-model">
-      <p className={`state-line state-${model.state}`}><span className="state-dot" aria-hidden="true" />{modelStateText(model)}</p>
-      {model.state === 'failed' && model.error && <p className="form-error">{model.error}</p>}
-      {model.state === 'downloading' && <ModelProgress model={model} />}
-      {model.state !== 'ready' && model.state !== 'downloading' && (
-        <button className="btn btn-primary" disabled={busy || disabled} onClick={download}>
-          {model.state === 'failed' ? 'Try the download again' : 'Download the model'}
-        </button>
-      )}
-      {model.state === 'ready' && second && second.state !== 'ready' && (
-        <div data-testid="second-model">
-          <p className="hint">{secondModelText(second)}</p>
-          {second.state === 'failed' && second.error && <p className="form-error">{second.error}</p>}
-          {second.state === 'downloading' && <ModelProgress model={second} />}
-          {second.state !== 'downloading' && (
-            <button className="btn" disabled={busy || disabled} onClick={download}>
-              {second.state === 'failed' ? 'Try the download again' : 'Download the second model'}
-            </button>
-          )}
-        </div>
-      )}
-    </Sub>
   );
 }
 

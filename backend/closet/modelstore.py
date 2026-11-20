@@ -25,6 +25,9 @@ MODEL = "isnet-general-use"
 # checks taken for background); downloaded after the first, about the same size
 SECOND_MODEL = "u2net"
 USER_AGENT = "Closet/1 (model download)"
+# a failed download is tried again by itself: a minute later, ten minutes later, then every hour, until it works
+RETRY_DELAYS = (60.0, 600.0)
+RETRY_EVERY = 3600.0
 
 
 class ModelStore:
@@ -42,6 +45,8 @@ class ModelStore:
         self._done = 0
         self._total: int | None = None
         self._cancel = threading.Event()
+        self._quit = threading.Event()   # the program is closing: stop trying again
+        self._retry_thread: threading.Thread | None = None
 
     # ---- paths
     @property
@@ -107,10 +112,52 @@ class ModelStore:
             self._thread.start()
             return True
 
+    def keep_trying(self, delays: tuple[float, ...] = RETRY_DELAYS, every: float = RETRY_EVERY,
+                    wait: Callable[[float], bool] | None = None) -> bool:
+        """Download in the background and, while it fails, try again after each of `delays` and then every
+        `every` seconds, until the model is ready or the program stops. Returns at once; False if already trying.
+
+        `wait(seconds)` sleeps and answers True when it is time to stop (tests give one that does not sleep).
+        """
+        with self._lock:
+            if self._retry_thread is not None and self._retry_thread.is_alive():
+                return False
+            self._quit.clear()
+            self._retry_thread = threading.Thread(target=self._keep_trying, args=(delays, every, wait or self._quit.wait),
+                                                  name=f"model-retry-{self.name}", daemon=True)
+            self._retry_thread.start()
+            return True
+
+    @property
+    def retrying(self) -> bool:
+        return self._retry_thread is not None and self._retry_thread.is_alive()
+
+    def _keep_trying(self, delays: tuple[float, ...], every: float, wait: Callable[[float], bool]) -> None:
+        attempt = 0
+        while not self._quit.is_set():
+            self.refresh()   # a file put in by hand meanwhile counts
+            if self.ready:
+                return
+            self.start_download()   # or the owner's own try is already under way: wait for that one
+            thread = self._thread
+            if thread is not None:
+                while thread.is_alive() and not self._quit.is_set():
+                    thread.join(0.5)
+            if self.ready or self._quit.is_set():
+                return
+            delay = delays[attempt] if attempt < len(delays) else every
+            attempt += 1
+            log.info("model %s: trying the download again in %.0f s", self.name, delay)
+            if wait(delay):
+                return
+
     def stop(self) -> None:
+        self._quit.set()
         self._cancel.set()
         if self._thread:
             self._thread.join(timeout=5)
+        if self._retry_thread:
+            self._retry_thread.join(timeout=5)
 
     def wait(self, timeout: float | None = None) -> None:
         if self._thread:

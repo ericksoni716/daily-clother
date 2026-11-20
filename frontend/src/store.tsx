@@ -1,10 +1,10 @@
 import { QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { api, connection } from './api';
-import { dropItem, itemQuery, itemsQuery, modelQuery, usePoll, useItems, useModel, useVocab, vocabQuery, writeItem } from './queries';
+import { itemQuery, itemsQuery, modelQuery, usePoll, vocabQuery } from './queries';
 import { makeQueryClient } from './queryClient';
-import { queryKeys, type ItemStatus } from './queryKeys';
-import type { Item, ItemSummary, ModelInfo, Profile, Vocab } from './types';
+import { queryKeys } from './queryKeys';
+import type { Item, ItemSummary, Profile } from './types';
 import { uploads } from './uploads';
 import { closetPoll, downloading, DOWNLOAD_MS, justFinished, measuring } from './work';
 
@@ -19,52 +19,12 @@ interface AppState {
   toast(message: string, kind?: 'ok' | 'error'): void;
 }
 
-/**
- * What screens not yet moved onto the query cache read: `useApp()` plus the items, vocabulary and model from the
- * cache, and the old ways to change them. New code reads `useApp()`, `useItems()`, `useVocab()` and `useModel()`
- * (src/queries.ts) and saves with `useEdit` or `useItemEdit`; this goes once the last screen has moved.
- */
-interface ClosetState extends AppState {
-  vocab: Vocab | null;
-  model: ModelInfo | null;
-  items: Record<ItemStatus, ItemSummary[] | null>;
-  loadError: string | null;
-  /** Reads the list again now. */
-  loadItems(status: ItemStatus): Promise<void>;
-  refreshModel(): Promise<void>;
-  /** Put a changed item into the lists (moving it if its status changed). */
-  upsert(item: ItemSummary): void;
-  drop(id: string): void;
-}
-
 const Ctx = createContext<AppState | null>(null);
 
 export function useApp(): AppState {
   const v = useContext(Ctx);
   if (!v) throw new Error('useApp outside ClosetProvider');
   return v;
-}
-
-/** @deprecated for new code: see `ClosetState`. */
-export function useCloset(): ClosetState {
-  const app = useApp();
-  const qc = useQueryClient();
-  const active = useItems('active');
-  const archived = useItems('archived', false).data ?? null;
-  const vocab = useVocab();
-  const model = useModel();
-  const loadItems = useCallback(async (status: ItemStatus) => {
-    await qc.fetchQuery({ ...itemsQuery(status), staleTime: 0 }).catch(() => undefined);
-  }, [qc]);
-  const refreshModel = useCallback(async () => {
-    await qc.refetchQueries({ queryKey: queryKeys.model(), exact: true });
-  }, [qc]);
-  const upsert = useCallback((item: ItemSummary) => writeItem(qc, item), [qc]);
-  const drop = useCallback((id: string) => dropItem(qc, id), [qc]);
-  return {
-    ...app, vocab, model, items: { active: active.data ?? null, archived },
-    loadError: active.error ? active.error.message : null, loadItems, refreshModel, upsert, drop,
-  };
 }
 
 export function useOffline(): boolean {

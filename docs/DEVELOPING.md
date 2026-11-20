@@ -185,8 +185,8 @@ Where they run in CI:
   job runs `-m slow` on Linux. The required check
   waits for it; when nothing it covers changed, it passes without running them. On a push
   to `main` it compares with the commit before only.
-- **Every night on `main`** (and when started by hand), the `nightly` workflow runs every
-  test on Linux and Windows. A failure there reaches the owner as GitHub's usual email.
+- **On the night after `main` changed** (and when started by hand), the `nightly` workflow
+  runs every test on Linux and Windows; a night with no new merge runs nothing. A failure there reaches the owner as GitHub's usual email.
 
 If a slow test covers new code, add that code's path to the pattern in the `slow` job.
 

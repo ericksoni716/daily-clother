@@ -1,8 +1,8 @@
 name: nightly
 
-# Every backend test, the slow ones included, on Linux and on Windows, once a
-# night and whenever someone starts it by hand (Actions, nightly, Run
-# workflow).
+# Every backend test, the slow ones included, on Linux and on Windows, on the
+# night after main changed (nothing runs on a night with no new merge) and
+# whenever someone starts it by hand (Actions, nightly, Run workflow).
 #
 # Pull requests leave out the tests marked `slow` (pure image tests: pattern
 # measuring, shoe tracing, shoes drawn by Claude) unless they change the code
@@ -34,8 +34,34 @@ env:
   FORCE_COLOR: "1"
 
 jobs:
+  # A night with nothing new on main has nothing to find: the tests already ran on this commit. So the scheduled run
+  # goes on only when main's last commit (a pull request's merge) is less than 25 hours old. A run started by hand
+  # always goes on.
+  changed:
+    name: Did main change since last night?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.age.outputs.run }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: How old is main's last commit?
+        id: age
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          hours=$(( ( $(date +%s) - $(git log -1 --format=%ct) ) / 3600 ))
+          if [ "$EVENT" = workflow_dispatch ] || [ "$hours" -lt 25 ]; then run=true; else run=false; fi
+          echo "main's last commit is $hours hours old; run the tests: $run"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
   linux:
     name: Every backend test (Linux)
+    needs: changed
+    if: needs.changed.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -57,6 +83,8 @@ jobs:
   # As the Windows job in ci.yml: PYTHONUTF8 off, as in the packaged program.
   windows:
     name: Every backend test (Windows)
+    needs: changed
+    if: needs.changed.outputs.run == 'true'
     runs-on: windows-latest
     timeout-minutes: 40
     env:

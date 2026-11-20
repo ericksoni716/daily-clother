@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 
-from . import db, history, items, vocab
+from . import db, history, items, look, vocab
 
 # How sure the tagger has to be for a field to be left alone; below this the field is shown for review.
 # Starting values from the phase 0 runs (docs/PHASE0.md): every wrong answer came with 0.8 or less, and one
@@ -51,11 +51,18 @@ def doubtful(row) -> list[dict]:
         sure = confidence.get(field)
         if source.get(field) not in TAGGER or not isinstance(sure, (int, float)) or sure >= UNSURE_BELOW[field]:
             continue
-        value = json.loads(row[field] or "{}") if field == "silhouette" else row[field]
+        value = _claudes_shape(row) if field == "silhouette" else row[field]
         if value in (None, "", {}):
             continue
         out.append({"field": field, "value": value, "confidence": sure, "allowed": _allowed(field, value)})
     return out
+
+
+def _claudes_shape(row) -> dict:
+    """The shape to check: as the drawing shows it (`look.shape`), less the parts the owner's own details already
+    decide, which are not Claude's guess any more."""
+    mine = look.owner_parts(row)
+    return {k: v for k, v in look.shape(row).items() if k not in mine}
 
 
 def _picture(conn, row) -> tuple[str | None, str | None]:

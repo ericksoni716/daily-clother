@@ -137,7 +137,9 @@ def test_fields_the_owner_set_are_never_overwritten(client, services, claude, cf
     assert tag(services) == 1
     body = client.get(f"/api/items/{item['id']}").json()
     assert body["name"] == "Weekend polo" and body["category"] == "shirt" and body["material"] == "linen"
-    assert body["silhouette"] == {"sleeve": "long"}
+    # the owner's shape is kept as they set it, and the look the page shows (the drawing's) has their sleeve
+    assert json.loads(row(cfg, item["id"])["silhouette"]) == {"sleeve": "long"}
+    assert body["silhouette"]["sleeve"] == "long"
     assert body["source"]["category"] == "user" and body["source"]["material"] == "user" and body["confidence"]["category"] == 1.0
     assert body["color"] == "navy" and body["source"]["color"] == "ai"   # what the owner left alone is filled in
     assert json.loads(row(cfg, item["id"])["tag_answer"])["category"] == "polo"   # the whole answer is kept anyway

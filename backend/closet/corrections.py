@@ -19,7 +19,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, details, history, illustrations, items, kinds, palette, patjobs, tagjobs, tracejobs, vocab
+from . import db, details, history, illustrations, items, kinds, look, palette, patjobs, tagjobs, tracejobs, vocab
 from .tagger import surfaceform
 from .tagger.correcting import CorrectionResult
 from .tagger.schema import NAMED_HEX, ItemTags
@@ -243,7 +243,9 @@ def _cloth_now(row) -> dict:
 
 
 def _description(row) -> dict:
-    sil = illustrations._json(row["silhouette"], {})
+    """The item as a sentence is read against: its fields, and its look (`look`): the shape and the details as drawn,
+    with the owner's corrections over Claude's."""
+    sil = look.shape(row)
     out = {f: row[f] for f in details.FIELDS}
     out.update({f"silhouette.{k}": sil.get(k) for k in vocab.SILHOUETTE})
     out.update(_current(row))

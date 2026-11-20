@@ -17,6 +17,7 @@ from . import (
     images,
     jobs,
     kinds,
+    look,
     palette,
     patjobs,
     progress,
@@ -86,8 +87,14 @@ def detail(conn, row) -> dict:
     for f in ("formality", "season", "brand", "size", "material", "fit_notes", "wear_notes", "condition",
               "price_cents", "acquired_on", "notes", "rating_reason", "illustration_svg", "cutout_error"):
         out[f] = row[f]
-    for f in ("silhouette", "confidence", "source"):
+    for f in ("confidence", "source"):
         out[f] = json.loads(row[f] or "{}")
+    # the look, read from one place (`look`): the description the drawing was made from, with the owner's corrections
+    # folded over it. `silhouette` is its coarse shape as drawn (the details decide, the coarse shape fills in) and
+    # `details` its details as drawn (null when Claude has not described it), so no word on the page can disagree
+    # with the drawing
+    found = look.answer(row)
+    out["silhouette"] = look.shape_of(found)
     for f in ("tag_error", "tag_route", "tag_model", "tag_schema_version", "tagged_at"):
         out[f] = row[f]
     # the pattern measured from the photo: null (nothing to measure), waiting, working, done or failed
@@ -96,12 +103,15 @@ def detail(conn, row) -> dict:
     out["pattern_colors"] = palette.shown(row)
     # why the cutout or the description failed, with the stored reason cleaned of keys and outside paths
     out["failure"] = failures.of(conn, row)
-    # what the tagger saw, from its stored answer: the details, and what it saw that no field (or drawing) covers yet
-    said = dict((json.loads(row["tag_answer"]) if row["tag_answer"] else {}).get("details") or {})
-    out["seen_not_drawn"] = illustrations.not_drawn(row, said.pop("other_features", None) or [])
-    out["details"] = said or None
+    # what the tagger saw that no field (or drawing) covers yet
+    said = (_answer_json(row["tag_answer"]) or {}).get("details")
+    said = dict(said) if isinstance(said, dict) else {}
+    out["seen_not_drawn"] = illustrations.not_drawn(row, said.get("other_features") or [])
+    drawn = dict(found.get("details") or {}) if isinstance(found, dict) and isinstance(found.get("details"), dict) else {}
+    drawn.pop("other_features", None)
+    out["details"] = drawn if said and drawn else None
     out["own_details"] = details.own(row)   # the details the owner has set, laid over Claude's when drawn
-    out["shade"] = shade_of(row, {**said, **out["own_details"]})
+    out["shade"] = shade_of(row, drawn)
     # who said what it is (the owner or Claude), how sure Claude was, and the kinds Claude's answer also fits
     kind = kinds.of_row(row)
     out["kind_by"], out["kind_confidence"] = kind["by"], kind["confidence"]
@@ -141,6 +151,14 @@ def detail(conn, row) -> dict:
     return out
 
 
+def _answer_json(text) -> dict | None:
+    try:
+        found = json.loads(text) if text else None
+    except ValueError:
+        return None
+    return found if isinstance(found, dict) else None
+
+
 def shade_of(row, said: dict) -> str | None:
     """The owner's name for the item's shade (docs/menswear-taxonomy.json, colors.shades): the one the owner or the
     tagger named when it is a shade of the item's colour, else the nearest to its measured colour."""
@@ -168,9 +186,11 @@ def list_items(conn, status: str = "active", category: str | None = None, q: str
         args.append(category)
     if q:
         like = f"%{q.strip().lower()}%"
+        # the notes in every box they may be kept in: the item page writes them all into `wear_notes` once edited
         sql += (" AND (lower(coalesce(name,'')) LIKE ? OR lower(coalesce(brand,'')) LIKE ? OR lower(coalesce(category,'')) LIKE ?"
-                " OR lower(coalesce(color,'')) LIKE ? OR lower(coalesce(notes,'')) LIKE ?)")
-        args += [like] * 5
+                " OR lower(coalesce(color,'')) LIKE ? OR lower(coalesce(notes,'')) LIKE ? OR lower(coalesce(wear_notes,'')) LIKE ?"
+                " OR lower(coalesce(fit_notes,'')) LIKE ? OR lower(coalesce(rating_reason,'')) LIKE ?)")
+        args += [like] * 8
     sql += " ORDER BY created_at DESC, id"
     return [summary(conn, r) for r in conn.execute(sql, args)]
 

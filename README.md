@@ -426,7 +426,7 @@ panel and stitch turns the right way, and Claude draws the turned shoe twice
 from it, keeps the better one and fixes what still differs from your photos.
 At the same time Claude draws the shoe from its side, in the style of your other
 drawings, with its own panels, marks and sole (and, when the side photo traced
-well, the proportions Closet measured from it); that drawing then becomes the
+well, the proportions Nines measured from it); that drawing then becomes the
 shoe's picture in the closet in place of the traced one, and **Fix the details**
 offers only **Use the plain drawing** for it. A shoe Claude drew before gets its
 side by itself, a few calls each, when nothing else is being drawn.

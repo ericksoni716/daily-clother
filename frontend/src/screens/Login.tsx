@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { api, ApiError } from '../api';
-import { HangerIcon } from '../components/Icons';
+import { NinesMark, NinesName } from '../components/NinesMark';
 import { Button, Card } from '../components/ui';
 
 export function LoginScreen({ onDone }: { onDone(): Promise<void> | void }) {
@@ -29,8 +29,8 @@ export function LoginScreen({ onDone }: { onDone(): Promise<void> | void }) {
     <main className="center-screen">
       <Card className="auth-card">
         <form onSubmit={submit} noValidate>
-          <div className="brand-mark"><HangerIcon /></div>
-          <h1>Welcome back</h1>
+          <NinesMark className="nines-mark-auth" />
+          <h1>Welcome back to <NinesName /></h1>
           <p className="muted">Enter your passphrase to open your closet.</p>
           <label className="field">
             <span>Passphrase</span>

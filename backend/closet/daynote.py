@@ -19,7 +19,7 @@ from .tagger import dayread
 
 MAX_TEXT = dayread.MAX_TEXT
 EXAMPLES = "For example: “In Lisbon until Friday”, or “At a match today, outside from noon to six”."
-NOTHING_READ = f"Closet couldn't find anything about your day in that. {EXAMPLES}"
+NOTHING_READ = f"Nines couldn't find anything about your day in that. {EXAMPLES}"
 
 
 def check_text(text: object) -> str:
@@ -64,7 +64,7 @@ def make(text: str, reading: dict, today: date, find_place=weather.search_places
         if found:
             place = found[0]
         elif message is None:
-            message = (f"Closet couldn't find “{reading['place']}” on the map, so the weather is still home's. "
+            message = (f"Nines couldn't find “{reading['place']}” on the map, so the weather is still home's. "
                        "Try the name of the town or city.")
     note = {"text": text, "from": first.isoformat(), "to": last.isoformat(), "place": place,
             "place_asked": reading["place"], "outside": list(reading["outside"]) if reading["outside"] else None,

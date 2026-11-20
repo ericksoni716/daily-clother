@@ -14,7 +14,7 @@ const STYLE_TALK: TalkWords = {
   list: 'Your conversation with Claude about your style', box: 'Tell Claude about your style',
   placeholder: 'I run warm. No ties. Navy rather than black…', id: 'style-say-text',
 };
-const OFFLINE = 'Needs Closet on your computer to be reachable';
+const OFFLINE = 'Needs Nines on your computer to be reachable';
 
 /**
  * Talking to Claude about your style (Settings, Your style): the questions the stylist cannot infer, one at a time,

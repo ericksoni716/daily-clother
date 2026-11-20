@@ -492,7 +492,7 @@ export function stylistView(stylist: StylistState | null | undefined, saved: boo
 /** The small line on an outfit saying who chose it, once Claude has answered (or could not); null otherwise. */
 export function chosenBy(outfit: Pick<Outfit, 'by'>, stylist: StylistState | null | undefined): string | null {
   if (outfit.by === 'claude') return 'Chosen by Claude';
-  return stylist && (stylist.state === 'ready' || stylist.state === 'failed') ? "From Closet's rules" : null;
+  return stylist && (stylist.state === 'ready' || stylist.state === 'failed') ? "From Nines' rules" : null;
 }
 
 /** Claude's reading of the day, said in "Why this works" of an outfit Claude chose (it was a line of its own under the

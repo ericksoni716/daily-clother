@@ -87,9 +87,9 @@ def build_version():
     return str(namespace.get("VERSION") or "") or None
 
 
-# --- bundled data: <_MEIPASS>/closet/{migrations,demo_data,web} -------------
+# --- bundled data: <_MEIPASS>/closet/{migrations,demo_data,web,icon.png} ----
 # config.bundle_dir() looks for exactly this layout.
-for required in ("web/index.html", "demo_data/items.json", "demo_data/tiny.heic", "demo_data/selfcheck.webp"):
+for required in ("web/index.html", "demo_data/items.json", "demo_data/tiny.heic", "demo_data/selfcheck.webp", "icon.png"):
     if not os.path.isfile(os.path.join(PKG, required)):
         hint = " Build the frontend first: `npm ci && npm run build` in frontend/." if required.startswith("web/") else ""
         fail(f"backend/closet/{required} is missing.{hint}")
@@ -120,6 +120,7 @@ datas = (
     + [(os.path.join(TAGGER, "models.json"), os.path.join("closet", "tagger"))]
     + tree(SHOE_EXAMPLES, os.path.join("closet", "drawing", "shoe_examples"), suffixes=(".svg",))
     + [(TAXONOMY, os.path.join("closet", "tagger"))]
+    + [(os.path.join(PKG, "icon.png"), "closet")]   # the tray icon (closet/tray.py), rendered by `npm run icons`
 )
 
 # --- native libraries -----------------------------------------------------

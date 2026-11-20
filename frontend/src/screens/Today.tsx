@@ -30,7 +30,7 @@ import { tripsQuery } from './Trips';
 import { changePages, OutfitPics, RateOutfit, RecentOutfits, useAllItems, wornQuery } from './Worn';
 import './Today.css';
 
-const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
+const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
 const TODAY_TALK: TalkWords = {
   list: 'Your conversation with Claude today', box: 'Tell Claude what you think',
   placeholder: 'Too dressy? Swap the boots? Ask why…', id: 'today-say-text',
@@ -171,7 +171,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   if (saved) phase = { kind: 'ready', answer: saved.answer, savedAt: saved.savedAt };
   else if (answer.data) phase = { kind: 'ready', answer: answer.data, savedAt: null };
   else if (failed?.status === 0) {
-    phase = { kind: 'error', offline: true, message: "You're offline, and no outfits were saved on this device today. They show here once Closet on your computer can be reached." };
+    phase = { kind: 'error', offline: true, message: "You're offline, and no outfits were saved on this device today. They show here once Nines on your computer can be reached." };
   } else if (failed) {
     phase = failed.status === 422 && request.low_c === undefined ? { kind: 'needs-day', message: failed.message } : { kind: 'error', message: failed.message, offline: false };
   } else phase = { kind: 'loading' };
@@ -849,7 +849,7 @@ function Body(props: BodyProps) {
     <>
       {savedAt && (
         <Notice as="p" tone="warning" className="today-saved" role="status" icon={<WarnIcon />}>
-          <span>Saved earlier today{timeOf(savedAt) ? `, at ${timeOf(savedAt)}` : ''}. You're offline, so these can't be changed or worn until Closet on your computer can be reached.</span>
+          <span>Saved earlier today{timeOf(savedAt) ? `, at ${timeOf(savedAt)}` : ''}. You're offline, so these can't be changed or worn until Nines on your computer can be reached.</span>
         </Notice>
       )}
       {waiting && <StylistWaiting key={stylist?.id ?? ''} meanwhile={meanwhile} onMeanwhile={onMeanwhile} />}
@@ -890,7 +890,7 @@ function StylistWaiting({ meanwhile, onMeanwhile }: { meanwhile: boolean; onMean
       <div>
         <h2 id="stylist-wait-title">Claude is choosing today's outfits…</h2>
         <p className="muted">{waitingLine(slow ? STYLIST_SLOW_S : 0)}</p>
-        {!meanwhile && <Button small onClick={onMeanwhile}>Show Closet's own picks meanwhile</Button>}
+        {!meanwhile && <Button small onClick={onMeanwhile}>Show Nines' own picks meanwhile</Button>}
       </div>
     </Card>
   );

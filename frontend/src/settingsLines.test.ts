@@ -36,12 +36,12 @@ describe('the Claude line', () => {
 
   it('is one red sentence when nothing works, with install as the action only when installing helps', () => {
     const none = claudeLine(claude(), spend(), routes(false, false), null, false);
-    expect(none).toEqual({ tone: 'problem', text: "Closet can't reach Claude yet.", action: 'install' });
+    expect(none).toEqual({ tone: 'problem', text: "Nines can't reach Claude yet.", action: 'install' });
     const notAllowed = claudeLine(claude({ api_key: savedKey }), spend(), routes(false, true), null, false);
-    expect(notAllowed.text).toBe("Closet can't reach Claude: your API key is saved but not allowed.");
+    expect(notAllowed.text).toBe("Nines can't reach Claude: your API key is saved but not allowed.");
     expect(notAllowed.action).toBeNull();   // Manage is the action: allowing the key is on the Advanced screen
     const onlyKey = claudeLine(claude(), spend(), routes(false, false, ['api']), null, false);
-    expect(onlyKey.text).toBe("Closet can't reach Claude: you chose only the API key, and it isn't allowed yet.");
+    expect(onlyKey.text).toBe("Nines can't reach Claude: you chose only the API key, and it isn't allowed yet.");
   });
 
   it('says the limit is reached when the key is the only way and its month is used up', () => {
@@ -51,17 +51,17 @@ describe('the Claude line', () => {
     expect(claudeLine(claude({ tagging_api_enabled: true }), spend({ reached: true }), routes(true, true), null, false).tone).toBe('ok');
   });
 
-  it('says why Closet stopped using the key, when that leaves nothing', () => {
+  it('says why Nines stopped using the key, when that leaves nothing', () => {
     const off = { reason: 'credit' as const, at: '2026-11-03T10:00:00Z' };
     const line = claudeLine(claude({ tagging_api_off: off, api_key: savedKey }), spend(), routes(false, true), null, false);
-    expect(line.text).toBe('Closet stopped using your API key because your Anthropic account has no credit left.');
+    expect(line.text).toBe('Nines stopped using your API key because your Anthropic account has no credit left.');
     expect(line.tone).toBe('problem');
   });
 
   it('waits for the lookup, offers Check again after a failed one, and says it cannot check offline', () => {
-    expect(claudeLine(claude(), spend(), null, null, false)).toEqual({ tone: 'waiting', text: 'Checking how Closet reaches Claude…', action: null });
+    expect(claudeLine(claude(), spend(), null, null, false)).toEqual({ tone: 'waiting', text: 'Checking how Nines reaches Claude…', action: null });
     expect(claudeLine(claude(), spend(), null, 'timed out', false)).toEqual({
-      tone: 'problem', text: "Closet couldn't check how it reaches Claude: timed out", action: 'check',
+      tone: 'problem', text: "Nines couldn't check how it reaches Claude: timed out", action: 'check',
     });
     expect(claudeLine(claude(), spend(), routes(true, false), null, true).tone).toBe('quiet');
   });
@@ -76,32 +76,32 @@ const release = { version: '0.4.1', notes: '', page: 'https://example.com/releas
 
 describe('the Updates line', () => {
   it('is "up to date" once checked, and plain before', () => {
-    expect(updatesLine(updates(), '0.4.0', false)).toEqual({ tone: 'ok', text: 'Closet 0.4.0 · up to date', action: null });
-    expect(updatesLine(updates({ checked_at: null, latest: null }), '0.4.0', false).text).toBe('Closet 0.4.0');
+    expect(updatesLine(updates(), '0.4.0', false)).toEqual({ tone: 'ok', text: 'Nines 0.4.0 · up to date', action: null });
+    expect(updatesLine(updates({ checked_at: null, latest: null }), '0.4.0', false).text).toBe('Nines 0.4.0');
     expect(updatesLine(updates({ checked_at: null, latest: null, mode: 'never' }), '0.4.0', false).text)
-      .toBe('Closet 0.4.0 · not looking for new versions');
+      .toBe('Nines 0.4.0 · not looking for new versions');
   });
 
   it('offers Install when a new version is ready, and a download when this copy cannot replace itself', () => {
     expect(updatesLine(updates({ available: release, ready: true }), '0.4.0', false))
-      .toEqual({ tone: 'ok', text: 'Closet 0.4.1 is ready to install.', action: 'install' });
+      .toEqual({ tone: 'ok', text: 'Nines 0.4.1 is ready to install.', action: 'install' });
     const byHand = updatesLine(updates({ available: release, can_install: false }), '0.4.0', false);
     expect(byHand.action).toBe('download');
-    expect(byHand.text).toBe('Closet 0.4.1 is out. Download it from the release page and install it by hand.');
+    expect(byHand.text).toBe('Nines 0.4.1 is out. Download it from the release page and install it by hand.');
   });
 
   it('shows a step of an install while it runs, and a problem in red', () => {
     expect(updatesLine(updates({ busy: 'downloading' }), '0.4.0', false)).toEqual({ tone: 'waiting', text: 'Downloading the new version…', action: null });
-    const problem = updatesLine(updates({ available: release, problem: "Closet couldn't back up your closets." }), '0.4.0', false);
-    expect(problem).toEqual({ tone: 'problem', text: "Closet couldn't back up your closets.", action: 'install' });
+    const problem = updatesLine(updates({ available: release, problem: "Nines couldn't back up your closets." }), '0.4.0', false);
+    expect(problem).toEqual({ tone: 'problem', text: "Nines couldn't back up your closets.", action: 'install' });
     const failed = updatesLine(updates({ last_install: { at: '2026-11-19T09:00:00Z', from: '0.4.0', to: '0.4.1', ok: false, note: null } }), '0.4.0', false);
     expect(failed.tone).toBe('problem');
-    expect(failed.text).toBe('Closet 0.4.1 did not start, so Closet 0.4.0 was put back.');
+    expect(failed.text).toBe('Nines 0.4.1 did not start, so Nines 0.4.0 was put back.');
   });
 
   it('names the version even with no updater, and says offline when it cannot check', () => {
-    expect(updatesLine(null, '0.4.0', false).text).toBe('Closet 0.4.0');
-    expect(updatesLine(null, '0.4.0', true).text).toBe("Closet 0.4.0. Updates can't be checked while you're offline.");
+    expect(updatesLine(null, '0.4.0', false).text).toBe('Nines 0.4.0');
+    expect(updatesLine(null, '0.4.0', true).text).toBe("Nines 0.4.0. Updates can't be checked while you're offline.");
   });
 });
 
@@ -151,8 +151,8 @@ describe('what a phone and the computer are shown', () => {
   });
 
   it('puts the space used in one line', () => {
-    expect(storageLine('2.7 MB', 49, '62 GB')).toBe('Closet uses 2.7 MB for 49 items · 62 GB free on this disk.');
-    expect(storageLine('1 KB', 1, null)).toBe('Closet uses 1 KB for 1 item.');
+    expect(storageLine('2.7 MB', 49, '62 GB')).toBe('Nines uses 2.7 MB for 49 items · 62 GB free on this disk.');
+    expect(storageLine('1 KB', 1, null)).toBe('Nines uses 1 KB for 1 item.');
   });
 });
 
@@ -160,11 +160,11 @@ describe('the status line as drawn', () => {
   const html = (line: Parameters<typeof StatusLine>[0]['line']) => renderToStaticMarkup(createElement(StatusLine, { line, testId: 'x' }));
   it('draws a green dot when all is well, a red line on a problem, and keeps waiting quiet for screen readers', () => {
     expect(html({ tone: 'ok', text: 'Using your Claude plan.' })).toContain('state-ready');
-    const problem = html({ tone: 'problem', text: "Closet can't reach Claude yet." });
+    const problem = html({ tone: 'problem', text: "Nines can't reach Claude yet." });
     expect(problem).toContain('state-problem');
     expect(problem).toContain('role="status"');
     expect(html({ tone: 'waiting', text: 'Checking…' })).toContain('aria-busy="true"');
-    expect(html({ tone: 'quiet', text: 'Closet 0.4.0' })).not.toContain('state-dot');
+    expect(html({ tone: 'quiet', text: 'Nines 0.4.0' })).not.toContain('state-dot');
   });
 });
 
@@ -172,7 +172,7 @@ describe('the Phone group on the computer', () => {
   const info = (address: string | null) => ({
     tailscale_installed: true, running: true, address, command: 'tailscale serve --bg 8765', stop_command: address ? 'tailscale serve --https=443 off' : null, others_share: false,
   });
-  it('is one line once a share reaches Closet, with the code folded under it', () => {
+  it('is one line once a share reaches Nines, with the code folded under it', () => {
     const html = renderToStaticMarkup(createElement(PhoneAccess, { phone: info('https://pc.example.ts.net') }));
     expect(html).toContain('Shared with your phone at');
     expect(html).toMatch(/<details[^>]*data-testid="phone-code"[^>]*><summary>Show the QR code<\/summary>/);

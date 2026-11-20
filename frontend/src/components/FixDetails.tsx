@@ -15,7 +15,7 @@ import { ShoeDrawingFix } from './ShoeTrace';
 import './FixDetails.css';
 
 const OFFLINE = "You're offline, so the details can't be fixed right now.";
-const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
+const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
 
 interface Props {
   item: Item;

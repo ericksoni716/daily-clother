@@ -10,22 +10,20 @@ import logging
 import threading
 from collections.abc import Callable
 
-from PIL import Image, ImageDraw
+from PIL import Image
+
+from .config import bundle_dir
 
 log = logging.getLogger("closet.tray")
 
 
 def icon_image(size: int = 64) -> Image.Image:
-    """A coat hanger on a warm square."""
-    im = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-    s = size / 64
-    d.rounded_rectangle((2 * s, 2 * s, 62 * s, 62 * s), radius=14 * s, fill=(60, 82, 74, 255))
-    w = max(2, round(4 * s))
-    d.arc((26 * s, 10 * s, 38 * s, 22 * s), 200, 90, fill=(241, 238, 232, 255), width=w)
-    d.line([(32 * s, 22 * s), (32 * s, 27 * s)], fill=(241, 238, 232, 255), width=w)
-    d.line([(32 * s, 27 * s), (12 * s, 44 * s), (52 * s, 44 * s), (32 * s, 27 * s)], fill=(241, 238, 232, 255), width=w, joint="curve")
-    return im
+    """The app's icon (an empty dinner jacket on a cream rounded square, transparent outside it) at `size` px.
+
+    Rendered from frontend/scripts/nines-icon.svg by `npm run icons` into closet/icon.png, which the packaged program
+    carries (packaging/closet.spec)."""
+    with Image.open(bundle_dir() / "icon.png") as im:
+        return im.convert("RGBA").resize((size, size), Image.Resampling.LANCZOS)
 
 
 def create(on_open: Callable[[], None], on_quit: Callable[[], None],
@@ -43,12 +41,12 @@ def create(on_open: Callable[[], None], on_quit: Callable[[], None],
         except Exception:
             log.exception("could not change start at login")
 
-    entries = [pystray.MenuItem("Open Closet", lambda icon, item: on_open(), default=True)]
+    entries = [pystray.MenuItem("Open Nines", lambda icon, item: on_open(), default=True)]
     if autostart_get() is not None:
         entries.append(pystray.MenuItem("Start when I log in", toggle, checked=lambda item: bool(autostart_get())))
-    entries.append(pystray.MenuItem("Quit Closet", lambda icon, item: on_quit()))
+    entries.append(pystray.MenuItem("Quit Nines", lambda icon, item: on_quit()))
     try:
-        return pystray.Icon("closet", icon_image(), "Closet", pystray.Menu(*entries))
+        return pystray.Icon("closet", icon_image(), "Nines", pystray.Menu(*entries))
     except Exception as e:
         log.info("no tray icon: %s", type(e).__name__)
         return None

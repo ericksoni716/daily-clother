@@ -38,14 +38,14 @@ log = logging.getLogger("closet.patterns")
 
 MEASURED = ("plaid", "stripe", "floral", "camo", "other")
 TOPS = ("tee", "shirt", "polo", "sweater", "hoodie", "jacket", "coat")
-FAILED = "Closet could not measure the pattern from the photo, so the drawing shows only its colour."
-PLAID_FAILED = ("Closet could not measure the checks from this photo, so the drawing shows only the colour. A photo of "
+FAILED = "Nines could not measure the pattern from the photo, so the drawing shows only its colour."
+PLAID_FAILED = ("Nines could not measure the checks from this photo, so the drawing shows only the colour. A photo of "
                 "it laid flat on a plain surface, taken from straight above, usually works.")
 GRAPHIC = "graphic"
 # the cloth as Claude described it (`tagger.surfaceform`): drawn from the description, sized and pieced from the photo
 # (`patterns.surface.kept_for_item`); an answer without a surface is measured as before
 SURFACE = "surface"
-GRAPHIC_FAILED = "Closet could not lift the print from the photo, so the drawing shows the item plain."
+GRAPHIC_FAILED = "Nines could not lift the print from the photo, so the drawing shows the item plain."
 NO_CUTOUT = "The pattern is measured from the photo with its background removed, which this item does not have yet."
 
 Measurer = Callable[..., dict | None]          # (cutout, pattern, words, landmarks) -> kept pattern or None

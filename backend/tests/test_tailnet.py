@@ -149,7 +149,7 @@ def test_funnel_is_never_a_way_in(services):
         r = phone.get(path, headers={**ME, "Tailscale-Funnel-Request": "?1"})
         assert r.status_code == 403 and r.json() == {"detail": app_module.gate.FUNNEL}
     page = phone.get("/", headers={"Tailscale-Funnel-Request": "?1"})
-    assert page.status_code == 403 and "<h1>Closet is not on the open internet</h1>" in page.text
+    assert page.status_code == 403 and "<h1>Nines is not on the open internet</h1>" in page.text
 
 
 def test_a_forwarded_for_header_cannot_choose_the_address_checked(services):

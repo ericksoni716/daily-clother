@@ -106,7 +106,7 @@ export function SeveralScreen({ id }: { id: string }) {
       qc.setQueryData(key, done);
       await touch(qc, 'source', ['source']);   // the new items are in the closet's list before it opens
       const n = done.items.length;
-      toast(`${n === 1 ? 'The item was' : `${n} items were`} added. Closet cuts ${n === 1 ? 'it' : 'each'} out and describes ${n === 1 ? 'it' : 'them'} next.`);
+      toast(`${n === 1 ? 'The item was' : `${n} items were`} added. Nines cuts ${n === 1 ? 'it' : 'each'} out and describes ${n === 1 ? 'it' : 'them'} next.`);
       navigate('/');
     } catch (e) {
       toast((e as ApiError).message, 'error');

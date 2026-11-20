@@ -72,7 +72,7 @@ test('offline: the wear and laundry buttons are disabled and say why', async ({ 
   for (const name of ['Wore it today', 'Put in the laundry']) {
     const button = panel.getByRole('button', { name });
     await expect(button).toBeDisabled();
-    await expect(button).toHaveAttribute('title', /needs Closet on your computer/i);
+    await expect(button).toHaveAttribute('title', /needs Nines on your computer/i);
   }
 });
 

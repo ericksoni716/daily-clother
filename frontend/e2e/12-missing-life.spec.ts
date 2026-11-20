@@ -146,7 +146,7 @@ test('review 10: the Based on row can be read in full, opens How you live, and l
   await expect(about).toContainText('Based on: work 4 days a week, smart casual');
   await expect(about).toContainText('vacation 3 weeks a year, warm');
   await expect(about.getByRole('link', { name: 'Where you are in Settings' })).toBeVisible();
-  await expect(about.getByText(/Closet can't identify sleepwear/)).toBeVisible();
+  await expect(about.getByText(/Nines can't identify sleepwear/)).toBeVisible();
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toHaveCount(0);
 });
@@ -350,7 +350,7 @@ for (const [layout, viewport] of [
     await page.goto('/wardrobe');
     await expect(filters.getByRole('button', { name: 'Work', exact: true })).toHaveCount(0);
     await openLife(page);
-    await expect(questions.getByText(/Closet can't identify sleepwear/)).toBeVisible();
+    await expect(questions.getByText(/Nines can't identify sleepwear/)).toBeVisible();
     await expect(questions.getByText(/not specific to a sport/)).toBeVisible();
     if (layout === 'phone') {
       await expect(page.getByRole('dialog')).toBeVisible();

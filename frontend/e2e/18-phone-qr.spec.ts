@@ -52,7 +52,7 @@ async function readCode(page: Page): Promise<string | undefined> {
 }
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`phone access in ${theme}: a QR code of Closet's address, readable, with the address as text below`, async ({ page }) => {
+  test(`phone access in ${theme}: a QR code of Nines' address, readable, with the address as text below`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: theme });
     await fakePhone(page, ADDRESS);
     await login(page);
@@ -79,12 +79,12 @@ for (const theme of ['light', 'dark'] as const) {
   });
 }
 
-test('phone access: no code when no share reaches Closet, only the plain explanation', async ({ page }) => {
+test('phone access: no code when no share reaches Nines, only the plain explanation', async ({ page }) => {
   await fakePhone(page, null);
   await login(page);
   await page.goto('/settings');
   const section = page.getByRole('region', { name: 'Phone', exact: true });
-  await expect(section.getByText('Closet is not shared with your phone yet.')).toBeVisible();
+  await expect(section.getByText('Nines is not shared with your phone yet.')).toBeVisible();
   await expect(section.getByText('tailscale serve --bg --https=8443 8765')).toBeVisible();
   await expect(section.locator('.phone-qr')).toHaveCount(0);
   await expect(section.getByRole('img')).toHaveCount(0);
@@ -99,13 +99,13 @@ test('the door through Cloudflare: folded under Phone on the computer, filled in
   await expect(door.getByTestId('cloudflare-status')).toHaveText('This is off until all three are filled in.');
   await door.getByLabel('Your Cloudflare team').fill('yourteam');
   await door.getByLabel("The Access application's audience tag").fill('a1b2c3d4e5f60718293a4b5c6d7e8f90');
-  await door.getByLabel("Closet's address on Cloudflare").fill('closet example.com');
+  await door.getByLabel("Nines' address on Cloudflare").fill('closet example.com');
   await door.getByRole('button', { name: 'Save' }).click();
   await expect(door.getByRole('alert')).toContainText('closet.example.com');   // the server's sentence, as typed wrong
-  await door.getByLabel("Closet's address on Cloudflare").fill('https://closet.example.com/');
+  await door.getByLabel("Nines' address on Cloudflare").fill('https://closet.example.com/');
   await door.getByRole('button', { name: 'Save' }).click();
   await expect(door.getByText('Also through Cloudflare, at closet.example.com')).toBeVisible();
-  await expect(door.getByTestId('cloudflare-status')).toHaveText('Closet answers at https://closet.example.com once Cloudflare has checked who you are.');
+  await expect(door.getByTestId('cloudflare-status')).toHaveText('Nines answers at https://closet.example.com once Cloudflare has checked who you are.');
   await expect(door.getByLabel('Your Cloudflare team')).toHaveValue('yourteam.cloudflareaccess.com');
   expect(await axeViolations(page)).toEqual([]);
   await door.scrollIntoViewIfNeeded();
@@ -150,7 +150,7 @@ test.describe('opened on the phone', () => {
     await expect(page.getByRole('region', { name: 'Updates', exact: true })).toBeVisible();
   }
 
-  test('in Safari: no code, address or commands, only how to add Closet to the Home Screen', async ({ page, request }) => {
+  test('in Safari: no code, address or commands, only how to add Nines to the Home Screen', async ({ page, request }) => {
     await openSettings(page, request);
     const section = page.getByRole('region', { name: 'Phone', exact: true });
     await expect(section.getByText('tap Share in Safari and then Add to Home Screen')).toBeVisible();
@@ -172,17 +172,17 @@ test.describe('opened on the phone', () => {
   test('what only makes sense on the computer is not offered: Quit, start at login, folders and files', async ({ page, request }) => {
     await openSettings(page, request);
     await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Quit Closet' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Quit Nines' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Choose a backup folder' })).toHaveCount(0);
     await page.getByRole('link', { name: 'Advanced settings' }).click();
     await expect(page.getByRole('heading', { name: 'Advanced', level: 1 })).toBeVisible();
     await expect(page.getByRole('region', { name: 'Backups' })).toBeVisible();
     await expect(page.getByRole('switch', { name: /Show the demo closet/ })).toBeVisible();
-    await expect(page.getByRole('switch', { name: /Start Closet when I log in/ })).toHaveCount(0);
+    await expect(page.getByRole('switch', { name: /Start Nines when I log in/ })).toHaveCount(0);
     await expect(page.getByRole('textbox', { name: 'Backup folder' })).toHaveCount(0);
     await expect(page.getByText('Put the files in place by hand')).toHaveCount(0);
     await expect(page.getByText('Your closet is stored in')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Quit Closet' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Quit Nines' })).toHaveCount(0);
   });
 
   test('from the Home Screen: no Phone group at all', async ({ page, request }) => {

@@ -85,7 +85,7 @@ test.describe('phone', () => {
       await expect(links).toHaveCount(4);
       const add = tabbar.getByRole('button', { name: 'Add' });
       await expect(add).toBeDisabled();
-      await expect(add).toHaveAttribute('title', /needs Closet on your computer/);
+      await expect(add).toHaveAttribute('title', /needs Nines on your computer/);
       expect((await tabbar.locator('> *').allInnerTexts()).map((t) => t.split('\n')[0])).toEqual(['Today', 'Closet', 'Add', 'Wardrobe', 'Settings']);
     } finally {
       await context.setOffline(false);

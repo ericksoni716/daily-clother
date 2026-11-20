@@ -9,7 +9,7 @@ import { startBackend, type Backend } from './server';
 // backend, which cuts it out and describes it again with its stand-ins.
 test.use({ serviceWorkers: 'block' });
 
-const PLAID_FAILED = 'Closet could not measure the checks from this photo, so the drawing shows only the colour.';
+const PLAID_FAILED = 'Nines could not measure the checks from this photo, so the drawing shows only the colour.';
 
 test.describe('a new photo of a piece of clothing', () => {
   let backend: Backend;
@@ -64,7 +64,7 @@ test.describe('a new photo of a piece of clothing', () => {
     await expect(page.getByRole('button', { name: 'Retake the photo' })).toHaveCount(1);
     await note.getByTestId('retake-input').setInputFiles(`${PHOTOS}plaid-madras.jpg`);
     await expect(page.locator('.toast').filter({ hasText: 'New photo added.' })).toContainText(
-      'Closet removes its background, Claude describes it again, then its pattern is measured again');
+      'Nines removes its background, Claude describes it again, then its pattern is measured again');
     await expect(note).toHaveCount(0);   // the old note was about the old photo
 
     // cut out and described again, its wear kept

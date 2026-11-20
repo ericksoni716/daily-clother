@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { CloudOffIcon, GearIcon, HangerIcon, PlusIcon, SunIcon, WardrobeIcon } from './components/Icons';
+import { NinesMark, NinesName } from './components/NinesMark';
 import { useLanding } from './landing';
 import { Button, buttonClass, ErrorBoundary } from './components/ui';
 import { movedTo, placeOf, type AppPlace } from './places';
@@ -88,7 +89,7 @@ function TopBanners() {
           <CloudOffIcon />
           <div>
             <strong>Offline: showing your saved closet.</strong>
-            <span> Closet on your computer can't be reached, so changes and new photos have to wait. This updates by itself when it's back.</span>
+            <span> Nines on your computer can't be reached, so changes and new photos have to wait. This updates by itself when it's back.</span>
           </div>
         </div>
       )}
@@ -111,7 +112,7 @@ function TopBanners() {
   );
 }
 
-const ADD_OFFLINE = 'Adding photos needs Closet on your computer to be reachable';
+const ADD_OFFLINE = 'Adding photos needs Nines on your computer to be reachable';
 
 /** The four places and Add, in the sidebar's order (Add is the button above them, Settings sits at the foot). */
 const NAV = [
@@ -127,7 +128,7 @@ function NavLink({ to, active, className = 'nav-link', children }: { to: string;
 function Sidebar({ place, offline, toReview }: { place: AppPlace; offline: boolean; toReview: number | null }) {
   return (
     <nav className="sidebar" aria-label="Main">
-      <div className="sidebar-brand"><span className="brand-dot"><HangerIcon /></span> Closet</div>
+      <div className="sidebar-brand"><NinesMark /> <NinesName /></div>
       {offline ? (
         <span className={buttonClass({ variant: 'primary', block: true, className: 'sidebar-add is-disabled' })} aria-disabled="true" title={ADD_OFFLINE}>
           <PlusIcon /> Add clothes

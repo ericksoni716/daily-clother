@@ -86,9 +86,9 @@ def _get(url: str, params: dict, service: str = "weather service") -> dict:
             raise WeatherError(f"The {service}'s security certificate could not be checked on this computer.") from None
         raise WeatherError(f"Couldn't reach the {service}. Check the internet connection.") from None
     except ValueError:
-        raise WeatherError(f"The {service} gave an answer Closet could not read.") from None
+        raise WeatherError(f"The {service} gave an answer Nines could not read.") from None
     if not isinstance(data, dict):
-        raise WeatherError(f"The {service} gave an answer Closet could not read.")
+        raise WeatherError(f"The {service} gave an answer Nines could not read.")
     return data
 
 
@@ -148,7 +148,7 @@ def check_place(place: object) -> dict:
         if isinstance(v, bool) or not isinstance(v, int | float) or not -limit <= v <= limit:
             raise ValueError(f"The place's {words} must be a number from -{limit} to {limit}.")
     if not isinstance(tz, str) or not TIMEZONE.match(tz):
-        raise ValueError("The place's time zone is not one Closet knows, for example America/New_York.")
+        raise ValueError("The place's time zone is not one Nines knows, for example America/New_York.")
     return {"name": name, "latitude": round(float(lat), 4), "longitude": round(float(lon), 4), "timezone": tz}
 
 
@@ -232,7 +232,7 @@ def _forecast(place: dict) -> tuple[dict, int]:
         else:
             offset = 0
     except (KeyError, IndexError, TypeError, ValueError, AttributeError, OverflowError):
-        raise WeatherError("The weather service gave an answer Closet could not read.") from None
+        raise WeatherError("The weather service gave an answer Nines could not read.") from None
     summary = _summary(code)
     rain = chance >= RAIN_CHANCE if chance is not None else summary in WET
     answer = {"date": day, "low_c": round(float(low), 1), "high_c": round(float(high), 1), "rain_chance": chance,
@@ -278,7 +278,7 @@ def lookup(state: State, away: dict | None = None) -> dict:
         if kept:
             return {"place": place, "weather": kept["answer"], "old": True, "hour": _hour_at(kept["offset"]),
                     "is_today": kept["answer"]["date"] == _place_today(kept["offset"]),
-                    "message": f"{e} This is the last forecast Closet got."}
+                    "message": f"{e} This is the last forecast Nines got."}
         return {"place": place, "weather": None, "old": False, "is_today": False, "hour": None,
                 "message": f"{e} Try again later, or give today's temperatures yourself."}
     if away or state.get("place") == place:  # the place may have been changed while Open-Meteo was asked
@@ -290,7 +290,7 @@ def lookup(state: State, away: dict | None = None) -> dict:
 # ---------------------------------------------------------------------- past weather
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 ARCHIVE_DAILY = ("temperature_2m_min", "temperature_2m_max", "precipitation_sum")
-UNREADABLE = "The weather service gave an answer Closet could not read."
+UNREADABLE = "The weather service gave an answer Nines could not read."
 
 
 class ArchiveUnreadable(WeatherError):

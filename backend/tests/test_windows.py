@@ -171,7 +171,7 @@ def no_console(monkeypatch):
 def test_replacing_the_older_copy_is_asked_in_a_yes_no_box_on_top(windowed, monkeypatch):
     shown, answer = windowed
     no_console(monkeypatch)
-    assert cli._ask("An older Closet is running.", yes="Use 0.3.0", no="Keep 0.2.1") is True
+    assert cli._ask("An older Nines is running.", yes="Use 0.3.0", no="Keep 0.2.1") is True
     text, flags = shown[0]
     assert "Yes: Use 0.3.0" in text and "No: Keep 0.2.1" in text
     assert flags & 0x4 and flags & 0x40000   # Yes and No buttons; on top of other windows
@@ -265,7 +265,7 @@ def test_the_tray_icon_has_its_menu_on_windows():
                        lambda v: on.update(value=v))
     assert icon is not None
     items = list(icon.menu.items)
-    assert [i.text for i in items] == ["Open Closet", "Start when I log in", "Quit Closet"]
+    assert [i.text for i in items] == ["Open Nines", "Start when I log in", "Quit Nines"]
     assert items[0].default and not items[1].checked
     items[1](icon)
     assert on["value"] is True and items[1].checked

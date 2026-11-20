@@ -68,14 +68,14 @@ CHANGES = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 KEY_DAYS = 400   # the longest a browser keeps a cookie
 
-WRONG_ADDRESS = ("Closet answers only at this computer's own address, at its Tailscale address, or at the Cloudflare "
+WRONG_ADDRESS = ("Nines answers only at this computer's own address, at its Tailscale address, or at the Cloudflare "
                  "address set in its Settings.")
-FUNNEL = ("Closet does not answer through Tailscale Funnel, which is open to anyone. Open it on a device signed in to "
+FUNNEL = ("Nines does not answer through Tailscale Funnel, which is open to anyone. Open it on a device signed in to "
           "your Tailscale.")
-NOT_THROUGH_CLOUDFLARE = "Closet answers through Cloudflare only at the address set in its Settings."
-SIGN_IN_CLOUDFLARE = "Sign in through Cloudflare to use Closet at this address."
-OPEN_FROM_ICON = "Open Closet from its icon to use it on this computer."
-OLD_PAGE = "This page is from an older Closet. Reload the page, then try again."
+NOT_THROUGH_CLOUDFLARE = "Nines answers through Cloudflare only at the address set in its Settings."
+SIGN_IN_CLOUDFLARE = "Sign in through Cloudflare to use Nines at this address."
+OPEN_FROM_ICON = "Open Nines from its icon to use it on this computer."
+OLD_PAGE = "This page is from an older Nines. Reload the page, then try again."
 
 
 def host_name(host: str) -> str:
@@ -121,9 +121,9 @@ class TooLarge(Exception):
 
 def too_large_message(limit: int) -> str:
     if limit >= limits.UPLOAD_BYTES:
-        return (f"That photo is too large to send: Closet takes photos of up to {limits.PHOTO_BYTES // limits.MB} MB. "
+        return (f"That photo is too large to send: Nines takes photos of up to {limits.PHOTO_BYTES // limits.MB} MB. "
                 "Choose a smaller photo.")
-    return "That is more than Closet reads in one request. Try again with less."
+    return "That is more than Nines reads in one request. Try again with less."
 
 
 def came_in(scope) -> dict:
@@ -281,7 +281,7 @@ PAGE = """<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Closet</title>
+<title>Nines</title>
 <style>
 :root { --ink: #26231f; --bg: #f6f2ea; --muted: #5f5950; }
 @media (prefers-color-scheme: dark) { :root { --ink: #eeeae3; --bg: #1b1916; --muted: #b8b2a8; } }
@@ -296,29 +296,29 @@ p + p { color: var(--muted); }
 """
 
 PAGES = {
-    OPEN_FROM_ICON: ("Open Closet from its icon",
-                     ["On this computer, Closet opens from its own icon: on the desktop or in the Start menu, or in "
+    OPEN_FROM_ICON: ("Open Nines from its icon",
+                     ["On this computer, Nines opens from its own icon: on the desktop or in the Start menu, or in "
                       "Applications on a Mac. Open it from there and you will see your closet.",
                       "Your closet is safe, and nothing in it has changed."]),
-    WRONG_ADDRESS: ("Closet is not at this address",
-                    ["Closet answers only at this computer's own address, at its Tailscale address on your phone, or "
+    WRONG_ADDRESS: ("Nines is not at this address",
+                    ["Nines answers only at this computer's own address, at its Tailscale address on your phone, or "
                      "at the Cloudflare address set in its Settings."]),
     SIGN_IN_CLOUDFLARE: ("Sign in through Cloudflare first",
-                         ["Closet opens at this address only after Cloudflare has checked who you are, and this visit "
+                         ["Nines opens at this address only after Cloudflare has checked who you are, and this visit "
                           "did not come with Cloudflare's sign-in.",
                           "If you set this address up yourself, check that a Cloudflare Access application covers it. "
                           "The README has the steps."]),
-    NOT_THROUGH_CLOUDFLARE: ("Closet is not at this address",
-                             ["Closet answers through Cloudflare only at the address set in its Settings. Check the "
-                              "address Cloudflare passes on to Closet."]),
-    FUNNEL: ("Closet is not on the open internet",
-             ["Closet does not answer through Tailscale Funnel, which is open to anyone.",
+    NOT_THROUGH_CLOUDFLARE: ("Nines is not at this address",
+                             ["Nines answers through Cloudflare only at the address set in its Settings. Check the "
+                              "address Cloudflare passes on to Nines."]),
+    FUNNEL: ("Nines is not on the open internet",
+             ["Nines does not answer through Tailscale Funnel, which is open to anyone.",
               "Open it on a device signed in to your Tailscale, at the address Settings shows on the computer."]),
 }
 
 
 async def _page(send, status: int, detail: str) -> None:
-    title, lines = PAGES.get(detail, ("Closet", [detail]))
+    title, lines = PAGES.get(detail, ("Nines", [detail]))
     body = "".join(f"<p>{html.escape(line)}</p>" for line in lines)
     page = PAGE.replace("{title}", html.escape(title)).replace("{body}", body).encode()
     await send({"type": "http.response.start", "status": status, "headers": [

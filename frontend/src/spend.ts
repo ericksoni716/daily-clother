@@ -66,8 +66,8 @@ export function turnedOffLine(off: TaggingSpend['turned_off']): string {
   if (!off) return '';
   const when = new Date(off.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   return off.reason === 'credit'
-    ? `Closet stopped using the API key on ${when} because Anthropic said your account has no credit left. Add credit in your Anthropic account, then turn the key on again.`
-    : `Closet stopped using the API key on ${when} because Anthropic didn't accept the key. Check the key, then turn it on again.`;
+    ? `Nines stopped using the API key on ${when} because Anthropic said your account has no credit left. Add credit in your Anthropic account, then turn the key on again.`
+    : `Nines stopped using the API key on ${when} because Anthropic didn't accept the key. Check the key, then turn it on again.`;
 }
 
 /** Where the API key comes from, in a sentence; never the key itself. */
@@ -80,7 +80,7 @@ export function apiKeyLine(info: ApiKeyInfo): string {
 /** What to say after a key was saved. */
 export function apiKeySavedLine(info: ApiKeyInfo, allowed: boolean): string {
   const checked = info.checked === false
-    ? 'Key saved. Closet couldn\'t reach Anthropic to check it, so it will find out the first time the key is used.'
+    ? 'Key saved. Nines couldn\'t reach Anthropic to check it, so it will find out the first time the key is used.'
     : 'Key saved. Anthropic accepted it.';
   return allowed ? checked : `${checked} Turn on Allow the API key below to use it.`;
 }
@@ -98,7 +98,7 @@ export const ROUTE_ORDERS: { value: RouteOrder; label: string; needsKey: boolean
 export function firstRouteLine(order: TaggingRoute['id'][], routes: TaggingRoute[], apiAllowed: boolean): string {
   const ready = new Set(routes.filter((r) => r.available && (r.id !== 'api' || apiAllowed)).map((r) => r.id));
   const first = order.find((id) => ready.has(id));
-  if (first === 'plan') return 'Closet will try your Claude plan first.';
-  if (first === 'api') return 'Closet will try your API key first.';
+  if (first === 'plan') return 'Nines will try your Claude plan first.';
+  if (first === 'api') return 'Nines will try your API key first.';
   return '';
 }

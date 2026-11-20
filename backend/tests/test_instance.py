@@ -105,7 +105,7 @@ def newer(monkeypatch):
 def test_owner_who_keeps_the_old_copy_is_not_replaced(cfg, old_copy, newer, monkeypatch):
     monkeypatch.setattr(cli, "_ask", lambda q, yes, no, headless=False: newer.asked.append(q) or False)
     assert cli.serve(_args(), cfg) == 0
-    assert "older Closet (0.1.1)" in newer.asked[0] and "0.3.0" in newer.asked[0]
+    assert "older Nines (0.1.1)" in newer.asked[0] and "0.3.0" in newer.asked[0]
     assert old_copy.proc.poll() is None   # still running
 
 
@@ -113,7 +113,7 @@ def test_owner_who_keeps_the_old_copy_is_not_replaced(cfg, old_copy, newer, monk
 def test_when_nobody_can_be_asked_the_owner_is_told(cfg, old_copy, newer, monkeypatch):
     monkeypatch.setattr(cli, "_ask", lambda q, yes, no, headless=False: None)
     assert cli.serve(_args(), cfg) == 0
-    assert "older Closet (0.1.1) is already running" in newer.said[0]
+    assert "older Nines (0.1.1) is already running" in newer.said[0]
     assert old_copy.proc.poll() is None
 
 

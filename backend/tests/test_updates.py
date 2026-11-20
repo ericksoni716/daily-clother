@@ -174,7 +174,7 @@ def test_rate_limit_and_offline_are_noted_quietly(updater, github):
     headers["X-RateLimit-Remaining"] = "0"
     github.fail = urllib.error.HTTPError(updates.API_URL, 403, "rate limit exceeded", headers, None)
     status = updater.check()
-    assert "asked Closet to wait" in status["check_error"]
+    assert "asked Nines to wait" in status["check_error"]
     assert status["available"]["version"] == "0.3.0" and status["checked_at"] == checked   # what was found is kept
     github.fail = urllib.error.URLError(OSError("Network is unreachable"))
     status = updater.check()

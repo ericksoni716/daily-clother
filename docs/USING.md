@@ -20,9 +20,9 @@ differ, the last line of a section says where the screen is headed.
 ## The four places
 
 On a phone the bar at the bottom has the four places and Add: Today, Closet, Add (the round
-button in the middle), Wardrobe and Settings. On a computer the sidebar starts with Add
-clothes, then Today, Closet and Wardrobe, with Settings at the foot. Everything else is one
-level down in the place it belongs to, and that place stays lit there: Worn and Trips in
+button in the middle), Wardrobe and Settings. On a computer the sidebar starts with the app's
+name, Nines, beside its mark (the empty dinner jacket of the icon), then Add clothes, then
+Today, Closet and Wardrobe, with Settings at the foot. Everything else is one level down in the place it belongs to, and that place stays lit there: Worn and Trips in
 Today, the review and Archived in the closet, Would this work? and a wish in the Wardrobe,
 Advanced in Settings. While anything waits to be checked, Closet carries a dot (on a phone) or
 the number (on a computer).
@@ -38,21 +38,22 @@ address. Routes are in `frontend/src/router.tsx`, the places and the moved addre
 
 ## First run and login
 
-The first launch asks for a passphrase, then offers "Start with my own closet" or "Open the
+The first launch shows the mark, the empty dinner jacket of the icon, over "Welcome to Nines"
+(the name in the app's serif) and asks for a passphrase, then offers "Start with my own closet" or "Open the
 demo closet", with one line saying that Settings, Phone, says how to use it from an iPhone.
-After that every device logs in with the passphrase. If the computer cannot be reached, a
-screen says so and keeps trying; on a phone that has been used before, the saved closet is
+After that every device logs in with the passphrase, under the same mark and "Welcome back to
+Nines". If the computer cannot be reached, a screen says so ("Nines isn't answering") and keeps trying; on a phone that has been used before, the saved closet is
 shown with an offline banner and nothing can be changed.
 
-On the computer, Closet opens from its icon: its window, or the browser it opens, comes in
+On the computer, Nines opens from its icon: its window, or the browser it opens, comes in
 with the window's key and then asks for the passphrase as above. The address typed into a
-browser, or an old bookmark to it, shows only a page titled "Open Closet from its icon" (any
-other address that leads to Closet says "Closet is not at this address"). A page left open
-from before an update that tries to save says "This page is from an older Closet. Reload the
+browser, or an old bookmark to it, shows only a page titled "Open Nines from its icon" (any
+other address that leads to Nines says "Nines is not at this address"). A page left open
+from before an update that tries to save says "This page is from an older Nines. Reload the
 page, then try again." At the Cloudflare address (README, "Use it without Tailscale, through
-Cloudflare"), Cloudflare asks for its emailed code first; a visit that reaches Closet without
+Cloudflare"), Cloudflare asks for its emailed code first; a visit that reaches Nines without
 Cloudflare's sign-in shows "Sign in through Cloudflare first", and Tailscale's public Funnel
-shows "Closet is not on the open internet". These come from the server
+shows "Nines is not on the open internet". These come from the server
 (`backend/closet/gate.py`), not the page. When Cloudflare's sign-in runs out while the page is
 open there, the page loads itself again in full so Cloudflare can ask for a new code, at most
 once every two minutes (`frontend/src/signin.ts`); on the computer and through Tailscale,
@@ -94,7 +95,7 @@ adds one by hand from pieces.
 
 `/trips`, `/trips/new`, `/trips/<id>`, from the link at the foot of Today or its trip row;
 "‹ Today" goes back from the list. Plan a trip: where, the first and last day, the
-occasion, and laundry on the trip. Closet shows the weather for the dates (the forecast
+occasion, and laundry on the trip. Nines shows the weather for the dates (the forecast
 where it reaches, otherwise what those dates are usually like), what to pack with how many
 days each piece is worn, basics, an outfit for each day, and "Why these counts". "Not this
 one" swaps a piece and "I want to take this" insists on one. A saved trip is a packing list
@@ -108,7 +109,7 @@ switch between Photos and Drawings. One line over the grid says what wants seein
 check · 4 in the laundry". Each part shows only those pieces, as a chip that removes
 itself: "Needs a check" then offers "Check them one at a time" (the review), and "In the
 laundry" offers "All clean". A tile shows the piece's picture and name, and, while
-Closet is working on it, a small round mark with the step it is at (1 cutting out, 2
+Nines is working on it, a small round mark with the step it is at (1 cutting out, 2
 describing and drawing, 3 finishing the drawing): turning while it is being done, dashed while
 it waits, a warning sign when a step failed. While anything is being worked on, one line,
 "Working on 3 items", floats above the grid and the tab bar; tapping it lists those pieces,
@@ -145,7 +146,7 @@ A shoe also shows its photos sorted into views, its traced side drawing with its
 and the drawing Claude makes for the figure, which takes several minutes and can be
 corrected with a note. Two shoes are drawn at the same time; a third waits for one of them.
 
-While Closet is working on a piece, one strip over the bottom of its picture says how far it
+While Nines is working on a piece, one strip over the bottom of its picture says how far it
 has got: three dots for the three steps (cutting out, on the computer; describing and drawing,
 by Claude, after which the drawing appears at once; and, for patterned clothes and shoes,
 finishing the drawing: measuring the pattern, or sorting a shoe's photos, tracing it and
@@ -168,10 +169,10 @@ On a computer with a mouse it also says which keys do the same; on a phone it do
 up, or did not download, a notice at the top says so (only here: new photos keep their
 background until they are in). Take photos with the camera on the page, choose them from
 the library, choose a folder, or drop them on the page. JPEG, PNG, WebP, HEIC and AVIF photos
-all work, so a photo saved from a shop's page goes in too. Closet asks Claude what each photo
+all work, so a photo saved from a shop's page goes in too. Nines asks Claude what each photo
 shows (one piece, several pieces, or a view of a shoe) and sorts them; a shoe's photos are
 gathered into one shoe. Photos are made smaller in the browser and sent two at a time; a
-list shows each one's upload until it is in, then, in the same row, how far Closet has got
+list shows each one's upload until it is in, then, in the same row, how far Nines has got
 with the piece (with the step's mark) and, once described, what Claude called it; it can be
 paused, retried and cleared, and survives closing the tab. Why pieces wait, when it is
 something you can see to in Settings, is said once above the rows. The same photo is not added twice. After that the piece is cut
@@ -238,34 +239,34 @@ would hold it back, when you would wear it, and example outfits.
   location, today's weather and what is sent where (the weather is only looked up then); How
   you live with **Edit my answers**; the laundry switch and laundry day, and **Wears between
   washes** folded under them.
-- **Claude**: one line saying how Closet reaches Claude ("Using your Claude plan"), or one red
+- **Claude**: one line saying how Nines reaches Claude ("Using your Claude plan"), or one red
   sentence and Check again when it can't; **Manage** opens Advanced.
-- **Updates**: one line ("Closet 0.9.0 · up to date", or "Closet 0.9.1 is ready to install."
+- **Updates**: one line ("Nines 0.9.0 · up to date", or "Nines 0.9.1 is ready to install."
   with what is new folded under it and **Install now**).
-- **Phone**: on the computer only. Until Tailscale shares Closet, the command to run once;
+- **Phone**: on the computer only. Until Tailscale shares Nines, the command to run once;
   after that one line with the address and **Show the QR code** folded under it. While Settings
   is open and the phone is not connected, it checks again every few seconds (every half
   minute when Tailscale is not installed). Under it, on the computer, **Without Tailscale,
   through Cloudflare** is folded: what an address through Cloudflare means, a link to the
   README's steps, the three boxes (your Cloudflare team, the Access application's audience tag,
-  Closet's address on Cloudflare) and **Save**, with a sentence saying it is off until all three
+  Nines' address on Cloudflare) and **Save**, with a sentence saying it is off until all three
   are filled in. Once they are, the fold is titled "Also through Cloudflare, at
   closet.example.com". A wrong value shows the server's sentence under the boxes. On the phone in
-  Safari, one line on adding Closet to the Home Screen; nothing once it is opened from there.
+  Safari, one line on adding Nines to the Home Screen; nothing once it is opened from there.
 - **This device**: on a device that came in from outside, one sentence on how: "This device
   came in through Tailscale as you@example.com", "…through Tailscale, but Tailscale did not say
   who is using it", or "…through Cloudflare, signed in as you@example.com". Then light, dark or
   the same as the device, kept on this device.
 - **Your data**: one line on the backups (where they go and the last good one), or that there
   are none yet, with **Choose a backup folder** on the computer.
-- **Advanced settings** (a link), then Log out, and Quit Closet on the computer only.
+- **Advanced settings** (a link), then Log out, and Quit Nines on the computer only.
 
 ## Advanced settings
 
 `/settings/advanced`, from the foot of Settings or Manage beside Claude; "‹ Settings" goes
 back. Its code loads only when it is opened. In order:
 
-- **Starting Closet**: Start Closet when I log in (computer only; the group is not there on a
+- **Starting Nines**: Start Nines when I log in (computer only; the group is not there on a
   phone).
 - **Claude**: the plan and the API key in the order they are tried, each with its state; the
   key box (paste, replace, remove); which to use; Allow the API key; the monthly limit and the
@@ -273,11 +274,11 @@ back. Its code loads only when it is opened. In order:
 - **Updates**: the version, when it last checked, whether to install by itself, ask first or
   never check, Check now, and how the last install went.
 - **Backups**: the backup line, the folder (typed on the computer only) and Back up now.
-- **Storage**: one line ("Closet uses 2.9 MB for 49 items · 59 GB free on this disk"), with
+- **Storage**: one line ("Nines uses 2.9 MB for 49 items · 59 GB free on this disk"), with
   what takes the space folded under it.
 - **Background removal**: the download address, and on the computer where to put the files
   by hand, folded.
-- **This copy of Closet**: the data folder (computer only) and the version.
+- **This copy of Nines**: the data folder (computer only) and the version.
 - **The demo closet**: the switch that shows the sample closet instead of yours, last because
   it is rarely wanted once your own clothes are in. While the demo closet shows, the strip at
   the top of every screen has Leave, so the way back is always in sight.
@@ -294,9 +295,9 @@ back. Its code loads only when it is opened. In order:
   Advanced settings, with a strip at the top while it is open. It is never backed up and never sent
   to Claude.
 - **Background removal.** The two files that cut clothes out of photos download by
-  themselves when Closet starts, and again after a failure (a minute later, ten minutes
+  themselves when Nines starts, and again after a failure (a minute later, ten minutes
   later, then every hour). A notice on Add says when they are missing or failed.
-- **When a screen fails.** It says so, with Try again and Reload Closet, and the tab bar
+- **When a screen fails.** It says so, with Try again and Reload Nines, and the tab bar
   stays so you can go elsewhere.
 - **Work in the background.** Cutting out, describing, measuring a pattern and drawing a
   shoe carry on with the page closed and are picked up again after a restart. Add, the

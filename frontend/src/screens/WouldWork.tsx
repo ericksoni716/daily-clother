@@ -17,7 +17,7 @@ import {
 } from '../wouldwork';
 import './WouldWork.css';
 
-export const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
+export const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
 const DEMO_PHOTO = "The demo closet never sends anything to Claude, so a photo can't be described here. Describe it by hand below.";
 
 type Stage =

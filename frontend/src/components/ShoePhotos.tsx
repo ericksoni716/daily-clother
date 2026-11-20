@@ -48,7 +48,7 @@ export function AddShoePhotos({ item, disabled, onSaved, onError, label = 'Add p
     const got: { last: Item | null } = { last: null };
     try {
       const { sent, left } = await sendShoePhotos(item.id, files, room, (it) => { got.last = it; });
-      if (got.last) onSaved(got.last, sent === 1 ? 'Photo added; Closet sorts out which view it shows' : `${sent} photos added; Closet sorts out which view each shows`);
+      if (got.last) onSaved(got.last, sent === 1 ? 'Photo added; Nines sorts out which view it shows' : `${sent} photos added; Nines sorts out which view each shows`);
       if (left) onError(notFitting(left));
     } catch (e) {
       if (got.last) onSaved(got.last, 'Some photos were added');

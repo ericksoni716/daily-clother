@@ -18,7 +18,7 @@ test('settings: Updates is one line with this version; the choice is on Advanced
   await login(page);
   const version = (await (await page.request.get('/api/updates')).json()).version;
   const line = (await openUpdates(page)).getByTestId('update-line');
-  await expect(line).toHaveText(new RegExp(`^Closet ${version.replace(/\./g, '\\.')}`));
+  await expect(line).toHaveText(new RegExp(`^Nines ${version.replace(/\./g, '\\.')}`));
   await page.getByRole('link', { name: 'Advanced settings' }).click();
   const section = page.getByRole('region', { name: 'Updates' });
   await expect(section.getByTestId('update-version')).toHaveText(version);
@@ -34,7 +34,7 @@ test('settings: Updates is one line with this version; the choice is on Advanced
   await expect(choice.getByRole('button', { name: 'Never', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(section.getByTestId('update-checked')).toHaveText(/never to check/);
   await page.goto('/settings');
-  await expect(line).toHaveText(`Closet ${version} · not looking for new versions`);
+  await expect(line).toHaveText(`Nines ${version} · not looking for new versions`);
 });
 
 const RELEASE = {
@@ -62,7 +62,7 @@ async function standInSettings(page: Page, answer: () => Record<string, unknown>
   });
 }
 
-test('updates (stand-in): the banner offers the new version, Install restarts Closet and the page reconnects', async ({ page }) => {
+test('updates (stand-in): the banner offers the new version, Install restarts Nines and the page reconnects', async ({ page }) => {
   let phase: 'ready' | 'installing' | 'done' = 'ready';
   let health = 0;
   let checks = 0;
@@ -96,10 +96,10 @@ test('updates (stand-in): the banner offers the new version, Install restarts Cl
 
   await login(page);
   const banner = page.getByTestId('update-banner');
-  await expect(banner).toContainText('Closet 0.3.0 is ready');
+  await expect(banner).toContainText('Nines 0.3.0 is ready');
 
   const section = await openUpdates(page);
-  await expect(section.getByTestId('update-available')).toHaveText('Closet 0.3.0 is ready to install.');
+  await expect(section.getByTestId('update-available')).toHaveText('Nines 0.3.0 is ready to install.');
   // the notes start folded; opened, their headings, lists and bold are drawn, and HTML in them stays text
   const notes = section.getByTestId('update-notes');
   const whatsNew = notes.getByText("What's new in 0.3.0", { exact: true });
@@ -126,24 +126,24 @@ test('updates (stand-in): the banner offers the new version, Install restarts Cl
   await expect.poll(() => checks).toBe(1);
 
   await banner.getByRole('button', { name: 'Install' }).click();
-  await expect(page.getByRole('alertdialog', { name: 'Closet is restarting' })).toBeVisible();
-  await expect(page.getByText('Installing Closet 0.3.0')).toBeVisible();
+  await expect(page.getByRole('alertdialog', { name: 'Nines is restarting' })).toBeVisible();
+  await expect(page.getByText('Installing Nines 0.3.0')).toBeVisible();
 
   // once the new Closet answers, the page reloads by itself
   await expect(page.getByRole('alertdialog')).toHaveCount(0, { timeout: 15_000 });
   await expect(manage.getByTestId('update-version')).toHaveText('0.3.0');
   await expect(manage.getByTestId('update-last')).toHaveText(/Updated from 0.2.1 to 0.3.0/);
   await page.goto('/settings');
-  await expect(section.getByTestId('update-line')).toHaveText('Closet 0.3.0 · up to date');
+  await expect(section.getByTestId('update-line')).toHaveText('Nines 0.3.0 · up to date');
   await expect(banner).toHaveCount(0);
 });
 
-test('updates (stand-in): a problem before restarting is shown and Closet keeps running', async ({ page }) => {
+test('updates (stand-in): a problem before restarting is shown and Nines keeps running', async ({ page }) => {
   let phase: 'ready' | 'failed' = 'ready';
   // a release from before the notes had a What's new section: the server sends no notes
   const available = { ...RELEASE, notes: '' };
   const answer = () => (phase === 'ready' ? standIn({ available })
-    : standIn({ available, ready: false, problem: "Closet couldn't back up your closets, so it didn't install the update." }));
+    : standIn({ available, ready: false, problem: "Nines couldn't back up your closets, so it didn't install the update." }));
   await page.route('**/api/updates', (route) => route.fulfill({ json: answer() }));
   await standInSettings(page, answer);
   await page.route('**/api/updates/install', (route) => {

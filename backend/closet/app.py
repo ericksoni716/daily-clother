@@ -549,7 +549,7 @@ class SettingsPatch(BaseModel):
 
 
 CLOUDFLARE_FIELDS = (access.TEAM_KEY, access.AUD_KEY, access.HOST_KEY)
-NOT_FROM_CLOUDFLARE = "Change this on the computer Closet runs on, or from your phone through Tailscale."
+NOT_FROM_CLOUDFLARE = "Change this on the computer Nines runs on, or from your phone through Tailscale."
 
 
 def create_app(sv: Services, window_key: str | None = None, *, access_keys: access.SigningKeys | None = None,
@@ -1115,7 +1115,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             dismissed = state.get("life_prompt_dismissed")
             home = climate.lookup(state) if answers is not None else {
                 "used": False, "place": None, "shares": None, "years": [], "old": False,
-                "message": "Home weather is not being used. Tell Closet how you live, and choose where you are in Settings.",
+                "message": "Home weather is not being used. Tell Nines how you live, and choose where you are in Settings.",
             }
         # Items, wears and life/weather context determine the answer; laundry and processing times are left out
         # so a wash or a rename's timestamp does not throw away seconds of work; the stored answer counts through
@@ -1202,21 +1202,21 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         except ValueError as e:
             raise HTTPException(422, str(e))
         if state.get("profile") == "demo":
-            return day_answer("The demo closet never asks Claude, so Closet can't read this here. "
+            return day_answer("The demo closet never asks Claude, so Nines can't read this here. "
                               "Open your own closet to describe your day.", False)
         assert sv.tag_worker, "build_services wires it"
         # the API key first when it is switched on (the owner: "opus via api"), else the plan
         usable = tuple(sorted(sv.tag_worker.routes(), key=lambda r: r != "api"))
         if not usable and getattr(sv.day_reader, "needs_route", True):   # a stand-in (the browser tests) needs none
-            return day_answer("Claude can't be reached right now, so Closet couldn't read that. "
+            return day_answer("Claude can't be reached right now, so Nines couldn't read that. "
                               "You can still change where you are, or type the temperatures, under Change.", False)
         home = (state.get("place") or {}).get("name")
         try:
             reading = await run_in_threadpool(sv.day_reader, text, wears.today(), home, usable)
         except CapReached:
-            return day_answer(f"{spend.LIMIT_REACHED} Closet couldn't read that.", False)
+            return day_answer(f"{spend.LIMIT_REACHED} Nines couldn't read that.", False)
         except (RouteUnavailable, Unreachable):
-            return day_answer("Claude can't be reached right now, so Closet couldn't read that. Try again in a moment.", False)
+            return day_answer("Claude can't be reached right now, so Nines couldn't read that. Try again in a moment.", False)
         except TaggingError:
             return day_answer("Claude gave no usable answer. Try again, or say it another way.", False)
         from .tagger import dayread
@@ -1251,7 +1251,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         usable = sv.tag_worker.routes()
         if not usable and getattr(sv.add_sorter, "needs_route", True):   # a stand-in (the browser tests) needs none
             return {"sorted": False, "photos": plain, "needed": needed,
-                    "message": "Claude can't be reached right now, so Closet couldn't sort these: sort them yourself."}
+                    "message": "Claude can't be reached right now, so Nines couldn't sort these: sort them yourself."}
         try:
             sent_data = [await f.read(images.MAX_UPLOAD_BYTES + 1) for f in sent]
             # decoding a phone's photos takes a fifth of a second or more each: on a worker thread
@@ -1266,7 +1266,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         except CapReached:
             message = f"{spend.LIMIT_REACHED} Sort these yourself."
         except (RouteUnavailable, Unreachable):
-            message = "Claude can't be reached right now, so Closet couldn't sort these: sort them yourself."
+            message = "Claude can't be reached right now, so Nines couldn't sort these: sort them yourself."
         except TaggingError:
             message = "Claude couldn't tell what these show: sort them yourself."
         return {"sorted": False, "photos": plain, "message": message, "needed": needed}
@@ -1863,7 +1863,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         if path.startswith(("api/", "media/")):
             raise HTTPException(404, "Not found.")
         if sv.web_dir is None:
-            return HTMLResponse("<h1>Closet</h1><p>The server is running, but the web page has not been built. "
+            return HTMLResponse("<h1>Nines</h1><p>The server is running, but the web page has not been built. "
                                 "Run <code>npm run build</code> in <code>frontend/</code>.</p>")
         root = sv.web_dir.resolve()
         target = (root / path).resolve()

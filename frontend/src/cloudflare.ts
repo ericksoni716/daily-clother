@@ -13,11 +13,11 @@ export function doorTitle(door: CloudflareDoor): string {
 }
 
 export const DOOR_ABOUT =
-  'With a domain of your own on Cloudflare, Closet can have its own address there, for a browser that cannot use ' +
-  'Tailscale. Cloudflare asks for a code sent to your email before Closet opens, and it can read what passes through.';
+  'With a domain of your own on Cloudflare, Nines can have its own address there, for a browser that cannot use ' +
+  'Tailscale. Cloudflare asks for a code sent to your email before Nines opens, and it can read what passes through.';
 
 export function doorStatus(door: CloudflareDoor): string {
-  if (door.on && door.host) return `Closet answers at https://${door.host} once Cloudflare has checked who you are.`;
+  if (door.on && door.host) return `Nines answers at https://${door.host} once Cloudflare has checked who you are.`;
   return 'This is off until all three are filled in.';
 }
 
@@ -26,7 +26,7 @@ export type DoorField = 'cloudflare_team' | 'cloudflare_aud' | 'cloudflare_host'
 export const DOOR_FIELDS: { key: DoorField; label: string; placeholder: string }[] = [
   { key: 'cloudflare_team', label: 'Your Cloudflare team', placeholder: 'yourteam.cloudflareaccess.com' },
   { key: 'cloudflare_aud', label: "The Access application's audience tag", placeholder: 'A long run of letters and numbers' },
-  { key: 'cloudflare_host', label: "Closet's address on Cloudflare", placeholder: 'closet.example.com' },
+  { key: 'cloudflare_host', label: "Nines' address on Cloudflare", placeholder: 'closet.example.com' },
 ];
 
 /** What the boxes show to begin with: what is saved. */

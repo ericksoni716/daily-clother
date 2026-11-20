@@ -10,6 +10,8 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ## Unreleased
 
+## 0.10.0
+
 ### Added
 
 - Today shows your **Recent outfits** under the outfits: the last few you wore, each rated with

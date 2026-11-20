@@ -21,21 +21,21 @@ async function setUp(page: Page, url: string) {
  * an ordinary day: no notice that the weather could not be fetched. Claude is told the same day. */
 async function aDay(page: Page) {
   await page.route('**/api/outfits/today', async (route: Route) => {
-    const body = route.request().postDataJSON() as Record<string, unknown>;
-    const response = await route.fetch({ postData: { ...body, low_c: 3.2, high_c: 9.8, rain: true } });
-    let json;
     try {
-      json = await response.json();
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      const response = await route.fetch({ postData: { ...body, low_c: 3.2, high_c: 9.8, rain: true } });
+      const json = await response.json();
+      if (response.ok()) {
+        Object.assign(json.context, { source: 'forecast', place: 'Brooklyn, New York, United States', rain_chance: 70, summary: 'rain', old: false, message: null });
+      }
+      await route.fulfill({ response, json });
     } catch (error) {
-      // The page went to another address while this request was on its way (logging in shows Today, and the test
-      // then opens Today itself), so the browser dropped the answer and nothing waits for it. Any other error is real.
-      if (/disposed/.test(String(error))) return;
+      // Nothing waits for this answer any more: the page went to another address while the request was on its way
+      // (logging in shows Today, and the test then opens Today itself), or the test ended just after a wear made
+      // Today ask again. Playwright then drops the answer or the request. Any other error is real.
+      if (/disposed|Test ended|has been closed/.test(String(error))) return;
       throw error;
     }
-    if (response.ok()) {
-      Object.assign(json.context, { source: 'forecast', place: 'Brooklyn, New York, United States', rain_chance: 70, summary: 'rain', old: false, message: null });
-    }
-    await route.fulfill({ response, json });
   });
 }
 

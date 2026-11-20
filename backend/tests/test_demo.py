@@ -6,6 +6,8 @@ import shutil
 from closet import db, demo, illustrations, shop, wears
 from closet.config import bundle_dir
 
+from .same_drawing import same
+
 ACCESSORIES = {"belt", "bag", "hat", "scarf"}
 
 
@@ -66,7 +68,7 @@ def test_a_new_demo_closet_has_its_patterns_and_is_never_sent_to_claude(client, 
     from_tags = {i["id"] for i in data()["items"] if i.get("wave") == 2}
     for r in stored:
         if r["id"] in from_tags or r["pattern_fill"]:
-            assert illustrations.make(r).svg == r["illustration_svg"], r["name"]
+            assert same(illustrations.make(r).svg, r["illustration_svg"]), r["name"]
 
 
 def test_the_demo_has_worn_outfits_with_accessories_and_ratings(client):

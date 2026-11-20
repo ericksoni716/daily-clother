@@ -379,6 +379,12 @@ print(json.dumps({"is_error": False, "result": "", "structured_output": json.loa
 def fake_claude(tmp_path, monkeypatch):
     import json
     import stat
+    import sys
+    if sys.platform == "win32":
+        # The stand-in is a script with a #! line, which Windows cannot start, and a .cmd around it would hand
+        # cmd.exe a command line longer than it takes. These tests ran on Linux only before they moved here; what
+        # Windows does differently when starting Claude Code has its own tests, which name the platform.
+        pytest.skip("the stand-in for Claude Code is a script Windows cannot start")
     exe = tmp_path / "claude"
     exe.write_text(FAKE_CLAUDE)
     exe.chmod(exe.stat().st_mode | stat.S_IEXEC)

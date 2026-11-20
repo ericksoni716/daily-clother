@@ -87,10 +87,16 @@ A screen is a `PageHeader` (a title, at most one main button), then `Section`s i
 they are used, and an `EmptyState` when there is nothing yet: an icon, a title, one sentence,
 one button.
 
-The app has too many places, and the direction is fewer: Today (taking in Worn and Trips),
-Closet (taking in Review), one screen for what to buy and how the closet is used (Missing
-and Insights together), Settings, and Add. So a new thing is first a card or a sheet on the
-screen whose job it serves. A new destination needs a reason no existing screen can hold.
+The app has four places and Add: Today (with Worn and Trips one level down), Closet (with
+the review and Archived), Wardrobe (what to buy and how the closet is used, with Would this
+work? and each wish one level down) and Settings (with Advanced). Everything is two taps or
+fewer from the tab bar. A new thing is first a card, a fold or a sheet on the screen whose job
+it serves; a page one level down comes next, inside its place (lit as that place, with a
+"‹ Place" back link). A new place in the tab bar needs a reason none of the four can hold.
+
+On a page that has grown, the shared pieces keep it short: `ShowMore` shows the first few on
+a phone, `Fold` keeps what is occasional closed ("More numbers"), and `HowItWorks` holds the
+one explanation a screen needs, closed by default. `components/ui/README.md` lists them all.
 
 Moving between screens has no animation of its own; the phone's swipe back already has one.
 Going back returns to where you were, at the scroll position you left.
@@ -128,7 +134,8 @@ check" in [DEVELOPING.md](DEVELOPING.md).
 - Does anything arrive late and move the page? Does a tap put anything in above the content?
 - What does it show while it waits, when there is nothing yet, when the answer is a guess,
   and when the weather, Claude or the computer cannot be reached?
-- Is it under the word budget? Is each hint one line?
+- Is it under the word budget? Is each hint one line? (The phone check prints each screen's
+  words and lists the ones over.)
 - Does it make sense on the phone, and is anything computer-only hidden there?
 - Can it be undone, or does it ask first?
 - Tokens and `components/ui/` only? At least 44px to tap?

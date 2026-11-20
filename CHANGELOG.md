@@ -12,6 +12,13 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- Today shows your **Recent outfits** under the outfits: the last few you wore, each rated with
+  a tap and saying "Saved" as it saves, with yesterday's question first and **See all** for
+  every outfit you wore. When a trip starts within two weeks, a **Packing for a trip?** row
+  opens it, and a link at the foot of Today opens Trips.
+- The closet's line at the top, "5 to check · 4 in the laundry", shows only those pieces when
+  you tap a part: **Needs a check** then offers **Check them one at a time**, and the laundry
+  offers **All clean**.
 - You can talk to Claude about your style from Settings: Your style, Talk to Claude about your
   style. With nothing said yet that day it asks one question it can't tell from your clothes
   (whether you run warm, what you wear for work, colours you never wear…), answered with a tap
@@ -25,6 +32,24 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- The app has four places and Add: **Today**, **Closet**, **Wardrobe** and **Settings**, in
+  the bar at the bottom of a phone and in the menu on a computer. Worn and Trips are now in
+  Today, the review in the closet, and What's missing and Insights are one page, **Wardrobe**.
+  Old bookmarks and the Home Screen app still open the right place.
+- The Wardrobe leads with the three things most worth buying (**See all** shows the rest),
+  then **Thinking of buying something?** with Would this work? and your wishlist, then what you
+  have not worn and what you wear most. The other figures, cost per wear among them, are under
+  **More numbers**. "Also worth knowing" is gone, since it repeated the rest.
+- A wish opens on a page of its own, with its note (which says when it is saved), shopping
+  and prices.
+- Today is shorter above the outfit: the Worn and Trips buttons, the arrows and the strip of
+  small outfits under the outfits are gone (swipe, or tap the dots), "Tap a piece to see it"
+  is said once under **Changing an outfit** instead of in every outfit, Claude's reading of
+  the day is in "Why this works", and the note about the day is folded under **Change**.
+- The notice about the files that cut clothes out of photos is shown on Add, not on the
+  closet. The review shows its keyboard keys only on a computer, and has **‹ Closet**.
+- The screen after choosing a passphrase no longer shows the Tailscale command: it says that
+  Settings, Phone, has the steps.
 - Settings is a short page in eight groups: Your style, Everyday (the weather's place, how you
   live, the laundry), Claude, Updates, Phone, This device, Your data, then Log out. Claude,
   Updates and your backups each say how they stand in one line, in red with the one thing to

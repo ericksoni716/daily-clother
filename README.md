@@ -99,11 +99,17 @@ one and use the new one; your closet is the same either way. On Windows the
 window has **Yes** (use the new one) and **No** (keep the old one). If start at
 login was on, it now starts the new program.
 
+The app has four places, in the bar at the bottom of a phone (with **Add** in the middle)
+and in the menu on a computer: **Today**, **Closet**, **Wardrobe** and **Settings**. Each
+holds what used to be a place of its own: Today has your recent outfits and your trips, the
+closet has the pieces to check, and the Wardrobe has what to buy and how your clothes are
+used. Old bookmarks still work; they open the place that holds them now.
+
 Every day starts on **Today**, which the app opens on once your closet has at
 least a top, something for your legs and a pair of shoes. It shows today's
 weather where you are, lets you say what kind of day it is (the occasion, such
 as **Casual** or **Business**, and the mood: **As usual**, **Sharp** or
-**Relaxed**) and suggests outfits, best first: swipe (or use the arrows) to see
+**Relaxed**) and suggests outfits, best first: swipe (or tap the dots under them) to see
 the others. Each outfit lists why it works and, set apart, anything to watch
 out for, such as rain. Tap **I'm wearing this** to record a wear for every
 piece at once (**Undo** takes it back). The **⋯** on a piece leaves it out
@@ -191,35 +197,37 @@ question away. Your answers shape what Today offers: pieces you loved together
 come up together a little more, an outfit you said **Not again** to is not
 offered again, and if you were cold on a day like today you are dressed a
 little warmer. The outfit says when a rating played a part ("You loved these
-together on 3 November"). **Worn** at the top of Today lists the outfits you
-wore, newest first: rate one, or tap its rating to change it; under **⋯** are
+together on 3 November"). **Recent outfits**, under the outfits on Today, shows the last
+few you wore, each rated with a tap, and asks about yesterday's first. **See all** opens
+**Worn**, every outfit you wore, newest first: rate one, or tap its rating to change it; under **⋯** are
 **Wear this again** (Today starts from it, with what is clean) and **Remove**
 (the wears it recorded go too). **Record an outfit** is for a day you got
 dressed without Closet. Offline, the list shows what it last saw, and rating
 waits until Closet on your computer can be reached.
 
-**What's missing** (**Missing** in the bar at the bottom of a phone) looks at
-your closet and what you wear and suggests what to buy, the most helpful
-first. Each suggestion says why, in sentences about your own clothes, what to
+**Wardrobe** looks at your closet and what you wear and suggests what to buy
+under **Worth buying**: the three most helpful first, then **See all** for the rest. Each suggestion says why, in sentences about your own clothes, what to
 look for (the kind of piece, the season, the colours that go with what you
 have) and shows the pieces it is based on; tap one to open it. Tap **I'll look
-for this** to put it on your **Wishlist**, or **Not for me** to hide it (you can
-say why, but you don't have to; **Hidden** at the bottom brings it back). On
-the wishlist, keep a note (size, shop, budget), add something by hand with
-**Add by hand**, and when you have it tap **I bought it**: it leaves the list
-and **Add** opens so you can photograph it. Your decisions are kept when the
+for this** to put it on **Your wishlist**, or **Not for me** to hide it (you can
+say why, but you don't have to; **Hidden** at the bottom brings it back). The
+wishlist is under **Thinking of buying something?** (beside the suggestions on a
+computer); add something by hand with **Add by hand**. Tap a wish to open its own page:
+keep a note there (size, shop, budget; it says **Saved** as it saves), shop for it, and
+when you have it tap **I bought it**: it leaves the list and **Add** opens so you can
+photograph it. Your decisions are kept when the
 suggestions are worked out again, and the demo closet keeps its own. Offline,
 the screen shows what it last found, and nothing can be changed until Closet on
 your computer can be reached again. A closet with fewer than 8 pieces is too
 small to judge yet.
 
-**Tell it how you live: 1 minute**, at the top of What's missing, asks how often
+**Tell it how you live: 1 minute**, at the top of Worth buying once your closet has enough in it, asks how often
 you dress for work, everyday life, going out, lounging at home, exercise and
 vacation. Say how people dress at work, and roughly how many weeks you spend
 away and whether those places are warm or cold. Days can overlap: work and
 exercise can happen on the same day. **Not now** leaves the original suggestions
 unchanged. You can answer later or change your answers from **Based on…** on
-What's missing, or **Settings → Everyday → Edit my answers**. Tapping **Based on…** opens
+the Wardrobe, or **Settings → Everyday → Edit my answers**. Tapping **Based on…** opens
 your answers, with the weather note and explanation under them. With every situation set to
 **Never**, choose some situations before asking what is missing.
 
@@ -242,7 +250,7 @@ but is not interpreted yet. Lounging is only a guess from relaxed tops and
 soft trousers, not a way to recognise sleepwear; exercise cannot yet tell
 running gear from gym clothes or judge sports performance.
 
-**Would this work?** at the top of What's missing (or **I found one: would it
+**Would this work?**, under **Thinking of buying something?** on the Wardrobe (or **I found one: would it
 work?** on a wish) checks a piece before you buy it. Take or choose a photo of
 it (in a shop, or a picture saved from a shop's page) and Claude describes it,
 or describe it by hand: the kind, the colour, how dressy, the season, how heavy
@@ -290,16 +298,17 @@ washing** says (a shirt or tee after one wear, a sweater or trousers after
 three; shoes, jackets, coats and accessories never). On your **laundry day**
 everything in the laundry is clean again. Undo a wear and a piece it put in
 comes back out. To change the day, or turn it off, open **Settings →
-Everyday**. To catch up after a wash on another day, the closet says
-how many pieces are in the laundry: tap **Show**, then **All clean**. On an
+Everyday**. To catch up after a wash on another day, the line at the top of
+the closet says how many pieces are in the laundry: tap it, then **All clean**. On an
 outfit in **Worn**, **⋯ → Put these in the laundry** does it by hand.
 
-**Insights** (the button at the top of your closet) turns what you have
-recorded as worn into a few plain sentences: what each piece with a price has
-cost per wear (type the price on the item, in dollars), what you have never
-worn, what has not been worn for a long time in its season, what you wear most
-over the last 30 and 90 days and all time, whether a few pieces do all the work
-in each kind of clothing, and what your closet is made of. Tap a picture to open
+Further down the Wardrobe, **Not worn** and **Worn most** turn what you have
+recorded as worn into a few plain sentences: what you have never worn, what has
+not been worn for a long time in its season, and what you wear most over the last
+30 and 90 days and all time. **More numbers**, at the foot, opens the rest: whether
+a few pieces do all the work in each kind of clothing, what your closet is made of,
+and what each piece with a price has cost per wear (type the price on the item, in
+dollars). Tap a picture to open
 the piece. A piece you never wear can be archived from there with one tap, or
 kept: **Keep** stops it being listed for 90 days, remembered on that device
 only. Until enough wears are recorded, each card says so instead of showing
@@ -471,10 +480,9 @@ again: it says how many photos were not added yet. Choose the same photos or
 folder again and it carries on; the ones that already went in are not added
 twice.
 
-After an import, a note at the top of your closet says how many pieces need a
-quick check (on a phone, a dot on **Closet** says so too); tap **Review** in it.
-On a computer, **Review** also sits under **Closet** in the menu while there is
-anything to check, with the number beside **Closet**. It shows, one item at a
+After an import, the line at the top of your closet says how many pieces need a
+quick check ("5 to check"; a dot or the number on **Closet** in the menu says so too). Tap it
+to see only those pieces, then **Check them one at a time**: the review shows, one item at a
 time, only what Claude was unsure about. Tap another value if its guess is
 wrong, then **That's right**, or **Skip for now**.
 
@@ -754,7 +762,7 @@ If the computer cannot download the model, download
 **Settings → Advanced settings → Background removal** (the link is at the foot of
 Settings), and put it in
 `Closet\models`. Closet checks the file and starts using it. The address can be
-changed there too. A notice on the closet says when the model is missing or
+changed there too. A notice on **Add** says when the model is missing or
 did not download. **Advanced** also shows where your closet is stored and the
 version of Closet.
 
@@ -842,4 +850,4 @@ photographed from the side is, so you can try **Fix the details** on them.
 
 ## Planning a trip
 
-Open **Trips** (in the sidebar; on the phone, the **Trips** button at the top of Today) and choose **Plan a trip**. Search for where you are going, pick the first and last day (up to 30 days), the occasion, and whether you can do laundry there (on one day of the trip, or every few days). Closet shows the weather (the forecast, or what those dates are usually like), what to pack with how many days each piece is worn, basics like socks, and an outfit for each day. Use "Not this one" to swap a piece out and "Take something else" to insist on one. Save the trip, then tick things off as you pack, on the computer or the phone. Under the list, "Why these counts" says how each count was worked out ("5 shirts: one a day, laundry on day 4") and where each wash falls. How many times you wear each kind of clothing before it needs washing is set in **Settings → Everyday → Wears between washes** (a shirt once, a sweater or trousers three times, a jacket the whole trip, to start with); on a hot or humid day, what you wear next to the skin is counted as worn once.
+Open **Trips** (the link at the foot of Today; when a trip is less than two weeks away, Today shows a **Packing for a trip?** row that opens it) and choose **Plan a trip**. Search for where you are going, pick the first and last day (up to 30 days), the occasion, and whether you can do laundry there (on one day of the trip, or every few days). Closet shows the weather (the forecast, or what those dates are usually like), what to pack with how many days each piece is worn, basics like socks, and an outfit for each day. Use "Not this one" to swap a piece out and "Take something else" to insist on one. Save the trip, then tick things off as you pack, on the computer or the phone. Under the list, "Why these counts" says how each count was worked out ("5 shirts: one a day, laundry on day 4") and where each wash falls. How many times you wear each kind of clothing before it needs washing is set in **Settings → Everyday → Wears between washes** (a shirt once, a sweater or trousers three times, a jacket the whole trip, to start with); on a hot or humid day, what you wear next to the skin is counted as worn once.

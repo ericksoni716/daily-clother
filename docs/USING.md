@@ -9,72 +9,98 @@ Keep this short and true: when a screen's behavior changes, change its paragraph
 pull request. It describes the app as it is, not as the assessment wants it; where the two
 differ, the last line of a section says where the screen is headed.
 
-- Getting around: [Navigation](#navigation) · [First run and login](#first-run-and-login)
-- Every day: [Today](#today) · [Worn](#worn)
-- Your clothes: [Closet](#closet) · [An item](#an-item) · [Add](#add) · [Several pieces in one photo](#several-pieces-in-one-photo) · [Review](#review)
-- Buying and packing: [What's missing](#whats-missing) · [Would this work?](#would-this-work) · [Insights](#insights) · [Trips](#trips)
-- [Settings](#settings) · [Advanced settings](#advanced-settings) · [Things that work the same everywhere](#things-that-work-the-same-everywhere)
+- Getting around: [The four places](#the-four-places) · [First run and login](#first-run-and-login)
+- **Today**: [Today](#today) · [Worn](#worn) · [Trips](#trips)
+- **Closet**: [Closet](#closet) · [An item](#an-item) · [Review](#review)
+- **Add**: [Add](#add) · [Several pieces in one photo](#several-pieces-in-one-photo)
+- **Wardrobe**: [Wardrobe](#wardrobe) · [A wish](#a-wish) · [Would this work?](#would-this-work)
+- **Settings**: [Settings](#settings) · [Advanced settings](#advanced-settings)
+- [Things that work the same everywhere](#things-that-work-the-same-everywhere)
 
-## Navigation
+## The four places
 
-On a phone the bar at the bottom has five places: Today, Closet, Add (the round button in
-the middle), Missing and Settings. Worn and Trips are buttons at the top of Today; Insights
-is a link at the top of the closet; Review is a note at the top of the closet, with a dot on
-the Closet tab, while anything waits to be checked. On a computer the sidebar starts with
-Add clothes, then Today, Closet (with Review under it while there is something to review),
-Trips and What's missing, with Settings at the foot.
+On a phone the bar at the bottom has the four places and Add: Today, Closet, Add (the round
+button in the middle), Wardrobe and Settings. On a computer the sidebar starts with Add
+clothes, then Today, Closet and Wardrobe, with Settings at the foot. Everything else is one
+level down in the place it belongs to, and that place stays lit there: Worn and Trips in
+Today, the review and Archived in the closet, Would this work? and a wish in the Wardrobe,
+Advanced in Settings. While anything waits to be checked, Closet carries a dot (on a phone) or
+the number (on a computer).
 
 The app opens on Today once the closet has enough clothes to dress from, and on the closet
-before that. A back link ("‹ Closet") goes back to the page you came from, where you left
-it; on a page opened straight from its address it opens the page it names. Back and Forward
-bring a page back to where you had scrolled it. Routes are in `frontend/src/router.tsx`.
-
-*Headed for:* four places and Add (assessment, "Proposed structure").
+before that. A back link ("‹ Today", "‹ Closet", "‹ Wardrobe") goes back to the page you came
+from, where you left it; on a page opened straight from its address it opens the page it
+names. Back and Forward bring a page back to where you had scrolled it. The addresses of the
+places that were merged (`/missing`, `/missing/check`, `/missing/item/<id>`, `/insights`,
+and `/worn`, `/would-work`, `/wishlist`) open the place that holds them now and take its
+address. Routes are in `frontend/src/router.tsx`, the places and the moved addresses in
+`frontend/src/places.ts`.
 
 ## First run and login
 
 The first launch asks for a passphrase, then offers "Start with my own closet" or "Open the
-demo closet". After that every device logs in with the passphrase. If the computer cannot be
-reached, a screen says so and keeps trying; on a phone that has been used before, the saved
-closet is shown with an offline banner and nothing can be changed.
+demo closet", with one line saying that Settings, Phone, says how to use it from an iPhone.
+After that every device logs in with the passphrase. If the computer cannot be reached, a
+screen says so and keeps trying; on a phone that has been used before, the saved closet is
+shown with an offline banner and nothing can be changed.
 
 ## Today
 
 `/today`. The day's weather for the place saved in Settings, an occasion and a mood to
-choose, and outfits to swipe through, each drawn as worn (or laid out as pieces) with "Why
-this works" and, when there is something to watch for, "Be aware". The rules choose outfits
-at once; when Claude may choose, its outfits replace them when they arrive, and a card says
-it is choosing. "I'm wearing this" records the outfit and its wears. "Not this piece" swaps
-a piece out, and a piece can be chosen to build around. A note about the day ("In Lisbon
-until Friday") changes what is dressed for. Under the outfits you can write to Claude about
-them; it answers, may change the outfits, and may offer something to remember, which is kept
-only when you tap it, with Undo beside it once kept. In the evening, or the next day, Today asks how the outfit went.
-Tapping a piece opens it (`/today/item/<id>`).
+choose, and outfits to swipe through (or reach by the dots under them), each drawn as worn (or
+laid out as pieces) with "Why this works", which starts with who chose it and, for Claude's,
+its reading of the day, and, when there is something to watch for, "Be aware". The rules
+choose outfits at once; when Claude may choose, its outfits replace them when they arrive,
+and a card says it is choosing. "I'm wearing this" records the outfit and its wears. "Not
+this piece" swaps a piece out, and a piece can be chosen to build around; how is said once,
+under the outfits, behind "Changing an outfit". Change, beside the weather, opens where you
+are and today's temperatures, with "Somewhere else, or out all day?" folded under them: a
+note about the day ("In Lisbon until Friday") changes what is dressed for. Under the outfits
+you can write to Claude about them; it answers, may change the outfits, and may offer
+something to remember, which is kept only when you tap it, with Undo beside it once kept.
+
+Below that, when a trip starts within two weeks (or is under way), a "Packing for a trip?"
+row opens it. Then Recent outfits: in the evening, or the next day, it asks first how the
+outfit went; then the last outfits you wore (three on a phone, a week's worth on a
+computer), each with its pieces and how it went, rated in place, saying "Saving…" and
+"Saved" as it saves; "See all" opens Worn. The page ends with a link to Trips. Tapping a
+piece opens it (`/today/item/<id>`).
 
 Temperatures can be typed when the forecast cannot be fetched. The demo closet's outfits are
 the rules' alone; nothing about it is sent to Claude.
 
 ## Worn
 
-`/today/worn`, from the Worn button on Today. The outfits you wore, newest first, each with
-its pieces, how it went (a rating and a note), "Wearing again" and a way to put its pieces in
-the laundry. "Record an outfit" adds one by hand from pieces.
+`/today/worn`, from "See all" under Recent outfits; "‹ Today" goes back. The outfits you
+wore, newest first, each with its pieces, how it went (a rating and a note), and, behind ⋯,
+"Wear this again", a way to put its pieces in the laundry, and Remove. "Record an outfit"
+adds one by hand from pieces.
 
-*Headed for:* part of Today, as the last few outfits with "See all".
+## Trips
+
+`/trips`, `/trips/new`, `/trips/<id>`, from the link at the foot of Today or its trip row;
+"‹ Today" goes back from the list. Plan a trip: where, the first and last day, the
+occasion, and laundry on the trip. Closet shows the weather for the dates (the forecast
+where it reaches, otherwise what those dates are usually like), what to pack with how many
+days each piece is worn, basics, an outfit for each day, and "Why these counts". "Not this
+one" swaps a piece and "I want to take this" insists on one. A saved trip is a packing list
+to tick off, on the computer or the phone.
 
 ## Closet
 
 `/` (and `/archived`). A grid of your clothes with search, one Filter button (kind,
 category, group, laundry, and In use or Archived) whose choices stay visible as chips, and a
-switch between Photos and Drawings. A tile shows the piece's picture and name, and, while
+switch between Photos and Drawings. One line over the grid says what wants seeing to: "5 to
+check · 4 in the laundry". Each part shows only those pieces, as a chip that removes
+itself: "Needs a check" then offers "Check them one at a time" (the review), and "In the
+laundry" offers "All clean". A tile shows the piece's picture and name, and, while
 Closet is working on it, a small round mark with the step it is at (1 cutting out, 2
 describing and drawing, 3 finishing the drawing): turning while it is being done, dashed while
 it waits, a warning sign when a step failed. While anything is being worked on, one line,
 "Working on 3 items", floats above the grid and the tab bar; tapping it lists those pieces,
 each with what is happening to it, and says once why they wait when it is something you can
-see to in Settings. Notes at the top say how many pieces need a quick check and how many are
-in the laundry. On a computer, choosing a piece opens it
-in a panel beside the grid; on a phone it opens as its own page.
+see to in Settings. On a computer, choosing a piece opens it in a panel beside the grid; on a
+phone it opens as its own page.
 
 ## An item
 
@@ -110,9 +136,18 @@ figure say the same words while their part is under way.
 *Headed for:* one description of the piece's look from one source; one rating and one notes
 box (assessment, step 7).
 
+## Review
+
+`/review`, from "Check them one at a time" when the closet shows the pieces that need a
+check; "‹ Closet" goes back. After Claude describes a piece, only the details it was unsure
+of come here, one piece at a time: "That's right", pick the right value, or "Skip for now".
+On a computer with a mouse it also says which keys do the same; on a phone it does not.
+
 ## Add
 
-`/add`. One place for everything. Take photos with the camera on the page, choose them from
+`/add`. One place for everything. When the files that cut clothes out of photos are not set
+up, or did not download, a notice at the top says so (only here: new photos keep their
+background until they are in). Take photos with the camera on the page, choose them from
 the library, choose a folder, or drop them on the page. Closet asks Claude what each photo
 shows (one piece, several pieces, or a view of a shoe) and sorts them; a shoe's photos are
 gathered into one shoe. Photos are made smaller in the browser and sent two at a time; a
@@ -128,48 +163,38 @@ out, described and drawn in the background; you do not have to wait on this scre
 piece, you move, add, join or remove boxes (or draw them yourself), and each box becomes an
 item of its own.
 
-## Review
+## Wardrobe
 
-`/review`. After Claude describes a piece, only the details it was unsure of come here, one
-piece at a time: "That's right", pick the right value, or "Skip for now".
+`/wardrobe`. What to buy and how your clothes are used, on one page. **Worth buying**: what
+the closet lacks, found by rule from the clothes, the wears, where you live and how you live,
+the three most helpful first and "See all N" for the rest; each with why, what to look for,
+your pieces it is based on, "I'll look for this" (onto the wishlist) and "Not for me" (hide
+it, and optionally similar ones). "Based on…" opens How you live, the same questions as
+Settings; once the closet has enough to suggest from and they are not answered, "Tell it how
+you live" offers them. What holds suggestions back, the days you ruled out and what you hid
+are folded at the end of the section. **Thinking of buying something?**: Would this work?,
+and your wishlist, a row per wish that opens its page, with "Add by hand" (beside the rest on
+a computer). **Not worn**: pieces never worn and pieces not worn for a long time in their
+season, each to Archive or Keep. **Worn most**: over the last 30 or 90 days or all time.
+**More numbers**, folded: how wears are spread in each kind of clothing, what the closet is
+made of, and cost per wear for pieces with a price. A piece opens in the Wardrobe
+(`/wardrobe/item/<id>`; beside the page on a computer). Offline, it shows what it last found,
+marked as saved earlier.
 
-*Headed for:* a way of looking at the closet rather than a place of its own.
+## A wish
 
-## What's missing
-
-`/missing`. Two views. Suggestions: what the closet lacks, found by rule from the clothes,
-the wears, where you live and how you live, each with why, what it would be useful for, and
-"Not for me" (hide it, and optionally similar ones) or add it to the list. "How these
-suggestions work" and "What these suggestions are based on" explain them, and "Tell it how
-you live" opens the same questions as Settings. Wishlist: what you decided to look for,
-added from a suggestion or by hand, each with a note, "Find some" (Claude searches shops;
-each find is checked against the closet and its price can be checked again later), and "I
-bought it".
+`/wardrobe/wish/<id>`, from its row on the wishlist; "‹ Wardrobe" goes back. What to look
+for, a note (saved when you leave the box or tap Save note, saying "Saving…", "Saved" or
+"Didn't save" with Try again), the price range and "Find some" (Claude searches shops; each
+find is checked against the closet and its price can be checked again later), "I found one:
+would it work?", "I bought it" and Remove.
 
 ## Would this work?
 
-`/missing/check`, from What's missing or from a find. A piece you might buy, from a photo or
-described by hand, checked against the closet by rule: what it goes with, what it repeats,
-what it would fill, what would hold it back, when you would wear it, and example outfits.
-
-## Insights
-
-`/insights`, from the link at the top of the closet. How the closet is used over a period
-you choose: what is not worn, what is worn most, how wears are spread, what the closet is
-made up of, and cost per wear for pieces with a price.
-
-*Headed for:* one screen with What's missing.
-
-## Trips
-
-`/trips`, `/trips/new`, `/trips/<id>`. Plan a trip: where, the first and last day, the
-occasion, and laundry on the trip. Closet shows the weather for the dates (the forecast
-where it reaches, otherwise what those dates are usually like), what to pack with how many
-days each piece is worn, basics, an outfit for each day, and "Why these counts". "Not this
-one" swaps a piece and "I want to take this" insists on one. A saved trip is a packing list
-to tick off, on the computer or the phone.
-
-*Headed for:* reached from Today.
+`/wardrobe/check` (and `/wardrobe/check/wish/<id>` from a wish), from the Wardrobe;
+"‹ Wardrobe" goes back. A piece you might buy, from a photo or described by hand, checked
+against the closet by rule: what it goes with, what it repeats, what it would fill, what
+would hold it back, when you would wear it, and example outfits.
 
 ## Settings
 
@@ -227,7 +252,9 @@ back. Its code loads only when it is opened. In order:
 
 ## Things that work the same everywhere
 
-- **Saving.** Changes save as you make them; a toast says so or says what went wrong. A save
+- **Saving.** Changes save as you make them; a toast says so or says what went wrong, or,
+  beside a rating or a wish's note, a line saying "Saving…", "Saved" or "Didn't save" with
+  Try again. A save
   still waiting when the page closes is sent as it closes.
 - **Offline.** On a phone that cannot reach the computer, the saved closet, trips and
   suggestions are shown and nothing can be changed or added until it is back.
@@ -236,7 +263,7 @@ back. Its code loads only when it is opened. In order:
   to Claude.
 - **Background removal.** The two files that cut clothes out of photos download by
   themselves when Closet starts, and again after a failure (a minute later, ten minutes
-  later, then every hour). A notice on the closet says when they are missing or failed.
+  later, then every hour). A notice on Add says when they are missing or failed.
 - **When a screen fails.** It says so, with Try again and Reload Closet, and the tab bar
   stays so you can go elsewhere.
 - **Work in the background.** Cutting out, describing, measuring a pattern and drawing a

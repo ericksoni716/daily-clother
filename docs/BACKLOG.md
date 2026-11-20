@@ -14,6 +14,31 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Four places and shared components** (step 8 of the order of work, second part, 20 November).
+  Left:
+  - Reading load (the phone check's count at 393px, demo closet): Today about 500 words on the
+    page (its first screen is within budget; the reasons in "Why this works" and the
+    conversation make most of it), the Wardrobe about 470 (from about 720 for What's missing
+    plus 470 for Insights), a saved trip about 370. Settings, Add and the rest are within it.
+    The check warns but does not fail yet.
+  - Occasion and mood are still two rows of chips above the outfit; the assessment's one
+    compact control ("Casual · As usual ▾") is not done. "Tell Claude" is still a box under the
+    outfits, not a sheet over them.
+  - Item thumbnails: Today, Worn, Recent outfits, the Wardrobe and Would this work? use
+    `ItemThumb`, but at their own sizes (several classes); the closet's tiles and a trip's
+    pieces have their own markup. One size scale for thumbnails is not decided.
+  - Headers: Worn, Trips, Review, a wish and the Wardrobe use `PageHeader` with its back link;
+    the item pages under Today, the closet and the Wardrobe still have their own "‹ Place" row
+    (the item page was being rewritten at the same time, so it was left alone).
+  - `SaveStatus` is used for ratings and a wish's note only; the item page, Settings and the
+    trip's checklist still say saves in toasts. `Fold` could shorten Settings' groups (see
+    Settings regrouped, below) and Advanced.
+  - The "describe by hand" form of Would this work? is still the 67-control wall (assessment,
+    Would this work? 1); cost per wear and the price checks are parked one level down, not
+    removed, as asked.
+  - Trips is not in the sidebar on a computer either; if the owner misses it there, it is one
+    line in `NAV` in `Shell.tsx` and a decision to change.
+  - The wishlist never had an address of its own; `/wishlist` leads to the Wardrobe.
 - **Style through conversation** (first part of step 8 of the order of work, 20 November).
   Left:
   - Today does not ask the questions the stylist cannot infer yet (the assessment: at most one
@@ -24,7 +49,6 @@ only here); take a line out when it is done.
   - A line kept from the style conversation makes Today ask Claude again on its next open (as a
     change by hand does); it could move the day's answer instead, as a line kept on Today does.
   - Lines cannot be reordered except by Edit the text.
-  - The second half of step 8 (the four-place structure and shared components) is separate.
 - **Settings regrouped** (step 6 of the order of work, done 20 November). Left:
   - The main page is about 1,820px and 201 words on a 390px phone with the demo closet and
     no phone share (about 2.2 screens), down from about 6,100px and 1,105 words, not the 1.5
@@ -62,7 +86,7 @@ only here); take a line out when it is done.
     could become the query.
   - `TOUCHES.source` covers both moving a box in a photo of several pieces and adding the
     pieces, so Several marks keys stale by hand for a box change. Consider two kinds.
-  - What's missing still asks for its lists again when you come back from a check, because a
+  - The Wardrobe (was What's missing) still asks for its lists again when you come back from a check, because a
     browser test adds a wish behind the page's back and expects to see it.
   - The browser test `12-would-work` expects one wish, but the demo closet starts with two; it
     passes only because an earlier spec in the run removes them.

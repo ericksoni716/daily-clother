@@ -143,4 +143,5 @@ Low and medium risk, about 15 to 17 thousand lines and about 50 MB:
 6. **Settings regrouped**, with the Advanced screen (done; what is left over is in `docs/BACKLOG.md`).
 7. **The item page consolidated.** Merging the three stores that describe a garment is the
    one large job and needs the owner to choose the source of truth.
-8. **Style through conversation**, then the four-place structure and shared components.
+8. **Style through conversation**, then the four-place structure and shared components (done;
+   what is left over is in `docs/BACKLOG.md`).

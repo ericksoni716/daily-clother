@@ -63,7 +63,15 @@ cd bench && python -m pytest -q tests
 cd frontend && npm run lint && npm run typecheck && npm test && npm run build && npm run e2e
 ```
 
-The `ci` workflow runs the same checks on every pull request and must be green.
+The `ci` workflow runs the same checks on every pull request and must be green,
+with one difference: its backend jobs (Linux and Windows) leave out the tests
+marked `slow`, pure image tests that take seconds each. Its `slow` job runs them
+on Linux when the pull request touches the code they cover, and the `nightly`
+workflow runs every test on Linux and Windows each night. A plain
+`python -m pytest -q` runs them all, so run that before opening a pull request;
+`python -m pytest -q -n auto -m "not slow"` is the quick set while you work.
+When and how a test gets the marker: `docs/DEVELOPING.md`, "What deserves a
+test, and where".
 
 For a change to anything visible, also run `npm run phone-check` in `frontend/`
 after the build and look at the pictures it leaves in `frontend/phone-shots/`

@@ -57,6 +57,44 @@ export interface ItemSummary {
   drawn_state?: ShoeDrawn['state'];
   /** a short hash of the shoe's drawing for the outfit figure, which changes when it is drawn again; null without one */
   drawn_version?: string | null;
+  /** how far the work on it has got (see Progress); null when nothing is being done to it and nothing failed */
+  progress?: Progress | null;
+}
+
+/** How far the work on an item has got, worked out by the server (`backend/closet/progress.py`), in its words. */
+export interface Progress {
+  /** the part of the work: cutting out, describing (and drawing), measuring its pattern, tracing a shoe, sorting a
+   * shoe's photos into views, or a shoe drawn by Claude */
+  stage: 'cutout' | 'describing' | 'pattern' | 'trace' | 'views' | 'shoe';
+  /** which of the steps (cutting out, describing and drawing, finishing the drawing) */
+  step: 1 | 2 | 3;
+  of: number;
+  /** working: being done now; queued: next in line; waiting: held up by `waiting_for`; failed */
+  state: 'working' | 'queued' | 'waiting' | 'failed';
+  /** the step's name ("Cutting out") */
+  title: string;
+  /** what is happening now ("Claude is describing it") */
+  words: string;
+  /** where it runs and how long it usually takes */
+  about: string;
+  waiting_for: 'model' | 'download' | 'claude' | 'limit' | 'sign-in' | 'you' | null;
+  /** why it waits, as a sentence */
+  why: string | null;
+  /** why it failed */
+  error: string | null;
+  can_retry: boolean;
+  /** what trying again does: cut it out again, or ask Claude to describe it again */
+  retry: 'cutout' | 'describe' | null;
+}
+
+/** `GET /api/progress`: the items being worked on, oldest first. */
+export interface ProgressList {
+  items: (Pick<ItemSummary, 'id' | 'name' | 'category' | 'color' | 'status' | 'thumb_url'> & { progress: Progress })[];
+  /** how many are being worked on or next in line, and how many wait */
+  going: number;
+  waiting: number;
+  /** why items wait, when it is something you can see to (the monthly limit, signing in, background removal) */
+  why: string | null;
 }
 
 /** What a photo of a shoe shows: its outer or inner side, from above, the front (toe towards the camera), the back

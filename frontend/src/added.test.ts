@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { addedLine, addedState, byId, calledIt, itemIdOf, waitingReason } from './added';
-import type { ItemSummary } from './types';
+import { byId, itemIdOf, waitingReason } from './added';
+import type { ItemSummary, Progress } from './types';
 
 const item = (over: Partial<ItemSummary> = {}): ItemSummary => ({
   id: 'a', name: null, category: null, color: null, color_hex: null, pattern: null, location: 'closet', rating: null,
@@ -9,38 +9,9 @@ const item = (over: Partial<ItemSummary> = {}): ItemSummary => ({
   created_at: '2026-11-16T10:00:00Z', updated_at: '2026-11-16T10:00:00Z', ...over,
 });
 
-const REMOVING = 'Removing background…';
 const spendLimitSentence = "This month's spending limit for the API key has been reached.";
 
 describe('what Add shows about the item a photo became', () => {
-  it('follows the item from its background being removed to described, in the item page’s words', () => {
-    expect(addedLine(item({ cutout_state: 'pending', tag_state: 'none' }), REMOVING)).toBe(REMOVING);
-    expect(addedLine(item({ cutout_state: 'processing', tag_state: 'none' }), 'Waiting for the model')).toBe('Waiting for the model');
-    expect(addedLine(item({ tag_state: 'waiting' }), REMOVING)).toBe('Waiting to be described by Claude');
-    expect(addedLine(item({ tag_state: 'working' }), REMOVING)).toBe('Claude is describing it…');
-    expect(addedLine(item({ tag_state: 'done', name: 'Navy polo', category: 'polo', color: 'navy' }), REMOVING)).toBe('Navy polo');
-  });
-
-  it('says when describing or the cutout failed', () => {
-    expect(addedState(item({ tag_state: 'failed' }))).toBe('failed');
-    expect(addedLine(item({ tag_state: 'failed' }), REMOVING)).toBe("Claude couldn't describe this item");
-    expect(addedState(item({ cutout_state: 'failed', tag_state: 'none' }))).toBe('cutout-failed');
-    expect(addedLine(item({ cutout_state: 'failed', tag_state: 'none' }), REMOVING)).toBe("The background couldn't be removed");
-  });
-
-  it('names an item never to be described by what is known of it (the demo closet’s own photos, older items)', () => {
-    expect(addedState(item({ tag_state: 'none' }))).toBe('described');
-    expect(addedLine(item({ tag_state: 'none', name: 'Old jacket' }), REMOVING)).toBe('Old jacket');
-    expect(addedLine(item({ tag_state: 'none' }), REMOVING)).toBe('New item');
-  });
-
-  it('calls it by its name, else its category and colour', () => {
-    expect(calledIt({ name: 'Navy polo', category: 'polo', color: 'navy' })).toBe('Navy polo');
-    expect(calledIt({ name: null, category: 'polo', color: 'navy' })).toBe('Polo · Navy');
-    expect(calledIt({ name: null, category: 'jeans', color: null })).toBe('Jeans');
-    expect(calledIt({ name: '', category: null, color: null })).toBe('New item');
-  });
-
   it('knows which rows went in as one item: added, or already in the closet, but not a photo of several pieces', () => {
     const row = { status: 'done' as const, itemId: 'a', sourceId: null };
     expect(itemIdOf(row)).toBe('a');
@@ -52,11 +23,16 @@ describe('what Add shows about the item a photo became', () => {
     expect(itemIdOf({ ...row, itemId: null })).toBeNull();
   });
 
-  it('says once why the items wait, only when Closet knows', () => {
-    expect(waitingReason([item({ tag_state: 'waiting' }), null, undefined])).toBeNull();   // just waiting its turn
-    expect(waitingReason([item(), item({ tag_state: 'waiting', tag_error: spendLimitSentence })])).toBe(spendLimitSentence);
+  it('says once why the items wait, only when it is something you can see to in Settings', () => {
+    const waiting = (waiting_for: Progress['waiting_for'], why: string | null) =>
+      ({ stage: 'describing', step: 2, of: 3, state: 'waiting', title: '', words: '', about: '', waiting_for, why,
+        error: null, can_retry: false, retry: null }) as Progress;
+    expect(waitingReason([null, undefined])).toBeNull();
+    // Claude out of reach goes on by itself: nothing to see to
+    expect(waitingReason([waiting('claude', 'Claude can\'t be reached right now.')])).toBeNull();
+    expect(waitingReason([null, waiting('limit', spendLimitSentence)])).toBe(spendLimitSentence);
     // a failure's reason is the item's own, shown on its page, not a reason to wait
-    expect(waitingReason([item({ tag_state: 'failed', tag_error: 'Claude could not describe this item.' })])).toBeNull();
+    expect(waitingReason([{ ...waiting(null, null), state: 'failed', error: 'Claude could not describe this item.' }])).toBeNull();
   });
 
   it('finds an item in the closet’s lists, the later list winning', () => {

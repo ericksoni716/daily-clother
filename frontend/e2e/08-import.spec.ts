@@ -58,7 +58,7 @@ test('importing several photos: each goes in once, and a photo already in the cl
   const rows = page.getByTestId('queue-row');
   await expect(rows).toHaveCount(3);
   for (const f of three) {
-    await expect(rows.filter({ hasText: f }).getByTestId('queue-status')).toHaveText('Added', { timeout: 30_000 });
+    await expect(rows.filter({ hasText: f }).getByTestId('queue-item')).toBeVisible({ timeout: 30_000 });
   }
   await expect(page.getByTestId('queue-summary')).toHaveText('3 added');
   expect(await itemCount(page)).toBe(before + 3);
@@ -97,7 +97,7 @@ test('an import cut short by closing the page is carried on without adding anyth
   const pair = [`${PHOTOS}graphic-tee.jpg`, `${PHOTOS}sneaker-held.jpg`];
   await page.getByTestId('library-input').setInputFiles(pair);
   const rows = page.getByTestId('queue-row');
-  await expect(rows.filter({ hasText: 'graphic-tee' }).getByTestId('queue-status')).toHaveText('Added', { timeout: 30_000 });
+  await expect(rows.filter({ hasText: 'graphic-tee' }).getByTestId('queue-item')).toBeVisible({ timeout: 30_000 });
   await expect(rows.filter({ hasText: 'sneaker-held' }).getByTestId('queue-status')).toHaveText('Uploading');
 
   // Reload while the upload is still held, as closing the tab would end it. Removing the route first
@@ -111,7 +111,7 @@ test('an import cut short by closing the page is carried on without adding anyth
   // choosing both again: each row keeps its first upload key, so the one that went in is not added twice
   await page.getByTestId('library-input').setInputFiles(pair);
   for (const name of ['graphic-tee', 'sneaker-held']) {
-    await expect(rows.filter({ hasText: name }).getByTestId('queue-status')).toHaveText('Added', { timeout: 30_000 });
+    await expect(rows.filter({ hasText: name }).getByTestId('queue-item')).toBeVisible({ timeout: 30_000 });
   }
   await expect(resume).toHaveCount(0);
   await expect(page.getByTestId('queue-summary')).toHaveText('2 added');
@@ -120,6 +120,11 @@ test('an import cut short by closing the page is carried on without adding anyth
 
 /** Answers the closet's list with some of its items changed, for a picture of states that pass too quickly to catch. It
  * is routed on the browser, so the service worker's requests are answered the same way. */
+// two rows as the server says them while Claude works through a batch (backend/closet/progress.py)
+const DESCRIBING = { stage: 'describing', step: 2, of: 3, state: 'working', title: 'Describing and drawing', words: 'Claude is describing it',
+  about: 'By Claude, usually within a minute.', waiting_for: null, why: null, error: null, can_retry: false, retry: null };
+const NEXT = { ...DESCRIBING, state: 'queued', words: 'Waiting its turn with Claude' };
+
 async function answerTheList(context: BrowserContext, changes: Record<string, Record<string, unknown>>) {
   await context.route((url) => url.pathname === '/api/items' && url.searchParams.get('status') === 'active', async (route) => {
     const res = await route.fetch();
@@ -175,12 +180,12 @@ test.describe('the import list shows what each photo became', () => {
       const rows = page.getByTestId('queue-row');
       await expect(rows).toHaveCount(4);
 
-      // once added, each row shows the item: its cut-out, and what Claude called it once it is described; the file's
-      // name stays, small, beside "Added"
+      // once added, each row shows the item instead of the upload (never both): its cut-out, and what Claude called it
+      // once it is described; the file's name stays, small, below
       for (const name of names) {
         const row = rows.filter({ hasText: name });
         await expect(row.getByTestId('queue-title')).toHaveText('Navy polo', { timeout: 60_000 });
-        await expect(row.getByTestId('queue-status')).toHaveText('Added');
+        await expect(row.getByTestId('queue-status')).toHaveCount(0);
         await expect(row.locator('.queue-file')).toHaveText(name);
         await expect(row.locator('.queue-thumb img')).toHaveAttribute('src', /\.cut\.t\.webp$/);
       }
@@ -227,13 +232,13 @@ test.describe('the import list shows what each photo became', () => {
       await answerTheList(context, {
         [await idOf('navy-tee.png')]: { name: 'Navy crew-neck tee', category: 'tee' },
         [await idOf('grey-sweater.png')]: { name: 'Grey wool sweater', category: 'sweater', color: 'grey' },
-        [await idOf('olive-trousers.png')]: { name: null, category: null, color: null, tag_state: 'working' },
-        [await idOf('white-shirt.png')]: { name: null, category: null, color: null, tag_state: 'waiting' },
+        [await idOf('olive-trousers.png')]: { name: null, category: null, color: null, tag_state: 'working', progress: DESCRIBING },
+        [await idOf('white-shirt.png')]: { name: null, category: null, color: null, tag_state: 'waiting', progress: NEXT },
       });
       await page.reload();
       await expect(rows.filter({ hasText: 'navy-tee.png' }).getByTestId('queue-title')).toHaveText('Navy crew-neck tee');
-      await expect(rows.filter({ hasText: 'olive-trousers.png' }).getByTestId('queue-title')).toHaveText('Claude is describing it…');
-      await expect(rows.filter({ hasText: 'white-shirt.png' }).getByTestId('queue-title')).toHaveText('Waiting to be described by Claude');
+      await expect(rows.filter({ hasText: 'olive-trousers.png' }).getByTestId('queue-title')).toHaveText('Claude is describing it');
+      await expect(rows.filter({ hasText: 'white-shirt.png' }).getByTestId('queue-title')).toHaveText('Waiting its turn with Claude');
       await page.locator('.queue-done').evaluate((el) => el.scrollIntoView({ block: 'center' }));   // the list and its buttons, above the bar
       expect(await sideways(page)).toEqual([]);
       expect(await axeViolations(page, '.queue')).toEqual([]);
@@ -263,10 +268,10 @@ test.describe('the import list shows what each photo became', () => {
       // for the picture, the names Claude would give them, and the second still being described
       await answerTheList(context, {
         [ids[0]]: { name: 'Brown wool sweater', category: 'sweater', color: 'brown' },
-        [ids[1]]: { name: null, category: null, color: null, tag_state: 'working' },
+        [ids[1]]: { name: null, category: null, color: null, tag_state: 'working', progress: DESCRIBING },
       });
       await page.reload();
-      await expect(rows.filter({ hasText: 'tan-chinos.png' }).getByTestId('queue-title')).toHaveText('Claude is describing it…');
+      await expect(rows.filter({ hasText: 'tan-chinos.png' }).getByTestId('queue-title')).toHaveText('Claude is describing it');
       for (const row of await rows.all()) expect((await row.boundingBox())!.height).toBeLessThanOrEqual(70);
       await page.locator('.queue').scrollIntoViewIfNeeded();
       await page.screenshot({ path: test.info().outputPath('add-import-computer.png') });

@@ -1,0 +1,64 @@
+/* ---------------------------------------------------------------- the work on an item (progress.ts) */
+
+/* the strip, laid over the bottom of the item's picture: nothing moves when it comes and goes */
+.progress-strip {
+  position: absolute; left: var(--space-3); right: var(--space-3); bottom: var(--space-3); z-index: 1;
+  display: flex; flex-direction: column; gap: 2px; padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md); background: var(--card-veil); color: var(--card-ink); box-shadow: var(--shadow-lift);
+  font-size: var(--text-sm); line-height: 1.3;
+}
+.progress-strip p { margin: 0; }
+.progress-strip-head { display: flex; align-items: center; gap: var(--space-2); }
+.progress-step { font-size: var(--text-xs); font-weight: var(--weight-label); color: var(--card-ink-2); }
+.progress-words { font-weight: var(--weight-label); }
+.progress-note { font-size: var(--text-xs); color: var(--card-ink-2); }
+.progress-note a { color: var(--card-accent); }
+.progress-dots { display: inline-flex; gap: var(--space-1); }
+.progress-dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--card-accent); }
+.progress-dot.is-done { background: var(--card-accent); }
+.progress-dot.is-now { background: var(--card-accent); animation: progress-beat 1.6s var(--ease-out) infinite; }
+.progress-strip.is-waiting .progress-dot.is-now, .progress-strip.is-queued .progress-dot.is-now { animation: none; background: none; border-style: dashed; }
+.progress-dot.is-later { border-color: var(--card-faint); }
+@keyframes progress-beat { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .progress-dot.is-now { animation: none; } }
+
+/* the step's mark: on a closet tile, and before a row's words on Add and in the list of work under way */
+.step-mark {
+  position: relative; display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 50%;
+  background: var(--card-veil); color: var(--card-accent); box-shadow: var(--shadow-lift);
+  font-size: var(--text-xs); font-weight: var(--weight-heading); line-height: 1;
+}
+.step-mark::before { content: ''; position: absolute; inset: 3px; border-radius: 50%; border: 2px solid currentColor; }
+.step-mark.is-working::before { border-right-color: transparent; animation: spin 0.9s linear infinite; }
+.step-mark.is-waiting { color: var(--card-ink-2); }
+.step-mark.is-waiting::before { border-style: dashed; }
+.step-mark.is-failed { color: var(--card-warn); }
+.step-mark.is-failed::before { display: none; }
+.step-mark svg { width: 16px; height: 16px; }
+.step-mark.is-small { width: 22px; height: 22px; box-shadow: none; background: none; color: var(--accent); }
+.step-mark.is-small::before { inset: 2px; }
+.step-mark.is-small.is-waiting { color: var(--ink-3); }
+.step-mark.is-small.is-failed { color: var(--danger); }
+.tile-card .step-mark { position: absolute; left: var(--space-2); bottom: var(--space-2); }
+
+/* "Working on 3 items": floats above the closet grid and the tab bar, so it moves nothing when it comes and goes */
+.working-float {
+  position: fixed; left: 0; right: 0; z-index: 30; display: flex; justify-content: center; pointer-events: none;
+  bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--space-3));
+}
+@media (min-width: 1000px) { .working-float { left: var(--sidebar-w); bottom: var(--space-6); } }
+.working-pill {
+  pointer-events: auto; display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--tap);
+  padding: 0 var(--space-4); border-radius: var(--radius-pill); border: 1px solid var(--line);
+  background: var(--surface-raised); color: var(--ink); box-shadow: var(--shadow-pop);
+  font: inherit; font-size: var(--text-sm); font-weight: var(--weight-label); cursor: pointer;
+}
+.working-pill .spinner { color: var(--accent); }
+.working-wait { width: 12px; height: 12px; border-radius: 50%; border: 2px dashed var(--ink-3); }
+.working-float .sheet { pointer-events: auto; text-align: left; }
+.working-sheet.sheet-popover { top: auto; bottom: calc(100% + var(--space-2)); left: 50%; translate: -50% 0; }
+.working-list { margin-top: var(--space-2); }
+/* the toasts rise above the line while it shows, and the grid's end leaves room for it */
+body:has(.working-float) .toasts { bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + var(--space-3) + var(--tap) + var(--space-2)); }
+@media (min-width: 1000px) { body:has(.working-float) .toasts { bottom: calc(var(--space-6) + var(--tap) + var(--space-2)); } }
+body:has(.working-float) .closet-main { padding-bottom: calc(var(--tap) + var(--space-5)); }

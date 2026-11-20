@@ -42,6 +42,11 @@ API route asks `conftest.FakeApi`, which answers the same. Changing a drawing fr
 too: whatever the note, after a second each, the dress shoe comes back with black laces (`conftest.correct_answer`),
 said to go against the photos, and the first check says it is good.
 
+With CLOSET_E2E_STAGES=1 (and the stand-ins) each step of the work on a new item takes long enough to be watched one
+at a time, as the owner would see it with the real model and Claude: the cutout takes 4 seconds, describing 4 seconds
+(and the answer is a plaid polo, so its pattern is measured next), and measuring the pattern 4 seconds, after which
+it is not found (the drawing stays in the item's colour, and the page says so).
+
 With CLOSET_E2E_TAG_FAILS=N the first N descriptions fail with a reason Closet does not recognise, which quotes
 something shaped like a key and a file outside Closet's folder (both made up), so the page can show a failed item.
 
@@ -90,15 +95,28 @@ _real_build = app.build_services
 
 
 _failing = {"left": int(os.environ.get("CLOSET_E2E_TAG_FAILS") or 0)}
+STAGE_SECONDS = 4 if os.environ.get("CLOSET_E2E_STAGES") else 0   # each step long enough to watch (see above)
 
 
 def fake_claude(images, routes):
-    time.sleep(1)   # long enough for the page to show it being described
+    time.sleep(STAGE_SECONDS or 1)   # long enough for the page to show it being described
     if _failing["left"] > 0:
         _failing["left"] -= 1
         raise TaggingError("the stand-in was told to fail: key sk-ant-api03-" + "Zz9" * 12
                            + " refused, see /home/someone/.claude/session.json")
-    return TagResult(ANSWER, "fake-claude", 0.0, 0, 0, 0.0, 1, route=routes[0])
+    answer = ANSWER.model_copy(update={"pattern": "plaid"}) if STAGE_SECONDS else ANSWER
+    return TagResult(answer, "fake-claude", 0.0, 0, 0, 0.0, 1, route=routes[0])
+
+
+def slow_cutter(img):
+    time.sleep(STAGE_SECONDS)
+    return fake_cutter(img)
+
+
+def slow_measurer(cut, how, words, marks, **extra):
+    """Measuring a pattern, as long as the other steps, finding nothing."""
+    time.sleep(STAGE_SECONDS)
+    return None
 
 
 def fake_finder(photo, routes):
@@ -339,9 +357,11 @@ def _build_services(cfg, **kwargs):
     else:
         reader = FakeClaude()
         reader.mode = "answers"
-        sv = _real_build(cfg, cutter=fake_cutter, tagger=fake_claude, routes=lambda: ("plan",), corrector=reader.correct,
-                         finder=fake_finder, sorter=fake_sorter, drawer=fake_drawer,
-                         drawing_corrector=fake_drawing_corrector, **kwargs)
+        if STAGE_SECONDS:
+            kwargs.setdefault("measurer", slow_measurer)
+        sv = _real_build(cfg, cutter=slow_cutter if STAGE_SECONDS else fake_cutter, tagger=fake_claude,
+                         routes=lambda: ("plan",), corrector=reader.correct, finder=fake_finder, sorter=fake_sorter,
+                         drawer=fake_drawer, drawing_corrector=fake_drawing_corrector, **kwargs)
     sv.worker.is_ready = lambda: True
     return sv
 

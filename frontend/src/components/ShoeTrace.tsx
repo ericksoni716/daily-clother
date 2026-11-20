@@ -19,12 +19,11 @@ export function RetakeButton({ primary = false, ...props }: Props & { primary?: 
   return <Retake {...props} primary={primary} said={SHOE_RETAKEN} />;
 }
 
-/** The item page's line about a shoe's trace: while it is traced, or why it is drawn from its details, with a
- * chance to retake the photo. */
+/** The item page's line about a shoe's trace once it is done: why it is drawn from its details, with a chance to
+ * retake the photo. While it is traced, the strip on the picture says so. */
 export function TraceNotice(props: Props) {
   const said = traceNotice(props.item.trace);
   if (!said) return null;
-  if (said.tone === 'info') return <p className="notice" role="status" data-testid="shoe-tracing">{said.text}</p>;
   return (
     <div className="notice notice-warn" data-testid="shoe-fallback">
       <WarnIcon />

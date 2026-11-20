@@ -4,6 +4,7 @@ import { queryKeys, touched, TOUCHES, type KeyName } from './queryKeys';
 // One call of each key function, with made-up arguments.
 const SAMPLE: { [K in KeyName]: () => readonly unknown[] } = {
   items: () => queryKeys.items('active'),
+  progress: () => queryKeys.progress(),
   item: () => queryKeys.item('i1'),
   itemDetails: () => queryKeys.itemDetails('i1', 'collar'),
   history: () => queryKeys.history('i1'),

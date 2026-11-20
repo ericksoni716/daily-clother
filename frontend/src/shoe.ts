@@ -1,9 +1,9 @@
 import type { Item, Photo, ShoeDrawn, ShoeTrace, ShoeView, ShoeViews } from './types';
 
-/** What the item page says about a shoe's trace: while it is traced, or why it is drawn from its details. */
-export function traceNotice(trace: ShoeTrace | null | undefined): { tone: 'info' | 'warn'; text: string; retake: boolean } | null {
+/** What the item page says about a shoe's trace once it is done: why it is drawn from its details, with a retake.
+ * While it is traced the item's progress says so (progress.ts). */
+export function traceNotice(trace: ShoeTrace | null | undefined): { tone: 'warn'; text: string; retake: boolean } | null {
   if (!trace?.message) return null;
-  if (trace.state === 'waiting' || trace.state === 'working') return { tone: 'info', text: trace.message, retake: false };
   if (trace.state === 'refused' || trace.state === 'failed') return { tone: 'warn', text: trace.message, retake: true };
   return null;
 }

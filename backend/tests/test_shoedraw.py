@@ -529,8 +529,8 @@ def test_drawing_goes_through_the_api_key_and_its_monthly_limit(cfg, cut_clock):
         # what the cache wrote and read is counted at its own price, in the drawing's cost and in the month's spend
         one = spend.cost_usd(SD.MODEL, 20_000, 5_000, cache_write=1_000, cache_read=4_000)
         assert one == pytest.approx(spend.cost_usd(SD.MODEL, 20_000, 5_000) + (1_000 * 4.00 * 1.25 + 4_000 * 0.20) / 1e6)
-        # each check says good and stops being read there: its output is estimated from its time
-        cut = SD.CANDIDATES + SD.TURNS
+        # each check says good and stops being read there, the side's too: its output is estimated from its time
+        cut = SD.CANDIDATES + SD.TURNS + 1
         short = spend.cost_usd(SD.MODEL, 20_000, CUT, cache_write=1_000, cache_read=4_000)
         assert [s["whole"] for s in api.streams].count(False) == cut
         assert got["cost_usd"] == pytest.approx((calls - cut) * one + cut * short)

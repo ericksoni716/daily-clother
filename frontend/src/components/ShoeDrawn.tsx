@@ -1,7 +1,7 @@
 import { useId, useState } from 'react';
 import { api, ApiError } from '../api';
 import {
-  backLabel, canCorrect, changedLine, DRAWN_DEMO, drawingShoe, drawnLine, drawnOffer, drawQuestion, NOTE_MAX,
+  backLabel, canCorrect, changedLine, DRAWN_DEMO, drawingShoe, drawnLine, drawnOffer, drawQuestion, NOTE_MAX, sideLine,
 } from '../shoe';
 import { partWords } from '../progress';
 import { useItemProgress } from '../queries';
@@ -19,7 +19,8 @@ interface Props {
   onError(message: string): void;
 }
 
-/** "Drawn for the outfit figure" on a shoe's page: the drawing Claude made from its photos, on two legs, with how long
+/** "Drawn by Claude from its photos" on a shoe's page: the shoe from its side, as the closet shows it, with what makes
+ * it itself from the side, and the drawing for the outfit figure, on two legs, with how long
  * it took, how often it was checked against the photos and what it cost; what is happening while it is drawn; and
  * "Draw again", which asks first (it replaces the drawing once the new one is done, and costs something). Once it has a
  * drawing, a one-line box says what is wrong with it: Claude changes only that, checks the change against the photos
@@ -37,6 +38,7 @@ export function ShoeDrawn({ item, disabled, demo, onSaved, onError }: Props) {
   if (!drawn) return null;
   const offer = drawnOffer(item, demo);
   const line = drawnLine(drawn);
+  const sideSaid = sideLine(drawn);
   const changed = changedLine(drawn);
   const swapLabel = backLabel(drawn);
   const run = async (call: () => Promise<Item>, saidAs: string, after?: () => void) => {
@@ -60,11 +62,20 @@ export function ShoeDrawn({ item, disabled, demo, onSaved, onError }: Props) {
   const message = demo && !drawn.url ? DRAWN_DEMO : partWords(progress, 'shoe', drawn.correcting ? drawn.note : null) ?? drawn.message;
   return (
     <section className="shoe-drawn" aria-labelledby={titleId} data-testid="shoe-drawn">
-      <h3 className="chip-group-title" id={titleId}>Drawn for the outfit figure</h3>
-      {drawn.url && (
-        <img className="shoe-drawn-picture" src={drawn.url} width={440} height={400}
-          alt="The shoe as Claude drew it from its photos, on two legs, as the outfit figure will wear it" />
+      <h3 className="chip-group-title" id={titleId}>Drawn by Claude from its photos</h3>
+      {(drawn.url || drawn.side) && (
+        <div className={`shoe-drawn-pictures${drawn.url && drawn.side ? ' is-two' : ''}`}>
+          {drawn.side && (
+            <img className="shoe-drawn-picture shoe-drawn-side" src={drawn.side.url} width={400} height={460}
+              alt="The shoe from the side, drawn by Claude for the closet" />
+          )}
+          {drawn.url && (
+            <img className="shoe-drawn-picture" src={drawn.url} width={440} height={400}
+              alt="The shoe as Claude drew it from its photos, on two legs, as the outfit figure will wear it" />
+          )}
+        </div>
       )}
+      {sideSaid && <p className="muted small" data-testid="shoe-drawn-side">{sideSaid}</p>}
       {line && <p className="muted small" data-testid="shoe-drawn-line">{line}</p>}
       {changed && <p className="small" data-testid="shoe-drawn-changed">{changed}</p>}
       {changed && drawn.against_photos && (

@@ -24,6 +24,12 @@ describing an item (`correcting.ask`, purpose `draw_shoe`), on the model of the 
    say in one plain sentence when the note asks for something the photos do not show (`against_photos`): it is
    drawn as asked all the same. A drawing kept as version 1 (all in front of the leg) comes back as version 2.
 
+4. **The side** (`draw_side`, and beside the turns in `draw`): the shoe drawn exactly side-on, toe to the left, on the
+   templates' card, as the item's own drawing (the closet tile, the item page): one draw call and at most two checks,
+   with the front drawing's sheet so both agree, the app's plain template drawings as examples of the style only,
+   proportions written down from the side photo before drawing (or measured from the shoe's trace and checked:
+   `closet/drawing/drawnside.py`), and a short list of what makes the shoe itself from the side.
+
 Every drawing is made safe (`drawn.sanitise`) before it is rendered, checked or kept. A check call that fails keeps
 the drawing made so far: it was paid for, and it is still a drawing of the shoe. The owner's notes are passed to a
 later drawing from scratch ("Draw again") and to its checks, so they are not lost. The brief below is the
@@ -36,6 +42,7 @@ import io
 import json
 import logging
 import re
+import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
@@ -44,7 +51,7 @@ from typing import Literal
 from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..drawing import drawn, photocheck, turned
+from ..drawing import drawn, drawnside, photocheck, turned
 from . import correcting
 from .tagging import CONFIG, Meter, RouteUnavailable, TaggingError, cost_usd
 from .views import shown
@@ -59,6 +66,9 @@ MAX_ROUNDS = 3         # check calls at most, after a drawing (straight on, or t
 CANDIDATES = 2         # straight-on drawings made side by side, of which the judge keeps one (the owner's choice
                        # over three, 17 November 2026: see DECISIONS.md)
 TURNS = 2              # turns of the kept drawing made side by side, of which the judge keeps one
+CALLS_AT_ONCE = 2      # calls one drawing makes at the same time, the side's included: two, as before the side, so two
+                       # shoes drawn at once (`shoedraw.AT_ONCE`) never run more than four Claude Code processes on the
+                       # plan (see DECISIONS.md, "A shoe's side drawn by Claude")
 FIX_NOTE_MAX = 900     # the judge's faults on the kept turn, given back as a note to fix
 MAX_CORRECT_ROUNDS = 2 # check calls at most, after a correction from the owner's note
 NOTE_MAX = 200         # the owner's note on a drawing, in characters
@@ -719,6 +729,7 @@ class Drawn:
     view: str = drawn.FRONT.name           # "turned": drawn turned out, as the figure shows it
     style: str | None = None              # the 3D solid it was turned with (`turned.STYLES`)
     straight: dict | None = None          # the straight-on drawing it was turned from: {left, right, sheet}
+    side: Sided | None = None             # the shoe drawn from its side (`draw_side`), when it could be made
 
     @property
     def route(self) -> str:
@@ -733,7 +744,8 @@ class Drawn:
     def to_json(self, photo_ids: list[str], made_at: str, notes: Sequence[Mapping] = ()) -> dict:
         """As kept with the item (`items.drawn`): version 3, its view, each shoe {behind, front}. `notes`: the owner's notes on
         the drawing it replaces (`notes_of`), carried on so a later drawing keeps to them; they are also the sheet's
-        `owner_notes`."""
+        `owner_notes`. `side`: the side drawing made with it (`Sided.to_json`), or None; its calls are among `calls` and
+        in the totals."""
         notes = [dict(n) for n in notes]
         sheet = {**self.sheet, "owner_notes": [n["note"] for n in notes]} if notes else self.sheet
         return {"version": drawn.VERSION, "view": self.view, "style": self.style, "straight": self.straight,
@@ -743,7 +755,7 @@ class Drawn:
                 "calls": [{**asdict(c), "cost_usd": round(c.cost_usd, 6), "seconds": round(c.seconds, 1)}
                           for c in self.calls],
                 **self.totals(), "route": self.route, "made_at": made_at, "photo_ids": list(photo_ids),
-                "notes": notes}
+                "notes": notes, "side": self.side.to_json(made_at) if self.side else None}
 
 
 @dataclass
@@ -1101,7 +1113,8 @@ def draw_straight(photos: list[Photo], routes: tuple[str, ...], client=None, exe
 
 def draw(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | None = None,
          meter: Meter | None = None, asker: Asker = correcting.ask, clock: Callable[[], float] = time.monotonic,
-         notes: Sequence[str] = (), style: str | None = None, mask_of: photocheck.MaskOf | None = None) -> Drawn:
+         notes: Sequence[str] = (), style: str | None = None, mask_of: photocheck.MaskOf | None = None,
+         measures=None, side: bool = True) -> Drawn:
     """Draw the shoe from its photos (the main one first) as the figure shows it, turned out `turned.TURN` degrees.
 
     1. The photos are cut to the shoe (`photocheck.crop`, with the app's background model `mask_of` when there is
@@ -1110,6 +1123,10 @@ def draw(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | N
        check, `photocheck.FrontCheck`, where it applies), and the judge keeps the one most faithful to the photos.
     3. TURNS turns of it are made side by side (`_turn`), and the judge keeps the best; its faults are given back as a
        note to fix (`_correcting`), and the fixed turn is kept only when the judge prefers it.
+    4. At the same time as the turns, the shoe is drawn from its side (`_side`, with the chosen straight-on drawing's
+       sheet, and `measures` from its trace when it has one), unless `side` is False. Its calls and the turns' share
+       the drawing's `CALLS_AT_ONCE` places (`_limited`), so the drawing never has more than two calls under way. A side that fails, for whatever
+       reason, is left out (`Drawn.side` None): it never costs the front drawing.
 
     `style`: the item's shoe style, from its description (`style_of` reads the sheet when there is none); a sandal is
     kept straight on. `notes`: the owner's notes on earlier drawings of the shoe, kept to throughout. Raises
@@ -1123,7 +1140,8 @@ def draw(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | N
     shots = [shown(p.image) for p in photos]
     names = photo_names(len(photos))
     calls: list[Call] = []
-    ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_photos=len(shots))
+    slots = threading.BoundedSemaphore(CALLS_AT_ONCE)
+    ask = _limited(_caller(routes, client, exe, meter, asker, clock, calls, cache_photos=len(shots)), slots)
     notes = list(notes)
 
     made, failed = _parallel(CANDIDATES, lambda i: _straight(ask, photos, shots, names, notes, style, front))
@@ -1134,7 +1152,34 @@ def draw(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | N
                   allowed=_measured_clean(cands))
     straight = cands[i]
     rounds = sum(c.rounds for c in cands)
+    side_calls: list[Call] = []
+    wait_side = (_side_job(_limited(_caller(routes, client, exe, meter, asker, clock, side_calls,
+                                            cache_photos=len(shots)), slots), side_calls, photos, shots, names, straight.sheet, notes, measures, clock)
+                 if side else (lambda: None))
+    try:
+        made = _turned_or_straight(ask, photos, shots, names, notes, style, straight, rounds, start, clock, calls)
+    finally:
+        made_side = wait_side()   # also when the turns raised: the side's thread is never left running
+        calls.extend(side_calls)   # paid for, kept or not
+    made.side = made_side
+    made.seconds = clock() - start
+    return made
 
+
+def _limited(ask, slots: threading.BoundedSemaphore):
+    """`ask`, made to wait for one of a drawing's `CALLS_AT_ONCE` places before each call: the turns and the side then
+    share two places, as the turns alone had them."""
+    def limited(*args, **kwargs):
+        with slots:
+            return ask(*args, **kwargs)
+    return limited
+
+
+def _turned_or_straight(ask, photos: list[Photo], shots: list[Image.Image], names: list[str], notes: list[str],
+                        style: str | None, straight: _Checked, rounds: int, start: float, clock, calls: list[Call]
+                        ) -> Drawn:
+    """`draw`'s step 3: the chosen straight-on drawing turned out and judged, or kept straight on (a sandal, a drawing
+    too long to turn, turns that all failed). Raises `RouteUnavailable` when no turn could reach Claude."""
     kind = style_of(straight.sheet, style)
     if kind is None:   # a sandal: kept straight on
         return Drawn(straight.left, straight.right, straight.sheet, rounds, clock() - start, calls, straight.good,
@@ -1211,3 +1256,304 @@ def correct(photos: list[Photo], kept: Mapping, note: str, routes: tuple[str, ..
     return Corrected(done.left, done.right, done.sheet, done.rounds, clock() - start, calls, done.good, done.problems,
                      view=view.name, style=style, straight=kept.get("straight") if view is drawn.TURNED else None,
                      note=note, changed=_sentence(first.changed), against_photos=against)
+
+
+# ------------------------------------------------------------------ the side (the item's own drawing)
+#
+# The shoe drawn from its side, as the closet tile, the Wardrobe's Drawings view and the item page show it, on the
+# templates' card (`closet/drawing/drawnside.py`): one draw call and at most two check calls, through the same routes,
+# model, effort, purpose and monthly limit as the front. It is drawn with the front drawing's sheet, so the two agree,
+# and, when the shoe has a finished trace, with its proportions measured from the side photo (`drawnside.Measures`).
+
+MAX_SIDE_ROUNDS = 2   # check calls at most, after a side drawing
+FEATURES_MAX = 6      # what makes the shoe itself from the side, as kept and shown
+FEATURE_MAX = 120     # one of them, in characters
+SIDE_STYLE_NAMES = ["style-sneaker.png", "style-boot.png"]
+
+
+class SideProportions(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    sole_heel: float = Field(ge=0, le=0.6, description="The sole's thickness under the heel, as a share of the shoe's "
+                                                       "length (toe tip to back of heel).")
+    sole_toe: float = Field(ge=0, le=0.6, description="The sole's thickness under the toe, as a share of the length.")
+    toe_box: float = Field(ge=0, le=1.5, description="The upper's top above the ground at the toe box, 15% of the "
+                                                     "length back from the toe tip, as a share of the length.")
+    throat: float = Field(ge=0, le=1.5, description="The top above the ground at the throat, where the lacing or the "
+                                                    "vamp meets the opening, as a share of the length.")
+    collar_dip: float = Field(ge=0, le=1.5, description="The top above the ground at the collar's lowest point, as a "
+                                                        "share of the length.")
+    heel: float = Field(ge=0, le=1.5, description="The top above the ground at the heel (the collar's back, or a "
+                                                  "boot's shaft), as a share of the length.")
+
+
+class SideAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    kind: str = Field(description="The most specific kind of shoe a footwear designer would call it.")
+    proportions: SideProportions = Field(description="Read from the side photo before drawing, its perspective "
+                                                     "corrected (or the measures given, when there are any).")
+    colours: list[Colour] = Field(min_length=2, max_length=6, description="The shoe's 2 to 6 true colours.")
+    features: list[str] = Field(min_length=2, max_length=FEATURES_MAX,
+                                description="What makes THIS shoe itself from the side and not just any shoe of its "
+                                            "kind, one short plain line each, such as 'perforated toe box' or 'orange "
+                                            "mark sweeping from the heel to under the lacing'.")
+    svg: str = Field(description="The drawing: bare SVG elements in the frame, nothing around them.")
+
+
+class SideCheckAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    good: bool = Field(description="True only when the drawing is right as it is and no automatic problem is left.")
+    problems: list[str] = Field(description="What was wrong and is fixed in this answer, in short plain sentences; "
+                                            "empty when good.")
+    features: list[str] = Field(min_length=2, max_length=FEATURES_MAX,
+                                description="What makes this shoe itself from the side, one short plain line each "
+                                            "(the same when nothing about them changed).")
+    svg: str = Field(description="The drawing as it should be (the same drawing when good): bare SVG elements.")
+
+
+SIDE_BRIEF = f"""## The frame
+- The drawing is bare SVG elements (no <svg> around them) on a card 400 wide and 460 tall. The app paints the card behind it: draw no background.
+- The shoe is seen exactly side-on and level, its OUTER side towards you, the toe pointing LEFT, standing on the ground line y = {drawnside.GROUND:g} (the sole's lowest point).
+- The toe tip is at x = {drawnside.TOE_X:g} and the back of the heel at x = {drawnside.HEEL_X:g}, whatever the photo's angle or direction: when the toe points right in the photo, draw it mirrored.
+- The shoe's length is 320 units, so a height of a share s of its length is s × 320 units above the ground: a heel 0.3 of the length tall reaches y = 330 − 96 = 234. Nothing goes above y = {drawnside.TOP_MIN:g}.
+
+## A 3D object, flattened
+Think of the shoe as the solid object it is, then flatten it into this view: the sole under the whole foot, the upper's panels wrapped round it and overlapping each other in layers (toe cap or mudguard, vamp, eyestay, quarter, heel counter, collar), the tongue rising behind the lacing, the laces crossing between the eyelets on the near side. Correct the photo's perspective: a shoe photographed from a little in front or behind looks shorter and taller than it is, and one photographed from above looks flatter. Draw the true side view.
+
+## How to build it
+1. The sole: the outsole and the midsole as their own closed shapes, with their true thickness along the length (as measured), its toe spring, and the sidewall lines or tread edge that make the sole recognisable.
+2. The upper's whole silhouette on top, in the main colour, with the toe as round and as high as the photo shows it: most toes are a blunt rounded curve, not a point.
+3. Each panel of the upper as one closed shape with a thin outline where the photo shows it, even when it is the same colour as the upper: its seam is what one recognises.
+4. Marks and logos as shapes, in their true place, size, outline and colours. No lettering: draw a letter-shaped logo as a shape, so it reads the right way round.
+5. The lacing (as many eyelets as the photo shows), the tongue, perforations and stitching that defines a panel.
+6. The bold outline of the whole shoe over everything.
+
+## Style (strict)
+- Flat fills in the colours' hex values. No gradients, shadows, textures or highlights.
+- Bold outline: {drawnside.STYLE}; stroke-linejoin round.
+- Smooth curves (C and Q path commands), not polygons. Draw a detail only where it helps someone recognise the shoe: it must still read at the size of a closet tile, 120 pixels wide.
+- Use only these elements: g, path, circle, ellipse, rect, line, polyline, polygon; and only these attributes: d, cx, cy, r, rx, ry, x, y, width, height, x1, y1, x2, y2, points, fill, stroke, stroke-width, stroke-linejoin, stroke-linecap, stroke-dasharray, stroke-opacity, fill-opacity, opacity, fill-rule, transform (translate, scale, rotate or matrix). Colours as #rrggbb or none. No ids, no style attributes, no text, no comments, no defs, no clipPath, no url(). Anything else is removed before the drawing is shown."""
+
+
+def _front_sheet_text(sheet: Mapping | None) -> str:
+    keep = ("kind", "archetype", "silhouette", "palette", "parts", "signature", "one_side_mark")
+    return json.dumps({k: sheet[k] for k in keep if k in sheet}, indent=1) if isinstance(sheet, Mapping) else ""
+
+
+def _measured_section(measures: drawnside.Measures | None) -> str:
+    if measures is None:
+        return ""
+    return f"""
+
+## Measured from your photo
+The app measured this shoe's outline in its side photo. Its heights, as shares of its length:
+{drawnside.measures_text(measures)}
+Take these for your proportions and draw to them: they are more exact than a reading by eye. They come from the outline only: the panels, marks and colours are yours to read from the photos."""
+
+
+def side_prompt(photos: list[Photo], sheet: Mapping | None = None, notes: Sequence[str] = (),
+                measures: drawnside.Measures | None = None) -> str:
+    """Drawing the shoe from its side: the photos by their views, the front drawing's sheet (so both agree), the
+    owner's notes, the two plain templates as examples of the style only, proportions written down before drawing (or
+    measured from the trace), and what makes the shoe itself."""
+    front = ""
+    if sheet:
+        front = f"""
+
+## The drawing you made of it from the front
+You drew this shoe from the front for the figure that shows the owner's outfits. Its sheet:
+{_front_sheet_text(sheet)}
+The side drawing must agree with it: the same kind of shoe, the same colours (its palette's hex values), the same parts, now seen from the side."""
+    return f"""Draw one shoe from the owner's wardrobe as flat clip art seen from its side, from its photos. It is the picture that stands for the shoe in a private wardrobe app, wherever the shoe is shown, beside the app's other drawings in the same clean style. A name tells similar shoes apart, but the drawing must still carry what is particular to THIS shoe: its panels, marks, sole and proportions.
+
+## The photos of the shoe
+{photo_lines(photos)}
+The side photos matter most, the outer side above all: draw from them. The others show what a side photo cannot (the toe's shape from above, the heel from behind). Ignore dirt, wear, shade, highlights, a hand holding it, the floor and the background.{front}{notes_section(notes)}
+
+## Two of the app's plain drawings, for the STYLE only
+{" and ".join(SIDE_STYLE_NAMES)} are the app's own side drawings of an ordinary sneaker and an ordinary boot, made from nothing more than their kind and a colour, on the card the app paints behind every drawing. They show the line weights, the flat colours, the frame and how few shapes a drawing needs. They are not this shoe and they are plain because they know nothing about it: do not copy their shapes.
+
+## First, in words
+1. kind: the most specific kind of shoe a footwear designer would call it.
+2. proportions: before drawing, read from the side photo, its perspective corrected, each as a share of the shoe's length from the toe tip to the back of the heel: the sole's thickness under the heel and under the toe; and the upper's top above the ground at the toe box (15% of the length back from the toe tip), at the throat (where the lacing or the vamp meets the opening), at the collar's lowest point, and at the heel. For scale, an ordinary low sneaker stands about 0.3 of its length tall at the heel and about 0.15 at the toe box; read this shoe's own.
+3. colours: the shoe's 2 to 6 TRUE colours, one material one colour.
+4. features: what makes THIS shoe itself and not just any shoe of its kind, seen from the side, one short line each: its silhouette (the toe's shape, the sole's thickness at heel and toe, the collar's height), each panel and where its edges run, the sole's layers, marks and logos and exactly where they sit, the lacing, perforations, stitching that defines a panel.{_measured_section(measures)}
+
+## Then the drawing
+Draw it to your proportions, so its heights match them.
+
+{SIDE_BRIEF}
+
+Answer with kind, proportions, colours, features, and the drawing as bare SVG elements."""
+
+
+def side_check_prompt(photos: list[Photo], answer: Mapping, svg: str, problems: list[str],
+                      notes: Sequence[str] = (), measures: drawnside.Measures | None = None) -> str:
+    """The check of a side drawing against the photos: its render on the card, large and at a closet tile's size, what
+    was written for it, its SVG and what the automatic checks found."""
+    written = json.dumps({k: answer[k] for k in ("kind", "proportions", "features") if k in answer}, indent=1)
+    measured = ("\nMeasured from the photo's outline, as shares of the length:\n" + drawnside.measures_text(measures)
+                if measures is not None else "")
+    return f"""You drew this shoe from its side as flat clip art, from its photos. Now check the drawing against the PHOTOS, not only against what you wrote, and fix it if it needs it.
+
+## The photos of the shoe
+{photo_lines(photos)}
+The side photos matter most.{notes_section(notes)}
+
+## Your drawing
+drawing.png shows it on its card, large and at the size of a closet tile. What you wrote for it:
+{written}{measured}
+
+Its SVG:
+{svg}
+
+## What the automatic checks found (each must be fixed)
+{_found(problems)}
+
+## Look
+Compare drawing.png with the side photos. Is it the same kind of shoe, seen exactly side-on with the toe on the left? Is it as tall for its length as the shoe, at the toe box, the throat, the collar and the heel? Is the toe as round and as high as the photo's? Is the sole as thick at the heel and at the toe? Does each feature show, in its place, with its true shape, outline and colour? Is it a few clean flat shapes? Would someone who knows the shoe pick it out at the size of a closet tile?
+
+If it is right and the automatic checks found nothing, say good, with no problems, and give the drawing back unchanged. Otherwise say what was wrong in problems and give the drawing fixed: change what is wrong and what must change with it, and keep everything else as it is (the same shapes where possible).
+
+The rules the drawing follows:
+{SIDE_BRIEF}"""
+
+
+@dataclass
+class Sided:
+    """A finished side drawing: its SVG (made safe), what makes the shoe itself from the side, the proportions written
+    for it, how many checks were made, whether the last said good and what the automatic checks still find, its calls
+    and seconds."""
+    svg: str
+    features: list[str]
+    proportions: dict
+    rounds: int
+    seconds: float
+    calls: list[Call] = field(default_factory=list)
+    good: bool = False
+    problems: list[str] = field(default_factory=list)
+    measured: bool = False   # drawn and checked against measures from the shoe's trace
+
+    @property
+    def route(self) -> str:
+        return self.calls[0].route if self.calls else ""
+
+    def to_json(self, made_at: str) -> dict:
+        """As kept with the item, in its drawing's `side` entry."""
+        return {"svg": self.svg, "features": list(self.features), "proportions": self.proportions,
+                "rounds": self.rounds, "seconds": round(self.seconds, 1), "good": self.good, "problems": self.problems,
+                "measured": self.measured,
+                "calls": [{**asdict(c), "cost_usd": round(c.cost_usd, 6), "seconds": round(c.seconds, 1)}
+                          for c in self.calls],
+                "input_tokens": sum(c.input_tokens for c in self.calls),
+                "cache_read_tokens": sum(c.cache_read_tokens for c in self.calls),
+                "output_tokens": sum(c.output_tokens for c in self.calls),
+                "cost_usd": round(sum(c.cost_usd for c in self.calls), 6), "route": self.route, "made_at": made_at}
+
+
+def _features(lines) -> list[str]:
+    out = []
+    for line in lines or []:
+        t = " ".join(str(line).split()) if isinstance(line, str) else ""
+        if t:
+            out.append(t if len(t) <= FEATURE_MAX else t[:FEATURE_MAX - 1].rstrip() + "…")
+    return out[:FEATURES_MAX]
+
+
+def _style_images() -> list[Image.Image]:
+    return [_png(drawn.render_png(svg, 400, 460)) for svg in drawnside.style_svgs().values()]
+
+
+def _side_good_as_is(svg: str) -> correcting.CutShort:
+    """A side check's answer may stop being read once it says good, as a check of the front does (`_good_as_is`): in
+    its schema `good`, `problems` and `features` come before `svg`, and a good answer with no automatic problem ends
+    the checks with the drawing already held, so its copy of the drawing is not waited for. Not good, or a field
+    missing or one more: None, and the answer is read to its end."""
+    asked = set(SideCheckAnswer.model_fields) - {"svg"}
+
+    def answer(fields: dict):
+        if fields.get("good") is not True or set(fields) != asked:
+            return None
+        return SideCheckAnswer.model_validate({**fields, "svg": svg})
+    return correcting.CutShort("svg", answer)
+
+
+def _side(ask, photos: list[Photo], shots: list[Image.Image], names: list[str], sheet: Mapping | None,
+          notes: Sequence[str], measures: drawnside.Measures | None, clock: Callable[[], float],
+          calls: list[Call]) -> Sided:
+    """One side drawing and its check rounds, at most `MAX_SIDE_ROUNDS`: they stop as soon as Claude says good and the
+    automatic checks (`drawnside.checks`, with the measures) find nothing; when they found nothing and no fix was set
+    aside, a good answer stops being read there (`_side_good_as_is`; the API route only). A check that fails keeps the
+    drawing made so far; a fix that cannot be used is set aside and the drawing before it is checked again. `calls` collects this
+    side's calls (the caller's `ask` records every call it makes in its own list too)."""
+    start = clock()
+    first_at = len(calls)
+    answer = ask("side", side_prompt(photos, sheet, notes, measures), shots + _style_images(),
+                 names + SIDE_STYLE_NAMES, SideAnswer)
+    svg = drawnside.sanitise(answer.svg)
+    written = {"kind": answer.kind, "proportions": answer.proportions.model_dump(), "features": _features(answer.features)}
+    problems, note, rounds, good = drawnside.checks(svg, measures), [], 0, False
+    while rounds < MAX_SIDE_ROUNDS:
+        try:
+            cut = _side_good_as_is(svg) if not problems and not note else None
+            got = ask("side-check", side_check_prompt(photos, written, svg, problems + note, notes, measures),
+                      shots + [_png(drawnside.check_png(svg))], names + ["drawing.png"], SideCheckAnswer,
+                      cut_short=cut)
+        except TaggingError as e:   # Claude out of reach, or no usable answer: the drawing so far is kept
+            log.info("checking a shoe's side drawing stopped after %s rounds: %s", rounds, type(e).__name__)
+            break
+        rounds += 1
+        if got.good and not problems:
+            good = True
+            break
+        try:
+            fixed = drawnside.sanitise(got.svg)
+            found = drawnside.checks(fixed, measures)
+        except drawn.DrawingError as e:   # the fix cannot be used: the drawing before it is checked again
+            note = [f"The drawing you gave last could not be used ({e}) This is the drawing before it: fix it again, "
+                    "or say good if it needs nothing."]
+            continue
+        svg, problems, note = fixed, found, []
+        written = {**written, "features": _features(got.features) or written["features"]}
+    return Sided(svg, written["features"], written["proportions"], rounds, clock() - start, calls[first_at:], good,
+                 problems, measured=measures is not None)
+
+
+def _side_job(ask, calls: list[Call], photos: list[Photo], shots: list[Image.Image], names: list[str], sheet: Mapping,
+              notes: Sequence[str], measures, clock: Callable[[], float]) -> Callable[[], Sided | None]:
+    """The side drawn in a thread of its own, beside the turns and sharing their places (`_limited`), through `ask`,
+    which records its calls in `calls`: a function that waits for it and gives it, or None when it
+    failed for whatever reason (logged by its kind)."""
+
+    got: dict = {}
+    m = drawnside.Measures.from_json(measures)
+
+    def run():
+        try:
+            got["side"] = _side(ask, photos, shots, names, sheet, notes, m, clock, calls)
+        except Exception as e:   # the front is never lost to the side
+            log.info("drawing a shoe's side failed: %s", type(e).__name__)
+
+    t = threading.Thread(target=run, name="shoe-side", daemon=True)
+    t.start()
+
+    def wait() -> Sided | None:
+        t.join()
+        return got.get("side")
+    return wait
+
+
+def draw_side(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | None = None,
+              meter: Meter | None = None, asker: Asker = correcting.ask, clock: Callable[[], float] = time.monotonic,
+              sheet: Mapping | None = None, notes: Sequence[str] = (), measures=None,
+              mask_of: photocheck.MaskOf | None = None) -> Sided:
+    """Draw the shoe from its side by itself (a shoe drawn before the side was, or a side that failed with its
+    drawing): one draw call and at most `MAX_SIDE_ROUNDS` checks. `sheet`: the front drawing's sheet, so both agree
+    (none: the side is drawn from the photos alone); `notes`: the owner's notes on the drawing; `measures`: from the
+    shoe's trace (`drawnside.Measures`, or its JSON). Raises `RouteUnavailable` (or `CapReached`) when Claude cannot be
+    reached, `TaggingError` when it gives no usable answer, `drawn.DrawingError` when the drawing cannot be used."""
+    photos = [Photo(photocheck.crop(p.image, mask_of), p.view, p.sure) for p in photos]
+    shots = [shown(p.image) for p in photos]
+    names = photo_names(len(photos))
+    calls: list[Call] = []
+    ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_photos=len(shots))
+    return _side(ask, photos, shots, names, sheet, list(notes), drawnside.Measures.from_json(measures), clock, calls)

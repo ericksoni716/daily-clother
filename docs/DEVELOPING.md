@@ -42,7 +42,7 @@ a real closet is never touched.
 | Data | `db.py` (SQLite, and migrations by `PRAGMA user_version`), `migrations/NNNN_name.sql`, `items.py` (reading and changing items), `images.py` (a photo into the files the closet keeps), `backup.py`, `storage.py`, `demo.py` and `demo_data/` (the demo closet, a database of its own). |
 | A photo becomes an item | `jobs.py` (the cutout queue, in the `jobs` table), `cutout.py`, `modelstore.py` (the background-removal models), `tagjobs.py` (the queue that asks Claude to describe an item, and `apply_answer`), `illustrations.py` (each item's drawing, kept up to date), `patjobs.py` (measuring a pattern), `progress.py` (how far the work on an item has got, in the page's words, and `GET /api/progress`), `palette.py`, `sources.py` (several items from one photo), `failures.py` (why a step failed, in words safe to show). |
 | What an item is | `look.py` (its look, read from one place: the description the drawing was made from, with the owner's corrections over it, and its coarse shape as drawn; every screen and rule that tells how a garment looks reads it here), `kinds.py` (its kind, from the taxonomy), `vocab.py` (the small coarse vocabulary), `details.py` (the details the owner can set), `corrections.py` (picking a detail, saying what is wrong, undo), `history.py`, `review.py` (the review queue). |
-| Shoes | `shoeviews.py` (photos sorted into views), `tracejobs.py` and `shoes.py` (traced from the side photo, for the closet picture), `shoedraw.py` (drawn by Claude for the figure, two shoes at a time). |
+| Shoes | `shoeviews.py` (photos sorted into views), `tracejobs.py` and `shoes.py` (traced from the side photo: the closet picture until Claude's side exists, and its measures), `shoedraw.py` (drawn by Claude for the figure and from the side, two shoes at a time, kept with the item; a side drawn by itself for a shoe drawn without one). |
 | Getting dressed | `outfits.py` (outfits by rule; pure), `outfit_rules.py` (the owner's rules, read from the taxonomy file), `today.py` (weather, wears and laundry fed to the engine), `weather.py`, `climate.py`, `day.py`, `daynote.py` (the day in the owner's words), `wears.py` (what was worn, and laundry), `worn.py` (outfits worn, and ratings), `taste.py` (what ratings teach). |
 | Claude as stylist | `styling.py` (what the stylist is told and what is kept; pure), `stylejobs.py` (asked in the background, kept for the day; also what the style conversation shares with it: the routes in order, why a question failed, keeping and taking back a thing to remember), `styleahead.py` (asked before the first look), `styleprofile.py` (Your style: its lines with where each came from, and the text built from them), `stylechat.py` (the style conversation in Settings), `stylequestions.py` (the questions the stylist cannot infer, asked one at a time). |
 | What to buy, what to pack | `gaps.py` (what's missing, by rule; pure), `life.py` (how the owner lives), `wishlist.py`, `shop.py` (finds for a wish, and prices), `wouldwork.py` (pure) and `wouldjobs.py` (Would this work?), `insights.py` (pure), `trips.py` (packing by rule; pure), `tripweather.py`, `savedtrips.py`. |
@@ -62,7 +62,8 @@ plus fill), `item.py` (one item, as the app calls it), `stored.py` (a measured p
 fill), `accessories.py`; the figure: `figure.py`, `fitting.py`, `worn.py`; shoes: `trace.py`,
 `traced.py`, `sideshoe.py` (traced from the side), `frontshoe.py` (the template seen from the
 front), `drawn.py`, `turned.py`, `photocheck.py` (drawn by Claude), with worked examples in
-`shoe_examples/`.
+`shoe_examples/`, and `drawnside.py` (the side drawn by Claude: its frame on the card, made
+safe, checked against the trace's measures).
 
 `patterns/` measures a pattern from the item's own photo (`measure.py` picks the method;
 `stripes.py`, `plaid.py`, `flatten.py`, `straighten.py`, `prints.py`, `masks.py`), and turns
@@ -193,7 +194,7 @@ Where they run in CI:
 - **On every pull request and push to `main`**, the Linux and Windows backend jobs run
   `-m "not slow"`.
 - **When a pull request touches the code they cover** (`closet/patterns/`,
-  `closet/drawing/trace.py`, `traced.py`, `drawn.py`, `turned.py`,
+  `closet/drawing/trace.py`, `traced.py`, `drawn.py`, `drawnside.py`, `turned.py`,
   `closet/tagger/shoedrawing.py`, the made-up shoe photos in `tests/shoe_photos.py`, a file
   with slow tests in it, the requirements files, `pyproject.toml` or `ci.yml`), the `slow`
   job runs `-m slow` on Linux. The required check

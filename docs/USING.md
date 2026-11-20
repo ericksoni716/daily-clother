@@ -243,7 +243,8 @@ would hold it back, when you would wear it, and example outfits.
 `/settings/advanced`, from the foot of Settings or Manage beside Claude; "‹ Settings" goes
 back. Its code loads only when it is opened. In order:
 
-- **Your closet**: the demo closet switch, and Start Closet when I log in (computer only).
+- **Starting Closet**: Start Closet when I log in (computer only; the group is not there on a
+  phone).
 - **Claude**: the plan and the API key in the order they are tried, each with its state; the
   key box (paste, replace, remove); which to use; Allow the API key; the monthly limit and the
   month's spending, folded; how many items wait to be described, only when some do.
@@ -255,6 +256,9 @@ back. Its code loads only when it is opened. In order:
 - **Background removal**: the download address, and on the computer where to put the files
   by hand, folded.
 - **This copy of Closet**: the data folder (computer only) and the version.
+- **The demo closet**: the switch that shows the sample closet instead of yours, last because
+  it is rarely wanted once your own clothes are in. While the demo closet shows, the strip at
+  the top of every screen has Leave, so the way back is always in sight.
 
 ## Things that work the same everywhere
 

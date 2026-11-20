@@ -9,9 +9,12 @@ test('settings show how much space the demo closet takes, on the Advanced screen
   await useProfile(page, 'demo');
   await page.goto('/settings/advanced');
 
-  // the demo switch is with the closet; backups and storage are groups of their own
-  const closet = page.getByRole('region', { name: 'Your closet' });
-  await expect(closet.getByRole('switch', { name: /Show the demo closet/ })).toBeChecked();
+  // the demo switch is a group of its own, the last on the screen (the strip at the top has Leave while it shows);
+  // backups and storage are groups of their own
+  const demo = page.getByRole('region', { name: 'The demo closet' });
+  await expect(demo.getByRole('switch', { name: /Show the demo closet/ })).toBeChecked();
+  await expect(page.locator('.settings-groups > section').last()).toHaveAttribute('aria-labelledby', 's-demo');
+  await expect(page.getByRole('button', { name: 'Leave the demo closet' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Backups' })).toBeVisible();
   const section = page.getByRole('region', { name: 'Storage' });
   await expect(section.getByTestId('storage-line')).toHaveText(/^Closet uses [\d.]+ (KB|MB|GB) for 49 items · .+ free on this disk\.$/);

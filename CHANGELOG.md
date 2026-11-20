@@ -21,6 +21,9 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 - On a phone, the "Add" label in the bar at the bottom sits on the same line as Today, Closet,
   Wardrobe and Settings, and its round button rises a little above the bar instead of pushing
   the label down to the edge.
+- **Show the demo closet** is now the last thing on Advanced settings, in a group of its own,
+  instead of the first. While the demo closet shows, the strip at the top of every screen
+  still has Leave.
 
 ## 0.10.0
 

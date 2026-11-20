@@ -6,6 +6,10 @@ import json
 import shutil
 import subprocess
 import sys
+import threading
+import time
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -106,7 +110,8 @@ def info(port: int, runner=subprocess.run) -> dict:
     """What Settings shows about phone access. Never raises.
 
     `address` is set only when a Tailscale share really reaches Closet; `stop_command` stops
-    that share and no other.
+    that share and no other. The two `tailscale` commands run at the same time, so a Tailscale
+    that does not answer costs one timeout (4 s), not two.
     """
     out = {"tailscale_installed": False, "running": False, "address": None,
            "command": start_command(port, []), "stop_command": None, "others_share": False}
@@ -115,16 +120,23 @@ def info(port: int, runner=subprocess.run) -> dict:
         return out
     out["tailscale_installed"] = True
     errors = (OSError, subprocess.SubprocessError, ValueError, TypeError, AttributeError)
+
+    def ask(args: list[str]) -> str | None:
+        try:
+            return _run(exe, args, runner)
+        except errors:
+            return None
+
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="tailscale") as pool:
+        status_text, serve_text = pool.map(ask, (["status", "--json"], ["serve", "status", "--json"]))
     try:
-        text = _run(exe, ["status", "--json"], runner)
-        if text is not None:
-            out.update(parse_status(text))
+        if status_text is not None:
+            out.update(parse_status(status_text))
     except errors:
         pass
     try:
-        text = _run(exe, ["serve", "status", "--json"], runner)
-        if text is not None:
-            serve = parse_serve(text, port)
+        if serve_text is not None:
+            serve = parse_serve(serve_text, port)
             out["command"] = start_command(port, serve["taken"])
             out["others_share"] = 443 in serve["taken"]
             if serve["closet"]:
@@ -134,3 +146,55 @@ def info(port: int, runner=subprocess.run) -> dict:
     except errors:
         pass
     return out
+
+
+STALE_SECONDS = 10   # an answer older than this is looked up again (in the background) when Settings asks for it
+
+
+class Watch:
+    """Phone access, worked out in the background so no request waits for the `tailscale` command.
+
+    `start()` looks it up once when the program starts. `current()` answers at once with the last answer, or None
+    while the first is not in yet; when that answer is older than `STALE_SECONDS` it also starts a new lookup, so
+    a share made in the Terminal shows within a few seconds of asking again. Only one lookup runs at a time.
+    """
+
+    def __init__(self, port: int, look: Callable[[int], dict] = info, clock: Callable[[], float] = time.monotonic,
+                 stale: float = STALE_SECONDS):
+        self.port, self.look, self.clock, self.stale = port, look, clock, stale
+        self._lock = threading.Lock()
+        self._answer: tuple[float, dict] | None = None   # (when it was looked up, what was found)
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        self._refresh()
+
+    def current(self) -> dict | None:
+        with self._lock:
+            answer = self._answer
+        if answer is None or self.clock() - answer[0] >= self.stale:
+            self._refresh()
+        return dict(answer[1]) if answer is not None else None
+
+    def wait(self, timeout: float | None = None) -> bool:
+        """Wait for a lookup under way to finish (tests); True when none is running any more."""
+        thread = self._thread
+        if thread is not None:
+            thread.join(timeout)
+            return not thread.is_alive()
+        return True
+
+    def _refresh(self) -> None:
+        with self._lock:
+            if self._thread is not None and self._thread.is_alive():
+                return
+            self._thread = threading.Thread(target=self._work, name="phone-access", daemon=True)
+            self._thread.start()
+
+    def _work(self) -> None:
+        try:
+            found = self.look(self.port)
+        except Exception:   # info() never raises; a stand-in might
+            return
+        with self._lock:
+            self._answer = (self.clock(), found)

@@ -81,6 +81,7 @@ from .weather import WeatherError, check_place, lookup, place_near, search_place
 log = logging.getLogger("closet.app")
 
 GAPS_ALL = 100   # gaps asked of the analysis; the list shows at most gaps.MAX_GAPS not yet decided on
+TAGGING_FRESH_SECONDS = 10   # how long an answer of `GET /api/tagging` (Claude Code's sign-in) is given again
 
 
 @dataclass
@@ -108,9 +109,14 @@ class Services:
     on_quit: Callable[[], None] = lambda: None
     on_show: Callable[[], bool] = lambda: False   # shows Closet's own window; False when there is none (the browser is used)
     updater: updates.Updater | None = None   # new releases: checked once a day, installed when the owner says
-    _phone_cache: tuple[float, dict] | None = field(default=None, repr=False)
+    phone_watch: phone.Watch | None = field(default=None, repr=False)   # phone access, looked up in the background
+
+    def __post_init__(self) -> None:
+        if self.phone_watch is None:
+            self.phone_watch = phone.Watch(self.cfg.port)
 
     def start(self) -> None:
+        self.phone_watch.start()   # `tailscale` is asked now, so Settings has an answer when it is first opened
         if not self.model.ready and self.cfg.auto_download_model:
             self.model.keep_trying()   # a failed download heals by itself (modelstore.RETRY_DELAYS)
         self.worker.start()
@@ -171,12 +177,9 @@ class Services:
         if self.second_model is not None:
             self.second_model.stop()
 
-    def phone_info(self) -> dict:
-        if self._phone_cache and time.time() - self._phone_cache[0] < 30:
-            return self._phone_cache[1]
-        info = phone.info(self.cfg.port)
-        self._phone_cache = (time.time(), info)
-        return info
+    def phone_info(self) -> dict | None:
+        """Phone access as last looked up, at once; None until the first lookup is in (`phone.Watch`)."""
+        return self.phone_watch.current()
 
 
 def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path | str | None = "bundled",
@@ -1331,25 +1334,57 @@ def create_app(sv: Services) -> FastAPI:
         return model_payload()
 
     # ------------------------------------------------------------- settings
-    def settings_payload(conn) -> dict:
+    # What Settings shows that only changes when the owner changes it here: read once, then kept until then.
+    # The key is read from the keychain (on a Mac, the `security` command); start at login from the registry or a file.
+    remembered: dict[str, object] = {}
+    remembered_lock = threading.Lock()
+    forgotten = [0]   # counts `forget`: a value read while it was being changed is not kept
+
+    def remember(name: str, work: Callable[[], object]) -> object:
+        with remembered_lock:
+            if name in remembered:
+                return remembered[name]
+            before = forgotten[0]
+        value = work()
+        with remembered_lock:
+            if forgotten[0] == before:
+                remembered[name] = value
+        return value
+
+    def forget(*names: str) -> None:
+        with remembered_lock:
+            forgotten[0] += 1
+            for name in names:
+                remembered.pop(name, None)
+
+    def autostart_now() -> bool | None:
         try:
-            auto = autostart.is_enabled() if autostart.program() else None
+            return autostart.is_enabled() if autostart.program() else None
         except Exception:
-            auto = None
+            return None
+
+    def settings_payload(conn) -> dict:
+        """Everything Settings shows that is quick to read, so the page can be drawn at once. The slow lookups stay
+        apart: whether Claude Code is signed in (`/api/tagging`), the space used (`/api/storage`) and the weather."""
         return {
             "version": __version__, "profile": state.get("profile"), "data_dir": str(cfg.data_dir), "port": cfg.port,
             "backup_folder": state.get("backup_folder"), "last_backup": state.get("last_backup"),
             "last_good_backup": backup.last_good(state), "pending_cutouts": jobs.pending_count(conn),
             "pending_tags": tagjobs.waiting_count(conn), "tagging_api_enabled": spend.api_allowed(state),
             "tagging_api_cap_usd": spend.cap(state), "tagging_api_off": state.get("tagging_api_off"),
-            "tagging_route_order": tagjobs.route_order(state), "api_key": apikey.info(),
-            "phone": sv.phone_info(), "autostart": auto, "heic_supported": images.HEIC, "place": state.get("place"),
-            "home_place": HOME_PLACE,
+            "tagging_route_order": tagjobs.route_order(state), "api_key": dict(remember("api_key", apikey.info)),
+            "phone": sv.phone_info(), "autostart": remember("autostart", autostart_now), "heic_supported": images.HEIC,
+            "place": state.get("place"), "home_place": HOME_PLACE,
             "life": life.example()[0] if state.get("profile") == "demo" else state.get("life"),
             "life_prompt_dismissed": True if state.get("profile") == "demo" else state.get("life_prompt_dismissed"),
             "rewear": savedtrips.rewear(state),
             "laundry": wears.laundry_setting(state.get("laundry")),
             "stylist_on": bool(state.get("stylist_on")),
+            # each as its own endpoint answers it
+            "model": model_payload(),                          # GET /api/model
+            "updates": sv.updater.status() if sv.updater else None,   # GET /api/updates
+            "style_profile": styleprofile.current(conn),       # GET /api/style/profile
+            "tagging_spend": spend.summary(cfg, state, conn),  # GET /api/tagging/spend
         }
 
     @app.get("/api/style/answers/{answer_id}", dependencies=protected)
@@ -1454,6 +1489,8 @@ def create_app(sv: Services) -> FastAPI:
                 autostart.set_enabled(body.autostart)
             except Exception as e:
                 raise HTTPException(409, str(e))
+            finally:
+                forget("autostart")
         if "tagging_api_cap_usd" in sent or ("tagging_api_enabled" in sent and body.tagging_api_enabled is not None):
             limit = body.tagging_api_cap_usd if "tagging_api_cap_usd" in sent else spend.cap(state)
             on = body.tagging_api_enabled if body.tagging_api_enabled is not None else spend.api_allowed(state)
@@ -1493,6 +1530,8 @@ def create_app(sv: Services) -> FastAPI:
             apikey.store().set(key)
         except (apikey.KeychainError, ValueError) as e:
             raise HTTPException(409, str(e))
+        finally:
+            forget("api_key", "tagging")
         log.info("an API key was saved in the keychain")
         if (state.get("tagging_api_off") or {}).get("reason") == "key":
             state.update(tagging_api_off=None)   # that note was about the key this one replaces
@@ -1507,6 +1546,8 @@ def create_app(sv: Services) -> FastAPI:
             apikey.store().delete()
         except apikey.KeychainError as e:
             raise HTTPException(409, str(e))
+        finally:
+            forget("api_key", "tagging")
         log.info("the API key was removed from the keychain")
         if tagger_routes.ORDERS[tagjobs.route_order(state)][0] == "api" and not apikey.get():
             state.update(tagging_route_order="auto")   # a choice that needs a key goes back to the plan first
@@ -1517,10 +1558,23 @@ def create_app(sv: Services) -> FastAPI:
         # walking a big closet takes a while; do it in a worker thread so other requests keep being answered
         return await run_in_threadpool(storage.usage, cfg, state.get("profile"))
 
+    # `claude auth status` takes a moment and the page asks more than once: an answer younger than
+    # TAGGING_FRESH_SECONDS is given again, unless the order or whether a key is set has changed since.
+    def tagging_status() -> dict:
+        order = tagjobs.route_order(state)
+        seen = (order, bool(apikey.get()))   # the key's presence only, read live (`ANTHROPIC_API_KEY` counts too)
+        kept = remembered.get("tagging")
+        if kept and kept[0] == seen and time.monotonic() - kept[1] < TAGGING_FRESH_SECONDS:
+            return kept[2]
+        result = tagger_routes.status(order)
+        with remembered_lock:
+            remembered["tagging"] = (seen, time.monotonic(), result)
+        return result
+
     @app.get("/api/tagging", dependencies=protected)
     async def get_tagging():
         # starts `claude auth status` (a few seconds at most), so keep it off the event loop
-        result = await run_in_threadpool(tagger_routes.status, tagjobs.route_order(state))
+        result = await run_in_threadpool(tagging_status)
         sv.tag_worker.wake()   # the owner may just have signed in: waiting items need not wait for the next round
         return result
 

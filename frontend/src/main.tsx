@@ -6,10 +6,12 @@ import { listenForLeaving } from './leave';
 import './styles.css';
 import { applyTheme, loadTheme } from './theme';
 import { startHistory } from './router';
+import { watchSignIn } from './signin';
 
 applyTheme(loadTheme());
 
 listenForLeaving(window, document);
+watchSignIn(window);   // before the router reads the address: it takes `?signin=` out of it
 startHistory();
 
 // Safari only shows a press (:active, styles.css "touch") when the page listens for touches.

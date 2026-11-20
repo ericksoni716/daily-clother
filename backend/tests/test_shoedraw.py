@@ -447,9 +447,10 @@ def test_out_of_reach_lets_the_other_shoe_finish(made):
     m = made
     items = shoes(m, 2)
     gone = threading.Event()
+    first = threading.Lock()   # taken once and kept: the two are drawn at the same time, so counting calls can miss
 
     def during():
-        if len(m.drawer.calls) == 1:   # the first is held up; the second is finished after it
+        if first.acquire(blocking=False):   # the first is held up; the second is finished after it
             gone.set()
             raise RouteUnavailable("Claude Code is not signed in")
         assert gone.wait(timeout=10)

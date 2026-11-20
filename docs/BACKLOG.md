@@ -29,11 +29,18 @@ only here); take a line out when it is done.
     up the longest part of a drawing.
 - The rename to Nines (20 November) left the program file and the release assets named Closet: decided by the owner and still to do. The updater must find the new asset name while copies already installed still look for `Closet.exe` and `Closet-mac-arm64.zip`; then the names in `packaging/closet.spec` (including `CFBundleName`), `packaging/smoke_test.py`, `ASSETS` in `updates.py`, the release workflow, the start-at-login entry (`autostart.NAME`) and any shortcut that points at the old file name. See DECISIONS, "The name: Nines".
 - Also left by the rename: comments, docstrings and log lines in the code still say Closet, and older docs (past CHANGELOG entries, DECISIONS entries before it, the assessment) keep the old name.
-- **The computer's own door** (the first of three pull requests to the other app's access
-  model, 20 November): the address check, the page's header and the window's key. Left: who
-  someone is through Tailscale Serve and Cloudflare Access (the next pull request), then
-  removing the passphrase (the third). Nobody has yet tried the key on the real Windows and Mac
-  window (WebView2 and WebKit keeping the cookie across restarts).
+- **The computer's own door and the doors from outside** (the first two of three pull requests
+  to the other app's access model, 20 November): the address check, the page's header and the
+  window's key; then Tailscale's word on who is asking (recorded, not yet required), Funnel
+  refused, and Cloudflare Access on its own hostname (required there). Left: the third pull
+  request, which refuses a Tailscale request that names no one (the marked line in `gate.py`)
+  and removes the passphrase. Before it, the owner must try on the real devices: the key in the
+  Windows and Mac window (WebView2 and WebKit keeping the cookie across restarts); Settings →
+  This device on the real iPhone saying "through Tailscale as" the owner's login (not "did not
+  say"), on the Windows hub too, where the Tailscale service check runs; and, if wanted, a real
+  Cloudflare tunnel and Access application, including what happens when Cloudflare's sign-in
+  runs out on an open page (the page should load again and Cloudflare ask for a code; this was
+  only tested at the unit level, from what Cloudflare is assumed to answer).
 - **Shoe drawing made faster** (20 November): two shoes at once, and a check that says good
   stops being read there. Left: the plan route still reads every check's whole answer; nobody
   has yet timed a real shoe with either change, so "four to ten minutes" in the app is

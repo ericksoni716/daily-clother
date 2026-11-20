@@ -17,12 +17,15 @@ opencv-python-headless==5.0.0.93   # measuring an item's pattern (closet/pattern
 resvg-py==0.5.0          # renders a shoe Claude drew to PNG, so Claude can look at its drawing (closet/drawing/drawn.py); MIT, wheels for Windows and macOS, no other dependencies
 svgelements==1.9.6       # turns a straight-on shoe drawing out with the 3D shoe solid (closet/drawing/turned.py): reads its shapes and transforms as path geometry; MIT, pure Python, no dependencies
 pywebview==6.2.1         # Closet's own window (closet/window.py): Edge WebView2 on Windows, WebKit on the Mac; BSD; falls back to the browser
+pyjwt==2.15.1            # checks the sign-in Cloudflare Access signs, for the door through Cloudflare (closet/access.py): RS256 only; MIT
+cryptography==50.0.2     # the RSA that pyjwt checks an RS256 signature with (the standard library has none); Apache-2.0 or BSD
 
 # transitive
 annotated-doc==0.0.6
 annotated-types==0.8.0
 anyio==4.16.0
 bottle==0.13.4           # pywebview
+cffi==2.1.1              # cryptography; pythonnet on Windows; MIT-0
 click==8.5.1
 docstring-parser==0.18.0
 flatbuffers==25.12.19
@@ -35,6 +38,7 @@ opentelemetry-api==1.45.2
 packaging==26.3
 protobuf==7.36.2
 proxy-tools==0.1.0       # pywebview (published as source only; pip builds it, no compiler needed)
+pycparser==3.12          # cffi; BSD
 pydantic==2.14.3
 pydantic-core==2.50.4
 six==1.17.0
@@ -47,8 +51,6 @@ python-xlib==0.33 ; sys_platform == "linux"   # pystray on Linux
 # pywebview's window on Windows: .NET's WinForms through pythonnet
 pythonnet==3.2.1 ; sys_platform == "win32"
 clr-loader==0.3.1 ; sys_platform == "win32"
-cffi==2.1.1 ; sys_platform == "win32"
-pycparser==3.12 ; sys_platform == "win32"
 
 # the Mac: AppKit and WebKit through PyObjC, for pywebview's window (all six) and pystray's menu-bar icon (core,
 # Cocoa, Quartz). pywebview needs 9.0 or later; 12.2.2 has been out since August (13.0 only two weeks).

@@ -1,7 +1,7 @@
 """Program-wide settings kept in one small JSON file in the data folder.
 
 Holds what is not part of a closet: the passphrase hash, login sessions, the key
-of Closet's own window (closet/gate.py), the backup folder, the model download URL, which closet (real or demo) is
+of Closet's own window (closet/gate.py), the three settings of the door through Cloudflare (closet/access.py), the backup folder, the model download URL, which closet (real or demo) is
 open, where the owner is (New York until another place is chosen; with the last forecast for it, and the weather
 looked up for trips), and what is known about new releases. Never holds the Anthropic API key.
 """
@@ -24,6 +24,11 @@ DEFAULTS: dict[str, Any] = {
     "sessions": {},           # sha256(token) -> expiry (unix seconds)
     "failed_logins": [],      # unix seconds of recent failures
     "window_key": None,       # the key of Closet's own window (gate.window_key), made once; never sent or logged
+    # the door through Cloudflare (closet/access.py), off until all three are set: the team's domain
+    # (yourteam.cloudflareaccess.com), the Access application's audience tag, and the public hostname
+    "cloudflare_team": None,
+    "cloudflare_aud": None,
+    "cloudflare_host": None,
     "backup_folder": None,
     "last_backup": None,      # {"at", "ok", "error", "folder", "kind"}
     "model_url": None,        # override for the model download address

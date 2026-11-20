@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from . import (
     APP_NAME,
     __version__,
+    access,
     apikey,
     auth,
     autostart,
@@ -60,6 +61,7 @@ from . import (
     styleprofile,
     stylequestions,
     tagjobs,
+    tailnet,
     tracejobs,
     trips,
     updates,
@@ -547,12 +549,24 @@ class SettingsPatch(BaseModel):
     rewear: object = None
     laundry: object = None
     stylist_on: bool | None = None
+    cloudflare_team: str | None = None   # the door through Cloudflare (closet/access.py); an empty value clears one
+    cloudflare_aud: str | None = None
+    cloudflare_host: str | None = None
     model_config = {"extra": "forbid"}
 
 
-def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
+CLOUDFLARE_FIELDS = (access.TEAM_KEY, access.AUD_KEY, access.HOST_KEY)
+NOT_FROM_CLOUDFLARE = "Change this on the computer Nines runs on, or from your phone through Tailscale."
+
+
+def create_app(sv: Services, window_key: str | None = None, *, access_keys: access.SigningKeys | None = None,
+               tailscale_check: tailnet.Check | None = None) -> FastAPI:
     """The web app. `window_key` is the key of Closet's own window (`gate.window_key`): the launcher always gives it,
-    and then a request by this computer's own name must carry it (closet/gate.py). Tests give none."""
+    and then a request by this computer's own name must carry it (closet/gate.py). Tests give none.
+
+    `access_keys` stands in for Cloudflare's published keys (tests); without it they are fetched from the team.
+    `tailscale_check` says whether a connection is the Tailscale service's; without it, the one for this computer
+    (`tailnet.checker()`: on Windows, asked of Windows; elsewhere none, and Tailscale is believed)."""
     app = FastAPI(title=APP_NAME, version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     cfg, state = sv.cfg, sv.state
 
@@ -570,8 +584,10 @@ def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
             raise HTTPException(401, refused)
 
     # the address, the window's key, the page's header, the login and the size limits, before any body is read
+    # who came in from outside (Tailscale, Cloudflare) is recorded there too, for the routes (`gate.came_in`)
     app.add_middleware(gate.Gate, cookie=auth.COOKIE, refusal=refusal, key=window_key,
-                       key_cookie=gate.key_cookie(cfg.port))
+                       key_cookie=gate.key_cookie(cfg.port), cloudflare=lambda: access.load(state), keys=access_keys,
+                       tailscale_check=tailscale_check or tailnet.checker())
 
     # laundry that keeps itself: the owner's counts and laundry day (Settings), read live
     wears.set_policy(lambda: wears.policy_from(state.get("laundry"), savedtrips.rewear(state)))
@@ -1420,9 +1436,10 @@ def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
         except Exception:
             return None
 
-    def settings_payload(conn) -> dict:
+    def settings_payload(conn, request: Request) -> dict:
         """Everything Settings shows that is quick to read, so the page can be drawn at once. The slow lookups stay
-        apart: whether Claude Code is signed in (`/api/tagging`), the space used (`/api/storage`) and the weather."""
+        apart: whether Claude Code is signed in (`/api/tagging`), the space used (`/api/storage`) and the weather.
+        `came_in` is how the device asking came in (`gate.came_in`)."""
         return {
             "version": __version__, "profile": state.get("profile"), "data_dir": str(cfg.data_dir), "port": cfg.port,
             "backup_folder": state.get("backup_folder"), "last_backup": state.get("last_backup"),
@@ -1430,7 +1447,8 @@ def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
             "pending_tags": tagjobs.waiting_count(conn), "tagging_api_enabled": spend.api_allowed(state),
             "tagging_api_cap_usd": spend.cap(state), "tagging_api_off": state.get("tagging_api_off"),
             "tagging_route_order": tagjobs.route_order(state), "api_key": dict(remember("api_key", apikey.info)),
-            "phone": sv.phone_info(), "autostart": remember("autostart", autostart_now), "heic_supported": images.HEIC,
+            "phone": sv.phone_info(), "came_in": gate.came_in(request.scope), "cloudflare": access.payload(state),
+            "autostart": remember("autostart", autostart_now), "heic_supported": images.HEIC,
             "place": state.get("place"), "home_place": HOME_PLACE,
             "life": life.example()[0] if state.get("profile") == "demo" else state.get("life"),
             "life_prompt_dismissed": True if state.get("profile") == "demo" else state.get("life_prompt_dismissed"),
@@ -1619,12 +1637,22 @@ def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
             raise HTTPException(422, str(e))
 
     @app.get("/api/settings", dependencies=protected)
-    def get_settings(conn=Depends(conn_dep)):
-        return settings_payload(conn)
+    def get_settings(request: Request, conn=Depends(conn_dep)):
+        return settings_payload(conn, request)
 
     @app.put("/api/settings", dependencies=protected)
-    def put_settings(body: SettingsPatch, conn=Depends(conn_dep)):
+    def put_settings(body: SettingsPatch, request: Request, conn=Depends(conn_dep)):
         sent = body.model_fields_set
+        door = {k: getattr(body, k) for k in CLOUDFLARE_FIELDS if k in sent}
+        if door:
+            # a sign-in through Cloudflare cannot move or open the door it came through (DECISIONS, "The doors from
+            # outside"); checked before anything else in the request is saved
+            if gate.came_in(request.scope)["via"] == "cloudflare":
+                raise HTTPException(403, NOT_FROM_CLOUDFLARE)
+            try:
+                door = access.changes(door)
+            except ValueError as e:
+                raise HTTPException(422, str(e))
         if "life" in sent or "life_prompt_dismissed" in sent:
             if state.get("profile") == "demo":
                 raise HTTPException(422, "The demo keeps its example answers. Switch to your own closet to change how you live.")
@@ -1702,10 +1730,13 @@ def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
                 raise HTTPException(422, "Save an API key before choosing to use it first.")
             state.update(tagging_route_order=order)
             sv.wake()
-        return settings_payload(conn)
+        if door:
+            state.update(**door)
+            log.info("the Cloudflare door was changed; it is %s", "on" if access.load(state).configured else "off")
+        return settings_payload(conn, request)
 
     @app.put("/api/settings/api-key", dependencies=protected)
-    def put_api_key(body: ApiKeyBody, conn=Depends(conn_dep)):
+    def put_api_key(body: ApiKeyBody, request: Request, conn=Depends(conn_dep)):
         """Check the key with Anthropic (free), then keep it in the computer's keychain. The key is never
         sent back, logged or written anywhere else."""
         try:
@@ -1726,12 +1757,12 @@ def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
         if (state.get("tagging_api_off") or {}).get("reason") == "key":
             state.update(tagging_api_off=None)   # that note was about the key this one replaces
         sv.wake()
-        out = settings_payload(conn)
+        out = settings_payload(conn, request)
         out["api_key"]["checked"] = verdict is None
         return out
 
     @app.delete("/api/settings/api-key", dependencies=protected)
-    def delete_api_key(conn=Depends(conn_dep)):
+    def delete_api_key(request: Request, conn=Depends(conn_dep)):
         try:
             apikey.store().delete()
         except apikey.KeychainError as e:
@@ -1741,7 +1772,7 @@ def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
         log.info("the API key was removed from the keychain")
         if tagger_routes.ORDERS[tagjobs.route_order(state)][0] == "api" and not apikey.get():
             state.update(tagging_route_order="auto")   # a choice that needs a key goes back to the plan first
-        return settings_payload(conn)
+        return settings_payload(conn, request)
 
     @app.get("/api/storage", dependencies=protected)
     async def get_storage():

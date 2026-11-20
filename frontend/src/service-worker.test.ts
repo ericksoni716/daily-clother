@@ -78,6 +78,33 @@ describe('when the computer does not answer', () => {
     }
   });
 
+  it("waits for the network for a page loaded again after Cloudflare's sign-in ran out", async () => {
+    vi.useFakeTimers();
+    try {
+      let answer: (r: Response) => void = () => undefined;
+      const late = vi.fn().mockReturnValue(new Promise<Response>((resolve) => { answer = resolve; }));
+      const request = new Request('http://localhost/today?signin=1');
+      Object.defineProperty(request, 'mode', { value: 'navigate' });
+      const pending = load(late, new Response('<html>shell</html>'))(request);
+      let settled = false;
+      void pending.then(() => { settled = true; });
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(settled).toBe(false);   // not the saved page after four seconds, as for any other page
+      const redirect = new Response(null, { status: 200, headers: { 'x-from': 'cloudflare' } });
+      answer(redirect);
+      expect(await pending).toBe(redirect);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('opens the saved page for that load only when the network fails', async () => {
+    const request = new Request('http://localhost/today?signin=1');
+    Object.defineProperty(request, 'mode', { value: 'navigate' });
+    const answer = load(vi.fn().mockRejectedValue(new TypeError('offline')), new Response('<html>shell</html>'))(request);
+    expect(await (await answer).text()).toBe('<html>shell</html>');
+  });
+
   it('still uses a quick answer from the computer', async () => {
     const fresh = new Response('{"items":[1]}');
     const answer = load(vi.fn().mockResolvedValue(fresh), new Response('{"items":[]}'))(new Request('http://localhost/api/items'));

@@ -22,6 +22,15 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   its calls to Claude, so it adds little wait; shoes drawn before get theirs by themselves. Until it exists, or
   if it can't be made, the picture is traced from the side photo as before, and that trace now
   also gives Claude the shoe's proportions.
+- Nines can have an address of its own through Cloudflare, for a browser that cannot use
+  Tailscale: set it up with the README's steps, then fill in the three values under **Settings →
+  Phone → Without Tailscale, through Cloudflare** on the computer. Cloudflare asks for a code sent
+  to your email, Nines checks Cloudflare's sign-in on every request, and your passphrase is still
+  asked. It is off until you set it up, and those values can never be changed from a browser
+  that came in through Cloudflare.
+- On a phone or a browser that came in from outside, **Settings → This device** says how: through
+  Tailscale and as whom (or that Tailscale did not say), or through Cloudflare and with which
+  email.
 
 ### Changed
 
@@ -54,6 +63,8 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   Your phone, through Tailscale, and your passphrase work as before.
 - If a phone or a browser tab still shows the page from before this update, saving something
   there says the page is from an older Nines and asks you to reload it.
+- Nines no longer answers through Tailscale Funnel, Tailscale's way of putting an address on
+  the open internet; the phone through Tailscale works as before.
 
 ### Fixed
 

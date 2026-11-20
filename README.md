@@ -416,8 +416,15 @@ each against your photos; it then compares the two with your photos and keeps
 the closer. Closet turns that drawing with its own 3D shoe, so every
 panel and stitch turns the right way, and Claude draws the turned shoe twice
 from it, keeps the better one and fixes what still differs from your photos.
-This takes four to ten minutes and happens once, by itself. **Drawn for the
-outfit figure** on the shoe's page shows the drawing on two legs, how long it
+At the same time Claude draws the shoe from its side, in the style of your other
+drawings, with its own panels, marks and sole (and, when the side photo traced
+well, the proportions Closet measured from it); that drawing then becomes the
+shoe's picture in the closet in place of the traced one, and **Fix the details**
+offers only **Use the plain drawing** for it. A shoe Claude drew before gets its
+side by itself, a few calls each, when nothing else is being drawn.
+This takes four to ten minutes and happens once, by itself. **Drawn by Claude
+from its photos** on the shoe's page shows the side, with a line on what makes
+the shoe itself, and the drawing on two legs, how long it
 took, how often it was checked, and what it cost (on your Claude plan nothing
 is billed; the page says what it would cost on the API key, about $2 a shoe).
 The outfit figure (**As worn** on Today and on a trip's days) then wears that

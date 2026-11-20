@@ -1,7 +1,15 @@
 /** Boxes around the pieces in a photo of several: moving their corners, and placing them on the screen. Pure, so
  * it is tested without a browser. Every box is fractions of the photo (0 left/top, 1 right/bottom). */
 import type { CSSProperties } from 'react';
-import type { BoxEdges } from './types';
+import type { BoxEdges, SourcePhoto } from './types';
+
+/** While Claude looks for the pieces in the photo. */
+export const FINDING_POLL_MS = 2000;
+
+/** How often the photo is asked for again: while Claude looks for the pieces in it, and not at all once it is done. */
+export function sourcePoll(src: Pick<SourcePhoto, 'state'> | null | undefined): number | false {
+  return src?.state === 'finding' ? FINDING_POLL_MS : false;
+}
 
 /** The smallest a box can be made, as a share of the photo's width or height (the server refuses smaller). */
 export const MIN_SIDE = 0.04;

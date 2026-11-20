@@ -543,7 +543,9 @@ class SettingsPatch(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-def create_app(sv: Services) -> FastAPI:
+def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
+    """The web app. `window_key` is the key of Closet's own window (`gate.window_key`): the launcher always gives it,
+    and then a request by this computer's own name must carry it (closet/gate.py). Tests give none."""
     app = FastAPI(title=APP_NAME, version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     cfg, state = sv.cfg, sv.state
 
@@ -560,8 +562,9 @@ def create_app(sv: Services) -> FastAPI:
         if (refused := refusal(token(request))) is not None:
             raise HTTPException(401, refused)
 
-    # the login and the size limits, checked before any request body is read
-    app.add_middleware(gate.Gate, cookie=auth.COOKIE, refusal=refusal)
+    # the address, the window's key, the page's header, the login and the size limits, before any body is read
+    app.add_middleware(gate.Gate, cookie=auth.COOKIE, refusal=refusal, key=window_key,
+                       key_cookie=gate.key_cookie(cfg.port))
 
     # laundry that keeps itself: the owner's counts and laundry day (Settings), read live
     wears.set_policy(lambda: wears.policy_from(state.get("laundry"), savedtrips.rewear(state)))

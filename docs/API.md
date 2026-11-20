@@ -7,6 +7,36 @@ read"}` with a matching status code. Everything except `health`, `session`,
 HttpOnly, SameSite=Strict); without it the answer is 401, given before any of
 the request's body is read.
 
+Before that, and before any body is read, every request (pages, images and calls
+alike) goes through three checks, in this order (`backend/closet/gate.py`):
+
+1. **The address.** The `Host` header, without its port, must be `127.0.0.1`,
+   `localhost`, `[::1]` or a name ending in `.ts.net` (Tailscale Serve keeps the
+   phone's Tailscale name). Anything else is 403 `{"detail": "Nines answers only
+   at this computer's own address, or at its Tailscale address."}`, or, for a path
+   outside `/api/`, a small page saying the same.
+2. **The key of Nines' own window,** when the program runs from its launcher (it
+   always does; tests and the browser tests make the app without one). A request by
+   a local name (`127.0.0.1`, `localhost`, `[::1]`) must carry the cookie
+   `closet_key_<port>`, or it is 401 `{"detail": "Open Nines from its icon to use
+   it on this computer."}`, or, outside `/api/`, a small page titled "Open Nines
+   from its icon". `GET /<any page>?key=<key>` (not under `/api/`) checks the key
+   and, when it is right, answers 303 to the same address without `key` (other
+   query parameters kept) with that cookie set (HttpOnly, SameSite=Strict, 400
+   days); a wrong key is the 401 above. The program opens Nines at `/?key=…` (its
+   window, the browser it falls back to, the tray's Open Nines, and a second launch);
+   the key is made once and kept in `settings.json` as `window_key`, never in an
+   answer, a log or a backup. A request by a `.ts.net` name is never asked for the
+   key, and `?key=` there sets nothing. `GET /api/health`, `POST
+   /api/instance/quit` and `POST /api/instance/show` need no key.
+3. **Changes come from Nines' own page.** `POST`, `PUT`, `PATCH` and `DELETE`
+   under `/api/` need the header `X-Closet-Client: 1`, which the page sends on every
+   call (`frontend/src/api.ts`), or they are 403 `{"detail": "This page is from an
+   older Nines. Reload the page, then try again."}`; only a page from before this
+   header can leave it out, so that is what the sentence says. `POST
+   /api/instance/quit` and `POST /api/instance/show` need none: another copy of the
+   program calls them, proved by the token from `closet.lock`.
+
 Every request is cut off as soon as its body goes past its size limit, with or
 without a `Content-Length` (a `Content-Length` over the limit is refused before
 anything is read): 413 `{"detail": "That photo is too large to send: Nines takes

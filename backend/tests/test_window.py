@@ -10,6 +10,7 @@ import socket
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 from types import SimpleNamespace
 
@@ -19,6 +20,7 @@ from closet import app as app_module
 from closet import cli, instance, tray
 from closet import window as app_window
 from closet.config import Config
+from closet.state import State
 
 from .conftest import FakeClaude, fake_cutter
 
@@ -445,12 +447,35 @@ def args(**kw):
                               "replace": False, **kw})
 
 
+def door(port, keyed):
+    """What the real server answers: the plain address, the keyed one (which leads on to the plain one with a cookie),
+    then the plain one again with that cookie."""
+    def status(opener, url):
+        try:
+            with opener.open(url, timeout=5) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
+    plain = f"http://127.0.0.1:{port}/api/session"
+    jar = urllib.request.HTTPCookieProcessor()
+    with_cookies = urllib.request.build_opener(jar)
+    return {"plain": status(urllib.request.build_opener(), plain), "keyed": status(with_cookies, keyed),
+            "after": status(with_cookies, plain)}
+
+
 def health(port):
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=2) as r:
             return json.loads(r.read()).get("app") == "closet"
     except OSError:
         return False
+
+
+def opened_at(cfg, port):
+    """The address the launcher opens Closet at: its own, with the window's key that it keeps in the settings."""
+    key = State(cfg.state_path).get("window_key")
+    assert key
+    return f"http://127.0.0.1:{port}/?key={key}"
 
 
 def quit_from_settings(cfg, info):
@@ -521,11 +546,13 @@ def test_launching_shows_the_window_and_quit_stops_everything(cfg, launcher):
         seen["closed"] = health(a.port)                    # the server (phone, backups) keeps going
         icon.open()                                        # Open Closet
         wait_for(lambda: win.on_screen)
+        seen["door"] = door(a.port, opened_at(cfg, a.port))
         icon.quit()                                        # Quit Closet
     assert launcher.run(a, drive) == 0
-    url = f"http://127.0.0.1:{a.port}/"
+    url = opened_at(cfg, a.port)                           # the window opens Closet with its key
     assert seen["first"] == (True, [url], True, False)     # the tray joins the window's loop instead of its own
     assert seen["closed"] is True
+    assert seen["door"] == {"plain": 401, "keyed": 200, "after": 200}
     assert launcher.opened == []                           # never the browser
     assert "destroy" in launcher.toolkit.window.calls and launcher.icons[0].stops == 1
     assert not health(a.port) and not cfg.lock_path.exists()
@@ -593,14 +620,16 @@ def test_the_window_endpoint_needs_this_copys_token(cfg, anon, services):
     assert anon.post("/api/instance/show", headers={instance.QUIT_HEADER: token}).json() == {"shown": False}
 
 
-def test_a_copy_without_a_window_is_opened_in_the_browser(monkeypatch):
+def test_a_copy_without_a_window_is_opened_in_the_browser(cfg, monkeypatch):
     opened = []
     monkeypatch.setattr(cli.webbrowser, "open", opened.append)
     monkeypatch.setattr(instance, "show_running", lambda info: False)   # no window there, or an older copy
-    cli._open_running({"port": 1, "token": None}, URL)
+    cli._open_running(cfg, {"port": 1, "token": None}, URL)             # a copy from before the key
+    State(cfg.state_path).update(window_key="the-key")
+    cli._open_running(cfg, {"port": 1, "token": None}, URL)             # with the key the running copy keeps
     monkeypatch.setattr(instance, "show_running", lambda info: True)
-    cli._open_running({"port": 1, "token": "t"}, URL)
-    assert opened == [URL]
+    cli._open_running(cfg, {"port": 1, "token": "t"}, URL)
+    assert opened == [URL, URL + "?key=the-key"]
 
 
 def test_an_older_copy_that_has_no_window_is_still_opened_in_the_browser(cfg, monkeypatch):
@@ -627,7 +656,7 @@ def test_when_the_window_cannot_open_the_browser_opens_as_before(cfg, launcher):
 
     def drive(env):
         wait_for(lambda: env.icons and env.icons[0].ran)   # the tray's own loop, as before
-        assert env.opened == [f"http://127.0.0.1:{a.port}/"]
+        assert env.opened == [opened_at(cfg, a.port)]
         env.icons[0].open()                                # Open Closet opens the browser too
         assert len(env.opened) == 2
         info = instance.running_info(cfg)
@@ -644,7 +673,7 @@ def test_a_window_that_fails_while_starting_falls_back_to_the_browser(cfg, launc
     def drive(env):
         wait_for(lambda: env.icons and env.icons[0].ran)
         assert env.icons[0].detached
-        assert env.opened == [f"http://127.0.0.1:{a.port}/"]
+        assert env.opened == [opened_at(cfg, a.port)]
         env.icons[0].open()
         assert len(env.opened) == 2
         env.icons[0].quit()
@@ -658,7 +687,7 @@ def test_browser_flag_uses_the_browser(cfg, launcher):
         wait_for(lambda: env.icons and env.icons[0].ran)
         env.icons[0].quit()
     assert launcher.run(a, drive) == 0
-    assert launcher.toolkit.window is None and launcher.opened == [f"http://127.0.0.1:{a.port}/"]
+    assert launcher.toolkit.window is None and launcher.opened == [opened_at(cfg, a.port)]
 
 
 def test_an_update_opens_the_window_only_when_it_was_showing():

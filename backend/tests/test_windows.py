@@ -59,6 +59,19 @@ def test_a_command_too_long_for_windows_is_a_clear_failure():
     claude_cli.print_command("claude", "m", "low", schema, "Read", "s", platform="darwin")   # the Mac allows it
 
 
+def test_an_npm_claude_cmd_too_short_for_the_request_is_a_clear_unavailable_route():
+    """Windows starts a .cmd through cmd.exe, which takes at most 8,191 characters, and every plan call is far
+    longer: with only an npm install the plan route is unavailable (so the API key takes over), saying why."""
+    from closet.tagger.tagging import RouteUnavailable
+    npm = "C:\\Users\\o\\AppData\\Roaming\\npm\\claude.cmd"
+    with pytest.raises(RouteUnavailable, match="installed through npm"):
+        claude_cli.print_command(npm, "claude-haiku-5-5", "low", claude_cli.strict_schema(), "Read", claude_cli.SYSTEM,
+                                 platform="win32")
+    claude_cli.print_command(npm, "m", "low", {"type": "object"}, "Read", "s", platform="win32")   # a short one starts
+    claude_cli.print_command(LONG_EXE, "claude-haiku-5-5", "low", claude_cli.strict_schema(), "Read", claude_cli.SYSTEM,
+                             platform="win32")
+
+
 ECHO = ("import json, sys; print(json.dumps({'argv': sys.argv[1:], 'stdin': sys.stdin.buffer.read().hex()}))")
 
 

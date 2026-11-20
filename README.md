@@ -97,6 +97,10 @@ the way a browser does; links to shops and other sites open in your usual
 browser. If the window cannot open on your computer, Nines opens in your
 browser instead, as it used to; on Windows that happens if the Microsoft Edge
 WebView2 Runtime is missing (it comes with Windows 11 and current Windows 10).
+On this computer Nines opens only from its own icon: typing its address
+(`http://127.0.0.1:8765`) into a browser, or an old bookmark to it, shows a page
+asking you to open Nines from its icon. That keeps the websites you visit out
+of your closet. Your phone is not affected.
 If the copy that is running is an older version (you downloaded an update but
 the old one was still open), Nines says so and asks whether to close the old
 one and use the new one; your closet is the same either way. On Windows the
@@ -522,7 +526,8 @@ in a folder of your own. Not in **Downloads** either, so it is not tidied away.
   rather than turning it off.
 
 A few seconds later Nines opens in its own window (it is the page at
-`http://127.0.0.1:8765`, which also works in a browser). Choose your
+`http://127.0.0.1:8765`; typed into a browser, that address asks you to open
+Nines from its icon instead). Choose your
 passphrase; the background-removal model starts downloading. Closing the
 window leaves Nines running in the background; double-click `Closet.exe` to
 bring it back.

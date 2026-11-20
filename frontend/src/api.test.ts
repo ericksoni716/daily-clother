@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { api, connection, KEEPALIVE_BUDGET, keepaliveSize, OPEN_TIMEOUT_MS, UNREACHABLE } from './api';
+import { api, CLIENT_HEADER, connection, KEEPALIVE_BUDGET, keepaliveSize, OPEN_TIMEOUT_MS, UNREACHABLE } from './api';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -41,6 +41,19 @@ describe('interrupted responses', () => {
 
     await expect(api.today({} as never, new AbortController().signal)).rejects.toBe(aborted);
     expect(connection.offline).toBe(false);
+  });
+});
+
+describe("Closet's own page", () => {
+  it('says so on every call, with a body, a photo or nothing', async () => {
+    const calls = answering();
+    await api.session();
+    await api.patch('abc', { notes: 'soft' });
+    await api.upload(new Blob(['x']), 'x.jpg', 'k');
+    await api.logout();
+    expect(calls.map((c) => (c.headers as Record<string, string>)[CLIENT_HEADER])).toEqual(['1', '1', '1', '1']);
+    expect((calls[1].headers as Record<string, string>)['Content-Type']).toBe('application/json');
+    expect((calls[2].headers as Record<string, string>)['Content-Type']).toBeUndefined();   // the browser sets the form's
   });
 });
 

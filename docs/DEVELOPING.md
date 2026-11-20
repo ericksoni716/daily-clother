@@ -13,13 +13,19 @@ Python 3.12 (what CI uses) and Node 22.
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
-python -m closet              # the app, on 127.0.0.1
+python -m closet              # the app, on 127.0.0.1, opened in its window (or the browser) with its key
 
 cd ../frontend
 npm ci
 npm run dev                   # the page alone; passes /api and /media to a backend on port 8765
 npm run build                 # writes the page into backend/closet/web/, which the backend serves
 ```
+
+`python -m closet` runs the same launcher as the packaged program, so the key of Closet's own window
+is in force (`gate.py`): the address it prints answers "Open Closet from its icon" in a browser, and
+running `python -m closet` again opens it with the key. `npm run dev` needs a backend without the
+key, such as the one the browser tests use: `python -m tests.e2e_backend --no-browser --no-tray --port 8765` in `backend/`
+(the weather service is out of reach there; nothing else is replaced unless `CLOSET_E2E_FAKES=1`).
 
 `CLOSET_DATA_DIR` chooses the data folder, `CLOSET_PORT` the port (`backend/closet/config.py`
 has every such name). Point `CLOSET_DATA_DIR` at a temporary folder when trying something, so
@@ -32,7 +38,7 @@ a real closet is never touched.
 | Area | Modules |
 | --- | --- |
 | The program | `cli.py` (entry point: start, restore, backup, reset-passphrase), `config.py` (where things live, from the environment), `state.py` (program-wide settings in one JSON file; `DEFAULTS` lists every key), `instance.py` (one copy at a time, and its port), `window.py`, `window_mac.py` (Nines' own window), `tray.py` (with `icon.png`, the tray's and the program's icon, rendered by the frontend's `npm run icons`), `autostart.py`, `net.py` (outbound HTTPS in the packaged program), `updates.py` (checking for a release, fetching it, swapping it in). |
-| The web API | `app.py`: `build_services` wires the settings, the database and every background worker (tests pass stand-ins here), and `create_app` defines every route. `gate.py` (login and size limits, before a body is read), `limits.py`, `auth.py` (one passphrase, sessions), `phone.py` (the Tailscale address for the phone, looked up in the background by `phone.Watch`). |
+| The web API | `app.py`: `build_services` wires the settings, the database and every background worker (tests pass stand-ins here), and `create_app` defines every route. `gate.py` (the address, the key of Nines' own window, the page's header, the login and size limits, all before a body is read), `limits.py`, `auth.py` (one passphrase, sessions), `phone.py` (the Tailscale address for the phone, looked up in the background by `phone.Watch`). |
 | Data | `db.py` (SQLite, and migrations by `PRAGMA user_version`), `migrations/NNNN_name.sql`, `items.py` (reading and changing items), `images.py` (a photo into the files the closet keeps), `backup.py`, `storage.py`, `demo.py` and `demo_data/` (the demo closet, a database of its own). |
 | A photo becomes an item | `jobs.py` (the cutout queue, in the `jobs` table), `cutout.py`, `modelstore.py` (the background-removal models), `tagjobs.py` (the queue that asks Claude to describe an item, and `apply_answer`), `illustrations.py` (each item's drawing, kept up to date), `patjobs.py` (measuring a pattern), `progress.py` (how far the work on an item has got, in the page's words, and `GET /api/progress`), `palette.py`, `sources.py` (several items from one photo), `failures.py` (why a step failed, in words safe to show). |
 | What an item is | `look.py` (its look, read from one place: the description the drawing was made from, with the owner's corrections over it, and its coarse shape as drawn; every screen and rule that tells how a garment looks reads it here), `kinds.py` (its kind, from the taxonomy), `vocab.py` (the small coarse vocabulary), `details.py` (the details the owner can set), `corrections.py` (picking a detail, saying what is wrong, undo), `history.py`, `review.py` (the review queue). |

@@ -68,6 +68,10 @@ real routes say whether one is, and on a computer with neither the conversation 
 
 The API key box keeps keys in a stand-in keychain (never the computer's), and the check with Anthropic is a
 stand-in too: a key ending in "refused" is turned down, any other well-formed key is accepted.
+
+No key of Closet's own window is in force (closet/gate.py): the launcher makes one and gives it to the app, and here
+the app is made without it, so the browser opens 127.0.0.1 directly, as the unit tests' client does. The address check
+and the page's header are the real ones. Opening Closet with its key is tested in test_gate.py and test_window.py.
 """
 import json
 import os
@@ -393,7 +397,16 @@ def _build_services(cfg, **kwargs):
     return sv
 
 
+_real_create = app.create_app
+
+
+def create_app(sv, window_key=None):
+    """The app the launcher makes, without the key of its window (see the top)."""
+    return _real_create(sv)
+
+
 if __name__ == "__main__":
     weather.fetch = no_weather_service
     app.build_services = build_services
+    app.create_app = create_app
     sys.exit(cli.main(sys.argv[1:]))

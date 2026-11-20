@@ -20,7 +20,7 @@ import time
 import webbrowser
 from pathlib import Path
 
-from . import APP_NAME, __version__, autostart, backup, config, db, instance
+from . import APP_NAME, __version__, autostart, backup, config, db, gate, instance
 from .state import State
 
 log = logging.getLogger("closet")
@@ -104,11 +104,21 @@ def _follow_start_at_login() -> None:
         log.warning("could not point start at login to this program", exc_info=True)
 
 
-def _open_running(info: dict, url: str) -> None:
+def _open_running(cfg: config.Config, info: dict, url: str) -> None:
     """Opened again while a copy runs: that copy shows its window, or, when it has none (it uses the browser, or it is
-    from before Closet had a window), the browser opens as it always did."""
+    from before Closet had a window), the browser opens as it always did, at the address with the window's key."""
     if not instance.show_running(info):
-        webbrowser.open(url)
+        webbrowser.open(_keyed(cfg, url))
+
+
+def _keyed(cfg: config.Config, url: str) -> str:
+    """`url` with the key of Closet's own window (closet/gate.py) as the running copy keeps it in the settings; `url`
+    alone when there is none (a copy from before the key) or the settings cannot be read."""
+    try:
+        key = State(cfg.state_path).get("window_key")
+    except Exception:
+        key = None
+    return gate.keyed_url(url, key if isinstance(key, str) else None)
 
 
 def _launch_args(args, port: int, window_shown: bool = False) -> list[str]:
@@ -154,11 +164,11 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
                     _say(f"An older {APP_NAME} ({theirs}) is already running at {url}. Quit it from its icon or "
                          f"from Settings, then open {APP_NAME} {__version__} again to use the new version.")
                 if not args.no_browser:
-                    _open_running(already, url)
+                    _open_running(cfg, already, url)
                 return 0
         if not replaced_older:
             if not args.no_browser:
-                _open_running(already, url)
+                _open_running(cfg, already, url)
             if sys.stdout is not None:
                 print(f"{APP_NAME} {theirs} is already running at {url}", flush=True)
             return 0
@@ -180,11 +190,15 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
         _say(str(e))
         return 2
 
-    app = create_app(services)
+    # Closet's own window, the browser it falls back to and the tray open it with the key, which the server swaps for
+    # a cookie; by this computer's own name nothing else gets in (closet/gate.py). Made once and kept in the settings.
+    key = gate.window_key(services.state)
+    app = create_app(services, window_key=key)
     server = uvicorn.Server(uvicorn.Config(app, host=cfg.host, port=port, log_config=None, loop="asyncio",
                                            http="h11", ws="none", lifespan="off", access_log=False))
     server.install_signal_handlers = lambda: None  # we run it off the main thread
     url = f"http://127.0.0.1:{port}/"
+    opened = gate.keyed_url(url, key)   # never logged or printed: `url` is
     ui: dict = {}   # the tray icon and Closet's own window, once they are up
 
     def quit_program() -> None:
@@ -206,7 +220,7 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
 
     def open_closet() -> None:   # the tray's "Open Closet"
         if not show_window():
-            webbrowser.open(url)
+            webbrowser.open(opened)
 
     services.on_quit = quit_program
     services.on_show = show_window
@@ -255,7 +269,7 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
             if services.updater is not None:
                 services.updater.launch_args = _launch_args(args, port, window_shown=shown)
 
-        window = app_window.AppWindow(url, cfg.window_dir, hidden=args.no_browser,
+        window = app_window.AppWindow(opened, cfg.window_dir, hidden=args.no_browser,
                                       keep_running=lambda: True, on_quit=quit_program,
                                       on_visible=window_shown, on_terminate=quit_now)
         if window.prepare():
@@ -264,7 +278,7 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
         else:
             window = None
     if window is None and not args.no_browser:
-        webbrowser.open(url)
+        webbrowser.open(opened)
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
@@ -291,7 +305,7 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
                 ui.pop("window", None)
                 if not server.should_exit:
                     if window.visible:
-                        webbrowser.open(url)
+                        webbrowser.open(opened)
                     if icon is not None and not tray.has_own_loop(icon):
                         icon.run()   # the tray was riding on the window's loop; it needs its own now
         elif icon is not None:

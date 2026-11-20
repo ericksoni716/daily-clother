@@ -46,8 +46,9 @@ def endless_photo(total: int, chunk: int = 1024):
 
 
 def send(app, path, body: Body, cookie=None, length=None, content_type=f"multipart/form-data; boundary={BOUNDARY}"):
-    """Calls the app directly (no test client buffering the body first). Returns (status, answer)."""
-    headers = [(b"content-type", content_type.encode())]
+    """Calls the app directly (no test client buffering the body first), as Closet's own page on this computer does
+    (closet/gate.py: its address and its header). Returns (status, answer)."""
+    headers = [(b"host", b"127.0.0.1:8000"), (b"x-closet-client", b"1"), (b"content-type", content_type.encode())]
     if cookie:
         headers.append((b"cookie", cookie.encode()))
     if length is not None:

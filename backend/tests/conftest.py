@@ -7,13 +7,14 @@ import urllib.error
 import zlib
 from types import SimpleNamespace
 
+import fastapi.testclient
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
 from pydantic import BaseModel
 
 from closet import app as app_module
-from closet import weather
+from closet import gate, weather
 from closet.config import Config
 from closet.drawing import drawn
 from closet.tagger import correcting
@@ -26,6 +27,18 @@ from closet.tagger.tagging import RouteUnavailable, TaggingError, TagResult
 from closet.tagger.views import PhotoView, ShoeViews
 
 PASSPHRASE = "correct horse battery"
+
+
+class LocalClient(TestClient):
+    """A test client that speaks to Closet as its own page on this computer does: by the computer's own name, and with
+    the header the page sends on every call (closet/gate.py). Every test's `TestClient` is this one (below), so no
+    test has to say so; a test of the gate itself changes the address or takes the header out."""
+
+    def __init__(self, app, base_url: str = "http://127.0.0.1", *args, headers: dict | None = None, **kw):
+        super().__init__(app, base_url, *args, headers={gate.CLIENT_HEADER: "1", **(headers or {})}, **kw)
+
+
+fastapi.testclient.TestClient = LocalClient   # test modules import it from there after this file has run
 REAL_FETCH = weather.fetch   # for the tests of the request itself, which stop urlopen instead
 
 
@@ -413,7 +426,7 @@ def services(cfg, claude):
 
 @pytest.fixture
 def anon(services):
-    return TestClient(app_module.create_app(services))
+    return LocalClient(app_module.create_app(services))
 
 
 @pytest.fixture

@@ -16,6 +16,11 @@ only here); take a line out when it is done.
 
 - The rename to Nines (20 November) left the program file and the release assets named Closet: decided by the owner and still to do. The updater must find the new asset name while copies already installed still look for `Closet.exe` and `Closet-mac-arm64.zip`; then the names in `packaging/closet.spec` (including `CFBundleName`), `packaging/smoke_test.py`, `ASSETS` in `updates.py`, the release workflow, the start-at-login entry (`autostart.NAME`) and any shortcut that points at the old file name. See DECISIONS, "The name: Nines".
 - Also left by the rename: comments, docstrings and log lines in the code still say Closet, and older docs (past CHANGELOG entries, DECISIONS entries before it, the assessment) keep the old name.
+- **The computer's own door** (the first of three pull requests to the other app's access
+  model, 20 November): the address check, the page's header and the window's key. Left: who
+  someone is through Tailscale Serve and Cloudflare Access (the next pull request), then
+  removing the passphrase (the third). Nobody has yet tried the key on the real Windows and Mac
+  window (WebView2 and WebKit keeping the cookie across restarts).
 - **Shoe drawing made faster** (20 November): two shoes at once, and a check that says good
   stops being read there. Left: the plan route still reads every check's whole answer; nobody
   has yet timed a real shoe with either change, so "four to ten minutes" in the app is
@@ -452,3 +457,4 @@ Tests pass, the packaged build is green in CI, demo mode works, docs are updated
 - Browser tests in `08-wears` timed out twice in local full runs (once each test in the file), both times while reviewers were also running on the machine: the demo closet's tiles were missing or kept being replaced for a minute. Not reproduced in five further runs, three of them under deliberate heavy load, and never on GitHub. Cause not found. If it comes back: run with `--trace retain-on-failure` and look at what keeps re-rendering the grid after a profile switch.
 - Batches API as an opt-in "economy" mode for very large imports.
 - Server-side refusal fallback for the stronger model (beta); tagging currently fails clearly on a refusal.
+- Start Closet when the computer turns on, before anyone signs in, as the owner's other app's hub does (a Windows scheduled task that runs as the owner without a sign-in). Asked for and parked by the owner on 20 November: "Start Closet when I log in" covers a computer that is signed in to most days. It would matter when the PC restarts by itself and the phone must still reach Closet. What it needs first: a home for the API key that a task started before sign-in can read (Windows Credential Manager most likely cannot be read then; not checked, and not checked for the Claude plan's sign-in either); then a window and tray icon that open onto the background copy, updates for a copy that runs as a task, and the one-time administrator permission to make the task. Windows only; the Mac keeps start at login. The November assessment listed this under "do not copy" when Closet had one owner with a passphrase; with the passphrase going and ways in from outside, that reason is weaker.

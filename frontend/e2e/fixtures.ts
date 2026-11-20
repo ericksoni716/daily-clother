@@ -1,11 +1,38 @@
-import { test as base, expect, type Locator, type Page } from '@playwright/test';
+import { test as base, expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 
 export const PASS = 'a calm green closet';
+
+/** The header Closet's own page sends on every call (src/api.ts); the server refuses a change without it. */
+export const CLIENT = { 'X-Closet-Client': '1' };
+
+/**
+ * The tests' own calls (`page.request`, `request`) send the page's header, so they are let in as the page is. Only
+ * those calls: the page itself is never given it, so a call the page makes without it fails the test.
+ */
+export function asThePage(request: APIRequestContext): APIRequestContext {
+  const calls = new Set(['get', 'head', 'post', 'put', 'patch', 'delete', 'fetch']);
+  return new Proxy(request, {
+    get(target, prop) {
+      const value = Reflect.get(target, prop);
+      if (typeof value !== 'function') return value;
+      if (typeof prop !== 'string' || !calls.has(prop)) return value.bind(target);
+      return (url: unknown, options: { headers?: Record<string, string> } = {}) =>
+        value.call(target, url, { ...options, headers: { ...CLIENT, ...options.headers } });
+    },
+  });
+}
 
 export const test = base.extend({
   // eslint-disable-next-line no-empty-pattern -- Playwright fixtures take their dependencies as a pattern
   baseURL: async ({}, use) => {
     await use(process.env.E2E_BASE_URL);
+  },
+  page: async ({ page }, use) => {
+    Object.defineProperty(page, 'request', { value: asThePage(page.request), configurable: true });
+    await use(page);
+  },
+  request: async ({ request }, use) => {
+    await use(asThePage(request));
   },
 });
 export { expect };
@@ -14,7 +41,7 @@ export { expect };
 export async function ensureSetUp(page: Page) {
   const s = await (await page.request.get('/api/session')).json();
   if (s.setup_required) {
-    const r = await page.request.post('/api/setup', { data: { passphrase: PASS } });
+    const r = await page.request.post('/api/setup', { data: { passphrase: PASS }, headers: CLIENT });   // any page, ours or not
     expect(r.status()).toBe(204);
   }
 }

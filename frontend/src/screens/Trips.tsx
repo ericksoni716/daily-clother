@@ -1,3 +1,4 @@
+import { queryOptions, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError, connection } from '../api';
 import { ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
@@ -7,14 +8,16 @@ import { loadGridView, type GridView } from '../drawing';
 import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
 import { SaveLine } from '../leave';
+import { touch, useEdit, useItems } from '../queries';
+import { queryKeys } from '../queryKeys';
 import { Link, navigate } from '../router';
-import { useCloset } from '../store';
+import { useApp } from '../store';
 import { joinWords, longDate, occasionLabel, OCCASIONS, outfitIds, placeLabel, shortPlace, wornOrder, type Outfit } from '../today';
 import {
   addDays, basicLine, checkDates, dateRange, dayCount, dayRain, dayTemps, fitLaundry, groupPacked, itemLine, laundryDays,
   laundryEvery, laundryMode, laundryWords, progress, shortDay, sourceRuns, startLaundry, tripDays, loadSavedTrips, saveTrips,
   tripTitle, upcomingFirst, wornWords, type LaundryMode, type PlannedTrip, type Trip, type TripDay, type TripLaundry,
-  type TripPatch, type TripRequest, type TripSummary,
+  type TripPatch, type TripRequest, type TripSummary, type WeatherCheck,
 } from '../trips';
 import type { ItemSummary, Place } from '../types';
 import { localDay } from '../wears';
@@ -25,27 +28,55 @@ import './Trips.css';
 const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
 
 export function TripsScreen({ tripId }: { tripId: string | null }) {
-  const { items, loadItems } = useCloset();
-  useEffect(() => {
-    if (items.active === null) void loadItems('active');
-  }, [items.active, loadItems]);
   if (tripId === 'new') return <PlanTrip />;
   if (tripId) return <SavedTrip key={tripId} id={tripId} />;
   return <TripList />;
 }
 
-function useItems() {
-  const { items } = useCloset();
-  return useMemo(() => new Map((items.active ?? []).map((i) => [i.id, i])), [items.active]);
+/**
+ * The saved trips. Each answer is kept on this device for offline; when Closet on the computer cannot be reached, the
+ * copy kept is given instead (or the error, when there is none).
+ */
+const tripsQuery = (profile: string) => queryOptions({
+  queryKey: queryKeys.trips(),
+  queryFn: async () => {
+    try {
+      const trips = await api.trips();
+      if (!connection.offline) saveTrips(profile, { list: trips });
+      return trips;
+    } catch (e) {
+      const saved = (e as ApiError).status === 0 ? loadSavedTrips(profile)?.list : null;
+      if (saved) return saved;
+      throw e;
+    }
+  },
+});
+
+/** A saved trip, kept on this device the same way. */
+const tripQuery = (profile: string, id: string) => queryOptions({
+  queryKey: queryKeys.trip(id),
+  queryFn: async () => {
+    try {
+      const trip = await api.trip(id);
+      if (!connection.offline) keepTrip(profile, trip);
+      return trip;
+    } catch (e) {
+      const saved = (e as ApiError).status === 0 ? loadSavedTrips(profile)?.details[id] : null;
+      if (saved) return saved;
+      throw e;
+    }
+  },
+});
+
+function useActiveItems() {
+  const active = useItems('active').data;
+  return useMemo(() => new Map((active ?? []).map((i) => [i.id, i])), [active]);
 }
 
 function useTripItems() {
-  const { items, loadItems } = useCloset();
-  useEffect(() => {
-    if (items.archived === null) void loadItems('archived');
-  }, [items.archived, loadItems]);
-  return useMemo(() => new Map([...(items.active ?? []), ...(items.archived ?? [])].map((i) => [i.id, i])),
-    [items.active, items.archived]);
+  const active = useItems('active').data;
+  const archived = useItems('archived').data;
+  return useMemo(() => new Map([...(active ?? []), ...(archived ?? [])].map((i) => [i.id, i])), [active, archived]);
 }
 
 function itemName(item: ItemSummary | undefined): string {
@@ -87,35 +118,14 @@ function BackToTrips() {
 // ------------------------------------------------------------------ the list
 
 function TripList() {
-  const { offline, profile } = useCloset();
-  const [trips, setTrips] = useState<TripSummary[] | null>(() => loadSavedTrips(profile)?.list ?? null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let current = true;
-    api.trips().then(
-      (t) => {
-        if (!current) return;
-        setTrips(t);
-        setError(null);
-        if (!connection.offline) saveTrips(profile, { list: t });
-      },
-      (e) => {
-        if (!current) return;
-        const saved = loadSavedTrips(profile)?.list;
-        if ((e as ApiError).status === 0 && saved) {
-          setTrips(saved);
-          setError(null);
-        }
-        else setError((e as ApiError).status === 0
-          ? "You're offline, and the list of trips was not saved on this device. It shows here once Closet on your computer can be reached."
-          : (e as Error).message);
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [offline, profile]);
+  const { offline, profile } = useApp();
+  // the copy kept on this device shows until the list arrives, and stays with an error
+  const [kept] = useState(() => loadSavedTrips(profile)?.list ?? null);
+  const query = useQuery(tripsQuery(profile));
+  const trips = query.data ?? kept;
+  const error = !query.error ? null : (query.error as ApiError).status === 0
+    ? "You're offline, and the list of trips was not saved on this device. It shows here once Closet on your computer can be reached."
+    : query.error.message;
 
   const planButton = offline
     ? <span className="btn btn-primary is-disabled" aria-disabled="true" title={OFFLINE_TITLE}>Plan a trip</span>
@@ -187,8 +197,10 @@ function requestOf(d: Draft, leaveOut: string[], pin: string[]): TripRequest | n
 }
 
 function PlanTrip() {
-  const { offline, toast } = useCloset();
-  const byId = useItems();
+  const { offline, profile, toast } = useApp();
+  const qc = useQueryClient();
+  const saveEdit = useEdit('trip');
+  const byId = useActiveItems();
   const today = localDay();
   const [draft, setDraft] = useState<Draft>({ place: null, first: addDays(today, 7), last: addDays(today, 11), occasion: 'casual', differ: {}, laundry: null });
   const [leaveOut, setLeaveOut] = useState<string[]>([]);
@@ -231,7 +243,9 @@ function PlanTrip() {
     if (!req) return;
     setSaving(true);
     try {
-      const trip = await api.saveTrip(req);
+      const trip = await saveEdit(() => api.saveTrip(req));
+      qc.setQueryData(queryKeys.trip(trip.id), trip);   // it opens at once
+      keepTrip(profile, trip);
       toast('Trip saved');
       navigate(`/trips/${encodeURIComponent(trip.id)}`, { replace: true });
     } catch (e) {
@@ -392,71 +406,62 @@ function PlacePicker({ place, locked, onChoose }: { place: Place | null; locked:
 // ------------------------------------------------------------------ a saved trip
 
 function SavedTrip({ id }: { id: string }) {
-  const { offline, profile, toast, items } = useCloset();
+  const { offline, profile, toast } = useApp();
+  const qc = useQueryClient();
+  const saveEdit = useEdit('trip');
   const byId = useTripItems();
+  const active = useItems('active').data;
+  const archived = useItems('archived').data;
   // A piece missing from the closet is called archived or gone, so the plan waits until both lists are here:
   // shown a moment too early, every piece read "no longer in your closet". Offline there may be nothing to wait for.
-  const itemsReady = offline || (items.active !== null && items.archived !== null);
-  const [trip, setTrip] = useState<Trip | null>(() => loadSavedTrips(profile)?.details[id] ?? null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [newWeather, setNewWeather] = useState(false);
+  const itemsReady = offline || (active !== undefined && archived !== undefined);
+  // the copy kept on this device shows until the trip arrives, and stays with an error
+  const [kept] = useState<Trip | null>(() => loadSavedTrips(profile)?.details[id] ?? null);
+  const query = useQuery(tripQuery(profile, id));
+  // what is ticked while ticks are being saved: drawn at once (a checkbox follows its tap), taken from the trip after
+  const [ticked, setTicked] = useState<string[] | null>(null);
+  const known = query.data ?? kept;
+  const trip = known && ticked ? { ...known, packed: ticked } : known;
   const pending = useRef(0);
+  useEffect(() => {
+    if (pending.current === 0) setTicked(null);   // the trip as saved has arrived
+  }, [query.data]);
+  const error = !query.error ? null : (query.error as ApiError).status === 0
+    ? "You're offline, and this trip was not saved on this device. It shows here once Closet on your computer can be reached."
+    : query.error.message;
+  const [busy, setBusy] = useState(false);
+  // Its days may have come into the forecast since it was planned: say so, but never change the plan by itself.
+  const newWeather = useQuery({
+    queryKey: queryKeys.tripWeather(id), queryFn: () => api.tripWeather(id), enabled: !offline, select: (w) => w.checked && w.changed,
+  }).data ?? false;
   const ticks = useRef(new SaveLine());
 
-  useEffect(() => {
-    let current = true;
-    api.trip(id).then(
-      (t) => {
-        if (!current) return;
-        setTrip(t);
-        if (!connection.offline) keepTrip(profile, t);
-      },
-      (e) => {
-        if (!current) return;
-        const err = e as ApiError;
-        const saved = loadSavedTrips(profile)?.details[id];
-        if (err.status === 0 && saved) setTrip(saved);
-        else setError(err.status === 0
-          ? "You're offline, and this trip was not saved on this device. It shows here once Closet on your computer can be reached."
-          : err.message);
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [id, offline, profile]);
-
-  // Its days may have come into the forecast since it was planned: say so, but never change the plan by itself.
-  useEffect(() => {
-    if (offline) return;
-    let current = true;
-    api.tripWeather(id).then((w) => current && setNewWeather(w.checked && w.changed), () => undefined);
-    return () => {
-      current = false;
-    };
-  }, [id, offline]);
-
   const locked = offline;
+  const setTrip = (t: Trip) => qc.setQueryData(queryKeys.trip(id), t);
 
   function tick(line: string, on: boolean) {
     if (!trip || locked) return;
-    setTrip((t) => t && { ...t, packed: on ? [...t.packed.filter((x) => x !== line), line] : t.packed.filter((x) => x !== line) });
+    setTicked((now) => {
+      const packed = (now ?? trip.packed).filter((x) => x !== line);
+      return on ? [...packed, line] : packed;
+    });
     pending.current += 1;
-    // one at a time, in the order they were tapped
+    // one at a time, in the order they were tapped; what they answer is taken once the last has been saved
     void ticks.current.add(() => api.patchTrip(id, { ticks: { [line]: on } })).then(
       (t) => {
         pending.current -= 1;
         if (pending.current === 0) {
           setTrip(t);
           keepTrip(profile, t);
-          void api.trip(id).then((fresh) => keepTrip(profile, fresh)).catch(() => undefined);
+          void touch(qc, 'trip', ['trip', 'tripWeather']);   // the list's packed count; the weather is the same
         }
       },
       (e) => {
         pending.current -= 1;
         toast((e as Error).message, 'error');
-        void api.trip(id).then((t) => pending.current === 0 && setTrip(t), () => undefined);
+        void api.trip(id).then((t) => {
+          if (pending.current === 0) setTrip(t);
+        }, () => undefined);
       },
     );
   }
@@ -464,12 +469,11 @@ function SavedTrip({ id }: { id: string }) {
   async function change(patch: TripPatch, done?: string) {
     setBusy(true);
     try {
-      const updated = await api.patchTrip(id, patch);
+      const updated = await saveEdit(() => api.patchTrip(id, patch));
       setTrip(updated);
       keepTrip(profile, updated);
-      if (patch.replan) setNewWeather(false);
+      if (patch.replan) qc.setQueryData<WeatherCheck>(queryKeys.tripWeather(id), (w) => w && { ...w, changed: false });
       if (done) toast(done);
-      void api.trip(id).catch(() => undefined);
     } catch (e) {
       toast((e as Error).message, 'error');
     } finally {
@@ -483,6 +487,9 @@ function SavedTrip({ id }: { id: string }) {
     try {
       await api.removeTrip(id);
       forgetTrip(profile, id);
+      qc.setQueryData<TripSummary[]>(queryKeys.trips(), (list) => list?.filter((t) => t.id !== id));
+      // the list is read again; this trip's own entries are left to be forgotten, so nothing asks for it again
+      void touch(qc, 'trip', ['trip', 'tripWeather']);
       toast('Trip deleted');
       navigate('/trips', { replace: true });
     } catch (e) {

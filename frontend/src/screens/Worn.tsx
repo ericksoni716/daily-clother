@@ -1,21 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { queryOptions, useQueries, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, PlusIcon } from '../components/Icons';
 import { BackLink, Button, Card, EmptyState, ItemThumb, PageHeader, trapTab } from '../components/ui';
 import { label } from '../labels';
+import { setLaundryMany } from '../laundry';
+import { touch, useEdit, useItems, writeItem } from '../queries';
+import { queryKeys } from '../queryKeys';
 import { navigate } from '../router';
-import { useCloset } from '../store';
+import { useApp } from '../store';
 import { occasionLabel } from '../today';
 import type { ItemSummary } from '../types';
-import { setLaundryMany } from '../laundry';
 import { localDay } from '../wears';
+import {
+  contextWords, joinPages, RATINGS, ratingLabel, ratingSummary, reasonLabel, reasonsFor, loadSavedWorn, pieceName, saveWorn, withOutfit,
+  withoutOutfit, withRecorded, wornDay, wornIds, type Rating, type Reason, type WornOutfit, type WornPage,
+} from '../worn';
 
 /** The kinds of piece that go in the wash after a day's wear (not shoes, coats, jackets or accessories). */
 const WASHED = new Set(['tee', 'shirt', 'polo', 'sweater', 'hoodie', 'jeans', 'trousers', 'shorts']);
-import {
-  contextWords, RATINGS, ratingLabel, ratingSummary, reasonLabel, reasonsFor, loadSavedWorn, pieceName, saveWorn, wornDay, wornIds, type Rating, type Reason,
-  type WornOutfit, type WornPage,
-} from '../worn';
 import './Worn.css';
 
 const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
@@ -25,7 +28,9 @@ export const RATE_OFFLINE = "You're offline, so rating has to wait until Closet 
 export function RateOutfit({ outfit, offline, onRated, compact }: {
   outfit: WornOutfit; offline: boolean; onRated(o: WornOutfit): void; compact?: boolean;
 }) {
-  const { toast } = useCloset();
+  const { toast } = useApp();
+  const qc = useQueryClient();
+  const rated = useEdit('outfit');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState(outfit.rating_note ?? '');
   const locked = offline || busy;
@@ -34,7 +39,9 @@ export function RateOutfit({ outfit, offline, onRated, compact }: {
   async function save(rating: Rating | null, reasons: Reason[], noteText: string | null) {
     setBusy(true);
     try {
-      onRated(await api.rateOutfit(outfit.id, rating, reasons, reasons.includes('other') ? noteText : null));
+      const o = await rated(() => api.rateOutfit(outfit.id, rating, reasons, reasons.includes('other') ? noteText : null));
+      changePages(qc, (page) => withOutfit(page, o));
+      onRated(o);
     } catch (e) {
       toast((e as ApiError).message, 'error');
     } finally {
@@ -113,71 +120,77 @@ export function OutfitPics({ outfit, byId, linked = true }: { outfit: WornOutfit
 
 /** Every item in the closet by id, archived ones too: a worn outfit may hold a piece archived since. */
 export function useAllItems(): Map<string, ItemSummary> {
-  const { items, loadItems } = useCloset();
-  useEffect(() => {
-    if (items.archived === null) void loadItems('archived');
-  }, [items.archived, loadItems]);
-  return useMemo(() => new Map([...(items.archived ?? []), ...(items.active ?? [])].map((i) => [i.id, i])), [items.active, items.archived]);
+  const active = useItems('active').data;
+  const archived = useItems('archived').data;
+  return useMemo(() => new Map([...(archived ?? []), ...(active ?? [])].map((i) => [i.id, i])), [active, archived]);
+}
+
+/** A page of worn outfits as read, and when it was asked for (null: the copy kept on this device, shown offline). */
+export interface WornRead {
+  page: WornPage;
+  at: number | null;
 }
 
 /**
- * Fetch the first page of worn outfits again and keep it for this closet, so the copy saved for offline matches
- * what changed. When Closet on the computer cannot be reached, this closet's saved copy (or null).
+ * A page of worn outfits, newest first (`before`: the cursor the page before gave; null for the first page). The
+ * first page is the one Today reads too, and it is kept on this device for offline: when Closet on the computer
+ * cannot be reached, this closet's saved copy is given instead. Made stale by the edits that touch `worn`.
  */
-export async function refreshSaved(profile: string): Promise<WornPage | null> {
-  try {
-    const page = await api.wornOutfits();
-    saveWorn(profile, page);
-    return page;
-  } catch (e) {
-    return (e as ApiError).status === 0 ? loadSavedWorn(profile)?.page ?? null : null;
-  }
+export const wornQuery = (profile: string, before: string | null = null) => queryOptions({
+  queryKey: queryKeys.worn(before),
+  queryFn: async (): Promise<WornRead> => {
+    const started = Date.now();
+    try {
+      const page = await api.wornOutfits(before);
+      if (before === null) saveWorn(profile, page);
+      return { page, at: navigator.onLine !== false ? started : null };
+    } catch (e) {
+      const saved = before === null && (e as ApiError).status === 0 ? loadSavedWorn(profile) : null;
+      if (saved) return { page: saved.page, at: null };
+      throw e;
+    }
+  },
+});
+
+/** Changes every page of worn outfits read so far (a save answered with the outfit), before they are read again. */
+export function changePages(qc: QueryClient, change: (page: WornPage) => WornPage): void {
+  qc.setQueriesData<WornRead>({ queryKey: [queryKeys.worn()[0]] }, (d) => {
+    if (!d) return d;
+    const page = change(d.page);
+    return page === d.page ? d : { ...d, page };
+  });
 }
 
 export function WornScreen() {
-  const { profile, items, loadItems, offline, toast } = useCloset();
-  const [list, setList] = useState<WornOutfit[] | null>(null);
-  const [next, setNext] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const { profile, offline, toast } = useApp();
+  const qc = useQueryClient();
+  const items = useItems('active').data ?? null;
   const [adding, setAdding] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
-  useEffect(() => {
-    if (items.active === null) void loadItems('active');
-  }, [items.active, loadItems]);
-
-  const load = useCallback(async () => {
-    try {
-      const page = await api.wornOutfits();
-      saveWorn(profile, page);
-      setList(page.outfits);
-      setNext(page.next);
-      setError(null);
-    } catch (e) {
-      const err = e as ApiError;
-      const saved = err.status === 0 ? loadSavedWorn(profile) : null;
-      if (saved) {
-        setList(saved.page.outfits);
-        setNext(saved.page.next);
-        setError(null);
-        return;
-      }
-      setError(err.status === 0 ? "You're offline, and the worn outfits were not saved on this device yet." : err.message);
-    }
-  }, [profile]);
-
-  useEffect(() => {
-    setList(null);
-    void load();
-  }, [load, profile]);
+  // The pages shown: the first, then each asked for with the cursor of the page before it as it now stands, so a
+  // first page read again after an edit (an outfit recorded) leaves no outfit out between it and the next.
+  const [count, setCount] = useState(1);
+  const cursors: (string | null)[] = [null];
+  for (let i = 1; i < count; i++) {
+    const next = qc.getQueryData<WornRead>(queryKeys.worn(cursors[i - 1]))?.page.next;
+    if (!next) break;
+    cursors.push(next);
+  }
+  const pages = useQueries({ queries: cursors.map((c) => wornQuery(profile, c)) });
+  const first = pages[0];
+  const list = first.data ? joinPages(pages.map((p) => p.data?.page)) : null;
+  const next = pages[pages.length - 1].data?.page.next ?? null;
+  const error = first.error && !first.data
+    ? ((first.error as ApiError).status === 0 ? "You're offline, and the worn outfits were not saved on this device yet." : first.error.message)
+    : null;
 
   async function more() {
     if (!next) return;
     setLoadingMore(true);
     try {
-      const page = await api.wornOutfits(next);
-      setList((l) => [...(l ?? []), ...page.outfits.filter((o) => !(l ?? []).some((x) => x.id === o.id))]);
-      setNext(page.next);
+      await qc.fetchQuery(wornQuery(profile, next));
+      setCount(cursors.length + 1);
     } catch (e) {
       toast((e as ApiError).message, 'error');
     } finally {
@@ -186,10 +199,6 @@ export function WornScreen() {
   }
 
   const byId = useAllItems();
-  const replace = (o: WornOutfit) => {
-    setList((l) => (l ?? []).map((x) => (x.id === o.id ? o : x)));
-    void refreshSaved(profile);
-  };
 
   return (
     <div className="worn">
@@ -205,17 +214,15 @@ export function WornScreen() {
       <p className="hint worn-intro">Outfits you wore, newest first. Say how each one went and the outfits Today offers learn from it.</p>
 
       {adding && (
-        <RecordByHand items={items.active ?? []} onCancel={() => setAdding(false)}
+        <RecordByHand items={items ?? []} onCancel={() => setAdding(false)}
           onDone={(o) => {
             setAdding(false);
-            setList((l) => [o, ...(l ?? [])].sort((a, b) => (a.worn_on === b.worn_on ? 0 : a.worn_on < b.worn_on ? 1 : -1)));
-            void loadItems('active');
-            void refreshSaved(profile);
+            qc.setQueryData<WornRead>(queryKeys.worn(), (d) => d && { ...d, page: withRecorded(d.page, o) });
             toast('Outfit recorded');
           }} />
       )}
 
-      {error && !list && <p className={offline ? 'notice' : 'form-error'} role="alert">{error}</p>}
+      {error && <p className={offline ? 'notice' : 'form-error'} role="alert">{error}</p>}
       {list === null && !error && <p className="muted"><span className="spinner" aria-hidden="true" /> Loading…</p>}
       {list && list.length === 0 && (
         <EmptyState icon={<HangerIcon />} title="No outfits worn yet" body={'Tap "I\'m wearing this" on Today, or record one here.'} />
@@ -224,12 +231,8 @@ export function WornScreen() {
         <ol className="worn-list" aria-label="Worn outfits">
           {list.map((o) => (
             <li key={o.id}>
-              <WornCard outfit={o} byId={byId} offline={offline} onRated={replace}
-                onRemoved={() => {
-                  setList((l) => (l ?? []).filter((x) => x.id !== o.id));
-                  void loadItems('active');
-                  void refreshSaved(profile);
-                }} />
+              <WornCard outfit={o} byId={byId} offline={offline} onRated={() => undefined}
+                onRemoved={() => changePages(qc, (page) => withoutOutfit(page, o.id))} />
             </li>
           ))}
         </ol>
@@ -246,7 +249,9 @@ export function WornScreen() {
 function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
   outfit: WornOutfit; byId: Map<string, ItemSummary>; offline: boolean; onRated(o: WornOutfit): void; onRemoved(): void;
 }) {
-  const { toast, upsert } = useCloset();
+  const { toast } = useApp();
+  const qc = useQueryClient();
+  const removed = useEdit('outfit');
   const [confirm, setConfirm] = useState(false);
   // the clothes of the outfit that go in the wash, still in the closet and not in the laundry already
   const washable = wornIds(outfit.pieces).filter((id) => {
@@ -254,7 +259,8 @@ function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
     return item && item.status !== 'archived' && item.laundry !== 'laundry' && WASHED.has(item.category ?? '');
   });
   async function toLaundry() {
-    const failed = await setLaundryMany(washable, 'laundry', upsert);
+    const failed = await setLaundryMany(washable, 'laundry', (item) => writeItem(qc, item));
+    if (failed < washable.length) void touch(qc, 'laundry', ['items', 'item']);
     toast(failed ? `${failed} could not be put in the laundry. Try again.` : `${washable.length === 1 ? 'It is' : `${washable.length} pieces are`} in the laundry`,
       failed ? 'error' : 'ok');
   }
@@ -267,7 +273,7 @@ function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
   async function remove() {
     setBusy(true);
     try {
-      await api.removeOutfit(outfit.id);
+      await removed(() => api.removeOutfit(outfit.id));
       onRemoved();
       toast('Outfit removed');
     } catch (e) {
@@ -388,7 +394,8 @@ function OutfitMenu({ offline, onAgain, onLaundry, onRemove }: { offline: boolea
 }
 
 function RecordByHand({ items, onCancel, onDone }: { items: ItemSummary[]; onCancel(): void; onDone(o: WornOutfit): void }) {
-  const { offline } = useCloset();
+  const { offline } = useApp();
+  const recorded = useEdit('outfit');
   const today = localDay();
   const [day, setDay] = useState(today);
   const [chosen, setChosen] = useState<string[]>([]);
@@ -401,7 +408,7 @@ function RecordByHand({ items, onCancel, onDone }: { items: ItemSummary[]; onCan
     setBusy(true);
     setError(null);
     try {
-      onDone(await api.recordOutfit(chosen, day));
+      onDone(await recorded(() => api.recordOutfit(chosen, day)));
     } catch (err) {
       setError((err as ApiError).message);
       setBusy(false);

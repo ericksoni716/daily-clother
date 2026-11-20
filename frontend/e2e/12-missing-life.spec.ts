@@ -106,7 +106,7 @@ async function open(page: Page, life: Life | null = null, demo = false) {
   await login(page);
   await useProfile(page, demo ? 'demo' : 'main');
   const state = await mockLife(page, life, demo);
-  await page.goto('/missing');
+  await page.goto('/wardrobe');
   await expect(page.getByTestId('gap')).toHaveCount(2);
   return state;
 }
@@ -155,7 +155,7 @@ test('real demo: all six situation filters and the first suggestion fit above ph
   await page.setViewportSize({ width: 390, height: 844 });
   await login(page);
   await useProfile(page, 'demo');
-  await page.goto('/missing');
+  await page.goto('/wardrobe');
   const filters = page.getByRole('group', { name: 'Suggestions for' });
   await expect(filters.getByRole('button')).toHaveText([
     'All', 'Work', 'Everyday', 'Going out', 'Lounging at home', 'Exercise', 'Vacation',
@@ -347,7 +347,7 @@ for (const [layout, viewport] of [
     await questions.getByLabel('Work frequency').selectOption('0');
     await expect(questions.getByLabel('At work, you dress')).toHaveCount(0);
     await questions.getByRole('button', { name: 'Save my answers' }).click();
-    await page.goto('/missing');
+    await page.goto('/wardrobe');
     await expect(filters.getByRole('button', { name: 'Work', exact: true })).toHaveCount(0);
     await openLife(page);
     await expect(questions.getByText(/Closet can't identify sleepwear/)).toBeVisible();
@@ -455,8 +455,13 @@ test('real settings and gaps endpoints keep the same answers across screens and 
   try {
     const reset = await page.request.put('/api/settings', { data: { life: null, life_prompt_dismissed: false, place: null } });
     expect(reset.ok()).toBeTruthy();
-    await page.goto('/missing');
-    await page.getByRole('button', { name: 'Answer a few questions' }).click();
+    await page.goto('/wardrobe');
+    // the questions are offered with "Answer a few questions" once the closet has enough to suggest from; before
+    // that (this closet may be nearly empty), the "Based on" row opens them
+    const invite = page.getByRole('button', { name: 'Answer a few questions' });
+    await expect(invite.or(page.getByTestId('too-small'))).toBeVisible({ timeout: 30_000 });
+    if (await invite.isVisible()) await invite.click();
+    else await page.getByTestId('life-basis').click();
     const form = page.getByRole('form', { name: 'How you live' });
     await form.getByLabel('Work frequency').selectOption('4');
     await form.getByLabel('At work, you dress').selectOption('business');

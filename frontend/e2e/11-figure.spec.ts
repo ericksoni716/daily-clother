@@ -97,12 +97,14 @@ test('today: a layered outfit is dressed a layer at a time once in sight, and at
   await expect.poll(() => layers.last().evaluate((img) => getComputedStyle(img).opacity)).toBe('1');
 
   // the next outfit waits undressed beside it, and is dressed once swiped to
-  const next = page.getByRole('button', { name: 'Next outfit' });
+  const next = page.getByRole('button', { name: 'Outfit 2', exact: true });
   if (await next.isVisible()) {
     const second = page.locator('.today-slide').nth(1).getByTestId('outfit-figure').locator('.figure-stack > img').last();
     await expect(second).toBeAttached();
     expect(await second.evaluate((img) => getComputedStyle(img).opacity)).toBe('0');
     await next.click();
+    // the dots sit under the card: clicking one can scroll the figure half out of sight, so bring it back in view
+    await page.locator('.today-slide').nth(1).getByTestId('outfit-figure').scrollIntoViewIfNeeded();
     await expect.poll(() => second.evaluate((img) => getComputedStyle(img).opacity)).toBe('1');
   }
 

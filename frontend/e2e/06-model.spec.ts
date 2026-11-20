@@ -24,6 +24,7 @@ test.describe('with the background-removal model', () => {
     await expect(page.getByTestId('model-banner')).toHaveCount(0);
 
     await page.goto(backend.url + '/add');
+    await expect(page.getByTestId('model-banner')).toHaveCount(0);
     await page.getByTestId('library-input').setInputFiles(`${PHOTOS}graphic-tee.jpg`);
     await expect(page.getByTestId('queue-item')).toBeVisible({ timeout: 30_000 });
     await page.getByRole('link', { name: 'See them in your closet' }).click();

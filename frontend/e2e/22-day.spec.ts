@@ -32,9 +32,12 @@ test.describe('the day in your words', () => {
     await expect(page.getByTestId('day-note')).toHaveCount(0);
 
     // the way in is behind Change, so an ordinary day's first screen is as it was
-    const change = page.getByTestId('day-line').getByRole('button', { name: 'Change' });
+    const change = page.getByTestId('day-line').getByRole('button', { name: 'Change', exact: true });
     await change.click();
-    await expect(page.getByRole('heading', { name: 'Somewhere else, or out all day?' })).toBeVisible();
+    // and inside it, folded under where you are, until it is opened (or a note is already kept)
+    const fold = page.getByTestId('day-note-fold');
+    await expect(fold).not.toHaveAttribute('open', '');
+    await fold.getByText('Somewhere else, or out all day?').click();
     const box = page.getByLabel('Say it in a sentence');
     await expect(page.getByText('Nothing from your closet is sent.')).toBeVisible();
 

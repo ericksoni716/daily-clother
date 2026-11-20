@@ -24,12 +24,15 @@ test.describe('shopping for a wish', () => {
     await page.getByRole('button', { name: 'Set passphrase' }).click();
     await page.getByRole('button', { name: 'Start with my own closet' }).click();
 
-    await page.goto(backend.url + '/missing');
+    await page.goto(backend.url + '/wardrobe');
     const wishlist = page.getByTestId('wishlist');
     await wishlist.getByRole('button', { name: 'Add by hand' }).click({ timeout: 30_000 });
     await wishlist.getByLabel('What are you looking for?').fill('A tan rain coat');
     await wishlist.getByRole('button', { name: 'Add to the list' }).click();
-    const wish = wishlist.getByTestId('wish').filter({ hasText: 'A tan rain coat' });
+    // shopping is one level down, on the wish's own page
+    await wishlist.getByTestId('wish-row').filter({ hasText: 'A tan rain coat' }).click();
+    const wish = page.getByTestId('wish');
+    await expect(page.getByRole('heading', { name: 'A tan rain coat', level: 1 })).toBeVisible();
     await expect(wish).toBeVisible();
 
     // a price range, said to Claude when it searches
@@ -73,8 +76,9 @@ test.describe('shopping for a wish', () => {
     // the demo closet never searches, and says why
     expect((await page.request.post(backend.url + '/api/profile', { data: { profile: 'demo' } })).ok()).toBe(true);
     expect((await page.request.post(backend.url + '/api/wishlist', { data: { name: 'Brown loafers' } })).ok()).toBe(true);
-    await page.goto(backend.url + '/missing');
-    const demoWish = page.getByTestId('wishlist').getByTestId('wish').filter({ hasText: 'Brown loafers' });
+    await page.goto(backend.url + '/wardrobe');
+    await page.getByTestId('wishlist').getByTestId('wish-row').filter({ hasText: 'Brown loafers' }).click({ timeout: 30_000 });
+    const demoWish = page.getByTestId('wish');
     await expect(demoWish).toContainText('The demo closet never searches shops', { timeout: 30_000 });
     await expect(demoWish.getByTestId('find-some')).toBeDisabled();
   });

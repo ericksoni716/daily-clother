@@ -13,7 +13,7 @@ test('open the demo closet: 49 items, the demo strip, filter by category', async
 
   await expect(page.getByText('Demo closet', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Leave the demo closet' })).toBeVisible();
-  await page.getByRole('link', { name: 'Closet', exact: true }).click();
+  await page.getByRole('link', { name: /^Closet/ }).click();
   await expect(page.getByTestId('tile')).toHaveCount(49);
   await expect(page.getByTestId('item-count')).toHaveText('49 items');
 

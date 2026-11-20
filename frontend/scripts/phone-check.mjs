@@ -9,7 +9,7 @@
 // Long names are given first, because long real names are what break phone layouts.
 
 // overflow(), scrollThrough() and the start-up script run inside the page, where these exist.
-/* global document, window */
+/* global document, window, NodeFilter */
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
@@ -24,13 +24,20 @@ const PASS = 'a long and quiet phone check';
 // 375 is the narrowest the app supports; 402 and 440 are the iPhone 17 Pro and Pro Max (Playwright has
 // both; if an older Playwright doesn't, the 15 Pro and Pro Max at 402×874 and 440×956 stand in).
 const at = (name, fallback, width, height) => devices[name] ?? { ...devices[fallback], viewport: { width, height: height - 193 }, screen: { width, height } };
-const PHONES = [
+const ALL_PHONES = [
   ['375', devices['iPhone 13 Mini']],
   ['393', devices['iPhone 15']],
   ['402', at('iPhone 17 Pro', 'iPhone 15 Pro', 402, 874)],
   ['430', devices['iPhone 15 Pro Max']],
   ['440', at('iPhone 17 Pro Max', 'iPhone 15 Pro Max', 440, 956)],
 ];
+// PHONE_CHECK_SIZES=393 (a comma list) pictures only those widths, for a quicker look while working.
+const ONLY = (process.env.PHONE_CHECK_SIZES || '').split(',').map((s) => s.trim()).filter(Boolean);
+const PHONES = ONLY.length ? ALL_PHONES.filter(([size]) => ONLY.includes(size)) : ALL_PHONES;
+// The reading budget in docs/DESIGN.md ("Reading load is a budget"): about 150 words in the first phone screen, about
+// 350 on the whole screen. Counted at 393px in light; a screen over either is listed, but does not fail the check yet.
+const BUDGET = { screen: 150, page: 350 };
+const COUNTED_AT = '393';
 // Made-up names, long on purpose.
 const LONG = {
   item: 'Heavyweight brushed cotton flannel overshirt in faded forest green and charcoal buffalo check',
@@ -132,14 +139,14 @@ async function setUp(base) {
     for (let i = 10; i <= 13; i++) weather.push({ date: localDay(i), low_c: 9, high_c: 17, rain: false });
     const trip = await call('/api/trips', 'POST', { place: PLACE, first_day: first, last_day: last, weather });
     // A wish by name needs neither the weather nor Claude.
-    await call('/api/wishlist', 'POST', { name: LONG.wish });
+    const wish = await call('/api/wishlist', 'POST', { name: LONG.wish });
     // Your style: an answer to a question, a long line of your own, and a message to Claude (the stand-in answers it in
     // a second and a half, with a line to keep), so Settings and the conversation show each kind of line
     await call('/api/style/questions/warmth', 'POST', { choice: 'I run warm' });
     await call('/api/style/lines', 'POST', { text: LONG.line });
     await call('/api/style/talk', 'POST', { say: 'I always feel warm on the bus, even in winter' });
     for (let i = 0; i < 40 && (await call('/api/style/talk')).answering; i++) await new Promise((r) => setTimeout(r, 250));
-    return { state: await api.storageState(), itemId: item.id, tripId: trip.id };
+    return { state: await api.storageState(), itemId: item.id, tripId: trip.id, wishId: wish.id };
   } finally {
     await api.dispose();
   }
@@ -167,6 +174,31 @@ function overflow() {
   return { extra, culprits };
 }
 
+/**
+ * How much there is to read on the screen: the words in the page (not the tab bar or the sidebar), the words in the
+ * first phone screen (what shows above the tab bar before scrolling), and the page's height. Runs inside the page.
+ */
+function measure() {
+  const root = document.querySelector('main') ?? document.body;
+  const tabbar = document.querySelector('nav.tabbar');
+  const fold = tabbar ? tabbar.getBoundingClientRect().top : window.innerHeight;
+  const count = (text) => (text.match(/[\p{L}\p{N}][\p{L}\p{N}'’.-]*/gu) ?? []).length;
+  let first = 0;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const el = node.parentElement;
+    if (!el || !node.textContent?.trim()) continue;
+    const style = window.getComputedStyle(el);
+    if (style.visibility === 'hidden' || style.display === 'none' || el.closest('[hidden], [aria-hidden="true"], .visually-hidden')) continue;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const r = range.getBoundingClientRect();
+    if (r.width === 0 || r.height === 0) continue;
+    if (r.top + window.scrollY < fold) first += count(node.textContent);
+  }
+  return { words: count(root.innerText || ''), first, height: document.documentElement.scrollHeight };
+}
+
 /** Waits until the screen has its heading and has stopped fetching, up to a few seconds each. */
 async function settle(page) {
   await page.locator('h1').first().waitFor({ state: 'visible', timeout: 10_000 }).catch(() => undefined);
@@ -187,15 +219,20 @@ async function scrollThrough(page) {
   await page.waitForTimeout(600);
 }
 
-async function check(base, { state, itemId, tripId }) {
-  const pages = ['/today', '/today/worn', '/', `/item/${encodeURIComponent(itemId)}`, '/archived', '/add', '/review',
-    '/trips', `/trips/${encodeURIComponent(tripId)}`, '/missing', '/missing/check', '/insights', '/settings', '/settings/advanced'];
+async function check(base, { state, itemId, tripId, wishId }) {
+  // the four places and Add, then what each holds one level down
+  const pages = ['/today', '/today/worn', '/trips', `/trips/${encodeURIComponent(tripId)}`,
+    '/', `/item/${encodeURIComponent(itemId)}`, '/archived', '/review',
+    '/add',
+    '/wardrobe', '/wardrobe/check', `/wardrobe/wish/${encodeURIComponent(wishId)}`,
+    '/settings', '/settings/advanced'];
   const executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined;
   const browser = await chromium.launch(executablePath ? { executablePath } : {});
   const failures = [];
+  const reading = [];
   try {
     for (const [size, device] of PHONES) {
-      for (const scheme of size === '393' ? ['light', 'dark'] : ['light']) {
+      for (const scheme of ['375', '393'].includes(size) ? ['light', 'dark'] : ['light']) {
         // No service worker, so every screen comes from this backend and not a cache.
         const context = await browser.newContext({ ...device, colorScheme: scheme, storageState: state, serviceWorkers: 'block' });
         // A closet with enough clothes opens on Today the first time a tab opens / (src/landing.ts); this check wants the closet there.
@@ -209,6 +246,7 @@ async function check(base, { state, itemId, tripId }) {
           if (await page.getByLabel('Passphrase').isVisible()) {
             failures.push(`${route} at ${size}px shows the login instead of the screen`);
           }
+          if (size === COUNTED_AT && scheme === 'light') reading.push({ route, ...(await page.evaluate(measure)) });
           await scrollThrough(page);
           const name = `${size}-${scheme}-${route.replace(/[/?=]/g, '_').replace(/^_/, '').slice(0, 40) || 'closet'}`;
           await page.screenshot({ path: join(OUT, `${name}.png`), fullPage: true });
@@ -238,7 +276,23 @@ async function check(base, { state, itemId, tripId }) {
   } finally {
     await browser.close();
   }
-  return failures;
+  return { failures, reading };
+}
+
+/** Prints how much each screen asks you to read, and the screens over the budget (a warning only, for now). */
+function report(reading) {
+  if (!reading.length) return;
+  console.log(`\nReading load at ${COUNTED_AT}px (budget: ${BUDGET.screen} words in the first screen, ${BUDGET.page} on the page)`);
+  console.log('words  first  height  screen');
+  for (const r of reading) {
+    console.log(`${String(r.words).padStart(5)}  ${String(r.first).padStart(5)}  ${String(r.height).padStart(6)}  ${r.route}`);
+  }
+  const over = reading.filter((r) => r.words > BUDGET.page || r.first > BUDGET.screen);
+  for (const r of over) {
+    const why = [r.words > BUDGET.page && `${r.words} words on the page`, r.first > BUDGET.screen && `${r.first} in the first screen`].filter(Boolean);
+    console.log(`::warning title=Reading load::${r.route} has ${why.join(' and ')}`);
+  }
+  if (!over.length) console.log('Every screen is within the reading budget.');
 }
 
 async function main() {
@@ -253,7 +307,9 @@ async function main() {
   process.once('SIGTERM', stop);
   let failures;
   try {
-    failures = await check(backend.url, await setUp(backend.url));
+    const checked = await check(backend.url, await setUp(backend.url));
+    failures = checked.failures;
+    report(checked.reading);
   } finally {
     await backend.stop();
   }
@@ -263,7 +319,7 @@ async function main() {
     console.log(`${failures.length} phone layout problem(s); ${shots} screenshots in ${OUT}`);
     return 1;
   }
-  console.log(`Every screen fits at 375, 393, 402, 430 and 440px wide; ${shots} screenshots in ${OUT}`);
+  console.log(`Every screen fits at ${PHONES.map(([size]) => size).join(', ')}px wide; ${shots} screenshots in ${OUT}`);
   return 0;
 }
 

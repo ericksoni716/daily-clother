@@ -92,21 +92,38 @@ for (const [layout, use] of LAYOUTS) {
         await visit(page, '/today/worn', 'h1');
         await check(page, 'worn', phone, shot);
 
-        await visit(page, '/missing', 'h1');
-        await expect(page.getByTestId('gap').first()).toBeVisible({ timeout: 30_000 });
-        await check(page, 'missing', phone, shot);
-
-        await visit(page, '/missing/check', 'h1');
-        await check(page, 'would this work', phone, shot);
-
         await visit(page, '/trips', 'h1');
         await check(page, 'trips', phone, shot);
 
-        await visit(page, '/insights', 'h1');
-        await check(page, 'insights', phone, shot);
+        // the closet's "Needs a check": the pieces to check, and the way into the review
+        await visit(page, '/', '#closet-title');
+        await page.getByTestId('to-check').click();
+        await expect(page.getByTestId('review-notice')).toBeVisible();
+        await check(page, 'closet needs a check', phone, shot);
+        await page.getByTestId('to-check').click();
 
         await visit(page, '/review', 'h1');
         await check(page, 'review', phone, shot);
+
+        // the Wardrobe (What's missing and Insights together), with its More numbers open, and what it holds
+        await visit(page, '/wardrobe', '#wardrobe-title');
+        await expect(page.getByTestId('gap').first()).toBeVisible({ timeout: 30_000 });
+        await page.getByTestId('more-numbers').getByText('More numbers').click();
+        await expect(page.getByTestId('cost-per-wear')).toBeVisible();
+        await check(page, 'wardrobe', phone, shot);
+
+        await visit(page, '/wardrobe/check', 'h1');
+        await check(page, 'would this work', phone, shot);
+
+        // a wish's own page, with a wish of its own so it does not depend on what earlier specs left on the list
+        const wish = await (await page.request.post('/api/wishlist', { data: { name: 'A grey flannel overshirt' } })).json();
+        try {
+          await visit(page, `/wardrobe/wish/${encodeURIComponent(wish.id)}`, 'h1');
+          await expect(page.getByTestId('wish')).toBeVisible();
+          await check(page, 'a wish', phone, shot);
+        } finally {
+          await page.request.delete(`/api/wishlist/${wish.id}`);
+        }
 
         await visit(page, '/add', 'h1');
         await check(page, 'add', phone, shot);

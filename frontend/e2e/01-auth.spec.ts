@@ -20,7 +20,9 @@ test('first run: set a passphrase and land in the app', async ({ page }) => {
   await page.getByLabel('Type it again').fill(PASS);
   await page.getByRole('button', { name: 'Set passphrase' }).click();
   await expect(page.getByRole('heading', { name: "You're set" })).toBeVisible();
-  await expect(page.getByText('tailscale serve --bg')).toBeVisible();
+  // the Tailscale command is in Settings, Phone, not on this screen: one line says where to find it
+  await expect(page.getByTestId('ready-phone')).toContainText('Settings');
+  await expect(page.getByText('tailscale serve')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Open the demo closet' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Start with my own closet' }).click();

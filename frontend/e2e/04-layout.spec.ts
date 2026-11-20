@@ -13,7 +13,7 @@ test.describe('phone', () => {
     const tabbar = page.locator('nav.tabbar');
     await expect(tabbar).toBeVisible();
     await expect(page.locator('nav.sidebar')).toBeHidden();
-    for (const name of ['Today', 'Closet', 'Add', 'Missing', 'Settings']) await expect(tabbar.getByRole('link', { name })).toBeVisible();
+    for (const name of ['Today', 'Closet', 'Add', 'Wardrobe', 'Settings']) await expect(tabbar.getByRole('link', { name })).toBeVisible();
     const bar = (await tabbar.boundingBox())!;
     expect(bar.y + bar.height).toBeCloseTo(844, 0);
 
@@ -46,22 +46,23 @@ test.describe('phone', () => {
     await expect(page.getByTestId('camera-input')).toHaveAttribute('capture', 'environment');
   });
 
-  test('five slots with Add in the middle; Review is reached from the closet; Add stays, disabled, offline', async ({ page, context }) => {
+  test('the four places with Add in the middle; Review is reached from the closet; Add stays, disabled, offline', async ({ page, context }) => {
     await login(page);
     await useProfile(page, 'demo');
     const tabbar = page.locator('nav.tabbar');
     const links = tabbar.getByRole('link');
     await expect(links).toHaveCount(5);
-    expect((await links.allInnerTexts()).map((t) => t.split('\n')[0])).toEqual(['Today', 'Closet', 'Add', 'Missing', 'Settings']);
+    expect((await links.allInnerTexts()).map((t) => t.split('\n')[0])).toEqual(['Today', 'Closet', 'Add', 'Wardrobe', 'Settings']);
     await expect(tabbar.getByRole('link', { name: 'Review', exact: true })).toHaveCount(0);
     await expect(tabbar.getByRole('link', { name: 'Trips' })).toHaveCount(0);
 
-    // the demo closet has pieces to check: a dot on Closet and a notice at the top of the closet that leads to Review
+    // the demo closet has pieces to check: a dot on Closet, and the closet's status line shows them and leads to Review
     await expect(tabbar.getByTestId('review-dot')).toBeVisible();
     await expect(tabbar.getByRole('link', { name: /Closet/ })).toHaveAccessibleName(/Closet \(\d+ items to review\)/);
+    await page.getByTestId('to-check').click();
     const notice = page.getByTestId('review-notice');
-    await expect(notice).toContainText('need a quick check');
-    await notice.getByRole('link', { name: 'Review' }).click();
+    await expect(notice).toContainText("wasn't sure");
+    await notice.getByRole('link', { name: 'Check them one at a time' }).click();
     await expect(page).toHaveURL(/\/review$/);
     await expect(tabbar.getByRole('link', { name: /Closet/ })).toHaveAttribute('aria-current', 'page');
 
@@ -84,7 +85,7 @@ test.describe('phone', () => {
       const add = tabbar.getByRole('button', { name: 'Add' });
       await expect(add).toBeDisabled();
       await expect(add).toHaveAttribute('title', /needs Closet on your computer/);
-      expect((await tabbar.locator('> *').allInnerTexts()).map((t) => t.split('\n')[0])).toEqual(['Today', 'Closet', 'Add', 'Missing', 'Settings']);
+      expect((await tabbar.locator('> *').allInnerTexts()).map((t) => t.split('\n')[0])).toEqual(['Today', 'Closet', 'Add', 'Wardrobe', 'Settings']);
     } finally {
       await context.setOffline(false);
     }
@@ -92,16 +93,19 @@ test.describe('phone', () => {
 });
 
 // Every route lights exactly one link in the sidebar and one tab on the phone.
+// The old addresses (Insights, What's missing) light the place they moved to.
 const ROUTES: [path: string, sidebar: string, tab: string][] = [
   ['/', 'Closet', 'Closet'],
   ['/archived', 'Closet', 'Closet'],
-  ['/insights', 'Closet', 'Closet'],
-  ['/review', 'Review', 'Closet'],
+  ['/review', 'Closet', 'Closet'],
   ['/today', 'Today', 'Today'],
   ['/today/worn', 'Today', 'Today'],
-  ['/trips', 'Trips', 'Today'],
-  ['/missing', "What's missing", 'Missing'],
-  ['/missing/check', "What's missing", 'Missing'],
+  ['/trips', 'Today', 'Today'],
+  ['/wardrobe', 'Wardrobe', 'Wardrobe'],
+  ['/wardrobe/check', 'Wardrobe', 'Wardrobe'],
+  ['/insights', 'Wardrobe', 'Wardrobe'],
+  ['/missing', 'Wardrobe', 'Wardrobe'],
+  ['/missing/check', 'Wardrobe', 'Wardrobe'],
   ['/add', 'Add clothes', 'Add'],
   ['/settings', 'Settings', 'Settings'],
   ['/settings/advanced', 'Settings', 'Settings'],
@@ -132,10 +136,11 @@ test.describe('desktop', () => {
     await expect(page.locator('nav.tabbar')).toBeHidden();
     const sidebar = page.locator('nav.sidebar');
     await expect(sidebar).toBeVisible();
-    // Add clothes first, Settings at the foot, Archived only from the closet's own switch
-    await expect(sidebar.getByRole('link', { name: 'Review' })).toBeVisible();   // the demo closet has pieces to check
+    // Add clothes first, then the places, Settings at the foot; Review, Trips and Archived are reached from their place
+    await expect(sidebar.getByTestId('review-badge')).toBeVisible();   // the demo closet has pieces to check
+    await expect(sidebar.getByRole('link', { name: /^Closet/ })).toHaveAccessibleName(/^Closet \(\d+ items to review\)$/);
     const names = (await sidebar.getByRole('link').allInnerTexts()).map((t) => t.split('\n')[0].trim());
-    expect(names).toEqual(['Add clothes', 'Today', 'Closet', 'Review', 'Trips', "What's missing", 'Settings']);
+    expect(names).toEqual(['Add clothes', 'Today', 'Closet', 'Wardrobe', 'Settings']);
     const settings = (await sidebar.getByRole('link', { name: 'Settings' }).boundingBox())!;
     expect(settings.y + settings.height).toBeGreaterThan(900 - 60);
     await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();

@@ -16,6 +16,12 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   a shoe's other photos and in Would this work?. Many shops save their pictures as AVIF, so a
   photo saved from a shop's page now goes in like any other.
 
+### Changed
+
+- On a phone, the "Add" label in the bar at the bottom sits on the same line as Today, Closet,
+  Wardrobe and Settings, and its round button rises a little above the bar instead of pushing
+  the label down to the edge.
+
 ## 0.10.0
 
 ### Added

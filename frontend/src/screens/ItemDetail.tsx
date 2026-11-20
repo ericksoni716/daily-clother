@@ -9,23 +9,23 @@ import { RetakeButton } from '../components/RetakeButton';
 import { ShoeDrawn } from '../components/ShoeDrawn';
 import { ShoePhotos } from '../components/ShoePhotos';
 import { TraceNotice } from '../components/ShoeTrace';
+import { ProgressStrip } from '../components/Progress';
 import { BackIcon, ChevronIcon, HangerIcon, WarnIcon } from '../components/Icons';
 import { FIELD_TITLES, formatPrice, label, shadeLabel, measuredColours, parsePrice, ratingLabel, SWATCH, swatchOf, tileCaption, wornWords } from '../labels';
 import { SaveLine, useWhenLeaving } from '../leave';
-import { Link, navigate, useMediaQuery } from '../router';
+import { navigate, useMediaQuery } from '../router';
 import { silhouetteGroups } from '../silhouette';
-import { dropItem, itemQuery, itemSaved, touch, useItemSummary, useModel, usePoll, useVocab, writeSummary } from '../queries';
+import { dropItem, itemQuery, itemSaved, touch, useItemProgress, useItemSummary, useVocab, writeSummary } from '../queries';
 import { queryKeys, type EditKind } from '../queryKeys';
 import { useApp } from '../store';
-import { itemPoll } from '../work';
-import { drawingPlaceholder, loadGridView, notInDrawing } from '../drawing';
-import { describedBy, detailLines, tagNotice } from '../tagging';
+import { loadGridView, notInDrawing } from '../drawing';
+import { busy, drawingOnItsWay, drawingPlaceholder } from '../progress';
+import { describedBy, describedHint, detailLines } from '../tagging';
 import { kindDrawing, kindLine, type KindGroup } from '../kinds';
 import { retakeOffer, retakeSaid } from '../retake';
 import { sureText } from '../review';
-import type { Item, ItemPatch, PatternColour } from '../types';
+import type { Item, ItemPatch, PatternColour, Progress } from '../types';
 import { localDay, sinceWash, wearDay, wearSummary } from '../wears';
-import { busyLabel } from './Closet';
 
 type View = 'drawing' | 'cutout' | 'photo';
 
@@ -53,7 +53,6 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   const { toast, offline, profile } = useApp();
   const qc = useQueryClient();
   const vocab = useVocab();
-  const model = useModel();
   // The closet's summary of it, shown at once while the full item is read (or when it cannot be, offline).
   const summary = useItemSummary(id);
   const query = useQuery(itemQuery(id));
@@ -71,11 +70,9 @@ export function ItemDetail({ id, status, inPanel }: Props) {
     if (!inflight.current) void qc.refetchQueries({ queryKey: queryKeys.item(id), exact: true }, { cancelRefetch: false });
   }, [qc, id]);
 
-  // Follow the cutout while it is being made, the description while it is waited for or being written, a pattern
-  // measured, a shoe traced, sorted or drawn (src/work.ts says how often). The closet grid follows along, since every
-  // item read puts its summary into the lists.
-  usePoll(itemPoll(item, offline), load);
-  const measuring = item?.pattern_state === 'waiting' || item?.pattern_state === 'working';
+  // How far the work on it has got. The closet's provider follows the work under way and reads the item again each
+  // time it moves on (src/work.ts), so the page itself never polls.
+  const progress = useItemProgress(item ?? summary);
 
   const retag = useCallback(async () => {
     try {
@@ -144,7 +141,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       return (
         <article className="detail" aria-label={summary.name || 'Item'} aria-busy={away ? undefined : 'true'}>
           <DetailTop inPanel={inPanel} backTo={backTo} />
-          <Picture item={asItem} busyText={busyLabel(model)} fallbackThumb={summary.thumb_url} />
+          <Picture item={asItem} progress={progress} fallbackThumb={summary.thumb_url} />
           {away && <Notice as="p">You're offline, so this item can't be changed right now. Its full details show once Closet can be reached again.</Notice>}
           <header className="detail-head">
             <h2 className="detail-title">{summary.name || label('category', summary.category) || 'Item'}</h2>
@@ -163,7 +160,8 @@ export function ItemDetail({ id, status, inPanel }: Props) {
 
   const locked = offline;
   const groups = silhouetteGroups(item.category);
-  const tagText = tagNotice(item.tag_state, item.tag_route, item.tag_error);
+  const tagText = item.tag_state === 'done' ? describedHint(item.tag_route) : null;
+  const failure = progress?.state === 'failed' ? progress : null;
   const lines = detailLines(item.details);
   const seen = item.seen_not_drawn ?? [];
   const canRetag = profile !== 'demo' && item.cutout_state === 'ready' && item.has_photo &&
@@ -185,7 +183,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       <DetailTop inPanel={inPanel} backTo={backTo} />
       {locked && <Notice as="p">You're offline, so this item can't be changed right now.</Notice>}
 
-      <Picture item={item} busyText={busyLabel(model)}
+      <Picture item={item} progress={progress}
         fix={<FixDetails item={item} open={fixing} focus={focus} demo={profile === 'demo'} disabled={locked}
           onOpen={() => {
             setFocus(null);
@@ -196,22 +194,17 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       <ShoePhotos item={item} disabled={locked} onSaved={fixed} onError={failed} />
       <ShoeDrawn item={item} disabled={locked} demo={profile === 'demo'} onSaved={fixed} onError={failed} />
 
-      {measuring && (
-        <p className="notice" role="status" data-testid="pattern-measuring">
-          Measuring the {patternWord(item.pattern)} from the photo, so the drawing can show it. This can take a minute or two.
-        </p>
-      )}
       {item.pattern_state === 'failed' && item.pattern_error && (
         <div className="tag-note pattern-failed" data-testid="pattern-failed">
           <p className="muted">{item.pattern_error}</p>
           {offer === 'pattern' && <div className="row">{retake}</div>}
         </div>
       )}
-      {item.cutout_state === 'failed' && (
-        <div className="notice notice-warn">
+      {failure?.retry === 'cutout' && (
+        <div className="notice notice-warn" data-testid="progress-failed">
           <WarnIcon />
           <div>
-            <p><strong>The background couldn't be removed.</strong>{item.cutout_error ? ` ${item.cutout_error}` : ''}</p>
+            <p><strong>{failure.words}.</strong>{failure.error ? ` ${failure.error}` : ''}</p>
             <FailureDetails item={item} stage="cutout" />
             <div className="row">
               <button className="btn btn-small" disabled={locked} onClick={async () => {
@@ -245,24 +238,19 @@ export function ItemDetail({ id, status, inPanel }: Props) {
         onUnwear={(day, said) => act(() => api.unwear(id, day), 'wear', said)}
         onLaundry={(state) => act(() => api.setLaundry(id, state), 'laundry', state === 'laundry' ? 'In the laundry' : 'Marked clean')} />
 
-      {item.tag_state === 'failed' ? (
-        <div className="notice notice-warn">
+      {failure?.retry === 'describe' && (
+        <div className="notice notice-warn" data-testid="progress-failed">
           <WarnIcon />
           <div>
-            <p><strong>Claude couldn't describe this item.</strong>{item.tag_error ? ` ${item.tag_error}` : ''}</p>
+            <p><strong>{failure.words}.</strong>{failure.error ? ` ${failure.error}` : ''}</p>
             <FailureDetails item={item} stage="description" />
             <button className="btn btn-small" disabled={locked} onClick={retag}>Try again</button>
           </div>
         </div>
-      ) : item.tag_state !== 'done' && tagText ? (
-        <p className="notice" role="status">
-          {tagText}
-          {item.tag_state === 'waiting' && item.tag_error && <> <Link to="/settings">Open Settings</Link></>}
-        </p>
-      ) : null}
+      )}
 
       <Section id={`details-${item.id}`} title="Details" className="detail-fields"
-        hint={item.tag_state === 'done' && tagText ? tagText : undefined}>
+        hint={tagText ?? undefined}>
         <Editing.Provider value={{ editing, setEditing }}>
         <ul className="detail-rows">
           <KindRow item={item} groups={vocab.kind_groups} disabled={locked} onSaved={fixed} onError={failed} />
@@ -564,13 +552,13 @@ function DetailTop({ inPanel, backTo }: { inPanel?: boolean; backTo: string }) {
   );
 }
 
-function Picture({ item, busyText, fallbackThumb, fix }: { item: Item; busyText: string; fallbackThumb?: string | null; fix?: ReactNode }) {
+function Picture({ item, progress, fallbackThumb, fix }: { item: Item; progress: Progress | null; fallbackThumb?: string | null; fix?: ReactNode }) {
   const photo = item.photos[0];
   const hasDrawing = !!(item.illustration_url || item.has_illustration);
-  const placeholder = drawingPlaceholder(item.tag_state, item.category, hasDrawing);
+  const placeholder = drawingPlaceholder(progress, item.category, hasDrawing);
   const views: { key: View; label: string }[] = [];
   // the drawing's place is offered while one is on its way, so it can say so
-  if (hasDrawing || item.tag_state === 'waiting' || item.tag_state === 'working') views.push({ key: 'drawing', label: 'Drawing' });
+  if (hasDrawing || drawingOnItsWay(progress)) views.push({ key: 'drawing', label: 'Drawing' });
   if (photo?.cutout_url) views.push({ key: 'cutout', label: 'Cutout' });
   if (photo?.url) views.push({ key: 'photo', label: 'Photo' });
   const [liked] = useState(loadGridView);
@@ -578,7 +566,6 @@ function Picture({ item, busyText, fallbackThumb, fix }: { item: Item; busyText:
   const [chosen, setChosen] = useState<View | undefined>(undefined);
   const view = chosen && views.some((v) => v.key === chosen) ? chosen : preferred;
   const alt = item.name || label('category', item.category) || 'Item';
-  const busy = item.cutout_state === 'pending' || item.cutout_state === 'processing';
   const missing = view === 'drawing' && !placeholder ? notInDrawing(item.seen_not_drawn, item.drawing_notes) : [];
 
   let pic: ReactNode;
@@ -598,7 +585,7 @@ function Picture({ item, busyText, fallbackThumb, fix }: { item: Item; busyText:
       <div className="detail-picture-main">
         <div className={`detail-picture view-${view ?? 'none'}`}>
           {pic}
-          {busy && <span className="badge badge-busy"><span className="spinner" aria-hidden="true" />{busyText}</span>}
+          {busy(progress) && <ProgressStrip progress={progress} />}
         </div>
         {view === 'drawing' && !placeholder && item.back_url && (
           <figure className="back-view">
@@ -793,8 +780,4 @@ function MeasuredColours({ colours }: { colours?: PatternColour[] }) {
       {colours.map((c) => <span key={c.color} className="swatch" style={{ background: c.hex }} />)}
     </span>
   );
-}
-
-function patternWord(pattern: string | null): string {
-  return ({ stripe: 'stripes', plaid: 'plaid', floral: 'print', camo: 'camouflage' } as Record<string, string>)[pattern ?? ''] ?? 'pattern';
 }

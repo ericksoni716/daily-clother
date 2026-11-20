@@ -44,6 +44,7 @@ from . import (
     outfits,
     patjobs,
     phone,
+    progress,
     review,
     savedtrips,
     shoedraw,
@@ -668,6 +669,14 @@ def create_app(sv: Services) -> FastAPI:
         response.status_code = 201 if created else 200
         sv.worker.wake()
         return item
+
+    @app.get("/api/progress", dependencies=protected)
+    def get_progress(conn=Depends(conn_dep)):
+        # asked every few seconds while work runs: only the items under way, with what the program waits on
+        # cutouts wait for what their worker waits for (the model, unless a cutter stands in for it in tests)
+        model = "ready" if sv.worker.is_ready() else sv.model.info()["state"]
+        waits = progress.Waits(model=model, claude=bool(sv.tag_worker and sv.tag_worker.blocked))
+        return progress.listing(conn, waits)
 
     @app.get("/api/items/{item_id}", dependencies=protected)
     def get_item(item_id: str, conn=Depends(conn_dep)):

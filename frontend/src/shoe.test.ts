@@ -18,9 +18,9 @@ describe('the item page about a shoe trace', () => {
     expect(traceNotice(trace('done', null))).toBeNull();
   });
 
-  it('says it is being traced, without offering a retake', () => {
-    expect(traceNotice(trace('working', 'Drawing the shoe from its photo…'))).toEqual(
-      { tone: 'info', text: 'Drawing the shoe from its photo…', retake: false });
+  it('leaves a trace being made to the item\'s progress', () => {
+    expect(traceNotice(trace('working', 'Tracing the shoe from its photo…'))).toBeNull();
+    expect(traceNotice(trace('waiting', 'The shoe will be traced from its photo in a moment.'))).toBeNull();
     expect(tracing(trace('waiting', 'x'))).toBe(true);
     expect(tracing(trace('working', 'x'))).toBe(true);
     expect(tracing(trace('done', null))).toBe(false);

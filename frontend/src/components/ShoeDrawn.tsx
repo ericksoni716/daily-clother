@@ -3,6 +3,8 @@ import { api, ApiError } from '../api';
 import {
   backLabel, canCorrect, changedLine, DRAWN_DEMO, drawingShoe, drawnLine, drawnOffer, drawQuestion, NOTE_MAX,
 } from '../shoe';
+import { partWords } from '../progress';
+import { useItemProgress } from '../queries';
 import type { Item } from '../types';
 import { confirmKeys, useConfirmFocus } from './ui';
 import { WarnIcon } from './Icons';
@@ -31,6 +33,7 @@ export function ShoeDrawn({ item, disabled, demo, onSaved, onError }: Props) {
   const askId = useId();
   const noteId = useId();
   const drawn = item.drawn;
+  const progress = useItemProgress(item);
   if (!drawn) return null;
   const offer = drawnOffer(item, demo);
   const line = drawnLine(drawn);
@@ -53,7 +56,8 @@ export function ShoeDrawn({ item, disabled, demo, onSaved, onError }: Props) {
   const swap = () => run(() => api.drawingBack(item.id),
     drawn.previous_newer ? 'Back to the newer drawing' : 'Back to the drawing before');
   const off = disabled || busy;
-  const message = demo && !drawn.url ? DRAWN_DEMO : drawn.message;
+  // while it is drawn or changed, in the words of the item's progress (the same as the strip on the picture)
+  const message = demo && !drawn.url ? DRAWN_DEMO : partWords(progress, 'shoe', drawn.correcting ? drawn.note : null) ?? drawn.message;
   return (
     <section className="shoe-drawn" aria-labelledby={titleId} data-testid="shoe-drawn">
       <h3 className="chip-group-title" id={titleId}>Drawn for the outfit figure</h3>

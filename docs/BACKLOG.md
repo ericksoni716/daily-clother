@@ -14,15 +14,29 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Settings regrouped** (step 6 of the order of work, done 20 November). Left:
+  - The main page is about 1,820px and 201 words on a 390px phone with the demo closet and
+    no phone share (about 2.2 screens), down from about 6,100px and 1,105 words, not the 1.5
+    screens the outline hoped for; the Phone group's setup steps take the most room until
+    the share works. A Homestead-style `Fold` per group would shorten it further.
+  - "Talk to Claude about your style" waits for the style conversation (step 8); Your style
+    shows the text, not lines marked with where each came from.
+  - Not done, because they change what Closet does on the computer without being asked: start
+    at login turned on at first run, and a backup folder proposed by itself (iCloud Drive or
+    OneDrive). A folder picker for the backup folder in Closet's own window is not done
+    either; the path is still typed.
+  - The route order still has its four choices; the assessment suggested two ("plan first,
+    key as backup" and "key only"), which changes a setting's meaning and is the owner's call.
+  - Allow the API key and the monthly limit are still two steps, not one.
+  - The items waiting to be described are counted on Advanced only; step 5's progress line
+    should say it on the closet.
+  - A key put in the keychain by hand still shows only after a restart (from step 4).
 - **Data loading** (step 4 of the order of work, done 20 November). Left:
   - The closet's poll learns about pattern measuring and shoe tracing by reading full items,
     because the list from `/api/items` does not carry those states: about two extra reads per
     photo in a big import. Step 5's one progress endpoint should replace this.
   - The cache is not saved on the device. Doing that (Homestead's `offline.ts`) would replace
     `saveTrips`, `saveGaps` and the other hand-made offline copies.
-  - Settings on a computer asks again every 3 seconds for as long as it is open and no phone
-    share exists, also where Tailscale is not installed at all. It could slow down or stop
-    there.
   - The updates status lives in the `updates.ts` store and under the `updates` key; the store
     could become the query.
   - `TOUCHES.source` covers both moving a box in a photo of several pieces and adding the
@@ -33,8 +47,9 @@ only here); take a line out when it is done.
     passes only because an earlier spec in the run removes them.
   - A key put in the keychain by hand, or `ANTHROPIC_API_KEY` set, while Closet runs shows in
     Settings only after a restart (the key's line is now read once and kept).
-  - Some rows in Settings can still change height when a slow answer lands: a long Claude
-    Code detail, a failed check, a disk whose free space cannot be read.
+  - Some rows on Advanced settings can still change height when a slow answer lands: a long
+    Claude Code detail, a failed check, a disk whose free space cannot be read. (The main
+    page's Claude line keeps one line's height while it checks.)
 - **Repo clean-up and the slow-test split** (step 3 of the order of work, done 20 November). Left:
   - `docs/screenshots/` still holds about 150 pictures (25 MB) that DECISIONS or this file
     name, most of them only by a pattern in a finished item (`figure-*.png`, `fit-*.png`,
@@ -59,15 +74,10 @@ only here); take a line out when it is done.
   - Fix the details: the details one by one are a view inside the sheet, not a route of
     their own (`/item/<id>/details`), and "Changed as you said" has no Undo, because a toast
     cannot carry a button yet. Undo is still in History.
-  - The notice about background removal on the closet still links to Settings, where the
-    model is now only under Advanced. Drop the link or open Advanced with it.
-  - On the phone, Settings still offers Quit, Start with the computer and the backup
-    folder (step 6).
 - **Context for agents** (step 1 of the order of work in `assessment/README.md`, done 19 November):
   `CLAUDE.md`, `docs/DEVELOPING.md`, `docs/DESIGN.md`, `docs/USING.md`, `CHANGELOG.md` and
   `frontend/scripts/phone-check.mjs` exist. Left:
-  - `docs/DESIGN.md` states where the app is headed; some screens do not meet it yet
-    (Settings is one long page).
+  - `docs/DESIGN.md` states where the app is headed; some screens do not meet it yet.
   - Not ported from Homestead: a sweep that counts each screen's words against the budget in
     `DESIGN.md`, a `/design-review` skill, and a README for `components/ui/`. Worth doing
     with step 6 or 8, when screens are reshaped.

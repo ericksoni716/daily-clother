@@ -44,6 +44,13 @@ After that every device logs in with the passphrase. If the computer cannot be r
 screen says so and keeps trying; on a phone that has been used before, the saved closet is
 shown with an offline banner and nothing can be changed.
 
+On the computer, Closet opens from its icon: its window, or the browser it opens, comes in
+with the window's key and then asks for the passphrase as above. The address typed into a
+browser, or an old bookmark to it, shows only a page titled "Open Closet from its icon" (any
+other address that leads to Closet says "Closet is not at this address"). A page left open
+from before an update that tries to save says "This page is from an older Closet. Reload the
+page, then try again." These come from the server (`backend/closet/gate.py`), not the page.
+
 ## Today
 
 `/today`. The day's weather for the place saved in Settings, an occasion and a mood to

@@ -121,7 +121,7 @@ function localDay(offset) {
 
 /** Sets the passphrase (which logs in), gives things long names, and returns the login to reuse in every browser. */
 async function setUp(base) {
-  const api = await request.newContext({ baseURL: base });
+  const api = await request.newContext({ baseURL: base, extraHTTPHeaders: { 'X-Closet-Client': '1' } });   // as the page's own calls
   try {
     const call = async (route, method = 'GET', data) => {
       const res = await api.fetch(route, { method, data });

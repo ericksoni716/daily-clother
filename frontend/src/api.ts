@@ -21,6 +21,12 @@ export class ApiError extends Error {
 
 export const UNREACHABLE = "Can't reach Closet. Check that it is running on your computer.";
 
+/**
+ * Header sent on every call, so the server knows the call comes from Closet's own page: it refuses a change without
+ * it (backend/closet/gate.py), which another website cannot send.
+ */
+export const CLIENT_HEADER = 'X-Closet-Client';
+
 /** Header the service worker adds when it answers from its saved copy. */
 export const FROM_CACHE_HEADER = 'x-closet-from-cache';
 
@@ -109,7 +115,8 @@ export function keepaliveSize(method: string, body: string | undefined, opts: Op
 
 async function request<T>(path: string, opts: Options = {}): Promise<T> {
   const method = opts.method ?? 'GET';
-  const init: RequestInit = { method, credentials: 'same-origin', signal: opts.signal };
+  const headers: Record<string, string> = { [CLIENT_HEADER]: '1' };
+  const init: RequestInit = { method, credentials: 'same-origin', signal: opts.signal, headers };
   let timedOut = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
   if (opts.timeoutMs && !opts.signal) {
@@ -120,7 +127,7 @@ async function request<T>(path: string, opts: Options = {}): Promise<T> {
   if (opts.form) init.body = opts.form;
   else if (opts.body !== undefined) {
     init.body = JSON.stringify(opts.body);
-    init.headers = { 'Content-Type': 'application/json' };
+    headers['Content-Type'] = 'application/json';
   }
   const kept = keepaliveSize(method, init.body as string | undefined, opts, keepaliveBytes);
   if (kept !== null) {

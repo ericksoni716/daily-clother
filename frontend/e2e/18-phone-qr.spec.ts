@@ -7,9 +7,10 @@ import { expect, login, PASS, test } from './fixtures';
 
 const ADDRESS = 'https://closet-pc.example-tailnet.ts.net:8443';
 
-// The phone reaches Closet by a name of its own (Tailscale's), not 127.0.0.1. Here a made-up name leads the browser
-// to the same backend, so the page sees what it sees on the phone: an address that is not this computer's.
-const PHONE_HOST = 'closet-phone.test';
+// The phone reaches Closet by a name of its own (Tailscale's, which the server lets in), not 127.0.0.1. Here a made-up
+// Tailscale name leads the browser to the same backend, so the page sees what it sees on the phone: an address that is
+// not this computer's.
+const PHONE_HOST = 'closet-phone.example-tailnet.ts.net';
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined;
 test.use({
   launchOptions: { ...(executablePath ? { executablePath } : {}), args: [`--host-resolver-rules=MAP ${PHONE_HOST} 127.0.0.1`] },

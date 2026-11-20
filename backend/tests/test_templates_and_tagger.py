@@ -9,7 +9,7 @@ import pytest
 from PIL import Image, ImageDraw
 
 from closet.drawing import fills
-from closet.drawing.illustrate import STYLES, Fill, Spec, layer, render
+from closet.drawing.illustrate import Fill, Spec, layer, render
 from closet.drawing.templates import PANTS_DEFAULTS, SNEAKER_DEFAULTS, TOP_DEFAULTS, build
 from closet.tagger import tagging
 from closet.tagger.schema import Details, ItemTags, Silhouette, drawing_extras, drawing_for, silhouette_params
@@ -55,10 +55,9 @@ def test_every_parameter_value_draws_valid_svg(template, options):
     for name, values in options.items():
         for v in values:
             spec = Spec(template, {name: v}, Fill("solid", "#336699"), texture="corduroy", trim_color="#ffffff", button_color="#111111")
-            for style in ("flat", "line", "soft"):
-                svg = render(spec, style)
-                xml.dom.minidom.parseString(svg)
-                assert "nan" not in svg.lower()
+            svg = render(spec, "line")
+            xml.dom.minidom.parseString(svg)
+            assert "nan" not in svg.lower()
 
 
 def test_defaults_cover_the_documented_vocabulary():
@@ -108,12 +107,6 @@ def test_sleeves_end_outside_the_body_and_inside_the_canvas(fit, sleeve):
     pts = [(float(x), float(y)) for x, y in re.findall(r"(-?[\d.]+),(-?[\d.]+)", shape.outline)]
     assert all(4 < x < 396 and 4 < y < 456 for x, y in pts)
     assert shape.sleeves and shape.bbox[2] <= 396
-
-
-def test_traced_style_follows_the_cutout():
-    svg = render(Spec("top", {}, Fill("solid", "#336699")), "traced", cutout=garment())
-    xml.dom.minidom.parseString(svg)
-    assert set(STYLES) == {"flat", "line", "soft", "traced"}
 
 
 # ---- fills used by the app

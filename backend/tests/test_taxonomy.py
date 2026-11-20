@@ -80,12 +80,11 @@ def test_coverage_names_every_value_with_a_valid_status():
 
 
 @pytest.mark.parametrize("axis", TOP_AXES)
-def test_every_value_draws_valid_svg_in_every_style_and_fit(axis):
+def test_every_value_draws_valid_svg_in_every_fit(axis):
     for value in AXES[axis]:
         for fit in (("slim", "regular", "oversized") if axis != "fit" else (None,)):
             g = {**CONTEXT[axis], axis: value, **({"fit": fit} if fit else {})}
-            for style in ("flat", "line", "soft"):
-                valid(draw(g, style))
+            valid(draw(g))
 
 
 @pytest.mark.parametrize("axis", TOP_AXES)
@@ -111,8 +110,7 @@ def test_taxonomy_garments_draw_from_their_first_values():
                 if e["category"] in ("knit_top", "woven_shirt", "sweatshirt", "knitwear")}
     assert garments
     for name, entry in garments.items():
-        for style in ("flat", "line"):
-            valid(draw(_first_values(entry), style, uid=name))
+        valid(draw(_first_values(entry), uid=name))
 
 
 def test_signature_garments_draw():
@@ -212,7 +210,7 @@ def test_every_knit_marked_drawn_has_its_own_texture():
     svgs = {v: draw({**knit, "fabric": v}) for v in drawn}
     for v in ("moss", "pointelle", "terry_towelling"):
         assert [k for k, svg in svgs.items() if svg == svgs[v]] == [v], v
-        valid(draw({**knit, "fabric": v, "knit_gauge": "chunky"}, "flat"))
+        valid(draw({**knit, "fabric": v, "knit_gauge": "chunky"}))
 
 
 # #182: the plain weaves, shirtings, smooth cloths and jerseys that used to read as plain cloth
@@ -235,7 +233,6 @@ def test_every_plain_cloth_has_a_surface_of_its_own():
     assert len(set(svgs.values())) == len(PLAIN_CLOTHS)
     for v in PLAIN_CLOTHS:
         valid(svgs[v])
-        valid(draw({**shirt, "fabric": v}, "flat"))
     assert draw({**shirt, "fabric": "shaker", "knit_gauge": "chunky"}) != svgs["shaker"]
     assert draw({**shirt, "fabric": "flat_knit", "knit_gauge": "chunky"}) != svgs["flat_knit"]
 
@@ -252,7 +249,6 @@ def test_colourwork_knits_are_drawn_where_the_garment_carries_them(cloth):
         assert extras["colorwork"] == COLORWORK[v] and build("top", p).anchors == build("top", top_drawing(knit)[0]).anchors
         svgs[v] = draw({**knit, "fabric": v}, color=cloth)
         valid(svgs[v])
-        valid(draw({**knit, "fabric": v}, "flat", color=cloth))
     assert plain not in svgs.values() and len(set(svgs.values())) == len(COLORWORK)
     # in the other colours seen, where they stand out from the cloth
     seen = render(Spec("top", top_drawing(knit)[0], Fill("solid", cloth), colorwork="fair_isle",

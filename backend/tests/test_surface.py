@@ -180,6 +180,7 @@ def test_a_fine_stripe_called_small_is_still_read_at_the_photos_own_detail():
         assert out["scale_how"] == "fine" and out["repeats"] == pytest.approx(80.0, rel=0.08)
 
 
+@pytest.mark.slow
 def test_a_knit_is_not_taken_for_a_fine_pattern_when_claude_says_bigger():
     """Stripes broader than the square of cloth the fine reading looks at, on a knit: the square shows only the
     stitches repeating (the demo's plain graphic tee reads as 48 repeats across this way). For a word bigger than
@@ -204,6 +205,7 @@ def test_the_second_form_draws_fine_patterns_past_sixteen_across():
     assert surface.drawn(d, None, None)["repeats"] == pytest.approx(4.0)       # the first form: no such word
 
 
+@pytest.mark.slow
 def test_a_fine_stripe_is_read_at_the_photos_own_detail():
     cut = _striped_cut(period=8, size=(900, 1000))
     ruler = {"underarm_left": {"x": 100.0, "y": 300.0}, "underarm_right": {"x": 740.0, "y": 300.0}}   # 640 px: 80 repeats

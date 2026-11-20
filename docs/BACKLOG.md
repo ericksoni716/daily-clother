@@ -14,6 +14,19 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **A shoe's side drawn by Claude** (20 November; DECISIONS, "A shoe's side drawn by Claude").
+  Left:
+  - Correcting the side with the owner's note: a note changes the front only, and the side is
+    kept as it is.
+  - Worked examples for the side: once the owner has side drawings they like, show them as
+    examples (as the front's three liked drawings are), instead of only the plain templates.
+  - Not yet tried on the owner's own pairs; one trial on the open-licence held sneaker only,
+    whose photo does not trace (the shoe runs off the photo), so the measured path has not been
+    tried on a real photo.
+  - Time and cost per shoe not measured beyond that one trial (the side by itself through the
+    plan, `tools/draw_shoe_photos.py --side-only`: 120 s, three calls, said good at the second
+    check, about $0.33 at the API key's prices), nor how often the side, beside the turns, ends
+    up the longest part of a drawing.
 - **The computer's own door** (the first of three pull requests to the other app's access
   model, 20 November): the address check, the page's header and the window's key. Left: who
   someone is through Tailscale Serve and Cloudflare Access (the next pull request), then

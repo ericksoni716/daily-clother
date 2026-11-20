@@ -10,6 +10,12 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ## Unreleased
 
+### Added
+
+- AVIF photos work wherever you add a photo: on Add, when you take a piece's photo again, as
+  a shoe's other photos and in Would this work?. Many shops save their pictures as AVIF, so a
+  photo saved from a shop's page now goes in like any other.
+
 ## 0.10.0
 
 ### Added

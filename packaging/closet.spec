@@ -192,7 +192,8 @@ elif IS_MAC:
     window_imports += ["webview.platforms.cocoa", "WebKit", "Quartz", "Security", "UniformTypeIdentifiers",
                        "PyObjCTools.AppHelper"]
 
-hiddenimports = closet_modules + ["_pillow_heif", "pystray", "pystray._dummy", "truststore", "certifi",
+# Pillow finds its format plugins at run time (Image.init); AVIF's is named so it and its native part are never left out
+hiddenimports = closet_modules + ["_pillow_heif", "PIL.AvifImagePlugin", "PIL._avif", "pystray", "pystray._dummy", "truststore", "certifi",
                                    "anthropic", "anthropic.lib._parse._transform", "cv2",
                                    "resvg_py", "svgelements"] + tray_imports + window_imports   # resvg_py, svgelements: imported only when a drawing is rendered or turned
 

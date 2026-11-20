@@ -153,7 +153,8 @@ On a computer with a mouse it also says which keys do the same; on a phone it do
 `/add`. One place for everything. When the files that cut clothes out of photos are not set
 up, or did not download, a notice at the top says so (only here: new photos keep their
 background until they are in). Take photos with the camera on the page, choose them from
-the library, choose a folder, or drop them on the page. Closet asks Claude what each photo
+the library, choose a folder, or drop them on the page. JPEG, PNG, WebP, HEIC and AVIF photos
+all work, so a photo saved from a shop's page goes in too. Closet asks Claude what each photo
 shows (one piece, several pieces, or a view of a shoe) and sorts them; a shoe's photos are
 gathered into one shoe. Photos are made smaller in the browser and sent two at a time; a
 list shows each one's upload until it is in, then, in the same row, how far Closet has got

@@ -75,6 +75,17 @@ def test_png_and_heic_uploads_are_accepted(client):
         assert r.status_code == 201 and r.json()["photos"][0]["width"] == 640
 
 
+def test_an_avif_photo_saved_from_a_shop_is_stored_like_any_photo(client, cfg):
+    buf = io.BytesIO()
+    Image.new("RGB", (800, 1000), (40, 120, 70)).save(buf, "AVIF", quality=70)
+    r = client.post("/api/items", files={"photo": ("shop.avif", buf.getvalue(), "image/avif")}, data={"client_key": "avif"})
+    assert r.status_code == 201
+    item = r.json()
+    assert (item["photos"][0]["width"], item["photos"][0]["height"]) == (800, 1000)
+    files = sorted(p.name for p in (cfg.images_dir("main") / item["id"]).iterdir())
+    assert len(files) == 2 and all(f.endswith(".webp") for f in files)
+
+
 def test_editing_checks_the_vocabulary_and_records_who_set_a_field(client):
     item = upload(client).json()
     r = client.patch(f"/api/items/{item['id']}", json={"category": "jeans", "color": "navy", "silhouette": {"leg": "tapered"},

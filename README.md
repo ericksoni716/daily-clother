@@ -336,8 +336,10 @@ photos are the same shoe:
 
 - **On the computer:** click **Choose photos** and pick as many as you like,
   click **Choose a folder**, or drag photos or whole folders onto the page.
-  Folders inside folders are included. Files that are not photos are skipped,
-  and the page says which.
+  Folders inside folders are included. JPEG, PNG, WebP, HEIC and AVIF photos
+  all work, so a photo saved from a shop's page goes in too (many shops save
+  theirs as AVIF). Files that are not photos are skipped, and the page says
+  which.
 - **On the iPhone:** **Take photos** (the camera stays open between photos), or **Choose from library** and pick many
   at once.
 

@@ -373,6 +373,15 @@ def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -
         im = images.decode(fixture.read_bytes())
         return f"pillow-heif {pillow_heif.__version__}, decoded {im.size[0]}x{im.size[1]}"
 
+    def avif():
+        from PIL import Image, features
+
+        from . import images
+        buf = io.BytesIO()
+        Image.new("RGB", (32, 24), (40, 120, 70)).save(buf, "AVIF", quality=70)
+        im = images.decode(buf.getvalue())
+        return f"libavif {features.version('avif')}, decoded {im.size[0]}x{im.size[1]}"
+
     def onnx():
         import onnxruntime
         return f"onnxruntime {onnxruntime.__version__}"
@@ -454,6 +463,7 @@ def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -
 
     check("webp", webp)
     check("heic", heic)
+    check("avif", avif)
     check("onnxruntime", onnx)
     check("database", database)
     check("web_page", page)

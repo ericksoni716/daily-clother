@@ -1,4 +1,5 @@
 import type { Life } from './life';
+import type { UpdateStatus } from './updates';
 
 export type CutoutState = 'none' | 'pending' | 'processing' | 'ready' | 'failed';
 /** Being described by Claude: none (never asked), waiting, working, done, failed. */
@@ -317,10 +318,8 @@ export interface Settings {
   tagging_route_order: RouteOrder;
   /** Whether an API key is set and where it comes from; never the key itself. */
   api_key: ApiKeyInfo;
-  phone: {
-    tailscale_installed: boolean; running: boolean; address: string | null; command: string;
-    stop_command: string | null; others_share: boolean;
-  };
+  /** How the phone reaches Closet, looked up in the background; null until the first lookup is in. */
+  phone: PhoneInfo | null;
   autostart: boolean | null;
   heic_supported: boolean;
   /** Where the owner is, for the weather: New York (`home_place`) until another place is chosen. */
@@ -335,6 +334,21 @@ export interface Settings {
   laundry?: LaundrySetting;
   /** Whether Claude may choose the outfits on Today (Settings, Your style); otherwise Closet's own rules do. */
   stylist_on?: boolean;
+  // Each exactly what its own endpoint answers, so Settings is drawn from this one answer.
+  /** As `GET /api/model`. */
+  model: ModelInfo;
+  /** As `GET /api/updates`; null when the program has no updater. */
+  updates: UpdateStatus | null;
+  /** As `GET /api/style/profile`. */
+  style_profile: StyleProfile;
+  /** As `GET /api/tagging/spend`. */
+  tagging_spend: TaggingSpend;
+}
+
+/** Phone access through Tailscale: the address that reaches Closet (null when no share does), and the commands. */
+export interface PhoneInfo {
+  tailscale_installed: boolean; running: boolean; address: string | null; command: string;
+  stop_command: string | null; others_share: boolean;
 }
 
 /** Laundry that keeps itself. `day`: Monday 0 to Sunday 6, or null for no set laundry day. */

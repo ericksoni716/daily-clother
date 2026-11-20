@@ -201,6 +201,6 @@ test("what's missing offline: the answer fetched earlier is shown as saved, and 
   expect(await gapNames(page)).toEqual(names);
   const wish = page.getByTestId('gap').first().getByRole('button', { name: "I'll look for this" });
   await expect(wish).toBeDisabled();
-  await expect(wish).toHaveAttribute('title', /needs Closet on your computer/i);
+  await expect(wish).toHaveAttribute('title', /needs Nines on your computer/i);
   await expect(page.getByRole('button', { name: 'Add by hand' })).toBeDisabled();
 });

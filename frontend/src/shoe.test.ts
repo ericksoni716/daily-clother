@@ -54,9 +54,9 @@ describe('a shoe added in one step', () => {
   });
 
   it('says what was added, all of it or part of it', () => {
-    expect(shoeAddedLine(1, 1)).toBe('The shoe is added. In a moment Closet removes the background and describes it.');
+    expect(shoeAddedLine(1, 1)).toBe('The shoe is added. In a moment Nines removes the background and describes it.');
     expect(shoeAddedLine(4, 4)).toBe(
-      'The shoe is added with its 4 photos. In a moment Closet removes the background and works out which photo is which.');
+      'The shoe is added with its 4 photos. In a moment Nines removes the background and works out which photo is which.');
     expect(shoeAddedLine(2, 4)).toBe('The shoe is added with 2 of its 4 photos.');
   });
 });

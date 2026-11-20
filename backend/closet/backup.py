@@ -514,11 +514,11 @@ def _read_journal(cfg: Config, journal: Path) -> dict:
     return plan
 
 
-FINISHED = "A restore was interrupted; Closet finished it when it started again, so your closet is the one from the backup."
+FINISHED = "A restore was interrupted; Nines finished it when it started again, so your closet is the one from the backup."
 UNDONE = "A restore was interrupted; your closet was put back as it was before the restore."
-UNREADABLE = ("A restore was interrupted, and Closet could not read its notes on how far it had got, so it moved "
+UNREADABLE = ("A restore was interrupted, and Nines could not read its notes on how far it had got, so it moved "
               "nothing. If your closet does not look right, the closet from before the restore is in the newest "
-              "\u201creplaced-\u2026\u201d folder in Closet's folder.")
+              "\u201creplaced-\u2026\u201d folder in the Closet folder.")
 
 
 def recover(cfg: Config) -> dict | None:
@@ -559,8 +559,8 @@ def recover(cfg: Config) -> dict | None:
             outcome = "undone"
     except OSError as e:
         log.exception("an interrupted restore could not be finished or undone")
-        raise RecoveryError(f"A restore was interrupted, and Closet could not put your closet right yet ({e}). Close any "
-                            "program that may be using Closet's folder, then start Closet again.") from e
+        raise RecoveryError(f"A restore was interrupted, and Nines could not put your closet right yet ({e}). Close any "
+                            "program that may be using the Closet folder, then start Nines again.") from e
     journal.unlink()
     tmp.unlink(missing_ok=True)
     shutil.rmtree(_in_data(cfg, plan["staging"]), ignore_errors=True)

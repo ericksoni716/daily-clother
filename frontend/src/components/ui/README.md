@@ -29,7 +29,7 @@ so a screen's own class can still set size and spacing.
 | `HowItWorks` | The one closed-by-default explanation on a screen ("How this works", "Changing an outfit"). It replaces hint paragraphs that would otherwise be read on every visit. |
 | `SaveStatus` and `useSaveStatus` | "Saving… / Saved / Didn't save · Try again" beside something that saves as it is changed. The line keeps its height, so nothing moves when it speaks. `useSaveStatus().run(save)` drives it; `retry` runs the last save again. |
 | `Markdown` | A small, safe part of Markdown (the release notes), drawn as elements, never as HTML. |
-| `ErrorBoundary` | The message in place of a screen that failed to draw, with Try again and Reload Closet. |
+| `ErrorBoundary` | The message in place of a screen that failed to draw, with Try again and Reload Nines. |
 | `trapTab`, `confirmKeys`, `useConfirmFocus` | Keeping Tab inside what is open, Escape to close, focus back to what opened it. |
 
 ## Tokens (`src/styles.css`, `:root`, with the dark values below them)

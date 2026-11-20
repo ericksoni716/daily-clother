@@ -37,9 +37,9 @@ type ClaudeSettings = Pick<Settings, 'tagging_api_enabled' | 'tagging_api_off' |
  */
 export function claudeLine(s: ClaudeSettings, spend: Pick<TaggingSpend, 'spent_usd' | 'cap_usd' | 'reached'> | null,
   tagging: TaggingStatus | null, error: string | null, offline: boolean): ClaudeLine {
-  if (offline) return { tone: 'quiet', text: "You're offline, so how Closet reaches Claude can't be checked.", action: null };
-  if (error) return { tone: 'problem', text: `Closet couldn't check how it reaches Claude: ${error}`, action: 'check' };
-  if (!tagging) return { tone: 'waiting', text: 'Checking how Closet reaches Claude…', action: null };
+  if (offline) return { tone: 'quiet', text: "You're offline, so how Nines reaches Claude can't be checked.", action: null };
+  if (error) return { tone: 'problem', text: `Nines couldn't check how it reaches Claude: ${error}`, action: 'check' };
+  if (!tagging) return { tone: 'waiting', text: 'Checking how Nines reaches Claude…', action: null };
 
   const byId = new Map(tagging.routes.map((r) => [r.id, r]));
   const planReady = !!byId.get('plan')?.available;
@@ -59,20 +59,20 @@ export function claudeLine(s: ClaudeSettings, spend: Pick<TaggingSpend, 'spent_u
     return {
       tone: 'problem', action: null,
       text: s.tagging_api_off.reason === 'credit'
-        ? 'Closet stopped using your API key because your Anthropic account has no credit left.'
-        : "Closet stopped using your API key because Anthropic didn't accept it.",
+        ? 'Nines stopped using your API key because your Anthropic account has no credit left.'
+        : "Nines stopped using your API key because Anthropic didn't accept it.",
     };
   }
   if (byId.get('api')?.available && s.tagging_api_enabled && spend?.reached) {
     return { tone: 'problem', text: "This month's limit for the API key is reached, and your Claude plan can't be used.", action: null };
   }
   if (!tagging.order.includes('plan')) {
-    return { tone: 'problem', text: "Closet can't reach Claude: you chose only the API key, and it isn't allowed yet.", action: null };
+    return { tone: 'problem', text: "Nines can't reach Claude: you chose only the API key, and it isn't allowed yet.", action: null };
   }
   if (s.api_key.set && tagging.order.includes('api') && !s.tagging_api_enabled) {
-    return { tone: 'problem', text: "Closet can't reach Claude: your API key is saved but not allowed.", action: null };
+    return { tone: 'problem', text: "Nines can't reach Claude: your API key is saved but not allowed.", action: null };
   }
-  return { tone: 'problem', text: "Closet can't reach Claude yet.", action: 'install' };
+  return { tone: 'problem', text: "Nines can't reach Claude yet.", action: 'install' };
 }
 
 // ------------------------------------------------------------------ Updates
@@ -87,7 +87,7 @@ export interface UpdatesLine extends Line {
 /** "Closet 0.4.0 · up to date", "Closet 0.4.1 is ready to install.", a step of an install, or what went wrong. */
 export function updatesLine(status: UpdateStatus | null, version: string, offline: boolean): UpdatesLine {
   if (!status) {
-    return { tone: 'quiet', text: offline ? `Closet ${version}. Updates can't be checked while you're offline.` : `Closet ${version}`, action: null };
+    return { tone: 'quiet', text: offline ? `Nines ${version}. Updates can't be checked while you're offline.` : `Nines ${version}`, action: null };
   }
   if (status.busy) return { tone: 'waiting', text: busyLine(status.busy), action: null };
   if (status.problem) return { tone: 'problem', text: status.problem, action: status.available && status.can_install ? 'install' : null };
@@ -95,7 +95,7 @@ export function updatesLine(status: UpdateStatus | null, version: string, offlin
     return { tone: 'ok', text: availableLine(status), action: status.can_install ? 'install' : 'download' };
   }
   if (status.last_install && !status.last_install.ok) return { tone: 'problem', text: lastInstallLine(status), action: null };
-  const here = `Closet ${status.version}`;
+  const here = `Nines ${status.version}`;
   if (status.latest && status.checked_at && (status.can_install || status.latest === status.version)) {
     return { tone: 'ok', text: `${here} · up to date`, action: null };
   }
@@ -168,5 +168,5 @@ export function computerOnly(device: Device): ComputerOnly {
 
 /** "Closet uses 2.7 MB for 49 items · 62 GB free", from the storage lookup. */
 export function storageLine(total: string, items: number, free: string | null): string {
-  return `Closet uses ${total} for ${items === 1 ? '1 item' : `${items.toLocaleString('en-US')} items`}${free ? ` · ${free} free on this disk` : ''}.`;
+  return `Nines uses ${total} for ${items === 1 ? '1 item' : `${items.toLocaleString('en-US')} items`}${free ? ` · ${free} free on this disk` : ''}.`;
 }

@@ -25,7 +25,7 @@ test.describe('the API key with a monthly limit', () => {
 
     // Settings says in one red line that Claude can't be reached; the key and its limit are on Advanced
     await page.goto(backend.url + '/settings');
-    await expect(page.getByTestId('claude-line')).toContainText("Closet can't reach Claude yet.", { timeout: 20_000 });
+    await expect(page.getByTestId('claude-line')).toContainText("Nines can't reach Claude yet.", { timeout: 20_000 });
     await page.goto(backend.url + '/settings/advanced');
     const section = page.getByRole('region', { name: 'Claude' });
     await expect(section.getByTestId('route-plan')).toContainText('not installed', { timeout: 20_000 });
@@ -94,7 +94,7 @@ test.describe('the API key with a monthly limit', () => {
     await expect(page).toHaveURL(/\/settings$/);
     const line = page.getByTestId('claude-line');
     await expect(line).toHaveText("This month's limit for the API key is reached, and your Claude plan can't be used.", { timeout: 20_000 });
-    await page.getByRole('link', { name: 'Manage how Closet reaches Claude' }).click();
+    await page.getByRole('link', { name: 'Manage how Nines reaches Claude' }).click();
     await expect(section.getByText(/This month's limit is reached/)).toBeVisible();
     await expect(section.getByTestId('spend-waiting')).toHaveText(
       "If your plan can't be used, describing the item waiting with the API key would cost about $0.10 at most.");

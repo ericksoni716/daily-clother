@@ -269,8 +269,8 @@ def open_with_key(base: str, data_dir: Path) -> str:
     """Opens Closet the way its window does: with the key the program keeps in settings.json, which the server swaps
     for a cookie. Before that, this computer's address is refused, and so is any other name. Returns the cookie."""
     _, body = expect("GET", base + "/", 401)
-    if b"Open Closet from its icon" not in body:
-        raise SmokeFailure(f"GET / without the key is not the page saying to open Closet from its icon: {body[:300]!r}")
+    if b"Open Nines from its icon" not in body:
+        raise SmokeFailure(f"GET / without the key is not the page saying to open Nines from its icon: {body[:300]!r}")
     expect("GET", base + "/api/health", 403, host="closet.example")
     try:
         key = json.loads((data_dir / "settings.json").read_text(encoding="utf-8"))["window_key"]

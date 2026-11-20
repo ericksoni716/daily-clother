@@ -374,7 +374,7 @@ function EmptyCloset({ demo }: { demo: boolean }) {
   const { switchProfile, toast, offline } = useApp();
   return (
     <EmptyState big icon={<HangerIcon />} title={demo ? 'The demo closet is empty' : 'Your closet is empty'}
-      body="Take a photo of a piece of clothing and Closet will cut it out and keep it here.">
+      body="Take a photo of a piece of clothing and Nines will cut it out and keep it here.">
       <div className="stack stack-narrow">
         <Button variant="primary" block disabled={offline} onClick={() => navigate('/add')}>Add your first item</Button>
         {!demo && (

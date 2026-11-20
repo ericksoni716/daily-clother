@@ -41,7 +41,7 @@ def startup_lock(cfg: Config, timeout: float = 60):
                 if e.errno not in (errno.EACCES, errno.EAGAIN):
                     raise
                 if time.monotonic() >= deadline:
-                    raise TimeoutError("Another copy of Closet is still starting. Try opening it again in a moment.")
+                    raise TimeoutError("Another copy of Nines is still starting. Try opening it again in a moment.")
                 time.sleep(0.05)
         yield guard.close
 

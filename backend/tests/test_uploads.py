@@ -133,7 +133,7 @@ def test_the_test_client_gets_413_for_a_photo_over_the_limit(client, cfg, monkey
 def test_a_large_json_body_is_refused_even_without_the_login(anon):
     body = Body([b'{"passphrase": "' + b"x" * (2 * limits.MB) + b'"}'])
     status, answer = send(anon.app, "/api/login", body, content_type="application/json")
-    assert status == 413 and answer["detail"] == "That is more than Closet reads in one request. Try again with less."
+    assert status == 413 and answer["detail"] == "That is more than Nines reads in one request. Try again with less."
 
 
 def test_a_photo_under_the_limit_still_goes_in_without_a_length(client):

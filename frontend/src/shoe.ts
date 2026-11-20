@@ -39,9 +39,9 @@ export const tooManyPhotos = (left: number) =>
 
 /** What Add says once it has sent a shoe's photos: `added` of the `total` chosen went in (the first made the shoe). */
 export function shoeAddedLine(added: number, total: number): string {
-  if (total <= 1) return 'The shoe is added. In a moment Closet removes the background and describes it.';
+  if (total <= 1) return 'The shoe is added. In a moment Nines removes the background and describes it.';
   if (added >= total) {
-    return `The shoe is added with its ${total} photos. In a moment Closet removes the background and works out which photo is which.`;
+    return `The shoe is added with its ${total} photos. In a moment Nines removes the background and works out which photo is which.`;
   }
   return `The shoe is added with ${added} of its ${total} photos.`;
 }

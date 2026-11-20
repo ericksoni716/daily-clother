@@ -1,7 +1,7 @@
-# Closet web app
+# Nines web app
 
 React + TypeScript + Vite. `npm run build` writes the page into `../backend/closet/web/`, which the backend serves at `/`.
-No UI kit, no web fonts, no requests outside the Closet server.
+No UI kit, no web fonts, no requests outside the Nines server.
 
 ## Commands
 
@@ -13,7 +13,7 @@ npm run typecheck  # tsc
 npm test           # vitest unit tests (upload queue, labels, silhouette groups, resizing)
 npm run build      # production build into ../backend/closet/web
 npm run e2e        # Playwright browser tests (builds first, starts its own backend)
-npm run icons      # redraw the PNG icons in public/icons (they are committed)
+npm run icons      # render the PNG icons from scripts/nines-icon.svg (they are committed)
 npm run phone-check  # every screen at five iPhone widths, pictures into phone-shots/ (needs a build; starts its own backend)
 ```
 

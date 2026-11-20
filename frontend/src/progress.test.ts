@@ -51,8 +51,8 @@ describe('the strip on the item page', () => {
     expect(stripNote(p())).toMatch(/^By Claude, usually within a minute\. The drawing appears/);
     expect(stripNote(p({ state: 'waiting', waiting_for: 'claude', why: 'x' }))).toBe('It goes on by itself once Claude can be reached.');
     expect(stripNote(p({ state: 'waiting', waiting_for: 'limit', why: 'long' }))).toBe('You can see to it in Settings.');
-    expect(stripNote(p({ stage: 'views', step: 3, state: 'waiting', waiting_for: 'you', why: 'Closet needs your answer.' })))
-      .toBe('Closet needs your answer.');
+    expect(stripNote(p({ stage: 'views', step: 3, state: 'waiting', waiting_for: 'you', why: 'Nines needs your answer.' })))
+      .toBe('Nines needs your answer.');
   });
 
   it('offers Settings only for what can be seen to there', () => {

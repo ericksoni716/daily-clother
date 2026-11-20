@@ -197,7 +197,7 @@ export function AddScreen() {
           answers.push(group.map(() => ({ kind: 'piece' as const, shoe: 0 })));
           continue;
         }
-        message = `Closet couldn't sort these (${(e as Error).message}): sort them yourself.`;
+        message = `Nines couldn't sort these (${(e as Error).message}): sort them yourself.`;
         break;
       }
       if (run !== sortRun.current) return;
@@ -369,7 +369,7 @@ export function AddScreen() {
     if (trayRef.current.length + photos.length > SORT_MAX) {
       // a big import (a folder) goes in one piece per photo, as before, without waiting to be sorted
       const { skipped: alreadyListed } = photos.length ? addFiles(photos, false) : { skipped: 0 };
-      setNote(`${describeAdded(photos.length - alreadyListed, alreadyListed, skipped)} That is more than Closet sorts at once, so each photo goes in as one piece; add photos of several pieces or of shoes a few at a time.`);
+      setNote(`${describeAdded(photos.length - alreadyListed, alreadyListed, skipped)} That is more than Nines sorts at once, so each photo goes in as one piece; add photos of several pieces or of shoes a few at a time.`);
       return;
     }
     const now = trayRef.current;
@@ -414,13 +414,13 @@ export function AddScreen() {
         <div className="notice notice-warn" data-testid="import-offline">
           <CloudOffIcon />
           <div>
-            <p>Importing photos is unavailable right now: Closet on your computer can't be reached. Check that the computer is on and Closet is running; this page will work again as soon as it is.</p>
+            <p>Importing photos is unavailable right now: Nines on your computer can't be reached. Check that the computer is on and Nines is running; this page will work again as soon as it is.</p>
             {pending > 0 && <p>The {plural(pending, 'photo')} still to go will carry on by themselves when it is back.</p>}
           </div>
         </div>
       ) : (
         <>
-          <p className="muted add-intro" data-testid="add-intro">Add any photos: one piece of clothing per photo, several pieces laid out together on the bed or the floor, or a shoe from a few sides (all its photos at once). Closet sorts them; one piece per photo goes straight in, anything else waits for you to check it. Photos already in your closet are recognised and not added twice.</p>
+          <p className="muted add-intro" data-testid="add-intro">Add any photos: one piece of clothing per photo, several pieces laid out together on the bed or the floor, or a shoe from a few sides (all its photos at once). Nines sorts them; one piece per photo goes straight in, anything else waits for you to check it. Photos already in your closet are recognised and not added twice.</p>
           <p className="muted small" data-testid="shoe-tips">For a shoe: one shoe on its own, not the pair, photographed from {viewsWords(needed)}, against a plain floor or wall in even light. Those are the photos its drawing needs; up to {SHOE_PHOTOS} are kept.</p>
           {profile !== 'demo' && perFindUsd !== null && (
             <p className="muted small" data-testid="several-cost">With the API key, if your plan can't be used: sorting is a fraction of a cent, finding the pieces in a photo of several {aboutUsd(perFindUsd)} at most, and describing each piece{perPhotoUsd !== null ? ` ${aboutUsd(perPhotoUsd)} at most` : ' a little'}.</p>
@@ -477,7 +477,7 @@ export function AddScreen() {
                 <video ref={video} aria-label="The camera" playsInline muted />
               </div>
               <p className="muted small" data-testid="camera-count">
-                {tray.length ? `${plural(tray.length, 'photo')} so far. ` : ''}Take as many as you like; Closet sorts them when you close the camera.
+                {tray.length ? `${plural(tray.length, 'photo')} so far. ` : ''}Take as many as you like; Nines sorts them when you close the camera.
               </p>
               <div className="row">
                 <button type="button" className="btn btn-primary" onClick={snap}><CameraIcon />Take the photo</button>
@@ -516,7 +516,7 @@ export function AddScreen() {
               {pairs(tray).length > 0 && (
                 <p className="notice notice-warn" role="status" data-testid="tray-pairs">
                   {pairs(tray).length === 1 ? 'One photo shows' : `${pairs(tray).length} photos show`} the pair: a shoe is drawn from photos of one shoe on its own.
-                  Remove {pairs(tray).length === 1 ? 'it' : 'them'} and take one of a single shoe, or tap It's one shoe if Closet is wrong.
+                  Remove {pairs(tray).length === 1 ? 'it' : 'them'} and take one of a single shoe, or tap It's one shoe if Nines is wrong.
                 </p>
               )}
               <ul className="queue-list" aria-label="Your photos, sorted">

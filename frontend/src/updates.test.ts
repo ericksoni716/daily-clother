@@ -24,8 +24,8 @@ describe('update wording', () => {
   it('says whether a new version is out and ready', () => {
     expect(availableLine(status())).toBe('You have the latest version.');
     expect(availableLine(status({ checked_at: null, latest: null }))).toBe('');
-    expect(availableLine(status({ available: release, latest: '0.3.0' }))).toBe('Closet 0.3.0 is out.');
-    expect(availableLine(status({ available: release, latest: '0.3.0', ready: true }))).toBe('Closet 0.3.0 is ready to install.');
+    expect(availableLine(status({ available: release, latest: '0.3.0' }))).toBe('Nines 0.3.0 is out.');
+    expect(availableLine(status({ available: release, latest: '0.3.0', ready: true }))).toBe('Nines 0.3.0 is ready to install.');
     expect(availableLine(status({ available: release, latest: '0.3.0', can_install: false }))).toMatch(/by hand/);
   });
 
@@ -71,18 +71,18 @@ function pretend(script: (t: number) => { health?: string; status?: Partial<Upda
 }
 
 describe('following an update', () => {
-  it('reloads once the new Closet answers after the old one went away', async () => {
+  it('reloads once the new Nines answers after the old one went away', async () => {
     const deps = pretend((t) => (t < 3000 ? { health: '0.2.1', status: { busy: 'restarting' } } : t < 6000 ? {} : { health: '0.3.0' }));
     expect((await followInstall('0.2.1', deps)).outcome).toBe('back');
   });
 
-  it('reloads when the old Closet comes back after a rollback', async () => {
+  it('reloads when the old Nines comes back after a rollback', async () => {
     const deps = pretend((t) => (t < 2000 ? { health: '0.2.1', status: { busy: 'restarting' } } : t < 5000 ? {} : { health: '0.2.1', status: {} }));
     expect((await followInstall('0.2.1', deps)).outcome).toBe('back');
   });
 
   it('stops with the problem when the update stopped before restarting', async () => {
-    const deps = pretend(() => ({ health: '0.2.1', status: { problem: "Closet couldn't back up your closets." } }));
+    const deps = pretend(() => ({ health: '0.2.1', status: { problem: "Nines couldn't back up your closets." } }));
     const r = await followInstall('0.2.1', deps);
     expect(r.outcome).toBe('stopped');
     expect(r.problem).toMatch(/back up/);

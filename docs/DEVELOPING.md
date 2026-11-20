@@ -1,4 +1,4 @@
-# Developing Closet
+# Developing Nines
 
 How the code is laid out, the rules that keep it that way, what deserves a test, and how to
 add a screen, an endpoint, a migration or a background job. What makes a change look and
@@ -37,8 +37,8 @@ a real closet is never touched.
 
 | Area | Modules |
 | --- | --- |
-| The program | `cli.py` (entry point: start, restore, backup, reset-passphrase), `config.py` (where things live, from the environment), `state.py` (program-wide settings in one JSON file; `DEFAULTS` lists every key), `instance.py` (one copy at a time, and its port), `window.py`, `window_mac.py` (Closet's own window), `tray.py`, `autostart.py`, `net.py` (outbound HTTPS in the packaged program), `updates.py` (checking for a release, fetching it, swapping it in). |
-| The web API | `app.py`: `build_services` wires the settings, the database and every background worker (tests pass stand-ins here), and `create_app` defines every route. `gate.py` (the address, the key of Closet's own window, the page's header, the login and size limits, all before a body is read), `limits.py`, `auth.py` (one passphrase, sessions), `phone.py` (the Tailscale address for the phone, looked up in the background by `phone.Watch`). |
+| The program | `cli.py` (entry point: start, restore, backup, reset-passphrase), `config.py` (where things live, from the environment), `state.py` (program-wide settings in one JSON file; `DEFAULTS` lists every key), `instance.py` (one copy at a time, and its port), `window.py`, `window_mac.py` (Nines' own window), `tray.py` (with `icon.png`, the tray's and the program's icon, rendered by the frontend's `npm run icons`), `autostart.py`, `net.py` (outbound HTTPS in the packaged program), `updates.py` (checking for a release, fetching it, swapping it in). |
+| The web API | `app.py`: `build_services` wires the settings, the database and every background worker (tests pass stand-ins here), and `create_app` defines every route. `gate.py` (the address, the key of Nines' own window, the page's header, the login and size limits, all before a body is read), `limits.py`, `auth.py` (one passphrase, sessions), `phone.py` (the Tailscale address for the phone, looked up in the background by `phone.Watch`). |
 | Data | `db.py` (SQLite, and migrations by `PRAGMA user_version`), `migrations/NNNN_name.sql`, `items.py` (reading and changing items), `images.py` (a photo into the files the closet keeps), `backup.py`, `storage.py`, `demo.py` and `demo_data/` (the demo closet, a database of its own). |
 | A photo becomes an item | `jobs.py` (the cutout queue, in the `jobs` table), `cutout.py`, `modelstore.py` (the background-removal models), `tagjobs.py` (the queue that asks Claude to describe an item, and `apply_answer`), `illustrations.py` (each item's drawing, kept up to date), `patjobs.py` (measuring a pattern), `progress.py` (how far the work on an item has got, in the page's words, and `GET /api/progress`), `palette.py`, `sources.py` (several items from one photo), `failures.py` (why a step failed, in words safe to show). |
 | What an item is | `look.py` (its look, read from one place: the description the drawing was made from, with the owner's corrections over it, and its coarse shape as drawn; every screen and rule that tells how a garment looks reads it here), `kinds.py` (its kind, from the taxonomy), `vocab.py` (the small coarse vocabulary), `details.py` (the details the owner can set), `corrections.py` (picking a detail, saying what is wrong, undo), `history.py`, `review.py` (the review queue). |
@@ -82,7 +82,7 @@ PyInstaller build and its smoke test).
 
 | Place | What's in it |
 | --- | --- |
-| `src/main.tsx`, `src/App.tsx` | Start-up: first run, login, the "can't reach Closet" screens. |
+| `src/main.tsx`, `src/App.tsx` | Start-up: first run, login, the "can't reach Nines" screens. |
 | `src/Shell.tsx` | The frame: sidebar on a computer, tab bar on a phone (the four places and Add), the banners, which screen a route shows, and taking the new address in place of a moved one. |
 | `src/places.ts` | The four places and Add: `placeOf` (which place a route belongs to, the link lit in the sidebar and the tab bar) and `movedTo` (where the addresses of merged places lead now). |
 | `src/router.tsx` | The router, written by hand: `parseRoute` (every route; a moved address parses as the screen it moved to), `navigate`, `Link`, `itemPath`, the `WIDE` media query. |
@@ -97,14 +97,14 @@ PyInstaller build and its smoke test).
 | `src/progress.ts` | An item's progress as the page shows it: which entry wins, the strip's dots and note, the tile's mark, the "Working on N items" line, a row's title on Add, the drawing's placeholder. The words come from the server (`progress.py`). |
 | `src/screens/` | One file per screen, with its CSS beside it. Today: `Today`, `Worn` (the history, and `RecentOutfits` and the rating that Today shows), `Trips`. Closet: `Closet`, `ItemDetail`, `Review`. Add: `Add`, `Several`. Wardrobe: `Wardrobe` (the page: it reads the gaps, the wishlist and the insights, and lays them out), with its parts in `Missing` (worth buying, the wishlist, a wish's card), `Insights` (not worn, worn most, More numbers), `Shop` (finds for a wish) and `WouldWork`. Settings: `Settings` and `Advanced` (`/settings/advanced`, loaded only when opened, with `React.lazy` in `Shell.tsx`). `Setup`, `Login`, `Static` come before the shell. |
 | `src/components/ui/` | The shared pieces every screen is built from, exported from `index.ts` and listed with the tokens in its `README.md`: `Button`, `Card` and `Section`, `Chips`, `EmptyState`, `Fold`, `HowItWorks`, `ItemThumb`, `Markdown` (a small safe part of Markdown, read by `src/markdown.ts`, drawn as text), `Notice`, `PageHeader`, `SaveStatus` (with `useSaveStatus`), `SegmentedControl`, `Sheet` (and `PHONE`, the phone-or-wider query), `ShowMore`, with `focus.ts` for keeping Tab inside what is open. Their tests are `ui.test.ts`, drawn to markup in Node. |
-| `src/components/` | Pieces used by more than one screen or too big to sit in one: `FixDetails`, `ItemAbout` (the item page's summary line and notes box, with their test drawn by `react-dom/server`), `KindPicker`, `ItemPic`, `OutfitFigure`, `Progress` (the strip and the step's mark) and `WorkingLine`, the shoe pieces (`ShoePhotos`, `ShoeTrace`, `ShoeDrawn`), `LifeQuestions`, `WhereYouAre`, `PhoneAccess`, `Talk` (talking to Claude: the turns, the things to remember with Save and Undo, the box; on Today and in Settings), `StyleTalk` (the style conversation and its questions) and `StyleLines` (every line of Your style, to change, remove or add), `Updates` (the banner, the Settings line `UpdatesLine` and the Advanced part `UpdatesManage`), `Toggle` (the switch and `StatusLine`), `ModelBanner`, `RestoreNotice`, `RetakeButton`, `AddedItem`, `Icons`. |
+| `src/components/` | Pieces used by more than one screen or too big to sit in one: `FixDetails`, `ItemAbout` (the item page's summary line and notes box, with their test drawn by `react-dom/server`), `KindPicker`, `ItemPic`, `OutfitFigure`, `Progress` (the strip and the step's mark) and `WorkingLine`, the shoe pieces (`ShoePhotos`, `ShoeTrace`, `ShoeDrawn`), `LifeQuestions`, `WhereYouAre`, `PhoneAccess`, `Talk` (talking to Claude: the turns, the things to remember with Save and Undo, the box; on Today and in Settings), `StyleTalk` (the style conversation and its questions) and `StyleLines` (every line of Your style, to change, remove or add), `Updates` (the banner, the Settings line `UpdatesLine` and the Advanced part `UpdatesManage`), `Toggle` (the switch and `StatusLine`), `ModelBanner`, `RestoreNotice`, `RetakeButton`, `AddedItem`, `Icons`, `NinesMark` (the app's mark, the jacket of the icon, and its name in the brand's serif). |
 | `src/<feature>.ts` | The logic and the words of a feature, with no React in it and its test beside it (`today.ts` and `today.test.ts`, `trips.ts`, `gaps.ts`, `insights.ts`, `worn.ts`, `wouldwork.ts`, `shop.ts`, `shoe.ts`, `spend.ts`, `updates.ts`, `corrections.ts`, `tagging.ts`, `drawing.ts`, `progress.ts`, `look.ts` (the item page's summary line and its one notes box), `style.ts` (Your style: its lines, where each came from, the conversation's polling), `figure.ts`, `kinds.ts`, `review.ts`, `several.ts`, `addsort.ts`, `added.ts`). `labels.ts` has the plain words for the server's vocabulary. |
 | `src/uploadQueue.ts`, `src/uploads.ts`, `src/resize.ts` | Adding photos: resized in the browser, two at a time, each retried under one key. |
 | `src/leave.ts`, `src/landing.ts`, `src/theme.ts`, `src/location.ts` | Saves still waiting when the page closes; which screen the app opens on; light or dark; asking the browser where you are. |
 | `src/styles.css` | The tokens (`:root`) and the shared styles. `src/design.test.ts` fails on a size, radius, colour or motion value that is not a token. |
 | `sw/sw.js`, `public/` | The service worker (written by hand; the build fills in the files to keep) and the manifest and icons. |
 | `e2e/` | The browser tests: `server.ts` starts a backend on a fresh data folder, `fixtures.ts` logs in, `a11y.ts` runs axe. |
-| `scripts/` | `phone-check.mjs` (below; it also counts each screen's words) and `make-icons.mjs`. |
+| `scripts/` | `phone-check.mjs` (below; it also counts each screen's words) and `make-icons.mjs` (`npm run icons`: renders `nines-icon.svg` with the browser tests' Chromium into `public/icons/` and `backend/closet/icon.png`). |
 
 ## Structure rules
 
@@ -275,7 +275,7 @@ The page reads through TanStack Query. Why, and the numbers: [DECISIONS.md](DECI
   once, in one place (the work under way, `GET /api/progress`, is polled in `ClosetProvider`, which reads the
   closet's list and an item again when its work moves on, so a screen never polls items itself), with the query's
   own `refetchInterval` or `usePoll(ms, tick)`. A tick asks with `{ cancelRefetch: false }`, so a slow answer is not called off.
-- **Offline.** A query keeps what it had when a read fails; `useApp().offline` says Closet cannot be reached.
+- **Offline.** A query keeps what it had when a read fails; `useApp().offline` says Nines cannot be reached.
   Coming back online asks again for everything on screen.
 
 Moving a screen off `useEffect`, for example:

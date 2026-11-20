@@ -27,9 +27,9 @@ HOT_C = 24
 BANDS = ("cold", "cool", "mild", "hot")
 NO_PLACE = "Home weather is not being used. Choose where you are in Settings."
 UNAVAILABLE = "Home weather is not being used. Check the internet connection or choose your place in Settings."
-OLD = "Using older home weather saved for this place. Check the internet connection; Closet will try again later."
-INCOMPLETE = "Home weather is not being used. The weather service has not provided complete daily weather yet. Closet will try again later."
-OLD_INCOMPLETE = "Using older home weather saved for this place. The weather service has not provided complete daily weather yet; Closet will try again later."
+OLD = "Using older home weather saved for this place. Check the internet connection; Nines will try again later."
+INCOMPLETE = "Home weather is not being used. The weather service has not provided complete daily weather yet. Nines will try again later."
+OLD_INCOMPLETE = "Using older home weather saved for this place. The weather service has not provided complete daily weather yet; Nines will try again later."
 INVALID = "The weather service did not give complete daily home weather."
 
 

@@ -176,7 +176,7 @@ class ModelStore:
                        "enough free space, then try again.")
         except Exception:   # never left "downloading" for good, which would also refuse every new try
             log.exception("model download of %s broke", self.name)
-            self._fail("The model download stopped because of a problem in Closet. Try again; if it keeps "
+            self._fail("The model download stopped because of a problem in Nines. Try again; if it keeps "
                        "happening, the log has the details.")
 
     def _download_file(self) -> None:

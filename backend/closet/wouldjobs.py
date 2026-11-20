@@ -42,8 +42,8 @@ NO_ROUTE = ("Claude cannot be reached right now: your Claude plan is not signed 
 NOT_UNDERSTOOD = "Claude could not describe the piece in this photo. Try a clearer photo, or describe it by hand."
 UNKNOWN_KIND = "Claude could not tell what kind of piece this is. " + BY_HAND
 FAILED = "Something went wrong while checking this piece. Try again."
-BUSY = (f"Closet is already checking {MAX_CHECKS} pieces. Wait for one of them to finish, then try again.")
-FORGOTTEN = "This check is not known. Checks are forgotten when Closet is closed; start a new one."
+BUSY = (f"Nines is already checking {MAX_CHECKS} pieces. Wait for one of them to finish, then try again.")
+FORGOTTEN = "This check is not known. Checks are forgotten when Nines is closed; start a new one."
 
 # the closet to check against, for a profile: (item rows, wear log, gaps.find_gaps of it with ALL_GAPS)
 Closet = Callable[[str], tuple[list[dict], list[dict], dict]]

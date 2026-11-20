@@ -136,7 +136,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
         <article className="detail" aria-label={summary.name || 'Item'} aria-busy={away ? undefined : 'true'}>
           <DetailTop inPanel={inPanel} backTo={backTo} />
           <Picture item={asItem} progress={progress} fallbackThumb={summary.thumb_url} />
-          {away && <Notice as="p">You're offline, so this item can't be changed right now. Its full details show once Closet can be reached again.</Notice>}
+          {away && <Notice as="p">You're offline, so this item can't be changed right now. Its full details show once Nines can be reached again.</Notice>}
           <header className="detail-head">
             <h2 className="detail-title"><span className="name-field name-field-static">{summary.name || label('category', summary.category) || 'Item'}</span></h2>
             <LookLine item={summary} disabled />
@@ -301,7 +301,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
   );
 }
 
-const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
+const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
 
 /** Which of the Details rows is open: one at a time. */
 const Editing = createContext<{ editing: string | null; setEditing(field: string | null): void }>({ editing: null, setEditing: () => {} });
@@ -481,7 +481,7 @@ function FailureDetails({ item, stage }: { item: Item; stage: 'cutout' | 'descri
   return (
     <details className="failure-details" data-testid="failure-details">
       <summary>Details</summary>
-      <p>What Closet recorded, for working out what went wrong:</p>
+      <p>What Nines recorded, for working out what went wrong:</p>
       <pre>{details}</pre>
     </details>
   );

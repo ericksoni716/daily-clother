@@ -164,7 +164,7 @@ def add_photo(conn, images_dir: Path, item_id: str, data: bytes, view=None, sour
     before) that is the owner's word, kept as theirs, and it replaces only an earlier photo the owner named the same.
     A shoe Claude has not described yet (just added from "A shoe" on Add) can have photos added too."""
     if view is not None and view not in shoeviews.OWNER_VIEWS:
-        raise items.ItemError("Say where the photo is taken from: front or top, or leave it out and Closet sorts it.")
+        raise items.ItemError("Say where the photo is taken from: front or top, or leave it out and Nines sorts it.")
     source_sha256 = items.photo_hash(data, source_sha256)
     _photo_row(conn, item_id)
     photo_id, stored = _store(images_dir, item_id, data)

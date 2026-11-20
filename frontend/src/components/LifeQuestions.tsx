@@ -47,7 +47,7 @@ export function LifeQuestions({ initial, locked, demo, about, onSaved, onClose }
       </header>
       <p className="life-intro">Days can overlap. For vacation, count days per week while away, not across the whole year.</p>
       {demo && <p className="notice">The demo uses fixed example answers. Switch to your own closet in Settings to save yours.</p>}
-      {locked && <p className="notice">These are your saved answers. Connect to Closet on your computer to change them.</p>}
+      {locked && <p className="notice">These are your saved answers. Connect to Nines on your computer to change them.</p>}
       <fieldset disabled={disabled}>
         <legend className="visually-hidden">How often do you dress for each part of your life?</legend>
         <div className="life-frequencies">

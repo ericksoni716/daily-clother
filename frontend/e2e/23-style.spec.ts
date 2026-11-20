@@ -1,9 +1,7 @@
-import { resolve } from 'node:path';
 import { axeViolations, sideways, smallTargets } from './a11y';
 import { expect, PASS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
-const SHOTS = resolve(import.meta.dirname, '..', '..', 'docs', 'screenshots');
 const MINE = 'I run warm, so one layer fewer than most people.\nNo ties unless it is a wedding.';
 
 // Its own backend, so the style profile starts as the starting text whatever other tests did. The owner's closet
@@ -71,7 +69,7 @@ test.describe('your style and how I wear it', () => {
     expect(boxSize.width).toBeGreaterThan(sectionSize.width - 2 * 24);   // the full width of the card, inside its padding
     await box.blur();
     await page.evaluate(() => document.querySelector('section[aria-labelledby="s-style"]')!.scrollIntoView({ block: 'start' }));
-    await page.screenshot({ path: resolve(SHOTS, 'settings-style.png') });
+    await page.screenshot({ path: test.info().outputPath('settings-style.png') });
 
     // Back to the starting text: the starting words again, kept
     await back.click();

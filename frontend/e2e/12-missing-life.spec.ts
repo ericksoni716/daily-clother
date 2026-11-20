@@ -1,5 +1,3 @@
-import { mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import type { Gap, GapsAnswer } from '../src/gaps';
 import type { Life, SituationId } from '../src/life';
@@ -291,8 +289,6 @@ for (const [layout, viewport] of [
     await questions.getByLabel('Vacation weather').selectOption('warm');
     await questions.getByLabel('My style in a few words').fill(example.style_words);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
-    const screenshots = resolve(import.meta.dirname, '../../docs/screenshots');
-    mkdirSync(screenshots, { recursive: true });
     await page.evaluate(() => window.scrollTo(0, 0));
     if (layout === 'phone') {
       const dialog = page.getByRole('dialog', { name: 'How you live' });
@@ -317,7 +313,7 @@ for (const [layout, viewport] of [
         expect(control.height).toBeGreaterThanOrEqual(44);
       }
     }
-    await page.screenshot({ path: resolve(screenshots, `missing-life-questions-${layout}.png`) });
+    await page.screenshot({ path: test.info().outputPath(`missing-life-questions-${layout}.png`) });
     await questions.getByRole('button', { name: 'Save my answers' }).click();
     await expect(questions).toHaveCount(0);
     expect(state.life).toEqual(example);
@@ -339,7 +335,7 @@ for (const [layout, viewport] of [
     await expect(page.getByTestId('gap').first().getByRole('list', { name: 'Useful for' })).toHaveText('Work');
     await expect(page.getByText('Your answers are saved', { exact: true })).toHaveCount(0, { timeout: 10_000 });
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.screenshot({ path: resolve(screenshots, `missing-life-list-${layout}.png`) });
+    await page.screenshot({ path: test.info().outputPath(`missing-life-list-${layout}.png`) });
     await filters.getByRole('button', { name: 'Vacation' }).click();
     await expect(page.getByTestId('gap')).toHaveCount(1);
     await expect(page.getByTestId('gap')).toContainText('A shirt for days away');

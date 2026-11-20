@@ -1,9 +1,7 @@
-import { resolve } from 'node:path';
 import { axeViolations } from './a11y';
 import { expect, PASS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
-const SHOTS = resolve(import.meta.dirname, '..', '..', 'docs', 'screenshots');
 
 // Its own backend: reading the day in the owner's words is a stand-in for Claude, and Lisbon is the one place on the
 // stand-in map, with a forecast hour by hour (tests/e2e_backend.py). The owner's closet starts as a copy of the demo
@@ -65,7 +63,7 @@ test.describe('the day in your words', () => {
     // the note is one line, however long: it never pushes the outfit down by more than that
     expect((await note.boundingBox())!.height).toBeLessThanOrEqual(24);
     expect(await axeViolations(page)).toEqual([]);
-    await page.screenshot({ path: resolve(SHOTS, 'today-day-note.png') });
+    await page.screenshot({ path: test.info().outputPath('today-day-note.png') });
 
     // it is still there after a reload, and home's place in Settings is untouched
     await page.reload();
@@ -80,7 +78,7 @@ test.describe('the day in your words', () => {
     await expect(page.getByTestId('day-note-now')).toContainText('Lisbon, Portugal');
     await expect(page.getByTestId('day-note-now')).toContainText('walking the city');
     expect(await axeViolations(page)).toEqual([]);
-    await page.screenshot({ path: resolve(SHOTS, 'today-day-note-change.png') });
+    await page.screenshot({ path: test.info().outputPath('today-day-note-change.png') });
     await box.fill('A wedding in Lisbon today');
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByTestId('day-note')).toContainText('a wedding');

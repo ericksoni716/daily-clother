@@ -4,7 +4,6 @@ import { axeViolations, sideways } from './a11y';
 import { expect, PASS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
-const SHOTS = resolve(import.meta.dirname, '..', '..', 'docs', 'screenshots');
 // set CONVERSATION_SHOTS to a folder to also save the conversation on a phone and a computer, light and dark, to look at
 const REVIEW = process.env.CONVERSATION_SHOTS;
 
@@ -159,7 +158,7 @@ test.describe('talking to Claude about the outfits', () => {
     expect(await axeViolations(page)).toEqual([]);
     expect(await sideways(page)).toEqual([]);
     await keep.evaluate((el) => el.scrollIntoView({ block: 'center' }));
-    await page.screenshot({ path: resolve(SHOTS, 'today-conversation.png') });
+    await page.screenshot({ path: test.info().outputPath('today-conversation.png') });
     await look(page, 'phone-light');
 
     // asking about the outfits does not wait on saving: Today is not asked again
@@ -398,7 +397,7 @@ test.describe('talking to Claude about the outfits', () => {
     await page.emulateMedia({ colorScheme: 'light' });
     expect(await axeViolations(page)).toEqual([]);
     await page.getByTestId('talk').evaluate((el) => el.scrollIntoView({ block: 'start' }));
-    await page.screenshot({ path: resolve(SHOTS, 'today-conversation-computer.png') });
+    await page.screenshot({ path: test.info().outputPath('today-conversation-computer.png') });
     await look(page, 'computer-light');
 
     // on a computer the carousel still shows one outfit at a time: the one in front of the owner is sent

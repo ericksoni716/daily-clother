@@ -172,22 +172,3 @@ test("what's missing offline: the answer fetched earlier is shown as saved, and 
   await expect(wish).toHaveAttribute('title', /needs Closet on your computer/i);
   await expect(page.getByRole('button', { name: 'Add by hand' })).toBeDisabled();
 });
-
-for (const [label, viewport] of [['phone', { width: 390, height: 844 }], ['computer', { width: 1280, height: 800 }]] as const) {
-  test(`screenshot of What's missing on a ${label} (${viewport.width}×${viewport.height})`, async ({ page }, testInfo) => {
-    await page.setViewportSize(viewport);
-    await login(page);
-    await useProfile(page, 'demo');
-    // something on the wishlist, as there would be after a while
-    const answer = await (await page.request.get('/api/gaps')).json();
-    await page.request.post('/api/wishlist', { data: { gap_id: answer.gaps[1].id } });
-    await page.request.post('/api/wishlist', { data: { name: 'Brown suede loafers', note: 'Size 43' } });
-    await page.goto('/missing');
-    await expect(page.getByTestId('gap').first()).toBeVisible({ timeout: 30_000 });
-    await expect.poll(() => page.locator('main img').evaluateAll((imgs) => imgs.every((i) => (i as HTMLImageElement).complete))).toBe(true);
-    await page.evaluate(() => window.scrollTo(0, 0));
-    const path = testInfo.outputPath(`missing-${label}.png`);
-    await page.screenshot({ path });
-    await testInfo.attach(`What's missing on a ${label}`, { path, contentType: 'image/png' });
-  });
-}

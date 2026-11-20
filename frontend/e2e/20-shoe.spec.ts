@@ -1,11 +1,10 @@
-import { mkdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { axeViolations, sideways } from './a11y';
 import { expect, PASS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
-const SCREENSHOTS = resolve(import.meta.dirname, '../../docs/screenshots');
 const PHONE = { width: 390, height: 844 };
 
 /** A made-up photo of a shoe seen from the front (a tall dark shape, as narrow as it is high), made in the page:
@@ -73,7 +72,6 @@ test.describe('a shoe drawn from its photo', () => {
 
   test("Add takes all of a shoe's photos in one step, and the item page sorts them, falls back and draws the shoe", async ({ page }) => {
     test.setTimeout(180_000);
-    mkdirSync(SCREENSHOTS, { recursive: true });
     await page.goto(backend.url + '/');
     await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
     await page.getByLabel('Type it again').fill(PASS);
@@ -86,7 +84,7 @@ test.describe('a shoe drawn from its photo', () => {
     await expect(page.getByTestId('shoe-tips')).toContainText('one shoe on its own, not the pair, photographed from the outer side, the front and the inner side');
     expect(await sideways(page)).toEqual([]);
     expect(await axeViolations(page)).toEqual([]);
-    await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-add.png') });
+    await page.screenshot({ path: test.info().outputPath('shoe-add.png') });
 
     // the photos wait in the tray, sorted by Claude (a stand-in here: the file names say), and nothing is added yet
     let sent = false;
@@ -134,7 +132,7 @@ test.describe('a shoe drawn from its photo', () => {
     expect(sent).toBe(false);
     expect(await sideways(page)).toEqual([]);
     expect(await axeViolations(page)).toEqual([]);
-    await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-add-photos.png') });
+    await page.screenshot({ path: test.info().outputPath('shoe-add-photos.png') });
 
     // "Add these": the first photo makes the shoe, the others are added to it
     const created = page.waitForResponse((res) => new URL(res.url()).pathname === '/api/items' && res.request().method() === 'POST');
@@ -150,7 +148,7 @@ test.describe('a shoe drawn from its photo', () => {
     await expect(shoeRow.getByTestId('queue-title')).not.toBeEmpty();
     expect(await sideways(page)).toEqual([]);
     expect(await axeViolations(page)).toEqual([]);
-    await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-add-done.png') });
+    await page.screenshot({ path: test.info().outputPath('shoe-add-done.png') });
     const kept = await (await page.request.get(`${backend.url}/api/items/${encodeURIComponent(id)}`)).json();
     expect(kept.photos.map((p: { kind: string }) => p.kind)).toEqual(['front', 'detail', 'detail']);
 
@@ -171,7 +169,7 @@ test.describe('a shoe drawn from its photo', () => {
     expect(await sideways(page)).toEqual([]);
     expect(await axeViolations(page)).toEqual([]);
     await ask.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-ask-outside.png') });
+    await page.screenshot({ path: test.info().outputPath('shoe-ask-outside.png') });
     await ask.getByRole('button', { name: 'Photo 3 shows the outside' }).click();
     await expect(ask).toHaveCount(0);
     await expect(row.getByRole('img', { name: 'Photo 3: outer side' })).toBeVisible();
@@ -180,7 +178,7 @@ test.describe('a shoe drawn from its photo', () => {
     await expect(row.getByRole('button', { name: 'Remove photo 1' })).toHaveCount(0);   // never the main photo
     await expect(row.getByRole('button', { name: 'Add photos' })).toBeEnabled();
     await expect(page.locator('.toast')).toHaveCount(0, { timeout: 15_000 });
-    await row.screenshot({ path: resolve(SCREENSHOTS, 'shoe-photos-sorted.png') });
+    await row.screenshot({ path: test.info().outputPath('shoe-photos-sorted.png') });
 
     // the trace: the photo from the front is turned down
     const fallback = page.getByTestId('shoe-fallback');
@@ -189,7 +187,7 @@ test.describe('a shoe drawn from its photo', () => {
     expect(await sideways(page)).toEqual([]);
     expect(await axeViolations(page)).toEqual([]);
     await fallback.scrollIntoViewIfNeeded();
-    await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-item-fallback.png') });
+    await page.screenshot({ path: test.info().outputPath('shoe-item-fallback.png') });
 
     // drawn for the outfit figure: once the photos are sorted, Claude (a stand-in answering with the dress shoe the
     // owner liked) draws the shoe twice straight on and twice turned, checking each once against the photos
@@ -204,7 +202,7 @@ test.describe('a shoe drawn from its photo', () => {
     expect(await axeViolations(page)).toEqual([]);
     await drawnSection.scrollIntoViewIfNeeded();
     await expect(page.locator('.toast')).toHaveCount(0, { timeout: 15_000 });
-    await drawnSection.screenshot({ path: resolve(SCREENSHOTS, 'shoe-drawn.png') });
+    await drawnSection.screenshot({ path: test.info().outputPath('shoe-drawn.png') });
 
     // "Draw again" asks first, saying what it does, how long it takes and roughly what it costs
     await drawnSection.getByRole('button', { name: 'Draw again' }).click();
@@ -249,7 +247,7 @@ test.describe('a shoe drawn from its photo', () => {
     expect(await axeViolations(page)).toEqual([]);
     await drawnSection.scrollIntoViewIfNeeded();
     await expect(page.locator('.toast')).toHaveCount(0, { timeout: 15_000 });
-    await drawnSection.screenshot({ path: resolve(SCREENSHOTS, 'shoe-drawn-corrected.png') });
+    await drawnSection.screenshot({ path: test.info().outputPath('shoe-drawn-corrected.png') });
 
     // back to the drawing before in one tap, and the same button offers the newer one again
     const changedSrc = (await picture.getAttribute('src'))!;
@@ -281,7 +279,7 @@ test.describe('a shoe drawn from its photo', () => {
     await expect(drawing).toBeVisible();
     await expect(page.getByTestId('shoe-fallback')).toHaveCount(0);
     expect(await axeViolations(page)).toEqual([]);
-    await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-item-traced.png') });
+    await page.screenshot({ path: test.info().outputPath('shoe-item-traced.png') });
 
     await page.getByRole('button', { name: 'Fix the details' }).click();
     const fix = page.getByTestId('shoe-fix');
@@ -301,7 +299,7 @@ test.describe('a shoe drawn from its photo', () => {
     await expect(fix.getByText('(removed)')).toBeVisible();
     await fix.scrollIntoViewIfNeeded();
     await expect(page.locator('.toast')).toHaveCount(0, { timeout: 15_000 });   // the messages have gone
-    await page.screenshot({ path: resolve(SCREENSHOTS, 'shoe-fix.png') });
+    await page.screenshot({ path: test.info().outputPath('shoe-fix.png') });
     await fix.getByRole('button', { name: 'Undo my fixes' }).click();
     await expect(fix.getByText('(removed)')).toHaveCount(0);
 

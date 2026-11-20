@@ -14,6 +14,7 @@ from closet.drawing import item as draw
 from closet.tagger.schema import NAMED_HEX
 
 from .conftest import ANSWER, upload
+from .same_drawing import same
 
 ANSWER_JSON = ANSWER.model_dump(mode="json")
 
@@ -276,7 +277,7 @@ def test_the_demo_closets_photographed_and_described_items_are_drawn_as_the_app_
     chosen = [it for it in data["items"] if it.get("photo") or it.get("wave")]
     assert sum(1 for it in chosen if it.get("photo")) == 7
     for it in chosen:
-        assert illustrations.make(stored(cfg, it["id"], "demo")).svg == it["illustration_svg"], it["name"]
+        assert same(illustrations.make(stored(cfg, it["id"], "demo")).svg, it["illustration_svg"]), it["name"]
 
 
 def test_the_migration_keeps_the_drawings_made_before_it(cfg, monkeypatch):
@@ -326,3 +327,24 @@ def test_the_item_says_how_it_is_worn_and_a_detail_picked_changes_it(client, ser
     assert {"part": "length", "value": "below_hip", "field": "fit_detail"} in after["as_worn"]
     plain = upload(client, key="k2").json()
     assert client.get(f"/api/items/{plain['id']}").json()["as_worn"] == []
+
+
+def test_two_drawings_are_the_same_only_when_their_pictures_are():
+    import base64
+    import io
+
+    from PIL import Image
+
+    def drawing(colour, size=(4, 4), text="a"):
+        out = io.BytesIO()
+        Image.new("RGBA", size, colour).save(out, "PNG")
+        return f'<svg>{text}<image href="data:image/png;base64,{base64.b64encode(out.getvalue()).decode()}"/></svg>'
+
+    kept = drawing((10, 20, 30, 255))
+    assert same(kept, kept, "linux") and same(kept, kept, "win32")
+    near = drawing((11, 20, 28, 255))
+    assert not same(near, kept, "linux")      # where the demo closet was made, to the letter
+    assert same(near, kept, "win32")          # elsewhere a rounding step in a picture is the same drawing
+    assert not same(drawing((40, 20, 30, 255)), kept, "win32")
+    assert not same(drawing((10, 20, 30, 255), size=(4, 5)), kept, "win32")
+    assert not same(drawing((11, 20, 30, 255), text="b"), kept, "win32")

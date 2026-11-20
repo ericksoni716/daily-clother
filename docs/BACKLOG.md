@@ -111,16 +111,6 @@ only here); take a line out when it is done.
     Claude Code detail, a failed check, a disk whose free space cannot be read. (The main
     page's Claude line keeps one line's height while it checks.)
 - **Repo clean-up and the slow-test split** (step 3 of the order of work, done 20 November). Left:
-  - The Windows backend job in CI has failed since the tests from `bench/tests` moved into
-    `backend/tests`, on seven tests that ran only on Linux before. It is not a required check,
-    so pull requests merge past it. Five in `test_templates_and_tagger.py` start a stand-in
-    for Claude Code that is a script with a `#!` line, which Windows cannot start (a `.cmd`
-    around it will not do: the command line is longer than `cmd.exe` takes). Two
-    (`test_demo.py` and `test_illustrations.py`, on the Paper plane tee) compare a drawing
-    with the demo closet's to the letter, and the picture cut from the photo comes out as
-    different PNG text on Windows. Both fixes change what a test checks on Windows (not
-    running the five there, or comparing the picture by its pixels), so they wait for the
-    owner's word.
   - `docs/screenshots/` still holds about 150 pictures (25 MB) that DECISIONS or this file
     name, most of them only by a pattern in a finished item (`figure-*.png`, `fit-*.png`,
     `*-depth-*.png`, `drawing-faults-*.png`). Deleting those, and rewriting history to

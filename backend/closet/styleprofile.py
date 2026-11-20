@@ -251,13 +251,20 @@ def edit_line(conn, line_id: int, text: object) -> dict:
         was = row["text"].strip()
         written = BULLET + plain(text) if was.startswith(BULLET.strip()) and was[1:2] in (" ", "") else plain(text)
         if written == row["text"]:
-            return
+            raise _Unchanged   # nothing is kept, not even the starting lines just kept as rows
         conn.execute("UPDATE style_lines SET text = ?, source = 'owner', created_at = ? WHERE id = ?",
                      (written, db.now(), line_id_))
         _write(conn, "owner")
 
-    _transaction(conn, work)
+    try:
+        _transaction(conn, work)
+    except _Unchanged:
+        pass
     return current(conn)
+
+
+class _Unchanged(Exception):
+    """A line changed to what it already says (`edit_line`)."""
 
 
 def remove_line(conn, line_id: int, source: str = "owner") -> dict:

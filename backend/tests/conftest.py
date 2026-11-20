@@ -18,7 +18,14 @@ from closet.drawing import drawn
 from closet.tagger.correcting import Change, CorrectionAnswer, CorrectionResult
 from closet.tagger.garments import Garment, Garments
 from closet.tagger.schema import Details, ItemTags, Silhouette
-from closet.tagger.shoedrawing import CheckAnswer, CorrectAnswer, CorrectCheckAnswer, DrawAnswer
+from closet.tagger.shoedrawing import (
+    CheckAnswer,
+    CorrectAnswer,
+    CorrectCheckAnswer,
+    DrawAnswer,
+    SideAnswer,
+    SideCheckAnswer,
+)
 from closet.tagger.stylist import ChatReply
 from closet.tagger.tagging import RouteUnavailable, TaggingError, TagResult
 from closet.tagger.views import PhotoView, ShoeViews
@@ -144,6 +151,34 @@ def check_answer(good: bool = True) -> CheckAnswer:
                                        "right": None})
 
 
+# A shoe drawn from its side, as the stand-ins draw it: a plain low shoe on the card, its toe at x 40, its heel at x
+# 360, on the ground line (y 330), about 0.35 of its length tall at the heel and 0.2 at the toe box: it passes every
+# automatic check, and those against SIDE_MEASURES.
+SIDE_SVG = ('<path d="M40,330 L360,330 L360,302 L40,302 Z" fill="#f4f1ea" stroke="#26231f" stroke-width="3.8" '
+            'stroke-linejoin="round"/><path d="M42,302 C40,282 58,272 96,266 C140,258 190,236 228,214 C262,228 296,232 '
+            '326,222 L348,218 C356,240 360,272 358,302 Z" fill="#ffffff" stroke="#26231f" stroke-width="3.8" '
+            'stroke-linejoin="round"/><path d="M150,262 C190,250 220,236 236,226" fill="none" stroke="#26231f" '
+            'stroke-width="1.5"/>')
+SIDE_MEASURES = {"sole_heel": 0.09, "sole_toe": 0.09, "toe_box": 0.2, "throat": 0.33, "collar_dip": 0.33,
+                 "heel": 0.35, "tallest": 0.36}
+SIDE_FEATURES = ["white leather upper with a plain toe", "flat cream sole"]
+
+
+def side_answer(svg: str = SIDE_SVG) -> SideAnswer:
+    return SideAnswer.model_validate({
+        "kind": "low leather court sneaker",
+        "proportions": {"sole_heel": 0.09, "sole_toe": 0.09, "toe_box": 0.2, "throat": 0.33, "collar_dip": 0.33,
+                        "heel": 0.35},
+        "colours": [{"name": "white leather", "hex": "#ffffff", "role": "upper"},
+                    {"name": "cream sole", "hex": "#f4f1ea", "role": "sole"}],
+        "features": SIDE_FEATURES, "svg": svg})
+
+
+def side_check_answer(good: bool = True, svg: str = SIDE_SVG) -> SideCheckAnswer:
+    return SideCheckAnswer.model_validate({"good": good, "problems": [] if good else ["The toe was too pointed."],
+                                           "features": SIDE_FEATURES, "svg": svg})
+
+
 # How the stand-ins change a drawing from the owner's note: the dress shoe with its laces black (the only shape the
 # note is about), said to go against the photos, which show brown laces; a check says it is good at once.
 BLACK_LACES = "the laces should be black"
@@ -233,8 +268,9 @@ class FakeApi:
     calls raise it instead. `requests` keeps what each call was sent. Asked to draw a shoe, or to check its drawing,
     which is streamed (`messages.stream`), it answers `drawing` (`draw_answer`) or `checked` (`check_answer`), as text
     in the answer's schema, turned or not; asked to change a drawing from the owner's note, or to check the change,
-    `corrected` (`correct_answer`) or `correct_checked` (`correct_check_answer`); asked to judge drawings, the first,
-    with no fault named. A message in the style conversation is answered with `chat` (a few words, one line to keep).
+    `corrected` (`correct_answer`) or `correct_checked` (`correct_check_answer`); asked to draw its side or check that,
+    `side` (`side_answer`) or `side_checked` (`side_check_answer`); asked to judge drawings, the first, with no fault
+    named. A message in the style conversation is answered with `chat` (a few words, one line to keep).
     """
 
     def __init__(self, input_tokens: int = 2000, output_tokens: int = 400):
@@ -254,6 +290,8 @@ class FakeApi:
         self.checked = check_answer()
         self.corrected = correct_answer()
         self.correct_checked = correct_check_answer()
+        self.side = side_answer()
+        self.side_checked = side_check_answer()
         self.tag_answers: list = [ANSWER]   # what describing an item answers, in turn: models, dicts, or None (no call)
         self.chat = ChatReply(reply="Noted: a little lighter than most.", remember=["I run warm."])
 
@@ -288,6 +326,8 @@ class FakeApi:
                              ranking=["a", "b", "c"])
         elif "against_photos" in props:   # changing a drawing from the owner's note, or checking the change
             answer = self.correct_checked if "good" in props else self.corrected
+        elif "svg" in props:   # drawing the shoe from its side, or checking that
+            answer = self.side_checked if "good" in props else self.side
         else:
             answer = self.checked if "good" in props else self.drawing
         message = SimpleNamespace(content=[SimpleNamespace(type="text", text=json.dumps(answer.model_dump()))],

@@ -19,6 +19,7 @@ from . import (
     kinds,
     palette,
     patjobs,
+    progress,
     shoedraw,
     shoeviews,
     tagjobs,
@@ -73,6 +74,9 @@ def summary(conn, row) -> dict:
         # (the figure on Today and a trip's days is drawn again when it changes); null for anything else
         "drawn_state": row["drawn_state"] if shoe else None,
         "drawn_version": hashlib.sha256(row["drawn"].encode()).hexdigest()[:16] if shoe and row["drawn"] else None,
+        # how far the work on it has got (`progress.of`): cutting out, describing and drawing, finishing the drawing;
+        # null when nothing is being done to it and nothing failed on the way
+        "progress": progress.of(row),
     }
 
 

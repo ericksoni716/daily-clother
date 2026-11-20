@@ -4,7 +4,8 @@ import { useLanding } from './landing';
 import { Button, buttonClass, ErrorBoundary } from './components/ui';
 import { navSection, tabFor } from './nav';
 import { Link, parseRoute, usePath, useMediaQuery, WIDE } from './router';
-import { useCloset } from './store';
+import { useItems } from './queries';
+import { useApp } from './store';
 import { ClosetScreen } from './screens/Closet';
 import { AddScreen } from './screens/Add';
 import { SeveralScreen } from './screens/Several';
@@ -23,8 +24,7 @@ export function Shell({ version }: { version: string }) {
   const path = usePath();
   const route = parseRoute(path);
   const wide = useMediaQuery(WIDE);
-  const { offline, items } = useCloset();
-  useLanding(path, items.active);
+  const { offline } = useApp();
   const toReview = useReviewCount();
 
   let content;
@@ -44,6 +44,7 @@ export function Shell({ version }: { version: string }) {
 
   return (
     <div className="shell">
+      <Landing path={path} />
       <a className="skip-link" href="#main">Skip to content</a>
       <Sidebar section={section} offline={offline} toReview={toReview} />
       <div className="shell-main">
@@ -55,8 +56,14 @@ export function Shell({ version }: { version: string }) {
   );
 }
 
+/** Which screen the app opens on. On its own, so a change to the items draws only this, not the whole frame. */
+function Landing({ path }: { path: string }) {
+  useLanding(path, useItems('active').data ?? null);
+  return null;
+}
+
 function TopBanners() {
-  const { offline, profile, switchProfile, toast } = useCloset();
+  const { offline, profile, switchProfile, toast } = useApp();
   const [busy, setBusy] = useState(false);
   useUpdateStatus(offline);
   return (

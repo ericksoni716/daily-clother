@@ -1,9 +1,11 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
+import { queryKeys } from '../queryKeys';
 import { HangerIcon } from './Icons';
 import { Button, Markdown, Notice, SegmentedControl } from './ui';
 import { formatSize } from '../labels';
-import { availableLine, busyLine, checkedLine, lastInstallLine, MODES, showBanner, updates, useUpdates, type UpdateMode } from '../updates';
+import { availableLine, busyLine, checkedLine, lastInstallLine, MODES, showBanner, updates, useUpdates, type UpdateMode, type UpdateStatus } from '../updates';
 
 type Toast = (m: string, k?: 'ok' | 'error') => void;
 
@@ -64,9 +66,15 @@ export function Restarting() {
   );
 }
 
-/** The Updates section in Settings. */
+/** The Updates section in Settings. Its status comes with the settings (which put it in the page's one copy); what
+ * a choice or a check answers goes there and under its own key. */
 export function UpdatesSection({ offline, toast }: { offline: boolean; toast: Toast }) {
+  const qc = useQueryClient();
   const { status, installing } = useUpdates();
+  const answered = (s: UpdateStatus) => {
+    updates.set(s);
+    qc.setQueryData(queryKeys.updates(), s);
+  };
   const [checking, setChecking] = useState(false);
   const [installBusy, setInstallBusy] = useState(false);
 
@@ -87,7 +95,7 @@ export function UpdatesSection({ offline, toast }: { offline: boolean; toast: To
     if (!before) return;
     updates.set({ ...before, mode });
     try {
-      updates.set(await api.setUpdateMode(mode));
+      answered(await api.setUpdateMode(mode));
       toast('Saved');
     } catch (e) {
       updates.set(before);
@@ -98,7 +106,7 @@ export function UpdatesSection({ offline, toast }: { offline: boolean; toast: To
   async function checkNow() {
     setChecking(true);
     try {
-      updates.set(await api.checkUpdates());
+      answered(await api.checkUpdates());
     } catch (e) {
       toast((e as Error).message, 'error');
     } finally {

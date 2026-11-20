@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { QUIET, qrMatrix, qrPath } from '../qr';
-import type { Settings } from '../types';
+import type { PhoneInfo } from '../types';
 
 /** The address as a QR code for the iPhone's camera: always black on white, whatever the theme. */
 function AddressCode({ address }: { address: string }) {
@@ -15,7 +15,8 @@ function AddressCode({ address }: { address: string }) {
   );
 }
 
-export function PhoneAccess({ phone }: { phone: Settings['phone'] | null }) {
+/** How to reach Closet from the phone; `phone` is null while it is still being looked up. */
+export function PhoneAccess({ phone }: { phone: PhoneInfo | null }) {
   if (!phone) return <p className="muted">Checking…</p>;
   if (phone.address) {
     return (

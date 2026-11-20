@@ -1,3 +1,4 @@
+import { hashKey, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { CheckIcon, ChevronIcon, ChevronLeftIcon, HangerIcon, HistoryIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
@@ -7,23 +8,28 @@ import { BackLink, Button, buttonClass, Card, EmptyState, ItemThumb, Notice, Pag
 import { WhereYouAre } from '../components/WhereYouAre';
 import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
+import { touch, useEdit, useItems, writeItem } from '../queries';
+import { queryKeys } from '../queryKeys';
 import { Link, navigate } from '../router';
-import { useCloset } from '../store';
+import { settingsQuery } from '../settings';
+import { useApp } from '../store';
 import {
-  canDress, canSay, chosenBy, dayParts, joinWords, longDate, keptFor, loadChoice, lookingAt, MAX_SAY, moodLabel, MOODS, occasionLabel, OCCASIONS, outfitIds, parseTemp,
-  placeLabel, rememberWords, sameOutfit, sameOutfits, savedLine, shortDate, saveChoice, stylistView, STYLIST_SLOW_S, talkOf, timeOf, waitingLine, whatToAddFirst, withThing,
-  wornNow, wornOrder, type Choice, type DayAnswer, type DayNote, type Outfit, type Place, type RememberThing, type StylistState, type TalkTurn, type TodayAnswer,
-  type TodayRequest, type TypedDay, type WornToday,
+  canDress, canSay, chosenBy, closetKey, dayParts, joinWords, longDate, keptFor, loadChoice, lookingAt, MAX_SAY, moodLabel, MOODS, newestOn, occasionLabel,
+  OCCASIONS, outfitIds, parseTemp, placeLabel, rememberWords, sameOutfit, sameOutfits, savedLine, shortDate, saveChoice, stylistView, STYLIST_SLOW_S, talkOf,
+  timeOf, waitingLine, whatToAddFirst, withThing, wornNow, wornOrder, type Choice, type DayAnswer, type DayNote, type Outfit, type Place, type RememberThing,
+  type StylistState, type TalkTurn, type TodayAnswer, type TodayRequest, type TypedDay, type WornToday,
 } from '../today';
-import type { ItemSummary, Settings } from '../types';
+import type { ItemSummary } from '../types';
 import { localDay } from '../wears';
 import { localDay as dayNow } from '../wears';
-import { dismiss, loadDismissed, pendingQuestion, pieceName, questionFor, wornDay, type WornOutfit } from '../worn';
+import { dismiss, loadDismissed, pendingQuestion, pieceName, questionFor, withoutOutfit, wornDay, type WornOutfit } from '../worn';
 import { ItemDetail } from './ItemDetail';
-import { OutfitPics, RateOutfit, refreshSaved, useAllItems } from './Worn';
+import { changePages, OutfitPics, RateOutfit, useAllItems, wornQuery } from './Worn';
 import './Today.css';
 
 const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
+/** How often to ask how Claude stands while it chooses or answers a message. */
+const STYLE_POLL_MS = 2000;
 
 type Phase =
   | { kind: 'loading' }
@@ -31,22 +37,17 @@ type Phase =
   | { kind: 'needs-day'; message: string }
   | { kind: 'error'; message: string; offline: boolean };
 
+/** What the owner changed on the screen today, kept while the app is open, so coming back from an item (or another tab)
+ * asks the same question, whose answer the query cache keeps. */
 interface Memory {
   profile: string;
   day: string;
-  key: string;
-  phase: Phase;
   index: number;
   buildAround: string | null;
   leaveOut: string[];
 }
 
-/** Kept while the app is open, so coming back from an item (or another tab) shows the same outfit without asking again. */
 let memory: Memory | null = null;
-
-function typedOf(r: TodayRequest): TypedDay | null {
-  return r.low_c === undefined || r.high_c === undefined ? null : { day: '', low_c: r.low_c, high_c: r.high_c, rain: !!r.rain };
-}
 
 function requestFor(choice: Choice, buildAround: string | null, leaveOut: string[], typed: TypedDay | null, again: string | null = null): TodayRequest {
   const r: TodayRequest = { occasion: choice.occasion, mood: choice.mood };
@@ -57,8 +58,27 @@ function requestFor(choice: Choice, buildAround: string | null, leaveOut: string
   return r;
 }
 
+const TODAY = [queryKeys.today({ occasion: '', mood: '' })[0]];
+
+/** The newest answer kept for today (any choices), shown while the outfits for the choices now made are asked for. */
+function keptAnswer(qc: QueryClient, day: string): TodayAnswer | undefined {
+  return newestOn(qc.getQueryCache().findAll({ queryKey: TODAY }).map(
+    (q) => [String(q.queryKey[2]), q.state.dataUpdatedAt, q.state.data as TodayAnswer | undefined] as const,
+  ), day);
+}
+
+/** Only the answer to the question now asked is kept, as before: going back to earlier choices asks again. */
+function forgetOtherAnswers(qc: QueryClient, hash: string): void {
+  for (const q of qc.getQueryCache().findAll({ queryKey: TODAY })) {
+    if (q.queryHash !== hash && q.getObserversCount() === 0) qc.getQueryCache().remove(q);
+  }
+}
+
 export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boolean }) {
-  const { profile, items, loadItems, offline, upsert, toast } = useCloset();
+  const { profile, offline, toast } = useApp();
+  const qc = useQueryClient();
+  const itemsRead = useItems('active');
+  const items = itemsRead.data ?? null;
   const [today, setToday] = useState(localDay);
   const kept = useMemo(() => keptFor(profile), [profile]);
   const remembered = memory && memory.profile === profile && memory.day === today ? memory : null;
@@ -68,18 +88,15 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const [leaveOut, setLeaveOut] = useState<string[]>(remembered?.leaveOut ?? []);
   const [typedOnDay, setTyped] = useState<TypedDay | null>(() => kept.typed(today));
   const typed = typedOnDay?.day === today ? typedOnDay : null;
-  const [phase, setPhase] = useState<Phase>(remembered?.phase ?? { kind: 'loading' });
-  const [asking, setAsking] = useState(false);
+  // The outfits saved on this device earlier today, shown while Closet cannot be reached; nothing is asked meanwhile.
+  const [saved, setSaved] = useState<{ answer: TodayAnswer; savedAt: string } | null>(null);
   const [index, setIndex] = useState(remembered?.index ?? 0);
   const [wornOnDay, setWorn] = useState<WornToday | null>(() => kept.worn(today));
   const [busy, setBusy] = useState(false);
   const [editDay, setEditDay] = useState(false);
-  const [attempt, setAttempt] = useState(0);
   const [again, setAgain] = useState<string | null>(() => new URLSearchParams(window.location.search).get('again'));
-  const [recent, setRecent] = useState<WornOutfit[] | null>(null);
   const [dismissed, setDismissed] = useState<string[]>(() => loadDismissed(profile));
   const [rated, setRated] = useState<WornOutfit | null>(null);
-  const [loadingItems, setLoadingItems] = useState(items.active === null);
   // Claude choosing: the question whose rules' outfits are shown meanwhile, and whether the owner chose one of them
   // while Claude was still choosing (then the waiting card stays away for the rest of this visit)
   const [meanwhileFor, setMeanwhileFor] = useState<string | null>(null);
@@ -89,8 +106,6 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   // The next answer is the one after Claude answered a message: it keeps the outfit in front of the owner when the
   // outfits did not change, and shows the first when they did
   const followUp = useRef(false);
-  const shown = useRef<Outfit[] | null>(null);
-  shown.current = phase.kind === 'ready' ? phase.answer.outfits : null;
 
   useEffect(() => {
     const updateDay = () => setToday(localDay());
@@ -108,115 +123,106 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     if (window.location.search) navigate('/today', { replace: true });
   }, []);
 
-  const [recentAt, setRecentAt] = useState<number | null>(null);
-  const loadRecent = useCallback(() => {
-    // the same first page as the Worn screen, so both read (and refresh) one saved copy for offline
-    const started = Date.now();
-    void refreshSaved(profile).then((p) => {
-      setRecent(p ? p.outfits : null);
-      setRecentAt(p && navigator.onLine !== false ? started : null);
-    });
-  }, [profile]);
-  useEffect(() => {
-    loadRecent();
-  }, [loadRecent, profile]);
+  // the same first page of worn outfits as the Worn screen, read once for both (and kept for offline)
+  const recentRead = useQuery(wornQuery(profile)).data;
+  const recent = recentRead?.page.outfits ?? null;
   const question = rated ?? pendingQuestion(recent, dismissed, dayNow());
   // what is worn today: this device's memory, put right by the server's list (another device, the Worn screen)
-  const worn = useMemo(() => wornNow(wornOnDay?.day === today ? wornOnDay : null, offline ? null : recent, recentAt, today),
-    [wornOnDay, recent, recentAt, today, offline]);
+  const worn = useMemo(() => wornNow(wornOnDay?.day === today ? wornOnDay : null, offline ? null : recent, recentRead?.at ?? null, today),
+    [wornOnDay, recent, recentRead, today, offline]);
 
+  // Today's outfits: asked when the question changes (the choices, the day, or the closet's places, availability and
+  // ratings), and again only when this screen asks (see `ask`). Never by itself: coming back to the screen, to the app
+  // or online shows the answer kept, since asking can ask Claude, which costs money.
   const request = useMemo(() => requestFor(choice, buildAround, leaveOut, typed, again), [choice, buildAround, leaveOut, typed, again]);
-  // Returning from an item keeps the outfit only if its pieces still have the same places and availability.
-  const closetKey = useMemo(() => items.active === null ? null : JSON.stringify(items.active.map(
-    (i) => JSON.stringify([i.id, i.category, i.status, i.laundry, i.rating]),
-  ).sort()), [items.active]);
-  const key = JSON.stringify([today, request, closetKey]);
-  const requestRef = useRef(request);
-  requestRef.current = request;
-  // What was last asked: the same choices are not asked again when coming back to the screen.
-  const answeredKey = remembered && remembered.phase.kind === 'ready' ? remembered.key : '';
-  const asked = useRef<{ key: string; attempt: number }>({ key: answeredKey, attempt: 0 });
-  // The choices the outfits on screen answer (kept in `memory` with them).
-  const answered = useRef(answeredKey);
+  const closet = useMemo(() => closetKey(items), [items]);
+  const key = queryKeys.today(request, today, closet ?? '');
+  const answer = useQuery({
+    queryKey: key,
+    queryFn: async () => {
+      const ask = askAgain.current;
+      askAgain.current = false;
+      const got = await api.today(ask ? { ...request, ask_again: true } : request);
+      kept.setOutfits({ day: localDay(), saved_at: new Date().toISOString(), request, answer: got });
+      return got;
+    },
+    // once the closet's list has been read (or could not be: offline, the question is asked all the same)
+    enabled: itemsRead.status !== 'pending' && !saved,
+    staleTime: 'static',
+    gcTime: Infinity,
+    placeholderData: (before) => before ?? keptAnswer(qc, today),
+  });
+  const { refetch } = answer;
+  /** Asks the same question again now (Try again, a new place or note, Claude done choosing, Ask Claude again). */
+  const ask = useCallback(() => void refetch(), [refetch]);
+  const asking = answer.isFetching;
+  const failed = answer.error as ApiError | null;
 
-  useEffect(() => {
-    if (items.active === null) void loadItems('active').finally(() => setLoadingItems(false));
-  }, [items.active, loadItems]);
+  let phase: Phase;
+  if (saved) phase = { kind: 'ready', answer: saved.answer, savedAt: saved.savedAt };
+  else if (answer.data) phase = { kind: 'ready', answer: answer.data, savedAt: null };
+  else if (failed?.status === 0) {
+    phase = { kind: 'error', offline: true, message: "You're offline, and no outfits were saved on this device today. They show here once Closet on your computer can be reached." };
+  } else if (failed) {
+    phase = failed.status === 422 && request.low_c === undefined ? { kind: 'needs-day', message: failed.message } : { kind: 'error', message: failed.message, offline: false };
+  } else phase = { kind: 'loading' };
 
+  // Offline: the outfits saved on this device earlier today, with the choices they were for.
   useEffect(() => {
-    if (loadingItems) return;
-    if (asked.current.key === key && asked.current.attempt === attempt) return;
-    asked.current = { key, attempt };
-    const req = requestRef.current;
-    const ctrl = new AbortController();
-    let done = false;
-    setAsking(true);
-    api.today(askAgain.current ? { ...req, ask_again: true } : req, ctrl.signal).then(
-      (answer) => {
-        done = true;
-        askAgain.current = false;
-        answered.current = key;
-        kept.setOutfits({ day: localDay(), saved_at: new Date().toISOString(), request: req, answer });
-        const keepPlace = followUp.current && !!shown.current && sameOutfits(shown.current, answer.outfits);
-        followUp.current = false;
-        setPhase({ kind: 'ready', answer, savedAt: null });
-        if (!keepPlace) setIndex(0);
-        setEditDay(false);
-        setAsking(false);
-      },
-      (e) => {
-        if ((e as Error)?.name === 'AbortError') return;
-        done = true;
-        askAgain.current = false;
-        followUp.current = false;
-        const err = e as ApiError;
-        setAsking(false);
-        if (err.status === 0) {
-          const saved = kept.outfits(localDay());
-          if (saved) {
-            const r = saved.request;
-            const savedKey = JSON.stringify([today, requestFor({ occasion: r.occasion, mood: r.mood }, r.build_around ?? null, r.leave_out ?? [], typedOf(r)), closetKey]);
-            asked.current = { key: savedKey, attempt };
-            answered.current = savedKey;
-            setPhase({ kind: 'ready', answer: saved.answer, savedAt: saved.saved_at });
-            setChoice({ occasion: r.occasion, mood: r.mood });
-            setBuildAround(r.build_around ?? null);
-            setLeaveOut(r.leave_out ?? []);
-            setIndex(0);
-          } else {
-            setPhase({ kind: 'error', offline: true, message: "You're offline, and no outfits were saved on this device today. They show here once Closet on your computer can be reached." });
-          }
-          return;
-        }
-        asked.current = { key: '', attempt };
-        answered.current = '';
-        if (err.status === 422 && req.low_c === undefined) setPhase({ kind: 'needs-day', message: err.message });
-        else setPhase({ kind: 'error', message: err.message, offline: false });
-      },
-    );
-    return () => {
-      ctrl.abort();
-      setAsking(false);
-      // not answered: ask again when the screen shows these choices next
-      if (!done) asked.current = { key: '', attempt: -1 };
-    };
-  }, [key, attempt, kept, closetKey, today, loadingItems]);
+    if (!failed) return;
+    askAgain.current = false;
+    followUp.current = false;
+    if (failed.status !== 0) return;
+    const copy = kept.outfits(localDay());
+    if (!copy) return;
+    const r = copy.request;
+    setSaved({ answer: copy.answer, savedAt: copy.saved_at });
+    setChoice({ occasion: r.occasion, mood: r.mood });
+    setBuildAround(r.build_around ?? null);
+    setLeaveOut(r.leave_out ?? []);
+    setIndex(0);
+  }, [failed, kept]);
+
+  // A new answer (not one kept from before, nor a message's answer written in): the first outfit, unless Claude only
+  // answered a message and the outfits stayed the same. Only this answer is kept from then on.
+  const fresh = answer.data && !answer.isPlaceholderData ? answer.data : null;
+  const answeredAt = fresh ? answer.dataUpdatedAt : 0;
+  const seenAt = useRef(answeredAt);
+  const shownBefore = useRef<Outfit[] | null>(null);
+  const hash = hashKey(key);
+  useEffect(() => {
+    if (!fresh || !answeredAt || answeredAt === seenAt.current) return;
+    seenAt.current = answeredAt;
+    const outfits = fresh.outfits;
+    const keepPlace = followUp.current && !!shownBefore.current && sameOutfits(shownBefore.current, outfits);
+    followUp.current = false;
+    if (!keepPlace) setIndex(0);
+    setEditDay(false);
+    forgetOtherAnswers(qc, hash);
+  }, [fresh, answeredAt, hash, qc]);
+  const shownNow = phase.kind === 'ready' ? phase.answer.outfits : null;
+  useEffect(() => {
+    shownBefore.current = shownNow;
+  }, [shownNow]);
 
   // Back online after showing a saved copy (or nothing): ask again.
-  const showingSaved = (phase.kind === 'ready' && phase.savedAt !== null) || (phase.kind === 'error' && phase.offline);
+  const showingSaved = saved !== null || (phase.kind === 'error' && phase.offline);
   const wasOffline = useRef(offline);
   useEffect(() => {
-    if (wasOffline.current && !offline && showingSaved) setAttempt((n) => n + 1);
+    if (wasOffline.current && !offline && showingSaved) {
+      setSaved(null);
+      ask();
+    }
     wasOffline.current = offline;
-  }, [offline, showingSaved]);
+  }, [offline, showingSaved, ask]);
 
   useEffect(() => {
-    memory = { profile, day: today, key: answered.current, phase, index, buildAround, leaveOut };
-  }, [profile, today, phase, index, buildAround, leaveOut]);
+    memory = { profile, day: today, index, buildAround, leaveOut };
+  }, [profile, today, index, buildAround, leaveOut]);
 
   // While Claude is choosing, or answering a message of the owner's, ask every 2 seconds how it stands (cheap); once
   // it is done, ask Today again with the same choices so Claude's outfits (or the rules', with why) and its answer
-  // arrive by themselves.
+  // arrive by themselves. Not while Today is being asked already.
   const stylist = phase.kind === 'ready' ? phase.answer.context.stylist ?? null : null;
   const claudeView = phase.kind === 'ready' ? stylistView(stylist, phase.savedAt !== null) : 'none';
   const { talk, answering } = talkOf(stylist);
@@ -224,65 +230,70 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     : claudeView === 'waiting' ? (!choseOwn && stylist?.id ? stylist.id : null)
       : claudeView === 'read' && phase.kind === 'ready' && phase.savedAt === null ? answering : null;
   const talking = claudeView === 'read';
-  const waitingOn = useMemo(() => (waitingFor ? { id: waitingFor, talking, phase } : null), [waitingFor, talking, phase]);
+  const styleAnswer = useQuery({
+    queryKey: queryKeys.styleAnswer(waitingFor ?? ''),
+    // each question 2 seconds after the last one (or after Today's answer), as the server needs the time; a wait
+    // or a question still on its way is called off when there is nothing to wait for any more
+    queryFn: async ({ signal }) => {
+      await new Promise<void>((done, stop) => {
+        const t = window.setTimeout(done, STYLE_POLL_MS);
+        signal.addEventListener('abort', () => {
+          window.clearTimeout(t);
+          stop(new DOMException('Stopped', 'AbortError'));
+        });
+      });
+      return api.styleAnswer(waitingFor!, signal);
+    },
+    enabled: !!waitingFor && !asking,
+    staleTime: 0,
+    gcTime: 0,
+    // the wait is in the question itself, so the next one starts soon after the last answer
+    refetchInterval: (q) => (q.state.status === 'error' ? false : 250),
+  });
   const gone = useRef(new Set<string>());
+  const styleDone = styleAnswer.data && styleAnswer.data.state !== 'working' && !styleAnswer.isFetching ? styleAnswer.dataUpdatedAt : 0;
+  const styleGone = (styleAnswer.error as ApiError | null)?.status === 404 ? styleAnswer.errorUpdatedAt : 0;
+  const lastStyle = useRef(0);
   useEffect(() => {
-    if (!waitingOn) return;
-    const { id } = waitingOn;
-    const ctrl = new AbortController();
-    let stopped = false;
-    const stop = () => {
-      stopped = true;
-      window.clearInterval(timer);
-    };
-    const timer = window.setInterval(() => {
-      if (stopped) return;
-      api.styleAnswer(id, ctrl.signal).then(
-        (a) => {
-          if (stopped || a.state === 'working') return;
-          stop();
-          if (waitingOn.talking) followUp.current = true;
-          setAttempt((n) => n + 1);
-        },
-        (e) => {
-          if (stopped || (e as Error)?.name === 'AbortError') return;
-          stop();
-          // the question is gone (the closet changed, the program restarted): ask Today again, once
-          if ((e as ApiError).status === 404 && !gone.current.has(id)) {
-            gone.current.add(id);
-            if (waitingOn.talking) followUp.current = true;
-            setAttempt((n) => n + 1);
-          }
-          // anything else (offline, a network error): stop quietly; the outfits shown stand
-        },
-      );
-    }, 2000);
-    return () => {
-      stop();
-      ctrl.abort();
-    };
-  }, [waitingOn]);
+    const at = Math.max(styleDone, styleGone);
+    if (!waitingFor || !at || at === lastStyle.current) return;
+    lastStyle.current = at;
+    // the question is gone (the closet changed, the program restarted): ask Today again, once
+    if (at === styleGone) {
+      if (gone.current.has(waitingFor)) return;
+      gone.current.add(waitingFor);
+    }
+    if (talking) followUp.current = true;
+    ask();
+    // anything else (offline, a network error): the polling stops quietly; the outfits shown stand
+  }, [styleDone, styleGone, waitingFor, talking, ask]);
 
   const choose = (next: Choice) => {
     setChoice(next);
     saveChoice(next);
   };
 
-  const byId = useMemo(() => new Map((items.active ?? []).map((i) => [i.id, i])), [items.active]);
+  const byId = useMemo(() => new Map((items ?? []).map((i) => [i.id, i])), [items]);
   const allById = useAllItems();
   const nameOf = (id: string) => pieceName(allById.get(id), false, (c) => label('category', c));
   const locked = offline || (phase.kind === 'ready' && phase.savedAt !== null);
 
+  /** Puts an answer written here (a message's, a thing kept) in place of the one kept, as the same answer. */
+  const writeAnswer = (update: (a: TodayAnswer) => TodayAnswer) => {
+    qc.setQueryData<TodayAnswer>(key, (a) => (a ? update(a) : a), { updatedAt: answer.dataUpdatedAt });
+  };
+
   /** Sends the owner's message about the outfits on the page; gives back why it was not sent, or null. */
   async function say(text: string): Promise<string | null> {
     if (phase.kind !== 'ready') return null;
-    const req = requestRef.current;
+    const req = request;
     // the carousel shows one outfit at a time: the one at its place is the one in front of the owner
     const looking = lookingAt(index, phase.answer.outfits.length);
     try {
-      const answer = await api.today({ ...req, say: text, ...(looking === null ? {} : { looking_at: looking }) });
-      kept.setOutfits({ day: localDay(), saved_at: new Date().toISOString(), request: req, answer });
-      setPhase({ kind: 'ready', answer, savedAt: null });
+      const got = await api.today({ ...req, say: text, ...(looking === null ? {} : { looking_at: looking }) });
+      kept.setOutfits({ day: localDay(), saved_at: new Date().toISOString(), request: req, answer: got });
+      if (qc.getQueryData(key)) writeAnswer(() => got);
+      else qc.setQueryData(key, got);
       return null;
     } catch (e) {
       return (e as Error).message || "Your message wasn't sent. Try again.";
@@ -293,9 +304,14 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   async function settle(turnId: string, at: number, save: boolean): Promise<string | null> {
     try {
       const thing = await api.remember(turnId, at, save);
-      setPhase((p) => (p.kind === 'ready' ? { ...p, answer: withThing(p.answer, turnId, at, thing) } : p));
-      const saved = kept.outfits(localDay());
-      if (saved) kept.setOutfits({ ...saved, answer: withThing(saved.answer, turnId, at, thing) });
+      writeAnswer((a) => withThing(a, turnId, at, thing));
+      const copy = kept.outfits(localDay());
+      if (copy) kept.setOutfits({ ...copy, answer: withThing(copy.answer, turnId, at, thing) });
+      // kept in Your style, or in a piece's "How I wear it" (which draws the piece again)
+      if (save) {
+        void touch(qc, 'styleProfile');
+        void touch(qc, 'item');
+      }
       return null;
     } catch (e) {
       return (e as Error).message || 'That could not be saved. Try again.';
@@ -309,10 +325,12 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     setToday(day);
     const ids = outfitIds(o.pieces);
     setBusy(true);
+    let changed = false;
     try {
       if (worn && worn.day === day && !sameOutfit(worn.ids, ids) && (worn.recorded.length || worn.outfit_id)) {
         const undone = await api.unwearMany(worn.recorded, worn.worn_on, worn.outfit_id);
-        undone.items.forEach(upsert);
+        changed = true;
+        undone.items.forEach((i) => writeItem(qc, i));
         kept.setWorn(null);
         setWorn(null);
       }
@@ -321,10 +339,10 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         pieces: o.pieces, score: o.score, reasons: o.reasons, warnings: o.warnings,
         context: { low_c: ctx?.low_c ?? null, high_c: ctx?.high_c ?? null, rain: ctx?.rain ?? null, occasion: choice.occasion, mood: choice.mood },
       });
-      r.items.forEach(upsert);
+      changed = true;
+      r.items.forEach((i) => writeItem(qc, i));
       setToday(localDay());
       const record: WornToday = { day, worn_on: r.worn_on, ids, recorded: r.recorded ?? [], outfit: o, outfit_id: r.outfit?.id, at: Date.now() };
-      loadRecent();
       kept.setWorn(record);
       setWorn(record);
       toast("Noted: you're wearing this today");
@@ -332,6 +350,8 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
       toast((e as Error).message, 'error');
     } finally {
       setBusy(false);
+      // the worn outfits (Worn, and the list above), the items' wears and insights are read again
+      if (changed) void touch(qc, 'wear', ['items', 'item']);
     }
   }
 
@@ -343,10 +363,10 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
     }
     setBusy(true);
     try {
-      if (worn.recorded.length || worn.outfit_id) (await api.unwearMany(worn.recorded, worn.worn_on, worn.outfit_id)).items.forEach(upsert);
+      if (worn.recorded.length || worn.outfit_id) (await api.unwearMany(worn.recorded, worn.worn_on, worn.outfit_id)).items.forEach((i) => writeItem(qc, i));
       const gone = worn.outfit_id;
-      setRecent((l) => l && l.filter((o) => o.id !== gone));
-      loadRecent();
+      if (gone) changePages(qc, (page) => withoutOutfit(page, gone));
+      void touch(qc, 'wear', ['items', 'item']);
       kept.setWorn(null);
       setWorn(null);
       toast('Wear undone');
@@ -392,7 +412,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   );
 
   // An empty closet: nothing to dress, so no weather or choices either, only what to add.
-  if (items.active !== null && !canDress(items.active)) {
+  if (items !== null && !canDress(items)) {
     return (
       <div className="today">
         {header}
@@ -401,7 +421,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
           action={offline
             ? <span className="btn btn-primary is-disabled" aria-disabled="true" title={OFFLINE_TITLE}>Add clothes</span>
             : <Link to="/add" className="btn btn-primary">Add clothes</Link>}>
-          <p className="muted" data-testid="add-first">Still to add: {joinWords(whatToAddFirst(items.active))}.</p>
+          <p className="muted" data-testid="add-first">Still to add: {joinWords(whatToAddFirst(items))}.</p>
         </EmptyState>
       </div>
     );
@@ -432,7 +452,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
             if (occasion && (OCCASIONS as readonly string[]).includes(occasion)) choose({ ...choice, occasion });
             if (answer.message) toast(answer.message);
             setEditDay(false);
-            setAttempt((n) => n + 1);
+            ask();
           }}
           onTyped={setDay}
           onClose={phase.kind === 'needs-day' ? undefined : () => setEditDay(false)}
@@ -441,7 +461,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
             kept.setTyped(null);
             setTyped(null);
             setEditDay(false);
-            setAttempt((n) => n + 1);
+            ask();
           }} />
       )}
 
@@ -457,7 +477,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         <Notice tone="warning" icon={<WarnIcon />} className="today-no-weather" role="status" testId="no-weather"
           action={(
             <>
-              <Button small disabled={locked || asking} onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
+              <Button small disabled={locked || asking} onClick={ask}>Try again</Button>
               <Button small disabled={locked} onClick={() => setEditDay(true)}>Type temperatures</Button>
             </>
           )}>
@@ -505,11 +525,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
             <button className="btn btn-icon btn-ghost worn-question-close" aria-label="Not now"
               onClick={() => { setDismissed(dismiss(profile, question.id)); setRated(null); }}>×</button>
           </div>
-          <RateOutfit outfit={question} offline={offline} compact onRated={(o) => {
-            setRated(o);
-            setRecent((l) => (l ?? []).map((x) => (x.id === o.id ? o : x)));
-            void refreshSaved(profile);
-          }} />
+          <RateOutfit outfit={question} offline={offline} compact onRated={setRated} />
           {rated && (
             <div className="row">
               <button className="btn btn-small" onClick={() => { setDismissed(dismiss(profile, rated.id)); setRated(null); }}>Done</button>
@@ -534,13 +550,13 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
         onAskAgain={() => {
           askAgain.current = true;
           setChoseOwn(false);
-          setAttempt((n) => n + 1);
+          ask();
         }}
         index={index} setIndex={setIndex} byId={byId} worn={worn} busy={busy}
-        actions={pieceActions} items={items.active} onWear={wear} onUndo={undo} offline={offline}
+        actions={pieceActions} items={items} onWear={wear} onUndo={undo} offline={offline}
         changed={!!buildAround || leaveOut.length > 0}
         onClear={() => { setBuildAround(null); setLeaveOut([]); }}
-        onRetry={() => setAttempt((n) => n + 1)}
+        onRetry={ask}
         talk={{ turns: talk, answering, onSay: say, onSettle: settle }} />
     </div>
   );
@@ -602,12 +618,13 @@ function DayNoteForm({ note, locked, onNote }: { note: DayNote | null; locked: b
   const [text, setText] = useState(note?.text ?? '');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const saveDay = useEdit('day');
 
   async function run(call: () => Promise<DayAnswer>) {
     setBusy(true);
     setMessage(null);
     try {
-      const answer = await call();
+      const answer = await saveDay(call);
       if (answer.saved === false) setMessage(answer.message);
       else onNote(answer);
     } catch (e) {
@@ -646,15 +663,8 @@ function DayPanel({ phase, typed, locked, offline, toast, onTyped, onClose, onPl
   phase: Phase; typed: TypedDay | null; locked: boolean; offline: boolean; toast: (m: string, k?: 'ok' | 'error') => void;
   onTyped(t: Omit<TypedDay, 'day'> | null): void; onClose?: () => void; onPlace(): void; onNote(answer: DayAnswer): void;
 }) {
-  const [settings, setSettings] = useState<Settings | null>(null);
-  useEffect(() => {
-    if (offline) return;
-    let current = true;
-    api.settings().then((s) => current && setSettings(s), () => undefined);
-    return () => {
-      current = false;
-    };
-  }, [offline]);
+  // the same settings as the Settings screen, read once for both; a place chosen is written in by WhereYouAre
+  const settings = useQuery({ ...settingsQuery(), enabled: !offline }).data ?? null;
 
   return (
     <Card as="section" className="today-day-panel" id="today-day-panel" aria-labelledby="day-title">
@@ -667,10 +677,7 @@ function DayPanel({ phase, typed, locked, offline, toast, onTyped, onClose, onPl
       )}
       <h2 id="day-title" className={phase.kind === 'ready' ? 'today-day-next' : undefined}>Where are you?</h2>
       <WhereYouAre inline place={settings ? settings.place : undefined} home={settings?.home_place} offline={offline} toast={toast}
-        onChange={(s) => {
-          setSettings(s);
-          onPlace();
-        }} />
+        onChange={onPlace} />
       <h3 className="today-typed-title">Or type today's temperatures</h3>
       <TypedForm typed={typed} locked={locked} onTyped={onTyped} onCancel={onClose} />
       {typed && (

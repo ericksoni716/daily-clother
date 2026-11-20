@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
 import { PhoneAccess } from '../components/PhoneAccess';
 import { ADD_TO_HOME_SCREEN, fromHomeScreen, phoneAccessShows } from '../here';
@@ -9,11 +10,16 @@ import { confirmKeys, Notice, PageHeader, Section as UiSection, SegmentedControl
 import { formatDateTime, formatSize, parsePrice } from '../labels';
 import { Link } from '../router';
 import { apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, monthName, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
-import { useCloset } from '../store';
+import { touch, useModel } from '../queries';
+import { queryKeys } from '../queryKeys';
+import { phonePoll, routeIds, settingsQuery, settingsSaved, storageQuery, taggingQuery, useSaveSettings, weatherQuery, writePart } from '../settings';
+import { useApp } from '../store';
 import { applyTheme, loadTheme, saveTheme, THEME_CHOICES, type Theme } from '../theme';
 import { styleChanged, styleCount } from '../style';
 import { MAX_REWEAR, REWEAR_KINDS, rewearWords } from '../trips';
-import type { LaundrySetting, ModelInfo, Profile, RewearKind, RouteOrder, Settings, Storage, StyleProfile, TaggingRoute, TaggingSpend, TaggingStatus } from '../types';
+import type { LaundrySetting, ModelInfo, Profile, RewearKind, RouteOrder, Settings, StyleProfile, TaggingRoute, TaggingSpend } from '../types';
+
+type Toast = (m: string, k?: 'ok' | 'error') => void;
 
 /** One group of settings: a card with a heading. */
 function Section({ title, hint, children, id }: { title: string; hint?: string; children: ReactNode; id: string }) {
@@ -42,33 +48,28 @@ function LookSection() {
 }
 
 /** "Your style": how the owner likes to dress, in their own words. Claude reads it when it chooses the outfits; each
- * closet (the owner's, the demo) keeps its own. */
-function StyleSection({ offline, profile, settings, onSettings, toast }: {
-  offline: boolean; profile: Profile; settings: Settings | null; onSettings(s: Settings): void; toast(m: string, k?: 'ok' | 'error'): void;
+ * closet (the owner's, the demo) keeps its own. Drawn from the settings' answer, which fills its key. */
+function StyleSection({ offline, profile, settings, toast }: {
+  offline: boolean; profile: Profile; settings: Settings; toast: Toast;
 }) {
-  const [style, setStyle] = useState<StyleProfile | null>(null);
-  const [draft, setDraft] = useState('');
+  const qc = useQueryClient();
+  const saveSettings = useSaveSettings();
+  const style = useQuery<StyleProfile>({ queryKey: queryKeys.styleProfile(), queryFn: api.styleProfile, enabled: false }).data ?? settings.style_profile;
+  const [draft, setDraft] = useState(style.text);
+  const [shown, setShown] = useState(style.text);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const countId = useId();
-
-  useEffect(() => {
-    if (offline) return;
-    let live = true;
-    api.styleProfile().then((p) => {
-      if (!live) return;
-      setStyle(p);
-      setDraft(p.text);
-      setError(null);
-    }).catch((e) => { if (live) setError((e as Error).message); });
-    return () => { live = false; };
-  }, [offline, profile]);
+  if (shown !== style.text) {   // saved here or elsewhere: the box shows what is now in force
+    setShown(style.text);
+    setDraft(style.text);
+  }
 
   async function save(text: string) {
     setBusy(true);
     try {
       const saved = await api.saveStyleProfile(text);
-      setStyle(saved);
+      writePart(qc, { style_profile: saved });
+      void touch(qc, 'styleProfile', ['styleProfile']);
       setDraft(saved.text);
       toast('Saved');
     } catch (e) {
@@ -78,76 +79,98 @@ function StyleSection({ offline, profile, settings, onSettings, toast }: {
     }
   }
 
-  const count = style ? styleCount(draft.length, style.max_length) : null;
+  const count = styleCount(draft.length, style.max_length);
   return (
     <Section title="Your style" id="s-style"
       hint="How you like to dress, in your own words. Claude reads this every time it chooses your outfits, and it wins over the general menswear guide. Write it the way you would tell a friend who is choosing your clothes.">
-      {settings && (
-        <Toggle label="Let Claude choose my outfits"
-          hint={`When this is off, or Claude can't be reached, Closet's own rules choose.${profile === 'demo' ? ' In the demo closet they always do.' : ''}`}
-          checked={settings.stylist_on !== false} disabled={offline}
-          onChange={async (on) => {
-            try {
-              onSettings(await api.putSettings({ stylist_on: on }));
-              toast('Saved');
-            } catch (e) {
-              toast((e as Error).message, 'error');
-            }
-          }} />
-      )}
-      {error && <p className="form-error" role="alert">Couldn't load your style: {error}</p>}
-      {!style && !error && <p className="hint">{offline ? "Your style can't be shown while you're offline." : 'Loading your style…'}</p>}
-      {style && count && (
-        <form className="settings-style" onSubmit={(e: FormEvent) => { e.preventDefault(); void save(draft); }}>
-          <label className="field">
-            <span>About how I dress</span>
-            <textarea rows={8} maxLength={style.max_length} value={draft} disabled={offline || busy}
-              aria-describedby={countId} onChange={(e) => setDraft(e.target.value)} />
-          </label>
-          <p className={count.warn ? 'settings-style-count is-warn' : 'settings-style-count'} id={countId}>
-            <span className="visually-hidden">Characters used: </span>{count.text}
-          </p>
-          <p className="hint">For example: “I run warm, so one layer fewer than most people.” “No ties unless it is a wedding.” “I like navy with brown, and I never wear black shoes with jeans.”</p>
-          <div className="settings-style-actions">
-            <button type="submit" className="btn btn-primary" disabled={offline || busy || !styleChanged(draft, style.text)}>Save</button>
-            {!style.is_default && (
-              <button type="button" className="btn" disabled={offline || busy} onClick={() => void save('')}>Back to the starting text</button>
-            )}
-          </div>
-        </form>
-      )}
+      <Toggle label="Let Claude choose my outfits"
+        hint={`When this is off, or Claude can't be reached, Closet's own rules choose.${profile === 'demo' ? ' In the demo closet they always do.' : ''}`}
+        checked={settings.stylist_on !== false} disabled={offline}
+        onChange={async (on) => {
+          try {
+            await saveSettings({ stylist_on: on });
+            toast('Saved');
+          } catch (e) {
+            toast((e as Error).message, 'error');
+          }
+        }} />
+      <form className="settings-style" onSubmit={(e: FormEvent) => { e.preventDefault(); void save(draft); }}>
+        <label className="field">
+          <span>About how I dress</span>
+          <textarea rows={8} maxLength={style.max_length} value={draft} disabled={offline || busy}
+            aria-describedby={countId} onChange={(e) => setDraft(e.target.value)} />
+        </label>
+        <p className={count.warn ? 'settings-style-count is-warn' : 'settings-style-count'} id={countId}>
+          <span className="visually-hidden">Characters used: </span>{count.text}
+        </p>
+        <p className="hint">For example: “I run warm, so one layer fewer than most people.” “No ties unless it is a wedding.” “I like navy with brown, and I never wear black shoes with jeans.”</p>
+        <div className="settings-style-actions">
+          <button type="submit" className="btn btn-primary" disabled={offline || busy || !styleChanged(draft, style.text)}>Save</button>
+          {!style.is_default && (
+            <button type="button" className="btn" disabled={offline || busy} onClick={() => void save('')}>Back to the starting text</button>
+          )}
+        </div>
+      </form>
     </Section>
   );
 }
 
+/** Log out and Quit, at the foot of the page. */
+function Leave({ offline }: { offline: boolean }) {
+  const { logout, quit, toast } = useApp();
+  return (
+    <div className="settings-leave" role="group" aria-label="Leave">
+      {/* offline the server cannot end the login, so the phone would only look logged out until it is back in reach */}
+      <button className="btn" disabled={offline} title={offline ? "You're offline: log out once Closet on your computer can be reached" : undefined}
+        onClick={() => void logout()}>Log out</button>
+      <QuitButton onQuit={quit} disabled={offline} toast={toast} />
+    </div>
+  );
+}
+
 export function SettingsScreen({ version }: { version: string }) {
-  const { offline, model, refreshModel, profile, switchProfile, logout, quit, toast } = useCloset();
-  const [settings, setSettings] = useState<Settings | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const { offline, profile, switchProfile, toast } = useApp();
+  const qc = useQueryClient();
+  const saveSettings = useSaveSettings();
+  const model = useModel();
   const [lifeOpen, setLifeOpen] = useState(false);
   // connecting the phone is done on the computer; the phone itself is only told how to keep Closet on its Home Screen
   const phoneShows = phoneAccessShows(window.location.hostname, fromHomeScreen(window));
 
-  const load = useCallback(async () => {
-    try {
-      setSettings(await api.settings());
-      setLoadError(null);
-    } catch (e) {
-      setLoadError((e as Error).message);
-    }
-  }, []);
+  // One quick read draws the page; on the computer it is asked again every few seconds until the phone has an address.
+  const read = useQuery({ ...settingsQuery(), enabled: !offline, refetchInterval: (q) => phonePoll(phoneShows, q.state.data, offline) });
+  // the slow lookups start at once, beside it, and each fills a row of its own
+  useQuery({ ...taggingQuery(), enabled: !offline, refetchOnMount: 'always' });
+  useQuery({ ...storageQuery(), enabled: !offline });
+  useQuery({ ...weatherQuery(), enabled: !offline });
 
-  useEffect(() => {
-    if (offline) return;
-    void load();
-    void refreshModel();
-  }, [load, refreshModel, offline]);
+  const settings = read.data;
+  if (!settings) {
+    return (
+      <div className="settings">
+        <PageHeader title="Settings" />
+        {offline ? <Notice as="p">You're offline, so settings can't be shown or changed right now.</Notice>
+          : read.error ? (
+            <>
+              <p className="form-error" role="alert">{read.error.message}</p>
+              <button className="btn" onClick={() => void read.refetch()}>Try again</button>
+            </>
+          ) : <p className="hint" aria-busy="true">Opening your settings…</p>}
+        {offline && (
+          <div className="settings-groups">
+            <LookSection />
+            <Leave offline={offline} />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="settings">
       <PageHeader title="Settings" />
       {offline && <Notice as="p">You're offline, so settings can't be shown or changed right now.</Notice>}
-      {!offline && loadError && <p className="form-error" role="alert">{loadError}</p>}
+      {!offline && read.error && <p className="form-error" role="alert">{read.error.message}</p>}
 
       <div className="settings-groups">
         <Section title="Your closet" id="s-closet">
@@ -158,49 +181,52 @@ export function SettingsScreen({ version }: { version: string }) {
             disabled={offline}
             onChange={(on) => switchProfile(on ? 'demo' : 'main').catch((e) => toast((e as Error).message, 'error'))}
           />
-          {settings && settings.autostart !== null && (
+          {settings.autostart !== null && (
             <Toggle label="Start Closet when I log in" hint="Closet opens quietly in the background when you sign in to this computer."
               checked={settings.autostart} disabled={offline}
               onChange={async (on) => {
                 try {
-                  setSettings(await api.putSettings({ autostart: on }));
+                  await saveSettings({ autostart: on });
                   toast('Saved');
                 } catch (e) {
                   toast((e as Error).message, 'error');
                 }
               }} />
           )}
-          {settings?.laundry && <LaundrySection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
-          {settings?.rewear && <RewearSection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
-          {settings && <BackupSection settings={settings} onChange={setSettings} toast={toast} disabled={offline} />}
+          {settings.laundry && <LaundrySection settings={settings} toast={toast} disabled={offline} />}
+          {settings.rewear && <RewearSection settings={settings} toast={toast} disabled={offline} />}
+          <BackupSection settings={settings} toast={toast} disabled={offline} />
           <StorageSection offline={offline} profile={profile} />
         </Section>
 
         <Section title="Where you are" id="s-place">
-          <WhereYouAre place={settings ? settings.place : undefined} home={settings?.home_place} offline={offline} onChange={setSettings} toast={toast} />
+          <WhereYouAre place={settings.place} home={settings.home_place} offline={offline} toast={toast} />
           <p className="hint">Going away? <Link to="/trips">Plan a trip</Link> and Closet says what to pack for the weather there.</p>
         </Section>
         <Section title="How you live" id="s-life">
           <p className="hint">Tell What's missing about work, everyday life and time away. Change your answers whenever life changes.</p>
-          {lifeOpen && settings ? (
+          {lifeOpen ? (
             <LifeQuestions initial={settings.life ?? null} locked={offline} demo={profile === 'demo'}
-              onSaved={(saved) => { setSettings(saved); toast('Your answers are saved'); }} onClose={() => setLifeOpen(false)} />
-          ) : <button className="btn" disabled={!settings || offline} onClick={() => setLifeOpen(true)}>
-            {profile === 'demo' ? 'See example answers' : settings?.life ? 'Edit my answers' : 'Tell it how you live'}
+              onSaved={(saved) => {
+                settingsSaved(qc, saved, 'settings', { life: saved.life, life_prompt_dismissed: true });
+                toast('Your answers are saved');
+              }} onClose={() => setLifeOpen(false)} />
+          ) : <button className="btn" disabled={offline} onClick={() => setLifeOpen(true)}>
+            {profile === 'demo' ? 'See example answers' : settings.life ? 'Edit my answers' : 'Tell it how you live'}
           </button>}
         </Section>
 
         <LookSection />
 
-        <StyleSection offline={offline} profile={profile} settings={settings} onSettings={setSettings} toast={toast} />
+        <StyleSection offline={offline} profile={profile} settings={settings} toast={toast} />
 
-        <TaggingSection offline={offline} settings={settings} onChange={setSettings} reload={load} toast={toast} />
+        <TaggingSection offline={offline} settings={settings} toast={toast} />
 
         <Section title="Updates" id="s-updates" hint="New versions of Closet, from its GitHub releases.">
           <UpdatesSection offline={offline} toast={toast} />
         </Section>
 
-        {settings && phoneShows !== 'nothing' && (
+        {phoneShows !== 'nothing' && (
           <Section title="Phone access" id="s-phone">
             {phoneShows === 'connect' ? <PhoneAccess phone={settings.phone} /> : <p>{ADD_TO_HOME_SCREEN}</p>}
           </Section>
@@ -209,29 +235,25 @@ export function SettingsScreen({ version }: { version: string }) {
         <details className="card settings-advanced" id="s-advanced">
           <summary>Advanced</summary>
           <div className="settings-advanced-body">
-            {model && <ModelAddress model={model} refresh={refreshModel} toast={toast} disabled={offline} />}
+            <ModelAddress model={model ?? settings.model} toast={toast} disabled={offline} />
             <dl className="facts">
               <dt>Your closet is stored in</dt>
-              <dd><code className="path">{settings?.data_dir ?? '…'}</code></dd>
+              <dd><code className="path">{settings.data_dir}</code></dd>
               <dt>Version</dt>
-              <dd>{settings?.version ?? version}</dd>
+              <dd>{settings.version ?? version}</dd>
             </dl>
           </div>
         </details>
 
-        <div className="settings-leave" role="group" aria-label="Leave">
-          {/* offline the server cannot end the login, so the phone would only look logged out until it is back in reach */}
-          <button className="btn" disabled={offline} title={offline ? "You're offline: log out once Closet on your computer can be reached" : undefined}
-            onClick={() => void logout()}>Log out</button>
-          <QuitButton onQuit={quit} disabled={offline} toast={toast} />
-        </div>
+        <Leave offline={offline} />
       </div>
     </div>
   );
 }
 
 /** Where the background-removal model is downloaded from, and where to put it by hand. */
-function ModelAddress({ model, refresh, toast, disabled }: { model: ModelInfo; refresh(): Promise<void>; toast(m: string, k?: 'ok' | 'error'): void; disabled: boolean }) {
+function ModelAddress({ model, toast, disabled }: { model: ModelInfo; toast: Toast; disabled: boolean }) {
+  const qc = useQueryClient();
   const [url, setUrl] = useState(model.url);
   useEffect(() => setUrl(model.url), [model.url]);
 
@@ -240,7 +262,8 @@ function ModelAddress({ model, refresh, toast, disabled }: { model: ModelInfo; r
     try {
       const info = await api.setModelUrl(value);
       setUrl(info.url);
-      await refresh();
+      writePart(qc, { model: info });
+      void touch(qc, 'model', ['model']);
       toast('Saved');
     } catch (err) {
       toast((err as ApiError).message, 'error');
@@ -276,14 +299,15 @@ function ModelAddress({ model, refresh, toast, disabled }: { model: ModelInfo; r
 export const LAUNDRY_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 /** Laundry that keeps itself: worn clothes go in after their count ("Before it needs washing"), out on the laundry day. */
-function LaundrySection({ settings, onChange, toast, disabled }: { settings: Settings; onChange(s: Settings): void; toast(m: string, k?: 'ok' | 'error'): void; disabled: boolean }) {
+function LaundrySection({ settings, toast, disabled }: { settings: Settings; toast: Toast; disabled: boolean }) {
+  const saveSettings = useSaveSettings();
   const [busy, setBusy] = useState(false);
   const laundry = settings.laundry!;
 
   async function save(change: Partial<LaundrySetting>) {
     setBusy(true);
     try {
-      onChange(await api.putSettings({ laundry: { ...laundry, ...change } }));
+      await saveSettings({ laundry: { ...laundry, ...change } });
       toast('Saved');
     } catch (err) {
       toast((err as Error).message, 'error');
@@ -315,14 +339,15 @@ function LaundrySection({ settings, onChange, toast, disabled }: { settings: Set
 }
 
 /** "Before it needs washing": how often each kind of clothing is worn before it needs a wash. */
-function RewearSection({ settings, onChange, toast, disabled }: { settings: Settings; onChange(s: Settings): void; toast(m: string, k?: 'ok' | 'error'): void; disabled: boolean }) {
+function RewearSection({ settings, toast, disabled }: { settings: Settings; toast: Toast; disabled: boolean }) {
+  const saveSettings = useSaveSettings();
   const [busy, setBusy] = useState(false);
   const rewear = settings.rewear!;
 
   async function save(kind: RewearKind, value: string) {
     setBusy(true);
     try {
-      onChange(await api.putSettings({ rewear: { [kind]: value === '' ? null : Number(value) } }));
+      await saveSettings({ rewear: { [kind]: value === '' ? null : Number(value) } });
       toast('Saved');
     } catch (err) {
       toast((err as Error).message, 'error');
@@ -354,7 +379,9 @@ function RewearSection({ settings, onChange, toast, disabled }: { settings: Sett
   );
 }
 
-function BackupSection({ settings, onChange, toast, disabled }: { settings: Settings; onChange(s: Settings): void; toast(m: string, k?: 'ok' | 'error'): void; disabled: boolean }) {
+function BackupSection({ settings, toast, disabled }: { settings: Settings; toast: Toast; disabled: boolean }) {
+  const qc = useQueryClient();
+  const saveSettings = useSaveSettings();
   const [folder, setFolder] = useState(settings.backup_folder ?? '');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -365,7 +392,7 @@ function BackupSection({ settings, onChange, toast, disabled }: { settings: Sett
     e.preventDefault();
     setError(null);
     try {
-      onChange(await api.putSettings({ backup_folder: folder.trim() || null }));
+      await saveSettings({ backup_folder: folder.trim() || null });
       toast('Saved');
     } catch (err) {
       setError((err as Error).message);
@@ -381,7 +408,8 @@ function BackupSection({ settings, onChange, toast, disabled }: { settings: Sett
     } catch (err) {
       setError((err as Error).message);
     } finally {
-      onChange(await api.settings().catch(() => settings));
+      // done or not, the last backup is recorded, and the space used changes
+      await touch(qc, 'backup');
       setBusy(false);
     }
   }
@@ -409,60 +437,49 @@ function BackupSection({ settings, onChange, toast, disabled }: { settings: Sett
   );
 }
 
+/** The space used: a slow walk of the closet's folders, so the rows are drawn at once and filled in when it is done. */
 function StorageSection({ offline, profile }: { offline: boolean; profile: Profile }) {
-  const [storage, setStorage] = useState<Storage | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    if (offline) return;
-    let current = true;
-    setStorage(null);
-    setError(null);
-    api.storage().then(
-      (s) => current && setStorage(s),
-      (e) => current && setError((e as Error).message),
-    );
-    return () => {
-      current = false;
-    };
-  }, [offline, profile, attempt]);
+  const { data: storage, error, refetch, isFetching } = useQuery({ ...storageQuery(), enabled: !offline });
 
   let body: ReactNode;
   if (offline) body = <p className="hint">Storage details aren't available while you're offline.</p>;
-  else if (error) {
+  else if (error && !storage) {
     body = (
       <>
-        <p className="form-error" role="alert">Couldn't work out how much space Closet uses: {error}</p>
-        <button className="btn" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
+        <p className="form-error" role="alert">Couldn't work out how much space Closet uses: {error.message}</p>
+        <button className="btn" disabled={isFetching} onClick={() => void refetch()}>Try again</button>
       </>
     );
-  } else if (!storage) body = <p className="hint">Adding up how much space Closet uses…</p>;
-  else {
-    const shown = storage.photos_bytes + storage.cutouts_bytes + storage.thumbnails_bytes + storage.backups_bytes + storage.model_bytes;
-    const rows: [string, number][] = [
-      ['Photos', storage.photos_bytes],
-      ['Cutouts', storage.cutouts_bytes],
-      ['Thumbnails', storage.thumbnails_bytes],
-      ['Backups on this computer', storage.backups_bytes],
-      ['Background-removal model', storage.model_bytes],
-      ['Everything else', Math.max(0, storage.total_bytes - shown)],
+  } else {
+    const size = (bytes: (s: NonNullable<typeof storage>) => number) => (storage ? formatSize(bytes(storage)) : '…');
+    const rows: [string, (s: NonNullable<typeof storage>) => number][] = [
+      ['Photos', (s) => s.photos_bytes],
+      ['Cutouts', (s) => s.cutouts_bytes],
+      ['Thumbnails', (s) => s.thumbnails_bytes],
+      ['Backups on this computer', (s) => s.backups_bytes],
+      ['Background-removal model', (s) => s.model_bytes],
+      ['Everything else', (s) => Math.max(0, s.total_bytes - s.photos_bytes - s.cutouts_bytes - s.thumbnails_bytes - s.backups_bytes - s.model_bytes)],
     ];
     body = (
       <>
-        <p className="storage-total">
-          <strong data-testid="storage-total">{formatSize(storage.total_bytes)}</strong> used by{' '}
-          {storage.items === 1 ? '1 item' : `${storage.items} items`}
+        <p className="storage-total" aria-busy={!storage}>
+          {storage ? (
+            <>
+              <strong data-testid="storage-total">{formatSize(storage.total_bytes)}</strong> used by{' '}
+              {storage.items === 1 ? '1 item' : `${storage.items} items`}
+            </>
+          ) : <span className="muted">Adding up how much space Closet uses…</span>}
         </p>
         <dl className="storage-list">
           {rows.map(([name, bytes]) => (
             <div key={name}>
               <dt>{name}</dt>
-              <dd>{formatSize(bytes)}</dd>
+              <dd>{size(bytes)}</dd>
             </div>
           ))}
         </dl>
-        {storage.free_bytes !== null && <p className="hint">{formatSize(storage.free_bytes)} free on this disk.</p>}
+        {!storage ? <p className="hint">… free on this disk.</p>
+          : storage.free_bytes !== null && <p className="hint">{formatSize(storage.free_bytes)} free on this disk.</p>}
         {profile === 'demo' && <p className="hint">These are the demo closet's own pictures and list of clothes. The model, backups and the program's logs are shared with your own closet.</p>}
       </>
     );
@@ -484,47 +501,46 @@ const ROUTE_TEXT: Record<TaggingRoute['id'], { name: string; hint: string }> = {
 
 interface TaggingProps {
   offline: boolean;
-  settings: Settings | null;
-  onChange(s: Settings): void;
-  reload(): Promise<void>;
-  toast(m: string, k?: 'ok' | 'error'): void;
+  settings: Settings;
+  toast: Toast;
 }
 
-function TaggingSection({ offline, settings, onChange, reload, toast }: TaggingProps) {
-  const [status, setStatus] = useState<TaggingStatus | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
-  const keySource = settings?.api_key?.source ?? null;   // a key saved or removed changes what is ready
-  const chosenOrder = settings?.tagging_route_order ?? null;     // so does the order chosen below
+/** How Closet reaches Claude. Whether Claude Code is signed in is a slow lookup of its own, asked once each time the
+ * page opens and again when a key or the order changes; what it last said stays on screen meanwhile. */
+function TaggingSection({ offline, settings, toast }: TaggingProps) {
+  const qc = useQueryClient();
+  const tagging = useQuery({ ...taggingQuery(), enabled: !offline });
+  const status = tagging.data ?? null;
+  const error = tagging.error ? tagging.error.message : null;
 
-  useEffect(() => {
-    if (offline) return;
-    let current = true;
-    setStatus(null);
-    setError(null);
-    api.tagging().then(
-      (s) => current && setStatus(s),
-      (e) => current && setError((e as Error).message),
-    );
-    return () => {
-      current = false;
-    };
-  }, [offline, attempt, keySource, chosenOrder]);
-
-  const checkAgain = <button className="btn" onClick={() => { setAttempt((n) => n + 1); void reload(); }}>Check again</button>;
-  const apiAllowed = !!settings?.tagging_api_enabled;
-  const waiting = settings?.pending_tags ?? 0;
+  const checkAgain = (
+    <button className="btn" disabled={tagging.isFetching} onClick={() => {
+      void tagging.refetch();
+      void qc.invalidateQueries({ queryKey: queryKeys.settings(), exact: true });   // the items waiting
+    }}>Check again</button>
+  );
+  const apiAllowed = settings.tagging_api_enabled;
+  const waiting = settings.pending_tags;
   const byId = new Map((status?.routes ?? []).map((r) => [r.id, r]));
-  const order: TaggingRoute['id'][] = status?.order ?? ['plan', 'api'];
-  let routeState: ReactNode = null;
+  // in the order chosen, known with the settings, so the list does not reorder when the lookup lands
+  const order: TaggingRoute['id'][] = routeIds(settings.tagging_route_order);
+  let routeState: ReactNode;
   if (error) {
     routeState = (
       <>
         <p className="form-error" role="alert">Couldn't check how Closet can reach Claude: {error}</p>
-        <button className="btn" onClick={() => setAttempt((n) => n + 1)}>Try again</button>
+        <button className="btn" disabled={tagging.isFetching} onClick={() => void tagging.refetch()}>Try again</button>
       </>
     );
-  } else if (status) {
+  } else if (!status) {
+    // the same shape as the answer (a line, then the button), so nothing below moves when it lands
+    routeState = (
+      <>
+        <p className="hint" aria-busy="true">Checking how Closet can reach Claude…</p>
+        {checkAgain}
+      </>
+    );
+  } else {
     const routes = order.map((id) => byId.get(id)).filter((r): r is TaggingRoute => !!r);
     const none = !routes.some((r) => r.available && (r.id !== 'api' || apiAllowed));
     const apiOnlyOff = none && byId.get('api')?.available && !apiAllowed;
@@ -558,8 +574,8 @@ function TaggingSection({ offline, settings, onChange, reload, toast }: TaggingP
 
   /** Each route once, with one line saying whether it can be used: the plan as Claude Code reports it, the key as it is kept. */
   function routeLine(id: TaggingRoute['id']): ReactNode {
-    if (id === 'api' && settings) {
-      return <ApiKeyBox offline={offline} settings={settings} onChange={onChange} toast={toast} />;
+    if (id === 'api') {
+      return <ApiKeyBox offline={offline} settings={settings} toast={toast} />;
     }
     const r = byId.get(id);
     const text = error ? 'Not checked' : !r ? 'Checking…' : r.available ? 'Ready to use.' : r.detail || 'Not available.';
@@ -585,25 +601,21 @@ function TaggingSection({ offline, settings, onChange, reload, toast }: TaggingP
               </li>
             ))}
           </ol>
-          {settings && !order.includes('api') && (
+          {!order.includes('api') && (
             <div className="route-unused" data-testid="route-api-unused">
               <h3 className="route-name">{ROUTE_TEXT.api.name}</h3>
-              <ApiKeyBox offline={offline} settings={settings} onChange={onChange} toast={toast} />
+              <ApiKeyBox offline={offline} settings={settings} toast={toast} />
               <p className="hint">Not used: you chose to use only your Claude plan.</p>
             </div>
           )}
           {routeState}
         </>
       )}
-      {settings && (
-        <>
-          <p className="hint" data-testid="tags-waiting">
-            {waiting === 0 ? 'No items are waiting to be described.'
-              : `${waiting} ${waiting === 1 ? 'item is' : 'items are'} waiting to be described.`}
-          </p>
-          <ApiKeySpend offline={offline} settings={settings} onChange={onChange} toast={toast} />
-        </>
-      )}
+      <p className="hint" data-testid="tags-waiting">
+        {waiting === 0 ? 'No items are waiting to be described.'
+          : `${waiting} ${waiting === 1 ? 'item is' : 'items are'} waiting to be described.`}
+      </p>
+      <ApiKeySpend offline={offline} settings={settings} toast={toast} />
     </Section>
   );
 }
@@ -612,7 +624,8 @@ const ANTHROPIC_KEYS = 'https://console.anthropic.com/settings/keys';
 
 /** Paste an API key: Closet checks it with Anthropic and keeps it in the computer's keychain. The page never
  * receives the key back, so once saved it is only ever described, never shown. */
-function ApiKeyBox({ offline, settings, onChange, toast }: { offline: boolean; settings: Settings; onChange(s: Settings): void; toast(m: string, k?: 'ok' | 'error'): void }) {
+function ApiKeyBox({ offline, settings, toast }: { offline: boolean; settings: Settings; toast: Toast }) {
+  const qc = useQueryClient();
   const info = settings.api_key;
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
@@ -629,7 +642,7 @@ function ApiKeyBox({ offline, settings, onChange, toast }: { offline: boolean; s
       const saved = await api.saveApiKey(key.trim());
       setKey('');
       setReplacing(false);
-      onChange(saved);
+      settingsSaved(qc, saved, 'apiKey');
       toast(apiKeySavedLine(saved.api_key, saved.tagging_api_enabled));
     } catch (err) {
       setError((err as Error).message);
@@ -644,7 +657,7 @@ function ApiKeyBox({ offline, settings, onChange, toast }: { offline: boolean; s
     try {
       const after = await api.removeApiKey();
       setRemoving(false);
-      onChange(after);
+      settingsSaved(qc, after, 'apiKey');
       toast(after.api_key.set ? 'Key removed from the keychain. The one in ANTHROPIC_API_KEY is still used.' : 'Key removed');
     } catch (err) {
       setError((err as Error).message);
@@ -699,7 +712,8 @@ function ApiKeyBox({ offline, settings, onChange, toast }: { offline: boolean; s
 
 /** Which route to Claude is tried first. Choices that put the key first need a key; the key is still only used once
  * it is allowed with a monthly limit. */
-function RouteOrderChoice({ offline, settings, onChange, toast }: { offline: boolean; settings: Settings; onChange(s: Settings): void; toast(m: string, k?: 'ok' | 'error'): void }) {
+function RouteOrderChoice({ offline, settings, toast }: { offline: boolean; settings: Settings; toast: Toast }) {
+  const saveSettings = useSaveSettings();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const group = useId();
@@ -709,7 +723,7 @@ function RouteOrderChoice({ offline, settings, onChange, toast }: { offline: boo
     setBusy(true);
     setError(null);
     try {
-      onChange(await api.putSettings({ tagging_route_order: order }));
+      await saveSettings({ tagging_route_order: order });
       toast('Saved');
     } catch (e) {
       setError((e as Error).message);
@@ -734,25 +748,16 @@ function RouteOrderChoice({ offline, settings, onChange, toast }: { offline: boo
   );
 }
 
-function ApiKeySpend({ offline, settings, onChange, toast }: { offline: boolean; settings: Settings; onChange(s: Settings): void; toast(m: string, k?: 'ok' | 'error'): void }) {
-  const [spend, setSpend] = useState<TaggingSpend | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+/** The API key's monthly limit and what it has cost. The spending comes with the settings, so it is drawn with them
+ * and follows every save. */
+function ApiKeySpend({ offline, settings, toast }: { offline: boolean; settings: Settings; toast: Toast }) {
+  const saveSettings = useSaveSettings();
+  const spend = useQuery<TaggingSpend>({ queryKey: queryKeys.spend(), queryFn: api.tagSpend, enabled: false }).data ?? settings.tagging_spend;
   const [cap, setCap] = useState(settings.tagging_api_cap_usd !== null ? String(settings.tagging_api_cap_usd) : '');
   const [capError, setCapError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const saved = settings.tagging_api_cap_usd;
 
-  useEffect(() => {
-    if (offline) return;
-    let current = true;
-    api.tagSpend().then(
-      (s) => { if (current) { setSpend(s); setLoadError(null); } },
-      (e) => current && setLoadError((e as Error).message),
-    );
-    return () => {
-      current = false;
-    };
-  }, [offline, settings]);
   useEffect(() => setCap(saved !== null ? String(saved) : ''), [saved]);
 
   /** The limit typed, in dollars, or null after saying what is wrong. */
@@ -769,7 +774,7 @@ function ApiKeySpend({ offline, settings, onChange, toast }: { offline: boolean;
 
   async function save(changes: { tagging_api_enabled?: boolean; tagging_api_cap_usd?: number }, said: string) {
     try {
-      onChange(await api.putSettings(changes));
+      await saveSettings(changes);
       setCapError(null);
       toast(said);
     } catch (e) {
@@ -781,7 +786,7 @@ function ApiKeySpend({ offline, settings, onChange, toast }: { offline: boolean;
   return (
     <div className="api-spend" data-testid="api-spend">
       {settings.tagging_api_off && <p className="form-error" role="alert">{turnedOffLine(settings.tagging_api_off)}</p>}
-      <RouteOrderChoice offline={offline} settings={settings} onChange={onChange} toast={toast} />
+      <RouteOrderChoice offline={offline} settings={settings} toast={toast} />
       <Toggle label="Allow the API key"
         hint="Lets Closet use your API key, in the order chosen above. Each photo is billed to your Anthropic account, and Closet stops before this month's spending would pass the limit below."
         checked={settings.tagging_api_enabled} disabled={offline}
@@ -808,7 +813,6 @@ function ApiKeySpend({ offline, settings, onChange, toast }: { offline: boolean;
             </label>
             <button className="btn" type="submit" disabled={offline || cap.trim() === '' || parsePrice(cap) === Math.round((saved ?? -1) * 100)}>Save limit</button>
           </form>
-          {loadError && <p className="form-error">Couldn't work out what the API key has cost: {loadError}</p>}
           {spend && (
             <>
               {saved === null && <p className="hint">{suggestionLine(spend.suggested_cap_usd, spend.per_photo_usd, spend.prices_checked)}</p>}

@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { addedLine, addedState } from '../added';
 import { itemPath, Link } from '../router';
-import { useCloset } from '../store';
+import { useModel } from '../queries';
 import type { ItemSummary } from '../types';
 import { busyLabel } from '../screens/Closet';
 import { ChevronIcon, ImagesIcon, WarnIcon } from './Icons';
@@ -23,7 +23,7 @@ export function AddedPicture({ item, fallback }: { item: ItemSummary | null; fal
 
 /** What the item is called once Claude has described it, or how far it has got, in the item page's words. */
 export function AddedTitle({ item }: { item: ItemSummary }) {
-  const { model } = useCloset();
+  const model = useModel();
   const state = addedState(item);
   return (
     <span className={`queue-title is-${state}`} data-testid="queue-title">

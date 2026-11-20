@@ -32,7 +32,7 @@ a real closet is never touched.
 | Area | Modules |
 | --- | --- |
 | The program | `cli.py` (entry point: start, restore, backup, reset-passphrase), `config.py` (where things live, from the environment), `state.py` (program-wide settings in one JSON file; `DEFAULTS` lists every key), `instance.py` (one copy at a time, and its port), `window.py`, `window_mac.py` (Closet's own window), `tray.py`, `autostart.py`, `net.py` (outbound HTTPS in the packaged program), `updates.py` (checking for a release, fetching it, swapping it in). |
-| The web API | `app.py`: `build_services` wires the settings, the database and every background worker (tests pass stand-ins here), and `create_app` defines every route. `gate.py` (login and size limits, before a body is read), `limits.py`, `auth.py` (one passphrase, sessions), `phone.py` (the Tailscale address for the phone). |
+| The web API | `app.py`: `build_services` wires the settings, the database and every background worker (tests pass stand-ins here), and `create_app` defines every route. `gate.py` (login and size limits, before a body is read), `limits.py`, `auth.py` (one passphrase, sessions), `phone.py` (the Tailscale address for the phone, looked up in the background by `phone.Watch`). |
 | Data | `db.py` (SQLite, and migrations by `PRAGMA user_version`), `migrations/NNNN_name.sql`, `items.py` (reading and changing items), `images.py` (a photo into the files the closet keeps), `backup.py`, `storage.py`, `demo.py` and `demo_data/` (the demo closet, a database of its own). |
 | A photo becomes an item | `jobs.py` (the cutout queue, in the `jobs` table), `cutout.py`, `modelstore.py` (the background-removal models), `tagjobs.py` (the queue that asks Claude to describe an item, and `apply_answer`), `illustrations.py` (each item's drawing, kept up to date), `patjobs.py` (measuring a pattern), `palette.py`, `sources.py` (several items from one photo), `failures.py` (why a step failed, in words safe to show). |
 | What an item is | `kinds.py` (its kind, from the taxonomy), `vocab.py` (the small coarse vocabulary), `details.py` (the details the owner can set), `corrections.py` (picking a detail, saying what is wrong, undo), `history.py`, `review.py` (the review queue). |
@@ -78,8 +78,13 @@ PyInstaller build and its smoke test).
 | `src/main.tsx`, `src/App.tsx` | Start-up: first run, login, the "can't reach Closet" screens. |
 | `src/Shell.tsx` | The frame: sidebar on a computer, tab bar on a phone, the banners, and which screen a route shows. `src/nav.ts` says which link is lit. |
 | `src/router.tsx` | The router, written by hand: `parseRoute` (every route), `navigate`, `Link`, `itemPath`, the `WIDE` media query. |
-| `src/store.tsx` | `useCloset`: the items, the vocabulary, the model's state, offline, the open closet (real or demo), the toast. It polls while items are being worked on. |
+| `src/store.tsx` | `ClosetProvider`: the open closet's query cache, `useApp()` (which closet, offline, the toast, switching closets, logging out), and the one poll of the closet's list while items are worked on. |
 | `src/api.ts` | The one client, `api.*`, with a readable `ApiError`, and what a closing page may still send. `src/types.ts` has the response types, kept by hand. |
+| `src/queryKeys.ts` | Every query key, and `TOUCHES`: which keys each kind of edit makes stale. Keys are made here and nowhere else. |
+| `src/settings.ts` | The settings read, which also fills the model, updates, style and spend keys; the slow checks Settings makes beside it; what a settings save has already written; when to ask again for the phone's address. `src/savedCopy.ts` chooses between what was read and this device's copy. |
+| `src/queryClient.ts` | The query cache's defaults (fresh for a minute, asked again on coming back after 10 seconds away). |
+| `src/queries.ts` | The queries more than one screen reads (`useItems`, `useItemSummary`, `itemQuery`, `useVocab`, `useModel`, …), writing a saved item into the cache (`itemSaved`, `writeItem`, `dropItem`), saving (`useEdit`, `useItemEdit`) and `usePoll`. |
+| `src/work.ts` | How often to ask again while work runs (`closetPoll`, `itemPoll`), as pure functions. |
 | `src/screens/` | One file per screen, with its CSS beside it: `Today`, `Worn`, `Closet`, `ItemDetail`, `Add`, `Several`, `Review`, `Missing`, `WouldWork`, `Shop`, `Insights`, `Trips`, `Settings`, and `Setup`, `Login`, `Static` before the shell. |
 | `src/components/ui/` | The shared pieces every screen is built from, exported from `index.ts`: `Button`, `Card` and `Section`, `Chips`, `EmptyState`, `ItemThumb`, `Markdown` (a small safe part of Markdown, read by `src/markdown.ts`, drawn as text), `Notice`, `PageHeader`, `SegmentedControl`, `Sheet` (and `PHONE`, the phone-or-wider query), with `focus.ts` for keeping Tab inside what is open. |
 | `src/components/` | Pieces used by more than one screen or too big to sit in one: `FixDetails`, `KindPicker`, `ItemPic`, `OutfitFigure`, the shoe pieces (`ShoePhotos`, `ShoeTrace`, `ShoeDrawn`), `LifeQuestions`, `WhereYouAre`, `PhoneAccess`, `Updates`, `ModelBanner`, `RestoreNotice`, `RetakeButton`, `AddedItem`, `Icons`. |
@@ -212,7 +217,8 @@ direction is fewer places, so a new card on an existing screen is the usual answ
 
 1. The route in `parseRoute` (`src/router.tsx`), and its section in `src/nav.ts`.
 2. `src/screens/<Name>.tsx`, built from `components/ui/`: a `PageHeader`, then `Section`s.
-   Its words and decisions in `src/<name>.ts` with a test.
+   Its words and decisions in `src/<name>.ts` with a test. Its data read and saved as *Reading and
+   saving data* says.
 3. The branch in `Shell.tsx` that shows it, and the link that reaches it.
 4. Its route in `scripts/phone-check.mjs`.
 5. One browser test for what the owner does there, and the screen added to the lists in
@@ -220,14 +226,66 @@ direction is fewer places, so a new card on an existing screen is the usual answ
 6. A paragraph in `docs/USING.md`, a line in `CHANGELOG.md` under Unreleased, and the
    owner's steps in `README.md` if there are any.
 
+## Reading and saving data
+
+The page reads through TanStack Query. Why, and the numbers: [DECISIONS.md](DECISIONS.md), "Data loading".
+
+- **Keys.** Every key is made by a function in `src/queryKeys.ts`, whose first element is its own name
+  (`queryKeys.trip(id)` is `['trip', id]`). A screen never writes a key by hand. A new read gets its key there
+  first, and the edits that change it list its name in `TOUCHES`.
+- **Reading.** `useQuery({ queryKey: queryKeys.x(), queryFn: api.x })` in the screen; a query more than one screen
+  reads goes in `src/queries.ts` as an options function or a hook. Gate the screen once on its main query
+  (`if (!data) return <Loading />`), then draw everything together. What was read stays fresh for a minute, so
+  coming back to the screen shows it at once. Data that changes behind the owner's back (an item while work runs)
+  can ask for `staleTime: 0` or `refetchOnMount: 'always'`: what is kept still shows first.
+- **The open closet.** `useApp()` gives the closet (real or demo), offline, the toast and the actions on the closet
+  as a whole. Each closet has its own cache, so no key needs the closet in it.
+- **Saving.** A save names its kind of edit, and what that kind touches is made stale after it succeeds:
+  `const save = useEdit('trip'); await save(() => api.patchTrip(id, changes))`. A save that answers with the item
+  uses `useItemEdit()` (or `itemSaved(qc, item)` when the call is already made): the item is written into the
+  lists and its own entry, and the rest is made stale. Put an answer you already have in with
+  `qc.setQueryData(queryKeys.x(), answer)` rather than asking again. The screen still says "Saved" or the error.
+- **Polling while work runs.** Decide how often as a pure function of the data, in `src/<feature>.ts` with a test
+  (as `src/work.ts` does). When only one screen watches the query, give it
+  `refetchInterval: (q) => (running(q.state.data) ? 2000 : false)`. When several screens show the same data, poll
+  once, in one place, with `usePoll(ms, tick)` (the closet's list is polled in `ClosetProvider`, so a screen never
+  polls items itself). A tick asks with `{ cancelRefetch: false }`, so a slow answer is not called off.
+- **Offline.** A query keeps what it had when a read fails; `useApp().offline` says Closet cannot be reached.
+  Coming back online asks again for everything on screen.
+
+Moving a screen off `useEffect`, for example:
+
+```tsx
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../api';
+import { useEdit } from '../queries';
+import { queryKeys } from '../queryKeys';
+import { useApp } from '../store';
+
+export function TripsScreen() {
+  const { offline, toast } = useApp();
+  const trips = useQuery({ queryKey: queryKeys.trips(), queryFn: api.trips, enabled: !offline });
+  const save = useEdit('trip');
+  if (!trips.data) return trips.error ? <p role="alert">{trips.error.message}</p> : <Loading />;
+  const remove = (id: string) => save(() => api.removeTrip(id)).then(() => toast('Removed'), (e: Error) => toast(e.message, 'error'));
+  // ...lay out trips.data
+}
+```
+
 ## Adding an endpoint
 
 1. The work, as a function in the feature's module, tested there.
 2. The route in `create_app` (`app.py`), beside the feature's other routes, with
    `dependencies=protected` unless it has to answer before login. The request body is a
-   Pydantic model; what comes back is a plain dict.
+   Pydantic model; what comes back is a plain dict. Make the route a plain `def` (FastAPI runs
+   it on a worker thread). An `async def` route runs on the one event loop, so it must not
+   draw, decode a photo, start a command, ask Claude or write to the closet itself: it awaits
+   the body, then hands that work to `run_in_threadpool` (the `conn` from `conn_dep` may be
+   used there). Anything Settings shows that is quick to read goes into `settings_payload`
+   as well.
 3. If it takes an upload, its limit in `limits.py`.
-4. The call in `src/api.ts` and its type in `src/types.ts`.
+4. The call in `src/api.ts` and its type in `src/types.ts`; for a read, its key in `src/queryKeys.ts`, and for a
+   save, its kind of edit in `TOUCHES` (see *Reading and saving data*).
 5. One success and one test per refusal, through `TestClient`.
 6. Its entry in `docs/API.md`.
 
@@ -252,6 +310,9 @@ say so. There is no `0002`. The demo closet is a database too and is migrated th
 5. What the page says about it is one phrase in one place. The assessment's step 5 is one
    progress model for all of this; until it lands, reuse the words in `src/tagging.ts` and
    `src/added.ts`, don't add a fifth set.
+6. If the page should follow it, the closet's poll (`closetPoll` in `src/work.ts`) needs to know when it runs:
+   from the item's summary when the list carries its state, else from the full item, as measuring a pattern
+   does today.
 
 ## Releasing
 

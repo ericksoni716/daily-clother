@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { forgetSaved, keptFor, type WornToday } from './today';
 import {
-  dismiss, loadDismissed, loadSavedWorn, pendingQuestion, pieceName, questionFor, ratingLabel, ratingSummary, reasonLabel, REASONS,
-  saveWorn, wornIds, type WornOutfit,
+  dismiss, joinPages, loadDismissed, loadSavedWorn, pendingQuestion, pieceName, questionFor, ratingLabel, ratingSummary, reasonLabel, REASONS,
+  saveWorn, withOutfit, withoutOutfit, withRecorded, wornIds, type WornOutfit,
 } from './worn';
 
 const worn = (id: string, worn_on: string, over: Partial<WornOutfit> = {}): WornOutfit => ({
@@ -93,5 +93,31 @@ describe('the worn list saved for offline', () => {
     expect(loadSavedWorn('main', kv)).toBeNull();
     kv.setItem('closet-today-saved:worn-list:main', JSON.stringify({ saved_at: 'x', page: {} }));
     expect(loadSavedWorn('main', kv)).toBeNull();
+  });
+});
+
+describe('pages of worn outfits changed by a save', () => {
+  const page = (...outfits: WornOutfit[]) => ({ outfits, next: null });
+
+  it('joins the pages in order, each outfit once where a page read again overlaps the next', () => {
+    const [a, b, c] = [worn('a', '2026-11-20'), worn('b', '2026-11-19'), worn('c', '2026-11-18')];
+    expect(joinPages([page(a, b), page(b, c), undefined]).map((o) => o.id)).toEqual(['a', 'b', 'c']);
+    expect(joinPages([])).toEqual([]);
+  });
+
+  it('puts a rated outfit in its place and takes a removed one out, leaving a page without it as it was', () => {
+    const p = page(worn('a', '2026-11-20'), worn('b', '2026-11-19'));
+    const rated = worn('b', '2026-11-19', { rating: 'loved' });
+    expect(withOutfit(p, rated).outfits.map((o) => o.rating)).toEqual([null, 'loved']);
+    expect(withOutfit(p, worn('z', '2026-11-01'))).toBe(p);
+    expect(withoutOutfit(p, 'a').outfits.map((o) => o.id)).toEqual(['b']);
+    expect(withoutOutfit(p, 'z')).toBe(p);
+  });
+
+  it('puts an outfit recorded by hand by its day, newest first, before others of the same day', () => {
+    const p = page(worn('a', '2026-11-20'), worn('b', '2026-11-18'));
+    expect(withRecorded(p, worn('n', '2026-11-19')).outfits.map((o) => o.id)).toEqual(['a', 'n', 'b']);
+    expect(withRecorded(p, worn('n', '2026-11-20')).outfits.map((o) => o.id)).toEqual(['n', 'a', 'b']);
+    expect(withRecorded(p, worn('n', '2026-11-01')).outfits.map((o) => o.id)).toEqual(['a', 'b', 'n']);
   });
 });

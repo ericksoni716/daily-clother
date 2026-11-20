@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
-import { api, ApiError } from '../api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { api } from '../api';
 import { SearchIcon } from '../components/Icons';
 import { Button, buttonClass, Card, Notice } from '../components/ui';
 import type { Wish } from '../gaps';
-import { dropWords, type Find, type FindsAnswer, priceWords, rangeWords, SHOP_POLL_MS, typedPrice, webLink } from '../shop';
+import { dropWords, type Find, priceWords, rangeWords, shopPoll, typedPrice, webLink } from '../shop';
 import { aboutUsd } from '../spend';
-import { useCloset } from '../store';
+import { queryKeys } from '../queryKeys';
+import { useApp } from '../store';
 import { verdictTone } from '../wouldwork';
 
 const DEMO_TITLE = 'The demo closet never sends anything to Claude, so it cannot search shops';
@@ -14,32 +16,24 @@ type PriceChange = { price_min: number | null; price_max: number | null; price_c
 
 /** On a wish: its price range, "Find some", the products kept and how each would work with the closet. */
 export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolean; onPrice(w: Wish, changes: PriceChange): Promise<boolean> }) {
-  const { toast } = useCloset();
-  const [answer, setAnswer] = useState<FindsAnswer | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [starting, setStarting] = useState(false);
+  const { toast } = useApp();
+  const qc = useQueryClient();
+  const key = queryKeys.finds(wish.id);
+  // Asked again every few seconds while a search or a price check runs, and not at all otherwise; never while the
+  // page is hidden. Reading never starts one: only the owner does, below.
+  const answer = useQuery({
+    queryKey: key, queryFn: () => api.finds(wish.id), enabled: !locked,
+    refetchInterval: (q) => shopPoll(q.state.data),
+  }).data ?? null;
+  // Starting a search or a price check asks Claude (it costs money): only ever by the owner's tap.
+  const begin = useMutation({
+    mutationFn: (kind: 'find' | 'prices') => (kind === 'find' ? api.findSome(wish.id) : api.checkPrices(wish.id)),
+    onSuccess: (a) => qc.setQueryData(key, a),
+  });
+  const starting = begin.isPending;
+  const error = begin.error ? begin.error.message : null;
   const running = answer?.run?.state === 'running';
   const wasRunning = useRef(false);
-
-  const load = useCallback(async () => {
-    try {
-      const a = await api.finds(wish.id);
-      setAnswer(a);
-      return a;
-    } catch {
-      return null;
-    }
-  }, [wish.id]);
-
-  useEffect(() => {
-    if (!locked) void load();
-  }, [load, locked]);
-
-  useEffect(() => {
-    if (!running) return;
-    const t = window.setInterval(() => void load(), SHOP_POLL_MS);
-    return () => window.clearInterval(t);
-  }, [running, load]);
 
   useEffect(() => {
     const run = answer?.run;
@@ -51,22 +45,15 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
     wasRunning.current = run?.state === 'running';
   }, [answer, toast, wish.name]);
 
-  async function start(kind: 'find' | 'prices') {
-    setStarting(true);
-    setError(null);
-    try {
-      setAnswer(kind === 'find' ? await api.findSome(wish.id) : await api.checkPrices(wish.id));
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : (e as Error).message);
-    } finally {
-      setStarting(false);
-    }
+  function start(kind: 'find' | 'prices') {
+    begin.mutate(kind);
   }
 
   async function remove(f: Find) {
     try {
       await api.removeFind(wish.id, f.id);
-      await load();
+      // only this wish's finds changed
+      await qc.invalidateQueries({ queryKey: key, exact: true });
     } catch (e) {
       toast((e as Error).message, 'error');
     }
@@ -81,12 +68,12 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
     <section className="wish-shop" aria-label={`Shopping for ${wish.name}`}>
       <PriceRange wish={wish} locked={locked} onPrice={onPrice} />
       <div className="row wish-shop-actions">
-        <Button small data-testid="find-some" disabled={disabled} title={title} onClick={() => void start('find')}>
+        <Button small data-testid="find-some" disabled={disabled} title={title} onClick={() => start('find')}>
           <SearchIcon /> {finds.length ? 'Find more' : 'Find some'}
         </Button>
         {finds.length > 0 && (
           <Button variant="ghost" small data-testid="check-prices" disabled={disabled} title={title}
-            onClick={() => void start('prices')}>Check prices</Button>
+            onClick={() => start('prices')}>Check prices</Button>
         )}
       </div>
       {demo && <p className="muted wish-shop-line">The demo closet never searches shops. Open your own closet to look for this.</p>}

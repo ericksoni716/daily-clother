@@ -158,7 +158,7 @@ to tick off, on the computer or the phone.
 
 ## Settings
 
-`/settings`. One column of groups, all open:
+`/settings`. One column of groups, all open, shown together once the settings are in:
 
 - **Your closet**: the demo closet switch, start with the computer, laundry (worn clothes go to
   the laundry by themselves, and laundry day), how many wears each kind of clothing takes
@@ -175,7 +175,9 @@ to tick off, on the computer or the phone.
   never check, Check now, what is new in a release (folded until you open it), and Install.
 - **Phone access**: on the computer, the address to open on the iPhone and its QR code,
   once Tailscale is sharing Closet. On the phone, one line on adding Closet to the Home
-  Screen, and nothing when it is opened from there.
+  Screen, and nothing when it is opened from there. While Settings is open on the computer and
+  the phone is not connected yet, it checks again every few seconds, so a share you set up
+  in the Terminal appears by itself.
 - **Advanced** (closed until opened): where the background-removal files come from and
   where to put them by hand, the data folder, the version.
 - Log out, and Quit Closet.

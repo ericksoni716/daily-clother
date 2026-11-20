@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CloseIcon, DrawingIcon, FilterIcon, HangerIcon, ImagesIcon, SearchIcon, WarnIcon } from '../components/Icons';
 import { ModelBanner } from '../components/ModelBanner';
 import { Button, buttonClass, EmptyState, Notice, PageHeader, SegmentedControl, Sheet } from '../components/ui';
@@ -7,7 +8,8 @@ import { setLaundryMany } from '../laundry';
 import { groupsIn, groupTitle, kindsOf, type KindGroup } from '../kinds';
 import { categoryPlural, label, tileCaption } from '../labels';
 import { itemPath, Link, navigate } from '../router';
-import { useCloset } from '../store';
+import { itemSaved, itemsQuery, useModel, useVocab } from '../queries';
+import { useApp } from '../store';
 import type { ItemSummary, Laundry, ModelInfo } from '../types';
 import { ItemDetail } from './ItemDetail';
 
@@ -26,9 +28,15 @@ const NO_FILTERS: Filters = { category: null, group: null, kind: null, query: ''
 const filterMemory = new Map<string, Filters>();
 
 export function ClosetScreen({ status, selectedId, wide, toReview = null }: Props) {
-  const { items, loadItems, loadError, model, profile, vocab, offline, upsert, toast } = useCloset();
+  const { profile, offline, toast } = useApp();
+  const qc = useQueryClient();
+  // asked for again each time the closet opens (what is kept shows at once meanwhile): it is the main screen
+  const items = useQuery({ ...itemsQuery(status), refetchOnMount: 'always' });
+  const model = useModel();
+  const vocab = useVocab();
   const [washing, setWashing] = useState(false);
-  const list = items[status];
+  const list = items.data ?? null;
+  const loadError = items.error ? items.error.message : null;
   const memoryKey = `${profile}:${status}`;
   const kept = filterMemory.get(memoryKey) ?? NO_FILTERS;
   const [category, setCategory] = useState<string | null>(kept.category);
@@ -44,10 +52,6 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const [panelTop, setPanelTop] = useState(0);
   const filterButton = useRef<HTMLButtonElement>(null);
   const layout = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    void loadItems(status);
-  }, [status, loadItems]);
 
   const categories = useMemo(() => {
     const seen = new Map<string, number>();
@@ -84,10 +88,10 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const panel = wide && selectedId !== null;
 
   // The panel scrolls with the page, so it opens level with where the owner is looking, not at the top of the grid.
-  const choose = () => {
+  const choose = useCallback(() => {
     if (!wide || !layout.current) return;
     setPanelTop(Math.max(0, Math.round(16 - layout.current.getBoundingClientRect().top)));
-  };
+  }, [wide]);
 
   const grid = (
     <section className="closet-main" aria-labelledby="closet-title">
@@ -104,7 +108,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
       {status === 'active' && list && <LaundryNotice inLaundry={list.filter((it) => it.laundry === 'laundry')} showing={activeLaundry === 'laundry'}
         busy={washing} offline={offline} onShow={() => setLaundry('laundry')} onAllClean={(pieces) => {
           setWashing(true);
-          void setLaundryMany(pieces.map((it) => it.id), 'clean', upsert)
+          void setLaundryMany(pieces.map((it) => it.id), 'clean', (item) => itemSaved(qc, item, 'laundry'))
             .then((failed) => toast(failed ? `${failed} could not be marked clean. Try again.` : `${pieces.length === 1 ? 'Marked' : `All ${pieces.length} marked`} clean`, failed ? 'error' : 'ok'))
             .finally(() => setWashing(false));
         }} />}
@@ -298,7 +302,8 @@ export function busyLabel(model: ModelInfo | null): string {
   return model && model.state !== 'ready' ? 'Waiting for the model' : 'Removing background…';
 }
 
-function Tile({ item, status, selected, model, view, onChoose }: {
+/** One tile of the grid. Memoised: a poll or a save that changes one item draws that item's tile only. */
+const Tile = memo(function Tile({ item, status, selected, model, view, onChoose }: {
   item: ItemSummary; status: 'active' | 'archived'; selected: boolean; model: ModelInfo | null; view: GridView; onChoose(): void;
 }) {
   const name = item.name || label('category', item.category) || 'New item';
@@ -317,7 +322,7 @@ function Tile({ item, status, selected, model, view, onChoose }: {
       <span className="tile-caption">{caption || ' '}</span>
     </Link>
   );
-}
+});
 
 /** The picture the closet grid shows for an item (also used by Insights). */
 export function TilePicture({ item, view }: { item: ItemSummary; view: GridView }) {
@@ -330,7 +335,7 @@ export function TilePicture({ item, view }: { item: ItemSummary; view: GridView 
 }
 
 function EmptyCloset({ demo }: { demo: boolean }) {
-  const { switchProfile, toast, offline } = useCloset();
+  const { switchProfile, toast, offline } = useApp();
   return (
     <EmptyState big icon={<HangerIcon />} title={demo ? 'The demo closet is empty' : 'Your closet is empty'}
       body="Take a photo of a piece of clothing and Closet will cut it out and keep it here.">

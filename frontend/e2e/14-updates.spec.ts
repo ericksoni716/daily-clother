@@ -49,20 +49,29 @@ function standIn(over: Record<string, unknown> = {}) {
   };
 }
 
+/** Settings bring the updates' status with them (GET /api/settings), so the stand-in is put there too. */
+async function standInSettings(page: Page, answer: () => Record<string, unknown>) {
+  await page.route('**/api/settings', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const response = await route.fetch();
+    return route.fulfill({ response, json: { ...(await response.json()), updates: answer() } });
+  });
+}
+
 test('updates (stand-in): the banner offers the new version, Install restarts Closet and the page reconnects', async ({ page }) => {
   let phase: 'ready' | 'installing' | 'done' = 'ready';
   let health = 0;
   let checks = 0;
-  await page.route('**/api/updates', (route) => {
-    if (phase === 'ready') return route.fulfill({ json: standIn() });
-    if (phase === 'installing') return route.fulfill({ json: standIn({ busy: 'restarting' }) });
-    return route.fulfill({
-      json: standIn({
-        version: '0.3.0', latest: '0.3.0', available: null, ready: false, download_size: null,
-        last_install: { at: '2026-11-13T09:05:00Z', from: '0.2.1', to: '0.3.0', ok: true, note: null },
-      }),
+  const answer = () => {
+    if (phase === 'ready') return standIn();
+    if (phase === 'installing') return standIn({ busy: 'restarting' });
+    return standIn({
+      version: '0.3.0', latest: '0.3.0', available: null, ready: false, download_size: null,
+      last_install: { at: '2026-11-13T09:05:00Z', from: '0.2.1', to: '0.3.0', ok: true, note: null },
     });
-  });
+  };
+  await page.route('**/api/updates', (route) => route.fulfill({ json: answer() }));
+  await standInSettings(page, answer);
   await page.route('**/api/updates/check', (route) => {
     checks += 1;
     return route.fulfill({ json: standIn() });
@@ -122,10 +131,10 @@ test('updates (stand-in): a problem before restarting is shown and Closet keeps 
   let phase: 'ready' | 'failed' = 'ready';
   // a release from before the notes had a What's new section: the server sends no notes
   const available = { ...RELEASE, notes: '' };
-  await page.route('**/api/updates', (route) => route.fulfill({
-    json: phase === 'ready' ? standIn({ available })
-      : standIn({ available, ready: false, problem: "Closet couldn't back up your closets, so it didn't install the update." }),
-  }));
+  const answer = () => (phase === 'ready' ? standIn({ available })
+    : standIn({ available, ready: false, problem: "Closet couldn't back up your closets, so it didn't install the update." }));
+  await page.route('**/api/updates', (route) => route.fulfill({ json: answer() }));
+  await standInSettings(page, answer);
   await page.route('**/api/updates/install', (route) => {
     phase = 'failed';
     return route.fulfill({ status: 202, json: standIn({ busy: 'backing-up' }) });

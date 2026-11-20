@@ -1,15 +1,18 @@
-import { useEffect, useId, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
-import { api, ApiError } from '../api';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { api, type ApiError } from '../api';
 import { Card, ChipGroup, EmptyState, ItemThumb, PageHeader } from '../components/ui';
 import { CameraIcon, CheckIcon, HangerIcon, ImagesIcon, PlusIcon, WarnIcon } from '../components/Icons';
 import { itemName, Pieces } from '../components/ItemPic';
 import type { Wish } from '../gaps';
 import { navigate } from '../router';
-import { useCloset } from '../store';
+import { useVocab } from '../queries';
+import { queryKeys } from '../queryKeys';
+import { useApp } from '../store';
 import { placeLabel, wornOrder } from '../today';
-import type { ItemSummary } from '../types';
+import type { ItemSummary, Vocab } from '../types';
 import {
-  CANDIDATE_ID, type Check, checkKinds, fillNote, fillWords, isDone, noteFor, pieceFromLook, pieceToSend, POLL_MS, stillToChoose, verdictTone, waitingWords,
+  CANDIDATE_ID, type Check, checkKinds, checkPoll, fillNote, fillWords, isDone, noteFor, pieceFromLook, pieceToSend, stillToChoose, verdictTone, waitingWords,
   WEIGHTS, weightLabel, wishFrom, type WouldAnswer, type WouldPiece, wornWords,
 } from '../wouldwork';
 import './WouldWork.css';
@@ -62,11 +65,32 @@ export interface WouldWorkProps {
 }
 
 export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, onBought, wide = false }: WouldWorkProps) {
-  const { profile, vocab, toast } = useCloset();
+  const { profile, toast } = useApp();
+  const vocab = useVocab();
   const remembered = memory && memory.profile === profile && memory.wishId === wishId ? memory : null;
   const [draft, setDraft] = useState<Partial<WouldPiece>>(remembered?.draft ?? pieceFromLook(wish?.look_for));
-  const [stage, setStage] = useState<Stage>(() => openingStage(remembered));
-  const [wished, setWished] = useState(() => stage.kind === 'check' && wishedChecks.has(stage.check.id));
+  const [held, setStage] = useState<Stage>(() => openingStage(remembered));
+  const [wished, setWished] = useState(() => held.kind === 'check' && wishedChecks.has(held.check.id));
+
+  // How the check is getting on: asked every moment until it is answered (more slowly while Closet cannot be reached
+  // for a moment), never while the page is hidden, and never again once answered. The check the server sent back
+  // when it started is what shows first. Reading never starts a check: only the owner does, below.
+  const started = held.kind === 'check' ? held.check : null;
+  const followed = useQuery({
+    queryKey: queryKeys.wouldWork(started?.id ?? ''),
+    queryFn: ({ signal }) => api.check(started!.id, signal),
+    enabled: started !== null,
+    initialData: started ?? undefined,
+    staleTime: Infinity,   // asked again only by the poll
+    refetchInterval: (q) => checkPoll(q.state.data, q.state.error as ApiError | null),
+  });
+  const latest = followed.data;
+  const stage = useMemo<Stage>(() => (started && latest?.id === started.id ? { kind: 'check', check: latest } : held), [started, latest, held]);
+  // the server has forgotten the check (Closet was restarted): back to the form, saying so
+  const forgotten = started && (followed.error as ApiError | null)?.status === 404 ? followed.error!.message : null;
+  useEffect(() => {
+    if (forgotten) setStage({ kind: 'form', error: forgotten });
+  }, [forgotten]);
   const titleId = useId();
   const demo = profile === 'demo';
 
@@ -94,31 +118,6 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
       live = false;
     };
   }, [stage.kind, profile, wishId]);
-
-  // ask how the check is getting on until it is answered
-  const checkId = stage.kind === 'check' && !isDone(stage.check.state) ? stage.check.id : null;
-  useEffect(() => {
-    if (!checkId) return;
-    const ctrl = new AbortController();
-    let timer = 0;
-    const ask = async () => {
-      try {
-        const check = await api.check(checkId, ctrl.signal);
-        setStage((s) => (s.kind === 'check' && s.check.id === checkId ? { kind: 'check', check } : s));
-        if (!isDone(check.state)) timer = window.setTimeout(ask, POLL_MS);
-      } catch (e) {
-        if ((e as Error)?.name === 'AbortError') return;
-        const err = e as ApiError;
-        if (err.status === 404) setStage({ kind: 'form', error: err.message });
-        else timer = window.setTimeout(ask, POLL_MS * 2);   // unreachable for a moment: keep asking
-      }
-    };
-    timer = window.setTimeout(ask, POLL_MS);
-    return () => {
-      ctrl.abort();
-      window.clearTimeout(timer);
-    };
-  }, [checkId]);
 
   function start(run: () => Promise<Check>) {
     const result = run().then(
@@ -247,7 +246,7 @@ function Waiting({ words }: { words: string }) {
 
 function Describe({ draft, setDraft, error, demo, locked, kinds, vocab, onPhoto, onSubmit }: {
   draft: Partial<WouldPiece>; setDraft(d: Partial<WouldPiece>): void; error: string | null; demo: boolean; locked: boolean;
-  kinds: string[]; vocab: ReturnType<typeof useCloset>['vocab']; onPhoto(e: ChangeEvent<HTMLInputElement>): void; onSubmit(e: FormEvent): void;
+  kinds: string[]; vocab: Vocab | null; onPhoto(e: ChangeEvent<HTMLInputElement>): void; onSubmit(e: FormEvent): void;
 }) {
   const camera = useRef<HTMLInputElement>(null);
   const library = useRef<HTMLInputElement>(null);

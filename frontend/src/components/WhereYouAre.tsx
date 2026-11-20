@@ -1,8 +1,10 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { api } from '../api';
 import { formatDateTime } from '../labels';
 import { locate } from '../location';
-import type { Place, Settings, WeatherLookup } from '../types';
+import { settingsSaved, weatherQuery } from '../settings';
+import type { Place, Settings } from '../types';
 import { weatherLine } from '../weather';
 
 type Toast = (m: string, k?: 'ok' | 'error') => void;
@@ -13,10 +15,12 @@ const samePlace = (a: Place | null | undefined, b: Place | null | undefined) =>
 /**
  * Where you are: search for a place by name or use the browser's location (only on a tap), choose one, see today's
  * weather for it, go back to New York. In Settings, and inline on Today (`inline`: without the weather and the way back).
+ * A place chosen is written into the settings kept by the page (and the weather asked again); `onChange` also gets them.
  */
 export function WhereYouAre({ place, home, offline, onChange, toast, inline }: {
-  place: Place | null | undefined; home?: Place | null; offline: boolean; onChange(s: Settings): void; toast: Toast; inline?: boolean;
+  place: Place | null | undefined; home?: Place | null; offline: boolean; onChange?(s: Settings): void; toast: Toast; inline?: boolean;
 }) {
+  const qc = useQueryClient();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Place[] | null>(null);
   const [searched, setSearched] = useState('');
@@ -59,7 +63,8 @@ export function WhereYouAre({ place, home, offline, onChange, toast, inline }: {
     setError(null);
     try {
       const saved = await api.putSettings({ place: next });
-      onChange(saved);
+      settingsSaved(qc, saved, 'settings', { place: next });
+      onChange?.(saved);
       setResults(null);
       setQuery('');
       toast(next ? `Saved: ${saved.place?.name ?? next.name}` : `Back to ${saved.place?.name ?? 'New York'}`);
@@ -83,7 +88,7 @@ export function WhereYouAre({ place, home, offline, onChange, toast, inline }: {
           <span>{isHome ? 'Using' : 'Saved'}: <strong data-testid="saved-place">{place.name}</strong></span>
         </p>
         {isHome && !inline && <p className="hint">New York until you choose a place.</p>}
-        {!inline && <TodaysWeather place={place} />}
+        {!inline && <TodaysWeather place={place} offline={offline} />}
         {!inline && home && !isHome && (
           <button className="btn btn-ghost" disabled={busy} onClick={() => void save(null)}>Back to {home.name.split(',')[0]}</button>
         )}
@@ -131,28 +136,15 @@ export function WhereYouAre({ place, home, offline, onChange, toast, inline }: {
   );
 }
 
-function TodaysWeather({ place }: { place: Place }) {
-  const [lookup, setLookup] = useState<WeatherLookup | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
-  const key = `${place.latitude},${place.longitude},${place.timezone}`;
+/** Today's weather for the saved place, in one row. A slow lookup of its own; while the place just chosen is looked
+ * up, the weather of the one before is not shown beside it. */
+function TodaysWeather({ place, offline }: { place: Place; offline: boolean }) {
+  const { data, error, refetch, isFetching } = useQuery({ ...weatherQuery(), enabled: !offline });
+  const lookup = data && (!data.place || samePlace(data.place, place) || !isFetching) ? data : null;
 
-  useEffect(() => {
-    let current = true;
-    setLookup(null);
-    setError(null);
-    api.weather().then(
-      (w) => current && setLookup(w),
-      (e) => current && setError((e as Error).message),
-    );
-    return () => {
-      current = false;
-    };
-  }, [key, attempt]);
-
-  const again = <button className="btn" onClick={() => setAttempt((n) => n + 1)}>Try again</button>;
-  if (error) return <><p className="form-error" role="alert">Couldn't look up today's weather: {error}</p>{again}</>;
-  if (!lookup) return <p className="hint">Looking up today's weather…</p>;
+  const again = <button className="btn" disabled={isFetching} onClick={() => void refetch()}>Try again</button>;
+  if (error && !isFetching) return <><p className="form-error" role="alert">Couldn't look up today's weather: {error.message}</p>{again}</>;
+  if (!lookup) return <p className="hint" aria-busy="true">Looking up today's weather…</p>;
   const w = lookup.weather;
   if (!w) return <><p className="hint">{lookup.message}</p>{again}</>;
   return (

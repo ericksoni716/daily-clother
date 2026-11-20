@@ -1,3 +1,4 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type DragEvent } from 'react';
 import { api, type ApiError } from '../api';
 import { byId, itemIdOf, waitingReason } from '../added';
@@ -13,7 +14,9 @@ import { filesFromDrop, preparePhoto, splitPhotos } from '../resize';
 import { Link, navigate, useMediaQuery } from '../router';
 import { sourceLine } from '../several';
 import { aboutUsd, importLine } from '../spend';
-import { useCloset } from '../store';
+import { itemSaved, itemsQuery, useItems } from '../queries';
+import { queryKeys } from '../queryKeys';
+import { useApp } from '../store';
 import { tagNotice } from '../tagging';
 import { photoRoom, shoeAddedLine } from '../shoe';
 import { countEntries, type QueueEntry, type UploadStatus } from '../uploadQueue';
@@ -102,7 +105,10 @@ function useWakeLock(active: boolean) {
 }
 
 export function AddScreen() {
-  const { offline, profile, items, loadItems } = useCloset();
+  const { offline, profile } = useApp();
+  const qc = useQueryClient();
+  const active = useItems('active').data ?? null;
+  const archived = useItems('archived', false).data ?? null;
   const queue = useQueue();
   const paused = usePaused();
   const desktop = useMediaQuery('(min-width: 1000px) and (pointer: fine)');
@@ -163,7 +169,7 @@ export function AddScreen() {
   const sortRun = useRef(0);
   const [sending, setSending] = useState(false);
   const [shoesSent, setShoesSent] = useState<ShoeSent[]>([]);
-  const { upsert } = useCloset();
+  const upsert = (item: Item) => itemSaved(qc, item, 'upload');
   useEffect(() => () => trayRef.current.forEach((p) => URL.revokeObjectURL(p.url)), []);
 
   /** Ask Claude what every photo in the tray shows, ten at a time; the owner's own choices are kept. */
@@ -285,34 +291,32 @@ export function AddScreen() {
   }, [follow, queue]);
 
   // the photos of several pieces whose pieces are not added yet
-  const [open, setOpen] = useState<SourcePhoto[]>([]);
+  // asked again every few seconds while Closet is still finding the pieces in one, and when another is sent
+  const looking = (list: SourcePhoto[] | undefined) => !!list?.some((s) => s.state === 'finding' && !s.note);
+  const open = useQuery({
+    queryKey: queryKeys.sources(), queryFn: api.sources, enabled: !offline,
+    refetchInterval: (q) => (looking(q.state.data) ? OPEN_POLL_MS : false),
+  }).data ?? [];
   const sentSeveral = queue.filter((e) => e.sourceId).length;
-  const looking = open.some((s) => s.state === 'finding' && !s.note);
+  const sentBefore = useRef(sentSeveral);
   useEffect(() => {
-    if (offline) return;
-    let current = true;
-    const look = () => api.sources().then((list) => current && setOpen(list), () => undefined);
-    void look();
-    const t = looking ? window.setInterval(look, OPEN_POLL_MS) : undefined;
-    return () => {
-      current = false;
-      if (t) window.clearInterval(t);
-    };
-  }, [offline, profile, sentSeveral, looking]);
+    if (sentSeveral !== sentBefore.current) void qc.invalidateQueries({ queryKey: queryKeys.sources() });
+    sentBefore.current = sentSeveral;
+  }, [sentSeveral, qc]);
 
   // What each photo became: the closet's own list already follows new items until they are described, so the rows
   // read it and ask for nothing more. A photo already in the closet can be an archived item's: that list is asked
   // for once, when such a row is not in the closet's list.
-  const known = useMemo(() => byId([items.archived, items.active]), [items.archived, items.active]);
+  const known = useMemo(() => byId([archived, active]), [archived, active]);
   const itemOf = (e: QueueEntry): ItemSummary | null => {
     const id = itemIdOf(e);
     return id ? known.get(id) ?? null : null;
   };
-  const needArchived = !offline && items.active !== null && items.archived === null
+  const needArchived = !offline && active !== null && archived === null
     && queue.some((e) => e.status === 'duplicate' && itemIdOf(e) && !known.has(e.itemId as string));
   useEffect(() => {
-    if (needArchived) void loadItems('archived');
-  }, [needArchived, loadItems]);
+    if (needArchived) void qc.fetchQuery(itemsQuery('archived')).catch(() => undefined);
+  }, [needArchived, qc]);
   const waitsBecause = waitingReason(queue.map(itemOf));
 
   const counts = countEntries(queue);

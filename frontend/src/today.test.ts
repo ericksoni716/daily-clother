@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  canDress, dayParts, forgetSaved, joinWords, keptFor, loadChoice, longDate, moodLabel, OCCASIONS, occasionLabel, outfitIds,
+  canDress, closetKey, dayParts, newestOn, forgetSaved, joinWords, keptFor, loadChoice, longDate, moodLabel, OCCASIONS, occasionLabel, outfitIds,
   parseTemp, placeLabel, rainWords, sameOutfit, saveChoice, SAVED_PREFIX, shortPlace, temps, whatToAddFirst, wornOrder,
   type DayContext, type Outfit, type SavedOutfits, wornNow, type WornToday, shortDate,
 } from './today';
@@ -218,5 +218,25 @@ describe('what is worn today', () => {
     expect(w?.outfit_id).toBe('o2');
     expect(w?.ids).toEqual(['tee', 'jeans', 'boots']);
     expect(wornNow(null, [record('o2', '2026-11-16')], 2000, '2026-11-17')).toBeNull();
+  });
+});
+
+describe('what today\'s question depends on', () => {
+  it('the closet: each item\'s place, availability and rating, whatever their order; not its name or picture', () => {
+    const a = [item('a', 'tee'), item('b', 'jeans')];
+    expect(closetKey(null)).toBeNull();
+    expect(closetKey(a)).toBe(closetKey([a[1], a[0]]));
+    expect(closetKey([item('a', 'tee', { name: 'Grey tee', thumb_url: '/t.png' }), a[1]])).toBe(closetKey(a));
+    expect(closetKey([item('a', 'tee', { laundry: 'laundry' }), a[1]])).not.toBe(closetKey(a));
+    expect(closetKey([item('a', 'tee', { status: 'archived' }), a[1]])).not.toBe(closetKey(a));
+    expect(closetKey([item('a', 'tee', { rating: 'dislike' } as Partial<ItemSummary>), a[1]])).not.toBe(closetKey(a));
+    expect(closetKey([a[0]])).not.toBe(closetKey(a));
+  });
+
+  it('shows the newest answer asked today while other choices are asked for, never one from another day', () => {
+    expect(newestOn([], '2026-11-20')).toBeUndefined();
+    expect(newestOn([['2026-11-20', 1, 'casual'], ['2026-11-20', 3, 'smart'], ['2026-11-20', 2, 'work']], '2026-11-20')).toBe('smart');
+    expect(newestOn([['2026-11-19', 9, 'yesterday'], ['2026-11-20', 1, 'today']], '2026-11-20')).toBe('today');
+    expect(newestOn([['2026-11-19', 9, 'yesterday'], ['2026-11-20', 5, undefined]], '2026-11-20')).toBeUndefined();
   });
 });

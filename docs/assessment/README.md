@@ -136,7 +136,7 @@ Low and medium risk, about 15 to 17 thousand lines and about 50 MB:
    background remover card; Fix details opens on the text box; render release notes properly.
 3. **Repo cleanup and the slow-test split** (done; what is left over is in `docs/BACKLOG.md`),
    items 1 to 7 above.
-4. **Data loading:** a query cache with one key file, one settings payload, Tailscale off the
+4. **Data loading** (done; what is left over is in `docs/BACKLOG.md`): a query cache with one key file, one settings payload, Tailscale off the
    request path, `patch_item` off the main loop. This removes most pop-in and lag.
 5. **One progress model** for background work, with one status endpoint.
 6. **Settings regrouped**, with the Advanced screen.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addLabel, boxStyle, cropStyle, MIN_SIDE, moveBox, moveCorner, pointAt, sameBox, sourceLine } from './several';
+import { addLabel, boxStyle, cropStyle, FINDING_POLL_MS, MIN_SIDE, moveBox, moveCorner, pointAt, sameBox, sourceLine, sourcePoll } from './several';
 
 const box = { x0: 0.2, y0: 0.1, x1: 0.6, y1: 0.5 };
 
@@ -76,5 +76,14 @@ describe('words', () => {
     expect(sourceLine('review', 1, null)).toBe('1 piece to check');
     expect(sourceLine('review', 4, null)).toBe('4 pieces to check');
     expect(sourceLine('added', 4, null)).toBe('Added to your closet');
+  });
+});
+
+describe('asking for the photo again', () => {
+  it('asks again while Claude looks for the pieces, and not once it has found them or they are added', () => {
+    expect(sourcePoll({ state: 'finding' })).toBe(FINDING_POLL_MS);
+    expect(sourcePoll({ state: 'review' })).toBe(false);
+    expect(sourcePoll({ state: 'added' })).toBe(false);
+    expect(sourcePoll(null)).toBe(false);
   });
 });

@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { expect, login, test } from './fixtures';
 
 // The second background model, asked as well when the first takes stripes or checks for background. The owner's
@@ -16,10 +17,20 @@ const FAILED = second({ state: 'failed', downloaded_bytes: 0, total_bytes: null,
   error: 'Could not reach the download server. Check the internet connection and try again.' });
 const DOWNLOADING = second({ state: 'downloading', downloaded_bytes: 44_000_000, total_bytes: 175_997_641 });
 
+/** Settings bring the model's state with them (GET /api/settings), so the stand-in is put there too. */
+async function standInSettings(page: Page, answer: () => Record<string, unknown>) {
+  await page.route('**/api/settings', async (route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    const response = await route.fetch();
+    return route.fulfill({ response, json: { ...(await response.json()), model: answer() } });
+  });
+}
+
 test('a second model that did not download is shown in the closet and can be tried again from there', async ({ page }) => {
   let now = FAILED;
   let asked = 0;
   await page.route('**/api/model', (route) => route.fulfill({ json: model({ second: now }) }));
+  await standInSettings(page, () => model({ second: now }));
   await page.route('**/api/model/download', (route) => {
     asked += 1;
     now = DOWNLOADING;

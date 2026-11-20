@@ -832,7 +832,7 @@ def main() -> None:
     add_verdicts()
     # files for `closet selfcheck`
     C.load_photo(ROOT / "bench" / "hardcases" / "photos" / "jeans.jpg", 640).save(OUT / "selfcheck.webp", "WEBP", quality=80)
-    shutil.copyfile(ROOT / "packaging" / "spike" / "fixtures" / "tiny.heic", OUT / "tiny.heic")
+    # tiny.heic, the other file `closet selfcheck` reads, stays in demo_data as it is (it came from the packaging spike)
     credits = (ROOT / "bench" / "hardcases" / "ATTRIBUTION.md").read_text()
     (OUT / "CREDITS.md").write_text("Demo closet photos.\n\n" + credits.split("\n", 2)[2])
     total = sum(f.stat().st_size for f in OUT.rglob("*") if f.is_file())

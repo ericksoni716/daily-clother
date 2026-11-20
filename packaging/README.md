@@ -1,9 +1,6 @@
 # Packaging
 
-The real build of Closet is **`closet.spec`** (PyInstaller). `spike/` is the
-throwaway proof that came before it; it is kept only because its ffmpeg proof
-is needed when ffmpeg returns in a later phase. Its manual-only workflow,
-`.github/workflows/packaging-spike.yml`, does not build Closet.
+The build of Closet is **`closet.spec`** (PyInstaller).
 
 | File | Purpose |
 | --- | --- |
@@ -132,7 +129,7 @@ and runs the default smoke test with `--expect-version`. About 4 minutes.
   Windows 11 and current Windows 10. Without it Closet opens in the browser
   (and says why in `closet.log`).
 - **Windows pillow-heif DLLs and the VC++ runtime.** Collected from the
-  wheel's file list as in the spike; a GitHub runner has the VC++ runtime
+  wheel's file list; a GitHub runner has the VC++ runtime
   installed, so a pass does not prove the exe starts on a clean PC.
 - **Windows SmartScreen / antivirus.** Unsigned one-file exes that unpack
   DLLs into `%TEMP%` are often flagged, and the first start is slow.

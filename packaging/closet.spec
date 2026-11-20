@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec for Closet (the real build; packaging/spike/ was the proof).
+# PyInstaller spec for Closet.
 #
 #   python -m PyInstaller --noconfirm --clean packaging/closet.spec \
 #       --distpath <dir> --workpath <dir>
@@ -42,7 +42,7 @@ def fail(message):
 def dist_native_libs(dist_name):
     """Native libraries a wheel installs, wherever the wheel puts them.
 
-    Same as in the spike: covers auditwheel `<pkg>.libs/` (Linux), delocate
+    Covers auditwheel `<pkg>.libs/` (Linux), delocate
     `<pkg>/.dylibs/` (macOS) and loose DLLs in site-packages (pillow-heif on
     Windows, where collect_dynamic_libs("pillow_heif") finds nothing).
     Extension modules are skipped; PyInstaller collects those as imports.

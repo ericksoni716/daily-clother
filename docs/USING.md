@@ -75,12 +75,13 @@ in a panel beside the grid; on a phone it opens as its own page.
 `/item/<id>`. The picture (photo, cutout or drawing, and for some pieces the back), the name,
 and "Wearing and washing": Wore it today, put in the laundry or mark clean, and recent wears.
 Then Details as rows of a label and a value; tapping a row opens its choices (a sheet on a
-phone). "What is it?" changes the kind. "Fix the details" opens the details the drawing is
-made from, a box to say what is wrong in your own words, and the History of changes, each of
-which can be undone. "What Claude saw" shows its description, and what was seen but is not
-drawn yet. Further down: how you feel about it (with an optional why), How I wear it, fit
-notes, notes, brand, size, material and date acquired. The ⋯ menu has Describe it again, Try
-the cutout again, a new photo, Archive and Delete.
+phone). "What is it?" changes the kind, and the last row is how you feel about it, with an
+optional why. "Fix the details" opens the details the drawing is made from and a box to say
+what is wrong in your own words. Three folds follow, closed until opened: More details (How
+I wear it, fit notes, notes, brand, size, material, date acquired), What Claude saw (its
+description, what was seen but is not drawn yet, and Describe it again) and History (every
+change, each of which can be undone). Archive and Delete are at the bottom; a new photo can
+be taken in place of the old one, and a cutout that failed can be tried again.
 
 A shoe also shows its photos sorted into views, its traced side drawing with its own fixes,
 and the drawing Claude makes for the figure, which takes several minutes and can be

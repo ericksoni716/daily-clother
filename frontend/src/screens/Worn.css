@@ -8,7 +8,6 @@
 .worn-card-when { flex: 1; min-width: 0; }
 .worn-card-head h2 { margin: 0; font-size: var(--text-md); }
 .worn-day { margin: 2px 0 0; font-size: var(--text-sm); }
-.worn-names { margin: 6px 0 10px; font-size: var(--text-sm); }
 p.worn-rating { margin: 0; font-size: var(--text-sm); color: var(--ink-3); }
 .chip.worn-rating { gap: 6px; max-width: 100%; text-align: left; }
 .chip.worn-rating > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -34,7 +33,7 @@ p.worn-rating { margin: 0; font-size: var(--text-sm); color: var(--ink-3); }
 .worn-more { margin-top: 16px; }
 
 /* small pictures of an outfit's pieces */
-.worn-pics { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.worn-pics { list-style: none; margin: 10px 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .worn-pic { width: 52px; height: 60px; }
 .worn-pic > .pic-cutout { padding: 4px; filter: none; }
 
@@ -67,7 +66,7 @@ p.worn-rating { margin: 0; font-size: var(--text-sm); color: var(--ink-3); }
 /* Today's question about the last outfit worn: a slim card above the outfit */
 .worn-question { margin: 0 0 var(--space-3); padding: 10px 12px; background: var(--tint-coral); }   /* a soft tint */
 .worn-question-head { display: flex; align-items: center; gap: var(--space-2); }
-.worn-question-head h2 { margin: 0; font-size: var(--text-md); flex: 1; min-width: 0; }
+.worn-question-head h3 { margin: 0; font-size: var(--text-md); flex: 1; min-width: 0; }
 .worn-question-head .worn-pics { margin: 0; flex-wrap: nowrap; overflow: hidden; }
 .worn-question-head .worn-pic { width: 30px; height: 35px; }
 .worn-question-close { flex: none; }
@@ -80,3 +79,15 @@ p.worn-rating { margin: 0; font-size: var(--text-sm); color: var(--ink-3); }
 }
 /* the ⋯ was drawn at the shared button's small icon size, three specks easy to miss; same size as Today's */
 .worn-menu-button svg { width: 28px; height: 28px; }
+
+/* ---------------------------------------------------------------- Recent outfits, on Today */
+.recent { margin-top: var(--space-6); min-width: 0; }
+.recent-title { font-size: var(--text-lg); margin: 0 0 var(--space-3); }
+.recent-none { margin: 0; }
+.recent-list { list-style: none; margin: 0 0 var(--space-1); padding: 0; display: grid; gap: var(--space-3); }
+@media (min-width: 760px) { .recent-list { grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr)); } }
+.recent-card { padding: var(--space-3) var(--space-4); min-width: 0; }
+.recent-day { margin: 0 0 var(--space-2); font-size: var(--text-md); }
+.recent-card .worn-pics { margin-bottom: var(--space-2); }
+.recent-card .rate { margin-top: 0; }
+.rate-status { margin-top: var(--space-1); }

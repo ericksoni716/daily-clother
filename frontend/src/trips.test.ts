@@ -3,7 +3,7 @@ import { forgetSaved } from './today';
 import {
   addDays, checkDates, dateRange, dayCount, dayRain, dayTemps, fitLaundry, groupPacked, laundryDays, laundryEvery, laundryMode,
   laundryWords, progress, REWEAR_KINDS, rewearWords, shortDay, sourceLabel, sourceRuns, startLaundry, loadSavedTrips, saveTrips,
-  tripDays, tripTitle, upcomingFirst, wornWords, type TripDay, type TripSummary,
+  tripComingUp, tripDays, tripTitle, upcomingFirst, wornWords, type TripDay, type TripSummary,
 } from './trips';
 
 const day = (date: string, source: TripDay['source'], extra: Partial<TripDay> = {}): TripDay => ({
@@ -127,5 +127,28 @@ describe('trips', () => {
     expect(rewearWords(1)).toBe('Worn once');
     expect(rewearWords(3)).toBe('Worn up to 3 times');
     expect(rewearWords(null)).toBe('The whole trip');
+  });
+});
+
+describe('the trip Today mentions', () => {
+  const trip = (id: string, first: string, last: string, extra: Partial<TripSummary> = {}): TripSummary => ({
+    id, place: { name: 'Lisbon, Portugal', latitude: 38.7, longitude: -9.1, timezone: 'Europe/Lisbon' }, first_day: first, last_day: last,
+    occasion: 'casual', laundry: null, lines: 15, packed: 4, uncovered: 0, warnings: 0, past: false, ...extra,
+  });
+
+  it('is the next one to start within two weeks, saying when and how much is packed', () => {
+    const got = tripComingUp([trip('later', '2026-12-20', '2026-12-24'), trip('soon', '2026-11-21', '2026-11-25')], '2026-11-20');
+    expect(got?.trip.id).toBe('soon');
+    expect(got?.words).toBe('Lisbon, from tomorrow · 4 of 15 packed');
+    expect(tripComingUp([trip('a', '2026-11-25', '2026-11-27', { packed: 15 })], '2026-11-20')?.words).toBe('Lisbon, in 5 days · all 15 packed');
+  });
+
+  it('is one under way first of all', () => {
+    expect(tripComingUp([trip('now', '2026-11-18', '2026-11-22', { lines: 0, packed: 0 })], '2026-11-20')?.words).toBe('Lisbon, under way');
+  });
+
+  it('leaves out trips further off and trips that are over', () => {
+    expect(tripComingUp([trip('far', '2026-12-05', '2026-12-08'), trip('over', '2026-11-10', '2026-11-19', { past: true })], '2026-11-20')).toBeNull();
+    expect(tripComingUp(null, '2026-11-20')).toBeNull();
   });
 });

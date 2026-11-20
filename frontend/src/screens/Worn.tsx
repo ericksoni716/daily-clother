@@ -1,13 +1,13 @@
 import { queryOptions, useQueries, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { api, ApiError } from '../api';
-import { ChevronIcon, ChevronLeftIcon, HangerIcon, MoreIcon, PlusIcon } from '../components/Icons';
-import { BackLink, Button, Card, EmptyState, ItemThumb, PageHeader, trapTab } from '../components/ui';
+import { ChevronIcon, HangerIcon, MoreIcon, PlusIcon } from '../components/Icons';
+import { Button, Card, EmptyState, ItemThumb, PageHeader, SaveStatus, ShowMore, trapTab, useSaveStatus } from '../components/ui';
 import { label } from '../labels';
 import { setLaundryMany } from '../laundry';
 import { touch, useEdit, useItems, writeItem } from '../queries';
 import { queryKeys } from '../queryKeys';
-import { navigate } from '../router';
+import { Link, navigate } from '../router';
 import { useApp } from '../store';
 import { occasionLabel } from '../today';
 import type { ItemSummary } from '../types';
@@ -28,25 +28,20 @@ export const RATE_OFFLINE = "You're offline, so rating has to wait until Closet 
 export function RateOutfit({ outfit, offline, onRated, compact }: {
   outfit: WornOutfit; offline: boolean; onRated(o: WornOutfit): void; compact?: boolean;
 }) {
-  const { toast } = useApp();
   const qc = useQueryClient();
   const rated = useEdit('outfit');
-  const [busy, setBusy] = useState(false);
+  const status = useSaveStatus();
   const [note, setNote] = useState(outfit.rating_note ?? '');
-  const locked = offline || busy;
+  const locked = offline || status.state === 'saving';
   const title = offline ? OFFLINE_TITLE : undefined;
 
-  async function save(rating: Rating | null, reasons: Reason[], noteText: string | null) {
-    setBusy(true);
-    try {
+  // each tap saves at once and says so beside the answers: "Saving…", "Saved", or "Didn't save" with Try again
+  function save(rating: Rating | null, reasons: Reason[], noteText: string | null) {
+    return status.run(async () => {
       const o = await rated(() => api.rateOutfit(outfit.id, rating, reasons, reasons.includes('other') ? noteText : null));
       changePages(qc, (page) => withOutfit(page, o));
       onRated(o);
-    } catch (e) {
-      toast((e as ApiError).message, 'error');
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   const reasons = outfit.rating_reasons;
@@ -88,7 +83,7 @@ export function RateOutfit({ outfit, offline, onRated, compact }: {
           )}
         </>
       )}
-      {offline && <p className="hint rate-offline">{RATE_OFFLINE}</p>}
+      {offline ? <p className="hint rate-offline">{RATE_OFFLINE}</p> : <SaveStatus state={status.state} onRetry={status.retry} className="rate-status" />}
     </div>
   );
 }
@@ -115,6 +110,53 @@ export function OutfitPics({ outfit, byId, linked = true }: { outfit: WornOutfit
         );
       })}
     </ul>
+  );
+}
+
+/** How many outfits Recent outfits shows on Today: three on a phone, a week's worth on a wider screen. */
+const RECENT = { first: 3, wide: 7 };
+
+/**
+ * The last outfits worn, on Today (DESIGN: Today takes in Worn): each with its pieces and how it went, rated in place,
+ * then "See all" for the whole history, where an outfit is recorded by hand, worn again or removed. `children` is the
+ * question about yesterday's outfit, asked first.
+ */
+export function RecentOutfits({ outfits, byId, offline, children }: {
+  outfits: WornOutfit[]; byId: Map<string, ItemSummary>; offline: boolean; children?: ReactNode;
+}) {
+  return (
+    <section className="recent" aria-labelledby="recent-title" data-testid="recent-outfits">
+      <h2 id="recent-title" className="recent-title">Recent outfits</h2>
+      {children}
+      {outfits.length === 0 ? (
+        <p className="muted recent-none">The outfits you wear show here, to say how each one went.{' '}
+          <Link to="/today/worn">Record one by hand</Link></p>
+      ) : (
+        <ShowMore items={outfits.slice(0, RECENT.wide)} first={RECENT.first} wide={RECENT.wide} to="/today/worn" total={null}
+          as="ol" className="recent-list" label="Recent outfits" keyOf={(o) => o.id}
+          render={(o) => <RecentCard outfit={o} byId={byId} offline={offline} />} />
+      )}
+    </section>
+  );
+}
+
+/** One recent outfit: the day, its pieces, and how it went (the three answers when it has none yet). */
+function RecentCard({ outfit, byId, offline }: { outfit: WornOutfit; byId: Map<string, ItemSummary>; offline: boolean }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Card as="article" className="recent-card" aria-label={`Worn ${wornDay(outfit)}`} data-testid="recent-outfit">
+      <h3 className="recent-day">{wornDay(outfit)}</h3>
+      <OutfitPics outfit={outfit} byId={byId} />
+      {outfit.rating && !open ? (
+        <button type="button" className={`chip worn-rating is-${outfit.rating}`} data-testid="worn-rating" aria-expanded={false}
+          aria-label={`${ratingSummary(outfit)}. Change rating`} onClick={() => setOpen(true)}>
+          <span>{ratingSummary(outfit)}</span>
+          <ChevronIcon aria-hidden="true" className="worn-rating-chevron" />
+        </button>
+      ) : (
+        <RateOutfit outfit={outfit} offline={offline} compact onRated={() => setOpen(true)} />
+      )}
+    </Card>
   );
 }
 
@@ -202,10 +244,7 @@ export function WornScreen() {
 
   return (
     <div className="worn">
-      <div className="detail-top">
-        <BackLink to="/today" className="btn btn-ghost back-link"><ChevronLeftIcon /> Today</BackLink>
-      </div>
-      <PageHeader title="Worn" count={list && <>{list.length}{next ? '+' : ''} {list.length === 1 ? 'outfit' : 'outfits'}</>}
+      <PageHeader title="Worn" back={{ to: '/today', label: 'Today' }} count={list && <>{list.length}{next ? '+' : ''} {list.length === 1 ? 'outfit' : 'outfits'}</>}
         secondary={!adding && (
           <Button disabled={offline} title={offline ? OFFLINE_TITLE : undefined} onClick={() => setAdding(true)}>
             <PlusIcon /> Record an outfit
@@ -267,7 +306,6 @@ function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
   const [busy, setBusy] = useState(false);
   const [rating, setRating] = useState(false);
   const title = offline ? OFFLINE_TITLE : undefined;
-  const names = wornIds(outfit.pieces).map((id) => nameOf(byId.get(id), (outfit.gone ?? []).includes(id)));
   const day = contextWords(outfit.context, occasionLabel);
 
   async function remove() {
@@ -296,7 +334,6 @@ function WornCard({ outfit, byId, offline, onRated, onRemoved }: {
           onRemove={() => setConfirm(true)} />
       </div>
       <OutfitPics outfit={outfit} byId={byId} />
-      <p className="worn-names">{names.join(', ')}</p>
       {outfit.rating ? (
         <button type="button" className={`chip worn-rating is-${outfit.rating}`} data-testid="worn-rating" aria-expanded={rating}
           aria-label={`${ratingSummary(outfit)}. Change rating`} onClick={() => setRating(!rating)}>

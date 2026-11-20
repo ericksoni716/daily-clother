@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { CloudOffIcon, GearIcon, HangerIcon, PlusIcon, SunIcon, WardrobeIcon } from './components/Icons';
 import { useLanding } from './landing';
 import { Button, buttonClass, ErrorBoundary } from './components/ui';
-import { movedTo, placeOf, type Place } from './places';
+import { movedTo, placeOf, type AppPlace } from './places';
 import { Link, navigate, parseRoute, usePath, useMediaQuery, WIDE } from './router';
 import { useItems } from './queries';
 import { useApp } from './store';
@@ -124,7 +124,7 @@ function NavLink({ to, active, className = 'nav-link', children }: { to: string;
   return <Link to={to} className={`${className}${active ? ' is-active' : ''}`} aria-current={active ? 'page' : undefined}>{children}</Link>;
 }
 
-function Sidebar({ place, offline, toReview }: { place: Place; offline: boolean; toReview: number | null }) {
+function Sidebar({ place, offline, toReview }: { place: AppPlace; offline: boolean; toReview: number | null }) {
   return (
     <nav className="sidebar" aria-label="Main">
       <div className="sidebar-brand"><span className="brand-dot"><HangerIcon /></span> Closet</div>
@@ -162,7 +162,7 @@ const TABS = [
   { key: 'settings', to: '/settings', label: 'Settings', Icon: GearIcon },
 ] as const;
 
-function TabBar({ place, offline, toReview }: { place: Place; offline: boolean; toReview: number | null }) {
+function TabBar({ place, offline, toReview }: { place: AppPlace; offline: boolean; toReview: number | null }) {
   return (
     <nav className="tabbar" aria-label="Main">
       {TABS.map(({ key, to, label, Icon }) => {

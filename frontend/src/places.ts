@@ -4,14 +4,14 @@
  */
 import type { Route } from './router';
 
-export type Place = 'today' | 'closet' | 'add' | 'wardrobe' | 'settings';
+export type AppPlace = 'today' | 'closet' | 'add' | 'wardrobe' | 'settings';
 
 /**
  * The place a route belongs to. Worn and Trips are part of Today; an item, Archived and the review are part of the
  * closet; Would this work?, a wish and an item opened from there are part of the wardrobe; checking the pieces in a
  * photo of several is part of Add; Advanced is part of Settings.
  */
-export function placeOf(route: Route): Place {
+export function placeOf(route: Route): AppPlace {
   switch (route.name) {
     case 'today':
     case 'worn':

@@ -311,6 +311,25 @@ export function upcomingFirst(trips: TripSummary[]): { upcoming: TripSummary[]; 
   return { upcoming: trips.filter((t) => !t.past), past: trips.filter((t) => t.past) };
 }
 
+/** How far ahead Today mentions a trip: a trip within the next two weeks is one you may be packing for. */
+export const TRIP_AHEAD_DAYS = 14;
+
+/**
+ * The trip Today mentions: one under way, else the next to start within `TRIP_AHEAD_DAYS`, with a line saying when
+ * ("Lisbon, from tomorrow · 4 of 15 packed"). Null when none is near.
+ */
+export function tripComingUp(trips: TripSummary[] | null | undefined, today: string): { trip: TripSummary; words: string } | null {
+  const near = (trips ?? [])
+    .filter((t) => t.last_day >= today && t.first_day <= addDays(today, TRIP_AHEAD_DAYS))
+    .sort((a, b) => a.first_day.localeCompare(b.first_day));
+  const trip = near[0];
+  if (!trip) return null;
+  const days = dayCount(today, trip.first_day) - 1;
+  const when = trip.first_day <= today ? 'under way' : days === 1 ? 'from tomorrow' : `in ${days} days`;
+  const packed = trip.lines > 0 ? (trip.packed === trip.lines ? ` · all ${trip.lines} packed` : ` · ${trip.packed} of ${trip.lines} packed`) : '';
+  return { trip, words: `${shortPlace(trip.place.name)}, ${when}${packed}` };
+}
+
 /** The kinds of clothing for "Before it needs washing", in the order Settings shows them. */
 export const REWEAR_KINDS: { kind: RewearKind; label: string }[] = [
   { kind: 'tops', label: 'Shirts, tees and polos' },

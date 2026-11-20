@@ -7,7 +7,7 @@ import { queryOptions, useQuery, useQueryClient, type QueryClient } from '@tanst
 import { useCallback, useEffect, useRef } from 'react';
 import { api } from './api';
 import { queryKeys, touched, type EditKind, type ItemStatus, type KeyName } from './queryKeys';
-import type { Item, ItemSummary } from './types';
+import type { Item, ItemSummary, Progress, ProgressList } from './types';
 
 const STATUSES: ItemStatus[] = ['active', 'archived'];
 
@@ -44,6 +44,10 @@ export const vocabQuery = () => queryOptions({ queryKey: queryKeys.vocab(), quer
 
 export const modelQuery = () => queryOptions({ queryKey: queryKeys.model(), queryFn: api.model });
 
+/** The items being worked on in the background (`GET /api/progress`). The closet's provider asks for it and polls it;
+ * a screen only reads it (`useProgress`). Always asked again when it is made stale: it is small. */
+export const progressQuery = () => queryOptions({ queryKey: queryKeys.progress(), queryFn: api.progress, staleTime: 0 });
+
 export const reviewQuery = () => queryOptions({ queryKey: queryKeys.review(), queryFn: api.review });
 
 /** The details of an item that can be fixed, with their values. */
@@ -74,12 +78,29 @@ export function useModel() {
   return useQuery(modelQuery()).data ?? null;
 }
 
+/** The work under way, as last read by the closet's provider (null until it has been read once). */
+export function useProgress(): ProgressList | null {
+  return useQuery({ ...progressQuery(), enabled: false }).data ?? null;
+}
+
+/** One item's progress: its entry in the work under way, else its own summary's (see `progressOf`). Draws again only
+ * when that one entry changes. */
+export function useItemProgress(item: Pick<ItemSummary, 'id' | 'progress'> | null | undefined): Progress | null {
+  const id = item?.id ?? '';
+  const pick = useCallback((list: ProgressList) => list.items.find((i) => i.id === id)?.progress ?? null, [id]);
+  const listed = useQuery({ ...progressQuery(), select: pick, enabled: false }).data;
+  return listed ?? item?.progress ?? null;
+}
+
 // ------------------------------------------------------------ writing into the cache
 
 /** The fields of an item the lists carry (what `GET /api/items` sends for each). */
 const SUMMARY_KEYS: (keyof ItemSummary)[] = ['id', 'name', 'category', 'color', 'color_hex', 'pattern', 'location', 'rating',
   'status', 'cutout_state', 'tag_state', 'tag_error', 'thumb_url', 'has_illustration', 'illustration_url', 'has_photo', 'last_worn', 'wear_count',
-  'wears_since_wash', 'laundry', 'created_at', 'updated_at', 'kind', 'kind_name', 'group', 'drawn_state', 'drawn_version'];
+  'wears_since_wash', 'laundry', 'created_at', 'updated_at', 'kind', 'kind_name', 'group', 'drawn_state', 'drawn_version', 'progress'];
+
+/** Two values of a summary's field alike: by value for the one that is an object (`progress`). */
+const same = (a: unknown, b: unknown) => a === b || (typeof a === 'object' && typeof b === 'object' && JSON.stringify(a) === JSON.stringify(b));
 
 export function pickSummary(item: ItemSummary): ItemSummary {
   const out = {} as Record<string, unknown>;
@@ -96,7 +117,7 @@ export function upsertSummary(list: ItemSummary[], item: ItemSummary, status: It
   if (item.status !== status) return at === -1 ? list : list.filter((x) => x.id !== item.id);
   const next = { ...(at === -1 ? {} : list[at]), ...pickSummary(item) };
   if (at === -1) return [next, ...list];
-  if (SUMMARY_KEYS.every((k) => list[at][k] === next[k])) return list;
+  if (SUMMARY_KEYS.every((k) => same(list[at][k], next[k]))) return list;
   return list.map((x, i) => (i === at ? next : x));
 }
 

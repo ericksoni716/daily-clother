@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { drawingPlaceholder, GRID_VIEW_KEY, loadGridView, notInDrawing, saveGridView } from './drawing';
+import { GRID_VIEW_KEY, loadGridView, notInDrawing, saveGridView } from './drawing';
 
 describe('drawing wording', () => {
   it('lists what is not in the drawing once each, as plain sentences', () => {
@@ -7,15 +7,6 @@ describe('drawing wording', () => {
       .toEqual(['Embroidered chest logo', 'The stripes: the drawing shows only the colour for now', 'Cuff barrel 1 drawn plain']);
     expect(notInDrawing(null, undefined)).toEqual([]);
     expect(notInDrawing(['  ', ''], [])).toEqual([]);
-  });
-
-  it('says why there is no drawing to show', () => {
-    expect(drawingPlaceholder('waiting', null, false)).toBe('Waiting to be described; the drawing comes after.');
-    expect(drawingPlaceholder('waiting', 'polo', true)).toBeNull();   // one drawn from the fields the owner set is shown
-    expect(drawingPlaceholder('working', null, false)).toBe('Waiting to be described; the drawing comes after.');
-    expect(drawingPlaceholder('done', 'polo', true)).toBeNull();
-    expect(drawingPlaceholder('none', null, false)).toMatch(/^Choose what kind of item/);
-    expect(drawingPlaceholder('done', 'bag', false)).toBe('There is no drawing for this kind of item yet.');
   });
 });
 

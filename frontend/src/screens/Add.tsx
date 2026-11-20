@@ -14,10 +14,10 @@ import { filesFromDrop, preparePhoto, splitPhotos } from '../resize';
 import { Link, navigate, useMediaQuery } from '../router';
 import { sourceLine } from '../several';
 import { aboutUsd, importLine } from '../spend';
-import { itemSaved, itemsQuery, useItems } from '../queries';
+import { progressOf } from '../progress';
+import { itemSaved, itemsQuery, useItems, useProgress } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { useApp } from '../store';
-import { tagNotice } from '../tagging';
 import { photoRoom, shoeAddedLine } from '../shoe';
 import { countEntries, type QueueEntry, type UploadStatus } from '../uploadQueue';
 import { addFiles, cancelImport, clearFinished, previewOf, sha256, uploads } from '../uploads';
@@ -317,7 +317,8 @@ export function AddScreen() {
   useEffect(() => {
     if (needArchived) void qc.fetchQuery(itemsQuery('archived')).catch(() => undefined);
   }, [needArchived, qc]);
-  const waitsBecause = waitingReason(queue.map(itemOf));
+  const work = useProgress();
+  const waitsBecause = waitingReason(queue.map((e) => progressOf(itemOf(e), work)));
 
   const counts = countEntries(queue);
   const pending = counts.waiting + counts.uploading;
@@ -620,7 +621,7 @@ export function AddScreen() {
           )}
           {waitsBecause && (
             <p className="notice" role="status" data-testid="import-waiting">
-              {tagNotice('waiting', null, waitsBecause)} <Link to="/settings">Open Settings</Link>
+              {waitsBecause} <Link to="/settings">Open Settings</Link>
             </p>
           )}
           <ul className="queue-list">
@@ -639,8 +640,9 @@ export function AddScreen() {
   );
 }
 
-/** One photo of the import. Once Closet knows the item it became (`item`), the row shows that item, what Claude called
- * it or how far it has got, and opens it; the file's name stays, small, beside how the upload went. */
+/** One photo of the import. Until Closet knows the item it became, the row shows how the upload goes; once it does
+ * (`item`), the row shows that item instead (how far the work on it has got, then what Claude called it) and opens it,
+ * never both. The file's name stays, small, below. */
 function QueueRow({ entry, item }: { entry: QueueEntry; item: ItemSummary | null }) {
   const preview = previewOf(entry.id);
   const status = (
@@ -655,7 +657,7 @@ function QueueRow({ entry, item }: { entry: QueueEntry; item: ItemSummary | null
   if (item) {
     return (
       <AddedRow item={item} fallback={preview} className={`status-${entry.status}`} testId="queue-row"
-        sub={<>{status}<span aria-hidden="true">·</span><span className="queue-file">{entry.name}</span></>} />
+        sub={<>{entry.status === 'duplicate' && <>{status}<span aria-hidden="true">·</span></>}<span className="queue-file">{entry.name}</span></>} />
     );
   }
   return (

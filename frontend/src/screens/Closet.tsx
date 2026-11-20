@@ -1,16 +1,19 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CloseIcon, DrawingIcon, FilterIcon, HangerIcon, ImagesIcon, SearchIcon, WarnIcon } from '../components/Icons';
+import { CloseIcon, DrawingIcon, FilterIcon, HangerIcon, ImagesIcon, SearchIcon } from '../components/Icons';
 import { ModelBanner } from '../components/ModelBanner';
+import { StepMark } from '../components/Progress';
+import { WorkingLine } from '../components/WorkingLine';
 import { Button, buttonClass, EmptyState, Notice, PageHeader, SegmentedControl, Sheet } from '../components/ui';
 import { loadGridView, saveGridView, type GridView } from '../drawing';
 import { setLaundryMany } from '../laundry';
 import { groupsIn, groupTitle, kindsOf, type KindGroup } from '../kinds';
 import { categoryPlural, label, tileCaption } from '../labels';
 import { itemPath, Link, navigate } from '../router';
-import { itemSaved, itemsQuery, useModel, useVocab } from '../queries';
+import { progressOf } from '../progress';
+import { itemSaved, itemsQuery, useProgress, useVocab } from '../queries';
 import { useApp } from '../store';
-import type { ItemSummary, Laundry, ModelInfo } from '../types';
+import type { ItemSummary, Laundry, Progress } from '../types';
 import { ItemDetail } from './ItemDetail';
 
 interface Props {
@@ -32,7 +35,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const qc = useQueryClient();
   // asked for again each time the closet opens (what is kept shows at once meanwhile): it is the main screen
   const items = useQuery({ ...itemsQuery(status), refetchOnMount: 'always' });
-  const model = useModel();
+  const work = useProgress();
   const vocab = useVocab();
   const [washing, setWashing] = useState(false);
   const list = items.data ?? null;
@@ -113,6 +116,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
             .finally(() => setWashing(false));
         }} />}
       {status === 'active' && <ModelBanner />}
+      {status === 'active' && <WorkingLine />}
 
       {list === null && !loadError && <div className="grid grid-skeleton" aria-hidden="true">{Array.from({ length: 6 }, (_, i) => <div key={i} className="tile-skeleton" />)}</div>}
       {list === null && loadError && <p className="form-error" role="alert">{loadError}</p>}
@@ -187,7 +191,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
         ) : (
           <ul className="grid" aria-label="Clothes">
             {shown.map((it) => (
-              <li key={it.id}><Tile item={it} status={status} selected={it.id === selectedId} model={model} view={gridView} onChoose={choose} /></li>
+              <li key={it.id}><Tile item={it} status={status} selected={it.id === selectedId} progress={progressOf(it, work)} view={gridView} onChoose={choose} /></li>
             ))}
           </ul>
         )
@@ -298,24 +302,19 @@ function FilterChoices({ status, categories, category, laundry, groups, group, k
   );
 }
 
-export function busyLabel(model: ModelInfo | null): string {
-  return model && model.state !== 'ready' ? 'Waiting for the model' : 'Removing background…';
-}
-
-/** One tile of the grid. Memoised: a poll or a save that changes one item draws that item's tile only. */
-const Tile = memo(function Tile({ item, status, selected, model, view, onChoose }: {
-  item: ItemSummary; status: 'active' | 'archived'; selected: boolean; model: ModelInfo | null; view: GridView; onChoose(): void;
+/** One tile of the grid. Memoised: a poll or a save that changes one item draws that item's tile only. `progress` is
+ * how far the work on it has got (progress.ts), shown as the step's small mark. */
+const Tile = memo(function Tile({ item, status, selected, progress, view, onChoose }: {
+  item: ItemSummary; status: 'active' | 'archived'; selected: boolean; progress: Progress | null; view: GridView; onChoose(): void;
 }) {
   const name = item.name || label('category', item.category) || 'New item';
   const caption = tileCaption(item.category, item.color);
-  const busy = item.cutout_state === 'pending' || item.cutout_state === 'processing';
   return (
     <Link to={itemPath(item.id, status)} className={`tile${selected ? ' is-selected' : ''}`} aria-current={selected ? 'true' : undefined}
       data-testid="tile" onClick={onChoose}>
       <div className="tile-card">
         <TilePicture item={item} view={view} />
-        {busy && <span className="badge badge-busy"><span className="spinner" aria-hidden="true" />{busyLabel(model)}</span>}
-        {item.cutout_state === 'failed' && <span className="badge badge-warn"><WarnIcon />Background not removed</span>}
+        {progress && <StepMark progress={progress} />}
         {item.laundry === 'laundry' && <span className="tile-mark" data-testid="laundry-mark">In the laundry</span>}
       </div>
       <span className="tile-name">{name}</span>

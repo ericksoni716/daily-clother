@@ -5,6 +5,8 @@ import {
   MAX_EXTRA_PHOTOS, NO_SIDE, noSidePhoto, ONE_SIDE_QUESTION, OUTSIDE_HINT, OUTSIDE_QUESTION, outsideQuestion, photoRoom,
   sortingViews, viewLabel,
 } from '../shoe';
+import { partWords } from '../progress';
+import { useItemProgress } from '../queries';
 import type { Item, ShoeView } from '../types';
 import { sha256 } from '../uploads';
 import { CloseIcon, ImagesIcon } from './Icons';
@@ -126,6 +128,7 @@ export function ShoePhotos(props: Props) {
   const { item, disabled, onSaved, onError } = props;
   const [busy, setBusy] = useState<string | null>(null);
   const views = item.views;
+  const progress = useItemProgress(item);
   if (!views || !item.photos.length) return null;
   const remove = async (photoId: string) => {
     setBusy(photoId);
@@ -161,7 +164,9 @@ export function ShoePhotos(props: Props) {
           );
         })}
       </ul>
-      {views.message && <p className="muted small" role="status">{views.message}</p>}
+      {(partWords(progress, 'views') ?? views.message) && (
+        <p className="muted small" role="status">{partWords(progress, 'views') ?? views.message}</p>
+      )}
       {noSidePhoto(item) && <p className="notice" data-testid="shoe-no-side">{NO_SIDE}</p>}
       <div className="row shoe-fix-actions">
         <AddShoePhotos {...props} />

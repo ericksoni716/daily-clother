@@ -1,9 +1,9 @@
-import { lazy, Suspense, useState, type ReactNode } from 'react';
-import { CloudOffIcon, GearIcon, HangerIcon, PlusIcon, SuitcaseIcon, SunIcon } from './components/Icons';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
+import { CloudOffIcon, GearIcon, HangerIcon, PlusIcon, SunIcon, WardrobeIcon } from './components/Icons';
 import { useLanding } from './landing';
 import { Button, buttonClass, ErrorBoundary } from './components/ui';
-import { navSection, tabFor } from './nav';
-import { Link, parseRoute, usePath, useMediaQuery, WIDE } from './router';
+import { movedTo, placeOf, type Place } from './places';
+import { Link, navigate, parseRoute, usePath, useMediaQuery, WIDE } from './router';
 import { useItems } from './queries';
 import { useApp } from './store';
 import { ClosetScreen } from './screens/Closet';
@@ -13,10 +13,9 @@ import { SettingsScreen } from './screens/Settings';
 import { ItemDetail } from './screens/ItemDetail';
 import { TodayScreen } from './screens/Today';
 import { TripsScreen } from './screens/Trips';
-import { InsightsScreen } from './screens/Insights';
 import { WornScreen } from './screens/Worn';
-import { ReviewBadge, reviewCountText, ReviewIcon, ReviewScreen, useReviewCount } from './screens/Review';
-import { BagIcon, MissingScreen } from './screens/Missing';
+import { ReviewBadge, reviewCountText, ReviewScreen, useReviewCount } from './screens/Review';
+import { WardrobeScreen } from './screens/Wardrobe';
 import { Restarting, UpdateBanner, useUpdateStatus } from './components/Updates';
 import { RestoreNotice } from './components/RestoreNotice';
 
@@ -29,35 +28,42 @@ export function Shell({ version }: { version: string }) {
   const wide = useMediaQuery(WIDE);
   const { offline } = useApp();
   const toReview = useReviewCount();
+  // An address that has moved (a bookmark, the home-screen app, a reload) shows its new screen at once, and takes the
+  // new address in place of the old, so Back and a later reload find it there.
+  const moved = movedTo(window.location.pathname + window.location.search + window.location.hash);
+  useEffect(() => {
+    if (moved) navigate(moved, { replace: true });
+  }, [moved]);
 
   let content;
   if (route.name === 'today') content = <TodayScreen itemId={route.itemId} wide={wide} />;
   else if (route.name === 'worn') content = <WornScreen />;
-  else if (route.name === 'missing') content = <MissingScreen itemId={route.itemId} check={route.check} wishId={route.wishId} wide={wide} />;
+  else if (route.name === 'wardrobe') {
+    content = <WardrobeScreen itemId={route.itemId} check={route.check} wishId={route.wishId} wish={route.wish} wide={wide} />;
+  }
   else if (route.name === 'add') content = <AddScreen />;
   else if (route.name === 'several') content = <SeveralScreen key={route.id} id={route.id} />;
   else if (route.name === 'settings') content = <SettingsScreen version={version} />;
   else if (route.name === 'advanced') {
     content = <Suspense fallback={<p className="hint" aria-busy="true">Opening the advanced settings…</p>}><AdvancedScreen version={version} /></Suspense>;
   }
-  else if (route.name === 'insights') content = <InsightsScreen />;
   else if (route.name === 'review') content = <ReviewScreen />;
   else if (route.name === 'trips') content = <TripsScreen tripId={route.tripId} />;
   else if (route.itemId && !wide) content = <ItemDetail key={route.itemId} id={route.itemId} status={route.status} />;
   else content = <ClosetScreen status={route.status} selectedId={route.itemId} wide={wide} toReview={toReview} />;
 
-  const section = navSection(route);
+  const place = placeOf(route);
 
   return (
     <div className="shell">
       <Landing path={path} />
       <a className="skip-link" href="#main">Skip to content</a>
-      <Sidebar section={section} offline={offline} toReview={toReview} />
+      <Sidebar place={place} offline={offline} toReview={toReview} />
       <div className="shell-main">
         <TopBanners />
         <main id="main" className="shell-content" tabIndex={-1}><ErrorBoundary resetKey={path}>{content}</ErrorBoundary></main>
       </div>
-      <TabBar section={section} offline={offline} toReview={toReview} />
+      <TabBar place={place} offline={offline} toReview={toReview} />
     </div>
   );
 }
@@ -107,19 +113,18 @@ function TopBanners() {
 
 const ADD_OFFLINE = 'Adding photos needs Closet on your computer to be reachable';
 
+/** The four places and Add, in the sidebar's order (Add is the button above them, Settings sits at the foot). */
 const NAV = [
   { key: 'today', to: '/today', label: 'Today', Icon: SunIcon },
   { key: 'closet', to: '/', label: 'Closet', Icon: HangerIcon },
-  { key: 'trips', to: '/trips', label: 'Trips', Icon: SuitcaseIcon },
-  { key: 'missing', to: '/missing', label: "What's missing", Icon: BagIcon },
+  { key: 'wardrobe', to: '/wardrobe', label: 'Wardrobe', Icon: WardrobeIcon },
 ] as const;
 
 function NavLink({ to, active, className = 'nav-link', children }: { to: string; active: boolean; className?: string; children: ReactNode }) {
   return <Link to={to} className={`${className}${active ? ' is-active' : ''}`} aria-current={active ? 'page' : undefined}>{children}</Link>;
 }
 
-function Sidebar({ section, offline, toReview }: { section: string; offline: boolean; toReview: number | null }) {
-  const showReview = !!toReview || section === 'review';
+function Sidebar({ place, offline, toReview }: { place: Place; offline: boolean; toReview: number | null }) {
   return (
     <nav className="sidebar" aria-label="Main">
       <div className="sidebar-brand"><span className="brand-dot"><HangerIcon /></span> Closet</div>
@@ -129,26 +134,21 @@ function Sidebar({ section, offline, toReview }: { section: string; offline: boo
         </span>
       ) : (
         <Link to="/add" className={buttonClass({ variant: 'primary', block: true, className: 'sidebar-add' })}
-          aria-current={section === 'add' ? 'page' : undefined}>
+          aria-current={place === 'add' ? 'page' : undefined}>
           <PlusIcon /> Add clothes
         </Link>
       )}
       <ul>
         {NAV.map(({ key, to, label, Icon }) => (
           <li key={key}>
-            <NavLink to={to} active={section === key}>
-              <Icon /> {label}{key === 'closet' && <ReviewBadge count={toReview} quiet />}
+            <NavLink to={to} active={place === key}>
+              <Icon /> {label}{key === 'closet' && <ReviewBadge count={toReview} />}
             </NavLink>
-            {key === 'closet' && showReview && (
-              <NavLink to="/review" active={section === 'review'} className="nav-link nav-sublink">
-                <ReviewIcon /> Review{toReview ? <span className="visually-hidden">{reviewCountText(toReview)}</span> : null}
-              </NavLink>
-            )}
           </li>
         ))}
       </ul>
       <ul className="sidebar-bottom">
-        <li><NavLink to="/settings" active={section === 'settings'}><GearIcon /> Settings</NavLink></li>
+        <li><NavLink to="/settings" active={place === 'settings'}><GearIcon /> Settings</NavLink></li>
       </ul>
     </nav>
   );
@@ -158,16 +158,15 @@ const TABS = [
   { key: 'today', to: '/today', label: 'Today', Icon: SunIcon },
   { key: 'closet', to: '/', label: 'Closet', Icon: HangerIcon },
   { key: 'add', to: '/add', label: 'Add', Icon: PlusIcon },
-  { key: 'missing', to: '/missing', label: 'Missing', Icon: BagIcon },
+  { key: 'wardrobe', to: '/wardrobe', label: 'Wardrobe', Icon: WardrobeIcon },
   { key: 'settings', to: '/settings', label: 'Settings', Icon: GearIcon },
 ] as const;
 
-function TabBar({ section, offline, toReview }: { section: string; offline: boolean; toReview: number | null }) {
-  const lit = tabFor(section);
+function TabBar({ place, offline, toReview }: { place: Place; offline: boolean; toReview: number | null }) {
   return (
     <nav className="tabbar" aria-label="Main">
       {TABS.map(({ key, to, label, Icon }) => {
-        const active = lit === key;
+        const active = place === key;
         const add = key === 'add';
         const inner = add ? <><span className="tab-add-circle"><Icon /></span><span>{label}</span></> : <><Icon /><span>{label}</span></>;
         if (add && offline) {

@@ -48,14 +48,14 @@ class MacKeychain:
         try:
             return subprocess.run([self.TOOL, *args], input=stdin, capture_output=True, text=True, timeout=20)
         except (OSError, subprocess.TimeoutExpired) as e:
-            raise KeychainError("Closet could not reach this Mac's keychain.") from e
+            raise KeychainError("Nines could not reach this Mac's keychain.") from e
 
     def get(self) -> str | None:
         proc = self._run(["find-generic-password", "-s", SERVICE, "-a", ACCOUNT, "-w"])
         if proc.returncode == self.NOT_FOUND:
             return None
         if proc.returncode != 0:
-            raise KeychainError("Closet could not read the API key from this Mac's keychain.")
+            raise KeychainError("Nines could not read the API key from this Mac's keychain.")
         return proc.stdout.strip() or None
 
     def set(self, key: str) -> None:
@@ -64,12 +64,12 @@ class MacKeychain:
         # interactive mode reads the command from standard input, so the key is not in the process list
         self._run(["-i"], stdin=f'add-generic-password -U -s {SERVICE} -a {ACCOUNT} -l "{SERVICE} API key" -w "{key}"\n')
         if self.get() != key:
-            raise KeychainError("Closet could not save the API key in this Mac's keychain.")
+            raise KeychainError("Nines could not save the API key in this Mac's keychain.")
 
     def delete(self) -> None:
         proc = self._run(["delete-generic-password", "-s", SERVICE, "-a", ACCOUNT])
         if proc.returncode not in (0, self.NOT_FOUND):
-            raise KeychainError("Closet could not remove the API key from this Mac's keychain.")
+            raise KeychainError("Nines could not remove the API key from this Mac's keychain.")
 
 
 class WindowsCredentials:
@@ -112,7 +112,7 @@ class WindowsCredentials:
         if not advapi.CredReadW(self.TARGET, self.GENERIC, 0, ctypes.byref(found)):
             if ctypes.get_last_error() == self.NOT_FOUND:
                 return None
-            raise KeychainError("Closet could not read the API key from Windows Credential Manager.")
+            raise KeychainError("Nines could not read the API key from Windows Credential Manager.")
         try:
             cred = found.contents
             blob = ctypes.string_at(cred.CredentialBlob, cred.CredentialBlobSize)
@@ -130,12 +130,12 @@ class WindowsCredentials:
                           CredentialBlobSize=len(data), CredentialBlob=ctypes.cast(blob, ctypes.POINTER(ctypes.c_ubyte)),
                           Persist=self.LOCAL_MACHINE, UserName=ACCOUNT)
         if not advapi.CredWriteW(ctypes.byref(cred), 0):
-            raise KeychainError("Closet could not save the API key in Windows Credential Manager.")
+            raise KeychainError("Nines could not save the API key in Windows Credential Manager.")
 
     def delete(self) -> None:
         ctypes, advapi, _ = self._api()
         if not advapi.CredDeleteW(self.TARGET, self.GENERIC, 0) and ctypes.get_last_error() != self.NOT_FOUND:
-            raise KeychainError("Closet could not remove the API key from Windows Credential Manager.")
+            raise KeychainError("Nines could not remove the API key from Windows Credential Manager.")
 
 
 class NoKeychain:
@@ -145,7 +145,7 @@ class NoKeychain:
         return None
 
     def set(self, key: str) -> None:
-        raise KeychainError("Closet can't keep an API key on this computer. Set ANTHROPIC_API_KEY instead.")
+        raise KeychainError("Nines can't keep an API key on this computer. Set ANTHROPIC_API_KEY instead.")
 
     def delete(self) -> None:
         return None

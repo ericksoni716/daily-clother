@@ -63,7 +63,7 @@ WHY = {
     "claude": "Claude can't be reached right now. The work goes on by itself once it can.",
     "limit": spend.LIMIT_REACHED,
     "sign-in": tagjobs.SIGN_IN,
-    "you": "Closet needs your answer about this shoe's photos before it can carry on.",
+    "you": "Nines needs your answer about this shoe's photos before it can carry on.",
 }
 
 CUTOUT_FAILED = "The background couldn't be removed"

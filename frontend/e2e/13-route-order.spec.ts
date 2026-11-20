@@ -52,7 +52,7 @@ test.describe('choosing which route to Claude is tried first', () => {
     await section.getByText('Monthly limit and spending').click();   // the limit sits under its own disclosure
     await section.getByLabel('Monthly limit for the API key (US dollars)').fill('2');
     await section.getByText('Allow the API key', { exact: true }).click();
-    await expect(section.getByTestId('route-first')).toHaveText('Closet will try your API key first.', { timeout: 20_000 });
+    await expect(section.getByTestId('route-first')).toHaveText('Nines will try your API key first.', { timeout: 20_000 });
 
     // kept after a reload
     await page.reload();

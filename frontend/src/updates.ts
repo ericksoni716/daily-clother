@@ -41,9 +41,9 @@ export interface UpdateStatus {
 }
 
 export const MODES: { value: UpdateMode; label: string; short: string; hint: string }[] = [
-  { value: 'auto', label: 'Install updates by themselves', short: 'By itself', hint: 'Closet backs up your closets, installs the new version and restarts. This page reconnects by itself.' },
-  { value: 'ask', label: 'Ask me first', short: 'Ask first', hint: 'Closet gets a new version ready and asks before installing it.' },
-  { value: 'never', label: 'Never check', short: 'Never', hint: 'Closet does not look for new versions unless you press Check now.' },
+  { value: 'auto', label: 'Install updates by themselves', short: 'By itself', hint: 'Nines backs up your closets, installs the new version and restarts. This page reconnects by itself.' },
+  { value: 'ask', label: 'Ask me first', short: 'Ask first', hint: 'Nines gets a new version ready and asks before installing it.' },
+  { value: 'never', label: 'Never check', short: 'Never', hint: 'Nines does not look for new versions unless you press Check now.' },
 ];
 
 const BUSY: Record<UpdateBusy, string> = {
@@ -51,7 +51,7 @@ const BUSY: Record<UpdateBusy, string> = {
   downloading: 'Downloading the new version…',
   'backing-up': 'Backing up your closets…',
   replacing: 'Putting the new version in place…',
-  restarting: 'Restarting Closet…',
+  restarting: 'Restarting Nines…',
 };
 
 export function busyLine(busy: UpdateBusy | null): string {
@@ -71,8 +71,8 @@ export function availableLine(s: UpdateStatus): string {
     if (s.latest && s.checked_at) return s.can_install || s.latest === s.version ? 'You have the latest version.' : `The latest version is ${s.latest}.`;
     return '';
   }
-  if (!s.can_install) return `Closet ${r.version} is out. Download it from the release page and install it by hand.`;
-  return s.ready ? `Closet ${r.version} is ready to install.` : `Closet ${r.version} is out.`;
+  if (!s.can_install) return `Nines ${r.version} is out. Download it from the release page and install it by hand.`;
+  return s.ready ? `Nines ${r.version} is ready to install.` : `Nines ${r.version} is out.`;
 }
 
 /** The slim banner on every screen, only in "Ask me first" once the new version is downloaded and checked. */
@@ -84,7 +84,7 @@ export function showBanner(s: UpdateStatus | null): boolean {
 export function lastInstallLine(s: UpdateStatus): string {
   const last = s.last_install;
   if (!last) return '';
-  if (!last.ok) return last.note || `Closet ${last.to} did not start, so Closet ${last.from} was put back.`;
+  if (!last.ok) return last.note || `Nines ${last.to} did not start, so Nines ${last.from} was put back.`;
   return last.to === s.version ? `Updated from ${last.from} to ${last.to} on ${formatDateTime(last.at)}.` : '';
 }
 

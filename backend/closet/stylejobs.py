@@ -65,13 +65,13 @@ STALE_S = 300                # a question still "working" after this long was lo
 RETRY_S = 300                # after a failure, the next request this much later asks again by itself
 DRIFT_C = 3.0                # asked again when the low or high dressed for has moved this far
 
-RULES = "these are from Closet's own rules."
+RULES = "these are from Nines' own rules."
 MESSAGES = {
     "unreachable": f"Claude couldn't be reached, so {RULES}",
     "limit": f"This month's spending limit for the API key has been reached and your Claude plan can't be used right now, so {RULES}",
     "answer": f"Claude gave no outfit that can be worn today, so {RULES}",
     "error": f"Something went wrong while Claude was choosing, so {RULES}",
-    "lost": f"Closet was closed while Claude was choosing, so {RULES}",
+    "lost": f"Nines was closed while Claude was choosing, so {RULES}",
     "no_route": ("Claude can't be reached right now (your Claude plan is not signed in on this computer and the API "
                  f"key is not switched on), so {RULES}"),
     "day_limit": f"Claude has chosen outfits {MAX_PER_DAY} times today, the most in one day, so {RULES}",
@@ -86,7 +86,7 @@ TALK_MESSAGES = {
               "now, so this wasn't answered."),
     "answer": "Claude's answer couldn't be used, so the outfits are as they were. Try saying it another way.",
     "error": "Something went wrong while Claude was answering. The outfits are as they were.",
-    "lost": "Closet was closed while Claude was answering. The outfits are as they were.",
+    "lost": "Nines was closed while Claude was answering. The outfits are as they were.",
 }
 # Why a message was not sent at all (the request is refused with the sentence)
 REFUSED = {

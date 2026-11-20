@@ -34,9 +34,9 @@ describe('who chose an outfit', () => {
     expect(chosenBy({ by: 'claude' }, stylist('ready'))).toBe('Chosen by Claude');
   });
 
-  it("says Closet's rules for the others once Claude has answered or could not", () => {
-    expect(chosenBy({}, stylist('ready'))).toBe("From Closet's rules");
-    expect(chosenBy({}, stylist('failed'))).toBe("From Closet's rules");
+  it("says Nines' rules for the others once Claude has answered or could not", () => {
+    expect(chosenBy({}, stylist('ready'))).toBe("From Nines' rules");
+    expect(chosenBy({}, stylist('failed'))).toBe("From Nines' rules");
   });
 
   it('says nothing while Claude is choosing or when Claude does not choose here', () => {

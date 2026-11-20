@@ -142,7 +142,7 @@ test('offline: fixing the details and undoing are off, and say why', async ({ pa
   await expect(page.getByText('Offline: showing your saved closet')).toBeVisible();
   const fix = panel.getByRole('button', { name: 'Something wrong? Change the details' });
   await expect(fix).toBeDisabled();
-  await expect(fix).toHaveAttribute('title', /needs Closet on your computer/i);
+  await expect(fix).toHaveAttribute('title', /needs Nines on your computer/i);
   await panel.locator('summary', { hasText: 'History' }).click();
   await expect(panel.getByText("You're offline, so the history can't be shown or undone right now.")).toBeVisible();
   await context.setOffline(false);

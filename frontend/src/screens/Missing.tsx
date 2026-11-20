@@ -17,7 +17,7 @@ import type { ItemSummary } from '../types';
 import { activeSituations, lifeSummary, situationLabel, type SituationId } from '../life';
 import { WishShop } from './Shop';
 
-export const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
+export const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
 
 export type Lists = { gaps: GapsAnswer; wishes: Wish[] };
 
@@ -85,7 +85,7 @@ export function LifeAbout({ context }: { context: NonNullable<GapsAnswer['contex
       <div className="life-context-note">
         <p>How these suggestions work</p>
         {taste.used && taste.summary && <p>{taste.summary}</p>}
-        <p>Lounging means relaxed clothes at home; Closet can't identify sleepwear. Exercise suggestions are general, not specific to a sport.</p>
+        <p>Lounging means relaxed clothes at home; Nines can't identify sleepwear. Exercise suggestions are general, not specific to a sport.</p>
       </div>
     </section>
   );

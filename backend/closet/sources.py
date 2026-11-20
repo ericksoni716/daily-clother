@@ -50,11 +50,11 @@ Finder = Callable[[Image.Image, tuple[str, ...]], list[dict]]   # (photo, usable
 
 DEMO = ("The demo closet never sends photos to Claude, so draw a box around each piece yourself with "
         "\u201cAdd a box\u201d.")
-NO_ROUTE = ("Claude can't be reached right now: no way to reach it is set up and working (see Settings). Closet "
+NO_ROUTE = ("Claude can't be reached right now: no way to reach it is set up and working (see Settings). Nines "
             "will look for the pieces once it can, or draw a box around each one yourself.")
-SIGN_IN = ("Claude Code on this computer needs you to sign in again, and the API key isn't allowed. Closet will "
+SIGN_IN = ("Claude Code on this computer needs you to sign in again, and the API key isn't allowed. Nines will "
            "look for the pieces once it can, or draw a box around each one yourself.")
-LIMIT = ("This month's spending limit for the API key has been reached. Closet will look for the pieces when your "
+LIMIT = ("This month's spending limit for the API key has been reached. Nines will look for the pieces when your "
          "plan can be used again, when the new month starts, or if you raise the limit in Settings; or draw a box "
          "around each one yourself.")
 FAILED = ("Claude could not find the pieces in this photo. Draw a box around each one yourself with "

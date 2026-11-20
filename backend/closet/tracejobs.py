@@ -42,7 +42,7 @@ TRACING_VERSION = 1
 SORTING_FIRST = ("trace_version IS NULL AND coalesce(views_state, '') IN ('waiting', 'sorting') "
                  "AND views_error IS NULL")
 
-FAILED = "Closet could not trace the shoe from its photo, so it's drawn from its details instead."
+FAILED = "Nines could not trace the shoe from its photo, so it's drawn from its details instead."
 NO_PHOTO = "This shoe has no photo to trace."
 NOT_A_SHOE = "Only shoes are traced from their photo."
 TIP = "A side-on photo of one shoe, toe to the left, gives a closer drawing."
@@ -56,7 +56,7 @@ PLAIN = {
     "back": ("shows the shoe from the back", "A side-on photo gives a closer drawing."),
     "top": ("shows the shoe from above", "A side-on photo gives a closer drawing."),
     "angled": ("shows the shoe at an angle", "A side-on photo gives a closer drawing."),
-    "found": ("doesn't show a shoe Closet could find",
+    "found": ("doesn't show a shoe Nines could find",
               "A photo of one shoe against a plain background gives a closer drawing."),
     "size_px": ("shows the shoe very small", "A photo with the shoe filling most of it gives a closer drawing."),
     "sharpness": ("is blurred", "A sharp photo, with the phone held still, gives a closer drawing."),

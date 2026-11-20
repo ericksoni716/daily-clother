@@ -1,10 +1,10 @@
 # Packaging
 
-The build of Closet is **`closet.spec`** (PyInstaller).
+The build of Nines is **`closet.spec`** (PyInstaller).
 
 | File | Purpose |
 | --- | --- |
-| `closet.spec` | Builds the program from `backend/closet` plus its data (`migrations/`, `demo_data/`, `web/`), onnxruntime, pillow-heif's native libraries, Pillow's AVIF plugin (named as a hidden import), pystray and pywebview (Closet's own window: its scripts everywhere, the Edge WebView2 libraries and pythonnet on Windows, WebKit through PyObjC on the Mac). Stops if `web/index.html`, the migrations, the demo data, pywebview's scripts or (on Windows) its WebView2 libraries are missing. |
+| `closet.spec` | Builds the program from `backend/closet` plus its data (`migrations/`, `demo_data/`, `web/`, `icon.png`), onnxruntime, pillow-heif's native libraries, Pillow's AVIF plugin (named as a hidden import), pystray and pywebview (Nines' own window: its scripts everywhere, the Edge WebView2 libraries and pythonnet on Windows, WebKit through PyObjC on the Mac). Stops if `web/index.html`, the migrations, the demo data, pywebview's scripts or (on Windows) its WebView2 libraries are missing. |
 | `requirements-build.txt` | PyInstaller and its hooks, exact pins. Install with `backend/requirements.txt`. |
 | `smoke_test.py` | Drives a built program end to end. Standard library only. |
 | `../.github/workflows/release.yml` | Manual release: build, test, publish. |
@@ -15,7 +15,7 @@ What the build produces:
 
 | OS | Output | Notes |
 | --- | --- | --- |
-| Windows | `dist/Closet.exe` | One file, windowed (no console window), icon drawn by `closet.tray.icon_image()`. |
+| Windows | `dist/Closet.exe` | One file, windowed (no console window), icon from `closet/icon.png` through `closet.tray.icon_image()`. |
 | macOS (Apple Silicon) | `dist/Closet.app` | Windowed menu-bar app (`LSUIElement`, no Dock icon), bundle id `app.closet`, macOS 14+. One folder inside the bundle (one-file `.app` is deprecated in PyInstaller 6). Ad-hoc signed only. The release zips it with `ditto -c -k --keepParent` as `Closet-mac-arm64.zip`. |
 | Linux | `dist/closet` | One file, console. For local checks only; not released. |
 
@@ -59,7 +59,7 @@ calls Claude with a key.
   window), with `model_state`
   = `missing`. The drawing check draws a shirt from its tags with the
   bundled `closet.drawing` package. The avif check makes a small AVIF
-  picture and reads it back the way an upload is read. The window check loads Closet's window
+  picture and reads it back the way an upload is read. The window check loads Nines' window
   library without opening a window: on Windows pythonnet and the Edge
   WebView2 libraries, on the Mac WebKit through PyObjC, on Linux pywebview
   itself.
@@ -122,12 +122,12 @@ and runs the default smoke test with `--expect-version`. About 4 minutes.
   PyInstaller error dialog, which on CI blocks until the smoke test's timeout
   kills it.
 - **Windows tray and window.** The smoke test runs `--no-tray --no-browser`,
-  so neither the tray icon nor Closet's own window is ever shown in CI (the
+  so neither the tray icon nor Nines' own window is ever shown in CI (the
   selfcheck only loads the window's libraries). Try them by hand after the
   first release: the window opens, closing it leaves the icon, "Open
-  Closet" brings it back, "Start when I log in", "Quit Closet".
-- **Edge WebView2 Runtime.** Closet's window needs it; it comes with
-  Windows 11 and current Windows 10. Without it Closet opens in the browser
+  Nines" brings it back, "Start when I log in", "Quit Nines".
+- **Edge WebView2 Runtime.** Nines' window needs it; it comes with
+  Windows 11 and current Windows 10. Without it Nines opens in the browser
   (and says why in `closet.log`).
 - **Windows pillow-heif DLLs and the VC++ runtime.** Collected from the
   wheel's file list; a GitHub runner has the VC++ runtime
@@ -140,7 +140,7 @@ and runs the default smoke test with `--expect-version`. About 4 minutes.
 - **macOS tray and window.** pystray's macOS backend and pywebview's
   window need PyObjC (pinned in `backend/requirements.txt`); neither is
   shown by the smoke test (`--no-tray --no-browser`). The bundle's
-  Info.plist allows plain http to Closet's own server on 127.0.0.1
+  Info.plist allows plain http to Nines' own server on 127.0.0.1
   (`NSAllowsLocalNetworking`) and explains the location request for "Use
   my location".
 - **Icon.** Generated at build time from `closet.tray.icon_image()`

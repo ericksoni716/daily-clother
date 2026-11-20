@@ -10,7 +10,7 @@ test('settings show which routes to Claude can be used, in order', async ({ page
   await page.locator('nav.sidebar').getByRole('link', { name: 'Settings' }).click();
   // Settings says it in one line, and Manage opens the details on the Advanced screen
   await expect(page.getByTestId('claude-line')).not.toHaveText(/Checking/, { timeout: 20_000 });
-  await page.getByRole('region', { name: 'Claude' }).getByRole('link', { name: 'Manage how Closet reaches Claude' }).click();
+  await page.getByRole('region', { name: 'Claude' }).getByRole('link', { name: 'Manage how Nines reaches Claude' }).click();
   await expect(page).toHaveURL(/\/settings\/advanced$/);
 
   const section = page.getByRole('region', { name: 'Claude' });

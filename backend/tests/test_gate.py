@@ -32,7 +32,7 @@ def test_any_other_address_is_refused(anon, host):
     assert r.status_code == 403 and r.json() == {"detail": gate.WRONG_ADDRESS}
     page = anon.get("/", headers={"host": host})
     assert page.status_code == 403 and page.headers["content-type"].startswith("text/html")
-    assert "Closet is not at this address" in page.text
+    assert "Nines is not at this address" in page.text
 
 
 def test_a_change_without_the_pages_header_is_refused_and_says_to_reload(anon, services):
@@ -63,7 +63,7 @@ def test_with_a_key_this_computer_needs_it(keyed):
     assert r.status_code == 401 and r.json() == {"detail": gate.OPEN_FROM_ICON}
     page = keyed.get("/settings")   # an old bookmark: a page to read, not the page's own sentence
     assert page.status_code == 401 and page.headers["content-type"].startswith("text/html")
-    assert "<h1>Open Closet from its icon</h1>" in page.text
+    assert "<h1>Open Nines from its icon</h1>" in page.text
     assert keyed.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 401
     assert keyed.get("/api/health").status_code == 200
     assert keyed.post("/api/instance/show").json() == {"detail": "Not allowed."}   # the lock file's token instead

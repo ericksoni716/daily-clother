@@ -181,7 +181,7 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
             # never no outfit just because the weather is missing: dress for a mild day and say why
             mild = True
             message = (found["message"] if not found["weather"]
-                       else "Today's forecast could not be fetched; the last one Closet got is for an earlier day.")
+                       else "Today's forecast could not be fetched; the last one Nines got is for an earlier day.")
 
     if mild:
         def number(v):

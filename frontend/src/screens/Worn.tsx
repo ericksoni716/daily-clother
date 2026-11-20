@@ -21,8 +21,8 @@ import {
 const WASHED = new Set(['tee', 'shirt', 'polo', 'sweater', 'hoodie', 'jeans', 'trousers', 'shorts']);
 import './Worn.css';
 
-const OFFLINE_TITLE = 'Needs Closet on your computer to be reachable';
-export const RATE_OFFLINE = "You're offline, so rating has to wait until Closet on your computer can be reached.";
+const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
+export const RATE_OFFLINE = "You're offline, so rating has to wait until Nines on your computer can be reached.";
 
 /** The three answers, then the reasons; each tap is saved straight away. Used by the Worn list and by Today's question. */
 export function RateOutfit({ outfit, offline, onRated, compact }: {
@@ -455,7 +455,7 @@ function RecordByHand({ items, onCancel, onDone }: { items: ItemSummary[]; onCan
   return (
     <Card as="form" className="worn-record" onSubmit={submit} aria-label="Record an outfit">
       <h2>Record an outfit</h2>
-      <p className="hint">For a day you got dressed without Closet. Choose what you wore; the wears are recorded too.</p>
+      <p className="hint">For a day you got dressed without Nines. Choose what you wore; the wears are recorded too.</p>
       <label className="field worn-record-day">
         <span>Day</span>
         <input type="date" value={day} max={today} required onChange={(e) => setDay(e.target.value)} />

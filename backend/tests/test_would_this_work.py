@@ -116,7 +116,7 @@ def test_nothing_is_added_to_the_closet(client):
 
 def test_unknown_check_is_explained(client):
     r = client.get("/api/would-this-work/not-a-check")
-    assert r.status_code == 404 and "forgotten when Closet is closed" in r.json()["detail"]
+    assert r.status_code == 404 and "forgotten when Nines is closed" in r.json()["detail"]
 
 
 def test_wrong_input_is_refused_in_the_owners_words(client):

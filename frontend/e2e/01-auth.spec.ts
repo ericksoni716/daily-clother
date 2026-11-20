@@ -5,7 +5,7 @@ test('first run: set a passphrase and land in the app', async ({ page }) => {
   test.skip(!s.setup_required, 'The passphrase was already set (spec run out of order).');
 
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Welcome to Closet' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome to Nines' })).toBeVisible();
 
   // too short, then mismatched
   await page.getByLabel('Passphrase', { exact: true }).fill('short');
@@ -39,7 +39,7 @@ test('the server refuses a second setup and shows why', async ({ page }) => {
 test('log out, a wrong passphrase is refused, the right one logs in', async ({ page }) => {
   await page.goto('/');
   // a fresh context has no cookie
-  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome back to Nines' })).toBeVisible();
   await page.getByLabel('Passphrase').fill('not the passphrase');
   await page.getByRole('button', { name: 'Open my closet' }).click();
   await expect(page.getByRole('alert')).toHaveText('That passphrase is not right.');
@@ -50,9 +50,9 @@ test('log out, a wrong passphrase is refused, the right one logs in', async ({ p
 
   await page.locator('nav.sidebar').getByRole('link', { name: 'Settings' }).click();
   await page.getByRole('button', { name: 'Log out' }).click();
-  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome back to Nines' })).toBeVisible();
   // the session really ended on the server
   expect((await page.request.get('/api/items')).status()).toBe(401);
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome back to Nines' })).toBeVisible();
 });

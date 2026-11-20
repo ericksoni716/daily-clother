@@ -98,7 +98,7 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
             {finds.map((f) => <li key={f.id}><FindCard find={f} locked={locked} onRemove={() => void remove(f)} /></li>)}
           </ul>
           {answer?.prices_checked_at && <p className="muted wish-shop-line">Prices last checked {new Date(answer.prices_checked_at).toLocaleString()}.</p>}
-          <p className="muted wish-shop-line">Nothing is ever bought for you. Prices are checked again once a day while Closet is running.</p>
+          <p className="muted wish-shop-line">Nothing is ever bought for you. Prices are checked again once a day while Nines is running.</p>
         </>
       )}
     </section>

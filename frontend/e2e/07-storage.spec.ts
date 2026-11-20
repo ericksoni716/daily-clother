@@ -17,8 +17,8 @@ test('settings show how much space the demo closet takes, on the Advanced screen
   await expect(page.getByRole('button', { name: 'Leave the demo closet' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Backups' })).toBeVisible();
   const section = page.getByRole('region', { name: 'Storage' });
-  await expect(section.getByTestId('storage-line')).toHaveText(/^Closet uses [\d.]+ (KB|MB|GB) for 49 items · .+ free on this disk\.$/);
-  await expect(section.getByTestId('storage-line')).not.toHaveText(/^Closet uses 0 /);
+  await expect(section.getByTestId('storage-line')).toHaveText(/^Nines uses [\d.]+ (KB|MB|GB) for 49 items · .+ free on this disk\.$/);
+  await expect(section.getByTestId('storage-line')).not.toHaveText(/^Nines uses 0 /);
   // the breakdown is folded under the one line
   await expect(section.getByText('Photos', { exact: true })).toBeHidden();
   await section.getByText('What takes the space').click();
@@ -48,7 +48,7 @@ test('settings: short groups in one column beside the sidebar, the technical par
   // Log out and Quit are a row after the last group, not a card
   const leave = page.getByRole('group', { name: 'Leave' });
   await expect(leave.getByRole('button', { name: 'Log out' })).toBeVisible();
-  await expect(leave.getByRole('button', { name: 'Quit Closet' })).toBeVisible();
+  await expect(leave.getByRole('button', { name: 'Quit Nines' })).toBeVisible();
   expect(await leave.evaluate((el) => el.classList.contains('card'))).toBe(false);
   expect((await leave.boundingBox())!.y).toBeGreaterThan((await page.getByRole('region', { name: 'Your data' }).boundingBox())!.y);
 

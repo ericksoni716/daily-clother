@@ -122,7 +122,7 @@ def parse_piece(data: object) -> dict:
         raise PieceError(f"These are not part of a description: {', '.join(unknown)}.")
     if not data.get("category"):
         raise PieceError("Choose what kind of piece it is.")
-    category = _choice(data, "category", CATEGORIES, "a kind of piece Closet can check")
+    category = _choice(data, "category", CATEGORIES, "a kind of piece Nines can check")
     if not data.get("color"):
         raise PieceError("Choose its main colour.")
     color = _choice(data, "color", vocab.COLOR, "a colour")
@@ -582,7 +582,7 @@ def _serves(row: dict, c: gaps._Closet, answers: Mapping, climate: Mapping) -> l
 
 def _serves_text(serves: list[dict]) -> str:
     if not serves:
-        return "It does not make a good outfit for any of the situations you told Closet about."
+        return "It does not make a good outfit for any of the situations you told Nines about."
     return f"It suits {gaps._join([s['label'].lower() for s in serves])}."
 
 

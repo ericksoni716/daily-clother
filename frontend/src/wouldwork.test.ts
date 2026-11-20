@@ -115,7 +115,7 @@ describe('asking how a check is getting on', () => {
     expect(checkPoll({ state: 'failed' }, null)).toBe(false);
     expect(checkPoll(undefined, null)).toBe(false);
   });
-  it('asks more slowly while Closet cannot be reached, and stops once the check is forgotten', () => {
+  it('asks more slowly while Nines cannot be reached, and stops once the check is forgotten', () => {
     expect(checkPoll({ state: 'checking' }, { status: 0 })).toBe(POLL_MS * 2);
     expect(checkPoll({ state: 'checking' }, { status: 404 })).toBe(false);
   });

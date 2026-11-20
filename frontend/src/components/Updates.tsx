@@ -2,7 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { queryKeys } from '../queryKeys';
-import { HangerIcon } from './Icons';
+import { NinesMark } from './NinesMark';
 import { Button, Markdown, Notice, SegmentedControl } from './ui';
 import { formatSize } from '../labels';
 import { busyLine, checkedLine, lastInstallLine, MODES, showBanner, updates, useUpdates, type UpdateMode, type UpdateStatus } from '../updates';
@@ -38,7 +38,7 @@ export function UpdateBanner({ offline, toast }: { offline: boolean; toast: Toas
           setBusy(false);
         }
       }}>Install</Button>}>
-      <strong>Closet {status.available.version} is ready</strong>
+      <strong>Nines {status.available.version} is ready</strong>
       <span className="ribbon-more"> · your closets are backed up before it is installed.</span>
     </Notice>
   );
@@ -50,18 +50,18 @@ export function Restarting() {
   if (!installing) return null;
   return (
     <div className="restarting" role="alertdialog" aria-modal="true" aria-labelledby="restarting-title" aria-describedby="restarting-text">
-      <div className="brand-mark"><HangerIcon /></div>
-      <h1 id="restarting-title">{installing.late ? "Closet hasn't come back yet" : 'Closet is restarting'}</h1>
+      <NinesMark className="nines-mark-screen" />
+      <h1 id="restarting-title">{installing.late ? "Nines hasn't come back yet" : 'Nines is restarting'}</h1>
       {installing.late ? (
         <>
           <p id="restarting-text" className="muted narrow">
-            It is taking longer than it should. If Closet's icon is not near the clock or in the menu bar, open Closet again on your computer. Your closets were backed up first.
+            It is taking longer than it should. If the Nines icon is not near the clock or in the menu bar, open Nines again on your computer. Your closets were backed up first.
           </p>
           <Button variant="primary" onClick={() => window.location.reload()}>Try again</Button>
         </>
       ) : (
         <p id="restarting-text" className="muted narrow" aria-busy="true">
-          Installing Closet {installing.to}. This page reconnects by itself in a moment.
+          Installing Nines {installing.to}. This page reconnects by itself in a moment.
         </p>
       )}
     </div>
@@ -137,7 +137,7 @@ export function UpdatesManage({ offline, toast }: { offline: boolean; toast: Toa
   useWhileBusy(offline);
 
   if (!status) {
-    return <p className="hint">{offline ? "Updates can't be checked while you're offline." : 'This copy of Closet has no updater.'}</p>;
+    return <p className="hint">{offline ? "Updates can't be checked while you're offline." : 'This copy of Nines has no updater.'}</p>;
   }
 
   async function choose(mode: UpdateMode) {

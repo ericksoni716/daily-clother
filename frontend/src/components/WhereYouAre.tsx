@@ -78,7 +78,7 @@ export function WhereYouAre({ place, home, offline, onChange, toast, inline }: {
   let saved: ReactNode;
   if (offline) saved = <p className="hint">Where you are can't be seen or changed while you're offline.</p>;
   else if (place === undefined) saved = null;
-  else if (place === null) saved = <p className="hint">No place saved yet, so Closet uses New York.</p>;
+  else if (place === null) saved = <p className="hint">No place saved yet, so Nines uses New York.</p>;
   else {
     const isHome = samePlace(place, home);
     saved = (
@@ -99,7 +99,7 @@ export function WhereYouAre({ place, home, offline, onChange, toast, inline }: {
   return (
     <>
       <p className="hint">
-        Closet uses today's weather to choose outfits. To look it up it sends Open-Meteo (open-meteo.com) only the place name you search for here and the saved place's location; nothing about your clothes.
+        Nines uses today's weather to choose outfits. To look it up it sends Open-Meteo (open-meteo.com) only the place name you search for here and the saved place's location; nothing about your clothes.
         {' '}"Use my location" asks your browser where you are, only when you tap it, and sends OpenStreetMap only that position, rounded to about a kilometre, to name the town.
       </p>
       {saved}

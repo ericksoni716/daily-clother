@@ -55,7 +55,7 @@ describe('UploadQueue', () => {
     let calls = 0;
     const { q, sleeps } = makeQueue(async (_b, _f, key) => {
       keys.push(key);
-      if (++calls < 3) throw err(0, "Can't reach Closet.");
+      if (++calls < 3) throw err(0, "Can't reach Nines.");
       return { id: 'item-1' };
     });
     q.add([{ name: 'a.jpg' }]);
@@ -250,7 +250,7 @@ describe('UploadQueue', () => {
     const { q, sleeps } = makeQueue(async () => {
       if (!reachable) {
         box.q!.setOnline(false);
-        throw err(0, "Can't reach Closet.");
+        throw err(0, "Can't reach Nines.");
       }
       return { id: 'i' };
     });

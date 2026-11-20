@@ -550,3 +550,25 @@ export function withThing(answer: TodayAnswer, turnId: string, index: number, th
 export function sameOutfits(a: Outfit[], b: Outfit[]): boolean {
   return a.length === b.length && a.every((o, i) => outfitIds(o.pieces).join(',') === outfitIds(b[i].pieces).join(','));
 }
+
+/**
+ * What of the closet today's outfits depend on: each item's place, availability and rating, in one string (null until
+ * the list is read). It is part of the question asked, so outfits kept from earlier are shown again only while these
+ * are the same; an item's name, photo or drawing changing does not ask again.
+ */
+export function closetKey(items: readonly Pick<ItemSummary, 'id' | 'category' | 'status' | 'laundry' | 'rating'>[] | null | undefined): string | null {
+  if (!items) return null;
+  return JSON.stringify(items.map((i) => JSON.stringify([i.id, i.category, i.status, i.laundry, i.rating])).sort());
+}
+
+/**
+ * Of the answers kept for today's question (`[day, updatedAt, answer]`, any choices), the newest one asked on `day`:
+ * shown while the outfits for other choices are asked for, as the outfits on screen were before.
+ */
+export function newestOn<T>(kept: readonly (readonly [string, number, T | undefined])[], day: string): T | undefined {
+  let best: { at: number; answer: T } | undefined;
+  for (const [d, at, answer] of kept) {
+    if (d === day && answer !== undefined && (!best || at > best.at)) best = { at, answer };
+  }
+  return best?.answer;
+}

@@ -35,6 +35,10 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   version, with its headings and lists set out properly instead of as raw text. A release
   made before this one shows no notes there.
 
+- In the demo closet, the seven pieces that have a photo are now drawn the way your own
+  pieces are, so they look a little different: the jeans show their denim, the turtleneck
+  its flecks, and the leather sneakers a thinner sole.
+
 ### Fixed
 
 - If a screen fails to draw, it says so and offers Try again and Reload Closet, instead of

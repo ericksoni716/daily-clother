@@ -134,7 +134,8 @@ Low and medium risk, about 15 to 17 thousand lines and about 50 MB:
 2. **Quick wins, each small** (done; what is left over is in `docs/BACKLOG.md`): hide the QR on the phone; Homestead's touch CSS and no press
    shrink; "‹ Closet" goes back and scroll is remembered; an error boundary; delete the
    background remover card; Fix details opens on the text box; render release notes properly.
-3. **Repo cleanup and the slow-test split**, items 1 to 7 above.
+3. **Repo cleanup and the slow-test split** (done; what is left over is in `docs/BACKLOG.md`),
+   items 1 to 7 above.
 4. **Data loading:** a query cache with one key file, one settings payload, Tailscale off the
    request path, `patch_item` off the main loop. This removes most pop-in and lag.
 5. **One progress model** for background work, with one status endpoint.

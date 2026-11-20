@@ -1,4 +1,4 @@
-"""A plaid drawn from a description of its bands (closet/patterns/described.py), an experiment not yet in the app.
+"""A plaid drawn from a description of its bands (closet/patterns/described.py), used by the app through `patterns/surface.py`.
 Made-up descriptions only, no photos."""
 import base64
 import io

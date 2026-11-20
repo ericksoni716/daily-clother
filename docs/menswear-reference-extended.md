@@ -550,6 +550,6 @@ The taxonomy JSON gains these **new top-level blocks**. None of them changes an 
 | `accessories` | Section 15: types per group |
 | `outfit` | Section 16: places, layering rules, temperature bands, formality levels, color pairings, pattern-mixing rules, proportion rules |
 
-New `garments` entries use the categories `activewear`, `loungewear`, `footwear` and `accessory`, and the bottoms entries gain detail fields. None of these categories is one that `bench/tests/test_taxonomy.py` draws (`knit_top`, `woven_shirt`, `sweatshirt`, `knitwear`), so no drawing test changes. Each footwear garment has `app_style`, a value of `SHOE_STYLES` in `backend/closet/tagger/taxonomy.py` (or the app category `sandals`), so the drawing can pick its template.
+New `garments` entries use the categories `activewear`, `loungewear`, `footwear` and `accessory`, and the bottoms entries gain detail fields. None of these categories is one that `backend/tests/test_taxonomy.py` draws (`knit_top`, `woven_shirt`, `sweatshirt`, `knitwear`), so no drawing test changes. Each footwear garment has `app_style`, a value of `SHOE_STYLES` in `backend/closet/tagger/taxonomy.py` (or the app category `sandals`), so the drawing can pick its template.
 
 Promoting any of these values into `axes` (for example adding `performance_jersey` to `knit_structure`) is a deliberate step: update `AXES` and `COVERAGE` in `backend/closet/tagger/taxonomy.py` in the same change, as `AGENTS.md` describes.

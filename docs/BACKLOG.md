@@ -14,6 +14,23 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Repo clean-up and the slow-test split** (step 3 of the order of work, done 20 November). Left:
+  - `docs/screenshots/` still holds about 150 pictures (25 MB) that DECISIONS or this file
+    name, most of them only by a pattern in a finished item (`figure-*.png`, `fit-*.png`,
+    `*-depth-*.png`, `drawing-faults-*.png`). Deleting those, and rewriting history to
+    reclaim the rest, are the owner's call.
+  - The bench is now only `trace_shoes` with its fork of the cut-out (`bench/closet_bench/cutout.py`)
+    and two stand-in modules. Whether it stays is the owner's call (the tests audit, O2).
+  - The slowest test (`test_patterns`, a plaid from a dark photo) sets how long the slow job
+    takes; a smaller made-up photo would cut it most.
+  - Not done from the tests audit: the demo closet built once per test session (S2), the two
+    shop tests on a small closet (S4), column-only migration tests (S5), fewer theme and
+    accessibility repeats (S8), gates instead of sleeps in the browser fakes (S9), and the
+    missing tests it lists (Settings controls, a non-localhost address, progress stage by stage).
+  - `06-model.spec.ts` still never runs anywhere; the nightly workflow could download the
+    model and run it.
+  - The leather sneakers in the demo closet lost their thick sole: no answer value gives a
+    court sneaker one.
 - **Quick wins** (step 2 of the order of work, done 20 November). Left:
   - After the next release, the first pull request that touches `CHANGELOG.md` moves the
     released lines from *Unreleased* under a `## <version>` heading (`docs/DEVELOPING.md`,
@@ -198,7 +215,7 @@ The owner finds the most capable model (Fable) better at drawing and at judging 
 - **Mac 0.1.1**: confirm the background-removal model now downloads on the owner's Mac.
 - **The Windows build** for stop A has still not been made or tried.
 - **The app's top UI complaints**, as the brief for UI tasks. A full interface-design pass comes after more features exist.
-- **25–30 photos of the owner's own clothes** with an answer key (`bench/answer_key.template.csv`). Most useful: items that differ from the usual (a polo with one or three buttons, a henley, corduroy, fleece or heavy wool beside light cotton, a sweatshirt with a V-insert). The bench runs them through the Claude plan by default; an API key is optional.
+- **25–30 photos of the owner's own clothes** with an answer key. Most useful: items that differ from the usual (a polo with one or three buttons, a henley, corduroy, fleece or heavy wool beside light cotton, a sweatshirt with a V-insert). The tagging bench that ran them was removed on 20 November with the rest of phase 0 (it is in the git history: `bench/closet_bench/bench.py` and `bench/answer_key.template.csv`); bring it back, or run them through the app, if this is still wanted.
 - Three photos for the untested hard cases: something striped, something floral or patterned, something camouflage.
 - **Shoes drawn from understanding**: five photos each (outer side, above, front, back, inner side) of three to five more pairs, of kinds not tried yet (not a runner, army trainer, cap-toe dress shoe, boat shoe or elastic-sided boot), for the check on unseen pairs. They stay out of the repository.
 - **Time the plan route on the PC** (when the owner is home; about 3 minutes, nothing billed): `python tools/time_plan_route.py` in the Closet folder, and paste the table it prints. It decides whether a Claude Code started ahead of each call is built into the app (see "A faster plan route" above).

@@ -360,7 +360,7 @@ const Tile = memo(function Tile({ item, status, selected, progress, view, onChoo
   );
 });
 
-/** The picture the closet grid shows for an item (also used by Insights). */
+/** The picture the closet grid shows for an item (also used by the Wardrobe's lists of pieces). */
 export function TilePicture({ item, view }: { item: ItemSummary; view: GridView }) {
   const alt = item.name || label('category', item.category) || 'Item';
   if (view === 'drawings' && item.illustration_url) return <img className="pic-illustration" src={item.illustration_url} alt={`${alt}, drawing`} loading="lazy" />;

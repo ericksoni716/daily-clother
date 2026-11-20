@@ -42,8 +42,11 @@ function basisWords(context: NonNullable<GapsAnswer['context']>): string {
 }
 
 /** The "Based on" row: one tap opens How you live, where the whole of it can be read and changed. */
-export function LifeBasis({ context, locked, busy, onOpen, onDismiss }: {
-  context: GapsAnswer['context']; locked: boolean; busy: boolean; onOpen(): void; onDismiss(): void;
+export function LifeBasis({ context, locked, busy, invite = true, onOpen, onDismiss }: {
+  context: GapsAnswer['context']; locked: boolean; busy: boolean;
+  /** Offer the questions as well: only once the closet has enough in it to suggest from (asking first is out of order). */
+  invite?: boolean;
+  onOpen(): void; onDismiss(): void;
 }) {
   if (!context) return null;
   const { life, demo } = context;
@@ -56,7 +59,7 @@ export function LifeBasis({ context, locked, busy, onOpen, onDismiss }: {
         <span className="life-basis-text"><span className="life-basis-label">Based on</span> {basisWords(context)}.</span>
         {' '}<span className="life-basis-open">{openWord}<ChevronIcon /></span>
       </button>
-      {!life && !context.prompt_dismissed && !demo && !locked && (
+      {invite && !life && !context.prompt_dismissed && !demo && !locked && (
         <div className="life-invitation">
           <div><h2>Tell it how you live <span>· 1 minute</span></h2>
             <p>More for your everyday. Less for days you never dress for.</p></div>
@@ -70,7 +73,7 @@ export function LifeBasis({ context, locked, busy, onOpen, onDismiss }: {
   );
 }
 
-/** What the suggestions are based on, in full: shown inside How you live when it is opened from What's missing. */
+/** What the suggestions are based on, in full: shown inside How you live when it is opened from the Wardrobe. */
 export function LifeAbout({ context }: { context: NonNullable<GapsAnswer['context']> }) {
   const { climate, taste } = context;
   return (
@@ -128,6 +131,7 @@ export function WorthBuying({ gaps, byId, actions, offline, situation, onSituati
   if (!gaps.enough) {
     return (
       <section className="missing-small" data-testid="too-small" aria-labelledby="gaps-title">
+        {basis}
         <div className="empty-art"><HangerIcon /></div>
         <h2 id="gaps-title" className="empty-title">Not enough to go on yet</h2>
         <p>{gaps.message}</p>
@@ -408,7 +412,7 @@ export function Thinking({ wishes, actions, failed }: { wishes: Wish[] | null; a
 function WishRow({ wish }: { wish: Wish }) {
   const lines = lookForLines(wish.look_for);
   return (
-    <Link to={wishPath(wish.id)} className="wish-row" data-testid="wish-row" aria-label={`${wish.name}. Open`}>
+    <Link to={wishPath(wish.id)} className="wish-row" data-testid="wish-row">
       <span className="wish-row-text">
         <span className="wish-row-name">{wish.name}</span>
         <span className="wish-row-more muted">{wish.note || (lines.length ? lines.join(' · ') : wish.gap_id ? '' : 'Added by hand')}</span>

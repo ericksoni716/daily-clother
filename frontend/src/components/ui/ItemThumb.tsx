@@ -5,7 +5,7 @@ import { Pic } from '../ItemPic';
 import { cls } from './cls';
 
 /**
- * An item's small picture on its light card (Today, Worn, What's missing, Insights). The size comes from the
+ * An item's small picture on its light card (Today, Worn, the Wardrobe). The size comes from the
  * screen's own class. `picture` replaces the usual cutout-drawing-photo choice; `to` makes it a link to the item.
  */
 export function ItemThumb({ item, picture, to, title, className, testId }: {

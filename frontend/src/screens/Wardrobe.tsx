@@ -200,7 +200,8 @@ export function WardrobeScreen({ itemId, check, wishId, wish, wide }: {
         <>
           <WorthBuying gaps={phase.data.gaps} byId={byId} actions={actions} offline={offline}
             situation={situation} onSituation={setSituation} onLife={() => setLifeOpen(true)}
-            basis={!lifeOpen && <LifeBasis context={phase.data.gaps.context} locked={locked} busy={busy !== null} onOpen={() => setLifeOpen(true)}
+            basis={!lifeOpen && <LifeBasis context={phase.data.gaps.context} locked={locked} busy={busy !== null} invite={phase.data.gaps.enough}
+              onOpen={() => setLifeOpen(true)}
               onDismiss={() => void change('life-dismiss', 'settings', () => api.putSettings({ life_prompt_dismissed: true }))} />} />
           {lifeOpen && <LifeQuestions initial={phase.data.gaps.context?.life ?? null} locked={locked}
             about={phase.data.gaps.context && <LifeAbout context={phase.data.gaps.context} />}

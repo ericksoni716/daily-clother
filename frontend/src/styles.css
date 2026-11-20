@@ -280,8 +280,6 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .btn-link:hover:not(:disabled) { border: none; }
 .btn-danger { background: var(--danger); border-color: var(--danger); color: var(--on-danger); }
 .btn-danger-quiet { color: var(--danger); }
-.btn-on-accent { background: color-mix(in srgb, var(--accent-ink) 14%, transparent); color: inherit; border-color: color-mix(in srgb, var(--accent-ink) 45%, transparent); }
-.btn-on-accent:hover:not(:disabled) { background: color-mix(in srgb, var(--accent-ink) 24%, transparent); border-color: var(--accent-ink); }
 
 /* ---------------------------------------------------------------- forms */
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; min-width: 0; }

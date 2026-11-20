@@ -165,9 +165,3 @@ export function formatSize(n: number | null | undefined): string {
   }
   return `${shown(value)} ${SIZE_UNITS[unit]}`;
 }
-
-/** "12.3 MB" */
-export function formatBytes(n: number | null | undefined): string {
-  if (!n) return '0 MB';
-  return `${(n / 1_000_000).toFixed(n < 10_000_000 ? 1 : 0)} MB`;
-}

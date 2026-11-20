@@ -4,7 +4,6 @@
 .trips h2 { font-size: var(--text-lg); margin: 0 0 10px; }
 .trips-intro { margin: -6px 0 16px; max-width: 40rem; }
 .trips-section { margin-bottom: 20px; }
-.today-trips { flex: none; }
 
 /* ---------------------------------------------------------------- the list */
 .trip-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }

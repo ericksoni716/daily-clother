@@ -2,6 +2,7 @@ import io
 import json
 import re
 import sys
+import threading
 import urllib.error
 import zlib
 from types import SimpleNamespace
@@ -15,6 +16,7 @@ from closet import app as app_module
 from closet import weather
 from closet.config import Config
 from closet.drawing import drawn
+from closet.tagger import correcting
 from closet.tagger.correcting import Change, CorrectionAnswer, CorrectionResult
 from closet.tagger.garments import Garment, Garments
 from closet.tagger.schema import Details, ItemTags, Silhouette
@@ -223,6 +225,59 @@ class FakeClaude:
                                                  needs_photo=photo), routes[0], "fake")
 
 
+CUT_SECONDS = 10.0   # how long every request cut short takes on the fake clock (`cut_clock`)
+CUT = 2_000          # the output a request cut short after CUT_SECONDS is counted at (200 tokens a second)
+
+
+@pytest.fixture
+def cut_clock(monkeypatch):
+    """The clock that times a request cut short (`correcting.clock`): each thread's calls step by CUT_SECONDS, so
+    every request cut short took exactly that long, whatever the threads drawing side by side do."""
+    local = threading.local()
+
+    def tick():
+        local.now = getattr(local, "now", 0.0) + CUT_SECONDS
+        return local.now
+    monkeypatch.setattr(correcting, "clock", tick)
+    return tick
+
+
+class FakeStream:
+    """A streamed answer as the SDK's `MessageStream` gives it: the text in small pieces (`type` "text" events), the
+    usage `message_start` carries (the prompt's tokens, and one output token) as soon as it is read, and the whole
+    message once read to its end. On leaving, what was read is added to `streams`: {"whole": read to its end or not,
+    "text": the text read}."""
+
+    PIECE = 16   # characters in each piece
+
+    def __init__(self, message, streams: list):
+        self.message, self.streams, self.read = message, streams, []
+        text = "".join(b.text for b in message.content if getattr(b, "type", None) == "text")
+        self.pieces = [text[i:i + self.PIECE] for i in range(0, len(text), self.PIECE)]
+        u = message.usage
+        self.current_message_snapshot = SimpleNamespace(usage=SimpleNamespace(
+            input_tokens=u.input_tokens, output_tokens=1,
+            cache_creation_input_tokens=getattr(u, "cache_creation_input_tokens", 0),
+            cache_read_input_tokens=getattr(u, "cache_read_input_tokens", 0)))
+
+    def __iter__(self):
+        for piece in self.pieces[len(self.read):]:
+            self.read.append(piece)
+            yield SimpleNamespace(type="text", text=piece)
+
+    def get_final_message(self):
+        for _ in self:
+            pass
+        return self.message
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.streams.append({"whole": len(self.read) == len(self.pieces), "text": "".join(self.read)})
+        return False
+
+
 class FakeApi:
     """Stands in for the Anthropic API behind the API-key route (its `messages.parse`, and `messages.create` for
     describing an item); no test reaches the real one.
@@ -232,7 +287,7 @@ class FakeApi:
     else `views_answer` for the photos sent) and reports token counts as the real API does; `error` makes the next
     calls raise it instead. `requests` keeps what each call was sent. Asked to draw a shoe, or to check its drawing,
     which is streamed (`messages.stream`), it answers `drawing` (`draw_answer`) or `checked` (`check_answer`), as text
-    in the answer's schema, turned or not; asked to change a drawing from the owner's note, or to check the change,
+    in the answer's schema, turned or not (`FakeStream`, in pieces); asked to change a drawing from the owner's note, or to check the change,
     `corrected` (`correct_answer`) or `correct_checked` (`correct_check_answer`); asked to judge drawings, the first,
     with no fault named. A message in the style conversation is answered with `chat` (a few words, one line to keep).
     """
@@ -243,6 +298,7 @@ class FakeApi:
         self.error: Exception | None = None
         self.calls = 0
         self.requests: list[dict] = []
+        self.streams: list[dict] = []   # each streamed answer: read to its end or not, and the text read (FakeStream)
         self.messages = self
         self.correction = CorrectionAnswer(changes=[Change(name="placket_buttons", value="2")], not_understood="",
                                            needs_photo=False)
@@ -295,14 +351,7 @@ class FakeApi:
                                   usage=SimpleNamespace(input_tokens=self.input_tokens, output_tokens=self.output_tokens,
                                                         cache_creation_input_tokens=self.cache_write,
                                                         cache_read_input_tokens=self.cache_read))
-
-        class Stream:
-            def __enter__(self):
-                return SimpleNamespace(get_final_message=lambda: message)
-
-            def __exit__(self, *exc):
-                return False
-        return Stream()
+        return FakeStream(message, self.streams)
 
     def parse(self, **kw):
         self.calls += 1

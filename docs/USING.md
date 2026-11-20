@@ -129,7 +129,7 @@ tried again.
 
 A shoe also shows its photos sorted into views, its traced side drawing with its own fixes,
 and the drawing Claude makes for the figure, which takes several minutes and can be
-corrected with a note.
+corrected with a note. Two shoes are drawn at the same time; a third waits for one of them.
 
 While Closet is working on a piece, one strip over the bottom of its picture says how far it
 has got: three dots for the three steps (cutting out, on the computer; describing and drawing,

@@ -14,10 +14,13 @@ from __future__ import annotations
 
 import functools
 import json
+import math
 import os
 import re
 import subprocess
 import tempfile
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -50,6 +53,15 @@ CLI_TIMEOUT = 120    # seconds a call through the plan may take, unless the call
 # required for operations that may take longer than 10 minutes") when 3,600 s x max_tokens / 128,000 is over 600 s
 # (anthropic 2.8.0, `_base_client._calculate_nonstreaming_timeout`). Larger answers are streamed instead.
 NONSTREAMING_MAX_TOKENS = 128_000 * 600 // 3600
+# How far into a streamed answer's text the place to cut it short is looked for (`CutShort`); past it, the answer is
+# read to its end as usual. A check's `good` and `problems` take a few hundred characters.
+CUT_LOOK_CHARS = 20_000
+# The output of a request cut short is not reported (it comes in the last `message_delta`, never read), so it is
+# estimated from the time the request had: a model cannot have written more tokens than its writing speed allows in
+# that time. 200 tokens a second is well above what the drawing model writes at, so the estimate errs high as long as
+# that holds; it is still an estimate, not a count, and never more than the request's `max_tokens`.
+CUT_TOKENS_PER_SECOND = 200
+clock = time.monotonic   # the clock that times a request cut short (tests replace it)
 IMAGE_NAME = re.compile(r"[a-z0-9][a-z0-9-]*\.(jpg|png)")   # the names a caller may give the images it sends
 SYSTEM = ("You correct the description of one item of clothing in a private wardrobe app, following what its owner "
           "says. If an image file is named in the request, look at it with the Read tool. Answer in the required JSON "
@@ -86,8 +98,88 @@ class CorrectionResult:
     cache_read_tokens: int = 0   # of input_tokens, those read back from a cache: Claude Code's own (the plan route),
                                  # or the prompt cache (the API route, `cache_photos`)
     cache_write_tokens: int = 0  # of input_tokens, those written to the prompt cache (the API route)
+    cut_short: bool = False      # the answer stopped being read early (`CutShort`): output_tokens is then not a count
+                                 # but an estimate that errs high, from the seconds the request had at
+                                 # CUT_TOKENS_PER_SECOND, at most max_tokens (`cut_output`)
 
 
+@dataclass
+class CutShort:
+    """The caller's word that a streamed answer may be cut short (`ask`'s `cut_short`; only on the API route, and only
+    when the answer is streamed). Once the answer's text has reached its top-level key `at`, `answer` is given the
+    fields before it, each read whole, and returns the whole answer to use in its place, or None to read the answer to
+    its end as usual. Given an answer, the stream is closed and the rest is never read. The request itself is the
+    same, byte for byte: only the reading stops."""
+    at: str
+    answer: Callable[[dict], BaseModel | None]
+
+
+_JSON = json.JSONDecoder()
+_SPACE = re.compile(r"[ \t\n\r]*")
+
+
+def fields_before(text: str, key: str) -> dict | None:
+    """The top-level fields that come before `key` in a JSON object of which `text` is the beginning, each value read
+    whole by the JSON decoder; None while the text has not reached `key` yet. A value counts only once the comma after
+    it has come, so a number or a string cut in the middle is never taken for a whole one. Raises `ValueError` when
+    the text is not the beginning of an object, or the object ends without `key`."""
+    def skip(i: int) -> int:
+        return _SPACE.match(text, i).end()
+    i = skip(0)
+    if i == len(text):
+        return None
+    if text[i] != "{":
+        raise ValueError("not a JSON object")
+    fields: dict = {}
+    i = skip(i + 1)
+    while True:
+        if i == len(text):
+            return None
+        if fields or text[i] in ",}":   # after a field: a comma, or the end of the object
+            if text[i] == "}":
+                raise ValueError(f"the object ends before {key!r}")
+            if text[i] != ",":
+                raise ValueError("not a JSON object")
+            i = skip(i + 1)
+            if i == len(text):
+                return None
+        if text[i] != '"':
+            raise ValueError("not a JSON object")
+        try:
+            name, i = _JSON.raw_decode(text, i)
+        except ValueError:   # the key is still being written
+            return None
+        i = skip(i)
+        if i == len(text):
+            return None
+        if text[i] != ":":
+            raise ValueError("not a JSON object")
+        if name == key:
+            return fields
+        i = skip(i + 1)
+        if i == len(text):
+            return None
+        try:
+            value, j = _JSON.raw_decode(text, i)
+        except ValueError:   # the value is still being written
+            return None
+        fields[name] = value
+        i = skip(j)
+
+
+@dataclass
+class _Cut:
+    """A streamed answer cut short: the answer the caller made, the usage `message_start` gave, and the seconds from
+    the request being sent to the stream being closed."""
+    answer: BaseModel
+    usage: object
+    seconds: float
+
+
+def cut_output(seconds: float, max_tokens: int) -> int:
+    """The output tokens a request cut short after `seconds` is counted at: the most it could have written in that
+    time at `CUT_TOKENS_PER_SECOND`, rounded up, and never more than its `max_tokens`. An estimate, not a count."""
+    return min(max_tokens, math.ceil(max(0.0, seconds) * CUT_TOKENS_PER_SECOND))
 def prompt(sentence: str, description: dict, allowed: dict[str, list], with_photo: bool) -> str:
     lines = "\n".join(f"- {name}: {', '.join(str(v) for v in vals)}" for name, vals in allowed.items())
     return f"""The owner of this item says its description is wrong. Their words:
@@ -128,9 +220,39 @@ def _png_block(img: Image.Image, max_edge: int = 1024) -> dict:
                                         "data": base64.standard_b64encode(buf.getvalue()).decode()}}
 
 
-def _streamed(client, **kwargs):
-    """One request streamed, as the SDK requires for a long answer; the whole message once it has come."""
+def _streamed(client, cut_short: CutShort | None = None, **kwargs):
+    """One request streamed, as the SDK requires for a long answer; the whole message once it has come. With
+    `cut_short`, the answer's text is looked at as it arrives, and once the caller gives an answer in its place the
+    stream is closed and that answer comes back (`_Cut`) with the usage `message_start` gave and the seconds the
+    request had (timed by `clock`, from just before it is sent)."""
+    sent = clock()
     with client.messages.stream(**kwargs) as stream:
+        if cut_short is None:
+            return stream.get_final_message()
+        text, looking, mark = "", True, f'"{cut_short.at}"'
+        for event in stream:
+            if not looking or getattr(event, "type", None) != "text":
+                continue
+            text += event.text
+            if len(text) > CUT_LOOK_CHARS:
+                looking = False
+                continue
+            if mark not in text:
+                continue
+            try:
+                fields = fields_before(text, cut_short.at)
+            except ValueError:   # not the answer expected: it is read to its end
+                looking = False
+                continue
+            if fields is None:
+                continue
+            looking = False   # decided once, here
+            try:
+                answer = cut_short.answer(fields)
+            except Exception:   # anything unexpected: read to its end
+                answer = None
+            if answer is not None:
+                return _Cut(answer, stream.current_message_snapshot.usage, clock() - sent)   # leaving closes it
         return stream.get_final_message()
 
 
@@ -145,14 +267,24 @@ def _parsed(resp, answer_model):
 
 def correct_api(client, model: str, text: str, images: list[Image.Image], meter: Meter | None = None,
                 answer_model=CorrectionAnswer, names: list[str] | None = None, max_tokens: int = MAX_TOKENS,
-                effort: str | None = None, cache_photos: bool | int = False) -> CorrectionResult:
+                effort: str | None = None, cache_photos: bool | int = False,
+                cut_short: CutShort | None = None) -> CorrectionResult:
     """Through the API key. With a `meter`, every request is checked against it before it is sent and counted
     once it comes back, as for tagging. `answer_model` is the shape of the answer (another short question to
     Claude, such as the landmarks, uses the same way in). `names`: what to call each image, put just before it (a
     name ending in .png is sent as PNG). `max_tokens` above what the SDK allows without streaming
     (`NONSTREAMING_MAX_TOKENS`) is streamed: the answer's schema goes in `output_config.format`, as `messages.stream`
     does with `output_format` itself, and the whole text is read against it once it has come, so an answer cut short
-    is still counted at what it cost. `effort` overrides the model's effort in `models.json`."""
+    is still counted at what it cost. `effort` overrides the model's effort in `models.json`. `cut_short`: the answer
+    may stop being read early (`CutShort`), when it is streamed; ignored when it is not.
+
+    A request cut short is counted once, as any other: its prompt's tokens (plain, written to the cache, read from it)
+    exactly as `message_start` gave them, and its output estimated (`cut_output`). The output's true count only comes
+    in the last `message_delta`, after the whole answer, and part of it is thinking that is never shown (the drawing
+    model streams its thinking as empty blocks), so it cannot be counted from what arrived. It is estimated as the
+    most the model could have written in the seconds from the request being sent to the stream being closed, at
+    `CUT_TOKENS_PER_SECOND`, at most `max_tokens`: high, as long as the model writes slower than that
+    (`CorrectionResult.cut_short`). The meter held this request at its `max_tokens`, as any other."""
     import anthropic
     from anthropic.lib._parse._transform import transform_schema
 
@@ -181,7 +313,7 @@ def correct_api(client, model: str, text: str, images: list[Image.Image], meter:
             meter.before_api_call(model, len(images))
         try:
             if streamed:
-                resp = send(meter, functools.partial(_streamed, client), model=model, max_tokens=max_tokens,
+                resp = send(meter, functools.partial(_streamed, client, cut_short), model=model, max_tokens=max_tokens,
                             messages=[{"role": "user", "content": content}],
                             output_config={"effort": effort, "format": {"type": "json_schema",
                                                                         "schema": transform_schema(answer_model)}})
@@ -201,13 +333,18 @@ def correct_api(client, model: str, text: str, images: list[Image.Image], meter:
                 reason = "key" if e.status_code in (401, 403) else "credit"
                 raise ApiRefused(f"the API key cannot be used right now ({e.status_code})", reason) from e
             raise TaggingError(f"{model} rejected the request ({e.status_code})") from e
+        cut = isinstance(resp, _Cut)
+        out = cut_output(resp.seconds, max_tokens) if cut else resp.usage.output_tokens   # cut short: estimated
         tokens_in += resp.usage.input_tokens
-        tokens_out += resp.usage.output_tokens
+        tokens_out += out
         cached = cached_tokens(resp.usage)
         cache_write += cached.get("cache_write", 0)
         cache_read += cached.get("cache_read", 0)
         if meter:
-            meter.record("api", model, resp.usage.input_tokens, resp.usage.output_tokens, **cached)
+            meter.record("api", model, resp.usage.input_tokens, out, **cached)
+        if cut:
+            return CorrectionResult(resp.answer, "api", model, tokens_in + cache_write + cache_read, tokens_out,
+                                    cache_read, cache_write, cut_short=True)
         if resp.stop_reason == "refusal":
             raise TaggingError(f"{model} declined to answer")
         parsed = _parsed(resp, answer_model) if streamed else resp.parsed_output
@@ -238,7 +375,7 @@ def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | Non
     one photo as `item.jpg`, several as `photo-1.jpg`, `photo-2.jpg`, ... in their order, and the prompt says
     their names; or, given `names`, each image under its own name (a .png kept as PNG). `tools`: the only Claude Code
     tools it may use, comma-separated (searching shops allows the web ones). `effort` overrides the model's effort in
-    `models.json`."""
+    `models.json`. Its answer is always read whole: a caller's `CutShort` never reaches this route."""
     from anthropic.lib._parse._transform import transform_schema
 
     names = _checked_names(names, images)
@@ -316,13 +453,16 @@ def correct(sentence: str, description: dict, allowed: dict[str, list], images: 
 def ask(text: str, images: list[Image.Image], routes: tuple[str, ...], client=None, exe: str | None = None,
         meter: Meter | None = None, answer_model=CorrectionAnswer, system: str = SYSTEM,
         model: str = MODEL, names: list[str] | None = None, max_tokens: int | None = None,
-        timeout: float | None = None, effort: str | None = None, cache_photos: bool | int = False) -> CorrectionResult:
+        timeout: float | None = None, effort: str | None = None, cache_photos: bool | int = False,
+        cut_short: CutShort | None = None) -> CorrectionResult:
     """A question to Claude with an answer of the given shape, through `routes` in order, as `correct`. `names`: a
     file name for each image, which the prompt can refer to (else `item.jpg`, or `photo-1.jpg`, ... on the plan route);
     `max_tokens`: the longest answer the API route allows (streamed when the SDK requires it); `timeout`: how long a
     call through the plan may take, in seconds; `effort`: instead of the model's effort in `models.json`;
     `cache_photos`: mark the photos for the API's prompt cache, for a question asked again about the same photos
-    (True: every image is a photo; a number: how many of the first images are)."""
+    (True: every image is a photo; a number: how many of the first images are); `cut_short`: the answer may stop
+    being read early (`CutShort`), on the API route when the answer is streamed. The plan route ignores it and reads
+    the whole answer."""
     skipped, capped = [], False
     for route in routes:
         try:
@@ -338,7 +478,8 @@ def ask(text: str, images: list[Image.Image], routes: tuple[str, ...], client=No
                         raise RouteUnavailable("no API key is set")
                     client = apikey.client()
                 return correct_api(client, model, text, images, meter=meter, answer_model=answer_model, names=names,
-                                   max_tokens=max_tokens or MAX_TOKENS, effort=effort, cache_photos=cache_photos)
+                                   max_tokens=max_tokens or MAX_TOKENS, effort=effort, cache_photos=cache_photos,
+                                   cut_short=cut_short)
         except RouteUnavailable as e:
             skipped.append(f"{route}: {e}")
             capped = capped or isinstance(e, CapReached)

@@ -21,6 +21,10 @@ keeps the drawing before it in `items.drawn_prev` (one level), and `back` swaps 
 one tap and forward again the same way. The owner's notes stay with the drawing they made and are passed to a later
 drawing from scratch.
 
+Up to two shoes are worked on at the same time (`AT_ONCE`, a correction counting as one), each drawn exactly as
+one on its own would be (`run_one`); a drawing takes minutes, so ten new shoes no longer wait for each other one
+after another.
+
 Same rules as sorting the photos: when Claude cannot be reached the shoe waits, with its attempt given back and a
 plain note; another failure is tried again, three times in all, then the item says so (a correction that fails
 leaves the drawing as it was). The demo closet is never sent to Claude.
@@ -49,6 +53,11 @@ ABOUT_USD = 2.0       # roughly what one drawing costs on the API key, until thi
                       # drawings straight on, two turns, the judge and a fix came to $1.38 to $3.13 on the owner's five
                       # pairs through the app's own code, $1.93 on average (17 November 2026), before the cache
 SHOES = tracejobs.SHOES
+# Shoes worked on at the same time. Two, not more: each drawing already makes two calls side by side (two drawings,
+# then two turns), so two shoes are four calls at once, and a rate limit met inside a check quietly costs that drawing
+# a check (a check that fails keeps the drawing so far) rather than stopping it. See DECISIONS.md.
+AT_ONCE = 2
+WAIT = 5.0            # seconds a drain with a shoe in hand waits for a wake before looking for another due shoe
 
 # the shoe's photos (the main one first, each with its view), the routes to try and, as `notes`, the owner's notes on
 # the drawing it replaces -> the drawing
@@ -298,15 +307,17 @@ def note_waiting(conn, why: str | None) -> None:
                      _WAIT_NOTES)
 
 
-def recover(conn) -> None:
+def recover(conn, busy=()) -> None:
     """A drawing or a correction interrupted by a quit starts again (a correction keeps its note), unless it has
     used its tries already: a drawing takes minutes, so one cut short at every start would otherwise be paid for
-    again at every start, for ever."""
-    conn.execute("UPDATE items SET drawn_state = 'failed', drawn_error = ? WHERE drawn_state = 'drawing' AND drawn_attempts >= ?",
-                 (FAILED, MAX_ATTEMPTS))
+    again at every start, for ever. `busy`: the items being drawn or changed right now, which are left alone."""
+    keep = f" AND id NOT IN ({','.join('?' * len(busy))})" if busy else ""
+    busy = tuple(busy)
+    conn.execute("UPDATE items SET drawn_state = 'failed', drawn_error = ? WHERE drawn_state = 'drawing' "
+                 f"AND drawn_attempts >= ?{keep}", (FAILED, MAX_ATTEMPTS, *busy))
     conn.execute("UPDATE items SET drawn_state = CASE WHEN drawn IS NOT NULL THEN 'done' END, drawn_error = ?, drawn_note = NULL "
-                 "WHERE drawn_state = 'correcting' AND drawn_attempts >= ?", (CORRECT_FAILED, MAX_ATTEMPTS))
-    conn.execute("UPDATE items SET drawn_state = 'waiting' WHERE drawn_state IN ('drawing', 'correcting')")
+                 f"WHERE drawn_state = 'correcting' AND drawn_attempts >= ?{keep}", (CORRECT_FAILED, MAX_ATTEMPTS, *busy))
+    conn.execute(f"UPDATE items SET drawn_state = 'waiting' WHERE drawn_state IN ('drawing', 'correcting'){keep}", busy)
 
 
 def style_of(row) -> str | None:
@@ -342,20 +353,29 @@ def _no_corrector(photos, kept, note, routes):
     raise RouteUnavailable("no one is set to change drawings")
 
 
-def run_one(conn, images_dir: Path, routes: tuple[str, ...], drawer: Drawer, corrector: Corrector = _no_corrector) -> str:
+def run_one(conn, images_dir: Path, routes: tuple[str, ...], drawer: Drawer, corrector: Corrector = _no_corrector,
+            claimed: Callable[[str], None] | None = None) -> str:
     """Draw the shoe that is due first (`due`), or make the correction it waits for. Returns 'empty' (none is due),
     'done' (one was worked on) or 'blocked' (Claude could not be reached after all: it waits again and keeps its
-    attempts). The drawing it had is kept as the one before (`drawn_prev`)."""
+    attempts). The drawing it had is kept as the one before (`drawn_prev`). `claimed` is told the item's id while
+    it is taken, inside the transaction that takes it, so no other connection can see it taken before then."""
     conn.execute("BEGIN IMMEDIATE")
-    row = due(conn)
-    if row is None:
+    try:
+        row = due(conn)
+        if row is None:
+            conn.execute("COMMIT")
+            return "empty"
+        item_id, note = row["id"], row["drawn_note"]
+        working = "correcting" if note else "drawing"
+        conn.execute("UPDATE items SET drawn_state = ?, drawn_attempts = drawn_attempts + 1 WHERE id = ?", (working, item_id))
+        photos = shoeviews.photos_of(conn, item_id)
+        if claimed is not None:
+            claimed(item_id)
         conn.execute("COMMIT")
-        return "empty"
-    item_id, note = row["id"], row["drawn_note"]
-    working = "correcting" if note else "drawing"
-    conn.execute("UPDATE items SET drawn_state = ?, drawn_attempts = drawn_attempts + 1 WHERE id = ?", (working, item_id))
-    photos = shoeviews.photos_of(conn, item_id)
-    conn.execute("COMMIT")
+    except BaseException:
+        if conn.in_transaction:
+            conn.execute("ROLLBACK")
+        raise
     attempts = row["drawn_attempts"] + 1
     kept = _drawn(row)
     notes = notes_of(kept) if kept else []
@@ -413,8 +433,13 @@ def run_one(conn, images_dir: Path, routes: tuple[str, ...], drawer: Drawer, cor
 
 
 class Worker:
-    """One thread that draws the open closet's waiting shoes, and makes the owner's corrections, one at a time. Never
-    the demo's."""
+    """Draws the open closet's waiting shoes, and makes the owner's corrections, up to `AT_ONCE` at the same time, each
+    on a thread and a database connection of its own. Never the demo's.
+
+    One loop thread drains; a drain hands each due shoe to a thread of its own and returns once none is due and none
+    is being worked on. A shoe being drawn right now is never set back to waiting (`recover` leaves this worker's
+    shoes alone), whatever drains or wakes come meanwhile, and the same shoe is never drawn twice: it is taken inside
+    one `BEGIN IMMEDIATE` transaction (`run_one`)."""
 
     def __init__(self, cfg: Config, state: State, routes: Routes, drawer: Drawer, idle: float = 60,
                  corrector: Corrector = _no_corrector):
@@ -423,6 +448,11 @@ class Worker:
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        # the shoes being worked on now, as (database, item id); changed only by a connection holding the database's
+        # write lock (inside the transaction that takes the shoe, or around `recover`), so the two never cross
+        self._busy: set[tuple[str, str]] = set()
+        self._lock = threading.Lock()
+        self._changed = threading.Condition()   # a wake, a stop, or a shoe finished
 
     def start(self) -> None:
         self._thread = threading.Thread(target=self._loop, name="shoe-drawing", daemon=True)
@@ -430,10 +460,12 @@ class Worker:
 
     def wake(self) -> None:
         self._wake.set()
+        with self._changed:
+            self._changed.notify_all()
 
     def stop(self) -> None:
         self._stop.set()
-        self._wake.set()
+        self.wake()
         if self._thread:
             self._thread.join(timeout=10)
 
@@ -446,30 +478,104 @@ class Worker:
                 log.exception("shoe drawing worker error")
             self._wake.wait(timeout=self.idle)
 
+    def _recover(self, conn, path: str) -> None:
+        """What a quit interrupted starts again; never a shoe this worker is drawing now."""
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            with self._lock:
+                busy = [item for db_path, item in self._busy if db_path == path]
+            recover(conn, busy)
+            conn.execute("COMMIT")
+        except BaseException:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+
     def drain(self) -> int:
-        """Draw every waiting shoe whose photos are sorted, and make every correction waiting, until none is left or
-        Claude cannot be reached. Returns how many were worked on."""
-        done = 0
+        """Draw every waiting shoe whose photos are sorted, and make every correction waiting, up to `AT_ONCE` at the
+        same time, until none is left or Claude cannot be reached. Returns how many were worked on, once every shoe it
+        took is finished. A shoe that becomes due meanwhile is taken too (a wake starts it at once when a place is
+        free). It stops taking shoes when Claude cannot be reached, the worker stops or another closet is opened, and
+        lets those it took finish."""
         profile = self.state.get("profile")
         if profile == "demo":   # the demo closet is never sent to Claude
-            return done
+            return 0
         path = self.cfg.db_path(profile)
         if not path.exists():
-            return done
+            return 0
+        key, images = str(path), self.cfg.images_dir(profile)
+        run = {"active": 0, "done": 0, "blocked": False}
+        threads: list[threading.Thread] = []
+
+        def slot(routes: tuple[str, ...], settled: threading.Event, result: dict) -> None:
+            """One shoe on a connection of its own: `settled` is set once it is taken, or once it is clear none was
+            (`result`'s status then says 'empty')."""
+            taken: list[str] = []
+
+            def claimed(item_id: str) -> None:   # inside the transaction that takes it
+                with self._lock:
+                    self._busy.add((key, item_id))
+                taken.append(item_id)
+
+            status = "empty"
+            try:
+                conn = db.connect(path)
+                try:
+                    status = run_one(conn, images, routes, self.drawer, self.corrector,
+                                     claimed=lambda item_id: (claimed(item_id), settled.set()))
+                finally:
+                    conn.close()
+            except Exception:   # this shoe only; the others carry on, and the next drain looks again
+                log.exception("shoe drawing worker error")
+            finally:
+                with self._lock:
+                    for item_id in taken:
+                        self._busy.discard((key, item_id))
+                with self._changed:
+                    run["active"] -= 1
+                    run["done"] += status == "done"
+                    run["blocked"] = run["blocked"] or status == "blocked"
+                    self._changed.notify_all()
+                result["status"] = status
+                settled.set()
+
+        def stopping() -> bool:
+            return self._stop.is_set() or run["blocked"] or self.state.get("profile") != profile
+
         conn = db.connect(path)
         try:
-            recover(conn)
-            while not self._stop.is_set():
-                if due(conn) is None:
-                    break
+            self._recover(conn, key)
+            while True:
+                with self._changed:
+                    while run["active"] >= AT_ONCE and not stopping():
+                        self._changed.wait(timeout=WAIT)
+                    if stopping():
+                        break
+                if due(conn) is None:   # a quick look first (a shoe another thread is taking may still show)
+                    with self._changed:
+                        if run["active"] == 0 or stopping():
+                            break
+                        self._changed.wait(timeout=WAIT)
+                    continue
                 routes = self.routes()   # asked before each shoe, so turning the API key off takes effect at once
                 if not routes:
                     note_waiting(conn, NO_ROUTE)
                     break
-                status = run_one(conn, self.cfg.images_dir(profile), routes, self.drawer, self.corrector)
-                if status == "blocked":
-                    break
-                done += status == "done"
+                settled, result = threading.Event(), {}
+                with self._changed:
+                    run["active"] += 1
+                t = threading.Thread(target=slot, args=(routes, settled, result), name="shoe-drawing-one", daemon=True)
+                threads.append(t)
+                t.start()
+                settled.wait()   # taken, so the next look sees it taken; or none was (another drain took it)
+                if result.get("status") == "empty":
+                    with self._changed:
+                        if run["active"] == 0 or stopping():
+                            break
+                        self._changed.wait(timeout=WAIT)
         finally:
             conn.close()
-        return done
+            for t in threads:   # those it took finish (a stop does not wait for them: they are daemons)
+                while t.is_alive() and not self._stop.is_set():
+                    t.join(timeout=WAIT)
+        return run["done"]

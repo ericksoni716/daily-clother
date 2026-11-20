@@ -7,6 +7,8 @@ Claude is never called: a stand-in sorter and a stand-in drawer answer.
 """
 import json
 import logging
+import threading
+import time
 from contextlib import closing
 from types import SimpleNamespace
 
@@ -19,7 +21,7 @@ from closet.drawing import drawn
 from closet.tagger import shoedrawing as SD
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError
 
-from .conftest import PASSPHRASE, SHEET, FakeApi, FakeClaude, fake_cutter, upload
+from .conftest import CUT, PASSPHRASE, SHEET, FakeApi, FakeClaude, fake_cutter, upload
 from .test_figure_drawn import answer as tags
 from .test_shoeviews import Sorter, a_shoe, add, answer, get, later, row, sql
 
@@ -340,6 +342,121 @@ def test_a_shoe_deleted_while_it_is_drawn_is_left_alone(made):
     assert m.c.get(f"/api/items/{item['id']}").status_code == 404
 
 
+# ------------------------------------------------------------------ two shoes at once
+
+def shoes(m, n: int) -> list[dict]:
+    """`n` shoes waiting to be drawn, each with a second photo of its own, sorted."""
+    items = [a_shoe(m.c, f"k{i}") for i in range(1, n + 1)]
+    for i, item in enumerate(items, 1):
+        assert add(m.c, item, i).status_code == 201
+    m.sorter.reply = answer(("outer", True), ("inner", True))
+    m.sv.views.drain(now=later())
+    assert all(row(m.sv.cfg, i["id"])["drawn_state"] == "waiting" for i in items)
+    return items
+
+
+def test_two_shoes_due_are_drawn_at_the_same_time(made):
+    m = made
+    items = shoes(m, 2)
+    together = threading.Barrier(2, timeout=10)   # passed only when both drawings are under way
+    m.drawer.during = together.wait
+    assert m.sv.draws.drain() == 2
+    assert [drawn_of(m, i)["state"] for i in items] == ["done", "done"] and len(m.drawer.calls) == 2
+
+
+def test_three_shoes_are_never_drawn_more_than_two_at_once_nor_one_twice(made):
+    m = made
+    items = shoes(m, 3)
+    lock, now, most = threading.Lock(), [0], [0]
+
+    def during():
+        with lock:
+            now[0] += 1
+            most[0] = max(most[0], now[0])
+        time.sleep(0.3)
+        with lock:
+            now[0] -= 1
+    m.drawer.during = during
+    assert m.sv.draws.drain() == 3
+    assert most[0] == shoedraw.AT_ONCE == 2
+    assert len(m.drawer.calls) == 3 and all(drawn_of(m, i)["state"] == "done" for i in items)
+
+
+def test_two_drains_at_once_never_draw_the_same_shoe_twice(made):
+    m = made
+    item = sorted_shoe(m)
+    m.drawer.during = lambda: time.sleep(0.3)
+    got = []
+    others = [threading.Thread(target=lambda: got.append(m.sv.draws.drain())) for _ in range(2)]
+    for t in others:
+        t.start()
+    for t in others:
+        t.join(timeout=10)
+    assert sorted(got) == [0, 1] and len(m.drawer.calls) == 1 and drawn_of(m, item)["state"] == "done"
+
+
+def test_a_shoe_being_drawn_is_not_set_back_by_a_second_drain_or_a_wake(made):
+    m = made
+    item = sorted_shoe(m)
+    seen = []
+
+    def during():   # a wake, and a second drain, while the shoe is drawn
+        m.sv.draws.wake()
+        second = threading.Thread(target=lambda: seen.append(m.sv.draws.drain()))
+        second.start()
+        second.join(timeout=10)
+        seen.append(row(m.sv.cfg, item["id"])["drawn_state"])
+    m.drawer.during = during
+    assert m.sv.draws.drain() == 1
+    assert seen == [0, "drawing"] and len(m.drawer.calls) == 1
+    assert drawn_of(m, item)["state"] == "done" and row(m.sv.cfg, item["id"])["drawn_attempts"] == 0
+
+
+def test_a_shoe_that_becomes_due_during_a_drawing_is_started_at_once(made):
+    m = made
+    first = sorted_shoe(m, key="k1")
+    second = a_shoe(m.c, "k2")
+    assert add(m.c, second, 2).status_code == 201
+    together = threading.Barrier(2, timeout=10)
+
+    def during():
+        if len(m.drawer.calls) == 1:   # the first shoe: the second is sorted, the worker woken, both meet
+            m.sv.views.drain(now=later())
+            m.sv.draws.wake()
+        together.wait()
+    m.drawer.during = during
+    assert m.sv.draws.drain() == 2
+    assert drawn_of(m, first)["state"] == "done" and drawn_of(m, second)["state"] == "done"
+
+
+def test_out_of_reach_stops_both_and_keeps_their_attempts(made):
+    m = made
+    items = shoes(m, 3)
+    m.drawer.error = CapReached("this month's spending limit for the API key has been reached")
+    assert m.sv.draws.drain() == 0
+    assert len(m.drawer.calls) <= shoedraw.AT_ONCE   # stopped for now, not tried over and over
+    for i in items:
+        assert drawn_of(m, i)["state"] == "waiting" and drawn_of(m, i)["message"] == shoedraw.LIMIT
+        assert row(m.sv.cfg, i["id"])["drawn_attempts"] == 0
+
+
+def test_out_of_reach_lets_the_other_shoe_finish(made):
+    m = made
+    items = shoes(m, 2)
+    gone = threading.Event()
+
+    def during():
+        if len(m.drawer.calls) == 1:   # the first is held up; the second is finished after it
+            gone.set()
+            raise RouteUnavailable("Claude Code is not signed in")
+        assert gone.wait(timeout=10)
+    m.drawer.during = during
+    assert m.sv.draws.drain() == 1
+    states = sorted(drawn_of(m, i)["state"] for i in items)
+    assert states == ["done", "waiting"] and len(m.drawer.calls) == 2
+    assert all(row(m.sv.cfg, i["id"])["drawn_attempts"] == 0 for i in items)
+
+
 # ------------------------------------------------------------------ the drawing on two legs
 
 def test_drawn_svg_serves_the_pair_on_two_legs_behind_the_login(made):
@@ -374,7 +491,7 @@ def test_a_shoe_only_has_drawn_details(made):
 
 # ------------------------------------------------------------------ through the API key and its monthly limit
 
-def test_drawing_goes_through_the_api_key_and_its_monthly_limit(cfg):
+def test_drawing_goes_through_the_api_key_and_its_monthly_limit(cfg, cut_clock):
     api = FakeApi(input_tokens=20_000, output_tokens=5_000)
     api.cache_write, api.cache_read = 1_000, 4_000   # each request writes some of the photos to the cache, reads some
     sorter = Sorter()
@@ -408,15 +525,20 @@ def test_drawing_goes_through_the_api_key_and_its_monthly_limit(cfg):
         # what the cache wrote and read is counted at its own price, in the drawing's cost and in the month's spend
         one = spend.cost_usd(SD.MODEL, 20_000, 5_000, cache_write=1_000, cache_read=4_000)
         assert one == pytest.approx(spend.cost_usd(SD.MODEL, 20_000, 5_000) + (1_000 * 4.00 * 1.25 + 4_000 * 0.20) / 1e6)
-        assert got["cost_usd"] == pytest.approx(calls * one)
+        # each check says good and stops being read there: its output is estimated from its time
+        cut = SD.CANDIDATES + SD.TURNS
+        short = spend.cost_usd(SD.MODEL, 20_000, CUT, cache_write=1_000, cache_read=4_000)
+        assert [s["whole"] for s in api.streams].count(False) == cut
+        assert got["cost_usd"] == pytest.approx((calls - cut) * one + cut * short)
         with closing(db.connect(cfg.db_path("main"))) as conn:
             rows = [dict(r) for r in conn.execute("SELECT purpose, route, model, input_tokens, cost_usd FROM "
                                                   "claude_calls WHERE purpose = 'draw_shoe'")]
             month = spend.spent(conn)
         assert len(rows) == calls and spend.PURPOSE_DRAW == "draw_shoe"
         assert all(r["route"] == "api" and r["model"] == SD.MODEL for r in rows)
-        assert all(r["input_tokens"] == 25_000 and r["cost_usd"] == pytest.approx(one) for r in rows)
-        assert month >= calls * one - 1e-9
+        assert all(r["input_tokens"] == 25_000 for r in rows)
+        assert sorted(round(r["cost_usd"], 9) for r in rows) == pytest.approx(sorted([one] * (calls - cut) + [short] * cut))
+        assert month >= (calls - cut) * one + cut * short - 1e-9
         assert spend.estimate_draw(8) > 0.5   # one request's careful estimate is over the first limit
     finally:
         sv.stop()

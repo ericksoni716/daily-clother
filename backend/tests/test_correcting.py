@@ -20,7 +20,7 @@ from closet.tagger import routes as tagger_routes
 from closet.tagger.correcting import CorrectionAnswer
 from closet.tagger.tagging import CapReached, RouteUnavailable
 
-from .conftest import ANSWER, FakeApi, fake_cutter, upload
+from .conftest import ANSWER, CUT, FakeApi, fake_cutter, upload
 
 SECRET_KEY = "sk-ant-api03-test-only-not-a-real-key"
 DESCRIPTION = {"category": "polo", "color": "navy", "placket_buttons": 3}
@@ -392,3 +392,145 @@ def test_a_streamed_answer_cut_short_is_asked_again_and_counted_each_time():
     with pytest.raises(correcting.TaggingError, match="no valid answer"):
         correcting.ask("x", [], ("api",), client=api, meter=meter, max_tokens=64_000)
     assert len(meter.recorded) == correcting.MAX_ATTEMPTS == 2
+
+
+# ---- an answer that may be cut short (`CutShort`)
+
+@pytest.mark.parametrize("text, want", [
+    ('', None),
+    ('  {', None),
+    ('{"good": tr', None),
+    ('{"good": true', None),                             # a value counts once the comma after it has come
+    ('{"good": true, "problems": ["a, b", "c"', None),
+    ('{"good": true, "problems": ["a, b"], "she', None),   # the key is still being written
+    ('{"good": true, "problems": ["a, b"], "sheet"', None),
+    ('{"good": true, "problems": ["a, b"], "sheet":', {"good": True, "problems": ["a, b"]}),
+    ('{ "good" : false ,\n "problems": [], "sheet": {"kind": "x"', {"good": False, "problems": []}),
+    ('{"n": 12', None),                                  # 12 may be the start of 123
+    ('{"note": "the \\"sheet\\": no", "sheet": 1', {"note": 'the "sheet": no'}),
+    ('{"sheet":', {}),
+])
+def test_the_fields_before_a_key_are_read_only_once_they_are_whole(text, want):
+    assert correcting.fields_before(text, "sheet") == want
+
+
+@pytest.mark.parametrize("text", ['[1, 2]', '"x"', '{"good": true}', '{"good": true, "left": 1}', '{"good" true',
+                                  '{good: true'])
+def test_text_that_is_not_the_answer_expected_says_so(text):
+    with pytest.raises(ValueError):
+        correcting.fields_before(text, "sheet")
+
+
+ANSWERED = CorrectionAnswer(changes=[{"name": "color", "value": "navy"}], not_understood="All understood.",
+                            needs_photo=False)
+
+
+def cut_at_needs_photo(seen: list):
+    """Cut the answer once `needs_photo` starts, with the fields before it and needs_photo false; `seen` keeps them."""
+    def answer(fields):
+        seen.append(fields)
+        return CorrectionAnswer.model_validate({**fields, "needs_photo": False})
+    return correcting.CutShort("needs_photo", answer)
+
+
+def test_a_streamed_answer_stops_being_read_once_the_caller_has_its_answer(cut_clock):
+    api, meter, seen = FakeApi(input_tokens=1_500, output_tokens=900), Meter(), []
+    api.cache_write = api.cache_read = 0
+    api.drawing = ANSWERED
+    got = correcting.ask("x", [], ("api",), client=api, meter=meter, max_tokens=40_000, cut_short=cut_at_needs_photo(seen))
+    assert got.cut_short and got.answer == ANSWERED and got.route == "api"
+    assert seen == [{"changes": [{"name": "color", "value": "navy"}], "not_understood": "All understood."}]
+    assert api.calls == 1 and not api.streams[0]["whole"] and '"lettering"' not in api.streams[0]["text"]
+    # counted once: the prompt as `message_start` gave it, the output as the most it could have written in its time
+    assert meter.recorded == [("api", correcting.MODEL, 1_500, CUT)]
+    assert (got.input_tokens, got.output_tokens) == (1_500, CUT)
+    assert api.requests[0]["max_tokens"] == 40_000 and "cut_short" not in api.requests[0]   # the request is the same
+
+
+def test_a_streamed_answer_the_caller_does_not_cut_is_read_whole():
+    api, meter = FakeApi(input_tokens=1_500, output_tokens=900), Meter()
+    api.drawing = ANSWERED
+    for answer in (lambda fields: None, lambda fields: 1 / 0):   # declined, or anything unexpected
+        got = correcting.ask("x", [], ("api",), client=api, meter=meter, max_tokens=40_000,
+                             cut_short=correcting.CutShort("needs_photo", answer))
+        assert not got.cut_short and got.answer == ANSWERED and got.output_tokens == 900
+    never = correcting.ask("x", [], ("api",), client=api, meter=meter, max_tokens=40_000,
+                           cut_short=correcting.CutShort("not_a_field", lambda fields: ANSWERED))
+    assert not never.cut_short and never.answer == ANSWERED
+    assert [s["whole"] for s in api.streams] == [True, True, True]
+    assert meter.recorded == [("api", correcting.MODEL, 1_500, 900)] * 3
+
+
+def test_an_answer_not_streamed_or_through_the_plan_is_read_whole(cli):
+    api, meter, seen = FakeApi(), Meter(), []
+    got = correcting.ask("x", [], ("api",), client=api, meter=meter, cut_short=cut_at_needs_photo(seen))
+    assert not got.cut_short and got.answer == api.correction and seen == [] and api.streams == []
+    assert meter.recorded == [("api", correcting.MODEL, 2000, 400)]
+    planned = correcting.ask("x", [], ("plan",), exe="claude", meter=meter, cut_short=cut_at_needs_photo(seen))
+    assert not planned.cut_short and planned.route == "plan" and seen == []
+    assert [(c.name, c.value) for c in planned.answer.changes] == [("placket_buttons", "2")]
+
+
+def sse(*events: dict) -> bytes:
+    return "".join(f"event: {e['type']}\ndata: {json.dumps(e)}\n\n" for e in events).encode()
+
+
+def test_the_real_sdk_stream_is_closed_early_with_the_prompts_usage_from_message_start(cut_clock):
+    """Through the SDK's own `messages.stream` over a stand-in transport (no network): the thinking block streams
+    empty, as the drawing model's does, the text arrives in pieces, and the stream is left before the rest."""
+    answer = json.dumps(ANSWERED.model_dump())
+    pieces = [answer[i:i + 7] for i in range(0, len(answer), 7)]
+    body = sse(
+        {"type": "message_start", "message": {
+            "id": "msg_1", "type": "message", "role": "assistant", "model": correcting.MODEL, "content": [],
+            "stop_reason": None, "stop_sequence": None,
+            "usage": {"input_tokens": 1_200, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 300,
+                      "output_tokens": 1}}},
+        {"type": "content_block_start", "index": 0, "content_block": {"type": "thinking", "thinking": "", "signature": ""}},
+        {"type": "content_block_delta", "index": 0, "delta": {"type": "thinking_delta", "thinking": ""}},
+        {"type": "content_block_delta", "index": 0, "delta": {"type": "signature_delta", "signature": "c2ln"}},
+        {"type": "content_block_stop", "index": 0},
+        {"type": "content_block_start", "index": 1, "content_block": {"type": "text", "text": ""}},
+        *[{"type": "content_block_delta", "index": 1, "delta": {"type": "text_delta", "text": p}} for p in pieces],
+        {"type": "content_block_stop", "index": 1},
+        {"type": "message_delta", "delta": {"stop_reason": "end_turn", "stop_sequence": None},
+         "usage": {"output_tokens": 5_000}},
+        {"type": "message_stop"})
+    sent = []
+
+    def handler(request):
+        sent.append(json.loads(request.content))
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=body)
+    client = anthropic.Anthropic(api_key="x", http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+    class CacheMeter(Meter):
+        def record(self, route, model, input_tokens, output_tokens, **cached):
+            self.recorded.append((route, model, input_tokens, output_tokens, cached))
+
+    meter, seen = CacheMeter(), []
+    got = correcting.correct_api(client, correcting.MODEL, "x", [], meter=meter, max_tokens=40_000,
+                                 cut_short=cut_at_needs_photo(seen))
+    assert got.cut_short and got.answer == ANSWERED and len(seen) == 1
+    assert sent[0]["stream"] is True and sent[0]["max_tokens"] == 40_000
+    # the prompt exactly as message_start gave it (plain and read from the cache); the output estimated from the time
+    # the request had, not the 5,000 the last message_delta would have said, which was never read
+    assert meter.recorded == [("api", correcting.MODEL, 1_200, CUT, {"cache_write": 0, "cache_read": 300})]
+    assert (got.input_tokens, got.cache_read_tokens, got.output_tokens) == (1_500, 300, CUT)
+    whole = correcting.correct_api(client, correcting.MODEL, "x", [], max_tokens=40_000)
+    assert not whole.cut_short and whole.answer == ANSWERED and whole.output_tokens == 5_000
+
+
+@pytest.mark.parametrize("seconds, want", [(0, 0), (0.001, 1), (10, 2_000), (12.3, 2_460), (199.99, 39_998),
+                                           (200, 40_000), (3_600, 40_000), (-1, 0)])
+def test_the_output_of_an_answer_cut_short_is_estimated_from_its_time_and_never_past_max_tokens(seconds, want):
+    assert correcting.CUT_TOKENS_PER_SECOND == 200
+    assert correcting.cut_output(seconds, 40_000) == want
+
+
+def test_an_answer_cut_short_after_a_very_long_wait_is_counted_at_max_tokens(monkeypatch):
+    times = iter([0.0, 3_600.0])   # sent, then closed an hour later
+    monkeypatch.setattr(correcting, "clock", lambda: next(times))
+    api, meter = FakeApi(input_tokens=1_500, output_tokens=900), Meter()
+    api.drawing = ANSWERED
+    got = correcting.ask("x", [], ("api",), client=api, meter=meter, max_tokens=40_000, cut_short=cut_at_needs_photo([]))
+    assert got.cut_short and got.output_tokens == 40_000 and meter.recorded == [("api", correcting.MODEL, 1_500, 40_000)]
+

@@ -18,6 +18,14 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- Two shoes are drawn from their photos at the same time instead of one after another, so a
+  shoe you add while another is being drawn no longer waits for it. Each drawing is made
+  exactly as before.
+- With the API key, a check of a shoe's drawing that finds nothing wrong now finishes sooner:
+  the app stops reading Claude's answer once it says the drawing is good, instead of waiting
+  for the whole drawing to be written out again. What is drawn is the same. Such a check is
+  counted at the most Claude could have written in the time it took, so the cost shown for a
+  drawing, and the month's spending, can be a little higher than what was billed.
 - On a phone, the "Add" label in the bar at the bottom sits on the same line as Today, Closet,
   Wardrobe and Settings, and its round button rises a little above the bar instead of pushing
   the label down to the edge.

@@ -34,6 +34,17 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 - Settings > Updates shows what is new in a release, folded under "What's new in" and the
   version, with its headings and lists set out properly instead of as raw text. A release
   made before this one shows no notes there.
+- Settings opens all at once. It no longer waits for Tailscale, and its cards no longer
+  appear one by one and push each other down. A phone share you have just set up shows a few
+  seconds later without reloading the page or restarting Closet.
+- Going back to a screen you have already opened (Worn, Trips, a trip, What's missing,
+  Insights, As worn) shows what was there at once and refreshes behind it, instead of
+  loading it again. While As worn draws a changed outfit, the last figure stays on screen.
+- An item's page opens at once on what the closet already knows about it, instead of a blank
+  picture, and fills in when the rest arrives.
+- Changing an item no longer holds up the rest of the app while its drawing is redone, and a
+  check for progress that finds nothing new no longer redraws the screen. The closet now
+  follows a pattern being measured or a shoe being traced without a reload.
 - In the demo closet, the seven pieces that have a photo are now drawn the way your own
   pieces are, so they look a little different: the jeans show their denim, the turtleneck
   its flecks, and the leather sneakers a thinner sole.

@@ -78,9 +78,10 @@ PyInstaller build and its smoke test).
 | `src/main.tsx`, `src/App.tsx` | Start-up: first run, login, the "can't reach Closet" screens. |
 | `src/Shell.tsx` | The frame: sidebar on a computer, tab bar on a phone, the banners, and which screen a route shows. `src/nav.ts` says which link is lit. |
 | `src/router.tsx` | The router, written by hand: `parseRoute` (every route), `navigate`, `Link`, `itemPath`, the `WIDE` media query. |
-| `src/store.tsx` | `ClosetProvider`: the open closet's query cache, `useApp()` (which closet, offline, the toast, switching closets, logging out), and the one poll of the closet's list while items are worked on. `useCloset()` is a facade over the cache for the screens not moved yet; new code does not use it. |
+| `src/store.tsx` | `ClosetProvider`: the open closet's query cache, `useApp()` (which closet, offline, the toast, switching closets, logging out), and the one poll of the closet's list while items are worked on. |
 | `src/api.ts` | The one client, `api.*`, with a readable `ApiError`, and what a closing page may still send. `src/types.ts` has the response types, kept by hand. |
 | `src/queryKeys.ts` | Every query key, and `TOUCHES`: which keys each kind of edit makes stale. Keys are made here and nowhere else. |
+| `src/settings.ts` | The settings read, which also fills the model, updates, style and spend keys; the slow checks Settings makes beside it; what a settings save has already written; when to ask again for the phone's address. `src/savedCopy.ts` chooses between what was read and this device's copy. |
 | `src/queryClient.ts` | The query cache's defaults (fresh for a minute, asked again on coming back after 10 seconds away). |
 | `src/queries.ts` | The queries more than one screen reads (`useItems`, `useItemSummary`, `itemQuery`, `useVocab`, `useModel`, …), writing a saved item into the cache (`itemSaved`, `writeItem`, `dropItem`), saving (`useEdit`, `useItemEdit`) and `usePoll`. |
 | `src/work.ts` | How often to ask again while work runs (`closetPoll`, `itemPoll`), as pure functions. |

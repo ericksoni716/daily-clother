@@ -1,7 +1,2 @@
-anthropic>=2.8,<3
-numpy>=2
-onnxruntime>=1.31
-opencv-python-headless>=5
-pillow>=13
-pydantic>=2.14
-pytest>=8
+# The bench needs nothing beyond the backend's own packages (and pytest).
+-r ../backend/requirements-dev.txt

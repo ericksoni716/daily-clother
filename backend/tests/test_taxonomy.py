@@ -9,12 +9,27 @@ from pathlib import Path
 
 import pytest
 
-from closet_bench.fills import Stripes
-from closet_bench.illustrate import BUTTON_CONTRAST, INSIDE_CONTRAST, Fill, Spec, _over, contrast, layer, render
-from closet_bench.taxonomy import (_KIND_TOP, ACCESSORIES, COLORWORK, ACCESSORY_GARMENTS, ACCESSORY_GROUP, ACCESSORY_TEMPLATES, AXES, CORDUROY_WALES,
-                                   COVERAGE, GARMENT_DRAWINGS, KNIT_GAUGES, TOP_AXES, WEIGHT_CLASSES, accessory_drawing,
-                                   surface_extras, top_drawing)
-from closet_bench.templates import BODY_W, BLOCKS, CX, K_PX, SLEEVE_GAP, SLEEVE_HANG, build
+from closet.drawing.fills import Stripes
+from closet.drawing.illustrate import BUTTON_CONTRAST, INSIDE_CONTRAST, Fill, Spec, _over, contrast, layer, render
+from closet.drawing.templates import BLOCKS, BODY_W, CX, K_PX, SLEEVE_GAP, SLEEVE_HANG, build
+from closet.tagger.taxonomy import (
+    _KIND_TOP,
+    ACCESSORIES,
+    ACCESSORY_GARMENTS,
+    ACCESSORY_GROUP,
+    ACCESSORY_TEMPLATES,
+    AXES,
+    COLORWORK,
+    CORDUROY_WALES,
+    COVERAGE,
+    GARMENT_DRAWINGS,
+    KNIT_GAUGES,
+    TOP_AXES,
+    WEIGHT_CLASSES,
+    accessory_drawing,
+    surface_extras,
+    top_drawing,
+)
 
 TAXONOMY = json.loads((Path(__file__).resolve().parents[2] / "docs" / "menswear-taxonomy.json").read_text())
 
@@ -140,7 +155,7 @@ def test_each_weight_class_draws_differently(garment):
 
 
 def test_weight_is_inferred_from_fabric_and_fibre():
-    w = lambda **g: surface_extras(g)["weight"]
+    w = lambda **g: surface_extras(g)["weight"]  # noqa: E731
     assert w(fabric="voile") == "lightweight" and w(fabric="oxford") == "midweight"
     order = WEIGHT_CLASSES.index
     assert order(w(fabric="flannel", fiber="woolen_wool")) > order(w(fabric="flannel", fiber="cotton")) > \
@@ -165,7 +180,7 @@ def test_halo_fabrics_draw_differently():
 def test_flannel_surface_is_faint_and_shows_no_grid():
     """The owner, 17 November: the brushed surface was "way too much": a grid of pale ovals over the cloth, which
     blotched a measured plaid. It is a large tile of scattered marks now, each of them faint."""
-    from closet_bench.illustrate import _texture_tile
+    from closet.drawing.illustrate import _texture_tile
     for lo, hi in (("#000", "#fff"), ("#fff", "#000")):
         w, h, marks = _texture_tile("flannel", 1.0, lo, hi)
         assert min(w, h) >= 60                      # far larger than any one mark, so no repeat is seen
@@ -458,7 +473,7 @@ def test_jackets_are_not_a_shirt_with_lapels(name):
 def test_single_and_double_breasted_differ():
     _, single = _jacket("blazer", collar="peak_lapel")
     _, double = _jacket("blazer", collar="peak_lapel", placket="double_breasted", placket_buttons=6)
-    front = lambda sh: sorted((x, y) for x, y, r in sh.dots if r > 3)
+    front = lambda sh: sorted((x, y) for x, y, r in sh.dots if r > 3)  # noqa: E731
     assert len(front(single)) == 2 and len({x for x, _ in front(single)}) == 1
     assert len(front(double)) == 6 and len({x for x, _ in front(double)}) == 4   # the top row is set wider
     assert single.outline != double.outline or [p.d for p in single.parts] != [p.d for p in double.parts]
@@ -468,7 +483,7 @@ def test_single_and_double_breasted_differ():
 
 def test_blazer_sport_coat_and_suit_jacket_differ():
     shapes = {n: _jacket(n)[1] for n in ("blazer", "sport_coat", "suit_jacket")}
-    key = lambda sh: (sh.outline, tuple(p.d for p in sh.parts), tuple(sh.lines))
+    key = lambda sh: (sh.outline, tuple(p.d for p in sh.parts), tuple(sh.lines))  # noqa: E731
     assert len({key(sh) for sh in shapes.values()}) == 3
     # and with the cloth left out, they still differ in their construction (pockets, lapels, buttons)
     bare = {n: _jacket(n, fabric=None, fiber=None, weight="midweight")[1] for n in shapes}
@@ -506,10 +521,10 @@ def test_a_tab_collar_shows_its_buttoned_strap_and_closer_points():
     tab = _shape(CONTEXT["collar"], collar="tab")
     strap = [q for q in tab.parts if q.role == "trim"]
     assert len(strap) == 1 and not [q for q in point.parts if q.role == "trim"]
-    xs, ys = zip(*_pts(strap[0].d))
+    xs, ys = zip(*_pts(strap[0].d))  # noqa: B905
     assert max(ys) - min(ys) >= 14                          # tall enough to read at item size
     assert any(abs(x - 200) < 0.5 for x, _, _ in tab.dots)  # buttoned in the middle
-    tip = lambda sh: max((max(_pts(q.d), key=lambda v: v[1]) for q in sh.parts if q.role == "collar_r"),
+    tip = lambda sh: max((max(_pts(q.d), key=lambda v: v[1]) for q in sh.parts if q.role == "collar_r"),  # noqa: E731
                          key=lambda v: v[1])[0]
     assert tip(tab) < tip(point)                            # the strap pulls the points together
 
@@ -523,7 +538,7 @@ def test_wing_tips_are_wide_enough_to_read():
 def test_lapels_on_black_and_on_plaid_get_a_shade():
     p, extras, _ = top_drawing(GARMENT_DRAWINGS["blazer"])
     lapel = next(q.d for q in build("top", {**p, "weight": extras.get("weight")}).parts if q.role == "lapel_r")
-    count = lambda color: render(Spec("top", p, Fill("solid", color), **extras), "line").count(f'd="{lapel}"')
+    count = lambda color: render(Spec("top", p, Fill("solid", color), **extras), "line").count(f'd="{lapel}"')  # noqa: E731
     assert count("#1a1a1c") > count("#336699")
 
 
@@ -543,7 +558,7 @@ def test_a_puffer_swells_between_its_channels():
 
 def test_a_trucker_has_a_buttoned_waistband_not_a_rib():
     sh = _shape(GARMENT_DRAWINGS["trucker_jacket"])
-    hem_rib = lambda s: [q for q in s.parts if q.role == "band" and "Q" in q.d and q.d.count("L") == 2]
+    hem_rib = lambda s: [q for q in s.parts if q.role == "band" and "Q" in q.d and q.d.count("L") == 2]  # noqa: E731
     assert not hem_rib(sh)
     hy = sh.anchors["hem"][1]
     low = [d for d in sh.dots if hy - 25 < d[1] < hy and 100 < d[0] < 300]
@@ -585,7 +600,7 @@ def _flatten(d, n=16):
     """The points along an SVG path made of M, L, Q, C and Z, the curves sampled."""
     toks = re.findall(r"[MLQCZ]|-?[\d.]+,-?[\d.]+", d)
     pts, cmd, args = [], None, []
-    pt = lambda s_: tuple(float(v) for v in s_.split(","))
+    pt = lambda s_: tuple(float(v) for v in s_.split(","))  # noqa: E731
     for tk in toks + ["Z"]:
         if tk in "MLQCZ":
             if cmd in ("M", "L"):
@@ -608,7 +623,7 @@ def _flatten(d, n=16):
 
 def _crossings(poly, y):
     xs = []
-    for a, b in zip(poly, poly[1:] + poly[:1]):
+    for a, b in zip(poly, poly[1:] + poly[:1]):  # noqa: B905
         if (a[1] - y) * (b[1] - y) < 0:
             xs.append(a[0] + (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]))
     return sorted(xs)
@@ -646,7 +661,7 @@ def test_a_double_breasted_jacket_told_one_or_two_buttons_shows_six():
         assert len(buttons) == 6 and len({y for _, y in buttons}) == 3, told   # 6x1, 6x2: three rows of two
     # told one, it fastens on the bottom row: the lapels roll lower than on a 6x2
     one, two = (_jacket("blazer", collar="peak_lapel", placket="double_breasted", placket_buttons=n)[1] for n in (1, 2))
-    lapel_low = lambda sh: max(y for part in sh.parts if part.role == "lapel_r" for _, y in _flatten(part.d))
+    lapel_low = lambda sh: max(y for part in sh.parts if part.role == "lapel_r" for _, y in _flatten(part.d))  # noqa: E731
     assert lapel_low(one) > lapel_low(two) + 10
     _, eight = _jacket("blazer", collar="peak_lapel", placket="double_breasted", placket_buttons=8)
     assert len(_front_buttons(eight)) == 8
@@ -672,7 +687,7 @@ def test_cuff_buttons_are_three_quarters_the_front_buttons():
             cuff = sorted(((x, y, r) for x, y, r in sh.dots if x > sh.body_box[2]), key=lambda d: d[1])
             front = [r for x, y, r in sh.dots if abs(x - CX) < 60]
             assert len(cuff) == 4 and cuff[0][2] >= 0.7 * front[0], (name, weight)   # was about half
-            assert all(math.dist(a[:2], b[:2]) > a[2] + b[2] for a, b in zip(cuff, cuff[1:])), (name, weight)
+            assert all(math.dist(a[:2], b[:2]) > a[2] + b[2] for a, b in zip(cuff, cuff[1:])), (name, weight)  # noqa: B905
 
 
 def test_three_roll_two_shows_the_top_buttonhole_on_the_lapel_roll():
@@ -728,7 +743,7 @@ def test_the_jacket_body_keeps_its_width():
 
 
 def test_the_footwear_table_follows_the_taxonomy():
-    from closet_bench.taxonomy import FOOTWEAR, FOOTWEAR_LACING, FOOTWEAR_TOE_TREATMENT, SHOE_STYLES
+    from closet.tagger.taxonomy import FOOTWEAR, FOOTWEAR_LACING, FOOTWEAR_TOE_TREATMENT, SHOE_STYLES
     shoes = {n: e for n, e in TAXONOMY["garments"].items() if e["category"] == "footwear"}
     assert list(FOOTWEAR) == list(shoes)
     for fid, (style, _, _, _) in FOOTWEAR.items():
@@ -758,13 +773,13 @@ def test_the_footwear_table_follows_the_taxonomy():
     ("runner", ["embroidered logo"], "runner", {}),
 ])
 def test_the_taggers_shoe_words_choose_the_drawing(style, words, want_style, want):
-    from closet_bench.taxonomy import shoe_words
+    from closet.tagger.taxonomy import shoe_words
     got_style, params, _ = shoe_words(style, words)
     assert (got_style, params) == (want_style, want)
 
 
 def test_only_what_is_drawn_leaves_the_seen_list():
-    from closet_bench.taxonomy import shoe_words
+    from closet.tagger.taxonomy import shoe_words
     # every footwear id is drawn now (velvet_slipper since #184); a word the drawing does not know stays out
     assert shoe_words("derby", ["velvet_slipper", "tassels", "5 eyelets", "red sole"])[2] == ["velvet_slipper", "tassels", "5 eyelets"]
     assert shoe_words("derby", ["patent_oxford", "5 eyelets"])[2] == ["patent_oxford", "5 eyelets"]
@@ -796,9 +811,19 @@ def test_oxford_and_derby_lacing_differ():
 
 # ----------------------------------------------- the rest of the owner's taxonomy (#149)
 def test_the_footwear_bottoms_and_colour_tables_follow_the_taxonomy():
-    from closet_bench.taxonomy import (BOTTOM_AXES, BOTTOM_DRAWING, COLOR_FAMILIES, DENIM_WASH_SHADE, FABRIC_EFFECTS,
-                                       FOOTWEAR_AXES, FOOTWEAR_HEEL, FOOTWEAR_SOLE, FOOTWEAR_TOE_SHAPE, SHADES,
-                                       SHORTS_INSEAM_IN)
+    from closet.tagger.taxonomy import (
+        BOTTOM_AXES,
+        BOTTOM_DRAWING,
+        COLOR_FAMILIES,
+        DENIM_WASH_SHADE,
+        FABRIC_EFFECTS,
+        FOOTWEAR_AXES,
+        FOOTWEAR_HEEL,
+        FOOTWEAR_SOLE,
+        FOOTWEAR_TOE_SHAPE,
+        SHADES,
+        SHORTS_INSEAM_IN,
+    )
     foot, bottoms, colors = TAXONOMY["footwear"], TAXONOMY["bottoms"], TAXONOMY["colors"]
     for axis, values in FOOTWEAR_AXES.items():
         assert list(values) == foot[axis], axis
@@ -924,7 +949,7 @@ def test_double_pleats_are_far_enough_apart_to_read_as_two():
     flat, single, double = (build("pants", dict(pleats=n)).lines for n in (0, 1, 2))
     band = build("pants", {}).parts[0].d   # pleats start at the foot of the waistband
     bb = max(_numbers(band)[1::2])
-    starts = lambda lines, but: [x for d in lines if d not in but for x, y in [_numbers(d)[:2]] if abs(y - bb) < 0.1]
+    starts = lambda lines, but: [x for d in lines if d not in but for x, y in [_numbers(d)[:2]] if abs(y - bb) < 0.1]  # noqa: E731
     first = min(starts(single, flat))      # the left leg's pleat
     second = min(starts(double, single))   # and the one a double pleat adds beside it
     assert first - second >= 15   # about 6 px at grid size
@@ -967,7 +992,7 @@ def test_shorts_are_drawn_to_their_inseam():
 def test_shorts_show_a_rule_pocket_sized_for_the_short_leg(length, inseam):
     """A rule pocket on shorts: the trousers' narrow pocket on the wearer's right thigh (the viewer's left), as wide,
     along the leg's outer seam, and ending 3 cm clear of the hem whatever the inseam."""
-    from closet_bench.templates import PX_CM
+    from closet.drawing.templates import PX_CM
     base = dict(length=length, **({"inseam": inseam} if inseam else {}))
     plain, ruled = build("pants", base), build("pants", {**base, "extra_pockets": ["rule"]})
     assert ruled.outline == plain.outline and ruled.anchors == plain.anchors
@@ -983,7 +1008,7 @@ def test_shorts_show_a_rule_pocket_sized_for_the_short_leg(length, inseam):
 
 
 def test_garments_are_the_owners_clothing_kinds():
-    from closet_bench.taxonomy import APP_CATEGORY, BOTTOM_DRAWINGS, GARMENTS, LOUNGE_KINDS, SPORT_KINDS
+    from closet.tagger.taxonomy import APP_CATEGORY, BOTTOM_DRAWINGS, GARMENTS, LOUNGE_KINDS, SPORT_KINDS
     data = TAXONOMY
     garments = {k: v for k, v in data["garments"].items() if v["category"] not in ("footwear", "accessory")}
     assert GARMENTS == {k: v["category"] for k, v in garments.items()}
@@ -1059,7 +1084,7 @@ def test_a_robe_is_tied_with_a_sash_and_velvet_has_a_sheen():
 
 
 def test_sport_and_lounge_bottoms_draw_apart():
-    from closet_bench.taxonomy import BOTTOM_DRAWINGS
+    from closet.tagger.taxonomy import BOTTOM_DRAWINGS
     svgs = {k: render(Spec("pants", dict(v), Fill("solid", "#30343c"), trim_color="#f2f2f0"), "line")
             for k, v in BOTTOM_DRAWINGS.items()}
     assert all(s.startswith("<svg") for s in svgs.values())
@@ -1113,8 +1138,8 @@ def test_each_accessory_with_a_shape_draws_differently_by_kind():
 
 
 def test_the_closet_categories_of_each_kind_of_clothing_follow_the_taxonomy():
+    from closet.tagger.taxonomy import GARMENT_CATEGORIES
     from closet.vocab import CATEGORY
-    from closet_bench.taxonomy import GARMENT_CATEGORIES
     garments = TAXONOMY["garments"].values()
     # every category of everyday clothing; footwear, accessories, activewear and loungewear are not kinds a trip counts
     clothing = {g["category"] for g in garments} - {"footwear", "accessory", "activewear", "loungewear"}

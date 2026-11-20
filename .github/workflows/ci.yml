@@ -45,9 +45,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install backend and bench dependencies
-        run: |
-          python -m pip install -r backend/requirements-dev.txt
-          python -m pip install -r bench/requirements.txt
+        run: python -m pip install -r backend/requirements-dev.txt   # the bench needs nothing more
 
       - name: Backend lint (ruff)
         working-directory: backend
@@ -57,9 +55,9 @@ jobs:
         working-directory: backend
         run: python -m pytest -q -n auto
 
-      - name: Bench tests (pytest)
+      - name: Bench tests (pytest, one worker per core)
         working-directory: bench  # tests import closet_bench from this folder
-        run: python -m pytest -q tests
+        run: python -m pytest -q -n auto tests
 
   web:
     name: Web page (lint, types, unit tests, build)

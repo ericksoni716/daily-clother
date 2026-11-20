@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "e2e": "playwright test --trace off",
-    "icons": "node scripts/make-icons.mjs"
+    "icons": "node scripts/make-icons.mjs",
+    "phone-check": "node scripts/phone-check.mjs"
   },
   "dependencies": {
     "qrcode-generator": "2.0.4",

@@ -195,7 +195,11 @@ for (const saved of [false, true]) {
     } finally {
       await context.setOffline(false);
       release();
-      await page.request.patch(`/api/items/${id}`, { data: { name: original.name } });
+      // Put the name back for the tests that follow. Coming back from offline, the first request can land on a
+      // connection that was dropped while offline (ECONNRESET), so it is tried once more.
+      const restore = () => page.request.patch(`/api/items/${id}`, { data: { name: original.name } });
+      const response = await restore().catch(restore);
+      expect(response.ok()).toBe(true);
     }
   });
 }

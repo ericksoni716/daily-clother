@@ -1,0 +1,218 @@
+# Developing Closet
+
+How the code is laid out, the rules that keep it that way, what deserves a test, and how to
+add a screen, an endpoint, a migration or a background job. What makes a change look and
+read like the rest of the app is in [DESIGN.md](DESIGN.md); what each screen does is in
+[USING.md](USING.md); why things are the way they are is in [DECISIONS.md](DECISIONS.md).
+
+## Running from source
+
+Python 3.12 (what CI uses) and Node 22.
+
+```bash
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+python -m closet              # the app, on 127.0.0.1
+
+cd ../frontend
+npm ci
+npm run dev                   # the page alone; passes /api and /media to a backend on port 8765
+npm run build                 # writes the page into backend/closet/web/, which the backend serves
+```
+
+`CLOSET_DATA_DIR` chooses the data folder, `CLOSET_PORT` the port (`backend/closet/config.py`
+has every such name). Point `CLOSET_DATA_DIR` at a temporary folder when trying something, so
+a real closet is never touched.
+
+## Module map
+
+### Backend (`backend/closet/`)
+
+| Area | Modules |
+| --- | --- |
+| The program | `cli.py` (entry point: start, restore, backup, reset-passphrase), `config.py` (where things live, from the environment), `state.py` (program-wide settings in one JSON file; `DEFAULTS` lists every key), `instance.py` (one copy at a time, and its port), `window.py`, `window_mac.py` (Closet's own window), `tray.py`, `autostart.py`, `net.py` (outbound HTTPS in the packaged program), `updates.py` (checking for a release, fetching it, swapping it in). |
+| The web API | `app.py`: `build_services` wires the settings, the database and every background worker (tests pass stand-ins here), and `create_app` defines every route. `gate.py` (login and size limits, before a body is read), `limits.py`, `auth.py` (one passphrase, sessions), `phone.py` (the Tailscale address for the phone). |
+| Data | `db.py` (SQLite, and migrations by `PRAGMA user_version`), `migrations/NNNN_name.sql`, `items.py` (reading and changing items), `images.py` (a photo into the files the closet keeps), `backup.py`, `storage.py`, `demo.py` and `demo_data/` (the demo closet, a database of its own). |
+| A photo becomes an item | `jobs.py` (the cutout queue, in the `jobs` table), `cutout.py`, `modelstore.py` (the background-removal models), `tagjobs.py` (the queue that asks Claude to describe an item, and `apply_answer`), `illustrations.py` (each item's drawing, kept up to date), `patjobs.py` (measuring a pattern), `palette.py`, `sources.py` (several items from one photo), `failures.py` (why a step failed, in words safe to show). |
+| What an item is | `kinds.py` (its kind, from the taxonomy), `vocab.py` (the small coarse vocabulary), `details.py` (the details the owner can set), `corrections.py` (picking a detail, saying what is wrong, undo), `history.py`, `review.py` (the review queue). |
+| Shoes | `shoeviews.py` (photos sorted into views), `tracejobs.py` and `shoes.py` (traced from the side photo, for the closet picture), `shoedraw.py` (drawn by Claude for the figure). |
+| Getting dressed | `outfits.py` (outfits by rule; pure), `outfit_rules.py` (the owner's rules, read from the taxonomy file), `today.py` (weather, wears and laundry fed to the engine), `weather.py`, `climate.py`, `day.py`, `daynote.py` (the day in the owner's words), `wears.py` (what was worn, and laundry), `worn.py` (outfits worn, and ratings), `taste.py` (what ratings teach). |
+| Claude as stylist | `styling.py` (what the stylist is told and what is kept; pure), `stylejobs.py` (asked in the background, kept for the day), `styleahead.py` (asked before the first look), `styleprofile.py` (Your style). |
+| What to buy, what to pack | `gaps.py` (what's missing, by rule; pure), `life.py` (how the owner lives), `wishlist.py`, `shop.py` (finds for a wish, and prices), `wouldwork.py` (pure) and `wouldjobs.py` (Would this work?), `insights.py` (pure), `trips.py` (packing by rule; pure), `tripweather.py`, `savedtrips.py`. |
+| Reaching Claude | `apikey.py` (the key, in the computer's keychain), `spend.py` (every call recorded, the monthly limit, estimates). The calls themselves are in `tagger/`. |
+
+`tagger/` is everything that asks Claude. `routes.py` chooses the way in (the Claude plan
+through `claude_cli.py`, or the API key); `schema.py` is the shape of a description and
+`tagging.py` asks for one; `taxonomy.py` is the owner's taxonomy as far as a drawing shows it,
+with `COVERAGE`; `surfaceform.py` is the cloth's surface on the same call. One module per
+other question: `addsort.py` (what each photo on Add shows), `garments.py` (boxes round
+several pieces), `landmarks.py`, `correcting.py` (the owner's sentence into changes),
+`views.py` (which side of a shoe), `shoedrawing.py` (a shoe drawn), `dayread.py` (the day's
+note), `stylist.py` (the outfits), `shopping.py` (shops and prices).
+
+`drawing/` draws. `templates.py` (the garment shapes), `illustrate.py` and `fills.py` (shape
+plus fill), `item.py` (one item, as the app calls it), `stored.py` (a measured pattern as a
+fill), `accessories.py`; the figure: `figure.py`, `fitting.py`, `worn.py`; shoes: `trace.py`,
+`traced.py`, `sideshoe.py` (traced from the side), `frontshoe.py` (the template seen from the
+front), `drawn.py`, `turned.py`, `photocheck.py` (drawn by Claude), with worked examples in
+`shoe_examples/`.
+
+`patterns/` measures a pattern from the item's own photo (`measure.py` picks the method;
+`stripes.py`, `plaid.py`, `flatten.py`, `straighten.py`, `prints.py`, `masks.py`), and turns
+Claude's description of the cloth into a fill (`surface.py`, `described.py`).
+
+Outside the server: `backend/tests/` (one `test_<module>.py` per module; `conftest.py` has the
+stand-ins, `e2e_backend.py` starts the app for the browser tests), `bench/` (recognition and
+drawing experiments; `closet_bench` modules named like the tagger's and the drawing's are the
+same code, re-exported), `tools/` (developer scripts that draw sheets to look at; never
+shipped), `packaging/` (the PyInstaller build and its smoke test).
+
+### Frontend (`frontend/`)
+
+| Place | What's in it |
+| --- | --- |
+| `src/main.tsx`, `src/App.tsx` | Start-up: first run, login, the "can't reach Closet" screens. |
+| `src/Shell.tsx` | The frame: sidebar on a computer, tab bar on a phone, the banners, and which screen a route shows. `src/nav.ts` says which link is lit. |
+| `src/router.tsx` | The router, written by hand: `parseRoute` (every route), `navigate`, `Link`, `itemPath`, the `WIDE` media query. |
+| `src/store.tsx` | `useCloset`: the items, the vocabulary, the model's state, offline, the open closet (real or demo), the toast. It polls while items are being worked on. |
+| `src/api.ts` | The one client, `api.*`, with a readable `ApiError`, and what a closing page may still send. `src/types.ts` has the response types, kept by hand. |
+| `src/screens/` | One file per screen, with its CSS beside it: `Today`, `Worn`, `Closet`, `ItemDetail`, `Add`, `Several`, `Review`, `Missing`, `WouldWork`, `Shop`, `Insights`, `Trips`, `Settings`, and `Setup`, `Login`, `Static` before the shell. |
+| `src/components/ui/` | The shared pieces every screen is built from, exported from `index.ts`: `Button`, `Card` and `Section`, `Chips`, `EmptyState`, `ItemThumb`, `Notice`, `PageHeader`, `SegmentedControl`, `Sheet` (and `PHONE`, the phone-or-wider query), with `focus.ts` for keeping Tab inside what is open. |
+| `src/components/` | Pieces used by more than one screen or too big to sit in one: `FixDetails`, `KindPicker`, `ItemPic`, `OutfitFigure`, the shoe pieces (`ShoePhotos`, `ShoeTrace`, `ShoeDrawn`), `LifeQuestions`, `WhereYouAre`, `PhoneAccess`, `Updates`, `ModelBanner`, `RestoreNotice`, `RetakeButton`, `AddedItem`, `Icons`. |
+| `src/<feature>.ts` | The logic and the words of a feature, with no React in it and its test beside it (`today.ts` and `today.test.ts`, `trips.ts`, `gaps.ts`, `insights.ts`, `worn.ts`, `wouldwork.ts`, `shop.ts`, `shoe.ts`, `spend.ts`, `updates.ts`, `corrections.ts`, `tagging.ts`, `drawing.ts`, `figure.ts`, `kinds.ts`, `review.ts`, `several.ts`, `addsort.ts`, `added.ts`). `labels.ts` has the plain words for the server's vocabulary. |
+| `src/uploadQueue.ts`, `src/uploads.ts`, `src/resize.ts` | Adding photos: resized in the browser, two at a time, each retried under one key. |
+| `src/leave.ts`, `src/landing.ts`, `src/theme.ts`, `src/location.ts` | Saves still waiting when the page closes; which screen the app opens on; light or dark; asking the browser where you are. |
+| `src/styles.css` | The tokens (`:root`) and the shared styles. `src/design.test.ts` fails on a size, radius, colour or motion value that is not a token. |
+| `sw/sw.js`, `public/` | The service worker (written by hand; the build fills in the files to keep) and the manifest and icons. |
+| `e2e/` | The browser tests: `server.ts` starts a backend on a fresh data folder, `fixtures.ts` logs in, `a11y.ts` runs axe. |
+| `scripts/` | `phone-check.mjs` (below) and `make-icons.mjs`. |
+
+## Structure rules
+
+- **Routes are thin.** A route in `app.py` reads the request, calls the feature's module and
+  returns what it gives back. The work is in the module named for the feature.
+- **Rules are pure.** `outfits`, `gaps`, `trips`, `insights`, `wouldwork`, `styling` and `day`
+  take plain data and return plain data: no database, no network, no clock (today is passed
+  in). The module beside each one (`today.py`, `savedtrips.py`, `wouldjobs.py`) does the
+  reading and writing. Keep new rules that way; it is why they are quick to test.
+- **Only `tagger/` asks Claude,** always through `routes.py`, and every call is recorded by
+  `spend.py` and held under the API key's monthly limit. Nothing about the demo closet is
+  ever sent.
+- **Slow work never holds a request.** Uploads return at once and the work is done by a
+  worker started in `build_services`. Anything that has to survive a restart is kept in the
+  database.
+- **Two kinds of settings.** What belongs to the program (the passphrase, the place, the
+  backup folder, how Claude is reached) is a key in `state.py`'s `DEFAULTS`. What belongs to
+  a closet is in that closet's database, so the real and the demo closet keep theirs apart
+  and a backup takes it along.
+- **The taxonomy file is the source of truth** for what a garment can be
+  (`docs/menswear-taxonomy.json`); `tagger/taxonomy.py` stays equal to it, and a test checks.
+- **OpenCV is imported only inside the code that reads a photo,** so drawing an item needs
+  none of it.
+- **On the page: words and logic out of the screen.** A screen file lays things out. What it
+  says and how it decides live in `src/<feature>.ts`, tested there. Sizes, colours, radii and
+  motion come from the tokens; a shared piece comes from `components/ui/` before a new one is
+  written.
+- **One of each.** Before adding a helper, a status word or a sentence, search for the one
+  that exists. The assessment found the same progress words in four files and the same fact
+  stored three ways; a new copy is a bug even when it works.
+
+## What deserves a test, and where
+
+Pick the lowest layer that can show the behaviour, and test it once.
+
+1. **Rules and calculations** (taxonomy, outfits, gaps, trips, spend, geometry): unit tests
+   on the module, as a table of cases, with no HTTP and no demo closet. A handful of cases
+   per rule and the edge that broke. Under a tenth of a second each.
+2. **Each endpoint**: through `TestClient`, one success and one test for each distinct
+   refusal. Don't run the rule's cases again through the API. Give the test a tiny closet,
+   not the demo, unless the demo is what is being tested.
+3. **Words and decisions on the page**: a unit test beside the `src/<feature>.ts` file
+   (vitest).
+4. **The browser** (Playwright, `frontend/e2e/`): one test for each thing the owner does on a
+   screen, or each state they can see, asserting what they see. Never a backend rule again.
+   No fixed sleeps. A screenshot goes to `testInfo.outputPath()`, never into `docs/`.
+5. **A bug fix**: a test at the lowest layer that reproduces the bug, written first.
+6. **Anything over a second**: make the input smaller, or mark it `slow` and say so in the
+   pull request. An image test uses the smallest image that shows the case.
+7. **Migrations**: `test_db.py` already brings every version up to date. Add a test only
+   when the migration changes data that is already there.
+8. **Design rules**: once, as a rule over every file, as `design.test.ts` does. Not per
+   screen.
+9. **Code that talks to the computer** (keychain, tray, window, start at login): a stand-in
+   at the edge only, and assert the outcome (Quit stopped the server), not that the call
+   returned.
+
+A new screen, sheet or sentence is also looked at: run the phone check (below) and open the
+pictures.
+
+## The phone check
+
+```bash
+cd frontend && npm run build && npm run phone-check      # or: node scripts/phone-check.mjs <out-dir>
+```
+
+It starts a backend of its own on a temporary data folder (the same stand-ins as the browser
+tests, with a copy of the demo closet as the owner's closet), gives a few things long names,
+opens every screen at 375, 393, 402, 430 and 440px wide, light and once dark, and takes a
+full-page picture of each into `frontend/phone-shots/`. It fails when a screen is wider than
+the phone or throws an error. `CLOSET_PYTHON` names the Python with the backend's
+requirements, as for the browser tests. A new screen is added to its list of routes.
+
+It is run by hand, before a pull request that changes anything visible. CI does not run it.
+
+## Adding a screen
+
+Before adding one, read the Screens section of [DESIGN.md](DESIGN.md): the assessment's
+direction is fewer places, so a new card on an existing screen is the usual answer.
+
+1. The route in `parseRoute` (`src/router.tsx`), and its section in `src/nav.ts`.
+2. `src/screens/<Name>.tsx`, built from `components/ui/`: a `PageHeader`, then `Section`s.
+   Its words and decisions in `src/<name>.ts` with a test.
+3. The branch in `Shell.tsx` that shows it, and the link that reaches it.
+4. Its route in `scripts/phone-check.mjs`.
+5. One browser test for what the owner does there, and the screen added to the lists in
+   `e2e/17-accessibility.spec.ts`.
+6. A paragraph in `docs/USING.md`, a line in `CHANGELOG.md` under Unreleased, and the
+   owner's steps in `README.md` if there are any.
+
+## Adding an endpoint
+
+1. The work, as a function in the feature's module, tested there.
+2. The route in `create_app` (`app.py`), beside the feature's other routes, with
+   `dependencies=protected` unless it has to answer before login. The request body is a
+   Pydantic model; what comes back is a plain dict.
+3. If it takes an upload, its limit in `limits.py`.
+4. The call in `src/api.ts` and its type in `src/types.ts`.
+5. One success and one test per refusal, through `TestClient`.
+6. Its entry in `docs/API.md`.
+
+## Adding a migration
+
+Add `backend/closet/migrations/NNNN_what_it_does.sql` with the next free number. `db.migrate`
+runs each one above the database's `user_version`, in order, each in one transaction, after
+taking a copy of the database. Never edit a migration that has merged; add another. If `main`
+takes your number before your pull request merges, renumber yours to the next free one and
+say so. There is no `0002`. The demo closet is a database too and is migrated the same way.
+
+## Adding background work
+
+1. Decide where its state lives. A step every item goes through belongs in the `jobs` table
+   (`jobs.py` for cutouts, `tagjobs.py` for descriptions); a step only some items have keeps
+   a state column on the item, as patterns, traces and shoe drawings do.
+2. A worker with `start`, `wake` and `stop`, added to `Services` in `app.py`, which takes a
+   stand-in for whatever is slow or outside (the model, Claude) so tests never wait for it.
+3. What was interrupted is picked up at the next start (`requeue_interrupted`).
+4. A failure is stored through `failures.py`, so what is shown and logged holds no key and
+   no path.
+5. What the page says about it is one phrase in one place. The assessment's step 5 is one
+   progress model for all of this; until it lands, reuse the words in `src/tagging.ts` and
+   `src/added.ts`, don't add a fifth set.
+
+## Releasing
+
+The owner starts a release (Actions, **release**); nobody makes a tag by hand, and agents do
+not start it. `CHANGELOG.md` under `## Unreleased` is where what changed is written as it
+merges. The release workflow does not read it yet; making it the release's What's new is
+part of step 2 of the assessment's order of work.

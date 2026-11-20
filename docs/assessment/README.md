@@ -126,7 +126,8 @@ Low and medium risk, about 15 to 17 thousand lines and about 50 MB:
 
 ## Suggested order of work
 
-1. **Context for agents first**, so the rest does not repeat the mess: a `CLAUDE.md` that
+1. **Context for agents first** (done; see `CLAUDE.md` and what is left over in
+   `docs/BACKLOG.md`), so the rest does not repeat the mess: a `CLAUDE.md` that
    brings in `AGENTS.md`, a module map, a design document with principles and a checklist, a
    per-screen guide, a changelog, and Homestead's phone-check script. Include a rule for what
    deserves a test at which layer.

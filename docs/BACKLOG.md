@@ -9,6 +9,28 @@ owner; see `DECISIONS.md`, "How the work is organised").
 - **Track 2, the app:** what the program does. The owner tries the downloaded
   program at each stop (A, B, C, D, then smaller ones).
 
+## Left over from finished work
+
+What a finished piece of work left undone, newest first. Any agent may add a line here (and
+only here); take a line out when it is done.
+
+- **Context for agents** (step 1 of the order of work in `assessment/README.md`, done 19 November):
+  `CLAUDE.md`, `docs/DEVELOPING.md`, `docs/DESIGN.md`, `docs/USING.md`, `CHANGELOG.md` and
+  `frontend/scripts/phone-check.mjs` exist. Left:
+  - The release workflow does not read `CHANGELOG.md` yet. Turning *Unreleased* into the
+    release's What's new, and showing it in Updates, belongs to step 2 ("render release
+    notes properly").
+  - `docs/DESIGN.md` states where the app is headed; some screens do not meet it yet (a press
+    still shrinks the button, Settings is one long page). `DECISIONS.md`, "The design
+    system", still describes the 97% press; change it there when step 2 changes the CSS.
+  - Not ported from Homestead: a sweep that counts each screen's words against the budget in
+    `DESIGN.md`, a `/design-review` skill, and a README for `components/ui/`. Worth doing
+    with step 6 or 8, when screens are reshaped.
+  - `README.md` still mixes the owner's guide with notes that are now in `USING.md`
+    (a trip, shoes, several pieces). Shorten it when those screens next change, not before.
+  - The phone check is run by hand. Whether CI or the release should run it is the owner's
+    call (it adds a few minutes).
+
 ## In progress (Copilot agents)
 
 - [x] #218 Backups: a restore cut short (a power cut, a forced quit) is finished or undone at the next start, from a journal of its moves, and the owner is told once. Backup images are kept by content, so restoring an older snapshot gives back its own cutouts; old backups still restore.

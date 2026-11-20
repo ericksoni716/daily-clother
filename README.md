@@ -834,8 +834,11 @@ photographed from the side is, so you can try **Fix the details** on them.
 - `frontend/` — React + TypeScript + Vite; see `frontend/README.md`.
 - `packaging/` — the PyInstaller build and its smoke test; see its README.
 - `bench/` — tagging and illustration experiments from phase 0.
-- `docs/` — `DECISIONS.md` (what and why), `BACKLOG.md` (what is left),
-  `API.md`, `PHASE0.md`.
+- `docs/` — `DEVELOPING.md` (where each thing lives, and how to add to it),
+  `DESIGN.md` (the principles and a checklist for any change), `USING.md` (what
+  each screen does), `DECISIONS.md` (what and why), `BACKLOG.md` (what is left),
+  `assessment/` (the November review and its order of work), `API.md`, `PHASE0.md`.
+- `CHANGELOG.md` — what changed for the person using it, newest first.
 
 ## Planning a trip
 

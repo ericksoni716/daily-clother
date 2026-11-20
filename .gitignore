@@ -13,3 +13,5 @@ backend/closet/_build_version.py
 private/
 *.env
 .env*
+# screenshots the phone check leaves (frontend/scripts/phone-check.mjs)
+phone-shots/

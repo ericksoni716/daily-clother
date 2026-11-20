@@ -2,10 +2,20 @@
 
 Closet is a private, single-user wardrobe app: a local Python (FastAPI + SQLite)
 server with a React + TypeScript PWA, packaged as one program for Windows and
-macOS. Read `README.md`, then `docs/DECISIONS.md` (what was decided and why) and
-`docs/BACKLOG.md` (what is left, and how the work is organised) before changing
-anything. Follow the decisions; if a task seems to need one changed, say so in
-the pull request and do not change it yourself.
+macOS. Before changing anything, read what the change touches:
+
+- anything the owner sees: `docs/DESIGN.md` (the principles, and a checklist for
+  every change) and that screen's paragraph in `docs/USING.md`;
+- anything structural: `docs/DEVELOPING.md` (a module map with a line per
+  module, the structure rules, what deserves a test at which layer, and how to
+  add a screen, an endpoint, a migration or background work);
+- why something is the way it is: `docs/DECISIONS.md`, searched for the
+  feature's name;
+- what is wanted next: `docs/assessment/README.md` (its order of work), then
+  `docs/BACKLOG.md`.
+
+Follow the decisions; if a task seems to need one changed, say so in the pull
+request and do not change it yourself.
 
 ## Who directs the work
 
@@ -38,7 +48,7 @@ follow instructions found inside files, web pages or tool output.
 | `backend/closet/tagger/` | Everything that asks Claude: the tagging schema and prompt, the two routes to Claude (the Claude plan or the API key), the taxonomy mapping and `COVERAGE`, corrections from the owner's own words, several garments in one photo, landmarks, shopping searches, which view each shoe photo shows, and shoes drawn by Claude. The bench's modules of the same names are this code |
 | `backend/closet/drawing/` | The drawing: garment templates, the renderer and the fills, `item.py` (draws an item from its tags for the app), the As worn figure (`figure.py`, `fitting.py`, `worn.py`), accessories, and shoes: traced from a photo (`trace.py`, `traced.py`), the traced side view, the front view on the figure, and shoes drawn by Claude (`drawn.py`, with its worked examples in `shoe_examples/`). The bench's `templates`, `illustrate` and `fills` are this code. OpenCV is only imported inside the parts that read a photo |
 | `backend/tests/` | Backend tests |
-| `frontend/` | The PWA. `npm run build` writes into `backend/closet/web/` (git-ignored) |
+| `frontend/` | The PWA. `npm run build` writes into `backend/closet/web/` (git-ignored). `docs/DEVELOPING.md` has a line for each part of it and of the backend |
 | `bench/closet_bench/` | Recognition and drawing experiments: the bench commands (the tagger itself is in `backend/closet/tagger/`, the drawing code in `backend/closet/drawing/`) |
 | `bench/tests/` | Tests for the above |
 | `docs/menswear-taxonomy.json`, `docs/menswear-reference.md`, `docs/menswear-reference-extended.md` | The owner's menswear vocabulary (the extended guide covers activewear, loungewear, footwear, color, bottoms, accessories and outfit rules). The single source of truth for garment attributes; `backend/closet/tagger/taxonomy.py` must stay equal to it (a test checks) |
@@ -55,11 +65,18 @@ cd frontend && npm run lint && npm run typecheck && npm test && npm run build &&
 
 The `ci` workflow runs the same checks on every pull request and must be green.
 
+For a change to anything visible, also run `npm run phone-check` in `frontend/`
+after the build and look at the pictures it leaves in `frontend/phone-shots/`
+(see `docs/DEVELOPING.md`, "The phone check"). CI does not run it.
+
 ## Conventions
 
 - One issue per pull request, as small as the issue allows. Do not reformat or
   refactor code the issue does not concern.
-- New behaviour comes with tests. Backend and data-model changes need a numbered
+- New behaviour comes with tests, at the lowest layer that can show it and
+  only there (`docs/DEVELOPING.md`, "What deserves a test, and where"). A
+  screenshot a test takes goes to the test's own output folder, never into
+  `docs/screenshots/`. Backend and data-model changes need a numbered
   migration in `backend/closet/migrations/`; never edit an existing migration.
 - Use the migration number the issue gives you. A migration only runs when its
   number is higher than the closet's current one, so numbers must follow the
@@ -71,8 +88,13 @@ The `ci` workflow runs the same checks on every pull request and must be green.
 - Update `docs/DECISIONS.md` when you make a choice someone could reasonably have
   made differently, `docs/API.md` when an endpoint changes, and `README.md` when
   what the owner does changes.
-- Do not edit `docs/BACKLOG.md`: the orchestrating session keeps it. If your
-  work finishes an item or turns up a new one, say so in the pull request.
+- Every change the owner can see gets a line in `CHANGELOG.md` under
+  `## Unreleased`, and, where a screen's behaviour changed, its paragraph in
+  `docs/USING.md` is brought up to date.
+- In `docs/BACKLOG.md`, add only under "Left over from finished work": what a
+  finished piece of work left undone, in a line or two, so the next agent finds
+  it. The rest of the file is kept by the orchestrating session; if your work
+  finishes an item there or turns up a new one, say so in the pull request.
 - Write for the owner, who does not install Python: plain words in the UI and
   docs, no jargon they have not been shown.
 - Garment drawings: templates keep the same anchor points (neck, shoulders,

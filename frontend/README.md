@@ -14,6 +14,7 @@ npm test           # vitest unit tests (upload queue, labels, silhouette groups,
 npm run build      # production build into ../backend/closet/web
 npm run e2e        # Playwright browser tests (builds first, starts its own backend)
 npm run icons      # redraw the PNG icons in public/icons (they are committed)
+npm run phone-check  # every screen at five iPhone widths, pictures into phone-shots/ (needs a build; starts its own backend)
 ```
 
 ### Browser tests

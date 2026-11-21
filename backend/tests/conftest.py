@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import re
 import sys
 import threading
@@ -54,6 +55,25 @@ REAL_FETCH = weather.fetch   # for the tests of the request itself, which stop u
 def pytest_runtest_setup(item):
     if item.get_closest_marker("windows") and sys.platform != "win32":
         pytest.skip("Windows only")
+
+
+REAL_TASK_TEST = "test_a_real_task_starts_the_background_copy_and_starts_it_again_after_it_is_killed"
+
+
+def pytest_terminal_summary(terminalreporter):
+    """On Windows, one line at the end of the run says what became of the test that registers a real scheduled task
+    (closet/background.py), with the reason when it was skipped, so it cannot pass unseen in a long CI log."""
+    if sys.platform != "win32" or not os.environ.get("CI"):
+        return
+    for outcome in ("passed", "failed", "error", "skipped"):
+        for report in terminalreporter.stats.get(outcome, []):
+            if REAL_TASK_TEST in getattr(report, "nodeid", ""):
+                why = ""
+                if outcome == "skipped" and isinstance(report.longrepr, tuple):
+                    why = f": {report.longrepr[2]}"
+                terminalreporter.write_line(f"Windows scheduled task test {outcome.upper()}{why}")
+                return
+    terminalreporter.write_line("Windows scheduled task test DID NOT RUN (not collected)")
 
 
 @pytest.fixture(autouse=True)

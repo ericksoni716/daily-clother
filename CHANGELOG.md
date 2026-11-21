@@ -12,6 +12,16 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- On Windows, Nines can keep running for your phone: in **Settings → Phone**, press **Keep Nines
+  running** and say Yes when Windows asks. Windows then starts Nines when the computer turns on,
+  before you sign in (or when you sign in, where Windows will not do that), and starts it again
+  within a few minutes if it stops. Opening Nines opens its window onto that copy, the port it
+  answers on stops changing, updates come back the same way, and a newer `Nines.exe` you open by
+  hand offers to move it to the new version. It replaces **Start Nines when I log in**, and
+  **Turn this off** in the same place puts things back as they were, keeping the newest version
+  of the program. Settings also says which port
+  Nines answers on, for setting up Tailscale and Cloudflare.
+
 - You can correct a shoe's side drawing with a one-line note, as you could its drawing for the
   figure: under **What's wrong with the drawing?**, choose **The side**, and Claude changes only
   the side, checks the change against the photos and says when your note goes against them.

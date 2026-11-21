@@ -136,6 +136,16 @@ def test_on_windows_claude_exe_comes_before_an_npm_claude_cmd(tmp_path):
     assert claude_cli.find_claude("win32", _which({}), tmp_path, env) is None
 
 
+def test_started_before_sign_in_an_npm_claude_is_found_in_the_owners_own_folder(tmp_path):
+    """Windows' task may start Nines with a PATH that lacks the owner's own folders (closet/background.py)."""
+    npm = tmp_path / "AppData" / "Roaming" / "npm" / "claude.cmd"
+    npm.parent.mkdir(parents=True)
+    npm.write_bytes(b"")
+    assert claude_cli.find_claude("win32", _which({}), tmp_path, {}) == str(npm)
+    elsewhere = tmp_path / "Roaming"
+    assert claude_cli.find_claude("win32", _which({}), tmp_path, {"APPDATA": str(elsewhere)}) is None
+
+
 def test_elsewhere_claude_is_found_as_before(tmp_path):
     assert claude_cli.find_claude("darwin", _which({"claude": "/opt/homebrew/bin/claude"}), tmp_path, {}) == \
         "/opt/homebrew/bin/claude"

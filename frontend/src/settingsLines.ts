@@ -140,11 +140,12 @@ export type Group = 'style' | 'everyday' | 'claude' | 'updates' | 'phone' | 'dev
 
 /**
  * Which groups are shown, in order. Phone is shown on the computer until a share reaches Closet (after that it is
- * one line there too); on the phone, only in Safari, to say how to add Closet to the Home Screen.
+ * one line there too); on the phone, in Safari, to say how to add Closet to the Home Screen, and, as an app, only when
+ * it has something to say (`phoneLine`: whether the computer keeps Nines running).
  */
-export function mainGroups(phoneShows: 'connect' | 'add-to-home-screen' | 'nothing'): Group[] {
+export function mainGroups(phoneShows: 'connect' | 'add-to-home-screen' | 'nothing', phoneLine = false): Group[] {
   const groups: Group[] = ['style', 'everyday', 'claude', 'updates'];
-  if (phoneShows !== 'nothing') groups.push('phone');
+  if (phoneShows !== 'nothing' || phoneLine) groups.push('phone');
   groups.push('device', 'data', 'leave');
   return groups;
 }

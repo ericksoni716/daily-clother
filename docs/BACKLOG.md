@@ -14,6 +14,34 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Windows keeping Nines running** (21 November; DECISIONS, "Kept running by Windows"). Built and
+  tested only with Windows stood in for, plus one test that registers a real task on the CI's
+  Windows runner (an administrator, without the prompt). To try on the owner's own PC after the
+  release, in this order: the administrator prompt and a declined one; which way it starts (turned
+  on, then restart the PC without signing in and open Nines from the phone); the window closing and
+  opening again onto the copy Windows runs; Nines killed in Task Manager coming back within five
+  minutes; the API key and the Claude plan used by a copy started before sign-in (Claude Code's
+  sign-in has not been tried there at all); opening Nines just after boot; an update through the
+  task, and a newer `Nines.exe` opened by hand; Turn this off, which brings back an ordinary copy
+  and Start Nines when I log in if it was on. Whether the account may stop the task with `schtasks
+  /End` (only read and run are granted) is not known; nothing relies on it.
+- Also left by it, to settle once tried on a real computer (21 November, from the review):
+  - `SetSecurityDescriptor(..., 0)` lets Task Scheduler add its own entry for the task's principal, which may give the
+    owner's account more than read and run. Flag 0x10 stops that, but whether the task then still runs for its
+    principal is not known, so it stays as it is until tried.
+  - The one-file program unpacks its pages into %TEMP%, which a clean-up tool may empty under a copy that runs for
+    weeks while its health check still answers. A fixed unpack folder, or a health check that sees the page is
+    there, would settle it.
+  - If Credential Manager can be read but not written before sign-in, a key saved from the page goes only into the
+    sealed file while the old one in Credential Manager keeps winning.
+  - A missing or damaged marker (`background.json`) while the task still exists leaves Settings unable to turn it off.
+  - The elevated script writes its result into Nines' folder, which the owner's programs can write.
+- Left by it for a later rename of the program: the copy Windows runs is `Nines.exe` in
+  `%LOCALAPPDATA%\Nines`, under the task `Nines` (`EXE_NAME`, `TASK_NAME` in
+  `closet/background.py`), whatever the release file is called. A rename of the task or of that
+  folder needs code that removes the old task and folder, since the task is changed only behind the
+  administrator prompt.
+
 - **Today's first outfit sometimes takes over 20 seconds in the browser tests in CI** (21 November). `e2e/32-places.spec.ts:42` failed on that wait in #288 and passed when run again; #286 met the same wait and lengthened it from 10 to 20 seconds. The cause is not known: on a loaded machine outside CI the outfit appears in about a second, in that spec and by itself. To find: what Today waits on in the demo closet just after the closet is switched while other spec files run.
 - **A shoe's side drawn by Claude** (20 November; DECISIONS, "A shoe's side drawn by Claude").
   Left:
@@ -481,4 +509,3 @@ Tests pass, the packaged build is green in CI, demo mode works, docs are updated
 - Browser tests in `08-wears` timed out twice in local full runs (once each test in the file), both times while reviewers were also running on the machine: the demo closet's tiles were missing or kept being replaced for a minute. Not reproduced in five further runs, three of them under deliberate heavy load, and never on GitHub. Cause not found. If it comes back: run with `--trace retain-on-failure` and look at what keeps re-rendering the grid after a profile switch.
 - Batches API as an opt-in "economy" mode for very large imports.
 - Server-side refusal fallback for the stronger model (beta); tagging currently fails clearly on a refusal.
-- Start Closet when the computer turns on, before anyone signs in, as the owner's other app's hub does (a Windows scheduled task that runs as the owner without a sign-in). Asked for and parked by the owner on 20 November: "Start Closet when I log in" covers a computer that is signed in to most days. It would matter when the PC restarts by itself and the phone must still reach Closet. What it needs first: a home for the API key that a task started before sign-in can read (Windows Credential Manager most likely cannot be read then; not checked, and not checked for the Claude plan's sign-in either); then a window and tray icon that open onto the background copy, updates for a copy that runs as a task, and the one-time administrator permission to make the task. Windows only; the Mac keeps start at login. The November assessment listed this under "do not copy" when Closet had one owner with a passphrase; with the passphrase going and ways in from outside, that reason is weaker.

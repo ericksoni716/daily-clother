@@ -1,9 +1,12 @@
-"""The owner's Anthropic API key: kept in the computer's own keychain, never in a file of ours.
+"""The owner's Anthropic API key: kept in the computer's own keychain.
 
 Where it is kept:
 - macOS: the login keychain, through Apple's `security` tool. The key is handed to it on its standard input
   (its interactive mode), never on a command line where other programs could see it.
-- Windows: Credential Manager (a generic credential for this user), through the Windows API.
+- Windows: Credential Manager (a generic credential for this user), through the Windows API. While Nines is kept
+  running by Windows (closet/background.py), the key is also kept in a file in the data folder sealed by Windows to
+  this computer (`SEALED_FILE`, below), because a copy started before anyone signs in most likely cannot read
+  Credential Manager. That file is read only when Credential Manager gives no key.
 - Elsewhere there is no keychain Closet uses; the key can only come from `ANTHROPIC_API_KEY`.
 
 A key saved here wins over `ANTHROPIC_API_KEY`. The key is never returned to the page, logged, written to the
@@ -12,10 +15,13 @@ using the owner's plan).
 """
 from __future__ import annotations
 
+import base64
+import json
 import os
 import re
 import subprocess
 import sys
+from pathlib import Path
 from typing import Protocol
 
 SERVICE = "Closet"
@@ -177,9 +183,15 @@ def use_store(s: Store | None) -> None:
 
 def _saved() -> str | None:
     try:
-        return store().get()
+        key = store().get()
     except Exception:   # a keychain that cannot be read is treated as holding no key; the environment still counts
-        return None
+        key = None
+    if key is None and _sealed_dir is not None:
+        try:
+            return read_sealed(_sealed_dir)
+        except Exception:
+            return None
+    return key
 
 
 def get() -> str | None:
@@ -226,3 +238,162 @@ def check(key: str) -> str | None:
         return "refused" if "api key" in str(e).lower() else "unknown"
     except Exception:
         return "unknown"
+
+
+# ---------------------------------------------------------------- the sealed copy, while Windows keeps Nines running
+# Windows' own data protection (DPAPI) with the machine's key: anything running on this computer that can read the
+# file can unseal it, nothing elsewhere can (DECISIONS, "Kept running by Windows"). The file is JSON:
+# {"sealed": "<base64>"} for a key, {"sealed": null} for a key removed while Credential Manager could not be changed.
+SEALED_FILE = "api-key.sealed"
+_ENTROPY = b"closet/api-key/v1"
+
+_sealed_dir: Path | None = None   # the data folder whose sealed file `get` falls back to; None: no fallback
+
+
+class Sealer(Protocol):
+    def seal(self, data: bytes) -> bytes: ...
+    def unseal(self, data: bytes) -> bytes: ...
+
+
+class Dpapi:
+    """CryptProtectData with CRYPTPROTECT_LOCAL_MACHINE: unsealed by any account on this computer, by no other."""
+    UI_FORBIDDEN, LOCAL_MACHINE = 0x1, 0x4
+
+    def _call(self, data: bytes, protect: bool) -> bytes:
+        import ctypes
+        from ctypes import wintypes
+
+        class Blob(ctypes.Structure):
+            _fields_ = [("cbData", wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_char))]
+
+        def blob(raw: bytes):
+            buf = ctypes.create_string_buffer(raw, len(raw))
+            return Blob(len(raw), ctypes.cast(buf, ctypes.POINTER(ctypes.c_char))), buf
+
+        crypt32 = ctypes.WinDLL("crypt32", use_last_error=True)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.LocalFree.argtypes = [ctypes.c_void_p]
+        kernel32.LocalFree.restype = ctypes.c_void_p
+        source, _keep1 = blob(data)
+        entropy, _keep2 = blob(_ENTROPY)
+        out = Blob()
+        if protect:
+            ok = crypt32.CryptProtectData(ctypes.byref(source), "Nines", ctypes.byref(entropy), None, None,
+                                          self.UI_FORBIDDEN | self.LOCAL_MACHINE, ctypes.byref(out))
+        else:
+            ok = crypt32.CryptUnprotectData(ctypes.byref(source), None, ctypes.byref(entropy), None, None,
+                                            self.UI_FORBIDDEN, ctypes.byref(out))
+        if not ok:
+            raise KeychainError("Windows could not seal or unseal the API key.")
+        try:
+            return ctypes.string_at(out.pbData, out.cbData)
+        finally:
+            kernel32.LocalFree(ctypes.cast(out.pbData, ctypes.c_void_p))
+
+    def seal(self, data: bytes) -> bytes:
+        return self._call(data, True)
+
+    def unseal(self, data: bytes) -> bytes:
+        return self._call(data, False)
+
+
+_sealer: Sealer | None = None
+
+
+def sealer() -> Sealer:
+    global _sealer
+    if _sealer is None:
+        if sys.platform != "win32":
+            raise KeychainError("Only Windows seals the API key to this computer.")
+        _sealer = Dpapi()
+    return _sealer
+
+
+def use_sealer(s: Sealer | None) -> None:
+    """Seal with `s` instead of Windows (tests); None goes back to Windows."""
+    global _sealer
+    _sealer = s
+
+
+def keep_sealed(data_dir: Path | None) -> None:
+    """Fall back to the sealed file in `data_dir` when Credential Manager gives no key; None stops falling back."""
+    global _sealed_dir
+    _sealed_dir = data_dir
+
+
+def sealed_path(data_dir: Path) -> Path:
+    return Path(data_dir) / SEALED_FILE
+
+
+def write_sealed(data_dir: Path, key: str | None) -> None:
+    """Keep `key` sealed in the data folder; None notes that there is no key (it was removed)."""
+    if key is not None and not KEY_RE.fullmatch(key):
+        raise ValueError(NOT_A_KEY)
+    sealed = base64.b64encode(sealer().seal(key.encode("utf-8"))).decode("ascii") if key is not None else None
+    path = sealed_path(data_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    part = path.with_name(path.name + ".part")
+    part.write_text(json.dumps({"sealed": sealed}), encoding="utf-8")
+    os.replace(part, path)
+
+
+def read_sealed(data_dir: Path) -> str | None:
+    """The key in the sealed file, or None when there is no file or it says the key was removed."""
+    path = sealed_path(data_dir)
+    if not path.exists():
+        return None
+    sealed = json.loads(path.read_text(encoding="utf-8")).get("sealed")
+    if not sealed:
+        return None
+    return sealer().unseal(base64.b64decode(sealed)).decode("utf-8") or None
+
+
+def has_sealed(data_dir: Path) -> bool:
+    return sealed_path(data_dir).exists()
+
+
+def remove_sealed(data_dir: Path) -> None:
+    sealed_path(data_dir).unlink(missing_ok=True)
+    sealed_path(data_dir).with_name(SEALED_FILE + ".part").unlink(missing_ok=True)
+
+
+def save(key: str, data_dir: Path | None) -> None:
+    """Save `key`: in the keychain, and, with `data_dir` (Windows keeps Nines running), sealed there too. A keychain that
+    cannot be written then is only a problem when the sealed file cannot be written either (a copy started before
+    sign-in, which most likely cannot reach Credential Manager)."""
+    if data_dir is None:
+        store().set(key)
+        return
+    try:
+        store().set(key)
+    except KeychainError:
+        pass
+    write_sealed(data_dir, key)
+
+
+def remove(data_dir: Path | None) -> None:
+    """Remove the key: from the keychain, and, with `data_dir`, from the sealed file too (which then says it is gone)."""
+    if data_dir is None:
+        store().delete()
+        return
+    try:
+        store().delete()
+    except KeychainError:
+        pass
+    write_sealed(data_dir, None)
+
+
+def unseal_back(data_dir: Path) -> None:
+    """When Windows stops keeping Nines running: what the sealed file says goes back into the keychain (run in the
+    owner's own session, where Credential Manager can be written), then the file is removed."""
+    path = sealed_path(data_dir)
+    if path.exists():
+        try:
+            sealed = json.loads(path.read_text(encoding="utf-8")).get("sealed")
+            if sealed:
+                store().set(sealer().unseal(base64.b64decode(sealed)).decode("utf-8"))
+            else:
+                store().delete()
+        except (KeychainError, ValueError, OSError):
+            pass   # the keychain keeps what it had; the owner can save the key again in Settings
+    remove_sealed(data_dir)

@@ -798,11 +798,16 @@ def test_a_background_copy_shows_nothing_and_a_window_opens_onto_it(cfg, launche
     assert not health(a.port) and not cfg.lock_path.exists()
 
 
-@pytest.fixture
-def beside_background(cfg, monkeypatch):
-    """A background copy as the launcher sees it (no server: the window is faked and loads nothing real)."""
+@pytest.fixture(params=["linux", "win32"])
+def beside_background(cfg, monkeypatch, request):
+    """A background copy as the launcher sees it (no server: the window is faked and loads nothing real). Run with the
+    window on each way of closing: pywebview's `closing` event, and Windows' own (WinForms' FormClosing). The fake
+    toolkit closes the window the way the window's platform does, as on the real computer."""
     State(cfg.state_path).update(window_key="the-key")
-    env = SimpleNamespace(toolkit=FakeToolkit(), opened=[], version="0.3.0")
+    platform = request.param
+    real_window = app_window.AppWindow
+    monkeypatch.setattr(app_window, "AppWindow", lambda *a, **k: real_window(*a, platform=platform, **k))
+    env = SimpleNamespace(toolkit=FakeToolkit(platform=platform), opened=[], version="0.3.0")
     monkeypatch.setattr(cli, "__version__", "0.3.0")
     monkeypatch.setattr(app_window, "_Pywebview", lambda storage_dir: env.toolkit)
     monkeypatch.setattr(cli.webbrowser, "open", env.opened.append)

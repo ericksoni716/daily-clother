@@ -21,13 +21,22 @@ import threading
 import time
 import webbrowser
 from pathlib import Path
+from types import SimpleNamespace
 
 from . import APP_NAME, __version__, autostart, backup, config, datafolder, db, gate, instance
+from . import background as kept_running
 from .state import State
 
 log = logging.getLogger("closet")
 
 PORT_WAIT = 60.0   # seconds a background copy waits for its port to be let go of before it gives up
+AFTER_WAIT = 30.0  # seconds a launch started by a hand-over waits for the copy that started it to have quit
+# what `_serve` returns when Windows keeps Nines running but no background copy answers: `serve` starts it and waits
+# for it outside the startup lock (the background copy takes that lock too), then tries again
+AWAIT_BACKGROUND = -1
+# what `_serve` returns when a newer program finds an older background copy that Windows keeps running: `serve` asks
+# whether to move it to this version, and moves it, outside the startup lock (the new copy takes that lock as it starts)
+MOVE_BACKGROUND = -2
 
 
 def _setup_logging(cfg: config.Config, name: str = "closet.log") -> None:
@@ -41,8 +50,27 @@ def _setup_logging(cfg: config.Config, name: str = "closet.log") -> None:
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
 
 
+# What the launcher says while it holds the startup lock is held back until it lets go of it: a message box waits for the
+# owner, and every other launch, and the background copy Windows starts, waits for that lock meanwhile
+_held: list[str] | None = None
+
+
 def _say(message: str) -> None:
-    """Tell the owner something even when there is no console window."""
+    """Tell the owner something even when there is no console window (once the startup lock is let go of)."""
+    if _held is not None:
+        _held.append(message)
+        return
+    _tell(message)
+
+
+def _flush_held() -> None:
+    global _held
+    held, _held = _held, None
+    for message in held or []:
+        _tell(message)
+
+
+def _tell(message: str) -> None:
     if sys.stdout is not None:
         print(message, flush=True)
     elif sys.platform == "win32":  # windowed build: no console, so use a message box
@@ -153,26 +181,105 @@ def _launch_args(args, port: int, window_shown: bool = False) -> list[str]:
     """How an update starts the new program: the way this one was started, on the same port, showing its window only
     when this one's is showing (an update never opens the browser; the page already open there reconnects). A background
     copy starts a background copy."""
-    if getattr(args, "background", False):
-        return ["--background", "--port", str(port)]
+    if getattr(args, "background", False):   # with what Windows' task gave it, for a helper that starts it directly
+        return (["--background", "--port", str(port)] + (["--home", args.home] if getattr(args, "home", None) else [])
+                + (["--data-dir", args.data_dir] if getattr(args, "data_dir", None) else []))
     return ((["--no-tray"] if args.no_tray else []) + (["--tray"] if args.tray else []) + (["--browser"] if args.browser else [])
             + ([] if window_shown else ["--no-browser"]) + ["--port", str(port)])
 
 
 def serve(args, cfg: config.Config) -> int:
+    global _held
     background = getattr(args, "background", False)
     if background:   # nothing shown and nobody asked: the paths of --no-tray --no-browser, with the log for what it says
         args.no_tray, args.no_browser, args.tray, args.browser = True, True, False, False
         _setup_logging(cfg)
-    try:
-        with instance.startup_lock(cfg) as release_startup:
-            return _serve(args, cfg, release_startup)
-    except TimeoutError as e:
-        if background:
-            log.error("%s", e)
-        else:
-            _say(str(e))
-        return 2
+        # its port is waited for before the startup lock is taken, so a launch meanwhile is not held up by it
+        if instance.running_info(cfg) is None and not _wait_for_own_port(cfg.host, args.port or cfg.port):
+            return 3
+    after = getattr(args, "after", None)
+    if after:   # started by a hand-over: the copy that started it lets go of the port first
+        _wait_for_exit(after, AFTER_WAIT)
+    launch = SimpleNamespace(alone="opened on its own" if getattr(args, "on_its_own", False) else None,
+                             moved=False, awaited=False)
+    for _ in range(4):
+        _held = []
+        try:
+            with instance.startup_lock(cfg) as let_go:
+                def release_startup() -> None:
+                    let_go()
+                    _flush_held()
+                result = _serve(args, cfg, release_startup, launch)
+        except TimeoutError as e:
+            if background:
+                log.error("%s", e)
+            else:
+                _say(str(e))
+            return 2
+        finally:
+            _flush_held()
+        if result == MOVE_BACKGROUND:
+            launch.moved = True
+            info = instance.running_info(cfg)
+            if info and info.get("background"):
+                _offer_to_move(args, cfg, info)
+            continue
+        if result != AWAIT_BACKGROUND:
+            return result
+        refused = False
+        if not launch.awaited:
+            launch.awaited = True
+            found = kept_running.start_and_wait(cfg, kept_running.WAIT)
+            if found:
+                continue   # it answers now: this launch becomes a window onto it
+            refused = found is False
+        note = _background_did_not_start(args, refused)
+        if note is None:
+            return 6
+        if kept_running.installed_is_newer(__version__):
+            # the copy Windows runs updated itself past this program, which must not open the closet: the newer runs
+            _start_program(kept_running.installed_exe(), "--on-its-own")
+            return 0
+        launch.alone = note
+    return 6
+
+
+def _wait_for_exit(pid: int, timeout: float) -> None:
+    deadline = time.monotonic() + timeout
+    while pid != os.getpid() and instance._pid_alive(pid) and time.monotonic() < deadline:
+        time.sleep(0.1)
+
+
+def _background_did_not_start(args, refused: bool = False) -> str | None:
+    """Windows keeps Nines running, yet its background copy did not answer (or Windows would not start it at all, which
+    is asked at once). The owner may open Nines on its own this time (it serves as before the switch, and Settings says
+    the background copy is not running); otherwise nothing starts. Returns the note for the log when it opens on its
+    own, None when it does not."""
+    seconds = int(kept_running.WAIT)
+    why = (f"Windows would not start {APP_NAME} in the background." if refused else
+           f"{APP_NAME} is set to keep running in the background, but it did not start within {seconds} seconds.")
+    answer = _ask(f"{why}\n\nOpen {APP_NAME} on its own for now? Settings, Phone, then says what to do next.",
+                  yes="Open it", no="Not now", headless=args.no_tray)
+    if answer:
+        return ("Windows would not start the background copy" if refused else
+                f"the background copy did not answer within {seconds} seconds") + "; this copy serves on its own"
+    if answer is None:
+        _say(f"{why} Open {APP_NAME} again in a minute. The details are in closet.log in your data folder.")
+    return None
+
+
+def _start_successor(after: int, *extra: str) -> None:
+    """Start this program afresh, as a double-click would; it waits until process `after` has quit. Used when this copy
+    hands the port over to the background copy."""
+    from . import updates
+    me = [sys.executable] if getattr(sys, "frozen", False) else [sys.executable, "-m", "closet"]
+    updates.spawn_detached([*me, "--after", str(after), *extra])
+
+
+def _start_program(program, *extra: str) -> None:
+    """Start another Nines program file, on its own (the newer copy in Nines' folder, or the one carrying on)."""
+    from . import updates
+    updates.spawn_detached([str(program), *extra])
 
 
 def _log_error(message: str) -> None:
@@ -204,15 +311,39 @@ def _beside_running(info: dict, wanted: int) -> int:
     return 5
 
 
+def _offer_to_move(args, cfg: config.Config, info: dict) -> dict:
+    """A newer program opened beside an older background copy. When Windows keeps that copy running, the owner is
+    asked whether to move it to this version (the way an update does it, through Windows' task, with no administrator
+    prompt). Otherwise, or on No, this opens a window onto the older copy. Returns the copy to open a window onto.
+    Called by `serve` outside the startup lock: the new copy Windows starts takes that lock."""
+    theirs, mine = info["version"] or "an older version", __version__
+    if not kept_running.is_set_up(cfg) or Path(sys.executable).resolve() == kept_running.installed_exe().resolve():
+        log.info("%s %s was opened while an older background copy (%s) runs; it opens a window onto that copy",
+                 APP_NAME, mine, theirs)
+        return info
+    move = _ask(f"{APP_NAME} {theirs} is running in the background. This is {APP_NAME} {mine}.\n\n"
+                f"Move the background copy to {mine}? Your closet is kept either way.",
+                yes=f"Use {mine}", no=f"Keep {theirs}", headless=args.no_tray)
+    if not move:
+        return info
+    log.info("moving the background copy from %s to %s", theirs, mine)
+    moved, note = kept_running.move_to(cfg, info, sys.executable, mine)
+    if not moved:
+        log.warning("the background copy was not moved to %s: %s", mine, note)
+        _say(note or f"The background copy stayed on {theirs}.")
+    return instance.running_info(cfg) or info
+
+
 def _window_only(args, cfg: config.Config, info: dict, release_startup) -> int:
     """Opened while a background copy runs: this process is only a window onto that copy, and ends when the window is
     closed; the background copy keeps running. A window already open onto it is brought forward instead. When the
     window cannot be used, the browser opens at the keyed address, as before the window."""
     _setup_logging(cfg, "window.log")
     if instance.is_newer(__version__, info["version"]):
-        # not replaced from here: a background copy is restarted the way it was started, by what started it
         log.info("%s %s was opened while an older background copy (%s) runs; it opens a window onto that copy",
                  APP_NAME, __version__, info["version"])
+    if _kept_running(cfg):
+        kept_running.note_program(sys.executable, __version__)
     if args.no_browser:   # started at login beside a background copy: nothing to show
         return 0
     if instance.show_window_process(cfg):
@@ -237,7 +368,30 @@ def _window_only(args, cfg: config.Config, info: dict, release_startup) -> int:
     if not window.prepare():
         webbrowser.open(opened)
         return 0
-    door = instance.WindowDoor(cfg, window.show)
+    def turn_off() -> bool:
+        """Asked by the background copy when the owner turns it off in Settings: Windows asks on this screen, so it is
+        done here. Once it is off, an ordinary copy of this program takes over and this window gives way to it."""
+        def work() -> None:
+            try:
+                carried = kept_running.turn_off(cfg)
+            except kept_running.SetupError as e:
+                kept_running.note_outcome(cfg, str(e))
+                return
+            except Exception as e:
+                log.exception("turning off the background copy failed")
+                kept_running.note_outcome(cfg, f"Turning this off did not finish ({e}).")
+                return
+            try:   # the program that carries on: this one, or the newer one Windows kept up to date
+                _start_program(carried.program, "--after", str(os.getpid()))
+            except Exception:
+                log.exception("could not start Nines again after turning off the background copy")
+            if carried.note:
+                _say(carried.note)
+            window.close()
+        threading.Thread(target=work, name="turn-off", daemon=True).start()
+        return True
+
+    door = instance.WindowDoor(cfg, window.show, {"off": turn_off})
     release_startup()
     log.info("%s %s opened a window onto the background copy (%s) on port %s", APP_NAME, __version__,
              info["version"] or "an older version", info["port"])
@@ -268,7 +422,17 @@ def server_config(app, host: str, port: int):
                           lifespan="off", access_log=False, proxy_headers=False)
 
 
-def _serve(args, cfg: config.Config, release_startup) -> int:
+def _kept_running(cfg: config.Config) -> bool:
+    try:
+        return kept_running.is_set_up(cfg)
+    except Exception:
+        log.warning("could not tell whether Windows keeps Nines running", exc_info=True)
+        return False
+
+
+def _serve(args, cfg: config.Config, release_startup, launch=None) -> int:
+    """`launch.alone`: Windows keeps Nines running but this copy opens on its own (its background copy did not start
+    and the owner chose to); the reason, for the log. `launch.moved`: moving the background copy was offered already."""
     import uvicorn
 
     from .app import build_services, create_app
@@ -277,11 +441,21 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
     say = _log_error if background else _say   # a background copy shows nothing: what it would say goes in the log
     wanted = args.port or cfg.port
     replaced_older = False
+    launch = launch or SimpleNamespace(alone=None, moved=False)
+    alone = launch.alone
     already = instance.running_info(cfg)
+    after = getattr(args, "after", None)
+    if already and after and already.get("pid") == after and not background and _kept_running(cfg):
+        already = None   # the copy that handed over is still going: the task is started, its copy waits for the port
     if already and already.get("background") and not background:
+        if (not launch.moved and instance.is_newer(__version__, already["version"]) and _kept_running(cfg)
+                and Path(sys.executable).resolve() != kept_running.installed_exe().resolve()):
+            return MOVE_BACKGROUND
         return _window_only(args, cfg, already, release_startup)
     if already and background and not (args.replace and instance.is_newer(__version__, already["version"])):
         return _beside_running(already, wanted)
+    if not already and not background and alone is None and _kept_running(cfg):
+        return AWAIT_BACKGROUND   # never its own server: `serve` starts the background copy and waits for it
     if already:
         url = f"http://127.0.0.1:{already['port']}/"
         theirs = already["version"] or "an older version"
@@ -314,7 +488,10 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
     if not background:   # a background copy set it up before the startup lock
         _setup_logging(cfg)
     _log_folder_moving()
-    _carry_over_start_at_login()
+    if alone:
+        log.warning("%s", alone)
+    if not background and not _kept_running(cfg):   # with the background copy on, start at login stays off
+        _carry_over_start_at_login()
     if replaced_older:
         log.info("replaced an older copy (%s) with %s", already["version"], __version__)
         _follow_start_at_login()
@@ -366,10 +543,27 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
         if not show_window():
             webbrowser.open(opened)
 
+    def hand_over() -> None:
+        """Windows keeps Nines running now (or should start it again): this ordinary copy lets go of the port, and a
+        fresh launch of this program starts the background copy, waits for it and opens a window onto it."""
+        try:
+            _start_successor(os.getpid())
+        except Exception:
+            log.exception("could not start Nines again to hand over to the background copy")
+            return
+        quit_program()
+
     services.on_quit = quit_program
     services.on_show = show_window
+    services.on_hand_over = hand_over
+    services.background_copy = background
     if services.updater is not None:   # an update starts the new program the way this one was started
         services.updater.launch_args = _launch_args(args, port)
+        # a background copy Windows keeps running comes back through its task, from its own folder
+        services.updater.through_task = background and _kept_running(cfg) and \
+            Path(sys.executable).resolve() == kept_running.installed_exe().resolve()
+        if services.updater.through_task:
+            kept_running.note_version(__version__)   # so an older program the owner opens knows it is older
     thread = threading.Thread(target=server.run, name="server", daemon=True)
     thread.start()
     deadline = time.time() + 30
@@ -654,6 +848,19 @@ def cmd_selfcheck(args, cfg: config.Config) -> int:
     return 0 if all(c["ok"] for c in result.values()) else 1
 
 
+def _from_task(args) -> None:
+    """Started by Windows' task, perhaps before anyone has signed in: the user folder (where the data folder, Nines'
+    own folder and Claude Code's sign-in are) is the one the task was set up with, and so is a data folder chosen by
+    hand. Set before anything reads them, the data folder's move included."""
+    if args.home:
+        home = args.home
+        os.environ["USERPROFILE"] = os.environ["HOME"] = home
+        os.environ.setdefault("LOCALAPPDATA", str(Path(home) / "AppData" / "Local"))
+        os.environ.setdefault("APPDATA", str(Path(home) / "AppData" / "Roaming"))
+    if args.data_dir:
+        os.environ["CLOSET_DATA_DIR"] = args.data_dir
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="closet", description=f"{APP_NAME}: a private wardrobe app.")
     ap.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
@@ -668,6 +875,11 @@ def main(argv: list[str] | None = None) -> int:
                          "port; opening the program while it runs opens a window onto it")
     ap.add_argument("--replace", action="store_true",
                     help="if an older version is already running, close it without asking and start this one")
+    # given by Windows' task (closet/background.py), which may start the program before anyone signs in
+    ap.add_argument("--home", help=argparse.SUPPRESS)
+    ap.add_argument("--data-dir", help=argparse.SUPPRESS)
+    ap.add_argument("--after", type=int, help=argparse.SUPPRESS)   # a hand-over: wait for this process to quit first
+    ap.add_argument("--on-its-own", action="store_true", help=argparse.SUPPRESS)   # serve although Windows keeps a copy
     sub = ap.add_subparsers(dest="command")
     r = sub.add_parser("restore", help="replace the closet with a backup")
     r.add_argument("folder", help="the backup folder you chose in Settings")
@@ -685,6 +897,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "update-watch":
         from . import updates
         return updates.run_watch(args.plan)
+    _from_task(args)
     global _folder_moving
     # before anything opens the data folder; an update's hand-over (--replace) leaves it to the next ordinary start
     _folder_moving = None if args.replace else datafolder.settle(os.environ, Path.home(), _running_in)

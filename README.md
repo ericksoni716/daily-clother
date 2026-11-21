@@ -551,10 +551,43 @@ bottom of Settings) and open it again so it sees the new program; if it says
 installed but not signed in, do step 1's `claude` sign-in again, then press
 **Check again**.
 
-**6. Start at login.** In Nines' **Settings → Advanced settings → Your
-closet**, turn on **Start Nines when I log in**. From then on Nines starts by itself when you sign in to
-Windows, with no window (double-click `Nines.exe` to open it). If you ever move
-`Nines.exe`, turn it off and on again so it points to the new place.
+**6. Keep Nines running.** In Nines open **Settings → Phone** and press **Keep
+Nines running**. Windows asks "Do you want to allow this app to make changes to
+your device?" for **Windows PowerShell**: choose **Yes**. (If you choose No,
+Settings says so and nothing changes.) Nines' window then closes and opens again
+by itself a few seconds later. From now on Windows starts Nines when the computer
+turns on, before anyone signs in, and starts it again within a few minutes if it
+ever stops. If Windows will not do that for your account, it starts Nines when
+you sign in instead; the card under **Settings → Phone** says which. Windows
+calls this a scheduled task, named **Nines**.
+
+- Nines keeps a copy of itself in a folder of its own,
+  `%LOCALAPPDATA%\Nines`, and Windows runs that copy, so it no longer matters
+  where you keep `Nines.exe`. Double-click `Nines.exe` (or its shortcut) to open
+  Nines' window as before. Closing the window leaves Nines running.
+- This replaces **Start Nines when I log in** (in **Settings → Advanced
+  settings**), which Nines turns off.
+- Updates now go to that copy in `%LOCALAPPDATA%\Nines`, so your own
+  `Nines.exe` can fall behind it. That does no harm: opening it opens a window
+  onto the newer copy.
+- The card also says **Nines answers on port** and a number. That is the port
+  Tailscale and Cloudflare must point at (steps 7 and the Cloudflare section).
+  While Windows keeps Nines running the port does not change.
+- Windows can only start Nines while the computer is on and awake. Keep it
+  plugged in, and in Windows' **Settings → System → Power & battery** set sleep
+  to **Never** when plugged in. On a laptop, in **Control Panel → Power Options →
+  Choose what closing the lid does**, choose **Do nothing** when plugged in.
+  Locking the screen is fine; sleep is not.
+- To stop it, press **Turn this off** in the same card, in Nines' window on
+  this computer. Windows asks again. Your closet is not touched; Nines then runs
+  as before, only while it is open. If the copy Windows ran is newer than your
+  `Nines.exe`, it takes your file's place (the older one is moved aside as
+  `Nines.old.exe` and tidied away later), and Nines tells you so. If your file
+  cannot be replaced, Nines tells you to open it from `%LOCALAPPDATA%\Nines`
+  from then on. It cannot be turned on or off from the
+  phone, because Windows asks on the computer's screen.
+
+On a Mac, keep using **Start Nines when I log in**: the Mac has no such card.
 
 **7. Reach it from the iPhone.** Install Tailscale on the PC (tailscale.com,
 **Download**, Windows) and on the iPhone (App Store), and sign in to both with
@@ -569,7 +602,11 @@ user folder, `C:\Users\you\Nines` (to open it: press Windows+R, type
 something goes wrong. Choose a backup folder in **Settings → Advanced settings →
 Backups** (a OneDrive folder is ideal). An API key, if you save one, is kept in
 **Windows Credential Manager** (Control Panel → Credential Manager → Windows
-Credentials, as `Closet/anthropic-api-key`), not in that folder.
+Credentials, as `Closet/anthropic-api-key`). While Windows keeps Nines running,
+it is also kept in `api-key.sealed` in that folder, locked by Windows to this
+computer, because Nines started before you sign in cannot read Credential
+Manager. Backups never include it, and it is removed when you turn **Keep Nines
+running** off.
 
 ## Use it from your iPhone
 
@@ -601,7 +638,8 @@ port, like `https://your-pc.your-tailnet.ts.net:8443`. Always use the address
 If it says Nines is not shared yet, run the command it shows.
 
 To see what this computer shares, run `tailscale serve status`. Nines' share
-is the line that points to `http://127.0.0.1:8765`.
+is the line that points to `http://127.0.0.1:` and Nines' port (on Windows,
+**Settings → Phone** says **Nines answers on port** and the number).
 
 **If Nines' address changes** (for example it moved to `:8443`), the icon on
 the iPhone's home screen still opens the old one. Press and hold that icon
@@ -648,8 +686,12 @@ your own.
    installs its connector (`cloudflared`) on this computer; run it here, on the
    computer Nines runs on. On the tunnel's public hostnames (or routes), add
    one: a name on your domain, such as `closet.example.com`, pointing at
-   `http://127.0.0.1:8765` (the address Nines has on this computer; use its
-   port if Settings shows another).
+   `http://127.0.0.1:` followed by Nines' port. Read the port from Nines first:
+   on Windows, **Settings → Phone** says **Nines answers on port** and the
+   number, under **Keep Nines running**; on a Mac, it is the last number of the
+   `tailscale serve` command **Settings → Phone** shows.
+   Another app on this computer may use the usual port, so do not guess it. Turn
+   on **Keep Nines running** first on Windows, so the port stays the same.
 2. **A sign-in in front of it.** In Zero Trust, open **Access →
    Applications** and add a self-hosted application for that same name,
    `closet.example.com`. Give it a policy that allows only your own email
@@ -809,6 +851,16 @@ have something of your own that points at the folder, such as a backup or sync
 program, point it at `Nines` afterwards. If **Start Nines when I log in** was
 on, `Nines.exe` takes it over the first time it starts, so the old program is
 not started at login any more. From then on `Nines.exe` updates itself.
+
+#### Updates while Windows keeps Nines running
+
+The copy Windows runs updates itself the same way, in its own folder: every
+closet is backed up first, the old program is kept beside the new one, and
+Windows starts the new version. If it does not answer within a few minutes, the
+old one is put back and started again. If you download a newer `Nines.exe` by
+hand and open it, Nines asks whether to move the copy Windows runs to this
+version; choose the new version. Windows does not ask for permission for
+either.
 
 ## Your data
 

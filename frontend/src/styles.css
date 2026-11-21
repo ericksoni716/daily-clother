@@ -885,6 +885,11 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .settings-row > .btn { flex: none; }
 .settings-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 .settings-actions > .hint { margin: 0; }
+/* Windows keeping Nines running, under Phone on the computer: a title, the status, the port and the buttons */
+.keep-running { display: flex; flex-direction: column; gap: 6px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--line); min-width: 0; }
+.keep-running > * { margin: 0; }
+.keep-running-title { font-size: var(--text-md); }
+.keep-running .settings-actions { padding-top: 4px; }
 /* what Claude reads about your style: its first lines, each with where it came from under it in small type; every
    line is one tap away, in a sheet to change, remove or add to */
 .style-summary, .style-line-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; min-width: 0; }

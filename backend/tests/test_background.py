@@ -465,6 +465,7 @@ def _plan(tmp_path, cfg, **kw):
 
 def test_a_background_copy_comes_back_through_the_task_after_an_update(cfg, tmp_path, monkeypatch):
     events, now = [], {"version": "0.3.0", "pid": 4242}
+    monkeypatch.setattr(updates, "in_job", lambda: False)   # the helper left the task's job (CI's own runner is in one)
     monkeypatch.setattr(instance, "running_info", lambda c: {"port": 8766, "version": now["version"], "pid": now["pid"],
                                                              "token": "t", "background": True})
     monkeypatch.setattr(instance, "stop_running", lambda c, info, **k: events.append(("quit", info["pid"])) or True)
@@ -482,6 +483,7 @@ def test_a_background_copy_comes_back_through_the_task_after_an_update(cfg, tmp_
 
 def test_a_new_version_that_does_not_answer_is_put_back_and_started_through_the_task(cfg, tmp_path, monkeypatch):
     events = []
+    monkeypatch.setattr(updates, "in_job", lambda: False)   # the helper left the task's job (CI's own runner is in one)
     monkeypatch.setattr(instance, "running_info", lambda c: None)
     monkeypatch.setattr(instance, "_pid_alive", lambda pid: False)
     monkeypatch.setattr(background, "run_task", lambda: events.append("task") or True)

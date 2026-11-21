@@ -1,10 +1,10 @@
-"""Smoke test for the built Closet program. Standard library only (Python 3.10+).
+"""Smoke test for the built Nines program. Standard library only (Python 3.10+).
 
     python packaging/smoke_test.py PROGRAM [--expect-version X.Y.Z]
     python packaging/smoke_test.py PROGRAM --cutout --model isnet-general-use.onnx
 
-PROGRAM is dist/Closet.exe (Windows), dist/closet (Linux) or, on macOS, the
-executable inside the bundle: dist/Closet.app/Contents/MacOS/Closet.
+PROGRAM is dist/Nines.exe (Windows), dist/nines (Linux) or, on macOS, the
+executable inside the bundle: dist/Nines.app/Contents/MacOS/Nines.
 
 Every run uses a fresh, empty data folder (CLOSET_DATA_DIR) and
 CLOSET_NO_AUTO_DOWNLOAD=1, so nothing on the machine is touched or downloaded.
@@ -452,8 +452,8 @@ def _drive_server(proc: subprocess.Popen, base: str, data_dir: Path, startup_tim
 
 # ---------------------------------------------------------------- main
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Smoke test for the built Closet program.")
-    ap.add_argument("program", type=Path, help="the built executable (macOS: Closet.app/Contents/MacOS/Closet)")
+    ap = argparse.ArgumentParser(description="Smoke test for the built Nines program.")
+    ap.add_argument("program", type=Path, help="the built executable (macOS: Nines.app/Contents/MacOS/Nines)")
     ap.add_argument("--cutout", action="store_true", help="run the background-removal check instead")
     ap.add_argument("--model", type=Path, help="isnet-general-use.onnx (required with --cutout)")
     ap.add_argument("--expect-version", help="require this version in the selfcheck report and /api/health")

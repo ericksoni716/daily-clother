@@ -615,10 +615,10 @@ def test_phone_info_never_raises():
 
 def test_start_at_login_writes_and_removes_its_entry(tmp_path):
     assert autostart.is_enabled("linux", tmp_path) is False
-    autostart.set_enabled(True, exe="/opt/Closet/closet", platform="linux", home=tmp_path)
-    entry = (tmp_path / ".config" / "autostart" / "closet.desktop").read_text()
-    assert '"/opt/Closet/closet" --no-browser' in entry and autostart.is_enabled("linux", tmp_path)
-    autostart.set_enabled(True, exe="/Applications/Closet.app/Contents/MacOS/Closet", platform="darwin", home=tmp_path)
+    autostart.set_enabled(True, exe="/opt/Nines/nines", platform="linux", home=tmp_path)
+    entry = (tmp_path / ".config" / "autostart" / "nines.desktop").read_text()
+    assert '"/opt/Nines/nines" --no-browser' in entry and "Name=Nines" in entry and autostart.is_enabled("linux", tmp_path)
+    autostart.set_enabled(True, exe="/Applications/Nines.app/Contents/MacOS/Nines", platform="darwin", home=tmp_path)
     assert autostart.is_enabled("darwin", tmp_path)
     autostart.set_enabled(False, platform="linux", home=tmp_path)
     assert not autostart.is_enabled("linux", tmp_path)
@@ -627,12 +627,105 @@ def test_start_at_login_writes_and_removes_its_entry(tmp_path):
 def test_mac_start_at_login_preserves_the_program_path(tmp_path):
     import plistlib
 
-    exe = '/Applications/Closet & café <test>/Closet.app/Contents/MacOS/Closet'
+    exe = '/Applications/Nines & café <test>/Nines.app/Contents/MacOS/Nines'
     autostart.set_enabled(True, exe=exe, platform="darwin", home=tmp_path)
-    entry = plistlib.loads((tmp_path / "Library" / "LaunchAgents" / "app.closet.plist").read_bytes())
-    assert entry == {"Label": "app.closet", "ProgramArguments": [exe, "--no-browser"], "RunAtLoad": True}
+    entry = plistlib.loads((tmp_path / "Library" / "LaunchAgents" / "app.nines.plist").read_bytes())
+    assert entry == {"Label": "app.nines", "ProgramArguments": [exe, "--no-browser"], "RunAtLoad": True}
     autostart.set_enabled(False, platform="darwin", home=tmp_path)
     assert not autostart.is_enabled("darwin", tmp_path)
+
+
+def _old_entries(home):
+    """What Closet.exe 0.11.0 wrote for start at login on a Mac and on Linux, byte for byte."""
+    import plistlib
+
+    agents = home / "Library" / "LaunchAgents"
+    agents.mkdir(parents=True)
+    (agents / "app.closet.plist").write_bytes(plistlib.dumps({
+        "Label": "app.closet", "ProgramArguments": ["/Applications/Closet.app/Contents/MacOS/Closet", "--no-browser"],
+        "RunAtLoad": True}))
+    desktop = home / ".config" / "autostart"
+    desktop.mkdir(parents=True)
+    (desktop / "closet.desktop").write_text('[Desktop Entry]\nType=Application\nName=Closet\nExec="/opt/closet" '
+                                            '--no-browser\nX-GNOME-Autostart-enabled=true\n')
+    return agents / "app.closet.plist", desktop / "closet.desktop"
+
+
+def test_an_old_closet_entry_for_start_at_login_is_carried_over(tmp_path):
+    import plistlib
+
+    mac_old, linux_old = _old_entries(tmp_path)
+    # the old entry is not this program's: start at login reads as off until it is carried over
+    assert not autostart.is_enabled("darwin", tmp_path) and not autostart.is_enabled("linux", tmp_path)
+    exe = "/Applications/Nines.app/Contents/MacOS/Nines"
+    assert autostart.carry_over(exe=exe, platform="darwin", home=tmp_path) is True
+    assert not mac_old.exists() and autostart.is_enabled("darwin", tmp_path)
+    entry = plistlib.loads((tmp_path / "Library" / "LaunchAgents" / "app.nines.plist").read_bytes())
+    assert entry["ProgramArguments"] == [exe, "--no-browser"] and entry["Label"] == "app.nines"
+    assert autostart.carry_over(exe="/opt/nines", platform="linux", home=tmp_path) is True
+    assert not linux_old.exists() and autostart.is_enabled("linux", tmp_path)
+    assert '"/opt/nines" --no-browser' in (tmp_path / ".config" / "autostart" / "nines.desktop").read_text()
+    # once carried over there is nothing left to do
+    assert autostart.carry_over(exe=exe, platform="darwin", home=tmp_path) is False
+    assert autostart.carry_over(exe="/opt/nines", platform="linux", home=tmp_path) is False
+
+
+def test_nothing_is_carried_over_without_an_old_entry_or_from_source(tmp_path):
+    assert autostart.carry_over(exe="/opt/nines", platform="linux", home=tmp_path) is False
+    assert not autostart.is_enabled("linux", tmp_path)   # start at login stays off when it was off
+    _old_entries(tmp_path)
+    assert autostart.carry_over(exe=None, platform="linux", home=tmp_path) is False   # run from source: no program
+    assert (tmp_path / ".config" / "autostart" / "closet.desktop").exists()
+
+
+class _FakeRegistry:
+    """Stands in for `winreg` with one Run key in memory, so the Windows side runs on any computer."""
+    HKEY_CURRENT_USER, KEY_SET_VALUE, REG_SZ = object(), 2, 1
+
+    def __init__(self):
+        self.values: dict[str, str] = {}
+
+    class _Key:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def OpenKey(self, root, key):
+        assert key == autostart.RUN_KEY
+        return self._Key()
+
+    def CreateKeyEx(self, root, key, reserved, access):
+        assert key == autostart.RUN_KEY
+        return self._Key()
+
+    def QueryValueEx(self, k, name):
+        if name not in self.values:
+            raise FileNotFoundError(name)
+        return self.values[name], self.REG_SZ
+
+    def SetValueEx(self, k, name, reserved, kind, value):
+        self.values[name] = value
+
+    def DeleteValue(self, k, name):
+        if name not in self.values:
+            raise FileNotFoundError(name)
+        del self.values[name]
+
+
+def test_an_old_closet_run_value_on_windows_is_carried_over(monkeypatch):
+    reg = _FakeRegistry()
+    monkeypatch.setitem(sys.modules, "winreg", reg)
+    reg.values["Closet"] = r'"C:\Users\Owner\Apps\Closet\Closet.exe" --no-browser'
+    assert not autostart.is_enabled("win32")
+    exe = r"C:\Users\Owner\Apps\Closet\Nines.exe"
+    assert autostart.carry_over(exe=exe, platform="win32") is True
+    assert reg.values == {"Nines": f'"{exe}" --no-browser'}   # the old value is gone: it would open a deleted file
+    assert autostart.is_enabled("win32")
+    assert autostart.carry_over(exe=exe, platform="win32") is False
+    autostart.set_enabled(False, platform="win32")
+    assert reg.values == {}
 
 
 def test_only_one_copy_runs_per_data_folder(cfg):

@@ -32,7 +32,9 @@ key, such as the one the browser tests use: `python -m tests.e2e_backend --no-br
 
 `CLOSET_DATA_DIR` chooses the data folder, `CLOSET_PORT` the port (`backend/closet/config.py`
 has every such name). Point `CLOSET_DATA_DIR` at a temporary folder when trying something, so
-a real closet is never touched.
+a real closet is never touched. Without it the data folder is `Nines` in the user folder; at start
+`datafolder.py` renames a `Closet` folder left from 0.11.0 and before to `Nines`, once (a
+folder chosen with `CLOSET_DATA_DIR` is never moved), so its tests pass a stand-in user folder.
 
 ## Module map
 
@@ -40,7 +42,7 @@ a real closet is never touched.
 
 | Area | Modules |
 | --- | --- |
-| The program | `cli.py` (entry point: start, restore, backup, reset-passphrase), `config.py` (where things live, from the environment), `state.py` (program-wide settings in one JSON file; `DEFAULTS` lists every key), `instance.py` (one copy at a time, its port, whether it is a background copy, and the lock a window onto a background copy keeps so it is opened only once), `window.py`, `window_mac.py` (Nines' own window), `tray.py` (with `icon.png`, the tray's and the program's icon, rendered by the frontend's `npm run icons`), `autostart.py`, `net.py` (outbound HTTPS in the packaged program), `updates.py` (checking for a release, fetching it, swapping it in). |
+| The program | `cli.py` (entry point: start, restore, backup, reset-passphrase), `config.py` (where things live, from the environment), `datafolder.py` (moving the data folder from `Closet` to `Nines` at start), `state.py` (program-wide settings in one JSON file; `DEFAULTS` lists every key), `instance.py` (one copy at a time, its port, whether it is a background copy, and the lock a window onto a background copy keeps so it is opened only once), `window.py`, `window_mac.py` (Nines' own window), `tray.py` (with `icon.png`, the tray's and the program's icon, rendered by the frontend's `npm run icons`), `autostart.py` (start at login, and at start carrying over an entry left by `Closet.exe`), `net.py` (outbound HTTPS in the packaged program), `updates.py` (checking for a release, fetching it, swapping it in). |
 | The web API | `app.py`: `build_services` wires the settings, the database and every background worker (tests pass stand-ins here), and `create_app` defines every route. `gate.py` (the address, who came in from outside, the key of Nines' own window, the page's header, the login and size limits, all before a body is read), `access.py` (the door through Cloudflare: its three settings, and checking the token Cloudflare Access signs), `tailnet.py` (who Tailscale says is asking, and on Windows whether the connection really is the Tailscale service's), `limits.py`, `auth.py` (one passphrase, sessions), `phone.py` (the Tailscale address for the phone, looked up in the background by `phone.Watch`). |
 | Data | `db.py` (SQLite, and migrations by `PRAGMA user_version`), `migrations/NNNN_name.sql`, `items.py` (reading and changing items), `images.py` (a photo into the files the closet keeps), `backup.py`, `storage.py`, `demo.py` and `demo_data/` (the demo closet, a database of its own). |
 | A photo becomes an item | `jobs.py` (the cutout queue, in the `jobs` table), `cutout.py`, `modelstore.py` (the background-removal models), `tagjobs.py` (the queue that asks Claude to describe an item, and `apply_answer`), `illustrations.py` (each item's drawing, kept up to date), `patjobs.py` (measuring a pattern), `progress.py` (how far the work on an item has got, in the page's words, and `GET /api/progress`), `palette.py`, `sources.py` (several items from one photo), `failures.py` (why a step failed, in words safe to show). |

@@ -3,8 +3,8 @@
 The real reason is the failed job's `error` in the `jobs` table. It can hold
 anything an exception said, so it is cleaned before it is written there and again before it leaves the database:
 anything that looks like a key or a token, an e-mail address, and file paths
-outside Closet's own folder are taken out. A path inside that folder is kept,
-starting from "[Closet folder]", so it does not show the owner's user name.
+outside the program's data folder are taken out. A path inside that folder is kept,
+starting from "[Nines folder]", so it does not show the owner's user name.
 """
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ log = logging.getLogger("closet.failures")
 
 MAX_DETAILS = 500
 HIDDEN = "[hidden]"
-FOLDER = "[Closet folder]"
-ELSEWHERE = "[a path outside Closet]"
+FOLDER = "[Nines folder]"
+ELSEWHERE = "[a path outside Nines]"
 _REASON = {
     "cutout": "The background could not be removed from this photo.",
     "description": "Claude could not describe this item.",

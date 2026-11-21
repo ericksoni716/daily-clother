@@ -14,6 +14,7 @@ import io
 import json
 import logging
 import logging.handlers
+import os
 import signal
 import sys
 import threading
@@ -21,7 +22,7 @@ import time
 import webbrowser
 from pathlib import Path
 
-from . import APP_NAME, __version__, autostart, backup, config, db, gate, instance
+from . import APP_NAME, __version__, autostart, backup, config, datafolder, db, gate, instance
 from .state import State
 
 log = logging.getLogger("closet")
@@ -106,6 +107,29 @@ def _follow_start_at_login() -> None:
             log.info("start at login now opens %s", autostart.program())
     except Exception:
         log.warning("could not point start at login to this program", exc_info=True)
+
+
+_folder_moving: datafolder.Outcome | None = None   # what moving the data folder did at this start, for the log
+
+
+def _running_in(folder: Path) -> bool:
+    """Whether a copy of the program is serving from `folder` now, as its lock file and health check say."""
+    return instance.running_info(config.Config(folder)) is not None
+
+
+def _log_folder_moving() -> None:
+    outcome = _folder_moving
+    if outcome is not None and outcome.message:
+        (log.info if outcome.kind == "moved" else log.warning)("data folder: %s", outcome.message)
+
+
+def _carry_over_start_at_login() -> None:
+    """Start at login written by Closet.exe (0.11.0 and before) would open a file that is gone: it now opens this one."""
+    try:
+        if autostart.carry_over():
+            log.info("start at login carried over from Closet.exe to %s", autostart.program())
+    except Exception:
+        log.warning("could not carry start at login over to this program", exc_info=True)
 
 
 def _open_running(cfg: config.Config, info: dict, url: str) -> None:
@@ -289,6 +313,8 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
 
     if not background:   # a background copy set it up before the startup lock
         _setup_logging(cfg)
+    _log_folder_moving()
+    _carry_over_start_at_login()
     if replaced_older:
         log.info("replaced an older copy (%s) with %s", already["version"], __version__)
         _follow_start_at_login()
@@ -659,6 +685,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "update-watch":
         from . import updates
         return updates.run_watch(args.plan)
+    global _folder_moving
+    # before anything opens the data folder; an update's hand-over (--replace) leaves it to the next ordinary start
+    _folder_moving = None if args.replace else datafolder.settle(os.environ, Path.home(), _running_in)
     cfg = config.load()
     if args.command == "restore":
         return cmd_restore(args, cfg)

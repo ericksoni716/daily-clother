@@ -135,6 +135,39 @@ def test_owner_who_chooses_the_new_copy_gets_it(cfg, old_copy, newer, monkeypatc
     assert started == [None] and followed == [1]
 
 
+def test_the_copy_that_serves_carries_start_at_login_over_before_it_starts(cfg, newer, monkeypatch):
+    from closet import autostart
+    carried = []
+    monkeypatch.setattr(autostart, "carry_over", lambda: carried.append(1) or True)
+    monkeypatch.setattr(autostart, "program", lambda: "/opt/nines")
+    # a copy that finds another running and only opens it leaves start at login alone
+    monkeypatch.setattr(instance, "running_info", lambda c: {"port": 1, "version": "0.3.0", "pid": 1, "token": None})
+    assert cli.serve(_args(), cfg) == 0 and carried == []
+    monkeypatch.setattr(instance, "running_info", lambda c: None)
+    started = []
+
+    def build_services(c):
+        started.append(len(carried))
+        raise RuntimeError("stop here")
+    import closet.app
+    monkeypatch.setattr(closet.app, "build_services", build_services)
+    assert cli.serve(_args(), cfg) == 2
+    assert started == [1]
+
+
+def test_start_at_login_that_cannot_be_carried_over_does_not_stop_the_start(cfg, newer, monkeypatch):
+    from closet import autostart
+
+    def broken():
+        raise OSError("the registry said no")
+    monkeypatch.setattr(autostart, "carry_over", broken)
+    monkeypatch.setattr(instance, "running_info", lambda c: None)
+    started = []
+    import closet.app
+    monkeypatch.setattr(closet.app, "build_services", lambda c: started.append(1) or (_ for _ in ()).throw(RuntimeError("stop")))
+    assert cli.serve(_args(), cfg) == 2 and started == [1]
+
+
 def test_a_copy_that_will_not_close_is_reported(cfg, newer, monkeypatch):
     monkeypatch.setattr(instance, "running_info", lambda c: {"port": 1, "version": "0.1.1", "pid": None, "token": None})
     monkeypatch.setattr(cli, "_ask", lambda *a, **k: pytest.fail("--replace does not ask"))

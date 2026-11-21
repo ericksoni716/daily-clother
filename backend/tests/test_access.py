@@ -72,7 +72,9 @@ def hmac_with_public_key() -> str:
     return (header + b"." + body + b"." + base64.urlsafe_b64encode(signature).rstrip(b"=")).decode()
 
 
-@pytest.mark.parametrize("bad, why", [
+# named by why each is bad: a token holds the time it was made and a signature, so as a test's name it would differ
+# from one test worker to the next, and the workers would not agree on which tests there are
+BAD_TOKENS = [
     (token(key=OTHER), "forged: signed with another key"),
     (token(aud=["another-application"]), "for another Access application"),
     (token(iss="https://another.cloudflareaccess.com"), "issued by another team"),
@@ -85,7 +87,10 @@ def hmac_with_public_key() -> str:
     (hmac_with_public_key(), "alg confusion: HS256 with the public key as the secret"),
     ("not-a-token", "not a token at all"),
     ("", "nothing"),
-])
+]
+
+
+@pytest.mark.parametrize("bad, why", BAD_TOKENS, ids=[why for _, why in BAD_TOKENS])
 def test_tokens_that_do_not_check_out_name_no_one(bad, why, caplog):
     with caplog.at_level(logging.WARNING, logger="closet.access"):
         assert access.verify(bad, CONFIG, Keys()) is None, why

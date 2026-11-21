@@ -20,8 +20,11 @@ export default defineConfig({
   // Files run side by side, each on a backend of its own; the tests inside a file run in order, on the same backend.
   fullyParallel: false,
   workers: workers(),
-  timeout: 60_000,
-  expect: { timeout: 10_000 },
+  // Room for a busy computer: with several files at once, each on a backend that has just started (nothing drawn or
+  // worked out yet), a first answer can take well over the few seconds it takes alone. A wait only lasts this long
+  // when the test is about to fail.
+  timeout: 90_000,
+  expect: { timeout: 20_000 },
   reporter: [['list']],
   globalSetup: './e2e/global-setup.ts',
   use: {

@@ -34,7 +34,7 @@ test.describe('an item whose description failed', () => {
     await more.getByText('Details').click();
     await expect(recorded).toContainText('the stand-in was told to fail');
     await expect(recorded).toContainText('[hidden]');
-    await expect(recorded).toContainText('[a path outside Closet]');
+    await expect(recorded).toContainText('[a path outside Nines]');
     await expect(recorded).not.toContainText('sk-ant');
     await expect(recorded).not.toContainText('someone');
 

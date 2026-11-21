@@ -563,9 +563,9 @@ PowerShell command **Settings → Phone** shows (usually
 `tailscale serve --bg 8765`), then open the address Settings shows in Safari on
 the phone.
 
-**8. Where your closet is kept.** Everything is in the `Closet` folder in your
-user folder, `C:\Users\you\Closet` (to open it: press Windows+R, type
-`%USERPROFILE%\Closet` and press Enter). Its `logs\closet.log` is what to send if
+**8. Where your closet is kept.** Everything is in the `Nines` folder in your
+user folder, `C:\Users\you\Nines` (to open it: press Windows+R, type
+`%USERPROFILE%\Nines` and press Enter). Its `logs\closet.log` is what to send if
 something goes wrong. Choose a backup folder in **Settings → Advanced settings →
 Backups** (a OneDrive folder is ideal). An API key, if you save one, is kept in
 **Windows Credential Manager** (Control Panel → Credential Manager → Windows
@@ -775,7 +775,7 @@ about you or your clothes. In **Settings → Advanced settings → Updates** cho
 - **Install updates by themselves**: the same, without asking.
 - **Never check**: Nines only looks when you press **Check now**.
 
-Installing backs up every closet first (into `Closet\backups`, and into your
+Installing backs up every closet first (into `Nines\backups`, and into your
 backup folder if you chose one), replaces the program, and starts the new
 version on the same address; the page says Nines is restarting and
 reconnects by itself. If the new version does not start within a minute, the
@@ -797,21 +797,29 @@ release has no download for this computer. Do this once:
    `Closet.exe`.
 3. Double-click `Nines.exe`. If the old one is still running, Nines asks
    whether to close it and use the new version: choose the new version.
-4. Delete `Closet.exe`.
+4. Delete `Closet.exe`, and do not start it again: it would make a new, empty
+   `Closet` folder.
 
-Your closet stays in the `Closet` folder in your user folder and is not
-touched; it keeps that folder's name. If **Start Nines when I log in** was on,
-`Nines.exe` takes it over the first time it starts, so the old program is not
-started at login any more. From then on `Nines.exe` updates itself.
+The first time `Nines.exe` starts, it renames the `Closet` folder in your user
+folder to `Nines`, with everything in it: your closet, photos, settings,
+backups and logs. Nothing is copied or deleted. If `Closet.exe` was still
+running, or Windows would not let the folder be renamed, Nines uses the
+`Closet` folder as it is this time and renames it at a later start. If you
+have something of your own that points at the folder, such as a backup or sync
+program, point it at `Nines` afterwards. If **Start Nines when I log in** was
+on, `Nines.exe` takes it over the first time it starts, so the old program is
+not started at login any more. From then on `Nines.exe` updates itself.
 
 ## Your data
 
-Everything lives in a folder called `Closet` in your home folder (for example
-`C:\Users\you\Closet`): the database, images, settings, logs and the
+Everything lives in a folder called `Nines` in your home folder (for example
+`C:\Users\you\Nines`): the database, images, settings, logs and the
 downloaded model. Updating replaces only the program file (see "Updates"
 above); this folder is not touched. If an update changes the database, a copy is saved in
-`Closet\backups` first. An older program refuses to open a closet written by a
-newer one instead of damaging it.
+`Nines\backups` first. An older program refuses to open a closet written by a
+newer one instead of damaging it. Up to version 0.11.0 the folder was called
+`Closet`; Nines renames it to `Nines` when it starts (see "Moving from Closet.exe to
+Nines.exe").
 
 **Settings → Advanced settings → Storage** shows how much space this folder takes, and how
 much free space the disk has left; open **What takes the space** for photos, cutouts,
@@ -854,7 +862,7 @@ If the computer cannot download the model, download
 `isnet-general-use.onnx` on another machine from the address shown in
 **Settings → Advanced settings → Background removal** (the link is at the foot of
 Settings), and put it in
-`Closet\models`. Nines checks the file and starts using it. The address can be
+`Nines\models`. Nines checks the file and starts using it. The address can be
 changed there too. A notice on **Add** says when the model is missing or
 did not download. **Advanced** also shows where your closet is stored and the
 version of Nines.

@@ -85,7 +85,7 @@ def test_a_key_shaped_string_and_outside_paths_are_stripped_from_the_page_and_th
         assert "sk-" not in text and FAKE_KEY not in text and "Ab1Ab1" not in text
         assert "someone" not in text and ".claude" not in text and "example.com" not in text
         assert str(cfg.data_dir) not in text
-        assert "[Closet folder]/images/abc/photo.webp" in text.replace("\\", "/")   # inside Closet's folder: kept
+        assert "[Nines folder]/images/abc/photo.webp" in text.replace("\\", "/")   # inside Closet's folder: kept
         assert "refused" in text   # the rest of the reason is still there
     assert FAKE_KEY not in caplog.text
 
@@ -118,7 +118,7 @@ def test_the_cleaner_on_its_own(tmp_path):
     assert failures.clean("api_key=abc123 token: 'xyz'") == "api_key=[hidden] token: '[hidden]'"
     assert failures.clean("a long token " + "aB3" * 12) == "a long token [hidden]"
     assert failures.clean("see https://api.anthropic.com/v1/messages (400)") == "see https://api.anthropic.com/v1/messages (400)"
-    assert failures.clean(f"open {folder}/closet.db and ~/x/y", folder) == "open [Closet folder]/closet.db and [a path outside Closet]"
+    assert failures.clean(f"open {folder}/closet.db and ~/x/y", folder) == "open [Nines folder]/closet.db and [a path outside Nines]"
     assert len(failures.clean("x" * 2000)) == failures.MAX_DETAILS
 
 

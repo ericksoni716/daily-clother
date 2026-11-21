@@ -28,6 +28,7 @@ only here); take a line out when it is done.
   - Correcting the side with a note (21 November; DECISIONS, "Which drawing a note is about"):
     tried only with stand-ins for Claude, never with a real call; `tools/correct_shoe_drawing.py
     --side` has no trace to read, so it runs without the measured proportions.
+- The program file and the data folder renamed to Nines (21 November; DECISIONS, "The program file: Nines"): the folder's move and the carrying over of start at login were tried only on Linux and with a stand-in registry; the first run on Windows is the owner's own, from `Closet.exe` 0.11.0. The release notes' first-run steps still say the program opens in the browser and shows a coat-hanger icon.
 - Also left by the rename: comments, docstrings and log lines in the code still say Closet, and older docs (past CHANGELOG entries, DECISIONS entries before it, the assessment) keep the old name.
 - **The computer's own door and the doors from outside** (the first two of three pull requests
   to the other app's access model, 20 November): the address check, the page's header and the

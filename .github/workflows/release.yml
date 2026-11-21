@@ -346,7 +346,7 @@ jobs:
           1. Download **Nines.exe** below and keep it somewhere permanent (for example your Documents folder).
           2. Double-click it. The program is not signed, so Windows may say "Windows protected your PC": click **More info**, then **Run anyway**.
           3. The first start takes a little longer while the program unpacks. Nines then opens in your browser, and a coat-hanger icon appears near the clock (look under the ^ arrow). Quit from that icon or from Settings.
-          4. Your closet is kept in the **Closet** folder in your user folder, never next to the program.
+          4. Your closet is kept in the **Nines** folder in your user folder, never next to the program.
 
           ## If you have the program as Closet.exe
 
@@ -355,9 +355,9 @@ jobs:
           1. Quit Closet.exe: **Quit** at the bottom of its Settings, or from its icon near the clock if it has one.
           2. Download **Nines.exe** below and put it where you kept Closet.exe.
           3. Double-click Nines.exe. If you forgot to quit the old one, Nines asks whether to close it and use the new version: choose the new version.
-          4. Delete Closet.exe.
+          4. Delete Closet.exe, and do not start it again: it would make a new, empty Closet folder.
 
-          Your closet stays in the **Closet** folder in your user folder and is not touched. If Closet.exe started when you logged in, Nines.exe takes that over the first time it starts. Later versions install themselves again.
+          The first start of Nines.exe renames the **Closet** folder in your user folder to **Nines**, with everything in it: your closet, photos, settings and backups. Nothing is copied or deleted. If Closet.exe was still running, the folder stays **Closet** until the next start of Nines.exe, and nothing is lost. If you have something of your own that points at the folder, such as a backup or sync program, point it at **Nines** afterwards. If Closet.exe started when you logged in, Nines.exe takes that over the first time it starts. Later versions install themselves again.
 
           NOTES
             else
@@ -371,7 +371,7 @@ jobs:
           1. Download **Nines-mac-arm64.zip** below and open it; drag **Nines.app** into Applications.
           2. The app is not signed by Apple, so the first time macOS refuses to open it. Double-click it once, close the message, then open **System Settings > Privacy & Security**, scroll down and click **Open Anyway** next to Nines, and confirm.
           3. Nines opens in your browser and shows a coat-hanger icon in the menu bar (there is no Dock icon). Quit from that icon or from Settings.
-          4. Your closet is kept in the **Closet** folder in your home folder.
+          4. Your closet is kept in the **Nines** folder in your home folder.
 
           NOTES
             else

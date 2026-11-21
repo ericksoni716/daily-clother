@@ -1,4 +1,4 @@
-import type { Item, ItemPatch, ItemSummary, Laundry, ModelInfo, ProgressList, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, QuestionAnswer, StyleProfile, StyleTalk } from './types';
+import type { BackgroundState, Item, ItemPatch, ItemSummary, Laundry, ModelInfo, ProgressList, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, QuestionAnswer, StyleProfile, StyleTalk } from './types';
 import { forgetSaved, type DayAnswer, type RememberHow, type RememberThing, type StyleAnswer, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
@@ -314,6 +314,11 @@ export const api = {
   /** Keep a new version of the style profile; an empty text goes back to the starting one. */
   saveStyleProfile: (text: string) => request<StyleProfile>('/api/style/profile', { method: 'PUT', body: { text } }),
   storage: () => request<Storage>('/api/storage'),
+  /** Windows keeping Nines running: read from anywhere, changed only on the computer (Windows asks there). */
+  background: () => request<BackgroundState>('/api/background'),
+  backgroundOn: () => request<BackgroundState>('/api/background/on', { method: 'POST' }),
+  backgroundOff: () => request<BackgroundState>('/api/background/off', { method: 'POST' }),
+  backgroundRestart: () => request<BackgroundState>('/api/background/restart', { method: 'POST' }),
   saveApiKey: (key: string) => request<Settings>('/api/settings/api-key', { method: 'PUT', body: { key } }),
   removeApiKey: () => request<Settings>('/api/settings/api-key', { method: 'DELETE' }),
   tagging: () => request<TaggingStatus>('/api/tagging'),

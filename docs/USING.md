@@ -251,7 +251,7 @@ would hold it back, when you would wear it, and example outfits.
   sentence and Check again when it can't; **Manage** opens Advanced.
 - **Updates**: one line ("Nines 0.9.0 · up to date", or "Nines 0.9.1 is ready to install."
   with what is new folded under it and **Install now**).
-- **Phone**: on the computer only. Until Tailscale shares Nines, the command to run once;
+- **Phone**: on the computer. Until Tailscale shares Nines, the command to run once;
   after that one line with the address and **Show the QR code** folded under it. While Settings
   is open and the phone is not connected, it checks again every few seconds (every half
   minute when Tailscale is not installed). Under it, on the computer, **Without Tailscale,
@@ -259,8 +259,18 @@ would hold it back, when you would wear it, and example outfits.
   README's steps, the three boxes (your Cloudflare team, the Access application's audience tag,
   Nines' address on Cloudflare) and **Save**, with a sentence saying it is off until all three
   are filled in. Once they are, the fold is titled "Also through Cloudflare, at
-  closet.example.com". A wrong value shows the server's sentence under the boxes. On the phone in
-  Safari, one line on adding Nines to the Home Screen; nothing once it is opened from there.
+  closet.example.com". A wrong value shows the server's sentence under the boxes. Between the two,
+  on Windows in the downloaded program, **Keep Nines running**: one line saying whether Windows
+  keeps Nines running, whether it starts when the computer turns on or when you sign in, and
+  whether it is running now (or why turning it off did not work); while it is off, what it does
+  in a few sentences, including that it replaces Start Nines when I log in; "Nines answers on port
+  N on this computer", and once it is on, that the port no longer changes; then **Keep Nines
+  running**, or **Turn this off** (and **Start it again** when it is on but not running). Turning
+  it on or off, Windows asks for permission on the computer's screen; turning it on, the window
+  closes and opens again onto the copy Windows runs. On a Mac or run from source there is no such
+  part. On the phone in Safari, one line on adding Nines to the Home Screen; on Windows, one
+  sentence on whether the computer keeps Nines running, and that it is changed on the computer.
+  Opened from the Home Screen, only that sentence, or nothing where it does not apply.
 - **This device**: on a device that came in from outside, one sentence on how: "This device
   came in through Tailscale as you@example.com", "…through Tailscale, but Tailscale did not say
   who is using it", or "…through Cloudflare, signed in as you@example.com". Then light, dark or

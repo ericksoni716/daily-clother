@@ -4,6 +4,8 @@ import { api } from '../api';
 import { PhoneAccess } from '../components/PhoneAccess';
 import { ADD_TO_HOME_SCREEN, cameInLine, deviceOf, fromHomeScreen, phoneAccessShows } from '../here';
 import { CloudflareDoor } from '../components/CloudflareDoor';
+import { KeepRunning } from '../components/KeepRunning';
+import { keepPhoneLine } from '../keepRunning';
 import { WhereYouAre } from '../components/WhereYouAre';
 import { LifeQuestions } from '../components/LifeQuestions';
 import { LineWords, StyleLines } from '../components/StyleLines';
@@ -369,7 +371,8 @@ export function SettingsScreen({ version }: { version: string }) {
     ),
     phone: (
       <Section key="phone" title="Phone" id="s-phone">
-        {phoneShows === 'connect' ? <PhoneAccess phone={settings.phone} /> : <p>{ADD_TO_HOME_SCREEN}</p>}
+        {phoneShows === 'connect' ? <PhoneAccess phone={settings.phone} /> : phoneShows === 'add-to-home-screen' && <p>{ADD_TO_HOME_SCREEN}</p>}
+        <KeepRunning state={settings.background} device={device} offline={offline} />
         {computerOnly(device).cloudflare && settings.cloudflare && <CloudflareDoor door={settings.cloudflare} offline={offline} toast={toast} />}
       </Section>
     ),
@@ -389,7 +392,7 @@ export function SettingsScreen({ version }: { version: string }) {
       {offline && <Notice as="p">You're offline, so settings can't be shown or changed right now.</Notice>}
       {!offline && read.error && <p className="form-error" role="alert">{read.error.message}</p>}
       <div className="settings-groups">
-        {mainGroups(phoneShows).map((g) => group[g])}
+        {mainGroups(phoneShows, device === 'phone' && keepPhoneLine(settings.background) !== null).map((g) => group[g])}
       </div>
     </div>
   );

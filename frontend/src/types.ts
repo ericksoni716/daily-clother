@@ -391,6 +391,8 @@ export interface Settings {
   came_in: CameIn;
   /** The door through Cloudflare, changed on the computer (or through Tailscale), never through Cloudflare itself. */
   cloudflare: CloudflareDoor;
+  /** Windows keeping Nines running (`background.py`), as `GET /api/background`. */
+  background: BackgroundState;
   autostart: boolean | null;
   heic_supported: boolean;
   /** Where the owner is, for the weather: New York (`home_place`) until another place is chosen. */
@@ -436,6 +438,23 @@ export interface CloudflareDoor {
   aud: string | null;
   host: string | null;
   on: boolean;
+}
+
+/**
+ * Windows keeping Nines running (`background.py`): only `available` on Windows, in the downloaded program. `starts`:
+ * when the computer turns on, or when the owner signs in (when Windows will not run it without a sign-in). `running`:
+ * the copy answering is the one Windows keeps running. `port`: the port Nines answers on now. `problem`: why turning
+ * it off from the window did not work, for a few minutes.
+ */
+export interface BackgroundState {
+  available: boolean;
+  on: boolean;
+  starts: 'startup' | 'logon' | null;
+  running: boolean;
+  port: number;
+  problem: string | null;
+  handing_over?: boolean;
+  turning_off?: boolean;
 }
 
 /** Laundry that keeps itself. `day`: Monday 0 to Sunday 6, or null for no set laundry day. */

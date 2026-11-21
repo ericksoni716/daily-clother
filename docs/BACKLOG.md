@@ -14,6 +14,7 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Today's first outfit sometimes takes over 20 seconds in the browser tests in CI** (21 November). `e2e/32-places.spec.ts:42` failed on that wait in #288 and passed when run again; #286 met the same wait and lengthened it from 10 to 20 seconds. The cause is not known: on a loaded machine outside CI the outfit appears in about a second, in that spec and by itself. To find: what Today waits on in the demo closet just after the closet is switched while other spec files run.
 - **A shoe's side drawn by Claude** (20 November; DECISIONS, "A shoe's side drawn by Claude").
   Left:
   - Worked examples for the side: once the owner has side drawings they like, show them as
@@ -351,6 +352,7 @@ The owner finds the most capable model (Fable) better at drawing and at judging 
 
 
 Checkpoints, not stops:
+- [ ] **A question to assess, not yet work: do garment drawings need more than a feature each to show what is particular to an item? (the owner, 21 November)** Shoes are now drawn by Claude from their photos; shirts, trousers, jackets and the rest are drawn from templates filled in from tags, one feature at a time, so two similar pieces can look much the same. The owner's aim is that the drawing steps capture each item's own characteristics (DECISIONS, "A shoe's side drawn by Claude"), and their view is that the features already built may do this more cheaply than having Claude draw everything: a feature costs nothing per item and nothing to redraw. So assess before building: go through the owner's real items (the owner can say which ones do not look like themselves), list which particulars the drawing misses, and sort them into those a feature would cover for many items and those only that one item has. Only for what is left ask whether a drawing by Claude is worth its wait and cost. No plan and no code until that list exists.
 - [ ] **A shoe's drawing takes four to ten minutes (the owner, 20 November: "really long").** Reviewed by reading `tagger/shoedrawing.py` `draw`: 6 to 14 calls one after another (two straight-on drawings each checked, a judge, two turns each checked, a judge, then a fix with its checks and a judge), each writing a whole drawing. Two of the ideas below are done (20 November), not yet timed on a real shoe; the others have not been tried. The order is from the least risk to the drawings:
   - Done (20 November): `shoedraw` draws two shoes at once (`AT_ONCE`); before, one at a time, so ten new shoes took over an hour. See DECISIONS, "Two shoes drawn at once".
   - A small tool that reads the kept drawings' `calls` (each call's kind and seconds are stored) and says where the time went and how often the fix after the second judge was kept. If it is rarely kept, dropping it takes the longest chain from 14 calls to 10.

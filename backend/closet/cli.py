@@ -104,6 +104,15 @@ def _follow_start_at_login() -> None:
         log.warning("could not point start at login to this program", exc_info=True)
 
 
+def _carry_over_start_at_login() -> None:
+    """Start at login written by Closet.exe (0.11.0 and before) would open a file that is gone: it now opens this one."""
+    try:
+        if autostart.carry_over():
+            log.info("start at login carried over from Closet.exe to %s", autostart.program())
+    except Exception:
+        log.warning("could not carry start at login over to this program", exc_info=True)
+
+
 def _open_running(cfg: config.Config, info: dict, url: str) -> None:
     """Opened again while a copy runs: that copy shows its window, or, when it has none (it uses the browser, or it is
     from before Closet had a window), the browser opens as it always did, at the address with the window's key."""
@@ -184,6 +193,7 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
             return 0
 
     _setup_logging(cfg)
+    _carry_over_start_at_login()
     if replaced_older:
         log.info("replaced an older copy (%s) with %s", already["version"], __version__)
         _follow_start_at_login()

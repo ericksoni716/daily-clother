@@ -1,17 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
-# PyInstaller spec for Closet.
+# PyInstaller spec for Nines (the file keeps the package's name, closet).
 #
 #   python -m PyInstaller --noconfirm --clean packaging/closet.spec \
 #       --distpath <dir> --workpath <dir>
 #
 # What it produces depends on the OS it runs on:
-#   Windows  dist/Closet.exe   one file, windowed (no console), with an icon;
-#                              Closet's window is Edge WebView2 (pywebview)
-#   macOS    dist/Closet.app   windowed menu-bar app (LSUIElement, bundle id
+#   Windows  dist/Nines.exe    one file, windowed (no console), with an icon;
+#                              Nines' window is Edge WebView2 (pywebview)
+#   macOS    dist/Nines.app    windowed menu-bar app (LSUIElement, bundle id
 #                              app.closet), one-folder inside the bundle; the
-#                              release workflow zips it with `ditto`; Closet's
+#                              release workflow zips it with `ditto`; Nines'
 #                              window is WebKit (pywebview)
-#   Linux    dist/closet       one file, console; for local verification only
+#   Linux    dist/nines        one file, console; for local verification only
 #
 # Before building: the frontend must be built into backend/closet/web/
 # (`npm ci && npm run build` in frontend/), and the release workflow writes
@@ -279,7 +279,7 @@ if IS_MAC:
         a.scripts,
         [],
         exclude_binaries=True,
-        name="Closet",
+        name="Nines",
         debug=False,
         bootloader_ignore_signals=False,
         strip=False,
@@ -292,27 +292,27 @@ if IS_MAC:
         entitlements_file=None,
         icon=icon_file,
     )
-    coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="Closet")
+    coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name="Nines")
     app = BUNDLE(
         coll,
-        name="Closet.app",
+        name="Nines.app",
         icon=icon_file,
-        bundle_identifier="app.closet",
+        bundle_identifier="app.closet",   # kept from Closet: the bundle's identity, not its name (DECISIONS)
         version=version or "0.1.0",
         info_plist={
-            "CFBundleName": "Closet",
-            "CFBundleDisplayName": "Closet",
+            "CFBundleName": "Nines",
+            "CFBundleDisplayName": "Nines",
             "CFBundleShortVersionString": version or "0.1.0",
             "CFBundleVersion": version or "0.1.0",
-            "LSUIElement": True,  # menu-bar app; Closet's window gives it a Dock icon while it shows (closet/window_mac.py)
+            "LSUIElement": True,  # menu-bar app; Nines' window gives it a Dock icon while it shows (closet/window_mac.py)
             "LSMinimumSystemVersion": "14.0",  # onnxruntime / numpy arm64 wheels are macosx_14_0
             "NSHighResolutionCapable": True,
-            # the window shows the page from Closet's own server on 127.0.0.1 over http
+            # the window shows the page from Nines' own server on 127.0.0.1 over http
             "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
             # asked by macOS the first time the owner taps "Use my location" on Today, in the window
-            "NSLocationUsageDescription": "Closet uses your location only when you tap Use my location, to show "
+            "NSLocationUsageDescription": "Nines uses your location only when you tap Use my location, to show "
                                           "the weather where you are.",
-            "NSLocationWhenInUseUsageDescription": "Closet uses your location only when you tap Use my location, "
+            "NSLocationWhenInUseUsageDescription": "Nines uses your location only when you tap Use my location, "
                                                    "to show the weather where you are.",
         },
     )
@@ -323,7 +323,7 @@ else:
         a.binaries,
         a.datas,
         [],
-        name="Closet" if IS_WIN else "closet",
+        name="Nines" if IS_WIN else "nines",
         debug=False,
         bootloader_ignore_signals=False,
         strip=False,

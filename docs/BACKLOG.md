@@ -28,7 +28,6 @@ only here); take a line out when it is done.
   - Correcting the side with a note (21 November; DECISIONS, "Which drawing a note is about"):
     tried only with stand-ins for Claude, never with a real call; `tools/correct_shoe_drawing.py
     --side` has no trace to read, so it runs without the measured proportions.
-- The rename to Nines (20 November) left the program file and the release assets named Closet: decided by the owner and still to do. The updater must find the new asset name while copies already installed still look for `Closet.exe` and `Closet-mac-arm64.zip`; then the names in `packaging/closet.spec` (including `CFBundleName`), `packaging/smoke_test.py`, `ASSETS` in `updates.py`, the release workflow, the start-at-login entry (`autostart.NAME`) and any shortcut that points at the old file name. See DECISIONS, "The name: Nines".
 - Also left by the rename: comments, docstrings and log lines in the code still say Closet, and older docs (past CHANGELOG entries, DECISIONS entries before it, the assessment) keep the old name.
 - **The computer's own door and the doors from outside** (the first two of three pull requests
   to the other app's access model, 20 November): the address check, the page's header and the
@@ -469,6 +468,7 @@ Original phase 5.
 - Taste learning analytics, cost per wear, never worn (rest of original phase 6).
 - Trip packing (historical weather beyond the 16-day forecast, count-only basics).
 - "Your nines" (the owner's idea, 20 November; the app is now called Nines): the nine pieces worn most, shown as a three-by-three square in the Wardrobe.
+- Rework the colours (the owner, 20 November, after seeing Nines' mark on the screens: "we'll probably rework the colors later"). A change to the design system's colour tokens, decided once and written down in DECISIONS ("The design system"), light and dark together; the brand mark's own colours (`--brand-edge`) go with it.
 - Extras: calendar-aware suggestions, offline edit queue. Cut: resale suggestions, seasonal storage rotation.
 
 ### Definition of done for a stop

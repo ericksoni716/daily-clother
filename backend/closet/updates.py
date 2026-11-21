@@ -42,10 +42,10 @@ log = logging.getLogger("closet.updates")
 REPO = "ericksoni716/daily-clother"
 API_URL = f"https://api.github.com/repos/{REPO}/releases/latest"
 RELEASES_PAGE = f"https://github.com/{REPO}/releases/latest"
-USER_AGENT = "Closet-updater"
+USER_AGENT = "Nines-updater"
 MODES = ("auto", "ask", "never")
 DEFAULT_MODE = "ask"
-ASSETS = {"win32": "Closet.exe", "darwin": "Closet-mac-arm64.zip"}   # the release's file for each computer
+ASSETS = {"win32": "Nines.exe", "darwin": "Nines-mac-arm64.zip"}   # the release's file for each computer
 CHECK_EVERY = 24 * 3600       # a successful check is good for a day
 RETRY_AFTER = 3600            # an unanswered check is tried again after an hour
 START_WITHIN = 60             # seconds the new program has to answer before the old one is put back
@@ -180,8 +180,8 @@ def _read_error(e: BaseException) -> str:
 class Layout:
     """Where the program is installed and where the old one is kept while a new one takes over."""
     platform: str
-    installed: Path   # Closet.exe on Windows, Closet.app on a Mac
-    old: Path         # Closet.old.exe, Closet.old.app
+    installed: Path   # Nines.exe on Windows, Nines.app on a Mac
+    old: Path         # Nines.old.exe, Nines.old.app
     inner: Path       # the program inside `installed` that is run (the same path on Windows)
 
     @property

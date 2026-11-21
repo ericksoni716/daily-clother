@@ -4,9 +4,9 @@ A private, single-user wardrobe app. It runs as a small program on your own
 computer; you use it in its own window there and as a home-screen app on your
 iPhone. Your closet never leaves your computer.
 
-Nines was called Closet until November 2026. The program you download is still
-called Closet (`Closet.exe`, `Closet.app`) for now; it will be renamed in a later
-version.
+Nines was called Closet until November 2026, and so was the program
+(`Closet.exe`). If you still have `Closet.exe`, see "Moving from Closet.exe to
+Nines.exe" under "Updates": you download `Nines.exe` once by hand.
 
 **Status: stop A (the first of the app's try-it stops; see `docs/BACKLOG.md`).**
 You can capture items with one photo each, get the background removed, browse
@@ -21,15 +21,15 @@ API key is needed.
 Download the program for your computer from the repository's **Releases**
 page. There is nothing else to install.
 
-**Windows:** double-click `Closet.exe`. The first time, Windows shows
+**Windows:** double-click `Nines.exe`. The first time, Windows shows
 "Windows protected your PC": click **More info**, then **Run anyway**.
 Starting takes a few seconds; then Nines opens in a window of its own. Setting up a Windows PC to be the hub your phone reaches, step by
 step, is in "Setting up Nines on a Windows PC (the hub)" below.
 
-**Mac (Apple Silicon):** unzip `Closet-mac-arm64.zip` and double-click
-**Closet**. The first time, macOS says it cannot verify the app: click **Done**,
+**Mac (Apple Silicon):** unzip `Nines-mac-arm64.zip` and double-click
+**Nines**. The first time, macOS says it cannot verify the app: click **Done**,
 open **System Settings → Privacy & Security**, scroll down to the message about
-Closet (the program is still called that), click **Open Anyway**, confirm with your password, then **Open**.
+Nines, click **Open Anyway**, confirm with your password, then **Open**.
 Requires macOS 14 or later.
 
 Nines then opens in its own window, titled **Nines**:
@@ -91,7 +91,7 @@ Closing Nines' window does not stop Nines: it keeps running in the
 background, with no icon, so your phone can still reach it and the nightly
 backup still runs. Opening the program again (double-clicking it) brings the
 window back. To stop the program use **Quit** at the bottom of Settings (on a
-Mac, **Quit** in the Closet menu, ⌘Q, quits it too). If you would rather have an
+Mac, **Quit** in the Nines menu, ⌘Q, quits it too). If you would rather have an
 icon near the clock (in the menu bar on a Mac), start Nines with `--tray`. The window remembers your login
 the way a browser does; links to shops and other sites open in your usual
 browser. If the window cannot open on your computer, Nines opens in your
@@ -516,14 +516,14 @@ Anthropic Console account: the Console one is billed per use. Then type
 own e-mail address. Use the PowerShell line rather than `npm`: Nines looks for
 `claude.exe`, which that line (and `winget`) installs.
 
-**2. Put Nines in a folder of its own.** Download `Closet.exe` from the
+**2. Put Nines in a folder of its own.** Download `Nines.exe` from the
 **Releases** page. In File Explorer make a folder such as
-`C:\Users\you\Apps\Closet` and move `Closet.exe` into it. Not in **Program
+`C:\Users\you\Apps\Nines` and move `Nines.exe` into it. Not in **Program
 Files**: Nines replaces itself when it updates, and Windows only lets it do that
 in a folder of your own. Not in **Downloads** either, so it is not tidied away.
 
-**3. Open it the first time.** Double-click `Closet.exe`.
-- If your browser said "Closet.exe isn't commonly downloaded", click **⋯** beside
+**3. Open it the first time.** Double-click `Nines.exe`.
+- If your browser said "Nines.exe isn't commonly downloaded", click **⋯** beside
   it, then **Keep**, then **Show more → Keep anyway**.
 - Windows then shows "Windows protected your PC" ("unknown publisher"): click
   **More info**, then **Run anyway**. It asks only this once. (Nines is not
@@ -536,7 +536,7 @@ A few seconds later Nines opens in its own window (it is the page at
 `http://127.0.0.1:8765`; typed into a browser, that address asks you to open
 Nines from its icon instead). Choose your
 passphrase; the background-removal model starts downloading. Closing the
-window leaves Nines running in the background; double-click `Closet.exe` to
+window leaves Nines running in the background; double-click `Nines.exe` to
 bring it back.
 
 **4. The firewall.** Nines only listens on this PC itself (127.0.0.1), never on
@@ -553,8 +553,8 @@ installed but not signed in, do step 1's `claude` sign-in again, then press
 
 **6. Start at login.** In Nines' **Settings → Advanced settings → Your
 closet**, turn on **Start Nines when I log in**. From then on Nines starts by itself when you sign in to
-Windows, with no window (double-click `Closet.exe` to open it). If you ever move
-`Closet.exe`, turn it off and on again so it points to the new place.
+Windows, with no window (double-click `Nines.exe` to open it). If you ever move
+`Nines.exe`, turn it off and on again so it points to the new place.
 
 **7. Reach it from the iPhone.** Install Tailscale on the PC (tailscale.com,
 **Download**, Windows) and on the iPhone (App Store), and sign in to both with
@@ -786,6 +786,24 @@ The version that first has this has to be installed by hand, as before: quit
 Nines, replace the program, open it. On Linux, or when Nines runs from
 source, it only tells you a new version is out, with a link.
 
+#### Moving from Closet.exe to Nines.exe
+
+Up to version 0.11.0 the program was called `Closet.exe`. Later versions are
+called `Nines.exe`, and `Closet.exe` cannot install them by itself: it says the
+release has no download for this computer. Do this once:
+
+1. Quit `Closet.exe` (**Quit** at the bottom of Settings, or from its icon).
+2. Download `Nines.exe` from the **Releases** page and put it where you kept
+   `Closet.exe`.
+3. Double-click `Nines.exe`. If the old one is still running, Nines asks
+   whether to close it and use the new version: choose the new version.
+4. Delete `Closet.exe`.
+
+Your closet stays in the `Closet` folder in your user folder and is not
+touched; it keeps that folder's name. If **Start Nines when I log in** was on,
+`Nines.exe` takes it over the first time it starts, so the old program is not
+started at login any more. From then on `Nines.exe` updates itself.
+
 ## Your data
 
 Everything lives in a folder called `Closet` in your home folder (for example
@@ -813,10 +831,10 @@ with your passphrase is not included.
 Quit Nines, then in a terminal:
 
 ```
-Closet.exe restore "D:\path\to\your backup folder"
+Nines.exe restore "D:\path\to\your backup folder"
 ```
 
-(On a Mac: `Closet.app/Contents/MacOS/Closet restore "/path/to/folder"`.) The
+(On a Mac: `Nines.app/Contents/MacOS/Nines restore "/path/to/folder"`.) The
 closet that was there before is moved aside into a `replaced-…` folder, not
 deleted.
 
@@ -827,7 +845,7 @@ which, until you press **OK**.
 
 ### Forgotten passphrase
 
-Quit Nines and run `Closet.exe reset-passphrase`. The next start asks for a
+Quit Nines and run `Nines.exe reset-passphrase`. The next start asks for a
 new one. Your closet is untouched.
 
 ### Placing the model by hand

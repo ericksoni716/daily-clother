@@ -1,6 +1,7 @@
 """The program's entry point.
 
     closet                      start the app (what a double-click does)
+    closet --background         the server alone, with nothing shown (beside it, opening the app opens a window onto it)
     closet restore <folder>     replace the closet with a backup
     closet backup               back up now to the chosen folder
     closet reset-passphrase     forget the passphrase so a new one can be set
@@ -25,11 +26,14 @@ from .state import State
 
 log = logging.getLogger("closet")
 
+PORT_WAIT = 60.0   # seconds a background copy waits for its port to be let go of before it gives up
 
-def _setup_logging(cfg: config.Config) -> None:
+
+def _setup_logging(cfg: config.Config, name: str = "closet.log") -> None:
+    """`name`: a window onto a background copy logs to a file of its own, so two processes never rotate one file."""
     cfg.logs_dir.mkdir(parents=True, exist_ok=True)
     handlers: list[logging.Handler] = [
-        logging.handlers.RotatingFileHandler(cfg.logs_dir / "closet.log", maxBytes=1_000_000, backupCount=3, encoding="utf-8")]
+        logging.handlers.RotatingFileHandler(cfg.logs_dir / name, maxBytes=1_000_000, backupCount=3, encoding="utf-8")]
     if sys.stderr is not None:
         handlers.append(logging.StreamHandler())
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", handlers=handlers)
@@ -123,18 +127,111 @@ def _keyed(cfg: config.Config, url: str) -> str:
 
 def _launch_args(args, port: int, window_shown: bool = False) -> list[str]:
     """How an update starts the new program: the way this one was started, on the same port, showing its window only
-    when this one's is showing (an update never opens the browser; the page already open there reconnects)."""
+    when this one's is showing (an update never opens the browser; the page already open there reconnects). A background
+    copy starts a background copy."""
+    if getattr(args, "background", False):
+        return ["--background", "--port", str(port)]
     return ((["--no-tray"] if args.no_tray else []) + (["--tray"] if args.tray else []) + (["--browser"] if args.browser else [])
             + ([] if window_shown else ["--no-browser"]) + ["--port", str(port)])
 
 
 def serve(args, cfg: config.Config) -> int:
+    background = getattr(args, "background", False)
+    if background:   # nothing shown and nobody asked: the paths of --no-tray --no-browser, with the log for what it says
+        args.no_tray, args.no_browser, args.tray, args.browser = True, True, False, False
+        _setup_logging(cfg)
     try:
         with instance.startup_lock(cfg) as release_startup:
             return _serve(args, cfg, release_startup)
     except TimeoutError as e:
-        _say(str(e))
+        if background:
+            log.error("%s", e)
+        else:
+            _say(str(e))
         return 2
+
+
+def _log_error(message: str) -> None:
+    log.error("%s", message)
+
+
+def _wait_for_own_port(host: str, port: int) -> bool:
+    """A background copy never moves to another port, because phone access is set up for its port: when the port is
+    busy (an older copy still letting go of it, after an update or a restart), wait up to PORT_WAIT seconds for it."""
+    if instance.port_free(host, port):
+        return True
+    log.warning("port %s is busy; waiting up to %g seconds for it", port, PORT_WAIT)
+    if instance.wait_for_port(host, port, timeout=PORT_WAIT):
+        return True
+    log.error("port %s is still busy after %g seconds, so this background copy of %s stops without starting. It never "
+              "moves to another port: phone access depends on port %s. Whatever started it can try again.",
+              port, PORT_WAIT, APP_NAME, port)
+    return False
+
+
+def _beside_running(info: dict, wanted: int) -> int:
+    """A background copy started while a copy already runs for this closet does not start a second server."""
+    theirs = info["version"] or "an older version"
+    if info["port"] == wanted:
+        log.info("%s %s is already running on port %s; this background copy is not needed", APP_NAME, theirs, wanted)
+        return 0
+    log.error("%s %s is already running, on port %s instead of %s. Phone access depends on port %s, so this background "
+              "copy stops; it can be started again once that copy has quit.", APP_NAME, theirs, info["port"], wanted, wanted)
+    return 5
+
+
+def _window_only(args, cfg: config.Config, info: dict, release_startup) -> int:
+    """Opened while a background copy runs: this process is only a window onto that copy, and ends when the window is
+    closed; the background copy keeps running. A window already open onto it is brought forward instead. When the
+    window cannot be used, the browser opens at the keyed address, as before the window."""
+    _setup_logging(cfg, "window.log")
+    if instance.is_newer(__version__, info["version"]):
+        # not replaced from here: a background copy is restarted the way it was started, by what started it
+        log.info("%s %s was opened while an older background copy (%s) runs; it opens a window onto that copy",
+                 APP_NAME, __version__, info["version"])
+    if args.no_browser:   # started at login beside a background copy: nothing to show
+        return 0
+    if instance.show_window_process(cfg):
+        return 0
+    opened = _keyed(cfg, f"http://127.0.0.1:{info['port']}/")   # never logged or printed
+    if args.browser:
+        webbrowser.open(opened)
+        return 0
+    from . import window as app_window
+
+    door = None
+
+    def finish() -> None:
+        if door is not None:
+            door.close()
+
+    def terminate() -> None:   # the Mac's Quit: everything stops before this returns
+        window.close()
+        finish()
+
+    window = app_window.AppWindow(opened, cfg.window_dir, keep_running=lambda: False, on_terminate=terminate)
+    if not window.prepare():
+        webbrowser.open(opened)
+        return 0
+    door = instance.WindowDoor(cfg, window.show)
+    release_startup()
+    log.info("%s %s opened a window onto the background copy (%s) on port %s", APP_NAME, __version__,
+             info["version"] or "an older version", info["port"])
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try:
+            signal.signal(sig, lambda *_: window.close())
+        except (ValueError, OSError):
+            pass
+    ended_well = True
+    try:
+        ended_well = window.run()
+    except KeyboardInterrupt:
+        window.close()
+    finally:
+        finish()
+    if not ended_well:   # the window went without being closed (it failed, or its page never loaded)
+        webbrowser.open(opened)
+    return 0
 
 
 def server_config(app, host: str, port: int):
@@ -152,8 +249,15 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
 
     from .app import build_services, create_app
 
+    background = getattr(args, "background", False)
+    say = _log_error if background else _say   # a background copy shows nothing: what it would say goes in the log
+    wanted = args.port or cfg.port
     replaced_older = False
     already = instance.running_info(cfg)
+    if already and already.get("background") and not background:
+        return _window_only(args, cfg, already, release_startup)
+    if already and background and not (args.replace and instance.is_newer(__version__, already["version"])):
+        return _beside_running(already, wanted)
     if already:
         url = f"http://127.0.0.1:{already['port']}/"
         theirs = already["version"] or "an older version"
@@ -166,7 +270,7 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
                 if instance.stop_running(cfg, already):
                     replaced_older = True
                 else:
-                    _say(f"The older {APP_NAME} ({theirs}) did not close. Quit it from its icon "
+                    say(f"The older {APP_NAME} ({theirs}) did not close. Quit it from its icon "
                          f"(near the clock, or in the menu bar), then open {APP_NAME} {__version__} again.")
                     return 4
             else:
@@ -183,21 +287,26 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
                 print(f"{APP_NAME} {theirs} is already running at {url}", flush=True)
             return 0
 
-    _setup_logging(cfg)
+    if not background:   # a background copy set it up before the startup lock
+        _setup_logging(cfg)
     if replaced_older:
         log.info("replaced an older copy (%s) with %s", already["version"], __version__)
         _follow_start_at_login()
         instance.wait_for_port(cfg.host, args.port or cfg.port)
     try:
-        wanted = args.port or cfg.port
-        port = args.port or instance.pick_port(cfg.host, cfg.port)
+        if background:
+            port = wanted
+            if not _wait_for_own_port(cfg.host, port):
+                return 3
+        else:
+            port = args.port or instance.pick_port(cfg.host, cfg.port)
         cfg = config.Config(cfg.data_dir, cfg.host, port, cfg.auto_download_model)
         services = build_services(cfg)
     except db.NewerDatabaseError as e:
-        _say(str(e))
+        say(str(e))
         return 2
     except RuntimeError as e:
-        _say(str(e))
+        say(str(e))
         return 2
 
     # Closet's own window, the browser it falls back to and the tray open it with the key, which the server swaps for
@@ -241,9 +350,9 @@ def _serve(args, cfg: config.Config, release_startup) -> int:
     while not server.started and thread.is_alive() and time.time() < deadline:
         time.sleep(0.05)
     if not server.started:
-        _say(f"{APP_NAME} could not start on port {port}. Is another program using it?")
+        say(f"{APP_NAME} could not start on port {port}. Is another program using it?")
         return 3
-    instance.write_lock(cfg, port)
+    instance.write_lock(cfg, port, background=background)
     services.start()
     release_startup()
     log.info("%s %s serving on %s (data folder: %s)", APP_NAME, __version__, url, cfg.data_dir)
@@ -528,6 +637,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--tray", action="store_true", help="also show an icon near the clock (Windows) or in the menu bar (Mac)")
     ap.add_argument("--no-tray", action="store_true", help="run with no window to ask questions in (tests); never shows the icon")
     ap.add_argument("--port", type=int, help="listen on this port instead of the default")
+    ap.add_argument("--background", action="store_true",
+                    help="run the server alone, with no window, tray icon, browser or questions, and never on another "
+                         "port; opening the program while it runs opens a window onto it")
     ap.add_argument("--replace", action="store_true",
                     help="if an older version is already running, close it without asking and start this one")
     sub = ap.add_subparsers(dest="command")

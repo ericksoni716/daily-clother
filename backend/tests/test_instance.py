@@ -83,7 +83,8 @@ def old_copy(cfg):
 @pytest.mark.skipif(sys.platform == "win32", reason="stops the stand-in with a signal")
 def test_an_older_copy_without_a_quit_endpoint_is_stopped(cfg, old_copy):
     info = instance.running_info(cfg)
-    assert info == {"port": old_copy.port, "version": "0.1.1", "pid": old_copy.proc.pid, "token": None}
+    assert info == {"port": old_copy.port, "version": "0.1.1", "pid": old_copy.proc.pid, "token": None,
+                    "background": False}   # an older copy is never a background copy
     assert instance.stop_running(cfg, info, timeout=10)
     old_copy.proc.wait(timeout=5)
     assert instance.running_info(cfg) is None
@@ -226,3 +227,77 @@ def test_startup_lock_is_released_when_its_process_dies(cfg):
         proc.communicate(timeout=30)
     with instance.startup_lock(cfg, timeout=0):
         pass
+
+
+# ---------------------------------------------------------------- a background copy (closet --background)
+def _background(**kw):
+    return _args(background=True, no_browser=False, tray=False, **kw)
+
+
+def _no_server(monkeypatch):
+    import closet.app
+    monkeypatch.setattr(closet.app, "build_services", lambda c: pytest.fail("a server was started"))
+
+
+def test_a_background_copy_never_moves_to_another_port(cfg, monkeypatch, caplog):
+    _no_server(monkeypatch)
+    monkeypatch.setattr(cli, "PORT_WAIT", 0.4)
+    monkeypatch.setattr(cli, "_say", lambda m: pytest.fail(f"a background copy said {m!r}"))
+    with socket.socket() as busy:
+        busy.bind(("127.0.0.1", 0))
+        busy.listen(1)
+        port = busy.getsockname()[1]
+        started = time.monotonic()
+        assert cli.serve(_background(port=port), cfg) == 3      # not 0, so whatever started it can try again
+        assert time.monotonic() - started >= 0.4                # it waited for the port first
+    assert f"port {port} is still busy" in caplog.text and f"phone access depends on port {port}" in caplog.text
+    assert not cfg.lock_path.exists()
+
+
+def test_a_background_copy_takes_its_port_once_it_is_let_go(cfg, monkeypatch):
+    seen = []
+
+    def build_services(c):   # stop just before the server starts
+        seen.append(c.port)
+        raise RuntimeError("stop here")
+    import closet.app
+    monkeypatch.setattr(closet.app, "build_services", build_services)
+    monkeypatch.setattr(cli, "PORT_WAIT", 10)
+    busy = socket.socket()
+    busy.bind(("127.0.0.1", 0))
+    busy.listen(1)
+    port = busy.getsockname()[1]
+    threading.Timer(0.5, busy.close).start()                    # an older copy letting go of it
+    assert cli.serve(_background(port=port), cfg) == 2
+    assert seen == [port]
+
+
+def test_a_background_copy_beside_a_running_copy_starts_nothing(cfg, monkeypatch):
+    _no_server(monkeypatch)
+    monkeypatch.setattr(cli, "_ask", lambda *a, **k: pytest.fail("a background copy never asks"))
+    monkeypatch.setattr(instance, "show_running", lambda info: pytest.fail("a background copy shows nothing"))
+    monkeypatch.setattr(cli.webbrowser, "open", lambda url: pytest.fail("a background copy opens nothing"))
+    for running in ("0.1.1", "0.4.0"):
+        monkeypatch.setattr(instance, "running_info",
+                            lambda c, v=running: {"port": 8765, "version": v, "pid": 1, "token": "t", "background": False})
+        assert cli.serve(_background(port=8765), cfg) == 0      # it already serves the phone's port
+        assert cli.serve(_background(port=8766), cfg) == 5      # it does not: try again once that copy has quit
+
+
+def test_an_update_of_a_background_copy_replaces_it(cfg, newer, monkeypatch):
+    # the updater starts the new program with the old one's arguments and --replace (closet/updates.py `watch`)
+    old = {"port": 8765, "version": "0.2.0", "pid": 1, "token": "t", "background": True}
+    monkeypatch.setattr(instance, "running_info", lambda c: old)
+    stopped, started = [], []
+    monkeypatch.setattr(instance, "stop_running", lambda c, info: stopped.append(info) or True)
+    monkeypatch.setattr(instance, "wait_for_port", lambda *a, **k: True)
+    monkeypatch.setattr(instance, "port_free", lambda *a: True)
+    monkeypatch.setattr(cli, "_follow_start_at_login", lambda: None)
+
+    def build_services(c):
+        started.append(c.port)
+        raise RuntimeError("stop here")
+    import closet.app
+    monkeypatch.setattr(closet.app, "build_services", build_services)
+    assert cli.serve(_background(port=8765, replace=True), cfg) == 2
+    assert stopped == [old] and started == [8765]

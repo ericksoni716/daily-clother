@@ -50,7 +50,14 @@ with the window's key and then asks for the passphrase as above. The address typ
 browser, or an old bookmark to it, shows only a page titled "Open Nines from its icon" (any
 other address that leads to Nines says "Nines is not at this address"). A page left open
 from before an update that tries to save says "This page is from an older Nines. Reload the
-page, then try again." These come from the server (`backend/closet/gate.py`), not the page.
+page, then try again." At the Cloudflare address (README, "Use it without Tailscale, through
+Cloudflare"), Cloudflare asks for its emailed code first; a visit that reaches Nines without
+Cloudflare's sign-in shows "Sign in through Cloudflare first", and Tailscale's public Funnel
+shows "Nines is not on the open internet". These come from the server
+(`backend/closet/gate.py`), not the page. When Cloudflare's sign-in runs out while the page is
+open there, the page loads itself again in full so Cloudflare can ask for a new code, at most
+once every two minutes (`frontend/src/signin.ts`); on the computer and through Tailscale,
+losing the connection shows the offline banner as before.
 
 ## Today
 
@@ -135,9 +142,14 @@ on a phone), Shopping facts (brand, size, material, price, date acquired, condit
 and Delete. A new photo can be taken in place of the old one, and a cutout that failed can be
 tried again.
 
-A shoe also shows its photos sorted into views, its traced side drawing with its own fixes,
-and the drawing Claude makes for the figure, which takes several minutes and can be
-corrected with a note. Two shoes are drawn at the same time; a third waits for one of them.
+A shoe also shows its photos sorted into views and, under "Drawn by Claude from its photos",
+the two drawings Claude makes from them: the shoe from the side, which becomes its picture in
+the closet, with a line on what makes it itself, and the drawing for the figure. Both are made
+together, in several minutes; the drawing for the figure can be corrected with a note. Until
+Claude's side drawing exists, or when it cannot be made, the picture is traced from the side
+photo, with its own fixes in Fix the details; once it exists, Fix the details offers only the
+plain drawing. Two shoes are drawn at the same time; a third waits for one of them. A shoe
+drawn before gets its side drawn by itself, in the background.
 
 While Nines is working on a piece, one strip over the bottom of its picture says how far it
 has got: three dots for the three steps (cutting out, on the computer; describing and drawing,
@@ -239,9 +251,17 @@ would hold it back, when you would wear it, and example outfits.
 - **Phone**: on the computer only. Until Tailscale shares Nines, the command to run once;
   after that one line with the address and **Show the QR code** folded under it. While Settings
   is open and the phone is not connected, it checks again every few seconds (every half
-  minute when Tailscale is not installed). On the phone in Safari, one line on adding Nines to
-  the Home Screen; nothing once it is opened from there.
-- **This device**: light, dark or the same as the device, kept on this device.
+  minute when Tailscale is not installed). Under it, on the computer, **Without Tailscale,
+  through Cloudflare** is folded: what an address through Cloudflare means, a link to the
+  README's steps, the three boxes (your Cloudflare team, the Access application's audience tag,
+  Nines' address on Cloudflare) and **Save**, with a sentence saying it is off until all three
+  are filled in. Once they are, the fold is titled "Also through Cloudflare, at
+  closet.example.com". A wrong value shows the server's sentence under the boxes. On the phone in
+  Safari, one line on adding Nines to the Home Screen; nothing once it is opened from there.
+- **This device**: on a device that came in from outside, one sentence on how: "This device
+  came in through Tailscale as you@example.com", "…through Tailscale, but Tailscale did not say
+  who is using it", or "…through Cloudflare, signed in as you@example.com". Then light, dark or
+  the same as the device, kept on this device.
 - **Your data**: one line on the backups (where they go and the last good one), or that there
   are none yet, with **Choose a backup folder** on the computer.
 - **Advanced settings** (a link), then Log out, and Quit Nines on the computer only.

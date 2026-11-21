@@ -5,6 +5,7 @@ it; the photos cut to the shoe; a sandal kept straight on; failures keeping what
 stand-in answers each kind of question, from several threads at once.
 """
 import threading
+import time
 
 import numpy as np
 import pytest
@@ -19,6 +20,8 @@ from closet.tagger.shoedrawing import (
     CorrectCheckAnswer,
     DrawAnswer,
     Photo,
+    SideAnswer,
+    SideCheckAnswer,
     TurnedCheckAnswer,
     TurnedCorrectAnswer,
     TurnedCorrectCheckAnswer,
@@ -27,7 +30,7 @@ from closet.tagger.shoedrawing import (
 )
 from closet.tagger.tagging import RouteUnavailable, TaggingError
 
-from .conftest import SHEET, black_laces
+from .conftest import SHEET, SIDE_FEATURES, SIDE_MEASURES, black_laces, side_answer, side_check_answer
 
 # Whole shoe drawings that take seconds a test: left out of pull requests unless their code changes (docs/DEVELOPING.md).
 pytestmark = pytest.mark.slow
@@ -59,15 +62,22 @@ class Claude:
     to an exception it raises instead."""
 
     def __init__(self, straights=(DRESS, LACES, DRESS), verdicts=("b", "a", "b"), turned_svg=DRESS, fixed_svg=LACES,
-                 fail=None, turned_svgs=None):
+                 fail=None, turned_svgs=None, side_waits=False):
+        self.side_waits = side_waits   # the side's drawing waits (up to 10 s) for a turn to be asked for
         self.straights, self.verdicts = list(straights), list(verdicts)
         self.turned_svg, self.fixed_svg, self.fail = turned_svg, fixed_svg, fail or {}
         self.turned_svgs = list(turned_svgs) if turned_svgs else None
         self.calls: list[dict] = []
         self.lock = threading.Lock()
+        self.turning = threading.Event()   # set once a turn has been asked for
+        self.side_saw_turn: bool | None = None   # whether the side was asked for while the turns were under way
 
     def __call__(self, text, images, routes, **kw):
         model = kw["answer_model"]
+        if model is SideAnswer and self.side_waits:   # outside the lock: the turns go on meanwhile
+            self.side_saw_turn = self.turning.wait(timeout=10)
+        if model is TurnedDrawAnswer:
+            self.turning.set()
         with self.lock:
             self.calls.append({"text": text, "images": images, "names": kw.get("names"), "model": model})
             if model in self.fail:
@@ -90,6 +100,10 @@ class Claude:
             elif model is TurnedCorrectAnswer:
                 reply = TurnedCorrectAnswer.model_validate({"changed": "The stray bar is gone.", "against_photos": None,
                                                             "sheet": SHEET, "left": shoe(self.fixed_svg), "right": None})
+            elif model is SideAnswer:
+                reply = side_answer()
+            elif model is SideCheckAnswer:
+                reply = side_check_answer()
             elif model is TurnedCorrectCheckAnswer:
                 reply = TurnedCorrectCheckAnswer.model_validate({"good": True, "problems": [], "against_photos": None,
                                                                  "sheet": SHEET, "left": shoe(self.fixed_svg),
@@ -123,7 +137,7 @@ def clock():
 def in_turn(monkeypatch, request):
     """The candidates and the turns made one after another, so each stand-in answer goes to a known one (they run
     side by side in the app: `test_candidates_are_made_side_by_side`)."""
-    if request.node.name == "test_candidates_are_made_side_by_side":
+    if request.node.name in ("test_candidates_are_made_side_by_side", "test_a_drawing_never_has_more_than_two_calls_at_once"):
         return
 
     def one_by_one(n, job):
@@ -174,6 +188,55 @@ def test_two_candidates_the_judge_the_turn_and_the_fix():
     assert kept["straight"]["sheet"] == SHEET and drawn.stored(kept).view is drawn.TURNED
     kinds = [c.kind for c in made.calls]
     assert kinds.count("draw") == 2 and kinds.count("turn") == 2 and kinds.count("judge") == 3 and "correct" in kinds
+
+
+def test_the_side_is_drawn_beside_the_turns_and_kept_with_the_drawing():
+    claude = Claude(side_waits=True)
+    made = SD.draw(photos(), ("plan",), asker=claude, clock=clock(), style="oxford", measures=SIDE_MEASURES)
+    assert claude.side_saw_turn is True   # asked for while the turns were under way, not after them
+    side = claude.asked(SideAnswer)
+    assert len(side) == 1 and len(claude.asked(SideCheckAnswer)) == 1
+    assert side[0]["names"] == SD.photo_names(3) + SD.SIDE_STYLE_NAMES
+    # with the chosen straight-on drawing's sheet, and the measures from the trace
+    assert '"archetype": "cap-toe oxford"' in side[0]["text"] and "## Measured from your photo" in side[0]["text"]
+    assert made.side is not None and made.side.good and made.side.features == SIDE_FEATURES and made.side.measured
+    assert [c.kind for c in made.side.calls] == ["side", "side-check"]
+    # its calls are the drawing's too, in its totals; its rounds are its own
+    assert [c.kind for c in made.calls].count("side") == 1 and made.rounds == SD.CANDIDATES + SD.TURNS + 1
+    kept = made.to_json(["p1"], "2026-11-20T09:00:00+00:00")
+    assert kept["side"]["svg"] == made.side.svg and kept["side"]["features"] == SIDE_FEATURES
+    assert kept["input_tokens"] == 30_000 * len(made.calls)
+    assert kept["side"]["cost_usd"] == pytest.approx(sum(c.cost_usd for c in made.side.calls))
+
+
+def test_a_drawing_never_has_more_than_two_calls_at_once():
+    """The candidates, the turns and the side, each side by side as in the app: never more than two calls under way."""
+    claude = Claude()
+    lock, now, most = threading.Lock(), [0], [0]
+
+    def counted(text, images, routes, **kw):
+        with lock:
+            now[0] += 1
+            most[0] = max(most[0], now[0])
+        time.sleep(0.05)
+        with lock:
+            now[0] -= 1
+        return claude(text, images, routes, **kw)
+    made = SD.draw(photos(), ("plan",), asker=counted, clock=clock(), style="oxford")
+    assert made.side is not None and made.view == "turned"
+    assert most[0] == SD.CALLS_AT_ONCE == 2
+
+
+def test_a_side_that_fails_never_costs_the_front():
+    for error in (TaggingError("no usable answer"), RouteUnavailable("Claude Code is not signed in")):
+        claude = Claude(fail={SideAnswer: error})
+        made = SD.draw(photos(), ("plan",), asker=claude, clock=clock(), style="oxford")
+        assert made.side is None and made.view == "turned" and made.left == drawn.side(shoe(LACES))
+        assert made.to_json(["p1"], "2026-11-20T09:00:00+00:00")["side"] is None
+    # the side is not asked for when it is not wanted
+    claude = Claude()
+    made = SD.draw(photos(), ("plan",), asker=claude, clock=clock(), style="oxford", side=False)
+    assert made.side is None and claude.asked(SideAnswer) == []
 
 
 def test_a_drawing_with_a_measured_fault_is_not_chosen_while_another_has_none():

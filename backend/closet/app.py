@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from . import (
     APP_NAME,
     __version__,
+    access,
     apikey,
     auth,
     autostart,
@@ -60,6 +61,7 @@ from . import (
     styleprofile,
     stylequestions,
     tagjobs,
+    tailnet,
     tracejobs,
     trips,
     updates,
@@ -193,7 +195,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                    finder: sources.Finder | None = None, tracer: tracejobs.Tracer | None = None,
                    sorter: shoeviews.Sorter | None = None, drawer: shoedraw.Drawer | None = None,
                    drawing_corrector: shoedraw.Corrector | None = None, add_sorter=None,
-                   day_reader=None, stylist_ask: stylejobs.Asker | None = None,
+                   side_drawer: shoedraw.Sider | None = None, day_reader=None, stylist_ask: stylejobs.Asker | None = None,
                    stylist_look: stylejobs.Looker | None = None, chat_ask: stylechat.Asker | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
@@ -207,8 +209,9 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     standing in for Claude sort none unless they give one. `drawer` stands in for Claude drawing a shoe from its
     sorted photos (tests); tests standing in for Claude draw none unless they give one. `drawing_corrector` stands in
     for Claude changing a shoe's drawing from the owner's note (tests); tests standing in for Claude change none unless
-    they give one. `chat_ask` stands in for Claude in the style conversation (tests); tests standing in for Claude have
-    no conversation unless they give one.
+    they give one. `side_drawer` stands in for Claude drawing the side of a shoe drawn without one (tests); tests
+    standing in for Claude draw no sides by themselves unless they give one. `chat_ask` stands in for Claude in the
+    style conversation (tests); tests standing in for Claude have no conversation unless they give one.
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
@@ -358,13 +361,18 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     looker = stylist_look or (real_look if choose is real_stylist else None)
     draw_meter = spend.Meter(cfg, state, spend.PURPOSE_DRAW, spend.estimate_draw)
 
-    def real_drawer(photos: list, usable: tuple[str, ...], notes=(), style=None):
+    def real_drawer(photos: list, usable: tuple[str, ...], notes=(), style=None, measures=None):
         from .tagger import shoedrawing
         return shoedrawing.draw(photos, usable, client=api_client, meter=draw_meter, notes=notes, style=style,
-                                mask_of=model_mask)
+                                mask_of=model_mask, measures=measures)
 
-    def no_drawer(photos: list, usable: tuple[str, ...], notes=(), style=None):
+    def no_drawer(photos: list, usable: tuple[str, ...], notes=(), style=None, measures=None):
         raise RouteUnavailable("tests standing in for Claude draw no shoes unless they ask to")
+
+    def real_side_drawer(photos: list, usable: tuple[str, ...], sheet=None, notes=(), measures=None):
+        from .tagger import shoedrawing
+        return shoedrawing.draw_side(photos, usable, client=api_client, meter=draw_meter, sheet=sheet, notes=notes,
+                                     measures=measures, mask_of=model_mask)
 
     correct_meter = spend.Meter(cfg, state, spend.PURPOSE_CORRECT_DRAWING, spend.estimate_correct_drawing)
 
@@ -378,7 +386,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     draw_worker = shoedraw.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)),
                                   drawer or (no_drawer if tagger is not None else real_drawer),
                                   corrector=drawing_corrector or (no_drawing_corrector if tagger is not None
-                                                                  else real_drawing_corrector))
+                                                                  else real_drawing_corrector),
+                                  sider=side_drawer or (None if tagger is not None else real_side_drawer))
     views_worker.on_sorted = draw_worker.wake   # a shoe sorted for the first time is drawn next
 
     def described() -> None:   # patterns are measured, shoes traced and their photos sorted next
@@ -540,12 +549,24 @@ class SettingsPatch(BaseModel):
     rewear: object = None
     laundry: object = None
     stylist_on: bool | None = None
+    cloudflare_team: str | None = None   # the door through Cloudflare (closet/access.py); an empty value clears one
+    cloudflare_aud: str | None = None
+    cloudflare_host: str | None = None
     model_config = {"extra": "forbid"}
 
 
-def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
+CLOUDFLARE_FIELDS = (access.TEAM_KEY, access.AUD_KEY, access.HOST_KEY)
+NOT_FROM_CLOUDFLARE = "Change this on the computer Nines runs on, or from your phone through Tailscale."
+
+
+def create_app(sv: Services, window_key: str | None = None, *, access_keys: access.SigningKeys | None = None,
+               tailscale_check: tailnet.Check | None = None) -> FastAPI:
     """The web app. `window_key` is the key of Closet's own window (`gate.window_key`): the launcher always gives it,
-    and then a request by this computer's own name must carry it (closet/gate.py). Tests give none."""
+    and then a request by this computer's own name must carry it (closet/gate.py). Tests give none.
+
+    `access_keys` stands in for Cloudflare's published keys (tests); without it they are fetched from the team.
+    `tailscale_check` says whether a connection is the Tailscale service's; without it, the one for this computer
+    (`tailnet.checker()`: on Windows, asked of Windows; elsewhere none, and Tailscale is believed)."""
     app = FastAPI(title=APP_NAME, version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     cfg, state = sv.cfg, sv.state
 
@@ -563,8 +584,10 @@ def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
             raise HTTPException(401, refused)
 
     # the address, the window's key, the page's header, the login and the size limits, before any body is read
+    # who came in from outside (Tailscale, Cloudflare) is recorded there too, for the routes (`gate.came_in`)
     app.add_middleware(gate.Gate, cookie=auth.COOKIE, refusal=refusal, key=window_key,
-                       key_cookie=gate.key_cookie(cfg.port))
+                       key_cookie=gate.key_cookie(cfg.port), cloudflare=lambda: access.load(state), keys=access_keys,
+                       tailscale_check=tailscale_check or tailnet.checker())
 
     # laundry that keeps itself: the owner's counts and laundry day (Settings), read live
     wears.set_policy(lambda: wears.policy_from(state.get("laundry"), savedtrips.rewear(state)))
@@ -879,6 +902,20 @@ def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
             svg = drawn.preview_svg(made["left"], made.get("right"), view=drawn.VIEWS.get(made.get("view"), drawn.FRONT))
         except drawn.DrawingError:
             raise HTTPException(404, "This shoe's drawing can't be shown.")
+        return Response(svg, media_type="image/svg+xml", headers={
+            "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
+
+    @app.get("/api/items/{item_id}/drawn/side.svg", dependencies=protected)
+    def drawn_side(item_id: str, conn=Depends(conn_dep)):
+        from .drawing import drawnside
+
+        side = shoedraw.side_of(shoedraw.stored(items.get(conn, item_id)))
+        if side is None:
+            raise HTTPException(404, "This shoe has not been drawn from its side.")
+        try:
+            svg = drawnside.card_svg(side["svg"])
+        except drawnside.drawn.DrawingError:
+            raise HTTPException(404, "This shoe's side drawing can't be shown.") from None
         return Response(svg, media_type="image/svg+xml", headers={
             "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
 
@@ -1399,9 +1436,10 @@ def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
         except Exception:
             return None
 
-    def settings_payload(conn) -> dict:
+    def settings_payload(conn, request: Request) -> dict:
         """Everything Settings shows that is quick to read, so the page can be drawn at once. The slow lookups stay
-        apart: whether Claude Code is signed in (`/api/tagging`), the space used (`/api/storage`) and the weather."""
+        apart: whether Claude Code is signed in (`/api/tagging`), the space used (`/api/storage`) and the weather.
+        `came_in` is how the device asking came in (`gate.came_in`)."""
         return {
             "version": __version__, "profile": state.get("profile"), "data_dir": str(cfg.data_dir), "port": cfg.port,
             "backup_folder": state.get("backup_folder"), "last_backup": state.get("last_backup"),
@@ -1409,7 +1447,8 @@ def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
             "pending_tags": tagjobs.waiting_count(conn), "tagging_api_enabled": spend.api_allowed(state),
             "tagging_api_cap_usd": spend.cap(state), "tagging_api_off": state.get("tagging_api_off"),
             "tagging_route_order": tagjobs.route_order(state), "api_key": dict(remember("api_key", apikey.info)),
-            "phone": sv.phone_info(), "autostart": remember("autostart", autostart_now), "heic_supported": images.HEIC,
+            "phone": sv.phone_info(), "came_in": gate.came_in(request.scope), "cloudflare": access.payload(state),
+            "autostart": remember("autostart", autostart_now), "heic_supported": images.HEIC,
             "place": state.get("place"), "home_place": HOME_PLACE,
             "life": life.example()[0] if state.get("profile") == "demo" else state.get("life"),
             "life_prompt_dismissed": True if state.get("profile") == "demo" else state.get("life_prompt_dismissed"),
@@ -1598,12 +1637,22 @@ def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
             raise HTTPException(422, str(e))
 
     @app.get("/api/settings", dependencies=protected)
-    def get_settings(conn=Depends(conn_dep)):
-        return settings_payload(conn)
+    def get_settings(request: Request, conn=Depends(conn_dep)):
+        return settings_payload(conn, request)
 
     @app.put("/api/settings", dependencies=protected)
-    def put_settings(body: SettingsPatch, conn=Depends(conn_dep)):
+    def put_settings(body: SettingsPatch, request: Request, conn=Depends(conn_dep)):
         sent = body.model_fields_set
+        door = {k: getattr(body, k) for k in CLOUDFLARE_FIELDS if k in sent}
+        if door:
+            # a sign-in through Cloudflare cannot move or open the door it came through (DECISIONS, "The doors from
+            # outside"); checked before anything else in the request is saved
+            if gate.came_in(request.scope)["via"] == "cloudflare":
+                raise HTTPException(403, NOT_FROM_CLOUDFLARE)
+            try:
+                door = access.changes(door)
+            except ValueError as e:
+                raise HTTPException(422, str(e))
         if "life" in sent or "life_prompt_dismissed" in sent:
             if state.get("profile") == "demo":
                 raise HTTPException(422, "The demo keeps its example answers. Switch to your own closet to change how you live.")
@@ -1681,10 +1730,13 @@ def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
                 raise HTTPException(422, "Save an API key before choosing to use it first.")
             state.update(tagging_route_order=order)
             sv.wake()
-        return settings_payload(conn)
+        if door:
+            state.update(**door)
+            log.info("the Cloudflare door was changed; it is %s", "on" if access.load(state).configured else "off")
+        return settings_payload(conn, request)
 
     @app.put("/api/settings/api-key", dependencies=protected)
-    def put_api_key(body: ApiKeyBody, conn=Depends(conn_dep)):
+    def put_api_key(body: ApiKeyBody, request: Request, conn=Depends(conn_dep)):
         """Check the key with Anthropic (free), then keep it in the computer's keychain. The key is never
         sent back, logged or written anywhere else."""
         try:
@@ -1705,12 +1757,12 @@ def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
         if (state.get("tagging_api_off") or {}).get("reason") == "key":
             state.update(tagging_api_off=None)   # that note was about the key this one replaces
         sv.wake()
-        out = settings_payload(conn)
+        out = settings_payload(conn, request)
         out["api_key"]["checked"] = verdict is None
         return out
 
     @app.delete("/api/settings/api-key", dependencies=protected)
-    def delete_api_key(conn=Depends(conn_dep)):
+    def delete_api_key(request: Request, conn=Depends(conn_dep)):
         try:
             apikey.store().delete()
         except apikey.KeychainError as e:
@@ -1720,7 +1772,7 @@ def create_app(sv: Services, window_key: str | None = None) -> FastAPI:
         log.info("the API key was removed from the keychain")
         if tagger_routes.ORDERS[tagjobs.route_order(state)][0] == "api" and not apikey.get():
             state.update(tagging_route_order="auto")   # a choice that needs a key goes back to the plan first
-        return settings_payload(conn)
+        return settings_payload(conn, request)
 
     @app.get("/api/storage", dependencies=protected)
     async def get_storage():

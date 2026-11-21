@@ -231,6 +231,12 @@ export interface ShoeDrawn {
   has_previous: boolean;
   /** That kept drawing is the newer one (the owner went back): the same button goes forward again. */
   previous_newer: boolean;
+  /** The shoe drawn by Claude from its side with this drawing, on its card, and what makes the shoe itself from the
+   * side; null when it has none (yet). */
+  side: { url: string; features: string[] } | null;
+  /** The item's own drawing (the closet tile, the item page's drawing) is that side: the trace's colours and marks do
+   * not show. False when the owner chose the plain drawing. */
+  side_shown: boolean;
 }
 
 /** A shoe's photos sorted into views by Claude, so the owner never has to say which is which. */
@@ -359,6 +365,10 @@ export interface Settings {
   api_key: ApiKeyInfo;
   /** How the phone reaches Closet, looked up in the background; null until the first lookup is in. */
   phone: PhoneInfo | null;
+  /** How this device came in. */
+  came_in: CameIn;
+  /** The door through Cloudflare, changed on the computer (or through Tailscale), never through Cloudflare itself. */
+  cloudflare: CloudflareDoor;
   autostart: boolean | null;
   heic_supported: boolean;
   /** Where the owner is, for the weather: New York (`home_place`) until another place is chosen. */
@@ -388,6 +398,22 @@ export interface Settings {
 export interface PhoneInfo {
   tailscale_installed: boolean; running: boolean; address: string | null; command: string;
   stop_command: string | null; others_share: boolean;
+}
+
+/** How the device asking came in (`gate.came_in`): on this computer, through Tailscale, or through Cloudflare's sign-in.
+ * `login` is who Tailscale or Cloudflare said it is; null when no one was named. */
+export interface CameIn {
+  via: 'computer' | 'tailscale' | 'cloudflare';
+  login: string | null;
+  name: string | null;
+}
+
+/** The door through Cloudflare (`access.py`): off (`on` false) until all three are set. */
+export interface CloudflareDoor {
+  team: string | null;
+  aud: string | null;
+  host: string | null;
+  on: boolean;
 }
 
 /** Laundry that keeps itself. `day`: Monday 0 to Sunday 6, or null for no set laundry day. */

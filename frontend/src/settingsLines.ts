@@ -151,7 +151,9 @@ export function mainGroups(phoneShows: 'connect' | 'add-to-home-screen' | 'nothi
 
 /**
  * What only makes sense on the computer Closet runs on, and so is not offered on the phone: Quit, start at login,
- * a typed folder path, the model's files to put in place by hand, and the data folder.
+ * a typed folder path, the model's files to put in place by hand, the data folder, and the door through Cloudflare
+ * (its connector is installed on the computer, so that is where it is set up; the server refuses a change to it from a
+ * device that came in through Cloudflare whatever the page shows).
  */
 export interface ComputerOnly {
   quit: boolean;
@@ -159,11 +161,12 @@ export interface ComputerOnly {
   backupFolder: boolean;
   modelFiles: boolean;
   dataFolder: boolean;
+  cloudflare: boolean;
 }
 
 export function computerOnly(device: Device): ComputerOnly {
   const on = device === 'computer';
-  return { quit: on, autostart: on, backupFolder: on, modelFiles: on, dataFolder: on };
+  return { quit: on, autostart: on, backupFolder: on, modelFiles: on, dataFolder: on, cloudflare: on };
 }
 
 /** "Closet uses 2.7 MB for 49 items · 62 GB free", from the storage lookup. */

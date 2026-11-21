@@ -70,7 +70,7 @@ DEMO_ITEMS = 49
 PASSPHRASE = "smoke-test-passphrase"
 MIGRATIONS = Path(__file__).resolve().parent.parent / "backend" / "closet" / "migrations"
 BASE_CHECKS = ("webp", "heic", "avif", "onnxruntime", "database", "web_page", "drawing", "model_state", "tagger",
-               "updater", "window")
+               "updater", "window", "cloudflare")
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     """A redirect is answered as it is, so its cookie can be read."""

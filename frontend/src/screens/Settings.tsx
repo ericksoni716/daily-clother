@@ -2,7 +2,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
 import { api } from '../api';
 import { PhoneAccess } from '../components/PhoneAccess';
-import { ADD_TO_HOME_SCREEN, deviceOf, fromHomeScreen, phoneAccessShows } from '../here';
+import { ADD_TO_HOME_SCREEN, cameInLine, deviceOf, fromHomeScreen, phoneAccessShows } from '../here';
+import { CloudflareDoor } from '../components/CloudflareDoor';
 import { WhereYouAre } from '../components/WhereYouAre';
 import { LifeQuestions } from '../components/LifeQuestions';
 import { LineWords, StyleLines } from '../components/StyleLines';
@@ -19,7 +20,7 @@ import { useApp } from '../store';
 import { applyTheme, loadTheme, saveTheme, THEME_CHOICES, type Theme } from '../theme';
 import { moreLines, profileLines, shownLines, styleChanged, styleCount } from '../style';
 import { MAX_REWEAR, REWEAR_KINDS, rewearWords } from '../trips';
-import type { LaundrySetting, Profile, RewearKind, Settings, StyleProfile, TaggingSpend } from '../types';
+import type { CameIn, LaundrySetting, Profile, RewearKind, Settings, StyleProfile, TaggingSpend } from '../types';
 
 export type Toast = (m: string, k?: 'ok' | 'error') => void;
 
@@ -37,10 +38,13 @@ function ToAdvanced({ children, label }: { children: ReactNode; label?: string }
 }
 
 /** Light, dark or the device's own setting; kept on this device only, so it works offline too. */
-function LookSection() {
+/** This device: its look, and on a device that came in from outside, how it came in (Tailscale or Cloudflare). */
+function LookSection({ cameIn }: { cameIn?: CameIn }) {
   const [theme, setTheme] = useState<Theme>(loadTheme);
+  const line = cameInLine(cameIn);
   return (
     <UiSection id="s-look" title="This device" className="settings-section">
+      {line && <p data-testid="came-in">{line}</p>}
       <SegmentedControl label="Look" options={THEME_CHOICES} value={theme} small className="settings-look"
         onChange={(t) => { setTheme(t); saveTheme(t); applyTheme(t); }} />
     </UiSection>
@@ -366,9 +370,10 @@ export function SettingsScreen({ version }: { version: string }) {
     phone: (
       <Section key="phone" title="Phone" id="s-phone">
         {phoneShows === 'connect' ? <PhoneAccess phone={settings.phone} /> : <p>{ADD_TO_HOME_SCREEN}</p>}
+        {computerOnly(device).cloudflare && settings.cloudflare && <CloudflareDoor door={settings.cloudflare} offline={offline} toast={toast} />}
       </Section>
     ),
-    device: <LookSection key="device" />,
+    device: <LookSection key="device" cameIn={settings.came_in} />,
     data: <DataSection key="data" settings={settings} profile={profile} device={device} />,
     leave: (
       <div key="leave" className="settings-foot">

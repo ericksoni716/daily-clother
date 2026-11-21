@@ -424,8 +424,15 @@ each against your photos; it then compares the two with your photos and keeps
 the closer. Nines turns that drawing with its own 3D shoe, so every
 panel and stitch turns the right way, and Claude draws the turned shoe twice
 from it, keeps the better one and fixes what still differs from your photos.
-This takes four to ten minutes and happens once, by itself. **Drawn for the
-outfit figure** on the shoe's page shows the drawing on two legs, how long it
+At the same time Claude draws the shoe from its side, in the style of your other
+drawings, with its own panels, marks and sole (and, when the side photo traced
+well, the proportions Nines measured from it); that drawing then becomes the
+shoe's picture in the closet in place of the traced one, and **Fix the details**
+offers only **Use the plain drawing** for it. A shoe Claude drew before gets its
+side by itself, a few calls each, when nothing else is being drawn.
+This takes four to ten minutes and happens once, by itself. **Drawn by Claude
+from its photos** on the shoe's page shows the side, with a line on what makes
+the shoe itself, and the drawing on two legs, how long it
 took, how often it was checked, and what it cost (on your Claude plan nothing
 is billed; the page says what it would cost on the API key, about $2 a shoe).
 The outfit figure (**As worn** on Today and on a trip's days) then wears that
@@ -566,8 +573,9 @@ Credentials, as `Closet/anthropic-api-key`), not in that folder.
 
 ## Use it from your iPhone
 
-The phone reaches your computer privately over Tailscale; the app is never on
-the public internet.
+The phone reaches your computer privately over Tailscale, and this way Nines is
+not on the public internet. (The one way it can be is the Cloudflare address in
+the next section, and only if you set that up yourself.)
 
 1. On the computer, make sure Tailscale is running and signed in. In the
    Tailscale admin console, under **DNS**, turn on **MagicDNS** and **HTTPS
@@ -610,6 +618,62 @@ also stops every other app's share on this computer.
 The computer must be on and Nines running for the phone to add or change
 anything. When it is not, the phone still shows your closet from its last
 visit, read-only.
+
+Settings on the phone says, under **This device**, how it came in: for
+example "This device came in through Tailscale as you@example.com". If it
+says Tailscale did not say who is using it, Nines still asks for your
+passphrase as before; tell whoever looks after Nines, since a later version
+will let a phone in only when Tailscale says who it is.
+
+## Use it without Tailscale, through Cloudflare
+
+Tailscale is the private way to reach Nines, and it is enough for an iPhone.
+For a browser that cannot run Tailscale (a work computer, say), Nines can also
+have an address of its own on a domain you own, through Cloudflare. Know what
+this means before you set it up: Nines then has an address on the public
+internet. Anyone can find it, and Cloudflare asks whoever opens it for a code
+sent to your email, letting only your email through; Nines then checks
+Cloudflare's signed sign-in on every request and still asks for your passphrase.
+Cloudflare carries everything between that browser and your computer, so
+Cloudflare can read what passes through, your photos included. Nothing changes
+for Tailscale, which stays the private way in. Until you do the steps below,
+Nines has no such address.
+
+You need a free Cloudflare account with a domain you own on it (bought there or
+moved there; the domain is the only cost). The names below are examples: use
+your own.
+
+1. **A tunnel to this computer.** In Cloudflare, open **Zero Trust**, then
+   **Networks → Tunnels**, and create a tunnel. Cloudflare shows a command that
+   installs its connector (`cloudflared`) on this computer; run it here, on the
+   computer Nines runs on. On the tunnel's public hostnames (or routes), add
+   one: a name on your domain, such as `closet.example.com`, pointing at
+   `http://127.0.0.1:8765` (the address Nines has on this computer; use its
+   port if Settings shows another).
+2. **A sign-in in front of it.** In Zero Trust, open **Access →
+   Applications** and add a self-hosted application for that same name,
+   `closet.example.com`. Give it a policy that allows only your own email
+   address, with the one-time code sign-in. In the application's overview, copy
+   its **Application Audience (AUD) tag**, and note your team's domain, which
+   looks like `yourteam.cloudflareaccess.com` (in Zero Trust's settings).
+3. **Tell Nines.** On this computer, open Nines' **Settings → Phone**, open
+   **Without Tailscale, through Cloudflare**, fill in your team's domain, the
+   audience tag and the address (`closet.example.com`), and press **Save**. It
+   now says **Also through Cloudflare, at closet.example.com**. Nines answers
+   there only once all three are filled in.
+4. **Try it.** In a browser that is not on Tailscale, open
+   `https://closet.example.com`. Cloudflare asks for your email and sends a
+   code; after the code, Nines asks for your passphrase. Under **Settings →
+   This device** it says it came in through Cloudflare, signed in as your
+   email.
+
+These three values can be changed on this computer or from your phone through
+Tailscale, never from a browser that came in through Cloudflare. To turn the
+address off, empty any of the three in Settings and press Save, or delete the
+tunnel's public hostname in Cloudflare. If Nines shows "Sign in through
+Cloudflare first" at that address, the Access application does not cover it:
+check step 2. When Cloudflare's sign-in runs out, the page loads again by
+itself so Cloudflare can ask for a new code.
 
 ## Installing Claude Code
 

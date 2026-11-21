@@ -1,4 +1,4 @@
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, login, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page, context }) => {
   await context.setOffline(false);
@@ -59,7 +59,7 @@ test('wear log and laundry in the demo closet: wear, undo, laundry and back', as
 test('offline: the wear and laundry buttons are disabled and say why', async ({ page, context }) => {
   await login(page);
   await useProfile(page, 'demo');
-  await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 15_000 });
+  await serviceWorkerInCharge(page);
   await page.reload();
   await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
   const panel = page.locator('.detail-panel');

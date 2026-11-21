@@ -76,13 +76,16 @@ async function look(page: Page, name: string) {
   await page.screenshot({ path: resolve(REVIEW, `${name}-full.png`), fullPage: true });
 }
 
-// Its own backend, with the stand-in for Claude (tests/e2e_backend.py): it chooses after 1.5 seconds, and answers a
-// message after 1.5 seconds too (6.5 when it says "slow"), from words in the message: "why" is a question answered in
-// words; "fail" cannot be reached; anything else turns the outfits around, and "never", "always" and "fits" offer
-// something to keep. The tests run in order on the one closet, so the day's conversation grows from one to the next.
-test.describe('talking to Claude about the outfits', () => {
-  let backend: Backend;
+// Each part below has its own backend, with the stand-in for Claude (tests/e2e_backend.py): it chooses after 1.5
+// seconds, and answers a message after 1.5 seconds too (6.5 when it says "slow"), from words in the message: "why" is
+// a question answered in words; "fail" cannot be reached; anything else turns the outfits around, and "never",
+// "always" and "fits" offer something to keep. The tests of a part run in order on its one closet, so the day's
+// conversation grows from one to the next. Two closets rather than one because Claude is asked at most
+// `stylejobs.MAX_PER_DAY` (20) times a day: all these tests on one closet asked 17 to 19 times, and the last message
+// was refused when the computer was busy enough for Today to be asked once or twice more.
+let backend: Backend;
 
+function ownBackend() {
   test.beforeAll(async () => {
     backend = await startBackend({ fakes: true, seed: 'demo', stylist: true });
   });
@@ -97,6 +100,10 @@ test.describe('talking to Claude about the outfits', () => {
     await page.goto('about:blank').catch(() => undefined);
     await page.unrouteAll({ behavior: 'ignoreErrors' });
   });
+}
+
+test.describe('talking to Claude about the outfits', () => {
+  ownBackend();
 
   test('a message is shown, Claude answers it, and the first outfit changes', async ({ page }) => {
     test.setTimeout(120_000);
@@ -268,6 +275,52 @@ test.describe('talking to Claude about the outfits', () => {
     await expect(thread(page).getByTestId('talk-keep')).toHaveCount(0);
   });
 
+  test('a long unbroken message stays on a phone screen, and the conversation passes the checks on a phone and a computer, light and dark', async ({ page }) => {
+    test.setTimeout(150_000);
+    await open(page, backend.url);
+    const long = 'Z'.repeat(400);
+    const count = await turns(page).count();
+    const sent = page.waitForResponse((r) => said(r.request()));
+    await box(page).fill(long);
+    await box(page).press('Enter');
+    const response = await sent;
+    expect(response.status(), await response.text()).toBe(200);
+    await expect(turns(page)).toHaveCount(count + 1);
+    await expect(turns(page).last()).toContainText(long);
+    await answered(page, REPLY);
+    expect(await sideways(page)).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
+    await look(page, 'phone-light-long');
+
+    await page.emulateMedia({ colorScheme: 'dark' }); // Closet follows the device until a theme is chosen
+    expect(await axeViolations(page)).toEqual([]);
+    expect(await sideways(page)).toEqual([]);
+    await look(page, 'phone-dark');
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    expect(await axeViolations(page)).toEqual([]);
+    await look(page, 'computer-dark');
+    await page.emulateMedia({ colorScheme: 'light' });
+    expect(await axeViolations(page)).toEqual([]);
+    await page.getByTestId('talk').evaluate((el) => el.scrollIntoView({ block: 'start' }));
+    await page.screenshot({ path: test.info().outputPath('today-conversation-computer.png') });
+    await look(page, 'computer-light');
+
+    // on a computer the carousel still shows one outfit at a time: the one in front of the owner is sent
+    await page.getByRole('button', { name: 'Outfit 3', exact: true }).click();
+    await settled(page, 2);
+    await box(page).fill('Why the third?');
+    const request = page.waitForRequest(said);
+    await send(page).click();
+    expect((await request).postDataJSON()).toMatchObject({ looking_at: 2 });
+    await answered(page, 'Because the stand-in chose by number.');
+  });
+});
+
+// The box while Claude answers, and Today asked again meanwhile: on a closet of their own (see above).
+test.describe('talking to Claude about the outfits, while Claude is busy', () => {
+  ownBackend();
+
   test('the box waits while Claude answers, and a message refused by the server keeps its text and says why', async ({ page }) => {
     test.setTimeout(120_000);
     await open(page, backend.url);
@@ -366,46 +419,5 @@ test.describe('talking to Claude about the outfits', () => {
     await answered(page, REPLY);
     await expect(box(page)).toHaveValue('');
     expect((await page.request.post(backend.url + `/api/items/${spare.id}/laundry`, { data: { state: 'clean' } })).status()).toBe(200);
-  });
-
-  test('a long unbroken message stays on a phone screen, and the conversation passes the checks on a phone and a computer, light and dark', async ({ page }) => {
-    test.setTimeout(150_000);
-    await open(page, backend.url);
-    const long = 'Z'.repeat(400);
-    const count = await turns(page).count();
-    const sent = page.waitForResponse((r) => said(r.request()));
-    await box(page).fill(long);
-    await box(page).press('Enter');
-    const response = await sent;
-    expect(response.status(), await response.text()).toBe(200);
-    await expect(turns(page)).toHaveCount(count + 1);
-    await expect(turns(page).last()).toContainText(long);
-    await answered(page, REPLY);
-    expect(await sideways(page)).toEqual([]);
-    expect(await axeViolations(page)).toEqual([]);
-    await look(page, 'phone-light-long');
-
-    await page.emulateMedia({ colorScheme: 'dark' }); // Closet follows the device until a theme is chosen
-    expect(await axeViolations(page)).toEqual([]);
-    expect(await sideways(page)).toEqual([]);
-    await look(page, 'phone-dark');
-
-    await page.setViewportSize({ width: 1440, height: 900 });
-    expect(await axeViolations(page)).toEqual([]);
-    await look(page, 'computer-dark');
-    await page.emulateMedia({ colorScheme: 'light' });
-    expect(await axeViolations(page)).toEqual([]);
-    await page.getByTestId('talk').evaluate((el) => el.scrollIntoView({ block: 'start' }));
-    await page.screenshot({ path: test.info().outputPath('today-conversation-computer.png') });
-    await look(page, 'computer-light');
-
-    // on a computer the carousel still shows one outfit at a time: the one in front of the owner is sent
-    await page.getByRole('button', { name: 'Outfit 3', exact: true }).click();
-    await settled(page, 2);
-    await box(page).fill('Why the third?');
-    const request = page.waitForRequest(said);
-    await send(page).click();
-    expect((await request).postDataJSON()).toMatchObject({ looking_at: 2 });
-    await answered(page, 'Because the stand-in chose by number.');
   });
 });

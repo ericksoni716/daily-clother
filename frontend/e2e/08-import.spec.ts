@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import type { BrowserContext, Page } from '@playwright/test';
 import { axeViolations, sideways } from './a11y';
-import { expect, login, PASS, PHOTOS, test, useProfile } from './fixtures';
+import { expect, login, PASS, PHOTOS, serviceWorkerInCharge, test, useProfile } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 const PHONE = { width: 390, height: 844 };
@@ -213,7 +213,7 @@ test.describe('the import list shows what each photo became', () => {
       }
 
       // Closet out of reach: the page opened again shows the rows as it last saw them
-      await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 15_000 });
+      await serviceWorkerInCharge(page);
       await page.reload();   // once while the service worker is in charge, so the closet's list is saved
       await expect(rows.filter({ hasText: 'grey-sweater.png' }).getByTestId('queue-title')).toHaveText('Navy polo');
       await page.waitForLoadState('networkidle');

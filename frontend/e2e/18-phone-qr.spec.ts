@@ -1,7 +1,8 @@
 import jsQR from 'jsqr';
 import type { APIRequestContext, Page } from '@playwright/test';
 import { axeViolations } from './a11y';
-import { expect, login, PASS, test } from './fixtures';
+import { expect, login, PASS, signIn, test } from './fixtures';
+import type { Backend } from './server';
 
 /** Phone access: a QR code of the address that reaches Closet, only when there is one. Tailscale is faked. */
 
@@ -119,19 +120,16 @@ test('the door through Cloudflare: folded under Phone on the computer, filled in
 test.describe('opened on the phone', () => {
   test.use({
     viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true,
-    // eslint-disable-next-line no-empty-pattern -- Playwright fixtures take their dependencies as a pattern
-    baseURL: async ({}, use) => {
-      await use(process.env.E2E_BASE_URL!.replace('127.0.0.1', PHONE_HOST));
+    baseURL: async ({ backend }, use) => {
+      await use(backend.url.replace('127.0.0.1', PHONE_HOST));
     },
   });
 
   /** Logs in through the page by the phone's name. The test runner itself cannot resolve that name, so the settings
    * the page is shown are fetched from 127.0.0.1 and given the share's address. */
-  async function openSettings(page: Page, request: APIRequestContext, cameIn?: object) {
-    const local = process.env.E2E_BASE_URL!;
-    const s = await (await request.get(`${local}/api/session`)).json();
-    if (s.setup_required) expect((await request.post(`${local}/api/setup`, { data: { passphrase: PASS } })).status()).toBe(204);
-    else expect((await request.post(`${local}/api/login`, { data: { passphrase: PASS } })).status()).toBe(204);
+  async function openSettings(page: Page, request: APIRequestContext, backend: Backend, cameIn?: object) {
+    const local = backend.url;
+    await signIn(request, local);
     const original = await (await request.get(`${local}/api/settings`)).json();
     await page.route('**/api/settings', (route) => route.request().method() === 'GET'
       ? route.fulfill({ json: { ...original, ...(cameIn ? { came_in: cameIn } : {}), phone: { tailscale_installed: true, running: true, address: ADDRESS,
@@ -150,8 +148,8 @@ test.describe('opened on the phone', () => {
     await expect(page.getByRole('region', { name: 'Updates', exact: true })).toBeVisible();
   }
 
-  test('in Safari: no code, address or commands, only how to add Nines to the Home Screen', async ({ page, request }) => {
-    await openSettings(page, request);
+  test('in Safari: no code, address or commands, only how to add Nines to the Home Screen', async ({ page, request, backend }) => {
+    await openSettings(page, request, backend);
     const section = page.getByRole('region', { name: 'Phone', exact: true });
     await expect(section.getByText('tap Share in Safari and then Add to Home Screen')).toBeVisible();
     await expect(section.locator('.phone-qr')).toHaveCount(0);
@@ -163,14 +161,14 @@ test.describe('opened on the phone', () => {
     await expect(page.getByTestId('cloudflare-door')).toHaveCount(0);   // set up on the computer, where its connector is
   });
 
-  test('This device says how the phone came in: through Tailscale, and as whom', async ({ page, request }) => {
-    await openSettings(page, request, { via: 'tailscale', login: 'owner@example.com', name: 'Sam Owner' });
+  test('This device says how the phone came in: through Tailscale, and as whom', async ({ page, request, backend }) => {
+    await openSettings(page, request, backend, { via: 'tailscale', login: 'owner@example.com', name: 'Sam Owner' });
     const device = page.getByRole('region', { name: 'This device', exact: true });
     await expect(device.getByTestId('came-in')).toHaveText('This device came in through Tailscale as Sam Owner (owner@example.com).');
   });
 
-  test('what only makes sense on the computer is not offered: Quit, start at login, folders and files', async ({ page, request }) => {
-    await openSettings(page, request);
+  test('what only makes sense on the computer is not offered: Quit, start at login, folders and files', async ({ page, request, backend }) => {
+    await openSettings(page, request, backend);
     await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Quit Nines' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Choose a backup folder' })).toHaveCount(0);
@@ -185,9 +183,9 @@ test.describe('opened on the phone', () => {
     await expect(page.getByRole('button', { name: 'Quit Nines' })).toHaveCount(0);
   });
 
-  test('from the Home Screen: no Phone group at all', async ({ page, request }) => {
+  test('from the Home Screen: no Phone group at all', async ({ page, request, backend }) => {
     await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
-    await openSettings(page, request);
+    await openSettings(page, request, backend);
     await expect(page.getByRole('heading', { name: 'Phone', exact: true })).toHaveCount(0);
     await expect(page.locator('.phone-qr')).toHaveCount(0);
     await expect(page.getByText('Add to Home Screen')).toHaveCount(0);

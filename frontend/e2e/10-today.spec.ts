@@ -1,5 +1,5 @@
 import type { Page, Route } from '@playwright/test';
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, login, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 const BROOKLYN = 'Brooklyn, New York, United States';
 
@@ -226,8 +226,8 @@ test('today refreshes suggestions when a piece is put in the laundry', async ({ 
 });
 
 
-test('today reports an offline error even when the item list cannot load', async ({ browser }) => {
-  const context = await browser.newContext({ baseURL: process.env.E2E_BASE_URL, serviceWorkers: 'block' });
+test('today reports an offline error even when the item list cannot load', async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ baseURL, serviceWorkers: 'block' });
   const page = await context.newPage();
   try {
     await login(page);
@@ -372,7 +372,7 @@ test('today: "Use my location" asks the browser only on a tap and saves the plac
 test('today offline: the outfits fetched earlier are shown as saved, and the buttons say why they are off', async ({ page, context }) => {
   await fakeWeather(page);
   await openToday(page);
-  await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 15_000 });
+  await serviceWorkerInCharge(page);
   await page.reload();
   await expect(current(page).getByTestId('piece').first()).toBeVisible();
   const names = await pieceNames(page);

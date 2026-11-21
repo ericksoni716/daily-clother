@@ -1,13 +1,19 @@
 import type { Page } from '@playwright/test';
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, login, serviceWorkerInCharge, signIn, test, useProfile } from './fixtures';
 
-/** Takes the wishes a test added off the list again, so the demo closet starts the same in every test. */
+/** Takes every wish off the demo closet's list, its own two examples too, so each test starts from an empty list. */
 async function undoWishes(page: Page) {
   const r = await page.request.post('/api/profile', { data: { profile: 'demo' } });
   if (!r.ok()) return;
   const { wishes } = await (await page.request.get('/api/wishlist')).json();
   for (const w of wishes) await page.request.delete(`/api/wishlist/${w.id}`);
 }
+
+test.beforeEach(async ({ page }) => {
+  await signIn(page.request);
+  await undoWishes(page);
+  await page.request.post('/api/profile', { data: { profile: 'main' } });
+});
 
 test.afterEach(async ({ page, context }) => {
   await context.setOffline(false);
@@ -182,7 +188,7 @@ test('would this work? on a phone: a full page, a fourth pair of jeans you have 
 
 test('would this work? is off while offline, with the same words as the other buttons', async ({ page, context }) => {
   await openMissing(page);
-  await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 15_000 });
+  await serviceWorkerInCharge(page);
   await page.waitForLoadState('networkidle');
   await context.setOffline(true);
   await page.reload();

@@ -1,12 +1,13 @@
 import { useId, useState } from 'react';
 import { api, ApiError } from '../api';
 import {
-  backLabel, canCorrect, changedLine, DRAWN_DEMO, drawingShoe, drawnLine, drawnOffer, drawQuestion, NOTE_MAX, sideLine,
+  backLabel, canCorrect, changedLine, DRAWN_DEMO, drawingShoe, drawnLine, drawnOffer, drawQuestion, NOTE_MAX,
+  noteChoices, sentAs, sideChangedLine, sideLine, sideMadeLine, type NoteAbout,
 } from '../shoe';
 import { partWords } from '../progress';
 import { useItemProgress } from '../queries';
 import type { Item } from '../types';
-import { confirmKeys, useConfirmFocus } from './ui';
+import { confirmKeys, SegmentedControl, useConfirmFocus } from './ui';
 import { WarnIcon } from './Icons';
 import './Shoe.css';
 
@@ -24,11 +25,13 @@ interface Props {
  * it took, how often it was checked against the photos and what it cost; what is happening while it is drawn; and
  * "Draw again", which asks first (it replaces the drawing once the new one is done, and costs something). Once it has a
  * drawing, a one-line box says what is wrong with it: Claude changes only that, checks the change against the photos
- * and says when the note goes against them; the drawing before is kept, one tap away. */
+ * and says when the note goes against them; the drawing before is kept, one tap away. Once the shoe has a side
+ * drawing, the owner says which drawing the note is about, the front or the side (the front unless they choose). */
 export function ShoeDrawn({ item, disabled, demo, onSaved, onError }: Props) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const [chosen, setChosen] = useState<NoteAbout>('front');
   const back = useConfirmFocus(confirming);
   const titleId = useId();
   const askId = useId();
@@ -40,6 +43,10 @@ export function ShoeDrawn({ item, disabled, demo, onSaved, onError }: Props) {
   const line = drawnLine(drawn);
   const sideSaid = sideLine(drawn);
   const changed = changedLine(drawn);
+  const sideChanged = sideChangedLine(drawn);
+  const sideMade = sideMadeLine(drawn);
+  const choices = noteChoices(drawn);
+  const about: NoteAbout = choices.length ? chosen : 'front';   // with no side, a note is about the front
   const swapLabel = backLabel(drawn);
   const run = async (call: () => Promise<Item>, saidAs: string, after?: () => void) => {
     setBusy(true);
@@ -53,8 +60,7 @@ export function ShoeDrawn({ item, disabled, demo, onSaved, onError }: Props) {
     }
   };
   const draw = (saidAs: string) => run(() => api.drawShoe(item.id), saidAs, () => setConfirming(false));
-  const send = () => run(() => api.correctDrawing(item.id, note.trim()), 'Changing the drawing as you asked',
-    () => setNote(''));
+  const send = () => run(() => api.correctDrawing(item.id, note.trim(), about), sentAs(about), () => setNote(''));
   const swap = () => run(() => api.drawingBack(item.id),
     drawn.previous_newer ? 'Back to the newer drawing' : 'Back to the drawing before');
   const off = disabled || busy;
@@ -76,6 +82,11 @@ export function ShoeDrawn({ item, disabled, demo, onSaved, onError }: Props) {
         </div>
       )}
       {sideSaid && <p className="muted small" data-testid="shoe-drawn-side">{sideSaid}</p>}
+      {sideChanged && <p className="small" data-testid="shoe-drawn-side-changed">{sideChanged}</p>}
+      {sideChanged && drawn.side_against_photos && (
+        <p className="notice shoe-drawn-against" data-testid="shoe-drawn-side-against">{drawn.side_against_photos}</p>
+      )}
+      {sideMade && <p className="muted small" data-testid="shoe-drawn-side-line">{sideMade}</p>}
       {line && <p className="muted small" data-testid="shoe-drawn-line">{line}</p>}
       {changed && <p className="small" data-testid="shoe-drawn-changed">{changed}</p>}
       {changed && drawn.against_photos && (
@@ -128,14 +139,22 @@ export function ShoeDrawn({ item, disabled, demo, onSaved, onError }: Props) {
           if (note.trim()) void send();
         }}>
           <label htmlFor={noteId} className="chip-group-title">What's wrong with the drawing?</label>
+          {choices.length > 0 && (
+            <SegmentedControl label="Which drawing the note is about" small className="shoe-drawn-about"
+              options={choices} value={about} disabled={off} onChange={setChosen} />
+          )}
           <div className="shoe-drawn-say-row">
             <input id={noteId} type="text" maxLength={NOTE_MAX} value={note} disabled={off}
-              placeholder="e.g. the elastic sides should be wider" onChange={(e) => setNote(e.target.value)} />
+              placeholder={about === 'side' ? 'e.g. the heel should be taller' : 'e.g. the elastic sides should be wider'}
+              onChange={(e) => setNote(e.target.value)} />
             <button type="submit" className="btn btn-small" disabled={off || !note.trim()}>Send</button>
           </div>
           <p className="muted small">
-            One thing to change. Claude changes only that and checks it against the photos; this drawing is kept, so
-            you can go back to it.
+            {about === 'side'
+              ? 'One thing to change in the side drawing. Claude changes only that and checks it against the photos; ' +
+                'the front stays as it is, and this drawing is kept, so you can go back to it.'
+              : 'One thing to change. Claude changes only that and checks it against the photos; this drawing is ' +
+                'kept, so you can go back to it.'}
           </p>
         </form>
       )}

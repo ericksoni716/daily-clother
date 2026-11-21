@@ -110,27 +110,62 @@ export function drawnTime(seconds: number): string {
 export const dollars = (usd: number) => `$${usd.toFixed(2)}`;
 
 /** The line under a shoe's drawing: how long it took, how often it was checked against the photos, and what it cost
- * (or would cost) on the API key. Null when there is no drawing. */
+ * (or would cost) on the API key. Null when there is no drawing, or when the last change was to the side (the side's
+ * own line says how that change went, `sideMadeLine`, and one such line is enough). */
 export function drawnLine(drawn: ShoeDrawn | null | undefined): string | null {
-  if (!drawn?.url || drawn.seconds == null) return null;
-  const n = drawn.rounds ?? 0;
+  if (!drawn?.url || drawn.seconds == null || sideMadeLine(drawn)) return null;   // the side's change says its own
+  return madeLine(drawn.corrected, drawn.seconds, drawn.rounds, drawn.cost_usd, drawn.route);
+}
+
+function madeLine(changed: boolean, seconds: number, rounds: number | null | undefined, usd: number | null | undefined,
+  route: string | null | undefined): string {
+  const n = rounds ?? 0;
   const checked = n === 0 ? 'not checked against the photos' : n === 1 ? 'checked once against the photos'
     : `checked ${n} times against the photos`;
-  const cost = dollars(drawn.cost_usd ?? 0);
-  const [made, done] = drawn.corrected ? ['Changed', 'changed'] : ['Drawn', 'drawn'];
-  if (drawn.route === 'api') return `${made} in ${drawnTime(drawn.seconds)}, ${checked} · ${cost} on the API key`;
-  return `${made} in ${drawnTime(drawn.seconds)} on your Claude plan, ${checked} · about ${cost} if ${done} on the API key`;
+  const cost = dollars(usd ?? 0);
+  const [made, done] = changed ? ['Changed', 'changed'] : ['Drawn', 'drawn'];
+  if (route === 'api') return `${made} in ${drawnTime(seconds)}, ${checked} · ${cost} on the API key`;
+  return `${made} in ${drawnTime(seconds)} on your Claude plan, ${checked} · about ${cost} if ${done} on the API key`;
 }
 
 /** The longest note on a drawing the app takes, in characters. */
 export const NOTE_MAX = 200;
 
 /** The line under a drawing changed from the owner's note: the note and what Claude says it changed. Null when the
- * drawing was not changed from a note, or while a change is being made. */
+ * drawing was not changed from a note, while a change is being made, or when the last change was to the side (its
+ * own line says so, `sideChangedLine`). */
 export function changedLine(drawn: ShoeDrawn | null | undefined): string | null {
-  if (!drawn?.url || !drawn.corrected || drawn.correcting || !drawn.note) return null;
+  if (!drawn?.url || !drawn.corrected || drawn.correcting || drawn.side_corrected || !drawn.note) return null;
   return `Changed as you asked: “${drawn.note}”.${drawn.changed ? ` ${drawn.changed}` : ''}`;
 }
+
+/** The line under the side drawing when the last change was to it, from the owner's note: the note and what Claude
+ * says it changed. Null otherwise, and while a change is being made. */
+export function sideChangedLine(drawn: ShoeDrawn | null | undefined): string | null {
+  if (!drawn?.side || !drawn.side_corrected || drawn.correcting || !drawn.side_note) return null;
+  return `Changed as you asked: “${drawn.side_note}”.${drawn.side_changed ? ` ${drawn.side_changed}` : ''}`;
+}
+
+/** How long the change to the side took, how often it was checked and what it cost, under the side drawing once the
+ * last change was to it. Null otherwise. */
+export function sideMadeLine(drawn: ShoeDrawn | null | undefined): string | null {
+  const side = drawn?.side;
+  if (!side || !sideChangedLine(drawn) || side.seconds == null) return null;
+  return madeLine(true, side.seconds, side.rounds, side.cost_usd, side.route);
+}
+
+/** Which drawing a note is about. */
+export type NoteAbout = 'front' | 'side';
+
+/** The choices of which drawing a note is about: the front and the side, once the shoe has a side; none otherwise
+ * (the note is about the front, as it always was). */
+export function noteChoices(drawn: ShoeDrawn | null | undefined): { value: NoteAbout; label: string }[] {
+  return drawn?.side ? [{ value: 'front', label: 'The front' }, { value: 'side', label: 'The side' }] : [];
+}
+
+/** What the page says once a note is sent: which drawing is being changed. */
+export const sentAs = (about: NoteAbout) =>
+  about === 'side' ? 'Changing the side drawing as you asked' : 'Changing the drawing as you asked';
 
 /** What the button that swaps the drawing and the one kept before it says, or null when none is kept (or while the
  * shoe is drawn or changed). */
@@ -179,4 +214,5 @@ export function shoeFixMode(item: Pick<Item, 'drawn' | 'trace'>): 'trace' | 'sid
   if (item.trace?.plain) return 'plain';
   return item.drawn?.side_shown ? 'side' : 'trace';
 }
-export const SIDE_FIX = "The picture is Claude's drawing of the shoe, so the traced colours and marks are not used.";
+export const SIDE_FIX = "The picture is Claude's drawing of the shoe, so the traced colours and marks are not used. To " +
+  'change it, write what is wrong under “Drawn by Claude from its photos” and choose the side.';

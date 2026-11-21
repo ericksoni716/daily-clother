@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   backLabel, canCorrect, changedLine, dollars, DRAWN_DEMO, drawingShoe, drawnLine, drawnOffer, drawnTime,
   drawQuestion, extraPhotos, NOTE_MAX, NO_SIDE, noSidePhoto,
-  MAX_EXTRA_PHOTOS, MAX_PHOTOS, NUDGE_CM, NUDGES, nudgeLabel, outsideQuestion, photoRoom, shoeAddedLine, shoeFixMode,
-  sideLine, sortingViews, tooManyPhotos, traceNotice, tracing, VIEW_WORDS, viewLabel,
+  MAX_EXTRA_PHOTOS, MAX_PHOTOS, noteChoices, NUDGE_CM, NUDGES, nudgeLabel, outsideQuestion, photoRoom, sentAs,
+  shoeAddedLine, shoeFixMode, sideChangedLine, sideLine, sideMadeLine, sortingViews, tooManyPhotos, traceNotice, tracing, VIEW_WORDS, viewLabel,
 } from './shoe';
 import type { Photo, ShoeDrawn, ShoeTrace, ShoeViews } from './types';
 
@@ -131,7 +131,8 @@ describe("a shoe's photos sorted into views", () => {
 const drawn = (state: ShoeDrawn['state'], over: Partial<ShoeDrawn> = {}): ShoeDrawn => ({
   state, message: null, url: null, rounds: null, seconds: null, cost_usd: null, route: null, made_at: null,
   photos_changed: false, about_usd: 0.6, correcting: false, note: null, corrected: false, changed: null,
-  against_photos: null, has_previous: false, previous_newer: false, side: null, side_shown: false, ...over,
+  against_photos: null, has_previous: false, previous_newer: false, side: null, side_shown: false,
+  correcting_side: false, side_corrected: false, side_note: null, side_changed: null, side_against_photos: null, ...over,
 });
 const done = (over: Partial<ShoeDrawn> = {}) => drawn('done', {
   url: '/api/items/x/drawn.svg?v=1', rounds: 2, seconds: 112.4, cost_usd: 0.6149, route: 'plan', ...over,
@@ -245,5 +246,40 @@ describe("a shoe's side drawn by Claude", () => {
     expect(shoeFixMode({ trace: traced, drawn: done({ side, side_shown: true }) })).toBe('side');
     expect(shoeFixMode({ trace: { ...traced, plain: true }, drawn: done({ side }) })).toBe('plain');
     expect(shoeFixMode({ trace: traced, drawn: null })).toBe('trace');
+  });
+
+  it('offers the choice of the front or the side only once there is a side, the front first', () => {
+    expect(noteChoices(done({ side })).map((c) => [c.value, c.label])).toEqual([['front', 'The front'], ['side', 'The side']]);
+    expect(noteChoices(done())).toEqual([]);
+    expect(noteChoices(null)).toEqual([]);
+    expect(sentAs('side')).toBe('Changing the side drawing as you asked');
+    expect(sentAs('front')).toBe('Changing the drawing as you asked');
+  });
+
+  it('says what changed in the side, with the side, and only when the last change was to it', () => {
+    const changedSide = done({
+      side: { ...side, rounds: 1, seconds: 37, cost_usd: 0.09, route: 'plan' }, side_corrected: true,
+      side_note: 'the heel is taller', side_changed: 'The heel counter is taller.',
+      side_against_photos: 'The side photo shows a lower heel; drawn as you asked.',
+      corrected: true, note: 'black laces', changed: 'The laces are black.',   // an earlier change to the front
+    });
+    expect(sideChangedLine(changedSide)).toBe('Changed as you asked: “the heel is taller”. The heel counter is taller.');
+    expect(changedLine(changedSide)).toBeNull();   // the line sits with the side, not the front
+    expect(drawnLine(changedSide)).toBeNull();   // one line about how the last change went, the side's
+    expect(sideMadeLine(changedSide)).toBe(
+      'Changed in 37 s on your Claude plan, checked once against the photos · about $0.09 if changed on the API key');
+    expect(sideMadeLine(done({ ...changedSide, side: { ...changedSide.side!, route: 'api' } })))
+      .toBe('Changed in 37 s, checked once against the photos · $0.09 on the API key');
+    // the front changed last: its own line again, none with the side
+    const front = done({ ...changedSide, side_corrected: false, side_note: null, side_changed: null });
+    expect(sideChangedLine(front)).toBeNull();
+    expect(sideMadeLine(front)).toBeNull();
+    expect(changedLine(front)).toBe('Changed as you asked: “black laces”. The laces are black.');
+    expect(drawnLine(front)).toContain('Changed in 1 min 52 s');
+    // while a note waits or is made, neither
+    expect(sideChangedLine({ ...changedSide, correcting: true, correcting_side: true, state: 'waiting' })).toBeNull();
+    expect(sideChangedLine(done({ side, side_corrected: true, side_note: 'x', side_changed: null })))
+      .toBe('Changed as you asked: “x”.');
+    expect(sideMadeLine(done({ side, side_corrected: true, side_note: 'x' }))).toBeNull();   // no time kept
   });
 });

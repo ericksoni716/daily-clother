@@ -39,9 +39,9 @@ class Sider:
     def __init__(self):
         self.side, self.error, self.calls = a_side(), None, []
 
-    def __call__(self, photos, routes, sheet=None, notes=(), measures=None):
+    def __call__(self, photos, routes, sheet=None, notes=(), measures=None, side_notes=()):
         self.calls.append({"views": [p.view for p in photos], "sheet": sheet, "notes": list(notes),
-                           "measures": measures})
+                           "measures": measures, "side_notes": list(side_notes)})
         if self.error:
             raise self.error
         return self.side

@@ -22,6 +22,11 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   its calls to Claude, so it adds little wait; shoes drawn before get theirs by themselves. Until it exists, or
   if it can't be made, the picture is traced from the side photo as before, and that trace now
   also gives Claude the shoe's proportions.
+- You can correct a shoe's side drawing with a one-line note, as you could its drawing for the
+  figure: under **What's wrong with the drawing?**, choose **The side**, and Claude changes only
+  the side, checks the change against the photos and says when your note goes against them.
+  The front stays as it was, **Go back to the drawing before** undoes the change, and your notes
+  on the side are kept for every later side drawing of that shoe.
 - Nines can have an address of its own through Cloudflare, for a browser that cannot use
   Tailscale: set it up with the README's steps, then fill in the three values under **Settings →
   Phone → Without Tailscale, through Cloudflare** on the computer. Cloudflare asks for a code sent

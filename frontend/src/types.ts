@@ -233,10 +233,32 @@ export interface ShoeDrawn {
   previous_newer: boolean;
   /** The shoe drawn by Claude from its side with this drawing, on its card, and what makes the shoe itself from the
    * side; null when it has none (yet). */
-  side: { url: string; features: string[] } | null;
+  side: ShoeSide | null;
   /** The item's own drawing (the closet tile, the item page's drawing) is that side: the trace's colours and marks do
    * not show. False when the owner chose the plain drawing. */
   side_shown: boolean;
+  /** The note waiting or being made (`correcting`, `note`) is about the side drawing, not the front. */
+  correcting_side: boolean;
+  /** The last change to this drawing was its side, changed from the owner's note (`side_note`, `side_changed`,
+   * `side_against_photos`); the front is as it was. The front's `corrected`, `note`, `changed` and `against_photos`
+   * stay about the front's last correction. */
+  side_corrected: boolean;
+  side_note: string | null;
+  /** What Claude says it changed in the side, in one plain sentence. */
+  side_changed: string | null;
+  /** When the note on the side asks for something the photos do not show, one plain sentence saying so. */
+  side_against_photos: string | null;
+}
+
+/** The shoe drawn by Claude from its side: its picture on its card, what makes the shoe itself from the side, and how
+ * long it took, how often it was checked and what it cost (for a side changed from a note, that change's). */
+export interface ShoeSide {
+  url: string;
+  features: string[];
+  rounds?: number | null;
+  seconds?: number | null;
+  cost_usd?: number | null;
+  route?: 'plan' | 'api' | '' | null;
 }
 
 /** A shoe's photos sorted into views by Claude, so the owner never has to say which is which. */

@@ -2,7 +2,7 @@
 
     python tools/correct_shoe_drawing.py --photos DIR/shoe-N --drawing RUN/shoe-N.json --note "..."
                                          [--routes plan|api] [--out bench/out/correct_shoe_drawing] [--name NAME]
-                                         [--figure boots/chelsea_boot]
+                                         [--figure boots/chelsea_boot] [--side]
 
 `--photos` is one shoe's folder of photos named for their views, as `tools/draw_shoe_photos.py` reads them (side.jpg,
 the outer side, first; above.jpg, front.jpg, back.jpg, inner.jpg); `--drawing` is a drawing that tool wrote
@@ -19,6 +19,12 @@ show), and written to OUT as:
 - with `--figure CATEGORY/STYLE` (today's drawing of the shoe, for example `boots/chelsea_boot`): the drawing before and
   after on the app's As worn figure, as `tools/make_drawn_figure_sheet.py` lays them (`NAME-figure-closeup.png` and
   `NAME-figure-phone.png`; they need Chrome or Chromium on the PATH).
+
+With `--side`, the note is about the drawing's side (the drawing must have one): it is changed and checked exactly as
+in the app (`shoedrawing.correct_side`; the front is not touched, and the owner's earlier notes on the side, the
+drawing's `side_notes`, are kept to), and written as `NAME.json` (the drawing with its side changed and the note added
+to its `side_notes`), `NAME.svg` (the side on its card, as the closet shows it), `NAME.png` and `NAME.before.png` (the
+check image of the side after and before the note) and `NAME.txt`. `--figure` does not apply to it.
 
 `--routes plan` goes through Claude Code on this computer (the Claude plan); `--routes api` through the API key in
 ANTHROPIC_API_KEY, billed. Nothing is counted against the app's monthly limit. OUT is git-ignored by default: the
@@ -38,11 +44,11 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 from draw_shoe_photos import VIEWS, photos_of  # noqa: E402
 
-from closet.drawing import drawn  # noqa: E402
+from closet.drawing import drawn, drawnside  # noqa: E402
 from closet.tagger import shoedrawing  # noqa: E402
 
 
-def numbers(made: shoedrawing.Corrected, kept: dict) -> str:
+def numbers(made: shoedrawing.Corrected | shoedrawing.SideCorrected, kept: dict) -> str:
     calls = "\n".join(f"  {c.kind:<8} {c.seconds:>6.0f} s  {c.input_tokens:>8,} in ({c.cache_read_tokens:,} re-read)  "
                       f"{c.output_tokens:>7,} out  ${c.cost_usd:.2f}" for c in made.calls)
     return (f"note: {made.note}\n"
@@ -79,14 +85,18 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=ROOT / "bench" / "out" / "correct_shoe_drawing")
     ap.add_argument("--name", default="", help="the output files' name (the drawing's name with -corrected by default)")
     ap.add_argument("--figure", default="", help="CATEGORY/STYLE of today's drawing, for the As worn figure sheets")
+    ap.add_argument("--side", action="store_true", help="the note is about the drawing's side, not its front")
     args = ap.parse_args()
     kept = json.loads(args.drawing.read_text(encoding="utf-8"))
-    name = args.name or f"{args.drawing.stem}-corrected"
+    name = args.name or f"{args.drawing.stem}-{'side-' if args.side else ''}corrected"
     args.out.mkdir(parents=True, exist_ok=True)
     client = None
     if args.routes == "api":
         import anthropic
         client = anthropic.Anthropic()
+    if args.side:
+        side(kept, args, name, client)
+        return
     made = shoedrawing.correct(photos_of(args.photos), kept, args.note, (args.routes,), client=client)
     result = made.to_json([f"{args.photos.name}/{v}" for v, _ in VIEWS],
                           datetime.now(UTC).isoformat(timespec="seconds"), shoedrawing.notes_of(kept))
@@ -102,6 +112,24 @@ def main() -> None:
     if args.figure:
         for path in figure(kept, result, args.figure, args.out, name):
             print(f"wrote {path}")
+    print(f"\nwrote {args.out}")
+
+
+def side(kept: dict, args, name: str, client) -> None:
+    """`--side`: the drawing's side changed from the note, the front kept as it was."""
+    before = (kept.get("side") or {}).get("svg")
+    if not before:
+        sys.exit("This drawing has no side to change: draw it again with tools/draw_shoe_photos.py first.")
+    made = shoedrawing.correct_side(photos_of(args.photos), kept, args.note, (args.routes,), client=client)
+    at = datetime.now(UTC).isoformat(timespec="seconds")
+    result = made.kept_in(kept, at)
+    (args.out / f"{name}.json").write_text(json.dumps(result, indent=1), encoding="utf-8")
+    (args.out / f"{name}.svg").write_text(drawnside.card_svg(made.svg), encoding="utf-8")
+    (args.out / f"{name}.png").write_bytes(drawnside.check_png(made.svg))
+    (args.out / f"{name}.before.png").write_bytes(drawnside.check_png(before))
+    text = numbers(made, result["side"])
+    (args.out / f"{name}.txt").write_text(text + "\n", encoding="utf-8")
+    print(text)
     print(f"\nwrote {args.out}")
 
 

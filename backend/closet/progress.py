@@ -43,6 +43,7 @@ TRACING = "Tracing the shoe from its photo"
 SORTING = "Sorting the shoe's photos into views"
 DRAWING = "Drawing the shoe from its photos"
 CORRECTING = "Changing the drawing as you asked"
+CORRECTING_SIDE = "Changing the side drawing as you asked"
 MEASURING = "Measuring the {pattern} from the photo"
 PATTERN_WORDS = {"stripe": "stripes", "plaid": "plaid", "floral": "print", "camo": "camouflage", "graphic": "graphic"}
 
@@ -70,8 +71,8 @@ CUTOUT_FAILED = "The background couldn't be removed"
 DESCRIBE_FAILED = "Claude couldn't describe this item"
 
 # the stored notes that say why a shoe's photos or drawing wait for Claude
-_NO_ROUTE = {shoeviews.NO_ROUTE, shoedraw.NO_ROUTE, shoedraw.CORRECT_NO_ROUTE}
-_LIMIT = {shoeviews.LIMIT, shoedraw.LIMIT, shoedraw.CORRECT_LIMIT}
+_NO_ROUTE = {shoeviews.NO_ROUTE, shoedraw.NO_ROUTE, shoedraw.CORRECT_NO_ROUTE, shoedraw.CORRECT_SIDE_NO_ROUTE}
+_LIMIT = {shoeviews.LIMIT, shoedraw.LIMIT, shoedraw.CORRECT_LIMIT, shoedraw.CORRECT_SIDE_LIMIT}
 
 
 @dataclass(frozen=True)
@@ -138,7 +139,7 @@ def _shoe(row) -> dict | None:
     state = row["drawn_state"]
     if state not in shoedraw.BUSY:
         return None
-    words = CORRECTING if shoedraw.correcting(row) else DRAWING
+    words = (CORRECTING_SIDE if shoedraw.correcting_side(row) else CORRECTING) if shoedraw.correcting(row) else DRAWING
     if state in ("drawing", "correcting"):
         return _out("shoe", 3, "working", words)
     if reason := _claude_note(row["drawn_error"]):

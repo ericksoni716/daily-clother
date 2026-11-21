@@ -196,7 +196,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                    sorter: shoeviews.Sorter | None = None, drawer: shoedraw.Drawer | None = None,
                    drawing_corrector: shoedraw.Corrector | None = None, add_sorter=None,
                    side_drawer: shoedraw.Sider | None = None, day_reader=None, stylist_ask: stylejobs.Asker | None = None,
-                   stylist_look: stylejobs.Looker | None = None, chat_ask: stylechat.Asker | None = None) -> Services:
+                   stylist_look: stylejobs.Looker | None = None, chat_ask: stylechat.Asker | None = None,
+                   side_corrector: shoedraw.SideCorrector | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
@@ -210,7 +211,9 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     sorted photos (tests); tests standing in for Claude draw none unless they give one. `drawing_corrector` stands in
     for Claude changing a shoe's drawing from the owner's note (tests); tests standing in for Claude change none unless
     they give one. `side_drawer` stands in for Claude drawing the side of a shoe drawn without one (tests); tests
-    standing in for Claude draw no sides by themselves unless they give one. `chat_ask` stands in for Claude in the
+    standing in for Claude draw no sides by themselves unless they give one. `side_corrector` stands in for Claude
+    changing a shoe's side drawing from the owner's note (tests); tests standing in for Claude change none unless they
+    give one. `chat_ask` stands in for Claude in the
     style conversation (tests); tests standing in for Claude have no conversation unless they give one.
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
@@ -361,18 +364,18 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     looker = stylist_look or (real_look if choose is real_stylist else None)
     draw_meter = spend.Meter(cfg, state, spend.PURPOSE_DRAW, spend.estimate_draw)
 
-    def real_drawer(photos: list, usable: tuple[str, ...], notes=(), style=None, measures=None):
+    def real_drawer(photos: list, usable: tuple[str, ...], notes=(), style=None, measures=None, side_notes=()):
         from .tagger import shoedrawing
         return shoedrawing.draw(photos, usable, client=api_client, meter=draw_meter, notes=notes, style=style,
-                                mask_of=model_mask, measures=measures)
+                                mask_of=model_mask, measures=measures, side_notes=side_notes)
 
-    def no_drawer(photos: list, usable: tuple[str, ...], notes=(), style=None, measures=None):
+    def no_drawer(photos: list, usable: tuple[str, ...], notes=(), style=None, measures=None, side_notes=()):
         raise RouteUnavailable("tests standing in for Claude draw no shoes unless they ask to")
 
-    def real_side_drawer(photos: list, usable: tuple[str, ...], sheet=None, notes=(), measures=None):
+    def real_side_drawer(photos: list, usable: tuple[str, ...], sheet=None, notes=(), measures=None, side_notes=()):
         from .tagger import shoedrawing
         return shoedrawing.draw_side(photos, usable, client=api_client, meter=draw_meter, sheet=sheet, notes=notes,
-                                     measures=measures, mask_of=model_mask)
+                                     measures=measures, mask_of=model_mask, side_notes=side_notes)
 
     correct_meter = spend.Meter(cfg, state, spend.PURPOSE_CORRECT_DRAWING, spend.estimate_correct_drawing)
 
@@ -383,11 +386,21 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     def no_drawing_corrector(photos: list, kept: dict, note: str, usable: tuple[str, ...]):
         raise RouteUnavailable("tests standing in for Claude change no drawings unless they ask to")
 
+    def real_side_corrector(photos: list, kept: dict, note: str, usable: tuple[str, ...], measures=None):
+        from .tagger import shoedrawing
+        return shoedrawing.correct_side(photos, kept, note, usable, client=api_client, meter=correct_meter,
+                                        measures=measures, mask_of=model_mask)
+
+    def no_side_corrector(photos: list, kept: dict, note: str, usable: tuple[str, ...], measures=None):
+        raise RouteUnavailable("tests standing in for Claude change no side drawings unless they ask to")
+
     draw_worker = shoedraw.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)),
                                   drawer or (no_drawer if tagger is not None else real_drawer),
                                   corrector=drawing_corrector or (no_drawing_corrector if tagger is not None
                                                                   else real_drawing_corrector),
-                                  sider=side_drawer or (None if tagger is not None else real_side_drawer))
+                                  sider=side_drawer or (None if tagger is not None else real_side_drawer),
+                                  side_corrector=side_corrector or (no_side_corrector if tagger is not None
+                                                                    else real_side_corrector))
     views_worker.on_sorted = draw_worker.wake   # a shoe sorted for the first time is drawn next
 
     def described() -> None:   # patterns are measured, shoes traced and their photos sorted next
@@ -862,12 +875,13 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     async def correct_drawing(item_id: str, request: Request, conn=Depends(conn_dep)):
         body = await shoe_body(request)
         note = body.get("note") if isinstance(body, dict) else None
+        about = body.get("about", "front") if isinstance(body, dict) else "front"
         demo_closet = state.get("profile") == "demo"
 
         def work() -> None:
             conn.execute("BEGIN IMMEDIATE")
             try:
-                shoedraw.correct(conn, item_id, note, demo_closet)
+                shoedraw.correct(conn, item_id, note, demo_closet, about)
                 conn.execute("COMMIT")
             except Exception:
                 if conn.in_transaction:

@@ -248,11 +248,14 @@ def window_lock_path(cfg: Config):
 
 
 class WindowDoor:
-    """The listening side, in the window-only process. `on_show()` shows the window; True when it did."""
+    """The listening side, in the window-only process. `on_show()` shows the window; True when it did. `commands` are
+    the other requests it takes, by name ("off": stop keeping Nines running, which Windows asks about on this screen,
+    closet/background.py); each starts its work and returns True when it took the request."""
 
-    def __init__(self, cfg: Config, on_show):
+    def __init__(self, cfg: Config, on_show, commands: dict | None = None):
         self.cfg = cfg
         self.on_show = on_show
+        self.commands = dict(commands or {})
         self.token = secrets.token_urlsafe(32)
         self._stop = threading.Event()
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -279,9 +282,15 @@ class WindowDoor:
             with conn:
                 try:
                     conn.settimeout(3)
-                    given = conn.makefile("rb").readline(256).strip()
-                    shown = hmac.compare_digest(given, self.token.encode("ascii")) and bool(self.on_show())
-                    conn.sendall(b"shown\n" if shown else b"no\n")
+                    given, _, command = conn.makefile("rb").readline(256).strip().partition(b" ")
+                    if not hmac.compare_digest(given, self.token.encode("ascii")):
+                        conn.sendall(b"no\n")
+                        continue
+                    if not command:
+                        conn.sendall(b"shown\n" if self.on_show() else b"no\n")
+                        continue
+                    work = self.commands.get(command.decode("ascii", "replace"))
+                    conn.sendall(b"ok\n" if work is not None and work() else b"no\n")
                 except Exception:
                     pass
 
@@ -305,6 +314,11 @@ class WindowDoor:
 def show_window_process(cfg: Config, timeout: float = 3.0) -> bool:
     """Ask the window-only process already open for this closet to bring its window forward. False when there is none
     (no lock, a stale one, or a window that could not be shown), and this launch should open its own."""
+    return ask_window_process(cfg, None, timeout)
+
+
+def ask_window_process(cfg: Config, command: str | None, timeout: float = 3.0) -> bool:
+    """Send `command` to the window-only process open for this closet (None: show your window). True when it took it."""
     try:
         lock = json.loads(window_lock_path(cfg).read_text())
         pid, port, token = lock["pid"], int(lock["port"]), str(lock["token"])
@@ -312,11 +326,12 @@ def show_window_process(cfg: Config, timeout: float = 3.0) -> bool:
         return False
     if not isinstance(pid, int) or pid <= 0 or not _pid_alive(pid):
         return False
-    _allow_foreground(pid)
+    if command is None:
+        _allow_foreground(pid)
     try:
         with socket.create_connection(("127.0.0.1", port), timeout=timeout) as conn:
             conn.settimeout(timeout)
-            conn.sendall(token.encode("ascii") + b"\n")
-            return conn.makefile("rb").readline(64).strip() == b"shown"
+            conn.sendall(token.encode("ascii") + (b" " + command.encode("ascii") if command else b"") + b"\n")
+            return conn.makefile("rb").readline(64).strip() == (b"ok" if command else b"shown")
     except Exception:
         return False

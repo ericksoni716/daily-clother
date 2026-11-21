@@ -13,6 +13,11 @@ starts it, and writes down why.
 The owner chooses in Settings: install by themselves, ask first (the default), or never check. Only the packaged
 program on Windows or a Mac can replace itself; on Linux, and when running from source, a newer release is only
 reported, with a link to its page.
+
+A background copy that Windows keeps running (closet/background.py) updates itself in its own folder the same way,
+but comes back through Windows' task, so it stays the task's program: the helper, started outside the task's job so
+that it outlives the old copy, asks the old copy to quit, starts the task and waits for the new version
+(`plan["via_task"]`). If the new version does not answer, the old program is put back and the task started again.
 """
 from __future__ import annotations
 
@@ -49,6 +54,7 @@ ASSETS = {"win32": "Nines.exe", "darwin": "Nines-mac-arm64.zip"}   # the release
 CHECK_EVERY = 24 * 3600       # a successful check is good for a day
 RETRY_AFTER = 3600            # an unanswered check is tried again after an hour
 START_WITHIN = 60             # seconds the new program has to answer before the old one is put back
+START_THROUGH_TASK = 180      # the same for a background copy started by Windows' task, which unpacks unwatched
 TIDY_WAIT = 90                # how long the new program waits for the helper's verdict before tidying up
 NOTES_CHARS = 3000            # the What's new section is cut at the end of a line past this
 WHATS_NEW = re.compile(r"^##\s+What['’]s new\s*#*\s*$", re.IGNORECASE)
@@ -327,18 +333,36 @@ def clean_env() -> dict:
     return env
 
 
+DETACHED = 0x00000008 | 0x00000200   # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+BREAKAWAY = 0x01000000               # CREATE_BREAKAWAY_FROM_JOB
+
+
 def _detached() -> dict:
     kwargs: dict = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
                     "close_fds": True, "env": clean_env()}
     if os.name == "nt":
-        kwargs["creationflags"] = 0x00000008 | 0x00000200   # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        kwargs["creationflags"] = DETACHED
     else:
         kwargs["start_new_session"] = True
     return kwargs
 
 
+def spawn_detached(command: list[str], popen=None):
+    """Start `command` on its own, outliving this process. On Windows it is also taken out of this process's job
+    where Windows allows it: a background copy runs in its scheduled task's job, and a helper left in that job would be
+    stopped with the task, before it could start the new version."""
+    popen = popen or subprocess.Popen
+    kwargs = _detached()
+    if os.name == "nt":
+        try:
+            return popen(command, **{**kwargs, "creationflags": DETACHED | BREAKAWAY})
+        except OSError:   # the job does not allow it: the helper still asks the old copy to quit rather than ending the task
+            pass
+    return popen(command, **kwargs)
+
+
 def spawn_helper(program: Path, plan_path: Path) -> None:
-    subprocess.Popen([str(program), WATCH_COMMAND, str(plan_path)], **_detached())
+    spawn_detached([str(program), WATCH_COMMAND, str(plan_path)])
 
 
 def start_program(where: Layout, args: list[str]):
@@ -422,22 +446,59 @@ def restore_closets(cfg: Config, snapshots: dict) -> list[str]:
     return put_back
 
 
+def _start_through_task(where: Layout, args: list[str]):
+    """A background copy's new version is started by Windows' task, with the task's own arguments."""
+    from . import background
+    if not background.run_task():
+        raise UpdateError("Windows did not start its task")
+    return None
+
+
+def _make_way(cfg: Config, plan: dict) -> None:
+    """Through the task: Task Scheduler starts nothing while the old copy runs, so it is asked to quit first (with the
+    token from its lock file), and ended by its process id if it does not."""
+    info = instance.running_info(cfg)
+    if info and info.get("pid") == plan.get("old_pid") and not instance.stop_running(cfg, info):
+        pid = plan.get("old_pid")
+        if isinstance(pid, int) and pid != os.getpid() and instance._pid_alive(pid):
+            _kill(pid)
+    deadline = time.monotonic() + 20
+    pid = plan.get("old_pid")
+    while isinstance(pid, int) and instance._pid_alive(pid) and time.monotonic() < deadline:
+        time.sleep(0.25)
+
+
+def _running(cfg: Config, plan: dict) -> dict | None:
+    """The copy running for this closet. A background copy started by the task moves the data folder from Closet to
+    Nines if it had not moved yet (closet/datafolder.py), so it is looked for there too."""
+    info = instance.running_info(cfg)
+    if info is None and plan.get("via_task"):
+        from . import datafolder
+        if cfg.data_dir.name == datafolder.OLD:
+            info = instance.running_info(Config(cfg.data_dir.with_name(datafolder.NEW), cfg.host, cfg.port))
+    return info
+
+
 def watch(cfg: Config, plan: dict, start=None, timeout: float | None = None, poll: float = 0.5) -> bool:
     """Run by the helper: start the new program and wait for it. If it has not written its lock file and answered
     /api/health as the new version within `timeout` seconds, stop it, put the old program back, start that, and
-    write down why. True when the new program took over."""
-    start = start or start_program
+    write down why. True when the new program took over. With `plan["via_task"]` the old copy is asked to quit first
+    and both are started through Windows' task."""
+    via_task = bool(plan.get("via_task"))
+    start = start or (_start_through_task if via_task else start_program)
     where = Layout(plan["platform"], Path(plan["installed"]), Path(plan["old"]), Path(plan["inner"]))
     timeout = plan.get("timeout", START_WITHIN) if timeout is None else timeout
-    log.info("starting Closet %s in place of %s", plan["to"], plan["from"])
+    log.info("starting Closet %s in place of %s%s", plan["to"], plan["from"], " through the task" if via_task else "")
     proc, problem = None, None
+    if via_task:
+        _make_way(cfg, plan)
     try:
-        proc = start(where, list(plan["args"]) + ["--replace"])
+        proc = start(where, list(plan["args"]) + ([] if via_task else ["--replace"]))
     except Exception as e:
         problem = f"it could not be started ({e})"
     deadline = time.monotonic() + timeout
     while problem is None and time.monotonic() < deadline:
-        info = instance.running_info(cfg)
+        info = _running(cfg, plan)
         if info and info["version"] == plan["to"] and info.get("pid") != plan.get("old_pid"):
             log.info("Closet %s is running", plan["to"])
             _write_outcome(cfg, {"at": _now(), "from": plan["from"], "to": plan["to"], "ok": True, "note": None})
@@ -457,6 +518,9 @@ def watch(cfg: Config, plan: dict, start=None, timeout: float | None = None, pol
         pass
     if proc is not None and proc.poll() is None:
         _kill(proc.pid)
+    if via_task:
+        from . import background
+        background.end_task()
     note = f"Nines {plan['to']} was installed but did not start: {problem}. "
     try:
         restore(where)
@@ -511,6 +575,7 @@ class Updater:
         self.spawn = spawn or spawn_helper
         self.run = run
         self.launch_args: list[str] = []   # how this copy was started (set by the launcher), for the new one
+        self.through_task = False          # a background copy Windows keeps running: it comes back through the task
         self.busy: str | None = None
         self._lock = threading.Lock()
         self._stop = threading.Event()
@@ -704,7 +769,8 @@ class Updater:
         plan = {"from": self.version, "to": release["version"], "platform": where.platform,
                 "installed": str(where.installed), "old": str(where.old), "inner": str(where.inner),
                 "args": list(self.launch_args), "old_pid": os.getpid(), "data_dir": str(self.cfg.data_dir),
-                "timeout": START_WITHIN, "snapshots": {k: str(v) for k, v in snapshots.items()}}
+                "timeout": START_THROUGH_TASK if self.through_task else START_WITHIN,
+                "snapshots": {k: str(v) for k, v in snapshots.items()}, "via_task": self.through_task}
         path = plan_path(self.cfg)
         try:
             path.write_text(json.dumps(plan, indent=1), encoding="utf-8")

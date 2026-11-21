@@ -63,7 +63,7 @@ def find_claude(platform: str | None = None, which=None, home: Path | None = Non
                 env: dict | None = None) -> str | None:
     """Where Claude Code is. On Windows `claude.exe` (the PowerShell install, or winget) comes before an npm
     `claude.cmd`, which Windows can only start through cmd.exe, and the usual install folders are looked in too,
-    for a Closet started before Claude Code was installed."""
+    for a Closet started before Claude Code was installed, or by Windows before the owner signed in."""
     platform, which = platform or sys.platform, which or shutil.which
     home = home or Path.home()
     env = os.environ if env is None else env
@@ -77,7 +77,13 @@ def find_claude(platform: str | None = None, which=None, home: Path | None = Non
         for place in places:
             if place.is_file():
                 return str(place)
-        return which("claude")
+        found = which("claude")
+        if found:
+            return found
+        # an npm install, for a copy started before sign-in, whose PATH may lack the owner's own folders
+        npm = Path(env["APPDATA"]) if env.get("APPDATA") else home / "AppData" / "Roaming"
+        candidate = npm / "npm" / "claude.cmd"
+        return str(candidate) if candidate.is_file() else None
     found = which("claude")
     if found:
         return found

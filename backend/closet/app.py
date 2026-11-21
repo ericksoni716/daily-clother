@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import re
+import sys
 import threading
 import time
 from collections.abc import Callable
@@ -27,6 +28,7 @@ from . import (
     apikey,
     auth,
     autostart,
+    background,
     backup,
     climate,
     corrections,
@@ -114,6 +116,10 @@ class Services:
     chat: stylechat.Chat | None = None             # the conversation about the owner's style (Settings, Your style)
     on_quit: Callable[[], None] = lambda: None
     on_show: Callable[[], bool] = lambda: False   # shows Closet's own window; False when there is none (the browser is used)
+    # Windows keeping Nines running (closet/background.py): whether this copy is the background copy, and how an
+    # ordinary copy hands its port over to it (the launcher starts this program afresh and quits)
+    background_copy: bool = False
+    on_hand_over: Callable[[], None] = lambda: None
     updater: updates.Updater | None = None   # new releases: checked once a day, installed when the owner says
     phone_watch: phone.Watch | None = field(default=None, repr=False)   # phone access, looked up in the background
 
@@ -582,6 +588,9 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     (`tailnet.checker()`: on Windows, asked of Windows; elsewhere none, and Tailscale is believed)."""
     app = FastAPI(title=APP_NAME, version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     cfg, state = sv.cfg, sv.state
+    # while Windows keeps Nines running, the API key is also kept sealed in the data folder, for a copy started before
+    # sign-in that cannot read Credential Manager (closet/apikey.py)
+    apikey.keep_sealed(background.key_changed(cfg))
 
     # ---------------------------------------------------------------- helpers
     def token(request: Request) -> str | None:
@@ -1450,6 +1459,9 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         except Exception:
             return None
 
+    def background_status() -> dict:
+        return background.status(cfg, sv.background_copy)
+
     def settings_payload(conn, request: Request) -> dict:
         """Everything Settings shows that is quick to read, so the page can be drawn at once. The slow lookups stay
         apart: whether Claude Code is signed in (`/api/tagging`), the space used (`/api/storage`) and the weather.
@@ -1463,6 +1475,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             "tagging_route_order": tagjobs.route_order(state), "api_key": dict(remember("api_key", apikey.info)),
             "phone": sv.phone_info(), "came_in": gate.came_in(request.scope), "cloudflare": access.payload(state),
             "autostart": remember("autostart", autostart_now), "heic_supported": images.HEIC,
+            "background": background_status(),
             "place": state.get("place"), "home_place": HOME_PLACE,
             "life": life.example()[0] if state.get("profile") == "demo" else state.get("life"),
             "life_prompt_dismissed": True if state.get("profile") == "demo" else state.get("life_prompt_dismissed"),
@@ -1762,7 +1775,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             raise HTTPException(422, "Anthropic did not accept that key. Check you copied all of it, and that it "
                                      "belongs to an account that is still active, then try again.")
         try:
-            apikey.store().set(key)
+            apikey.save(key, background.key_changed(cfg))
         except (apikey.KeychainError, ValueError) as e:
             raise HTTPException(409, str(e))
         finally:
@@ -1778,7 +1791,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     @app.delete("/api/settings/api-key", dependencies=protected)
     def delete_api_key(request: Request, conn=Depends(conn_dep)):
         try:
-            apikey.store().delete()
+            apikey.remove(background.key_changed(cfg))
         except apikey.KeychainError as e:
             raise HTTPException(409, str(e))
         finally:
@@ -1872,6 +1885,67 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     def quit_program():
         threading.Timer(0.3, sv.on_quit).start()
         return {"status": "shutting-down"}
+
+    # ---------------------------------------------------------------- Windows keeping Nines running
+    def from_computer(request: Request) -> None:
+        """Windows asks for permission on the computer's own screen: from a phone or through Cloudflare it is refused."""
+        if gate.came_in(request.scope)["via"] != "computer":
+            raise HTTPException(403, background.FROM_COMPUTER)
+
+    @app.get("/api/background", dependencies=protected)
+    def get_background():
+        return background_status()
+
+    @app.post("/api/background/on", dependencies=protected)
+    def background_on(request: Request):
+        """Copy this program into Nines' own folder and have Windows run it in the background (one administrator
+        prompt). This copy then hands its port over and the owner's window reopens onto the background copy."""
+        from_computer(request)
+        if sv.background_copy:
+            raise HTTPException(409, "Windows already keeps Nines running.")
+        if not background.supported():
+            raise HTTPException(409, background.NOT_HERE)
+        try:
+            background.turn_on(cfg, sys.executable, cfg.port)
+        except background.SetupError as e:
+            raise HTTPException(409, str(e))
+        finally:
+            forget("autostart", "api_key")
+        threading.Timer(0.5, sv.on_hand_over).start()
+        return {**background_status(), "handing_over": True}
+
+    @app.post("/api/background/restart", dependencies=protected)
+    def background_restart(request: Request):
+        """While it is on but this ordinary copy serves (the background copy did not start): hand the port over again."""
+        from_computer(request)
+        if sv.background_copy:
+            raise HTTPException(409, "Nines is already running in the background.")
+        if not background.is_set_up(cfg):
+            raise HTTPException(409, "Windows does not keep Nines running yet. Turn it on first.")
+        threading.Timer(0.5, sv.on_hand_over).start()
+        return {**background_status(), "handing_over": True}
+
+    @app.post("/api/background/off", dependencies=protected)
+    def background_off(request: Request):
+        """Stop keeping Nines running: Windows asks on the computer's screen. A background copy may run where no prompt
+        can be shown, so it asks the window open onto it, in the owner's session, to do it; an ordinary copy does it
+        itself."""
+        from_computer(request)
+        if not background.is_set_up(cfg):
+            return {**background_status(), "turning_off": False}
+        if sv.background_copy:
+            background.clear_outcome(cfg)
+            if not instance.ask_window_process(cfg, "off"):
+                raise HTTPException(409, f"Open {APP_NAME} from its icon on this computer, then turn this off in its "
+                                         "window.")
+            return {**background_status(), "turning_off": True}
+        try:
+            background.turn_off(cfg)
+        except background.SetupError as e:
+            raise HTTPException(409, str(e))
+        finally:
+            forget("autostart", "api_key")
+        return {**background_status(), "turning_off": False}
 
     @app.post("/api/instance/quit", status_code=202, include_in_schema=False)
     def quit_for_newer_copy(request: Request):

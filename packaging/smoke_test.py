@@ -293,10 +293,17 @@ def check_show(base: str, data_dir: Path) -> None:
     """Opening the program again asks the running copy to show its window, with the token from its lock file. A copy
     started with neither a tray nor a window has none to show, so the new launch would open the browser."""
     expect("POST", base + "/api/instance/show", 403)
-    try:
-        token = json.loads((data_dir / "closet.lock").read_text(encoding="utf-8"))["token"]
-    except (OSError, ValueError, KeyError) as exc:
-        raise SmokeFailure(f"closet.lock in {data_dir} has no token: {exc!r}") from exc
+    # The program writes its lock file just after its server starts answering, so the checks above can get here
+    # first (seen on the Mac build of 0.11.0): wait a little for the file rather than read it once.
+    deadline = time.time() + 15
+    while True:
+        try:
+            token = json.loads((data_dir / "closet.lock").read_text(encoding="utf-8"))["token"]
+            break
+        except (OSError, ValueError, KeyError) as exc:
+            if time.time() >= deadline:
+                raise SmokeFailure(f"closet.lock in {data_dir} has no token after 15 s: {exc!r}") from exc
+            time.sleep(0.1)
     req = urllib.request.Request(base + "/api/instance/show", method="POST", data=b"",
                                  headers={"X-Closet-Instance-Token": token})
     try:

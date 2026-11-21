@@ -12,6 +12,16 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- You can correct a shoe's side drawing with a one-line note, as you could its drawing for the
+  figure: under **What's wrong with the drawing?**, choose **The side**, and Claude changes only
+  the side, checks the change against the photos and says when your note goes against them.
+  The front stays as it was, **Go back to the drawing before** undoes the change, and your notes
+  on the side are kept for every later side drawing of that shoe.
+
+## 0.11.0
+
+### Added
+
 - AVIF photos work wherever you add a photo: on Add, when you take a piece's photo again, as
   a shoe's other photos and in Would this work?. Many shops save their pictures as AVIF, so a
   photo saved from a shop's page now goes in like any other.

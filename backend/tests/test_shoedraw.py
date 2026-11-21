@@ -32,21 +32,23 @@ BOAT = drawn.example("boat-shoe")
 class Drawer:
     """Stands in for Claude drawing the shoe: a finished drawing of `left` (the dress shoe unless told otherwise), or
     raises `error`. `calls` keeps the views of the photos it was given, `notes` the owner's notes it was given (step
-    E); `during` runs while it draws."""
+    E), `side_notes` their notes on earlier side drawings; `during` runs while it draws."""
 
     def __init__(self):
         self.left = DRESS
         self.error: Exception | None = None
         self.calls: list[list[tuple]] = []
         self.notes: list[list[str]] = []
+        self.side_notes: list[list[str]] = []
         self.styles: list[str | None] = []   # the item's shoe style it was told
         self.measures: list[dict | None] = []   # the measures from the trace it was told
         self.side: SD.Sided | None = None   # the side drawn with it, if any
         self.during = None
 
-    def __call__(self, photos, routes, notes=(), style=None, measures=None):
+    def __call__(self, photos, routes, notes=(), style=None, measures=None, side_notes=()):
         self.calls.append([(p.view, p.sure, p.image.size) for p in photos])
         self.notes.append(list(notes))
+        self.side_notes.append(list(side_notes))
         self.styles.append(style)
         self.measures.append(measures)
         assert routes == ("plan",)
@@ -485,13 +487,20 @@ def test_a_shoe_only_has_drawn_details(made):
     # step E added what the page needs for the owner's correction, and going back to the drawing before
     assert set(drawn_of(m, item)) == {"state", "message", "url", "rounds", "seconds", "cost_usd", "route", "made_at",
                                       "photos_changed", "about_usd", "correcting", "note", "corrected", "changed",
-                                      "against_photos", "has_previous", "previous_newer", "side", "side_shown"}
+                                      "against_photos", "has_previous", "previous_newer", "side", "side_shown",
+                                      # and the owner's correction of the side
+                                      "correcting_side", "side_corrected", "side_note", "side_changed",
+                                      "side_against_photos"}
     assert drawn_of(m, item)["about_usd"] == shoedraw.ABOUT_USD
     assert drawn_of(m, item)["side"] is None and drawn_of(m, item)["side_shown"] is False
     assert {k: drawn_of(m, item)[k] for k in ("correcting", "note", "corrected", "changed", "against_photos",
                                               "has_previous", "previous_newer")} == {
         "correcting": False, "note": None, "corrected": False, "changed": None, "against_photos": None,
         "has_previous": False, "previous_newer": False}
+    assert {k: drawn_of(m, item)[k] for k in ("correcting_side", "side_corrected", "side_note", "side_changed",
+                                              "side_against_photos")} == {
+        "correcting_side": False, "side_corrected": False, "side_note": None, "side_changed": None,
+        "side_against_photos": None}
 
 
 # ------------------------------------------------------------------ through the API key and its monthly limit

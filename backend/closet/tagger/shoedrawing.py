@@ -30,6 +30,13 @@ describing an item (`correcting.ask`, purpose `draw_shoe`), on the model of the 
    proportions written down from the side photo before drawing (or measured from the shoe's trace and checked:
    `closet/drawing/drawnside.py`), and a short list of what makes the shoe itself from the side.
 
+5. **Correct the side** (`correct_side`): the owner's one-line note, when the owner says it is about the side. As a
+   correction of the front: Claude is shown the photos, the side as it is (its render at both sizes and its SVG), the
+   measured proportions when there are any, the owner's earlier notes on the side and the new note, and changes only
+   what the note asks (purpose `correct_drawing`); then at most two checks compare the change with the photos and the
+   side before it, with a fresh side's frame checks (the measures are shown, not checked: the note wins over them).
+   The owner's notes on the side are kept apart from those on the front and passed to every later side drawing.
+
 Every drawing is made safe (`drawn.sanitise`) before it is rendered, checked or kept. A check call that fails keeps
 the drawing made so far: it was paid for, and it is still a drawing of the shoe. The owner's notes are passed to a
 later drawing from scratch ("Draw again") and to its checks, so they are not lost. The brief below is the
@@ -342,6 +349,19 @@ def notes_section(notes: Sequence[str]) -> str:
 
 ## The owner's notes on earlier drawings of this shoe
 The owner corrected earlier drawings of this shoe with these notes. They are the owner's word: keep to them, even where the photos seem to show otherwise.
+{lines}"""
+
+
+def side_notes_section(notes: Sequence[str]) -> str:
+    """The owner's notes on earlier side drawings of the shoe, for a side drawing or its check; empty when there are
+    none."""
+    if not notes:
+        return ""
+    lines = _note_lines(notes)
+    return f"""
+
+## The owner's notes on earlier side drawings of this shoe
+The owner corrected earlier drawings of this shoe from its side with these notes. They are the owner's word: keep to them, even where the photos seem to show otherwise.
 {lines}"""
 
 
@@ -774,14 +794,22 @@ class Corrected(Drawn):
         return {**super().to_json(photo_ids, made_at, [*notes, entry]), "corrected": True}
 
 
-def notes_of(kept) -> list[dict]:
-    """The owner's notes on a drawing kept with the item, oldest first: {note, at, against_photos, changed}."""
-    notes = kept.get("notes") if isinstance(kept, Mapping) else None
+def notes_of(kept, key: str = "notes") -> list[dict]:
+    """The owner's notes on a drawing kept with the item, oldest first: {note, at, against_photos, changed}. `key`:
+    "side_notes" for the notes on its side drawing (`side_notes_of`)."""
+    notes = kept.get(key) if isinstance(kept, Mapping) else None
     if not isinstance(notes, list):
         return []
     return [{"note": n["note"], "at": n.get("at"), "against_photos": n.get("against_photos"),
              "changed": n.get("changed")} for n in notes
             if isinstance(n, Mapping) and isinstance(n.get("note"), str) and n["note"].strip()]
+
+
+def side_notes_of(kept) -> list[dict]:
+    """The owner's notes on the side drawings of a drawing kept with the item (its `side_notes`), oldest first, shaped
+    as `notes_of`'s. They are kept apart from the notes on the front, outside the side entry, so a new drawing whose
+    side fails still carries them to the side drawn later by itself."""
+    return notes_of(kept, "side_notes")
 
 
 def clean_note(note) -> str:
@@ -1114,7 +1142,7 @@ def draw_straight(photos: list[Photo], routes: tuple[str, ...], client=None, exe
 def draw(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | None = None,
          meter: Meter | None = None, asker: Asker = correcting.ask, clock: Callable[[], float] = time.monotonic,
          notes: Sequence[str] = (), style: str | None = None, mask_of: photocheck.MaskOf | None = None,
-         measures=None, side: bool = True) -> Drawn:
+         measures=None, side: bool = True, side_notes: Sequence[str] = ()) -> Drawn:
     """Draw the shoe from its photos (the main one first) as the figure shows it, turned out `turned.TURN` degrees.
 
     1. The photos are cut to the shoe (`photocheck.crop`, with the app's background model `mask_of` when there is
@@ -1129,7 +1157,8 @@ def draw(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | N
        reason, is left out (`Drawn.side` None): it never costs the front drawing.
 
     `style`: the item's shoe style, from its description (`style_of` reads the sheet when there is none); a sandal is
-    kept straight on. `notes`: the owner's notes on earlier drawings of the shoe, kept to throughout. Raises
+    kept straight on. `notes`: the owner's notes on earlier drawings of the shoe, kept to throughout; `side_notes`: their
+    notes on its earlier side drawings, kept to in the side. Raises
     `RouteUnavailable` (or `CapReached`) when Claude cannot be reached for a drawing, `TaggingError` when no candidate
     gives a usable answer, `drawn.DrawingError` when none can be used. A turn or a fix that fails keeps what was made
     before it. `asker` stands in for `correcting.ask` (tests, the browser tests' stand-in)."""
@@ -1154,7 +1183,8 @@ def draw(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | N
     rounds = sum(c.rounds for c in cands)
     side_calls: list[Call] = []
     wait_side = (_side_job(_limited(_caller(routes, client, exe, meter, asker, clock, side_calls,
-                                            cache_photos=len(shots)), slots), side_calls, photos, shots, names, straight.sheet, notes, measures, clock)
+                                            cache_photos=len(shots)), slots), side_calls, photos, shots, names, straight.sheet, notes, measures, clock,
+                           list(side_notes))
                  if side else (lambda: None))
     try:
         made = _turned_or_straight(ask, photos, shots, names, notes, style, straight, rounds, start, clock, calls)
@@ -1351,10 +1381,10 @@ Take these for your proportions and draw to them: they are more exact than a rea
 
 
 def side_prompt(photos: list[Photo], sheet: Mapping | None = None, notes: Sequence[str] = (),
-                measures: drawnside.Measures | None = None) -> str:
+                measures: drawnside.Measures | None = None, side_notes: Sequence[str] = ()) -> str:
     """Drawing the shoe from its side: the photos by their views, the front drawing's sheet (so both agree), the
-    owner's notes, the two plain templates as examples of the style only, proportions written down before drawing (or
-    measured from the trace), and what makes the shoe itself."""
+    owner's notes (on the front, and on earlier side drawings), the two plain templates as examples of the style only,
+    proportions written down before drawing (or measured from the trace), and what makes the shoe itself."""
     front = ""
     if sheet:
         front = f"""
@@ -1367,7 +1397,7 @@ The side drawing must agree with it: the same kind of shoe, the same colours (it
 
 ## The photos of the shoe
 {photo_lines(photos)}
-The side photos matter most, the outer side above all: draw from them. The others show what a side photo cannot (the toe's shape from above, the heel from behind). Ignore dirt, wear, shade, highlights, a hand holding it, the floor and the background.{front}{notes_section(notes)}
+The side photos matter most, the outer side above all: draw from them. The others show what a side photo cannot (the toe's shape from above, the heel from behind). Ignore dirt, wear, shade, highlights, a hand holding it, the floor and the background.{front}{notes_section(notes)}{side_notes_section(side_notes)}
 
 ## Two of the app's plain drawings, for the STYLE only
 {" and ".join(SIDE_STYLE_NAMES)} are the app's own side drawings of an ordinary sneaker and an ordinary boot, made from nothing more than their kind and a colour, on the card the app paints behind every drawing. They show the line weights, the flat colours, the frame and how few shapes a drawing needs. They are not this shoe and they are plain because they know nothing about it: do not copy their shapes.
@@ -1387,7 +1417,8 @@ Answer with kind, proportions, colours, features, and the drawing as bare SVG el
 
 
 def side_check_prompt(photos: list[Photo], answer: Mapping, svg: str, problems: list[str],
-                      notes: Sequence[str] = (), measures: drawnside.Measures | None = None) -> str:
+                      notes: Sequence[str] = (), measures: drawnside.Measures | None = None,
+                      side_notes: Sequence[str] = ()) -> str:
     """The check of a side drawing against the photos: its render on the card, large and at a closet tile's size, what
     was written for it, its SVG and what the automatic checks found."""
     written = json.dumps({k: answer[k] for k in ("kind", "proportions", "features") if k in answer}, indent=1)
@@ -1397,7 +1428,7 @@ def side_check_prompt(photos: list[Photo], answer: Mapping, svg: str, problems: 
 
 ## The photos of the shoe
 {photo_lines(photos)}
-The side photos matter most.{notes_section(notes)}
+The side photos matter most.{notes_section(notes)}{side_notes_section(side_notes)}
 
 ## Your drawing
 drawing.png shows it on its card, large and at the size of a closet tile. What you wrote for it:
@@ -1463,63 +1494,90 @@ def _style_images() -> list[Image.Image]:
     return [_png(drawn.render_png(svg, 400, 460)) for svg in drawnside.style_svgs().values()]
 
 
-def _side_good_as_is(svg: str) -> correcting.CutShort:
+def _side_good_as_is(svg: str, answer_model=None) -> correcting.CutShort:
     """A side check's answer may stop being read once it says good, as a check of the front does (`_good_as_is`): in
-    its schema `good`, `problems` and `features` come before `svg`, and a good answer with no automatic problem ends
-    the checks with the drawing already held, so its copy of the drawing is not waited for. Not good, or a field
-    missing or one more: None, and the answer is read to its end."""
-    asked = set(SideCheckAnswer.model_fields) - {"svg"}
+    its schema `good`, `problems` and `features` (and, in a check of a correction, `against_photos`) come before `svg`,
+    and a good answer with no automatic problem ends the checks with the drawing already held, so its copy of the
+    drawing is not waited for. Not good, or a field missing or one more: None, and the answer is read to its end."""
+    answer_model = answer_model or SideCheckAnswer
+    asked = set(answer_model.model_fields) - {"svg"}
 
     def answer(fields: dict):
         if fields.get("good") is not True or set(fields) != asked:
             return None
-        return SideCheckAnswer.model_validate({**fields, "svg": svg})
+        return answer_model.model_validate({**fields, "svg": svg})
     return correcting.CutShort("svg", answer)
 
 
-def _side(ask, photos: list[Photo], shots: list[Image.Image], names: list[str], sheet: Mapping | None,
-          notes: Sequence[str], measures: drawnside.Measures | None, clock: Callable[[], float],
-          calls: list[Call]) -> Sided:
-    """One side drawing and its check rounds, at most `MAX_SIDE_ROUNDS`: they stop as soon as Claude says good and the
-    automatic checks (`drawnside.checks`, with the measures) find nothing; when they found nothing and no fix was set
-    aside, a good answer stops being read there (`_side_good_as_is`; the API route only). A check that fails keeps the
-    drawing made so far; a fix that cannot be used is set aside and the drawing before it is checked again. `calls` collects this
-    side's calls (the caller's `ask` records every call it makes in its own list too)."""
-    start = clock()
-    first_at = len(calls)
-    answer = ask("side", side_prompt(photos, sheet, notes, measures), shots + _style_images(),
-                 names + SIDE_STYLE_NAMES, SideAnswer)
-    svg = drawnside.sanitise(answer.svg)
-    written = {"kind": answer.kind, "proportions": answer.proportions.model_dump(), "features": _features(answer.features)}
-    problems, note, rounds, good = drawnside.checks(svg, measures), [], 0, False
-    while rounds < MAX_SIDE_ROUNDS:
+@dataclass
+class _SideChecked:
+    svg: str
+    features: list[str]
+    rounds: int
+    good: bool
+    problems: list[str]
+    answers: list = field(default_factory=list)   # each check's answer, in turn
+
+
+def _side_rounds(ask, svg: str, features: list[str], problems: list[str], max_rounds: int,
+                 prompt: Callable[[str, list[str], list[str]], str],
+                 images: Callable[[str], tuple[list[Image.Image], list[str]]], answer_model,
+                 checker: Callable[[str], list[str]]) -> _SideChecked:
+    """A side drawing's check rounds, at most `max_rounds`: each shows Claude the drawing (`images`) and what the
+    automatic checks (`checker`) found, and takes its fix. They stop as soon as Claude says good and the automatic
+    checks find nothing; when they found nothing and no fix was set aside, a good answer stops being read there
+    (`_side_good_as_is`; the API route only). A check that fails keeps the drawing made so far; a fix that cannot be
+    used is set aside and the drawing before it is checked again."""
+    note, rounds, good, answers = [], 0, False, []
+    while rounds < max_rounds:
         try:
-            cut = _side_good_as_is(svg) if not problems and not note else None
-            got = ask("side-check", side_check_prompt(photos, written, svg, problems + note, notes, measures),
-                      shots + [_png(drawnside.check_png(svg))], names + ["drawing.png"], SideCheckAnswer,
-                      cut_short=cut)
+            cut = _side_good_as_is(svg, answer_model) if not problems and not note else None
+            shots, names = images(svg)
+            got = ask("side-check", prompt(svg, features, problems + note), shots, names, answer_model, cut_short=cut)
         except TaggingError as e:   # Claude out of reach, or no usable answer: the drawing so far is kept
             log.info("checking a shoe's side drawing stopped after %s rounds: %s", rounds, type(e).__name__)
             break
         rounds += 1
+        answers.append(got)
         if got.good and not problems:
             good = True
             break
         try:
             fixed = drawnside.sanitise(got.svg)
-            found = drawnside.checks(fixed, measures)
+            found = checker(fixed)
         except drawn.DrawingError as e:   # the fix cannot be used: the drawing before it is checked again
             note = [f"The drawing you gave last could not be used ({e}) This is the drawing before it: fix it again, "
                     "or say good if it needs nothing."]
             continue
         svg, problems, note = fixed, found, []
-        written = {**written, "features": _features(got.features) or written["features"]}
-    return Sided(svg, written["features"], written["proportions"], rounds, clock() - start, calls[first_at:], good,
-                 problems, measured=measures is not None)
+        features = _features(got.features) or features
+    return _SideChecked(svg, features, rounds, good, problems, answers)
+
+
+def _side(ask, photos: list[Photo], shots: list[Image.Image], names: list[str], sheet: Mapping | None,
+          notes: Sequence[str], measures: drawnside.Measures | None, clock: Callable[[], float],
+          calls: list[Call], side_notes: Sequence[str] = ()) -> Sided:
+    """One side drawing and its check rounds, at most `MAX_SIDE_ROUNDS` (`_side_rounds`, with the automatic checks
+    `drawnside.checks` and the measures). `calls` collects this side's calls (the caller's `ask` records every call it
+    makes in its own list too)."""
+    start = clock()
+    first_at = len(calls)
+    answer = ask("side", side_prompt(photos, sheet, notes, measures, side_notes), shots + _style_images(),
+                 names + SIDE_STYLE_NAMES, SideAnswer)
+    svg = drawnside.sanitise(answer.svg)
+    written = {"kind": answer.kind, "proportions": answer.proportions.model_dump(), "features": _features(answer.features)}
+    done = _side_rounds(
+        ask, svg, written["features"], drawnside.checks(svg, measures), MAX_SIDE_ROUNDS,
+        lambda s, f, found: side_check_prompt(photos, {**written, "features": f}, s, found, notes, measures, side_notes),
+        lambda s: (shots + [_png(drawnside.check_png(s))], names + ["drawing.png"]), SideCheckAnswer,
+        lambda s: drawnside.checks(s, measures))
+    return Sided(done.svg, done.features, written["proportions"], done.rounds, clock() - start, calls[first_at:],
+                 done.good, done.problems, measured=measures is not None)
 
 
 def _side_job(ask, calls: list[Call], photos: list[Photo], shots: list[Image.Image], names: list[str], sheet: Mapping,
-              notes: Sequence[str], measures, clock: Callable[[], float]) -> Callable[[], Sided | None]:
+              notes: Sequence[str], measures, clock: Callable[[], float],
+              side_notes: Sequence[str] = ()) -> Callable[[], Sided | None]:
     """The side drawn in a thread of its own, beside the turns and sharing their places (`_limited`), through `ask`,
     which records its calls in `calls`: a function that waits for it and gives it, or None when it
     failed for whatever reason (logged by its kind)."""
@@ -1529,7 +1587,7 @@ def _side_job(ask, calls: list[Call], photos: list[Photo], shots: list[Image.Ima
 
     def run():
         try:
-            got["side"] = _side(ask, photos, shots, names, sheet, notes, m, clock, calls)
+            got["side"] = _side(ask, photos, shots, names, sheet, notes, m, clock, calls, side_notes)
         except Exception as e:   # the front is never lost to the side
             log.info("drawing a shoe's side failed: %s", type(e).__name__)
 
@@ -1545,10 +1603,11 @@ def _side_job(ask, calls: list[Call], photos: list[Photo], shots: list[Image.Ima
 def draw_side(photos: list[Photo], routes: tuple[str, ...], client=None, exe: str | None = None,
               meter: Meter | None = None, asker: Asker = correcting.ask, clock: Callable[[], float] = time.monotonic,
               sheet: Mapping | None = None, notes: Sequence[str] = (), measures=None,
-              mask_of: photocheck.MaskOf | None = None) -> Sided:
+              mask_of: photocheck.MaskOf | None = None, side_notes: Sequence[str] = ()) -> Sided:
     """Draw the shoe from its side by itself (a shoe drawn before the side was, or a side that failed with its
     drawing): one draw call and at most `MAX_SIDE_ROUNDS` checks. `sheet`: the front drawing's sheet, so both agree
-    (none: the side is drawn from the photos alone); `notes`: the owner's notes on the drawing; `measures`: from the
+    (none: the side is drawn from the photos alone); `notes`: the owner's notes on the drawing; `side_notes`: their
+    notes on its earlier side drawings (`side_notes_of`); `measures`: from the
     shoe's trace (`drawnside.Measures`, or its JSON). Raises `RouteUnavailable` (or `CapReached`) when Claude cannot be
     reached, `TaggingError` when it gives no usable answer, `drawn.DrawingError` when the drawing cannot be used."""
     photos = [Photo(photocheck.crop(p.image, mask_of), p.view, p.sure) for p in photos]
@@ -1556,4 +1615,197 @@ def draw_side(photos: list[Photo], routes: tuple[str, ...], client=None, exe: st
     names = photo_names(len(photos))
     calls: list[Call] = []
     ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_photos=len(shots))
-    return _side(ask, photos, shots, names, sheet, list(notes), drawnside.Measures.from_json(measures), clock, calls)
+    return _side(ask, photos, shots, names, sheet, list(notes), drawnside.Measures.from_json(measures), clock, calls,
+                 list(side_notes))
+
+
+# ------------------------------------------------------------------ the owner's correction of the side
+#
+# The owner's one-line note on the side drawing (the owner says the note is about the side: DECISIONS, "Which drawing a
+# note is about"): one call changes only what the note asks, then at most `MAX_CORRECT_ROUNDS` checks compare the
+# change with the PHOTOS and with the side before it, as a correction of the front does, through the same routes,
+# model and purpose (`correct_drawing`). The front drawing is not touched.
+
+class SideCorrectAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    changed: str = Field(description="What you changed, in one short plain sentence for the owner, such as 'The heel "
+                                     "counter is taller.'")
+    against_photos: str | None = Field(description="null; or, only when the note asks for something the photos do not "
+                                                   "show, one short plain sentence for the owner saying so, such as "
+                                                   "'The side photo shows the mark ending under the lacing; drawn as "
+                                                   "you asked.'")
+    features: list[str] = Field(min_length=2, max_length=FEATURES_MAX,
+                                description="What makes this shoe itself from the side, one short plain line each (the "
+                                            "same as before, changed only where the note changes them).")
+    svg: str = Field(description="The drawing changed as the note asks: bare SVG elements in the frame.")
+
+
+class SideCorrectCheckAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    good: bool = Field(description="True only when the change is right as it is and no automatic problem is left.")
+    problems: list[str] = Field(description="What was wrong and is fixed in this answer, in short plain sentences; "
+                                            "empty when good.")
+    against_photos: str | None = Field(description="null; or, only when the owner's note asks for something the photos "
+                                                   "do not show, one short plain sentence for the owner saying so, "
+                                                   "such as 'The side photo shows the mark ending under the lacing; "
+                                                   "drawn as you asked.'")
+    features: list[str] = Field(min_length=2, max_length=FEATURES_MAX,
+                                description="What makes this shoe itself from the side, one short plain line each "
+                                            "(the same when nothing about them changed).")
+    svg: str = Field(description="The drawing as it should be (the same drawing when good): bare SVG elements.")
+
+
+def _earlier_side(notes: Sequence[str]) -> str:
+    if not notes:
+        return ""
+    return f"""
+
+## The owner's earlier notes on this shoe's side drawing (still to be kept)
+{_note_lines(notes)}"""
+
+
+def _feature_lines(features: Sequence[str]) -> str:
+    return "\n".join(f"- {f}" for f in features) or "- (none written)"
+
+
+def _side_measured(measures: drawnside.Measures | None) -> str:
+    if measures is None:
+        return ""
+    return f"""
+
+The app measured this shoe's outline in its side photo. Its heights, as shares of its length:
+{drawnside.measures_text(measures)}
+Keep the drawing's heights where they are unless the note asks to change one: the note is the owner's word, and wins over the measures."""
+
+
+def side_correct_prompt(photos: list[Photo], svg: str, features: Sequence[str], note: str, notes: Sequence[str] = (),
+                        measures: drawnside.Measures | None = None) -> str:
+    """The owner's one-line note on the side drawing: change only what it asks, in the same frame and style."""
+    return f"""The owner looked at your drawing of this shoe from its side, the picture that stands for the shoe in a private wardrobe app, and wrote a one-line note on what is wrong with it. Change the drawing as the note asks, starting from the drawing as it is.
+
+## The owner's note
+{_note_text(note)}{_earlier_side(notes)}
+
+## The photos of the shoe
+{photo_lines(photos)}
+The side photos matter most, the outer side above all. Ignore dirt, wear, shade, highlights, a hand holding it, the floor and the background.
+
+## The drawing as it is
+drawing.png shows it on its card, large and at the size of a closet tile. What makes the shoe itself from the side, as you wrote it:
+{_feature_lines(features)}{_side_measured(measures)}
+
+Its SVG:
+{svg}
+
+## Change ONLY what the note asks
+- Start from the drawing as it is: copy its SVG and change only the shapes the note is about and whatever must change with them (a panel made taller moves the seam above it). Keep every other shape as it is, with the same coordinates and colours, in the same frame and the same style, and keep to the owner's earlier notes on the side.
+- First check, in every photo (the side photos show both ends of the shoe), each thing the note says or takes for granted about the shoe: where a part is (at the toe or the heel, on which side), how many there are, its colour, size and height. A note can be wrong about the shoe: a part can be at both ends or on one side only, a sole's rubber can climb higher at one end.
+- Then draw it as the note asks. The note is the owner's word: if it asks for something the photos do not show, or takes for granted something the photos show otherwise (a part higher, larger, in another place, one part where there are two, another colour), still draw it as the owner asks, and say so in against_photos in one short plain sentence to the owner naming what the photos show, such as "The side photo shows the mark ending under the lacing; drawn as you asked." Otherwise against_photos is null.
+- features: copy them, changing only what the note changes.
+- changed: what you changed, in one short plain sentence for the owner, such as "The heel counter is taller."
+
+{SIDE_BRIEF}
+
+Answer with changed, against_photos, features, and the drawing as bare SVG elements."""
+
+
+def side_correct_check_prompt(photos: list[Photo], svg: str, features: Sequence[str], problems: list[str], note: str,
+                              notes: Sequence[str] = (), measures: drawnside.Measures | None = None) -> str:
+    """A check of a side drawing changed from the owner's note, against the photos and the side before the change."""
+    return f"""You changed your drawing of this shoe from its side as the owner's one-line note asked. Now check the change against the PHOTOS, not only against the note, and fix it if it needs it.
+
+## The owner's note
+{_note_text(note)}{_earlier_side(notes)}
+
+## The photos of the shoe
+{photo_lines(photos)}
+The side photos matter most.
+
+## The drawing before the note, and after it
+before.png shows the drawing as it was before the note, and drawing.png as it is now, each on its card, large and at the size of a closet tile. What makes the shoe itself from the side, as written now:
+{_feature_lines(features)}{_side_measured(measures)}
+
+Its SVG now:
+{svg}
+
+## What the automatic checks found (each must be fixed)
+{_found(problems)}
+
+## Look
+Compare drawing.png with before.png and with the photos.
+- The owner's change stays. The note is the owner's word: never undo it or weaken it, even where the photos look different.
+- Nothing else changes. Anything the note did not ask for that differs from before.png, or that the change broke (a shape moved or lost, a colour changed, the shoe off its frame), is put back as it was in before.png.
+- Against the photos: is it still the same kind of shoe, seen exactly side-on with the toe on the left, with the same proportions and true colours, at the size of a closet tile too?
+- Check the note itself against every photo (the side photos show both ends of the shoe): where the part it is about really is, how many there are, its colour, size and height. A note can be wrong about the shoe.
+- against_photos: when the note asks for something the photos do not show, or takes for granted something the photos show otherwise, say so in one short plain sentence to the owner naming what the photos show, such as "The side photo shows the mark ending under the lacing; drawn as you asked."; otherwise null.
+
+If it is right and the automatic checks found nothing, say good, with no problems, and give the drawing back unchanged. Otherwise say what was wrong in problems and give the drawing fixed: change what is wrong and keep everything else as it is.
+
+The rules the drawing follows:
+{SIDE_BRIEF}"""
+
+
+@dataclass
+class SideCorrected(Sided):
+    """A side drawing changed from the owner's note: as `Sided` (its calls, seconds and cost are this change's), with
+    the note, what Claude says changed, and, when the note asks for something the photos do not show, one plain
+    sentence saying so (`against_photos`; it is drawn as asked all the same)."""
+    note: str = ""
+    changed: str | None = None
+    against_photos: str | None = None
+
+    def entry(self, made_at: str) -> dict:
+        """This change's note as kept in the drawing's `side_notes`: {note, at, against_photos, changed}."""
+        return {"note": self.note, "at": made_at, "against_photos": self.against_photos, "changed": self.changed}
+
+    def to_json(self, made_at: str) -> dict:
+        """As `Sided.to_json`, with `corrected`: this side is the one before it, changed from the note."""
+        return {**super().to_json(made_at), "corrected": True}
+
+    def kept_in(self, kept: Mapping, made_at: str) -> dict:
+        """The drawing kept with the item (`kept`) with this side in place of its own: the front exactly as it was,
+        this change's note added to its `side_notes`, `last_change` "side" and `changed_at` when (its front's
+        `made_at` stays the front's)."""
+        return {**kept, "side": self.to_json(made_at), "side_notes": [*side_notes_of(kept), self.entry(made_at)],
+                "last_change": "side", "changed_at": made_at}
+
+
+def correct_side(photos: list[Photo], kept: Mapping, note: str, routes: tuple[str, ...], client=None,
+                 exe: str | None = None, meter: Meter | None = None, asker: Asker = correcting.ask,
+                 clock: Callable[[], float] = time.monotonic, measures=None,
+                 mask_of: photocheck.MaskOf | None = None) -> SideCorrected:
+    """Change the side drawing of a drawing kept with the item (`kept`, as `items.drawn`, its `side` entry) as the
+    owner's one-line `note` asks, then check the change against the photos and the side before it, at most
+    `MAX_CORRECT_ROUNDS` times. The owner's earlier notes on the side (`side_notes_of`) are kept to; `measures` (from the
+    shoe's trace) are shown, not checked: the note wins over them. The automatic checks are a fresh side's frame checks
+    (`drawnside.checks` without the measures). Raises as `draw_side` does; `drawn.DrawingError` too when the kept
+    drawing has no side that can be read."""
+    side = kept.get("side") if isinstance(kept, Mapping) else None
+    if not isinstance(side, Mapping) or not isinstance(side.get("svg"), str) or not side["svg"].strip():
+        raise drawn.DrawingError("The drawing to change has no side.")
+    note = clean_note(note)
+    start = clock()
+    before = drawnside.sanitise(side["svg"])
+    features = _features(side.get("features"))
+    m = drawnside.Measures.from_json(measures)
+    earlier = [n["note"] for n in side_notes_of(kept)]
+    photos = [Photo(photocheck.crop(p.image, mask_of), p.view, p.sure) for p in photos]
+    shots = [shown(p.image) for p in photos]
+    names = photo_names(len(photos))
+    calls: list[Call] = []
+    ask = _caller(routes, client, exe, meter, asker, clock, calls, cache_photos=len(shots))
+    before_png = _png(drawnside.check_png(before))
+    first = ask("side-correct", side_correct_prompt(photos, before, features, note, earlier, m), shots + [before_png],
+                names + ["drawing.png"], SideCorrectAnswer)
+    svg = drawnside.sanitise(first.svg)
+    done = _side_rounds(
+        ask, svg, _features(first.features) or features, drawnside.checks(svg), MAX_CORRECT_ROUNDS,
+        lambda s, f, found: side_correct_check_prompt(photos, s, f, found, note, earlier, m),
+        lambda s: (shots + [before_png, _png(drawnside.check_png(s))], names + ["before.png", "drawing.png"]),
+        SideCorrectCheckAnswer, drawnside.checks)
+    # the last check looked at the change beside the photos, so its word on them is the one kept
+    against = _sentence(done.answers[-1].against_photos if done.answers else first.against_photos)
+    proportions = side.get("proportions") if isinstance(side.get("proportions"), dict) else {}
+    return SideCorrected(done.svg, done.features, proportions, done.rounds, clock() - start, calls, done.good,
+                         done.problems, measured=bool(side.get("measured")), note=note, changed=_sentence(first.changed),
+                         against_photos=against)

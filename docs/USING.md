@@ -145,10 +145,13 @@ tried again.
 A shoe also shows its photos sorted into views and, under "Drawn by Claude from its photos",
 the two drawings Claude makes from them: the shoe from the side, which becomes its picture in
 the closet, with a line on what makes it itself, and the drawing for the figure. Both are made
-together, in several minutes; the drawing for the figure can be corrected with a note. Until
-Claude's side drawing exists, or when it cannot be made, the picture is traced from the side
-photo, with its own fixes in Fix the details; once it exists, Fix the details offers only the
-plain drawing. Two shoes are drawn at the same time; a third waits for one of them. A shoe
+together, in several minutes. Either can be corrected with a one-line note: once there is a
+side drawing, you choose whether the note is about the front or the side (the front unless you
+choose), Claude changes only that drawing, and the line on what changed sits under it. Go back
+to the drawing before undoes either kind of change. Until Claude's side drawing exists, or when
+it cannot be made, the picture is traced from the side photo, with its own fixes in Fix the
+details; once it exists, Fix the details offers only the plain drawing, and says how to correct
+the side instead. Two shoes are drawn at the same time; a third waits for one of them. A shoe
 drawn before gets its side drawn by itself, in the background.
 
 While Nines is working on a piece, one strip over the bottom of its picture says how far it

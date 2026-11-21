@@ -266,9 +266,10 @@ export const api = {
     request<Item>(`/api/items/${encodeURIComponent(id)}/photos/${encodeURIComponent(photoId)}/view`, { method: 'PUT', body: { view } }),
   /** Draws a shoe from its photos (again): the drawing it has stays until the new one is done. */
   drawShoe: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/drawn`, { method: 'POST' }),
-  /** The owner's one-line note on a shoe's drawing: Claude changes only what it asks; the drawing stays until done. */
-  correctDrawing: (id: string, note: string) =>
-    request<Item>(`/api/items/${encodeURIComponent(id)}/drawn/correct`, { method: 'POST', body: { note } }),
+  /** The owner's one-line note on a shoe's drawing, about its front or its side: Claude changes only what it asks;
+   * the drawing stays until done. */
+  correctDrawing: (id: string, note: string, about: 'front' | 'side' = 'front') =>
+    request<Item>(`/api/items/${encodeURIComponent(id)}/drawn/correct`, { method: 'POST', body: { note, about } }),
   /** Swaps a shoe's drawing and the one before the last change: back in one tap, and forward again the same way. */
   drawingBack: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/drawn/back`, { method: 'POST' }),
   /** `duplicate` is true when the photo was already in the closet; the item returned is the one it is in. */

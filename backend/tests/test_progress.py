@@ -10,7 +10,8 @@ def row(**over):
     """An item with nothing under way: cut out, described, nothing measured, not a shoe."""
     base = {"category": "polo", "pattern": "solid", "cutout_state": "ready", "cutout_error": None,
             "tag_state": "done", "tag_error": None, "pattern_state": None, "trace_state": None,
-            "views_state": None, "views_error": None, "drawn_state": None, "drawn_error": None, "drawn_note": None}
+            "views_state": None, "views_error": None, "drawn_state": None, "drawn_error": None, "drawn_note": None,
+            "drawn_note_about": None}
     return {**base, **over}
 
 
@@ -68,6 +69,10 @@ def test_each_state_of_an_item(over, expected):
     ({"drawn_state": "correcting", "drawn_note": "black laces"}, ("shoe", 3, "working", None)),
     ({"drawn_state": "waiting", "drawn_error": shoedraw.NO_ROUTE}, ("shoe", 3, "waiting", "claude")),
     ({"drawn_state": "waiting", "drawn_error": shoedraw.CORRECT_LIMIT, "drawn_note": "x"}, ("shoe", 3, "waiting", "limit")),
+    ({"drawn_state": "waiting", "drawn_error": shoedraw.CORRECT_SIDE_NO_ROUTE, "drawn_note": "x",
+      "drawn_note_about": "side"}, ("shoe", 3, "waiting", "claude")),
+    ({"drawn_state": "waiting", "drawn_error": shoedraw.CORRECT_SIDE_LIMIT, "drawn_note": "x",
+      "drawn_note_about": "side"}, ("shoe", 3, "waiting", "limit")),
     ({"drawn_state": "waiting", "views_state": "asking"}, ("views", 3, "waiting", "you")),
     ({"drawn_state": "waiting", "views_state": "failed"}, ("shoe", 3, "waiting", "you")),
     # the part going furthest is the one said: a trace being made before a drawing that waits for Claude
@@ -76,6 +81,14 @@ def test_each_state_of_an_item(over, expected):
 ])
 def test_each_state_of_a_shoe(over, expected):
     assert brief(progress.of(shoe(**over))) == expected
+
+
+def test_a_note_about_the_side_says_it_is_the_side_drawing_that_changes():
+    front = progress.of(shoe(drawn_state="correcting", drawn_note="black laces"))
+    side = progress.of(shoe(drawn_state="correcting", drawn_note="a taller heel", drawn_note_about="side"))
+    waiting = progress.of(shoe(drawn_state="waiting", drawn_note="a taller heel", drawn_note_about="side"))
+    assert front["words"] == progress.CORRECTING == "Changing the drawing as you asked"
+    assert side["words"] == waiting["words"] == progress.CORRECTING_SIDE == "Changing the side drawing as you asked"
 
 
 def test_a_shoes_columns_mean_nothing_on_anything_else():

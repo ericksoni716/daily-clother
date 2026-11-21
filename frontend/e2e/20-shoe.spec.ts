@@ -275,6 +275,52 @@ test.describe('a shoe drawn from its photo', () => {
     await expect(changedLine).toBeVisible();
     await expect(drawnSection.getByRole('button', { name: 'Go back to the drawing before' })).toBeVisible();
 
+    // with a side drawing, the owner says which drawing a note is about: the front unless they choose the side. The
+    // stand-in Claude makes the side's upper light grey and says the photos show it white; the front stays as it was
+    const about = drawnSection.getByRole('group', { name: 'Which drawing the note is about' });
+    const frontChoice = about.getByRole('button', { name: 'The front' });
+    const sideChoice = about.getByRole('button', { name: 'The side' });
+    await expect(frontChoice).toHaveAttribute('aria-pressed', 'true');
+    await expect(sideChoice).toHaveAttribute('aria-pressed', 'false');
+    await sideChoice.click();
+    await expect(sideChoice).toHaveAttribute('aria-pressed', 'true');
+    await expect(box).toHaveAttribute('placeholder', /the heel should be taller/);
+    await expect(drawnSection.locator('.shoe-drawn-say')).toContainText('the front stays as it is');
+    expect(await sideways(page)).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
+    await box.fill('the upper should be light grey');
+    await drawnSection.scrollIntoViewIfNeeded();
+    await expect(page.locator('.toast')).toHaveCount(0, { timeout: 15_000 });
+    await drawnSection.screenshot({ path: test.info().outputPath('shoe-drawn-note-side.png') });
+    const frontSrc = (await picture.getAttribute('src'))!;
+    const sideBefore = (await side.getAttribute('src'))!;
+    await sendNote.click();
+    await expect(drawnSection.getByRole('status')).toHaveText(
+      'Changing the side drawing as you asked: “the upper should be light grey”');
+    const sideChanged = drawnSection.getByTestId('shoe-drawn-side-changed');
+    await expect(sideChanged).toHaveText('Changed as you asked: “the upper should be light grey”. The upper is light grey now.',
+      { timeout: 30_000 });
+    await expect(drawnSection.getByTestId('shoe-drawn-side-against')).toHaveText(
+      'The side photo shows a white upper, not grey; drawn as you asked.');
+    await expect(drawnSection.getByTestId('shoe-drawn-side-line')).toContainText('checked once against the photos');
+    await expect(drawnSection.getByTestId('shoe-drawn-line')).toHaveCount(0);   // one line about the last change
+    await expect(changedLine).toHaveCount(0);   // the line about what changed sits with the side now
+    await expect(side).not.toHaveAttribute('src', sideBefore);
+    await expect(picture).toHaveAttribute('src', frontSrc);   // the front as it was
+    await expect.poll(() => side.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
+    expect(await sideways(page)).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
+    await drawnSection.scrollIntoViewIfNeeded();
+    await expect(page.locator('.toast')).toHaveCount(0, { timeout: 15_000 });
+    await drawnSection.screenshot({ path: test.info().outputPath('shoe-drawn-side-corrected.png') });
+    // going back undoes the side's change too
+    await drawnSection.getByRole('button', { name: 'Go back to the drawing before' }).click();
+    await expect(side).toHaveAttribute('src', sideBefore);
+    await expect(sideChanged).toHaveCount(0);
+    await expect(changedLine).toBeVisible();
+    await drawnSection.getByRole('button', { name: 'Go to the newer drawing' }).click();
+    await expect(sideChanged).toBeVisible();
+
     // a photo removed: the shoe is not drawn again, and the page says the photos changed since the drawing
     await row.getByRole('button', { name: 'Remove photo 2' }).click();
     await expect(drawnSection).toContainText('The photos changed since this drawing.');

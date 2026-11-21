@@ -78,6 +78,7 @@
 .shoe-drawn .confirm { background: var(--surface-2); }
 .shoe-drawn-say { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 10px; }
 .shoe-drawn-say-row { display: flex; gap: 8px; }
+.shoe-drawn-about { justify-self: start; }
 .shoe-drawn-say-row input {
   flex: 1; min-width: 0; min-height: var(--tap); padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-sm);
   background: var(--bg); color: var(--ink); font: inherit;

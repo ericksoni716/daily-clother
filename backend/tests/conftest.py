@@ -28,6 +28,8 @@ from closet.tagger.shoedrawing import (
     DrawAnswer,
     SideAnswer,
     SideCheckAnswer,
+    SideCorrectAnswer,
+    SideCorrectCheckAnswer,
 )
 from closet.tagger.stylist import ChatReply
 from closet.tagger.tagging import RouteUnavailable, TaggingError, TagResult
@@ -211,6 +213,28 @@ def correct_answer(against: str | None = AGAINST) -> CorrectAnswer:
                                          "right": None})
 
 
+# How the stand-ins change a side drawing from the owner's note: the plain low shoe with its upper light grey (the only
+# shape the note is about), said to go against the photos, which show a white upper; a check says it is good at once.
+GREY_UPPER = "the upper should be light grey"
+SIDE_AGAINST = "The side photo shows a white upper, not grey; drawn as you asked."
+GREY_SIDE_SVG = SIDE_SVG.replace("#ffffff", "#c8c8c8")
+SIDE_CHANGED = "The upper is light grey now."
+
+
+def side_correct_answer(against: str | None = SIDE_AGAINST, svg: str = GREY_SIDE_SVG) -> SideCorrectAnswer:
+    return SideCorrectAnswer.model_validate({"changed": SIDE_CHANGED, "against_photos": against,
+                                             "features": ["light grey leather upper with a plain toe", SIDE_FEATURES[1]],
+                                             "svg": svg})
+
+
+def side_correct_check_answer(good: bool = True, against: str | None = SIDE_AGAINST,
+                              svg: str = GREY_SIDE_SVG) -> SideCorrectCheckAnswer:
+    answer = side_correct_answer(against, svg)
+    return SideCorrectCheckAnswer.model_validate({"good": good, "problems": [] if good else ["The sole had moved."],
+                                                  "against_photos": against, "features": answer.features,
+                                                  "svg": svg})
+
+
 def correct_check_answer(good: bool = True, against: str | None = AGAINST) -> CorrectCheckAnswer:
     answer = correct_answer(against)
     return CorrectCheckAnswer.model_validate({"good": good, "problems": [] if good else ["The toe cap had moved."],
@@ -337,7 +361,9 @@ class FakeApi:
     which is streamed (`messages.stream`), it answers `drawing` (`draw_answer`) or `checked` (`check_answer`), as text
     in the answer's schema, turned or not (`FakeStream`, in pieces); asked to change a drawing from the owner's note, or to check the change,
     `corrected` (`correct_answer`) or `correct_checked` (`correct_check_answer`); asked to draw its side or check that,
-    `side` (`side_answer`) or `side_checked` (`side_check_answer`); asked to judge drawings, the first, with no fault
+    `side` (`side_answer`) or `side_checked` (`side_check_answer`); asked to change the side from the owner's note, or
+    to check that, `side_corrected` (`side_correct_answer`) or `side_correct_checked` (`side_correct_check_answer`);
+    asked to judge drawings, the first, with no fault
     named. A message in the style conversation is answered with `chat` (a few words, one line to keep).
     """
 
@@ -361,6 +387,8 @@ class FakeApi:
         self.correct_checked = correct_check_answer()
         self.side = side_answer()
         self.side_checked = side_check_answer()
+        self.side_corrected = side_correct_answer()
+        self.side_correct_checked = side_correct_check_answer()
         self.tag_answers: list = [ANSWER]   # what describing an item answers, in turn: models, dicts, or None (no call)
         self.chat = ChatReply(reply="Noted: a little lighter than most.", remember=["I run warm."])
 
@@ -393,6 +421,8 @@ class FakeApi:
             from closet.tagger.shoedrawing import Verdict
             answer = Verdict(observations="the panels", faults=["A: none", "B: none", "C: none"], best="a",
                              ranking=["a", "b", "c"])
+        elif "svg" in props and "against_photos" in props:   # changing the side from the owner's note, or checking that
+            answer = self.side_correct_checked if "good" in props else self.side_corrected
         elif "against_photos" in props:   # changing a drawing from the owner's note, or checking the change
             answer = self.correct_checked if "good" in props else self.corrected
         elif "svg" in props:   # drawing the shoe from its side, or checking that

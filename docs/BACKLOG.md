@@ -16,8 +16,6 @@ only here); take a line out when it is done.
 
 - **A shoe's side drawn by Claude** (20 November; DECISIONS, "A shoe's side drawn by Claude").
   Left:
-  - Correcting the side with the owner's note: a note changes the front only, and the side is
-    kept as it is.
   - Worked examples for the side: once the owner has side drawings they like, show them as
     examples (as the front's three liked drawings are), instead of only the plain templates.
   - Not yet tried on the owner's own pairs; one trial on the open-licence held sneaker only,
@@ -27,6 +25,9 @@ only here); take a line out when it is done.
     plan, `tools/draw_shoe_photos.py --side-only`: 120 s, three calls, said good at the second
     check, about $0.33 at the API key's prices), nor how often the side, beside the turns, ends
     up the longest part of a drawing.
+  - Correcting the side with a note (21 November; DECISIONS, "Which drawing a note is about"):
+    tried only with stand-ins for Claude, never with a real call; `tools/correct_shoe_drawing.py
+    --side` has no trace to read, so it runs without the measured proportions.
 - The rename to Nines (20 November) left the program file and the release assets named Closet: decided by the owner and still to do. The updater must find the new asset name while copies already installed still look for `Closet.exe` and `Closet-mac-arm64.zip`; then the names in `packaging/closet.spec` (including `CFBundleName`), `packaging/smoke_test.py`, `ASSETS` in `updates.py`, the release workflow, the start-at-login entry (`autostart.NAME`) and any shortcut that points at the old file name. See DECISIONS, "The name: Nines".
 - Also left by the rename: comments, docstrings and log lines in the code still say Closet, and older docs (past CHANGELOG entries, DECISIONS entries before it, the assessment) keep the old name.
 - **The computer's own door and the doors from outside** (the first two of three pull requests

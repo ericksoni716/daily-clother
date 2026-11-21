@@ -103,6 +103,8 @@ from .conftest import (
     fake_cutter,
     side_answer,
     side_check_answer,
+    side_correct_answer,
+    side_correct_check_answer,
     views_answer,
 )
 
@@ -171,7 +173,8 @@ def fake_asker(text, images, routes, answer_model=None, model="", **kw):
     on or turned; to the judge: the first, with no fault named; to a correction and its check: the dress shoe with
     black laces, said to go against the photos, and good; and to the side and its check: a plain low shoe, good,
     except the first side this backend is asked for, which cannot be used (lettering only), so the first drawing has
-    no side and the page shows the trace until the shoe is drawn again."""
+    no side and the page shows the trace until the shoe is drawn again; to a change of the side and its check: the plain
+    low shoe with a light grey upper, said to go against the photos, and good."""
     time.sleep(1)   # long enough for the page to show it drawing
     if answer_model is shoedrawing.SideAnswer:
         _sides["asked"] += 1
@@ -186,7 +189,9 @@ def fake_asker(text, images, routes, answer_model=None, model="", **kw):
                   shoedrawing.CorrectCheckAnswer: correct_check_answer,
                   shoedrawing.TurnedCorrectCheckAnswer: correct_check_answer,
                   shoedrawing.SideAnswer: side_answer,
-                  shoedrawing.SideCheckAnswer: side_check_answer}.get(answer_model, check_answer)()
+                  shoedrawing.SideCheckAnswer: side_check_answer,
+                  shoedrawing.SideCorrectAnswer: side_correct_answer,
+                  shoedrawing.SideCorrectCheckAnswer: side_correct_check_answer}.get(answer_model, check_answer)()
         if answer_model in TURNED:   # the same answer in the turned form (the same fields): the dress shoe as drawn,
             answer = answer_model.model_validate(answer.model_dump())   # which passes the turned view's checks
     return CorrectionResult(answer, routes[0], model, 42_000, 6_500, 12_000)
@@ -196,12 +201,17 @@ TURNED = {shoedrawing.TurnedDrawAnswer, shoedrawing.TurnedCheckAnswer, shoedrawi
           shoedrawing.TurnedCorrectCheckAnswer}
 
 
-def fake_drawer(photos, routes, notes=(), style=None, measures=None):
-    return shoedrawing.draw(photos, routes, asker=fake_asker, notes=notes, style=style, measures=measures)
+def fake_drawer(photos, routes, notes=(), style=None, measures=None, side_notes=()):
+    return shoedrawing.draw(photos, routes, asker=fake_asker, notes=notes, style=style, measures=measures,
+                            side_notes=side_notes)
 
 
 def fake_drawing_corrector(photos, kept, note, routes):
     return shoedrawing.correct(photos, kept, note, routes, asker=fake_asker)
+
+
+def fake_side_corrector(photos, kept, note, routes, measures=None):
+    return shoedrawing.correct_side(photos, kept, note, routes, asker=fake_asker, measures=measures)
 
 
 def api_only_status(order="auto", claude_exe=None):
@@ -407,7 +417,8 @@ def _build_services(cfg, **kwargs):
             kwargs.setdefault("measurer", slow_measurer)
         sv = _real_build(cfg, cutter=slow_cutter if STAGE_SECONDS else fake_cutter, tagger=fake_claude,
                          routes=lambda: ("plan",), corrector=reader.correct, finder=fake_finder, sorter=fake_sorter,
-                         drawer=fake_drawer, drawing_corrector=fake_drawing_corrector, **kwargs)
+                         drawer=fake_drawer, drawing_corrector=fake_drawing_corrector,
+                         side_corrector=fake_side_corrector, **kwargs)
     sv.worker.is_ready = lambda: True
     return sv
 

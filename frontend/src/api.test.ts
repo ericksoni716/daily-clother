@@ -147,9 +147,12 @@ describe("a shoe's photos", () => {
     const calls = recording();
     await api.correctDrawing('a b', 'the laces are black');
     await api.drawingBack('a b');
+    await api.correctDrawing('a b', 'the heel is taller', 'side');
     expect(calls.map((c) => [c.init.method, c.path])).toEqual([
-      ['POST', '/api/items/a%20b/drawn/correct'], ['POST', '/api/items/a%20b/drawn/back']]);
-    expect(JSON.parse(calls[0].init.body as string)).toEqual({ note: 'the laces are black' });
+      ['POST', '/api/items/a%20b/drawn/correct'], ['POST', '/api/items/a%20b/drawn/back'],
+      ['POST', '/api/items/a%20b/drawn/correct']]);
+    expect(JSON.parse(calls[0].init.body as string)).toEqual({ note: 'the laces are black', about: 'front' });
+    expect(JSON.parse(calls[2].init.body as string)).toEqual({ note: 'the heel is taller', about: 'side' });
   });
 });
 

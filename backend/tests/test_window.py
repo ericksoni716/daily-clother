@@ -5,8 +5,11 @@ tray icon with `FakeIcon`, and run the real launcher (`cli.serve`) and the real 
 """
 import inspect
 import json
+import logging
+import os
 import signal
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -751,3 +754,111 @@ def test_config_window_dir_is_inside_the_data_folder(tmp_path):
     c = Config(data_dir=tmp_path / "Closet")
     assert c.window_dir.parent == c.data_dir
 
+
+
+# ---------------------------------------------------------------- a background copy, and the window as its own program
+def test_an_update_of_a_background_copy_starts_a_background_copy():
+    a = SimpleNamespace(no_tray=True, tray=False, browser=False, background=True)
+    assert cli._launch_args(a, 8765) == ["--background", "--port", "8765"]
+    assert cli._launch_args(a, 8765, window_shown=True) == ["--background", "--port", "8765"]
+
+
+def test_a_background_copy_shows_nothing_and_a_window_opens_onto_it(cfg, launcher):
+    """The program opened beside a background copy is only a window onto it: opened again, it brings that window
+    forward; closed, its process ends and the background copy keeps running until Quit in Settings."""
+    a = args(background=True, tray=False)
+    seen = {}
+
+    def drive(env):
+        info = instance.running_info(cfg)
+        seen["lock"] = (info["background"], json.loads(cfg.lock_path.read_text()).get("background"))
+        seen["nothing shown"] = (env.toolkit.window, env.icons, list(env.opened))
+        ended = []
+        opener = threading.Thread(target=lambda: ended.append(cli.serve(args(tray=False), cfg)), daemon=True)
+        opener.start()                                     # the owner opens Nines
+        wait_for(env.toolkit.started.is_set)
+        win = env.toolkit.window
+        seen["window"] = (win.loaded_urls, win.on_screen, door(a.port, opened_at(cfg, a.port)))
+        seen["window lock"] = json.loads(instance.window_lock_path(cfg).read_text())["pid"] == os.getpid()
+        shows = win.calls.count("show")
+        assert cli.serve(args(tray=False), cfg) == 0       # opened again: the same window comes forward
+        wait_for(lambda: win.calls.count("show") > shows)
+        seen["one window"] = env.toolkit.window is win
+        assert win.close_button()                          # the owner closes it: it closes, it is not hidden
+        opener.join(10)
+        seen["closed"] = (ended, instance.window_lock_path(cfg).exists(), health(a.port))
+        env.quit(info)                                     # Quit in Settings stops the background copy
+    assert launcher.run(a, drive) == 0
+    assert seen["lock"] == (True, True)
+    assert seen["nothing shown"] == (None, [], [])
+    assert seen["window"] == ([opened_at(cfg, a.port)], True, {"plain": 401, "keyed": 200, "after": 200})
+    assert seen["window lock"] and seen["one window"]
+    assert seen["closed"] == ([0], False, True)            # the window's process ended; the background copy did not
+    assert launcher.opened == []                           # never the browser
+    assert not health(a.port) and not cfg.lock_path.exists()
+
+
+@pytest.fixture
+def beside_background(cfg, monkeypatch):
+    """A background copy as the launcher sees it (no server: the window is faked and loads nothing real)."""
+    State(cfg.state_path).update(window_key="the-key")
+    env = SimpleNamespace(toolkit=FakeToolkit(), opened=[], version="0.3.0")
+    monkeypatch.setattr(cli, "__version__", "0.3.0")
+    monkeypatch.setattr(app_window, "_Pywebview", lambda storage_dir: env.toolkit)
+    monkeypatch.setattr(cli.webbrowser, "open", env.opened.append)
+    monkeypatch.setattr(instance, "running_info", lambda c: {"port": 1, "version": env.version, "pid": 1, "token": "t",
+                                                             "background": True})
+    monkeypatch.setattr(instance, "show_running", lambda info: pytest.fail("a background copy has no window to show"))
+    monkeypatch.setattr(instance, "stop_running", lambda *a, **k: pytest.fail("a background copy is not replaced here"))
+    monkeypatch.setattr(cli, "_ask", lambda *a, **k: pytest.fail("nothing to ask"))
+    handlers = {sig: signal.getsignal(sig) for sig in (signal.SIGINT, signal.SIGTERM)}
+    yield env
+    for sig, handler in handlers.items():
+        signal.signal(sig, handler)
+
+
+@pytest.mark.parametrize("running", ["0.3.0", "0.4.0", "0.2.0", "0.1.0-dev"])
+def test_beside_a_background_copy_of_any_version_only_a_window_opens(cfg, beside_background, running, caplog):
+    caplog.set_level(logging.INFO, logger="closet")
+    beside_background.version = running
+    toolkit = beside_background.toolkit
+    closer = threading.Thread(target=lambda: wait_for(toolkit.started.is_set) or toolkit.window.close_button(), daemon=True)
+    closer.start()
+    assert cli.serve(args(tray=False), cfg) == 0
+    closer.join(10)
+    assert toolkit.window.loaded_urls == [URL + "?key=the-key"] and beside_background.opened == []
+    assert ("was opened while an older background copy (0.2.0)" in caplog.text) is (running == "0.2.0")
+    assert "the-key" not in caplog.text
+
+
+def test_beside_a_background_copy_the_browser_opens_when_the_window_cannot(cfg, beside_background):
+    beside_background.toolkit = FakeToolkit(fail_init=ModuleNotFoundError("No module named 'webview'"))
+    assert cli.serve(args(tray=False), cfg) == 0
+    beside_background.toolkit = FakeToolkit(fail_start=OSError("no WebView2"))
+    assert cli.serve(args(tray=False), cfg) == 0
+    assert beside_background.opened == [URL + "?key=the-key"] * 2
+    assert not instance.window_lock_path(cfg).exists()
+    assert cli.serve(args(tray=False, browser=True), cfg) == 0         # asked for the browser
+    assert cli.serve(args(tray=False, no_browser=True), cfg) == 0      # started at login: nothing to show
+    assert beside_background.opened == [URL + "?key=the-key"] * 3
+
+
+def test_a_stale_window_lock_is_not_trusted(cfg):
+    path = instance.window_lock_path(cfg)
+    cfg.data_dir.mkdir(parents=True, exist_ok=True)
+    gone = subprocess.run([sys.executable, "-c", "import os; print(os.getpid())"], capture_output=True, text=True)
+    for lock in ("half a lock {", {"pid": int(gone.stdout), "port": free_port(), "token": "t"},   # its process ended
+                 {"pid": os.getpid(), "port": free_port(), "token": "t"}):                       # nothing answers there
+        path.write_text(lock if isinstance(lock, str) else json.dumps(lock))
+        assert not instance.show_window_process(cfg, timeout=1)
+    shows = []
+    door_ = instance.WindowDoor(cfg, lambda: shows.append(1) or True)  # the next window writes its own over it
+    try:
+        assert instance.show_window_process(cfg) and shows == [1]
+        wrong = dict(json.loads(path.read_text()), token="not-the-token")
+        path.write_text(json.dumps(wrong))
+        assert not instance.show_window_process(cfg) and shows == [1]  # only with its token
+        path.write_text(json.dumps(dict(wrong, token=door_.token)))
+    finally:
+        door_.close()
+    assert not path.exists() and not instance.show_window_process(cfg, timeout=1)

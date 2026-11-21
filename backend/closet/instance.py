@@ -1,4 +1,9 @@
-"""Making sure only one copy of the program runs, and choosing its port."""
+"""Making sure only one copy of the program runs, and choosing its port.
+
+A copy is either an ordinary one (the window, or the browser, in the same process as the server) or a background copy
+(`closet --background`: the server alone, nothing shown). Its lock file says which. Opened beside a background copy,
+the program is only a window onto it, in a process of its own, and keeps a small lock file of its own (the window's
+door, below) so that opening the program again brings that window forward instead of making a second one."""
 from __future__ import annotations
 
 import errno
@@ -9,6 +14,7 @@ import re
 import secrets
 import signal
 import socket
+import threading
 import time
 import urllib.request
 from contextlib import contextmanager
@@ -55,7 +61,7 @@ def running_info(cfg: Config) -> dict | None:
             health = json.loads(r.read())
         if health.get("app") == "closet":
             return {"port": port, "version": str(health.get("version") or ""), "pid": lock.get("pid"),
-                    "token": lock.get("token")}
+                    "token": lock.get("token"), "background": lock.get("background") is True}
     except Exception:
         pass
     return None
@@ -151,15 +157,7 @@ def show_running(info: dict) -> bool:
     or it is from before Closet had one), and the browser should be opened instead."""
     if not info.get("token"):
         return False
-    pid = info.get("pid")
-    if os.name == "nt" and isinstance(pid, int) and pid > 0:
-        # Windows only lets a program bring its window to the front when the owner was just using it. This program
-        # was just opened by the owner, so it may hand that permission on to the copy that will show its window.
-        try:
-            import ctypes
-            ctypes.WinDLL("user32").AllowSetForegroundWindow(pid)
-        except Exception:
-            pass
+    _allow_foreground(info.get("pid"))
     try:
         req = urllib.request.Request(f"http://127.0.0.1:{info['port']}/api/instance/show", method="POST", data=b"",
                                      headers={QUIT_HEADER: str(info["token"])})
@@ -167,6 +165,17 @@ def show_running(info: dict) -> bool:
             return r.status == 200 and json.loads(r.read()).get("shown") is True
     except Exception:
         return False
+
+
+def _allow_foreground(pid) -> None:
+    """Windows only lets a program bring its window to the front when the owner was just using it. This program was
+    just opened by the owner, so it may hand that permission on to the process that will show its window."""
+    if os.name == "nt" and isinstance(pid, int) and pid > 0:
+        try:
+            import ctypes
+            ctypes.WinDLL("user32").AllowSetForegroundWindow(pid)
+        except Exception:
+            pass
 
 
 def quit_token_matches(cfg: Config, given: str | None) -> bool:
@@ -211,9 +220,13 @@ def pick_port(host: str, preferred: int, tries: int = 20) -> int:
     raise RuntimeError(f"No free port between {preferred} and {preferred + tries - 1}.")
 
 
-def write_lock(cfg: Config, port: int) -> None:
+def write_lock(cfg: Config, port: int, background: bool = False) -> None:
+    """`background`: this copy is a background copy, with no window to show (a launch beside it opens a window onto it)."""
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
-    cfg.lock_path.write_text(json.dumps({"pid": os.getpid(), "port": port, "token": secrets.token_urlsafe(32)}))
+    lock = {"pid": os.getpid(), "port": port, "token": secrets.token_urlsafe(32)}
+    if background:
+        lock["background"] = True
+    cfg.lock_path.write_text(json.dumps(lock))
 
 
 def clear_lock(cfg: Config) -> None:
@@ -222,3 +235,88 @@ def clear_lock(cfg: Config) -> None:
             cfg.lock_path.unlink()
     except Exception:
         pass
+
+
+# ---------------------------------------------------------------- the window's door
+# A window-only process (the program opened beside a background copy) listens on a loopback port of its own for one
+# request: show your window. Its lock file holds its process id, that port and a random token; only something that can
+# read the closet's folder can ask, as with the token in the main lock file. A lock whose process has gone, whose port
+# does not answer or whose answer is not "shown" is stale, and the next window-only process writes its own over it.
+
+def window_lock_path(cfg: Config):
+    return cfg.lock_path.with_name("closet-window.lock")
+
+
+class WindowDoor:
+    """The listening side, in the window-only process. `on_show()` shows the window; True when it did."""
+
+    def __init__(self, cfg: Config, on_show):
+        self.cfg = cfg
+        self.on_show = on_show
+        self.token = secrets.token_urlsafe(32)
+        self._stop = threading.Event()
+        self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._sock.bind(("127.0.0.1", 0))
+        self._sock.listen(4)
+        self._sock.settimeout(0.5)
+        self.port = self._sock.getsockname()[1]
+        cfg.data_dir.mkdir(parents=True, exist_ok=True)
+        path = window_lock_path(cfg)
+        part = path.with_suffix(".part")
+        part.write_text(json.dumps({"pid": os.getpid(), "port": self.port, "token": self.token}))
+        os.replace(part, path)
+        self._thread = threading.Thread(target=self._serve, name="window-door", daemon=True)
+        self._thread.start()
+
+    def _serve(self) -> None:
+        while not self._stop.is_set():
+            try:
+                conn, _ = self._sock.accept()
+            except TimeoutError:   # socket.timeout
+                continue
+            except OSError:
+                return
+            with conn:
+                try:
+                    conn.settimeout(3)
+                    given = conn.makefile("rb").readline(256).strip()
+                    shown = hmac.compare_digest(given, self.token.encode("ascii")) and bool(self.on_show())
+                    conn.sendall(b"shown\n" if shown else b"no\n")
+                except Exception:
+                    pass
+
+    def close(self) -> None:
+        """Stop answering and remove the lock file, if it is still this process's."""
+        if self._stop.is_set():
+            return
+        self._stop.set()
+        try:
+            self._sock.close()
+        except OSError:
+            pass
+        try:
+            path = window_lock_path(self.cfg)
+            if json.loads(path.read_text()).get("pid") == os.getpid():
+                path.unlink()
+        except Exception:
+            pass
+
+
+def show_window_process(cfg: Config, timeout: float = 3.0) -> bool:
+    """Ask the window-only process already open for this closet to bring its window forward. False when there is none
+    (no lock, a stale one, or a window that could not be shown), and this launch should open its own."""
+    try:
+        lock = json.loads(window_lock_path(cfg).read_text())
+        pid, port, token = lock["pid"], int(lock["port"]), str(lock["token"])
+    except Exception:
+        return False
+    if not isinstance(pid, int) or pid <= 0 or not _pid_alive(pid):
+        return False
+    _allow_foreground(pid)
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=timeout) as conn:
+            conn.settimeout(timeout)
+            conn.sendall(token.encode("ascii") + b"\n")
+            return conn.makefile("rb").readline(64).strip() == b"shown"
+    except Exception:
+        return False

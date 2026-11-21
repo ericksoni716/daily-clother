@@ -44,7 +44,7 @@ test('on the computer: what it is, the port, and turning it on hands over to Win
   const card = page.getByRole('region', { name: 'Phone', exact: true }).getByTestId('keep-running');
   await expect(card.getByRole('heading', { name: 'Keep Nines running' })).toBeVisible();
   await expect(card.getByTestId('keep-running-status')).toHaveText('This is off, so your phone reaches Nines only while it is open on this computer.');
-  await expect(card.getByText('It takes the place of Start Nines when I log in.')).toBeVisible();
+  await expect(card.getByText('It takes the place of Start Nines when I log in, and updates then go to the copy Windows runs.', { exact: false })).toBeVisible();
   await expect(card.getByTestId('keep-running-port')).toHaveText('Nines answers on port 8766 on this computer.');
   expect(await axeViolations(page)).toEqual([]);
   await card.scrollIntoViewIfNeeded();
@@ -101,6 +101,18 @@ test('turning it off from the window waits for Windows, and says why when it was
   await expect(card.getByTestId('keep-running-status')).toContainText('Windows is asking for permission on this screen.');
   await expect(card.getByTestId('keep-running-status')).toHaveText(DECLINED, { timeout: 15_000 });
   await expect(card.getByRole('button', { name: 'Turn this off' })).toBeVisible();
+});
+
+test('turned off in an ordinary copy, it says where the program that carries on is', async ({ page }) => {
+  const stopped: State = { ...OFF, on: true, starts: 'startup', running: false };
+  const note = 'Windows had kept Nines up to date, so your Nines.exe in C:\\Users\\you\\Apps\\Nines is now Nines 0.13.0.';
+  await fakeWindows(page, stopped, { off: (route) => route.fulfill({ json: { ...OFF, turning_off: false, note } }) });
+  await login(page);
+  await page.goto('/settings');
+  const card = page.getByTestId('keep-running');
+  await card.getByRole('button', { name: 'Turn this off' }).click();
+  await expect(card.getByTestId('keep-running-note')).toHaveText(note);
+  await expect(card.getByRole('button', { name: 'Keep Nines running' })).toBeVisible();
 });
 
 test('where Windows cannot do it (here, from source), Settings shows nothing about it', async ({ page }) => {

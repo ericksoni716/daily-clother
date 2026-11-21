@@ -567,6 +567,9 @@ calls this a scheduled task, named **Nines**.
   Nines' window as before. Closing the window leaves Nines running.
 - This replaces **Start Nines when I log in** (in **Settings → Advanced
   settings**), which Nines turns off.
+- Updates now go to that copy in `%LOCALAPPDATA%\Nines`, so your own
+  `Nines.exe` can fall behind it. That does no harm: opening it opens a window
+  onto the newer copy.
 - The card also says **Nines answers on port** and a number. That is the port
   Tailscale and Cloudflare must point at (steps 7 and the Cloudflare section).
   While Windows keeps Nines running the port does not change.
@@ -577,7 +580,11 @@ calls this a scheduled task, named **Nines**.
   Locking the screen is fine; sleep is not.
 - To stop it, press **Turn this off** in the same card, in Nines' window on
   this computer. Windows asks again. Your closet is not touched; Nines then runs
-  as before, only while it is open. It cannot be turned on or off from the
+  as before, only while it is open. If the copy Windows ran is newer than your
+  `Nines.exe`, it takes your file's place (the older one is moved aside as
+  `Nines.old.exe` and tidied away later), and Nines tells you so. If your file
+  cannot be replaced, Nines tells you to open it from `%LOCALAPPDATA%\Nines`
+  from then on. It cannot be turned on or off from the
   phone, because Windows asks on the computer's screen.
 
 On a Mac, keep using **Start Nines when I log in**: the Mac has no such card.

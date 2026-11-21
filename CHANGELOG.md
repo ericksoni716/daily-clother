@@ -18,7 +18,8 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   within a few minutes if it stops. Opening Nines opens its window onto that copy, the port it
   answers on stops changing, updates come back the same way, and a newer `Nines.exe` you open by
   hand offers to move it to the new version. It replaces **Start Nines when I log in**, and
-  **Turn this off** in the same place puts things back as they were. Settings also says which port
+  **Turn this off** in the same place puts things back as they were, keeping the newest version
+  of the program. Settings also says which port
   Nines answers on, for setting up Tailscale and Cloudflare.
 
 - You can correct a shoe's side drawing with a one-line note, as you could its drawing for the

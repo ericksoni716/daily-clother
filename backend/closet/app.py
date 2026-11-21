@@ -1940,12 +1940,12 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
                                          "window.")
             return {**background_status(), "turning_off": True}
         try:
-            background.turn_off(cfg)
+            carried = background.turn_off(cfg)
         except background.SetupError as e:
             raise HTTPException(409, str(e))
         finally:
             forget("autostart", "api_key")
-        return {**background_status(), "turning_off": False}
+        return {**background_status(), "turning_off": False, "note": carried.note}
 
     @app.post("/api/instance/quit", status_code=202, include_in_schema=False)
     def quit_for_newer_copy(request: Request):

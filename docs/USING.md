@@ -263,11 +263,14 @@ would hold it back, when you would wear it, and example outfits.
   on Windows in the downloaded program, **Keep Nines running**: one line saying whether Windows
   keeps Nines running, whether it starts when the computer turns on or when you sign in, and
   whether it is running now (or why turning it off did not work); while it is off, what it does
-  in a few sentences, including that it replaces Start Nines when I log in; "Nines answers on port
+  in a few sentences, including that it replaces Start Nines when I log in and that updates then go to the
+  copy Windows runs; "Nines answers on port
   N on this computer", and once it is on, that the port no longer changes; then **Keep Nines
   running**, or **Turn this off** (and **Start it again** when it is on but not running). Turning
   it on or off, Windows asks for permission on the computer's screen; turning it on, the window
-  closes and opens again onto the copy Windows runs. On a Mac or run from source there is no such
+  closes and opens again onto the copy Windows runs. Turning it off, when that copy had updated itself past
+  your program, one sentence says your program is now that version (or, when it could not be replaced, to open
+  Nines from Nines' own folder). On a Mac or run from source there is no such
   part. On the phone in Safari, one line on adding Nines to the Home Screen; on Windows, one
   sentence on whether the computer keeps Nines running, and that it is changed on the computer.
   Opened from the Home Screen, only that sentence, or nothing where it does not apply.

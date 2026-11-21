@@ -16,6 +16,7 @@ export function KeepRunning({ state, device, offline }: { state: BackgroundState
   const qc = useQueryClient();
   const [busy, setBusy] = useState<KeepBusy>(null);
   const [error, setError] = useState<string | null>(null);
+  const [said, setSaid] = useState<string | null>(null);
   const write = (s: BackgroundState) => qc.setQueryData<Settings>(queryKeys.settings(), (old) => (old ? { ...old, background: s } : old));
   const poll = keepPoll(state, busy);
   usePoll(poll === false ? null : poll, () => {
@@ -28,10 +29,12 @@ export function KeepRunning({ state, device, offline }: { state: BackgroundState
 
   async function act(action: KeepAction) {
     setError(null);
+    setSaid(null);
     setBusy(action === 'off' ? 'turning-off' : action === 'on' ? 'turning-on' : 'handing-over');
     try {
       const answer = action === 'on' ? await api.backgroundOn() : action === 'off' ? await api.backgroundOff() : await api.backgroundRestart();
       write(answer);
+      setSaid(answer.note ?? null);
       if (answer.handing_over) setBusy('handing-over');
       else if (!answer.turning_off) setBusy(null);   // turned off here, by this ordinary copy
     } catch (e) {
@@ -46,6 +49,7 @@ export function KeepRunning({ state, device, offline }: { state: BackgroundState
       <StatusLine line={keepLine(s, shown)} testId="keep-running-status" />
       {!s.on && !shown && <p className="hint">{KEEP_ABOUT}</p>}
       <p className="muted small" data-testid="keep-running-port">{portLine(s)}</p>
+      {said && <p data-testid="keep-running-note">{said}</p>}
       {error && <p className="form-error" role="alert">{error}</p>}
       {keepActions(s, shown).length > 0 && (
         <div className="settings-actions">

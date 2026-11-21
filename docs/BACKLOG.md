@@ -25,6 +25,17 @@ only here); take a line out when it is done.
   task, and a newer `Nines.exe` opened by hand; Turn this off, which brings back an ordinary copy
   and Start Nines when I log in if it was on. Whether the account may stop the task with `schtasks
   /End` (only read and run are granted) is not known; nothing relies on it.
+- Also left by it, to settle once tried on a real computer (21 November, from the review):
+  - `SetSecurityDescriptor(..., 0)` lets Task Scheduler add its own entry for the task's principal, which may give the
+    owner's account more than read and run. Flag 0x10 stops that, but whether the task then still runs for its
+    principal is not known, so it stays as it is until tried.
+  - The one-file program unpacks its pages into %TEMP%, which a clean-up tool may empty under a copy that runs for
+    weeks while its health check still answers. A fixed unpack folder, or a health check that sees the page is
+    there, would settle it.
+  - If Credential Manager can be read but not written before sign-in, a key saved from the page goes only into the
+    sealed file while the old one in Credential Manager keeps winning.
+  - A missing or damaged marker (`background.json`) while the task still exists leaves Settings unable to turn it off.
+  - The elevated script writes its result into Nines' folder, which the owner's programs can write.
 - Left by it for a later rename of the program: the copy Windows runs is `Nines.exe` in
   `%LOCALAPPDATA%\Nines`, under the task `Nines` (`EXE_NAME`, `TASK_NAME` in
   `closet/background.py`), whatever the release file is called. A rename of the task or of that

@@ -13,8 +13,8 @@ export const KEEP_TITLE = 'Keep Nines running';
 
 export const KEEP_ABOUT =
   'Windows can start Nines when this computer turns on and start it again if it stops, so your phone can reach it ' +
-  'whenever the computer is awake. It takes the place of Start Nines when I log in. Windows asks for permission on ' +
-  'this screen once, in what it calls a scheduled task.';
+  'whenever the computer is awake. It takes the place of Start Nines when I log in, and updates then go to the copy ' +
+  'Windows runs. Windows asks for permission on this screen once, in what it calls a scheduled task.';
 
 /** Whether the card is shown at all: on Windows, in the downloaded program. */
 export function keepShows(state: BackgroundState | undefined): boolean {

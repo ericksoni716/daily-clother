@@ -67,6 +67,7 @@ describe('keeping Nines running', () => {
     const card = drawn(off);
     expect(card).toContain('Keep Nines running</button>');
     expect(card).toContain('scheduled task');
+    expect(card).toContain('updates then go to the copy Windows runs');
     expect(card).toContain('port 8766');
     expect(drawn(on)).not.toContain('scheduled task');
     expect(drawn(on)).toContain('Turn this off</button>');

@@ -356,9 +356,30 @@ def spawn_detached(command: list[str], popen=None):
     if os.name == "nt":
         try:
             return popen(command, **{**kwargs, "creationflags": DETACHED | BREAKAWAY})
-        except OSError:   # the job does not allow it: the helper still asks the old copy to quit rather than ending the task
-            pass
+        except OSError:   # the job does not allow it: the helper sees it is in the job and never uses the task
+            log.info("could not start %s outside this process's job; it starts in it", Path(command[0]).name)
     return popen(command, **kwargs)
+
+
+def in_job() -> bool:
+    """Whether this process is in a job (on Windows: still in the scheduled task's, when leaving it was not allowed).
+    A helper in the task's job must not end the task (that would end the helper) nor rely on starting it (Task
+    Scheduler may count the task as running while the helper lives in it)."""
+    if os.name != "nt":
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        kernel32.IsProcessInJob.argtypes = [wintypes.HANDLE, wintypes.HANDLE, ctypes.POINTER(wintypes.BOOL)]
+        kernel32.IsProcessInJob.restype = wintypes.BOOL
+        result = wintypes.BOOL()
+        if not kernel32.IsProcessInJob(kernel32.GetCurrentProcess(), None, ctypes.byref(result)):
+            return True   # cannot tell: the careful answer
+        return bool(result.value)
+    except Exception:
+        return True
 
 
 def spawn_helper(program: Path, plan_path: Path) -> None:
@@ -485,7 +506,15 @@ def watch(cfg: Config, plan: dict, start=None, timeout: float | None = None, pol
     write down why. True when the new program took over. With `plan["via_task"]` the old copy is asked to quit first
     and both are started through Windows' task."""
     via_task = bool(plan.get("via_task"))
-    start = start or (_start_through_task if via_task else start_program)
+    # a helper that could not leave the task's job starts the programs itself, with the task's arguments, and leaves
+    # the task alone; the repeating trigger takes the copy back under the task once it next stops
+    task = via_task and not in_job()
+    if via_task:
+        log.info("this helper is %s the task's job", "outside" if task else "still in")
+
+    def start_program_now(where, args):   # looked up when called, so a stand-in can take its place
+        return start_program(where, args)
+    start = start or (_start_through_task if task else start_program_now)
     where = Layout(plan["platform"], Path(plan["installed"]), Path(plan["old"]), Path(plan["inner"]))
     timeout = plan.get("timeout", START_WITHIN) if timeout is None else timeout
     log.info("starting Closet %s in place of %s%s", plan["to"], plan["from"], " through the task" if via_task else "")
@@ -518,18 +547,18 @@ def watch(cfg: Config, plan: dict, start=None, timeout: float | None = None, pol
         pass
     if proc is not None and proc.poll() is None:
         _kill(proc.pid)
-    if via_task:
-        from . import background
-        background.end_task()
     note = f"Nines {plan['to']} was installed but did not start: {problem}. "
     try:
-        restore(where)
+        restore(where)   # first: whatever happens next, the old program is back in place
     except OSError as e:
         log.exception("could not put the old program back")
         note += (f"The old program could not be put back by itself ({e}); it was kept as {where.old}. "
                  "Download Nines again from the releases page.")
         _write_outcome(cfg, {"at": _now(), "from": plan["from"], "to": plan["to"], "ok": False, "note": note})
         return False
+    if task:   # a new copy the task may still count as running would stop it starting the old one
+        from . import background
+        background.end_task()
     still = instance.running_info(cfg)
     if still and still.get("pid") == plan.get("old_pid"):
         note += f"Nines {plan['from']} kept running and is still in place."

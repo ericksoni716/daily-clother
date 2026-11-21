@@ -455,6 +455,8 @@ export interface BackgroundState {
   problem: string | null;
   handing_over?: boolean;
   turning_off?: boolean;
+  /** After turning it off here: where the program that carries on is, when it is not simply the one you had. */
+  note?: string | null;
 }
 
 /** Laundry that keeps itself. `day`: Monday 0 to Sunday 6, or null for no set laundry day. */

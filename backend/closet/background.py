@@ -18,11 +18,18 @@ waits for it, and becomes a window onto it (closet/cli.py). Turning it off needs
 is done in the owner's own session (the window onto the background copy, or an ordinary copy), never by a background
 copy, which may run where no prompt can be shown.
 
-Every call to Windows (`elevated`, `run_task`, `end_task`, `windows_user`) is a function here that the tests replace.
+The owner's account is named by its SID in the task and its security descriptor (a SID is plain ASCII on any Windows,
+and needs no translation). Every call to Windows (`elevated`, `run_task`, `end_task`, `windows_user`) is a function
+here that the tests replace, and none of them lets Windows' localized output stop Nines: what they read is decoded with
+replacement, and `run_task` and `end_task` never raise.
+
+While Windows keeps Nines running, updates go to its copy, which can become newer than the program the owner opens.
+The marker records both versions, so a program that would open the closet itself (on its own, or after turning it
+off) runs the newer one instead (`installed_is_newer`, `turn_off`).
 """
 from __future__ import annotations
 
-import base64
+import hashlib
 import json
 import logging
 import os
@@ -32,8 +39,9 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import NamedTuple
 
-from . import apikey, autostart, config, instance
+from . import __version__, apikey, autostart, config, instance
 from .config import Config
 
 log = logging.getLogger("closet.background")
@@ -189,16 +197,17 @@ try {
   # background copy again every few minutes, and does nothing while one runs (IgnoreNew).
   $again = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes __REPEAT__) `
     -RepetitionDuration (New-TimeSpan -Days 9999)
+  # Priority 4 is normal (the default, 7, is below normal, with low I/O and memory priority as well)
   $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable `
-    -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+    -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1) `
+    -Priority 4
   Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger @($first, $again) -Principal $principal `
     -Settings $settings -Description 'Keeps Nines running so your phone can reach it.' -Force | Out-Null
   # Your own account may read and run the task (a launch, an update, Start it again) without this prompt; only
   # administrators may change or remove it.
-  $sid = (New-Object System.Security.Principal.NTAccount($UserId)).Translate([System.Security.Principal.SecurityIdentifier]).Value
   $service = New-Object -ComObject Schedule.Service
   $service.Connect()
-  $service.GetFolder('\').GetTask($TaskName).SetSecurityDescriptor("D:(A;;FA;;;SY)(A;;FA;;;BA)(A;;GRGX;;;$sid)", 0)
+  $service.GetFolder('\').GetTask($TaskName).SetSecurityDescriptor("D:(A;;FA;;;SY)(A;;FA;;;BA)(A;;GRGX;;;$UserId)", 0)
   Write-Result @{ ok = $true; starts = $starts }
   exit 0
 } catch {
@@ -208,11 +217,14 @@ try {
 """
 
 _UNINSTALL = r"""
+$KeepExe = __KEEP__
 try {
   Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-  Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $Exe } | Stop-Process -Force -ErrorAction SilentlyContinue
+  if (-not $KeepExe) {
+    Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $Exe } | Stop-Process -Force -ErrorAction SilentlyContinue
+  }
   Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction SilentlyContinue
-  for ($i = 0; $i -lt 20 -and (Test-Path -LiteralPath $Exe); $i++) {
+  for ($i = 0; -not $KeepExe -and $i -lt 20 -and (Test-Path -LiteralPath $Exe); $i++) {
     try { Remove-Item -LiteralPath $Exe -Force -ErrorAction Stop } catch { Start-Sleep -Milliseconds 500 }
   }
   Write-Result @{ ok = $true }
@@ -236,45 +248,71 @@ def install_script(exe: Path, arguments: str, user: str, result: Path, workdir: 
                                  .replace("__REPEAT__", str(REPEAT_MINUTES)))
 
 
-def uninstall_script(exe: Path, result: Path) -> str:
-    return _head(exe, result) + _UNINSTALL
+def uninstall_script(exe: Path, result: Path, keep_exe: bool = False) -> str:
+    """`keep_exe`: the program in Nines' folder is the one turning it off (an ordinary copy opened from there), so it is
+    neither stopped nor removed; the task's own copy is stopped with the task."""
+    return _head(exe, result) + _UNINSTALL.replace("__KEEP__", "$true" if keep_exe else "$false")
 
 
 # ---------------------------------------------------------------- the calls to Windows (tests replace these)
-def _encoded(script: str) -> str:
-    return base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+def _code(path: Path, digest: str) -> str:
+    """PowerShell that reads `path` once, into memory, and runs those very bytes only if their SHA-256 is `digest`: the
+    file cannot be changed between the check and the run, because it is not read again."""
+    return (f"$b=[IO.File]::ReadAllBytes({_ps(str(path))});"
+            "if(([BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($b))-replace'-','')"
+            f"-ne'{digest}'){{exit 3}};& ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString($b)))")
+
+
+def launcher(script: str) -> tuple[Path, str]:
+    """Write `script` into Nines' folder and give the short command line that runs it, checked: what Windows' prompt
+    starts (ShellExecute has long taken only about 2,048 characters of parameters, too few for the script itself)."""
+    data = script.encode("utf-8")
+    path = install_dir() / "setup.ps1"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    digest = hashlib.sha256(data).hexdigest().upper()
+    return path, f'-NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "{_code(path, digest)}"'
+
+
+def _text(raw) -> str:
+    return raw.decode("utf-8", "replace") if isinstance(raw, bytes) else str(raw or "")
 
 
 def elevated(script: str, result: Path, elevate: bool = True) -> dict:
     """Run `script` in PowerShell with administrator rights; Windows asks first, on this computer's screen. The script
-    goes on the command line, encoded, rather than into a file another program could change before it runs. Returns
-    what it wrote to `result`. Raises Declined when the prompt was not accepted, SetupError when it did not finish.
-    `elevate=False` runs it as this process already is (the Windows CI test, whose account is an administrator)."""
+    is written to a file and run through `launcher`'s checked command. Returns what it wrote to `result`. Raises
+    Declined when the prompt was not accepted, SetupError when it did not finish. `elevate=False` runs the same command
+    as this process already is (the Windows CI test, whose account is an administrator)."""
     result.parent.mkdir(parents=True, exist_ok=True)
     result.unlink(missing_ok=True)
-    inner = f"-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {_encoded(script)}"
+    path, arguments = launcher(script)
     if elevate:
         outer = ("try { $p = Start-Process -FilePath powershell.exe -Verb RunAs -WindowStyle Hidden -Wait -PassThru "
-                 f"-ArgumentList {_ps(inner)}; exit $p.ExitCode }} catch {{ $e = $_.Exception; "
+                 f"-ArgumentList {_ps(arguments)}; exit $p.ExitCode }} catch {{ $e = $_.Exception; "
                  f"while ($e) {{ if ($e.NativeErrorCode -eq {ERROR_CANCELLED}) {{ exit {ERROR_CANCELLED} }}; "
                  "$e = $e.InnerException }; exit 2 }")
         command = ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", outer]
     else:
-        command = ["powershell.exe", *inner.split(" ")]
+        digest = hashlib.sha256(path.read_bytes()).hexdigest().upper()
+        command = ["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command",
+                   _code(path, digest)]
     try:
-        proc = subprocess.run(command, capture_output=True, text=True, timeout=600, creationflags=_NO_WINDOW)
+        proc = subprocess.run(command, capture_output=True, timeout=600, creationflags=_NO_WINDOW)
     except (OSError, subprocess.TimeoutExpired) as e:
         raise SetupError(f"Windows did not finish setting this up ({e}).") from e
+    finally:
+        path.unlink(missing_ok=True)
     try:
-        outcome = json.loads(result.read_text(encoding="utf-8-sig"))
+        outcome = json.loads(result.read_text(encoding="utf-8-sig", errors="replace"))
     except (OSError, ValueError):
         outcome = None
     finally:
         result.unlink(missing_ok=True)
+    errors = _text(proc.stderr)
     if outcome is None:
-        if proc.returncode == ERROR_CANCELLED or "canceled by the user" in (proc.stderr or "").lower():
+        if proc.returncode == ERROR_CANCELLED or "canceled by the user" in errors.lower():
             raise Declined()
-        log.warning("the setup script left no result (exit code %s): %s", proc.returncode, (proc.stderr or "")[-500:])
+        log.warning("the setup script left no result (exit code %s): %s", proc.returncode, errors[-500:])
         raise SetupError("Windows did not finish setting this up. Nothing was changed.")
     if not outcome.get("ok"):
         raise SetupError(f"Windows could not set this up: {outcome.get('error') or 'it did not say why'}.")
@@ -283,33 +321,42 @@ def elevated(script: str, result: Path, elevate: bool = True) -> dict:
 
 def run_task() -> bool:
     """Ask Task Scheduler to start the task now (it does nothing while the background copy runs). True when it took
-    the request. Needs no administrator rights: the task lets its own user run it."""
+    the request. Needs no administrator rights: the task lets its own user run it. Never raises: only the exit code is
+    read, never Windows' words, which are in the computer's own language."""
     try:
-        proc = subprocess.run(["schtasks", "/Run", "/TN", TASK_NAME], capture_output=True, text=True, timeout=30,
+        proc = subprocess.run(["schtasks", "/Run", "/TN", TASK_NAME], capture_output=True, timeout=30,
                               creationflags=_NO_WINDOW)
-    except (OSError, subprocess.TimeoutExpired):
+        code = proc.returncode
+    except Exception as e:
+        log.warning("Windows did not start the task %s (%s)", TASK_NAME, type(e).__name__)
         return False
-    if proc.returncode != 0:
-        log.warning("Windows did not start the task %s (exit code %s)", TASK_NAME, proc.returncode)
-    return proc.returncode == 0
+    if code != 0:
+        log.warning("Windows did not start the task %s (exit code %s)", TASK_NAME, code)
+    return code == 0
 
 
 def end_task() -> None:
-    """Ask Task Scheduler to stop the task (best effort: the background copy is normally asked to quit instead)."""
+    """Ask Task Scheduler to stop the task (best effort: the background copy is normally asked to quit instead).
+    Never raises."""
     try:
-        subprocess.run(["schtasks", "/End", "/TN", TASK_NAME], capture_output=True, text=True, timeout=30,
+        subprocess.run(["schtasks", "/End", "/TN", TASK_NAME], capture_output=True, timeout=30,
                        creationflags=_NO_WINDOW)
-    except (OSError, subprocess.TimeoutExpired):
+    except Exception:
         pass
 
 
 def windows_user() -> str:
-    """This account as Windows names it in a task (COMPUTER\\name, or AzureAD\\name)."""
+    """This account's SID, from `whoami /user /fo csv /nh` ("name","S-1-5-21-…"): the name before it is in the
+    computer's own language and code page, the SID is ASCII and names the account in a task without translation."""
     import csv
     import io
-    out = subprocess.run(["whoami", "/user", "/fo", "csv", "/nh"], capture_output=True, text=True, check=True,
-                         timeout=30, creationflags=_NO_WINDOW).stdout
-    return next(csv.reader(io.StringIO(out.strip())))[0]
+    out = subprocess.run(["whoami", "/user", "/fo", "csv", "/nh"], capture_output=True, check=True, timeout=30,
+                         creationflags=_NO_WINDOW).stdout
+    row = next(csv.reader(io.StringIO(_text(out).strip())))
+    sid = next((cell for cell in reversed(row) if cell.startswith("S-1-")), None)
+    if sid is None:
+        raise SetupError("Windows did not say which account this is. Nothing was changed.")
+    return sid
 
 
 # ---------------------------------------------------------------- turning it on and off
@@ -352,7 +399,8 @@ def turn_on(cfg: Config, exe: str | Path, port: int) -> dict:
     except Exception:
         log.warning("could not turn off start at login", exc_info=True)
     _write_marker({"starts": starts, "port": port, "home": home, "data_dir": str(cfg.data_dir) if chosen else None,
-                   "autostart_was_on": was_on, "at": _now()})
+                   "autostart_was_on": was_on, "at": _now(), "version": __version__,
+                   "program": str(source), "program_version": __version__})
     seal_key(cfg)
     clear_outcome(cfg)
     log.info("Windows now keeps Nines running (it starts %s), on port %s",
@@ -374,30 +422,103 @@ def seal_key(cfg: Config) -> None:
         log.warning("could not seal the API key for the background copy; save it again in Settings")
 
 
-def turn_off(cfg: Config) -> None:
+class Carried(NamedTuple):
+    """The program that carries on once Windows no longer keeps Nines running, and what to tell the owner about it."""
+    program: Path
+    note: str | None
+
+
+def turn_off(cfg: Config, own: Path | None = None, own_version: str | None = None) -> Carried:
     """Run in the owner's own session (the window onto the background copy, or an ordinary copy): stop the background
     copy, remove the task and the copy behind one administrator prompt, put the key back where it was, and start at
-    login back on if it was on before. The closet's data is not touched."""
+    login back on if it was on before. The closet's data is not touched.
+
+    The copy Windows ran may have updated itself past the owner's program (`own`, this process's, unless given). The
+    newer one is never thrown away: it is put in place of the owner's program, the older one kept beside it as
+    <name>.old.exe, as an update does; if that cannot be done, it stays in Nines' folder and is the program that carries
+    on. Start at login, turned back on, opens whichever carries on. Returns it, with a sentence for the owner when it
+    is not simply the program they had."""
     if not supported():
         raise SetupError(NOT_HERE)
+    from . import updates
     marker = read_marker() or {}
     exe = installed_exe()
-    elevated(uninstall_script(exe, install_dir() / "setup-result.json"), install_dir() / "setup-result.json")
-    for leftover in (exe, exe.with_name(f"{exe.stem}.old{exe.suffix}"), exe.with_name(f"{exe.stem}.new{exe.suffix}"),
-                     exe.with_name(f"{exe.stem}.failed{exe.suffix}"), marker_path()):
+    own = Path(own or sys.executable)
+    own_version = own_version or __version__
+    from_copy = _same(own, exe)   # an ordinary copy opened from Nines' folder (on its own, the copy being newer)
+    target = (Path(marker["program"]) if marker.get("program") else None) if from_copy else own
+    target_version = marker.get("program_version") if from_copy else own_version
+    newer = marker.get("version")
+    replace = bool(newer and exe.is_file() and target is not None and target.is_file() and not _same(target, exe)
+                   and instance.is_newer(newer, str(target_version or "")))
+    keep = from_copy or (bool(newer) and exe.is_file() and (target is None or not target.is_file()))
+    staged = None
+    if replace and not from_copy:   # the copy is removed behind the prompt: keep its bytes until it has gone well
+        staged = exe.with_name(f"{exe.stem}.carry{exe.suffix}")
+        shutil.copyfile(exe, staged)
+    try:
+        elevated(uninstall_script(exe, install_dir() / "setup-result.json", keep_exe=keep),
+                 install_dir() / "setup-result.json")
+    except Exception:
+        if staged is not None:
+            staged.unlink(missing_ok=True)
+        raise
+    leftovers = [exe.with_name(f"{exe.stem}.old{exe.suffix}"), exe.with_name(f"{exe.stem}.new{exe.suffix}"),
+                 exe.with_name(f"{exe.stem}.failed{exe.suffix}"), marker_path()]
+    for leftover in ([] if keep else [exe]) + leftovers:
         try:
             leftover.unlink(missing_ok=True)
         except OSError:
             log.info("could not remove %s yet", leftover)
+    carried = Carried(target if target is not None and target.is_file() else exe, None)
+    if replace:
+        source = staged or exe
+        try:
+            updates.swap(updates.layout("win32", str(target)), source, updates.sha256_file(source))
+            carried = Carried(target, f"Windows had kept Nines up to date, so your {target.name} in {target.parent} "
+                                      f"is now Nines {newer}.")
+        except (updates.UpdateError, OSError) as e:
+            log.warning("could not put Nines %s in place of %s: %s", newer, target, e)
+            if staged is not None:
+                os.replace(staged, exe)
+            carried = Carried(exe, f"Windows had kept Nines up to date, but your {target.name} could not be replaced, so "
+                                   f"from now on open Nines {newer} from {exe.parent}.")
+        finally:
+            if staged is not None:
+                staged.unlink(missing_ok=True)
+    elif keep and not from_copy:
+        carried = Carried(exe, f"From now on open Nines from {exe.parent}.")
     apikey.unseal_back(cfg.data_dir)
     apikey.keep_sealed(None)
     clear_outcome(cfg)
     if marker.get("autostart_was_on") and autostart.program():
         try:
-            autostart.set_enabled(True)
+            autostart.set_enabled(True, exe=str(carried.program))
         except Exception:
             log.warning("could not turn start at login back on", exc_info=True)
-    log.info("Windows no longer keeps Nines running")
+    log.info("Windows no longer keeps Nines running; %s carries on", carried.program)
+    return carried
+
+
+def note_version(version: str) -> None:
+    """The copy Windows runs, as it starts: its version, so a program can tell it is older than that copy."""
+    marker = read_marker()
+    if marker is not None and marker.get("version") != version:
+        _write_marker({**marker, "version": version})
+
+
+def note_program(program: str | Path, version: str) -> None:
+    """The program the owner opens (a window onto the background copy), so turning it off knows what to replace."""
+    marker = read_marker()
+    if marker is not None and not _same(Path(program), installed_exe()) and \
+            (marker.get("program"), marker.get("program_version")) != (str(program), version):
+        _write_marker({**marker, "program": str(program), "program_version": version})
+
+
+def installed_is_newer(version: str) -> bool:
+    """Whether the copy Windows runs is newer than `version` (it updated itself past the program the owner opens)."""
+    marker = read_marker()
+    return bool(marker and marker.get("version") and instance.is_newer(str(marker["version"]), version))
 
 
 def key_changed(cfg: Config) -> Path | None:
@@ -418,10 +539,12 @@ def wait_for(cfg: Config, timeout: float = WAIT, poll: float = 0.5) -> dict | No
         time.sleep(poll)
 
 
-def start_and_wait(cfg: Config, timeout: float = WAIT) -> dict | None:
-    """Start the task and wait for its copy. A start already under way (after boot, or the repeating trigger) is
-    waited for the same way: Task Scheduler does not start a second one."""
-    run_task()
+def start_and_wait(cfg: Config, timeout: float = WAIT):
+    """Start the task and wait for its copy: its running_info, None when it did not answer in time, or False when
+    Windows would not start the task at all (removed, or not allowed), which is not waited for. A start already under
+    way (after boot, or the repeating trigger) is waited for the same way: Task Scheduler does not start a second one."""
+    if not run_task():
+        return False
     return wait_for(cfg, timeout)
 
 

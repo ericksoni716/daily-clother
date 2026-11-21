@@ -106,7 +106,7 @@ PyInstaller build and its smoke test).
 | `src/leave.ts`, `src/landing.ts`, `src/theme.ts`, `src/location.ts`, `src/signin.ts` | Saves still waiting when the page closes; which screen the app opens on; light or dark; asking the browser where you are; loading the page again in full when Cloudflare's sign-in ran out (on the Cloudflare address only). |
 | `src/styles.css` | The tokens (`:root`) and the shared styles. `src/design.test.ts` fails on a size, radius, colour or motion value that is not a token. |
 | `sw/sw.js`, `public/` | The service worker (written by hand; the build fills in the files to keep) and the manifest and icons. |
-| `e2e/` | The browser tests: `server.ts` starts a backend on a fresh data folder, `fixtures.ts` logs in, `a11y.ts` runs axe. |
+| `e2e/` | The browser tests (see *The browser tests* below): `server.ts` starts a backend on a fresh data folder, `fixtures.ts` gives each spec file its own backend and logs in (`signIn`, `login`), `a11y.ts` runs axe. |
 | `scripts/` | `phone-check.mjs` (below; it also counts each screen's words) and `make-icons.mjs` (`npm run icons`: renders `nines-icon.svg` with the browser tests' Chromium into `public/icons/` and `backend/closet/icon.png`). |
 
 ## Structure rules
@@ -207,6 +207,43 @@ Where they run in CI:
   runs every test on Linux and Windows; a night with no new merge runs nothing. A failure there reaches the owner as GitHub's usual email.
 
 If a slow test covers new code, add that code's path to the pattern in the `slow` job.
+
+### The browser tests
+
+```bash
+cd frontend && npm run e2e                      # every spec file, several at once
+npm run e2e -- --workers=1                      # one file at a time, to debug
+npm run e2e -- e2e/12-trips.spec.ts             # one file
+```
+
+Spec files run side by side, one per Playwright worker: half the cores, at most 4, on a
+computer, and 4 in CI. `E2E_WORKERS` or `--workers` sets the number. The tests inside a file
+run in order, one after another.
+
+Each spec file has a backend of its own (`fixtures.ts`): the first test of a file starts one
+on a free port with an empty data folder (about a second), and every test of that file
+reaches it through `baseURL`, so `page.goto('/')` and `page.request.get('/api/…')` need no
+address. Nothing carries over from another file, so a file passes whichever worker runs it
+and whatever ran before; the tests inside one file do share it, and may build on each other.
+When a test fails, Playwright starts a new worker for the rest of that file, and with it a
+fresh backend, so a test that depends on an earlier one in its file can fail after it too:
+look at the first failure.
+
+A new spec file:
+
+- imports `test` and `expect` from `./fixtures`, never from `@playwright/test`;
+- starts from a first run: no passphrase, the owner's own closet, empty. `login(page)` logs in
+  (through the API, by `signIn`) and opens the closet; `useProfile(page, 'demo')` switches to
+  the demo closet. Anything else it needs (an item, a setting, a place) it makes itself,
+  through the API where it can;
+- going offline: calls `serviceWorkerInCharge(page)` first, which reloads the page until the
+  service worker is in charge of it from the start, so what the page reads next is saved;
+- needs stand-ins (`fakes`, `stylist`, `seed` …) that the plain backend does not have: it
+  starts its own with `startBackend` from `server.ts` in a `beforeAll` and stops it in
+  `afterAll`, as `16-several.spec.ts` does.
+
+Logging in is in one place: `signIn` in `fixtures.ts` (the first-run screens themselves are
+tested in `01-auth.spec.ts`). When the login changes, change it there.
 
 ## The phone check
 

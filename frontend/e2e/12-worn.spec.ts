@@ -1,5 +1,5 @@
 import type { Page, Route } from '@playwright/test';
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, login, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page, context }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' });
@@ -149,7 +149,7 @@ test('worn: wear an outfit, rate it, Today learns from it, wear one again, remov
 test('worn: offline the saved list is shown as last changed, and rating says why it waits', async ({ page, context }) => {
   await login(page);
   await useProfile(page, 'demo');
-  await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 15_000 });
+  await serviceWorkerInCharge(page);
   await page.goto('/today/worn');
   const first = cards(page).first();
   await expect(first).toBeVisible();
@@ -176,7 +176,7 @@ test('worn: offline the saved list is shown as last changed, and rating says why
 test('worn: the list saved offline belongs to its closet', async ({ page, context }) => {
   await login(page);
   await useProfile(page, 'demo');
-  await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 15_000 });
+  await serviceWorkerInCharge(page);
   await page.goto('/today/worn');
   await expect(cards(page).first()).toBeVisible();
   await page.waitForLoadState('networkidle');

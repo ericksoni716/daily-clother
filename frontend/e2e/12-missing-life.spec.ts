@@ -240,7 +240,7 @@ test('review 1: a pre-answer hide needs explicit confirmation before applying to
   await decisions.locator('summary').click();
   await expect(decisions).toContainText('This was hidden before you answered. It is not holding back similar suggestions.');
   await decisions.getByRole('button', { name: 'Apply to similar suggestions' }).click();
-  expect(state.confirmed).toEqual(['formal-shoes']);
+  await expect.poll(() => state.confirmed).toEqual(['formal-shoes']);   // once the request has reached the stand-in
   await expect(decisions.getByRole('button', { name: 'Apply to similar suggestions' })).toHaveCount(0);
   await expect(decisions.getByRole('button', { name: 'Undo decision about Formal leather shoes' })).toBeVisible();
 });

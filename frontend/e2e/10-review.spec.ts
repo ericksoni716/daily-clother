@@ -1,4 +1,4 @@
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, login, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
@@ -76,7 +76,7 @@ test('review in the demo closet: confirm one, change one, skip one', async ({ pa
 
 test('review is unavailable offline, and says what is not described yet when empty', async ({ page, context }) => {
   await login(page);
-  await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 15_000 });
+  await serviceWorkerInCharge(page);
   await page.route('/api/review', (route) => route.fulfill({
     json: { count: 0, items: [], waiting: 2, failed: 1, waiting_items: [{ id: 'a', name: 'Navy polo', category: 'polo' }, { id: 'b', name: null, category: 'jeans' }],
       failed_items: [{ id: 'c', name: 'Grey hoodie', category: 'hoodie' }] },

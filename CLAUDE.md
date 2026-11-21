@@ -70,8 +70,10 @@ the middle of a task. This is advice to offer, not a rule to enforce.
 
 ## Before saying a change is done
 
-Run the checks in `AGENTS.md` ("Checks to run before opening a pull request"). For a change
-to anything visible, also run the phone check and look at the pictures it takes:
+Run the checks in `AGENTS.md` ("Checks to run before opening a pull request"): the quick
+checks and the tests the change touches. CI is the full run; the work is done when CI is
+green, not when the pull request opens. For a change to anything visible, also run the
+phone check and look at the pictures it takes:
 
 ```
 cd frontend && npm run build && npm run phone-check

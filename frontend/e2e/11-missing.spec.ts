@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, login, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 /** Takes back whatever a test decided, so the demo closet's suggestions start the same in every test. */
 async function undoDecisions(page: Page) {
@@ -189,7 +189,9 @@ test('on a phone: the Wardrobe is in the tab bar, and the wishlist follows the t
 
 test("what's missing offline: the answer fetched earlier is shown as saved, and the buttons say why they are off", async ({ page, context }) => {
   await openMissing(page);
-  await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 15_000 });
+  await serviceWorkerInCharge(page);   // which reloads the page: show every gap again
+  await expect(page.getByTestId('gap').first()).toBeVisible();
+  await seeAll(page);
   const names = await gapNames(page);
   await page.waitForLoadState('networkidle');
 

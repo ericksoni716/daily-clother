@@ -1,4 +1,4 @@
-import { expect, login, openFold, test, useProfile } from './fixtures';
+import { expect, login, openFold, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
@@ -74,7 +74,7 @@ test.describe('phone', () => {
 
     // offline: Add keeps its place as a disabled button
     await page.goto('/');
-    await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 15_000 });
+    await serviceWorkerInCharge(page);
     await page.reload();
     await expect(page.getByTestId('tile').first()).toBeVisible();
     await page.waitForLoadState('networkidle');

@@ -1,4 +1,4 @@
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, login, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 let archived: string | null = null;
 
@@ -72,7 +72,7 @@ test('how the closet is used, in the demo closet: a cost per wear, and archiving
 test("insights offline: one closet's saved answer is never shown as the other's", async ({ page, context }) => {
   await login(page);
   await useProfile(page, 'demo');
-  await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 15_000 });
+  await serviceWorkerInCharge(page);
   await page.goto('/wardrobe');
   await moreNumbers(page);
   const demoSentence = await page.getByTestId('cost-per-wear').locator('.insights-sentence').innerText();

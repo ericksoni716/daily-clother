@@ -1,4 +1,4 @@
-import { expect, login, openFold, test, useProfile } from './fixtures';
+import { expect, login, openFold, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page, context }) => {
   await context.setOffline(false);
@@ -8,7 +8,7 @@ test.afterEach(async ({ page, context }) => {
 test('offline: the saved closet still opens, read-only, with a banner', async ({ page, context }) => {
   await login(page);
   await useProfile(page, 'demo');
-  await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 15_000 });
+  await serviceWorkerInCharge(page);
   // load once while the service worker is in charge so the data and pictures are saved
   await page.reload();
   await expect(page.getByTestId('tile')).toHaveCount(49);
@@ -68,7 +68,7 @@ test('settings opened offline recover when the computer is reachable again', asy
 
 test('logging out clears the saved closet', async ({ page }) => {
   await login(page);
-  await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 15_000 });
+  await serviceWorkerInCharge(page);
   await page.reload();
   await expect(page.locator('#closet-title')).toBeVisible();
   await page.waitForLoadState('networkidle');

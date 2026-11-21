@@ -59,9 +59,17 @@ class Config:
         return self.data_dir / "window"
 
 
-def load(env: dict | None = None) -> Config:
+def default_data_dir(home: Path) -> Path:
+    """Nines in the user folder; Closet, where the closet lived up to 0.11.0, while it has not been moved yet
+    (closet/datafolder.py moves it at start, and keeps it there for a run when it cannot)."""
+    new, old = home / "Nines", home / "Closet"
+    return old if not new.exists() and old.is_dir() else new
+
+
+def load(env: dict | None = None, home: Path | None = None) -> Config:
     env = os.environ if env is None else env
-    data_dir = Path(env.get("CLOSET_DATA_DIR") or Path.home() / "Closet").expanduser()
+    chosen = env.get("CLOSET_DATA_DIR")
+    data_dir = Path(chosen).expanduser() if chosen else default_data_dir(home or Path.home())
     return Config(
         data_dir=data_dir,
         host=env.get("CLOSET_HOST", "127.0.0.1"),

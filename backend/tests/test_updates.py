@@ -37,7 +37,7 @@ def release(version="0.3.0", draft=False, prerelease=False, assets=None, body="F
     return {"tag_name": f"v{version}", "draft": draft, "prerelease": prerelease, "body": body,
             "html_url": f"https://github.com/ericksoni716/daily-clother/releases/tag/v{version}",
             "published_at": "2026-11-20T10:00:00Z",
-            "assets": assets if assets is not None else [asset("Closet.exe", NEW_EXE)]}
+            "assets": assets if assets is not None else [asset("Nines.exe", NEW_EXE)]}
 
 
 class FakeGitHub:
@@ -76,7 +76,7 @@ def program(tmp_path):
     """A stand-in for the packaged program on Windows, in a folder of its own."""
     folder = tmp_path / "Programs"
     folder.mkdir()
-    exe = folder / "Closet.exe"
+    exe = folder / "Nines.exe"
     exe.write_bytes(OLD_EXE)
     return exe
 
@@ -115,7 +115,7 @@ def test_only_a_newer_final_release_counts(updater, github):
     assert github.asked and all(u == updates.API_URL for u in github.asked)
 
 
-RELEASE_BODY = """Closet 0.3.0, built from 0123abc.
+RELEASE_BODY = """Nines 0.3.0, built from 0123abc.
 
 ## What's new
 
@@ -131,7 +131,7 @@ RELEASE_BODY = """Closet 0.3.0, built from 0123abc.
 
 ## First run on Windows
 
-1. Download **Closet.exe** below.
+1. Download **Nines.exe** below.
 
 ## Good to know
 
@@ -144,7 +144,7 @@ def test_release_notes_are_only_the_whats_new_section_as_written():
     assert notes == ("### Changed\n\n- Trips pack **lighter**, and the list\n  wraps onto a second line.\n"
                      "- <b>Not bold</b>\n\n### Fixed\n\n1. A sock no longer goes missing.")
     # the install steps are not what is new
-    assert "First run" not in notes and "Closet.exe" not in notes and "built from" not in notes
+    assert "First run" not in notes and "Nines.exe" not in notes and "built from" not in notes
     # a curly apostrophe or other capitals name the section too; the last section runs to the end
     curly = "## What’s New\n\n- One thing.\n"
     assert updates.parse_release(release(body=curly))["notes"] == "- One thing."
@@ -206,13 +206,13 @@ def test_the_download_is_checked_against_githubs_digest(updater, github, cfg):
     path.unlink()
     with pytest.raises(updates.UpdateError, match="did not match the checksum"):
         updater.prepare(updater.available())
-    assert not list((cfg.data_dir / "updates").glob("*Closet.exe*"))
+    assert not list((cfg.data_dir / "updates").glob("*Nines.exe*"))
     assert not updater.status()["ready"]
 
 
 @pytest.mark.parametrize("digest", [None, "md5:abc", "sha256:not-hex"])
 def test_no_digest_means_no_install(updater, github, digest):
-    entry = asset("Closet.exe", NEW_EXE, digest=digest)
+    entry = asset("Nines.exe", NEW_EXE, digest=digest)
     github.latest = release(assets=[entry])
     github.add(entry, NEW_EXE)
     updater.check()
@@ -221,7 +221,7 @@ def test_no_digest_means_no_install(updater, github, digest):
 
 
 def test_a_download_larger_than_the_release_says_is_thrown_away(updater, github):
-    entry = asset("Closet.exe", NEW_EXE)
+    entry = asset("Nines.exe", NEW_EXE)
     entry["size"] = 5
     github.latest = release(assets=[entry])
     github.add(entry, NEW_EXE)
@@ -231,10 +231,13 @@ def test_a_download_larger_than_the_release_says_is_thrown_away(updater, github)
 
 
 def test_only_this_computers_file_is_picked():
-    rel = updates.parse_release(release(assets=[asset("Closet.exe", b"w"), asset("Closet-mac-arm64.zip", b"m")]))
-    assert updates.asset_for(rel, "win32")["name"] == "Closet.exe"
-    assert updates.asset_for(rel, "darwin")["name"] == "Closet-mac-arm64.zip"
+    rel = updates.parse_release(release(assets=[asset("Nines.exe", b"w"), asset("Nines-mac-arm64.zip", b"m")]))
+    assert updates.asset_for(rel, "win32")["name"] == "Nines.exe"
+    assert updates.asset_for(rel, "darwin")["name"] == "Nines-mac-arm64.zip"
     assert updates.asset_for(rel, "linux") is None
+    # the program was Closet.exe until 0.11.0; a release carrying only the old names has nothing for this one
+    old = updates.parse_release(release(assets=[asset("Closet.exe", b"w"), asset("Closet-mac-arm64.zip", b"m")]))
+    assert updates.asset_for(old, "win32") is None and updates.asset_for(old, "darwin") is None
 
 
 # ------------------------------------------------------------------ replacing the program
@@ -242,13 +245,13 @@ def test_windows_program_is_renamed_then_replaced_and_restored(tmp_path, program
     package = tmp_path / "download.exe"
     package.write_bytes(NEW_EXE)
     where = updates.layout("win32", str(program))
-    assert where.old == program.with_name("Closet.old.exe")
+    assert where.old == program.with_name("Nines.old.exe")
     updates.swap(where, package, hashlib.sha256(NEW_EXE).hexdigest())
     assert program.read_bytes() == NEW_EXE and where.old.read_bytes() == OLD_EXE
-    assert sorted(p.name for p in program.parent.iterdir()) == ["Closet.exe", "Closet.old.exe"]
+    assert sorted(p.name for p in program.parent.iterdir()) == ["Nines.exe", "Nines.old.exe"]
     assert updates.restore(where)
     assert program.read_bytes() == OLD_EXE and not where.old.exists()
-    assert sorted(p.name for p in program.parent.iterdir()) == ["Closet.exe"]
+    assert sorted(p.name for p in program.parent.iterdir()) == ["Nines.exe"]
     assert not updates.restore(where)   # nothing kept: nothing to put back
 
 
@@ -261,9 +264,9 @@ def test_a_package_that_changed_after_checking_is_not_used(tmp_path, program):
 
 
 def mac_bundle(root: Path, content: bytes) -> Path:
-    app = root / "Closet.app"
+    app = root / "Nines.app"
     (app / "Contents" / "MacOS").mkdir(parents=True)
-    (app / "Contents" / "MacOS" / "Closet").write_bytes(content)
+    (app / "Contents" / "MacOS" / "Nines").write_bytes(content)
     (app / "Contents" / "Info.plist").write_text("<plist/>")
     return app
 
@@ -291,9 +294,9 @@ def mac_zip(tmp_path: Path) -> Path:
     built = tmp_path / "built"
     built.mkdir()
     mac_bundle(built, NEW_EXE)
-    package = tmp_path / "Closet-mac-arm64.zip"
+    package = tmp_path / "Nines-mac-arm64.zip"
     with zipfile.ZipFile(package, "w") as z:
-        for f in (built / "Closet.app").rglob("*"):
+        for f in (built / "Nines.app").rglob("*"):
             z.write(f, f.relative_to(built))
     return package
 
@@ -303,21 +306,21 @@ def test_mac_bundle_is_unpacked_checked_and_swapped_then_restored(tmp_path):
     apps.mkdir()
     installed = mac_bundle(apps, OLD_EXE)
     package = mac_zip(tmp_path)
-    where = updates.layout("darwin", str(installed / "Contents" / "MacOS" / "Closet"))
-    assert where.installed == installed and where.old == apps / "Closet.old.app"
-    assert where.old_program == apps / "Closet.old.app" / "Contents" / "MacOS" / "Closet"
+    where = updates.layout("darwin", str(installed / "Contents" / "MacOS" / "Nines"))
+    assert where.installed == installed and where.old == apps / "Nines.old.app"
+    assert where.old_program == apps / "Nines.old.app" / "Contents" / "MacOS" / "Nines"
     tools = FakeMacTools()
     updates.swap(where, package, hashlib.sha256(package.read_bytes()).hexdigest(), run=tools)
-    assert (installed / "Contents" / "MacOS" / "Closet").read_bytes() == NEW_EXE
-    assert (where.old / "Contents" / "MacOS" / "Closet").read_bytes() == OLD_EXE
-    assert sorted(p.name for p in apps.iterdir()) == ["Closet.app", "Closet.old.app"]   # the unpacking folder is gone
+    assert (installed / "Contents" / "MacOS" / "Nines").read_bytes() == NEW_EXE
+    assert (where.old / "Contents" / "MacOS" / "Nines").read_bytes() == OLD_EXE
+    assert sorted(p.name for p in apps.iterdir()) == ["Nines.app", "Nines.old.app"]   # the unpacking folder is gone
     names = [c[0] for c in tools.calls]
     assert names == ["ditto", "xattr", "codesign"]
     # the quarantine mark is only taken off the bundle Closet unpacked, never the installed one
     assert tools.calls[1][:3] == ["xattr", "-dr", "com.apple.quarantine"] and "-update" in tools.calls[1][3]
     assert updates.restore(where)
-    assert (installed / "Contents" / "MacOS" / "Closet").read_bytes() == OLD_EXE
-    assert sorted(p.name for p in apps.iterdir()) == ["Closet.app"]
+    assert (installed / "Contents" / "MacOS" / "Nines").read_bytes() == OLD_EXE
+    assert sorted(p.name for p in apps.iterdir()) == ["Nines.app"]
 
 
 def test_mac_bundle_that_fails_its_signature_check_is_not_installed(tmp_path):
@@ -325,11 +328,11 @@ def test_mac_bundle_that_fails_its_signature_check_is_not_installed(tmp_path):
     apps.mkdir()
     installed = mac_bundle(apps, OLD_EXE)
     package = mac_zip(tmp_path)
-    where = updates.layout("darwin", str(installed / "Contents" / "MacOS" / "Closet"))
+    where = updates.layout("darwin", str(installed / "Contents" / "MacOS" / "Nines"))
     with pytest.raises(updates.UpdateError, match="signature"):
         updates.swap(where, package, hashlib.sha256(package.read_bytes()).hexdigest(), run=FakeMacTools(signed=False))
-    assert (installed / "Contents" / "MacOS" / "Closet").read_bytes() == OLD_EXE
-    assert sorted(p.name for p in apps.iterdir()) == ["Closet.app"]
+    assert (installed / "Contents" / "MacOS" / "Nines").read_bytes() == OLD_EXE
+    assert sorted(p.name for p in apps.iterdir()) == ["Nines.app"]
 
 
 def test_only_windows_and_mac_programs_replace_themselves(tmp_path):
@@ -359,7 +362,7 @@ def test_install_backs_up_every_closet_first(updater, github, cfg, monkeypatch, 
     assert last["ok"] and last["kind"] == "update"
     assert Path(updater.executable).read_bytes() == NEW_EXE
     (helper, plan), = updater.spawned
-    assert helper == Path(updater.executable).with_name("Closet.old.exe")   # the helper is the old program, kept aside
+    assert helper == Path(updater.executable).with_name("Nines.old.exe")   # the helper is the old program, kept aside
     assert plan["from"] == "0.2.1" and plan["to"] == "0.3.0" and plan["args"] == ["--no-browser", "--port", "8765"]
     assert sorted(plan["snapshots"]) == ["demo", "main"] and all(Path(v).is_file() for v in plan["snapshots"].values())
     assert updater.busy == "restarting"
@@ -381,7 +384,7 @@ def test_a_helper_that_cannot_start_puts_the_old_program_back(updater, github):
     with pytest.raises(updates.UpdateError, match="put this one back"):
         updater.install(updater.available())
     assert Path(updater.executable).read_bytes() == OLD_EXE
-    assert not Path(updater.executable).with_name("Closet.old.exe").exists()
+    assert not Path(updater.executable).with_name("Nines.old.exe").exists()
 
 
 @pytest.mark.parametrize("failure", ["plan", "outcome"])
@@ -450,7 +453,7 @@ def test_restart_keeps_the_old_program_until_the_helper_finishes(updater, github
         updater.install_now()
     assert updater.busy == "restarting"
     assert len(updater.spawned) == 1
-    assert Path(updater.executable).with_name("Closet.old.exe").read_bytes() == OLD_EXE
+    assert Path(updater.executable).with_name("Nines.old.exe").read_bytes() == OLD_EXE
 
 
 def test_a_failed_handover_allows_the_owner_to_retry(updater, github):
@@ -600,7 +603,7 @@ def test_helper_puts_the_old_program_back_when_the_new_one_never_answers(cfg, se
         return None   # started, but it never writes its lock file or answers
     assert not updates.watch(cfg, plan, start=start, timeout=0.5, poll=0.1)
     assert program.read_bytes() == OLD_EXE and not where.old.exists()
-    assert not program.with_name("Closet.failed.exe").exists()
+    assert not program.with_name("Nines.failed.exe").exists()
     # the new one was started for the hand-over, then the old one again as it was started before
     assert started == [(NEW_EXE, ["--no-browser", "--port", "8765", "--replace"]),
                        (OLD_EXE, ["--no-browser", "--port", "8765"])]
@@ -672,7 +675,7 @@ def test_the_helper_is_this_program_run_with_a_hidden_command(monkeypatch, tmp_p
 
 
 def test_new_program_removes_the_old_one_once_it_has_started(updater, program):
-    old = program.with_name("Closet.old.exe")
+    old = program.with_name("Nines.old.exe")
     old.write_bytes(OLD_EXE)
     program.write_bytes(NEW_EXE)
     updater.version = "0.3.0"

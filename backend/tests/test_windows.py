@@ -238,7 +238,7 @@ def test_start_at_login_is_written_to_this_users_run_key(monkeypatch):
     import winreg
     key = rf"Software\Closet-tests\Run-{uuid.uuid4().hex}"   # never the computer's own Run key
     monkeypatch.setattr(autostart, "RUN_KEY", key)
-    exe = r"C:\Users\Owner Name\Downloads\Closet.exe"
+    exe = r"C:\Users\Owner Name\Downloads\Nines.exe"
     try:
         assert not autostart.is_enabled("win32")
         autostart.set_enabled(True, exe=exe, platform="win32")
@@ -249,6 +249,29 @@ def test_start_at_login_is_written_to_this_users_run_key(monkeypatch):
         autostart.set_enabled(False, platform="win32")
         assert not autostart.is_enabled("win32")
         autostart.set_enabled(False, platform="win32")   # already off
+    finally:
+        try:
+            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, key)
+        except OSError:
+            pass
+
+
+@pytest.mark.windows
+def test_start_at_login_left_by_closet_exe_is_carried_over_in_the_registry(monkeypatch):
+    import winreg
+    key = rf"Software\Closet-tests\Run-{uuid.uuid4().hex}"   # never the computer's own Run key
+    monkeypatch.setattr(autostart, "RUN_KEY", key)
+    exe = r"C:\Users\Owner Name\Apps\Closet\Nines.exe"
+    try:
+        with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, key, 0, winreg.KEY_SET_VALUE) as k:   # what 0.11.0 wrote
+            winreg.SetValueEx(k, "Closet", 0, winreg.REG_SZ, r'"C:\Users\Owner Name\Apps\Closet\Closet.exe" --no-browser')
+        assert not autostart.is_enabled("win32")
+        assert autostart.carry_over(exe=exe, platform="win32") is True
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key) as k:
+            assert winreg.QueryValueEx(k, "Nines")[0] == f'"{exe}" --no-browser'
+            with pytest.raises(OSError):
+                winreg.QueryValueEx(k, "Closet")
+        assert autostart.is_enabled("win32") and autostart.carry_over(exe=exe, platform="win32") is False
     finally:
         try:
             winreg.DeleteKey(winreg.HKEY_CURRENT_USER, key)

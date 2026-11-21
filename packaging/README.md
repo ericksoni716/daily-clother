@@ -15,9 +15,9 @@ What the build produces:
 
 | OS | Output | Notes |
 | --- | --- | --- |
-| Windows | `dist/Closet.exe` | One file, windowed (no console window), icon from `closet/icon.png` through `closet.tray.icon_image()`. |
-| macOS (Apple Silicon) | `dist/Closet.app` | Windowed menu-bar app (`LSUIElement`, no Dock icon), bundle id `app.closet`, macOS 14+. One folder inside the bundle (one-file `.app` is deprecated in PyInstaller 6). Ad-hoc signed only. The release zips it with `ditto -c -k --keepParent` as `Closet-mac-arm64.zip`. |
-| Linux | `dist/closet` | One file, console. For local checks only; not released. |
+| Windows | `dist/Nines.exe` | One file, windowed (no console window), icon from `closet/icon.png` through `closet.tray.icon_image()`. |
+| macOS (Apple Silicon) | `dist/Nines.app` | Windowed menu-bar app (`LSUIElement`, no Dock icon), bundle id `app.closet` (kept from when the program was Closet), macOS 14+. One folder inside the bundle (one-file `.app` is deprecated in PyInstaller 6). Ad-hoc signed only. The release zips it with `ditto -c -k --keepParent` as `Nines-mac-arm64.zip`. |
+| Linux | `dist/nines` | One file, console. For local checks only; not released. |
 
 ## Build locally
 
@@ -39,13 +39,13 @@ echo 'VERSION = "0.1.0"' > backend/closet/_build_version.py
     --distpath /tmp/closet-dist --workpath /tmp/closet-build
 
 # 5. test (any Python 3.10+)
-python3 packaging/smoke_test.py /tmp/closet-dist/closet                  # Linux
-python3 packaging/smoke_test.py /tmp/closet-dist/closet \
+python3 packaging/smoke_test.py /tmp/closet-dist/nines                   # Linux
+python3 packaging/smoke_test.py /tmp/closet-dist/nines \
     --cutout --model /path/to/isnet-general-use.onnx                     # with the model
 ```
 
-On Windows use `Scripts\python.exe` and `Closet.exe`; on macOS pass
-`/tmp/closet-dist/Closet.app/Contents/MacOS/Closet` to the smoke test.
+On Windows use `Scripts\python.exe` and `Nines.exe`; on macOS pass
+`/tmp/closet-dist/Nines.app/Contents/MacOS/Nines` to the smoke test.
 
 ## What the smoke test checks
 
@@ -91,7 +91,7 @@ On failure it prints the reason, the program's output and the tail of
 
 ## Automatic check (`package-check` workflow)
 
-Builds `dist/closet` on Linux exactly as the release builds its programs
+Builds `dist/nines` on Linux exactly as the release builds its programs
 (same spec, `backend/requirements.txt` + `requirements-build.txt`, Python
 3.12, the frontend built into it, a version stamped as `0.0.0-check.<run>`)
 and runs the default smoke test with `--expect-version`. About 4 minutes.

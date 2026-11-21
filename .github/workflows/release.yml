@@ -1,12 +1,12 @@
 name: release
 
-# Builds, smoke-tests and publishes a release of Closet. Started by hand only:
+# Builds, smoke-tests and publishes a release of Nines. Started by hand only:
 # Actions tab -> release -> Run workflow, on the commit to be released.
 #
 #   prepare  validate the version, create a DRAFT release v<version>
-#   windows  (unless build_windows is unticked) build Closet.exe, smoke-test
+#   windows  (unless build_windows is unticked) build Nines.exe, smoke-test
 #            it, upload it to the draft
-#   macos    (only when build_macos is ticked) build Closet.app, zip it,
+#   macos    (only when build_macos is ticked) build Nines.app, zip it,
 #            smoke-test the unzipped copy, upload the zip to the draft
 #   publish  all builds passed -> publish the draft, which creates the tag
 #            v<version> on the dispatched commit; otherwise delete the
@@ -111,12 +111,12 @@ jobs:
           VERSION: ${{ steps.validate.outputs.version }}
         run: |
           gh release create "$TAG" --draft --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" --title "Closet $VERSION" \
+            --target "$GITHUB_SHA" --title "Nines $VERSION" \
             --notes "Build in progress (run $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID)."
           echo "Draft release $TAG created for $GITHUB_SHA"
 
   windows:
-    name: Windows (Closet.exe)
+    name: Windows (Nines.exe)
     needs: prepare
     if: ${{ inputs.build_windows }}
     runs-on: windows-latest
@@ -153,15 +153,15 @@ jobs:
       - name: Write the build version
         run: printf 'VERSION = "%s"\n' "$VERSION" > backend/closet/_build_version.py
 
-      - name: Build Closet.exe with PyInstaller
+      - name: Build Nines.exe with PyInstaller
         run: python -m PyInstaller --noconfirm --clean packaging/closet.spec --distpath dist --workpath build/pyinstaller
 
       - name: Print the file size
         run: |
-          python -c "import os, sys; n = os.path.getsize(sys.argv[1]); print(f'{sys.argv[1]}: {n:,} bytes ({n / 1048576:.1f} MiB)')" dist/Closet.exe
+          python -c "import os, sys; n = os.path.getsize(sys.argv[1]); print(f'{sys.argv[1]}: {n:,} bytes ({n / 1048576:.1f} MiB)')" dist/Nines.exe
 
       - name: Smoke test
-        run: python packaging/smoke_test.py dist/Closet.exe --expect-version "$VERSION"
+        run: python packaging/smoke_test.py dist/Nines.exe --expect-version "$VERSION"
 
       # The brief asked for the cutout check as a separate job with the model
       # cached. With no cache or artifact storage, a separate job would have
@@ -185,15 +185,15 @@ jobs:
           PY
 
       - name: "Cutout check: run selfcheck --cutout"
-        run: python packaging/smoke_test.py dist/Closet.exe --cutout --model build/model/isnet-general-use.onnx --expect-version "$VERSION"
+        run: python packaging/smoke_test.py dist/Nines.exe --cutout --model build/model/isnet-general-use.onnx --expect-version "$VERSION"
 
-      - name: Upload Closet.exe to the draft release
+      - name: Upload Nines.exe to the draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$TAG" dist/Closet.exe --clobber --repo "$GITHUB_REPOSITORY"
+        run: gh release upload "$TAG" dist/Nines.exe --clobber --repo "$GITHUB_REPOSITORY"
 
   macos:
-    name: macOS Apple Silicon (Closet.app)
+    name: macOS Apple Silicon (Nines.app)
     needs: prepare
     if: ${{ inputs.build_macos }}
     runs-on: macos-latest
@@ -238,27 +238,27 @@ jobs:
       - name: Write the build version
         run: printf 'VERSION = "%s"\n' "$VERSION" > backend/closet/_build_version.py
 
-      - name: Build Closet.app with PyInstaller
+      - name: Build Nines.app with PyInstaller
         run: python -m PyInstaller --noconfirm --clean packaging/closet.spec --distpath dist --workpath build/pyinstaller
 
       - name: Zip the app (ditto keeps the bundle intact)
-        run: ditto -c -k --keepParent dist/Closet.app dist/Closet-mac-arm64.zip
+        run: ditto -c -k --keepParent dist/Nines.app dist/Nines-mac-arm64.zip
 
       - name: Unzip a copy to test what users download
         run: |
           rm -rf build/unzipped
-          ditto -x -k dist/Closet-mac-arm64.zip build/unzipped
-          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" -c "Print :LSUIElement" build/unzipped/Closet.app/Contents/Info.plist
-          codesign --verify --deep --strict --verbose=2 build/unzipped/Closet.app
-          codesign -dv build/unzipped/Closet.app 2>&1 | grep -E "Signature|Identifier" || true
+          ditto -x -k dist/Nines-mac-arm64.zip build/unzipped
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" -c "Print :LSUIElement" build/unzipped/Nines.app/Contents/Info.plist
+          codesign --verify --deep --strict --verbose=2 build/unzipped/Nines.app
+          codesign -dv build/unzipped/Nines.app 2>&1 | grep -E "Signature|Identifier" || true
 
       - name: Print the file size
         run: |
-          python -c "import os, sys; n = os.path.getsize(sys.argv[1]); print(f'{sys.argv[1]}: {n:,} bytes ({n / 1048576:.1f} MiB)')" dist/Closet-mac-arm64.zip
-          du -sh dist/Closet.app
+          python -c "import os, sys; n = os.path.getsize(sys.argv[1]); print(f'{sys.argv[1]}: {n:,} bytes ({n / 1048576:.1f} MiB)')" dist/Nines-mac-arm64.zip
+          du -sh dist/Nines.app
 
       - name: Smoke test
-        run: python packaging/smoke_test.py build/unzipped/Closet.app/Contents/MacOS/Closet --expect-version "$VERSION"
+        run: python packaging/smoke_test.py build/unzipped/Nines.app/Contents/MacOS/Nines --expect-version "$VERSION"
 
       # Separate group of steps rather than a job: see the Windows job.
       - name: "Cutout check: download the model (URL from backend/closet/cutout.py)"
@@ -280,12 +280,12 @@ jobs:
           PY
 
       - name: "Cutout check: run selfcheck --cutout"
-        run: python packaging/smoke_test.py build/unzipped/Closet.app/Contents/MacOS/Closet --cutout --model build/model/isnet-general-use.onnx --expect-version "$VERSION"
+        run: python packaging/smoke_test.py build/unzipped/Nines.app/Contents/MacOS/Nines --cutout --model build/model/isnet-general-use.onnx --expect-version "$VERSION"
 
-      - name: Upload Closet-mac-arm64.zip to the draft release
+      - name: Upload Nines-mac-arm64.zip to the draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$TAG" dist/Closet-mac-arm64.zip --clobber --repo "$GITHUB_REPOSITORY"
+        run: gh release upload "$TAG" dist/Nines-mac-arm64.zip --clobber --repo "$GITHUB_REPOSITORY"
 
   publish:
     name: Publish (or delete the draft)
@@ -331,7 +331,7 @@ jobs:
             whats_new=$(python3 whats_new.py "$VERSION" CHANGELOG.md 2>/dev/null) || whats_new=""
           fi
           {
-            echo "Closet $VERSION, built from $GITHUB_SHA."
+            echo "Nines $VERSION, built from $GITHUB_SHA."
             echo
             if [ -n "$whats_new" ]; then
               echo "## What's new"
@@ -343,10 +343,21 @@ jobs:
               cat <<'NOTES'
           ## First run on Windows
 
-          1. Download **Closet.exe** below and keep it somewhere permanent (for example your Documents folder).
+          1. Download **Nines.exe** below and keep it somewhere permanent (for example your Documents folder).
           2. Double-click it. The program is not signed, so Windows may say "Windows protected your PC": click **More info**, then **Run anyway**.
-          3. The first start takes a little longer while the program unpacks. Closet then opens in your browser, and a coat-hanger icon appears near the clock (look under the ^ arrow). Quit from that icon or from Settings.
-          4. Your closet is kept in the **Closet** folder in your user folder, never next to the program.
+          3. The first start takes a little longer while the program unpacks. Nines then opens in your browser, and a coat-hanger icon appears near the clock (look under the ^ arrow). Quit from that icon or from Settings.
+          4. Your closet is kept in the **Nines** folder in your user folder, never next to the program.
+
+          ## If you have the program as Closet.exe
+
+          Nines used to be called Closet, and so was its program. A copy named **Closet.exe** cannot install this version by itself: it says this release has no download for this computer. Install it by hand, once:
+
+          1. Quit Closet.exe: **Quit** at the bottom of its Settings, or from its icon near the clock if it has one.
+          2. Download **Nines.exe** below and put it where you kept Closet.exe.
+          3. Double-click Nines.exe. If you forgot to quit the old one, Nines asks whether to close it and use the new version: choose the new version.
+          4. Delete Closet.exe, and do not start it again: it would make a new, empty Closet folder.
+
+          The first start of Nines.exe renames the **Closet** folder in your user folder to **Nines**, with everything in it: your closet, photos, settings and backups. Nothing is copied or deleted. If Closet.exe was still running, the folder stays **Closet** until the next start of Nines.exe, and nothing is lost. If you have something of your own that points at the folder, such as a backup or sync program, point it at **Nines** afterwards. If Closet.exe started when you logged in, Nines.exe takes that over the first time it starts. Later versions install themselves again.
 
           NOTES
             else
@@ -357,10 +368,10 @@ jobs:
               cat <<'NOTES'
           ## First run on a Mac (Apple Silicon, macOS 14 or later)
 
-          1. Download **Closet-mac-arm64.zip** below and open it; drag **Closet.app** into Applications.
-          2. The app is not signed by Apple, so the first time macOS refuses to open it. Double-click it once, close the message, then open **System Settings > Privacy & Security**, scroll down and click **Open Anyway** next to Closet, and confirm.
-          3. Closet opens in your browser and shows a coat-hanger icon in the menu bar (there is no Dock icon). Quit from that icon or from Settings.
-          4. Your closet is kept in the **Closet** folder in your home folder.
+          1. Download **Nines-mac-arm64.zip** below and open it; drag **Nines.app** into Applications.
+          2. The app is not signed by Apple, so the first time macOS refuses to open it. Double-click it once, close the message, then open **System Settings > Privacy & Security**, scroll down and click **Open Anyway** next to Nines, and confirm.
+          3. Nines opens in your browser and shows a coat-hanger icon in the menu bar (there is no Dock icon). Quit from that icon or from Settings.
+          4. Your closet is kept in the **Nines** folder in your home folder.
 
           NOTES
             else
@@ -370,7 +381,7 @@ jobs:
             cat <<'NOTES'
           ## Good to know
 
-          On first start Closet downloads its background-removal model (about 170 MB) into your closet folder. The demo closet works before that finishes.
+          On first start Nines downloads its background-removal model (about 170 MB) into your closet folder. The demo closet works before that finishes.
           NOTES
           } > notes.md
           cat notes.md

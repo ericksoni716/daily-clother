@@ -80,7 +80,7 @@ jobs:
 
       - name: Print the file size
         run: |
-          python -c "import os, sys; n = os.path.getsize(sys.argv[1]); print(f'{sys.argv[1]}: {n:,} bytes ({n / 1048576:.1f} MiB)')" dist/closet
+          python -c "import os, sys; n = os.path.getsize(sys.argv[1]); print(f'{sys.argv[1]}: {n:,} bytes ({n / 1048576:.1f} MiB)')" dist/nines
 
       - name: Smoke test
-        run: python packaging/smoke_test.py dist/closet --expect-version "0.0.0-check.$GITHUB_RUN_NUMBER"
+        run: python packaging/smoke_test.py dist/nines --expect-version "0.0.0-check.$GITHUB_RUN_NUMBER"

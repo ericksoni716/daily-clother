@@ -18,6 +18,21 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   The front stays as it was, **Go back to the drawing before** undoes the change, and your notes
   on the side are kept for every later side drawing of that shoe.
 
+### Changed
+
+- The program is now called Nines too: `Nines.exe` on Windows, and `Nines.app` in
+  `Nines-mac-arm64.zip` on a Mac. If you have `Closet.exe`, it cannot install this version by
+  itself and says there is no download for this computer. Download `Nines.exe` once from the
+  release page, put it where `Closet.exe` was, start it (if the old one is still running, Nines
+  offers to close it) and delete `Closet.exe`. If Nines started when you logged in, it still
+  does. Later versions install themselves again.
+- The folder your closet is kept in is now called Nines too. The first time Nines starts, it
+  renames the Closet folder in your user folder to Nines, with everything in it; nothing is
+  copied or deleted. If the old program is still running, or the folder cannot be renamed, Nines
+  uses the Closet folder as it is and tries again at its next start. If both folders exist,
+  Nines uses the Nines folder and leaves Closet alone. Anything of your own that points at the
+  folder, such as a backup or sync program, needs pointing at Nines.
+
 ## 0.11.0
 
 ### Added

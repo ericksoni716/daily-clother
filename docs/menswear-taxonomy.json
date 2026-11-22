@@ -3323,6 +3323,12 @@
     "uses": "leather shoes, belts, bags"
    },
    {
+    "name": "taupe",
+    "hex": "#8b7c6d",
+    "app_color": "brown",
+    "uses": "suede shoes, knits, chinos"
+   },
+   {
     "name": "rust",
     "hex": "#a4492a",
     "app_color": "orange",
@@ -3389,6 +3395,12 @@
     "uses": "linen, knits"
    },
    {
+    "name": "mint",
+    "hex": "#bcdfc6",
+    "app_color": "green",
+    "uses": "summer shirts, polos, knits"
+   },
+   {
     "name": "forest_green",
     "hex": "#22422c",
     "app_color": "green",
@@ -3437,6 +3449,12 @@
     "uses": "accents"
    },
    {
+    "name": "french_blue",
+    "hex": "#4277c9",
+    "app_color": "blue",
+    "uses": "dress shirts, knits"
+   },
+   {
     "name": "mid_wash_denim",
     "hex": "#5b7aa3",
     "app_color": "blue",
@@ -3479,10 +3497,22 @@
     "uses": "knits, linen"
    },
    {
+    "name": "salmon",
+    "hex": "#f0a08a",
+    "app_color": "pink",
+    "uses": "chinos, shorts, summer shirts"
+   },
+   {
     "name": "lavender",
     "hex": "#c8bfe0",
     "app_color": "purple",
     "uses": "dress shirts"
+   },
+   {
+    "name": "mauve",
+    "hex": "#ad91a9",
+    "app_color": "purple",
+    "uses": "knits, linen"
    },
    {
     "name": "plum",

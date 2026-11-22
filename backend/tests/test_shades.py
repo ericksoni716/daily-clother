@@ -7,10 +7,11 @@ described again. Claude is never called: `FakeClaude` (conftest) describes every
 import json
 from contextlib import closing
 
-from closet import corrections, db, items, vocab
+from closet import corrections, db, items, tagjobs, vocab
+from closet.tagger.schema import ItemTags
 from closet.tagger.taxonomy import SHADES
 
-from .conftest import upload
+from .conftest import ANSWER, upload
 
 SAGE, TEAL = SHADES["sage"][0], SHADES["teal"][0]
 
@@ -117,6 +118,15 @@ def test_a_sentence_can_name_the_shade(client, services, claude, cfg):
         saved = corrections.confirm(conn, item["id"], "it is teal", [{"name": "color", "value": "green"},
                                                                     {"name": "shade", "value": "teal"}])
     assert (saved["color"], saved["color_hex"], saved["shade"]) == ("green", TEAL, "teal")
+
+
+def test_the_shades_added_for_the_owner_can_be_named_by_claude_and_draw_the_item_in_them():
+    added = {"mint": "green", "french_blue": "blue", "taupe": "brown", "salmon": "pink", "mauve": "purple"}
+    for name, color in added.items():
+        assert SHADES[name][1] == color
+        said = ANSWER.model_dump(mode="json")
+        said.update(color=color, details={**said["details"], "shade": name})
+        assert tagjobs.color_hex(ItemTags.model_validate(said)) == SHADES[name][0]
 
 
 def test_anything_can_have_a_shade_and_keeps_it_when_its_kind_changes(client, services, claude, cfg):

@@ -171,7 +171,7 @@ be undone), and the last one, with Describe it again, Archive and Delete. A new 
 taken in place of the old one, and a cutout that failed can be tried again.
 
 The colour's choices end with the shades of the piece's colour, each with its swatch ("Shades of
-green": Sage, Forest green, Hunter green, Teal). Choosing a colour keeps the choices open on its
+green": Sage, Mint, Forest green, Hunter green, Teal). Choosing a colour keeps the choices open on its
 shades; choosing a shade saves it with its colour and draws the piece in it. A shade you choose
 stays yours when Claude describes the piece again, and choosing another colour puts it aside. It
 is chosen only there: Fix the details does not list it.

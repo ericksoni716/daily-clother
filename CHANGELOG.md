@@ -13,12 +13,14 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 ### Added
 
 - **Shades**, on an item's page: under **Details**, the Colour row now offers the shades of the
-  piece's colour under the colours, each with its swatch (Green has Sage, Forest green, Hunter
-  green and Teal; Navy has Navy, Midnight and Raw indigo), 50 in all. Choosing a colour keeps the
+  piece's colour under the colours, each with its swatch (Green has Sage, Mint, Forest green,
+  Hunter green and Teal; Navy has Navy, Midnight and Raw indigo), 55 in all. Choosing a colour keeps the
   choices open on its shades; choosing a shade saves it with its colour, and the drawing is drawn
   in it. The colour itself stays what Today, What's missing and Would this work? go by. A shade
   you choose is yours: describing the piece again keeps it, and choosing another colour puts it
   aside. Fix the details no longer lists the shade, since it is chosen with the colour.
+- **Five new shades**: Mint, French blue, Taupe, Salmon and Mauve, which Claude can also name when
+  it describes a photo.
 
 ### Fixed
 

@@ -92,9 +92,8 @@ function useSayView({ item, onSaved, onError }: Props) {
 }
 
 /** The question about the outside, as a choice: one photo (the outside or the inside?), or which of several. */
-function OutsideChoices({ photos, item, disabled, onSay }: {
+function OutsideChoices({ photos, disabled, onSay }: {
   photos: { photo: Photo; n: number }[];
-  item: Item;
   disabled: boolean;
   onSay(photoId: string, view: ShoeView): void;
 }) {
@@ -116,7 +115,7 @@ function OutsideChoices({ photos, item, disabled, onSay }: {
         <button key={photo.id} type="button" className="shoe-ask-choice" disabled={disabled} aria-pressed={photo.view === 'outer'}
           aria-label={`Photo ${n} shows the outside`} onClick={() => onSay(photo.id, 'outer')}>
           <img src={photo.thumb_url ?? photo.url ?? ''} alt="" />
-          <span>Photo {n}{viewLabel(photo, item.views) ? ` · ${viewLabel(photo, item.views)}` : ''}</span>
+          <span>Photo {n}</span>
         </button>
       ))}
     </div>
@@ -142,7 +141,7 @@ function SayOutside(props: Props) {
           testId="say-outside-sheet" onClose={() => setOpen(false)}>
           <div className="shoe-ask-body">
             <p className="muted">{OUTSIDE_HINT}</p>
-            <OutsideChoices photos={photos} item={item} disabled={busy} onSay={async (id, view) => {
+            <OutsideChoices photos={photos} disabled={busy} onSay={async (id, view) => {
               if (await say(id, view)) setOpen(false);
             }} />
           </div>
@@ -165,7 +164,7 @@ function OutsideQuestion(props: Props) {
         {asked.one
           ? <p id={`ask-${item.id}`}><strong>{ONE_SIDE_QUESTION}</strong> {OUTSIDE_HINT}</p>
           : <p id={`ask-${item.id}`}><strong>{OUTSIDE_QUESTION}</strong> ({OUTSIDE_HINT})</p>}
-        <OutsideChoices photos={asked.photos} item={item} disabled={disabled || busy} onSay={(id, view) => void say(id, view)} />
+        <OutsideChoices photos={asked.photos} disabled={disabled || busy} onSay={(id, view) => void say(id, view)} />
       </div>
     </div>
   );

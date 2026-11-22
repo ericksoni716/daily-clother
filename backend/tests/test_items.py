@@ -103,6 +103,28 @@ def test_editing_checks_the_vocabulary_and_records_who_set_a_field(client):
     assert client.patch(f"/api/items/{item['id']}", json={"brand": ""}).json()["brand"] is None
 
 
+def test_a_formality_can_also_be_the_level_next_to_it(client):
+    item = upload(client).json()
+    url = f"/api/items/{item['id']}"
+    assert item["formality_also"] is None
+    body = client.patch(url, json={"formality": "smart_casual", "formality_also": "business"}).json()
+    assert (body["formality"], body["formality_also"]) == ("smart_casual", "business")
+    assert body["source"]["formality"] == body["source"]["formality_also"] == "user"
+    # a second level alone goes with the formality the item has; the level itself is one level
+    assert client.patch(url, json={"formality_also": "casual"}).json()["formality_also"] == "casual"
+    assert client.patch(url, json={"formality_also": "smart_casual"}).json()["formality_also"] is None
+    client.patch(url, json={"formality_also": "business"})
+    # a formality sent alone is one level: the second goes
+    body = client.patch(url, json={"formality": "business"}).json()
+    assert (body["formality"], body["formality_also"]) == ("business", None) and "formality_also" not in body["source"]
+    far = client.patch(url, json={"formality_also": "casual"})
+    assert far.status_code == 422 and "next to each other" in far.json()["detail"]
+    assert client.patch(url, json={"formality_also": "dressy"}).status_code == 422
+    client.patch(url, json={"formality": None})
+    first = client.patch(url, json={"formality_also": "casual"})
+    assert first.status_code == 422 and "formality first" in first.json()["detail"]
+
+
 def test_filtering_search_archive_and_delete(client, cfg):
     a = upload(client, key="a", name="Blue oxford").json()
     b = upload(client, photo_bytes(color=(20, 40, 90)), key="b", name="Old jeans").json()

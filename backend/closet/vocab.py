@@ -31,3 +31,29 @@ ENUM_FIELDS = {"category": CATEGORY, "color": COLOR, "pattern": PATTERN, "formal
 
 def as_dict() -> dict:
     return {**ENUM_FIELDS, "silhouette": SILHOUETTE}
+
+
+# An item's formality may span two neighbouring levels (a penny loafer that is smart casual or business): it keeps its
+# formality, the level it sits at most, and `formality_also`, the level right above or below that it can also be worn
+# at (null for one level).
+FIRST_FORMALITY = "Choose its formality first, then the level it can also be."
+NOT_NEXT = ("A piece can count as two levels only when they are next to each other, such as smart casual and "
+            "business.")
+
+
+def formality_span(level: str | None, also: str | None) -> tuple[str | None, str | None]:
+    """A formality and the level it can also be, as they are kept: `also` None for one level (the level itself counts
+    as one). Raises ValueError, in words the owner can read, when `also` is not right above or below `level`."""
+    if also is None or also == level:
+        return level, None
+    if level is None:
+        raise ValueError(FIRST_FORMALITY)
+    if abs(FORMALITY.index(level) - FORMALITY.index(also)) != 1:
+        raise ValueError(NOT_NEXT)
+    return level, also
+
+
+def formality_words(level: str | None, also: str | None = None) -> str:
+    """The formality in plain words, the lower level first: "smart casual", "smart casual to business"."""
+    levels = sorted({w for w in (level, also) if w in FORMALITY}, key=FORMALITY.index)
+    return " to ".join(w.replace("_", " ") for w in levels)

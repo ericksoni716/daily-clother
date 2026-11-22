@@ -46,6 +46,14 @@ Color = Literal["black", "white", "grey", "navy", "blue", "light_blue", "green",
                 "red", "burgundy", "pink", "orange", "yellow", "purple", "multi"]
 Pattern = Literal["solid", "stripe", "plaid", "floral", "camo", "graphic", "other"]
 Formality = Literal["athletic", "casual", "smart_casual", "business", "formal"]
+# the level right above or below `formality` a piece can equally be worn at; "none" for one level (a word rather than
+# null: the API limits how many nullable properties one schema may have)
+FormalityAlso = Literal["none", "athletic", "casual", "smart_casual", "business", "formal"]
+FORMALITY_ALSO = ("Only for a piece that genuinely sits between two neighbouring levels and is worn as either: the "
+                  "other of the two, right above or below formality, which is the level it sits at most. A penny "
+                  "loafer or a navy blazer is smart_casual, also business; dark selvedge jeans casual, also "
+                  "smart_casual; a knit polo smart_casual, also casual. 'none' for a piece that sits at one level, "
+                  "which is most pieces; never a level two steps away.")
 Season = Literal["warm", "cool", "all"]
 
 Sleeve = Literal["none", "short", "long"]
@@ -127,9 +135,10 @@ Feature = Literal["v_insert", "pleats", "pressed_crease", "contrast_stitching", 
 
 # Stored with every answer the app keeps. Raise it whenever `ItemTags` changes shape or vocabulary, so stored
 # answers can be told apart (a test holds a fingerprint of the schema and fails until this is raised).
-SCHEMA_VERSION = 9   # 6: the cloth's `surface` (closet.tagger.surfaceform); 7: its `lettering`, and each sleeve's own colour;
+SCHEMA_VERSION = 10  # 6: the cloth's `surface` (closet.tagger.surfaceform); 7: its `lettering`, and each sleeve's own colour;
 #                      8: swim trunks among the garments (`garment`), and their inseam;
-#                      9: five more shades (`shade`: mint, french_blue, taupe, salmon, mauve)
+#                      9: five more shades (`shade`: mint, french_blue, taupe, salmon, mauve);
+#                      10: `formality_also`, a second level of formality for a piece that sits between two
 
 FIELDS = ("category", "color", "pattern", "formality", "season")
 DETAIL_FIELDS = ("garment", "fit_detail", "sleeve_length", "neckline", "collar", "placket", "placket_buttons", "button_color", "cuff",
@@ -265,6 +274,9 @@ class ItemTags(BaseModel):
     pattern_confidence: float = Field(ge=0, le=1)
     formality: Formality
     formality_confidence: float = Field(ge=0, le=1)
+    # optional when read, so answers stored before it was asked for stay valid; the form sent asks for it
+    # (`tagging.ASKED`)
+    formality_also: FormalityAlso = Field(default="none", description=FORMALITY_ALSO)
     season: Season = Field(description="warm = hot-weather item, cool = cold-weather item, all = year-round")
     season_confidence: float = Field(ge=0, le=1)
     silhouette: Silhouette
@@ -279,6 +291,15 @@ class ItemTags(BaseModel):
     # (`tagging.ASKED`)
     surface: Surface | None = Field(default=None, description=surfaceform.FIELD_TEXT["surface"])
     lettering: list[Lettering] | None = Field(default=None, description=surfaceform.FIELD_TEXT["lettering"])
+
+    @model_validator(mode="after")
+    def _next_level(self):
+        """A second level is right above or below `formality`: the level itself, or one further away, reads as one
+        level ("none"), so a slip in the answer never makes a piece count as casual and formal at once."""
+        levels = get_args(Formality)
+        if self.formality_also != "none" and abs(levels.index(self.formality_also) - levels.index(self.formality)) != 1:
+            self.formality_also = "none"
+        return self
 
 
 NAMED_HEX = {"black": "#1f1f22", "white": "#f6f5f2", "grey": "#8f9296", "navy": "#27344f", "blue": "#3f6fb0",

@@ -75,8 +75,8 @@ DENIM_COLORS = ("blue", "light_blue", "navy", "black", "grey")
 
 # ------------------------------------------------------------------ the description
 CATEGORIES = tuple(c for c in vocab.CATEGORY if c in outfits.CATEGORY_FORMALITY)  # "other" cannot be tried in an outfit
-FIELDS = ("category", "color", "formality", "season", "pattern", "weight_class", "rain_proof", "name", "material",
-          "silhouette")
+FIELDS = ("category", "color", "formality", "formality_also", "season", "pattern", "weight_class", "rain_proof", "name",
+          "material", "silhouette")
 NAME_MAX = 120
 MATERIAL_MAX = 200
 RAIN_WORD = "waterproof"     # added to the material of a piece said to keep the rain off; the engine reads it
@@ -127,6 +127,10 @@ def parse_piece(data: object) -> dict:
         raise PieceError("Choose its main colour.")
     color = _choice(data, "color", vocab.COLOR, "a colour")
     formality = _choice(data, "formality", vocab.FORMALITY, "a formality") or outfits.CATEGORY_FORMALITY[category]
+    try:   # the level right above or below it that it can also be worn at, if any
+        formality, also = vocab.formality_span(formality, _choice(data, "formality_also", vocab.FORMALITY, "a formality"))
+    except ValueError as e:
+        raise PieceError(str(e)) from None
     season = _choice(data, "season", vocab.SEASON, "a season") or "all"
     pattern = _choice(data, "pattern", vocab.PATTERN, "a pattern") or "solid"
     weight = _choice(data, "weight_class", outfits.WEIGHT_CLASSES, "a weight")
@@ -141,7 +145,8 @@ def parse_piece(data: object) -> dict:
     for k, v in sil.items():
         if k not in vocab.SILHOUETTE or (v is not None and v not in vocab.SILHOUETTE[k]):
             raise PieceError(f"'{k}: {v}' is not part of a shape this app knows.")
-    return {"category": category, "color": color, "formality": formality, "season": season, "pattern": pattern,
+    return {"category": category, "color": color, "formality": formality, **({"formality_also": also} if also else {}),
+            "season": season, "pattern": pattern,
             "weight_class": weight, "rain_proof": rain, "name": _text(data, "name", NAME_MAX, "name"),
             "material": _text(data, "material", MATERIAL_MAX, "material"),
             "silhouette": {k: v for k, v in sorted(sil.items()) if v is not None}}
@@ -166,7 +171,8 @@ def describe(piece: Mapping) -> str:
         words.append(" ".join(str(w).replace("_", " ") for w in (piece.get("color"), piece.get("category")) if w))
     if piece.get("pattern") not in (None, "solid"):
         words.append(str(piece["pattern"]))
-    words += [str(piece.get("formality") or "").replace("_", " "), SEASON_WORDS.get(piece.get("season") or "all", "")]
+    words += [vocab.formality_words(piece.get("formality"), piece.get("formality_also")),
+              SEASON_WORDS.get(piece.get("season") or "all", "")]
     if piece.get("weight_class"):
         words.append(str(piece["weight_class"]).replace("_", " "))
     if piece.get("rain_proof"):
@@ -180,6 +186,7 @@ def candidate_row(piece: Mapping) -> dict:
     name = piece.get("name") or f"new {piece_name(piece)[:1].lower()}{piece_name(piece)[1:]}"
     return {"id": CANDIDATE_ID, "name": name, "category": piece["category"], "color": piece.get("color"),
             "color_hex": None, "pattern": piece.get("pattern") or "solid", "formality": piece.get("formality"),
+            "formality_also": piece.get("formality_also"),
             "season": piece.get("season") or "all", "weight_class": piece.get("weight_class"),
             "silhouette": dict(piece.get("silhouette") or {}), "material": material or None, "rating": None,
             "status": "active", "location": "closet", "laundry": "clean"}
@@ -193,7 +200,7 @@ def _group(p: outfits.Piece) -> str | None:
 
 
 def _same_job(a: outfits.Piece, b: outfits.Piece) -> bool:
-    return a.category == b.category and a.formality == b.formality and _group(a) == _group(b)
+    return a.category == b.category and outfits.share_a_level(a, b) and _group(a) == _group(b)
 
 
 def _place(p: outfits.Piece) -> str:

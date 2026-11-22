@@ -95,7 +95,7 @@ def _line(n: int, item: dict, p: outfits.Piece, days_ago: int | None) -> str:
              colour if p.pattern == "solid" else f"{colour}, {_plain(p.pattern)}"]
     cloth = [w for w in (_text(item.get("material")), _plain(outfits.WEIGHT_CLASSES[p.weight])) if w]
     parts.append(", ".join(cloth))
-    parts.append(_plain(outfits.rules().levels[p.formality]))
+    parts.append(outfits.level_words(p, plain=True))   # "smart casual to business" for a piece that can be either
     if p.season != "all":
         parts.append(f"{p.season} season")
     shape = [f"{_plain(sil[k])} {word}".strip() for k, word in (("fit", "fit"), ("sleeve", "sleeve"), ("neck", "neck"),

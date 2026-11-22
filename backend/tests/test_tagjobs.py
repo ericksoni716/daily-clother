@@ -153,6 +153,47 @@ def test_fields_the_owner_set_are_never_overwritten(client, services, claude, cf
     assert body["tag_state"] == "done"
 
 
+def test_a_second_level_of_formality_comes_with_the_answer_unless_the_formality_is_the_owners(client, cfg):
+    between = ItemTags.model_validate({**ANSWER.model_dump(mode="json"), "formality_also": "business"})
+    one = ItemTags.model_validate(ANSWER.model_dump(mode="json"))   # smart casual alone
+
+    def describe(item_id, tags):
+        conn = db.connect(cfg.db_path("main"))
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            tagjobs.apply_answer(conn, item_id, tags, "plan", "fake")
+            conn.execute("COMMIT")
+        finally:
+            conn.close()
+        return client.get(f"/api/items/{item_id}").json()
+
+    def level(body):
+        return body["formality"], body["formality_also"]
+
+    item = upload(client, key="a").json()
+    assert level(describe(item["id"], between)) == ("smart_casual", "business")
+    assert level(describe(item["id"], one)) == ("smart_casual", None)   # an earlier answer's second level goes
+    # one level the owner chose (or confirmed): a new answer adds no second level to it
+    client.patch(f"/api/items/{item['id']}", json={"formality": "casual"})
+    assert level(describe(item["id"], between)) == ("casual", None)
+    other = upload(client, key="b").json()
+    describe(other["id"], one)
+    assert client.post(f"/api/items/{other['id']}/confirm", json={"fields": ["formality"]}).status_code == 200
+    assert level(describe(other["id"], between)) == ("smart_casual", None)
+    # and two levels the owner chose stay as they are
+    client.patch(f"/api/items/{other['id']}", json={"formality": "business", "formality_also": "formal"})
+    assert level(describe(other["id"], one)) == ("business", "formal")
+
+
+def test_a_second_level_of_formality_is_right_next_to_the_first_or_none():
+    answer = ANSWER.model_dump(mode="json")   # smart casual
+    for also, read in (("business", "business"), ("casual", "casual"), ("smart_casual", "none"), ("formal", "none"),
+                       ("athletic", "none"), ("none", "none")):
+        assert ItemTags.model_validate({**answer, "formality_also": also}).formality_also == read
+    stored_before = {k: v for k, v in answer.items() if k != "formality_also"}
+    assert ItemTags.model_validate(stored_before).formality_also == "none"
+
+
 def test_three_failed_attempts_end_in_failed_with_a_plain_reason_then_retag_works(client, services, claude, cfg, caplog):
     claude.mode = "fails"
     item = upload(client).json()
@@ -254,7 +295,7 @@ def test_every_demo_answer_is_a_valid_answer_in_the_current_schema():
 # Recorded with SCHEMA_VERSION. When this fails, the tagging schema changed: raise SCHEMA_VERSION in
 # closet/tagger/schema.py, record the new fingerprint here, and rewrite the demo answers.
 SCHEMA_FINGERPRINTS = {1: "1edcb5f6851e", 2: "655281317a64", 3: "87ca160a8092", 4: "aa280d512c79", 5: "52473b487400", 6: "56ca3a3f423b", 7: "0f66623ee476",
-                       8: "bd80bac9d64a", 9: "5f84394a1f2b"}
+                       8: "bd80bac9d64a", 9: "5f84394a1f2b", 10: "b28e313dd74c"}
 
 
 def test_the_schema_version_is_raised_when_the_schema_changes():

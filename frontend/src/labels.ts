@@ -82,6 +82,21 @@ export function label(field: string, value: string | null | undefined): string {
   return SPECIAL[field]?.[value] ?? humanize(value);
 }
 
+/** A formality with the level it can also be, the lower level first: "Smart casual to business"; one level alone:
+ * "Smart casual". `order` is the levels from most casual to most formal, as the vocabulary lists them. */
+export function formalityLabel(level: string | null | undefined, also: string | null | undefined, order: string[]): string {
+  if (!level) return '';
+  if (!also || also === level) return label('formality', level);
+  const [low, high] = order.indexOf(also) < order.indexOf(level) ? [also, level] : [level, also];
+  return `${label('formality', low)} to ${label('formality', high).toLowerCase()}`;
+}
+
+/** The levels right below and above a formality, in order: what it can also be. None when no level is chosen. */
+export function formalityNeighbours(level: string | null | undefined, order: string[]): string[] {
+  const i = level ? order.indexOf(level) : -1;
+  return i < 0 ? [] : [order[i - 1], order[i + 1]].filter((v): v is string => !!v);
+}
+
 /** Category name for filter chips, e.g. "Sweaters". */
 export function categoryPlural(value: string): string {
   return PLURAL[value] ?? humanize(value);
@@ -92,6 +107,7 @@ export const FIELD_TITLES: Record<string, string> = {
   color: 'Colour',
   pattern: 'Pattern',
   formality: 'Formality',
+  formality_also: 'It can also be',
   season: 'Season',
   location: 'Where it lives',
   condition: 'Condition',

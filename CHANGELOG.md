@@ -21,6 +21,14 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   aside. Fix the details no longer lists the shade, since it is chosen with the colour.
 - **Five new shades**: Mint, French blue, Taupe, Salmon and Mauve, which Claude can also name when
   it describes a photo.
+- **Formality between two levels.** A piece that could be either, like penny loafers, can now be
+  smart casual and business at once. On the item page, open **Formality**, choose its level, then
+  under **It can also be** choose the level next to it; the row then reads "Smart casual to
+  business". Choosing a level again makes it one level. Today, trips, What's missing and **Would
+  this work?** count such a piece as either level, whichever suits the day, and Claude is told it
+  can be either when it chooses your outfits. When Claude describes a photo it may give two
+  levels itself for a piece that sits between them; a formality you chose stays as you chose it
+  when the item is described again.
 
 ### Fixed
 

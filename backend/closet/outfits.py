@@ -365,6 +365,7 @@ class Piece:
     pant_length: str | None = None
     sleeveless: bool = False
     rgb: tuple[float, float, float] | None = None   # from color_hex, 0-1
+    formality_also: int | None = None   # the level right above or below `formality` it can also be worn at
 
 
 def _words(text: object) -> tuple[str, ...]:
@@ -425,6 +426,7 @@ def _piece(item: dict) -> Piece | None:
     mat, name = _words(item.get("material")), _words(item.get("name"))
     weight = _weight(item, category, mat, name)
     formality = item.get("formality") if item.get("formality") in FORMALITY else CATEGORY_FORMALITY.get(category, "casual")
+    also = item.get("formality_also") if item.get("formality") in FORMALITY else None
     sleeve = sil.get("sleeve")
     long_sleeve = sleeve == "long" if sleeve else category in ("shirt", "sweater", "hoodie", "jacket", "coat")
 
@@ -440,12 +442,46 @@ def _piece(item: dict) -> Piece | None:
         weight=weight, bulk=weight + (OVERSIZED_BULK if sil.get("fit") == "oversized" else 0), long_sleeve=long_sleeve,
         rating=item.get("rating") if item.get("rating") in vocab.RATING else None, in_storage=item.get("location") == "storage", words=mat + name,
         neck=shape("neck"), fit=shape("fit"), leg=shape("leg"), top_length=shape("top_length"),
-        pant_length=shape("pant_length"), sleeveless=sleeve == "none", rgb=_rgb(item.get("color_hex")))
+        pant_length=shape("pant_length"), sleeveless=sleeve == "none", rgb=_rgb(item.get("color_hex")),
+        formality_also=_level(also) if also in FORMALITY and also != formality else None)
 
 
 def _level(formality: str) -> int:
     """A formality as a number, in the owner's order of levels."""
     return rules().levels.index(formality)
+
+
+# A piece whose formality spans two levels (`formality_also`: a penny loafer, smart casual or business) counts as
+# either: it fits any formality inside its span with no penalty, and is as far from one outside as its nearer end.
+def span(p: Piece) -> tuple[int, int]:
+    """The lowest and the highest level the piece can be worn at (the same for one level)."""
+    if p.formality_also is None:
+        return p.formality, p.formality
+    return min(p.formality, p.formality_also), max(p.formality, p.formality_also)
+
+
+def steps_from(p: Piece, level: float) -> float:
+    """How many steps the piece is from a formality: none inside its span, else from the nearer end."""
+    lo, hi = span(p)
+    return max(0, lo - level, level - hi)
+
+
+def at_level(p: Piece, level: int) -> int:
+    """The level the piece counts as for a formality: that formality when it is inside the span, else the nearer end."""
+    lo, hi = span(p)
+    return min(max(level, lo), hi)
+
+
+def share_a_level(a: Piece, b: Piece) -> bool:
+    """Whether two pieces can be worn at a same level (for one level each: the same level)."""
+    return span(a)[0] <= span(b)[1] and span(b)[0] <= span(a)[1]
+
+
+def level_words(p: Piece, plain: bool = False) -> str:
+    """The piece's formality in words, the lower level first: "smart casual", "smart casual to business". `plain`:
+    the levels' own names ("athletic", as the stylist is told), else the engine's sentences' ("sporty")."""
+    names = [rules().levels[x] for x in dict.fromkeys(span(p))]
+    return " to ".join(n.replace("_", " ") if plain else LEVEL_WORDS.get(n, n.replace("_", " ")) for n in names)
 
 
 # ====================================================================== words
@@ -596,12 +632,13 @@ def _lightness(p: Piece) -> float | None:
 
 # ---------------------------------------------------------------- one piece, the day
 def _formality_off(p: Piece, place: str, occasion: str) -> int:
-    """-1 if the piece is too casual for the occasion, 1 if too dressy, 0 if it fits."""
+    """-1 if the piece is too casual for the occasion, 1 if too dressy, 0 if it fits (anywhere in its span)."""
     occ = _level(occasion)
     reach = _reach()
-    if p.category in OCCASION_BANNED.get(occasion, ()) or p.formality < occ - reach:
+    lo, hi = span(p)
+    if p.category in OCCASION_BANNED.get(occasion, ()) or hi < occ - reach:
         return -1
-    return 1 if p.formality > occ + reach else 0
+    return 1 if lo > occ + reach else 0
 
 
 def _piece_problem(p: Piece, place: str, ctx: Context, t: float) -> str | None:
@@ -640,8 +677,8 @@ def _piece_score(p: Piece, place: str, ctx: Context, t: float) -> float:
     """Everything about a piece that does not depend on the rest of the outfit."""
     R = rules()
     target = _level(ctx.occasion) + MOODS[ctx.mood]
-    level = p.formality + (TEXTURE_STEP * _texture(p) if R.texture_formality else 0)
-    s = -FORMALITY_PER_STEP * (IMPRESSION_WEIGHT if place in R.impression else 1) * abs(level - target)
+    shift = TEXTURE_STEP * _texture(p) if R.texture_formality else 0   # the cloth moves the piece, not the day
+    s = -FORMALITY_PER_STEP * (IMPRESSION_WEIGHT if place in R.impression else 1) * steps_from(p, target - shift)
     s += RATING_SCORE.get(p.rating or "", 0)
     days = ctx.worn_days_ago.get(p.id)
     if days is not None and days < RECENT_WEAR_DAYS:
@@ -775,21 +812,24 @@ def _share_colour(a: Piece, b: Piece) -> bool:
 def _formality_clash(clothes: list[Piece], outer: Piece | None, occasion: str | None = None) -> tuple[Piece, Piece] | None:
     """Two pieces too far apart in formality, or None. The owner's exceptions: one dressier piece on top (the file's
     example is a blazer over a tee and jeans) may sit a level further above the rest, and on the occasions the file
-    names the shoes may sit a level further below."""
+    names the shoes may sit a level further below.
+
+    A piece spanning two levels is measured from whichever of them is closer: how far apart two pieces are is the
+    lowest level of the dressier one less the highest of the more casual one."""
     pieces = list(clothes) + ([outer] if outer is not None and outer not in clothes else [])
     if len(pieces) < 2:
         return None
-    lo = min(pieces, key=lambda p: (p.formality, p.id))
-    hi = max(pieces, key=lambda p: (p.formality, p.id))
-    if hi.formality - lo.formality <= FORMALITY_SPREAD:
+    lo = min(pieces, key=lambda p: (span(p)[1], p.id))   # the one whose highest level is lowest
+    hi = max(pieces, key=lambda p: (span(p)[0], p.id))   # the one whose lowest level is highest
+    if span(hi)[0] - span(lo)[1] <= FORMALITY_SPREAD:
         return None
     R = rules()
     ups: list[Piece | None] = [None]
-    tops = [p for p in pieces if p.formality == hi.formality]
+    tops = [p for p in pieces if span(p)[0] == span(hi)[0]]
     if R.one_dressier and len(tops) == 1 and tops[0].category in TOP_CATEGORIES:
         ups.append(tops[0])
     downs: list[Piece | None] = [None]
-    lows = [p for p in pieces if p.formality == lo.formality]
+    lows = [p for p in pieces if span(p)[1] == span(lo)[1]]
     if occasion in R.down_in_shoes and len(lows) == 1 and lows[0].category in outfit_rules.SHOE_CATEGORIES:
         downs.append(lows[0])
     for up, down in itertools.product(ups, downs):
@@ -798,12 +838,12 @@ def _formality_clash(clothes: list[Piece], outer: Piece | None, occasion: str | 
         rest = [p for p in pieces if p is not up and p is not down]
         if not rest:
             return None
-        rlo, rhi = min(p.formality for p in rest), max(p.formality for p in rest)
+        rlo, rhi = min(span(p)[1] for p in rest), max(span(p)[0] for p in rest)
         if rhi - rlo > FORMALITY_SPREAD:
             continue
-        if up is not None and up.formality - rlo > FORMALITY_SPREAD + 1:
+        if up is not None and span(up)[0] - rlo > FORMALITY_SPREAD + 1:
             continue
-        if down is not None and rhi - down.formality > FORMALITY_SPREAD + 1:
+        if down is not None and rhi - span(down)[1] > FORMALITY_SPREAD + 1:
             continue
         return None
     return hi, lo
@@ -825,11 +865,12 @@ def _outfit_problems(pieces: list[Piece], clothes: list[Piece], outer: Piece | N
             out.append(f"{_the(clash[0], True)} is a lot dressier than {_the(clash[1])}.")
         if R.athletic_with is not None:
             every = list(clothes) + ([outer] if outer is not None else [])
-            sporty = [p for p in every if R.levels[p.formality] == "athletic"]
-            other = [p for p in every if R.levels[p.formality] not in R.athletic_with]
+            # sporty: nothing but athletic; the other: no level it can be worn at goes with sport
+            sporty = [p for p in every if all(R.levels[x] == "athletic" for x in span(p))]
+            other = [p for p in every if not any(R.levels[x] in R.athletic_with for x in span(p))]
             if sporty and other:
                 out.append(_Hard(f"{_the(sporty[0], True)} is sporty and {_the(other[0])} is "
-                                 f"{LEVEL_WORDS[R.levels[other[0].formality]]}: sporty pieces only go with "
+                                 f"{level_words(other[0])}: sporty pieces only go with "
                                  f"{_join([LEVEL_WORDS[x] for x in R.athletic_with if x != 'athletic'])} ones."))
         if R.hoodie_blazer and occasion not in (None, "athletic", "casual") and outer is not None and _blazer(outer) \
                 and any(_hoodie(p) for p in clothes):
@@ -1202,7 +1243,8 @@ def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | Non
         warnings.append(f"A high of {_deg(ctx.high_c)} calls for a coat or jacket, and none went with the rest.")
 
     under = [x.piece for x in core if x is not o.outer]
-    levels = sorted({p.formality for p in under})
+    occ = _level(ctx.occasion)
+    levels = sorted({at_level(p, occ) for p in under})   # a piece spanning two levels counts as the one nearer the day
     clean = not _formality_clash(under, o.outer.piece if o.outer else None, ctx.occasion) and not any(
         _formality_off(x.piece, x.place, ctx.occasion) for x in core)
     if clean:
@@ -1212,7 +1254,7 @@ def _explain(o: _Outfit, ctx: Context, t: float, forced: tuple[Piece, str] | Non
         else:
             reasons.append(f"Everything sits between {LEVEL_WORDS[R.levels[levels[0]]]} and "
                            f"{LEVEL_WORDS[R.levels[levels[-1]]]}, right for {occasion}.")
-    if o.outer is not None and clean and levels and o.outer.piece.formality > levels[-1]:
+    if o.outer is not None and clean and levels and at_level(o.outer.piece, occ) > levels[-1]:
         reasons.append(f"{_the(o.outer.piece, True)} is dressier than the rest, which is fine for the layer on top.")
     if ctx.mood != "usual":
         reasons.append("Leaning a little dressier, as you asked." if ctx.mood == "sharp"
@@ -1314,12 +1356,13 @@ def _problem_pairs(ids: frozenset[str], reasons: set[str], known: Mapping[str, P
     for reason, pick in (("too_dressy", max), ("too_casual", min)):
         # too dressy for one occasion can be right for another, so only on the same kind of day
         if reason in reasons and same_occasion and ps:
-            level = pick(p.formality for p in ps)
-            odd = [p for p in ps if p.formality == level]
+            middle = {p.id: sum(span(p)) / 2 for p in ps}   # a piece spanning two levels sits between them
+            level = pick(middle.values())
+            odd = [p for p in ps if middle[p.id] == level]
             if len(odd) == len(ps):
                 out |= every
             else:
-                out |= {frozenset((a.id, b.id)) for a in odd for b in ps if b.formality != level}
+                out |= {frozenset((a.id, b.id)) for a in odd for b in ps if middle[b.id] != level}
     return frozenset(out)
 
 

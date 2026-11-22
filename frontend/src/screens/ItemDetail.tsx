@@ -11,7 +11,8 @@ import { ShoePhotos } from '../components/ShoePhotos';
 import { TraceNotice } from '../components/ShoeTrace';
 import { ProgressStrip } from '../components/Progress';
 import { BackIcon, ChevronIcon, HangerIcon, InfoIcon, WarnIcon } from '../components/Icons';
-import { FIELD_TITLES, formatPrice, label, shadeLabel, measuredColours, parsePrice, PRICE_HINT, ratingLabel, swatchOf } from '../labels';
+import { FormalityChips } from '../components/FormalityChips';
+import { FIELD_TITLES, formalityLabel, formatPrice, label, shadeLabel, measuredColours, parsePrice, PRICE_HINT, ratingLabel, swatchOf } from '../labels';
 import { colourPatch, shadePatch, shadesOf } from '../shades';
 import { fixLabel, lastFoldTitle } from '../look';
 import { LookLine, NotesBox, useFieldText } from '../components/ItemAbout';
@@ -272,7 +273,13 @@ export function ItemDetail({ id, status, inPanel }: Props) {
                 beside={<MeasuredColours colours={item.pattern_colors} />}
                 onChange={(v) => { done(); void save({ pattern: v }); }} />}
             </DetailRow>
-            {(['location', 'formality', 'season'] as const).map((f) => (
+            {(['location', 'formality', 'season'] as const).map((f) => f === 'formality' ? (
+              <DetailRow key={f} field={f} value={formalityLabel(item.formality, item.formality_also, vocab.formality)} wrap disabled={locked}>
+                {(done) => <FormalityChips levels={vocab.formality} value={item.formality} also={item.formality_also} disabled={locked}
+                  onLevel={(v) => { done(); void save({ formality: v, formality_also: null }); }}
+                  onAlso={(v) => { done(); void save({ formality_also: v }); }} />}
+              </DetailRow>
+            ) : (
               <DetailRow key={f} field={f} value={label(f, item[f])} disabled={locked}>
                 {(done) => <ChipGroup field={f} options={vocab[f]} value={item[f]} disabled={locked}
                   onChange={(v) => { done(); void save({ [f]: v }); }} />}
@@ -333,10 +340,12 @@ const Editing = createContext<{ editing: string | null; setEditing(field: string
  * One row of the Details card: the field and its value, read first. Tapping it opens the field's choices in place,
  * or in a sheet on a phone, where it closes again once something is chosen.
  */
-function DetailRow({ field, value, swatch, extra, extraWords, disabled, children }: {
+function DetailRow({ field, value, swatch, extra, extraWords, wrap, disabled, children }: {
   field: string;
   value: string;
   swatch?: string;
+  /** the value may take a second line rather than be cut short ("Smart casual to business" on a phone) */
+  wrap?: boolean;
   /** shown after the value (the measured colours beside the pattern), with its words for the row's name */
   extra?: ReactNode;
   extraWords?: string;
@@ -360,7 +369,7 @@ function DetailRow({ field, value, swatch, extra, extraWords, disabled, children
         <span className="detail-row-label">{title}</span>{' '}
         <span className={`detail-row-value${value ? '' : ' is-empty'}`}>
           {swatch && <span className="swatch" style={{ background: swatch }} aria-hidden="true" />}
-          <span className="detail-row-text">{shown}</span>
+          <span className={`detail-row-text${wrap ? ' is-wrapping' : ''}`}>{shown}</span>
           {extra}
         </span>
         <ChevronIcon className="detail-row-chevron" />

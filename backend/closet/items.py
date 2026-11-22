@@ -35,7 +35,7 @@ TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "wear_notes", "
 ENUM_FIELDS = tuple(vocab.ENUM_FIELDS)
 # `shade`: one of the owner's named shades (the taxonomy's `colors.shades`), kept with the owner's details; it decides
 # the colour word and the colour the item is drawn in (`_shade`), and null gives it back to Claude
-PATCHABLE = set(TEXT_FIELDS) | set(ENUM_FIELDS) | {"silhouette", "price_cents", "status", "shade"}
+PATCHABLE = set(TEXT_FIELDS) | set(ENUM_FIELDS) | {"silhouette", "price_cents", "status", "shade", "formality_also"}
 # the essentials the owner goes through on every new item (with what it is: `corrections.set_kind`); changing one counts
 # as having checked the item, so it leaves the review (`review.queue`)
 ESSENTIALS = ("name", "brand", "price_cents")
@@ -90,7 +90,7 @@ def summary(conn, row) -> dict:
 def detail(conn, row) -> dict:
     row = illustrations.current(conn, row)
     out = summary(conn, row)
-    for f in ("formality", "season", "brand", "size", "material", "fit_notes", "wear_notes", "condition",
+    for f in ("formality", "formality_also", "season", "brand", "size", "material", "fit_notes", "wear_notes", "condition",
               "price_cents", "acquired_on", "notes", "rating_reason", "illustration_svg", "cutout_error", "checked_at"):
         out[f] = row[f]
     for f in ("confidence", "source"):
@@ -356,6 +356,8 @@ def _update(conn, item_id: str, changes: dict, record: bool) -> dict:
         raise ItemError(f"These fields cannot be changed here: {', '.join(sorted(unknown))}.")
     changes = dict(changes)
     shade = _shade(changes)
+    if "formality" in changes or "formality_also" in changes:
+        changes = {**changes, **_formality(row, changes)}
     sets, args = [], []
     source = json.loads(row["source"] or "{}")
     confidence = json.loads(row["confidence"] or "{}")
@@ -369,6 +371,11 @@ def _update(conn, item_id: str, changes: dict, record: bool) -> dict:
                 raise ItemError(f"'{value}' is not a known {field}. Choose one of: {', '.join(vocab.ENUM_FIELDS[field])}.")
             if field in ("category", "color", "pattern", "formality", "season"):
                 source[field], confidence[field] = "user", 1.0
+        elif field == "formality_also":   # set with the formality (`_formality`): the owner's word, as the formality is
+            if value is None:
+                source.pop(field, None)
+            else:
+                source[field] = "user"
         elif field in tagjobs.FILLED and field != "silhouette":
             if value is not None and not isinstance(value, str):
                 raise ItemError(f"{field} must be text.")
@@ -433,6 +440,28 @@ def _update(conn, item_id: str, changes: dict, record: bool) -> dict:
         if record:
             history.record(conn, row, get(conn, item_id), "owner", "field")
     return detail(conn, get(conn, item_id))
+
+
+def _formality(row, changes: dict) -> dict:
+    """The formality and the level it can also be, as they will be kept. A formality sent alone is one level (a
+    second level the item had is cleared); a second level sent alone goes with the formality the item has. Only
+    levels next to each other (`vocab.formality_span`). The formality's own source protects both from a new answer
+    (`tagjobs.who`), so a single level the owner sets leaves no trace of the second."""
+    def word(value):
+        if isinstance(value, str):
+            value = value.strip() or None
+        if value is not None and value not in vocab.FORMALITY:
+            raise ItemError(f"'{value}' is not a known formality. Choose one of: {', '.join(vocab.FORMALITY)}.")
+        return value
+
+    level = word(changes["formality"] if "formality" in changes else row["formality"])
+    try:
+        level, also = vocab.formality_span(level, word(changes.get("formality_also")))
+    except ValueError as e:
+        raise ItemError(str(e)) from None
+    if "formality_also" in changes or row["formality_also"] is not None:
+        return {"formality": level, "formality_also": also}
+    return {"formality": level}
 
 
 def delete(conn, images_dir: Path, item_id: str) -> None:

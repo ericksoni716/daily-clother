@@ -3,6 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent, type For
 import { api, type ApiError } from '../api';
 import { Card, ChipGroup, EmptyState, ItemThumb, PageHeader } from '../components/ui';
 import { CameraIcon, CheckIcon, HangerIcon, ImagesIcon, PlusIcon, WarnIcon } from '../components/Icons';
+import { FormalityChips } from '../components/FormalityChips';
 import { itemName, Pieces } from '../components/ItemPic';
 import type { Wish } from '../gaps';
 import { navigate } from '../router';
@@ -279,7 +280,8 @@ function Describe({ draft, setDraft, error, demo, locked, kinds, vocab, onPhoto,
           <>
             <ChipGroup field="category" title="What kind of piece" options={kinds} value={draft.category} disabled={locked} onChange={set('category')} />
             <ChipGroup field="color" title="Main colour" options={vocab.color} value={draft.color} disabled={locked} swatches onChange={set('color')} />
-            <ChipGroup field="formality" options={vocab.formality} value={draft.formality} disabled={locked} onChange={set('formality')} />
+            <FormalityChips levels={vocab.formality} value={draft.formality} also={draft.formality_also} disabled={locked}
+              onLevel={(v) => setDraft({ ...draft, formality: v, formality_also: null })} onAlso={set('formality_also')} />
             <ChipGroup field="season" options={vocab.season} value={draft.season} disabled={locked} onChange={set('season')} />
             <ChipGroup field="weight" title="How heavy the cloth is" options={[...WEIGHTS]} value={draft.weight_class} disabled={locked}
               labelOf={weightLabel} onChange={set('weight_class')} />

@@ -1,9 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { categoryPlural, formatPrice, formatSize, humanize, label, measuredColours, parsePrice, ratingLabel, shadeLabel, tileCaption, wornWords } from './labels';
+import { categoryPlural, formalityLabel, formalityNeighbours, formatPrice, formatSize, humanize, label, measuredColours, parsePrice, ratingLabel, shadeLabel, tileCaption, wornWords } from './labels';
 import { messageFrom } from './api';
 import { fitWithin } from './resize';
 
+const LEVELS = ['athletic', 'casual', 'smart_casual', 'business', 'formal'];
+
 describe('labels', () => {
+  it('says a formality that can be either of two levels from the lower one up', () => {
+    expect(formalityLabel('smart_casual', 'business', LEVELS)).toBe('Smart casual to business');
+    expect(formalityLabel('business', 'smart_casual', LEVELS)).toBe('Smart casual to business');
+    expect(formalityLabel('smart_casual', null, LEVELS)).toBe('Smart casual');
+    expect(formalityLabel('casual', 'casual', LEVELS)).toBe('Casual');
+    expect(formalityLabel(null, null, LEVELS)).toBe('');
+    // what it can also be: the levels right below and above
+    expect(formalityNeighbours('smart_casual', LEVELS)).toEqual(['casual', 'business']);
+    expect(formalityNeighbours('athletic', LEVELS)).toEqual(['casual']);
+    expect(formalityNeighbours('formal', LEVELS)).toEqual(['business']);
+    expect(formalityNeighbours(null, LEVELS)).toEqual([]);
+  });
+
   it('says how an item sits in short plain words, the first capitalised, each with the detail that fixes it', () => {
     const words = wornWords([
       { part: 'fit', value: 'relaxed', field: 'fit_detail' }, { part: 'length', value: 'hip', field: 'fit_detail' },

@@ -8,6 +8,8 @@ export interface WouldPiece {
   category: string;
   color: string;
   formality?: string | null;
+  /** the level right below or above it that it can also be worn at */
+  formality_also?: string | null;
   season?: string | null;
   pattern?: string | null;
   weight_class?: string | null;
@@ -143,7 +145,7 @@ export function pieceFromLook(look: LookFor | null | undefined): Partial<WouldPi
 /** The description to send: only what was chosen, with the name trimmed. */
 export function pieceToSend(p: Partial<WouldPiece>): Partial<WouldPiece> {
   const out: Partial<WouldPiece> = {};
-  for (const key of ['category', 'color', 'formality', 'season', 'pattern', 'weight_class'] as const) {
+  for (const key of ['category', 'color', 'formality', 'formality_also', 'season', 'pattern', 'weight_class'] as const) {
     if (p[key]) out[key] = p[key] as string;
   }
   if (p.rain_proof) out.rain_proof = true;

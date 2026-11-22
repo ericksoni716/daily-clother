@@ -28,6 +28,7 @@ const SAMPLE: { [K in KeyName]: () => readonly unknown[] } = {
   wouldWork: () => queryKeys.wouldWork('c1'),
   insights: () => queryKeys.insights(),
   settings: () => queryKeys.settings(),
+  pictures: () => queryKeys.pictures(),
   styleProfile: () => queryKeys.styleProfile(),
   styleTalk: () => queryKeys.styleTalk(),
   storage: () => queryKeys.storage(),

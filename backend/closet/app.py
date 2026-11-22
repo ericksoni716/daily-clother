@@ -1632,6 +1632,12 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     def get_settings(request: Request, conn=Depends(conn_dep)):
         return settings_payload(conn, request)
 
+    @app.get("/api/settings/pictures")
+    def get_pictures():
+        """Settings' "Show drawings instead of photos" on its own: what every screen's small pictures follow, read when
+        the closet opens without the rest of the settings (whose read is Settings' own)."""
+        return {"show_drawings": bool(state.get("show_drawings"))}
+
     @app.put("/api/settings")
     def put_settings(body: SettingsPatch, request: Request, conn=Depends(conn_dep)):
         sent = body.model_fields_set

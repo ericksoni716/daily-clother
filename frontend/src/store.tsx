@@ -5,7 +5,7 @@ import { keepShowDrawings, loadShowDrawings, ShowDrawings } from './drawing';
 import { itemsQuery, modelQuery, progressQuery, vocabQuery } from './queries';
 import { makeQueryClient } from './queryClient';
 import { queryKeys } from './queryKeys';
-import { settingsQuery } from './settings';
+import { picturesQuery } from './settings';
 import type { Profile, ProgressList } from './types';
 import { uploads } from './uploads';
 import { downloading, DOWNLOAD_MS, movedOn, progressPoll } from './work';
@@ -68,9 +68,10 @@ function OpenCloset({ profile, onProfile, onQuit, toast, children }: Props) {
   useQuery(itemsQuery('active'));
   useQuery({ ...modelQuery(), refetchInterval: (q) => (downloading(q.state.data) && !offline ? DOWNLOAD_MS : false) });
 
-  // Settings' "Show drawings instead of photos", for every small picture of an item: read with the settings when the
-  // closet opens; meanwhile, and while Nines cannot be reached, the last word this device had on it.
-  const said = useQuery({ ...settingsQuery(), enabled: !offline, select: (s) => s.show_drawings }).data;
+  // Settings' "Show drawings instead of photos", for every small picture of an item: read on its own when the closet
+  // opens (`GET /api/settings/pictures`), so the settings' own read, freshness and parts stay as each screen has them;
+  // meanwhile, and while Nines cannot be reached, the last word this device had on it.
+  const said = useQuery({ ...picturesQuery(), enabled: !offline, select: (p) => p.show_drawings }).data;
   const [lastSaid] = useState(loadShowDrawings);
   useEffect(() => {
     if (said !== undefined) keepShowDrawings(said);

@@ -16,3 +16,10 @@ def test_only_yes_or_no_is_taken(client):
     assert client.put("/api/settings", json={"show_drawings": "sometimes"}).status_code == 422
     r = client.put("/api/settings", json={"show_drawings": None})
     assert r.status_code == 200 and r.json()["show_drawings"] is False   # nothing said: nothing changes
+
+
+def test_every_screen_reads_it_on_its_own_without_the_whole_of_settings(client):
+    # the open closet reads only this when it opens; Settings' own read stays Settings' own
+    assert client.get("/api/settings/pictures").json() == {"show_drawings": False}
+    client.put("/api/settings", json={"show_drawings": True})
+    assert client.get("/api/settings/pictures").json() == {"show_drawings": True}

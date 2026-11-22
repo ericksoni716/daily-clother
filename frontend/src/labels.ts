@@ -134,6 +134,9 @@ export function formatPrice(cents: number | null | undefined): string {
   return Number.isInteger(dollars) ? String(dollars) : dollars.toFixed(2);
 }
 
+/** What to say when a price box holds something that is not a price. */
+export const PRICE_HINT = 'Enter a price like 45 or 45.50.';
+
 /** Cents from what the owner typed ("12", "$12.50", "1,200"). undefined if it is not a price. */
 export function parsePrice(text: string): number | null | undefined {
   const cleaned = text.replace(/[$,\s]/g, '');

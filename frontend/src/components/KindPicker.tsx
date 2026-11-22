@@ -30,8 +30,11 @@ export function useKindCatalogue(): { catalogue: KindCatalogue | null; error: st
   return { catalogue, error };
 }
 
+/** What the picker needs of the item: the kind it is now, its group, the kinds Claude also thought of, its colour. */
+export type KindItem = Pick<Item, 'kind' | 'group' | 'kind_alternatives' | 'color_hex'>;
+
 interface Props {
-  item: Item;
+  item: KindItem;
   busy: boolean;
   onPick(kind: KindInfo): void;
 }

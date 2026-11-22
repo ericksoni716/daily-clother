@@ -11,7 +11,8 @@ traces waiting shoes once no cutout is left to make. A cutout made while the
 second background model was not there yet is looked at again once it is, and
 made again when the second model would change it (`recheck`). An item Claude
 described from an earlier cutout of the same photo is described again from the
-new one (`redescribe`).
+new one (`redescribe`). A shoe sorted before whose main photo is its inner side
+takes its outer side photo as its main one, once (`shoeviews.catch_up`).
 """
 from __future__ import annotations
 
@@ -23,7 +24,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from . import db, failures, images, patjobs, tagjobs, tracejobs
+from . import db, failures, images, patjobs, shoeviews, tagjobs, tracejobs
 from .config import Config
 from .state import State
 
@@ -275,6 +276,7 @@ class Worker:
             if profile != "demo":
                 remeasure(conn)
                 again = redescribe(conn)   # described from a cutout made again since: described again
+                shoeviews.catch_up(conn)   # a shoe sorted before whose picture is its inner side: the outer side
             images_dir = self.cfg.images_dir(profile)
             while not self._stop.is_set() and self.is_ready():
                 second = self.second is None or self.second()

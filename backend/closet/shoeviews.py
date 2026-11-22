@@ -8,9 +8,11 @@ inner side, from above, the front, the back, the sole or something else, and whe
 (`tagger/views.py`). Claude's word never replaces the owner's: a photo whose view the owner gave
 (`photos.view_by = 'owner'`) keeps it.
 
-Once the views are settled (`sorted`), a main photo that is not a side view gives way to the outer side, else the
-inner side (`promote`): that photo becomes the closet picture, cut out as usual, and the photo traced for the shoe's
-drawing. A main photo that is a side view, or a shoe with no side photo, stays as it is.
+Once the views are settled (`sorted`), a main photo that is not the outer side gives way to the outer side, and a
+main photo that is not a side view gives way to the inner side when there is no outer one (`promote`): that photo
+becomes the closet picture, cut out as usual, and the photo traced for the shoe's drawing. A main photo that is the
+outer side, or a shoe with no side photo, stays as it is. Shoes sorted before the inner side gave way too are put right
+once by the cut-out queue (`catch_up`).
 
 The owner is asked only when it matters and Claude could not tell (`question`): when the outer and inner sides look
 different (a logo, stripe or panel on one side only: `items.sides_differ`) and a side photo is unsure, or two photos
@@ -102,7 +104,7 @@ def question(conn, row) -> list[str] | None:
 
 def settle(conn, item_id: str) -> None:
     """After the views changed: the item asks the owner when a side question remains, else it is sorted, and the
-    outer (or inner) side becomes the main photo when the main one is not a side view (`promote`). A shoe whose
+    outer side becomes the main photo (or the inner side, when the main one is not a side view: `promote`). A shoe whose
     photos settle for the first time and that was never drawn waits to be drawn from them (`shoedraw.first_sorted`):
     once they are sorted, after the owner's answer when asked."""
     from . import shoedraw  # it reads the sorted photos, so it imports this module
@@ -117,12 +119,14 @@ def settle(conn, item_id: str) -> None:
 
 
 def promote(conn, item_id: str) -> bool:
-    """Once the photos are sorted (inside the caller's transaction): when the main photo is not a side view and
-    another photo is the outer side (else the inner side), that photo becomes the main one: the closet picture, cut
-    out as usual (the old one's cutout job, if still waiting, goes), and the photo traced for the shoe's drawing
-    (the old trace goes, the owner's fixes stay). Among several of the same side: the one the owner named, then one
-    Claude was sure of, then the oldest. The old main photo stays as one of the others, with its view. Returns
-    whether the main photo changed.
+    """Once the photos are sorted (inside the caller's transaction): when the main photo is not the outer side and
+    another photo is, that photo becomes the main one; when the main photo is not a side view at all and no photo
+    is the outer side, the inner side does. It becomes the closet picture, cut out as usual (the old one's cutout
+    job, if still waiting, goes), and the photo traced for the shoe's drawing (the old trace goes, the owner's
+    fixes stay). Among several of the same side: the one the owner named, then one Claude was sure of, then the
+    oldest. The old main photo stays as one of the others, with its view (the owner's word on it included).
+    Returns whether the main photo changed. (22 November: an inner side that was the main photo used to stay, so
+    the closet picture showed the inside while Claude's side drawing showed the outside.)
 
     Claude's description is not asked again: its words on the photo it saw first stay with that photo
     (`items.tag_photo_id`), and the cut-out queue does not describe again a photo Claude has already seen."""
@@ -130,10 +134,10 @@ def promote(conn, item_id: str) -> bool:
 
     photos = photos_of(conn, item_id)
     main = next((p for p in photos if p["kind"] == "front"), None)
-    if main is None or main["view"] in SIDES:
+    if main is None or main["view"] == "outer":
         return False
     found: list = []
-    for side in SIDES:   # the outer side first
+    for side in SIDES if main["view"] not in SIDES else ("outer",):   # the outer side first
         found = [p for p in photos if p["kind"] != "front" and p["view"] == side]
         if found:
             break
@@ -147,6 +151,32 @@ def promote(conn, item_id: str) -> bool:
     tracejobs.forget(conn, item_id)
     illustrations.redraw(conn, item_id)
     return True
+
+
+# a sorted shoe whose main photo is the inner side while another photo is the outer side: sorted before 22 November,
+# when such a main photo stayed (since then `settle` never leaves one so)
+INNER_MAIN = (f"i.views_state = 'sorted' AND i.category IN {SHOES} "
+              "AND EXISTS (SELECT 1 FROM photos m WHERE m.item_id = i.id AND m.kind = 'front' AND m.view = 'inner') "
+              "AND EXISTS (SELECT 1 FROM photos o WHERE o.item_id = i.id AND o.kind != 'front' AND o.view = 'outer')")
+
+
+def catch_up(conn) -> int:
+    """Shoes sorted before 22 November whose main photo is the inner side and that have an outer side photo: the
+    outer side becomes their main photo (`promote`), once, without asking Claude again or the owner doing anything.
+    Run by the cut-out queue at each round (never for the demo closet), which then cuts the new main photo out and
+    traces it; once put right a shoe no longer matches, so each is changed once. Returns how many changed."""
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        found = [r["id"] for r in conn.execute(f"SELECT i.id FROM items i WHERE {INNER_MAIN} ORDER BY i.id")]
+        changed_ = sum(promote(conn, item_id) for item_id in found)
+        conn.execute("COMMIT")
+    except Exception:
+        if conn.in_transaction:
+            conn.execute("ROLLBACK")
+        raise
+    if changed_:
+        log.info("%s shoes sorted before now show their outer side as their picture", changed_)
+    return changed_
 
 
 def read(answer, count: int) -> dict[int, tuple[str, bool]]:

@@ -12,6 +12,12 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **Settings → Everyday → Show drawings instead of photos** shows your clothes' drawings
+  wherever they are shown small: the closet, Today, Worn, trips and the Wardrobe, and an item's
+  page opens on its drawing. It is kept on the computer, so it holds on every device. A piece
+  with no drawing yet shows its photo. The Photos / Drawings switch over the closet starts from
+  it and no longer remembers its choice on the device: to keep drawings, turn the setting on.
+
 - On Windows, Nines can keep running for your phone: in **Settings → Other devices**, press **Keep Nines
   running** and say Yes when Windows asks. Windows then starts Nines when the computer turns on,
   before you sign in (or when you sign in, where Windows will not do that), and starts it again
@@ -30,6 +36,10 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- A shoe's photo in the closet is now the photo of its outer side whenever one of its photos
+  shows it, so the photo and the side drawing show the same side. Before, a first photo of the
+  inner side stayed as the shoe's photo. Shoes already in your closet are put right by
+  themselves, without Claude looking at them again.
 - The **Phone** group in Settings is now called **Other devices**, and its sentences speak of your
   phone or another computer, since another computer on your Tailscale reaches Nines the same way.
 - Nines no longer has a passphrase. Who can open it is decided by the way in: on this computer,

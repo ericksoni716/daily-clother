@@ -1,17 +1,18 @@
 import type { ReactNode } from 'react';
+import { smallPicture, useShowDrawings } from '../drawing';
 import { label } from '../labels';
 import { ItemThumb } from './ui/ItemThumb';
 import type { ItemSummary } from '../types';
 import { HangerIcon } from './Icons';
 
-/** An item's small picture, as the closet grid shows it: the cutout, else the drawing, else the photo. */
-export function Pic({ item }: { item: ItemSummary | undefined }): ReactNode {
-  const alt = itemName(item);
-  if (!item) return <span className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></span>;
-  if (item.cutout_state === 'ready' && item.thumb_url) return <img className="pic-cutout" src={item.thumb_url} alt={alt} />;
-  if (item.illustration_url) return <img className="pic-illustration" src={item.illustration_url} alt={alt} />;
-  if (item.thumb_url) return <img className="pic-photo" src={item.thumb_url} alt={alt} />;
-  return <span className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></span>;
+/** An item's small picture on a card: the cutout, else the drawing, else the photo; the drawing first whenever
+ * Settings says to show drawings instead of photos (`smallPicture`). */
+export function Pic({ item, alt = itemName(item) }: { item: ItemSummary | undefined; alt?: string }): ReactNode {
+  const drawings = useShowDrawings();
+  const shown = item ? smallPicture(item, drawings) : 'none';
+  if (!item || shown === 'none') return <span className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></span>;
+  if (shown === 'drawing') return <img className="pic-illustration" src={item.illustration_url!} alt={alt} />;
+  return <img className={shown === 'cutout' ? 'pic-cutout' : 'pic-photo'} src={item.thumb_url!} alt={alt} />;
 }
 
 export function itemName(item: ItemSummary | undefined): string {

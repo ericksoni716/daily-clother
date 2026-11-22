@@ -407,6 +407,8 @@ export interface Settings {
   laundry?: LaundrySetting;
   /** Whether Claude may choose the outfits on Today (Settings, Your style); otherwise Closet's own rules do. */
   stylist_on?: boolean;
+  /** Settings' "Show drawings instead of photos": every device shows an item's drawing in its small pictures. */
+  show_drawings?: boolean;
   // Each exactly what its own endpoint answers, so Settings is drawn from this one answer.
   /** As `GET /api/model`. */
   model: ModelInfo;

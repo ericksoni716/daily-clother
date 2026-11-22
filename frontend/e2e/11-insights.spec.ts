@@ -101,18 +101,18 @@ test("insights offline: one closet's saved answer is never shown as the other's"
   await expect(page.getByText('$1,527')).toHaveCount(0);
 });
 
-test('how the closet is used shows the same pictures as the closet grid: photos or drawings, as chosen there', async ({ page }) => {
+test('how the closet is used shows drawings or photos as Settings says', async ({ page }) => {
   await goToCloset(page);
   await useProfile(page, 'demo');
-  await page.getByRole('group', { name: 'Show' }).getByRole('button', { name: 'Drawings' }).click();
+  // (turned on in Settings in 34-show-drawings.spec.ts; here straight through the settings)
+  expect((await page.request.put('/api/settings', { data: { show_drawings: true } })).ok()).toBe(true);
   await page.goto('/wardrobe');
   await moreNumbers(page);
   await page.getByTestId('cost-per-wear').getByText('Best value and most per wear').click();
   const pics = page.getByTestId('cost-per-wear').locator('.insights-piece-pic img');
   await expect(pics.first()).toBeVisible();
   expect(await pics.evaluateAll((imgs) => imgs.every((i) => i.classList.contains('pic-illustration')))).toBe(true);
-  await page.goto('/');
-  await page.getByRole('group', { name: 'Show' }).getByRole('button', { name: 'Photos' }).click();
+  expect((await page.request.put('/api/settings', { data: { show_drawings: false } })).ok()).toBe(true);
   await page.goto('/wardrobe');
   const all = page.locator('.insights img');
   await expect(all.first()).toBeVisible();

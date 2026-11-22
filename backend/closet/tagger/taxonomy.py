@@ -140,6 +140,12 @@ FOOTWEAR: dict[str, tuple[str, dict, str, str]] = {
                 "a runner on a flat, stable sole, a mesh upper and a saddle overlay holding the midfoot"),
     "canvas_slip_on": ("slip_on", {}, "drawn", "a laceless canvas shoe"),
     "cleats": ("low_sneaker", {"tread": "cleats"}, "drawn", "studs under the sole"),
+    "tennis_shoe": ("low_sneaker", {"toe_cap": "rubber", "collar_pad": True}, "drawn",
+                    "a low court sneaker with a padded collar, its toe guarded in rubber where it drags on the court "
+                    "(the herringbone tread is underneath, out of view)"),
+    "golf_shoe": ("low_sneaker", {"tread": "studded"}, "drawn",
+                  "a low sneaker on small rubber nubs, a spikeless sole (spikes when the sole is cleats); a derby or "
+                  "oxford when the tagger saw one"),
     "chunky_sneaker": ("runner", {"sole": "chunky"}, "drawn", "a runner on a chunky sole"),
     "boat_shoe": ("loafer", {"strap": "none", "lace_collar": True, "tread": "siped"}, "drawn", "a rawhide lace round the collar, tied at the side, on a white sole"),
     "camp_moc": ("loafer", {"strap": "none", "lace_collar": True, "tread": "lug"}, "drawn",
@@ -154,6 +160,13 @@ FOOTWEAR: dict[str, tuple[str, dict, str, str]] = {
                        "a plain-vamp slipper in velvet with its sheen (an embroidered crest is not drawn)"),
     "felt_clog": ("slip_on", {"backless": True, "foxing": False}, "drawn", "open at the back above the heel"),
 }
+# Kinds that come laced as a dress shoe as well as in their own style: a derby or oxford the tagger saw is kept. A
+# brogue is either (an oxford otherwise); a golf shoe is a sneaker, or a saddle or derby on spikes or nubs.
+DRESS_LACED = frozenset({"brogue", "golf_shoe"})
+# The shoes made for one sport's ground (a court, a course, a pitch), with the sport in words: never in an everyday
+# outfit nor counted by What's missing, as swim trunks are not (`outfits._unavailable`, `gaps._closet`). The owner's
+# request, 22 November: "shoes I play tennis or golf in". Running shoes and trainers are worn every day and stay out.
+SPORT_SHOES: dict[str, str] = {"tennis_shoe": "tennis", "golf_shoe": "golf", "cleats": "sport"}
 # the footwear block's toe treatments and lacings, in its order, and what the drawing makes of each
 FOOTWEAR_TOE_TREATMENT = {
     "plain": ({"toe_cap": "none"}, "drawn", ""), "cap_toe": ({"toe_cap": "stitched"}, "drawn", "a stitched toe cap"),
@@ -194,8 +207,9 @@ def _say(word: str) -> str:
 
 def shoe_words(style: str, words: list[str]) -> tuple[str, dict, list[str]]:
     """What the tagger's own words (other_features) add to a shoe's drawing: (style, params, the words now drawn).
-    A footwear id sets the style and its parameters (a brogue keeps a tagged derby lacing); the footwear block's
-    toe treatments and lacings, and a few plain words ("tassels", "5 eyelets"), refine them, whichever comes first."""
+    A footwear id sets the style and its parameters (a brogue or a golf shoe keeps a tagged derby or oxford,
+    `DRESS_LACED`); the footwear block's toe treatments and lacings, and a few plain words ("tassels", "5 eyelets"),
+    refine them, whichever comes first."""
     params: dict = {}
     used: list[str] = []
     found = []   # (kind, value, word) in the order the words come
@@ -217,10 +231,7 @@ def shoe_words(style: str, words: list[str]) -> tuple[str, dict, list[str]]:
     for kind, value, word in sorted(found, key=lambda x: x[0] != "id"):   # ids first, details over them
         if kind == "id":
             app, more, status, _ = FOOTWEAR[value]
-            if value == "brogue":
-                style = style if style in ("derby", "oxford") else "oxford"
-            else:
-                style = app
+            style = style if value in DRESS_LACED and style in ("derby", "oxford") else app
             params.update(more)
         elif kind == "eyelets":
             status = "drawn"
@@ -322,7 +333,7 @@ def shoe_params(style: str, d: dict) -> tuple[str, dict]:
     fid = d.get("footwear")
     if fid in FOOTWEAR:
         app, more, _, _ = FOOTWEAR[fid]
-        style = (style if style in ("derby", "oxford") else "oxford") if fid == "brogue" else app
+        style = style if fid in DRESS_LACED and style in ("derby", "oxford") else app
         params.update(more)
     toe = d.get("toe_treatment")
     if toe in FOOTWEAR_TOE_TREATMENT:

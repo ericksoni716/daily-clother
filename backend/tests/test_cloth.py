@@ -202,6 +202,16 @@ def test_the_kind_is_the_owners_choice_else_the_taggers():
     assert today.cloth(row(answer=answer(garment="nonsense"), own_details="{nope"))["kind"] is None
 
 
+def test_a_shoes_kind_is_the_one_its_page_shows():
+    # the kind of shoe Claude named, else the owner's: chosen as what it is, or set as the kind of shoe in its details
+    said = {"category": "sneakers", "details": {"footwear": "tennis_shoe", "shoe_style": "low_sneaker"}}
+    assert today.cloth(row(category="sneakers", answer=said))["kind"] == "tennis_shoe"
+    assert today.cloth(row(category="sneakers", answer=said, own_details='{"garment": "golf_shoe"}'))["kind"] == "golf_shoe"
+    assert today.cloth(row(category="sneakers", answer=said, own_details='{"footwear": "cleats"}'))["kind"] == "cleats"
+    assert today.cloth(row(category="sneakers", answer={**said, "details": {"footwear": "unknown"}}))["kind"] is None
+    assert today.cloth(row(category="sneakers", answer={**said, "details": {"footwear": ["tennis_shoe"]}}))["kind"] is None
+
+
 @pytest.mark.parametrize(("fabric", "expected"), [("polar_fleece", "heavyweight"), ("sherpa", "super_heavy"), ("na", "heavyweight")])
 def test_a_fleece_is_as_warm_as_its_pile(fabric, expected):
     r = row(category="sweater", name="Pullover", answer=answer(garment="fleece_pullover", fabric=fabric, weight="lightweight"))

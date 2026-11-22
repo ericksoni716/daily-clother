@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from closet import db, details, kinds, today, vocab
+from closet import db, details, illustrations, kinds, today, vocab
 from closet.drawing.item import BOTTOMS, SHOES, TOPS
 
 from .conftest import upload
@@ -82,6 +82,30 @@ def test_swim_trunks_are_shorts_offered_under_trousers_and_shorts():
     assert {"swim", "swimming", "trunks", "beach"} <= set(found["words"].split())
 
 
+def test_tennis_and_golf_shoes_are_sneakers_offered_under_shoes_and_boots():
+    found = {k["id"]: k for k in kinds.catalogue()["kinds"]}
+    assert [(found[k]["name"], found[k]["group"], found[k]["category"], found[k]["drawn"]) for k in ("tennis_shoe", "golf_shoe")] \
+        == [("Tennis shoes", "shoes", "sneakers", True), ("Golf shoes", "shoes", "sneakers", True)]
+    assert {"tennis", "court", "padel"} <= set(found["tennis_shoe"]["words"].split())
+    assert {"golf", "spikes", "spikeless"} <= set(found["golf_shoe"]["words"].split())
+    assert details.words("footwear", "golf_shoe") == "golf shoe"   # the kind of shoe, in Fix the details
+
+
+def test_a_shoes_kind_is_the_one_claude_named_or_the_owners():
+    said = {"category": "sneakers", "details_confidence": 0.8, "details": {"garment": "unknown", "footwear": "tennis_shoe"}}
+    shoe = {"category": "sneakers", "tag_answer": json.dumps(said), "own_details": None}
+    assert kinds.of_row(shoe) == {"kind": "tennis_shoe", "by": "claude", "confidence": 0.8}
+    # a footwear id among the words it saw is what the drawing shows first, so it is the kind too
+    words = {**said, "details": {**said["details"], "other_features": ["golf shoe"]}}
+    assert kinds.of_row({**shoe, "tag_answer": json.dumps(words)})["kind"] == "golf_shoe"
+    # the owner's: chosen as what it is, else set as the kind of shoe among its details
+    assert kinds.of_row({**shoe, "own_details": '{"garment": "cleats", "footwear": "golf_shoe"}'})["kind"] == "cleats"
+    assert kinds.of_row({**shoe, "own_details": '{"footwear": "golf_shoe"}'}) == {"kind": "golf_shoe", "by": "owner",
+                                                                                "confidence": None}
+    # not for something that is not a shoe
+    assert kinds.of_row({**shoe, "category": "tee", "tag_answer": None, "own_details": '{"footwear": "golf_shoe"}'})["kind"] is None
+
+
 def test_a_kind_of_top_has_only_its_own_details():
     tee = details.names_for("tee", "t_shirt")
     assert "neckline" in tee and "cuff" not in tee and "placket" not in tee and "collar" not in tee
@@ -133,6 +157,39 @@ def test_choosing_swim_trunks_makes_the_item_shorts_drawn_as_swim_trunks(client,
     trunks = svg(client, chosen)
     plain = client.put(f"/api/items/{item['id']}/kind", json={"kind": "shorts"}).json()
     assert svg(client, plain) != trunks   # the kind's own look: shorter, a drawstring, swim fabric's sheen
+
+
+def test_choosing_tennis_shoes_makes_the_item_sneakers_drawn_as_tennis_shoes(client, services, claude, cfg):
+    item = described(client, services, claude)   # Claude said a navy polo
+    chosen = client.put(f"/api/items/{item['id']}/kind", json={"kind": "tennis_shoe"}).json()
+    assert (chosen["kind"], chosen["kind_name"], chosen["category"]) == ("tennis_shoe", "Tennis shoes", "sneakers")
+    assert _rows(cfg)[item["id"]]["kind"] == "tennis_shoe"   # what Today, trips and What's missing read
+    tennis = svg(client, chosen)
+    golf = client.put(f"/api/items/{item['id']}/kind", json={"kind": "golf_shoe"}).json()
+    assert (golf["kind_name"], golf["category"]) == ("Golf shoes", "sneakers") and _rows(cfg)[item["id"]]["kind"] == "golf_shoe"
+    nubs = svg(client, golf)
+    plain = client.put(f"/api/items/{item['id']}/kind", json={"kind": "leather_court_sneaker"}).json()
+    assert len({tennis, nubs, svg(client, plain)}) == 3   # a toe guard and a padded collar; nubs under the sole
+
+
+def test_the_kind_of_shoe_claude_named_shows_and_confirming_it_keeps_the_drawing(client, services, claude, cfg):
+    item = described(client, services, claude)
+    conn = db.connect(cfg.db_path("main"))
+    try:
+        answer = json.loads(conn.execute("SELECT tag_answer FROM items WHERE id = ?", (item["id"],)).fetchone()[0])
+        answer["category"] = "dress_shoes"   # a golf shoe cut like a derby, on spikes
+        answer["details"].update(garment="unknown", footwear="golf_shoe", shoe_style="derby", sole="cleats")
+        conn.execute("UPDATE items SET tag_answer = ?, category = 'dress_shoes' WHERE id = ?", (json.dumps(answer), item["id"]))
+        illustrations.redraw(conn, item["id"])
+    finally:
+        conn.close()
+    said = client.get(f"/api/items/{item['id']}").json()
+    assert (said["kind"], said["kind_name"], said["kind_by"], said["group"]) == ("golf_shoe", "Golf shoes", "claude", "shoes")
+    assert _rows(cfg)[item["id"]]["kind"] == "golf_shoe"
+    drawn = svg(client, said)
+    # "That's right" makes Claude's kind the owner's word: the derby on spikes is drawn as it was, now a sneaker
+    mine = client.put(f"/api/items/{item['id']}/kind", json={"kind": "golf_shoe"}).json()
+    assert (mine["kind_by"], mine["category"]) == ("owner", "sneakers") and svg(client, mine) == drawn
 
 
 def test_undo_gives_back_the_kind_and_category_before(client, services, claude, cfg):

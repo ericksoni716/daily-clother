@@ -86,7 +86,7 @@ Rendering rules for performance fabrics:
 | **Sweatpants (open hem)** | Straight leg, no cuff; elastic waist | French terry, fleece-back |
 | **Running / athletic socks** | Crew, quarter or no-show; cushioned sole; arch band | Synthetic blend, merino |
 
-Footwear for sport is in section 12 (running shoes, trainers, court shoes, cleats, hiking boots, slides).
+Footwear for sport is in section 12 (running shoes, trainers, court shoes, tennis and golf shoes, cleats, hiking boots, slides).
 
 ### 11.4 Loungewear and sleepwear
 
@@ -192,6 +192,8 @@ sole stack: insole ─ midsole ─ outsole; welt (if any) joins upper to sole; h
 | **Trainer / cross-trainer** | Flat stable sole, mesh and synthetic overlays | `runner` |
 | **Slip-on canvas** | Elastic gussets, no laces, vulcanized sole (often checkerboard prints) | `slip_on` |
 | **Cleats** | Molded studs, low or mid collar | `low_sneaker` |
+| **Tennis shoe (performance)** | Court shoe: herringbone or modified-herringbone outsole, reinforced toe drag guard, stable cupsole, padded collar | `low_sneaker` |
+| **Golf shoe** | Spiked (replaceable soft spikes) or spikeless (dimpled or nubbed rubber) outsole; a sneaker, saddle or derby look, often waterproof leather | `low_sneaker` (or `derby` / `oxford` when cut like one) |
 | **Platform / chunky "dad" sneaker** | Very thick layered midsole, many overlays | `runner` |
 
 ### 12.5 Summer and casual shoes

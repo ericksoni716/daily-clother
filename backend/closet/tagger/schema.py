@@ -135,10 +135,11 @@ Feature = Literal["v_insert", "pleats", "pressed_crease", "contrast_stitching", 
 
 # Stored with every answer the app keeps. Raise it whenever `ItemTags` changes shape or vocabulary, so stored
 # answers can be told apart (a test holds a fingerprint of the schema and fails until this is raised).
-SCHEMA_VERSION = 10  # 6: the cloth's `surface` (closet.tagger.surfaceform); 7: its `lettering`, and each sleeve's own colour;
+SCHEMA_VERSION = 11  # 6: the cloth's `surface` (closet.tagger.surfaceform); 7: its `lettering`, and each sleeve's own colour;
 #                      8: swim trunks among the garments (`garment`), and their inseam;
 #                      9: five more shades (`shade`: mint, french_blue, taupe, salmon, mauve);
-#                      10: `formality_also`, a second level of formality for a piece that sits between two
+#                      10: `formality_also`, a second level of formality for a piece that sits between two;
+#                      11: tennis and golf shoes among the kinds of shoe (`footwear`), and the soles that tell them
 
 FIELDS = ("category", "color", "pattern", "formality", "season")
 DETAIL_FIELDS = ("garment", "fit_detail", "sleeve_length", "neckline", "collar", "placket", "placket_buttons", "button_color", "cuff",
@@ -211,13 +212,13 @@ class Details(BaseModel):
     accessory_kind: AccessoryKind = Field(description="Accessories only: its kind, from the list for what it is. " + _KINDS_HELP + ". 'na' when it does not apply or you cannot tell.")
     features: list[Feature] = Field(description="Any of these that are present; empty if none. v_insert = the stitched triangle under a sweatshirt's neck; contrast_stitching = topstitching in a thread colour that stands out, as on most blue jeans; side_stripe = a contrast panel or stripe on the side of a shoe, or stripes down the sleeves of a track jacket or the sides of track trousers or shorts.")
     shade: Shade = Field(description="The owner's name for the main colour's shade, one of the shades of the main colour word (navy: navy, midnight or raw_indigo; tan: stone, khaki, sand, camel or natural_flax; ...); 'unknown' when none is close.")
-    footwear: Footwear = Field(description="Shoes only: the kind of shoe or boot, when you can tell (chukka, desert_boot, service_boot, moc_toe_boot, engineer_boot, logger_boot, combat_boot, hiking_boot, western_boot, jodhpur_boot, rain_boot, snow_boot, duck_boot, canvas_low_top, canvas_high_top, leather_court_sneaker, retro_runner, trail_runner, chunky_sneaker, skate_shoe, basketball_shoe, boat_shoe, penny_loafer, cap_toe_oxford ...); 'unknown' otherwise.")
+    footwear: Footwear = Field(description="Shoes only: the kind of shoe or boot, when you can tell (chukka, desert_boot, service_boot, moc_toe_boot, engineer_boot, logger_boot, combat_boot, hiking_boot, western_boot, jodhpur_boot, rain_boot, snow_boot, duck_boot, canvas_low_top, canvas_high_top, leather_court_sneaker, retro_runner, trail_runner, chunky_sneaker, skate_shoe, basketball_shoe, boat_shoe, penny_loafer, cap_toe_oxford ...). Shoes made for one sport: a tennis_shoe is a court shoe with a herringbone tread and a toe reinforced where it drags; a golf_shoe has spikes or small rubber nubs under the sole, in a sneaker, saddle or derby look; cleats have molded studs for a pitch. 'unknown' otherwise.")
     toe_shape: ToeShape = Field(description="Shoes: the toe's shape seen from above and the side; moc_toe = a raised U-shaped seam over the toe. 'na' otherwise.")
     toe_treatment: ToeTreatment = Field(description="Shoes: what is on the toe (a cap, a wingtip, a medallion, an apron or split-toe seam, a rubber toe cap); 'na' otherwise.")
     lacing: Lacing = Field(description="Shoes: how it fastens: closed_oxford, open_derby, speed_hooks (open hooks at the top of a boot), d_rings, elastic_gussets (a chelsea), monk_single / monk_double (buckled straps), hook_and_loop, toggle_speed_lace, rawhide_around_collar (a boat shoe), slip_on; 'na' otherwise.")
     eyelets: int = Field(description="Shoes: the eyelets (and hooks) you can count on one side of the lacing; 0 when none or not a shoe.")
     laces: Laces = Field(description="Shoes: the kind of laces; 'na' when none or not a shoe.")
-    sole: ShoeSole = Field(description="Shoes: the sole: leather, rubber_city, lug_commando (deep lugs), crepe (honey, wavy), wedge (a flat white block, no heel), cupsole, vulcanized (a canvas shoe's), cleats, jute_rope (an espadrille) ...; 'na' otherwise.")
+    sole: ShoeSole = Field(description="Shoes: the sole: leather, rubber_city, lug_commando (deep lugs), crepe (honey, wavy), wedge (a flat white block, no heel), cupsole, vulcanized (a canvas shoe's), cleats (studs or golf spikes), studded_rubber (small round rubber nubs, as on a spikeless golf shoe), jute_rope (an espadrille) ...; 'na' otherwise.")
     shoe_construction: ShoeConstruction = Field(description="Shoes: how the sole is attached, when the welt or stitching shows; 'na' otherwise.")
     footwear_height: FootwearHeight = Field(description="Shoes: how high it comes: low, mid or high (sneakers), ankle_boot, boot_6in, boot_8in_plus, knee; 'na' otherwise.")
     heel: Heel = Field(description="Shoes: the heel: flat, low_stacked, block, cuban (tall and angled, as on a western boot); 'na' otherwise.")

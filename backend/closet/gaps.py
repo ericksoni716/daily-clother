@@ -36,7 +36,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
 from . import outfits, vocab
-from .tagger.taxonomy import SWIM_KINDS
+from .tagger.taxonomy import SPORT_SHOES, SWIM_KINDS
 
 # ------------------------------------------------------------------ the closet
 MIN_ITEMS = 8                # fewer clothes than this (not archived) and the closet is too small to judge
@@ -420,6 +420,8 @@ def _closet(items: Iterable[object], wears: Iterable[object]) -> _Closet:
         if it.get("status") == "archived":
             continue
         if it.get("kind") in SWIM_KINDS:   # for swimming on a trip, not an everyday piece: never counted, never "unused"
+            continue
+        if it.get("kind") in SPORT_SHOES:   # for tennis, golf or a pitch: never counted as everyday shoes, never "unused"
             continue
         clean = dict(it)
         clean["laundry"] = "clean"  # a piece in the wash is still owned

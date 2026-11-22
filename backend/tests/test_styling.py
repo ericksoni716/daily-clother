@@ -98,6 +98,13 @@ def test_swim_trunks_are_never_listed_for_the_stylist_even_on_a_hot_day():
     assert "b3" in styling.listed(rows, context(low_c=24, high_c=31, build_around="b3")).ids   # unless built around
 
 
+def test_tennis_shoes_are_never_listed_for_the_stylist_even_for_an_athletic_day():
+    rows = closet() + [item("s3", "White tennis shoes", "sneakers", color="white", formality="athletic", kind="tennis_shoe")]
+    listing = styling.listed(rows, context(occasion="athletic"))
+    assert "s3" not in listing.ids and "s1" in listing.ids
+    assert "s3" in styling.listed(rows, context(occasion="athletic", build_around="s3")).ids   # unless built around
+
+
 def test_a_piece_built_around_is_listed_even_in_the_laundry():
     rows = closet()
     rows[0]["laundry"] = "dirty"

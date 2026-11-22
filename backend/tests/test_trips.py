@@ -480,6 +480,29 @@ def test_swim_trunks_never_fill_a_days_outfit():
     assert next(c for c in asked["counts"] if c["kind"] == "swim")["words"] == "1 pair of swim trunks: the pair you chose"
 
 
+def test_shoes_for_a_sport_are_packed_only_when_asked_for_and_never_fill_a_day():
+    # the only sneakers are for tennis and golf: the days are dressed without them, and they are not taken
+    sport = [item("tennis", "sneakers", "white", "athletic", kind="tennis_shoe", name="Tennis shoes"),
+             item("golf", "sneakers", "white", "athletic", kind="golf_shoe", name="Golf shoes")]
+    closet = [i for i in basic_closet() if i["id"] != "sneakers1"] + sport
+    plain = trips.plan(closet, days(4))
+    assert not {p["id"] for p in plain["packed"]} & {"tennis", "golf"}
+    assert all(not {"tennis", "golf"} & set(worn(d)) for d in plain["days"] if d["outfit"])
+    # asked for, a pair is packed with the shoes, worn on no day, with no note that no day wears it
+    asked = trips.plan(closet, days(4), {"pin": ["tennis"]})
+    assert next(p for p in asked["packed"] if p["id"] == "tennis") == {"id": "tennis", "group": "shoes", "days": 0,
+                                                                         "pinned": True}
+    assert all("tennis" not in worn(d) for d in asked["days"] if d["outfit"])
+    assert "golf" not in {p["id"] for p in asked["packed"]}
+    assert not any("tennis" in n.lower() for n in asked["notes"])
+    assert "item:tennis" in trips.lines(asked)   # it can be ticked as packed
+    # a pair in the laundry is not packed, and the plan says why
+    washing = trips.plan([{**i, "laundry": "laundry"} if i["id"] == "tennis" else i for i in closet], days(4),
+                         {"pin": ["tennis"]})
+    assert "tennis" not in {p["id"] for p in washing["packed"]}
+    assert any("in the laundry" in n for n in washing["notes"])
+
+
 # ---------------------------------------------------------------------- the routes
 TODAY = date(2026, 11, 12)
 NYC = {"name": "New York, United States", "latitude": 40.7143, "longitude": -74.006, "timezone": "America/New_York"}

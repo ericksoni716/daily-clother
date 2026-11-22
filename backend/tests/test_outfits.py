@@ -274,6 +274,30 @@ def test_swim_trunks_are_never_in_an_everyday_outfit():
         "None of your trousers, jeans or shorts can be worn today: 1 for swimming."]
 
 
+SPORT = [item("tennis", "sneakers", "white", "athletic", kind="tennis_shoe"),
+         item("golf", "sneakers", "white", "athletic", kind="golf_shoe"),
+         item("cleats", "sneakers", "black", "athletic", kind="cleats")]
+
+
+def test_shoes_for_a_sport_are_never_in_an_everyday_outfit_not_even_an_athletic_one():
+    # the owner, 22 November: "shoes I play tennis or golf in"; a day does not say which sport, so Today never offers them
+    items = basic_closet() + SPORT + [item("runner", "sneakers", "grey", "athletic", kind="running_shoe")]
+    seen = set()
+    for low, high in ((2, 8), (15, 21), (24, 31)):
+        for occasion in ("casual", "athletic"):
+            for o in outfits.suggest(items, day(low, high, occasion=occasion), 5)["outfits"]:
+                seen.update(ids_of(o))
+    assert not seen & {"tennis", "golf", "cleats"} and "runner" in seen   # running shoes are worn every day
+    # still there when the owner builds an outfit around a pair
+    for pair in ("tennis", "golf", "cleats"):
+        built = outfits.suggest(items, day(15, 21, occasion="athletic", build_around=pair), 3)
+        assert built["outfits"] and all(pair in ids_of(o) for o in built["outfits"])
+    # with nothing else to wear, it says what each pair is for
+    only = [i for i in basic_closet() if i["category"] not in SHOES] + SPORT
+    assert outfits.suggest(only, day(15, 21), 3)["missing"] == [
+        "None of your shoes can be worn today: 1 for golf, 1 for sport and 1 for tennis."]
+
+
 def test_in_rain_a_rain_proof_jacket_is_not_forced_onto_a_warm_day():
     # the owner's rule restricts the outer layer to rain-proof ones; one is required only where the day's band asks
     # for an outer layer anyway (the owner, 17 November: a rain jacket is not required on warm days)

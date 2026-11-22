@@ -18,9 +18,9 @@ import json
 from datetime import date
 
 from . import day as dayparts
-from . import daynote, items, look, outfits, stylejobs, styleprofile, styling, vocab, wears, weather, worn
+from . import daynote, items, kinds, look, outfits, stylejobs, styleprofile, styling, vocab, wears, weather, worn
 from .state import State
-from .tagger.taxonomy import GARMENTS
+from .tagger.taxonomy import FOOTWEAR, GARMENTS
 
 CHOICES = ("occasion", "mood", "build_around", "leave_out", "count", "again", "ask_again", "say", "looking_at")
 TALK = ("again", "ask_again", "say", "looking_at")   # choices that are not the engine's
@@ -60,7 +60,7 @@ def _owner_weight(text: object) -> str | None:
 def cloth(row) -> dict:
     """What is known about an item's cloth, in the keys the engine reads: `weight_class`, the silhouette (its coarse
     shape) and `kind`, the garment in the owner's taxonomy (the owner's own choice on the item page, else the
-    tagger's; None when neither said).
+    tagger's; for a shoe, the kind its page shows; None when neither said).
 
     The look is read from one place (`look`): the description the drawing was made from, with the owner's
     corrections folded over it, so the engine, the stylist, gaps and trips dress the same garment the page draws. The
@@ -87,7 +87,10 @@ def cloth(row) -> dict:
     own = _json(row["own_details"]) if "own_details" in row.keys() else None
     own = own if isinstance(own, dict) else {}
     said = own.get("garment") if isinstance(own.get("garment"), str) else details.get("garment")   # the owner's kind wins
-    kind = said if isinstance(said, str) and said in GARMENTS else None   # a shoe or an accessory has no garment kind here
+    kind = said if isinstance(said, str) and said in GARMENTS else None   # an accessory has no garment kind here
+    if kind is None:   # a shoe's kind as its page shows it (`kinds.of_row`): a tennis shoe is for tennis
+        shoe = kinds.of_row(row)["kind"]
+        kind = shoe if shoe in FOOTWEAR else None
     fabric = own.get("fabric") or details.get("fabric")
     fabric = fabric if isinstance(fabric, str) else None
 

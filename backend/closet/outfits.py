@@ -31,7 +31,7 @@ from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from . import outfit_rules, vocab
-from .tagger.taxonomy import LOUNGE_KINDS, SWIM_KINDS
+from .tagger.taxonomy import LOUNGE_KINDS, SPORT_SHOES, SWIM_KINDS
 
 
 def rules() -> outfit_rules.Rules:
@@ -1460,6 +1460,10 @@ FOR_HOME = "for wearing at home"
 # Swim trunks (SWIM_KINDS) are for swimming: never in an everyday outfit, only built around when the owner asks. A trip
 # packs them apart from its days' outfits when there will be swimming (`trips.py`).
 FOR_SWIMMING = "for swimming"
+# Shoes made for one sport (SPORT_SHOES: tennis shoes, golf shoes, cleats) are for that sport: never in an everyday
+# outfit, not even an athletic one (the day does not say which sport), only built around when the owner asks. A trip
+# packs a pair when the owner pins it, worn on no day (`trips.py`).
+FOR_SPORT = {kind: f"for {sport}" for kind, sport in SPORT_SHOES.items()}   # "for tennis", "for golf", "for sport"
 NEEDS_MENDING = "waiting to be mended"
 
 
@@ -1474,6 +1478,8 @@ def _unavailable(item: dict, ctx: Context) -> str | None:
         return FOR_HOME
     if item.get("kind") in SWIM_KINDS:
         return FOR_SWIMMING
+    if item.get("kind") in FOR_SPORT:
+        return FOR_SPORT[item["kind"]]
     if str(item.get("id")) in ctx.leave_out:
         return "left out today"
     if item.get("rating") == "dislike":

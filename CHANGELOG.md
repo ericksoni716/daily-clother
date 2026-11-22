@@ -29,6 +29,19 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   can be either when it chooses your outfits. When Claude describes a photo it may give two
   levels itself for a piece that sits between them; a formality you chose stays as you chose it
   when the item is described again.
+- **Tennis shoes** and **golf shoes** are kinds of their own, under Shoes & boots in **What is
+  it?** and as the kind of shoe in Fix the details, and Claude recognises them when it describes
+  a photo. Tennis shoes are drawn as a low court shoe with a rubber guard over the toe and a
+  padded collar; golf shoes as a low sneaker on small rubber nubs, or on spikes, and as a derby
+  or an oxford when they are cut like one. Like studded boots, they are for their sport: Today
+  never puts them in an outfit, not even on an athletic day, and What's missing does not count
+  them as everyday sneakers. On a trip they are packed only when you choose to take them, and are
+  worn on no day.
+
+### Changed
+
+- A shoe now shows the kind Claude named for it under **What is it?** (a chukka boot, a running
+  shoe), where before only the kind you chose showed.
 
 ### Fixed
 

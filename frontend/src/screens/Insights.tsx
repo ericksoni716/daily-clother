@@ -3,11 +3,11 @@
  * most, and, behind "More numbers", how wears are spread, what the closet is made of and cost per wear. The page,
  * which reads the answer, is Wardrobe.tsx.
  */
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 import { api } from '../api';
 import { HangerIcon } from '../components/Icons';
 import { Card as UiCard, Fold, ItemThumb, SegmentedControl } from '../components/ui';
-import { loadGridView, type GridView } from '../drawing';
+import { useShowDrawings, type GridView } from '../drawing';
 import {
   barWidth, costCaption, FIELD_WORDS, forgetKept, groupLabel, keepPiece, keptPieces, loadSavedInsights,
   MAKEUP_FIELDS, makeupHero, plural, shortDate, spreadHero, unwornCaption, unwornHero, windowLabel, wornMostHero, type CostPiece, type Counted, type Insights, type MakeupField, type Unworn,
@@ -48,8 +48,8 @@ export function Usage({ answer, byId, locked }: { answer: Insights; byId: ById; 
   const [gone, setGone] = useState<{ from: Insights | undefined; ids: string[] }>({ from: undefined, ids: [] });
   const saveItem = useItemEdit('item');
   const goneIds = gone.from === answer ? gone.ids : [];
-  // the same picture the closet grid shows: photos or drawings, as chosen there
-  const view = useMemo<GridView>(loadGridView, []);
+  // drawings or photos, as Settings says ("Show drawings instead of photos")
+  const view: GridView = useShowDrawings() ? 'drawings' : 'photos';
 
   const archive = useCallback(async (id: string) => {
     setArchiving(id);

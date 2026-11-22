@@ -12,6 +12,12 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **Settings → Everyday → Show drawings instead of photos** shows your clothes' drawings
+  wherever they are shown small: the closet, Today, Worn, trips and the Wardrobe, and an item's
+  page opens on its drawing. It is kept on the computer, so it holds on every device. A piece
+  with no drawing yet shows its photo. The Photos / Drawings switch over the closet starts from
+  it and no longer remembers its choice on the device: to keep drawings, turn the setting on.
+
 - On Windows, Nines can keep running for your phone: in **Settings → Phone**, press **Keep Nines
   running** and say Yes when Windows asks. Windows then starts Nines when the computer turns on,
   before you sign in (or when you sign in, where Windows will not do that), and starts it again

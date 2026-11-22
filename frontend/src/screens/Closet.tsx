@@ -4,7 +4,7 @@ import { CloseIcon, DrawingIcon, FilterIcon, HangerIcon, ImagesIcon, SearchIcon 
 import { StepMark } from '../components/Progress';
 import { WorkingLine } from '../components/WorkingLine';
 import { Button, buttonClass, EmptyState, PageHeader, SegmentedControl, Sheet } from '../components/ui';
-import { loadGridView, saveGridView, type GridView } from '../drawing';
+import { gridViewOf, smallPicture, useShowDrawings, type GridView, type MomentView } from '../drawing';
 import { setLaundryMany } from '../laundry';
 import { groupsIn, groupTitle, kindsOf, type KindGroup } from '../kinds';
 import { categoryPlural, label, tileCaption } from '../labels';
@@ -28,6 +28,9 @@ interface Props {
 interface Filters { category: string | null; group: string | null; kind: string | null; query: string; laundry: Laundry | null; check: boolean }
 const NO_FILTERS: Filters = { category: null, group: null, kind: null, query: '', laundry: null, check: false };
 const filterMemory = new Map<string, Filters>();
+/** The Photos / Drawings switch, used for the moment: kept while the app is open (not on the device), and set aside
+ * once the setting changes (`gridViewOf`). */
+let gridMoment: MomentView | null = null;
 
 export function ClosetScreen({ status, selectedId, wide, toReview = null }: Props) {
   const { profile, offline, toast } = useApp();
@@ -54,7 +57,9 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   }, [memoryKey, category, group, kind, query, laundry, check]);
   const review = useQuery({ ...reviewQuery(), enabled: !offline && status === 'active' }).data;
   const toCheck = useMemo(() => new Set((review?.items ?? []).map((i) => i.id)), [review]);
-  const [gridView, setGridView] = useState<GridView>(loadGridView);
+  const showDrawings = useShowDrawings();
+  const [moment, setMoment] = useState(gridMoment);
+  const gridView = gridViewOf(showDrawings, moment);
   const [filtering, setFiltering] = useState(false);
   const [panelTop, setPanelTop] = useState(0);
   const filterButton = useRef<HTMLButtonElement>(null);
@@ -154,7 +159,7 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
                   { value: 'photos', label: <><ImagesIcon /><span className="seg-text">Photos</span></> },
                   { value: 'drawings', label: <><DrawingIcon /><span className="seg-text">Drawings</span></> },
                 ]}
-                onChange={(value) => { setGridView(value); saveGridView(value); }} />
+                onChange={(value) => { gridMoment = { view: value, setting: showDrawings }; setMoment(gridMoment); }} />
             )}
           </div>
           {filters > 0 && (
@@ -360,14 +365,14 @@ const Tile = memo(function Tile({ item, status, selected, progress, view, onChoo
   );
 });
 
-/** The picture the closet grid shows for an item (also used by the Wardrobe's lists of pieces). */
+/** The picture the closet grid shows for an item (also used by trips and the Wardrobe's lists of pieces): its drawing
+ * when `view` is drawings and it has one, else the cutout, the photo or the drawing (`smallPicture`). */
 export function TilePicture({ item, view }: { item: ItemSummary; view: GridView }) {
   const alt = item.name || label('category', item.category) || 'Item';
-  if (view === 'drawings' && item.illustration_url) return <img className="pic-illustration" src={item.illustration_url} alt={`${alt}, drawing`} loading="lazy" />;
-  if (item.cutout_state === 'ready' && item.thumb_url) return <img className="pic-cutout" src={item.thumb_url} alt={alt} loading="lazy" />;
-  if (item.thumb_url) return <img className="pic-photo" src={item.thumb_url} alt={alt} loading="lazy" />;
-  if (item.illustration_url) return <img className="pic-illustration" src={item.illustration_url} alt={alt} loading="lazy" />;
-  return <div className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></div>;
+  const shown = smallPicture(item, view === 'drawings', true);
+  if (shown === 'drawing') return <img className="pic-illustration" src={item.illustration_url!} alt={view === 'drawings' ? `${alt}, drawing` : alt} loading="lazy" />;
+  if (shown === 'none') return <div className="pic-placeholder" role="img" aria-label={alt}><HangerIcon /></div>;
+  return <img className={shown === 'cutout' ? 'pic-cutout' : 'pic-photo'} src={item.thumb_url!} alt={alt} loading="lazy" />;
 }
 
 function EmptyCloset({ demo }: { demo: boolean }) {

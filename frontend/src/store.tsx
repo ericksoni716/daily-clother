@@ -1,9 +1,11 @@
 import { QueryClientProvider, useQuery, useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, connection } from './api';
+import { keepShowDrawings, loadShowDrawings, ShowDrawings } from './drawing';
 import { itemsQuery, modelQuery, progressQuery, vocabQuery } from './queries';
 import { makeQueryClient } from './queryClient';
 import { queryKeys } from './queryKeys';
+import { settingsQuery } from './settings';
 import type { Profile, ProgressList } from './types';
 import { uploads } from './uploads';
 import { downloading, DOWNLOAD_MS, movedOn, progressPoll } from './work';
@@ -68,6 +70,15 @@ function OpenCloset({ profile, onProfile, onLogout, onQuit, toast, children }: P
   useQuery(itemsQuery('active'));
   useQuery({ ...modelQuery(), refetchInterval: (q) => (downloading(q.state.data) && !offline ? DOWNLOAD_MS : false) });
 
+  // Settings' "Show drawings instead of photos", for every small picture of an item: read with the settings when the
+  // closet opens; meanwhile, and while Nines cannot be reached, the last word this device had on it.
+  const said = useQuery({ ...settingsQuery(), enabled: !offline, select: (s) => s.show_drawings }).data;
+  const [lastSaid] = useState(loadShowDrawings);
+  useEffect(() => {
+    if (said !== undefined) keepShowDrawings(said);
+  }, [said]);
+  const showDrawings = said ?? lastSaid;
+
   // The work under way, polled here for every screen: every 2 s while anything is being done (a cutout, a
   // description, a pattern measured, a shoe traced or drawn), every 10 s while items only wait for something outside,
   // and not at all when nothing is under way (an edit that starts work makes it stale, so it is asked again then).
@@ -124,5 +135,9 @@ function OpenCloset({ profile, onProfile, onLogout, onQuit, toast, children }: P
     profile, offline, switchProfile, logout: onLogout, quit: onQuit, toast,
   }), [profile, offline, switchProfile, onLogout, onQuit, toast]);
 
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={value}>
+      <ShowDrawings.Provider value={showDrawings}>{children}</ShowDrawings.Provider>
+    </Ctx.Provider>
+  );
 }

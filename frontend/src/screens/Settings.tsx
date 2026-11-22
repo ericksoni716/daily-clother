@@ -156,7 +156,7 @@ function StyleEditor({ offline, style, toast, onClose }: { offline: boolean; sty
   );
 }
 
-/** Everyday: the weather's place, how you live, and the laundry. */
+/** Everyday: the weather's place, how you live, drawings or photos, and the laundry. */
 function EverydaySection({ offline, profile, settings, toast }: { offline: boolean; profile: Profile; settings: Settings; toast: Toast }) {
   const qc = useQueryClient();
   const [placeOpen, setPlaceOpen] = useState(false);
@@ -188,9 +188,32 @@ function EverydaySection({ offline, profile, settings, toast }: { offline: boole
             toast('Your answers are saved');
           }} onClose={() => setLifeOpen(false)} />
       )}
+      <DrawingsToggle settings={settings} toast={toast} disabled={offline} />
       {settings.laundry && <LaundrySection settings={settings} toast={toast} disabled={offline} />}
       {settings.rewear && <RewearSection settings={settings} toast={toast} disabled={offline} />}
     </Section>
+  );
+}
+
+/** Show drawings instead of photos: kept on the computer, so every device's small pictures follow it (drawing.ts). */
+function DrawingsToggle({ settings, toast, disabled }: { settings: Settings; toast: Toast; disabled: boolean }) {
+  const saveSettings = useSaveSettings();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Toggle label="Show drawings instead of photos"
+      hint="On every device. A piece with no drawing yet shows its photo."
+      checked={settings.show_drawings === true} disabled={disabled || busy}
+      onChange={async (on) => {
+        setBusy(true);
+        try {
+          await saveSettings({ show_drawings: on });
+          toast('Saved');
+        } catch (e) {
+          toast((e as Error).message, 'error');
+        } finally {
+          setBusy(false);
+        }
+      }} />
   );
 }
 

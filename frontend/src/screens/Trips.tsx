@@ -4,7 +4,7 @@ import { api, ApiError, connection } from '../api';
 import { ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
 import { OutfitFigure } from '../components/OutfitFigure';
 import { BackLink, Card, EmptyState, PageHeader, SegmentedControl } from '../components/ui';
-import { loadGridView, type GridView } from '../drawing';
+import { useShowDrawings, type GridView } from '../drawing';
 import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
 import { label } from '../labels';
 import { SaveLine } from '../leave';
@@ -639,7 +639,7 @@ interface Ticks {
 function PlanView({ trip, byId, changes, asking, ticks }: {
   trip: PlannedTrip; byId: Map<string, ItemSummary>; changes: Changes; asking: boolean; ticks?: Ticks;
 }) {
-  const view = useMemo<GridView>(loadGridView, []);
+  const view: GridView = useShowDrawings() ? 'drawings' : 'photos';
   const [shown, setShown] = useTodayView();
   const plan = trip.plan;
   const [menuFor, setMenuFor] = useState<string | null>(null);

@@ -105,7 +105,9 @@ to tick off, on the computer or the phone.
 
 `/` (and `/archived`). A grid of your clothes with search, one Filter button (kind,
 category, group, laundry, and In use or Archived) whose choices stay visible as chips, and a
-switch between Photos and Drawings. One line over the grid says what wants seeing to: "5 to
+switch between Photos and Drawings. The switch starts from Settings' **Show drawings instead of
+photos** each time Nines is opened, and changing it shows the other kind in the grid only, until
+then. One line over the grid says what wants seeing to: "5 to
 check · 4 in the laundry". Each part shows only those pieces, as a chip that removes
 itself: "Needs a check" then offers "Check them one at a time" (the review), and "In the
 laundry" offers "All clean". A tile shows the piece's picture and name, and, while
@@ -247,8 +249,10 @@ would hold it back, when you would wear it, and example outfits.
   choose my outfits**. Lines kept from the conversation on Today are added to it too.
 - **Everyday**: "Weather for New York" with **Change**, which opens the place search, Use my
   location, today's weather and what is sent where (the weather is only looked up then); How
-  you live with **Edit my answers**; the laundry switch and laundry day, and **Wears between
-  washes** folded under them.
+  you live with **Edit my answers**; the switch **Show drawings instead of photos**, kept on the
+  computer so it holds on every device: the closet, Today, Worn, trips, the Wardrobe and an
+  item's page then show a piece's drawing (a piece with no drawing yet shows its photo); the
+  laundry switch and laundry day, and **Wears between washes** folded under them.
 - **Claude**: one line saying how Nines reaches Claude ("Using your Claude plan"), or one red
   sentence and Check again when it can't; **Manage** opens Advanced.
 - **Updates**: one line ("Nines 0.9.0 · up to date", or "Nines 0.9.1 is ready to install."

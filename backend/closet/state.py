@@ -42,6 +42,7 @@ DEFAULTS: dict[str, Any] = {
     "weather": None,          # the last forecast for the place: {"key", "fetched", "offset", "answer"}
     "weather_away": None,     # the same for the place of a day spent somewhere else (closet/daynote.py)
     "stylist_on": True,
+    "show_drawings": False,   # Settings, "Show drawings instead of photos": every device shows an item's drawing
     # asking Claude ahead of the first look (closet/styleahead.py): the day Today was last asked by the page, the
     # occasion and mood it asked with, and the day Claude was last asked ahead
     "today_opened": None,

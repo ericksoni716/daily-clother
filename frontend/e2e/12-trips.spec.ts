@@ -274,3 +274,78 @@ for (const viewport of [{ name: 'computer', width: 1280, height: 800 }, { name: 
     }
   });
 }
+
+test('swimming or the beach: on by itself for a hot trip, kept off when turned off, and swim trunks packed for it', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await goToCloset(page);
+  await useProfile(page, 'demo');
+  const closet = (await (await page.request.get('/api/items')).json()).items as { id: string; name: string; category: string }[];
+  // the demo's shorts, or a pair of its trousers when an earlier test of this file archived them
+  const shorts = closet.find((i) => i.category === 'shorts') ?? closet.filter((i) => i.category === 'trousers').at(-1)!;
+  const first = futureDay(8);
+  const last = futureDay(10);
+  const hot = tripWeather(first, last).map((d) => ({ ...d, low_c: 22, high_c: 30 }));
+  const response = await page.request.post('/api/trips', { data: { place: PLACE, first_day: first, last_day: last, weather: hot } });
+  const trip = await response.json();
+  const patched = () => page.waitForResponse((r) =>
+    r.request().method() === 'PATCH' && r.url().includes(`/api/trips/${trip.id}`) && r.ok());
+  try {
+    // no swim trunks in the closet yet: the trip says so, and packs nothing in their place
+    await page.goto(`/trips/${trip.id}`);
+    const options = page.getByRole('region', { name: 'Change the trip' });
+    const swim = options.getByRole('switch', { name: 'Swimming or the beach' });
+    await expect(swim).toBeChecked();
+    await expect(options).toContainText('It is on because 3 days reach 27°C.');
+    await expect(page.getByTestId('swim-missing')).toContainText('You have no swim trunks in your closet.');
+    await page.getByTestId('swim-missing').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: test.info().outputPath('trip-swim-none.png') });
+
+    // the demo's shorts said to be swim trunks: planned again, they are packed for swimming and worn on no day
+    expect((await page.request.put(`/api/items/${shorts.id}/kind`, { data: { kind: 'swim_trunks' } })).ok()).toBe(true);
+    const replanned = patched();
+    await options.getByRole('button', { name: 'Plan again' }).click();
+    await replanned;
+    await expect(page.getByRole('list', { name: 'For swimming' })).toContainText(shorts.name);
+    await expect(page.getByTestId('swim-missing')).toHaveCount(0);
+    await expect(page.getByTestId('trip-day').filter({ hasText: shorts.name })).toHaveCount(0);
+    await expect(page.getByRole('list', { name: 'Why these counts' })).toContainText('1 pair of swim trunks: one for a trip of up to a week');
+    await page.getByRole('list', { name: 'For swimming' }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: test.info().outputPath('trip-swim-packed.png') });
+    await options.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: test.info().outputPath('trip-swim-on.png') });
+
+    // turned off, it stays off when the trip is planned again, however hot
+    const off = patched();
+    await swim.click();
+    await off;
+    await expect(swim).not.toBeChecked();
+    await expect(options).toContainText('You turned it off. It stays off whatever the forecast.');
+    await expect(page.getByRole('list', { name: 'For swimming' })).toHaveCount(0);
+    const again = patched();
+    await options.getByRole('button', { name: 'Plan again' }).click();
+    await again;
+    await expect(swim).not.toBeChecked();
+
+    // a new trip on cool days: off until turned on, and turning it on packs them
+    await stubTripWeather(page);
+    await page.goto('/trips/new');
+    await page.getByLabel('Where are you going?').fill('Lisbon');
+    await page.getByRole('button', { name: 'Search' }).click();
+    await page.getByRole('button', { name: PLACE.name }).click();
+    const form = page.getByRole('region', { name: 'The trip' });
+    const choice = form.getByRole('switch', { name: 'Swimming or the beach' });
+    await page.getByRole('button', { name: 'Work out what to pack' }).click();
+    await expect(page.getByRole('heading', { name: /What to pack/ })).toBeVisible();
+    await expect(choice).not.toBeChecked();
+    await expect(form).toContainText('It turns on by itself when a day reaches 27°C.');
+    await choice.click();
+    await page.getByRole('button', { name: 'Work out what to pack' }).click();
+    await expect(page.getByRole('list', { name: 'For swimming' })).toContainText(shorts.name);
+    await expect(choice).toBeChecked();
+    await expect(form).toContainText('You turned it on, so your swim trunks are packed.');
+  } finally {
+    await page.request.delete(`/api/trips/${trip.id}`);
+    if (shorts.category === 'shorts') await page.request.put(`/api/items/${shorts.id}/kind`, { data: { kind: 'shorts' } });
+    else await page.request.patch(`/api/items/${shorts.id}`, { data: { category: shorts.category } });   // drops the kind
+  }
+});

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type
 import { api, ApiError, connection } from '../api';
 import { ChevronLeftIcon, HangerIcon, MoreIcon, SuitcaseIcon, WarnIcon } from '../components/Icons';
 import { OutfitFigure } from '../components/OutfitFigure';
+import { Toggle } from '../components/Toggle';
 import { BackLink, Card, EmptyState, PageHeader, SegmentedControl } from '../components/ui';
 import { useShowDrawings, type GridView } from '../drawing';
 import { figureVersion, useTodayView, VIEW_OPTIONS, type TodayView } from '../figure';
@@ -15,9 +16,9 @@ import { useApp } from '../store';
 import { joinWords, longDate, occasionLabel, OCCASIONS, outfitIds, placeLabel, shortPlace, wornOrder, type Outfit } from '../today';
 import {
   addDays, basicLine, checkDates, dateRange, dayCount, dayRain, dayTemps, fitLaundry, groupPacked, itemLine, laundryDays,
-  laundryEvery, laundryMode, laundryWords, progress, shortDay, sourceRuns, startLaundry, tripDays, loadSavedTrips, saveTrips,
-  tripTitle, upcomingFirst, wornWords, type LaundryMode, type PlannedTrip, type Trip, type TripDay, type TripLaundry,
-  type TripPatch, type TripRequest, type TripSummary, type WeatherCheck,
+  laundryEvery, laundryMode, laundryWords, progress, shortDay, sourceRuns, startLaundry, SWIM_LABEL, swimHint, swimOn, tripDays,
+  loadSavedTrips, saveTrips, tripTitle, upcomingFirst, wornWords, type LaundryMode, type PlannedTrip, type SwimPlan, type Trip,
+  type TripDay, type TripLaundry, type TripPatch, type TripRequest, type TripSummary, type WeatherCheck,
 } from '../trips';
 import type { ItemSummary, Place } from '../types';
 import { localDay } from '../wears';
@@ -187,6 +188,8 @@ interface Draft {
   occasion: string;
   differ: Record<string, string>;
   laundry: TripLaundry;
+  /** "Swimming or the beach": null until the owner turns it on or off (the forecast decides). */
+  swim: boolean | null;
 }
 
 function requestOf(d: Draft, leaveOut: string[], pin: string[]): TripRequest | null {
@@ -195,7 +198,7 @@ function requestOf(d: Draft, leaveOut: string[], pin: string[]): TripRequest | n
   const differ = Object.fromEntries(Object.entries(d.differ).filter(([day, occ]) => days.has(day) && occ !== d.occasion));
   return { place: d.place, first_day: d.first, last_day: d.last, occasion: d.occasion, day_occasions: differ,
     laundry: fitLaundry(d.laundry, dayCount(d.first, d.last)),
-    leave_out: leaveOut, pin };
+    leave_out: leaveOut, pin, swim: d.swim };
 }
 
 function PlanTrip() {
@@ -204,7 +207,7 @@ function PlanTrip() {
   const saveEdit = useEdit('trip');
   const byId = useActiveItems();
   const today = localDay();
-  const [draft, setDraft] = useState<Draft>({ place: null, first: addDays(today, 7), last: addDays(today, 11), occasion: 'casual', differ: {}, laundry: null });
+  const [draft, setDraft] = useState<Draft>({ place: null, first: addDays(today, 7), last: addDays(today, 11), occasion: 'casual', differ: {}, laundry: null, swim: null });
   const [leaveOut, setLeaveOut] = useState<string[]>([]);
   const [pin, setPin] = useState<string[]>([]);
   const [planned, setPlanned] = useState<PlannedTrip | null>(null);
@@ -269,7 +272,8 @@ function PlanTrip() {
     <div className="trips trip-planning" aria-busy={asking}>
       <PageHeader title="Plan a trip" titleId="trips-title" back={TRIPS_BACK} />
       {offline && <p className="notice" role="status">You're offline. Planning a trip needs Nines on your computer to be reachable.</p>}
-      <TripForm draft={draft} setDraft={(d) => { setDraft(d); setPlanned(null); }} today={today} locked={offline} asking={asking} onSubmit={submit} />
+      <TripForm draft={draft} setDraft={(d) => { setDraft(d); setPlanned(null); }} today={today} locked={offline} asking={asking}
+        swimPlan={planned?.plan.swim} onSubmit={submit} />
       {error && <p className="form-error" role="alert">{error}</p>}
       {planned && (
         <>
@@ -285,8 +289,9 @@ function PlanTrip() {
   );
 }
 
-function TripForm({ draft, setDraft, today, locked, asking, onSubmit }: {
-  draft: Draft; setDraft(d: Draft): void; today: string; locked: boolean; asking: boolean; onSubmit(e: FormEvent): void;
+function TripForm({ draft, setDraft, today, locked, asking, swimPlan, onSubmit }: {
+  draft: Draft; setDraft(d: Draft): void; today: string; locked: boolean; asking: boolean; swimPlan?: SwimPlan;
+  onSubmit(e: FormEvent): void;
 }) {
   const days = tripDays(draft.first, draft.last);
   const differing = Object.entries(draft.differ).filter(([d, o]) => days.includes(d) && o !== draft.occasion).length;
@@ -339,6 +344,7 @@ function TripForm({ draft, setDraft, today, locked, asking, onSubmit }: {
         )}
         <LaundryChoice value={fitLaundry(draft.laundry, days.length)} first={draft.first} nDays={days.length} disabled={locked}
           onChange={(laundry) => setDraft({ ...draft, laundry })} />
+        <SwimChoice choice={draft.swim} plan={swimPlan} disabled={locked} onChange={(swim) => setDraft({ ...draft, swim })} />
         <button className="btn btn-primary trip-big-button" type="submit" disabled={locked || asking || !draft.place}
           title={locked ? OFFLINE_TITLE : undefined}>
           {asking ? <><span className="spinner" aria-hidden="true" /> Working it out…</> : 'Work out what to pack'}
@@ -566,6 +572,7 @@ function SavedTrip({ id }: { id: string }) {
         </div>
         <LaundryChoice value={trip.laundry ?? null} first={trip.first_day} nDays={dayCount(trip.first_day, trip.last_day)}
           disabled={locked || busy} onChange={(laundry) => void change({ laundry })} />
+        <SwimChoice choice={trip.swim} plan={trip.plan.swim} disabled={locked || busy} onChange={(swim) => void change({ swim })} />
         <div className="row">
           <button className="btn" disabled={locked || busy} title={title} onClick={() => void change({ replan: true }, 'Planned again')}>Plan again</button>
           <button className="btn btn-danger-quiet" disabled={locked || busy} title={title} onClick={() => void remove()}>Delete this trip</button>
@@ -609,6 +616,18 @@ function LaundryChoice({ value, first, nDays, disabled, onChange }: {
         {tooShort ? 'A trip this short has no day for laundry.'
           : 'Pack only enough to last until the wash. Clothes washed that day are worn again from the next.'}
       </p>
+    </div>
+  );
+}
+
+/** "Swimming or the beach": swim trunks are packed, apart from the days' outfits. Left alone, the forecast decides. */
+function SwimChoice({ choice, plan, disabled, onChange }: {
+  choice: boolean | null | undefined; plan?: SwimPlan; disabled: boolean; onChange(on: boolean): void;
+}) {
+  return (
+    <div className="trip-swim">
+      <Toggle label="Swimming or the beach" hint={swimHint(choice, plan)} checked={swimOn(choice, plan)} disabled={disabled}
+        onChange={onChange} />
     </div>
   );
 }
@@ -729,6 +748,12 @@ function PlanView({ trip, byId, changes, asking, ticks }: {
               </ul>
             </div>
           ))}
+          {plan.swim?.missing && (
+            <div className="trip-group" data-testid="swim-missing">
+              <h3 className="chip-group-title">{SWIM_LABEL}</h3>
+              <p className="hint">{plan.swim.missing}</p>
+            </div>
+          )}
           <TakeSomethingElse byId={byId} packed={packedIds} changes={changes} />
 
           <div className="trip-group">

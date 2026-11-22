@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { forgetSaved } from './today';
 import {
   addDays, checkDates, dateRange, dayCount, dayRain, dayTemps, fitLaundry, groupPacked, laundryDays, laundryEvery, laundryMode,
-  laundryWords, progress, REWEAR_KINDS, rewearWords, shortDay, sourceLabel, sourceRuns, startLaundry, loadSavedTrips, saveTrips,
+  laundryWords, progress, REWEAR_KINDS, rewearWords, shortDay, sourceLabel, sourceRuns, startLaundry, swimHint, swimOn,
+  loadSavedTrips, saveTrips,
   tripComingUp, tripDays, tripTitle, upcomingFirst, wornWords, type TripDay, type TripSummary,
 } from './trips';
 
@@ -83,6 +84,32 @@ describe('trips', () => {
     expect(wornWords(1)).toBe('Worn 1 day');
     expect(wornWords(4)).toBe('Worn 4 days');
     expect(wornWords(0)).toBe('Not in any outfit');
+  });
+
+  it('packs swim trunks last, under their own heading', () => {
+    const groups = groupPacked([
+      { id: 'trunks', group: 'swim', days: 0, pinned: false },
+      { id: 'a', group: 'bottoms', days: 2, pinned: false },
+    ] as never);
+    expect(groups.map((g) => g.label)).toEqual(['Trousers and shorts', 'For swimming']);
+  });
+
+  it('says whether swimming is on, and who decided', () => {
+    const hot = { on: true, hot_days: 3, hot_c: 27, missing: null };
+    const cool = { on: false, hot_days: 0, hot_c: 27, missing: null };
+    // left to the forecast: off until a plan says otherwise
+    expect(swimOn(null)).toBe(false);
+    expect(swimOn(undefined, hot)).toBe(true);
+    expect(swimHint(null)).toBe('It turns on by itself when the trip will be hot.');
+    expect(swimHint(null, cool)).toBe('It turns on by itself when a day reaches 27°C.');
+    expect(swimHint(null, hot)).toBe('It is on because 3 days reach 27°C.');
+    expect(swimHint(null, { ...hot, hot_days: 1 })).toBe('It is on because a day reaches 27°C.');
+    // the owner's word wins over the plan either way
+    expect(swimOn(false, hot)).toBe(false);
+    expect(swimOn(true, cool)).toBe(true);
+    expect(swimHint(false, hot)).toBe('You turned it off. It stays off whatever the forecast.');
+    expect(swimHint(true, cool)).toBe('You turned it on, so your swim trunks are packed.');
+    expect(swimHint(true, { ...hot, missing: 'You have no swim trunks in your closet.' })).toBe('You turned it on.');
   });
 
   it('puts trips still to come before past ones', () => {

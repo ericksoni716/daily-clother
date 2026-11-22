@@ -4,7 +4,7 @@ import { useSaveSettings } from '../settings';
 import type { CloudflareDoor as Door } from '../types';
 import { Fold } from './ui';
 
-/** The door through Cloudflare, folded under Phone on the computer: what it is, the three values, and Save. */
+/** The door through Cloudflare, folded under Other devices on the computer: what it is, the three values, and Save. */
 export function CloudflareDoor({ door, offline, toast }: { door: Door; offline: boolean; toast(message: string, kind?: 'ok' | 'error'): void }) {
   const save = useSaveSettings();
   const [typed, setTyped] = useState<Record<DoorField, string>>(() => doorValues(door));

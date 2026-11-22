@@ -174,7 +174,7 @@ describe('the Phone group on the computer', () => {
   });
   it('is one line once a share reaches Nines, with the code folded under it', () => {
     const html = renderToStaticMarkup(createElement(PhoneAccess, { phone: info('https://pc.example.ts.net') }));
-    expect(html).toContain('Shared with your phone at');
+    expect(html).toContain('Your phone or another computer can open Nines at');
     expect(html).toMatch(/<details[^>]*data-testid="phone-code"[^>]*><summary>Show the QR code<\/summary>/);
     expect(html).not.toContain('<details open');
     expect(html).toContain('aria-label="QR code of https://pc.example.ts.net"');

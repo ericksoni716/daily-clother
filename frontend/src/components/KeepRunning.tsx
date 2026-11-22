@@ -9,7 +9,7 @@ import { Button } from './ui';
 import { StatusLine } from './Toggle';
 
 /**
- * Windows keeping Nines running, under Phone. On the computer: the status, the port, and Keep Nines running, Start it
+ * Windows keeping Nines running, under Other devices. On the computer: the status, the port, and Keep Nines running, Start it
  * again or Turn this off. On the phone: one sentence. Nothing where it is not available (a Mac, or run from source).
  */
 export function KeepRunning({ state, device, offline }: { state: BackgroundState | undefined; device: 'computer' | 'phone'; offline: boolean }) {

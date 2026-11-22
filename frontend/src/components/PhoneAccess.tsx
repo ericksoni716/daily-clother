@@ -15,7 +15,7 @@ function AddressCode({ address }: { address: string }) {
   );
 }
 
-/** How to reach Closet from the phone, on the computer; `phone` is null while it is still being looked up. Once a
+/** How to reach Closet from the phone or another computer, on the computer; `phone` is null while it is still being looked up. Once a
  * share reaches Closet it is one line, with the code folded under it; until then, the command to run once. */
 export function PhoneAccess({ phone }: { phone: PhoneInfo | null }) {
   if (!phone) return <p className="state-line state-waiting" aria-busy="true"><span className="state-dot" aria-hidden="true" /><span>Looking for Tailscale…</span></p>;
@@ -24,7 +24,7 @@ export function PhoneAccess({ phone }: { phone: PhoneInfo | null }) {
       <>
         <p className="state-line state-ready">
           <span className="state-dot" aria-hidden="true" />
-          <span>Shared with your phone at <strong className="path" data-testid="phone-address">{phone.address}</strong></span>
+          <span>Your phone or another computer can open Nines at <strong className="path" data-testid="phone-address">{phone.address}</strong></span>
         </p>
         <details className="more phone-code" data-testid="phone-code">
           <summary>Show the QR code</summary>
@@ -42,11 +42,11 @@ export function PhoneAccess({ phone }: { phone: PhoneInfo | null }) {
   }
   return (
     <>
-      {phone.tailscale_installed && phone.running && <p>Nines is not shared with your phone yet.</p>}
+      {phone.tailscale_installed && phone.running && <p>Nines is not shared with your other devices yet.</p>}
       <p>
         {phone.tailscale_installed
-          ? 'To reach Nines from your phone, run this once on this computer:'
-          : 'Phone access uses Tailscale. Once it is installed on this computer and your iPhone, run this once on this computer:'}
+          ? 'To reach Nines from your phone or another computer, run this once on this computer:'
+          : 'Your phone or another computer reaches Nines through Tailscale. Once Tailscale is on both, run this once on this computer:'}
       </p>
       <p className="address"><code>{phone.command}</code></p>
       {phone.others_share && (

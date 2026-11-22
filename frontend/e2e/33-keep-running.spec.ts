@@ -4,7 +4,7 @@ import { expect, goToCloset, test } from './fixtures';
 import type { Backend } from './server';
 
 /**
- * Windows keeping Nines running, under Settings › Phone. The test backend runs from source on Linux, where it is not
+ * Windows keeping Nines running, under Settings › Other devices. The test backend runs from source on Linux, where it is not
  * available, so Windows' side is stood in for in the browser: the settings' `background` and the three buttons.
  */
 
@@ -41,9 +41,9 @@ test('on the computer: what it is, the port, and turning it on hands over to Win
   });
   await goToCloset(page);
   await page.goto('/settings');
-  const card = page.getByRole('region', { name: 'Phone', exact: true }).getByTestId('keep-running');
+  const card = page.getByRole('region', { name: 'Other devices', exact: true }).getByTestId('keep-running');
   await expect(card.getByRole('heading', { name: 'Keep Nines running' })).toBeVisible();
-  await expect(card.getByTestId('keep-running-status')).toHaveText('This is off, so your phone reaches Nines only while it is open on this computer.');
+  await expect(card.getByTestId('keep-running-status')).toHaveText('This is off, so other devices reach Nines only while it is open on this computer.');
   await expect(card.getByText('It takes the place of Start Nines when I log in, and updates then go to the copy Windows runs.', { exact: false })).toBeVisible();
   await expect(card.getByTestId('keep-running-port')).toHaveText('Nines answers on port 8766 on this computer.');
   expect(await axeViolations(page)).toEqual([]);
@@ -118,7 +118,7 @@ test('turned off in an ordinary copy, it says where the program that carries on 
 test('where Windows cannot do it (here, from source), Settings shows nothing about it', async ({ page }) => {
   await goToCloset(page);
   await page.goto('/settings');
-  await expect(page.getByRole('region', { name: 'Phone', exact: true })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Other devices', exact: true })).toBeVisible();
   await expect(page.getByTestId('keep-running')).toHaveCount(0);
   expect((await (await page.request.get('/api/background')).json()).available).toBe(false);
 });
@@ -146,9 +146,9 @@ test.describe('opened on the phone', () => {
   test('from the Home Screen: one sentence on whether the computer keeps Nines running, and no buttons', async ({ page, request, backend }) => {
     await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
     await openSettings(page, request, backend, { ...OFF, on: true, starts: 'startup', running: true });
-    const section = page.getByRole('region', { name: 'Phone', exact: true });
+    const section = page.getByRole('region', { name: 'Other devices', exact: true });
     await expect(section.getByTestId('keep-running')).toHaveText(
-      'Your computer keeps Nines running, so your phone can reach it whenever the computer is awake. You change this in Settings on the computer.');
+      'Your computer keeps Nines running, so you can reach it from here whenever the computer is awake. You change this in Settings on the computer.');
     await expect(section.getByRole('button')).toHaveCount(0);
     await expect(page.getByText('Add to Home Screen')).toHaveCount(0);
     expect(await axeViolations(page)).toEqual([]);

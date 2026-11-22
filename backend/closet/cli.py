@@ -257,7 +257,7 @@ def _background_did_not_start(args, refused: bool = False) -> str | None:
     seconds = int(kept_running.WAIT)
     why = (f"Windows would not start {APP_NAME} in the background." if refused else
            f"{APP_NAME} is set to keep running in the background, but it did not start within {seconds} seconds.")
-    answer = _ask(f"{why}\n\nOpen {APP_NAME} on its own for now? Settings, Phone, then says what to do next.",
+    answer = _ask(f"{why}\n\nOpen {APP_NAME} on its own for now? Settings, Other devices, then says what to do next.",
                   yes="Open it", no="Not now", headless=args.no_tray)
     if answer:
         return ("Windows would not start the background copy" if refused else

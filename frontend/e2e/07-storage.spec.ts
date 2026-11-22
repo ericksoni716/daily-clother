@@ -31,7 +31,7 @@ test('settings: short groups in one column beside the sidebar, the technical par
   await goToCloset(page);
   await useProfile(page, 'demo');
   await page.goto('/settings');
-  const groups = ['Your style', 'Everyday', 'Claude', 'Updates', 'Phone', 'This device', 'Your data'];
+  const groups = ['Your style', 'Everyday', 'Claude', 'Updates', 'Other devices', 'This device', 'Your data'];
   for (const name of groups) await expect(page.getByRole('region', { name, exact: true })).toBeVisible();
   const tops = await Promise.all(groups.map(async (name) => (await page.getByRole('region', { name, exact: true }).boundingBox())!.y));
   expect(tops).toEqual([...tops].sort((a, b) => a - b));

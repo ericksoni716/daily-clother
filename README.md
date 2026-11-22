@@ -550,14 +550,14 @@ bottom of Settings) and open it again so it sees the new program; if it says
 installed but not signed in, do step 1's `claude` sign-in again, then press
 **Check again**.
 
-**6. Keep Nines running.** In Nines open **Settings → Phone** and press **Keep
+**6. Keep Nines running.** In Nines open **Settings → Other devices** and press **Keep
 Nines running**. Windows asks "Do you want to allow this app to make changes to
 your device?" for **Windows PowerShell**: choose **Yes**. (If you choose No,
 Settings says so and nothing changes.) Nines' window then closes and opens again
 by itself a few seconds later. From now on Windows starts Nines when the computer
 turns on, before anyone signs in, and starts it again within a few minutes if it
 ever stops. If Windows will not do that for your account, it starts Nines when
-you sign in instead; the card under **Settings → Phone** says which. Windows
+you sign in instead; the card under **Settings → Other devices** says which. Windows
 calls this a scheduled task, named **Nines**.
 
 - Nines keeps a copy of itself in a folder of its own,
@@ -590,8 +590,8 @@ On a Mac, keep using **Start Nines when I log in**: the Mac has no such card.
 
 **7. Reach it from the iPhone.** Install Tailscale on the PC (tailscale.com,
 **Download**, Windows) and on the iPhone (App Store), and sign in to both with
-the same account. Then follow "Use it from your iPhone" below: run the
-PowerShell command **Settings → Phone** shows (usually
+the same account. Then follow "Use it from your iPhone or another computer" below: run the
+PowerShell command **Settings → Other devices** shows (usually
 `tailscale serve --bg 8765`), then open the address Settings shows in Safari on
 the phone.
 
@@ -626,7 +626,7 @@ password. It also means that if someone takes over your Tailscale or
 Cloudflare account, or one of them is set up more widely than you meant, Nines
 has nothing more to ask. Keep those two accounts to yourself.
 
-## Use it from your iPhone
+## Use it from your iPhone or another computer
 
 The phone reaches your computer privately over Tailscale, and this way Nines is
 not on the public internet. (The one way it can be is the Cloudflare address in
@@ -635,15 +635,18 @@ the next section, and only if you set that up yourself.)
 1. On the computer, make sure Tailscale is running and signed in. In the
    Tailscale admin console, under **DNS**, turn on **MagicDNS** and **HTTPS
    certificates** (once per account).
-2. Open Nines' **Settings → Phone**. It shows the command to run on
+2. Open Nines' **Settings → Other devices**. It shows the command to run on
    this computer, usually `tailscale serve --bg 8765`. Open a terminal
    (PowerShell on Windows) and run it once. Open Settings again (it can take
-   half a minute to notice): **Phone access** now shows Nines' address, like
+   half a minute to notice): **Other devices** now shows Nines' address, like
    `https://your-pc.your-tailnet.ts.net`.
 3. On the iPhone, with Tailscale connected, point the Camera app at the QR
    code in Settings (**Show the QR code** under the address) and tap the link it shows (or type the
    address into Safari). Your closet opens; there is nothing to type.
 4. Tap **Share → Add to Home Screen**. Open Nines from the new icon.
+
+Another computer signed in to your Tailscale opens the same address in its
+browser.
 
 **If another app on this computer already uses Tailscale Serve.** Tailscale
 gives each computer one usual address, and only one app can have it. If another
@@ -652,12 +655,12 @@ plain address would open that other app instead of Nines. Nines notices this
 and suggests a command that gives Nines its own port instead, such as
 `tailscale serve --bg --https=8443 8765`. Nines' address then ends in that
 port, like `https://your-pc.your-tailnet.ts.net:8443`. Always use the address
-**Settings → Phone** shows: it is the one that really reaches Nines.
+**Settings → Other devices** shows: it is the one that really reaches Nines.
 If it says Nines is not shared yet, run the command it shows.
 
 To see what this computer shares, run `tailscale serve status`. Nines' share
 is the line that points to `http://127.0.0.1:` and Nines' port (on Windows,
-**Settings → Phone** says **Nines answers on port** and the number).
+**Settings → Other devices** says **Nines answers on port** and the number).
 
 **If Nines' address changes** (for example it moved to `:8443`), the icon on
 the iPhone's home screen still opens the old one. Press and hold that icon
@@ -666,7 +669,7 @@ the home screen again.
 
 `tailscale serve` shares only inside your own Tailscale network. Do not use
 `tailscale funnel`, which would publish the address to the internet. To stop
-sharing Nines, run the command under **Show the QR code** in **Settings → Phone**, such as
+sharing Nines, run the command under **Show the QR code** in **Settings → Other devices**, such as
 `tailscale serve --https=443 off` (or `--https=8443`, the port in Nines'
 address). It stops only Nines' share. Do not use `tailscale serve reset`: it
 also stops every other app's share on this computer.
@@ -679,7 +682,7 @@ Settings on the phone says, under **This device**, how it came in: for
 example "This device came in through Tailscale as you@example.com". If the
 phone shows "Nines could not tell who you are" instead, check that it is
 signed in to your Tailscale, then open Nines on the computer and check that
-Tailscale is set up there (**Settings → Phone**).
+Tailscale is set up there (**Settings → Other devices**).
 
 ## Use it without Tailscale, through Cloudflare
 
@@ -705,9 +708,9 @@ your own.
    computer Nines runs on. On the tunnel's public hostnames (or routes), add
    one: a name on your domain, such as `closet.example.com`, pointing at
    `http://127.0.0.1:` followed by Nines' port. Read the port from Nines first:
-   on Windows, **Settings → Phone** says **Nines answers on port** and the
+   on Windows, **Settings → Other devices** says **Nines answers on port** and the
    number, under **Keep Nines running**; on a Mac, it is the last number of the
-   `tailscale serve` command **Settings → Phone** shows.
+   `tailscale serve` command **Settings → Other devices** shows.
    Another app on this computer may use the usual port, so do not guess it. Turn
    on **Keep Nines running** first on Windows, so the port stays the same.
 2. **A sign-in in front of it.** In Zero Trust, open **Access →
@@ -716,7 +719,7 @@ your own.
    address, with the one-time code sign-in. In the application's overview, copy
    its **Application Audience (AUD) tag**, and note your team's domain, which
    looks like `yourteam.cloudflareaccess.com` (in Zero Trust's settings).
-3. **Tell Nines.** On this computer, open Nines' **Settings → Phone**, open
+3. **Tell Nines.** On this computer, open Nines' **Settings → Other devices**, open
    **Without Tailscale, through Cloudflare**, fill in your team's domain, the
    audience tag and the address (`closet.example.com`), and press **Save**. It
    now says **Also through Cloudflare, at closet.example.com**. Nines answers

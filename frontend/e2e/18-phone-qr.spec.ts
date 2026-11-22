@@ -58,7 +58,7 @@ for (const theme of ['light', 'dark'] as const) {
     await fakePhone(page, ADDRESS);
     await goToCloset(page);
     await page.goto('/settings');
-    const section = page.getByRole('region', { name: 'Phone', exact: true });
+    const section = page.getByRole('region', { name: 'Other devices', exact: true });
     // once a share reaches Closet the group is one line, with the code folded under it
     await expect(section.getByTestId('phone-address')).toHaveText(ADDRESS);
     const code = section.getByRole('img', { name: `QR code of ${ADDRESS}` });
@@ -84,17 +84,17 @@ test('phone access: no code when no share reaches Nines, only the plain explanat
   await fakePhone(page, null);
   await goToCloset(page);
   await page.goto('/settings');
-  const section = page.getByRole('region', { name: 'Phone', exact: true });
-  await expect(section.getByText('Nines is not shared with your phone yet.')).toBeVisible();
+  const section = page.getByRole('region', { name: 'Other devices', exact: true });
+  await expect(section.getByText('Nines is not shared with your other devices yet.')).toBeVisible();
   await expect(section.getByText('tailscale serve --bg --https=8443 8765')).toBeVisible();
   await expect(section.locator('.phone-qr')).toHaveCount(0);
   await expect(section.getByRole('img')).toHaveCount(0);
 });
 
-test('the door through Cloudflare: folded under Phone on the computer, filled in and turned off again', async ({ page }) => {
+test('the door through Cloudflare: folded under Other devices on the computer, filled in and turned off again', async ({ page }) => {
   await goToCloset(page);
   await page.goto('/settings');
-  const section = page.getByRole('region', { name: 'Phone', exact: true });
+  const section = page.getByRole('region', { name: 'Other devices', exact: true });
   const door = section.getByTestId('cloudflare-door');
   await door.getByText('Without Tailscale, through Cloudflare').click();
   await expect(door.getByTestId('cloudflare-status')).toHaveText('This is off until all three are filled in.');
@@ -145,7 +145,7 @@ test.describe('opened on the phone', () => {
 
   test('in Safari: no code, address or commands, only how to add Nines to the Home Screen', async ({ page, request, backend }) => {
     await openSettings(page, request, backend);
-    const section = page.getByRole('region', { name: 'Phone', exact: true });
+    const section = page.getByRole('region', { name: 'Other devices', exact: true });
     await expect(section.getByText('tap Share in Safari and then Add to Home Screen')).toBeVisible();
     await expect(section.locator('.phone-qr')).toHaveCount(0);
     await expect(section.getByRole('img')).toHaveCount(0);
@@ -178,10 +178,10 @@ test.describe('opened on the phone', () => {
     await expect(page.getByRole('button', { name: 'Quit Nines' })).toHaveCount(0);
   });
 
-  test('from the Home Screen: no Phone group at all', async ({ page, request, backend }) => {
+  test('from the Home Screen: no Other devices group at all', async ({ page, request, backend }) => {
     await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
     await openSettings(page, request, backend);
-    await expect(page.getByRole('heading', { name: 'Phone', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Other devices', exact: true })).toHaveCount(0);
     await expect(page.locator('.phone-qr')).toHaveCount(0);
     await expect(page.getByText('Add to Home Screen')).toHaveCount(0);
   });
@@ -194,7 +194,7 @@ test.describe('pictures', () => {
       await fakePhone(page, ADDRESS);
       await goToCloset(page);
       await page.goto('/settings');
-      const section = page.getByRole('region', { name: 'Phone', exact: true });
+      const section = page.getByRole('region', { name: 'Other devices', exact: true });
       await section.scrollIntoViewIfNeeded();
       await section.getByText('Show the QR code').click();
       await expect(section.locator('.phone-qr')).toBeVisible();

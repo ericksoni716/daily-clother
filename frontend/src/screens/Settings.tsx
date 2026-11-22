@@ -399,7 +399,7 @@ export function SettingsScreen({ version }: { version: string }) {
       </Section>
     ),
     phone: (
-      <Section key="phone" title="Phone" id="s-phone">
+      <Section key="phone" title="Other devices" id="s-phone">
         {phoneShows === 'connect' ? <PhoneAccess phone={settings.phone} /> : phoneShows === 'add-to-home-screen' && <p>{ADD_TO_HOME_SCREEN}</p>}
         <KeepRunning state={settings.background} device={device} offline={offline} />
         {computerOnly(device).cloudflare && settings.cloudflare && <CloudflareDoor door={settings.cloudflare} offline={offline} toast={toast} />}
@@ -433,7 +433,7 @@ function QuitButton({ onQuit, disabled, toast }: { onQuit(): Promise<void>; disa
   if (!confirming) return <button ref={back} className="btn btn-block btn-danger-quiet" disabled={disabled} onClick={() => setConfirming(true)}>Quit Nines</button>;
   return (
     <div className="confirm" role="alertdialog" aria-labelledby="quit-q" onKeyDown={confirmKeys(() => setConfirming(false))}>
-      <p id="quit-q"><strong>Quit Nines?</strong> Your phone won't be able to reach it until you start it again on this computer.</p>
+      <p id="quit-q"><strong>Quit Nines?</strong> Your phone and other devices won't be able to reach it until you start it again on this computer.</p>
       <div className="row">
         <button className="btn btn-danger" autoFocus onClick={() => onQuit().catch((e) => toast((e as Error).message, 'error'))}>Quit</button>
         <button className="btn" onClick={() => setConfirming(false)}>Cancel</button>

@@ -12,7 +12,7 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
-- On Windows, Nines can keep running for your phone: in **Settings → Phone**, press **Keep Nines
+- On Windows, Nines can keep running for your phone: in **Settings → Other devices**, press **Keep Nines
   running** and say Yes when Windows asks. Windows then starts Nines when the computer turns on,
   before you sign in (or when you sign in, where Windows will not do that), and starts it again
   within a few minutes if it stops. Opening Nines opens its window onto that copy, the port it
@@ -30,6 +30,8 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- The **Phone** group in Settings is now called **Other devices**, and its sentences speak of your
+  phone or another computer, since another computer on your Tailscale reaches Nines the same way.
 - Nines no longer has a passphrase. Who can open it is decided by the way in: on this computer,
   Nines' own window; through Tailscale, anyone Tailscale names as signed in to your Tailscale
   network (a device it does not name is turned away, with a page saying what to check); through

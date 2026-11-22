@@ -570,7 +570,7 @@ class SettingsPatch(BaseModel):
 
 
 CLOUDFLARE_FIELDS = (access.TEAM_KEY, access.AUD_KEY, access.HOST_KEY)
-NOT_FROM_CLOUDFLARE = "Change this on the computer Nines runs on, or from your phone through Tailscale."
+NOT_FROM_CLOUDFLARE = "Change this on the computer Nines runs on, or from your phone or another computer through Tailscale."
 # the passphrase's session cookie, from before the door decided who comes in; ignored, and taken away by /api/session
 OLD_SESSION_COOKIE = "closet_session"
 

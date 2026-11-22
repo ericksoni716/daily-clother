@@ -254,8 +254,9 @@ would hold it back, when you would wear it, and example outfits.
   sentence and Check again when it can't; **Manage** opens Advanced.
 - **Updates**: one line ("Nines 0.9.0 · up to date", or "Nines 0.9.1 is ready to install."
   with what is new folded under it and **Install now**).
-- **Phone**: on the computer. Until Tailscale shares Nines, the command to run once;
-  after that one line with the address and **Show the QR code** folded under it. While Settings
+- **Other devices** (your phone, or another computer): on the computer. Until Tailscale shares
+  Nines, the command to run once; after that one line with the address ("Your phone or another
+  computer can open Nines at …") and **Show the QR code** folded under it. While Settings
   is open and the phone is not connected, it checks again every few seconds (every half
   minute when Tailscale is not installed). Under it, on the computer, **Without Tailscale,
   through Cloudflare** is folded: what an address through Cloudflare means, a link to the

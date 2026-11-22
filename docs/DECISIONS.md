@@ -1738,3 +1738,13 @@ replaces "one passphrase, one owner" (Security) and the passphrase rows of the t
 | A 401 on any call (the window's key missing, Cloudflare's sign-in gone, Tailscale's word missing) shows a screen of its own, "Nines didn't let this device in", with the server's sentence and **Reload**, instead of the login screen | A page the service worker kept can be opened at a door that turns it away; every call would fail with nothing said. |
 | **Log out** is gone. What it also did, forgetting the copies the device keeps for offline (Today's and the other screens' saved answers in storage, the service worker's saved data and pictures), is **Forget saved copies**, in a closed fold under Settings → This device, with one sentence; not while offline. It does not touch photos waiting to be sent, the theme or the app's own files | There is nothing to log out of. Forgetting the saved copies is about this device, so it sits with This device; it is occasional, so it is folded (principle 5). Photos waiting to be sent are the owner's own work, which logging out never removed either. |
 | Given up | A second factor: if Tailscale or Cloudflare is set up more widely than meant (a share, an Access policy) or an account there is taken over, nothing more is asked. Anyone on the owner's tailnet, and anyone the computer is shared with in Tailscale, can open the closet. The owner's choice for what Nines holds; the README says it plainly. |
+
+## "Phone" in Settings becomes "Other devices" (22 November, the owner's choice)
+
+The owner: "the 'phone' section isn't really anything to do with phone, since instructions apply if im accessing
+through another computer as well."
+
+| Decision | Why |
+|---|---|
+| The Settings group is titled **Other devices**, and its sentences say "your phone or another computer" where both apply ("Your phone or another computer can open Nines at …", "To reach Nines from your phone or another computer, run this once on this computer"). "Phone" stays where the thing is about a phone: the QR code to scan with the iPhone's camera, and adding Nines to the Home Screen | A Tailscale share reaches every device signed in to the tailnet; a computer opens the same address in its browser. The sentences grew by a few words, not by a sentence, so the screen's reading load stays where it was. |
+| Not renamed: `phone.py`, `PhoneAccess`, the `phone` group key, `s-phone`, test ids, `/api/settings`' `phone` field, and older entries here and in past CHANGELOG versions | Words the owner reads change; names the code relies on do not. |

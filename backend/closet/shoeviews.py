@@ -208,7 +208,8 @@ def apply(conn, item_id: str, photo_ids: list[str], said: dict[int, tuple[str, b
 def answer(conn, item_id: str, photo_id: str, view: str) -> None:
     """The owner says which view a photo shows (inside the caller's transaction): kept as the owner's, sure, and never
     changed by sorting again. When it is the outer or inner side and exactly one other photo is a side photo, that one
-    is the other side, also as the owner's."""
+    is the other side, also as the owner's; with more side photos, those Claude said show the same side show the other
+    one (the owner can say which photo shows the outside at any time, so a swap Claude was sure of is put right too)."""
     conn.execute("UPDATE photos SET view = ?, view_sure = 1, view_by = 'owner' WHERE id = ? AND item_id = ?",
                  (view, photo_id, item_id))
     if view in SIDES:
@@ -216,6 +217,11 @@ def answer(conn, item_id: str, photo_id: str, view: str) -> None:
         if len(others) == 1:
             conn.execute("UPDATE photos SET view = ?, view_sure = 1, view_by = 'owner' WHERE id = ?",
                          (OPPOSITE[view], others[0]["id"]))
+        else:
+            for p in others:
+                if p["view"] == view and p["view_by"] != "owner":
+                    conn.execute("UPDATE photos SET view = ?, view_sure = 1, view_by = 'owner' WHERE id = ?",
+                                 (OPPOSITE[view], p["id"]))
     row = conn.execute("SELECT views_state FROM items WHERE id = ?", (item_id,)).fetchone()
     if row is not None and row["views_state"] in ("asking", "sorted"):
         settle(conn, item_id)

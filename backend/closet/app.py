@@ -541,6 +541,13 @@ class Confirm(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+class Check(BaseModel):
+    kind: str | None = None
+    changes: dict = {}
+    fields: list[str] = []
+    model_config = {"extra": "forbid"}
+
+
 class ApiKeyBody(BaseModel):
     key: str
     model_config = {"extra": "forbid"}
@@ -1044,6 +1051,13 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     @app.post("/api/items/{item_id}/confirm")
     def confirm_fields(item_id: str, body: Confirm, conn=Depends(conn_dep)):
         return review.confirm(conn, item_id, body.fields)
+
+    @app.post("/api/items/{item_id}/check")
+    async def check_item(item_id: str, body: Check, conn=Depends(conn_dep)):
+        # a new kind redraws the item: on a worker thread, as a change on the item page is
+        saved = await run_in_threadpool(review.check, conn, item_id, body.kind, body.changes, body.fields)
+        _traced_soon(saved)
+        return saved
 
     @app.get("/media/{rel:path}")
     def media(rel: str):

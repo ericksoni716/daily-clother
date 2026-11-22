@@ -178,25 +178,37 @@ def apply(conn, item_id: str, changes: dict, kind: str = "detail", sentence: str
     return items.detail(conn, items.get(conn, item_id))
 
 
+def check_kind(kind) -> None:
+    if not isinstance(kind, str) or kind not in kinds.KINDS:
+        raise items.ItemError("Choose one of the kinds in the list.")
+
+
+def put_kind(conn, before, kind: str) -> None:
+    """The kind as the owner's word, inside the caller's transaction (no history: the caller records it). It also
+    counts as the owner having checked the item (`items.ESSENTIALS`)."""
+    item_id = before["id"]
+    category = kinds.category_for(kind, before["category"])
+    source = json.loads(before["source"] or "{}")
+    confidence = json.loads(before["confidence"] or "{}")
+    source["category"], confidence["category"] = "user", 1.0
+    owner = details.own(before)
+    owner["garment"] = kind
+    t = db.now()
+    conn.execute("UPDATE items SET category = ?, own_details = ?, source = ?, confidence = ?, updated_at = ?, checked_at = ? "
+                 "WHERE id = ?", (category, details.dump(owner), json.dumps(source), json.dumps(confidence), t, t, item_id))
+    tracejobs.mark(conn, item_id, again=False)
+    illustrations.redraw(conn, item_id)
+
+
 def set_kind(conn, item_id: str, kind) -> dict:
     """Say what the item is: a kind from the taxonomy. It is the owner's word (kept by "Describe it again"), the
     item's category follows from it so the outfits and What's missing read it as before, the details the kind does
     not have are hidden but kept, and the change is one entry in the history that can be undone."""
-    if not isinstance(kind, str) or kind not in kinds.KINDS:
-        raise items.ItemError("Choose one of the kinds in the list.")
+    check_kind(kind)
     conn.execute("BEGIN IMMEDIATE")
     try:
         before = items.get(conn, item_id)
-        category = kinds.category_for(kind, before["category"])
-        source = json.loads(before["source"] or "{}")
-        confidence = json.loads(before["confidence"] or "{}")
-        source["category"], confidence["category"] = "user", 1.0
-        owner = details.own(before)
-        owner["garment"] = kind
-        conn.execute("UPDATE items SET category = ?, own_details = ?, source = ?, confidence = ?, updated_at = ? WHERE id = ?",
-                     (category, details.dump(owner), json.dumps(source), json.dumps(confidence), db.now(), item_id))
-        tracejobs.mark(conn, item_id, again=False)
-        illustrations.redraw(conn, item_id)
+        put_kind(conn, before, kind)
         history.record(conn, before, items.get(conn, item_id), "owner", "detail")
         conn.execute("COMMIT")
     except Exception:

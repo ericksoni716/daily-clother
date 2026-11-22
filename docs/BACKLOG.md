@@ -23,6 +23,13 @@ only here); take a line out when it is done.
   name cannot be changed on its page (the API takes it); a link shared while the computer cannot
   be reached is not kept for later.
 
+- **Swim trunks** (22 November; DECISIONS, "Swim trunks"). The demo closet has no swim trunks, so
+  the demo and the phone check show a trip packing them only when a piece is said to be swim trunks
+  (a demo item needs a full `tools/make_demo.py` run with the cutout model). Once the owner has
+  turned "Swimming or the beach" on or off, the screen offers no way back to following the weather
+  (the API takes `swim: null`). Board shorts and other swimwear are not kinds; the picker's search
+  finds swim trunks for them.
+
 - **Claude adds to a garment's drawing** (22 November; DECISIONS, "Claude adds to a garment's
   drawing"). Built and tried with real calls on two of the demo's photos; waiting for the owner
   to try it on their own pieces. Left undone: only the front is drawn on (a pair of trousers'

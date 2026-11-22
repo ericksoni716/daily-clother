@@ -10,6 +10,17 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ## Unreleased
 
+### Added
+
+- **Swim trunks** are a kind of their own, under Trousers & shorts in **What is it?**, and Claude
+  recognises them when it describes a photo. They are drawn as short shorts with a drawstring
+  waist and swim fabric's slight sheen. Today never puts them in an outfit (unless you build one
+  around them), and What's missing does not count them as everyday shorts. A trip has a new
+  choice, **Swimming or the beach**, which turns on by itself when a day of the trip reaches 27°C
+  and which you can turn on or off; your choice is kept when the trip is planned again. While it
+  is on, your swim trunks are packed under **For swimming**, one pair for a trip of up to a week
+  and two for a longer one, never in a day's outfit, and if you have none the trip says so.
+
 ## 0.14.0
 
 ### Added

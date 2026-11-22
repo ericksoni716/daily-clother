@@ -85,7 +85,9 @@ computer), each with its pieces and how it went, rated in place, saying "Saving�
 piece opens it (`/today/item/<id>`).
 
 Temperatures can be typed when the forecast cannot be fetched. The demo closet's outfits are
-the rules' alone; nothing about it is sent to Claude.
+the rules' alone; nothing about it is sent to Claude. Swim trunks (and what you wear at home)
+are never in the day's outfits, by the rules or by Claude, unless you build an outfit around
+them; a trip packs them for swimming.
 
 ## Worn
 
@@ -98,11 +100,16 @@ adds one by hand from pieces.
 
 `/trips`, `/trips/new`, `/trips/<id>`, from the link at the foot of Today or its trip row;
 "‹ Today" goes back from the list. Plan a trip: where, the first and last day, the
-occasion, and laundry on the trip. Nines shows the weather for the dates (the forecast
-where it reaches, otherwise what those dates are usually like), what to pack with how many
-days each piece is worn, basics, an outfit for each day, and "Why these counts". "Not this
-one" swaps a piece and "I want to take this" insists on one. A saved trip is a packing list
-to tick off, on the computer or the phone.
+occasion, laundry on the trip, and **Swimming or the beach**. Nines shows the weather for the
+dates (the forecast where it reaches, otherwise what those dates are usually like), what to
+pack with how many days each piece is worn, basics, an outfit for each day, and "Why these
+counts". "Not this one" swaps a piece and "I want to take this" insists on one. Swimming or
+the beach turns on by itself when a day of the trip reaches 27°C; you can turn it on or off,
+and your choice is kept when the trip is planned again. While it is on, your swim trunks are
+packed under **For swimming**, one pair for a trip of up to a week and two for a longer one,
+never worn in a day's outfit; with none in your closet the trip says so there. A saved trip is
+a packing list to tick off, on the computer or the phone, with its choices under "Change the
+trip".
 
 ## Closet
 

@@ -213,6 +213,18 @@ def test_swim_trunks_are_not_counted_as_everyday_shorts():
     assert all_gaps(no_shorts + [{**trunks, "kind": None}], wears) != all_gaps(no_shorts, wears)
 
 
+def test_shoes_for_a_sport_are_not_counted_as_everyday_sneakers():
+    # for their sport only: never the sneakers What's missing counts, compares or calls unused
+    no_sneakers = without("sneakers_white", "sneakers_grey")
+    tennis = item("tennis", "sneakers", "white", "casual", name="White tennis shoes", kind="tennis_shoe")
+    wears = wears_for({"tennis": 12, "tee_white": 3})
+    assert all_gaps(no_sneakers + [tennis], wears) == all_gaps(no_sneakers, wears)
+    # golf shoes and cleats are left out of the closet it judges in the same way; the same pair as plain sneakers is in it
+    pairs = [{**tennis, "id": kind, "kind": kind} for kind in ("golf_shoe", "cleats")]
+    assert set(gaps._closet(no_sneakers + pairs, wears).by_id) == set(gaps._closet(no_sneakers, wears).by_id)
+    assert "tennis" in gaps._closet(no_sneakers + [{**tennis, "kind": None}], wears).by_id
+
+
 def test_odd_item_data_never_crashes():
     odd = full_closet() + [{"id": "x1"}, {"id": "x2", "category": "cape"}, None, "nonsense",
                            item("x3", "shirt", "chartreuse", "black_tie", "monsoon", pattern="?")]

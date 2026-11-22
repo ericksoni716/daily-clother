@@ -359,6 +359,7 @@ class _Planner:
         pins = set(opts.pin)
         pool = []
         self.trunks: list[tuple[outfits.Piece, str | None]] = []   # swim trunks not archived, and why one cannot be packed
+        self.sport_packed: list[outfits.Piece] = []   # shoes for a sport the owner asked to take: packed, worn on no day
         for p, it in everything:
             swim = it.get("kind") in SWIM_KINDS
             # swim trunks never go in the pool the days are dressed from: they are packed for swimming (`pack_trunks`)
@@ -374,6 +375,8 @@ class _Planner:
                     self.notes.append(f"{_the(p, True)} is {why}, so it is not packed.")
             elif why is None or (why == outfits.FOR_HOME and p.id in pins):
                 pool.append(p)
+            elif why in outfits.FOR_SPORT.values() and p.id in pins:   # tennis or golf shoes asked for: beside the days
+                self.sport_packed.append(p)
             elif p.id in pins:
                 self.notes.append(f"{_the(p, True)} is {why}, so it is not packed.")
         self.pool = pool
@@ -595,7 +598,10 @@ class _Planner:
                 self.notes.append(f"You asked to take {_the(p)}; no day's outfit uses it.")
         for p in self.swim_packed:   # for swimming, in no day's outfit
             packed.append({"id": p.id, "group": SWIM_GROUP, "days": 0, "pinned": p.id in self.opts.pin})
-        labels = {pid: p.label.lower() for pid, p in [*self.packed.items(), *((p.id, p) for p in self.swim_packed)]}
+        for p in self.sport_packed:   # for their sport, with the shoes, in no day's outfit
+            packed.append({"id": p.id, "group": GROUP_OF.get(p.category, "shoes"), "days": 0, "pinned": True})
+        extras = self.swim_packed + self.sport_packed
+        labels = {pid: p.label.lower() for pid, p in [*self.packed.items(), *((p.id, p) for p in extras)]}
         packed.sort(key=lambda x: (GROUP_ORDER.index(x["group"]), -x["days"], labels[x["id"]], x["id"]))
         basics = self.basics(order)
         swim = self.swim_count()

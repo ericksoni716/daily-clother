@@ -13,11 +13,11 @@ The brief, in plain words:
 - what was worn lately and what the owner said about it;
 - a shortlist from the rules engine, so nothing obvious is missed.
 
-Only what cannot be worn stays a rule: a piece in the laundry, archived, being mended, for home, for swimming, left out
-or rated dislike is never in the list, so it cannot be chosen. From the answer, an outfit is kept when every number is in
-the list, each piece is in a place it can fill, it has a top, a bottom and shoes, and it is not an outfit the
-owner rated "not again"; anything else is dropped and said in `problems`. Nothing else is checked: layering,
-colour, formality and warmth are Claude's to judge.
+Only what cannot be worn stays a rule: a piece in the laundry, archived, being mended, for home, for swimming, shoes
+for a sport (tennis, golf, cleats), left out or rated dislike is never in the list, so it cannot be chosen. From the
+answer, an outfit is kept when every number is in the list, each piece is in a place it can fill, it has a top, a
+bottom and shoes, and it is not an outfit the owner rated "not again"; anything else is dropped and said in
+`problems`. Nothing else is checked: layering, colour, formality and warmth are Claude's to judge.
 
 The conversation (`closet/stylejobs.py`): `talk_words` writes what was said today, and for a message just written
 the outfits on the owner's screen; `keeps` shapes what Claude offers to remember for other days.

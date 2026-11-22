@@ -1,4 +1,4 @@
-import type { BackgroundState, CheckBody, Item, ItemPatch, ItemSummary, Laundry, ModelInfo, ProgressList, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, QuestionAnswer, StyleProfile, StyleTalk } from './types';
+import type { BackgroundState, CheckBody, Item, ItemPatch, ItemSummary, Laundry, ModelInfo, ProgressList, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, PlainBox, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, QuestionAnswer, StyleProfile, StyleTalk } from './types';
 import { forgetSaved, type DayAnswer, type RememberHow, type RememberThing, type StyleAnswer, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
@@ -296,6 +296,9 @@ export const api = {
     request<SourcePhoto>(`/api/sources/${encodeURIComponent(id)}/boxes/${encodeURIComponent(boxId)}`, { method: 'PUT', body: box }),
   removeBox: (id: string, boxId: string) =>
     request<SourcePhoto>(`/api/sources/${encodeURIComponent(id)}/boxes/${encodeURIComponent(boxId)}`, { method: 'DELETE' }),
+  /** All the boxes at once, as they are sent: an undo, or boxes put back as Claude found them. */
+  setBoxes: (id: string, boxes: PlainBox[]) =>
+    request<SourcePhoto>(`/api/sources/${encodeURIComponent(id)}/boxes`, { method: 'PUT', body: { boxes } }),
   mergeBoxes: (id: string, ids: string[]) =>
     request<SourcePhoto>(`/api/sources/${encodeURIComponent(id)}/boxes/merge`, { method: 'POST', body: { ids } }),
   addSourceItems: (id: string) => request<SourcePhoto>(`/api/sources/${encodeURIComponent(id)}/add`, { method: 'POST' }),

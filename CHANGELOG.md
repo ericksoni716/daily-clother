@@ -23,6 +23,12 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   stripes and checks, each saying whether it is ready, how far its download has got, or why it
   didn't download, with **Download** or **Try again** beside one that is missing or failed.
 
+- On **Check the pieces** (a photo of several pieces), a slip can be taken back. After each
+  change a line says what it was, with **Undo**. A box Claude found that you moved or reshaped
+  has **As Claude found it**, one you removed is listed with **Put back**, and **Back to what
+  Claude found** puts every box back as Claude found it. Claude is not asked again for this.
+  It works for photos added from this version on.
+
 ### Changed
 
 - An item's page now reads in the order you go through a new piece: the picture and the name,

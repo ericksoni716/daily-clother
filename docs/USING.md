@@ -213,7 +213,12 @@ to say what each is and give its name, brand and price.
 
 `/add/several/<id>`. For a photo of pieces laid out together: Claude draws a box round each
 piece, you move, add, join or remove boxes (or draw them yourself), and each box becomes an
-item of its own.
+item of its own. After each change a line says what it was, with **Undo** (it goes back
+through the changes one at a time). A box of Claude's you moved, reshaped or joined has **As
+Claude found it**; one you removed is listed under the pieces with **Put back**; and **Back to
+what Claude found** puts every box back as Claude found it, dropping boxes you drew. These
+appear only once something differs from Claude's answer, and stay after the page is opened
+again (Undo does not), until the pieces are added.
 
 ## Wardrobe
 

@@ -700,6 +700,12 @@ export interface SourceBox extends BoxEdges {
   cutout_url: string;
 }
 
+/** A box as it is kept and sent back whole (an undo, or boxes put back as Claude found them). */
+export interface PlainBox extends BoxEdges {
+  id: string;
+  label: string | null;
+}
+
 /** A photo of several pieces: waiting for Claude to find them, ready to check, or added. */
 export interface SourcePhoto {
   id: string;
@@ -712,6 +718,9 @@ export interface SourcePhoto {
   width: number;
   height: number;
   boxes: SourceBox[];
+  /** The boxes as Claude found them, kept while the owner changes them; empty when Claude found none (or for a photo
+   * found before they were kept). */
+  found_boxes: PlainBox[];
   /** The items made from it, once added. */
   items: ItemSummary[];
   created_at: string;

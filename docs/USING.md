@@ -142,9 +142,11 @@ on a phone), Shopping facts (brand, size, material, price, date acquired, condit
 and Delete. A new photo can be taken in place of the old one, and a cutout that failed can be
 tried again.
 
-A shoe also shows its photos sorted into views and, under "Drawn by Claude from its photos",
-the two drawings Claude makes from them: the shoe from the side, which becomes its picture in
-the closet, with a line on what makes it itself, and the drawing for the figure. Both are made
+A shoe also shows its photos sorted into views. Once they are sorted, the photo of the outer
+side is its photo in the closet, so the photo and the side drawing show the same side (the
+inner side when no photo shows the outer one). Under "Drawn by Claude from its photos" are
+the two drawings Claude makes from them: the shoe from the side, which is its picture in the
+closet when it shows drawings, with a line on what makes it itself, and the drawing for the figure. Both are made
 together, in several minutes. Either can be corrected with a one-line note: once there is a
 side drawing, you choose whether the note is about the front or the side (the front unless you
 choose), Claude changes only that drawing, and the line on what changed sits under it. Go back

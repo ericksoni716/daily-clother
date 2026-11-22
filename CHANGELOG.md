@@ -30,6 +30,10 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Changed
 
+- A shoe's photo in the closet is now the photo of its outer side whenever one of its photos
+  shows it, so the photo and the side drawing show the same side. Before, a first photo of the
+  inner side stayed as the shoe's photo. Shoes already in your closet are put right by
+  themselves, without Claude looking at them again.
 - The program is now called Nines too: `Nines.exe` on Windows, and `Nines.app` in
   `Nines-mac-arm64.zip` on a Mac. If you have `Closet.exe`, it cannot install this version by
   itself and says there is no download for this computer. Download `Nines.exe` once from the

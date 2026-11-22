@@ -172,9 +172,10 @@ test.describe('a shoe drawn from its photo', () => {
     await page.screenshot({ path: test.info().outputPath('shoe-ask-outside.png') });
     await ask.getByRole('button', { name: 'Photo 3 shows the outside' }).click();
     await expect(ask).toHaveCount(0);
-    await expect(row.getByRole('img', { name: 'Photo 3: outer side' })).toBeVisible();
-    await expect(row.getByRole('img', { name: 'Photo 1: inner side' })).toBeVisible();   // the other side follows
-    await expect(row.getByRole('img', { name: 'Photo 2: from above' })).toBeVisible();
+    // the outside becomes the main photo, the closet picture (22 November); the other side follows
+    await expect(row.getByRole('img', { name: 'Photo 1: outer side' })).toBeVisible();
+    await expect(row.getByRole('img', { name: 'Photo 2: inner side' })).toBeVisible();
+    await expect(row.getByRole('img', { name: 'Photo 3: from above' })).toBeVisible();
     await expect(row.getByRole('button', { name: 'Remove photo 1' })).toHaveCount(0);   // never the main photo
     await expect(row.getByRole('button', { name: 'Add photos' })).toBeEnabled();
     await expect(page.locator('.toast')).toHaveCount(0, { timeout: 15_000 });

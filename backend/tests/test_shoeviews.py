@@ -350,15 +350,17 @@ def test_the_owner_says_which_photo_shows_the_outside(c, sv, sorter):
     r = c.put(f"/api/items/{item['id']}/photos/{side}/view", json={"view": "outer"})
     assert r.status_code == 200
     got = r.json()
-    assert [(p["view"], p["view_sure"], p["view_by"]) for p in got["photos"]] == [
-        ("inner", True, "owner"), ("top", True, "model"), ("outer", True, "owner")]   # the other side follows
+    # the other side follows; the outer side becomes the main photo (`promote`), the main one before stays the inner
+    assert [(p["id"], p["view"], p["view_sure"], p["view_by"]) for p in got["photos"]] == [
+        (side, "outer", True, "owner"), (main, "inner", True, "owner"), (top, "top", True, "model")]
     assert got["views"] == {"state": "sorted", "message": None, "asking": None}
-    # sorting again later keeps the owner's answers
+    # sorting again later keeps the owner's answers (sent in their new order, so the stand-in is told the views)
     add(c, item, 3)
+    sorter.reply = answer(("inner", U), ("outer", U), ("top", S), ("front", S))
     sv.views.drain(now=later())
     got = get(c, item)
     assert [(p["view"], p["view_by"]) for p in got["photos"]] == [
-        ("inner", "owner"), ("top", "model"), ("outer", "owner"), ("front", "model")]
+        ("outer", "owner"), ("inner", "owner"), ("top", "model"), ("front", "model")]
     assert got["views"]["state"] == "sorted"
 
 

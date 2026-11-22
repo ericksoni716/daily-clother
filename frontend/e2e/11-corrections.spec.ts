@@ -258,8 +258,9 @@ test.describe('saying what is wrong, with a stand-in for Claude', () => {
 
     // drawn in the background: the page is read again once it is done
     await expect(sheet.getByText('Added by Claude: red patch on the chest.')).toBeVisible();
-    await expect(sheet.getByText('Drew a red patch on the chest.')).toBeVisible();
-    await expect(sheet.getByText(/^Drawn in 31 s on your Claude plan, checked against the photo/)).toBeVisible();
+    // the copied demo closet keeps no photo to read, so Claude drew from the words alone, and says so
+    await expect(sheet.getByText(/^Drew a red patch on the chest\. The photo could not be read/)).toBeVisible();
+    await expect(sheet.getByText(/^Drawn in 31 s on your Claude plan, checked once · about \$0\.18/)).toBeVisible();
     await expect(drawing).not.toHaveAttribute('src', before);
     const svg = await (await page.request.get(backend.url + (await drawing.getAttribute('src'))!)).text();
     expect(svg).toContain('#c0392b');

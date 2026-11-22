@@ -387,6 +387,99 @@ def test_the_engine_is_called_not_changed():
     assert result["days"][0]["outfit"]["pieces"] == best["pieces"]
 
 
+# ---------------------------------------------------------------------- swimming or the beach
+def trunks(id="trunks", **kw):
+    return item(id, "shorts", "blue", "casual", "warm", kind="swim_trunks", name=f"Swim trunks {id}", **kw)
+
+
+def hot(n, high=29, first=FIRST, source="forecast"):
+    return [{"date": (first + timedelta(days=i)).isoformat(), "low_c": high - 8, "high_c": high, "rain": False,
+             "rain_chance": None, "summary": None, "source": source} for i in range(n)]
+
+
+def swim_ids(result):
+    return [p["id"] for p in result["packed"] if p["group"] == "swim"]
+
+
+def test_swimming_or_the_beach_is_parsed():
+    dates = [d["date"] for d in days(3)]
+    assert trips.parse_options({}, dates).swim is None   # follows the forecast
+    assert trips.parse_options({"swim": True}, dates).swim is True
+    assert trips.parse_options({"swim": False}, dates).swim is False
+    assert trips.parse_options({"swim": None}, dates).swim is None
+    for bad in ("yes", 1, [], {}):
+        with pytest.raises(trips.PlanError, match="Swimming or the beach must be true, false"):
+            trips.parse_options({"swim": bad}, dates)
+
+
+@pytest.mark.parametrize("weather, choice, on, hot_days", [
+    (days(5), None, False, 0),                          # cool days: off
+    (hot(3, high=26), None, False, 0),                  # just under the owner's hottest band: off
+    (hot(1, high=27) + days(4, first=FIRST + timedelta(days=1)), None, True, 1),   # one day reaching 27°C turns it on
+    (hot(3, high=31), None, True, 3),
+    (hot(3, high=31, source="unknown"), None, False, 0),   # weather not known yet is not a hot day
+    (hot(3, high=31), False, False, 3),                 # the owner's word wins either way
+    (days(5), True, True, 0),
+])
+def test_swimming_turns_on_by_itself_for_a_hot_forecast_and_the_owners_word_wins(weather, choice, on, hot_days):
+    result = trips.plan(basic_closet() + [trunks()], weather, {"swim": choice})
+    assert result["swim"] == {"on": on, "hot_days": hot_days, "hot_c": trips.SWIM_HOT_C, "missing": None}
+    assert swim_ids(result) == (["trunks"] if on else [])
+
+
+@pytest.mark.parametrize("n, want", [(1, ["loved"]), (7, ["loved"]), (8, ["loved", "plain"]), (14, ["loved", "plain"])])
+def test_one_pair_for_up_to_a_week_and_two_for_longer(n, want):
+    closet = basic_closet() + [trunks("plain"), trunks("loved", rating="love"), trunks("meh", rating="meh"),
+                               trunks("gone", status="archived")]
+    result = trips.plan(closet, hot(n), rewear={"tops": None})
+    assert swim_ids(result) == want
+    pair = next(c for c in result["counts"] if c["kind"] == "swim")
+    assert pair == ({"kind": "swim", "count": 1, "words": "1 pair of swim trunks: one for a trip of up to a week"} if n <= 7
+                    else {"kind": "swim", "count": 2, "words": "2 pairs of swim trunks: two for a trip of more than a week"})
+    assert all(p["days"] == 0 and not p["pinned"] for p in result["packed"] if p["group"] == "swim")
+    assert {f"item:{i}" for i in swim_ids(result)} <= set(trips.lines(result))   # each can be ticked as packed
+
+
+def test_never_more_swim_trunks_than_can_be_packed_and_the_ones_asked_for_first():
+    long = hot(10)
+    only = trips.plan(basic_closet() + [trunks()], long)
+    assert swim_ids(only) == ["trunks"]
+    assert next(c for c in only["counts"] if c["kind"] == "swim")["words"] == "1 pair of swim trunks: the only pair you can pack"
+    three = basic_closet() + [trunks("a", rating="love"), trunks("b"), trunks("c")]
+    asked = trips.plan(three, hot(3), {"pin": ["c", "b"]})
+    assert sorted(swim_ids(asked)) == ["b", "c"]   # the two asked for, though a short trip takes one
+    assert next(c for c in asked["counts"] if c["kind"] == "swim")["words"] == "2 pairs of swim trunks: the ones you chose"
+    assert all(p["pinned"] for p in asked["packed"] if p["group"] == "swim")
+    left = trips.plan(three, hot(3), {"leave_out": ["a"]})
+    assert swim_ids(left) == ["b"]
+
+
+def test_with_swimming_on_and_no_swim_trunks_the_trip_says_so():
+    result = trips.plan(basic_closet(), hot(3))
+    assert result["swim"]["on"] and result["swim"]["missing"] == "You have no swim trunks in your closet."
+    assert swim_ids(result) == [] and not any(c["kind"] == "swim" for c in result["counts"])
+    assert {p["id"] for p in result["packed"]} <= {i["id"] for i in basic_closet()}   # nothing made up
+    archived = trips.plan(basic_closet() + [trunks(status="archived")], hot(3))
+    assert archived["swim"]["missing"] == "You have no swim trunks in your closet."
+    washing = trips.plan(basic_closet() + [trunks(laundry="laundry"), trunks("b", rating="dislike")], hot(3))
+    assert washing["swim"]["missing"] == "None of your swim trunks can be packed: 1 in the laundry and 1 rated dislike."
+    assert trips.plan(basic_closet(), hot(3), {"swim": False})["swim"]["missing"] is None   # off: nothing to say
+
+
+def test_swim_trunks_never_fill_a_days_outfit():
+    # a hot week where the only shorts are swim trunks: the days are dressed without them, and they are packed beside
+    closet = [i for i in basic_closet() if i["id"] != "shorts1"] + [trunks()]
+    result = trips.plan(closet, hot(2, high=33))
+    assert swim_ids(result) == ["trunks"]
+    assert all(d["outfit"] and d["outfit"]["pieces"]["bottom"] != "trunks" for d in result["days"])
+    # asked for on a trip without swimming, they are taken, still in no outfit and with no note that no day wears them
+    asked = trips.plan(closet, days(4), {"pin": ["trunks"]})
+    assert asked["swim"]["on"] is False and swim_ids(asked) == ["trunks"]
+    assert all("trunks" not in worn(d) for d in asked["days"] if d["outfit"])
+    assert not any("trunks" in n.lower() for n in asked["notes"])
+    assert next(c for c in asked["counts"] if c["kind"] == "swim")["words"] == "1 pair of swim trunks: the pair you chose"
+
+
 # ---------------------------------------------------------------------- the routes
 TODAY = date(2026, 11, 12)
 NYC = {"name": "New York, United States", "latitude": 40.7143, "longitude": -74.006, "timezone": "America/New_York"}
@@ -471,6 +564,7 @@ def test_swap_and_pin_plan_again(client, clock):
     ({"occasion": "gala"}, "not an occasion"),
     ({"luggage": 2}, "not part of a trip: luggage"),
     ({"weather": [{"date": "2026-12-02", "low_c": 1, "high_c": 3}]}, "every day of the trip"),
+    ({"swim": "yes"}, "Swimming or the beach must be true, false"),
 ])
 def test_wrong_input_is_answered_in_plain_words(client, clock, change, words):
     r = client.post("/api/trips/plan", json={**body(), **change})
@@ -623,6 +717,34 @@ def test_laundry_on_a_saved_trip_can_be_changed(client, clock):
     assert r.status_code == 422 and "from day 2 to day 6" in r.json()["detail"]
     assert client.patch(f"/api/trips/{trip['id']}", json={"laundry": None}).json()["laundry"] is None
     assert client.post("/api/trips/plan", json=body(can_wash=True)).status_code == 422  # replaced by laundry
+
+
+def test_swimming_on_a_saved_trip_follows_the_forecast_until_the_owner_says(client, clock):
+    client.post("/api/profile", json={"profile": "demo"})
+    shorts = next(i for i in client.get("/api/items").json()["items"] if i["category"] == "shorts")
+    assert client.put(f"/api/items/{shorts['id']}/kind", json={"kind": "swim_trunks"}).status_code == 200
+    warm = body(5)
+    for d in warm["weather"][2:]:
+        d["high_c"] = 30
+    trip = client.post("/api/trips", json=warm).json()
+    assert trip["swim"] is None and trip["plan"]["swim"]["on"] is True and trip["plan"]["swim"]["hot_days"] == 3
+    assert next(p for p in trip["plan"]["packed"] if p["id"] == shorts["id"])["group"] == "swim"
+    assert f"item:{shorts['id']}" in trip["lines"]
+    # the owner's word is kept, through a plan made again
+    r = client.patch(f"/api/trips/{trip['id']}", json={"swim": False})
+    assert r.status_code == 200, r.text
+    assert r.json()["swim"] is False and r.json()["plan"]["swim"]["on"] is False
+    assert all(p["id"] != shorts["id"] for p in r.json()["plan"]["packed"])
+    again = client.patch(f"/api/trips/{trip['id']}", json={"replan": True}).json()
+    assert again["swim"] is False and again["plan"]["swim"]["on"] is False
+    assert client.get(f"/api/trips/{trip['id']}").json()["swim"] is False
+    assert client.patch(f"/api/trips/{trip['id']}", json={"swim": None}).json()["plan"]["swim"]["on"] is True
+    r = client.patch(f"/api/trips/{trip['id']}", json={"swim": "maybe"})
+    assert r.status_code == 422 and "Swimming or the beach" in r.json()["detail"]
+    # a cool trip turned on by the owner, in the real closet with no swim trunks
+    client.post("/api/profile", json={"profile": "main"})
+    planned = client.post("/api/trips/plan", json=body(3, swim=True)).json()
+    assert planned["swim"] is True and planned["plan"]["swim"]["missing"] == "You have no swim trunks in your closet."
 
 
 def test_migration_0023_keeps_i_can_wash_there_as_laundry_every_three_days(tmp_path):

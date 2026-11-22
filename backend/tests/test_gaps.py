@@ -203,6 +203,16 @@ def test_the_laundry_is_ignored():
     assert gaps.find_gaps(closet, []) == gaps.find_gaps(full_closet(), [])
 
 
+def test_swim_trunks_are_not_counted_as_everyday_shorts():
+    # they are for swimming on a trip: never a pair of shorts What's missing counts, compares or calls unused
+    no_shorts = without("shorts_tan", "shorts_navy")
+    trunks = item("trunks", "shorts", "blue", "casual", "warm", name="Blue swim trunks", kind="swim_trunks")
+    wears = wears_for({"trunks": 12, "tee_white": 3})
+    assert all_gaps(no_shorts + [trunks], wears) == all_gaps(no_shorts, wears)
+    # the same pair, as plain shorts, is counted
+    assert all_gaps(no_shorts + [{**trunks, "kind": None}], wears) != all_gaps(no_shorts, wears)
+
+
 def test_odd_item_data_never_crashes():
     odd = full_closet() + [{"id": "x1"}, {"id": "x2", "category": "cape"}, None, "nonsense",
                            item("x3", "shirt", "chartreuse", "black_tie", "monsoon", pattern="?")]

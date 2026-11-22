@@ -256,6 +256,24 @@ def test_loungewear_and_pieces_waiting_to_be_mended_are_not_suggested():
         "None of your trousers, jeans or shorts can be worn today: 1 for wearing at home."]
 
 
+def test_swim_trunks_are_never_in_an_everyday_outfit():
+    # the owner, 22 November: swim trunks are "mostly used for trips", which pack them for swimming; Today never offers them
+    items = basic_closet() + [item("trunks", "shorts", "blue", "casual", "warm", kind="swim_trunks")]
+    seen = set()
+    for low, high in ((15, 21), (20, 27), (24, 31), (28, 35)):
+        for occasion in ("casual", "athletic"):
+            for o in outfits.suggest(items, day(low, high, occasion=occasion), 5)["outfits"]:
+                seen.update(ids_of(o))
+    assert "trunks" not in seen and "shorts1" in seen
+    # still there when the owner builds an outfit around them
+    built = outfits.suggest(items, day(24, 31, build_around="trunks"), 3)
+    assert built["outfits"] and all("trunks" in ids_of(o) for o in built["outfits"])
+    # with nothing else to wear, it says why
+    only = [i for i in basic_closet() if i["category"] not in BOTTOMS] + [item("trunks", "shorts", "blue", kind="swim_trunks")]
+    assert outfits.suggest(only, day(24, 31), 3)["missing"] == [
+        "None of your trousers, jeans or shorts can be worn today: 1 for swimming."]
+
+
 def test_in_rain_a_rain_proof_jacket_is_not_forced_onto_a_warm_day():
     # the owner's rule restricts the outer layer to rain-proof ones; one is required only where the day's band asks
     # for an outer layer anyway (the owner, 17 November: a rain jacket is not required on warm days)

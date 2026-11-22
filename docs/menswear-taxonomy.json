@@ -1531,6 +1531,22 @@
    },
    "app_category": "shorts"
   },
+  "swim_trunks": {
+   "category": "bottoms",
+   "signature": "Short quick-dry shorts for swimming, drawstring waist, mesh liner.",
+   "waistband": [
+    "elastic_drawcord",
+    "drawstring"
+   ],
+   "fabric": [
+    "swim_fabric"
+   ],
+   "inseam_in": [
+    3,
+    7
+   ],
+   "app_category": "shorts"
+  },
   "performance_tee": {
    "category": "activewear",
    "fabric": [

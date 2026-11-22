@@ -89,6 +89,13 @@ def test_exercise_uses_athletic_and_never_suggests_jeans():
     assert all(s["id"] == "exercise" for g in result["gaps"] for s in g["situations"])
 
 
+def test_swim_trunks_count_for_no_situation_not_even_vacation_or_exercise():
+    rows = without("shorts_tan", "shorts_navy")
+    trunks = item("trunks", "shorts", "blue", "casual", "warm", name="Blue swim trunks", kind="swim_trunks")
+    chosen = answers(everyday=4, exercise=1, lounging=2, vacation=4)
+    assert life.analyse(rows + [trunks], [], chosen, climate("hot", 0.1)) == life.analyse(rows, [], chosen, climate("hot", 0.1))
+
+
 def test_hot_only_life_never_gets_a_basic_mid_or_outer_layer():
     rows = without("sweater_navy", "sweater_grey", "coat_grey", "coat_navy", "trench", "jacket_navy")
     result = life.analyse(rows, [], answers(everyday=4), climate("hot", 1))

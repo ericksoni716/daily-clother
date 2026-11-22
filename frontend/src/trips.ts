@@ -16,7 +16,8 @@ export interface TripDay {
   feels_high_c?: number;
 }
 
-export type PackGroup = 'tops' | 'layers' | 'bottoms' | 'shoes' | 'outer' | 'accessories';
+/** Where a piece is packed; swim trunks go in `swim`, apart from the days' outfits. */
+export type PackGroup = 'tops' | 'layers' | 'bottoms' | 'shoes' | 'outer' | 'accessories' | 'swim';
 
 export interface PackedPiece {
   id: string;
@@ -51,11 +52,21 @@ export interface Basic {
 /** Laundry on the trip: on one day of it, every so many days, or none. */
 export type TripLaundry = { day: number } | { every: number } | null;
 
-/** Each kind's count in plain words: "5 shirts: one a day, laundry on day 4". */
+/** Each kind's count in plain words: "5 shirts: one a day, laundry on day 4"; swim trunks have one of their own. */
 export interface KindCount {
-  kind: RewearKind;
+  kind: RewearKind | 'swim';
   count: number;
   words: string;
+}
+
+/** "Swimming or the beach" as the plan decided it: on by the owner's word, or by itself when a day reaches `hot_c`. */
+export interface SwimPlan {
+  on: boolean;
+  /** How many days of the trip have a high of `hot_c` or more. */
+  hot_days: number;
+  hot_c: number;
+  /** Why no swim trunks are packed while it is on ("You have no swim trunks in your closet."), or null. */
+  missing: string | null;
 }
 
 /** Where a wash falls: "Wash on day 4: the shirts from days 1–3 are worn again from day 5." */
@@ -76,6 +87,8 @@ export interface Plan {
   laundry?: TripLaundry;
   counts?: KindCount[];
   washes?: WashNote[];
+  /** Plans made before swimming on a trip do not have it. */
+  swim?: SwimPlan;
 }
 
 export interface TripChoices {
@@ -87,6 +100,8 @@ export interface TripChoices {
   laundry: TripLaundry;
   leave_out: string[];
   pin: string[];
+  /** "Swimming or the beach": the owner's word, or null to follow the forecast (trips saved before it have none). */
+  swim?: boolean | null;
 }
 
 /** A plan worked out but not saved. */
@@ -132,6 +147,7 @@ export interface TripPatch {
   laundry?: TripLaundry;
   leave_out?: string[];
   pin?: string[];
+  swim?: boolean | null;
   replan?: boolean;
 }
 
@@ -182,6 +198,9 @@ export function saveTrips(profile: string, part: Partial<Omit<SavedTrips, 'saved
 
 export const MAX_TRIP_DAYS = 30;
 
+/** The heading swim trunks are packed under, and where the plan says when none can be. */
+export const SWIM_LABEL = 'For swimming';
+
 export const GROUPS: { group: PackGroup; label: string }[] = [
   { group: 'tops', label: 'Tops' },
   { group: 'layers', label: 'Layers' },
@@ -189,6 +208,7 @@ export const GROUPS: { group: PackGroup; label: string }[] = [
   { group: 'shoes', label: 'Shoes' },
   { group: 'outer', label: 'Coats and jackets' },
   { group: 'accessories', label: 'Accessories' },
+  { group: 'swim', label: SWIM_LABEL },
 ];
 
 /** The packed pieces in their groups, in the order of GROUPS; empty groups left out. */
@@ -378,6 +398,20 @@ export function laundryWords(l: TripLaundry | undefined): string | null {
   if (!l) return null;
   if ('day' in l) return `Laundry on day ${l.day}`;
   return l.every === 1 ? 'Laundry every day' : `Laundry every ${l.every} days`;
+}
+
+/** Whether "Swimming or the beach" is on: the owner's word, else what the plan decided from the forecast; off before a
+ * plan has been worked out. */
+export function swimOn(choice: boolean | null | undefined, plan?: SwimPlan | null): boolean {
+  return choice ?? plan?.on ?? false;
+}
+
+/** The line under "Swimming or the beach": who decided, and what turns it on by itself. */
+export function swimHint(choice: boolean | null | undefined, plan?: SwimPlan | null): string {
+  if (choice === true) return plan?.missing ? 'You turned it on.' : 'You turned it on, so your swim trunks are packed.';
+  if (choice === false) return 'You turned it off. It stays off whatever the forecast.';
+  if (plan?.on) return `It is on because ${plan.hot_days === 1 ? 'a day reaches' : `${plan.hot_days} days reach`} ${plan.hot_c}°C.`;
+  return `It turns on by itself when ${plan ? `a day reaches ${plan.hot_c}°C` : 'the trip will be hot'}.`;
 }
 
 /** "Worn once", "Worn up to 3 times", "The whole trip": a choice of the setting. */

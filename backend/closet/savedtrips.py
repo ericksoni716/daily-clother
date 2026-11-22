@@ -2,8 +2,9 @@
 
 `work_out` checks what the owner asked for (place, first and last day,
 occasion, the days that differ, laundry on the trip, pieces swapped out and
-pinned in), looks up the weather (closet/tripweather.py) and makes the plan
-(closet/trips.py). `create` does the same and saves it. A saved trip keeps the
+pinned in, swimming or the beach), looks up the weather
+(closet/tripweather.py) and makes the plan (closet/trips.py). `create` does
+the same and saves it. A saved trip keeps the
 weather its plan was made for, so opening it never changes the plan:
 `check_weather` looks the weather up again and only says whether it changed;
 the plan is made again when the owner asks (`patch` with "replan").
@@ -21,8 +22,8 @@ from . import db, trips, tripweather, wears, weather
 from .state import State
 from .today import closet_rows
 
-FIELDS = ("place", "first_day", "last_day", "occasion", "day_occasions", "laundry", "leave_out", "pin", "weather")
-CHOICES = ("occasion", "day_occasions", "laundry", "leave_out", "pin")
+FIELDS = ("place", "first_day", "last_day", "occasion", "day_occasions", "laundry", "leave_out", "pin", "swim", "weather")
+CHOICES = ("occasion", "day_occasions", "laundry", "leave_out", "pin", "swim")
 PATCH_FIELDS = ("ticks", *CHOICES, "replan")
 
 
@@ -119,7 +120,12 @@ def work_out(conn, state: State, body: object) -> dict:
 
 def _choices(opts: trips.Options) -> dict:
     return {"occasion": opts.occasion, "day_occasions": dict(opts.day_occasions), "laundry": trips.laundry_json(opts.laundry),
-            "leave_out": list(opts.leave_out), "pin": list(opts.pin)}
+            "leave_out": list(opts.leave_out), "pin": list(opts.pin), "swim": opts.swim}
+
+
+def _swim_column(swim: bool | None) -> int | None:
+    """"Swimming or the beach" as kept: 1 on, 0 off (the owner's word), null to follow the forecast."""
+    return None if swim is None else int(swim)
 
 
 def _row(r) -> dict:
@@ -128,7 +134,8 @@ def _row(r) -> dict:
     return {"id": r["id"], "place": json.loads(r["place"]), "first_day": r["first_day"], "last_day": r["last_day"],
             "occasion": r["occasion"], "day_occasions": json.loads(r["day_occasions"]),
             "laundry": json.loads(r["laundry"]) if r["laundry"] else None,
-            "leave_out": json.loads(r["leave_out"]), "pin": json.loads(r["pinned"]), "weather": json.loads(r["weather"]),
+            "leave_out": json.loads(r["leave_out"]), "pin": json.loads(r["pinned"]),
+            "swim": None if r["swim"] is None else bool(r["swim"]), "weather": json.loads(r["weather"]),
             "weather_message": r["weather_message"], "plan": plan, "lines": lines,
             "packed": [x for x in json.loads(r["packed"]) if x in lines], "planned_at": r["planned_at"],
             "created_at": r["created_at"], "updated_at": r["updated_at"]}
@@ -146,11 +153,11 @@ def create(conn, state: State, body: object) -> dict:
     trip = work_out(conn, state, body)
     trip_id, now = uuid.uuid4().hex, db.now()
     conn.execute(
-        "INSERT INTO trips (id, place, first_day, last_day, occasion, day_occasions, laundry, leave_out, pinned, weather,"
-        " weather_message, plan, packed, planned_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO trips (id, place, first_day, last_day, occasion, day_occasions, laundry, leave_out, pinned, swim, weather,"
+        " weather_message, plan, packed, planned_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (trip_id, json.dumps(trip["place"]), trip["first_day"], trip["last_day"], trip["occasion"],
          json.dumps(trip["day_occasions"]), _laundry_column(trip["laundry"]), json.dumps(trip["leave_out"]),
-         json.dumps(trip["pin"]),
+         json.dumps(trip["pin"]), _swim_column(trip["swim"]),
          json.dumps(trip["weather"]), trip["weather_message"], json.dumps(trip["plan"]), "[]", now, now, now))
     return get(conn, trip_id)
 
@@ -234,7 +241,8 @@ def patch(conn, state: State, trip_id: str, body: object) -> dict:
             packed = [x for x in packed if x in lines]
             sets.update(occasion=opts.occasion, day_occasions=json.dumps(dict(opts.day_occasions)),
                         laundry=_laundry_column(trips.laundry_json(opts.laundry)), leave_out=json.dumps(list(opts.leave_out)),
-                        pinned=json.dumps(list(opts.pin)), weather=json.dumps(days), weather_message=message,
+                        pinned=json.dumps(list(opts.pin)), swim=_swim_column(opts.swim), weather=json.dumps(days),
+                        weather_message=message,
                         plan=json.dumps(plan), planned_at=db.now())
         for line, on in ticks.items():
             if line not in lines:

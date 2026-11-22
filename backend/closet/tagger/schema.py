@@ -127,7 +127,8 @@ Feature = Literal["v_insert", "pleats", "pressed_crease", "contrast_stitching", 
 
 # Stored with every answer the app keeps. Raise it whenever `ItemTags` changes shape or vocabulary, so stored
 # answers can be told apart (a test holds a fingerprint of the schema and fails until this is raised).
-SCHEMA_VERSION = 7   # 6: the cloth's `surface` (closet.tagger.surfaceform); 7: its `lettering`, and each sleeve's own colour
+SCHEMA_VERSION = 8   # 6: the cloth's `surface` (closet.tagger.surfaceform); 7: its `lettering`, and each sleeve's own colour;
+#                      8: swim trunks among the garments (`garment`), and their inseam
 
 FIELDS = ("category", "color", "pattern", "formality", "season")
 DETAIL_FIELDS = ("garment", "fit_detail", "sleeve_length", "neckline", "collar", "placket", "placket_buttons", "button_color", "cuff",
@@ -170,7 +171,7 @@ ADDED_IN_5 = {"shoes_in_photo": "na", "shoe_view": "na"}
 
 
 class Details(BaseModel):
-    garment: Garment = Field(description="The kind of clothing, when one of these plainly fits: sportswear (performance_tee, athletic_half_zip, track_jacket, track_pants, joggers, running_shorts, compression_tights ...) is made for exercise, loungewear (lounge_pants, sleep_shorts, pajama sets, robes) for home. A fleece_pullover is a polar or sherpa fleece pullover with a short zip or snap placket; a fleece_jacket zips all the way. 'unknown' when none fits or you cannot tell; prefer the plain kind (t_shirt, chinos, shorts) unless it is clearly made for sport or lounging.")
+    garment: Garment = Field(description="The kind of clothing, when one of these plainly fits: sportswear (performance_tee, athletic_half_zip, track_jacket, track_pants, joggers, running_shorts, compression_tights ...) is made for exercise, loungewear (lounge_pants, sleep_shorts, pajama sets, robes) for home. A fleece_pullover is a polar or sherpa fleece pullover with a short zip or snap placket; a fleece_jacket zips all the way. swim_trunks are short quick-drying shorts made for swimming, with a drawstring waist and usually a mesh liner. 'unknown' when none fits or you cannot tell; prefer the plain kind (t_shirt, chinos, shorts) unless it is clearly made for sport, swimming or lounging.")
     fit_detail: FitDetail = Field(description="How it is cut. boxy = wide and short; relaxed = roomy; oversized = dropped shoulders, clearly too big on purpose. Trousers and shoes: regular.")
     sleeve_length: SleeveLength = Field(description="'na' for anything that is not a top.")
     neckline: Neckline = Field(description="The neck opening of a collarless or knit top (a henley is 'henley', a polo 'polo_collar'). 'na' for a woven shirt, jacket or coat with a collar, and for anything that is not a top.")
@@ -226,7 +227,7 @@ class Details(BaseModel):
     denim_wash: DenimWash = Field(description="Jeans and other denim: the wash, from raw (unwashed, near navy) through rinse, dark, mid and light to bleached; stone, acid, black, washed_black, grey, ecru, white, overdyed. 'na' when not denim.")
     denim_fades: list[DenimFade] = Field(description="Denim: the fades you can see: whiskers (at the hips), honeycombs (behind the knees), stacks (at the hem), train_tracks (along the side seams), roping (at the hem), pocket_fade, knee_fade; empty otherwise.")
     distressing: list[Distressing] = Field(description="Trousers and shorts: knee_rip, frayed_hem, abrasion, patched, sashiko_repair; empty when none.")
-    inseam: int = Field(description="Shorts only: the inseam in inches as it looks (running shorts 3-5, chino shorts 7-9, cargo and basketball shorts 9-11); 0 otherwise.")
+    inseam: int = Field(description="Shorts only: the inseam in inches as it looks (running shorts 3-5, swim trunks 3-7, chino shorts 7-9, cargo and basketball shorts 9-11); 0 otherwise.")
     features: list[Feature] = Field(description="Any of these that are present; empty if none. v_insert = the stitched triangle under a sweatshirt's neck; contrast_stitching = topstitching in a thread colour that stands out, as on most blue jeans; side_stripe = a contrast panel or stripe on the side of a shoe.")
     other_features: list[str] = Field(description="Up to four distinctive details nothing above covers, a few words each, e.g. 'embroidered chest logo', 'elbow patches'. Empty if none.")
 
@@ -328,6 +329,8 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
         p.update({k: list(v) if isinstance(v, list) else v for k, v in kind.items()})   # the kind's look, under the details
         if kind_fabric and cloth["fabric"] == "unknown":
             cloth["fabric"] = kind_fabric
+        if cloth["fiber"] is None and d.garment in taxonomy.KIND_BOTTOM_FIBER:   # swim trunks: swim fabric's sheen
+            cloth["fiber"] = taxonomy.KIND_BOTTOM_FIBER[d.garment]
         p.update(taxonomy.bottom_look(d.garment, tags.category))   # what sets the kind apart: a tight leg, a slit hem, a stripe
         if d.waist in ("drawstring", "elastic"):
             p["waist"] = d.waist

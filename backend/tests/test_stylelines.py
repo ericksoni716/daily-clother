@@ -231,11 +231,6 @@ def test_the_line_endpoints_refuse_with_a_sentence(client):
     assert client.post("/api/style/lines/999/restore").status_code == 404
 
 
-def test_the_lines_need_login(anon):
-    assert anon.post("/api/style/lines", json={"text": "x"}).status_code == 401
-    assert anon.delete("/api/style/lines/1").status_code == 401
-
-
 def test_changing_a_starting_line_to_what_it_says_keeps_the_starting_profile(conn):
     assert styleprofile.edit_line(conn, -1, styleprofile.plain(STARTING[0]))["is_default"] is True
     assert conn.execute("SELECT count(*) FROM style_lines").fetchone()[0] == 0

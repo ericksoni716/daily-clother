@@ -234,7 +234,7 @@ function plainWords(value: string): string {
 
 // --------------------------------------------------------------------- kept on this device
 
-/** The last answer fetched, kept per closet so the screen can show it offline. Removed on logout with the rest. */
+/** The last answer fetched, kept per closet so the screen can show it offline. Forgotten with the rest when this device's saved copies are (`clearSavedData`). */
 export interface SavedGaps {
   saved_at: string;
   gaps: GapsAnswer | null;

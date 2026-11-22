@@ -1,5 +1,5 @@
 import type { Page, Route } from '@playwright/test';
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, goToCloset, test, useProfile } from './fixtures';
 
 /** Light and dark: the device's own setting, and the owner's choice in Settings (Look) winning over it. */
 
@@ -47,7 +47,7 @@ for (const [layout, viewport] of LAYOUTS) {
     await page.setViewportSize(viewport);
     await page.emulateMedia({ colorScheme: 'dark' });
     await fakeWeather(page);
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBeUndefined();
     await shoot(page, 'dark', layout, DARK_BG);
@@ -58,7 +58,7 @@ for (const [layout, viewport] of LAYOUTS) {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.addInitScript(() => localStorage.setItem('closet.theme', 'light'));
     await fakeWeather(page);
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('light');
     await shoot(page, 'forced-light', layout, LIGHT_BG);
@@ -69,7 +69,7 @@ for (const [layout, viewport] of LAYOUTS) {
     await page.emulateMedia({ colorScheme: 'light' });
     await page.addInitScript(() => localStorage.setItem('closet.theme', 'dark'));
     await fakeWeather(page);
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     expect(await page.evaluate(() => document.documentElement.dataset.theme)).toBe('dark');
     await shoot(page, 'forced-dark', layout, DARK_BG);
@@ -78,7 +78,7 @@ for (const [layout, viewport] of LAYOUTS) {
 
 test('the Look choice in Settings wins over the device and is remembered', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' });
-  await login(page);
+  await goToCloset(page);
   await page.goto('/settings');
   const look = () => page.getByRole('group', { name: 'Look' });
   await expect(look().getByRole('button', { name: 'Same as this device' })).toHaveAttribute('aria-pressed', 'true');

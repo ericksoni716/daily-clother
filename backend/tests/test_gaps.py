@@ -222,10 +222,6 @@ def test_demo_closet_gaps_name_real_items():
 
 
 # ---------------------------------------------------------------------------- API
-def test_gaps_needs_login(anon):
-    assert anon.get("/api/gaps").status_code == 401
-
-
 def test_gaps_answers_for_the_open_closet(client):
     assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
     # every demo item but the small accessories (category "other"), which outfits leave out

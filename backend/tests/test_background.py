@@ -24,11 +24,11 @@ from closet import app as app_module
 from closet.config import Config
 from closet.state import State
 
-from .conftest import PASSPHRASE, LocalClient
+from .conftest import LocalClient
 
 KEY = "sk-ant-api03-" + "k" * 80
 OTHER = "sk-ant-api03-" + "e" * 80
-PHONE = {"host": "closet-pc.example-tailnet.ts.net"}
+PHONE = {"host": "closet-pc.example-tailnet.ts.net", "Tailscale-User-Login": "owner@example.com"}
 
 
 class Reversed:
@@ -248,7 +248,6 @@ def kept(windows, program, services, monkeypatch):
     handed = []
     services.on_hand_over = lambda: handed.append(1)
     c = LocalClient(app_module.create_app(services))
-    assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
     windows.client, windows.handed, windows.services = c, handed, services
     monkeypatch.setattr(background, "task_data_dir", lambda marker: services.cfg.data_dir)
     return windows
@@ -439,7 +438,6 @@ def test_turning_it_on_lets_go_of_the_port_and_starts_the_program_afresh(cfg, wi
                                          headers={gate.CLIENT_HEADER: "1", "Content-Type": "application/json"})
             with jar.open(req, timeout=10) as r:
                 return r.status, json.loads(r.read() or b"null")
-        post("/api/setup", {"passphrase": PASSPHRASE})
         seen["on"] = post("/api/background/on")
         wait_for(lambda: not health(a.port), 15, "the ordinary copy to let go of the port")
     t = threading.Thread(target=drive, daemon=True)

@@ -25,7 +25,7 @@ describe('keeping Nines running', () => {
   });
 
   it('says whether it is on, how it starts and whether it runs now', () => {
-    expect(keepLine(off, null)).toEqual({ tone: 'quiet', text: 'This is off, so your phone reaches Nines only while it is open on this computer.' });
+    expect(keepLine(off, null)).toEqual({ tone: 'quiet', text: 'This is off, so other devices reach Nines only while it is open on this computer.' });
     expect(keepLine(on, null)).toEqual({ tone: 'ok', text: 'Nines starts when this computer turns on, and it is running now.' });
     expect(keepLine({ ...on, starts: 'logon' }, null).text).toBe('Nines starts when you sign in to this computer, and it is running now.');
     expect(keepLine({ ...on, running: false }, null)).toEqual({
@@ -55,7 +55,7 @@ describe('keeping Nines running', () => {
   });
 
   it('says on the phone in one sentence whether the computer keeps it running, and where that is changed', () => {
-    expect(keepPhoneLine(on)).toBe('Your computer keeps Nines running, so your phone can reach it whenever the computer is awake. You change this in Settings on the computer.');
+    expect(keepPhoneLine(on)).toBe('Your computer keeps Nines running, so you can reach it from here whenever the computer is awake. You change this in Settings on the computer.');
     expect(keepPhoneLine(off)).toContain('only while it is open there');
     expect(keepPhoneLine({ ...on, available: false })).toBeNull();
     const phone = drawn(on, 'phone');

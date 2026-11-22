@@ -1,5 +1,5 @@
 import { axeViolations } from './a11y';
-import { expect, PASS, test } from './fixtures';
+import { expect, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 // Its own backend: searching shops and checking prices are stand-ins (tests/e2e_backend.py, FakeShop), so nothing
@@ -19,10 +19,7 @@ test.describe('shopping for a wish', () => {
     test.setTimeout(150_000);
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto(backend.url + '/');
-    await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
-    await page.getByLabel('Type it again').fill(PASS);
-    await page.getByRole('button', { name: 'Set passphrase' }).click();
-    await page.getByRole('button', { name: 'Start with my own closet' }).click();
+    await expect(page.locator('#closet-title')).toBeVisible();
 
     await page.goto(backend.url + '/wardrobe');
     const wishlist = page.getByTestId('wishlist');

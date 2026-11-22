@@ -21,7 +21,7 @@ from closet.drawing import drawn
 from closet.tagger import shoedrawing as SD
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError
 
-from .conftest import CUT, PASSPHRASE, SHEET, FakeApi, FakeClaude, fake_cutter, upload
+from .conftest import CUT, SHEET, FakeApi, FakeClaude, fake_cutter, upload
 from .test_figure_drawn import answer as tags
 from .test_shoeviews import Sorter, a_shoe, add, answer, get, later, row, sql
 
@@ -68,7 +68,6 @@ def made(cfg):
     sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, tagger=FakeClaude(),
                                    routes=lambda: routes["now"], sorter=sorter, drawer=drawer)
     c = TestClient(app_module.create_app(sv))
-    assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
     yield SimpleNamespace(sv=sv, c=c, routes=routes, sorter=sorter, drawer=drawer)
     sv.stop()
 
@@ -465,7 +464,7 @@ def test_out_of_reach_lets_the_other_shoe_finish(made):
 
 # ------------------------------------------------------------------ the drawing on two legs
 
-def test_drawn_svg_serves_the_pair_on_two_legs_behind_the_login(made):
+def test_drawn_svg_serves_the_pair_on_two_legs(made):
     m = made
     item = sorted_shoe(m)
     assert m.c.get(f"/api/items/{item['id']}/drawn.svg").status_code == 404
@@ -474,9 +473,6 @@ def test_drawn_svg_serves_the_pair_on_two_legs_behind_the_login(made):
     assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg+xml")
     assert r.headers["cache-control"] == "no-store" and "default-src 'none'" in r.headers["content-security-policy"]
     assert r.text == drawn.preview_svg(drawn.sanitise(DRESS)) and r.text.count(drawn.PREVIEW_SOCK) == 2
-    anon = TestClient(app_module.create_app(m.sv))
-    assert anon.get(f"/api/items/{item['id']}/drawn.svg").status_code == 401
-    assert anon.post(f"/api/items/{item['id']}/drawn").status_code == 401
 
 
 def test_a_shoe_only_has_drawn_details(made):
@@ -514,7 +510,6 @@ def test_drawing_goes_through_the_api_key_and_its_monthly_limit(cfg, cut_clock):
                                    else sorter.reply)
     try:
         c = TestClient(app_module.create_app(sv))
-        assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
         item = a_shoe(c)
         add(c, item, 1)
         sorter.reply = answer(("outer", True), ("inner", True))

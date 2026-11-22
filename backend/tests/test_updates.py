@@ -528,12 +528,7 @@ def test_linux_program_only_reports(updater, github):
     assert github.asked == [updates.API_URL]
 
 
-def test_the_choice_is_kept_in_settings_and_needs_the_login(anon, client, cfg):
-    from fastapi.testclient import TestClient
-    fresh = TestClient(anon.app)
-    for call in (fresh.get("/api/updates"), fresh.put("/api/updates", json={"mode": "auto"}),
-                 fresh.post("/api/updates/check"), fresh.post("/api/updates/install")):
-        assert call.status_code == 401
+def test_the_choice_is_kept_in_settings(client, cfg):
     assert client.get("/api/updates").json()["mode"] == "ask"
     assert client.put("/api/updates", json={"mode": "never"}).json()["mode"] == "never"
     assert json.loads(cfg.state_path.read_text())["update_mode"] == "never"

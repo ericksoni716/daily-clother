@@ -96,7 +96,3 @@ def test_a_question_answered_twice_or_unknown_is_refused(client):
     assert client.delete("/api/style/questions/nope").status_code == 404
     assert client.post("/api/style/questions/warmth", json=["x"]).status_code == 422
 
-
-def test_the_questions_need_login(anon):
-    assert anon.post("/api/style/questions/warmth", json={"skip": True}).status_code == 401
-    assert anon.delete("/api/style/questions/warmth").status_code == 401

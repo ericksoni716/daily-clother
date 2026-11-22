@@ -78,6 +78,3 @@ def test_the_demo_closet_is_never_sent_to_claude(client, services, claude):
     body = post(client).json()
     assert body["sorted"] is False and "demo" in body["message"]
 
-
-def test_sorting_needs_login(anon):
-    assert anon.post("/api/add/sort", files=[("photos", ("p.jpg", photo_bytes(), "image/jpeg"))]).status_code == 401

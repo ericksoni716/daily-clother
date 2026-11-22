@@ -203,14 +203,6 @@ def test_hidden_gaps_and_the_wishlist_are_in_the_closets_database(client, cfg):
     assert not cfg.db_path("demo").exists() or not db.connect(cfg.db_path("demo")).execute("SELECT * FROM wishes").fetchall()
 
 
-@pytest.mark.parametrize("method,path", [
-    ("post", "/api/gaps/outer-rain/hide"), ("delete", "/api/gaps/outer-rain/hide"), ("get", "/api/wishlist"),
-    ("post", "/api/wishlist"), ("patch", "/api/wishlist/x"), ("post", "/api/wishlist/x/bought"), ("delete", "/api/wishlist/x"),
-])
-def test_login_is_required(anon, method, path):
-    assert getattr(anon, method)(path).status_code == 401
-
-
 def test_the_migration_runs_on_a_closet_made_by_the_previous_version(cfg):
     path = cfg.db_path("main")
     path.parent.mkdir(parents=True, exist_ok=True)

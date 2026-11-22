@@ -1,5 +1,5 @@
 /**
- * The door through Cloudflare, as Settings shows it on the computer (under Phone): an address of Closet's own on a
+ * The door through Cloudflare, as Settings shows it on the computer (under Other devices): an address of Closet's own on a
  * domain the owner has on Cloudflare, behind Cloudflare's sign-in, for a browser that cannot use Tailscale. The server
  * checks Cloudflare's signed sign-in on every request there (backend/closet/access.py). Words and decisions only.
  */

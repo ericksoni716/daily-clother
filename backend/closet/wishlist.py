@@ -294,10 +294,10 @@ class WishChange(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-def router(conn_dep: Callable, gaps_now: Callable[[], dict], protected: list, settings=None) -> APIRouter:
+def router(conn_dep: Callable, gaps_now: Callable[[], dict], settings=None) -> APIRouter:
     """The routes for hiding gaps and for the wishlist. `gaps_now()` gives the open closet's analysis (it may take
     seconds the first time, so it is called in a worker thread)."""
-    r = APIRouter(dependencies=protected)
+    r = APIRouter()
 
     async def gap(gap_id: str) -> dict:
         return _find((await run_in_threadpool(gaps_now)).get("gaps", []), gap_id)

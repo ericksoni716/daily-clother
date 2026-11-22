@@ -9,7 +9,7 @@ Keep this short and true: when a screen's behavior changes, change its paragraph
 pull request. It describes the app as it is, not as the assessment wants it; where the two
 differ, the last line of a section says where the screen is headed.
 
-- Getting around: [The four places](#the-four-places) · [First run and login](#first-run-and-login)
+- Getting around: [The four places](#the-four-places) · [First run and the ways in](#first-run-and-the-ways-in)
 - **Today**: [Today](#today) · [Worn](#worn) · [Trips](#trips)
 - **Closet**: [Closet](#closet) · [An item](#an-item) · [Review](#review)
 - **Add**: [Add](#add) · [Several pieces in one photo](#several-pieces-in-one-photo)
@@ -36,25 +36,28 @@ and `/worn`, `/would-work`, `/wishlist`) open the place that holds them now and 
 address. Routes are in `frontend/src/router.tsx`, the places and the moved addresses in
 `frontend/src/places.ts`.
 
-## First run and login
+## First run and the ways in
 
-The first launch shows the mark, the empty dinner jacket of the icon, over "Welcome to Nines"
-(the name in the app's serif) and asks for a passphrase, then offers "Start with my own closet" or "Open the
-demo closet", with one line saying that Settings, Phone, says how to use it from an iPhone.
-After that every device logs in with the passphrase, under the same mark and "Welcome back to
-Nines". If the computer cannot be reached, a screen says so ("Nines isn't answering") and keeps trying; on a phone that has been used before, the saved closet is
+There is no passphrase: the first launch opens straight on the empty closet, which offers to
+add a first item or to look around the demo closet. Who may come in is decided by the way in
+(README, "Who can open your closet"). While Nines opens, the mark, the empty dinner jacket of
+the icon, shows over "Opening your closet…". If the computer cannot be reached, a screen says so ("Nines isn't answering") and keeps trying; on a phone that has been used before, the saved closet is
 shown with an offline banner and nothing can be changed.
 
 On the computer, Nines opens from its icon: its window, or the browser it opens, comes in
-with the window's key and then asks for the passphrase as above. The address typed into a
+with the window's key and nothing else is asked. The address typed into a
 browser, or an old bookmark to it, shows only a page titled "Open Nines from its icon" (any
 other address that leads to Nines says "Nines is not at this address"). A page left open
 from before an update that tries to save says "This page is from an older Nines. Reload the
 page, then try again." At the Cloudflare address (README, "Use it without Tailscale, through
 Cloudflare"), Cloudflare asks for its emailed code first; a visit that reaches Nines without
-Cloudflare's sign-in shows "Sign in through Cloudflare first", and Tailscale's public Funnel
-shows "Nines is not on the open internet". These come from the server
-(`backend/closet/gate.py`), not the page. When Cloudflare's sign-in runs out while the page is
+Cloudflare's sign-in shows "Sign in through Cloudflare first". Through Tailscale, a visit that
+Tailscale does not say who is making shows "Nines could not tell who you are" (be signed in to
+your Tailscale; if you are, check on the computer that Tailscale is set up there), and
+Tailscale's public Funnel shows "Nines is not on the open internet". These come from the server
+(`backend/closet/gate.py`), not the page. A page already open, or kept on the device for offline, that the
+server then turns away shows "Nines didn't let this device in" with the server's sentence and
+**Reload**. When Cloudflare's sign-in runs out while the page is
 open there, the page loads itself again in full so Cloudflare can ask for a new code, at most
 once every two minutes (`frontend/src/signin.ts`); on the computer and through Tailscale,
 losing the connection shows the offline banner as before.
@@ -251,8 +254,9 @@ would hold it back, when you would wear it, and example outfits.
   sentence and Check again when it can't; **Manage** opens Advanced.
 - **Updates**: one line ("Nines 0.9.0 · up to date", or "Nines 0.9.1 is ready to install."
   with what is new folded under it and **Install now**).
-- **Phone**: on the computer. Until Tailscale shares Nines, the command to run once;
-  after that one line with the address and **Show the QR code** folded under it. While Settings
+- **Other devices** (your phone, or another computer): on the computer. Until Tailscale shares
+  Nines, the command to run once; after that one line with the address ("Your phone or another
+  computer can open Nines at …") and **Show the QR code** folded under it. While Settings
   is open and the phone is not connected, it checks again every few seconds (every half
   minute when Tailscale is not installed). Under it, on the computer, **Without Tailscale,
   through Cloudflare** is folded: what an address through Cloudflare means, a link to the
@@ -275,12 +279,15 @@ would hold it back, when you would wear it, and example outfits.
   sentence on whether the computer keeps Nines running, and that it is changed on the computer.
   Opened from the Home Screen, only that sentence, or nothing where it does not apply.
 - **This device**: on a device that came in from outside, one sentence on how: "This device
-  came in through Tailscale as you@example.com", "…through Tailscale, but Tailscale did not say
-  who is using it", or "…through Cloudflare, signed in as you@example.com". Then light, dark or
-  the same as the device, kept on this device.
+  came in through Tailscale as you@example.com" or "…through Cloudflare, signed in as
+  you@example.com". Then light, dark or the same as the device, kept on this device. Then a
+  closed fold, **Saved copies on this device**: one sentence (this device keeps a copy of your
+  closet to show when Nines can't be reached; forgetting it leaves the closet on the computer as
+  it is) and **Forget saved copies**, which clears what the screens kept for offline and the
+  saved answers and pictures, but not photos waiting to be sent. Not while offline.
 - **Your data**: one line on the backups (where they go and the last good one), or that there
   are none yet, with **Choose a backup folder** on the computer.
-- **Advanced settings** (a link), then Log out, and Quit Nines on the computer only.
+- **Advanced settings** (a link), then Quit Nines on the computer only.
 
 ## Advanced settings
 

@@ -22,7 +22,7 @@ from closet.drawing.traced import LENGTH, Profile, Region, TracedShoe
 from closet.tagger import shoedrawing as SD
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError
 
-from .conftest import PASSPHRASE, SIDE_FEATURES, SIDE_SVG, FakeClaude, fake_cutter
+from .conftest import SIDE_FEATURES, SIDE_SVG, FakeClaude, fake_cutter
 from .test_shoe_correct import Corrector
 from .test_shoedraw import Drawer
 from .test_shoeviews import Sorter, a_shoe, add, answer, get, later, row, sql
@@ -67,7 +67,6 @@ def made(cfg):
                                    routes=lambda: routes["now"], sorter=sorter, drawer=drawer,
                                    drawing_corrector=corrector, side_drawer=sider)
     c = TestClient(app_module.create_app(sv))
-    assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
     yield SimpleNamespace(sv=sv, c=c, routes=routes, sorter=sorter, drawer=drawer, corrector=corrector, sider=sider)
     sv.stop()
 

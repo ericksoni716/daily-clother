@@ -30,7 +30,6 @@ from .conftest import (
     AGAINST,
     BLACK_LACES,
     CUT,
-    PASSPHRASE,
     SHEET,
     FakeApi,
     FakeClaude,
@@ -83,7 +82,6 @@ def made(cfg):
                                    routes=lambda: routes["now"], sorter=sorter, drawer=drawer,
                                    drawing_corrector=corrector)
     c = TestClient(app_module.create_app(sv))
-    assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
     yield SimpleNamespace(sv=sv, c=c, routes=routes, sorter=sorter, drawer=drawer, corrector=corrector)
     sv.stop()
 
@@ -181,14 +179,6 @@ def test_never_in_the_demo_closet(made):
     demo.execute("UPDATE items SET drawn_state = 'waiting', drawn_note = ? WHERE id = ?", (BLACK_LACES, shoe["id"]))
     demo.close()
     assert m.sv.draws.drain() == 0 and m.corrector.calls == []   # never sent to Claude, even if one waited
-
-
-def test_behind_the_login(made):
-    m = made
-    item = drawn_shoe(m)
-    anon = TestClient(app_module.create_app(m.sv))
-    assert anon.post(f"/api/items/{item['id']}/drawn/correct", json={"note": BLACK_LACES}).status_code == 401
-    assert anon.post(f"/api/items/{item['id']}/drawn/back").status_code == 401
 
 
 # ------------------------------------------------------------------ the worker
@@ -431,7 +421,6 @@ def test_through_the_api_key_and_its_monthly_limit(cfg, cut_clock):
                                    sorter=lambda photos, routes: sorter.reply)
     try:
         c = TestClient(app_module.create_app(sv))
-        assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
         item = a_shoe(c)
         add(c, item, 1)
         sorter.reply = answer(("outer", True), ("inner", True))

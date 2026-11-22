@@ -13,7 +13,7 @@ from closet import db, palette, today
 from closet.drawing import stored
 from closet.tagger.tagging import TagResult
 
-from .conftest import ANSWER, PASSPHRASE, fake_cutter, upload
+from .conftest import ANSWER, fake_cutter, upload
 
 NAVY, WHITE, GREEN, RED = "#1b2a49", "#f4f1ea", "#3f7d4f", "#b8332e"
 STRIPES = {"version": stored.VERSION, "kind": "stripes", "orientation": "horizontal",
@@ -104,7 +104,6 @@ def make(cfg, claude):
                                        measurer=Measurer(measured), landmarker=None)
         made.append(sv)
         c = TestClient(app_module.create_app(sv))
-        assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
         return sv, c
     yield build
     for sv in made:

@@ -65,13 +65,13 @@ calls Claude with a key.
   itself.
 - `--no-browser --no-tray --port N` (no tray and no window, so nothing is
   shown on the build machine): `/api/health` answers within 120 s with
-  `app: closet`, `model_state: missing`, `setup_required: true`; `GET /` is
+  `app: closet`, `model_state: missing`; `GET /` is
   the built page (`id="root"`), and every script and style sheet it links
   to under `/assets/` is served with a JavaScript or CSS type (a wrong type
   would leave a blank page); `POST /api/instance/show` is refused without
   the token from `closet.lock` and answers `shown: false` with it (this copy
-  has no window, so a second launch would open the browser); `POST /api/setup` gives 204 and a session
-  cookie; `GET /api/items` is 200; `GET /api/tagging` is 200 and lists the
+  has no window, so a second launch would open the browser); with only the
+  window's key cookie (there is no passphrase) `GET /api/items` is 200; `GET /api/tagging` is 200 and lists the
   plan route then the API route (which proves the tagger package and its
   `models.json` were bundled); after switching to the demo profile there
   are 49 items and a demo item's drawing is served as SVG;

@@ -142,7 +142,7 @@ def started(monkeypatch):
                         lambda env, home, running: seen.settled.append((env, home, running))
                         or datafolder.Outcome("none"))
     monkeypatch.setattr(cli, "serve", lambda args, cfg: seen.served.append(len(seen.settled)) or 0)
-    monkeypatch.setattr(cli, "cmd_reset", lambda args, cfg: seen.served.append(len(seen.settled)) or 0)
+    monkeypatch.setattr(cli, "cmd_backup", lambda args, cfg: seen.served.append(len(seen.settled)) or 0)
     monkeypatch.setenv("CLOSET_DATA_DIR", "/nowhere/real")
     return seen
 
@@ -150,7 +150,7 @@ def started(monkeypatch):
 def test_the_folder_is_settled_before_anything_opens_it(started):
     assert cli.main(["--no-browser"]) == 0
     assert started.served == [1] and started.settled[0][2] is cli._running_in
-    assert cli.main(["reset-passphrase"]) == 0 and started.served == [1, 2]
+    assert cli.main(["backup"]) == 0 and started.served == [1, 2]
 
 
 def test_an_updates_hand_over_never_moves_the_folder(started):

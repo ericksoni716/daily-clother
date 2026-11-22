@@ -73,11 +73,6 @@ def test_a_malformed_hash_is_refused(client):
     assert count(client) == 0
 
 
-def test_adding_needs_login(anon):
-    r = anon.post("/api/items", files={"photo": ("p.jpg", RED, "image/jpeg")}, data={"client_key": "a"})
-    assert r.status_code == 401
-
-
 def test_migration_0005_carries_over_the_hash_of_photos_already_in_the_closet(tmp_path, monkeypatch):
     path = tmp_path / "closet.db"
     real = db.migration_files()

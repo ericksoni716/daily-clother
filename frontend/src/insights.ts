@@ -234,7 +234,7 @@ export function forgetKept(profile: string, kv: KV | null = local()) {
 
 // --------------------------------------------------------------------- the last answer, saved per closet for offline
 
-/** The last answer fetched for a closet, kept on this device so Insights opens offline; removed on logout. */
+/** The last answer fetched for a closet, kept on this device so Insights opens offline; forgotten with this device's other saved copies. */
 export interface SavedInsights {
   saved_at: string;
   answer: Insights;

@@ -318,10 +318,6 @@ def test_a_wear_dated_in_the_future_is_left_out():
 
 
 # ---------------------------------------------------------------------------- API
-def test_insights_needs_login(anon):
-    assert anon.get("/api/insights").status_code == 401
-
-
 def test_insights_answers_for_the_open_closet(client):
     main_item = upload(client).json()
     main = client.get("/api/insights")

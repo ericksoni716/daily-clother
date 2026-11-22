@@ -1,4 +1,4 @@
-import { expect, login, serviceWorkerInCharge, test, useProfile } from './fixtures';
+import { expect, goToCloset, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 let archived: string | null = null;
 
@@ -17,7 +17,7 @@ async function moreNumbers(page: import('@playwright/test').Page) {
 }
 
 test('how the closet is used, in the demo closet: a cost per wear, and archiving a piece never worn', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
 
   // Insights is part of the Wardrobe now: its old address leads there
@@ -70,7 +70,7 @@ test('how the closet is used, in the demo closet: a cost per wear, and archiving
 });
 
 test("insights offline: one closet's saved answer is never shown as the other's", async ({ page, context }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await serviceWorkerInCharge(page);
   await page.goto('/wardrobe');
@@ -102,7 +102,7 @@ test("insights offline: one closet's saved answer is never shown as the other's"
 });
 
 test('how the closet is used shows the same pictures as the closet grid: photos or drawings, as chosen there', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.getByRole('group', { name: 'Show' }).getByRole('button', { name: 'Drawings' }).click();
   await page.goto('/wardrobe');

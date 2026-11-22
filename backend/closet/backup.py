@@ -6,7 +6,7 @@ list of the images it had, and one store of images named by their content
 (SHA-256), shared by all snapshots, so an unchanged image is kept once and an
 older snapshot still has its own images. Backups made before that kept one
 `images` folder for all snapshots; they are still restored. The settings file,
-with the passphrase hash and sessions, is not backed up, and no API key is ever
+with the window's key, is not backed up, and no API key is ever
 stored where a backup could pick it up.
 
 A restore writes a journal of its moves before making the first one, so a

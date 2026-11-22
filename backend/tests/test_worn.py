@@ -359,14 +359,6 @@ def test_the_demo_outfits_match_its_wears(client):
             assert o["worn_on"] in [w["worn_on"] for w in client.get(f"/api/items/{pid}/wears").json()["wears"]]
 
 
-def test_worn_outfits_need_login(anon):
-    assert anon.get("/api/outfits/worn").status_code == 401
-    assert anon.post("/api/outfits/worn", json={"item_ids": ["a", "b"]}).status_code == 401
-    assert anon.put("/api/outfits/worn/x/rating", json={"rating": "fine"}).status_code == 401
-    assert anon.delete("/api/outfits/worn/x").status_code == 401
-    assert anon.post("/api/wears", json={"item_ids": ["x"], "outfit": {}}).status_code == 401
-
-
 def test_the_migration_runs_on_a_closet_made_by_the_previous_version(tmp_path, monkeypatch):
     path, backups = tmp_path / "closet.db", tmp_path / "bk"
     real = db.migration_files()

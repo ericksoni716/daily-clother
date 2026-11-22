@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import type { BrowserContext, Page } from '@playwright/test';
 import { axeViolations, sideways } from './a11y';
-import { expect, login, PASS, PHOTOS, serviceWorkerInCharge, test, useProfile } from './fixtures';
+import { expect, goToCloset, PHOTOS, serviceWorkerInCharge, test, useProfile } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 const PHONE = { width: 390, height: 844 };
@@ -47,7 +47,7 @@ async function itemCount(page: import('@playwright/test').Page): Promise<number>
 }
 
 test('importing several photos: each goes in once, and a photo already in the closet is said so', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'main');
   const before = await itemCount(page);
   await page.goto('/add');
@@ -84,7 +84,7 @@ test('importing several photos: each goes in once, and a photo already in the cl
 });
 
 test('an import cut short by closing the page is carried on without adding anything twice', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'main');
   const before = await itemCount(page);
   // the upload of one photo never gets an answer, as if the tab were closed during it
@@ -134,20 +134,9 @@ async function answerTheList(context: BrowserContext, changes: Record<string, Re
   });
 }
 
-/** Opens a backend of its own: sets the passphrase the first time (and starts with the owner's own closet), else logs in. */
+/** Opens a backend of its own, on the owner's own closet. */
 async function openCloset(page: Page, url: string) {
   await page.goto(url + '/');
-  const passphrase = page.getByLabel('Passphrase', { exact: true });
-  await expect(passphrase).toBeVisible();
-  await passphrase.fill(PASS);
-  const again = page.getByLabel('Type it again');
-  if (await again.isVisible()) {
-    await again.fill(PASS);
-    await page.getByRole('button', { name: 'Set passphrase' }).click();
-    await page.getByRole('button', { name: 'Start with my own closet' }).click();
-  } else {
-    await page.getByRole('button', { name: 'Open my closet' }).click();
-  }
   await expect(page.locator('#closet-title')).toBeVisible();
 }
 

@@ -314,21 +314,11 @@ button, input, textarea, select { font: inherit; color: inherit; }
   padding: calc(24px + env(safe-area-inset-top)) max(var(--gutter), env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(var(--gutter), env(safe-area-inset-left));
   gap: 8px;
 }
-.auth-card { width: 100%; max-width: 26rem; text-align: left; border-radius: var(--radius-lg); padding: 28px 22px; }
-.auth-card h1 { margin-bottom: 6px; }
-.auth-card .brand-mark { margin: 0 0 16px; }
-.auth-card .btn-block { margin-top: 6px; }
-.auth-card .small { margin-top: 16px; }
-.brand-mark { width: 56px; height: 56px; border-radius: var(--radius-md); background: var(--accent-bg); color: var(--accent-ink); display: grid; place-items: center; margin-bottom: 12px; }
-.brand-mark svg { width: 32px; height: 32px; }
-.brand-mark-ok svg { width: 30px; height: 30px; stroke-width: 2.4; }
 /* the mark of Nines (components/NinesMark.tsx) and the name in the brand's serif */
 .nines-mark { display: block; flex: none; width: auto; height: 48px; }
 .nines-mark .nines-edge { stroke: var(--brand-edge); }
-.nines-mark-auth { height: 120px; margin: 0 0 16px; }
 .nines-mark-screen { height: 104px; margin-bottom: 12px; }
 .nines-name { font-family: var(--font-brand); letter-spacing: 0.01em; }
-.ready-phone { margin: var(--space-4) 0; }
 .phone-qr { display: block; width: 200px; height: 200px; margin: 8px 0; }
 .address { font-size: var(--text-md); word-break: break-all; }
 .address code { display: inline-block; padding: 6px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); user-select: all; }
@@ -925,10 +915,10 @@ p.style-more { margin: 0; font-size: var(--text-sm); }
 .phone-code > p { margin: 0 0 10px; }
 .state-problem { color: var(--danger); }
 .state-problem .state-dot { background: var(--danger); }
-/* Advanced settings, then Log out and Quit, at the end of the page */
+/* Advanced settings, then Quit on the computer, at the end of the page */
 .settings-foot { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .settings-advanced-link { display: inline-flex; align-items: center; min-height: var(--tap); color: var(--accent); text-underline-offset: 3px; }
-/* Log out and Quit: a row at the end of the page, not a card */
+/* Quit: a row at the end of the page, not a card */
 .settings-leave { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 4px 0; }
 .settings-leave .confirm { flex-basis: 100%; }
 .settings-look { align-self: flex-start; max-width: 100%; }

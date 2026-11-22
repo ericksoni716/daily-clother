@@ -397,12 +397,6 @@ def test_the_sentence_is_checked_and_the_demo_never_asks_claude(client, services
     assert body["saved"] is False and "demo" in body["message"]
 
 
-def test_the_day_needs_login(anon):
-    assert anon.get("/api/day").status_code == 401
-    assert anon.put("/api/day", json={"text": "In Lisbon"}).status_code == 401
-    assert anon.delete("/api/day").status_code == 401
-
-
 def test_a_note_that_cannot_be_read_counts_as_none(services):
     for broken in ("soon", {"from": "2026-11-12"}, {"from": "later", "to": "2026-11-12"},
                    {"from": "2026-11-14", "to": "2026-11-12"}):

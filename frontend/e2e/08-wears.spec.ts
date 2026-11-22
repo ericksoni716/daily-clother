@@ -1,4 +1,4 @@
-import { expect, login, serviceWorkerInCharge, test, useProfile } from './fixtures';
+import { expect, goToCloset, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page, context }) => {
   await context.setOffline(false);
@@ -6,7 +6,7 @@ test.afterEach(async ({ page, context }) => {
 });
 
 test('wear log and laundry in the demo closet: wear, undo, laundry and back', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   const tile = page.getByTestId('tile').filter({ hasText: 'Chambray shirt' });
   await tile.click();
@@ -57,7 +57,7 @@ test('wear log and laundry in the demo closet: wear, undo, laundry and back', as
 });
 
 test('offline: the wear and laundry buttons are disabled and say why', async ({ page, context }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await serviceWorkerInCharge(page);
   await page.reload();
@@ -78,7 +78,7 @@ test('offline: the wear and laundry buttons are disabled and say why', async ({ 
 
 
 test('settings: the laundry keeps itself, on a laundry day the owner chooses, and can be turned off', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await page.goto('/settings');
   const toggle = page.getByRole('switch', { name: 'Put worn clothes in the laundry by themselves' });
   await expect(toggle).toBeChecked();

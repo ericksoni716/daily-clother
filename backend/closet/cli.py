@@ -4,7 +4,6 @@
     closet --background         the server alone, with nothing shown (beside it, opening the app opens a window onto it)
     closet restore <folder>     replace the closet with a backup
     closet backup               back up now to the chosen folder
-    closet reset-passphrase     forget the passphrase so a new one can be set
     closet selfcheck            check that the bundled libraries work
 """
 from __future__ import annotations
@@ -258,7 +257,7 @@ def _background_did_not_start(args, refused: bool = False) -> str | None:
     seconds = int(kept_running.WAIT)
     why = (f"Windows would not start {APP_NAME} in the background." if refused else
            f"{APP_NAME} is set to keep running in the background, but it did not start within {seconds} seconds.")
-    answer = _ask(f"{why}\n\nOpen {APP_NAME} on its own for now? Settings, Phone, then says what to do next.",
+    answer = _ask(f"{why}\n\nOpen {APP_NAME} on its own for now? Settings, Other devices, then says what to do next.",
                   yes="Open it", no="Not now", headless=args.no_tray)
     if answer:
         return ("Windows would not start the background copy" if refused else
@@ -688,16 +687,6 @@ def cmd_backup(args, cfg: config.Config) -> int:
     return 0 if result["ok"] else 1
 
 
-def cmd_reset(args, cfg: config.Config) -> int:
-    from . import auth
-    if instance.running_instance(cfg):
-        _say(f"{APP_NAME} is running. Quit it first, then run this again.")
-        return 1
-    auth.clear_passphrase(State(cfg.state_path))
-    _say("The passphrase was cleared. Start the app and it will ask for a new one. Your closet is untouched.")
-    return 0
-
-
 def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -> dict:
     """Exercise the libraries that are hard to package. Returns {name: {ok, detail}}."""
     out: dict = {}
@@ -886,7 +875,6 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--snapshot", help="a specific snapshot file name (default: the newest)")
     b = sub.add_parser("backup", help="back up now")
     b.add_argument("--folder", help="back up here instead of the folder chosen in Settings")
-    sub.add_parser("reset-passphrase", help="forget the passphrase")
     s = sub.add_parser("selfcheck", help="check the bundled libraries")
     s.add_argument("--cutout", action="store_true", help="also run a real background removal (needs the model)")
     s.add_argument("--https", action="store_true", help="also check that the model's download server can be reached securely")
@@ -906,8 +894,6 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_restore(args, cfg)
     if args.command == "backup":
         return cmd_backup(args, cfg)
-    if args.command == "reset-passphrase":
-        return cmd_reset(args, cfg)
     if args.command == "selfcheck":
         return cmd_selfcheck(args, cfg)
     return serve(args, cfg)

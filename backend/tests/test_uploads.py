@@ -1,10 +1,11 @@
-"""The login is checked before an upload is read, and no request is read past its limit (closet/gate.py)."""
+"""Each door's check comes before an upload is read, and no request is read past its limit (closet/gate.py)."""
 import asyncio
 import json
 
 import pytest
 
-from closet import limits
+from closet import app as app_module
+from closet import gate, limits
 
 from .conftest import photo_bytes, photo_for, pile_bytes
 
@@ -45,10 +46,11 @@ def endless_photo(total: int, chunk: int = 1024):
     yield form_tail()
 
 
-def send(app, path, body: Body, cookie=None, length=None, content_type=f"multipart/form-data; boundary={BOUNDARY}"):
+def send(app, path, body: Body, cookie=None, length=None, content_type=f"multipart/form-data; boundary={BOUNDARY}",
+         host="127.0.0.1:8000"):
     """Calls the app directly (no test client buffering the body first), as Closet's own page on this computer does
     (closet/gate.py: its address and its header). Returns (status, answer)."""
-    headers = [(b"host", b"127.0.0.1:8000"), (b"x-closet-client", b"1"), (b"content-type", content_type.encode())]
+    headers = [(b"host", host.encode()), (b"x-closet-client", b"1"), (b"content-type", content_type.encode())]
     if cookie:
         headers.append((b"cookie", cookie.encode()))
     if length is not None:
@@ -79,25 +81,25 @@ def kept(cfg):
 
 
 @pytest.mark.parametrize("path", ["/api/items", "/api/sources"])
-def test_an_upload_without_the_login_is_refused_before_its_body_is_read(anon, path):
-    anon.post("/api/setup", json={"passphrase": "correct horse battery"})
-    anon.cookies.clear()
+def test_an_upload_through_tailscale_that_names_no_one_is_refused_before_its_body_is_read(client, path):
     body = Body(endless_photo(2 * limits.MB))
-    status, answer = send(anon.app, path, body)
-    assert status == 401 and answer["detail"] == "Log in to continue."
+    status, answer = send(client.app, path, body, host="closet-pc.example-tailnet.ts.net")
+    assert status == 401 and answer["detail"] == gate.NO_TAILSCALE_VIEWER
     assert body.read <= FEW_KB
 
 
-def test_an_upload_before_setup_is_refused_before_its_body_is_read(anon, cfg):
+def test_an_upload_without_the_windows_key_is_refused_before_its_body_is_read(services, cfg):
+    keyed = app_module.create_app(services, window_key="a-window-key-for-tests")
     body = Body(endless_photo(2 * limits.MB))
-    status, answer = send(anon.app, "/api/items", body, length=2 * limits.MB)
-    assert status == 401 and answer["detail"] == "Set a passphrase to get started."
+    status, answer = send(keyed, "/api/items", body, length=2 * limits.MB)
+    assert status == 401 and answer["detail"] == gate.OPEN_FROM_ICON
     assert body.read == 0 and kept(cfg) == []
 
 
-def test_a_wrong_session_is_refused_before_its_body_is_read(client):
+def test_a_wrong_windows_key_is_refused_before_its_body_is_read(services):
+    keyed = app_module.create_app(services, window_key="a-window-key-for-tests")
     body = Body(endless_photo(2 * limits.MB))
-    status, _ = send(client.app, "/api/items", body, cookie="closet_session=not-a-session")
+    status, _ = send(keyed, "/api/items", body, cookie=f"{gate.key_cookie(services.cfg.port)}=not-the-key")
     assert status == 401 and body.read <= FEW_KB
 
 
@@ -130,9 +132,9 @@ def test_the_test_client_gets_413_for_a_photo_over_the_limit(client, cfg, monkey
     assert kept(cfg) == [] and client.get("/api/items").json()["items"] == []
 
 
-def test_a_large_json_body_is_refused_even_without_the_login(anon):
-    body = Body([b'{"passphrase": "' + b"x" * (2 * limits.MB) + b'"}'])
-    status, answer = send(anon.app, "/api/login", body, content_type="application/json")
+def test_a_large_json_body_is_refused_while_it_streams_in(client):
+    body = Body([b'{"profile": "' + b"x" * (2 * limits.MB) + b'"}'])
+    status, answer = send(client.app, "/api/profile", body, content_type="application/json")
     assert status == 413 and answer["detail"] == "That is more than Nines reads in one request. Try again with less."
 
 

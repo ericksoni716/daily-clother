@@ -15,7 +15,7 @@ from PIL import Image, ImageDraw
 from pydantic import BaseModel
 
 from closet import app as app_module
-from closet import gate, weather
+from closet import gate, tailnet, weather
 from closet.config import Config
 from closet.drawing import drawn
 from closet.tagger import correcting
@@ -35,8 +35,6 @@ from closet.tagger.shoedrawing import (
 from closet.tagger.stylist import ChatReply
 from closet.tagger.tagging import RouteUnavailable, TaggingError, TagResult
 from closet.tagger.views import PhotoView, ShoeViews
-
-PASSPHRASE = "correct horse battery"
 
 
 class LocalClient(TestClient):
@@ -74,6 +72,15 @@ def pytest_terminal_summary(terminalreporter):
                 terminalreporter.write_line(f"Windows scheduled task test {outcome.upper()}{why}")
                 return
     terminalreporter.write_line("Windows scheduled task test DID NOT RUN (not collected)")
+
+
+@pytest.fixture(autouse=True)
+def no_windows_tailscale_check(monkeypatch):
+    """An app a test builds has no check of its own for who is at the other end of a Tailscale connection. On Windows
+    the real one asks Windows about the connection, and a test's client has none, so a request named the way Tailscale
+    names it would be refused as "not from Tailscale". A test that is about the check hands one in
+    (`create_app(tailscale_check=...)`) or calls `tailnet.WindowsCheck` itself; neither goes through this."""
+    monkeypatch.setattr(tailnet, "checker", lambda: None)
 
 
 @pytest.fixture(autouse=True)
@@ -515,14 +522,10 @@ def services(cfg, claude):
 
 
 @pytest.fixture
-def anon(services):
+def client(services):
+    """The page on this computer, as tests make the app: with no window key in force, so this computer's door lets it
+    in (closet/gate.py); there is no passphrase to give."""
     return LocalClient(app_module.create_app(services))
-
-
-@pytest.fixture
-def client(anon):
-    assert anon.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
-    return anon
 
 
 def photo_for(key: str) -> bytes:

@@ -145,14 +145,6 @@ def test_a_place_near_the_browser_position_sends_only_the_rounded_coordinates(cl
     assert r.status_code == 502 and "Couldn't reach the place-name service" in r.json()["detail"]
 
 
-def test_place_and_weather_need_login(anon):
-    assert anon.get("/api/places", params={"q": "York"}).status_code == 401
-    assert anon.get("/api/weather").status_code == 401
-    assert anon.get("/api/places/near", params={"latitude": 1, "longitude": 1}).status_code == 401
-    assert anon.put("/api/settings", json={"place": NYC}).status_code == 401
-    assert anon.post("/api/outfits/today", json={}).status_code == 401
-
-
 # ---------------------------------------------------------------------- weather
 def test_with_no_place_chosen_the_weather_is_new_yorks(client, fake):
     r = client.get("/api/weather")

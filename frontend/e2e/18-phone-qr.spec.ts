@@ -1,7 +1,7 @@
 import jsQR from 'jsqr';
 import type { APIRequestContext, Page } from '@playwright/test';
 import { axeViolations } from './a11y';
-import { expect, login, PASS, signIn, test } from './fixtures';
+import { expect, goToCloset, test } from './fixtures';
 import type { Backend } from './server';
 
 /** Phone access: a QR code of the address that reaches Closet, only when there is one. Tailscale is faked. */
@@ -56,9 +56,9 @@ for (const theme of ['light', 'dark'] as const) {
   test(`phone access in ${theme}: a QR code of Nines' address, readable, with the address as text below`, async ({ page }) => {
     await page.emulateMedia({ colorScheme: theme });
     await fakePhone(page, ADDRESS);
-    await login(page);
+    await goToCloset(page);
     await page.goto('/settings');
-    const section = page.getByRole('region', { name: 'Phone', exact: true });
+    const section = page.getByRole('region', { name: 'Other devices', exact: true });
     // once a share reaches Closet the group is one line, with the code folded under it
     await expect(section.getByTestId('phone-address')).toHaveText(ADDRESS);
     const code = section.getByRole('img', { name: `QR code of ${ADDRESS}` });
@@ -82,19 +82,19 @@ for (const theme of ['light', 'dark'] as const) {
 
 test('phone access: no code when no share reaches Nines, only the plain explanation', async ({ page }) => {
   await fakePhone(page, null);
-  await login(page);
+  await goToCloset(page);
   await page.goto('/settings');
-  const section = page.getByRole('region', { name: 'Phone', exact: true });
-  await expect(section.getByText('Nines is not shared with your phone yet.')).toBeVisible();
+  const section = page.getByRole('region', { name: 'Other devices', exact: true });
+  await expect(section.getByText('Nines is not shared with your other devices yet.')).toBeVisible();
   await expect(section.getByText('tailscale serve --bg --https=8443 8765')).toBeVisible();
   await expect(section.locator('.phone-qr')).toHaveCount(0);
   await expect(section.getByRole('img')).toHaveCount(0);
 });
 
-test('the door through Cloudflare: folded under Phone on the computer, filled in and turned off again', async ({ page }) => {
-  await login(page);
+test('the door through Cloudflare: folded under Other devices on the computer, filled in and turned off again', async ({ page }) => {
+  await goToCloset(page);
   await page.goto('/settings');
-  const section = page.getByRole('region', { name: 'Phone', exact: true });
+  const section = page.getByRole('region', { name: 'Other devices', exact: true });
   const door = section.getByTestId('cloudflare-door');
   await door.getByText('Without Tailscale, through Cloudflare').click();
   await expect(door.getByTestId('cloudflare-status')).toHaveText('This is off until all three are filled in.');
@@ -120,16 +120,17 @@ test('the door through Cloudflare: folded under Phone on the computer, filled in
 test.describe('opened on the phone', () => {
   test.use({
     viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true,
+    // Tailscale Serve says who is asking; the page by the phone's name is refused without it (backend/closet/gate.py)
+    extraHTTPHeaders: { 'Tailscale-User-Login': 'owner@example.com', 'Tailscale-User-Name': 'Sam Owner' },
     baseURL: async ({ backend }, use) => {
       await use(backend.url.replace('127.0.0.1', PHONE_HOST));
     },
   });
 
-  /** Logs in through the page by the phone's name. The test runner itself cannot resolve that name, so the settings
+  /** Opens the page by the phone's name. The test runner itself cannot resolve that name, so the settings
    * the page is shown are fetched from 127.0.0.1 and given the share's address. */
   async function openSettings(page: Page, request: APIRequestContext, backend: Backend, cameIn?: object) {
     const local = backend.url;
-    await signIn(request, local);
     const original = await (await request.get(`${local}/api/settings`)).json();
     await page.route('**/api/settings', (route) => route.request().method() === 'GET'
       ? route.fulfill({ json: { ...original, ...(cameIn ? { came_in: cameIn } : {}), phone: { tailscale_installed: true, running: true, address: ADDRESS,
@@ -137,12 +138,6 @@ test.describe('opened on the phone', () => {
       : route.fallback());
     await page.goto('/');
     expect(new URL(page.url()).hostname).toBe(PHONE_HOST);
-    const field = page.getByLabel('Passphrase');
-    await expect(field.or(page.locator('#closet-title, #today-title'))).toBeVisible();
-    if (await field.isVisible()) {
-      await field.fill(PASS);
-      await page.getByRole('button', { name: 'Open my closet' }).click();
-    }
     await expect(page.locator('#closet-title, #today-title')).toBeVisible();
     await page.goto('/settings');
     await expect(page.getByRole('region', { name: 'Updates', exact: true })).toBeVisible();
@@ -150,7 +145,7 @@ test.describe('opened on the phone', () => {
 
   test('in Safari: no code, address or commands, only how to add Nines to the Home Screen', async ({ page, request, backend }) => {
     await openSettings(page, request, backend);
-    const section = page.getByRole('region', { name: 'Phone', exact: true });
+    const section = page.getByRole('region', { name: 'Other devices', exact: true });
     await expect(section.getByText('tap Share in Safari and then Add to Home Screen')).toBeVisible();
     await expect(section.locator('.phone-qr')).toHaveCount(0);
     await expect(section.getByRole('img')).toHaveCount(0);
@@ -169,7 +164,7 @@ test.describe('opened on the phone', () => {
 
   test('what only makes sense on the computer is not offered: Quit, start at login, folders and files', async ({ page, request, backend }) => {
     await openSettings(page, request, backend);
-    await expect(page.getByRole('button', { name: 'Log out' })).toBeVisible();
+    await expect(page.getByTestId('advanced-link')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Quit Nines' })).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Choose a backup folder' })).toHaveCount(0);
     await page.getByRole('link', { name: 'Advanced settings' }).click();
@@ -183,10 +178,10 @@ test.describe('opened on the phone', () => {
     await expect(page.getByRole('button', { name: 'Quit Nines' })).toHaveCount(0);
   });
 
-  test('from the Home Screen: no Phone group at all', async ({ page, request, backend }) => {
+  test('from the Home Screen: no Other devices group at all', async ({ page, request, backend }) => {
     await page.addInitScript(() => Object.defineProperty(navigator, 'standalone', { value: true }));
     await openSettings(page, request, backend);
-    await expect(page.getByRole('heading', { name: 'Phone', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Other devices', exact: true })).toHaveCount(0);
     await expect(page.locator('.phone-qr')).toHaveCount(0);
     await expect(page.getByText('Add to Home Screen')).toHaveCount(0);
   });
@@ -197,9 +192,9 @@ test.describe('pictures', () => {
     test(`phone access with its code, on a ${layout}`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await fakePhone(page, ADDRESS);
-      await login(page);
+      await goToCloset(page);
       await page.goto('/settings');
-      const section = page.getByRole('region', { name: 'Phone', exact: true });
+      const section = page.getByRole('region', { name: 'Other devices', exact: true });
       await section.scrollIntoViewIfNeeded();
       await section.getByText('Show the QR code').click();
       await expect(section.locator('.phone-qr')).toBeVisible();

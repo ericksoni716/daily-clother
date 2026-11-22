@@ -1,5 +1,5 @@
 import { axeViolations } from './a11y';
-import { expect, login, test } from './fixtures';
+import { expect, goToCloset, test } from './fixtures';
 
 // A restore cut short is put right when Closet starts (backend/tests/test_backup.py); the page then says what was
 // done, once. The shared server has had no such restore, so its answer is stood in for here.
@@ -16,7 +16,7 @@ test('a restore put right at start-up is told once, on every screen, until OK', 
     }
     return route.fulfill({ json: { notice } });
   });
-  await login(page);
+  await goToCloset(page);
   const banner = page.getByTestId('restore-notice');
   await expect(banner).toContainText(message);
   await page.locator('nav.sidebar').getByRole('link', { name: 'Settings' }).click();
@@ -33,7 +33,7 @@ test('a restore put right at start-up is told once, on every screen, until OK', 
 });
 
 test('without an interrupted restore there is no notice', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   expect((await (await page.request.get('/api/restore-notice')).json()).notice).toBeNull();
   await expect(page.getByTestId('restore-notice')).toHaveCount(0);
 });

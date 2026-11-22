@@ -191,7 +191,7 @@ function local(): KV | null {
   }
 }
 
-/** The first page of worn outfits as last fetched, kept per closet for offline (forgotten on logout with the rest). */
+/** The first page of worn outfits as last fetched, kept per closet for offline (forgotten with this device's other saved copies). */
 export interface SavedWorn {
   saved_at: string;
   page: WornPage;
@@ -217,7 +217,7 @@ export function saveWorn(profile: string, page: WornPage, kv: KV | null = local(
   }
 }
 
-/** Under the Today screen's prefix, so it is forgotten on logout with the rest. */
+/** Under the Today screen's prefix, so it is forgotten with this device's other saved copies. */
 const dismissedKey = (profile: string) => `${SAVED_PREFIX}:asked:${profile}`;
 /** Only the last few are kept: the question is only ever about today or yesterday. */
 const DISMISSED_KEPT = 10;

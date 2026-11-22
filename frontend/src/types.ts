@@ -9,9 +9,9 @@ export type Profile = 'main' | 'demo';
 export type Laundry = 'clean' | 'laundry';
 export type ModelState = 'missing' | 'downloading' | 'failed' | 'ready';
 
+/** What the page opens with (`GET /api/session`). The server also sends `authenticated: true`, for a page from an older
+ * Nines; nothing here reads it. */
 export interface Session {
-  authenticated: boolean;
-  setup_required: boolean;
   version: string;
   profile: Profile;
 }

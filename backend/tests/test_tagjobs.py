@@ -377,10 +377,6 @@ def test_the_route_order_is_kept_in_settings_and_an_unknown_one_is_refused(clien
     assert tagjobs.route_order(services.state) == "auto"
 
 
-def test_retag_needs_login(anon):
-    assert anon.post("/api/items/x/retag").status_code == 401
-
-
 # ---- the migration
 
 def test_the_migration_runs_on_a_closet_made_by_the_previous_version(cfg):

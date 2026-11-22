@@ -1,11 +1,11 @@
-import { expect, login, openFold, test, useProfile } from './fixtures';
+import { expect, goToCloset, openFold, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
 });
 
 test('open the demo closet: 49 items, the demo strip, filter by category', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'main');
   await page.locator('nav.sidebar').getByRole('link', { name: 'Settings' }).click();
   await page.getByRole('link', { name: 'Advanced settings' }).click();
@@ -34,7 +34,7 @@ test('open the demo closet: 49 items, the demo strip, filter by category', async
 });
 
 test('item detail: switch pictures, change a chip, it persists', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.getByTestId('tile').filter({ hasText: 'Plaid flannel shirt' }).click();
 
@@ -96,7 +96,7 @@ test('item detail: switch pictures, change a chip, it persists', async ({ page }
 });
 
 test('trousers: the drawing comes with a small one from the back', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.getByTestId('tile').filter({ hasText: 'Black jeans' }).click();
   const panel = page.locator('.detail-panel');
@@ -115,7 +115,7 @@ test('trousers: the drawing comes with a small one from the back', async ({ page
 });
 
 test('a rejected change is undone and the server message shown', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.getByTestId('tile').filter({ hasText: 'Navy polo' }).click();
   const panel = page.locator('.detail-panel');
@@ -134,7 +134,7 @@ test('a rejected change is undone and the server message shown', async ({ page }
 });
 
 test('the colours measured from a pattern show as swatches beside the pattern word', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   // the demo closet is never measured: the item page is given the colours a measured navy and white stripe has
   // (on the context, so the answer is changed whether the page or its service worker asks)
@@ -162,7 +162,7 @@ test('the colours measured from a pattern show as swatches beside the pattern wo
 });
 
 test('archive and unarchive, delete with confirmation', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.getByTestId('tile').filter({ hasText: 'Olive shorts' }).click();
   const panel = page.locator('.detail-panel');

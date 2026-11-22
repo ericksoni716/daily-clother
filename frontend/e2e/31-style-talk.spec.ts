@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test';
 import { axeViolations, sideways } from './a11y';
-import { expect, PASS, test } from './fixtures';
+import { expect, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 const section = (page: Page) => page.locator('section[aria-labelledby="s-style"]');
@@ -26,10 +26,7 @@ test.describe('talking to Claude about your style', () => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(backend.url + '/');
-    await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
-    await page.getByLabel('Type it again').fill(PASS);
-    await page.getByRole('button', { name: 'Set passphrase' }).click();
-    await page.getByRole('button', { name: 'Start with my own closet' }).click();
+    await expect(page.locator('#closet-title')).toBeVisible();
     await expect(page.locator('#closet-title, #today-title').first()).toBeVisible();
 
     // Settings, Your style: the starting lines, each marked as one

@@ -197,8 +197,8 @@ def test_replacing_the_older_copy_is_asked_in_a_yes_no_box_on_top(windowed, monk
 def test_a_message_with_no_console_goes_to_a_box(windowed, monkeypatch):
     shown, _ = windowed
     no_console(monkeypatch)
-    cli._say("The passphrase was cleared.")
-    assert shown == [("The passphrase was cleared.", 0x40)]
+    cli._say("Backup finished.")
+    assert shown == [("Backup finished.", 0x40)]
 
 
 # ------------------------------------------------------------------ processes (any computer)

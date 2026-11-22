@@ -22,7 +22,7 @@ from closet.tagger.schema import Details, ItemTags, Silhouette
 from closet.tagger.tagging import TagResult
 
 from . import shoe_photos as S
-from .conftest import PASSPHRASE, fake_cutter, upload
+from .conftest import fake_cutter, upload
 
 # what the template drew for these two shoes before tracing existed: an untraced shoe, and one whose photo the
 # tracing turned down, must still be drawn exactly so
@@ -89,7 +89,6 @@ def make(cfg):
         sv.worker.is_ready = lambda: True
         made.append(sv)
         c = TestClient(app_module.create_app(sv))
-        assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
         return sv, c
     yield build
     for sv in made:

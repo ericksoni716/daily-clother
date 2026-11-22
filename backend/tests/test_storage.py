@@ -9,10 +9,6 @@ KEYS = {"items", "photos_bytes", "cutouts_bytes", "thumbnails_bytes", "database_
 PARTS = ("photos_bytes", "cutouts_bytes", "thumbnails_bytes", "database_bytes", "backups_bytes", "model_bytes", "logs_bytes")
 
 
-def test_storage_needs_login(anon):
-    assert anon.get("/api/storage").status_code == 401
-
-
 def test_storage_answer_has_the_promised_shape_and_no_file_names(client, cfg):
     body = client.get("/api/storage").json()
     assert set(body) == KEYS

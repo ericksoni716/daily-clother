@@ -139,7 +139,7 @@ export function backupLine(s: BackupSettings, profile: Profile, device: Device):
 export type Group = 'style' | 'everyday' | 'claude' | 'updates' | 'phone' | 'device' | 'data' | 'leave';
 
 /**
- * Which groups are shown, in order. Phone is shown on the computer until a share reaches Closet (after that it is
+ * Which groups are shown, in order. Other devices is shown on the computer until a share reaches Closet (after that it is
  * one line there too); on the phone, in Safari, to say how to add Closet to the Home Screen, and, as an app, only when
  * it has something to say (`phoneLine`: whether the computer keeps Nines running).
  */

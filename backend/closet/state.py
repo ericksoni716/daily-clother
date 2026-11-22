@@ -1,7 +1,6 @@
 """Program-wide settings kept in one small JSON file in the data folder.
 
-Holds what is not part of a closet: the passphrase hash, login sessions, the key
-of Closet's own window (closet/gate.py), the three settings of the door through Cloudflare (closet/access.py), the backup folder, the model download URL, which closet (real or demo) is
+Holds what is not part of a closet: the key of Closet's own window (closet/gate.py), the three settings of the door through Cloudflare (closet/access.py), the backup folder, the model download URL, which closet (real or demo) is
 open, where the owner is (New York until another place is chosen; with the last forecast for it, and the weather
 looked up for trips), and what is known about new releases. Never holds the Anthropic API key.
 """
@@ -20,9 +19,6 @@ HOME_PLACE: dict[str, Any] = {"name": "New York, United States", "latitude": 40.
                               "timezone": "America/New_York"}
 
 DEFAULTS: dict[str, Any] = {
-    "passphrase": None,       # {"salt", "hash", "n", "r", "p"}
-    "sessions": {},           # sha256(token) -> expiry (unix seconds)
-    "failed_logins": [],      # unix seconds of recent failures
     "window_key": None,       # the key of Closet's own window (gate.window_key), made once; never sent or logged
     # the door through Cloudflare (closet/access.py), off until all three are set: the team's domain
     # (yourteam.cloudflareaccess.com), the Access application's audience tag, and the public hostname
@@ -64,6 +60,11 @@ DEFAULTS: dict[str, Any] = {
 }
 
 
+# Kept by Nines 0.12.0 and earlier for the passphrase, which is gone (DECISIONS, "The doors decide who comes in"): its
+# hash, the login sessions and the recent wrong guesses. Never read; taken out of the file the first time it is opened.
+GONE = ("passphrase", "sessions", "failed_logins")
+
+
 class State:
     def __init__(self, path: Path):
         self.path = path
@@ -77,6 +78,8 @@ class State:
                     f"The settings file {path} cannot be read ({e}). Move it aside to start with fresh settings; "
                     "your closet database is separate and is not affected.") from e
             self._data.update({k: v for k, v in loaded.items() if k in DEFAULTS})
+            if any(k in loaded for k in GONE):
+                self._save()   # the old passphrase's hash and sessions are not left lying in the file
         if self._data["place"] is None:   # never chosen (older settings saved none): New York; a chosen place is kept
             self._data["place"] = deepcopy(HOME_PLACE)
 

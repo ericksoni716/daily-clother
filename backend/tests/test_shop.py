@@ -1,10 +1,12 @@
-"""Shopping for a wish: finds kept and checked against the closet, price checks (closet/shop.py, tagger/shopping.py,
-migration 0018).
+"""Shopping for a wish: finds kept and checked against the closet, price checks, and products sent as links
+(closet/shop.py, tagger/shopping.py, migrations 0018 and 0042).
 
 Claude is never called: `FakeShop` stands in for it (searching and looking up prices), or, for the API route,
 `FakeSearchApi` stands in for Anthropic's API with its web search tool, and the plan route's `claude -p` is never run.
+No shop is reached either: `ShopPages` stands in for the web a link's page is read from, with made-up pages.
 """
 import json
+import logging
 import sqlite3
 import threading
 import time
@@ -15,7 +17,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from closet import app as app_module
-from closet import db, demo, gaps, shop, spend
+from closet import db, demo, gaps, productpage, shop, spend
 from closet.tagger import correcting, shopping
 from closet.tagger.shopping import Found, PriceAnswer, PriceSeen, ShopAnswer
 from closet.tagger.tagging import CapReached, RouteUnavailable, TaggingError
@@ -59,9 +61,50 @@ class FakeShop:
                                              currency=f["currency"], available=True) for f in finds])
 
 
+SHIRT = "https://shop.example/p/linen-shirt"
+PLAIN = "https://shop.example/p/plain"
+
+
+def shirt_page(price: str = "68.00", name: str = "Linen camp-collar shirt") -> str:
+    """A made-up product page with its structured data, as a shop writes it for search engines."""
+    data = {"@context": "https://schema.org", "@type": "Product", "name": name,
+            "offers": {"@type": "Offer", "price": price, "priceCurrency": "USD",
+                       "availability": "https://schema.org/InStock"}}
+    return (f'<html><head><script type="application/ld+json">{json.dumps(data)}</script>'
+            '<meta property="og:site_name" content="Example Shop"></head><body></body></html>')
+
+
+class ShopPages:
+    """Stands in for the web a link's page is read from: made-up pages by address (any other is not found).
+    shop.example and other.example are on the internet; inside.example is on the home network."""
+
+    def __init__(self):
+        self.pages: dict[str, str] = {SHIRT: shirt_page(), PLAIN: "<html><head><title>A plain shirt</title></head></html>"}
+        self.names = {"shop.example": ["1.2.3.4"], "other.example": ["1.2.3.5"], "inside.example": ["192.168.1.9"]}
+        self.asked: list[str] = []
+        self.reader = productpage.Reader(resolve=self.resolve, get=self.get)
+
+    def resolve(self, host: str) -> list[str]:
+        if host not in self.names:
+            raise productpage.Unreadable(productpage.NO_SUCH_PLACE)
+        return self.names[host]
+
+    def get(self, target, seconds):
+        self.asked.append(target.url)
+        text = self.pages.get(target.url)
+        if text is None:
+            return productpage.Answer(404, {"content-type": "text/html"}, b"")
+        return productpage.Answer(200, {"content-type": "text/html; charset=utf-8"}, text.encode("utf-8"))
+
+
 @pytest.fixture
 def fake_shop():
     return FakeShop()
+
+
+@pytest.fixture
+def pages():
+    return ShopPages()
 
 
 @pytest.fixture
@@ -70,9 +113,9 @@ def usable():
 
 
 @pytest.fixture
-def services(cfg, fake_shop, usable):
+def services(cfg, fake_shop, usable, pages):
     sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, tagger=lambda images, routes: None,
-                                   routes=lambda: usable["routes"], shop_asker=fake_shop)
+                                   routes=lambda: usable["routes"], shop_asker=fake_shop, page_reader=pages.reader)
     yield sv
     sv.stop()
 
@@ -524,6 +567,233 @@ def test_the_scheduler_runs_the_round_while_the_program_runs(services, monkeypat
         time.sleep(0.02)
     s.stop()
     assert len(ticks) >= 2
+
+
+# ------------------------------------------------------------------ a product sent as a link
+def add_link(client, url: str = SHIRT) -> str:
+    """Sends a product's page from the wishlist, waits for it to be read, and gives the new wish's id."""
+    r = client.post("/api/wishlist/link", json={"url": url})
+    assert r.status_code == 201, r.text
+    wid = r.json()["id"]
+    assert settle(client, wid)["run"]["kind"] == "link"
+    return wid
+
+
+def test_a_link_becomes_a_wish_with_its_one_find_read_from_the_page(client, fake_shop, pages):
+    r = client.post("/api/wishlist/link", json={"url": f"  {SHIRT}  "})
+    assert r.status_code == 201
+    wish_made = r.json()
+    assert wish_made["name"] == "shop.example" and wish_made["gap_id"] is None   # until its page is read
+    body = settle(client, wish_made["id"])
+    assert body["run"]["kind"] == "link" and body["run"]["state"] == "done" and body["run"]["added"] == 1
+    assert body["run"]["message"] is None
+    find, = body["finds"]
+    assert find["link"] is True and find["url"] == SHIRT and find["read_at"] and find["read_by"] == "page"
+    assert (find["name"], find["shop"], find["price"], find["currency"]) == ("Linen camp-collar shirt", "Example Shop", 68.0, "USD")
+    assert find["piece"] is None and find["piece_words"] is None and find["verdict"] is None   # not judged: not described
+    assert [h["price"] for h in find["history"]] == [68.0] and find["drop"] is None
+    assert fake_shop.calls == []   # the page gave its price: Claude was never asked
+    listed, = client.get("/api/wishlist").json()["wishes"]
+    assert listed["name"] == "Linen camp-collar shirt"   # named after the product once read
+    assert listed["link"] == {"shop": "Example Shop", "price": 68.0, "currency": "USD", "available": True}
+    assert listed["drop"] is None
+
+    # the same page sent again (the share sheet tapped twice) gives the same wish, and is not read again
+    asked = len(pages.asked)
+    again = client.post("/api/wishlist/link", json={"url": SHIRT})
+    assert again.status_code == 200 and again.json()["id"] == wish_made["id"] and len(pages.asked) == asked
+    assert len(client.get("/api/wishlist").json()["wishes"]) == 1
+
+
+def test_a_long_product_name_names_the_wish_cut_at_a_word(client, pages):
+    long = "Heavyweight garment-dyed linen camp-collar shirt in washed sand " * 3
+    pages.pages[SHIRT] = shirt_page(name=long)
+    wid = add_link(client, SHIRT)
+    name = client.get("/api/wishlist").json()["wishes"][0]["name"]
+    assert len(name) <= shop.LINK_NAME_MAX and name.endswith("…") and long.startswith(name[:-1]) and long[len(name) - 1] == " "
+    assert client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]["name"] == long.strip()[:shop.NAME_MAX].rstrip()
+    assert shop.shortened("A shirt", 120) == "A shirt" and shop.shortened("x" * 130, 120) == "x" * 119 + "…"
+
+
+def test_a_page_with_no_price_is_read_by_claude_as_a_price_check(client, fake_shop, pages):
+    wid = add_link(client, PLAIN)
+    find, = client.get(f"/api/wishlist/{wid}/finds").json()["finds"]
+    assert find["name"] == "A plain shirt"   # the page gave its name, not its price
+    assert find["price"] == 80.0 and find["read_by"] == "claude" and [h["price"] for h in find["history"]] == [80.0]
+    assert fake_shop.calls == [("prices", [PLAIN], ("plan",))]   # that one page, as a price check
+    assert client.get("/api/wishlist").json()["wishes"][0]["name"] == "A plain shirt"
+
+    # a page that cannot be opened goes to Claude too; when Claude sees no price either, the wish says so
+    fake_shop.prices_seen = [PriceSeen(url="https://shop.example/p/gone", price=None, currency="USD", available=True)]
+    wid = add_link(client, "https://shop.example/p/gone")
+    body = client.get(f"/api/wishlist/{wid}/finds").json()
+    assert body["run"]["message"] == shop.NO_PRICE_AT_ALL and body["finds"][0]["price"] is None
+    assert body["finds"][0]["name"] == "shop.example"
+
+
+def test_claude_out_of_reach_is_said_and_the_page_kept(client, fake_shop, usable):
+    usable["routes"] = ()
+    wid = add_link(client, PLAIN)
+    body = client.get(f"/api/wishlist/{wid}/finds").json()
+    assert body["run"]["state"] == "done" and body["run"]["message"] == f"{shop.NO_PAGE_PRICE} {shop.NO_ROUTE}"
+    assert body["finds"][0]["read_at"] and body["finds"][0]["price"] is None and fake_shop.calls == []
+
+
+def test_a_link_added_on_a_wish_page(client, fake_shop, pages):
+    wid = wish(client)
+    find_some(client, wid)
+    r = client.post(f"/api/wishlist/{wid}/link", json={"url": SHIRT})
+    assert r.status_code == 202 and r.json()["run"]["kind"] == "link"
+    body = settle(client, wid)
+    assert len(body["finds"]) == 3 and body["run"]["added"] == 1
+    linked = next(f for f in body["finds"] if f["link"])
+    assert linked["url"] == SHIRT and linked["price"] == 68.0
+    assert client.get("/api/wishlist").json()["wishes"][0]["name"] == "A tan rain coat"   # the owner's name is kept
+    # a page Claude found, sent as a link: kept once, read by Nines from then on
+    pages.pages["https://shop.example/coat"] = shirt_page("110.00", "Tan rain coat")
+    assert client.post(f"/api/wishlist/{wid}/link", json={"url": "https://shop.example/coat"}).status_code == 202
+    body = settle(client, wid)
+    coat = next(f for f in body["finds"] if f["url"] == "https://shop.example/coat")
+    assert len(body["finds"]) == 3 and coat["link"] is True and coat["price"] == 110.0 and coat["read_by"] == "page"
+    assert coat["verdict"] == "too_small"   # it was described by Claude when found, so its verdict stays
+    assert client.post("/api/wishlist/nope/link", json={"url": SHIRT}).status_code == 404
+
+
+def test_a_link_nines_does_not_open_is_refused_with_a_plain_sentence(client, pages):
+    wid = wish(client)
+    for url, sentence in (("http://shop.example/p/linen-shirt", productpage.NOT_HTTPS),
+                          ("https://inside.example/router", productpage.NOT_A_SHOP),
+                          ("https://192.168.1.1/", productpage.NOT_A_SHOP),
+                          ("not a link", productpage.NOT_A_LINK),
+                          ("https://nowhere.example/p", productpage.NO_SUCH_PLACE)):
+        for path in ("/api/wishlist/link", f"/api/wishlist/{wid}/link"):
+            r = client.post(path, json={"url": url})
+            assert r.status_code == 422 and r.json()["detail"] == sentence, (path, url)
+    assert pages.asked == []   # nothing was fetched
+    assert [w["id"] for w in client.get("/api/wishlist").json()["wishes"]] == [wid]   # and nothing kept
+    assert client.get(f"/api/wishlist/{wid}/finds").json()["finds"] == []
+    assert client.post("/api/wishlist/link", json={"url": SHIRT, "note": "x"}).status_code == 422
+
+
+def test_an_address_that_moved_inside_since_it_was_checked_is_not_opened_nor_sent_to_claude(client, services, fake_shop,
+                                                                                           pages):
+    looked = []
+
+    def moves_inside(host):   # on the internet when the link is sent, the home network by the time it is fetched
+        looked.append(host)
+        return pages.resolve(host) if len(looked) == 1 else ["10.0.0.8"]
+    services.shopper.reader = productpage.Reader(resolve=moves_inside, get=pages.get)
+    r = client.post("/api/wishlist/link", json={"url": SHIRT})
+    assert r.status_code == 201
+    body = settle(client, r.json()["id"])
+    assert body["run"]["message"] == productpage.NOT_A_SHOP and body["finds"][0]["price"] is None
+    assert pages.asked == [] and fake_shop.calls == [] and len(looked) == 2
+
+
+def test_the_demo_closet_reads_a_link_but_never_asks_claude(client, fake_shop, pages):
+    assert client.post("/api/profile", json={"profile": "demo"}).status_code == 200
+    shirt = add_link(client, SHIRT)
+    assert client.get(f"/api/wishlist/{shirt}/finds").json()["finds"][0]["price"] == 68.0
+    plain = add_link(client, PLAIN)
+    body = client.get(f"/api/wishlist/{plain}/finds").json()
+    assert body["run"]["message"] == f"{shop.NO_PAGE_PRICE} {shop.DEMO_ASKS_NOTHING}" and body["finds"][0]["price"] is None
+    # its price can be checked again, by reading the page only
+    pages.pages[SHIRT] = shirt_page("60.00")
+    assert client.post(f"/api/wishlist/{shirt}/prices").status_code == 202
+    assert settle(client, shirt)["finds"][0]["price"] == 60.0
+    assert fake_shop.calls == []
+
+
+def test_check_prices_reads_the_links_itself_and_asks_claude_about_the_rest(client, fake_shop, pages, usable, cfg):
+    wid = wish(client)
+    find_some(client, wid)
+    assert client.post(f"/api/wishlist/{wid}/link", json={"url": SHIRT}).status_code == 202
+    settle(client, wid)
+    pages.pages[SHIRT] = shirt_page("54.40")
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    body = settle(client, wid)
+    assert fake_shop.calls[-1] == ("prices", ["https://shop.example/coat", "https://other.example/p/2"], ("plan",))
+    linked = next(f for f in body["finds"] if f["link"])
+    assert linked["price"] == 54.4 and linked["drop"] == {"from": 68.0, "to": 54.4, "currency": "USD", "percent": 20}
+    assert body["run"]["added"] == 3 and body["run"]["message"] is None
+
+    # Claude out of reach: the links are still read, and the wish says what was not
+    usable["routes"] = ()
+    checked = body["prices_checked_at"]
+    calls = len(fake_shop.calls)
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    body = settle(client, wid)
+    assert body["run"]["message"] == f"{shop.NO_ROUTE} {shop.LINKS_ONLY}" and len(fake_shop.calls) == calls
+    assert pages.asked.count(SHIRT) == 3
+    assert body["prices_checked_at"] == checked   # the finds Claude found are tried again later
+    # with no link, Claude out of reach is said before anything starts, as before
+    other = wish(client, name="Loafers")
+    usable["routes"] = ("plan",)
+    find_some(client, other)
+    usable["routes"] = ()
+    r = client.post(f"/api/wishlist/{other}/prices")
+    assert r.status_code == 409 and r.json()["detail"] == shop.NO_ROUTE
+
+
+def test_a_drop_is_shown_on_the_wishlist_row(client, pages):
+    wid = add_link(client, SHIRT)
+    plain = wish(client, name="A belt")
+    pages.pages[SHIRT] = shirt_page("51.00")
+    assert client.post(f"/api/wishlist/{wid}/prices").status_code == 202
+    settle(client, wid)
+    rows = {w["id"]: w for w in client.get("/api/wishlist").json()["wishes"]}
+    assert rows[wid]["drop"] == {"from": 68.0, "to": 51.0, "currency": "USD", "percent": 25, "shop": "Example Shop"}
+    assert rows[wid]["link"]["price"] == 51.0
+    assert rows[plain]["drop"] is None and rows[plain]["link"] is None
+    # back up again: no drop (the latest price is what counts)
+    pages.pages[SHIRT] = shirt_page("70.00")
+    client.post(f"/api/wishlist/{wid}/prices")
+    settle(client, wid)
+    assert {w["id"]: w for w in client.get("/api/wishlist").json()["wishes"]}[wid]["drop"] is None
+
+
+def test_the_daily_round_reads_link_pages_first_whether_or_not_claude_can_be_asked(client, services, fake_shop, pages,
+                                                                                   usable, clock):
+    linked = add_link(client, SHIRT)
+    found = wish(client)
+    find_some(client, found)
+    fake_shop.calls.clear()
+    asked = pages.asked.count(SHIRT)
+    assert services.shopper.tick() == 2   # both due; the link was read a moment ago, so it is not read again
+    assert pages.asked.count(SHIRT) == asked
+    assert [c[0] for c in fake_shop.calls] == ["prices"] and SHIRT not in fake_shop.calls[0][1]
+
+    clock[0] += timedelta(days=1, seconds=1)
+    pages.pages[SHIRT] = shirt_page("59.00")
+    assert services.shopper.tick() == 2
+    assert pages.asked.count(SHIRT) == asked + 1   # read by Nines itself
+    assert all(SHIRT not in c[1] for c in fake_shop.calls)   # never sent to Claude: the page gave its price
+    row = {w["id"]: w for w in client.get("/api/wishlist").json()["wishes"]}[linked]
+    assert row["drop"]["to"] == 59.0
+
+    # a day on with Claude out of reach: the link's page is still read, the rest waits for Claude
+    clock[0] += timedelta(days=1, seconds=1)
+    usable["routes"] = ()
+    calls = len(fake_shop.calls)
+    pages.pages[SHIRT] = shirt_page("57.00")
+    assert services.shopper.tick() == 1 and len(fake_shop.calls) == calls
+    assert client.get(f"/api/wishlist/{linked}/finds").json()["finds"][0]["price"] == 57.0
+    assert services.shopper.tick() == 0   # within the day: not read again
+    assert pages.asked.count(SHIRT) == asked + 2
+
+
+def test_nothing_about_a_link_is_logged_when_its_page_breaks_the_reader(client, services, pages, caplog):
+    class Breaks:
+        def check(self, url):
+            return pages.reader.check(url)
+
+        def read(self, url):
+            raise RuntimeError(f"could not read {url}")
+    services.shopper.reader = Breaks()
+    with caplog.at_level(logging.DEBUG):
+        wid = add_link(client, SHIRT)
+    assert client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]["read_at"]
+    assert "shop.example" not in caplog.text and "linen" not in caplog.text.lower()
 
 
 # ------------------------------------------------------------------ the API route and the monthly limit

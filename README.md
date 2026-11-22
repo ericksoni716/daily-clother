@@ -292,6 +292,17 @@ you have switched it on, and never past its monthly limit (when only the key
 can be used, the wish says what a search could cost at most). The demo closet
 never searches.
 
+**Add a link**, on the wishlist, takes the address of a product's page you found
+yourself: paste it and tap **Add to the list**. Nines opens the page from your
+computer and makes a wish named after the product, with its price. Only when the
+page doesn't give its price is Claude asked to read it, the same way as **Check
+prices**. On a wish's page, **Add a link** adds another product to that wish.
+The pages you send are checked once a day with the rest, and when a price goes
+down, the wish's row in the wishlist says so ("Down from $68.00 to $54.40").
+Nines only opens `https://` addresses of shops on the internet, never one on
+your own network. To send a page from your phone's share sheet, see **Send a
+product's page to your wishlist** below.
+
 To record a single item: open it and tap **Wore it today** (tap **Undo** if
 that was a mistake). The item shows how often it has been worn and when last, and lists
 the recent days, each of which can be removed. **Put in the laundry** and
@@ -683,6 +694,36 @@ example "This device came in through Tailscale as you@example.com". If the
 phone shows "Nines could not tell who you are" instead, check that it is
 signed in to your Tailscale, then open Nines on the computer and check that
 Tailscale is set up there (**Settings → Other devices**).
+
+### Send a product's page to your wishlist
+
+On an Android phone, or in Chrome on a computer, once you have installed Nines
+from the browser (**Add to Home screen** or **Install**), Nines is in the share
+sheet: on a product's page, tap **Share**, then **Nines**. Nines opens with the
+link in the **Add a link** box. Nothing is added until you tap **Add to the
+list**.
+
+An iPhone does not put web apps in its share sheet, so a Shortcut does it. Make
+it once:
+
+1. Open the **Shortcuts** app and tap **+**. Name the new shortcut **Add to
+   Nines**.
+2. Open its details (the **ⓘ** button) and turn on **Show in Share Sheet**. At
+   the top, where it says what the shortcut receives, choose **URLs** and
+   **Safari web pages** only.
+3. Add the action **URL Encode**, with **Shortcut Input** in it.
+4. Add the action **Text**. In it, type Nines' address from **Settings → Other
+   devices** followed by `/wardrobe/link?url=`, and right after that put the
+   **URL Encoded Text** from the step before. It reads like
+   `https://your-pc.your-tailnet.ts.net/wardrobe/link?url=` and then the
+   encoded text.
+5. Add the action **Open URLs**, with the **Text** in it, and tap **Done**.
+
+Then, on a product's page in Safari or in a shop's app, tap **Share** and **Add
+to Nines**. Nines opens in Safari with the link in the box; tap **Add to the
+list**. It opens in Safari rather than from the Nines icon on your home screen,
+because that is how an iPhone opens a link; both are the same Nines. As for the
+rest of Nines, the iPhone must be connected to your Tailscale.
 
 ## Use it without Tailscale, through Cloudflare
 

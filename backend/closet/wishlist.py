@@ -294,9 +294,11 @@ class WishChange(BaseModel):
     model_config = {"extra": "forbid"}
 
 
-def router(conn_dep: Callable, gaps_now: Callable[[], dict], settings=None) -> APIRouter:
+def router(conn_dep: Callable, gaps_now: Callable[[], dict], settings=None,
+           rows: Callable[[sqlite3.Connection], dict[str, dict]] | None = None) -> APIRouter:
     """The routes for hiding gaps and for the wishlist. `gaps_now()` gives the open closet's analysis (it may take
-    seconds the first time, so it is called in a worker thread)."""
+    seconds the first time, so it is called in a worker thread). `rows(conn)` gives what each wish's row also shows,
+    by wish (`shop.on_the_list`: the page it was sent as and a price drop), given with every wish answered."""
     r = APIRouter()
 
     async def gap(gap_id: str) -> dict:
@@ -338,9 +340,16 @@ def router(conn_dep: Callable, gaps_now: Callable[[], dict], settings=None) -> A
             settings.mutate(lambda data: data["life_gap_hides"].get(profile, {}).pop(gap_id, None))
         return Response(status_code=204)
 
+    def shown(conn: sqlite3.Connection, wishes: list[dict]) -> list[dict]:
+        """The wishes with what their rows show besides (`rows`), so every answer gives a wish the same way."""
+        if rows is None:
+            return wishes
+        more = rows(conn)
+        return [{**w, "link": None, "drop": None, **more.get(w["id"], {})} for w in wishes]
+
     @r.get("/api/wishlist")
     def get_wishlist(conn=Depends(conn_dep)):
-        return {"wishes": list_wishes(conn)}
+        return {"wishes": shown(conn, list_wishes(conn))}
 
     @r.post("/api/wishlist")
     async def new_wish(body: WishNew, response: Response, conn=Depends(conn_dep)):
@@ -349,16 +358,16 @@ def router(conn_dep: Callable, gaps_now: Callable[[], dict], settings=None) -> A
         found = await gap(body.gap_id) if body.gap_id is not None else None
         wish, created = add_wish(conn, found, body.name, body.note)
         response.status_code = 201 if created else 200
-        return wish
+        return shown(conn, [wish])[0]
 
     @r.patch("/api/wishlist/{wish_id}")
     def change_wish(wish_id: str, body: WishChange, conn=Depends(conn_dep)):
         price = {k: getattr(body, k) for k in ("price_min", "price_max", "price_currency") if k in body.model_fields_set}
-        return update_wish(conn, wish_id, body.name, body.note, price)
+        return shown(conn, [update_wish(conn, wish_id, body.name, body.note, price)])[0]
 
     @r.post("/api/wishlist/{wish_id}/bought")
     def bought(wish_id: str, conn=Depends(conn_dep)):
-        return mark_bought(conn, wish_id)
+        return shown(conn, [mark_bought(conn, wish_id)])[0]
 
     @r.delete("/api/wishlist/{wish_id}", status_code=204)
     def delete_wish(wish_id: str, conn=Depends(conn_dep)):

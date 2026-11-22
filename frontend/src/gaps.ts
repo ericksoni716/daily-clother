@@ -2,6 +2,7 @@
 import { label } from './labels';
 import { SAVED_PREFIX } from './today';
 import type { Life } from './life';
+import type { PriceDrop, WishLink } from './shop';
 
 export interface LookFor {
   category: string;
@@ -80,6 +81,9 @@ export interface Wish {
   bought_at: string | null;
   created_at: string;
   updated_at: string;
+  /** In the list only: its newest page sent as a link, and the biggest drop among its finds' prices. */
+  link?: WishLink | null;
+  drop?: (PriceDrop & { shop: string }) | null;
 }
 
 // --------------------------------------------------------------------- "Not for me"

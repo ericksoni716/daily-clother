@@ -25,6 +25,11 @@ navy polo and a product with a link that is not a web address (which the app dro
 price 20% lower. With CLOSET_E2E_SEED=demo the owner's own closet starts as a copy of the demo closet, so what is
 found is checked against a closet with something in it (the demo closet itself never searches).
 
+A product's page sent as a link is never fetched from the web, with or without the other stand-ins (`ShopPages`):
+shop.example is the only name that can be found, and its made-up pages are a linen shirt whose structured data gives
+its price ($68.00 the first time it is read, then 20% lower each time it is read again), a shirt with a very long
+name (the same prices) and a page with no price, which goes to Claude's stand-in (a price check, $80.00).
+
 Finding the pieces in a photo of several is a stand-in too: after a second it gives the boxes of
 `conftest.GARMENT_BOXES` (a red piece left, a blue one in the middle, a green one right), whatever the photo.
 
@@ -83,7 +88,7 @@ import sys
 import time
 import urllib.error
 
-from closet import apikey, app, cli, demo, tracejobs, weather
+from closet import apikey, app, cli, demo, productpage, tracejobs, weather
 from closet.tagger import routes as tagger_routes
 from closet.tagger import shoedrawing
 from closet.tagger.correcting import CorrectionResult
@@ -255,6 +260,43 @@ class FakeShop:
                                              currency=f["currency"], available=True) for f in finds])
 
 
+SHOP_PAGE_NAMES = {
+    "https://shop.example/linen-shirt": "Linen camp-collar shirt",
+    "https://shop.example/long-name": ("Heavyweight garment-dyed linen camp-collar short-sleeve shirt in washed sand with "
+                                       "horn-effect buttons and a boxy cropped fit"),
+}
+
+
+class ShopPages:
+    """Stands in for the web a link's page is read from (see the top): the real reading of the page, on made-up
+    pages."""
+
+    def __init__(self):
+        self.reads: dict[str, int] = {}
+        self.reader = productpage.Reader(resolve=self.resolve, get=self.get)
+
+    def resolve(self, host: str) -> list[str]:
+        if host != "shop.example":
+            raise productpage.Unreadable(productpage.NO_SUCH_PLACE)
+        return ["1.2.3.4"]   # any address on the internet: nothing connects to it
+
+    def get(self, target, seconds):
+        url = target.url.split("?")[0]
+        if url == "https://shop.example/plain-shirt":
+            text = "<html><head><title>A plain shirt</title></head><body></body></html>"
+        elif url in SHOP_PAGE_NAMES:
+            n = self.reads.get(url, 0)
+            self.reads[url] = n + 1
+            data = {"@context": "https://schema.org", "@type": "Product", "name": SHOP_PAGE_NAMES[url],
+                    "offers": {"@type": "Offer", "price": f"{68 * 0.8 ** n:.2f}", "priceCurrency": "USD",
+                               "availability": "https://schema.org/InStock"}}
+            text = (f'<html><head><script type="application/ld+json">{json.dumps(data)}</script>'
+                    '<meta property="og:site_name" content="Example Shop"></head><body></body></html>')
+        else:
+            return productpage.Answer(404, {"content-type": "text/html"}, b"")
+        return productpage.Answer(200, {"content-type": "text/html; charset=utf-8"}, text.encode("utf-8"))
+
+
 def seed_from_demo(cfg):
     """The owner's own closet starts as a copy of the demo closet (only when it does not exist yet)."""
     main = cfg.db_path("main")
@@ -407,6 +449,7 @@ def _build_services(cfg, **kwargs):
     kwargs.setdefault("add_sorter", fake_add_sorter)
     kwargs.setdefault("day_reader", fake_day_reader)   # nor does reading the day in the owner's words
     kwargs.setdefault("chat_ask", fake_chat)   # nor does the style conversation
+    kwargs.setdefault("page_reader", ShopPages().reader)   # and a link's page is never fetched from the web
     chooser = os.environ.get("CLOSET_E2E_STYLIST")
     if chooser:   # nor does choosing the day's outfits
         kwargs.setdefault("stylist_ask", failing_stylist if chooser == "fails" else slow_stylist)

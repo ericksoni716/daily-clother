@@ -12,6 +12,16 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Added
 
+- **Add a link**, on your wishlist: paste the address of a product's page and Nines makes a wish
+  from it, named after the product, with its price. Nines reads the page itself first, from your
+  computer; only when the page doesn't give its price is Claude asked to read it, the same way as
+  **Check prices**. On a wish's page, **Add a link** adds another product to that wish. The pages
+  you send are checked once a day with the rest, and when a price goes down the wish's row in the
+  wishlist says so ("Down from $68.00 to $54.40"). On an Android phone, or in Chrome on a
+  computer, you can share a page to Nines from the share sheet; on an iPhone, a Shortcut does it
+  (the README says how). Either way the link waits in the box until you tap **Add to the list**.
+  In the demo closet a page is read, but Claude is never asked.
+
 - **Add to the drawing**, in Fix the details: for what no detail shows (a patch, a panel, a
   tab, a line of stitching), write one line, such as "a small red patch on the left sleeve", and
   Claude draws it onto the piece's drawing, using the drawing as it is as its guide and keeping

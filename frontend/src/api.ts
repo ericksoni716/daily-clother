@@ -391,6 +391,11 @@ export const api = {
   finds: (id: string) => request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/finds`),
   findSome: (id: string) => request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/find`, { method: 'POST' }),
   checkPrices: (id: string) => request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/prices`, { method: 'POST' }),
+  /** A new wish made from a product's page (or the one already made from it); its page is read in the background. */
+  addLink: (url: string) => request<Wish>('/api/wishlist/link', { method: 'POST', body: { url } }),
+  /** A product's page added to a wish as a find; its page is read in the background. */
+  addLinkTo: (id: string, url: string) =>
+    request<FindsAnswer>(`/api/wishlist/${encodeURIComponent(id)}/link`, { method: 'POST', body: { url } }),
   removeFind: (id: string, findId: string) =>
     request<void>(`/api/wishlist/${encodeURIComponent(id)}/finds/${encodeURIComponent(findId)}`, { method: 'DELETE' }),
   // Would this work?: a check starts and answers later; the photo is not kept

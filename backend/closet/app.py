@@ -47,6 +47,7 @@ from . import (
     outfits,
     patjobs,
     phone,
+    productpage,
     progress,
     review,
     savedtrips,
@@ -204,7 +205,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                    drawing_corrector: shoedraw.Corrector | None = None, add_sorter=None,
                    side_drawer: shoedraw.Sider | None = None, day_reader=None, stylist_ask: stylejobs.Asker | None = None,
                    stylist_look: stylejobs.Looker | None = None, chat_ask: stylechat.Asker | None = None,
-                   side_corrector: shoedraw.SideCorrector | None = None, adder: additions.Adder | None = None) -> Services:
+                   side_corrector: shoedraw.SideCorrector | None = None, adder: additions.Adder | None = None,
+                   page_reader: productpage.Reader | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
@@ -223,7 +225,8 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     give one. `chat_ask` stands in for Claude in the
     style conversation (tests); tests standing in for Claude have no conversation unless they give one. `adder` stands
     in for Claude adding to a garment's drawing at the owner's word (`tagger.adding.add` without its routes, meter and
-    client; tests); tests standing in for Claude draw nothing on unless they give one.
+    client; tests); tests standing in for Claude draw nothing on unless they give one. `page_reader` reads a product's
+    page sent as a link (`productpage.Reader`, whose two edges to the web tests stand in for).
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
@@ -432,7 +435,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     finding = sources.Worker(cfg, state, routes or (lambda: tagjobs.usable_routes(state)),
                              finder or (no_finder if tagger is not None else real_finder))
     shopper = shop.Shopper(cfg, state, lambda profile: closet_inputs(cfg, profile), tag_worker.routes,
-                           shop_asker or shop.ClaudeAsker(cfg, state, client=api_client))
+                           shop_asker or shop.ClaudeAsker(cfg, state, client=api_client), page_reader)
     sv = Services(cfg, state, model, worker, backup.Scheduler(cfg, state), web_dir, tag_worker=tag_worker,
                   pattern_worker=pattern_worker, second_model=second if cutter is None else None,
                   corrector=corrector or real_corrector,
@@ -1246,7 +1249,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         rows = conn.execute("SELECT id, name, category, color, formality, season, price_cents, status, created_at FROM items").fetchall()
         worn = conn.execute("SELECT item_id, worn_on FROM wears").fetchall()
         return find_insights(rows, worn, wears.today())
-    app.include_router(wishlist.router(conn_dep, gap_analysis, state))
+    app.include_router(wishlist.router(conn_dep, gap_analysis, state, rows=shop.on_the_list))
 
     def closet_for_check(profile: str) -> tuple[list[dict], list[dict], dict | None]:
         # Until the owner has said how they live, the check works out the plain analysis itself, with and without

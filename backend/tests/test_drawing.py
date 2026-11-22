@@ -239,6 +239,30 @@ def test_a_told_detail_wins_over_the_kinds_look():
     assert extras["texture"] == "corduroy"
 
 
+@pytest.mark.parametrize("category, kind, told, hem", [
+    ("trousers", "joggers", "plain", "rib"),            # plain says nothing a plain hem would not: joggers keep their cuffs
+    ("trousers", "joggers", "na", "rib"),
+    ("trousers", "joggers", "turn_up", "turnup"),       # a hem that was told or picked wins over the kind's usual one
+    ("trousers", "track_pants", "ribbed_cuff", "rib"),
+    ("trousers", "tech_pants", "ribbed_cuff", "rib"),
+    ("trousers", "track_pants", "plain", "plain"),
+    ("shorts", "running_shorts", "plain", "split"),
+    ("trousers", "lounge_knit_set", "na", "rib"),       # a set's trousers, cut like joggers
+])
+def test_a_told_hem_wins_over_a_sportswear_kinds_usual_hem(category, kind, told, hem):
+    _, params = _drawn(answer(category, garment=kind, hem_finish=told))
+    assert params["hem"] == hem
+
+
+def test_a_ribbed_trouser_cuff_shows_its_ribs_and_the_leg_gathered_into_it():
+    from closet.drawing.templates import pants
+    plain, rib = pants(leg="tapered", waist="drawstring", hem="plain"), pants(leg="tapered", waist="drawstring", hem="rib")
+    assert [p.role for p in rib.parts].count("band") == [p.role for p in plain.parts].count("band") + 2   # a cuff each leg
+    assert len(rib.lines) >= len(plain.lines) + 2 * (4 + 3)   # ribs down each cuff, and three folds above it
+    shorts = pants(length="short", hem="rib")
+    assert len(shorts.lines) > len(pants(length="short", hem="plain").lines)   # a shorts cuff has ribs, but no folds
+
+
 def test_an_answer_stored_before_the_new_fields_reads_as_nothing_told():
     old = answer("boots", shoe_style="chelsea_boot")
     for name in ("footwear", "eyelets", "trouser_pockets", "shade", "inseam", "denim_wash"):

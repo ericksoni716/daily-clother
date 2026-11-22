@@ -343,6 +343,9 @@ def drawing_for(tags: ItemTags) -> tuple[str, dict, dict, list[str]]:
             p["stitch"] = "contrast"
         p.update(taxonomy.bottom_params(tags.category, d.model_dump()))   # the owner's bottoms block, where told
         p.update(taxonomy.bottom_look(d.garment, tags.category))   # the kind's own look wins over a told detail
+        hem = taxonomy.kind_hem_finish(d.garment, tags.category, d.hem_finish)   # but not over a hem told or picked
+        if hem in taxonomy.BOTTOM_DRAWING["hem_finish"]:
+            p["hem"] = taxonomy.BOTTOM_DRAWING["hem_finish"][hem][0]["hem"]
         if "side_stripe" in d.features:
             p["stripe"] = "side"
         extras.update(taxonomy.surface_extras(cloth))

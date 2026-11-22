@@ -32,7 +32,8 @@ FIELDS = ("category", "color", "pattern", "formality", "season")
 SHAPES = tuple(f"silhouette.{k}" for k in vocab.SILHOUETTE)
 
 GROUPS = {"shape": "Shape", "neck": "Collar and neck", "front": "Front", "sleeves": "Sleeves and cuffs",
-          "pockets": "Pockets", "hem": "Hem", "sole": "Sole and laces", "lacing": "Lacing", "cloth": "Cloth"}
+          "pockets": "Pockets", "hem": "Hem", "hem_cuffs": "Hem and cuffs", "sole": "Sole and laces", "lacing": "Lacing",
+          "cloth": "Cloth"}
 # what can be fixed on each kind of garment, grouped, in the order the item page shows them
 BY_KIND: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
     "top": (
@@ -49,7 +50,7 @@ BY_KIND: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
         ("shape", ("garment", "side_stripe", "leg_shape", "rise", "trouser_break", "crease", "inseam")),
         ("front", ("waistband", "fly", "trouser_front")),
         ("pockets", ("pockets",)),
-        ("hem", ("hem_finish",)),
+        ("hem_cuffs", ("hem_finish",)),   # a trouser's cuffs are at its hem: a turn-up, a roll, joggers' ribbed cuffs
         ("cloth", ("fabric", "fiber", "weight", "corduroy_wale", "denim_wash", "contrast_stitching", "color_texture",
                    "pattern_name", "shade")),
     ),

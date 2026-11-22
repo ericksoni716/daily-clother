@@ -123,7 +123,7 @@ from dataclasses import dataclass, field, replace
 from . import drawn, fitting, item, templates, worn
 from .fills import Graphic
 from .frontshoe import FrontShoe, bare_feet, front_shoe
-from .illustrate import CARD, INK, Fill, Spec, _draw, luminance, shade
+from .illustrate import CARD, INK, Fill, Spec, _draw, built, luminance, shade
 from .templates import CX, K_PX, LEG_WIDTHS, PX_CM, TOP_DEFAULTS, Shape, _block_for, build
 
 log = logging.getLogger("closet.drawing")
@@ -383,6 +383,8 @@ class Piece:
     graphic: Graphic | None = None   # a print lifted from its photo (tops only), as its own drawing uses it
     drawn: object = None         # shoes: the shoe Claude drew from its photos, as kept (`shoedraw`; read by `drawn.stored`),
     #                              drawn on the figure in place of the front view
+    added: tuple = ()            # what Claude drew onto its drawing at the owner's word (`drawing.added.parts`), as its
+    #                              own drawing lays it over the template's parts
 
 
 @dataclass
@@ -513,7 +515,7 @@ def _spec(piece: Piece) -> Spec:
         tags = item._plain(piece.category, item._known_silhouette(piece.silhouette), {}, word)
     template, params, extras, _ = item.drawing_for(tags)
     return Spec(template, dict(params), piece.fill or Fill("solid", item._color(piece.color_hex, tags.color)),
-                graphic=piece.graphic if template == "top" else None, **extras)
+                graphic=piece.graphic if template == "top" else None, added=tuple(piece.added or ()), **extras)
 
 
 def as_worn(piece: Piece) -> list[dict]:
@@ -554,9 +556,15 @@ def _plainest(piece: Piece) -> Spec:
     return Spec(template, dict(params), Fill("solid", item._color(piece.color_hex, piece.color)), **extras)
 
 
+def flat_shape(piece: Piece) -> Shape:
+    """The shape of the piece's own drawing, flat, as its item drawing builds it (with what Claude drew onto it, when the
+    piece carries that)."""
+    return _shape(_spec(piece))
+
+
 def _shape(spec: Spec) -> Shape:
     params = spec.params if not spec.weight or "weight" in spec.params else {**spec.params, "weight": spec.weight}
-    return build(spec.template, params)
+    return built(spec, params)   # with what Claude drew onto it, moved onto the wearer with the rest
 
 
 def _spread(tops: list[Placed]) -> float:

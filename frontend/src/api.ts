@@ -271,6 +271,14 @@ export const api = {
     request<Item>(`/api/items/${encodeURIComponent(id)}/drawn/correct`, { method: 'POST', body: { note, about } }),
   /** Swaps a shoe's drawing and the one before the last change: back in one tap, and forward again the same way. */
   drawingBack: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/drawn/back`, { method: 'POST' }),
+  /** The owner's one line for Claude to draw onto a garment's drawing, the template drawing as its guide; drawn in the
+   * background, a minute or two. */
+  addToDrawing: (id: string, note: string) =>
+    request<Item>(`/api/items/${encodeURIComponent(id)}/additions`, { method: 'POST', body: { note } }),
+  /** Swaps what Claude drew onto the drawing and what it had before the last change. */
+  additionsBack: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/additions/back`, { method: 'POST' }),
+  /** Takes everything Claude drew onto the drawing off it (kept to go back to). */
+  removeAdditions: (id: string) => request<Item>(`/api/items/${encodeURIComponent(id)}/additions`, { method: 'DELETE' }),
   /** `duplicate` is true when the photo was already in the closet; the item returned is the one it is in. */
   upload: (photo: Blob, filename: string, clientKey: string, sha256?: string | null, signal?: AbortSignal, shoe = false) => {
     const form = new FormData();

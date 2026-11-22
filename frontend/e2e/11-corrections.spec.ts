@@ -236,6 +236,46 @@ test.describe('saying what is wrong, with a stand-in for Claude', () => {
     await expect(sheet).toHaveCount(0);
   });
 
+  test('what no detail shows is handed to Claude to draw on, kept on the drawing, and can be taken back', async ({ page }) => {
+    await enter(page);
+    const { id } = await polo(page);
+    await page.goto(`${backend.url}/item/${id}`);
+    await page.getByRole('button', { name: 'Something wrong? Tell Claude' }).click();
+    const sheet = page.getByRole('dialog', { name: 'Fix the details' });
+    const drawing = sheet.getByRole('img', { name: 'Navy polo, drawing as it is now' });
+    const before = (await drawing.getAttribute('src'))!;
+
+    // a sentence no detail can show: Claude says so, and it can be handed to "Add to the drawing"
+    await sheet.getByLabel("What's wrong with it?").fill('it has a red patch on the chest');
+    await sheet.getByRole('button', { name: 'Ask Claude' }).click();
+    await expect(sheet.getByText(/^Nothing was changed\./)).toBeVisible();
+    await sheet.getByRole('button', { name: 'Have Claude draw it onto the drawing instead' }).click();
+    const line = sheet.getByLabel('What should Claude add?');
+    await expect(line).toHaveValue('it has a red patch on the chest');
+    await expect(line).toBeFocused();
+    await sheet.getByRole('button', { name: 'Draw it on', exact: true }).click();
+    await expect(page.locator('.toast', { hasText: 'Claude is drawing it on' })).toBeVisible();
+
+    // drawn in the background: the page is read again once it is done
+    await expect(sheet.getByText('Added by Claude: red patch on the chest.')).toBeVisible();
+    await expect(sheet.getByText('Drew a red patch on the chest.')).toBeVisible();
+    await expect(sheet.getByText(/^Drawn in 31 s on your Claude plan, checked against the photo/)).toBeVisible();
+    await expect(drawing).not.toHaveAttribute('src', before);
+    const svg = await (await page.request.get(backend.url + (await drawing.getAttribute('src'))!)).text();
+    expect(svg).toContain('#c0392b');
+    await expect(line).toHaveValue('');
+
+    // one tap back, and forward again; then every addition taken off, kept to go back to
+    await sheet.getByRole('button', { name: 'Go back to the drawing before' }).click();
+    await expect(drawing).toHaveAttribute('src', before);
+    await sheet.getByRole('button', { name: 'Go to the newer drawing' }).click();
+    await expect(sheet.getByText('Added by Claude: red patch on the chest.')).toBeVisible();
+    await sheet.getByRole('button', { name: "Take Claude's additions off" }).click();
+    await expect(drawing).toHaveAttribute('src', before);
+    await expect(sheet.getByTestId('added-parts')).toHaveCount(0);
+    await expect(sheet.getByRole('button', { name: 'Go back to the drawing before' })).toBeVisible();
+  });
+
   test('on a phone the sheet opens over the page: nothing moves, and the box shows without scrolling', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await enter(page);

@@ -25,6 +25,7 @@ from . import (
     APP_NAME,
     __version__,
     access,
+    additions,
     apikey,
     autostart,
     background,
@@ -108,6 +109,7 @@ class Services:
     finder: sources.Worker | None = None          # asks where each piece is in a photo of several
     views: shoeviews.Worker | None = None         # sorts a shoe's photos into views
     draws: shoedraw.Worker | None = None          # draws a shoe from its sorted photos
+    additions: additions.Drawer | None = None      # draws the owner's line onto a garment's drawing (closet/additions.py)
     add_sorter: object = None                      # says what each photo chosen on Add shows (tagger/addsort.py)
     day_reader: object = None                      # reads the day in the owner's words (tagger/dayread.py)
     stylist: stylejobs.Stylist | None = None       # Claude choosing the day's outfits (closet/stylejobs.py); None: the rules only
@@ -202,7 +204,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                    drawing_corrector: shoedraw.Corrector | None = None, add_sorter=None,
                    side_drawer: shoedraw.Sider | None = None, day_reader=None, stylist_ask: stylejobs.Asker | None = None,
                    stylist_look: stylejobs.Looker | None = None, chat_ask: stylechat.Asker | None = None,
-                   side_corrector: shoedraw.SideCorrector | None = None) -> Services:
+                   side_corrector: shoedraw.SideCorrector | None = None, adder: additions.Adder | None = None) -> Services:
     """Open the settings, bring the closet database up to date and wire the background workers.
 
     `web_dir` is the built page to serve: "bundled" looks for the one shipped
@@ -219,7 +221,9 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     standing in for Claude draw no sides by themselves unless they give one. `side_corrector` stands in for Claude
     changing a shoe's side drawing from the owner's note (tests); tests standing in for Claude change none unless they
     give one. `chat_ask` stands in for Claude in the
-    style conversation (tests); tests standing in for Claude have no conversation unless they give one.
+    style conversation (tests); tests standing in for Claude have no conversation unless they give one. `adder` stands
+    in for Claude adding to a garment's drawing at the owner's word (`tagger.adding.add` without its routes, meter and
+    client; tests); tests standing in for Claude draw nothing on unless they give one.
     """
     cfg.data_dir.mkdir(parents=True, exist_ok=True)
     state = State(cfg.state_path)
@@ -230,6 +234,7 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
     conn = db.connect(cfg.db_path(state.get("profile")))
     try:
         jobs.requeue_interrupted(conn)
+        additions.recover(conn)   # a line being drawn onto a drawing when Nines stopped: the page says to send it again
     finally:
         conn.close()
     holder: dict = {}
@@ -439,6 +444,18 @@ def build_services(cfg: Config, cutter: jobs.Cutter | None = None, web_dir: Path
                                             look=looker) if choose else None,
                   chat=stylechat.Chat(talk, routes or (lambda: tagjobs.usable_routes(state))) if talk else None)
     sv.ahead = styleahead.Ahead(cfg, state, lambda: sv.stylist)
+
+    add_meter = spend.Meter(cfg, state, spend.PURPOSE_ADD_TO_DRAWING, spend.estimate_add_to_drawing)
+
+    def no_adder(*args, **kwargs):
+        raise RouteUnavailable("tests standing in for Claude draw nothing onto drawings unless they ask to")
+
+    def adder_now() -> additions.Adder:
+        from .tagger import adding
+        usable = (routes or (lambda: tagjobs.usable_routes(state)))()
+        given = adder or (no_adder if tagger is not None else adding.add)
+        return lambda *a: given(*a, routes=usable, client=api_client, meter=add_meter)
+    sv.additions = additions.Drawer(adder_now)
     return sv
 
 
@@ -872,6 +889,56 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         if sv.draws:
             sv.draws.wake()
         return await run_in_threadpool(lambda: items.detail(conn, items.get(conn, item_id)))
+
+    # ------------------------------------------------------- Claude adding to a garment's drawing
+    @app.post("/api/items/{item_id}/additions", status_code=202)
+    async def add_to_drawing(item_id: str, request: Request):
+        body = await shoe_body(request)
+        note = body.get("note") if isinstance(body, dict) else None
+        profile = state.get("profile")
+        path, folder = cfg.db_path(profile), cfg.images_dir(profile)
+
+        def work() -> dict:
+            conn = db.connect(path)
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                try:
+                    additions.start(conn, item_id, note, profile == "demo")
+                    conn.execute("COMMIT")
+                except Exception:
+                    if conn.in_transaction:
+                        conn.execute("ROLLBACK")
+                    raise
+                if sv.additions:
+                    sv.additions.run(item_id, path, folder)
+                return items.detail(conn, items.get(conn, item_id))
+            finally:
+                conn.close()
+        return await run_in_threadpool(work)
+
+    @app.post("/api/items/{item_id}/additions/back")
+    def additions_back(item_id: str, conn=Depends(conn_dep)):
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            additions.back(conn, item_id)
+            conn.execute("COMMIT")
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        return items.detail(conn, items.get(conn, item_id))
+
+    @app.delete("/api/items/{item_id}/additions")
+    def additions_remove(item_id: str, conn=Depends(conn_dep)):
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            additions.remove(conn, item_id)
+            conn.execute("COMMIT")
+        except Exception:
+            if conn.in_transaction:
+                conn.execute("ROLLBACK")
+            raise
+        return items.detail(conn, items.get(conn, item_id))
 
     @app.post("/api/items/{item_id}/drawn/back")
     def drawn_back(item_id: str, conn=Depends(conn_dep)):

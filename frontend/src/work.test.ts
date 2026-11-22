@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Progress, ProgressList } from './types';
-import { FAST_MS, movedOn, progressPoll, WAITING_MS } from './work';
+import type { Additions, Progress, ProgressList } from './types';
+import { FAST_MS, itemPoll, movedOn, progressPoll, WAITING_MS } from './work';
 
 const progress = (over: Partial<Progress> = {}): Progress => ({
   stage: 'cutout', step: 1, of: 3, state: 'working', title: 'Cutting out', words: 'Removing the background', about: '',
@@ -43,5 +43,20 @@ describe('movedOn', () => {
     const after = list(entry('cut', { stage: 'describing', step: 2, state: 'queued' }), entry('wait'),
       entry('same', { stage: 'describing', step: 2 }), entry('new'));
     expect(movedOn(before, after).sort()).toEqual(['cut', 'done', 'new', 'wait']);
+  });
+});
+
+describe('itemPoll', () => {
+  const with_ = (state: Additions['state']) => ({ additions: { state } as Additions });
+
+  it('reads the item again while Claude draws onto its drawing, since the closet may never see it under way', () => {
+    expect(itemPoll(with_('drawing'), false)).toBe(FAST_MS);
+  });
+
+  it('does not otherwise, nor offline', () => {
+    for (const state of ['idle', 'failed', 'said'] as const) expect(itemPoll(with_(state), false)).toBeNull();
+    expect(itemPoll(with_('drawing'), true)).toBeNull();
+    expect(itemPoll({ additions: null }, false)).toBeNull();
+    expect(itemPoll(null, false)).toBeNull();
   });
 });

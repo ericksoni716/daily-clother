@@ -6,7 +6,8 @@ A photo becomes an item in up to three steps:
 2. **Describing and drawing**: Claude describes it, and the drawing is made from that at once (`tagjobs.py`).
 3. **Finishing the drawing**, only for patterned clothes and shoes: the pattern measured from the photo
    (`patjobs.py`), or a shoe's photos sorted into views, traced and drawn by Claude (`shoeviews.py`,
-   `tracejobs.py`, `shoedraw.py`).
+   `tracejobs.py`, `shoedraw.py`); and for any garment, Claude drawing the owner's line onto its drawing
+   (`additions.py`).
 
 `of(row)` says which step an item is at, what is happening in plain words, what it waits for and whether a
 failure can be tried again. Nothing is stored: every state it reads is already a column on `items`. The words the
@@ -34,6 +35,7 @@ ABOUT = {
     "trace": "On this computer, in a few seconds.",
     "views": "By Claude, in a few seconds.",
     "shoe": "By Claude, four to ten minutes.",
+    "added": "By Claude, a minute or two.",
 }
 
 CUTTING = "Removing the background"
@@ -44,6 +46,7 @@ SORTING = "Sorting the shoe's photos into views"
 DRAWING = "Drawing the shoe from its photos"
 CORRECTING = "Changing the drawing as you asked"
 CORRECTING_SIDE = "Changing the side drawing as you asked"
+ADDING = "Adding to the drawing as you asked"
 MEASURING = "Measuring the {pattern} from the photo"
 PATTERN_WORDS = {"stripe": "stripes", "plaid": "plaid", "floral": "print", "camo": "camouflage", "graphic": "graphic"}
 
@@ -152,12 +155,20 @@ def _shoe(row) -> dict | None:
     return _out("shoe", 3, "queued", words)
 
 
+def _added(row) -> dict | None:
+    """Claude drawing the owner's line onto a garment's drawing (`additions`)."""
+    keys = row.keys() if hasattr(row, "keys") else row
+    if "additions_state" in keys and row["additions_state"] == "drawing":
+        return _out("added", 3, "working", ADDING)
+    return None
+
+
 _RANK = {"working": 0, "queued": 1, "waiting": 2}
 
 
 def _finishing(row) -> dict | None:
     """Step 3: the part going furthest right now (working before queued before waiting)."""
-    parts = [_pattern(row)]
+    parts = [_pattern(row), _added(row)]
     if tracejobs.wanted(row["category"]):
         parts += [_trace(row), _views(row), _shoe(row)]
     parts = [p for p in parts if p is not None]
@@ -203,7 +214,7 @@ def busy(progress: dict | None) -> bool:
 # the items any part of whose work is under way, found without reading every item
 _UNDER_WAY = (
     "cutout_state IN ('pending', 'processing') OR tag_state IN ('waiting', 'working') "
-    "OR pattern_state IN ('waiting', 'working') "
+    "OR pattern_state IN ('waiting', 'working') OR additions_state = 'drawing' "
     f"OR (category IN {tracejobs.SHOES} AND (trace_state IN ('waiting', 'working') "
     "OR views_state IN ('waiting', 'sorting', 'asking') OR drawn_state IN ('waiting', 'drawing', 'correcting')))"
 )

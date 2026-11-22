@@ -65,8 +65,8 @@ export interface ItemSummary {
 /** How far the work on an item has got, worked out by the server (`backend/closet/progress.py`), in its words. */
 export interface Progress {
   /** the part of the work: cutting out, describing (and drawing), measuring its pattern, tracing a shoe, sorting a
-   * shoe's photos into views, or a shoe drawn by Claude */
-  stage: 'cutout' | 'describing' | 'pattern' | 'trace' | 'views' | 'shoe';
+   * shoe's photos into views, a shoe drawn by Claude, or Claude adding to a drawing at the owner's word */
+  stage: 'cutout' | 'describing' | 'pattern' | 'trace' | 'views' | 'shoe' | 'added';
   /** which of the steps (cutting out, describing and drawing, finishing the drawing) */
   step: 1 | 2 | 3;
   of: number;
@@ -195,6 +195,34 @@ export interface Item extends ItemSummary {
   views?: ShoeViews | null;
   /** A shoe drawn by Claude from its photos for the outfit figure; null for anything that is not a shoe. */
   drawn?: ShoeDrawn | null;
+  /** What Claude drew onto the drawing at the owner's word; null for a shoe. */
+  additions?: Additions | null;
+}
+
+/** What Claude drew onto a garment's drawing at the owner's word (`backend/closet/additions.py`), in the server's words. */
+export interface Additions {
+  /** idle; drawing: Claude is drawing the owner's line now; failed: it could not (the drawing is as it was); said: Claude
+   * answered without drawing anything */
+  state: 'idle' | 'drawing' | 'failed' | 'said';
+  /** the owner's line on its way, or the one that failed or was answered in words */
+  note: string | null;
+  /** what is happening, or what became of the line, in a sentence */
+  message: string | null;
+  /** what each part drawn on is, in Claude's few words */
+  parts: string[];
+  /** the owner's latest lines, newest first, each with what Claude said of it */
+  notes: { note: string; at: string; said: string | null }[];
+  /** what Claude said of the last change */
+  said: string | null;
+  at: string | null;
+  /** how long the last change took and what it cost ("Drawn in 42 s on your Claude plan, …") */
+  took: string | null;
+  can_go_back: boolean;
+  /** going back goes to the newer drawing (the owner went back before) */
+  back_newer: boolean;
+  can_remove: boolean;
+  /** a sentence when the shape under the additions changed since they were drawn */
+  moved: string | null;
 }
 
 /** A shoe drawn by Claude from its photos for the outfit figure: drawn once by itself after its photos are sorted,

@@ -4,7 +4,7 @@
  * which follows `GET /api/progress` for every screen.
  */
 import { going } from './progress';
-import type { ModelInfo, ProgressList } from './types';
+import type { Item, ModelInfo, ProgressList } from './types';
 
 /** While anything is being done (or is next in line), measuring a pattern and drawing a shoe included. */
 export const FAST_MS = 2000;
@@ -12,6 +12,12 @@ export const FAST_MS = 2000;
 export const WAITING_MS = 10_000;
 /** While a model downloads. */
 export const DOWNLOAD_MS = 1500;
+
+/** How often an item's page reads the item again by itself: every FAST_MS while Claude draws the owner's line onto its
+ * drawing, since a line can be done (or refused) before the closet's poll ever sees it under way; null otherwise. */
+export function itemPoll(item: Pick<Item, 'additions'> | null | undefined, offline: boolean): number | null {
+  return !offline && item?.additions?.state === 'drawing' ? FAST_MS : null;
+}
 
 export function downloading(model: ModelInfo | null | undefined): boolean {
   return model?.state === 'downloading' || model?.second?.state === 'downloading';

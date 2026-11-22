@@ -143,7 +143,8 @@ of how it sits opens its detail to fix. "Something wrong? Tell Claude" opens Fix
 sheet over the page (on a computer, a box under the button) with the drawing and a box, "What's
 wrong with it?". Claude reads your sentence, says what it understood, and nothing changes until
 you choose Make these changes. "Change the details one by one" shows every detail the drawing is
-made from, by group, marked when you set it, with when Claude described the piece. In the demo
+made from, by group, marked when you set it, with when Claude described the piece (a pair of
+trousers' cuffs, turned up, rolled or ribbed, are under Hem and cuffs). In the demo
 closet, or when Claude could not be reached, the button says "Something wrong? Change the
 details" and the sheet opens on the details one by one, saying why.
 

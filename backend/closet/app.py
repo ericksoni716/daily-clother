@@ -684,7 +684,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     # ------------------------------------------------------------------ items
     @app.get("/api/vocab")
     def get_vocab():
-        return {**vocab.as_dict(), "kind_groups": kinds.catalogue()["groups"]}
+        return {**vocab.as_dict(), "kind_groups": kinds.catalogue()["groups"], "shades": items.shades()}
 
     @app.get("/api/kinds")
     def get_kinds():

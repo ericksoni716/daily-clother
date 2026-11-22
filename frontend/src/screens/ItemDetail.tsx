@@ -11,7 +11,8 @@ import { ShoePhotos } from '../components/ShoePhotos';
 import { TraceNotice } from '../components/ShoeTrace';
 import { ProgressStrip } from '../components/Progress';
 import { BackIcon, ChevronIcon, HangerIcon, InfoIcon, WarnIcon } from '../components/Icons';
-import { FIELD_TITLES, formatPrice, label, shadeLabel, measuredColours, parsePrice, PRICE_HINT, ratingLabel, SWATCH, swatchOf } from '../labels';
+import { FIELD_TITLES, formatPrice, label, shadeLabel, measuredColours, parsePrice, PRICE_HINT, ratingLabel, swatchOf } from '../labels';
+import { colourPatch, shadePatch, shadesOf } from '../shades';
 import { fixLabel, lastFoldTitle } from '../look';
 import { LookLine, NotesBox, useFieldText } from '../components/ItemAbout';
 import { SaveLine, useWhenLeaving } from '../leave';
@@ -23,7 +24,7 @@ import { useApp } from '../store';
 import { notInDrawing, useShowDrawings } from '../drawing';
 import { busy, drawingOnItsWay, drawingPlaceholder } from '../progress';
 import { retakeOffer, retakeSaid } from '../retake';
-import type { Item, ItemPatch, PatternColour, Progress } from '../types';
+import type { Item, ItemPatch, NamedShade, PatternColour, Progress } from '../types';
 import { localDay, sinceWash, wearDay, wearSummary } from '../wears';
 
 type View = 'drawing' | 'cutout' | 'photo';
@@ -262,8 +263,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
         <Editing.Provider value={{ editing, setEditing }}>
           <ul className="detail-rows">
             <DetailRow field="color" value={shadeLabel(label('color', item.color), item.shade)} swatch={item.color ? (item.color_hex ?? swatchOf(item.color)) : undefined} disabled={locked}>
-              {(done) => <ChipGroup field="color" options={vocab.color} value={item.color} disabled={locked} swatches
-                onChange={(v) => { done(); void save({ color: v, color_hex: v ? (SWATCH[v]?.startsWith('#') ? SWATCH[v] : null) : null }); }} />}
+              {(done) => <ColourChoices item={item} colours={vocab.color} shades={vocab.shades} disabled={locked} done={done} onSave={save} />}
             </DetailRow>
             <DetailRow field="pattern" value={label('pattern', item.pattern)} disabled={locked}
               extra={<MeasuredColours colours={item.pattern_colors} />}
@@ -366,11 +366,45 @@ function DetailRow({ field, value, swatch, extra, extraWords, disabled, children
         <ChevronIcon className="detail-row-chevron" />
       </button>
       {open && (
-        <Sheet title={title} className="detail-editor" onClose={() => setEditing(null)}>
+        <Sheet title={title} className="detail-editor" testId={`detail-editor-${field}`} onClose={() => setEditing(null)}>
           <div id={editorId}>{children(done)}</div>
         </Sheet>
       )}
     </li>
+  );
+}
+
+/**
+ * The Colour row's choices: the colour words, then the shades of the item's colour, each with its swatch. Choosing a
+ * colour that has shades keeps the choices open so one of its shades can be chosen; choosing a shade (or a colour
+ * without shades) closes them on a phone. The chosen shade cannot be tapped off: History undoes it.
+ */
+function ColourChoices({ item, colours, shades, disabled, done, onSave }: {
+  item: Item;
+  colours: string[];
+  shades: NamedShade[] | undefined;
+  disabled: boolean;
+  done(): void;
+  onSave(changes: ItemPatch): Promise<void>;
+}) {
+  const ofColour = shadesOf(shades, item.color);
+  const shade = (name: string) => ofColour.find((s) => s.name === name);
+  return (
+    <>
+      <ChipGroup field="color" options={colours} value={item.color} disabled={disabled} swatches
+        onChange={(v) => { if (!shadesOf(shades, v).length) done(); void onSave(colourPatch(v)); }} />
+      {ofColour.length > 0 && (
+        <ChipGroup field="shade" title={`Shades of ${label('color', item.color).toLowerCase()}`}
+          options={ofColour.map((s) => s.name)} value={item.shade} disabled={disabled} clearable={false}
+          swatches={(name) => shade(name)?.hex ?? swatchOf(item.color ?? '')}
+          onChange={(v) => {
+            const chosen = v ? shade(v) : undefined;
+            if (!chosen) return;
+            done();
+            void onSave(shadePatch(chosen));
+          }} />
+      )}
+    </>
   );
 }
 

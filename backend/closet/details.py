@@ -44,7 +44,7 @@ BY_KIND: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
         ("pockets", ("pockets",)),
         ("hem", ("hem",)),
         ("cloth", ("fit_detail", "fabric", "fiber", "weight", "knit_gauge", "corduroy_wale", "color_texture",
-                   "pattern_name", "pattern_orientation", "shade")),
+                   "pattern_name", "pattern_orientation")),
     ),
     "bottom": (
         ("shape", ("garment", "side_stripe", "leg_shape", "rise", "trouser_break", "crease", "inseam")),
@@ -52,16 +52,19 @@ BY_KIND: dict[str, tuple[tuple[str, tuple[str, ...]], ...]] = {
         ("pockets", ("pockets",)),
         ("hem_cuffs", ("hem_finish",)),   # a trouser's cuffs are at its hem: a turn-up, a roll, joggers' ribbed cuffs
         ("cloth", ("fabric", "fiber", "weight", "corduroy_wale", "denim_wash", "contrast_stitching", "color_texture",
-                   "pattern_name", "shade")),
+                   "pattern_name")),
     ),
     "shoe": (
         ("shape", ("footwear", "shoe_style", "footwear_height", "toe_shape", "toe_treatment", "toe_cap", "side_stripe",
                    "contrast_heel_tab")),
         ("lacing", ("lacing", "eyelets", "laces")),
         ("sole", ("sole", "heel", "shoe_construction", "chunky_sole", "sole_color", "lace_color")),
-        ("cloth", ("upper_material", "fabric", "fiber", "color_texture", "shade")),
+        ("cloth", ("upper_material", "fabric", "fiber", "color_texture")),
     ),
 }
+# details every item has, whatever it is: the colour's shade, which is chosen beside the colour (the item page's
+# Colour row) and decides the colour (`items.update`), so Fix the details does not offer it
+EVERY_ITEM = ("shade",)
 
 # the names in sentences: "You changed the <title> from ... to ..."
 TITLES = {
@@ -137,6 +140,7 @@ _WORDS = {
     "denim_wash": {"washed_black": "washed black"},
 
     "trim_color": {"same": "same as the body"}, "button_color": {"same": "same as the cloth"},
+    "shade": {"off_white": "off-white", "mid_wash_denim": "mid-wash denim", "light_wash_denim": "light-wash denim"},
     "fabric": {"plain": "plain weave"},
     "garment": {"unknown": "not said", **kinds.WORDS},
 }
@@ -148,9 +152,10 @@ def kind_of(category) -> str | None:
 
 
 def names_for(category, garment=None) -> tuple[str, ...]:
-    """The details that can be set on an item of this category; with the kind the owner chose (`garment`), only
-    those that kind has (`kinds.applies`): the others are hidden, not deleted."""
-    return tuple(n for _, names in BY_KIND.get(kind_of(category) or "", ()) for n in names if kinds.applies(garment, n))
+    """The details that can be set on an item of this category (with the shade, which every item has); with the kind
+    the owner chose (`garment`), only those that kind has (`kinds.applies`): the others are hidden, not deleted."""
+    grouped = (n for _, names in BY_KIND.get(kind_of(category) or "", ()) for n in names)
+    return tuple(n for n in (*grouped, *EVERY_ITEM) if kinds.applies(garment, n))
 
 
 def names_of(row) -> tuple[str, ...]:

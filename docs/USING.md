@@ -170,6 +170,12 @@ date acquired, condition), then a shoe's photos, then History (every change, eac
 be undone), and the last one, with Describe it again, Archive and Delete. A new photo can be
 taken in place of the old one, and a cutout that failed can be tried again.
 
+The colour's choices end with the shades of the piece's colour, each with its swatch ("Shades of
+green": Sage, Forest green, Hunter green, Teal). Choosing a colour keeps the choices open on its
+shades; choosing a shade saves it with its colour and draws the piece in it. A shade you choose
+stays yours when Claude describes the piece again, and choosing another colour puts it aside. It
+is chosen only there: Fix the details does not list it.
+
 A shoe also shows its photos sorted into views, near the end of the page. Once they are sorted,
 the photo of the outer side is its photo in the closet, so the photo and the side drawing show
 the same side (the inner side when no photo shows the outer one). When Claude could not tell the

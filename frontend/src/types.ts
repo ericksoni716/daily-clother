@@ -157,7 +157,8 @@ export interface Item extends ItemSummary {
   pattern_error: string | null;
   /** The colours measured from the pattern, largest first (empty when it has not been measured). */
   pattern_colors?: PatternColour[];
-  /** The owner's name for its shade (from the taxonomy's shades, e.g. 'charcoal'), or null when there is none. */
+  /** The owner's name for its shade (from the taxonomy's shades, e.g. 'charcoal'): the one the owner chose, else
+   * Claude's, else the nearest to its colour; null when there is none. Saving one sets `color` and `color_hex` too. */
   shade?: string | null;
   /** Why its cutout or its description failed: a plain sentence, and the stored reason with keys and outside paths
    * taken out (null when nothing was recorded). Null when nothing has failed. */
@@ -364,6 +365,15 @@ export interface Vocab {
   silhouette: Record<string, string[]>;
   /** the groups kinds are shown in, for the Closet filter */
   kind_groups?: { id: string; title: string }[];
+  /** the owner's named shades, in the taxonomy's order, each a shade of one colour word (the item page's Colour row) */
+  shades?: NamedShade[];
+}
+
+/** One of the owner's named shades: its name (e.g. 'sage'), its colour and the colour word it is a shade of. */
+export interface NamedShade {
+  name: string;
+  hex: string;
+  color: string;
 }
 
 export interface ModelInfo {

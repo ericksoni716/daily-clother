@@ -11,6 +11,7 @@ const SPECIAL: Record<string, Record<string, string>> = {
   top_length: { cropped: 'Cropped', regular: 'Regular', long: 'Long' },
   pant_length: { short: 'Short', ankle: 'Ankle', full: 'Full length' },
   shoe_height: { low: 'Low', high: 'High' },
+  shade: { off_white: 'Off-white', mid_wash_denim: 'Mid-wash denim', light_wash_denim: 'Light-wash denim' },
 };
 
 /** How an item sits on the outfit figure (Item.as_worn), in short plain words, by part and value. */
@@ -71,8 +72,8 @@ export function humanize(value: string): string {
 /** A colour word with the owner's shade name beside it, e.g. "Grey (charcoal)"; the word alone when no shade differs. */
 export function shadeLabel(colour: string, shade: string | null | undefined): string {
   if (!colour || !shade) return colour;
-  const words = shade.replace(/_/g, ' ').trim();
-  return words.toLowerCase() === colour.toLowerCase() ? colour : `${colour} (${words})`;
+  const words = label('shade', shade).toLowerCase();
+  return words === colour.toLowerCase() ? colour : `${colour} (${words})`;
 }
 
 /** The label for a value of a field (field is a vocab key or a silhouette key). */

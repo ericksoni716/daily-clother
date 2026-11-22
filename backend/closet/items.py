@@ -33,7 +33,9 @@ from .tagger.taxonomy import SHADES, nearest_shade
 
 TEXT_FIELDS = ("name", "brand", "size", "material", "fit_notes", "wear_notes", "acquired_on", "notes", "rating_reason", "color_hex")
 ENUM_FIELDS = tuple(vocab.ENUM_FIELDS)
-PATCHABLE = set(TEXT_FIELDS) | set(ENUM_FIELDS) | {"silhouette", "price_cents", "status"}
+# `shade`: one of the owner's named shades (the taxonomy's `colors.shades`), kept with the owner's details; it decides
+# the colour word and the colour the item is drawn in (`_shade`), and null gives it back to Claude
+PATCHABLE = set(TEXT_FIELDS) | set(ENUM_FIELDS) | {"silhouette", "price_cents", "status", "shade"}
 # the essentials the owner goes through on every new item (with what it is: `corrections.set_kind`); changing one counts
 # as having checked the item, so it leaves the review (`review.queue`)
 ESSENTIALS = ("name", "brand", "price_cents")
@@ -166,12 +168,21 @@ def _answer_json(text) -> dict | None:
     return found if isinstance(found, dict) else None
 
 
+def shades() -> list[dict]:
+    """The owner's named shades in the taxonomy's order, each with its colour and the colour word it is a shade of:
+    what the item page's Colour row offers under a colour (`GET /api/vocab`)."""
+    return [{"name": name, "hex": hex_, "color": color} for name, (hex_, color) in SHADES.items()]
+
+
 def shade_of(row, said: dict) -> str | None:
-    """The owner's name for the item's shade (docs/menswear-taxonomy.json, colors.shades): the one the owner or the
-    tagger named when it is a shade of the item's colour, else the nearest to its measured colour."""
+    """The owner's name for the item's shade (docs/menswear-taxonomy.json, colors.shades): the one the owner chose,
+    else the one the tagger named, when it is a shade of the item's colour; else the nearest to its measured colour.
+    The owner's is read from their details as well as from `said`, since an item with nothing to draw has no
+    details as drawn."""
     color = row["color"]
-    if said.get("shade") in SHADES and SHADES[said["shade"]][1] == color:
-        return said["shade"]
+    for name in (details.own(row).get("shade"), said.get("shade")):
+        if name in SHADES and SHADES[name][1] == color:
+            return name
     return nearest_shade(row["color_hex"], color) if row["color_hex"] and color in {c for _, c in SHADES.values()} else None
 
 
@@ -303,11 +314,48 @@ def update(conn, item_id: str, changes: dict, record: bool = True) -> dict:
         raise
 
 
+_KEEP = object()
+
+
+def _shade(changes: dict):
+    """The shade asked for, taken out of `changes`: a shade's name, whose colour word and colour are then put into
+    `changes` over any sent with it (the shade decides them); None to give it back to Claude; or `_KEEP` when none
+    was asked for."""
+    if "shade" not in changes:
+        return _KEEP
+    shade = changes.pop("shade")
+    if isinstance(shade, str):
+        shade = shade.strip() or None
+    if shade in (None, "unknown"):
+        return None
+    if shade not in SHADES:
+        raise ItemError(f"'{shade}' is not one of the shades." if isinstance(shade, str) else "The shade must be a word.")
+    changes["color_hex"], changes["color"] = SHADES[shade]
+    return shade
+
+
+def _with_shade(owner: dict, shade, row, changes: dict) -> dict:
+    """The owner's details with the shade they chose (`_shade`). Without one, a colour or colour shade they set puts
+    aside a shade they chose before, unless it is still that shade's (the latest word wins)."""
+    out = dict(owner)
+    if shade is None:
+        out.pop("shade", None)
+    elif shade is not _KEEP:
+        out["shade"] = shade
+    elif out.get("shade") in SHADES:
+        hex_, color = SHADES[out["shade"]]
+        if changes.get("color", row["color"]) != color or changes.get("color_hex", row["color_hex"]) != hex_:
+            out.pop("shade")
+    return out
+
+
 def _update(conn, item_id: str, changes: dict, record: bool) -> dict:
     row = get(conn, item_id)
     unknown = set(changes) - PATCHABLE
     if unknown:
         raise ItemError(f"These fields cannot be changed here: {', '.join(sorted(unknown))}.")
+    changes = dict(changes)
+    shade = _shade(changes)
     sets, args = [], []
     source = json.loads(row["source"] or "{}")
     confidence = json.loads(row["confidence"] or "{}")
@@ -350,10 +398,12 @@ def _update(conn, item_id: str, changes: dict, record: bool) -> dict:
             raise ItemError(f"{field} must be text.")
         sets.append(f"{field} = ?")
         args.append(value)
-    if sets:
+    if sets or shade is not _KEEP:
         owner = kept = details.own(row)
         if "silhouette" in changes:   # a shape the owner sets puts aside their own matching details
             kept = details.drop_for_shape(owner, json.loads(row["silhouette"] or "{}"), json.loads(args[sets.index("silhouette = ?")]))
+        if shade is not _KEEP or "color" in changes or "color_hex" in changes:   # the shade they chose, or put aside
+            kept = _with_shade(kept, shade, row, dict(zip((s.split(" ")[0] for s in sets), args, strict=True)))
         if "category" in changes:   # and another kind of garment those it does not have (an undo brings them back)
             category = args[sets.index("category = ?")]
             names = details.names_for(category)
@@ -378,7 +428,7 @@ def _update(conn, item_id: str, changes: dict, record: bool) -> dict:
             patjobs.mark(conn, item_id)   # measured again (or no longer drawn) before it is redrawn
         if "category" in changes:
             tracejobs.mark(conn, item_id, again=False)   # said to be a shoe: traced from its photo, if it never was
-        if illustrations.SHOWN & changes.keys():
+        if illustrations.SHOWN & changes.keys() or kept != owner:
             illustrations.redraw(conn, item_id)
         if record:
             history.record(conn, row, get(conn, item_id), "owner", "field")

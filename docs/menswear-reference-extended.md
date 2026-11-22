@@ -248,6 +248,7 @@ The app's coarse color list (`backend/closet/vocab.py`: black, white, grey, navy
 | Chocolate / dark brown | #4a3121 | brown | Leather, cord, knits |
 | Mid brown | #7b5536 | brown | Leather shoes, belts |
 | Cognac / tan leather | #9a5a2c | brown | Leather shoes, belts, bags |
+| Taupe | #8b7c6d | brown | Suede shoes, knits, chinos (a grey-brown) |
 | Rust | #a4492a | orange | Cord, knits, flannels |
 | Oxblood | #4e1a1d | burgundy | Leather shoes, knits |
 | Burgundy | #6d1f2a | burgundy | Knits, ties, cord |
@@ -259,6 +260,7 @@ The app's coarse color list (`backend/closet/vocab.py`: black, white, grey, navy
 | Olive | #5f6b3a | olive | Chinos, field jackets, knits |
 | Army / OD green | #4b5320 | olive | Military outerwear, fatigues |
 | Sage | #a3ad8f | green | Linen, knits |
+| Mint | #bcdfc6 | green | Summer shirts, polos, knits |
 | Forest / bottle green | #22422c | green | Knits, cord, flannel |
 | Hunter green | #355e3b | green | Outerwear, knits |
 | Teal | #2a6f74 | green | Knits, accents |
@@ -267,6 +269,7 @@ The app's coarse color list (`backend/closet/vocab.py`: black, white, grey, navy
 | Indigo (raw) | #23304a | navy | Raw and dark denim |
 | Royal blue | #2a4ea0 | blue | Knits, sportswear |
 | Cobalt | #1e4fb8 | blue | Accents |
+| French blue | #4277c9 | blue | Dress shirts, knits (the mid blue between light blue and royal) |
 | Mid-wash denim | #5b7aa3 | blue | Jeans |
 | Chambray blue | #8ca5c7 | light_blue | Shirts |
 | Oxford blue (light) | #a9c4e0 | light_blue | OCBDs, dress shirts |
@@ -274,7 +277,9 @@ The app's coarse color list (`backend/closet/vocab.py`: black, white, grey, navy
 | Light-wash denim | #9bb2cf | light_blue | Jeans |
 | Pink (shirting) | #f1c8cf | pink | Dress shirts, OCBDs |
 | Dusty rose | #c99a9a | pink | Knits, linen |
+| Salmon | #f0a08a | pink | Chinos, shorts, summer shirts |
 | Lavender | #c8bfe0 | purple | Dress shirts |
+| Mauve | #ad91a9 | purple | Knits, linen (a dusty grey-purple) |
 | Plum / aubergine | #4b2a45 | purple | Knits, ties |
 | White (optic) | #f7f7f5 | white | Dress shirts, sneakers |
 | Off-white | #f1eee6 | cream | Knits, tees |

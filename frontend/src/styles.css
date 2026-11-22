@@ -719,6 +719,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* the row (or the sheet's heading) already names the field */
 .detail-editor .chip-group-title { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .detail-editor .field { margin: var(--space-4) 0 0; }
+/* a second group under the first (a colour's shades under the colours) is named, so the two read apart */
+.detail-editor .chip-group + .chip-group { margin-top: var(--space-5); }
+.detail-editor .chip-group + .chip-group .chip-group-title { position: static; width: auto; height: auto; overflow: visible; clip: auto; white-space: normal; }
 
 .chip-group-title { font-family: var(--font-label); font-size: var(--text-xs); font-weight: var(--weight-heading); color: var(--label-ink); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
 .chip-group .chips { gap: 7px; }

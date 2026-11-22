@@ -107,7 +107,9 @@ def _split(row, changes: dict, fields_allowed: bool) -> tuple[dict, dict]:
         if not isinstance(name, str):
             raise items.ItemError("Each change needs the name of a detail.")
         _plain_value(name, value)
-        if name in details.FIELDS or name in details.SHAPES:
+        if name == "shade":   # the colour's shade decides the colour word and the drawn colour, however it is set
+            coarse[name] = value
+        elif name in details.FIELDS or name in details.SHAPES:
             if not fields_allowed:
                 raise items.ItemError(f"'{name}' is not a detail; change it with the item's other fields.")
             if name.startswith("silhouette."):

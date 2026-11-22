@@ -19,7 +19,7 @@ so a screen's own class can still set size and spacing.
 | `Section` and `Card` | A surface with the app's one depth; `Section` adds a heading, a one-line hint and an action beside the heading. |
 | `Button`, `buttonClass` | Every button, and a link that looks like one. Variants: primary, secondary (the default), ghost, link, danger-quiet; `small`, `block`. |
 | `ItemThumb` | An item's small picture on its light card, optionally a link to the item. Every list of pieces uses it, at the size the screen's class gives it. |
-| `ChipGroup` | A row of chips for one detail, with colour swatches where they help. |
+| `ChipGroup` | A row of chips for one detail, with colour swatches where they help (the colour words' own, or a colour given for each option, as for a colour's shades). |
 | `SegmentedControl` | Two to four choices of which one is on (Pieces / As worn, Photos / Drawings). |
 | `Sheet` (and `PHONE`) | Choices that do not fit in place: a sheet from the bottom on a phone, a popover or in place on a computer. Never a panel put in above the content. |
 | `Notice` | A message set apart: information, a warning or an error, with an optional action. |

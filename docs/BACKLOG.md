@@ -14,6 +14,9 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Choosing a shade** (22 November; DECISIONS, "Choosing a shade"). The review's question about
+  a doubtful colour and Would this work?'s colour still offer the colour words only, and the
+  closet's search does not find a piece by its shade's name.
 - **Wishlist links and their prices** (22 November; DECISIONS, "Wishlist links and their prices").
   Built and tested with the web and Claude stood in for; not yet tried on real shops' pages, nor
   the iPhone Shortcut (README) on a real iPhone, nor the share sheet on a real Android phone.

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Locator, Page } from '@playwright/test';
 import { axeViolations, sideways } from './a11y';
-import { expect, goToCloset, PHOTOS, test, useProfile } from './fixtures';
+import { expect, goToCloset, openFold, PHOTOS, test, useProfile } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 // The item page in the owner's order (22 November): the picture and the name, then what it is, its brand and its
@@ -126,6 +126,47 @@ test.describe('the item page in the demo closet', () => {
     await expect(essentials.getByRole('textbox', { name: 'Brand' })).toHaveValue('Made-up Mills');
     await expect(essentials.getByRole('textbox', { name: 'Price' })).toHaveValue('24.50');
     await expect(essentials.getByTestId('what-is-it')).toContainText('Henley');
+  });
+
+  test("a colour's shades are offered under it, and the shade chosen is kept with its colour", async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await goToCloset(page);
+    await useProfile(page, 'demo');
+    const id = demoId('Burgundy cable sweater');
+    await page.goto(`/item/${id}`);
+    await expect(page.getByRole('textbox', { name: 'Name' })).toHaveValue('Burgundy cable sweater');
+    const fold = await openFold(page, 'Details');
+    const row = fold.getByRole('button', { name: /^Colour:/ });
+    await expect(row).toHaveAttribute('aria-label', 'Colour: Burgundy');
+    await row.click();
+    const sheet = page.getByRole('dialog', { name: 'Colour' });
+
+    // under the colours, the shades of the item's colour, the one it is in chosen
+    const burgundies = sheet.getByRole('group', { name: 'Shades of burgundy' });
+    await expect(burgundies.getByRole('button')).toHaveText(['Oxblood', 'Burgundy']);
+    await expect(burgundies.getByRole('button', { name: 'Burgundy' })).toHaveAttribute('aria-pressed', 'true');
+
+    // choosing another colour keeps the sheet open, on that colour's shades
+    await sheet.getByRole('group', { name: 'Colour' }).getByRole('button', { name: 'Green', exact: true }).click();
+    const greens = sheet.getByRole('group', { name: 'Shades of green' });
+    await expect(greens.getByRole('button', { name: 'Sage' })).toBeVisible();
+    await expect(burgundies).toHaveCount(0);
+    expect(await sideways(page)).toEqual([]);
+    expect(await axeViolations(page)).toEqual([]);
+
+    // choosing a shade saves it with its colour and closes the sheet
+    await greens.getByRole('button', { name: 'Sage' }).click();
+    await expect(sheet).toHaveCount(0);
+    await expect(row).toHaveAttribute('aria-label', 'Colour: Green (sage)');
+    const item = async () => (await page.request.get(`/api/items/${id}`)).json();
+    await expect.poll(async () => {
+      const got = await item();
+      return [got.color, got.shade, got.color_hex, got.source.color];
+    }).toEqual(['green', 'sage', '#a3ad8f', 'user']);
+
+    // the line under the name says it too, after a reload as well
+    await page.reload();
+    await expect(page.getByTestId('look-line')).toContainText('Green (sage)');
   });
 });
 

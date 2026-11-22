@@ -44,10 +44,14 @@ const LONG = {
   wish: 'A lightweight packable waterproof shell jacket with a hood that folds into the collar',
   line: 'Never anything double-breasted, never anything with a crest or a logo-embroidered-chest-pocket-of-any-kind',
 };
-// Sheets opened by a button on a screen, pictured as well: the style conversation and every line of Your style.
+// Sheets opened by a button on a screen, pictured as well: the style conversation, every line of Your style, and an
+// item's colours with the shades of its colour. `route` can be worked out from the ids `setUp` gives; `fold` is opened
+// first when the button is inside one.
 const SHEETS = [
   { route: '/settings', button: 'Talk to Claude about your style', sheet: 'style-talk-sheet', name: 'settings-style-talk' },
   { route: '/settings', button: /^(See all lines|Change the lines)$/, sheet: 'style-lines-sheet', name: 'settings-style-lines' },
+  { route: ({ itemId }) => `/item/${encodeURIComponent(itemId)}`, fold: 'Details', button: /^Colour:/,
+    sheet: 'detail-editor-color', name: 'item-colour' },
 ];
 // A made-up shop's page with a long product name, which the backend's stand-in serves (never the web).
 const SHOP_PAGE = 'https://shop.example/long-name';
@@ -272,12 +276,13 @@ async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) 
           if (errors.length) failures.push(`${route} at ${size}px ${scheme} threw: ${errors.join(' | ')}`);
           await page.close();
         }
-        for (const { route, button, sheet, name } of SHEETS) {
+        for (const { route, fold, button, sheet, name } of SHEETS) {
           const page = await context.newPage();
           const errors = [];
           page.on('pageerror', (e) => errors.push(e.message));
-          await page.goto(base + route);
+          await page.goto(base + (typeof route === 'function' ? route({ itemId, shoeId, tripId, wishId, linkedId }) : route));
           await settle(page);
+          if (fold) await page.locator('details.more > summary', { hasText: fold }).first().click();
           await page.getByRole('button', { name: button }).first().click();
           await page.getByTestId(sheet).waitFor({ state: 'visible', timeout: 10_000 }).catch(() => failures.push(`${name} at ${size}px did not open`));
           await page.waitForTimeout(600);

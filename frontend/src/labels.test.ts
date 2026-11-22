@@ -35,6 +35,10 @@ describe('labels', () => {
     expect(shadeLabel('Navy', 'raw_indigo')).toBe('Navy (raw indigo)');
     expect(shadeLabel('Navy', 'navy')).toBe('Navy');
     expect(shadeLabel('Navy', null)).toBe('Navy');
+    // the shade in the words its choice has on the Colour row
+    expect(label('shade', 'forest_green')).toBe('Forest green');
+    expect(label('shade', 'off_white')).toBe('Off-white');
+    expect(shadeLabel('Cream', 'off_white')).toBe('Cream (off-white)');
   });
 
   it('never shows raw field names or underscores for any known value', () => {

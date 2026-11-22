@@ -254,7 +254,7 @@ function ReviewCard({ item, onDone, onSkip }: { item: ReviewItem; onDone(): void
               <span>Price</span>
               <span className="input-prefix">
                 <span aria-hidden="true">$</span>
-                <input inputMode="decimal" value={typed.price} disabled={busy} placeholder="0.00" onChange={type('price')} />
+                <input inputMode="decimal" value={typed.price} disabled={busy} onChange={type('price')} />
               </span>
             </label>
           </div>

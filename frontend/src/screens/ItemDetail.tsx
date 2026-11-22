@@ -247,8 +247,7 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       </Section>
 
       {/* 4. how it looks: the description the drawing is made from, fixing it, a shoe's drawings by Claude */}
-      <section className="detail-looks" aria-labelledby={`looks-${item.id}`} data-testid="how-it-looks">
-        <h3 className="chip-group-title" id={`looks-${item.id}`}>How it looks</h3>
+      <section className="detail-looks" aria-label="How it looks" data-testid="how-it-looks">
         <LookLine item={item} disabled={locked} onPick={openFix} />
         <FixDetails item={item} label={fixLabel(demo)} open={fixing} focus={focus} demo={demo} disabled={locked}
           onOpen={() => openFix(null)} onClose={() => setFixing(false)} onSaved={fixed} onError={failed} />
@@ -628,7 +627,7 @@ function PriceField({ cents, disabled, onSave, toastError }: { cents: number | n
       <span>Price</span>
       <span className="input-prefix">
         <span aria-hidden="true">$</span>
-        <input inputMode="decimal" value={v} disabled={disabled} placeholder="0.00" onChange={(e) => setV(e.target.value)} onBlur={commit}
+        <input inputMode="decimal" value={v} disabled={disabled} onChange={(e) => setV(e.target.value)} onBlur={commit}
           onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
       </span>
     </label>

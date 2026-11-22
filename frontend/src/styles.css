@@ -682,8 +682,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .essentials-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 9rem); column-gap: var(--space-3); margin-top: var(--space-3); }
 .essentials-fields .field { margin-bottom: 0; }
 /* how it looks: the line about its look, fixing it, and a shoe's drawings by Claude */
-.detail-looks { margin: 0 0 var(--space-4); }
-.detail-looks > .chip-group-title { margin: 0; }
+.detail-looks { margin: 0 0 var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--line-soft); }
 .name-field-static { padding: 4px 0; min-height: var(--tap); line-height: 1.25; }
 /* About it: how you feel about it, and the one notes box */
 .detail-about { margin: 0 0 var(--space-5); }

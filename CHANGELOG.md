@@ -18,6 +18,11 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   with no drawing yet shows its photo. The Photos / Drawings switch over the closet starts from
   it and no longer remembers its choice on the device: to keep drawings, turn the setting on.
 
+- **Settings → Advanced settings → Background removal** now says what it has: a line for each of
+  the two models, the main one that cuts out every photo and the second one asked as well for
+  stripes and checks, each saying whether it is ready, how far its download has got, or why it
+  didn't download, with **Download** or **Try again** beside one that is missing or failed.
+
 ### Changed
 
 - An item's page now reads in the order you go through a new piece: the picture and the name,

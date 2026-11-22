@@ -326,8 +326,11 @@ back. Its code loads only when it is opened. In order:
 - **Backups**: the backup line, the folder (typed on the computer only) and Back up now.
 - **Storage**: one line ("Nines uses 2.9 MB for 49 items · 59 GB free on this disk"), with
   what takes the space folded under it.
-- **Background removal**: the download address, and on the computer where to put the files
-  by hand, folded.
+- **Background removal**: a line for each of the two models, saying what it is for (the main
+  one cuts out every photo; the second is asked as well for stripes and checks) and how it
+  stands: ready, downloading and how far, not downloaded yet, or didn't download and why.
+  One that is missing or failed has Download or Try again beside it. Under them, the download
+  address, and on the computer where to put the files by hand, folded.
 - **This copy of Nines**: the data folder (computer only) and the version.
 - **The demo closet**: the switch that shows the sample closet instead of yours, last because
   it is rarely wanted once your own clothes are in. While the demo closet shows, the strip at
@@ -346,7 +349,8 @@ back. Its code loads only when it is opened. In order:
   to Claude.
 - **Background removal.** The two files that cut clothes out of photos download by
   themselves when Nines starts, and again after a failure (a minute later, ten minutes
-  later, then every hour). A notice on Add says when they are missing or failed.
+  later, then every hour). A notice on Add says when they are missing or failed, and
+  Advanced settings shows how each one stands.
 - **When a screen fails.** It says so, with Try again and Reload Nines, and the tab bar
   stays so you can go elsewhere.
 - **Work in the background.** Cutting out, describing, measuring a pattern and drawing a

@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { PhoneAccess } from './components/PhoneAccess';
 import { StatusLine } from './components/Toggle';
 import { deviceOf } from './here';
-import { backupLine, claudeLine, computerOnly, mainGroups, storageLine, updatesLine } from './settingsLines';
-import type { ApiKeyInfo, Settings, TaggingStatus } from './types';
+import { backupLine, claudeLine, computerOnly, mainGroups, modelLines, storageLine, updatesLine } from './settingsLines';
+import type { ApiKeyInfo, ModelInfo, Settings, TaggingStatus } from './types';
 import type { UpdateStatus } from './updates';
 
 const noKey: ApiKeyInfo = { set: false, source: null, can_save: true, where: null };
@@ -184,5 +184,46 @@ describe('the Phone group on the computer', () => {
     const html = renderToStaticMarkup(createElement(PhoneAccess, { phone: info(null) }));
     expect(html).toContain('tailscale serve --bg 8765');
     expect(html).not.toContain('phone-qr');
+  });
+});
+
+describe('the two background-removal models, a line each', () => {
+  const m = (over: Partial<ModelInfo> = {}): ModelInfo => ({
+    state: 'ready', downloaded_bytes: 178_648_008, total_bytes: 178_648_008, error: null, url: 'https://example.com/a.onnx',
+    path: '/data/models/a.onnx', sha256: 'a'.repeat(64), name: 'isnet-general-use', ...over,
+  });
+
+  it('says what each is for and that it is ready', () => {
+    const lines = modelLines(m({ second: m({ name: 'u2net' }) }));
+    expect(lines.map((l) => [l.id, l.tone, l.text, l.action])).toEqual([
+      ['main', 'ok', 'The main model cuts out every photo. It is ready.', null],
+      ['second', 'ok', 'The second model is asked as well for stripes and checks. It is ready.', null],
+    ]);
+  });
+
+  it('says how far a download has got', () => {
+    const [, second] = modelLines(m({ second: m({ state: 'downloading', downloaded_bytes: 44_000_000, total_bytes: 175_997_641 }) }));
+    expect(second).toMatchObject({ tone: 'waiting', action: null,
+      text: 'The second model is asked as well for stripes and checks. It is downloading: 44 MB of 176 MB.' });
+    const [first] = modelLines(m({ state: 'downloading', downloaded_bytes: 3_000_000, total_bytes: null }));
+    expect(first.text).toBe('The main model cuts out every photo. It is downloading: 3 MB so far.');
+    expect(modelLines(m({ state: 'downloading', downloaded_bytes: 0, total_bytes: null }))[0].text)
+      .toBe('The main model cuts out every photo. It is downloading.');
+  });
+
+  it('offers Try again with the reason when a download failed, and Download when it never started', () => {
+    const [first, second] = modelLines(m({
+      state: 'failed', downloaded_bytes: 0, total_bytes: null, error: 'Could not reach the download server.',
+      second: m({ state: 'missing', downloaded_bytes: 0, total_bytes: null }),
+    }));
+    expect(first).toMatchObject({ tone: 'problem', action: 'retry', actionLabel: 'Try downloading the main model again',
+      text: "The main model cuts out every photo. It didn't download. Could not reach the download server." });
+    expect(second).toMatchObject({ tone: 'quiet', action: 'download', actionLabel: 'Download the second model',
+      text: "The second model is asked as well for stripes and checks. It isn't downloaded yet." });
+    expect(modelLines(m({ state: 'failed', error: null }))[0].text).toBe("The main model cuts out every photo. It didn't download.");
+  });
+
+  it('shows one line when the server has no second model', () => {
+    expect(modelLines(m({ second: null })).map((l) => l.id)).toEqual(['main']);
   });
 });

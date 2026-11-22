@@ -144,7 +144,7 @@ function ModelAddress({ model, only, toast, disabled }: { model: ModelInfo; only
   }
 
   return (
-    <Section title="Background removal" id="s-model" hint="The files that cut your clothes out of their photos.">
+    <Section title="Background removal" id="s-model">
       {modelLines(model).map((line) => (
         <StatusLine key={line.id} line={line} testId={`model-${line.id}`}>
           {line.action && (

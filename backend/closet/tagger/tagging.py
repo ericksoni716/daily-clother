@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field, ValidationError, create_model
 from pydantic.fields import FieldInfo
 
 from . import surfaceform
-from .schema import ItemTags
+from .schema import FORMALITY_ALSO, FormalityAlso, ItemTags
 
 CONFIG = json.loads((Path(__file__).parent / "models.json").read_text())
 MAX_TOKENS = 4000   # the longest answer asked for; also the most output a single call can be billed for
@@ -39,6 +39,7 @@ Fill in the attributes. Guidance:
 - Weight and fibre matter as much as shape: a fleece shirt is far thicker than a linen one, and a wool flannel more substantial than a thin cotton one. Judge weight from how the cloth holds its shape, how thick its edges, cuffs and collar are, and how it folds.
 - Say what you see even when it is unusual for the category: a front that closes with snaps is placket "snap"; pockets at the hip are not chest pockets. A placket that stops partway down the chest (a polo, a rugby shirt, a popover) is "polo", "henley" or "half_placket_popover", never "front_placket", which opens all the way to the hem. A slit pocket edged in a contrast piping is a pocket, not a contrast trim: trim_color is for a collar, cuffs or ribbing in a colour of their own. The fabric plain is a plain weave, a woven cloth: a smooth knit (a T-shirt, a sweatshirt) is jersey or french_terry, never plain. When a features flag fits (a rubber toe bumper is toe_cap), set the flag; do not describe it in other_features as well.
 - garment: the kind of clothing in the owner's taxonomy when one plainly fits, else "unknown". It decides when the item is suggested (sportswear for exercise, loungewear at home, swim_trunks only for swimming on a trip), so choose a sportswear, swimwear or loungewear kind only for clothes clearly made for that. Their categories: a fleece_pullover or athletic_half_zip is "sweater" (a warm mid layer, not outerwear); a performance_tee, base_layer or sports jersey is "tee"; a track_jacket, windbreaker or rain_shell is "jacket"; track_pants, joggers, sweatpants, tech_pants, compression_tights and lounge_pants are "trousers"; running, training, basketball and sleep shorts, and swim_trunks (quick-drying shorts for swimming, with a drawstring waist and often a mesh liner inside), are "shorts". Sportswear is formality "athletic"; loungewear, fleece and swim_trunks "casual".
+- Formality: most pieces sit at one level, and formality_also is then "none". A few genuinely sit between two neighbouring levels and are worn as either: penny loafers and a navy blazer (smart_casual, also business), dark selvedge jeans (casual, also smart_casual), a knit polo (smart_casual, also casual). For those, put the level it sits at most in formality and the other in formality_also, never a level two steps away.
 - A garment cut in two colours (a yoke and sleeves in one, the body in another): color is the body's, and the other colour comes first in secondary_colors. A strip in a contrasting colour bound over the edges (collar, placket, cuffs, hem) is trim_color.
 - Accessories (a bag, belt, hat or scarf, and a tie, pocket square, gloves, glasses, watch or socks, which are category "other"): say which one it is in accessory and its kind in accessory_kind (a hat is a fedora, a beanie, a trucker_cap ...; a bag a tote, a daypack, a messenger ...). For clothes and shoes both are "na".
 - other_features: distinctive things no field covers, in a few words each. Do not repeat what the fields already say.
@@ -205,9 +206,11 @@ def sent_form(model: type[BaseModel], keep_main: bool = True) -> type[BaseModel]
     return create_model(model.__name__ + "Sent", __config__=model.model_config, **fields)
 
 
-# The form asked for: `ItemTags` with the surface required (null allowed) and the lettering required (empty or null allowed), so
-# every new description gives both; the stored form keeps them optional so answers from before stay valid.
+# The form asked for: `ItemTags` with the surface required (null allowed), the lettering required (empty or null allowed)
+# and the second level of formality required ("none" allowed), so every new description gives all three; the stored
+# form keeps them optional so answers from before stay valid.
 ASKED = create_model("ItemTags", __base__=ItemTags, __doc__=ItemTags.__doc__,
+                     formality_also=(FormalityAlso, Field(description=FORMALITY_ALSO)),
                      surface=(surfaceform.Surface | None, Field(description=surfaceform.FIELD_TEXT["surface"])),
                      lettering=(list[surfaceform.Lettering] | None, Field(description=surfaceform.FIELD_TEXT["lettering"])))
 SENT = sent_form(ASKED)

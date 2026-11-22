@@ -44,7 +44,8 @@ Tagger = Callable[[list[Image.Image], tuple[str, ...]], TagResult]
 Routes = Callable[[], tuple[str, ...]]   # the routes that can be used right now, in order
 
 # the item's own fields an answer fills in, unless the owner has set them
-FILLED = ("name", "category", "color", "color_hex", "pattern", "formality", "season", "silhouette", "material")
+FILLED = ("name", "category", "color", "color_hex", "pattern", "formality", "formality_also", "season", "silhouette",
+          "material")
 _CONFIDENCE = {"category": "category_confidence", "color": "color_confidence", "pattern": "pattern_confidence",
                "formality": "formality_confidence", "season": "season_confidence", "silhouette": "silhouette_confidence"}
 FAILED = ("Claude could not describe this item after three tries. You can try again, or retake the photo "
@@ -219,10 +220,20 @@ def suggested_fields(tags: ItemTags) -> dict:
     """What the answer says each of the item's own fields should be (None: nothing to say)."""
     return {
         "name": suggest_name(tags), "category": tags.category, "color": tags.color, "color_hex": color_hex(tags),
-        "pattern": tags.pattern, "formality": tags.formality, "season": tags.season,
+        "pattern": tags.pattern, "formality": tags.formality,
+        "formality_also": None if tags.formality_also == "none" else tags.formality_also, "season": tags.season,
         "silhouette": {k: v for k, v in tags.silhouette.model_dump().items() if v is not None},
         "material": tags.material,
     }
+
+
+def who(source: dict, field: str) -> str | None:
+    """Who set one of the item's fields, as `fill` is given it. The level a formality can also be goes with the
+    formality: a formality the owner set or confirmed is theirs whole, one level or two, so an answer never adds a
+    second level to it."""
+    if field == "formality_also" and source.get("formality") == "user":
+        return "user"
+    return source.get(field)
 
 
 def fill(tags: ItemTags, field: str, current, by: str | None, suggested: dict | None = None) -> tuple | None:
@@ -259,7 +270,7 @@ def apply_answer(conn, item_id: str, tags: ItemTags, route: str, model: str | No
     suggested = suggested_fields(tags)
     for field in suggested:
         current = json.loads(row["silhouette"] or "{}") if field == "silhouette" else row[field]
-        filled = fill(tags, field, current, source.get(field), suggested)
+        filled = fill(tags, field, current, who(source, field), suggested)
         if filled is None:
             continue
         value, by, sure = filled

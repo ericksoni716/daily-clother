@@ -434,3 +434,58 @@ def test_colour_families_come_from_the_owners_taxonomy():
              item("shoes", "sneakers", "white", "casual")]
     o = outfits.suggest(items, day(22, build_around="rust"), 1)["outfits"][0]
     assert any(r.startswith("Earth tones together") for r in o["reasons"]), o["reasons"]
+
+
+# ---- formality between two levels (a penny loafer, smart casual or business)
+def test_a_piece_between_two_levels_counts_as_either_and_is_measured_from_its_nearer_end():
+    loafers = outfits._piece(item("loafers", "dress_shoes", "burgundy", "smart_casual", formality_also="business"))
+    knit = outfits._piece(item("polo", "polo", "navy", "smart_casual", formality_also="casual"))
+    oxfords = outfits._piece(item("oxfords", "dress_shoes", "black", "business"))
+    assert outfits.span(loafers) == (2, 3) and outfits.span(knit) == (1, 2) and outfits.span(oxfords) == (3, 3)
+    for level, steps in ((2, 0), (3, 0), (2.5, 0), (1, 1), (4, 1), (0.5, 1.5)):
+        assert outfits.steps_from(loafers, level) == steps, level
+    assert outfits.steps_from(oxfords, 2.5) == 0.5   # one level: as far as it ever was
+    for occasion, off in (("athletic", 1), ("casual", 0), ("smart_casual", 0), ("business", 0), ("formal", 0)):
+        assert outfits._formality_off(loafers, "shoes", occasion) == off, occasion
+    assert outfits._formality_off(outfits._piece(item("o", "dress_shoes", "black", "smart_casual")), "shoes", "formal") == -1
+    assert outfits.share_a_level(loafers, oxfords) and outfits.share_a_level(loafers, knit)
+    assert not outfits.share_a_level(knit, oxfords)
+    assert outfits.level_words(loafers) == "smart casual to business" and outfits.level_words(knit) == "casual to smart casual"
+    # in the score it loses nothing on either kind of day
+    for occasion in ("smart_casual", "business"):
+        ctx = day(20, occasion=occasion)
+        alone = outfits._piece(item("loafers", "dress_shoes", "burgundy", occasion))
+        assert outfits._piece_score(loafers, "shoes", ctx, 20) == outfits._piece_score(alone, "shoes", ctx, 20)
+
+
+def test_pieces_are_as_far_apart_in_formality_as_their_closest_levels():
+    tee, jeans = item("tee", "tee", "white", "casual"), item("jeans", "jeans", "blue", "casual")
+    loafers = item("loafers", "dress_shoes", "burgundy", "smart_casual", formality_also="business")
+    oxfords = item("oxfords", "dress_shoes", "black", "business")
+
+    def clash(*rows):
+        return outfits._formality_clash([outfits._piece(r) for r in rows], None, "casual")
+
+    assert clash(tee, jeans, oxfords) is not None   # business shoes with a tee and jeans, two levels apart
+    assert clash(tee, jeans, loafers) is None        # loafers that can be smart casual are one level away
+    dinner = item("dinner", "shirt", "white", "formal")
+    assert clash(dinner, loafers) is None and clash(dinner, tee, loafers) is not None
+
+
+def test_an_outfit_with_a_piece_between_two_levels_reads_at_the_days_level():
+    loafers = item("loafers", "dress_shoes", "burgundy", "smart_casual", formality_also="business")
+    rest = [item("dress1", "shirt", "white", "business", silhouette={"sleeve": "long"}),
+            item("trousers1", "trousers", "grey", "business")]
+    o = outfits.suggest(rest + [loafers], day(20, occasion="business"), 1)["outfits"][0]
+    assert "Everything is business, right for a business day." in o["reasons"]
+    # on a formal occasion the loafers count as business, close enough; as smart casual alone they would not be
+    formal = outfits.suggest(rest + [loafers], day(20, occasion="formal"), 1)["outfits"][0]
+    assert not any("more casual" in w for w in formal["warnings"]), formal["warnings"]
+    single = outfits.suggest(rest + [{**loafers, "formality_also": None}], day(20, occasion="formal"), 1)["outfits"][0]
+    assert any("loafers" in w and "more casual" in w for w in single["warnings"]), single["warnings"]
+    # sporty pieces go only with what can be casual: a polo that can be casual too breaks no hard rule with them
+    runners = outfits._piece(item("runners", "sneakers", "grey", "athletic"))
+    polo = outfits._piece(item("polo", "polo", "navy", "smart_casual"))
+    knit = outfits._piece(item("polo", "polo", "navy", "smart_casual", formality_also="casual"))
+    assert any(isinstance(s, outfits._Hard) for s in outfits._outfit_problems([runners, polo], [runners, polo]))
+    assert not any(isinstance(s, outfits._Hard) for s in outfits._outfit_problems([runners, knit], [runners, knit]))

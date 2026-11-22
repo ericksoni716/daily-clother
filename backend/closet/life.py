@@ -127,26 +127,32 @@ def soft(row: dict) -> bool:
     return (fit is None or fit in RELAXED_FITS) and any(stem in word for stem in SOFT_WORDS for word in words)
 
 
+def _levels(row: dict) -> set:
+    """The formalities an item can be worn at: its own, and the level it can also be (`formality_also`)."""
+    return {row.get("formality"), row.get("formality_also")} - {None} or {None}
+
+
 def eligible(row: dict, key: str) -> bool:
     """Whether an item can be worn for a situation. Its kind (`today.cloth`) decides when the tagger or the owner
     named one; an item of no known kind is judged by its category and the words for soft cloth in its name."""
     category, kind = row.get("category"), row.get("kind")
+    relaxed = bool(_levels(row) & {None, "athletic", "casual"})   # it can be worn as casual (or nobody said)
     if key == "lounging":
         if kind in LOUNGE_KINDS or kind in HOME_KINDS:
             return True
         if kind in SPORT_KINDS and kind not in HOME_KINDS:
             return category in ("tee", "hoodie")
-        return row.get("formality") in (None, "athletic", "casual") and (
+        return relaxed and (
             category in ("tee", "hoodie") or category in ("trousers", "shorts", "sweater") and (kind is None and soft(row)))
     if key == "exercise":
         if kind in SPORT_KINDS or kind in EXERCISE_KINDS:
             return True
         if kind in LOUNGE_KINDS:
             return False
-        return row.get("formality") in (None, "athletic", "casual") and (
+        return relaxed and (
             category in ("tee", "hoodie", "sneakers", "jacket", "coat")
             or category == "shorts" and kind is None
-            or category == "trousers" and kind is None and (row.get("formality") == "athletic" or soft(row)))
+            or category == "trousers" and kind is None and ("athletic" in _levels(row) or soft(row)))
     return True
 
 

@@ -61,7 +61,8 @@ def piece_from_tags(tags) -> dict:
     d = tags.details
     material = " ".join(w for w in (fields["material"], *(str(v).replace("_", " ") for v in (d.fabric, d.fiber)
                                                           if v not in ("unknown", "na", None))) if w)
-    piece = {"category": tags.category, "color": tags.color, "formality": tags.formality, "season": tags.season,
+    piece = {"category": tags.category, "color": tags.color, "formality": tags.formality,
+             "formality_also": fields["formality_also"], "season": tags.season,
              "pattern": tags.pattern, "name": fields["name"], "material": material[:wouldwork.MATERIAL_MAX] or None,
              "weight_class": d.weight if d.weight in outfits.WEIGHT_CLASSES else None,
              "silhouette": fields["silhouette"]}

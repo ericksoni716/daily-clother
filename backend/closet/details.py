@@ -87,7 +87,8 @@ TITLES = {
     "contrast_stitching": "contrast stitching", "toe_cap": "toe cap", "side_stripe": "side stripe",
     "contrast_heel_tab": "contrast heel tab", "chunky_sole": "chunky sole", "garment": "kind",
     "category": "kind of garment", "color": "colour", "color_hex": "colour shade", "pattern": "pattern",
-    "formality": "formality", "season": "season", "silhouette": "shape", "name": "name", "material": "material",
+    "formality": "formality", "formality_also": "second level of formality", "season": "season", "silhouette": "shape",
+    "name": "name", "material": "material",
     "silhouette.sleeve": "sleeves", "silhouette.neck": "neck", "silhouette.top_length": "length", "silhouette.fit": "fit",
     "silhouette.leg": "leg", "silhouette.pant_length": "trouser length", "silhouette.shoe_height": "shoe height",
 }

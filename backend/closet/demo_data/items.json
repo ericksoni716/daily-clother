@@ -1,6 +1,6 @@
 {
  "style": "line",
- "schema_version": 9,
+ "schema_version": 10,
  "drawing_version": 21,
  "items": [
   {
@@ -33,6 +33,7 @@
     "pattern_confidence": 1.0,
     "formality": "smart_casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -159,6 +160,7 @@
     "pattern_confidence": 1.0,
     "formality": "smart_casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "warm",
     "season_confidence": 1.0,
     "silhouette": {
@@ -277,6 +279,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "warm",
     "season_confidence": 1.0,
     "silhouette": {
@@ -398,6 +401,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 0.6,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -519,6 +523,7 @@
     "pattern_confidence": 1.0,
     "formality": "smart_casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -637,6 +642,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -760,6 +766,7 @@
     "pattern_confidence": 1.0,
     "formality": "smart_casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -890,6 +897,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -1023,6 +1031,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "warm",
     "season_confidence": 1.0,
     "silhouette": {
@@ -1145,6 +1154,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -1289,6 +1299,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -1436,6 +1447,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -1559,6 +1571,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -1697,6 +1710,7 @@
     "pattern_confidence": 1.0,
     "formality": "smart_casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -1836,6 +1850,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "warm",
     "season_confidence": 0.65,
     "silhouette": {
@@ -1954,6 +1969,7 @@
     "pattern_confidence": 1.0,
     "formality": "smart_casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -2073,6 +2089,7 @@
     "pattern_confidence": 1.0,
     "formality": "athletic",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -3445,6 +3462,7 @@
     "pattern_confidence": 1.0,
     "formality": "smart_casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -3572,6 +3590,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -3699,6 +3718,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -3813,6 +3833,7 @@
     "pattern_confidence": 1.0,
     "formality": "athletic",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -3934,6 +3955,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -4097,6 +4119,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "warm",
     "season_confidence": 1.0,
     "silhouette": {
@@ -4207,6 +4230,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -4320,6 +4344,7 @@
     "pattern_confidence": 1.0,
     "formality": "business",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -4466,6 +4491,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -4584,6 +4610,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -4708,6 +4735,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -4830,6 +4858,7 @@
     "pattern_confidence": 1.0,
     "formality": "smart_casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -5832,6 +5861,7 @@
     "pattern_confidence": 1.0,
     "formality": "business",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -5951,6 +5981,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -6070,6 +6101,7 @@
     "pattern_confidence": 1.0,
     "formality": "business",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -6191,6 +6223,7 @@
     "pattern_confidence": 1.0,
     "formality": "business",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -6314,6 +6347,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -6441,6 +6475,7 @@
     "pattern_confidence": 1.0,
     "formality": "smart_casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -6562,6 +6597,7 @@
     "pattern_confidence": 1.0,
     "formality": "smart_casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -6673,6 +6709,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -6802,6 +6839,7 @@
     "pattern_confidence": 1.0,
     "formality": "smart_casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -6923,6 +6961,7 @@
     "pattern_confidence": 1.0,
     "formality": "smart_casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -7034,6 +7073,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -7166,6 +7206,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "all",
     "season_confidence": 1.0,
     "silhouette": {
@@ -7279,6 +7320,7 @@
     "pattern_confidence": 1.0,
     "formality": "business",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -7439,6 +7481,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -7573,6 +7616,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -7712,6 +7756,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "warm",
     "season_confidence": 1.0,
     "silhouette": {
@@ -7822,6 +7867,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "warm",
     "season_confidence": 1.0,
     "silhouette": {
@@ -7936,6 +7982,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -8063,6 +8110,7 @@
     "pattern_confidence": 1.0,
     "formality": "business",
     "formality_confidence": 0.75,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {
@@ -8193,6 +8241,7 @@
     "pattern_confidence": 1.0,
     "formality": "casual",
     "formality_confidence": 1.0,
+    "formality_also": "none",
     "season": "cool",
     "season_confidence": 1.0,
     "silhouette": {

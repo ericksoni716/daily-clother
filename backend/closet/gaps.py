@@ -530,7 +530,7 @@ def _run_grid(c: _Closet, days: list[Day] | None = None) -> tuple[list[_DayFailu
             clash = outfits._formality_clash(under, outer, d.occasion)
             if clash:
                 occ = outfits._level(d.occasion)
-                culprit = max(clash, key=lambda p: (abs(p.formality - occ), p.id))
+                culprit = max(clash, key=lambda p: (outfits.steps_from(p, occ), p.id))
             else:
                 loud = [p for p in clothes if p.pattern in outfits.LOUD_PATTERNS or not outfits._neutral(p)]
                 culprit = min(loud or clothes, key=lambda p: (len(strict[_place_of(core, p)]), p.id))
@@ -733,7 +733,7 @@ def _wear_findings(c: _Closet) -> tuple[list[_Finding], list[dict]]:
         mean = sum(c.wear_counts.get(q.id, 0) for q in others) / len(others) if others else 0.0
         if n < WEAR_HEAVY_RATIO * mean:
             continue
-        if any(q.color == p.color and q.formality == p.formality and q.pattern == p.pattern for q in others):
+        if any(q.color == p.color and outfits.share_a_level(q, p) and q.pattern == p.pattern for q in others):
             continue  # a second one like it is already in the closet
         place = HOME_PLACE.get(p.category, "accessory")
         tag = None
@@ -767,7 +767,7 @@ def _wear_findings(c: _Closet) -> tuple[list[_Finding], list[dict]]:
 # ====================================================================== basics
 def _basic_matches(b: Basic, p: outfits.Piece) -> bool:
     return (p.category in b.categories and (not b.colors or p.color in b.colors)
-            and (b.min_formality is None or p.formality >= outfits._level(b.min_formality))
+            and (b.min_formality is None or outfits.span(p)[1] >= outfits._level(b.min_formality))
             and (not b.solid or p.pattern == "solid") and (not b.rain or outfits._rain_friendly(p))
             and (b.min_weight is None or p.weight >= b.min_weight))
 

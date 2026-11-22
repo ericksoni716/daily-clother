@@ -132,6 +132,13 @@ def test_a_plain_line_leaves_out_what_is_not_worth_saying():
     assert "loved" not in line and "liked" not in line and line.endswith("never worn")
 
 
+def test_a_piece_between_two_levels_of_formality_is_listed_with_both():
+    rows = [item("a", "Loafers", "dress_shoes", color="burgundy", formality="business", formality_also="smart_casual"),
+            item("b", "Runners", "sneakers", color="grey", formality="athletic")]
+    lines = styling.listed(rows, context()).lines
+    assert "| smart casual to business |" in lines[0] and "| athletic |" in lines[1]
+
+
 def test_the_rating_and_when_it_was_last_worn_are_in_words():
     rows = [item("a", "A tee", "tee", rating="like"), item("b", "B tee", "tee", rating="meh"), item("c", "C tee", "tee")]
     lines = styling.listed(rows, context(worn_days_ago={"a": 0, "b": 1, "c": 12})).lines

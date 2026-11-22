@@ -376,6 +376,17 @@ def test_undo_restores_the_value_and_the_drawing(client, services, claude):
     assert redone["color"] == "green"
 
 
+def test_a_second_level_of_formality_is_in_the_history_and_can_be_undone(client, services, claude):
+    item = described(client, services, claude)   # smart casual, as Claude said
+    client.patch(f"/api/items/{item['id']}", json={"formality": "smart_casual", "formality_also": "business"})
+    entry = history(client, item["id"])[0]
+    part = next(p for p in entry["parts"] if p["name"] == "formality_also")
+    assert (part["title"], part["before_words"], part["after_words"]) == ("second level of formality", "nothing", "business")
+    undone = client.post(f"/api/items/{item['id']}/history/{entry['id']}/undo").json()["item"]
+    assert (undone["formality"], undone["formality_also"], undone["source"]["formality"]) == ("smart_casual", None, "ai")
+    assert "formality_also" not in undone["source"]
+
+
 def test_undoing_a_new_description_puts_the_earlier_one_back(client, services, claude, cfg):
     item = described(client, services, claude)
     first = svg(client, item)

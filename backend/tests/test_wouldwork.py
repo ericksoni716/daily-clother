@@ -308,3 +308,17 @@ def test_a_description_is_filled_in_and_read_back():
     assert p["formality"] == "smart_casual" and p["season"] == "all" and p["pattern"] == "solid"
     assert wouldwork.describe(p) == "Navy coat, smart casual, all year, heavyweight, keeps the rain off"
     assert "waterproof" in wouldwork.candidate_row(p)["material"]
+
+
+def test_a_piece_between_two_levels_of_formality_is_checked_as_either(closet):
+    p = wouldwork.parse_piece({"category": "jeans", "color": "navy", "formality": "casual", "formality_also": "smart_casual"})
+    assert (p["formality"], p["formality_also"]) == ("casual", "smart_casual")
+    assert wouldwork.describe(p).startswith("Navy jeans, casual to smart casual, all year")
+    assert "formality_also" not in wouldwork.parse_piece({"category": "jeans", "color": "navy", "formality": "casual"})
+    with pytest.raises(wouldwork.PieceError, match="next to each other"):
+        wouldwork.parse_piece({"category": "jeans", "color": "navy", "formality": "casual", "formality_also": "business"})
+    # dark jeans that can be smart casual as well still do the same job as the casual ones you have, and as smart
+    # casual they also do for the business days the closet has no trousers for (casual jeans alone: have_it)
+    a = check(closet, p)
+    assert {r["id"] for r in a["repeats"]["items"]} == ids_of(closet, "jeans")
+    assert {f["gap_id"] for f in a["fills"]} == {"trousers-business", "trousers-business-light"}

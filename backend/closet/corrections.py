@@ -407,7 +407,7 @@ def _given_back(row, sets: dict, source: dict, confidence: dict, fields: list[st
         current = sets[field] if field in sets else row[field]
         if field == "silhouette":
             current = illustrations._json(current, {})
-        filled = tagjobs.fill(tags, field, current, source.get(field), suggested)
+        filled = tagjobs.fill(tags, field, current, tagjobs.who(source, field), suggested)
         if filled is None:
             continue
         value, by, sure = filled

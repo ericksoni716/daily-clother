@@ -78,6 +78,9 @@ def test_lounge_is_not_everyday_and_does_not_buy_outdoor_shoes_or_coats():
     assert life.eligible(item("soft", "trousers", formality="casual", material="fleece"), "lounging")
     assert not life.eligible(item("tight", "trousers", formality="casual", material="jersey",
                                   silhouette={"fit": "slim"}), "lounging")
+    # a tee that can be smart casual or casual can be worn at home, as a casual one can; a smart casual one cannot
+    assert life.eligible(item("knit", "tee", formality="smart_casual", formality_also="casual"), "lounging")
+    assert not life.eligible(item("knit", "tee", formality="smart_casual"), "lounging")
 
 
 def test_exercise_uses_athletic_and_never_suggests_jeans():

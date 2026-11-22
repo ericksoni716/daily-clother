@@ -29,7 +29,8 @@ from .tagger import surfaceform
 
 # the item's own fields that describe it (all those an answer fills, `tagjobs.suggested_fields`); a change to one of
 # them is recorded
-DESCRIBED = ("name", "category", "color", "color_hex", "pattern", "formality", "season", "silhouette", "material")
+DESCRIBED = ("name", "category", "color", "color_hex", "pattern", "formality", "formality_also", "season", "silhouette",
+             "material")
 # the stored answer, with the photo it saw first (an answer put back takes its photo with it)
 ANSWER = ("tag_answer", "tag_schema_version", "tag_route", "tag_model", "tagged_at", "tag_photo_id")
 PATTERN = ("pattern_fill", "pattern_state", "pattern_error", "landmarks")

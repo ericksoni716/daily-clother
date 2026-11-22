@@ -151,7 +151,7 @@ function SayOutside(props: Props) {
   );
 }
 
-/** While Closet cannot tell the outside of the shoe from the inside (a logo or stripe on one side only), it asks: which
+/** While Nines cannot tell the outside of the shoe from the inside (a logo or stripe on one side only), it asks: which
  * photo shows the outside, or, with one photo, whether it is the outside or the inside. */
 function OutsideQuestion(props: Props) {
   const { item, disabled } = props;
@@ -171,7 +171,7 @@ function OutsideQuestion(props: Props) {
 }
 
 /** A shoe's photos on its page: each with what it shows, the other photos with a way to remove them, "Add photos",
- * the question about the outside when Closet has to ask, and a word when no photo shows the shoe from the side. */
+ * the question about the outside when Nines has to ask, and a word when no photo shows the shoe from the side. */
 export function ShoePhotos(props: Props) {
   const { item, disabled, onSaved, onError } = props;
   const [busy, setBusy] = useState<string | null>(null);

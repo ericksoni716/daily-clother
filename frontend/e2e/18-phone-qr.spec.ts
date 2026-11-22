@@ -4,11 +4,11 @@ import { axeViolations } from './a11y';
 import { expect, goToCloset, test } from './fixtures';
 import type { Backend } from './server';
 
-/** Phone access: a QR code of the address that reaches Closet, only when there is one. Tailscale is faked. */
+/** Phone access: a QR code of the address that reaches Nines, only when there is one. Tailscale is faked. */
 
 const ADDRESS = 'https://closet-pc.example-tailnet.ts.net:8443';
 
-// The phone reaches Closet by a name of its own (Tailscale's, which the server lets in), not 127.0.0.1. Here a made-up
+// The phone reaches Nines by a name of its own (Tailscale's, which the server lets in), not 127.0.0.1. Here a made-up
 // Tailscale name leads the browser to the same backend, so the page sees what it sees on the phone: an address that is
 // not this computer's.
 const PHONE_HOST = 'closet-phone.example-tailnet.ts.net';
@@ -59,7 +59,7 @@ for (const theme of ['light', 'dark'] as const) {
     await goToCloset(page);
     await page.goto('/settings');
     const section = page.getByRole('region', { name: 'Other devices', exact: true });
-    // once a share reaches Closet the group is one line, with the code folded under it
+    // once a share reaches Nines the group is one line, with the code folded under it
     await expect(section.getByTestId('phone-address')).toHaveText(ADDRESS);
     const code = section.getByRole('img', { name: `QR code of ${ADDRESS}` });
     await expect(code).toBeHidden();
@@ -100,13 +100,13 @@ test('the door through Cloudflare: folded under Other devices on the computer, f
   await expect(door.getByTestId('cloudflare-status')).toHaveText('This is off until all three are filled in.');
   await door.getByLabel('Your Cloudflare team').fill('yourteam');
   await door.getByLabel("The Access application's audience tag").fill('a1b2c3d4e5f60718293a4b5c6d7e8f90');
-  await door.getByLabel("Nines' address on Cloudflare").fill('closet example.com');
+  await door.getByLabel("Nines' address on Cloudflare").fill('nines example.com');
   await door.getByRole('button', { name: 'Save' }).click();
-  await expect(door.getByRole('alert')).toContainText('closet.example.com');   // the server's sentence, as typed wrong
-  await door.getByLabel("Nines' address on Cloudflare").fill('https://closet.example.com/');
+  await expect(door.getByRole('alert')).toContainText('nines.example.com');   // the server's sentence, as typed wrong
+  await door.getByLabel("Nines' address on Cloudflare").fill('https://nines.example.com/');
   await door.getByRole('button', { name: 'Save' }).click();
-  await expect(door.getByText('Also through Cloudflare, at closet.example.com')).toBeVisible();
-  await expect(door.getByTestId('cloudflare-status')).toHaveText('Nines answers at https://closet.example.com once Cloudflare has checked who you are.');
+  await expect(door.getByText('Also through Cloudflare, at nines.example.com')).toBeVisible();
+  await expect(door.getByTestId('cloudflare-status')).toHaveText('Nines answers at https://nines.example.com once Cloudflare has checked who you are.');
   await expect(door.getByLabel('Your Cloudflare team')).toHaveValue('yourteam.cloudflareaccess.com');
   expect(await axeViolations(page)).toEqual([]);
   await door.scrollIntoViewIfNeeded();

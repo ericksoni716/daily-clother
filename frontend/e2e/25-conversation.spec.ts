@@ -26,7 +26,7 @@ const said = (r: Request) => r.url().endsWith('/api/outfits/today') && r.method(
 async function open(page: Page, url: string) {
   await page.setViewportSize({ width: 390, height: 844 });
   // The day is set before the first page opens: opening can show Today for a moment, and a request of its own
-  // without this day would reach Closet late, look like the weather moving and make Claude choose afresh just as a
+  // without this day would reach Nines late, look like the weather moving and make Claude choose afresh just as a
   // test sends a message (which is then refused: seen once on GitHub).
   await page.route('**/api/outfits/today', async (route: Route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
@@ -82,7 +82,7 @@ function ownBackend() {
     await backend?.stop();
   });
   // A request still on its way when a test ends is not that test's failure. The page is emptied first, so that it
-  // asks nothing more once the day is no longer set for its requests: one request without the day, reaching Closet
+  // asks nothing more once the day is no longer set for its requests: one request without the day, reaching Nines
   // late, looks like the weather moving and makes Claude choose afresh while the next test sends a message, which
   // is then refused (seen once on GitHub).
   test.afterEach(async ({ page }) => {
@@ -281,7 +281,7 @@ test.describe('talking to Claude about the outfits', () => {
     expect(await axeViolations(page)).toEqual([]);
     await look(page, 'phone-light-long');
 
-    await page.emulateMedia({ colorScheme: 'dark' }); // Closet follows the device until a theme is chosen
+    await page.emulateMedia({ colorScheme: 'dark' }); // Nines follows the device until a theme is chosen
     expect(await axeViolations(page)).toEqual([]);
     expect(await sideways(page)).toEqual([]);
     await look(page, 'phone-dark');

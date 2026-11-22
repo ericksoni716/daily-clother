@@ -16,7 +16,7 @@ export interface Line {
   text: string;
 }
 
-/** Where the page is open: on the computer Closet runs on, or on the phone (anything that is not loopback). */
+/** Where the page is open: on the computer Nines runs on, or on the phone (anything that is not loopback). */
 export type Device = 'computer' | 'phone';
 
 // ------------------------------------------------------------------ Claude
@@ -31,7 +31,7 @@ export interface ClaudeLine extends Line {
 type ClaudeSettings = Pick<Settings, 'tagging_api_enabled' | 'tagging_api_off' | 'api_key'>;
 
 /**
- * How Closet reaches Claude, in one line: which way it uses now, or, when none works, one red sentence and what to
+ * How Nines reaches Claude, in one line: which way it uses now, or, when none works, one red sentence and what to
  * do. The routes are tried in the order the server reports (`tagging.order`); the key counts only once allowed and
  * while the month's limit is not reached.
  */
@@ -84,7 +84,7 @@ export interface UpdatesLine extends Line {
   action: UpdateAction;
 }
 
-/** "Closet 0.4.0 · up to date", "Closet 0.4.1 is ready to install.", a step of an install, or what went wrong. */
+/** "Nines 0.4.0 · up to date", "Nines 0.4.1 is ready to install.", a step of an install, or what went wrong. */
 export function updatesLine(status: UpdateStatus | null, version: string, offline: boolean): UpdatesLine {
   if (!status) {
     return { tone: 'quiet', text: offline ? `Nines ${version}. Updates can't be checked while you're offline.` : `Nines ${version}`, action: null };
@@ -139,8 +139,8 @@ export function backupLine(s: BackupSettings, profile: Profile, device: Device):
 export type Group = 'style' | 'everyday' | 'claude' | 'updates' | 'phone' | 'device' | 'data' | 'leave';
 
 /**
- * Which groups are shown, in order. Other devices is shown on the computer until a share reaches Closet (after that it is
- * one line there too); on the phone, in Safari, to say how to add Closet to the Home Screen, and, as an app, only when
+ * Which groups are shown, in order. Other devices is shown on the computer until a share reaches Nines (after that it is
+ * one line there too); on the phone, in Safari, to say how to add Nines to the Home Screen, and, as an app, only when
  * it has something to say (`phoneLine`: whether the computer keeps Nines running).
  */
 export function mainGroups(phoneShows: 'connect' | 'add-to-home-screen' | 'nothing', phoneLine = false): Group[] {
@@ -151,7 +151,7 @@ export function mainGroups(phoneShows: 'connect' | 'add-to-home-screen' | 'nothi
 }
 
 /**
- * What only makes sense on the computer Closet runs on, and so is not offered on the phone: Quit, start at login,
+ * What only makes sense on the computer Nines runs on, and so is not offered on the phone: Quit, start at login,
  * a typed folder path, the model's files to put in place by hand, the data folder, and the door through Cloudflare
  * (its connector is installed on the computer, so that is where it is set up; the server refuses a change to it from a
  * device that came in through Cloudflare whatever the page shows).
@@ -170,7 +170,7 @@ export function computerOnly(device: Device): ComputerOnly {
   return { quit: on, autostart: on, backupFolder: on, modelFiles: on, dataFolder: on, cloudflare: on };
 }
 
-/** "Closet uses 2.7 MB for 49 items · 62 GB free", from the storage lookup. */
+/** "Nines uses 2.7 MB for 49 items · 62 GB free", from the storage lookup. */
 export function storageLine(total: string, items: number, free: string | null): string {
   return `Nines uses ${total} for ${items === 1 ? '1 item' : `${items.toLocaleString('en-US')} items`}${free ? ` · ${free} free on this disk` : ''}.`;
 }

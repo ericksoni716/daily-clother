@@ -284,7 +284,7 @@ interface TaggingProps {
   toast: Toast;
 }
 
-/** How Closet reaches Claude. Whether Claude Code is signed in is a slow lookup of its own, asked once each time the
+/** How Nines reaches Claude. Whether Claude Code is signed in is a slow lookup of its own, asked once each time the
  * page opens and again when a key or the order changes; what it last said stays on screen meanwhile. */
 function TaggingSection({ offline, settings, toast }: TaggingProps) {
   const qc = useQueryClient();
@@ -400,7 +400,7 @@ function TaggingSection({ offline, settings, toast }: TaggingProps) {
 
 const ANTHROPIC_KEYS = 'https://console.anthropic.com/settings/keys';
 
-/** Paste an API key: Closet checks it with Anthropic and keeps it in the computer's keychain. The page never
+/** Paste an API key: Nines checks it with Anthropic and keeps it in the computer's keychain. The page never
  * receives the key back, so once saved it is only ever described, never shown. */
 function ApiKeyBox({ offline, settings, toast }: { offline: boolean; settings: Settings; toast: Toast }) {
   const qc = useQueryClient();

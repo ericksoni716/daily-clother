@@ -19,7 +19,7 @@ export interface Outfit {
   score: number | null;
   reasons: string[];
   warnings: string[];
-  /** 'claude' when Claude chose it; absent when Closet's own rules did. */
+  /** 'claude' when Claude chose it; absent when Nines' own rules did. */
   by?: 'claude';
 }
 
@@ -125,7 +125,7 @@ export interface DayNote {
   exposure: 'inside' | 'mixed' | 'outside';
   activity: string;
   occasion: string | null;
-  /** What Closet took from it: ["Lisbon, Portugal", "until Sunday 15 November", "outside noon to 6pm"]. */
+  /** What Nines took from it: ["Lisbon, Portugal", "until Sunday 15 November", "outside noon to 6pm"]. */
   words: string[];
 }
 

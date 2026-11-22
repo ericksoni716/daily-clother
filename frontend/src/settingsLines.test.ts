@@ -115,9 +115,9 @@ describe('the backup line', () => {
   });
 
   it('says where the copies go and when the last good one was', () => {
-    const line = backupLine({ backup_folder: 'D:\\Closet backups', last_backup: null, last_good_backup: '2026-11-19T03:00:00Z' }, 'main', 'computer');
+    const line = backupLine({ backup_folder: 'D:\\Nines backups', last_backup: null, last_good_backup: '2026-11-19T03:00:00Z' }, 'main', 'computer');
     expect(line.tone).toBe('ok');
-    expect(line.text).toMatch(/^Backed up every day to D:\\Closet backups · last good backup /);
+    expect(line.text).toMatch(/^Backed up every day to D:\\Nines backups · last good backup /);
     expect(backupLine({ backup_folder: '/Volumes/USB', last_backup: null, last_good_backup: null }, 'main', 'phone').text)
       .toBe('Backed up every day to /Volumes/USB · no backup yet.');
   });

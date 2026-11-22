@@ -201,7 +201,7 @@ test.describe('the import list shows what each photo became', () => {
         expect((await row.boundingBox())!.height).toBeLessThanOrEqual(70);
       }
 
-      // Closet out of reach: the page opened again shows the rows as it last saw them
+      // Nines out of reach: the page opened again shows the rows as it last saw them
       await serviceWorkerInCharge(page);
       await page.reload();   // once while the service worker is in charge, so the closet's list is saved
       await expect(rows.filter({ hasText: 'grey-sweater.png' }).getByTestId('queue-title')).toHaveText('Navy polo');

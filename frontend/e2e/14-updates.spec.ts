@@ -87,7 +87,7 @@ test('updates (stand-in): the banner offers the new version, Install restarts Ni
   await page.route('**/api/health', (route) => {
     if (phase !== 'installing') return route.continue();
     health += 1;
-    // the old Closet answers, then goes away, then the new one answers
+    // the old Nines answers, then goes away, then the new one answers
     if (health <= 1) return route.fulfill({ json: { ok: true, version: '0.2.1' } });
     if (health <= 3) return route.abort('connectionrefused');
     phase = 'done';
@@ -129,7 +129,7 @@ test('updates (stand-in): the banner offers the new version, Install restarts Ni
   await expect(page.getByRole('alertdialog', { name: 'Nines is restarting' })).toBeVisible();
   await expect(page.getByText('Installing Nines 0.3.0')).toBeVisible();
 
-  // once the new Closet answers, the page reloads by itself
+  // once the new Nines answers, the page reloads by itself
   await expect(page.getByRole('alertdialog')).toHaveCount(0, { timeout: 15_000 });
   await expect(manage.getByTestId('update-version')).toHaveText('0.3.0');
   await expect(manage.getByTestId('update-last')).toHaveText(/Updated from 0.2.1 to 0.3.0/);

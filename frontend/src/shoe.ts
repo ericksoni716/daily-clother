@@ -88,7 +88,7 @@ export function canSayOutside(item: Pick<Item, 'photos' | 'views'>): boolean {
   return item.views?.state === 'sorted' && item.photos.length > 0;
 }
 
-/** What the item page asks while Closet cannot tell the outside of the shoe from the inside: about one photo (outside
+/** What the item page asks while Nines cannot tell the outside of the shoe from the inside: about one photo (outside
  * or inside?), or which of several shows the outside. Each photo comes with its number in the row of photos. */
 export function outsideQuestion(item: Pick<Item, 'photos' | 'views'>):
   { one: true; photos: [{ photo: Photo; n: number }] } | { one: false; photos: { photo: Photo; n: number }[] } | null {

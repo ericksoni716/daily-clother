@@ -359,7 +359,7 @@ export interface BackupRecord {
   kind: string;
 }
 
-/** What Closet did at start-up about a restore that was cut short: shown once, until the owner says OK. */
+/** What Nines did at start-up about a restore that was cut short: shown once, until the owner says OK. */
 export interface RestoreNotice {
   at: string;
   outcome: 'finished' | 'undone' | 'unreadable';
@@ -381,13 +381,13 @@ export interface Settings {
   tagging_api_enabled: boolean;
   /** The API key's monthly spending limit in US dollars; null until set. */
   tagging_api_cap_usd: number | null;
-  /** Set when Anthropic refused the key and Closet switched it off. */
+  /** Set when Anthropic refused the key and Nines switched it off. */
   tagging_api_off: ApiTurnedOff | null;
   /** Which route to Claude is tried first: the plan first (default), the key first, or only one of them. */
   tagging_route_order: RouteOrder;
   /** Whether an API key is set and where it comes from; never the key itself. */
   api_key: ApiKeyInfo;
-  /** How the phone reaches Closet, looked up in the background; null until the first lookup is in. */
+  /** How the phone reaches Nines, looked up in the background; null until the first lookup is in. */
   phone: PhoneInfo | null;
   /** How this device came in. */
   came_in: CameIn;
@@ -407,7 +407,7 @@ export interface Settings {
   rewear?: Rewear;
   /** Laundry that keeps itself: worn clothes go in by themselves after their count, and come out on the laundry day. */
   laundry?: LaundrySetting;
-  /** Whether Claude may choose the outfits on Today (Settings, Your style); otherwise Closet's own rules do. */
+  /** Whether Claude may choose the outfits on Today (Settings, Your style); otherwise Nines' own rules do. */
   stylist_on?: boolean;
   /** Settings' "Show drawings instead of photos": every device shows an item's drawing in its small pictures. */
   show_drawings?: boolean;
@@ -422,7 +422,7 @@ export interface Settings {
   tagging_spend: TaggingSpend;
 }
 
-/** Phone access through Tailscale: the address that reaches Closet (null when no share does), and the commands. */
+/** Phone access through Tailscale: the address that reaches Nines (null when no share does), and the commands. */
 export interface PhoneInfo {
   tailscale_installed: boolean; running: boolean; address: string | null; command: string;
   stop_command: string | null; others_share: boolean;
@@ -575,12 +575,12 @@ export interface TaggingRoute {
   detail: string;
 }
 
-/** Why Closet switched the API key off by itself: no credit left, or the key was not accepted. */
+/** Why Nines switched the API key off by itself: no credit left, or the key was not accepted. */
 export interface ApiKeyInfo {
   set: boolean;
   /** "keychain": saved from Settings; "environment": ANTHROPIC_API_KEY on the computer. */
   source: 'keychain' | 'environment' | null;
-  /** Whether this computer has a keychain Closet can keep a key in. */
+  /** Whether this computer has a keychain Nines can keep a key in. */
   can_save: boolean;
   /** Where a saved key is kept, in plain words ("this Mac's keychain"), or null. */
   where: string | null;

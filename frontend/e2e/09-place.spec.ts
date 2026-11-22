@@ -29,7 +29,7 @@ test('settings: search for a place (faked), choose it and see it saved', async (
   expect(weatherAsked.n).toBe(0);   // nothing to show the weather in yet, so it is not looked up
   await everyday.getByRole('button', { name: 'Change', exact: true }).click();
   const section = page.getByTestId('place-sheet');
-  // with nothing chosen, Closet uses New York
+  // with nothing chosen, Nines uses New York
   await expect(section.getByTestId('saved-place')).toHaveText('New York, United States');
   await expect(section.getByText('New York until you choose a place.')).toBeVisible();
   await expect(section.getByRole('button', { name: 'Use my location' })).toBeVisible();

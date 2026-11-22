@@ -244,8 +244,8 @@ def test_the_door_is_changed_on_the_computer_or_through_tailscale(local):
     phone = {"host": "closet-pc.example-tailnet.ts.net", "Tailscale-User-Login": EMAIL}
     r = local.put("/api/settings", json={"cloudflare_team": "yourteam"}, headers=phone)
     assert r.status_code == 200 and r.json()["cloudflare"]["team"] == TEAM
-    r = local.put("/api/settings", json={"cloudflare_host": "closet example.com"})
-    assert r.status_code == 422 and "closet.example.com" in r.json()["detail"]
+    r = local.put("/api/settings", json={"cloudflare_host": "nines example.com"})
+    assert r.status_code == 422 and "nines.example.com" in r.json()["detail"]
     turn_on(local)
     cleared = local.put("/api/settings", json={"cloudflare_aud": ""}).json()["cloudflare"]
     assert cleared == {"team": TEAM, "aud": None, "host": HOST, "on": False}

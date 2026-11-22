@@ -21,8 +21,8 @@ npm run dev                   # the page alone; passes /api and /media to a back
 npm run build                 # writes the page into backend/closet/web/, which the backend serves
 ```
 
-`python -m closet` runs the same launcher as the packaged program, so the key of Closet's own window
-is in force (`gate.py`): the address it prints answers "Open Closet from its icon" in a browser, and
+`python -m closet` runs the same launcher as the packaged program, so the key of Nines' own window
+is in force (`gate.py`): the address it prints answers "Open Nines from its icon" in a browser, and
 running `python -m closet` again opens it with the key. Who came in through Tailscale or Cloudflare
 is recorded by the gate too; `create_app(sv, access_keys=..., tailscale_check=...)` takes stand-ins
 for Cloudflare's keys and the Windows check of the Tailscale service (`tests/test_access.py`,

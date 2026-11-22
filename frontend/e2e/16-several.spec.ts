@@ -78,7 +78,7 @@ test.describe('several items from one photo', () => {
     const after = (await red.boundingBox())!;
     expect(after.width).toBeGreaterThan(before.width + 20);
     expect(after.height).toBeGreaterThan(before.height + 10);
-    await page.reload();   // kept by Closet, not just moved on the screen
+    await page.reload();   // kept by Nines, not just moved on the screen
     await expect(boxes).toHaveCount(2);
     expect((await boxes.first().boundingBox())!.width).toBeGreaterThan(before.width + 20);
 

@@ -103,7 +103,7 @@ export function isDone(state: CheckState): boolean {
 }
 
 /**
- * How often a check is asked for again: until it is answered or has failed; more slowly while Closet cannot be reached
+ * How often a check is asked for again: until it is answered or has failed; more slowly while Nines cannot be reached
  * for a moment; and no more once the server says it has forgotten the check (404). Asking never starts a check.
  */
 export function checkPoll(check: Pick<Check, 'state'> | null | undefined, error: { status?: number } | null): number | false {

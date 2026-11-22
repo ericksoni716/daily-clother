@@ -5,7 +5,7 @@ import { Button, Notice } from './ui';
 
 type Toast = (m: string, k?: 'ok' | 'error') => void;
 
-/** "A restore was interrupted; …": what Closet did about it when it started, on every screen until the owner says OK. */
+/** "A restore was interrupted; …": what Nines did about it when it started, on every screen until the owner says OK. */
 export function RestoreNotice({ offline, toast }: { offline: boolean; toast: Toast }) {
   const [notice, setNotice] = useState<Told | null>(null);
   const [busy, setBusy] = useState(false);

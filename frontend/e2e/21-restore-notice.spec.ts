@@ -1,7 +1,7 @@
 import { axeViolations } from './a11y';
 import { expect, goToCloset, test } from './fixtures';
 
-// A restore cut short is put right when Closet starts (backend/tests/test_backup.py); the page then says what was
+// A restore cut short is put right when Nines starts (backend/tests/test_backup.py); the page then says what was
 // done, once. The shared server has had no such restore, so its answer is stood in for here.
 
 test('a restore put right at start-up is told once, on every screen, until OK', async ({ page }) => {

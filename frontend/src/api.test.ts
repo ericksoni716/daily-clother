@@ -44,7 +44,7 @@ describe('interrupted responses', () => {
   });
 });
 
-describe("Closet's own page", () => {
+describe("Nines' own page", () => {
   it('says so on every call, with a body, a photo or nothing', async () => {
     const calls = answering();
     await api.session();

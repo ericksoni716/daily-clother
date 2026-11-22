@@ -193,7 +193,7 @@ export function AddScreen() {
         answers.push(answer.photos);
       } catch (e) {
         if ((e as ApiError).status === 400) {
-          // a file Closet cannot read as a photo: added as one piece, so the import says why it did not go in
+          // a file Nines cannot read as a photo: added as one piece, so the import says why it did not go in
           answers.push(group.map(() => ({ kind: 'piece' as const, shoe: 0 })));
           continue;
         }
@@ -292,7 +292,7 @@ export function AddScreen() {
   }, [follow, queue]);
 
   // the photos of several pieces whose pieces are not added yet
-  // asked again every few seconds while Closet is still finding the pieces in one, and when another is sent
+  // asked again every few seconds while Nines is still finding the pieces in one, and when another is sent
   const looking = (list: SourcePhoto[] | undefined) => !!list?.some((s) => s.state === 'finding' && !s.note);
   const open = useQuery({
     queryKey: queryKeys.sources(), queryFn: api.sources, enabled: !offline,
@@ -649,7 +649,7 @@ export function AddScreen() {
   );
 }
 
-/** One photo of the import. Until Closet knows the item it became, the row shows how the upload goes; once it does
+/** One photo of the import. Until Nines knows the item it became, the row shows how the upload goes; once it does
  * (`item`), the row shows that item instead (how far the work on it has got, then what Claude called it) and opens it,
  * never both. The file's name stays, small, below. */
 function QueueRow({ entry, item }: { entry: QueueEntry; item: ItemSummary | null }) {

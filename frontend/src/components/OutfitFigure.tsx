@@ -68,7 +68,7 @@ export const figureQuery = (outfit: FigurePieces, version: string, layered: bool
 /** What is said in place of the figure when it cannot be drawn. */
 export function figureError(e: unknown): string {
   return e instanceof ApiError && e.status === 0
-    ? 'The drawing of the outfit needs the closet program running. The pieces are still there.'
+    ? 'The drawing of the outfit needs Nines running on the computer. The pieces are still there.'
     : 'This outfit could not be drawn as worn. The pieces are still there.';
 }
 

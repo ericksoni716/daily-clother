@@ -26,7 +26,7 @@ export interface Backend {
 }
 
 /**
- * Starts the Closet backend on a free port with a fresh, empty data folder. The weather service is never reached
+ * Starts the Nines backend on a free port with a fresh, empty data folder. The weather service is never reached
  * (backend/tests/e2e_backend.py): specs fake the weather they need in the browser.
  * `fakes`: stand-ins for the model and for Claude (backend/tests/e2e_backend.py), so an item is cut out and described;
  * 'api': the plan cannot be used and the API key route talks to a stand-in that reports what each request used.

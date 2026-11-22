@@ -24,7 +24,7 @@ export type Lists = { gaps: GapsAnswer; wishes: Wish[] };
 /** How many things worth buying show before "See all": the few most worth it (DESIGN, "Lead with the answer"). */
 export const TOP_GAPS = 3;
 
-/** The copy of both lists kept on this device, for when Closet cannot be reached. */
+/** The copy of both lists kept on this device, for when Nines cannot be reached. */
 export function savedLists(profile: string): { data: Lists; savedAt: string } | null {
   const saved = loadSavedGaps(profile);
   return saved?.gaps ? { data: { gaps: saved.gaps, wishes: saved.wishes ?? [] }, savedAt: saved.saved_at } : null;

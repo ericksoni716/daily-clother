@@ -72,7 +72,7 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
   const [held, setStage] = useState<Stage>(() => openingStage(remembered));
   const [wished, setWished] = useState(() => held.kind === 'check' && wishedChecks.has(held.check.id));
 
-  // How the check is getting on: asked every moment until it is answered (more slowly while Closet cannot be reached
+  // How the check is getting on: asked every moment until it is answered (more slowly while Nines cannot be reached
   // for a moment), never while the page is hidden, and never again once answered. The check the server sent back
   // when it started is what shows first. Reading never starts a check: only the owner does, below.
   const started = held.kind === 'check' ? held.check : null;
@@ -86,7 +86,7 @@ export function WouldWork({ wish, wishId, byId, locked, busy, onWish, onNote, on
   });
   const latest = followed.data;
   const stage = useMemo<Stage>(() => (started && latest?.id === started.id ? { kind: 'check', check: latest } : held), [started, latest, held]);
-  // the server has forgotten the check (Closet was restarted): back to the form, saying so
+  // the server has forgotten the check (Nines was restarted): back to the form, saying so
   const forgotten = started && (followed.error as ApiError | null)?.status === 404 ? followed.error!.message : null;
   useEffect(() => {
     if (forgotten) setStage({ kind: 'form', error: forgotten });

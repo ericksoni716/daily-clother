@@ -34,7 +34,7 @@ export function TripsScreen({ tripId }: { tripId: string | null }) {
 }
 
 /**
- * The saved trips. Each answer is kept on this device for offline; when Closet on the computer cannot be reached, the
+ * The saved trips. Each answer is kept on this device for offline; when Nines on the computer cannot be reached, the
  * copy kept is given instead (or the error, when there is none).
  */
 /** The list of trips (kept on this device for offline); Today reads it too, for the trip it mentions. */

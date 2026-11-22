@@ -39,10 +39,10 @@ export function makeQueryClient(): QueryClient {
         // Not retried: a failure says so at once, and what was there stays on screen. A poll asks again by itself.
         retry: false,
         // Ask even when the browser says it is offline: the service worker may answer with its saved copy, and
-        // `api.ts` follows whether Closet can be reached (`connection`).
+        // `api.ts` follows whether Nines can be reached (`connection`).
         networkMode: 'always',
         refetchOnWindowFocus: () => refetchOnReturn(lastAway),
-        // Back online is followed by `ClosetProvider` (when Closet answers again), not by the browser's event.
+        // Back online is followed by `ClosetProvider` (when Nines answers again), not by the browser's event.
         refetchOnReconnect: false,
         // Left on (the default) and never turned off: a poll that brings the same data keeps the same objects, so
         // nothing that shows them draws again.

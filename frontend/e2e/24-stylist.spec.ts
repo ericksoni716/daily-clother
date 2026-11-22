@@ -149,7 +149,7 @@ test.describe('outfits chosen by Claude', () => {
     await expect(waiting(page)).toHaveCount(0);
     await claudes(page);
 
-    // Settings → Your style: switched off, Today is Closet's own rules with nothing about Claude
+    // Settings → Your style: switched off, Today is Nines' own rules with nothing about Claude
     await page.goto(backend.url + '/settings');
     const section = page.locator('section[aria-labelledby="s-style"]');
     const toggle = section.getByRole('switch', { name: 'Let Claude choose my outfits' });

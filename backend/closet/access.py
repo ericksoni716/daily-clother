@@ -159,7 +159,7 @@ def selfcheck() -> str:
 _LABEL = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)$")
 
 TEAM_EXAMPLE = "Type your team's domain like yourteam.cloudflareaccess.com."
-HOST_EXAMPLE = "Type the address Cloudflare gives Nines, like closet.example.com."
+HOST_EXAMPLE = "Type the address Cloudflare gives Nines, like nines.example.com."
 
 
 def _is_hostname(value: str) -> bool:

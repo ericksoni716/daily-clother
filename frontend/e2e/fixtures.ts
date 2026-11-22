@@ -1,7 +1,7 @@
 import { test as base, expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import { startBackend, type Backend } from './server';
 
-/** The header Closet's own page sends on every call (src/api.ts); the server refuses a change without it. */
+/** The header Nines' own page sends on every call (src/api.ts); the server refuses a change without it. */
 export const CLIENT = { 'X-Closet-Client': '1' };
 
 /**

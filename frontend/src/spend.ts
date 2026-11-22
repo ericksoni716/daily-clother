@@ -61,7 +61,7 @@ export function suggestionLine(suggested: number, perPhotoUsd: number, pricesChe
     'while keeping any mistake small.';
 }
 
-/** Why Closet stopped using the API key by itself, or empty. */
+/** Why Nines stopped using the API key by itself, or empty. */
 export function turnedOffLine(off: TaggingSpend['turned_off']): string {
   if (!off) return '';
   const when = new Date(off.at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -93,7 +93,7 @@ export const ROUTE_ORDERS: { value: RouteOrder; label: string; needsKey: boolean
   { value: 'api', label: 'Only the API key', needsKey: true },
 ];
 
-/** Which route Closet will try first, in a sentence: the first in `order` that is ready (the key only once allowed).
+/** Which route Nines will try first, in a sentence: the first in `order` that is ready (the key only once allowed).
  *  Empty when none is. */
 export function firstRouteLine(order: TaggingRoute['id'][], routes: TaggingRoute[], apiAllowed: boolean): string {
   const ready = new Set(routes.filter((r) => r.available && (r.id !== 'api' || apiAllowed)).map((r) => r.id));

@@ -5,12 +5,12 @@
  * answers every request whose sign-in has run out with a redirect to its own sign-in page, on the team's address
  * (`….cloudflareaccess.com`). A `fetch` from the page follows it to that other address, which does not let the page
  * read it, so the fetch fails exactly as it does when the computer cannot be reached. The page's calls (`api.ts`) then
- * say Closet is offline, and the service worker answers the closet's lists from its saved copy, so the page looks as if
+ * say Nines is offline, and the service worker answers the closet's lists from its saved copy, so the page looks as if
  * the computer were off, and stays that way: nothing ever loads the whole page again for Cloudflare to ask for its code.
  *
  * So, on the Cloudflare address only (`throughCloudflare`), each time the page goes offline it asks the health check
  * once more with `redirect: 'manual'`, which the service worker leaves alone. A redirect there (an "opaque redirect":
- * Closet itself never redirects that call) or a 401 (Closet's own answer when Cloudflare's sign-in is missing) means the
+ * Nines itself never redirects that call) or a 401 (Nines' own answer when Cloudflare's sign-in is missing) means the
  * sign-in ran out, not the computer: the page is loaded again in full, at its own address with `?signin=` added, which
  * the service worker always fetches rather than answering from its saved copy (`sw/sw.js`), so Cloudflare's redirect
  * reaches the browser and asks for the code. After signing in, Cloudflare brings the browser back to that address,

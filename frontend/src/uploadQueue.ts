@@ -314,7 +314,7 @@ export class UploadQueue<F> {
         const e = err as UploadErrorLike;
         const message = e?.message || 'The upload did not work.';
         if (isTransient(e) && !this.online) {
-          // Closet went out of reach: wait for it to come back instead of using up the retries
+          // Nines went out of reach: wait for it to come back instead of using up the retries
           this.update(id, { status: 'waiting', attempts: 0, error: null });
           return;
         }

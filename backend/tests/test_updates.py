@@ -478,6 +478,33 @@ def test_ask_first_fetches_ahead_and_waits(updater, github):
     assert Path(updater.executable).read_bytes() == OLD_EXE
 
 
+def test_check_now_gets_a_found_release_ready_without_waiting_for_the_next_look(updater, github, client):
+    # the loop has looked (nothing was out then) and sleeps for half an hour; Check now finds 0.3.0
+    updater.state.update(update_check={"at": updates._now(), "ok": True, "error": None, "latest": "0.2.1",
+                                       "available": None})
+    looks = []
+    real_tick = updater.tick
+    updater.tick = lambda now=None: (real_tick(now), looks.append(1))
+    updater.start(first_after=0)
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline and not looks:
+        time.sleep(0.02)
+    assert len(looks) == 1 and github.asked == []   # its first look found nothing to do; the next is in 30 minutes
+    status = client.post("/api/updates/check").json()
+    assert status["available"]["version"] == "0.3.0" and not status["ready"]
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline and not updater.status()["ready"]:
+        time.sleep(0.05)
+    assert len(looks) == 2 and updater.status()["ready"]   # looked again at once: fetched, checked, offered
+    assert not updater.spawned and Path(updater.executable).read_bytes() == OLD_EXE   # "Ask me first": not installed
+
+
+def test_check_now_with_nothing_newer_leaves_the_loop_asleep(updater, github):
+    github.latest = release("0.2.1")
+    assert updater.check_now()["available"] is None
+    assert not updater._soon.is_set()
+
+
 def test_install_by_themselves(updater, github):
     updater.set_mode("auto")
     updater.tick()

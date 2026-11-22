@@ -1919,7 +1919,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     @app.post("/api/updates/check")
     async def check_updates():
         # asks GitHub (a few seconds at most), so keep it off the event loop
-        return await run_in_threadpool(sv.updater.check)
+        return await run_in_threadpool(sv.updater.check_now)
 
     @app.post("/api/updates/install", status_code=202)
     def install_update():

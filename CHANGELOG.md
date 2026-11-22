@@ -10,6 +10,14 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ## Unreleased
 
+### Fixed
+
+- **Check now** says what it found, under the button on Advanced: "Nines 0.15.0 is out." with
+  **Install now** beside it, or "You have the latest version." Before, only "Last checked"
+  changed there, so a new version looked as though it had not been found. When it finds one in
+  **Ask me first**, Nines starts getting it ready at once, so the banner offers it within a
+  minute or two instead of up to half an hour later.
+
 ## 0.15.0
 
 ### Added

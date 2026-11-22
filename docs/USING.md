@@ -358,7 +358,8 @@ back. Its code loads only when it is opened. In order:
   key box (paste, replace, remove); which to use; Allow the API key; the monthly limit and the
   month's spending, folded; how many items wait to be described, only when some do.
 - **Updates**: the version, when it last checked, whether to install by itself, ask first or
-  never check, Check now, and how the last install went.
+  never check, Check now with what it found under it ("Nines 0.15.0 is out." and **Install
+  now**, or "You have the latest version."), and how the last install went.
 - **Backups**: the backup line, the folder (typed on the computer only) and Back up now.
 - **Storage**: one line ("Nines uses 2.9 MB for 49 items · 59 GB free on this disk"), with
   what takes the space folded under it.

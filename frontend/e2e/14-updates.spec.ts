@@ -138,6 +138,34 @@ test('updates (stand-in): the banner offers the new version, Install restarts Ni
   await expect(banner).toHaveCount(0);
 });
 
+test('updates (stand-in): Check now on Advanced says what it found and offers Install now beside it', async ({ page }) => {
+  // checked before, when nothing newer was out; Check now finds 0.3.0, not downloaded yet
+  let found = false;
+  const answer = () => (found ? standIn({ ready: false })
+    : standIn({ latest: '0.2.1', available: null, ready: false, download_size: null }));
+  await page.route('**/api/updates', (route) => route.fulfill({ json: answer() }));
+  await standInSettings(page, answer);
+  await page.route('**/api/updates/check', (route) => {
+    found = true;
+    return route.fulfill({ json: answer() });
+  });
+  await goToCloset(page);
+  await openUpdates(page);
+  await page.getByRole('link', { name: 'Advanced settings' }).click();
+  const manage = page.getByRole('region', { name: 'Updates' });
+  await expect(manage.getByTestId('update-found')).toHaveText('You have the latest version.');
+  await expect(manage.getByRole('button', { name: 'Install now' })).toHaveCount(0);
+
+  await manage.getByRole('button', { name: 'Check now' }).click();
+  await expect(manage.getByTestId('update-found')).toHaveText('Nines 0.3.0 is out.');
+  await expect(manage.getByRole('button', { name: 'Install now' })).toBeVisible();
+  await expect(manage.getByText('52 MB. Your closets are backed up first.')).toBeVisible();
+  await expect(manage.getByRole('link', { name: 'The release page' })).toHaveAttribute('href', RELEASE.page);
+  // the same answer is on the Settings line
+  await page.locator('nav.sidebar').getByRole('link', { name: 'Settings' }).click();
+  await expect(page.getByRole('region', { name: 'Updates' }).getByTestId('update-available')).toHaveText('Nines 0.3.0 is out.');
+});
+
 test('updates (stand-in): a problem before restarting is shown and Nines keeps running', async ({ page }) => {
   let phase: 'ready' | 'failed' = 'ready';
   // a release from before the notes had a What's new section: the server sends no notes

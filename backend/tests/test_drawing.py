@@ -1,5 +1,6 @@
 """Drawing an item from its tags (closet.drawing.item): the entry point the app uses."""
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -7,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from closet.drawing import item
-from closet.drawing.illustrate import Fill, Spec, render
+from closet.drawing.illustrate import Fill, Spec, render, shade
 from closet.tagger.schema import NAMED_HEX, Details, ItemTags, Silhouette, drawing_for
 
 BACKEND = Path(__file__).resolve().parents[1]
@@ -461,3 +462,41 @@ def test_a_fine_stripe_keeps_its_line_on_the_drawing():
     grey = np.asarray(Image.open(io.BytesIO(bytes(resvg_py.svg_to_bytes(svg_string=svg, width=2400)))).convert("L"))
     chest = grey[int(grey.shape[0] * 0.5):int(grey.shape[0] * 0.6), int(2400 * 0.36):int(2400 * 0.46)]
     assert 0.08 < (chest > 150).mean() < 0.25, f"{(chest > 150).mean():.0%} of the chest is white line"
+
+
+# ---- a sweatshirt that matches all over: the owner's black sweatshirt had grey cuffs and hem, and a woven check
+SWEATSHIRT = answer("sweater", {"sleeve": "long", "neck": "crew"}, garment="crewneck_sweatshirt", neckline="crew",
+                    cuff="rib_knit", hem="ribbed_band", fabric="plain")
+
+
+def _ribs(svg: str) -> list[tuple[str, str]]:
+    """Each rib pattern's turn and line colour."""
+    return re.findall(r'<pattern id="rb[^"]*"[^>]*rotate\((-?[\d.]+) [^>]*><path [^>]*stroke="(#[0-9a-f]{6})"', svg)
+
+
+def test_a_tops_ribbing_is_its_own_colour_with_its_ribs_and_no_lighter_tint():
+    svg = item.svg_from_answer(SWEATSHIRT, NAMED_HEX["black"], uid="s1")
+    assert 'fill="#fff" opacity="0.12"' not in svg   # the tint that made the black cuffs and hem grey
+    assert svg.count('fill="url(#rbs1') == 3          # two cuffs and the hem band show their ribs
+    turns = sorted(float(t) for t, _ in _ribs(svg))
+    assert turns[1] == 0.0 and turns[0] < 0 < turns[2]   # upright on the hem, along its own sleeve on each cuff
+    # a contrast trim stays its own colour, its ribs a tone of that colour, not of the body's
+    white = item.svg_from_answer({**SWEATSHIRT, "details": {**SWEATSHIRT["details"], "trim_color": "white"}},
+                                 NAMED_HEX["red"], uid="s2")
+    assert white.count(f'fill="{NAMED_HEX["white"]}"/>') >= 3
+    assert {c for _, c in _ribs(white)} == {shade(NAMED_HEX["white"], -0.16)}
+
+
+def test_a_band_that_is_not_a_tops_ribbing_keeps_its_tint():
+    # a trousers' waistband is woven, and a rolled hem's band is the cloth's inside: no ribs, the tint as before
+    svg = item.svg_from_answer(TROUSERS, "#27344f", uid="t1")
+    assert 'fill="#fff" opacity="0.12"' in svg and "url(#rb" not in svg
+
+
+def test_plain_weave_said_of_a_knit_is_drawn_as_plain_cloth_not_a_woven_check():
+    def texture(tags):
+        return drawing_for(ItemTags.model_validate(tags))[2].get("texture")
+    assert texture(SWEATSHIRT) is None
+    assert texture(answer("tee", {"sleeve": "short"}, fabric="plain")) is None   # no kind said: a tee is knitted
+    assert texture({**SWEATSHIRT, "details": {**SWEATSHIRT["details"], "fabric": "french_terry"}}) == "french_terry"
+    assert texture(answer("shirt", garment="casual_button_up", collar="point", fabric="plain")) == "plain"   # woven

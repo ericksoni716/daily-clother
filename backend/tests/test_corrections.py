@@ -10,9 +10,9 @@ import pytest
 
 from closet import corrections, db, details, illustrations, items, tagjobs
 from closet.config import bundle_dir
-from closet.tagger.schema import ItemTags
+from closet.tagger.schema import NAMED_HEX, Details, ItemTags, Silhouette
 
-from .conftest import upload
+from .conftest import ANSWER, upload
 
 
 def cut(services):
@@ -727,3 +727,20 @@ def test_a_ribbed_cuff_picked_on_track_pants_is_drawn(client, services, cfg):
     picked = client.put(f"/api/items/{item['id']}/details", json={"details": {"hem_finish": "ribbed_cuff"}}).json()
     assert picked["own_details"]["hem_finish"] == "ribbed_cuff" and svg(client, picked) != before
     assert _hem(client, item["id"])["value"] == "ribbed_cuff"
+
+
+def test_an_overshirts_collar_drawn_in_the_trim_colour_is_found_as_the_collar_and_cuff_colour(client, services, cfg):
+    # the owner's plaid overshirt: Claude took its black edging for a trim colour and the collar was drawn black, and
+    # nothing on the item page said which detail colours the collar
+    answer = {**ANSWER.model_dump(mode="json"), "category": "jacket", "color": "green", "pattern": "plaid",
+              "silhouette": Silhouette.of(sleeve="long", neck="collar").model_dump(mode="json"),
+              "details": Details.plain(garment="overshirt", collar="point", placket="front_placket",
+                                       pockets="chest_patch_single", hem="straight", fabric="fleece_back",
+                                       trim_color="black").model_dump(mode="json")}
+    item = with_answer(client, services, cfg, "overshirt", answer)
+    assert f'fill="{NAMED_HEX["black"]}"' in svg(client, item)
+    neck = next(g for g in client.get(f"/api/items/{item['id']}/details").json()["groups"] if g["id"] == "neck")
+    assert neck["title"] == "Collar and neck"
+    assert [(d["title"], d["words"]) for d in neck["details"] if d["name"] == "trim_color"] == [("collar and cuff colour", "black")]
+    picked = client.put(f"/api/items/{item['id']}/details", json={"details": {"trim_color": "same"}}).json()
+    assert f'fill="{NAMED_HEX["black"]}"' not in svg(client, picked)   # the collar in the body's own cloth

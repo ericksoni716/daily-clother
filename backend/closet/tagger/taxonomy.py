@@ -869,6 +869,12 @@ _KIND_FABRIC = {"trench_coat": "gabardine", "varsity_jacket": "melton", "waxed_j
                 "baseball_jersey": "interlock", "cycling_jersey": "interlock", "pajama_set_woven": "poplin",
                 "pajama_set_knit": "jersey", "lounge_knit_set": "flat_knit", "lounge_sweatsuit": "french_terry",
                 "kimono_robe": "plain", "smoking_jacket": "velvet"}
+# Tops that are always knitted, by kind, and by category when the kind is not known. "plain" is the plain weave: said
+# of one of these it meant a smooth face (it was drawn as a woven check on a sweatshirt), so it is drawn as plain cloth.
+KNIT_KINDS = frozenset(g for g, c in GARMENTS.items() if c in ("knit_top", "sweatshirt", "knitwear")) | frozenset(
+    {k for k, f in _KIND_FABRIC.items() if f in AXES["knit_structure"]}
+    | {"performance_tee", "athletic_half_zip", "fleece_pullover"})
+KNIT_CATEGORIES = ("tee", "polo", "sweater", "hoodie")
 # the fibre a kind of top is drawn in when none was seen: leather's creases and shine, nylon's sheen
 _KIND_FIBER = {"leather_jacket": "leather", "windbreaker": "nylon", "rain_shell": "nylon", "softshell_jacket": "polyester"}
 # the collar a kind of top has when the tagger saw "a collar" and no more (else a point collar)

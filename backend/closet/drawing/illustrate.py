@@ -716,6 +716,9 @@ def _lettering_markup(lettering, box: tuple[float, float, float, float], clip: s
 # heavyweight, super heavy). A thick cloth is drawn with depth: shade inside its lower and
 # right edges, seams that sink into it, and a collar and pockets that stand proud of the body.
 DEPTH_PX = (0, 0, 5, 9)
+# A rib band's ribs (cuffs, a hem band, a turtle neck), drawn instead of tinting the band, which made it look another
+# colour: a line every RIB_GAP px, RIB_W wide, a tone of the cloth at RIB_OP (ink at RIB_OP_PATTERNED on a pattern).
+RIB_GAP, RIB_W, RIB_OP, RIB_OP_PATTERNED = 3.4, 1.0, 0.55, 0.16
 
 
 def _svg(body: str, defs: str, card: bool = True) -> str:
@@ -935,8 +938,11 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
                 st = spec.fill.stripes if spec.fill.kind == "stripes" else None
                 inner = turned("hn", 0 if (st is not None and st.orientation == "horizontal") else 90, ground=True)
             return f'<path d="{d}" fill="{inner}"/><path d="{d}" fill="{in_c}" opacity="{in_op}"/>'
-        # a shirt cuff is the body's own cloth: no tint where a line already marks it
-        op = {"trim": 0.10, "band": 0.12, "cuff": 0.0}.get(role, 0.1)
+        # a shirt cuff is the body's own cloth: no tint where a line already marks it. A top's bands are its knitted
+        # ribbing (cuffs, hem, a turtle neck), the body's own colour too: they show their ribs instead of a tint, which
+        # made a black sweatshirt's cuffs and hem look grey. (Elsewhere a band is a waistband, a hem turned up, a gore.)
+        rib = role == "band" and spec.template == "top"
+        op = 0.0 if rib else {"trim": 0.10, "band": 0.12, "cuff": 0.0}.get(role, 0.1)
         col = "#fff" if dark_item else "#000"
         cuffed = sleeve_paint(d) if color == "block" and role in ("band", "cuff") else None
         if cuffed:   # the cuff of a sleeve cut in another colour, in that sleeve's colour
@@ -950,8 +956,29 @@ def _draw(spec: Spec, style: str, uid: str, layered: bool = False, dy: float | N
             out = f'<path d="{d}" fill="{turned(f"c{n}", shape.sleeves[n][1] + 90, ground=spec.fill.sleeves_from_trim)}"/>'
         else:
             out = f'<path d="{d}" fill="{paint}"/>' + (f'<path d="{d}" fill="{col}" opacity="{op}"/>' if op else "")
+        if rib:   # its ribs, in a tone of the band's own colour
+            out += ribs(d, cuffed or (spec.trim_color if spec.trim_color and not bound else None))
         out += f'<path d="{d}" fill="none" stroke="{l_stroke}" stroke-width="{l_w}" stroke-linejoin="round" opacity="{l_op}"/>'
         return out
+
+    def ribs(d: str, own: str | None = None) -> str:
+        """A rib band's ribs, fine lines a little lighter or darker than its cloth (`own`, a band in a colour of its
+        own; else the garment's): along the sleeve on a cuff, upright elsewhere (a hem band, a turtle neck, a
+        cardigan's front band)."""
+        nonlocal defs
+        xs = [float(v) for v in re.findall(r"-?\d+(?:\.\d+)?", d)[0::2]]
+        mid = sum(xs) / max(1, len(xs))
+        degrees = 0.0
+        if shape.sleeves and not shape.body_box[0] <= mid <= shape.body_box[2]:   # out on a sleeve: a cuff
+            degrees = shape.sleeves[0 if mid >= CX_ROT[0] else 1][1]
+        line = (shade(own, 0.16 if luminance(own) < 0.3 else -0.16) if own else tone if not patterned else INK)
+        key = f"rb{uid}{round(degrees * 10)}{line[1:]}".replace("-", "m")
+        if f'id="{key}"' not in defs:
+            defs += (f'<pattern id="{key}" patternUnits="userSpaceOnUse" x="{CX_ROT[0]}" y="0" width="{RIB_GAP}" height="10" '
+                     f'patternTransform="rotate({degrees:.1f} {CX_ROT[0]} {CX_ROT[1]})">'
+                     f'<path d="M{RIB_GAP / 2},0V10" stroke="{line}" stroke-width="{RIB_W}" '
+                     f'opacity="{RIB_OP_PATTERNED if patterned and not own else RIB_OP}"/></pattern>')
+        return f'<path d="{d}" fill="url(#{key})"/>'
 
     g = [f'<g transform="translate(0 {dy:.1f})">']
     wt = {"lightweight": 0, "midweight": 1, "heavyweight": 2, "super_heavy": 3}.get(params.get("weight"), 1)

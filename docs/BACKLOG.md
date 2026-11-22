@@ -14,6 +14,13 @@ owner; see `DECISIONS.md`, "How the work is organised").
 What a finished piece of work left undone, newest first. Any agent may add a line here (and
 only here); take a line out when it is done.
 
+- **Ribbing and the trim colour** (22 November; DECISIONS, "A top's ribbing, a collar in the trim
+  colour, and plain weave on a knit"). Only tops draw their ribbing in their own colour with ribs:
+  joggers' ribbed cuffs (drawn with their ribs since 22 November) and a sock's or beanie's cuff
+  still take the lighter or darker tint. A garment with edges bound in a contrast colour but a
+  collar of its own cloth (an overshirt) is drawn with a contrast collar, since one trim colour
+  covers both; the owner fixes it with collar and cuff colour, "same as the body".
+
 - **Windows keeping Nines running** (21 November; DECISIONS, "Kept running by Windows"). Built and
   tested only with Windows stood in for, plus one test that registers a real task on the CI's
   Windows runner (an administrator, without the prompt). To try on the owner's own PC after the

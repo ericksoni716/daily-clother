@@ -11,4 +11,4 @@ off a cutout, tracing a shoe), so the app's program draws from tags without it.
 # Raised whenever a template, the renderer or the fills change what a drawing looks like. The app keeps the
 # version each item was drawn with and draws an item again, the first time it is asked for, when it is older.
 # Regenerate the demo closet (`tools/make_demo.py`) in the same change: it records the version it was drawn with.
-DRAWING_VERSION = 20   # 20: a ribbed trouser cuff shows its ribs and the leg gathered into it; a told hem beats a kind's usual one
+DRAWING_VERSION = 21   # 21: a top's rib bands in its own colour with their ribs, not tinted; a knit said to be plain weave drawn plain

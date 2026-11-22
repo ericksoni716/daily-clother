@@ -10,6 +10,8 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ## Unreleased
 
+## 0.14.0
+
 ### Added
 
 - **Add a link**, on your wishlist: paste the address of a product's page and Nines makes a wish
@@ -34,12 +36,6 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   box for you to send. Not for shoes, which have their own note under their drawing, and never
   in the demo closet.
 
-- **Settings → Everyday → Show drawings instead of photos** shows your clothes' drawings
-  wherever they are shown small: the closet, Today, Worn, trips and the Wardrobe, and an item's
-  page opens on its drawing. It is kept on the computer, so it holds on every device. A piece
-  with no drawing yet shows its photo. The Photos / Drawings switch over the closet starts from
-  it and no longer remembers its choice on the device: to keep drawings, turn the setting on.
-
 - **Settings → Advanced settings → Background removal** now says what it has: a line for each of
   the two models, the main one that cuts out every photo and the second one asked as well for
   stripes and checks, each saying whether it is ready, how far its download has got, or why it
@@ -52,12 +48,6 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   It works for photos added from this version on.
 
 ### Changed
-
-- An item's page now reads in the order you go through a new piece: the picture and the name,
-  then what it is, its brand and its price, straight under the name and changed in place; then
-  wearing and washing and About it; then how it looks (the line about it, Fix the details and a
-  shoe's drawings by Claude); a shoe's photos come near the end. Size, material, the date you got
-  it and its condition are under **Size, material and more**.
 
 - The last places where the program still called itself Closet now say Nines. You may notice
   three things after updating:
@@ -74,6 +64,57 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
     Closet and is still used, and the next start tries again.
   - The log in the data folder is now `logs\nines.log` (it was `closet.log`; the first start
     renames it), and its lines and the program's command-line help say Nines.
+
+- In **Fix the details**, the detail that colours a top's collar, cuffs and ribbing is now called
+  **collar and cuff colour** (it was "trim colour"), under Collar and neck. Choose **same as the
+  body** when the drawing shows the collar in a colour it does not have. Telling Claude "the collar
+  is the same colour as the rest" now changes it too.
+
+### Fixed
+
+- **Today** said "Couldn't choose today's outfits" whenever Claude chose your outfits in the
+  installed program: the guide Claude is given (your outfit notes from the menswear taxonomy)
+  was looked for where it is only found in the source code, not where the program keeps it.
+  Asking for the day's outfits ahead of your first look failed the same way, every two minutes.
+  Both work again.
+
+- On the outfit figure, a fuzzy top (flannel, fleece, sherpa, mohair) had a thick band in a shade
+  of its cloth down the edges of its sleeves instead of its outline. Its sleeves now have the same
+  dark outline and soft fuzz as its own drawing.
+
+- Ribbed cuffs on trousers can be set and seen. In Fix the details, a pair of trousers' hem is
+  under **Hem and cuffs**, and every choice there now changes the drawing: a ribbed cuff on track
+  pants, tech pants or lounge pants is drawn, and joggers can be given a turn-up or a split hem
+  instead of their ribbed cuffs. Joggers, sweatpants and a knit set's trousers say "ribbed cuff"
+  for their hem, as their drawing shows. A ribbed cuff now looks knitted, with its ribs and the
+  leg gathered into it, on the item's drawing and on the figure as worn.
+
+- The ribbed cuffs, hem band and neck of a sweatshirt, sweater, hoodie or polo are drawn in the
+  same colour as the rest of it, with fine ribs. Before, they were drawn a shade lighter or darker,
+  so a black sweatshirt looked as if it had grey cuffs, and nothing you told Claude could change it.
+  A contrast colour Claude saw, or you chose, still shows.
+
+- A knitted top that Claude described as "plain" (a plain weave, a woven cloth) is drawn as plain
+  cloth, not with a woven check. Claude is now told that plain means a woven cloth, and Fix the
+  details calls it **plain weave**. Your clothes are drawn again the next time you open them.
+
+## 0.13.0
+
+### Added
+
+- **Settings → Everyday → Show drawings instead of photos** shows your clothes' drawings
+  wherever they are shown small: the closet, Today, Worn, trips and the Wardrobe, and an item's
+  page opens on its drawing. It is kept on the computer, so it holds on every device. A piece
+  with no drawing yet shows its photo. The Photos / Drawings switch over the closet starts from
+  it and no longer remembers its choice on the device: to keep drawings, turn the setting on.
+
+### Changed
+
+- An item's page now reads in the order you go through a new piece: the picture and the name,
+  then what it is, its brand and its price, straight under the name and changed in place; then
+  wearing and washing and About it; then how it looks (the line about it, Fix the details and a
+  shoe's drawings by Claude); a shoe's photos come near the end. Size, material, the date you got
+  it and its condition are under **Size, material and more**.
 
 - Every piece you add now comes to the review once, besides those Claude was unsure of: one at a
   time, with its picture, its name to type over, what Claude thinks it is, and boxes for the brand
@@ -100,37 +141,6 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   device keeps for when Nines can't be reached, is now **Forget saved copies** under **Settings →
   This device**. `Nines.exe reset-passphrase` is gone too. A page left open from an older
   version opens your closet as it is, or says to reload.
-
-- In **Fix the details**, the detail that colours a top's collar, cuffs and ribbing is now called
-  **collar and cuff colour** (it was "trim colour"), under Collar and neck. Choose **same as the
-  body** when the drawing shows the collar in a colour it does not have. Telling Claude "the collar
-  is the same colour as the rest" now changes it too.
-
-### Fixed
-
-- **Today** said "Couldn't choose today's outfits" whenever Claude chose your outfits in the
-  installed program: the guide Claude is given (your outfit notes from the menswear taxonomy)
-  was looked for where it is only found in the source code, not where the program keeps it.
-  Asking for the day's outfits ahead of your first look failed the same way, every two minutes.
-  Both work again.
-
-- On the outfit figure, a fuzzy top (flannel, fleece, sherpa, mohair) had a thick band in a shade
-  of its cloth down the edges of its sleeves instead of its outline. Its sleeves now have the same
-  dark outline and soft fuzz as its own drawing.
-
-- Ribbed cuffs on trousers can be set and seen. In Fix the details, a pair of trousers' hem is
-  under **Hem and cuffs**, and every choice there now changes the drawing: a ribbed cuff on track
-  pants, tech pants or lounge pants is drawn, and joggers can be given a turn-up or a split hem
-  instead of their ribbed cuffs. Joggers, sweatpants and a knit set's trousers say "ribbed cuff"
-  for their hem, as their drawing shows. A ribbed cuff now looks knitted, with its ribs and the
-  leg gathered into it, on the item's drawing and on the figure as worn.
-- The ribbed cuffs, hem band and neck of a sweatshirt, sweater, hoodie or polo are drawn in the
-  same colour as the rest of it, with fine ribs. Before, they were drawn a shade lighter or darker,
-  so a black sweatshirt looked as if it had grey cuffs, and nothing you told Claude could change it.
-  A contrast colour Claude saw, or you chose, still shows.
-- A knitted top that Claude described as "plain" (a plain weave, a woven cloth) is drawn as plain
-  cloth, not with a woven check. Claude is now told that plain means a woven cloth, and Fix the
-  details calls it **plain weave**. Your clothes are drawn again the next time you open them.
 
 ## 0.12.0
 

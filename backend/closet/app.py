@@ -26,7 +26,6 @@ from . import (
     __version__,
     access,
     apikey,
-    auth,
     autostart,
     background,
     backup,
@@ -455,10 +454,6 @@ def closet_inputs(cfg: Config, profile: str) -> tuple[list[dict], list[dict]]:
     return rows, worn
 
 
-class Passphrase(BaseModel):
-    passphrase: str
-
-
 class ProfileChoice(BaseModel):
     profile: str
 
@@ -576,7 +571,9 @@ class SettingsPatch(BaseModel):
 
 
 CLOUDFLARE_FIELDS = (access.TEAM_KEY, access.AUD_KEY, access.HOST_KEY)
-NOT_FROM_CLOUDFLARE = "Change this on the computer Nines runs on, or from your phone through Tailscale."
+NOT_FROM_CLOUDFLARE = "Change this on the computer Nines runs on, or from your phone or another computer through Tailscale."
+# the passphrase's session cookie, from before the door decided who comes in; ignored, and taken away by /api/session
+OLD_SESSION_COOKIE = "closet_session"
 
 
 def create_app(sv: Services, window_key: str | None = None, *, access_keys: access.SigningKeys | None = None,
@@ -594,21 +591,9 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     apikey.keep_sealed(background.key_changed(cfg))
 
     # ---------------------------------------------------------------- helpers
-    def token(request: Request) -> str | None:
-        return request.cookies.get(auth.COOKIE)
-
-    def refusal(session: str | None) -> str | None:
-        if auth.session_valid(state, session):
-            return None
-        return "Log in to continue." if auth.is_set_up(state) else "Set a passphrase to get started."
-
-    def require_auth(request: Request) -> None:
-        if (refused := refusal(token(request))) is not None:
-            raise HTTPException(401, refused)
-
-    # the address, the window's key, the page's header, the login and the size limits, before any body is read
-    # who came in from outside (Tailscale, Cloudflare) is recorded there too, for the routes (`gate.came_in`)
-    app.add_middleware(gate.Gate, cookie=auth.COOKIE, refusal=refusal, key=window_key,
+    # each door's check (the address, Tailscale's word, Cloudflare's sign-in, the window's key), the page's header and
+    # the size limits, before any body is read; who came in is recorded there too, for the routes (`gate.came_in`)
+    app.add_middleware(gate.Gate, key=window_key,
                        key_cookie=gate.key_cookie(cfg.port), cloudflare=lambda: access.load(state), keys=access_keys,
                        tailscale_check=tailscale_check or tailnet.checker())
 
@@ -627,18 +612,8 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         finally:
             conn.close()
 
-    def set_cookie(request: Request, response: Response, value: str) -> None:
-        secure = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
-        response.set_cookie(auth.COOKIE, value, max_age=auth.SESSION_DAYS * 86400, httponly=True, samesite="strict",
-                            secure=secure, path="/")
-
     def images_dir() -> Path:
         return cfg.images_dir(state.get("profile"))
-
-    @app.exception_handler(auth.AuthError)
-    async def auth_error(_: Request, e: auth.AuthError):
-        headers = {"Retry-After": str(e.retry_after)} if e.retry_after else None
-        return JSONResponse({"detail": e.message}, status_code=e.status, headers=headers)
 
     @app.exception_handler(items.ItemError)
     async def item_error(_: Request, e: items.ItemError):
@@ -646,8 +621,6 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
 
     @app.exception_handler(RequestValidationError)
     async def invalid_input(request: Request, e: RequestValidationError):
-        if request.url.path in ("/api/setup", "/api/login"):
-            return JSONResponse({"detail": "Enter the passphrase as text."}, status_code=422)
         if request.url.path == "/api/settings/api-key":
             return JSONResponse({"detail": "Enter the API key as text, with no other fields."}, status_code=422)
         if CORRECTING.match(request.url.path):
@@ -658,49 +631,39 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     async def image_error(_: Request, e: images.ImageError):
         return JSONResponse({"detail": str(e)}, status_code=400)
 
-    # ------------------------------------------------------- open endpoints
+    # ------------------------------------------------------- the first calls
     @app.get("/api/health")
     def health():
         return {"app": "closet", "status": "ok", "version": __version__, "model_state": sv.model.info()["state"],
-                "setup_required": not auth.is_set_up(state), "profile": state.get("profile")}
+                "profile": state.get("profile")}
 
     @app.get("/api/session")
-    def session(request: Request):
-        return {"authenticated": auth.session_valid(state, token(request)), "setup_required": not auth.is_set_up(state),
-                "version": __version__, "profile": state.get("profile")}
+    def session(request: Request, response: Response):
+        """What the page opens with. `authenticated` is always true now that the door decides who comes in: a page
+        from Nines 0.12.0 or earlier reads it, and would otherwise show its passphrase screen. The old session cookie
+        is taken away when one is sent (it is ignored either way)."""
+        if OLD_SESSION_COOKIE in request.cookies:
+            response.delete_cookie(OLD_SESSION_COOKIE, path="/")
+        return {"authenticated": True, "version": __version__, "profile": state.get("profile")}
 
-    @app.post("/api/setup", status_code=204)
-    def setup(body: Passphrase, request: Request, response: Response):
-        if auth.is_set_up(state):
-            raise HTTPException(409, "A passphrase is already set. Log in instead.")
-        auth.set_passphrase(state, body.passphrase)
-        set_cookie(request, response, auth.new_session(state))
-        response.status_code = 204
-
-    @app.post("/api/login", status_code=204)
-    def login(body: Passphrase, request: Request, response: Response):
-        auth.check_passphrase(state, body.passphrase)
-        set_cookie(request, response, auth.new_session(state))
-        response.status_code = 204
-
-    @app.post("/api/logout", status_code=204)
-    def logout(request: Request, response: Response):
-        auth.end_session(state, token(request))
-        response.delete_cookie(auth.COOKIE, path="/")
-        response.status_code = 204
+    # The passphrase's own calls are gone. A page from an older Nines still open somewhere (or kept by its service
+    # worker) may call them; it shows the sentence it is given, so it is told to reload, which brings the new page.
+    @app.post("/api/setup")
+    @app.post("/api/login")
+    @app.post("/api/logout")
+    def passphrase_gone():
+        raise HTTPException(410, gate.OLD_PAGE)
 
     # ------------------------------------------------------------------ items
-    protected = [Depends(require_auth)]
-
-    @app.get("/api/vocab", dependencies=protected)
+    @app.get("/api/vocab")
     def get_vocab():
         return {**vocab.as_dict(), "kind_groups": kinds.catalogue()["groups"]}
 
-    @app.get("/api/kinds", dependencies=protected)
+    @app.get("/api/kinds")
     def get_kinds():
         return kinds.catalogue()
 
-    @app.get("/api/kinds/{kind}.svg", dependencies=protected)
+    @app.get("/api/kinds/{kind}.svg")
     def get_kind_drawing(kind: str, color: str = kinds.TILE_HEX):
         if kind not in kinds.KINDS:
             raise HTTPException(404, "There is no such kind.")
@@ -710,7 +673,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         return Response(svg, media_type="image/svg+xml", headers={
             "Cache-Control": "private, max-age=86400", "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
 
-    @app.get("/api/items", dependencies=protected)
+    @app.get("/api/items")
     def list_items(status: str = "active", category: str | None = None, q: str | None = None, laundry: str | None = None,
                    conn=Depends(conn_dep)):
         if status not in ("active", "archived"):
@@ -719,7 +682,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             raise HTTPException(422, "The laundry filter must be clean or laundry.")
         return {"items": items.list_items(conn, status, category, q, laundry)}
 
-    @app.post("/api/items", dependencies=protected)
+    @app.post("/api/items")
     async def create_item(response: Response, photo: UploadFile = File(...), client_key: str | None = Form(None),
                           name: str | None = Form(None), photo_sha256: str | None = Form(None), shoe: bool = Form(False),
                           conn=Depends(conn_dep)):
@@ -732,7 +695,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         sv.worker.wake()
         return item
 
-    @app.get("/api/progress", dependencies=protected)
+    @app.get("/api/progress")
     def get_progress(conn=Depends(conn_dep)):
         # asked every few seconds while work runs: only the items under way, with what the program waits on
         # cutouts wait for what their worker waits for (the model, unless a cutter stands in for it in tests)
@@ -740,11 +703,11 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         waits = progress.Waits(model=model, claude=bool(sv.tag_worker and sv.tag_worker.blocked))
         return progress.listing(conn, waits)
 
-    @app.get("/api/items/{item_id}", dependencies=protected)
+    @app.get("/api/items/{item_id}")
     def get_item(item_id: str, conn=Depends(conn_dep)):
         return items.detail(conn, items.get(conn, item_id))
 
-    @app.get("/api/items/{item_id}/illustration.svg", dependencies=protected)
+    @app.get("/api/items/{item_id}/illustration.svg")
     def get_illustration(item_id: str, v: str | None = None, conn=Depends(conn_dep)):
         svg = illustrations.current(conn, items.get(conn, item_id))["illustration_svg"]
         if svg is None:
@@ -754,7 +717,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         return Response(svg, media_type="image/svg+xml", headers={
             "Cache-Control": cache, "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
 
-    @app.get("/api/items/{item_id}/back.svg", dependencies=protected)
+    @app.get("/api/items/{item_id}/back.svg")
     def get_back(item_id: str, v: str | None = None, conn=Depends(conn_dep)):
         svg = illustrations.back(items.get(conn, item_id))
         if svg is None:
@@ -771,7 +734,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         if isinstance(item, dict) and (item.get("views") or {}).get("state") == "waiting" and sv.views:
             sv.views.wake()
 
-    @app.patch("/api/items/{item_id}", dependencies=protected)
+    @app.patch("/api/items/{item_id}")
     async def patch_item(item_id: str, request: Request, conn=Depends(conn_dep)):
         try:
             changes = await request.json()
@@ -785,12 +748,12 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         _traced_soon(saved)
         return saved
 
-    @app.delete("/api/items/{item_id}", status_code=204, dependencies=protected)
+    @app.delete("/api/items/{item_id}", status_code=204)
     def delete_item(item_id: str, conn=Depends(conn_dep)):
         items.delete(conn, images_dir(), item_id)
         return Response(status_code=204)
 
-    @app.post("/api/items/{item_id}/retry-cutout", status_code=202, dependencies=protected)
+    @app.post("/api/items/{item_id}/retry-cutout", status_code=202)
     def retry_cutout(item_id: str, conn=Depends(conn_dep)):
         item = items.retry_cutout(conn, item_id)
         sv.worker.wake()
@@ -803,18 +766,18 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         except ValueError:
             raise HTTPException(400, "The request was not valid JSON.")
 
-    @app.post("/api/items/{item_id}/trace/fix", dependencies=protected)
+    @app.post("/api/items/{item_id}/trace/fix")
     async def fix_trace(item_id: str, request: Request, conn=Depends(conn_dep)):
         body = await shoe_body(request)
         return await run_in_threadpool(shoes.fix, conn, item_id, body)   # redraws the shoe
 
-    @app.put("/api/items/{item_id}/trace/plain", dependencies=protected)
+    @app.put("/api/items/{item_id}/trace/plain")
     async def plain_trace(item_id: str, request: Request, conn=Depends(conn_dep)):
         body = await shoe_body(request)
         return await run_in_threadpool(shoes.set_plain, conn, item_id,   # redraws the shoe
                                        body.get("plain") if isinstance(body, dict) else None)
 
-    @app.post("/api/items/{item_id}/retrace", status_code=202, dependencies=protected)
+    @app.post("/api/items/{item_id}/retrace", status_code=202)
     def retrace(item_id: str, conn=Depends(conn_dep)):
         item = shoes.retrace(conn, item_id)
         sv.worker.wake()
@@ -826,7 +789,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         if sv.views:
             sv.views.wake()
 
-    @app.post("/api/items/{item_id}/photo", dependencies=protected)
+    @app.post("/api/items/{item_id}/photo")
     async def replace_photo(item_id: str, photo: UploadFile = File(...), photo_sha256: str | None = Form(None),
                             conn=Depends(conn_dep)):
         data = await photo.read(images.MAX_UPLOAD_BYTES + 1)
@@ -837,7 +800,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         views_soon()
         return item
 
-    @app.post("/api/items/{item_id}/photos", status_code=201, dependencies=protected)
+    @app.post("/api/items/{item_id}/photos", status_code=201)
     async def add_photo(item_id: str, photo: UploadFile = File(...), view: str | None = Form(None),
                         photo_sha256: str | None = Form(None), conn=Depends(conn_dep)):
         data = await photo.read(images.MAX_UPLOAD_BYTES + 1)
@@ -846,13 +809,13 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         views_soon()
         return item
 
-    @app.delete("/api/items/{item_id}/photos/{photo_id}", dependencies=protected)
+    @app.delete("/api/items/{item_id}/photos/{photo_id}")
     def remove_photo(item_id: str, photo_id: str, conn=Depends(conn_dep)):
         item = shoes.remove_photo(conn, images_dir(), item_id, photo_id, demo=state.get("profile") == "demo")
         views_soon()
         return item
 
-    @app.put("/api/items/{item_id}/photos/{photo_id}/view", dependencies=protected)
+    @app.put("/api/items/{item_id}/photos/{photo_id}/view")
     async def set_photo_view(item_id: str, photo_id: str, request: Request, conn=Depends(conn_dep)):
         body = await shoe_body(request)
         if not isinstance(body, dict) or "view" not in body:
@@ -864,7 +827,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         return item
 
     # ---------------------------------------------- a shoe drawn by Claude from its photos
-    @app.post("/api/items/{item_id}/drawn", status_code=202, dependencies=protected)
+    @app.post("/api/items/{item_id}/drawn", status_code=202)
     def draw_again(item_id: str, conn=Depends(conn_dep)):
         demo_closet = state.get("profile") == "demo"
         conn.execute("BEGIN IMMEDIATE")
@@ -881,7 +844,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             sv.draws.wake()
         return items.detail(conn, items.get(conn, item_id))
 
-    @app.post("/api/items/{item_id}/drawn/correct", status_code=202, dependencies=protected)
+    @app.post("/api/items/{item_id}/drawn/correct", status_code=202)
     async def correct_drawing(item_id: str, request: Request, conn=Depends(conn_dep)):
         body = await shoe_body(request)
         note = body.get("note") if isinstance(body, dict) else None
@@ -903,7 +866,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             sv.draws.wake()
         return await run_in_threadpool(lambda: items.detail(conn, items.get(conn, item_id)))
 
-    @app.post("/api/items/{item_id}/drawn/back", dependencies=protected)
+    @app.post("/api/items/{item_id}/drawn/back")
     def drawn_back(item_id: str, conn=Depends(conn_dep)):
         conn.execute("BEGIN IMMEDIATE")
         try:
@@ -915,7 +878,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             raise
         return items.detail(conn, items.get(conn, item_id))
 
-    @app.get("/api/items/{item_id}/drawn.svg", dependencies=protected)
+    @app.get("/api/items/{item_id}/drawn.svg")
     def drawn_preview(item_id: str, conn=Depends(conn_dep)):
         from .drawing import drawn
 
@@ -929,7 +892,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         return Response(svg, media_type="image/svg+xml", headers={
             "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
 
-    @app.get("/api/items/{item_id}/drawn/side.svg", dependencies=protected)
+    @app.get("/api/items/{item_id}/drawn/side.svg")
     def drawn_side(item_id: str, conn=Depends(conn_dep)):
         from .drawing import drawnside
 
@@ -943,7 +906,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         return Response(svg, media_type="image/svg+xml", headers={
             "Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'"})
 
-    @app.post("/api/items/{item_id}/retag", status_code=202, dependencies=protected)
+    @app.post("/api/items/{item_id}/retag", status_code=202)
     def retag(item_id: str, conn=Depends(conn_dep)):
         if state.get("profile") == "demo":
             items.get(conn, item_id)
@@ -961,11 +924,11 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             raise HTTPException(409, "The demo closet is never sent to Claude, so it can't read sentences here. "
                                      "Pick the details instead.")
 
-    @app.get("/api/items/{item_id}/details", dependencies=protected)
+    @app.get("/api/items/{item_id}/details")
     def detail_options(item_id: str, conn=Depends(conn_dep)):
         return corrections.options(items.get(conn, item_id))
 
-    @app.get("/api/items/{item_id}/details/{name}", dependencies=protected)
+    @app.get("/api/items/{item_id}/details/{name}")
     async def detail_choices(item_id: str, name: str):
         path = cfg.db_path(state.get("profile"))
 
@@ -977,17 +940,17 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
                 conn.close()
         return await run_in_threadpool(work)
 
-    @app.put("/api/items/{item_id}/details", dependencies=protected)
+    @app.put("/api/items/{item_id}/details")
     def set_details(item_id: str, body: DetailsBody, conn=Depends(conn_dep)):
         return corrections.apply(conn, item_id, body.details)
 
-    @app.put("/api/items/{item_id}/kind", dependencies=protected)
+    @app.put("/api/items/{item_id}/kind")
     def set_kind(item_id: str, body: KindBody, conn=Depends(conn_dep)):
         saved = corrections.set_kind(conn, item_id, body.kind)
         _traced_soon(saved)
         return saved
 
-    @app.post("/api/items/{item_id}/correct", dependencies=protected)
+    @app.post("/api/items/{item_id}/correct")
     async def correct_item(item_id: str, body: Sentence):
         profile = state.get("profile")
         path, folder = cfg.db_path(profile), cfg.images_dir(profile)
@@ -1003,7 +966,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         # asking Claude takes a while; other requests keep being answered meanwhile
         return await run_in_threadpool(work)
 
-    @app.post("/api/items/{item_id}/correct/confirm", dependencies=protected)
+    @app.post("/api/items/{item_id}/correct/confirm")
     def confirm_correction(item_id: str, body: Confirmed):
         profile = state.get("profile")
         conn = db.connect(cfg.db_path(profile))
@@ -1013,32 +976,32 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         finally:
             conn.close()
 
-    @app.get("/api/items/{item_id}/history", dependencies=protected)
+    @app.get("/api/items/{item_id}/history")
     def item_history(item_id: str, conn=Depends(conn_dep)):
         items.get(conn, item_id)
         return history.listing(conn, item_id)
 
-    @app.post("/api/items/{item_id}/history/{change_id}/undo", dependencies=protected)
+    @app.post("/api/items/{item_id}/history/{change_id}/undo")
     def undo_change(item_id: str, change_id: int, conn=Depends(conn_dep)):
         saved = corrections.undo(conn, item_id, change_id)
         _traced_soon(saved["item"])
         return saved
 
-    @app.get("/api/items/{item_id}/wears", dependencies=protected)
+    @app.get("/api/items/{item_id}/wears")
     def list_wears(item_id: str, conn=Depends(conn_dep)):
         return {"wears": wears.list_wears(conn, item_id)}
 
-    @app.post("/api/items/{item_id}/wears", dependencies=protected)
+    @app.post("/api/items/{item_id}/wears")
     def add_wear(item_id: str, response: Response, body: WearDay | None = None, conn=Depends(conn_dep)):
         item, created = wears.add(conn, item_id, body.worn_on if body else None)
         response.status_code = 201 if created else 200
         return item
 
-    @app.delete("/api/items/{item_id}/wears/{worn_on}", dependencies=protected)
+    @app.delete("/api/items/{item_id}/wears/{worn_on}")
     def remove_wear(item_id: str, worn_on: str, conn=Depends(conn_dep)):
         return wears.remove(conn, item_id, worn_on)
 
-    @app.post("/api/wears", dependencies=protected)
+    @app.post("/api/wears")
     def add_wears(body: WearMany, response: Response, conn=Depends(conn_dep)):
         if body.outfit is not None:
             result = worn.wear(conn, body.item_ids, body.worn_on, body.outfit)
@@ -1047,42 +1010,42 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         response.status_code = 201 if result["recorded"] or result.get("outfit") else 200
         return result
 
-    @app.post("/api/wears/remove", dependencies=protected)
+    @app.post("/api/wears/remove")
     def remove_wears(body: WearManyDay, conn=Depends(conn_dep)):
         if body.outfit_id is not None:
             return worn.undo(conn, body.item_ids, body.worn_on, body.outfit_id)
         return wears.remove_many(conn, body.item_ids, body.worn_on)
 
-    @app.get("/api/outfits/worn", dependencies=protected)
+    @app.get("/api/outfits/worn")
     def list_worn(limit: int = worn.DEFAULT_PAGE, before: str | None = None, conn=Depends(conn_dep)):
         return worn.list_outfits(conn, limit, before)
 
-    @app.post("/api/outfits/worn", dependencies=protected, status_code=201)
+    @app.post("/api/outfits/worn", status_code=201)
     def record_worn(body: OutfitByHand, conn=Depends(conn_dep)):
         return worn.record_by_hand(conn, body.item_ids, body.worn_on)
 
-    @app.put("/api/outfits/worn/{outfit_id}/rating", dependencies=protected)
+    @app.put("/api/outfits/worn/{outfit_id}/rating")
     def rate_worn(outfit_id: str, body: OutfitRating, conn=Depends(conn_dep)):
         return worn.rate(conn, outfit_id, body.rating, body.reasons, body.note)
 
-    @app.delete("/api/outfits/worn/{outfit_id}", dependencies=protected, status_code=204)
+    @app.delete("/api/outfits/worn/{outfit_id}", status_code=204)
     def remove_worn(outfit_id: str, conn=Depends(conn_dep)):
         worn.remove(conn, outfit_id)
         return Response(status_code=204)
 
-    @app.post("/api/items/{item_id}/laundry", dependencies=protected)
+    @app.post("/api/items/{item_id}/laundry")
     def set_laundry(item_id: str, body: LaundryState, conn=Depends(conn_dep)):
         return wears.set_laundry(conn, item_id, body.state)
 
-    @app.get("/api/review", dependencies=protected)
+    @app.get("/api/review")
     def review_queue(conn=Depends(conn_dep)):
         return review.queue(conn, describes=state.get("profile") != "demo")
 
-    @app.post("/api/items/{item_id}/confirm", dependencies=protected)
+    @app.post("/api/items/{item_id}/confirm")
     def confirm_fields(item_id: str, body: Confirm, conn=Depends(conn_dep)):
         return review.confirm(conn, item_id, body.fields)
 
-    @app.get("/media/{rel:path}", dependencies=protected)
+    @app.get("/media/{rel:path}")
     def media(rel: str):
         root = images_dir().resolve()
         target = (root / rel).resolve()
@@ -1092,7 +1055,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
                             headers={"Cache-Control": "private, max-age=31536000, immutable"})
 
     # -------------------------------------------------------------- outfits
-    @app.post("/api/outfits/today", dependencies=protected)
+    @app.post("/api/outfits/today")
     async def outfits_today(request: Request):
         try:
             body = await request.json()
@@ -1117,7 +1080,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         # asks Open-Meteo (a few seconds at most) and compares many outfits, so keep it off the event loop
         return await run_in_threadpool(work)
 
-    @app.post("/api/outfits/figure", dependencies=protected)
+    @app.post("/api/outfits/figure")
     async def outfit_figure(request: Request):
         try:
             body = await request.json()
@@ -1181,7 +1144,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         gaps_cache[profile] = (seen, answer)
         return answer
 
-    @app.get("/api/gaps", dependencies=protected)
+    @app.get("/api/gaps")
     async def get_gaps():
         profile = state.get("profile")
 
@@ -1197,12 +1160,12 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         return await run_in_threadpool(work)
 
     # -------------------------------------------------------------- insights
-    @app.get("/api/insights", dependencies=protected)
+    @app.get("/api/insights")
     def get_insights(conn=Depends(conn_dep)):
         rows = conn.execute("SELECT id, name, category, color, formality, season, price_cents, status, created_at FROM items").fetchall()
         worn = conn.execute("SELECT item_id, worn_on FROM wears").fetchall()
         return find_insights(rows, worn, wears.today())
-    app.include_router(wishlist.router(conn_dep, gap_analysis, protected, state))
+    app.include_router(wishlist.router(conn_dep, gap_analysis, state))
 
     def closet_for_check(profile: str) -> tuple[list[dict], list[dict], dict | None]:
         # Until the owner has said how they live, the check works out the plain analysis itself, with and without
@@ -1217,23 +1180,23 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
     assert sv.tag_worker and sv.check_tagger, "build_services wires both"
     checks = wouldjobs.Checks(cfg, state, closet_for_check, sv.tag_worker.routes, sv.check_tagger,
                               sv.worker.cutter, sv.worker.is_ready)
-    app.include_router(wouldjobs.router(checks, protected))
+    app.include_router(wouldjobs.router(checks))
     assert sv.shopper, "build_services wires it"
     # shop finds are judged on the same list as "Would this work?" (closet_for_check)
     sv.shopper.weighed = lambda profile, inputs: (
         None if profile != "demo" and state.get("life") is None else gap_analysis(profile, inputs))
-    app.include_router(shop.router(sv.shopper, state, conn_dep, protected))
+    app.include_router(shop.router(sv.shopper, state, conn_dep))
     # ---------------------------------------------------------------- the day in the owner's words
     def day_answer(message: str | None = None, saved: bool | None = None) -> dict:
         out = {"note": daynote.describe(daynote.current(state, wears.today()), wears.today()), "message": message}
         return out if saved is None else {**out, "saved": saved}
 
-    @app.get("/api/day", dependencies=protected)
+    @app.get("/api/day")
     async def get_day():
         """The note about today or the days ahead, if one holds: {note, message}."""
         return day_answer()
 
-    @app.put("/api/day", dependencies=protected)
+    @app.put("/api/day")
     async def put_day(request: Request):
         """Reads a sentence about the owner's day with Claude and keeps it: {saved, note, message}. Nothing from the
         closet is sent, only the sentence, today's date and the home place's name. `saved` false with a `message`
@@ -1271,13 +1234,13 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         daynote.save(state, note)
         return day_answer(message, True)
 
-    @app.delete("/api/day", dependencies=protected)
+    @app.delete("/api/day")
     async def delete_day():
         """Back to an ordinary day at home."""
         daynote.clear(state)
         return day_answer()
 
-    @app.post("/api/add/sort", dependencies=protected)
+    @app.post("/api/add/sort")
     async def sort_add(request: Request):
         """What each photo chosen on Add shows (one piece, several, a shoe, and which photos are the same shoe), asked
         of Claude before anything is added; the owner checks it on the page. When Claude cannot be asked, says why
@@ -1316,19 +1279,19 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             message = "Claude couldn't tell what these show: sort them yourself."
         return {"sorted": False, "photos": plain, "message": message, "needed": needed}
 
-    app.include_router(sources.router(conn_dep, images_dir, state, protected,
+    app.include_router(sources.router(conn_dep, images_dir, state,
                                       sv.finder.wake if sv.finder else (lambda: None), sv.worker.wake,
                                       lambda img: sv.worker.cutter(img), lambda: sv.worker.is_ready()))
 
     # ---------------------------------------------------------------- weather
-    @app.get("/api/places", dependencies=protected)
+    @app.get("/api/places")
     async def find_places(q: str = ""):
         try:
             return {"places": await run_in_threadpool(search_places, q)}
         except WeatherError as e:
             raise HTTPException(502, str(e))
 
-    @app.get("/api/places/near", dependencies=protected)
+    @app.get("/api/places/near")
     async def find_place_near(latitude: float, longitude: float):
         try:
             return {"place": await run_in_threadpool(place_near, latitude, longitude)}
@@ -1337,7 +1300,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         except WeatherError as e:
             raise HTTPException(502, str(e))
 
-    @app.get("/api/weather", dependencies=protected)
+    @app.get("/api/weather")
     async def get_weather():
         found = await run_in_threadpool(lookup, state)
         return {k: found[k] for k in ("place", "weather", "old", "is_today", "message")}
@@ -1366,34 +1329,34 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         # the weather service and the planner can each take a moment: keep them off the event loop
         return await run_in_threadpool(work)
 
-    @app.post("/api/trips/plan", dependencies=protected)
+    @app.post("/api/trips/plan")
     async def plan_trip(request: Request):
         body = await json_body(request)
         return await trip_work(savedtrips.work_out, state, body)
 
-    @app.post("/api/trips", status_code=201, dependencies=protected)
+    @app.post("/api/trips", status_code=201)
     async def create_trip(request: Request):
         body = await json_body(request)
         return await trip_work(savedtrips.create, state, body)
 
-    @app.get("/api/trips", dependencies=protected)
+    @app.get("/api/trips")
     async def list_trips():
         return {"trips": await trip_work(savedtrips.list_all)}
 
-    @app.get("/api/trips/{trip_id}", dependencies=protected)
+    @app.get("/api/trips/{trip_id}")
     async def get_trip(trip_id: str):
         return await trip_work(savedtrips.get, trip_id)
 
-    @app.get("/api/trips/{trip_id}/weather", dependencies=protected)
+    @app.get("/api/trips/{trip_id}/weather")
     async def trip_weather(trip_id: str):
         return await trip_work(savedtrips.check_weather, state, trip_id)
 
-    @app.patch("/api/trips/{trip_id}", dependencies=protected)
+    @app.patch("/api/trips/{trip_id}")
     async def patch_trip(trip_id: str, request: Request):
         body = await json_body(request)
         return await trip_work(savedtrips.patch, state, trip_id, body)
 
-    @app.delete("/api/trips/{trip_id}", status_code=204, dependencies=protected)
+    @app.delete("/api/trips/{trip_id}", status_code=204)
     async def delete_trip(trip_id: str):
         await trip_work(savedtrips.delete, trip_id)
         return Response(status_code=204)
@@ -1410,11 +1373,11 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             info["second"] = sv.second_model.info()
         return info
 
-    @app.get("/api/model", dependencies=protected)
+    @app.get("/api/model")
     def model_info():
         return model_payload()
 
-    @app.post("/api/model/download", status_code=202, dependencies=protected)
+    @app.post("/api/model/download", status_code=202)
     def model_download():   # both models: whichever is not ready yet
         for store in (sv.model, sv.second_model):
             if store is not None:
@@ -1422,7 +1385,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
                 store.start_download()
         return model_payload()
 
-    @app.put("/api/model/url", dependencies=protected)
+    @app.put("/api/model/url")
     def model_url(body: ModelUrl):
         url = (body.url or "").strip() or None
         if url and not url.lower().startswith("https://"):
@@ -1491,7 +1454,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             "tagging_spend": spend.summary(cfg, state, conn),  # GET /api/tagging/spend
         }
 
-    @app.get("/api/style/answers/{answer_id}", dependencies=protected)
+    @app.get("/api/style/answers/{answer_id}")
     def style_answer(answer_id: str, conn=Depends(conn_dep)):
         """How a question to Claude about today's outfits stands, for the page waiting on it: {id, state, message}."""
         found = stylejobs.Stylist.get(conn, answer_id, sv.stylist.clock() if sv.stylist else None)
@@ -1499,7 +1462,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             raise HTTPException(404, "That answer is not known. Open Today again.")
         return found
 
-    @app.post("/api/style/answers/{answer_id}/remember", dependencies=protected)
+    @app.post("/api/style/answers/{answer_id}/remember")
     async def style_remember(answer_id: str, request: Request, conn=Depends(conn_dep)):
         """The owner's answer to a thing Claude offered to remember: {"index": 0, "save": true} keeps it (in Your
         style, or in the piece's "How I wear it"), {"save": false} does not. Gives the thing as it now stands."""
@@ -1531,12 +1494,12 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             return stylechat.state_of(conn, wears.today(), None, "demo" if demo_now() else "off")
         return sv.chat.state(conn, wears.today(), demo_now())
 
-    @app.get("/api/style/talk", dependencies=protected)
+    @app.get("/api/style/talk")
     def get_style_talk(conn=Depends(conn_dep)):
         """The day's style conversation: {turns, answering, question, refused}."""
         return chat_state(conn)
 
-    @app.post("/api/style/talk", dependencies=protected)
+    @app.post("/api/style/talk")
     async def post_style_talk(request: Request, conn=Depends(conn_dep)):
         """Send a message about the owner's style: {"say": "..."}. Gives the conversation, with it being answered."""
         try:
@@ -1557,7 +1520,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
 
         return await run_in_threadpool(work)
 
-    @app.post("/api/style/talk/{turn_id}/remember", dependencies=protected)
+    @app.post("/api/style/talk/{turn_id}/remember")
     async def style_talk_remember(turn_id: str, request: Request, conn=Depends(conn_dep)):
         """The owner's answer to a line Claude offered to keep in the style conversation: {"index": 0, "save": true}
         keeps it in Your style, {"save": false} does not, {"undo": true} takes back one kept."""
@@ -1571,7 +1534,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         except stylejobs.Refused as e:
             raise HTTPException(422, str(e))
 
-    @app.post("/api/style/questions/{question_id}", dependencies=protected)
+    @app.post("/api/style/questions/{question_id}")
     async def style_question(question_id: str, request: Request, conn=Depends(conn_dep)):
         """Answer a question the stylist cannot infer: {"choice": "..."} or {"text": "..."}, or {"skip": true}.
         Gives {line, question}: the line kept in Your style (None for a skip) and the next question."""
@@ -1594,7 +1557,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
 
         return await run_in_threadpool(work)
 
-    @app.delete("/api/style/questions/{question_id}", dependencies=protected)
+    @app.delete("/api/style/questions/{question_id}")
     def undo_style_question(question_id: str, conn=Depends(conn_dep)):
         """Take back an answer (its line comes out of Your style) or a skip: the question is asked again."""
         try:
@@ -1620,7 +1583,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         except ValueError as e:
             raise HTTPException(422, str(e))
 
-    @app.post("/api/style/lines", dependencies=protected)
+    @app.post("/api/style/lines")
     async def add_style_line(request: Request, conn=Depends(conn_dep)):
         """Add a line of the owner's at the end of Your style: {"text": "..."}. Gives the profile."""
         text = await line_text(request)
@@ -1631,28 +1594,28 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
 
         return await run_in_threadpool(line_work, add)
 
-    @app.patch("/api/style/lines/{line_id}", dependencies=protected)
+    @app.patch("/api/style/lines/{line_id}")
     async def edit_style_line(line_id: int, request: Request, conn=Depends(conn_dep)):
         """Change one line of Your style: {"text": "..."}. Gives the profile."""
         text = await line_text(request)
         return await run_in_threadpool(line_work, styleprofile.edit_line, conn, line_id, text)
 
-    @app.delete("/api/style/lines/{line_id}", dependencies=protected)
+    @app.delete("/api/style/lines/{line_id}")
     def remove_style_line(line_id: int, conn=Depends(conn_dep)):
         """Take a line out of Your style. Gives the profile, with the id of the line removed (`removed`) to put back."""
         return line_work(styleprofile.remove_line, conn, line_id)
 
-    @app.post("/api/style/lines/{line_id}/restore", dependencies=protected)
+    @app.post("/api/style/lines/{line_id}/restore")
     def restore_style_line(line_id: int, conn=Depends(conn_dep)):
         """Put a removed line back where it was. Gives the profile."""
         return line_work(styleprofile.restore_line, conn, line_id)
 
     # ---------------------------------------------- the owner's style profile (Settings, "Your style")
-    @app.get("/api/style/profile", dependencies=protected)
+    @app.get("/api/style/profile")
     def get_style_profile(conn=Depends(conn_dep)):
         return styleprofile.current(conn)
 
-    @app.put("/api/style/profile", dependencies=protected)
+    @app.put("/api/style/profile")
     async def put_style_profile(request: Request, conn=Depends(conn_dep)):
         try:
             body = await request.json()
@@ -1665,11 +1628,11 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         except ValueError as e:
             raise HTTPException(422, str(e))
 
-    @app.get("/api/settings", dependencies=protected)
+    @app.get("/api/settings")
     def get_settings(request: Request, conn=Depends(conn_dep)):
         return settings_payload(conn, request)
 
-    @app.put("/api/settings", dependencies=protected)
+    @app.put("/api/settings")
     def put_settings(body: SettingsPatch, request: Request, conn=Depends(conn_dep)):
         sent = body.model_fields_set
         door = {k: getattr(body, k) for k in CLOUDFLARE_FIELDS if k in sent}
@@ -1766,7 +1729,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             log.info("the Cloudflare door was changed; it is %s", "on" if access.load(state).configured else "off")
         return settings_payload(conn, request)
 
-    @app.put("/api/settings/api-key", dependencies=protected)
+    @app.put("/api/settings/api-key")
     def put_api_key(body: ApiKeyBody, request: Request, conn=Depends(conn_dep)):
         """Check the key with Anthropic (free), then keep it in the computer's keychain. The key is never
         sent back, logged or written anywhere else."""
@@ -1792,7 +1755,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         out["api_key"]["checked"] = verdict is None
         return out
 
-    @app.delete("/api/settings/api-key", dependencies=protected)
+    @app.delete("/api/settings/api-key")
     def delete_api_key(request: Request, conn=Depends(conn_dep)):
         try:
             apikey.remove(background.key_changed(cfg))
@@ -1805,7 +1768,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             state.update(tagging_route_order="auto")   # a choice that needs a key goes back to the plan first
         return settings_payload(conn, request)
 
-    @app.get("/api/storage", dependencies=protected)
+    @app.get("/api/storage")
     async def get_storage():
         # walking a big closet takes a while; do it in a worker thread so other requests keep being answered
         return await run_in_threadpool(storage.usage, cfg, state.get("profile"))
@@ -1823,39 +1786,39 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             remembered["tagging"] = (seen, time.monotonic(), result)
         return result
 
-    @app.get("/api/tagging", dependencies=protected)
+    @app.get("/api/tagging")
     async def get_tagging():
         # starts `claude auth status` (a few seconds at most), so keep it off the event loop
         result = await run_in_threadpool(tagging_status)
         sv.tag_worker.wake()   # the owner may just have signed in: waiting items need not wait for the next round
         return result
 
-    @app.get("/api/tagging/spend", dependencies=protected)
+    @app.get("/api/tagging/spend")
     def get_tagging_spend(conn=Depends(conn_dep)):
         return spend.summary(cfg, state, conn)
 
-    @app.post("/api/backup", dependencies=protected)
+    @app.post("/api/backup")
     def backup_now():
         result = backup.run_backup(cfg, state, kind="manual")
         if not result["ok"]:
             return JSONResponse(result, status_code=409)
         return result
 
-    @app.get("/api/restore-notice", dependencies=protected)
+    @app.get("/api/restore-notice")
     def get_restore_notice():
         return {"notice": backup.restore_notice(cfg)}
 
-    @app.delete("/api/restore-notice", status_code=204, dependencies=protected)
+    @app.delete("/api/restore-notice", status_code=204)
     def dismiss_restore_notice():
         backup.dismiss_notice(cfg)
         return Response(status_code=204)
 
     # -------------------------------------------------------------- updates
-    @app.get("/api/updates", dependencies=protected)
+    @app.get("/api/updates")
     def get_updates():
         return sv.updater.status()
 
-    @app.put("/api/updates", dependencies=protected)
+    @app.put("/api/updates")
     def put_updates(body: UpdateChoice):
         try:
             sv.updater.set_mode(body.mode)
@@ -1863,19 +1826,19 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
             raise HTTPException(422, str(e))
         return sv.updater.status()
 
-    @app.post("/api/updates/check", dependencies=protected)
+    @app.post("/api/updates/check")
     async def check_updates():
         # asks GitHub (a few seconds at most), so keep it off the event loop
         return await run_in_threadpool(sv.updater.check)
 
-    @app.post("/api/updates/install", status_code=202, dependencies=protected)
+    @app.post("/api/updates/install", status_code=202)
     def install_update():
         try:
             return sv.updater.install_now()
         except updates.UpdateError as e:
             raise HTTPException(409, str(e))
 
-    @app.post("/api/profile", dependencies=protected)
+    @app.post("/api/profile")
     def set_profile(body: ProfileChoice):
         if body.profile not in PROFILES:
             raise HTTPException(422, "Profile must be main or demo.")
@@ -1885,7 +1848,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         sv.wake()
         return {"profile": body.profile}
 
-    @app.post("/api/quit", status_code=202, dependencies=protected)
+    @app.post("/api/quit", status_code=202)
     def quit_program():
         threading.Timer(0.3, sv.on_quit).start()
         return {"status": "shutting-down"}
@@ -1896,11 +1859,11 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         if gate.came_in(request.scope)["via"] != "computer":
             raise HTTPException(403, background.FROM_COMPUTER)
 
-    @app.get("/api/background", dependencies=protected)
+    @app.get("/api/background")
     def get_background():
         return background_status()
 
-    @app.post("/api/background/on", dependencies=protected)
+    @app.post("/api/background/on")
     def background_on(request: Request):
         """Copy this program into Nines' own folder and have Windows run it in the background (one administrator
         prompt). This copy then hands its port over and the owner's window reopens onto the background copy."""
@@ -1918,7 +1881,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         threading.Timer(0.5, sv.on_hand_over).start()
         return {**background_status(), "handing_over": True}
 
-    @app.post("/api/background/restart", dependencies=protected)
+    @app.post("/api/background/restart")
     def background_restart(request: Request):
         """While it is on but this ordinary copy serves (the background copy did not start): hand the port over again."""
         from_computer(request)
@@ -1929,7 +1892,7 @@ def create_app(sv: Services, window_key: str | None = None, *, access_keys: acce
         threading.Timer(0.5, sv.on_hand_over).start()
         return {**background_status(), "handing_over": True}
 
-    @app.post("/api/background/off", dependencies=protected)
+    @app.post("/api/background/off")
     def background_off(request: Request):
         """Stop keeping Nines running: Windows asks on the computer's screen. A background copy may run where no prompt
         can be shown, so it asks the window open onto it, in the owner's session, to do it; an ordinary copy does it

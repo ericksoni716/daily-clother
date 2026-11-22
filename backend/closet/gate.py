@@ -1,8 +1,8 @@
-"""What every request goes through before its body is read: where it came from, who it is, the login, and a cap on its size.
+"""What every request goes through before its body is read: where it came from, who it is, and a cap on its size.
 
-FastAPI reads a request's body (and writes an uploaded photo to a temporary file) before it runs the route's
-dependencies, so the login check on a route comes too late to stop a large upload from someone who is not logged
-in. This runs first, in this order, and refuses without reading a byte of the body:
+Nines has no passphrase of its own: who may come in is decided by the door a request comes through (DECISIONS, "The
+doors decide who comes in"). Each door has one check, and this runs it first, in this order, refusing without reading a
+byte of the body:
 
 1. **The address.** The Host header must name this computer (`127.0.0.1`, `localhost`, `[::1]`), a Tailscale name
    (`….ts.net`, which Tailscale Serve keeps when it passes the phone's requests on), or the Cloudflare hostname once
@@ -11,20 +11,20 @@ in. This runs first, in this order, and refuses without reading a byte of the bo
    under any other name is refused 403 too, so a tunnel set to rewrite the Host to 127.0.0.1 never arrives as "this
    computer". On a Tailscale name, a request Tailscale marks as coming through Funnel (the public internet) is 403.
 2. **Who it is, from outside.** On the Cloudflare hostname, every request (pages and calls alike) needs a token
-   Cloudflare Access signed that checks out (`access.verify`), or the answer is 401. On a Tailscale name, who Tailscale
-   says is asking is read (`tailnet.viewer`) and, on Windows, believed only when the other end of the connection is
-   the Tailscale service (`tailnet.WindowsCheck`). A Tailscale request that names no one is not refused yet: it goes
-   on to the passphrase as before (DECISIONS, "The doors from outside"). Who came in is kept in the request's state
-   for the routes: `viewer` ({login, name, via} or None) and `came_in` ("computer", "tailscale" or "cloudflare").
-   Tailscale's headers by any other name are never read.
-3. **The key of Closet's own window,** when one is in force (the launcher sets one; tests do not): a request by a
+   Cloudflare Access signed that checks out (`access.verify`), or the answer is 401. On a Tailscale name, every request
+   but the health check needs Tailscale to say who is asking (`tailnet.viewer`), or the answer is 401. On Windows that
+   is believed only when Windows does not show the other end of the connection to be some other program than the
+   Tailscale service (`tailnet.WindowsCheck`: believed when it is the service, refused when it positively is not, and
+   believed when Windows could not be asked at all, so a failed lookup never shuts the owner's phone out). Who came in
+   is kept in the request's state for the routes: `viewer` ({login, name, via} or None) and `came_in` ("computer",
+   "tailscale" or "cloudflare"). Tailscale's headers by any other name are never read.
+3. **The key of Nines' own window,** when one is in force (the launcher sets one; tests do not): a request by a
    local name must carry it in a cookie, or the answer is 401. Opening `/?key=…` once sets the cookie and leads on to
    the same address without the key. Requests by a Tailscale name or the Cloudflare hostname are never asked for it
-   and can never get the cookie this way; they go on to the passphrase as before.
-4. **Changes come from Closet's own pages.** POST, PUT, PATCH and DELETE under `/api/` need the header the page sends
+   and can never get the cookie this way.
+4. **Changes come from Nines' own pages.** POST, PUT, PATCH and DELETE under `/api/` need the header the page sends
    on every call (`X-Closet-Client: 1`), or the answer is 403. Another website cannot send it.
-5. **The login.** A call under `/api/` that needs it is answered 401 without the passphrase's session.
-6. **The size.** Every request is counted as it streams in and answered 413 the moment it goes past its limit
+5. **The size.** Every request is counted as it streams in and answered 413 the moment it goes past its limit
    (`limits.py`), whether or not it said its length. Starlette closes the temporary file of an upload cut off this
    way, and nothing is written to the closet until the whole photo has arrived, so a refused upload leaves nothing
    behind.
@@ -50,10 +50,6 @@ from . import access, limits, tailnet
 
 log = logging.getLogger("closet.gate")
 
-# Calls that work without the login (as in docs/API.md); everything else under /api/ needs it.
-OPEN = frozenset({"/api/health", "/api/session", "/api/setup", "/api/login", "/api/logout", "/api/instance/quit",
-                  "/api/instance/show"})
-
 # The names a request may give for Closet in its Host header: this computer's own, Tailscale's (`….ts.net`), and the
 # Cloudflare hostname once it is set (access.py).
 LOCAL_NAMES = frozenset({"127.0.0.1", "localhost", "[::1]"})
@@ -75,6 +71,8 @@ FUNNEL = ("Nines does not answer through Tailscale Funnel, which is open to anyo
 NOT_THROUGH_CLOUDFLARE = "Nines answers through Cloudflare only at the address set in its Settings."
 SIGN_IN_CLOUDFLARE = "Sign in through Cloudflare to use Nines at this address."
 OPEN_FROM_ICON = "Open Nines from its icon to use it on this computer."
+NO_TAILSCALE_VIEWER = ("Nines opens through Tailscale only when Tailscale says who you are. Open it on a device signed "
+                       "in to your Tailscale, or open Nines on the computer to check that Tailscale is set up there.")
 OLD_PAGE = "This page is from an older Nines. Reload the page, then try again."
 
 
@@ -135,24 +133,23 @@ def came_in(scope) -> dict:
 
 
 class Gate:
-    """ASGI middleware. `refusal(cookie)` is None when the request's session is valid, else the sentence for 401.
-    `key` is the key of Closet's own window, or None when none is in force; `key_cookie` names its cookie.
+    """ASGI middleware. `key` is the key of Closet's own window, or None when none is in force; `key_cookie` names its cookie.
     `cloudflare()` gives the Cloudflare settings as they are now (`access.Config`), and `keys` the team's signing keys
     (None: fetched from Cloudflare; tests hand in their own). `tailscale_check(client host, client port, server port)`
-    says whether the other end of a connection is the Tailscale service, or is None where there is no way to ask."""
+    says whether the other end of a connection is the Tailscale service (True), positively is not (False), or could not
+    be told (None); the check itself is None where there is no way to ask."""
 
-    def __init__(self, app, cookie: str, refusal: Callable[[str | None], str | None], key: str | None = None,
-                 key_cookie: str = "", cloudflare: Callable[[], access.Config] = access.Config,
-                 keys: access.SigningKeys | None = None, tailscale_check: tailnet.Check | None = None):
+    def __init__(self, app, key: str | None = None, key_cookie: str = "",
+                 cloudflare: Callable[[], access.Config] = access.Config, keys: access.SigningKeys | None = None,
+                 tailscale_check: tailnet.Check | None = None):
         self.app = app
-        self.cookie = cookie
-        self.refusal = refusal
         self.key = key
         self.key_cookie = key_cookie
         self.cloudflare = cloudflare
         self.keys = keys
         self.tailscale_check = tailscale_check
         self._warned = False
+        self._warned_unsure = False
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
@@ -184,7 +181,9 @@ class Gate:
                 return
         elif tailscale and path != "/api/health":
             viewer = await self._tailscale_viewer(scope, headers)
-            # Pull request 3 refuses here when `viewer` is None; until then the passphrase is still asked of everyone.
+            if viewer is None:
+                await _refuse(send, api, 401, NO_TAILSCALE_VIEWER)
+                return
         scope.setdefault("state", {}).update(
             viewer=viewer, came_in="cloudflare" if cloudflare else "tailscale" if tailscale else "computer")
         if self.key and name in LOCAL_NAMES and path != "/api/health" and path not in BY_ANOTHER_COPY:
@@ -205,11 +204,6 @@ class Gate:
         if api and method in CHANGES and path not in BY_ANOTHER_COPY and headers.get(CLIENT_HEADER) != "1":
             await _answer(send, 403, OLD_PAGE)
             return
-        if api and path not in OPEN:
-            refused = self.refusal(cookies.get(self.cookie))
-            if refused is not None:
-                await _answer(send, 401, refused)
-                return
         limit = limits.limit_for(method, path)
         declared = headers.get("content-length", "")
         if declared.strip().isdigit() and int(declared) > limit:
@@ -252,19 +246,29 @@ class Gate:
 
 
     async def _tailscale_viewer(self, scope, headers: Headers) -> dict | None:
-        """Who Tailscale says is asking, when it really was Tailscale that said so (on Windows, asked of Windows)."""
+        """Who Tailscale says is asking, unless Windows shows it was not Tailscale that said so.
+
+        The check's three answers: True (the Tailscale service) and None (Windows could not be asked) believe the
+        headers; False (Windows shows some other program, or no Tailscale service running) does not. A failed lookup
+        is not a reason to shut the owner out when Tailscale's headers are there; a positive answer that it was not
+        Tailscale is (DECISIONS, "The doors decide who comes in")."""
         viewer = tailnet.viewer(headers)
         if viewer is None or self.tailscale_check is None:
             return viewer
         client, server = scope.get("client"), scope.get("server")
-        believed = bool(client and server) and await run_in_threadpool(
-            self.tailscale_check, client[0], client[1], server[1])
-        if not believed:
+        if not (client and server):
+            return None   # no connection to ask about: never the case for a request Tailscale Serve passed on
+        answer = await run_in_threadpool(self.tailscale_check, client[0], client[1], server[1])
+        if answer is False:
             if not self._warned:
                 log.warning("A request named someone the way Tailscale does, but did not come from Tailscale; "
-                            "who it named was not believed.")
+                            "it was refused.")
                 self._warned = True
             return None
+        if answer is None and not self._warned_unsure:
+            log.warning("Windows could not say whether a request came from Tailscale; who Tailscale's headers named "
+                        "was believed.")
+            self._warned_unsure = True
         return viewer
 
 
@@ -303,6 +307,11 @@ PAGES = {
     WRONG_ADDRESS: ("Nines is not at this address",
                     ["Nines answers only at this computer's own address, at its Tailscale address on your phone, or "
                      "at the Cloudflare address set in its Settings."]),
+    NO_TAILSCALE_VIEWER: ("Nines could not tell who you are",
+                          ["Through Tailscale, Nines opens only when Tailscale says who is asking, and this visit did "
+                           "not say. Open Nines on a device signed in to your Tailscale.",
+                           "If this device is signed in, open Nines on the computer it runs on and check that "
+                           "Tailscale is set up there. Your closet is safe."]),
     SIGN_IN_CLOUDFLARE: ("Sign in through Cloudflare first",
                          ["Nines opens at this address only after Cloudflare has checked who you are, and this visit "
                           "did not come with Cloudflare's sign-in.",

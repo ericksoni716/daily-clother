@@ -148,7 +148,7 @@ describe('the saved answer', () => {
     expect(loadSavedInsights('demo', kv)?.answer.cost_per_wear.sentence).toBe('demo');
   });
 
-  it('is removed on logout with the other saved copies, but "keep" is not', () => {
+  it('is forgotten with the other saved copies, but "keep" is not', () => {
     const kv = new MemoryStorage();
     saveInsights('main', answer('main'), kv);
     keepPiece('main', 'a', '2026-11-13', kv);

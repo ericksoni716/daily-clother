@@ -1,6 +1,6 @@
 import type { Page, Route } from '@playwright/test';
 import { axeViolations } from './a11y';
-import { expect, PASS, test } from './fixtures';
+import { expect, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 
@@ -11,10 +11,7 @@ const read = (page: Page) => page.getByTestId('stylist-read');
 async function setUp(page: Page, url: string) {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(url + '/');
-  await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
-  await page.getByLabel('Type it again').fill(PASS);
-  await page.getByRole('button', { name: 'Set passphrase' }).click();
-  await page.getByRole('button', { name: 'Start with my own closet' }).click();
+  await expect(page.locator('#closet-title')).toBeVisible();
 }
 
 /** A forecast, as 10-today.spec.ts gives one (home's weather is out of reach in a test), so Today looks as it does on

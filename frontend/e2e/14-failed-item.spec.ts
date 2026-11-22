@@ -1,4 +1,4 @@
-import { expect, PASS, PHOTOS, test } from './fixtures';
+import { expect, PHOTOS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 // Its own backend, whose stand-in for Claude fails the first three descriptions with a reason Closet does not know.
@@ -15,10 +15,7 @@ test.describe('an item whose description failed', () => {
   test('says why, with the details cleaned, and can be tried again', async ({ page }) => {
     test.setTimeout(150_000);
     await page.goto(backend.url + '/');
-    await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
-    await page.getByLabel('Type it again').fill(PASS);
-    await page.getByRole('button', { name: 'Set passphrase' }).click();
-    await page.getByRole('button', { name: 'Start with my own closet' }).click();
+    await expect(page.locator('#closet-title')).toBeVisible();
 
     await page.goto(backend.url + '/add');
     await page.getByTestId('library-input').setInputFiles(`${PHOTOS}graphic-tee.jpg`);

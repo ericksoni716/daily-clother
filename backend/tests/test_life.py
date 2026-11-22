@@ -198,12 +198,8 @@ def test_settings_save_read_clear_and_demo_stays_separate(client, services):
     assert client.get("/api/gaps").json() == before
 
 
-def test_settings_bad_answers_and_login(client, anon):
+def test_settings_bad_answers(client):
     assert client.put("/api/settings", json={"life": "daily"}).status_code == 422
-    client.post("/api/logout")
-    assert anon.get("/api/settings").status_code == 401
-    assert anon.put("/api/settings", json={"life": answers()}).status_code == 401
-    assert anon.get("/api/gaps").status_code == 401
 
 
 def test_cache_changes_with_answers_place_and_climate_not_laundry(client, monkeypatch):

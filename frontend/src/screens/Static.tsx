@@ -19,6 +19,18 @@ export function ClosedScreen() {
   );
 }
 
+/** The door turned this device away (backend/closet/gate.py): the server's own sentence says why and what to do. */
+export function RefusedScreen({ message, onReload }: { message: string; onReload(): void }) {
+  return (
+    <main className="center-screen">
+      <NinesMark className="nines-mark-screen" />
+      <h1><NinesName /> didn't let this device in</h1>
+      <p className="muted narrow" data-testid="refused">{message}</p>
+      <button className="btn btn-primary" onClick={onReload}>Reload</button>
+    </main>
+  );
+}
+
 export function UnreachableScreen({ message, onRetry }: { message: string; onRetry(): void }) {
   return (
     <main className="center-screen">

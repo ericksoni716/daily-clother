@@ -1,4 +1,4 @@
-import { expect, login, openFold, serviceWorkerInCharge, test, useProfile } from './fixtures';
+import { expect, goToCloset, openFold, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
@@ -8,7 +8,7 @@ test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
   test('bottom tab bar, two-column grid, detail as its own screen', async ({ page }) => {
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     const tabbar = page.locator('nav.tabbar');
     await expect(tabbar).toBeVisible();
@@ -48,7 +48,7 @@ test.describe('phone', () => {
   });
 
   test('the four places with Add in the middle; Review is reached from the closet; Add stays, disabled, offline', async ({ page, context }) => {
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     const tabbar = page.locator('nav.tabbar');
     const links = tabbar.getByRole('link');
@@ -113,7 +113,7 @@ const ROUTES: [path: string, sidebar: string, tab: string][] = [
 ];
 
 test('aria-current marks the right link on every route, on a computer and a phone', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   for (const [layout, viewport, nav, column] of [
     ['computer', { width: 1440, height: 900 }, 'nav.sidebar', 1],
     ['phone', { width: 390, height: 844 }, 'nav.tabbar', 2],
@@ -132,7 +132,7 @@ test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
   test('sidebar, grid and detail panel side by side', async ({ page }) => {
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     await expect(page.locator('nav.tabbar')).toBeHidden();
     const sidebar = page.locator('nav.sidebar');

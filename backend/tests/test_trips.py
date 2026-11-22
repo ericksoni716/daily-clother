@@ -413,13 +413,6 @@ def body(n=5, **kw):
             "weather": [{k: d[k] for k in ("date", "low_c", "high_c", "rain")} for d in trip], **kw}
 
 
-def test_trip_routes_need_login(anon):
-    for method, path in (("post", "/api/trips/plan"), ("post", "/api/trips"), ("get", "/api/trips"), ("get", "/api/trips/x"),
-                         ("get", "/api/trips/x/weather"), ("patch", "/api/trips/x"), ("delete", "/api/trips/x")):
-        r = getattr(anon, method)(path, **({"json": {}} if method in ("post", "patch") else {}))
-        assert r.status_code == 401, path
-
-
 def test_planning_saves_nothing_and_saving_keeps_the_trip(client, clock):
     client.post("/api/profile", json={"profile": "demo"})
     r = client.post("/api/trips/plan", json=body())

@@ -66,10 +66,6 @@ def routes(body) -> dict:
     return {r["id"]: r for r in body["routes"]}
 
 
-def test_tagging_needs_login(anon):
-    assert anon.get("/api/tagging").status_code == 401
-
-
 def test_tagging_answer_has_the_promised_shape(client, home):
     body = client.get("/api/tagging").json()
     assert set(body) == {"order", "routes"}

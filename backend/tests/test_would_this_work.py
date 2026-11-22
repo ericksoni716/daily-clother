@@ -17,7 +17,7 @@ from closet import db, images, life, spend, wouldjobs
 from closet.tagger import routes as tagger_routes
 from closet.tagger.tagging import RouteUnavailable
 
-from .conftest import PASSPHRASE, FakeApi, fake_cutter, photo_bytes
+from .conftest import FakeApi, fake_cutter, photo_bytes
 
 COAT = {"category": "coat", "color": "tan", "formality": "smart_casual", "rain_proof": True}
 
@@ -38,8 +38,10 @@ def send_photo(client, data=None):
 
 
 def files(cfg):
-    """Files in the data folder other than the databases: a photo written to disk would be one."""
-    return {p for p in cfg.data_dir.rglob("*") if p.is_file() and not re.search(r"\.db(-wal|-shm|-journal)?$", p.name)}
+    """Files in the data folder other than the databases and the program's settings: a photo written to disk would be
+    one. (The settings file is first written by the first setting saved, which some of these tests do.)"""
+    return {p for p in cfg.data_dir.rglob("*") if p.is_file() and p != cfg.state_path
+            and not re.search(r"\.db(-wal|-shm|-journal)?$", p.name)}
 
 
 @pytest.fixture
@@ -69,11 +71,6 @@ def photos(monkeypatch):
 def let_go(refs):
     gc.collect()
     return refs and all(r() is None for r in refs)
-
-
-def test_would_this_work_needs_login(anon):
-    assert anon.post("/api/would-this-work", json={"piece": COAT}).status_code == 401
-    assert anon.get("/api/would-this-work/abc").status_code == 401
 
 
 def test_by_hand_in_the_demo_closet_starts_then_answers(client):
@@ -266,7 +263,6 @@ def metered(cfg, api):
     sv = app_module.build_services(cfg, cutter=fake_cutter, web_dir=None, api_client=api)
     sv.worker.is_ready = lambda: True
     c = TestClient(app_module.create_app(sv))
-    assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
     yield c
     sv.stop()
 

@@ -719,10 +719,6 @@ def test_a_piece_deleted_since_is_refused(styled):
     assert r.status_code == 422 and r.json()["detail"] == "That piece is no longer in your closet."
 
 
-def test_keeping_needs_login(anon):
-    assert anon.post("/api/style/answers/anything/remember", json={"index": 0, "save": True}).status_code == 401
-
-
 # ------------------------------------------------------------------ keeping does not ask Claude again
 def test_saving_does_not_ask_claude_again(styled):
     _, aid, before = offered(styled)

@@ -1,5 +1,5 @@
 import type { Page, Route } from '@playwright/test';
-import { expect, login, serviceWorkerInCharge, test, useProfile } from './fixtures';
+import { expect, goToCloset, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 const BROOKLYN = 'Brooklyn, New York, United States';
 
@@ -33,7 +33,7 @@ async function fakeWeather(page: Page, asked: Record<string, unknown>[] = []) {
 }
 
 async function openToday(page: Page) {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.goto('/today');
   await expect(page.locator('#today-title')).toBeVisible();
@@ -230,7 +230,7 @@ test('today reports an offline error even when the item list cannot load', async
   const context = await browser.newContext({ baseURL, serviceWorkers: 'block' });
   const page = await context.newPage();
   try {
-    await login(page);
+    await goToCloset(page);
     await page.evaluate(() => localStorage.removeItem('closet-today-saved:outfits:main'));
     await page.route('**/api/items?*', (route) => route.abort());
     await page.route('**/api/outfits/today', (route) => route.abort());
@@ -393,7 +393,7 @@ test('today offline: the outfits fetched earlier are shown as saved, and the but
 
 test("today in a closet that can't dress the owner yet: says what is needed, what to add first, and a link to add", async ({ page }) => {
   await fakeWeather(page);
-  await login(page);
+  await goToCloset(page);
   await page.goto('/today');
   const empty = page.getByTestId('today-empty');
   await expect(empty).toContainText('Add a top, something for your legs and shoes, and Today can dress you');
@@ -406,7 +406,7 @@ test("today in a closet that can't dress the owner yet: says what is needed, wha
 
 test('the app opens on Today once the closet can dress the owner', async ({ page, context }) => {
   await fakeWeather(page);
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   // tapping Closet stays on the closet in the same tab
   await page.locator('nav.sidebar').getByRole('link', { name: 'Closet' }).click();

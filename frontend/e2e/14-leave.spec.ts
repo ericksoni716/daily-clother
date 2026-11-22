@@ -1,4 +1,4 @@
-import { expect, login, openFold, test, useProfile } from './fixtures';
+import { expect, goToCloset, openFold, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page }) => {
   await page.request.post('/api/profile', { data: { profile: 'main' } });
@@ -7,7 +7,7 @@ test.afterEach(async ({ page }) => {
 // A change made a moment before the page is reloaded or closed is kept: the save is sent so that it
 // outlives the page, and an edit still being typed is saved as the page goes away.
 test('edit, reload at once: the edit is there', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.getByTestId('tile').filter({ hasText: 'Oatmeal henley' }).click();
   const panel = page.locator('.detail-panel');

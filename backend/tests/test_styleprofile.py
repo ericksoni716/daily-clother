@@ -146,11 +146,6 @@ def test_the_demo_closet_has_its_own_profile(client):
     assert client.get("/api/style/profile").json()["text"] == "Mine."
 
 
-def test_the_style_profile_needs_login(anon):
-    assert anon.get("/api/style/profile").status_code == 401
-    assert anon.put("/api/style/profile", json={"text": "Mine."}).status_code == 401
-
-
 def test_only_the_owner_or_claude_writes_a_profile(cfg):
     db.migrate(cfg.db_path("main"), cfg.local_backups_dir)
     with closing(db.connect(cfg.db_path("main"))) as conn:

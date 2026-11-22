@@ -32,7 +32,7 @@ export const FROM_CACHE_HEADER = 'x-closet-from-cache';
 
 type Listener = (offline: boolean) => void;
 const offlineListeners = new Set<Listener>();
-const unauthorizedListeners = new Set<() => void>();
+const unauthorizedListeners = new Set<(message: string) => void>();
 let offline = false;
 
 function setOffline(value: boolean) {
@@ -49,7 +49,8 @@ export const connection = {
     offlineListeners.add(l);
     return () => void offlineListeners.delete(l);
   },
-  onUnauthorized(l: () => void): () => void {
+  /** Told the server's sentence each time a call is answered 401: the door turned this device away. */
+  onUnauthorized(l: (message: string) => void): () => void {
     unauthorizedListeners.add(l);
     return () => void unauthorizedListeners.delete(l);
   },
@@ -68,7 +69,7 @@ export function messageFrom(body: unknown, fallback: string): string {
 }
 
 function fallbackMessage(status: number): string {
-  if (status === 401) return 'Log in to continue.';
+  if (status === 401) return "Nines didn't let this device in. Reload the page to try again.";
   if (status === 404) return 'That could not be found.';
   if (status === 413) return 'That file is too large.';
   if (status >= 500) return 'Something went wrong on the computer running Nines. Try again in a moment.';
@@ -79,8 +80,6 @@ export interface Options {
   method?: string;
   body?: unknown;
   form?: FormData;
-  /** Do not treat a 401 as "logged out" (used by login itself). */
-  quiet401?: boolean;
   signal?: AbortSignal;
   /** The answer is text (an SVG drawing), not JSON. */
   text?: boolean;
@@ -89,7 +88,7 @@ export interface Options {
 }
 
 /**
- * How long the app waits for the questions it opens with (am I logged in, the closet) before showing the saved copy.
+ * How long the app waits for the questions it opens with (which closet, the closet itself) before showing the saved copy.
  * A computer that is asleep or switched off may never answer, and the phone would otherwise wait a minute or more.
  */
 export const OPEN_TIMEOUT_MS = 12_000;
@@ -159,9 +158,9 @@ async function request<T>(path: string, opts: Options = {}): Promise<T> {
     }
   }
   if (!res.ok) {
-    if (res.status === 401 && !opts.quiet401) unauthorizedListeners.forEach((l) => l());
     const retry = Number(res.headers.get('Retry-After')) || undefined;
     const err = new ApiError(res.status, messageFrom(data, fallbackMessage(res.status)), retry);
+    if (res.status === 401) unauthorizedListeners.forEach((l) => l(err.message));
     (err as ApiError & { body?: unknown }).body = data;
     throw err;
   }
@@ -170,9 +169,6 @@ async function request<T>(path: string, opts: Options = {}): Promise<T> {
 
 export const api = {
   session: () => request<Session>('/api/session', { timeoutMs: OPEN_TIMEOUT_MS }),
-  setup: (passphrase: string) => request<void>('/api/setup', { method: 'POST', body: { passphrase }, quiet401: true }),
-  login: (passphrase: string) => request<void>('/api/login', { method: 'POST', body: { passphrase }, quiet401: true }),
-  logout: () => request<void>('/api/logout', { method: 'POST', quiet401: true }),
   vocab: () => request<Vocab>('/api/vocab'),
   items: (status: 'active' | 'archived' = 'active') =>
     request<{ items: ItemSummary[] }>(`/api/items?status=${status}`, { timeoutMs: OPEN_TIMEOUT_MS }).then((r) => r.items),
@@ -404,6 +400,12 @@ export const api = {
 };
 
 /** Removes the saved copies of closet data (kept: the app's own files). */
+/**
+ * Forgets the copies of the closet this device keeps for when Nines can't be reached: what Today, Worn, Insights and
+ * What's missing saved in this browser's storage, and the service worker's saved answers and pictures. Not the app's
+ * own files (it still opens), not the photos waiting to be sent (`uploads.ts`), not this device's look. They are saved
+ * again as screens are opened.
+ */
 export async function clearSavedData(): Promise<void> {
   forgetSaved();
   if (!('caches' in window)) return;

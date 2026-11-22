@@ -1,4 +1,4 @@
-import { expect, login, test } from './fixtures';
+import { expect, goToCloset, test } from './fixtures';
 
 // One screen that fails to draw no longer blanks the app (docs/assessment/ux-pages.md, finding H).
 
@@ -7,7 +7,7 @@ test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true
 test('a screen that fails to draw says so, keeps the tab bar, and leaving it clears the message', async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await login(page);
+  await goToCloset(page);
   // an answer of a shape the screen cannot draw
   await page.route('**/api/insights', (route) => route.fulfill({ json: { nothing: 'expected' } }));
   await page.goto('/wardrobe');

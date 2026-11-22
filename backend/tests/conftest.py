@@ -36,8 +36,6 @@ from closet.tagger.stylist import ChatReply
 from closet.tagger.tagging import RouteUnavailable, TaggingError, TagResult
 from closet.tagger.views import PhotoView, ShoeViews
 
-PASSPHRASE = "correct horse battery"
-
 
 class LocalClient(TestClient):
     """A test client that speaks to Closet as its own page on this computer does: by the computer's own name, and with
@@ -515,14 +513,10 @@ def services(cfg, claude):
 
 
 @pytest.fixture
-def anon(services):
+def client(services):
+    """The page on this computer, as tests make the app: with no window key in force, so this computer's door lets it
+    in (closet/gate.py); there is no passphrase to give."""
     return LocalClient(app_module.create_app(services))
-
-
-@pytest.fixture
-def client(anon):
-    assert anon.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
-    return anon
 
 
 def photo_for(key: str) -> bytes:

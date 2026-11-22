@@ -1,5 +1,5 @@
 import { axeViolations } from './a11y';
-import { expect, PASS, test } from './fixtures';
+import { expect, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 
@@ -20,10 +20,7 @@ test.describe('the day in your words', () => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(backend.url + '/');
-    await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
-    await page.getByLabel('Type it again').fill(PASS);
-    await page.getByRole('button', { name: 'Set passphrase' }).click();
-    await page.getByRole('button', { name: 'Start with my own closet' }).click();
+    await expect(page.locator('#closet-title')).toBeVisible();
 
     await page.goto(backend.url + '/today');
     const day = page.getByTestId('day-line');

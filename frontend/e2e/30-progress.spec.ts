@@ -1,24 +1,13 @@
 import type { Page } from '@playwright/test';
 import { axeViolations, sideways } from './a11y';
-import { expect, PASS, PHOTOS, test } from './fixtures';
+import { expect, PHOTOS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 const PHONE = { width: 375, height: 812 };
 
-/** Sets the passphrase the first time (and starts with the owner's own closet), else logs in. */
+/** Opens a backend of its own, on the owner's own closet. */
 async function openCloset(page: Page, url: string) {
   await page.goto(url + '/');
-  const passphrase = page.getByLabel('Passphrase', { exact: true });
-  await expect(passphrase).toBeVisible();
-  await passphrase.fill(PASS);
-  const again = page.getByLabel('Type it again');
-  if (await again.isVisible()) {
-    await again.fill(PASS);
-    await page.getByRole('button', { name: 'Set passphrase' }).click();
-    await page.getByRole('button', { name: 'Start with my own closet' }).click();
-  } else {
-    await page.getByRole('button', { name: 'Open my closet' }).click();
-  }
   await expect(page.locator('#closet-title')).toBeVisible();
 }
 

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
-import { expect, PASS, PHOTOS, test } from './fixtures';
+import { expect, PHOTOS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 // "Retake the photo" for clothes. The browser tests' backend measures no patterns (its stand-in for Claude leaves the
@@ -39,10 +39,7 @@ test.describe('a new photo of a piece of clothing', () => {
   test('beside the note that the checks could not be measured, and when the background could not be removed', async ({ page }) => {
     test.setTimeout(120_000);
     await page.goto(backend.url + '/');
-    await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
-    await page.getByLabel('Type it again').fill(PASS);
-    await page.getByRole('button', { name: 'Set passphrase' }).click();
-    await page.getByRole('button', { name: 'Start with my own closet' }).click();
+    await expect(page.locator('#closet-title')).toBeVisible();
 
     const sent = await page.request.post(`${backend.url}/api/items`, {
       multipart: {

@@ -17,8 +17,6 @@ from fastapi.testclient import TestClient
 from closet import access, gate
 from closet import app as app_module
 
-from .conftest import PASSPHRASE
-
 TEAM = "yourteam.cloudflareaccess.com"
 AUD = "a1b2c3d4e5f60718293a4b5c6d7e8f90"
 HOST = "closet.example.com"
@@ -158,9 +156,7 @@ def app(services):
 
 @pytest.fixture
 def local(app):
-    c = TestClient(app)
-    assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
-    return c
+    return TestClient(app)
 
 
 @pytest.fixture
@@ -199,13 +195,15 @@ def test_on_the_hostname_every_request_needs_a_token_that_checks_out(local, outs
         assert outside.get("/api/session", headers=header).status_code == 401
 
 
-def test_then_the_passphrase_is_asked_as_on_any_device(local, outside):
+def test_then_nothing_else_is_asked(local, outside):
+    """The verified sign-in is the whole of this door: no passphrase, no session cookie of Nines' own."""
     turn_on(local)
     outside.cookies.set("CF_Authorization", token(), domain=HOST)   # the cookie Access sets works as the header does
     session = outside.get("/api/session")
-    assert session.status_code == 200 and session.json()["authenticated"] is False
-    assert outside.get("/api/settings").status_code == 401
-    assert outside.post("/api/login", json={"passphrase": PASSPHRASE}).status_code == 204
+    assert session.status_code == 200 and session.json()["authenticated"] is True
+    assert outside.get("/api/items").status_code == 200
+    assert outside.put("/api/settings", json={"stylist_on": False}).status_code == 200
+    assert not [c for c in outside.cookies.jar if c.name != "CF_Authorization"]   # Nines set no cookie of its own
     settings = outside.get("/api/settings").json()
     assert settings["came_in"] == {"via": "cloudflare", "login": EMAIL, "name": EMAIL}
     assert local.get("/api/settings").json()["came_in"] == {"via": "computer", "login": None, "name": None}
@@ -234,7 +232,6 @@ def test_cloudflares_headers_under_any_other_name_are_refused(local):
 def test_the_door_cannot_be_changed_by_a_sign_in_through_it(local, outside):
     turn_on(local)
     outside.headers["Cf-Access-Jwt-Assertion"] = token()
-    assert outside.post("/api/login", json={"passphrase": PASSPHRASE}).status_code == 204
     for change in ({"cloudflare_host": "elsewhere.example.com"}, {"cloudflare_aud": ""}, {"cloudflare_team": "another"}):
         r = outside.put("/api/settings", json={**change, "stylist_on": False})
         assert r.status_code == 403 and r.json() == {"detail": app_module.NOT_FROM_CLOUDFLARE}
@@ -244,7 +241,7 @@ def test_the_door_cannot_be_changed_by_a_sign_in_through_it(local, outside):
 
 
 def test_the_door_is_changed_on_the_computer_or_through_tailscale(local):
-    phone = {"host": "closet-pc.example-tailnet.ts.net"}
+    phone = {"host": "closet-pc.example-tailnet.ts.net", "Tailscale-User-Login": EMAIL}
     r = local.put("/api/settings", json={"cloudflare_team": "yourteam"}, headers=phone)
     assert r.status_code == 200 and r.json()["cloudflare"]["team"] == TEAM
     r = local.put("/api/settings", json={"cloudflare_host": "closet example.com"})

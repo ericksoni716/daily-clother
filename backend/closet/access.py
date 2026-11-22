@@ -8,7 +8,7 @@ published keys, that it is meant for the owner's Access application (the audienc
 and that it has not run out. Who is asking comes from that token only, never from the plain email header Access also
 adds, which anything that reaches Closet could send.
 
-The door is off until all three settings are there (Settings, Phone): the team's domain, the application's audience
+The door is off until all three settings are there (Settings, Other devices): the team's domain, the application's audience
 tag and the public hostname. They are program-wide, in `settings.json` (`state.py`), not in a closet. `gate.py` asks
 for the token on that hostname, before anything else is read.
 """

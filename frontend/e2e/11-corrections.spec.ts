@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, login, openFold, PASS, serviceWorkerInCharge, test, useProfile } from './fixtures';
+import { expect, goToCloset, openFold, serviceWorkerInCharge, test, useProfile } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 
@@ -10,7 +10,7 @@ test.afterEach(async ({ page }) => {
 type Options = { groups: { details: { name: string; value: unknown; words: string }[] }[] };
 
 test('in the demo closet: pick the number of buttons, see the drawing change, undo it from the history', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   const listed = (await (await page.request.get('/api/items')).json()).items as { id: string; name: string }[];
   const polo = listed.find((i) => i.name === 'Navy polo')!;
@@ -55,7 +55,7 @@ test('in the demo closet: pick the number of buttons, see the drawing change, un
 });
 
 test('in the demo closet: say what it is with the kind picker, see the drawing change, and undo it', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.getByTestId('tile').filter({ hasText: 'Grey hoodie' }).click();
   const detail = page.locator('.detail-panel');
@@ -115,7 +115,7 @@ test('in the demo closet: say what it is with the kind picker, see the drawing c
 
 test('on a phone the details fit the screen', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.getByTestId('tile').filter({ hasText: 'Blue oxford shirt' }).click();
   await page.getByRole('button', { name: 'Something wrong? Change the details' }).click();
@@ -128,7 +128,7 @@ test('on a phone the details fit the screen', async ({ page }) => {
 });
 
 test('offline: fixing the details and undoing are off, and say why', async ({ page, context }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await serviceWorkerInCharge(page);
   await page.reload();
@@ -149,7 +149,7 @@ test('offline: fixing the details and undoing are off, and say why', async ({ pa
 });
 
 test('in the demo closet: the line under the name says how it sits, and a word opens its detail to fix', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   const listed = (await (await page.request.get('/api/items')).json()).items as { id: string; name: string }[];
   const polo = listed.find((i) => i.name === 'Navy polo')!;
@@ -189,21 +189,10 @@ test.describe('saying what is wrong, with a stand-in for Claude', () => {
     await backend?.stop();
   });
 
-  /** Opens the owner's own closet on this backend, setting the passphrase the first time. */
+  /** Opens the owner's own closet on this backend. */
   async function enter(page: Page) {
     await page.goto(backend.url + '/');
-    const pass = page.getByLabel('Passphrase', { exact: true });
-    await expect(pass).toBeVisible();
-    const again = page.getByLabel('Type it again');
-    await pass.fill(PASS);
-    if (await again.isVisible()) {
-      await again.fill(PASS);
-      await page.getByRole('button', { name: 'Set passphrase' }).click();
-      await page.getByRole('button', { name: 'Start with my own closet' }).click();
-    } else {
-      await page.getByRole('button', { name: 'Open my closet' }).click();
-    }
-    await expect(pass).toHaveCount(0);
+    await expect(page.locator('#closet-title, #today-title').first()).toBeVisible();
   }
 
   async function polo(page: Page) {

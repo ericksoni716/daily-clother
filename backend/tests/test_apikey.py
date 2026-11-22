@@ -32,11 +32,6 @@ def test_only_something_shaped_like_a_key_is_taken():
             apikey.clean(wrong)
 
 
-def test_saving_a_key_needs_login(anon):
-    assert anon.put("/api/settings/api-key", json={"key": KEY}).status_code == 401
-    assert anon.delete("/api/settings/api-key").status_code == 401
-
-
 @pytest.mark.parametrize("body", [
     {"key": [KEY]},
     {"key": {"nested": KEY}},

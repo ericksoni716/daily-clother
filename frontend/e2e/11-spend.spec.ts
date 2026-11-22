@@ -1,4 +1,4 @@
-import { expect, PASS, PHOTOS, test } from './fixtures';
+import { expect, PHOTOS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 // Its own backend: the plan can't be used and the API key route talks to a stand-in that reports what each
@@ -18,10 +18,7 @@ test.describe('the API key with a monthly limit', () => {
   test('set a limit, see what the month cost, and see an item wait for the limit', async ({ page }) => {
     test.setTimeout(150_000);
     await page.goto(backend.url + '/');
-    await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
-    await page.getByLabel('Type it again').fill(PASS);
-    await page.getByRole('button', { name: 'Set passphrase' }).click();
-    await page.getByRole('button', { name: 'Start with my own closet' }).click();
+    await expect(page.locator('#closet-title')).toBeVisible();
 
     // Settings says in one red line that Claude can't be reached; the key and its limit are on Advanced
     await page.goto(backend.url + '/settings');

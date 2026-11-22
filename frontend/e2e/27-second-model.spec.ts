@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, login, test } from './fixtures';
+import { expect, goToCloset, test } from './fixtures';
 
 // The second background model, asked as well when the first takes stripes or checks for background. The owner's
 // striped shirt was cut out by the first model alone because the second wasn't there, and nothing said so. Stand-ins
@@ -36,7 +36,7 @@ test('a second model that did not download is shown on Add and can be tried agai
     now = DOWNLOADING;
     return route.fulfill({ status: 202, json: model({ second: now }) });
   });
-  await login(page);
+  await goToCloset(page);
   await page.goto('/add');
 
   const banner = page.getByTestId('model-banner');
@@ -79,7 +79,7 @@ test('a first model that did not download says why on Add, and Try again starts 
     now = model({ state: 'downloading', downloaded_bytes: 1_000_000, total_bytes: 178_648_008, second: second({ state: 'missing', downloaded_bytes: 0, total_bytes: null }) });
     return route.fulfill({ status: 202, json: now });
   });
-  await login(page);
+  await goToCloset(page);
   await page.goto('/add');
   const banner = page.getByTestId('model-banner');
   await expect(banner).toContainText("the model download didn't work");

@@ -1,8 +1,6 @@
 import { test as base, expect, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import { startBackend, type Backend } from './server';
 
-export const PASS = 'a calm green closet';
-
 /** The header Closet's own page sends on every call (src/api.ts); the server refuses a change without it. */
 export const CLIENT = { 'X-Closet-Client': '1' };
 
@@ -73,25 +71,10 @@ export const test = base.extend<{ backend: Backend }, { fileBackends: FileBacken
 export { expect };
 
 /**
- * Gets `request` past the login through the API: on a first run it sets the passphrase, otherwise it logs in. Either
- * way the session cookie lands in `request`, so a page sharing it (`page.request`) is logged in too. `origin` is for
- * a request that has no base URL of its own. The one place the tests know how to log in (01-auth.spec.ts tests the
- * screens themselves): change it here when the login changes.
+ * Opens the page and waits for the closet. There is nothing to sign in to: the tests' backend runs without the window's
+ * key, so this computer's door lets the page straight in (backend/closet/gate.py), as Nines' own window is let in.
  */
-export async function signIn(request: APIRequestContext, origin = '') {
-  const s = await (await request.get(`${origin}/api/session`)).json();
-  const r = await request.post(`${origin}/api/${s.setup_required ? 'setup' : 'login'}`, { data: { passphrase: PASS }, headers: CLIENT });
-  expect(r.status()).toBe(204);
-}
-
-/** Makes sure a passphrase exists (so a test can show the login screen), and logs the page in. */
-export async function ensureSetUp(page: Page) {
-  await signIn(page.request);
-}
-
-/** Logs the page in (signIn) and waits for the closet. */
-export async function login(page: Page) {
-  await signIn(page.request);
+export async function goToCloset(page: Page) {
   await page.goto('/');
   const title = page.locator('#closet-title');
   // A closet that can dress the owner opens on Today; these tests start from the closet itself.
@@ -105,7 +88,7 @@ export async function login(page: Page) {
   await expect(title).toBeVisible();
 }
 
-/** Switches the server to the real or demo closet (needs a logged-in page) and reloads. */
+/** Switches the server to the real or demo closet and reloads. */
 export async function useProfile(page: Page, profile: 'main' | 'demo') {
   const r = await page.request.post('/api/profile', { data: { profile } });
   expect(r.ok()).toBeTruthy();

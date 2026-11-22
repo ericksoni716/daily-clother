@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
-import { api } from '../api';
+import { api, clearSavedData } from '../api';
 import { PhoneAccess } from '../components/PhoneAccess';
 import { ADD_TO_HOME_SCREEN, cameInLine, deviceOf, fromHomeScreen, phoneAccessShows } from '../here';
 import { CloudflareDoor } from '../components/CloudflareDoor';
@@ -12,7 +12,7 @@ import { LineWords, StyleLines } from '../components/StyleLines';
 import { StyleTalk } from '../components/StyleTalk';
 import { StatusLine, Toggle } from '../components/Toggle';
 import { UpdatesLine } from '../components/Updates';
-import { Button, buttonClass, confirmKeys, Notice, PageHeader, Section as UiSection, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
+import { Button, buttonClass, confirmKeys, Fold, Notice, PageHeader, Section as UiSection, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
 import { Link } from '../router';
 import { touch } from '../queries';
 import { queryKeys } from '../queryKeys';
@@ -39,9 +39,12 @@ function ToAdvanced({ children, label }: { children: ReactNode; label?: string }
   return <Link to={ADVANCED} className={buttonClass({ variant: 'ghost', small: true })} aria-label={label}>{children}</Link>;
 }
 
-/** Light, dark or the device's own setting; kept on this device only, so it works offline too. */
-/** This device: its look, and on a device that came in from outside, how it came in (Tailscale or Cloudflare). */
-function LookSection({ cameIn }: { cameIn?: CameIn }) {
+/**
+ * This device: on a device that came in from outside, how it came in (Tailscale or Cloudflare); its look (light, dark
+ * or the device's own setting, kept on this device only, so it works offline too); and, folded, forgetting the copies
+ * of the closet it keeps for offline.
+ */
+function LookSection({ cameIn, offline }: { cameIn?: CameIn; offline: boolean }) {
   const [theme, setTheme] = useState<Theme>(loadTheme);
   const line = cameInLine(cameIn);
   return (
@@ -49,7 +52,35 @@ function LookSection({ cameIn }: { cameIn?: CameIn }) {
       {line && <p data-testid="came-in">{line}</p>}
       <SegmentedControl label="Look" options={THEME_CHOICES} value={theme} small className="settings-look"
         onChange={(t) => { setTheme(t); saveTheme(t); applyTheme(t); }} />
+      <SavedCopies offline={offline} />
     </UiSection>
+  );
+}
+
+/**
+ * Forgetting this device's saved copies (`clearSavedData`): what logging out used to do besides ending the login. The
+ * closet on the computer is not touched. Not while offline: the saved copy is then all the device has to show.
+ */
+function SavedCopies({ offline }: { offline: boolean }) {
+  const { toast } = useApp();
+  const [busy, setBusy] = useState(false);
+  async function forget() {
+    setBusy(true);
+    try {
+      await clearSavedData();
+      toast('This device has forgotten its saved copies.');
+    } catch (e) {
+      toast((e as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Fold title="Saved copies on this device" testId="saved-copies">
+      <p>This device keeps a copy of your closet to show when Nines can't be reached. Forgetting it leaves your closet on the computer as it is.</p>
+      <button className="btn" disabled={offline || busy} onClick={() => void forget()}
+        title={offline ? "You're offline: the saved copy is what this device is showing" : undefined}>Forget saved copies</button>
+    </Fold>
   );
 }
 
@@ -337,15 +368,13 @@ function DataSection({ settings, profile, device }: { settings: Settings; profil
   );
 }
 
-/** Log out, and Quit on the computer only: from the phone, Closet could not be started again. */
+/** Quit, on the computer only: from the phone, Nines could not be started again. Nothing on the phone. */
 export function Leave({ offline, device }: { offline: boolean; device: Device }) {
-  const { logout, quit, toast } = useApp();
+  const { quit, toast } = useApp();
+  if (!computerOnly(device).quit) return null;
   return (
     <div className="settings-leave" role="group" aria-label="Leave">
-      {/* offline the server cannot end the login, so the phone would only look logged out until it is back in reach */}
-      <button className="btn" disabled={offline} title={offline ? "You're offline: log out once Nines on your computer can be reached" : undefined}
-        onClick={() => void logout()}>Log out</button>
-      {computerOnly(device).quit && <QuitButton onQuit={quit} disabled={offline} toast={toast} />}
+      <QuitButton onQuit={quit} disabled={offline} toast={toast} />
     </div>
   );
 }
@@ -375,7 +404,7 @@ export function SettingsScreen({ version }: { version: string }) {
           ) : <p className="hint" aria-busy="true">Opening your settings…</p>}
         {offline && (
           <div className="settings-groups">
-            <LookSection />
+            <LookSection offline={offline} />
             <Leave offline={offline} device={device} />
           </div>
         )}
@@ -393,13 +422,13 @@ export function SettingsScreen({ version }: { version: string }) {
       </Section>
     ),
     phone: (
-      <Section key="phone" title="Phone" id="s-phone">
+      <Section key="phone" title="Other devices" id="s-phone">
         {phoneShows === 'connect' ? <PhoneAccess phone={settings.phone} /> : phoneShows === 'add-to-home-screen' && <p>{ADD_TO_HOME_SCREEN}</p>}
         <KeepRunning state={settings.background} device={device} offline={offline} />
         {computerOnly(device).cloudflare && settings.cloudflare && <CloudflareDoor door={settings.cloudflare} offline={offline} toast={toast} />}
       </Section>
     ),
-    device: <LookSection key="device" cameIn={settings.came_in} />,
+    device: <LookSection key="device" cameIn={settings.came_in} offline={offline} />,
     data: <DataSection key="data" settings={settings} profile={profile} device={device} />,
     leave: (
       <div key="leave" className="settings-foot">
@@ -427,7 +456,7 @@ function QuitButton({ onQuit, disabled, toast }: { onQuit(): Promise<void>; disa
   if (!confirming) return <button ref={back} className="btn btn-block btn-danger-quiet" disabled={disabled} onClick={() => setConfirming(true)}>Quit Nines</button>;
   return (
     <div className="confirm" role="alertdialog" aria-labelledby="quit-q" onKeyDown={confirmKeys(() => setConfirming(false))}>
-      <p id="quit-q"><strong>Quit Nines?</strong> Your phone won't be able to reach it until you start it again on this computer.</p>
+      <p id="quit-q"><strong>Quit Nines?</strong> Your phone and other devices won't be able to reach it until you start it again on this computer.</p>
       <div className="row">
         <button className="btn btn-danger" autoFocus onClick={() => onQuit().catch((e) => toast((e as Error).message, 'error'))}>Quit</button>
         <button className="btn" onClick={() => setConfirming(false)}>Cancel</button>

@@ -16,7 +16,6 @@ interface AppState {
   profile: Profile;
   offline: boolean;
   switchProfile(profile: Profile): Promise<void>;
-  logout(): Promise<void>;
   quit(): Promise<void>;
   toast(message: string, kind?: 'ok' | 'error'): void;
 }
@@ -44,7 +43,6 @@ export function useOffline(): boolean {
 interface Props {
   profile: Profile;
   onProfile(profile: Profile): void;
-  onLogout(): Promise<void>;
   onQuit(): Promise<void>;
   toast(message: string, kind?: 'ok' | 'error'): void;
   children: ReactNode;
@@ -60,7 +58,7 @@ export function ClosetProvider(props: Props) {
   );
 }
 
-function OpenCloset({ profile, onProfile, onLogout, onQuit, toast, children }: Props) {
+function OpenCloset({ profile, onProfile, onQuit, toast, children }: Props) {
   const qc = useQueryClient();
   const offline = useOffline();
 
@@ -132,8 +130,8 @@ function OpenCloset({ profile, onProfile, onLogout, onQuit, toast, children }: P
   }, [onProfile]);
 
   const value = useMemo<AppState>(() => ({
-    profile, offline, switchProfile, logout: onLogout, quit: onQuit, toast,
-  }), [profile, offline, switchProfile, onLogout, onQuit, toast]);
+    profile, offline, switchProfile, quit: onQuit, toast,
+  }), [profile, offline, switchProfile, onQuit, toast]);
 
   return (
     <Ctx.Provider value={value}>

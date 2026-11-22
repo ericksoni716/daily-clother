@@ -1,4 +1,4 @@
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, goToCloset, test, useProfile } from './fixtures';
 
 // "‹ Closet" goes Back: the closet comes back where you left it and history does not grow
 // (docs/assessment/ux-items.md, "5. Page transitions").
@@ -10,7 +10,7 @@ test.afterEach(async ({ page }) => {
 });
 
 test('the back link returns to the closet where you left it, without adding to history', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   const tiles = page.getByTestId('tile');
   await expect(tiles.first()).toBeVisible();
@@ -45,7 +45,7 @@ test('the back link returns to the closet where you left it, without adding to h
 });
 
 test('an item opened straight from its address goes back to the closet', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   const href = await page.getByTestId('tile').first().getAttribute('href');
   expect(href).toMatch(/^\/item\//);

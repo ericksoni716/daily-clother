@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from closet import app as app_module
 from closet import db, items, patjobs, tracejobs
 
-from .conftest import PASSPHRASE, FakeFinder, fake_cutter, photo_bytes, photo_for, pile_bytes, upload
+from .conftest import FakeFinder, fake_cutter, photo_bytes, photo_for, pile_bytes, upload
 from .test_patjobs import Measurer
 
 
@@ -24,7 +24,6 @@ def stand(cfg, claude):
                                    corrector=claude.correct, finder=FakeFinder(), measurer=m, landmarker=None)
     sv.worker.is_ready = lambda: True
     c = TestClient(app_module.create_app(sv))
-    assert c.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
     yield sv, c, m
     sv.stop()
 

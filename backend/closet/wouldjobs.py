@@ -181,8 +181,8 @@ class Checks:
 
 
 # ------------------------------------------------------------------ the routes
-def router(checks: Checks, protected: list) -> APIRouter:
-    r = APIRouter(dependencies=protected)
+def router(checks: Checks) -> APIRouter:
+    r = APIRouter()
 
     @r.post("/api/would-this-work", status_code=202)
     async def start(request: Request):

@@ -229,11 +229,9 @@ def test_a_real_closet_reports_both_models(cfg):
 
     from closet import app as app_module
 
-    from .conftest import PASSPHRASE
     sv = app_module.build_services(cfg, web_dir=None)
     try:
         client = TestClient(app_module.create_app(sv))
-        assert client.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
         body = client.get("/api/model").json()
         assert body["name"] == "isnet-general-use" and body["state"] == "missing"
         assert body["second"]["name"] == "u2net" and body["second"]["state"] == "missing"

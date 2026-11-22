@@ -1,6 +1,7 @@
-"""Who is asking through Tailscale (closet/tailnet.py): its headers, and on Windows, believing them only from the
-Tailscale service. The Windows questions are tested from byte fixtures, as Windows answers them; one test asks a real
+"""Who is asking through Tailscale (closet/tailnet.py): its headers, on Windows believing them unless Windows shows they
+did not come from the Tailscale service, and the gate refusing a Tailscale request that names no one. The Windows questions are tested from byte fixtures, as Windows answers them; one test asks a real
 Windows computer and runs only there."""
+import logging
 import os
 import socket
 import struct
@@ -9,9 +10,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from closet import app as app_module
-from closet import cli, tailnet
-
-from .conftest import PASSPHRASE
+from closet import cli, gate, tailnet
 
 TAILSCALE, OTHER = 4321, 9999
 PORT = 8765
@@ -50,17 +49,21 @@ def test_finds_who_owns_the_other_end():
 
 def test_believes_only_the_tailscale_service():
     check = tailnet.WindowsCheck(table=lambda: CONNECTIONS, tailscale_pids=lambda: {TAILSCALE})
-    assert check("127.0.0.1", 50001, PORT)
-    assert not check("127.0.0.1", 50002, PORT)
-    assert not check("127.0.0.1", 50009, PORT)
+    assert check("127.0.0.1", 50001, PORT) is True
+    assert check("127.0.0.1", 50002, PORT) is False
+    assert check("127.0.0.1", 50009, PORT) is False   # the connection is gone: Tailscale never drops one it waits on
 
 
-def test_believes_no_one_when_tailscale_is_not_running_or_windows_will_not_say():
-    assert not tailnet.WindowsCheck(table=lambda: CONNECTIONS, tailscale_pids=set)("127.0.0.1", 50001, PORT)
+def test_says_no_when_tailscale_is_not_running_and_cannot_tell_when_windows_will_not_say():
+    assert tailnet.WindowsCheck(table=lambda: CONNECTIONS, tailscale_pids=set)("127.0.0.1", 50001, PORT) is False
 
     def broken() -> bytes:
         raise OSError("no")
-    assert not tailnet.WindowsCheck(table=broken, tailscale_pids=lambda: {TAILSCALE})("127.0.0.1", 50001, PORT)
+    assert tailnet.WindowsCheck(table=broken, tailscale_pids=lambda: {TAILSCALE})("127.0.0.1", 50001, PORT) is None
+
+    def not_allowed() -> set[int]:
+        raise PermissionError("Access is denied")   # as when a copy started before sign-in may not ask for the service
+    assert tailnet.WindowsCheck(table=lambda: CONNECTIONS, tailscale_pids=not_allowed)("127.0.0.1", 50001, PORT) is None
 
 
 def test_the_service_and_the_engine_it_started_count_and_nothing_else():
@@ -105,38 +108,70 @@ def test_who_tailscale_says_is_asking(headers, viewer):
 
 
 def phone_client(services, check=None) -> TestClient:
-    client = TestClient(app_module.create_app(services, tailscale_check=check), base_url=f"https://{PHONE}")
-    assert client.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
-    return client
+    return TestClient(app_module.create_app(services, tailscale_check=check), base_url=f"https://{PHONE}")
 
 
 def came_in(client, headers=None) -> dict:
     return client.get("/api/settings", headers=headers or {}).json()["came_in"]
 
 
-def test_who_came_in_is_recorded_and_the_passphrase_is_still_asked(services):
+def refused(r) -> bool:
+    return r.status_code == 401 and r.json() == {"detail": gate.NO_TAILSCALE_VIEWER}
+
+
+def test_who_came_in_is_recorded_and_nothing_else_is_asked(services):
     def believed(host, port, server_port):
         return True
     phone = phone_client(services, believed)
     assert came_in(phone, ME) == {"via": "tailscale", "login": "owner@example.com", "name": "Sam Owner"}
-    # in this pull request a phone that names no one goes on to the passphrase as before
-    assert came_in(phone) == {"via": "tailscale", "login": None, "name": None}
-    phone.cookies.clear()
-    assert phone.get("/api/settings", headers=ME).status_code == 401
+    phone.cookies.clear()   # no cookie of any kind: Tailscale's word is the whole of this door
+    assert phone.get("/api/items", headers=ME).status_code == 200
+    assert phone.post("/api/profile", json={"profile": "demo"}, headers=ME).status_code == 200
+    assert not phone.cookies
 
 
-def test_tailscale_headers_from_anyone_but_tailscale_are_not_believed(services):
+def test_a_tailscale_request_that_names_no_one_is_refused(services):
+    phone = phone_client(services)
+    assert refused(phone.get("/api/settings"))
+    assert refused(phone.get("/api/session"))
+    assert refused(phone.post("/api/profile", json={"profile": "demo"}))
+    assert services.state.get("profile") == "main"   # refused before anything was done
+    page = phone.get("/settings")
+    assert page.status_code == 401 and page.headers["content-type"].startswith("text/html")
+    assert "<h1>Nines could not tell who you are</h1>" in page.text and "signed in to your Tailscale" in page.text
+    assert "open Nines on the computer it runs on" in page.text
+    assert phone.get("/api/health").status_code == 200   # the health check stays as it was
+    for half in ({"Tailscale-User-Name": "Sam Owner"}, {"Tailscale-User-Login": ""}):
+        assert refused(phone.get("/api/settings", headers=half))
+
+
+def test_tailscale_headers_from_anyone_but_tailscale_are_refused(services, caplog):
     asked = []
 
     def check(host, port, server_port):
         asked.append((host, port, server_port))
         return False
     phone = phone_client(services, check)
-    assert came_in(phone, ME) == {"via": "tailscale", "login": None, "name": None}
+    with caplog.at_level(logging.WARNING, logger="closet.gate"):
+        assert refused(phone.get("/api/settings", headers=ME))
+        assert phone.get("/", headers=ME).status_code == 401
     assert asked and asked[-1][1:] == (50000, 443)
+    assert sum("did not come from Tailscale" in r.message for r in caplog.records) == 1   # said once
     asked.clear()
-    assert came_in(phone) == {"via": "tailscale", "login": None, "name": None} and not asked   # nothing to ask about
-    assert phone.get("/api/health", headers=ME).status_code == 200 and not asked             # nor for the health check
+    assert refused(phone.get("/api/settings")) and not asked                          # nothing to ask about
+    assert phone.get("/api/health", headers=ME).status_code == 200 and not asked     # nor for the health check
+
+
+def test_when_windows_cannot_say_tailscales_word_is_believed(services, caplog):
+    """A lookup that fails is not a reason to shut the owner's phone out when Tailscale's headers are there."""
+    def cannot_tell(host, port, server_port):
+        return None
+    phone = phone_client(services, cannot_tell)
+    with caplog.at_level(logging.WARNING, logger="closet.gate"):
+        assert came_in(phone, ME) == {"via": "tailscale", "login": "owner@example.com", "name": "Sam Owner"}
+        assert came_in(phone, ME)["login"] == "owner@example.com"
+    assert sum("could not say" in r.message for r in caplog.records) == 1   # said once
+    assert refused(phone.get("/api/settings"))   # without the headers, still refused: there is no one to believe
 
 
 def test_tailscale_headers_under_a_local_name_are_ignored(client):
@@ -160,9 +195,8 @@ def test_a_forwarded_for_header_cannot_choose_the_address_checked(services):
     assert config.proxy_headers is False
     config.load()
     phone = TestClient(config.loaded_app, base_url=f"https://{PHONE}", client=("127.0.0.1", 50000))
-    assert phone.post("/api/setup", json={"passphrase": PASSPHRASE}).status_code == 204
     r = phone.get("/api/settings", headers={**ME, "X-Forwarded-For": "127.0.0.1:40000"})
-    assert r.json()["came_in"]["login"] is None and asked == [("127.0.0.1", 50000)]
+    assert refused(r) and asked == [("127.0.0.1", 50000)]
 
 
 @pytest.mark.windows
@@ -180,7 +214,7 @@ def test_windows_answers_the_questions():
         assert tailnet._service_pid("NoSuchServiceHere") is None
         check = tailnet.WindowsCheck(tailscale_pids=lambda: {os.getpid()})
         assert check(here, port, server.getsockname()[1])
-        assert not tailnet.WindowsCheck()(here, port, server.getsockname()[1])   # this process is not Tailscale
+        assert tailnet.WindowsCheck()(here, port, server.getsockname()[1]) is False   # this process is not Tailscale
     finally:
         client.close()
         server.close()

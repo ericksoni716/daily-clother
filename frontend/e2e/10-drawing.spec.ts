@@ -1,4 +1,4 @@
-import { expect, openFold, PASS, PHOTOS, test } from './fixtures';
+import { expect, openFold, PHOTOS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
 // Its own backend, with stand-ins for the model and for Claude: nothing here reaches the real Claude.
@@ -15,10 +15,7 @@ test.describe('the drawing, with a stand-in for Claude', () => {
   test('a new item gets its drawing, which follows a change of colour', async ({ page }) => {
     test.setTimeout(150_000);
     await page.goto(backend.url + '/');
-    await page.getByLabel('Passphrase', { exact: true }).fill(PASS);
-    await page.getByLabel('Type it again').fill(PASS);
-    await page.getByRole('button', { name: 'Set passphrase' }).click();
-    await page.getByRole('button', { name: 'Start with my own closet' }).click();
+    await expect(page.locator('#closet-title')).toBeVisible();
 
     await page.goto(backend.url + '/add');
     await page.getByTestId('library-input').setInputFiles(`${PHOTOS}graphic-tee.jpg`);

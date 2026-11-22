@@ -665,16 +665,6 @@ def test_the_demo_closet_can_be_corrected_by_picking_but_is_never_sent_to_claude
     assert [e["kind"] for e in history(client, mine["id"])] == ["detail", "answer"]
 
 
-def test_correcting_needs_login(anon):
-    assert anon.get("/api/items/x/details").status_code == 401
-    assert anon.get("/api/items/x/details/collar").status_code == 401
-    assert anon.put("/api/items/x/details", json={"details": {"collar": "band"}}).status_code == 401
-    assert anon.post("/api/items/x/correct", json={"sentence": "it has two buttons"}).status_code == 401
-    assert anon.post("/api/items/x/correct/confirm", json={"sentence": "a", "changes": []}).status_code == 401
-    assert anon.get("/api/items/x/history").status_code == 401
-    assert anon.post("/api/items/x/history/1/undo").status_code == 401
-
-
 def test_the_migration_runs_on_a_closet_made_by_the_previous_version(cfg):
     path = cfg.db_path("main")
     path.parent.mkdir(parents=True, exist_ok=True)

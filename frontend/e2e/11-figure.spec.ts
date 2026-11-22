@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, goToCloset, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page }) => {
   await page.unrouteAll({ behavior: 'ignoreErrors' });
@@ -16,7 +16,7 @@ async function coldDay(page: Page) {
 
 test('today: switching to the outfit as worn shows it drawn, and the choice is remembered', async ({ page }) => {
   await coldDay(page);
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.goto('/today');
   const outfit = page.getByTestId('current-outfit');
@@ -56,7 +56,7 @@ test('today: switching to the outfit as worn shows it drawn, and the choice is r
 
 test('today: a layered outfit is dressed a layer at a time once in sight, and at once when the device asks for less motion', async ({ page }) => {
   await coldDay(page);
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   const asked: Record<string, unknown>[] = [];
   page.on('request', (r) => { if (r.url().endsWith('/api/outfits/figure')) asked.push(r.postDataJSON()); });

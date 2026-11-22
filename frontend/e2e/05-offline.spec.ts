@@ -1,4 +1,4 @@
-import { expect, login, openFold, serviceWorkerInCharge, test, useProfile } from './fixtures';
+import { expect, goToCloset, openFold, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page, context }) => {
   await context.setOffline(false);
@@ -6,7 +6,7 @@ test.afterEach(async ({ page, context }) => {
 });
 
 test('offline: the saved closet still opens, read-only, with a banner', async ({ page, context }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await serviceWorkerInCharge(page);
   // load once while the service worker is in charge so the data and pictures are saved
@@ -52,30 +52,40 @@ test('offline: the saved closet still opens, read-only, with a banner', async ({
 });
 
 test('settings opened offline recover when the computer is reachable again', async ({ page, context }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.waitForLoadState('networkidle');
   await context.setOffline(true);
   await page.locator('nav.sidebar').getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(page.getByText("You're offline, so settings can't be shown or changed right now.")).toBeVisible();
-  // the server cannot end the login while it is out of reach, so Log out waits rather than only looking done
-  await expect(page.getByRole('button', { name: 'Log out' })).toBeDisabled();
+  // offline the saved copy is all this device has to show, so it cannot be forgotten then
+  await page.getByTestId('saved-copies').locator('summary').click();
+  await expect(page.getByRole('button', { name: 'Forget saved copies' })).toBeDisabled();
   await context.setOffline(false);
   await expect(page.getByText('Offline: showing your saved closet')).toBeHidden({ timeout: 15_000 });
   await expect(page.getByRole('switch', { name: 'Let Claude choose my outfits' })).toBeEnabled();
-  await expect(page.getByRole('button', { name: 'Log out' })).toBeEnabled();
+  await page.getByTestId('saved-copies').locator('summary').click();
+  await expect(page.getByRole('button', { name: 'Forget saved copies' })).toBeEnabled();
 });
 
-test('logging out clears the saved closet', async ({ page }) => {
-  await login(page);
+test("forgetting this device's saved copies clears the saved closet, and the closet stays as it is", async ({ page }) => {
+  await goToCloset(page);
   await serviceWorkerInCharge(page);
   await page.reload();
   await expect(page.locator('#closet-title')).toBeVisible();
   await page.waitForLoadState('networkidle');
   expect(await page.evaluate(async () => (await caches.keys()).includes('closet-data'))).toBe(true);
+  await page.evaluate(() => localStorage.setItem('closet-today-saved:outfits:main', '{}'));   // something Today kept
   await page.goto('/settings');
-  await page.getByRole('button', { name: 'Log out' }).click();
-  await expect(page.getByRole('heading', { name: 'Welcome back to Nines' })).toBeVisible();
+  const fold = page.getByTestId('saved-copies');
+  await fold.locator('summary').click();
+  await expect(fold).toContainText('Forgetting it leaves your closet on the computer as it is.');
+  await fold.getByRole('button', { name: 'Forget saved copies' }).click();
+  await expect(page.getByText('This device has forgotten its saved copies.')).toBeVisible();
   const names = await page.evaluate(() => caches.keys());
   expect(names.filter((n) => n === 'closet-data' || n === 'closet-media')).toEqual([]);
+  expect(await page.evaluate(() => localStorage.getItem('closet-today-saved:outfits:main'))).toBeNull();
+  expect(names.some((n) => n.startsWith('closet-shell-'))).toBe(true);   // the app itself still opens offline
+  await expect(page.getByRole('region', { name: 'This device', exact: true })).toBeVisible();   // nothing to sign in to
+  expect((await page.request.get('/api/items')).ok()).toBe(true);
 });

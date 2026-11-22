@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, login, serviceWorkerInCharge, signIn, test, useProfile } from './fixtures';
+import { expect, goToCloset, serviceWorkerInCharge, test, useProfile } from './fixtures';
 
 /** Takes every wish off the demo closet's list, its own two examples too, so each test starts from an empty list. */
 async function undoWishes(page: Page) {
@@ -10,7 +10,6 @@ async function undoWishes(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await signIn(page.request);
   await undoWishes(page);
   await page.request.post('/api/profile', { data: { profile: 'main' } });
 });
@@ -22,7 +21,7 @@ test.afterEach(async ({ page, context }) => {
 });
 
 async function openMissing(page: Page) {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.goto('/wardrobe');
   await expect(page.getByTestId('gap').first()).toBeVisible({ timeout: 30_000 });
@@ -201,7 +200,7 @@ test('would this work? is off while offline, with the same words as the other bu
 for (const [label, viewport] of [['computer', { width: 1280, height: 800 }], ['phone', { width: 390, height: 844 }]] as const) {
   test(`screenshot of an answer to would this work? on a ${label} (${viewport.width}×${viewport.height})`, async ({ page }, testInfo) => {
     await page.setViewportSize(viewport);
-    await login(page);
+    await goToCloset(page);
     await useProfile(page, 'demo');
     await page.goto('/wardrobe/check');
     await checkCoat(page);

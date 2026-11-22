@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, goToCloset, test, useProfile } from './fixtures';
 
 test.afterEach(async ({ page }) => {
   await page.request.put('/api/settings', { data: { show_drawings: false } });
@@ -22,7 +22,7 @@ async function setInSettings(page: Page, on: boolean) {
 }
 
 test('Show drawings instead of photos: set in Settings, followed by the closet and an item page, and off again', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   await page.goto('/');
   await expect(tilePics(page).first()).toBeVisible();

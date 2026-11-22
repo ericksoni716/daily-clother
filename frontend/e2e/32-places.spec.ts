@@ -1,4 +1,4 @@
-import { expect, login, test, useProfile } from './fixtures';
+import { expect, goToCloset, test, useProfile } from './fixtures';
 
 // Four places and Add (docs/DECISIONS.md, "Four places and Add"): the old addresses of the places that were merged
 // away still land somewhere sensible, after a reload too, and Back returns from them; each place's back link goes
@@ -17,7 +17,7 @@ const MOVED: [from: string, to: RegExp, ready: string][] = [
 ];
 
 test('every old address lands on its new place, stays there after a reload, and Back returns', async ({ page }) => {
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   for (const [from, to, ready] of MOVED) {
     await page.goto('/settings');
@@ -41,7 +41,7 @@ test('every old address lands on its new place, stays there after a reload, and 
 
 test('on a phone: Worn, Trips and the review are one level down in their place, and their back links go Back', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await login(page);
+  await goToCloset(page);
   await useProfile(page, 'demo');
   const tabbar = page.locator('nav.tabbar');
   const lit = tabbar.locator('[aria-current="page"]');

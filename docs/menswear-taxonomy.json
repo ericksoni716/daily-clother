@@ -2421,6 +2421,39 @@
     "cleats"
    ]
   },
+  "tennis_shoe": {
+   "category": "footwear",
+   "app_style": "low_sneaker",
+   "signature": "Court shoe: herringbone outsole, reinforced toe drag guard, stable cupsole",
+   "sole": [
+    "cupsole"
+   ],
+   "toe_treatment": [
+    "rubber_toe_cap"
+   ],
+   "upper": [
+    "synthetic_leather",
+    "knit_mesh"
+   ]
+  },
+  "golf_shoe": {
+   "category": "footwear",
+   "app_style": "low_sneaker",
+   "signature": "Spiked or spikeless (dimpled nubs) outsole; sneaker, saddle or derby look",
+   "sole": [
+    "studded_rubber",
+    "cleats"
+   ],
+   "lacing": [
+    "open_derby",
+    "closed_oxford"
+   ],
+   "upper": [
+    "synthetic_leather",
+    "smooth_calf",
+    "knit_mesh"
+   ]
+  },
   "chunky_sneaker": {
    "category": "footwear",
    "app_style": "runner",

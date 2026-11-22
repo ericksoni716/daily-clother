@@ -9,8 +9,9 @@ kind, so choosing a kind never changes what the rest of the app means by "a
 shirt" or "boots".
 
 The owner's kind is kept with their other details (`items.own_details`, under
-`garment`), so "Describe it again" never undoes it; Claude's is the tagger's
-`details.garment` (or, for a shoe, a footwear id among the words it saw). Each
+`garment`, or for a shoe the kind of shoe among its details), so "Describe it
+again" never undoes it; Claude's is the tagger's `details.garment` (or, for a
+shoe, a footwear id among the words it saw, else its `details.footwear`). Each
 kind is shown in a group made from its taxonomy category, never from a list kept
 by hand. A test keeps the tables here equal to the JSON.
 """
@@ -157,6 +158,8 @@ KINDS: dict[str, tuple[str, str]] = {
     'trainer': ('footwear', 'Flat stable sole, mesh with overlays'),
     'canvas_slip_on': ('footwear', 'Elastic gussets, vulcanized sole'),
     'cleats': ('footwear', 'Molded studs'),
+    'tennis_shoe': ('footwear', 'Court shoe: herringbone outsole, reinforced toe drag guard, stable cupsole'),
+    'golf_shoe': ('footwear', 'Spiked or spikeless (dimpled nubs) outsole; sneaker, saddle or derby look'),
     'chunky_sneaker': ('footwear', 'Very thick layered midsole, many overlays'),
     'boat_shoe': ('footwear', 'Moccasin apron, rawhide laces around the collar, siped sole'),
     'camp_moc': ('footwear', 'Boat-shoe style, 2 eyelets, lug sole'),
@@ -266,6 +269,7 @@ WORDS = {
     "moc_toe_boot": "moc-toe boot", "chukka": "chukka boot", "canvas_low_top": "canvas low-top",
     "canvas_high_top": "canvas high-top", "flip_flop": "flip-flops", "trainer": "gym trainer",
     "canvas_slip_on": "canvas slip-on", "driving_moc": "driving moccasin", "camp_moc": "camp moccasin", "eyewear": "glasses", "cleats": "studded boots",
+    "tennis_shoe": "tennis shoes", "golf_shoe": "golf shoes",
 }
 # common words a kind goes by, for the search ("trainers", "jumper", "tee")
 ALSO = {
@@ -282,6 +286,8 @@ ALSO = {
     "lounge_sweatsuit": "tracksuit", "running_shoe": "trainers sneakers", "trainer": "trainers sneakers gym",
     "leather_court_sneaker": "trainers sneakers", "canvas_low_top": "trainers sneakers", "canvas_high_top": "sneakers",
     "retro_runner": "trainers sneakers", "trail_runner": "trainers", "chunky_sneaker": "trainers dad shoe",
+    "tennis_shoe": "court trainers sneakers padel pickleball sport", "golf_shoe": "golfing spikes spikeless sport",
+    "cleats": "football soccer boots sport",
     "flip_flop": "thongs", "slide": "sliders", "brogue": "wingtip", "cap": "baseball hat", "beanie": "hat toque",
     "brimmed_hat": "fedora hat", "bag": "backpack tote", "eyewear": "sunglasses", "socks": "sock",
 }
@@ -359,31 +365,44 @@ def owner_kind(row) -> str | None:
     """The kind the owner chose, or None."""
     own = _json(row["own_details"] if "own_details" in row.keys() else None) or {}
     kind = own.get("garment")
-    return kind if kind in KINDS else None
+    return kind if isinstance(kind, str) and kind in KINDS else None
+
+
+def _owner_shoe(row) -> str | None:
+    """For a shoe, the kind of shoe the owner set among its details ("kind of shoe" in Fix the details), or None."""
+    own = _json(row["own_details"] if "own_details" in row.keys() else None) or {}
+    kind = own.get("footwear")
+    return kind if isinstance(kind, str) and kind in FOOTWEAR and row["category"] in draw.SHOES else None
 
 
 def said_kind(answer) -> str | None:
-    """The kind in Claude's answer: its garment, its accessory, or for a shoe a footwear id among the words it saw."""
+    """The kind in Claude's answer: its garment, its accessory, or for a shoe a footwear id among the words it saw,
+    else the kind of shoe it named (`footwear`), as the drawing reads them."""
     found = answer.get("details") if isinstance(answer, dict) else None
     if not isinstance(found, dict):
         return None
-    if found.get("garment") in KINDS:
-        return found["garment"]
-    if found.get("accessory") in ACCESSORIES and ACCESSORIES[found["accessory"]] == answer.get("category"):
-        return found["accessory"]
+    said = {k: v for k, v in found.items() if isinstance(v, str)}   # an answer stored broken says nothing
+    if said.get("garment") in KINDS:
+        return said["garment"]
+    if said.get("accessory") in ACCESSORIES and ACCESSORIES[said["accessory"]] == answer.get("category"):
+        return said["accessory"]
     if answer.get("category") in draw.SHOES:
-        for w in found.get("other_features") or []:
+        words = found.get("other_features")
+        for w in words if isinstance(words, list) else []:
             if isinstance(w, str):
                 for fid in FOOTWEAR:
                     if _say(fid) in _say(w):
                         return fid
+        if said.get("footwear") in FOOTWEAR:
+            return said["footwear"]
     return None
 
 
 def of_row(row) -> dict:
-    """The item's kind, who said it ("owner" or "claude") and how sure Claude was. Claude's kind is shown only
-    while the item is still the sort of garment Claude saw (a top, a bottom or a shoe)."""
-    mine = owner_kind(row)
+    """The item's kind, who said it ("owner" or "claude") and how sure Claude was. The owner's is the kind they chose,
+    or for a shoe the kind of shoe they set among its details. Claude's kind is shown only while the item is still
+    the sort of garment Claude saw (a top, a bottom or a shoe)."""
+    mine = owner_kind(row) or _owner_shoe(row)
     if mine:
         return {"kind": mine, "by": "owner", "confidence": None}
     answer = _json(row["tag_answer"])
@@ -481,13 +500,16 @@ def _accessory_kind_fits(kind: str, value) -> bool:
 
 
 def conform(found: dict, kind: str | None, said: str | None, owner: dict) -> dict:
-    """The details an item is drawn from, made to fit the kind the owner chose. A shoe takes the kind's style and
-    footwear id; a top that is now another kind than Claude saw keeps what Claude saw where the kind allows it and
-    takes the kind's own signature elsewhere; details the kind does not have are drawn plain."""
+    """The details an item is drawn from, made to fit the kind the owner chose. A shoe of another kind than Claude
+    named takes the kind's style and footwear id; a top that is now another kind than Claude saw keeps what Claude saw
+    where the kind allows it and takes the kind's own signature elsewhere; details the kind does not have are drawn
+    plain. The kind Claude named, made the owner's word (as "That's right" in the review does), changes nothing."""
     if kind not in KINDS:
         return found
     out = dict(found)
     if kind in FOOTWEAR:
+        if kind == said:   # the kind of shoe Claude named: drawn from what Claude saw (a golf shoe's spikes, its derby)
+            return out
         out["garment"] = "unknown"
         if "shoe_style" not in owner:
             out["shoe_style"] = FOOTWEAR[kind][0]

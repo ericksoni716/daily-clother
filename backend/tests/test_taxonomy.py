@@ -767,6 +767,11 @@ def test_the_footwear_table_follows_the_taxonomy():
     ("sandal", ["sandal", "ankle strap"], "sandal", {"sandal": "strap"}),
     ("sandal", ["flip_flop"], "sandal", {"sandal": "thong"}),
     ("runner", ["embroidered logo"], "runner", {}),
+    ("na", ["tennis shoe"], "low_sneaker", {"toe_cap": "rubber", "collar_pad": True}),
+    ("derby", ["tennis_shoe"], "low_sneaker", {"toe_cap": "rubber", "collar_pad": True}),
+    ("low_sneaker", ["golf shoe"], "low_sneaker", {"tread": "studded"}),
+    ("derby", ["golf shoe"], "derby", {"tread": "studded"}),   # a golf shoe in a derby's lacing stays a derby
+    ("runner", ["golf_shoe"], "low_sneaker", {"tread": "studded"}),
 ])
 def test_the_taggers_shoe_words_choose_the_drawing(style, words, want_style, want):
     from closet.tagger.taxonomy import shoe_words

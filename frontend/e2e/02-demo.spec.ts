@@ -95,6 +95,50 @@ test('item detail: switch pictures, change a chip, it persists', async ({ page }
   await expect(page.locator('.detail-panel').getByRole('textbox', { name: 'Notes for you and Claude' })).toHaveValue('Warmest shirt I own');
 });
 
+test('formality: a piece can be either of two levels next to each other', async ({ page }) => {
+  await goToCloset(page);
+  await useProfile(page, 'demo');
+  await page.getByTestId('tile').filter({ hasText: 'Burgundy penny loafers' }).click();
+  const panel = page.locator('.detail-panel');
+  await openFold(panel, 'Details');
+  const stored = () => page.waitForResponse((r) => r.request().method() === 'PATCH' && r.url().includes('/api/items/') && r.ok());
+
+  // smart casual, and business too: the row says both, the lower first
+  await panel.getByRole('button', { name: 'Formality: Smart casual' }).click();
+  const also = panel.getByRole('group', { name: 'It can also be' });
+  await expect(also.getByRole('button')).toHaveText(['Casual', 'Business']);
+  let answer = stored();
+  await also.getByRole('button', { name: 'Business' }).click();
+  await answer;
+  await expect(panel.getByRole('button', { name: 'Formality: Smart casual to business' })).toBeVisible();
+
+  await page.reload();
+  const again = page.locator('.detail-panel');
+  await openFold(again, 'Details');
+  await again.getByRole('button', { name: 'Formality: Smart casual to business' }).click();
+  await expect(again.getByRole('group', { name: 'It can also be' }).getByRole('button', { name: 'Business' }))
+    .toHaveAttribute('aria-pressed', 'true');
+
+  // on a phone the two choices open in a sheet over the page; choosing a level makes it one level again
+  const items = (await (await page.request.get('/api/items?q=penny')).json()).items as { id: string }[];
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto(`/item/${items[0].id}`);
+  await openFold(page, 'Details');
+  const row = page.getByRole('button', { name: 'Formality: Smart casual to business' });
+  await row.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath('formality-row-phone.png') });
+  await row.click();
+  const sheet = page.getByRole('dialog', { name: 'Formality' });
+  await expect(sheet.getByRole('group', { name: 'It can also be' }).getByRole('button', { name: 'Business' }))
+    .toHaveAttribute('aria-pressed', 'true');
+  await sheet.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((a) => a.finished)));
+  await page.screenshot({ path: test.info().outputPath('formality-phone.png') });
+  answer = stored();
+  await sheet.getByRole('group', { name: 'Formality' }).getByRole('button', { name: 'Business', exact: true }).click();
+  await answer;
+  await expect(page.getByRole('button', { name: 'Formality: Business' })).toBeVisible();
+});
+
 test('trousers: the drawing comes with a small one from the back', async ({ page }) => {
   await goToCloset(page);
   await useProfile(page, 'demo');

@@ -134,6 +134,9 @@ export interface Item extends ItemSummary {
   kind_confidence?: number | null;
   kind_alternatives?: string[];
   formality: string | null;
+  /** the level right below or above `formality` it can also be worn at (a penny loafer: smart casual, also business);
+   * null for one level */
+  formality_also?: string | null;
   season: string | null;
   brand: string | null;
   /** when you last went through what it is, its name, brand and price; null: added and not checked yet */

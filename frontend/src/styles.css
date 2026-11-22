@@ -709,6 +709,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
 .detail-row-label { flex: none; width: 40%; max-width: 10rem; font-family: var(--font-label); color: var(--label-ink); font-size: var(--text-xs); font-weight: var(--weight-label); text-transform: uppercase; letter-spacing: 0.08em; }
 .detail-row-value { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--space-2); }
 .detail-row-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.detail-row-text.is-wrapping { white-space: normal; }
 .detail-row-value.is-empty { color: var(--ink-3); }
 .detail-row-chevron { width: 18px; height: 18px; flex: none; color: var(--ink-4); transition: transform var(--dur-quick) var(--ease-out); }
 .detail-row-button:hover:not(:disabled) .detail-row-chevron { color: var(--ink-2); }
@@ -722,6 +723,9 @@ button, input, textarea, select { font: inherit; color: inherit; }
 /* a second group under the first (a colour's shades under the colours) is named, so the two read apart */
 .detail-editor .chip-group + .chip-group { margin-top: var(--space-5); }
 .detail-editor .chip-group + .chip-group .chip-group-title { position: static; width: auto; height: auto; overflow: visible; clip: auto; white-space: normal; }
+/* the level a formality can also be: a second group under the first, named, as the row names only the first */
+.formality-also { margin-top: var(--space-4); }
+.detail-editor .formality-also .chip-group-title { position: static; width: auto; height: auto; overflow: visible; clip: auto; white-space: normal; }
 
 .chip-group-title { font-family: var(--font-label); font-size: var(--text-xs); font-weight: var(--weight-heading); color: var(--label-ink); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
 .chip-group .chips { gap: 7px; }

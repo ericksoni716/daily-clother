@@ -50,7 +50,8 @@ export function ClosetScreen({ status, selectedId, wide, toReview = null }: Prop
   const [kind, setKind] = useState<string | null>(kept.kind);
   const [query, setQuery] = useState(kept.query);
   const [laundry, setLaundry] = useState<Laundry | null>(kept.laundry);
-  // "Needs a check": only the pieces with a detail Claude was unsure of (the review queue, read once for the count too)
+  // "Needs a check": the pieces added and not checked yet, and those with a detail Claude was unsure of (the review
+  // queue, read once for the count too)
   const [check, setCheck] = useState(kept.check);
   useEffect(() => {
     filterMemory.set(memoryKey, { category, group, kind, query, laundry, check });

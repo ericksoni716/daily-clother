@@ -16,7 +16,7 @@ import { Link, navigate, useMediaQuery } from '../router';
 import { sourceLine } from '../several';
 import { aboutUsd, importLine } from '../spend';
 import { progressOf } from '../progress';
-import { itemSaved, itemsQuery, useItems, useProgress } from '../queries';
+import { itemSaved, itemsQuery, reviewQuery, useItems, useProgress } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { useApp } from '../store';
 import { photoRoom, shoeAddedLine } from '../shoe';
@@ -320,6 +320,9 @@ export function AddScreen() {
   }, [needArchived, qc]);
   const work = useProgress();
   const waitsBecause = waitingReason(queue.map((e) => progressOf(itemOf(e), work)));
+  // once a piece just added is described it is in the review, to say what it is, its name, brand and price
+  const review = useQuery({ ...reviewQuery(), enabled: !offline && queue.length > 0 }).data;
+  const toCheck = !!review && queue.some((e) => e.status === 'done' && review.items.some((i) => i.id === itemOf(e)?.id));
 
   const counts = countEntries(queue);
   const pending = counts.waiting + counts.uploading;
@@ -632,7 +635,10 @@ export function AddScreen() {
           </ul>
           {!pending && counts.missing === 0 && (
             <div className="row queue-done">
-              {queue.some((e) => e.status === 'done' && !e.sourceId) && <Link to="/" className="btn btn-primary">See them in your closet</Link>}
+              {toCheck && <Link to="/review" className="btn btn-primary" data-testid="check-added">Check them one at a time</Link>}
+              {queue.some((e) => e.status === 'done' && !e.sourceId) && (
+                <Link to="/" className={`btn${toCheck ? '' : ' btn-primary'}`}>See them in your closet</Link>
+              )}
               {counts.failed > 1 && <button className="btn" onClick={() => uploads.retryFailed()}>Retry all that didn't work</button>}
               <button className="btn btn-ghost" onClick={clearFinished}>Clear list</button>
             </div>

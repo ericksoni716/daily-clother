@@ -3,8 +3,12 @@
 .review { max-width: var(--content-w); }
 .review-card { display: grid; gap: 18px; }
 .review-picture { margin: 0 auto; }
+/* on a phone the picture is smaller, so the name, what it is, the brand and the price are in the first screen */
+@media (max-width: 999px) { .review-card .review-picture { max-width: 13rem; } }
 .review-skeleton { margin: 0 auto; }
-.review-name { font-size: var(--text-lg); margin: 0 0 4px; }
+.review-name { margin: 0 0 var(--space-1); }
+.review-name .name-field input { font-size: var(--text-lg); }
+.review-body .essentials { margin-bottom: var(--space-4); }
 .review-body > .muted { margin: 0 0 14px; }
 .review-fields { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
 .review-field { padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid transparent; }

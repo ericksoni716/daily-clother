@@ -4,14 +4,14 @@ import { api, ApiError } from '../api';
 import { ChipGroup } from '../components/ui/Chips';
 import { BackLink, confirmKeys, Notice, PHONE, Section, SegmentedControl, Sheet, useConfirmFocus } from '../components/ui';
 import { FixDetails, ItemHistory } from '../components/FixDetails';
-import { KindPicker } from '../components/KindPicker';
+import { WhatItIs } from '../components/WhatItIs';
 import { RetakeButton } from '../components/RetakeButton';
 import { ShoeDrawn } from '../components/ShoeDrawn';
 import { ShoePhotos } from '../components/ShoePhotos';
 import { TraceNotice } from '../components/ShoeTrace';
 import { ProgressStrip } from '../components/Progress';
 import { BackIcon, ChevronIcon, HangerIcon, InfoIcon, WarnIcon } from '../components/Icons';
-import { FIELD_TITLES, formatPrice, label, shadeLabel, measuredColours, parsePrice, ratingLabel, SWATCH, swatchOf } from '../labels';
+import { FIELD_TITLES, formatPrice, label, shadeLabel, measuredColours, parsePrice, PRICE_HINT, ratingLabel, SWATCH, swatchOf } from '../labels';
 import { fixLabel, lastFoldTitle } from '../look';
 import { LookLine, NotesBox, useFieldText } from '../components/ItemAbout';
 import { SaveLine, useWhenLeaving } from '../leave';
@@ -21,9 +21,7 @@ import { queryKeys, type EditKind } from '../queryKeys';
 import { useApp } from '../store';
 import { notInDrawing, useShowDrawings } from '../drawing';
 import { busy, drawingOnItsWay, drawingPlaceholder } from '../progress';
-import { kindDrawing, kindLine, type KindGroup } from '../kinds';
 import { retakeOffer, retakeSaid } from '../retake';
-import { sureText } from '../review';
 import type { Item, ItemPatch, PatternColour, Progress } from '../types';
 import { localDay, sinceWash, wearDay, wearSummary } from '../wears';
 
@@ -139,9 +137,10 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           {away && <Notice as="p">You're offline, so this item can't be changed right now. Its full details show once Nines can be reached again.</Notice>}
           <header className="detail-head">
             <h2 className="detail-title"><span className="name-field name-field-static">{summary.name || label('category', summary.category) || 'Item'}</span></h2>
-            <LookLine item={summary} disabled />
-            <button type="button" className="btn btn-link fix-open" disabled>{fixLabel(profile === 'demo')}</button>
           </header>
+          <section className="essentials" aria-label="What it is, brand and price">
+            <WhatItIs item={{ ...summary, kind_by: null, kind_confidence: null }} groups={vocab?.kind_groups} disabled />
+          </section>
         </article>
       );
     }
@@ -179,11 +178,8 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       <DetailTop inPanel={inPanel} backTo={backTo} />
       {locked && <Notice as="p">You're offline, so this item can't be changed right now.</Notice>}
 
+      {/* 1. the picture and the name, the name typed over in place; what went wrong with the picture sits under it */}
       <Picture item={item} progress={progress} />
-      <TraceNotice item={item} disabled={locked} onSaved={fixed} onError={failed} />
-      <ShoePhotos item={item} disabled={locked} onSaved={fixed} onError={failed} />
-      <ShoeDrawn item={item} disabled={locked} demo={demo} onSaved={fixed} onError={failed} />
-
       {item.pattern_state === 'failed' && item.pattern_error && (
         <div className="tag-note pattern-failed" data-testid="pattern-failed">
           <p className="muted">{item.pattern_error}</p>
@@ -218,11 +214,27 @@ export function ItemDetail({ id, status, inPanel }: Props) {
           <NameField value={item.name} placeholder={label('category', item.category) || 'Name this item'} disabled={locked}
             onSave={(name) => save({ name })} />
         </h2>
-        <LookLine item={item} disabled={locked} onPick={openFix} />
-        <FixDetails item={item} label={fixLabel(demo)} open={fixing} focus={focus} demo={demo} disabled={locked}
-          onOpen={() => openFix(null)} onClose={() => setFixing(false)} onSaved={fixed} onError={failed} />
       </header>
 
+      {/* 2. the essentials, gone through on every new piece: what it is, its brand and its price */}
+      <section className="essentials" aria-label="What it is, brand and price" data-testid="essentials">
+        <WhatItIs item={item} groups={vocab.kind_groups} disabled={locked} onPick={async (kind) => {
+          if (kind.id === item.kind && item.kind_by === 'owner') return true;
+          try {
+            fixed(await api.setKind(item.id, kind.id), `What it is: ${kind.name}`);
+            return true;
+          } catch (e) {
+            failed((e as ApiError).message);
+            return false;
+          }
+        }} />
+        <div className="essentials-fields">
+          <TextField label="Brand" value={item.brand} disabled={locked} onSave={(v) => save({ brand: v })} />
+          <PriceField cents={item.price_cents} disabled={locked} onSave={(c) => save({ price_cents: c })} toastError={(m) => toast(m, 'error')} />
+        </div>
+      </section>
+
+      {/* 3. its state: worn, washed; then what you think of it */}
       <WearPanel item={item} disabled={locked}
         onWear={() => act(() => api.wear(id), 'wear', 'Noted: worn today')}
         onUnwear={(day, said) => act(() => api.unwear(id, day), 'wear', said)}
@@ -234,11 +246,20 @@ export function ItemDetail({ id, status, inPanel }: Props) {
         <NotesBox item={item} disabled={locked} onSave={(patch) => save(patch)} />
       </Section>
 
+      {/* 4. how it looks: the description the drawing is made from, fixing it, a shoe's drawings by Claude */}
+      <section className="detail-looks" aria-labelledby={`looks-${item.id}`} data-testid="how-it-looks">
+        <h3 className="chip-group-title" id={`looks-${item.id}`}>How it looks</h3>
+        <LookLine item={item} disabled={locked} onPick={openFix} />
+        <FixDetails item={item} label={fixLabel(demo)} open={fixing} focus={focus} demo={demo} disabled={locked}
+          onOpen={() => openFix(null)} onClose={() => setFixing(false)} onSaved={fixed} onError={failed} />
+        <TraceNotice item={item} disabled={locked} onSaved={fixed} onError={failed} />
+        <ShoeDrawn item={item} disabled={locked} demo={demo} onSaved={fixed} onError={failed} />
+      </section>
+
       <details className="more detail-fold" data-testid="details-fold">
         <summary>Details</summary>
         <Editing.Provider value={{ editing, setEditing }}>
           <ul className="detail-rows">
-            <KindRow item={item} groups={vocab.kind_groups} disabled={locked} onSaved={fixed} onError={failed} />
             <DetailRow field="color" value={shadeLabel(label('color', item.color), item.shade)} swatch={item.color ? (item.color_hex ?? swatchOf(item.color)) : undefined} disabled={locked}>
               {(done) => <ChipGroup field="color" options={vocab.color} value={item.color} disabled={locked} swatches
                 onChange={(v) => { done(); void save({ color: v, color_hex: v ? (SWATCH[v]?.startsWith('#') ? SWATCH[v] : null) : null }); }} />}
@@ -261,16 +282,17 @@ export function ItemDetail({ id, status, inPanel }: Props) {
       </details>
 
       <details className="more">
-        <summary>Shopping facts</summary>
+        <summary>Size, material and more</summary>
         <div className="more-body">
-          <TextField label="Brand" value={item.brand} disabled={locked} onSave={(v) => save({ brand: v })} />
           <TextField label="Size" value={item.size} disabled={locked} onSave={(v) => save({ size: v })} />
           <TextField label="Material" value={item.material} disabled={locked} placeholder="e.g. cotton, wool blend" onSave={(v) => save({ material: v })} />
-          <PriceField cents={item.price_cents} disabled={locked} onSave={(c) => save({ price_cents: c })} toastError={(m) => toast(m, 'error')} />
           <TextField label="Date acquired" type="date" value={item.acquired_on} disabled={locked} onSave={(v) => save({ acquired_on: v })} />
           <ChipGroup field="condition" options={vocab.condition} value={item.condition} disabled={locked} onChange={(v) => save({ condition: v })} />
         </div>
       </details>
+
+      {/* 5. the photos last: a shoe's other views, and which of them shows the outside */}
+      <ShoePhotos item={item} disabled={locked} onSaved={fixed} onError={failed} />
 
       <ItemHistory item={item} disabled={locked} onSaved={fixed} onError={failed} />
 
@@ -345,67 +367,6 @@ function DetailRow({ field, value, swatch, extra, extraWords, disabled, children
       {open && (
         <Sheet title={title} className="detail-editor" onClose={() => setEditing(null)}>
           <div id={editorId}>{children(done)}</div>
-        </Sheet>
-      )}
-    </li>
-  );
-}
-
-/**
- * "What is it?": the item's kind from the owner's taxonomy, with its small drawing, and how sure Claude was when it is
- * Claude's word. Tapping it opens the kinds to choose from: a sheet on a phone, a popover on a wider screen.
- */
-function KindRow({ item, groups, disabled, onSaved, onError }: {
-  item: Item;
-  groups: KindGroup[] | undefined;
-  disabled: boolean;
-  onSaved(item: Item, saidAs: string): void;
-  onError(message: string): void;
-}) {
-  const { editing, setEditing } = useContext(Editing);
-  const button = useRef<HTMLButtonElement>(null);
-  const [busy, setBusy] = useState(false);
-  const open = editing === 'kind' && !disabled;
-  const line = kindLine(item, groups) || 'Not said';
-  const who = item.kind_by === 'owner' ? 'Set by you'
-    : item.kind_by === 'claude' ? `Claude's guess${item.kind_confidence != null ? ` · ${sureText(item.kind_confidence)}` : ''}`
-    : item.kind ? '' : 'Kind not said yet';
-  return (
-    <li className={`detail-row kind-row${open ? ' is-open' : ''}`}>
-      <button ref={button} type="button" className="detail-row-button" aria-expanded={open} aria-haspopup="dialog"
-        aria-label={`What is it?: ${line}${who ? `. ${who}` : ''}`} disabled={disabled} title={disabled ? OFFLINE_TITLE : undefined}
-        data-testid="what-is-it" onClick={() => setEditing(open ? null : 'kind')}>
-        <span className="detail-row-label">What is it?</span>{' '}
-        <span className={`detail-row-value${item.kind ? '' : ' is-empty'}`}>
-          {item.kind && (
-            <img className="kind-row-pic" src={kindDrawing(item.kind, item.color_hex)} alt="" data-testid="kind-pic" />
-          )}
-          <span className="kind-row-words">
-            <span className="detail-row-text">{line}</span>{' '}
-            {who && <span className="kind-row-sure">{who}</span>}
-          </span>
-        </span>
-        <ChevronIcon className="detail-row-chevron" />
-      </button>
-      {open && (
-        <Sheet title="What is it?" popover keep={button} className="detail-editor kind-sheet" testId="kind-picker"
-          onClose={() => setEditing(null)}>
-          <KindPicker item={item} busy={busy} onPick={async (kind) => {
-            if (kind.id === item.kind && item.kind_by === 'owner') {
-              setEditing(null);
-              return;
-            }
-            setBusy(true);
-            try {
-              const saved = await api.setKind(item.id, kind.id);
-              setEditing(null);
-              onSaved(saved, `What it is: ${kind.name}`);
-            } catch (e) {
-              onError((e as ApiError).message);
-            } finally {
-              setBusy(false);
-            }
-          }} />
         </Sheet>
       )}
     </li>
@@ -652,7 +613,7 @@ function PriceField({ cents, disabled, onSave, toastError }: { cents: number | n
   const commit = () => {
     const parsed = parsePrice(v);
     if (parsed === undefined) {
-      toastError('Enter a price like 45 or 45.50.');
+      toastError(PRICE_HINT);
       setV(formatPrice(cents));
       return;
     }

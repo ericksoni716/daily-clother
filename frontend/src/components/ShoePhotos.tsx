@@ -1,13 +1,14 @@
 import { useRef, useState } from 'react';
+import { Sheet } from './ui';
 import { api, ApiError } from '../api';
 import { preparePhoto } from '../resize';
 import {
-  MAX_EXTRA_PHOTOS, NO_SIDE, noSidePhoto, ONE_SIDE_QUESTION, OUTSIDE_HINT, OUTSIDE_QUESTION, outsideQuestion, photoRoom,
-  sortingViews, viewLabel,
+  canSayOutside, MAX_EXTRA_PHOTOS, NO_SIDE, noSidePhoto, ONE_SIDE_QUESTION, OUTSIDE_HINT, OUTSIDE_QUESTION, outsideQuestion,
+  photoRoom, sortingViews, viewLabel,
 } from '../shoe';
 import { partWords } from '../progress';
 import { useItemProgress } from '../queries';
-import type { Item, ShoeView } from '../types';
+import type { Item, Photo, ShoeView } from '../types';
 import { sha256 } from '../uploads';
 import { CloseIcon, ImagesIcon } from './Icons';
 import './Shoe.css';
@@ -72,51 +73,99 @@ export function AddShoePhotos({ item, disabled, onSaved, onError, label = 'Add p
   );
 }
 
-/** While Closet cannot tell the outside of the shoe from the inside (a logo or stripe on one side only), it asks: which
- * photo shows the outside, or, with one photo, whether it is the outside or the inside. */
-function OutsideQuestion({ item, disabled, onSaved, onError }: Props) {
+/** Saying which view a photo shows (the outside or the inside), with what the page says once it is kept. */
+function useSayView({ item, onSaved, onError }: Props) {
   const [busy, setBusy] = useState(false);
-  const asked = outsideQuestion(item);
-  if (!asked) return null;
-  const say = async (photoId: string, view: ShoeView) => {
+  const say = async (photoId: string, view: ShoeView): Promise<boolean> => {
     setBusy(true);
     try {
       onSaved(await api.setPhotoView(item.id, photoId, view), view === 'outer' ? 'Noted: that is the outside' : 'Noted: that is the inside');
+      return true;
     } catch (e) {
       onError((e as ApiError).message);
+      return false;
     } finally {
       setBusy(false);
     }
   };
-  const off = disabled || busy;
-  if (asked.one) {
-    const { photo, n } = asked.photos[0];
+  return { busy, say };
+}
+
+/** The question about the outside, as a choice: one photo (the outside or the inside?), or which of several. */
+function OutsideChoices({ photos, item, disabled, onSay }: {
+  photos: { photo: Photo; n: number }[];
+  item: Item;
+  disabled: boolean;
+  onSay(photoId: string, view: ShoeView): void;
+}) {
+  if (photos.length === 1) {
+    const { photo, n } = photos[0];
     return (
-      <div className="notice shoe-ask" role="group" aria-labelledby={`ask-${item.id}`} data-testid="shoe-ask">
-        <div className="shoe-ask-body">
-          <p id={`ask-${item.id}`}><strong>{ONE_SIDE_QUESTION}</strong> {OUTSIDE_HINT}</p>
-          <img className="shoe-ask-photo" src={photo.thumb_url ?? photo.url ?? ''} alt={`Photo ${n}`} />
-          <div className="row">
-            <button type="button" className="btn" disabled={off} onClick={() => void say(photo.id, 'outer')}>The outside</button>
-            <button type="button" className="btn" disabled={off} onClick={() => void say(photo.id, 'inner')}>The inside</button>
-          </div>
+      <>
+        <img className="shoe-ask-photo" src={photo.thumb_url ?? photo.url ?? ''} alt={`Photo ${n}`} />
+        <div className="row">
+          <button type="button" className="btn" disabled={disabled} onClick={() => onSay(photo.id, 'outer')}>The outside</button>
+          <button type="button" className="btn" disabled={disabled} onClick={() => onSay(photo.id, 'inner')}>The inside</button>
         </div>
-      </div>
+      </>
     );
   }
   return (
+    <div className="shoe-ask-choices">
+      {photos.map(({ photo, n }) => (
+        <button key={photo.id} type="button" className="shoe-ask-choice" disabled={disabled} aria-pressed={photo.view === 'outer'}
+          aria-label={`Photo ${n} shows the outside`} onClick={() => onSay(photo.id, 'outer')}>
+          <img src={photo.thumb_url ?? photo.url ?? ''} alt="" />
+          <span>Photo {n}{viewLabel(photo, item.views) ? ` · ${viewLabel(photo, item.views)}` : ''}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Once the photos are sorted, the owner can say at any time which photo shows the outside (Claude may have been sure
+ * and wrong): a small button in the photos that opens the same choice the page asks when Claude is unsure. */
+function SayOutside(props: Props) {
+  const { item, disabled } = props;
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const { busy, say } = useSayView(props);
+  if (!canSayOutside(item)) return null;
+  const photos = item.photos.map((photo, i) => ({ photo, n: i + 1 }));
+  const one = photos.length === 1;
+  return (
+    <span className="shoe-say-outside">
+      <button ref={button} type="button" className="btn btn-link" disabled={disabled} aria-expanded={open} aria-haspopup="dialog"
+        data-testid="say-outside" onClick={() => setOpen(!open)}>Change which photo shows the outside</button>
+      {open && !disabled && (
+        <Sheet title={one ? ONE_SIDE_QUESTION : OUTSIDE_QUESTION} popover keep={button} className="shoe-say-sheet"
+          testId="say-outside-sheet" onClose={() => setOpen(false)}>
+          <div className="shoe-ask-body">
+            <p className="muted">{OUTSIDE_HINT}</p>
+            <OutsideChoices photos={photos} item={item} disabled={busy} onSay={async (id, view) => {
+              if (await say(id, view)) setOpen(false);
+            }} />
+          </div>
+        </Sheet>
+      )}
+    </span>
+  );
+}
+
+/** While Closet cannot tell the outside of the shoe from the inside (a logo or stripe on one side only), it asks: which
+ * photo shows the outside, or, with one photo, whether it is the outside or the inside. */
+function OutsideQuestion(props: Props) {
+  const { item, disabled } = props;
+  const { busy, say } = useSayView(props);
+  const asked = outsideQuestion(item);
+  if (!asked) return null;
+  return (
     <div className="notice shoe-ask" role="group" aria-labelledby={`ask-${item.id}`} data-testid="shoe-ask">
       <div className="shoe-ask-body">
-        <p id={`ask-${item.id}`}><strong>{OUTSIDE_QUESTION}</strong> ({OUTSIDE_HINT})</p>
-        <div className="shoe-ask-choices">
-          {asked.photos.map(({ photo, n }) => (
-            <button key={photo.id} type="button" className="shoe-ask-choice" disabled={off}
-              aria-label={`Photo ${n} shows the outside`} onClick={() => void say(photo.id, 'outer')}>
-              <img src={photo.thumb_url ?? photo.url ?? ''} alt="" />
-              <span>Photo {n}</span>
-            </button>
-          ))}
-        </div>
+        {asked.one
+          ? <p id={`ask-${item.id}`}><strong>{ONE_SIDE_QUESTION}</strong> {OUTSIDE_HINT}</p>
+          : <p id={`ask-${item.id}`}><strong>{OUTSIDE_QUESTION}</strong> ({OUTSIDE_HINT})</p>}
+        <OutsideChoices photos={asked.photos} item={item} disabled={disabled || busy} onSay={(id, view) => void say(id, view)} />
       </div>
     </div>
   );
@@ -168,6 +217,7 @@ export function ShoePhotos(props: Props) {
         <p className="muted small" role="status">{partWords(progress, 'views') ?? views.message}</p>
       )}
       {noSidePhoto(item) && <p className="notice" data-testid="shoe-no-side">{NO_SIDE}</p>}
+      <SayOutside {...props} />
       <div className="row shoe-fix-actions">
         <AddShoePhotos {...props} />
         <span className="muted small">

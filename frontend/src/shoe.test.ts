@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  backLabel, canCorrect, changedLine, dollars, DRAWN_DEMO, drawingShoe, drawnLine, drawnOffer, drawnTime,
+  backLabel, canCorrect, canSayOutside, changedLine, dollars, DRAWN_DEMO, drawingShoe, drawnLine, drawnOffer, drawnTime,
   drawQuestion, extraPhotos, NOTE_MAX, NO_SIDE, noSidePhoto,
   MAX_EXTRA_PHOTOS, MAX_PHOTOS, noteChoices, NUDGE_CM, NUDGES, nudgeLabel, outsideQuestion, photoRoom, sentAs,
   shoeAddedLine, shoeFixMode, sideChangedLine, sideLine, sideMadeLine, sortingViews, tooManyPhotos, traceNotice, tracing, VIEW_WORDS, viewLabel,
@@ -111,6 +111,18 @@ describe("a shoe's photos sorted into views", () => {
     }
     expect(noSidePhoto({ photos: none, views: null })).toBe(false);
     expect(noSidePhoto({ photos: [], views: views('sorted') })).toBe(false);
+  });
+
+  it('lets you say which photo shows the outside at any time once the photos are sorted', () => {
+    // 22 November: only an unsure answer was asked about, so a swap Claude was sure of could not be put right
+    const sure = [photo('m', 'front', 'outer', true, 'model'), photo('a', 'detail', 'inner', true, 'model')];
+    expect(canSayOutside({ photos: sure, views: views('sorted') })).toBe(true);
+    expect(canSayOutside({ photos: sure.slice(0, 1), views: views('sorted') })).toBe(true);
+    for (const state of ['waiting', 'sorting', 'asking', 'failed', null] as const) {
+      expect(canSayOutside({ photos: sure, views: views(state) })).toBe(false);   // being sorted, asked already, or never sorted
+    }
+    expect(canSayOutside({ photos: [], views: views('sorted') })).toBe(false);
+    expect(canSayOutside({ photos: sure, views: null })).toBe(false);
   });
 
   it('asks which photo shows the outside, or about the one photo, numbered as in the row', () => {

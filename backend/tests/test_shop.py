@@ -610,7 +610,7 @@ def test_a_long_product_name_names_the_wish_cut_at_a_word(client, pages):
     pages.pages[SHIRT] = shirt_page(name=long)
     wid = add_link(client, SHIRT)
     name = client.get("/api/wishlist").json()["wishes"][0]["name"]
-    assert len(name) <= 120 and name.endswith("…") and long.startswith(name[:-1]) and long[len(name) - 1] == " "
+    assert len(name) <= shop.LINK_NAME_MAX and name.endswith("…") and long.startswith(name[:-1]) and long[len(name) - 1] == " "
     assert client.get(f"/api/wishlist/{wid}/finds").json()["finds"][0]["name"] == long.strip()[:shop.NAME_MAX].rstrip()
     assert shop.shortened("A shirt", 120) == "A shirt" and shop.shortened("x" * 130, 120) == "x" * 119 + "…"
 

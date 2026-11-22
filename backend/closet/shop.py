@@ -64,6 +64,9 @@ PRICE_FINDS_MAX = 12            # the newest finds still for sale whose prices a
 HISTORY_MAX = 30                # prices shown per find, newest last
 URL_MAX = productpage.URL_MAX   # 2000
 NAME_MAX = 200
+# a wish made from a link is named from its product, cut at a word to this: the wish's name is its page's heading, and
+# shops' names run long; the find keeps the whole name
+LINK_NAME_MAX = 60
 SHOP_MAX = 120
 PRICE_MAX = 1_000_000.0
 CURRENCY = re.compile(r"^[A-Z]{3}$")
@@ -403,7 +406,7 @@ def save_read(conn: sqlite3.Connection, wish_id: str, find_id: str, read: dict |
             wish = conn.execute("SELECT name, gap_id FROM wishes WHERE id = ?", (wish_id,)).fetchone()
             if read["name"] and wish and wish["gap_id"] is None and wish["name"] == placeholder(row["url"]):
                 conn.execute("UPDATE wishes SET name = ?, updated_at = ? WHERE id = ?",
-                             (shortened(read["name"], wishlist.NAME_MAX), t, wish_id))
+                             (shortened(read["name"], LINK_NAME_MAX), t, wish_id))
         conn.execute("COMMIT")
     except Exception:
         conn.execute("ROLLBACK")

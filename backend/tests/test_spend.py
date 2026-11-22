@@ -276,8 +276,9 @@ def test_the_estimate_for_waiting_items(client, services, cfg, routes):
     # 18 November; a photo 1,600)
     # the whole prompt priced as written to the prompt cache (1.25x input), the dearest way it can go, since 17 November
     # on the describing model: Sonnet since 18 November (the garment loop test), Haiku before
-    # (21,000 with the lettering, 18 November)
-    assert spend.estimate_call(1) == pytest.approx(spend.cost_usd(spend.DESCRIBING_MODEL, 0, 4000, cache_write=22600))
+    # (21,000 with the lettering, 18 November; 22,000 with the named shades, formality's second level and the shoes
+    # for a sport, 22 November)
+    assert spend.estimate_call(1) == pytest.approx(spend.cost_usd(spend.DESCRIBING_MODEL, 0, 4000, cache_write=23600))
     assert spend.estimate_call(1) > ONE_CALL and spend.estimate_call(2) > spend.estimate_call(1)
     assert spend.estimate_call(1) < 0.10   # under ten cents a photo at the prices written down (about 2 cents measured)
 

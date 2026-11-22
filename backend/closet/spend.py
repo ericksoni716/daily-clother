@@ -59,11 +59,13 @@ MAX_CAP_USD = 1000.0        # a typing slip should not allow a large bill
 HISTORY_MONTHS = 12
 
 # A careful upper bound on one request to describe an item: the prompt and the whole answer form as a tool (about
-# 40,000 characters with the cloth's surface and its lettering, counted at 1 token for every character pair, with room
-# for what the API adds for a tool), each photo at no more than 1024 px a side (about 1,400 tokens by Anthropic's rule
-# of width x height / 750, rounded up), and the longest answer the request allows. (8,000 while the form went as a
-# compiled structured output; 18,000 before the surface was asked for; 20,000 before the lettering.)
-TEXT_TOKENS = 21000
+# 42,500 characters with the cloth's surface and its lettering, the named shades, a second level of formality and the
+# shoes for a sport, counted at 1 token for every character pair, with room for what the API adds for a tool), each
+# photo at no more than 1024 px a side (about 1,400 tokens by Anthropic's rule of width x height / 750, rounded up),
+# and the longest answer the request allows. (8,000 while the form went as a compiled structured output; 18,000 before
+# the surface was asked for; 20,000 before the lettering; 21,000 before the shades, formality's second level and the
+# tennis and golf shoes.)
+TEXT_TOKENS = 22000
 IMAGE_TOKENS = 1600
 # Reading a correction: the longest prompt the app writes (a 500-character sentence, a shirt's description and every
 # value it may take, with the longest cloth and lettering, about 18,000 characters with the schema since the cloth was

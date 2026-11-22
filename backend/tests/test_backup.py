@@ -826,6 +826,8 @@ def test_selfcheck_reports_each_library(cfg):
     assert result["tagger"]["ok"]
     assert "49 items" in result["database"]["detail"]
     assert result["drawing"]["ok"] and "drew a shirt" in result["drawing"]["detail"]
+    # the stylist's guide, read from the taxonomy where the packaged program keeps it
+    assert result["stylist"]["ok"] and "outfit notes" in result["stylist"]["detail"]
 
 
 def test_settings_follow_the_environment(tmp_path):

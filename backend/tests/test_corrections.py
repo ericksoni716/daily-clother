@@ -698,3 +698,32 @@ def test_the_kind_offers_only_the_kinds_an_item_of_its_category_can_be(client, s
     assert r.status_code == 200 and r.json()["own_details"] == {"garment": "track_pants"}
     assert client.put(f"/api/items/{item['id']}/details", json={"details": {"garment": "nonsense"}}).status_code == 422
     assert client.put(f"/api/items/{item['id']}/details", json={"details": {"garment": "t_shirt"}}).status_code == 422
+
+
+def _hem(client, item_id):
+    group = next(g for g in client.get(f"/api/items/{item_id}/details").json()["groups"] if g["id"] == "hem_cuffs")
+    assert group["title"] == "Hem and cuffs"
+    return group["details"][0]
+
+
+def test_joggers_show_the_ribbed_cuffs_they_are_drawn_with_and_other_hems_can_be_picked(client, services, cfg):
+    answer = demo_answer("Grey wool trousers")
+    answer["details"].update(garment="joggers", hem_finish="plain")   # Claude said the hem was plain
+    item = with_answer(client, services, cfg, "Grey wool trousers", answer)
+    hem = _hem(client, item["id"])
+    assert (hem["value"], hem["words"]) == ("ribbed_cuff", "ribbed cuff")   # what the drawing shows
+    choices = {c["value"]: c for c in client.get(f"/api/items/{item['id']}/details/hem_finish").json()["choices"]}
+    assert choices["ribbed_cuff"]["current"] and choices["turn_up"]["svg"]
+    assert choices["plain"]["svg"] is None   # joggers keep their cuffs: an open hem is another kind (open hem sweatpants)
+
+
+def test_a_ribbed_cuff_picked_on_track_pants_is_drawn(client, services, cfg):
+    item = with_answer(client, services, cfg, "Grey wool trousers", demo_answer("Grey wool trousers"))
+    item = client.put(f"/api/items/{item['id']}/details", json={"details": {"garment": "track_pants"}}).json()
+    before = svg(client, item)
+    choice = next(c for c in client.get(f"/api/items/{item['id']}/details/hem_finish").json()["choices"]
+                  if c["value"] == "ribbed_cuff")
+    assert choice["svg"] and choice["svg"] != before   # offered with its own drawing
+    picked = client.put(f"/api/items/{item['id']}/details", json={"details": {"hem_finish": "ribbed_cuff"}}).json()
+    assert picked["own_details"]["hem_finish"] == "ribbed_cuff" and svg(client, picked) != before
+    assert _hem(client, item["id"])["value"] == "ribbed_cuff"

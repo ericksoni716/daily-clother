@@ -2176,10 +2176,20 @@ def pants(**kw) -> Shape:
             t = 4.0 * k
             cuff = [(a[0] - 2.5, a[1] - t), (b[0] + 2.5, b[1] - t), (b[0] + 1.5, b[1] + 1), (a[0] - 1.5, a[1] + 1)]
             sh.parts.append(Part("M " + " L ".join(_pt(mm(v)) for v in cuff) + " Z", "cuff"))
-        elif hem_kind == "rib":
+        elif hem_kind == "rib":   # a knitted tube gripping the ankle: ribs down its depth, the leg bunched into it
             t = 5.5 * k if not short else 3 * k
             cuff = [(a[0] - 0.5, a[1] - t), (b[0] + 0.5, b[1] - t), (b[0], b[1]), (a[0], a[1])]
             sh.parts.append(Part("M " + " L ".join(_pt(mm(v)) for v in cuff) + " Z", "band"))
+            n_ = max(4, round((b[0] - a[0]) / 8))
+            for j in range(1, n_):
+                x = a[0] + (b[0] - a[0]) * j / n_
+                sh.lines.append(f"M {_pt(mm((x, a[1] - t + 2)))} L {_pt(mm((x, a[1] - 1.5)))}")
+            if not short:   # the cloth above the cuff gathers into it: short folds rising from its top, fanning out
+                top = a[1] - t
+                for f, lean in ((0.28, -1.0), (0.52, 0.0), (0.76, 1.0)):
+                    x = a[0] + (b[0] - a[0]) * f
+                    sh.lines.append(f"M {_pt(mm((x, top - 0.5)))} Q {_pt(mm((x + lean * 1.2, top - 6)))} "
+                                    f"{_pt(mm((x + lean * 3.0, top - 11)))}")
         elif hem_kind == "rolled":   # rolled up twice: two narrow turns showing the cloth's inside
             for j, t in enumerate((3.2 * k, 6.4 * k)):
                 cuff = [(a[0] - 2.5, a[1] - t), (b[0] + 2.5, b[1] - t), (b[0] + 2, b[1] - t + 3.2 * k), (a[0] - 2, a[1] - t + 3.2 * k)]

@@ -52,6 +52,15 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   This device**. `Nines.exe reset-passphrase` is gone too. A page left open from an older
   version opens your closet as it is, or says to reload.
 
+### Fixed
+
+- Ribbed cuffs on trousers can be set and seen. In Fix the details, a pair of trousers' hem is
+  under **Hem and cuffs**, and every choice there now changes the drawing: a ribbed cuff on track
+  pants, tech pants or lounge pants is drawn, and joggers can be given a turn-up or a split hem
+  instead of their ribbed cuffs. Joggers, sweatpants and a knit set's trousers say "ribbed cuff"
+  for their hem, as their drawing shows. A ribbed cuff now looks knitted, with its ribs and the
+  leg gathered into it, on the item's drawing and on the figure as worn.
+
 ## 0.12.0
 
 ### Added

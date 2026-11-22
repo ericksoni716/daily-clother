@@ -1768,3 +1768,18 @@ through another computer as well."
 |---|---|
 | The Settings group is titled **Other devices**, and its sentences say "your phone or another computer" where both apply ("Your phone or another computer can open Nines at …", "To reach Nines from your phone or another computer, run this once on this computer"). "Phone" stays where the thing is about a phone: the QR code to scan with the iPhone's camera, and adding Nines to the Home Screen | A Tailscale share reaches every device signed in to the tailnet; a computer opens the same address in its browser. The sentences grew by a few words, not by a sentence, so the screen's reading load stays where it was. |
 | Not renamed: `phone.py`, `PhoneAccess`, the `phone` group key, `s-phone`, test ids, `/api/settings`' `phone` field, and older entries here and in past CHANGELOG versions | Words the owner reads change; names the code relies on do not. |
+
+## Ribbed cuffs on trousers (22 November)
+
+The owner: "i don't see a way to add ribbed cuffs to my joggers". The choice was there (the hem, in Fix the
+details), but three things hid it: it sat under a heading that said only "Hem"; on joggers, sweatpants and the other
+sportswear and lounge bottoms whose kind sets the hem (`BOTTOM_DRAWINGS`), no hem choice changed the drawing, so all
+of them were offered as words that did nothing; and the ribbed cuff that joggers were always drawn with was a flat band
+that looked like a turn-up.
+
+| Decision | Why |
+|---|---|
+| A hem that was told (by Claude or picked by the owner) wins over the kind's usual hem; "plain" and "na" leave the kind's (joggers' and sweatpants' ribbed cuff, running shorts' split, track pants' plain hem). One rule, `taxonomy.kind_hem_finish`, used by the drawing (`schema.drawing_for`) and by the details the item is drawn from (`illustrations.drawn_answer`), so the Hem row says what the drawing shows | The rest of the kind's look (a drawstring, side pockets, a tapered leg) still wins over the details, as before (row on `BOTTOM_DRAWINGS` above). The hem is the one part people change and the photo shows: track pants with ribbed cuffs exist, and a hem seen on the photo outranks the usual one, as with the everyday trouser kinds. "Plain" is what the tagger says when it saw nothing special, so it cannot be told apart from an open hem chosen on purpose |
+| Picking "plain" on joggers keeps their ribbed cuffs (it is offered under "These look the same in the drawing") | In the owner's taxonomy joggers are defined by their ribbed ankle cuffs; trousers like joggers with an open hem are the kind "Open hem sweatpants" (`open_hem_sweatpants`). Could have been: the owner's own "plain" wins too, which needs the drawing to know who said the hem |
+| The trouser hem group on Fix the details is **Hem and cuffs** (`details.GROUPS["hem_cuffs"]`); a top's stays **Hem** | A trouser's cuffs (turn-up, roll, rib) are hem finishes; the owner looked for "cuffs". Tops keep "Sleeves and cuffs" |
+| A ribbed trouser cuff is drawn as a knitted tube gripping the ankle: ribs down its depth (one about every 2 cm), and three short folds fanning up from its top where the leg gathers into it; a shorts' ribbed hem gets the ribs only. The outline is unchanged, so the figure as worn (which reshapes the same drawing) shows the same cuff | The flat band read as a turn-up at every size. Drawing version 20; the demo closet's heather grey joggers are drawn again, and no other demo drawing changed |

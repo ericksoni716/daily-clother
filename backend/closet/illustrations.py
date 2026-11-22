@@ -35,7 +35,7 @@ from .drawing import drawnside, sideshoe, stored
 from .drawing import item as draw
 from .drawing.figure import PLACES, Piece, as_worn, figure
 from .drawing.traced import TracedShoe
-from .tagger import surfaceform
+from .tagger import surfaceform, taxonomy
 from .tagger.schema import SILHOUETTE_FIELDS, Details
 
 log = logging.getLogger("closet.illustrations")
@@ -94,6 +94,11 @@ def drawn_answer(row, extra: dict | None = None) -> dict | None:
         answer["details"] = details.lay(answer["details"], owner)   # the owner's details win over Claude's
     if kind and isinstance(answer.get("details"), dict):
         answer["details"] = kinds.conform(answer["details"], kind, said, owner)   # and the drawing follows their kind
+    found = answer.get("details")
+    if isinstance(found, dict) and answer.get("category") in draw.BOTTOMS:   # the hem as drawn: joggers' ribbed cuff
+        hem = taxonomy.kind_hem_finish(found.get("garment"), answer["category"], found.get("hem_finish"))
+        if hem != found.get("hem_finish"):
+            answer["details"] = {**found, "hem_finish": hem}
     return answer
 
 

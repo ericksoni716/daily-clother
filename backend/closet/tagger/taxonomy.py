@@ -1402,6 +1402,20 @@ def bottom_look(garment, category) -> dict:
     if garment in SET_BOTTOMS:
         garment = SET_BOTTOMS[garment][category == "shorts"]
     return dict(BOTTOM_DRAWINGS.get(garment, {}))
+
+
+# the hem finish each `pants` hem is drawn from ("rib" -> "ribbed_cuff")
+_HEM_FINISH_OF = {v[0]["hem"]: k for k, v in BOTTOM_DRAWING["hem_finish"].items()}
+
+
+def kind_hem_finish(garment, category, told):
+    """The hem a bottom is drawn with: one that was told (a ribbed cuff on track pants, a turn-up on joggers) wins
+    over the kind's usual hem; "plain" or "na", which say nothing a plain hem would not, leave the kind's (joggers'
+    ribbed cuff, running shorts' split). A kind with no hem of its own keeps what was told."""
+    usual = bottom_look(garment, category).get("hem")
+    if usual is None or told not in (None, "plain", "na"):
+        return told
+    return _HEM_FINISH_OF.get(usual, told)
 # The everyday trousers and shorts: what each kind looks like when the details leave it open, as `pants` template
 # parameters laid under the ones the details give (a told detail wins), the cloth it is drawn in when none was seen,
 # and how well that shows.

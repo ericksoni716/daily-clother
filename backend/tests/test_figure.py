@@ -1594,3 +1594,29 @@ def test_a_sleeve_moved_past_its_armhole_keeps_its_ends():
     moved = fig._past_armhole(d)
     assert moved.startswith("M 10,10 L 10,90 L 30,90 L 30,40 L ") and moved.endswith(" L 10.0,10.0 Z")
     assert fig._past_armhole("M 0,0 L 5,5 Z") == "M 0,0 L 5,5 Z"   # no armhole: unchanged
+
+
+def test_a_fuzzy_tops_sleeves_keep_its_ink_outline_and_soft_fuzz_on_the_figure():
+    """A fuzzy cloth (flannel, fleece) is outlined twice: a soft fuzz in a shade of the cloth, blurred by a filter,
+    then the ink line. Over the arms, each sleeve's edge is drawn again along the sleeve: both lines, each as it is, not
+    the fuzz alone as a solid band (it once took the first outline it found, the fuzz, without its filter)."""
+    import json
+
+    from closet.config import bundle_dir
+    data = json.loads((bundle_dir() / "demo_data" / "items.json").read_text(encoding="utf-8"))
+    flannel = next(it["answer"] for it in data["items"] if it["name"] == "Plaid flannel shirt")
+    svg = figure({"base": Piece("shirt", flannel, "#2f4f6f", "green", "plaid", {})}, uid="fz")
+    start = svg.index('<g mask="url(#sl')   # the sleeves drawn again over the arms: that group alone
+    depth, i = 0, start
+    for m in re.finditer(r"<g[ >]|</g>", svg[start:]):
+        depth += 1 if m.group(0) != "</g>" else -1
+        if depth == 0:
+            i = start + m.end()
+            break
+    edges = re.findall(r'<path d="M [^"]*" fill="none"( stroke="[^"]*" stroke-width="[^"]*"[^>]*)/>', svg[start:i])
+    tid = re.search(r'url\(#sl([a-z0-9]+)\)', svg[start:]).group(1)
+    ink = [e for e in edges if f'stroke="{illustrate.INK}"' in e]
+    fuzz = [e for e in edges if f'stroke="{illustrate.INK}"' not in e and "#fff" not in e   # not the seams on it
+            and float(re.search(r'stroke-width="([0-9.]+)"', e).group(1)) > 5]
+    assert ink and all(f'filter="url(#y{tid}v)"' in e for e in ink)    # the ink line, a little ragged as on the drawing
+    assert fuzz and all(f'filter="url(#z{tid}v)"' in e for e in fuzz)  # the fuzz, blurred, never a plain band

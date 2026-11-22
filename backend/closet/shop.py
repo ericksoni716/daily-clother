@@ -11,14 +11,23 @@ work?" rules (`wouldwork.check`) and keeps its verdict and reasons. Finds are
 kept with the wish (migration 0018) until the owner removes them or the wish;
 nothing is bought or opened by the program.
 
-A wish's finds can have their prices looked up again on demand and, while the
-program runs, at most once a day (`PriceScheduler`); every price seen is kept,
-and a find whose latest price is below the highest seen before shows a drop.
-The demo closet is never sent to Claude: it cannot search, and the daily round
-only ever opens the real closet.
+The owner can also send a product's page as a link (migration 0042): a new wish
+made from it, or a find added to a wish. Nines reads the page itself first, from
+this computer (`productpage.py`: the address checked, the page fetched with
+care, its structured data read), and asks Claude to read that one page, as a
+price check, only when the page gives no price. A link is not described in the
+closet's words, so it is not judged against the closet.
 
-Searches and price checks run in the background on a thread of their own; how
-each is getting on is held in memory only. Nothing about a wish, a product or
+A wish's finds can have their prices looked up again on demand and, while the
+program runs, at most once a day (`PriceScheduler`): a link's page read by Nines
+first, Claude asked about the rest. Every price seen is kept, and a find whose
+latest price is below the highest seen before shows a drop, on the wish and on
+its row in the wishlist. The demo closet is never sent to Claude: it cannot
+search, a link's page is read there by Nines alone, and the daily round only
+ever opens the real closet.
+
+Searches, price checks and reading a link run in the background on a thread of
+their own; how each is getting on is held in memory only. Nothing about a wish, a product or
 a link is logged.
 """
 from __future__ import annotations
@@ -37,8 +46,9 @@ from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.concurrency import run_in_threadpool
+from pydantic import BaseModel
 
-from . import db, gaps, spend, wishlist, wouldwork
+from . import db, gaps, productpage, spend, wishlist, wouldwork
 from .config import Config
 from .items import ItemError
 from .state import State
@@ -52,7 +62,7 @@ CHECK_EVERY = 3600.0            # seconds between looks at whether a round is du
 FIRST_WAIT = 120.0              # seconds after the program starts before the first look
 PRICE_FINDS_MAX = 12            # the newest finds still for sale whose prices are looked up, per wish
 HISTORY_MAX = 30                # prices shown per find, newest last
-URL_MAX = 2000
+URL_MAX = productpage.URL_MAX   # 2000
 NAME_MAX = 200
 SHOP_MAX = 120
 PRICE_MAX = 1_000_000.0
@@ -70,6 +80,11 @@ FAILED = "Something went wrong while looking. Try again."
 NOT_SAVED = "Nines found some but could not keep them: your closet was busy saving something else. Try again."
 BUSY = "Nines is already looking for this one. Wait for it to finish."
 NO_FINDS = "There is nothing to check yet: find some first."
+NO_PAGE_PRICE = "The page doesn't give its price in a way Nines can read."
+NO_PRICE_AT_ALL = NO_PAGE_PRICE[:-1] + ", and Claude found no price on it either."
+SOME_UNREAD = "Not every page gives its price in a way Nines can read."
+LINKS_ONLY = "Only the pages you sent as links were read."
+DEMO_ASKS_NOTHING = "The demo closet never sends anything to Claude."
 
 
 class Refused(Exception):
@@ -169,6 +184,27 @@ def clean_find(raw: object) -> dict | None:
             "price": clean_price(price) if price is not None else None, "currency": currency, "piece": piece}
 
 
+def clean_read(p: productpage.Product) -> dict:
+    """What Nines read on a link's page, checked as Claude's answers are: text shortened, a picture only by a web
+    address, a price only as a number in range (else none), a currency only as three letters (else none)."""
+    return {"name": _words(p.name, NAME_MAX), "shop": _words(p.shop, SHOP_MAX), "image_url": clean_url(p.image_url),
+            "price": clean_price(p.price), "currency": clean_currency(p.currency), "available": p.available is not False}
+
+
+def shortened(text: str, limit: int) -> str:
+    """The text as it is when it fits; else cut at the last word that fits, with "…" to show it was cut."""
+    if len(text) <= limit:
+        return text
+    cut = text[:limit - 1]
+    return (cut.rsplit(" ", 1)[0] if " " in cut else cut).rstrip(" ,;:-") + "…"
+
+
+def placeholder(url: str) -> str:
+    """What a wish made from a link is called until its page is read: the shop's address, without "www."."""
+    host = (urlsplit(url).hostname or "").removeprefix("www.")
+    return host[:wishlist.NAME_MAX] or "A product's page"
+
+
 # ------------------------------------------------------------------ "Would this work?" for each find
 def judge(rows: list[dict], worn: list[dict], pieces: list[dict], weighed: dict | None = None) -> list[dict]:
     """Each piece checked against the closet: {verdict, verdict_words, reasons, checked_at}. The closet's gaps are
@@ -187,11 +223,14 @@ def judge(rows: list[dict], worn: list[dict], pieces: list[dict], weighed: dict 
 
 
 # ------------------------------------------------------------------ the database
+def _point(r: sqlite3.Row) -> dict:
+    return {"at": r["at"], "price": r["price"], "currency": r["currency"], "available": bool(r["available"])}
+
+
 def _history(conn: sqlite3.Connection, find_id: str) -> list[dict]:
     rows = conn.execute("SELECT at, price, currency, available FROM find_prices WHERE find_id = ? ORDER BY at, id",
                         (find_id,)).fetchall()
-    return [{"at": r["at"], "price": r["price"], "currency": r["currency"], "available": bool(r["available"])}
-            for r in rows]
+    return [_point(r) for r in rows]
 
 
 def drop(history: list[dict]) -> dict | None:
@@ -210,8 +249,9 @@ def drop(history: list[dict]) -> dict | None:
 def _find(conn: sqlite3.Connection, r: sqlite3.Row) -> dict:
     f = dict(r)
     f["available"] = bool(f["available"])
-    f["piece"] = json.loads(f["piece"])
-    f["piece_words"] = wouldwork.describe(f["piece"])
+    f["link"] = bool(f["link"])
+    f["piece"] = json.loads(f["piece"]) if f["piece"] else None   # a link has none ("null")
+    f["piece_words"] = wouldwork.describe(f["piece"]) if f["piece"] else None
     verdict = json.loads(f.pop("verdict")) if f["verdict"] else None
     f["verdict"] = verdict["verdict"] if verdict else None
     f["verdict_words"] = verdict["verdict_words"] if verdict else None
@@ -227,6 +267,30 @@ def list_finds(conn: sqlite3.Connection, wish_id: str) -> list[dict]:
     """A wish's finds, the newest search first and each search's best match first."""
     return [_find(conn, r) for r in conn.execute("SELECT * FROM finds WHERE wish_id = ? ORDER BY found_at DESC, rowid",
                                                  (wish_id,))]
+
+
+def on_the_list(conn: sqlite3.Connection) -> dict[str, dict]:
+    """What the wishlist shows on each open wish's row, by wish: `link`, its newest find sent as a link ({shop, price,
+    currency, available}), and `drop`, the biggest drop among its finds ({from, to, currency, percent, shop}); None for
+    either when there is none."""
+    finds = conn.execute(
+        "SELECT f.id, f.wish_id, f.shop, f.price, f.currency, f.available, f.link FROM finds f JOIN wishes w "
+        "ON w.id = f.wish_id WHERE w.bought_at IS NULL ORDER BY f.found_at DESC, f.rowid").fetchall()
+    history: dict[str, list[dict]] = {}
+    for r in conn.execute("SELECT p.find_id, p.at, p.price, p.currency, p.available FROM find_prices p "
+                          "JOIN finds f ON f.id = p.find_id JOIN wishes w ON w.id = f.wish_id "
+                          "WHERE w.bought_at IS NULL ORDER BY p.at, p.id"):
+        history.setdefault(r["find_id"], []).append(_point(r))
+    out: dict[str, dict] = {}
+    for f in finds:
+        row = out.setdefault(f["wish_id"], {"link": None, "drop": None})
+        if f["link"] and row["link"] is None:
+            row["link"] = {"shop": f["shop"], "price": f["price"], "currency": f["currency"],
+                           "available": bool(f["available"])}
+        d = drop(history.get(f["id"], []))
+        if d and (row["drop"] is None or d["percent"] > row["drop"]["percent"]):
+            row["drop"] = {**d, "shop": f["shop"]}
+    return out
 
 
 def save_finds(conn: sqlite3.Connection, wish_id: str, finds: list[dict], verdicts: list[dict]) -> int:
@@ -265,13 +329,97 @@ def to_price_check(conn: sqlite3.Connection, wish_id: str) -> list[dict]:
     """The finds whose prices are looked up: the newest PRICE_FINDS_MAX, those gone last time included (they may
     be back)."""
     return [dict(r) for r in conn.execute(
-        "SELECT id, name, shop, url, price, currency FROM finds WHERE wish_id = ? ORDER BY found_at DESC, rowid LIMIT ?",
-        (wish_id, PRICE_FINDS_MAX))]
+        "SELECT id, name, shop, url, price, currency, link, read_at FROM finds WHERE wish_id = ? "
+        "ORDER BY found_at DESC, rowid LIMIT ?", (wish_id, PRICE_FINDS_MAX))]
+
+
+def new_link_wish(conn: sqlite3.Connection, url: str) -> tuple[str, str]:
+    """A wish made from a product's page, with the page as its one find, both kept in one go: called by the shop's
+    address until the page is read. Returns (wish id, find id)."""
+    wish_id, find_id, t = uuid.uuid4().hex, uuid.uuid4().hex, db.now()
+    host = placeholder(url)
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute("INSERT INTO wishes (id, gap_id, name, look_for, note, created_at, updated_at) "
+                     "VALUES (?, NULL, ?, NULL, '', ?, ?)", (wish_id, host, t, t))
+        _insert_link(conn, find_id, wish_id, url, host, t)
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    return wish_id, find_id
+
+
+def _insert_link(conn: sqlite3.Connection, find_id: str, wish_id: str, url: str, host: str, t: str) -> None:
+    conn.execute("INSERT INTO finds (id, wish_id, name, shop, url, image_url, price, currency, available, piece, "
+                 "verdict, found_at, updated_at, link) VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, 1, 'null', NULL, ?, ?, 1)",
+                 (find_id, wish_id, host[:NAME_MAX], host[:SHOP_MAX], url, wishlist.CURRENCY_DEFAULT, t, t))
+
+
+def keep_link(conn: sqlite3.Connection, wish_id: str, url: str) -> str:
+    """A product's page added to a wish as a find sent as a link; a page already kept with the wish becomes one (its
+    price read by Nines from then on). Returns the find's id."""
+    old = conn.execute("SELECT id FROM finds WHERE wish_id = ? AND url = ?", (wish_id, url)).fetchone()
+    if old:
+        conn.execute("UPDATE finds SET link = 1 WHERE id = ?", (old["id"],))
+        return old["id"]
+    find_id = uuid.uuid4().hex
+    _insert_link(conn, find_id, wish_id, url, placeholder(url), db.now())
+    return find_id
+
+
+def link_wish(conn: sqlite3.Connection, url: str) -> str | None:
+    """The open wish already made from this page as a link, if there is one (sending the same page twice adds it
+    once)."""
+    r = conn.execute("SELECT w.id FROM finds f JOIN wishes w ON w.id = f.wish_id WHERE f.url = ? AND f.link = 1 "
+                     "AND w.bought_at IS NULL ORDER BY w.created_at DESC LIMIT 1", (url,)).fetchone()
+    return r["id"] if r else None
+
+
+def save_read(conn: sqlite3.Connection, wish_id: str, find_id: str, read: dict | None) -> bool:
+    """Keep what Nines read on a link's own page (`clean_read`): its name, shop and picture where the page gives them,
+    and its price when it gives one, then kept with the others (read by "page"). The page counts as read either way. A
+    wish still called by its placeholder is named after the product. True when a price was kept; False when the page
+    gave none, or the find is no longer kept."""
+    t = db.now()
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        row = conn.execute("SELECT url, currency FROM finds WHERE id = ? AND wish_id = ?", (find_id, wish_id)).fetchone()
+        if row is None:
+            conn.execute("ROLLBACK")
+            return False
+        conn.execute("UPDATE finds SET read_at = ? WHERE id = ?", (t, find_id))
+        priced = bool(read and read["price"] is not None)
+        if read:
+            for column in ("name", "shop", "image_url"):
+                if read[column]:
+                    conn.execute(f"UPDATE finds SET {column} = ? WHERE id = ?", (read[column], find_id))
+            if priced:
+                currency = read["currency"] or row["currency"]
+                conn.execute("UPDATE finds SET price = ?, currency = ?, available = ?, read_by = 'page', updated_at = ? "
+                             "WHERE id = ?", (read["price"], currency, int(read["available"]), t, find_id))
+                conn.execute("INSERT INTO find_prices (find_id, at, price, currency, available) VALUES (?, ?, ?, ?, ?)",
+                             (find_id, t, read["price"], currency, int(read["available"])))
+            wish = conn.execute("SELECT name, gap_id FROM wishes WHERE id = ?", (wish_id,)).fetchone()
+            if read["name"] and wish and wish["gap_id"] is None and wish["name"] == placeholder(row["url"]):
+                conn.execute("UPDATE wishes SET name = ?, updated_at = ? WHERE id = ?",
+                             (shortened(read["name"], wishlist.NAME_MAX), t, wish_id))
+        conn.execute("COMMIT")
+    except Exception:
+        conn.execute("ROLLBACK")
+        raise
+    return priced
+
+
+def read_since(find: dict, since: datetime) -> bool:
+    """Whether Nines read the link's page after `since`."""
+    return bool(find.get("read_at")) and find["read_at"] > since.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
 
 def save_prices(conn: sqlite3.Connection, wish_id: str, finds: list[dict], seen: list[object]) -> int:
     """Keep the prices Claude saw for the finds it was asked about (matched by their page; anything else in the
-    answer is ignored), and note that the wish's prices were looked at. Returns how many finds were updated."""
+    answer is ignored; each read by "claude"), and note that the wish's prices were looked at. Returns how many finds
+    were updated."""
     by_url = {f["url"]: f for f in finds}
     t = db.now()
     done = set()
@@ -293,8 +441,8 @@ def save_prices(conn: sqlite3.Connection, wish_id: str, finds: list[dict], seen:
             available = p.get("available") is not False
             conn.execute("INSERT INTO find_prices (find_id, at, price, currency, available) VALUES (?, ?, ?, ?, ?)",
                          (f["id"], t, price, currency, int(available)))
-            conn.execute("UPDATE finds SET price = ?, currency = ?, available = ?, updated_at = ? WHERE id = ?",
-                         (price, currency, int(available), t, f["id"]))
+            conn.execute("UPDATE finds SET price = ?, currency = ?, available = ?, read_by = 'claude', updated_at = ? "
+                         "WHERE id = ?", (price, currency, int(available), t, f["id"]))
             done.add(f["id"])
         conn.execute("UPDATE wishes SET prices_checked_at = ? WHERE id = ?", (t, wish_id))
         conn.execute("COMMIT")
@@ -334,10 +482,12 @@ def _now() -> datetime:
 
 
 class Shopper:
-    """Searches and price checks, one at a time per wish, each on a thread of its own."""
+    """Searches, price checks and links read, one at a time per wish, each on a thread of its own."""
 
-    def __init__(self, cfg: Config, state: State, closet: Closet, routes: Routes, asker: Asker):
+    def __init__(self, cfg: Config, state: State, closet: Closet, routes: Routes, asker: Asker,
+                 reader: productpage.Reader | None = None):
         self.cfg, self.state, self.closet, self.routes, self.asker = cfg, state, closet, routes, asker
+        self.reader = reader or productpage.Reader()   # a link's page, read by Nines itself (tests stand in for the web)
         # the gap list weighed by how the owner lives, as "Would this work?" is given it (set by the app); None: plain
         self.weighed: Callable[[str, tuple[list[dict], list[dict]]], dict | None] = lambda profile, inputs: None
         self._runs: dict[tuple[str, str], dict] = {}   # (profile, wish id) -> the last or current search or check
@@ -358,8 +508,15 @@ class Shopper:
             r = self._runs.get((profile, wish_id))
             if r and r["state"] == "running":
                 raise Refused(BUSY)
-            self._runs[(profile, wish_id)] = {"kind": kind, "state": "running", "message": None, "added": None,
-                                              "started_at": db.now(), "finished_at": None}
+            self._runs[(profile, wish_id)] = {"kind": kind, "state": "running", "step": None, "message": None,
+                                              "added": None, "started_at": db.now(), "finished_at": None}
+
+    def _step(self, profile: str, wish_id: str, step: str) -> None:
+        """Say who is reading now: "page" (Nines, on the shops' own pages) or "claude"."""
+        with self._lock:
+            r = self._runs.get((profile, wish_id))
+            if r:
+                r["step"] = step
 
     def _end(self, profile: str, wish_id: str, state: str, message: str | None = None, added: int | None = None) -> None:
         with self._lock:
@@ -403,21 +560,71 @@ class Shopper:
         self._thread(lambda: self.find(profile, wish_id, routes), profile, wish_id)
 
     def start_prices(self, profile: str, wish_id: str) -> None:
-        if profile == "demo":
-            raise Refused(DEMO)
+        """Start a price check. With no link among the finds it needs Claude, as before (Refused when Claude cannot
+        be asked); with links, their pages are read by Nines whatever Claude can do (in the demo closet, only they)."""
         self._wish(profile, wish_id)
         conn = db.connect(self.cfg.db_path(profile))
         try:
-            n = len(to_price_check(conn, wish_id))
+            finds = to_price_check(conn, wish_id)
         finally:
             conn.close()
-        if not n:
+        links = any(f["link"] for f in finds)
+        if profile == "demo" and not links:
+            raise Refused(DEMO)
+        if not finds:
             raise Refused(NO_FINDS)
         if self.running(profile, wish_id):
             raise Refused(BUSY)
-        routes = self._usable(min(shopping.PRICE_SEARCHES, n))
+        routes, why = (), DEMO_ASKS_NOTHING
+        if profile != "demo":
+            try:
+                routes, why = self._usable(min(shopping.PRICE_SEARCHES, len(finds))), None
+            except Refused as e:
+                if not links:
+                    raise
+                why = str(e)
         self._begin(profile, wish_id, "prices")
-        self._thread(lambda: self.prices(profile, wish_id, routes), profile, wish_id)
+        self._thread(lambda: self.prices(profile, wish_id, routes, why_not=why), profile, wish_id)
+
+    def check_link(self, url: object) -> str:
+        """The address as it will be kept, once checked (`productpage.Reader.check`): PageError with the sentence when
+        Nines does not open it. Looks its name up, so it is called off the event loop."""
+        return self.reader.check(url).url
+
+    def add_link(self, profile: str, url: object) -> tuple[dict, bool]:
+        """A new wish made from a product's page, its page read on a thread. When an open wish was already made from
+        the same page it is given back instead (False), and nothing is read. PageError for an address Nines does not
+        open."""
+        url = self.check_link(url)
+        conn = db.connect(self.cfg.db_path(profile))
+        try:
+            old = link_wish(conn, url)
+            if old:
+                return wishlist.get_wish(conn, old), False
+            wish_id, find_id = new_link_wish(conn, url)
+            wish = wishlist.get_wish(conn, wish_id)
+        finally:
+            conn.close()
+        self._begin(profile, wish_id, "link")
+        self._thread(lambda: self.read_link(profile, wish_id, find_id), profile, wish_id)
+        return wish, True
+
+    def add_link_to(self, profile: str, wish_id: str, url: object) -> None:
+        """A product's page added to a wish, its page read on a thread. PageError for an address Nines does not open,
+        ItemError for no such wish, Refused while something else runs for the wish."""
+        url = self.check_link(url)
+        self._wish(profile, wish_id)
+        self._begin(profile, wish_id, "link")
+        try:
+            conn = db.connect(self.cfg.db_path(profile))
+            try:
+                find_id = keep_link(conn, wish_id, url)
+            finally:
+                conn.close()
+        except Exception:
+            self._end(profile, wish_id, "failed", FAILED)
+            raise
+        self._thread(lambda: self.read_link(profile, wish_id, find_id), profile, wish_id)
 
     def _wish(self, profile: str, wish_id: str) -> dict:
         conn = db.connect(self.cfg.db_path(profile))
@@ -477,9 +684,81 @@ class Shopper:
         self._end(profile, wish_id, "done", None, added)
         return added
 
-    def prices(self, profile: str, wish_id: str, routes: tuple[str, ...]) -> int:
-        """Look the prices of the wish's finds up again, and check them against the closet as it is now. A
-        malformed answer still counts as a look, so the daily round does not ask again and again."""
+    def _read_page(self, url: str) -> tuple[dict | None, str | None]:
+        """A link's page read by Nines: (what it says, checked; None when it could not be read), and the sentence
+        when Nines would not open the address at all (then Claude is not asked either)."""
+        try:
+            return clean_read(self.reader.read(url)), None
+        except productpage.Unsafe as e:
+            return None, str(e)
+        except productpage.PageError:
+            return None, None
+        except Exception as e:   # a page that breaks the reader is a page not read; never the address in the log
+            log.error("a product's page could not be read: %s", type(e).__name__)
+            return None, None
+
+    def _link(self, profile: str, wish_id: str, find_id: str) -> dict | None:
+        conn = db.connect(self.cfg.db_path(profile))
+        try:
+            r = conn.execute("SELECT id, name, shop, url, price, currency, link, read_at FROM finds "
+                             "WHERE id = ? AND wish_id = ?", (find_id, wish_id)).fetchone()
+            return dict(r) if r else None
+        finally:
+            conn.close()
+
+    def _save_read(self, profile: str, wish_id: str, find_id: str, read: dict | None) -> bool:
+        conn = db.connect(self.cfg.db_path(profile))
+        try:
+            return save_read(conn, wish_id, find_id, read)
+        finally:
+            conn.close()
+
+    def read_link(self, profile: str, wish_id: str, find_id: str) -> int:
+        """Read a link's page: Nines first; Claude, as a price check of that one page, only when the page gives no
+        price (never in the demo closet, nor for an address Nines would not open). Returns 1 when a price was kept."""
+        row = self._link(profile, wish_id, find_id)
+        if row is None:   # removed meanwhile
+            self._end(profile, wish_id, "done", None, 0)
+            return 0
+        self._step(profile, wish_id, "page")
+        read, refused = self._read_page(row["url"])
+        if self._save_read(profile, wish_id, find_id, read):
+            self._end(profile, wish_id, "done", None, 1)
+            return 1
+        if refused:
+            self._end(profile, wish_id, "done", refused, 0)
+            return 0
+        if profile == "demo":
+            self._end(profile, wish_id, "done", f"{NO_PAGE_PRICE} {DEMO_ASKS_NOTHING}", 0)
+            return 0
+        try:
+            routes = self._usable(1)
+        except Refused as e:
+            self._end(profile, wish_id, "done", f"{NO_PAGE_PRICE} {e}", 0)
+            return 0
+        find = self._link(profile, wish_id, find_id)   # with the name the page gave, if it gave one
+        if find is None:
+            self._end(profile, wish_id, "done", None, 0)
+            return 0
+        self._step(profile, wish_id, "claude")
+        answer = self.asker.prices([find], routes)
+        conn = db.connect(self.cfg.db_path(profile))
+        try:
+            save_prices(conn, wish_id, [find], getattr(answer, "prices", []) or [])
+            priced = conn.execute("SELECT price FROM finds WHERE id = ?", (find_id,)).fetchone()
+        finally:
+            conn.close()
+        got = bool(priced and priced["price"] is not None)
+        self._end(profile, wish_id, "done", None if got else NO_PRICE_AT_ALL, int(got))
+        return int(got)
+
+    def prices(self, profile: str, wish_id: str, routes: tuple[str, ...], daily: bool = False,
+               why_not: str | None = None) -> int:
+        """Look the prices of the wish's finds up again, and check them against the closet as it is now. A link's
+        page is read by Nines first (in the daily round, only when it was not read in the last day); Claude is asked
+        about the other finds and about the pages that gave no price, when `routes` allow (`why_not` says why they do
+        not). A malformed answer still counts as a look, so the daily round does not ask again and again; a look
+        that could not ask Claude about a find it found does not count, so it is tried again later."""
         conn = db.connect(self.cfg.db_path(profile))
         try:
             finds = to_price_check(conn, wish_id)
@@ -488,59 +767,88 @@ class Shopper:
         if not finds:
             self._end(profile, wish_id, "done", NO_FINDS, 0)
             return 0
-        try:
-            answer = self.asker.prices(finds, routes)
-        except TaggingError as e:
-            if isinstance(e, RouteUnavailable):
-                raise
-            conn = db.connect(self.cfg.db_path(profile))
+        links = [f for f in finds if f["link"] and not (daily and read_since(f, _now() - DAY))]
+        others = [f for f in finds if not f["link"]]
+        n, unread = 0, []
+        if links:
+            self._step(profile, wish_id, "page")
+        for f in links:
+            read, refused = self._read_page(f["url"])
+            if self._save_read(profile, wish_id, f["id"], read):
+                n += 1
+            elif not refused:
+                unread.append(f)
+        ask = others + unread
+        answer = None
+        if ask and routes and profile != "demo":
+            self._step(profile, wish_id, "claude")
             try:
-                mark_checked(conn, wish_id)
-            finally:
-                conn.close()
-            raise
-        rows, worn = self.closet(profile)
+                answer = self.asker.prices(ask, routes)
+            except TaggingError as e:
+                if isinstance(e, RouteUnavailable):
+                    raise
+                conn = db.connect(self.cfg.db_path(profile))
+                try:
+                    mark_checked(conn, wish_id)
+                finally:
+                    conn.close()
+                raise
         conn = db.connect(self.cfg.db_path(profile))
         try:
-            kept = list_finds(conn, wish_id)
+            judged = [f for f in list_finds(conn, wish_id) if f["piece"]]   # a link is not described: not judged
         finally:
             conn.close()
-        verdicts = judge(rows, worn, [f["piece"] for f in kept], self.weighed(profile, (rows, worn)))
+        verdicts = []
+        if judged:
+            rows, worn = self.closet(profile)
+            verdicts = judge(rows, worn, [f["piece"] for f in judged], self.weighed(profile, (rows, worn)))
         conn = db.connect(self.cfg.db_path(profile))
         try:
-            n = save_prices(conn, wish_id, finds, getattr(answer, "prices", []) or [])
-            set_verdicts(conn, kept, verdicts)
+            if answer is not None:
+                n += save_prices(conn, wish_id, ask, getattr(answer, "prices", []) or [])
+            elif not others:
+                mark_checked(conn, wish_id)   # every find a link: read for the day, whatever the pages gave
+            set_verdicts(conn, judged, verdicts)
         finally:
             conn.close()
-        self._end(profile, wish_id, "done", None, n)
+        message = None
+        if ask and answer is None:
+            why = DEMO_ASKS_NOTHING if profile == "demo" else why_not or NO_ROUTE
+            message = f"{why} {LINKS_ONLY}" if others else f"{SOME_UNREAD} {why}"
+        self._end(profile, wish_id, "done", message, n)
         return n
 
     # ------------------------------------------------------------- the daily round
     def tick(self) -> int:
         """Look up the prices of every wish in the real closet not looked at in the last day. Never the demo
-        closet. Stops when Claude cannot be reached or the limit is reached; returns how many wishes were looked at."""
+        closet. A link's page is read by Nines first, whether or not Claude can be reached; once Claude cannot be
+        reached or the limit is reached, the rest of the round reads only those pages. Returns how many wishes were
+        looked at."""
         main = db.connect(self.cfg.db_path("main"))
         try:
             waiting = due(main, _now())
+            with_links = {r["wish_id"] for r in main.execute("SELECT DISTINCT wish_id FROM finds WHERE link = 1")}
         finally:
             main.close()
         if not waiting:
             return 0
         routes = self.routes()
-        if not routes:
-            return 0
+        why = None if routes else NO_ROUTE
         done = 0
         for wish_id in waiting:
+            if not routes and wish_id not in with_links:
+                continue   # nothing to read without Claude: tried again at the next look
             try:
                 self._begin("main", wish_id, "prices")
             except Refused:
                 continue   # the owner asked for it a moment ago
             try:
-                self.prices("main", wish_id, routes)
+                self.prices("main", wish_id, routes, daily=True, why_not=why)
                 done += 1
             except (CapReached, RouteUnavailable) as e:
-                self._end("main", wish_id, "failed", LIMIT if isinstance(e, CapReached) else NO_ROUTE)
-                break
+                why = LIMIT if isinstance(e, CapReached) else NO_ROUTE
+                self._end("main", wish_id, "failed", why)
+                routes = ()
             except TaggingError:
                 self._end("main", wish_id, "failed", NOT_UNDERSTOOD)
                 done += 1
@@ -580,6 +888,11 @@ class PriceScheduler:
 
 
 # ------------------------------------------------------------------ the routes
+class LinkBody(BaseModel):
+    url: str   # a product's page; checked by `Shopper.check_link`
+    model_config = {"extra": "forbid"}
+
+
 def router(shopper: Shopper, state: State, conn_dep: Callable) -> APIRouter:
     r = APIRouter()
 
@@ -615,6 +928,28 @@ def router(shopper: Shopper, state: State, conn_dep: Callable) -> APIRouter:
     @r.post("/api/wishlist/{wish_id}/prices", status_code=202)
     async def check_prices(wish_id: str):
         return await start(wish_id, shopper.start_prices)
+
+    @r.post("/api/wishlist/link", status_code=201)
+    async def add_link(body: LinkBody, response: Response):
+        profile = state.get("profile")
+        try:
+            # the address's name is looked up before anything is kept: off the event loop
+            wish, created = await run_in_threadpool(shopper.add_link, profile, body.url)
+        except productpage.PageError as e:
+            raise HTTPException(422, str(e)) from None
+        response.status_code = 201 if created else 200
+        conn = db.connect(shopper.cfg.db_path(profile))
+        try:   # given the way the wishlist gives a wish (`wishlist.router`'s rows)
+            return {**wish, "link": None, "drop": None, **on_the_list(conn).get(wish["id"], {})}
+        finally:
+            conn.close()
+
+    @r.post("/api/wishlist/{wish_id}/link", status_code=202)
+    async def add_link_to(wish_id: str, body: LinkBody):
+        try:
+            return await start(wish_id, lambda profile, wid: shopper.add_link_to(profile, wid, body.url))
+        except productpage.PageError as e:
+            raise HTTPException(422, str(e)) from None
 
     @r.delete("/api/wishlist/{wish_id}/finds/{find_id}", status_code=204)
     def delete_find(wish_id: str, find_id: str, conn=Depends(conn_dep)):

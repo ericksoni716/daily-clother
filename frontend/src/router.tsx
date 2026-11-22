@@ -219,7 +219,7 @@ export type Route =
   | { name: 'closet'; status: 'active' | 'archived'; itemId: string | null }
   | { name: 'today'; itemId: string | null }
   | { name: 'worn' }
-  | { name: 'wardrobe'; itemId: string | null; check: boolean; wishId: string | null; wish: string | null }
+  | { name: 'wardrobe'; itemId: string | null; check: boolean; wishId: string | null; wish: string | null; link?: boolean }
   | { name: 'add' }
   | { name: 'several'; id: string }
   | { name: 'settings' }
@@ -252,6 +252,8 @@ export function parseRoute(path: string): Route {
   // a wish on its own page: its note, its shop finds and prices
   const wish = path.match(/^\/wardrobe\/wish\/([^/]+)\/?$/);
   if (wish) return { name: 'wardrobe', itemId: null, check: false, wishId: null, wish: decodeURIComponent(wish[1]) };
+  // a product's page to add to the wishlist, sent from the share sheet or a Shortcut (the link is in the query)
+  if (/^\/wardrobe\/link\/?$/.test(path)) return { name: 'wardrobe', itemId: null, check: false, wishId: null, wish: null, link: true };
   const archived = path.startsWith('/archived');
   const m = path.match(/^\/(?:archived\/)?item\/([^/]+)$/);
   return { name: 'closet', status: archived ? 'archived' : 'active', itemId: m ? decodeURIComponent(m[1]) : null };

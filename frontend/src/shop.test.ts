@@ -1,5 +1,12 @@
+/// <reference types="node" />
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { dropWords, priceWords, rangeWords, SHOP_POLL_MS, shopPoll, typedPrice, webLink } from './shop';
+import { parseRoute } from './router';
+import {
+  downWords, dropWords, linkIn, linkLine, linkWords, priceWords, rangeWords, runDoneWords, runWords, sharedLink, SHOP_POLL_MS,
+  shopPoll, type ShopRun, typedPrice, webLink,
+} from './shop';
 
 describe('shopping words', () => {
   it('shows prices in their currency', () => {
@@ -48,5 +55,68 @@ describe('asking for the finds again', () => {
   it('does not ask again when nothing was ever started, or nothing has been read', () => {
     expect(shopPoll({ run: null })).toBe(false);
     expect(shopPoll(undefined)).toBe(false);
+  });
+});
+
+describe('a product sent as a link', () => {
+  it('takes the link out of whatever was shared, from url, then text, then title', () => {
+    const q = (o: Record<string, string>) => `?${new URLSearchParams(o)}`;
+    expect(sharedLink(q({ url: 'https://shop.example/p/1' }))).toEqual({ link: 'https://shop.example/p/1', none: false });
+    // apps that put the link in the text, with words around it
+    expect(sharedLink(q({ title: 'A shirt', text: 'Look at this: https://shop.example/p/2?size=m.' })))
+      .toEqual({ link: 'https://shop.example/p/2?size=m', none: false });
+    expect(sharedLink(q({ title: 'https://shop.example/p/3' })).link).toBe('https://shop.example/p/3');
+    expect(sharedLink(q({ url: 'https://shop.example/a', text: 'https://shop.example/b' })).link).toBe('https://shop.example/a');
+    // something shared with no link in it, and nothing shared at all
+    expect(sharedLink(q({ text: 'A nice shirt' }))).toEqual({ link: '', none: true });
+    expect(sharedLink('')).toEqual({ link: '', none: false });
+  });
+
+  it('finds a link in typed or pasted text', () => {
+    expect(linkIn('  https://shop.example/p/1  ')).toBe('https://shop.example/p/1');
+    expect(linkIn('(see https://shop.example/p/1)')).toBe('https://shop.example/p/1');
+    expect(linkIn('http://shop.example/p')).toBe('http://shop.example/p');   // the server says why it won't open it
+    expect(linkIn('shop.example/p/1')).toBe('');
+    expect(linkIn(null)).toBe('');
+  });
+
+  it('says a price went down on the wish’s row, in the find’s currency', () => {
+    expect(downWords({ from: 68, to: 54.4, currency: 'USD' })).toBe('Down from $68.00 to $54.40');
+    expect(downWords({ from: 90, to: 72, currency: 'EUR' })).toBe('Down from €90.00 to €72.00');
+  });
+
+  it('shows the page a wish was sent as on its row', () => {
+    expect(linkWords({ shop: 'Example Shop', price: 68, currency: 'USD', available: true })).toBe('$68.00 at Example Shop');
+    expect(linkWords({ shop: 'Example Shop', price: null, currency: 'USD', available: true })).toBe('From Example Shop');
+    expect(linkWords({ shop: 'Example Shop', price: 68, currency: 'USD', available: false })).toBe('Sold out at Example Shop');
+  });
+
+  it('says how a link’s price was read only when that is worth knowing, and never claims one it did not read', () => {
+    const at = { at: 't', price: 68, currency: 'USD', available: true };
+    expect(linkLine({ link: false, read_at: null, read_by: null, history: [at] })).toBeNull();
+    expect(linkLine({ link: true, read_at: null, read_by: null, history: [] })).toBe('You sent this link. Its page has not been read yet.');
+    expect(linkLine({ link: true, read_at: 't', read_by: null, history: [] })).toBe('You sent this link. No price could be read from its page.');
+    expect(linkLine({ link: true, read_at: 't', read_by: 'page', history: [at] })).toBe('You sent this link.');
+    expect(linkLine({ link: true, read_at: 't', read_by: 'claude', history: [at] })).toBe('You sent this link. Claude read its price from the page.');
+  });
+
+  it('says who is reading while it runs, and what came of it', () => {
+    expect(runWords({ kind: 'link', step: 'page' })).toBe('Nines is reading the page…');
+    expect(runWords({ kind: 'link', step: 'claude' })).toBe("The page doesn't show its price to Nines, so Claude is reading it…");
+    expect(runWords({ kind: 'prices', step: 'page' })).toBe('Nines is reading the pages you sent…');
+    expect(runWords({ kind: 'prices', step: null })).toBe('Claude is checking the prices…');
+    expect(runWords({ kind: 'find' })).toBe('Claude is searching shops. This can take a few minutes…');
+    const run = (r: Partial<ShopRun>): ShopRun => ({ kind: 'link', state: 'done', message: null, added: 1, started_at: '', finished_at: '', ...r });
+    expect(runDoneWords(run({}), 'A shirt')).toBe('Nines read its price, and checks it again once a day.');
+    expect(runDoneWords(run({ message: 'The page doesn’t give its price.', added: 0 }), 'A shirt')).toBe('The page doesn’t give its price.');
+    expect(runDoneWords(run({ kind: 'find', added: 2 }), 'A coat')).toBe('Found 2 new for “A coat”');
+    expect(runDoneWords(run({ kind: 'prices' }), 'A coat')).toBe('Prices checked');
+    expect(runDoneWords(run({ state: 'failed' }), 'A coat')).toBe('Something went wrong while looking.');
+  });
+
+  it('is offered in the share sheet, which opens the page that takes the link', () => {
+    const manifest = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'public', 'manifest.webmanifest'), 'utf8'));
+    expect(manifest.share_target).toEqual({ action: '/wardrobe/link', method: 'GET', params: { title: 'title', text: 'text', url: 'url' } });
+    expect(parseRoute(manifest.share_target.action)).toMatchObject({ name: 'wardrobe', link: true });
   });
 });

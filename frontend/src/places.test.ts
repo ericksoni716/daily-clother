@@ -23,6 +23,7 @@ describe('the place each address belongs to', () => {
     ['/wardrobe/check', 'wardrobe'],
     ['/wardrobe/check/wish/w1', 'wardrobe'],
     ['/wardrobe/wish/w1', 'wardrobe'],
+    ['/wardrobe/link', 'wardrobe'],
     ['/add', 'add'],
     ['/add/several/s1', 'add'],
     ['/settings', 'settings'],
@@ -55,7 +56,7 @@ describe('the addresses that moved', () => {
   });
 
   it('leaves every address that has not moved as it is', () => {
-    for (const path of ['/', '/today', '/today/worn', '/review', '/trips', '/trips/t1', '/wardrobe', '/wardrobe/check',
+    for (const path of ['/', '/today', '/today/worn', '/review', '/trips', '/trips/t1', '/wardrobe', '/wardrobe/check', '/wardrobe/link',
       '/item/abc', '/archived', '/add', '/settings', '/settings/advanced']) {
       expect(movedTo(path)).toBeNull();
     }
@@ -69,5 +70,11 @@ describe('the addresses that moved', () => {
 
   it('opens a wish on its own page', () => {
     expect(parseRoute('/wardrobe/wish/w%201')).toEqual({ name: 'wardrobe', itemId: null, check: false, wishId: null, wish: 'w 1' });
+  });
+
+  it('opens the page a shared link lands on, the link being in the query', () => {
+    expect(parseRoute('/wardrobe/link')).toEqual({ name: 'wardrobe', itemId: null, check: false, wishId: null, wish: null, link: true });
+    expect(parseRoute('/wardrobe/link/')).toMatchObject({ link: true });
+    expect(parseRoute('/wardrobe')).not.toHaveProperty('link');
   });
 });

@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { api } from '../api';
-import { SearchIcon } from '../components/Icons';
+import { LinkIcon, SearchIcon } from '../components/Icons';
 import { Button, buttonClass, Card, Notice } from '../components/ui';
 import type { Wish } from '../gaps';
-import { dropWords, type Find, priceWords, rangeWords, shopPoll, typedPrice, webLink } from '../shop';
+import {
+  dropWords, type Find, LINK_PROBLEM, linkIn, linkLine, priceWords, rangeWords, runDoneWords, runWords, shopPoll, typedPrice,
+  webLink,
+} from '../shop';
 import { aboutUsd } from '../spend';
 import { queryKeys } from '../queryKeys';
 import { useApp } from '../store';
@@ -14,13 +17,51 @@ const DEMO_TITLE = 'The demo closet never sends anything to Claude, so it cannot
 
 type PriceChange = { price_min: number | null; price_max: number | null; price_currency: string | null };
 
-/** On a wish: its price range, "Find some", the products kept and how each would work with the closet. */
+/**
+ * The box for a product page's address: on the wishlist (a new wish made from it), on a wish's page (a find added to
+ * it) and on the page a shared link opens. Nothing is added until its button is pressed. `onSubmit` gives back the
+ * sentence to show when the link was not taken, or null.
+ */
+export function LinkForm({ initial = '', submit, busy, locked, lockedTitle, onSubmit, onCancel, autoFocus = true }: {
+  initial?: string; submit: string; busy: boolean; locked: boolean; lockedTitle?: string;
+  onSubmit(url: string): Promise<string | null>; onCancel(): void; autoFocus?: boolean;
+}) {
+  const [text, setText] = useState(initial);
+  const [problem, setProblem] = useState<string | null>(null);
+  const hint = useId();
+  async function send(e: FormEvent) {
+    e.preventDefault();
+    const url = linkIn(text);
+    if (!url) return setProblem(LINK_PROBLEM);
+    setProblem(null);
+    setProblem(await onSubmit(url));
+  }
+  return (
+    <form className="wish-add wish-link" onSubmit={send} noValidate aria-label="Add a link">
+      <label className="field">
+        <span>The address of a product's page</span>
+        <input type="url" inputMode="url" value={text} onChange={(e) => setText(e.target.value)} placeholder="https://…"
+          autoComplete="off" autoCapitalize="off" spellCheck={false} autoFocus={autoFocus} aria-describedby={hint} />
+      </label>
+      <p className="hint wish-link-hint" id={hint}>Nines reads its name and price, then checks the price once a day.</p>
+      {problem && <p className="form-error" role="alert">{problem}</p>}
+      <div className="row">
+        <button className="btn btn-primary btn-small" type="submit" disabled={busy || locked || !text.trim()}
+          title={locked ? lockedTitle : undefined}>{submit}</button>
+        <button className="btn btn-ghost btn-small" type="button" onClick={onCancel}>Cancel</button>
+      </div>
+    </form>
+  );
+}
+
+/** On a wish: its price range, "Find some", "Add a link", the products kept and how each would work with the closet. */
 export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolean; onPrice(w: Wish, changes: PriceChange): Promise<boolean> }) {
   const { toast } = useApp();
   const qc = useQueryClient();
   const key = queryKeys.finds(wish.id);
-  // Asked again every few seconds while a search or a price check runs, and not at all otherwise; never while the
-  // page is hidden. Reading never starts one: only the owner does, below.
+  const [linking, setLinking] = useState(false);
+  // Asked again every few seconds while a search, a price check or a link's reading runs, and not at all otherwise;
+  // never while the page is hidden. Reading never starts one: only the owner does, below.
   const answer = useQuery({
     queryKey: key, queryFn: () => api.finds(wish.id), enabled: !locked,
     refetchInterval: (q) => shopPoll(q.state.data),
@@ -30,7 +71,8 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
     mutationFn: (kind: 'find' | 'prices') => (kind === 'find' ? api.findSome(wish.id) : api.checkPrices(wish.id)),
     onSuccess: (a) => qc.setQueryData(key, a),
   });
-  const starting = begin.isPending;
+  const addLink = useMutation({ mutationFn: (url: string) => api.addLinkTo(wish.id, url), onSuccess: (a) => qc.setQueryData(key, a) });
+  const starting = begin.isPending || addLink.isPending;
   const error = begin.error ? begin.error.message : null;
   const running = answer?.run?.state === 'running';
   const wasRunning = useRef(false);
@@ -38,12 +80,12 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
   useEffect(() => {
     const run = answer?.run;
     if (wasRunning.current && run && run.state !== 'running') {
-      if (run.state === 'failed') toast(run.message ?? 'Something went wrong while looking.', 'error');
-      else if (run.kind === 'find') toast(run.added ? `Found ${run.added} new for “${wish.name}”` : (run.message ?? 'Nothing new found'));
-      else toast(run.message ?? 'Prices checked');
+      toast(runDoneWords(run, wish.name), run.state === 'failed' ? 'error' : undefined);
+      // the wish's name (a link names it) and its row's price may have changed
+      void qc.invalidateQueries({ queryKey: queryKeys.wishlist() });
     }
     wasRunning.current = run?.state === 'running';
-  }, [answer, toast, wish.name]);
+  }, [answer, toast, wish.name, qc]);
 
   function start(kind: 'find' | 'prices') {
     begin.mutate(kind);
@@ -61,7 +103,10 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
 
   const finds = answer?.finds ?? [];
   const demo = answer?.demo ?? false;
-  const disabled = locked || starting || running || demo || !answer;
+  const busy = locked || starting || running || !answer;
+  const disabled = busy || demo;
+  // in the demo closet only the pages sent as links can have their prices checked: Nines reads them, Claude is not asked
+  const pricesOff = busy || (demo && !finds.some((f) => f.link));
   const title = demo ? DEMO_TITLE : undefined;
   const run = answer?.run;
   return (
@@ -72,10 +117,27 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
           <SearchIcon /> {finds.length ? 'Find more' : 'Find some'}
         </Button>
         {finds.length > 0 && (
-          <Button variant="ghost" small data-testid="check-prices" disabled={disabled} title={title}
+          <Button variant="ghost" small data-testid="check-prices" disabled={pricesOff} title={pricesOff ? title : undefined}
             onClick={() => start('prices')}>Check prices</Button>
         )}
+        {!linking && (
+          <Button variant="ghost" small data-testid="add-link" disabled={busy} onClick={() => setLinking(true)}>
+            <LinkIcon /> Add a link
+          </Button>
+        )}
       </div>
+      {linking && (
+        <LinkForm submit="Add to this wish" busy={starting || running} locked={locked} onCancel={() => setLinking(false)}
+          onSubmit={async (url) => {
+            try {
+              await addLink.mutateAsync(url);
+              setLinking(false);
+              return null;
+            } catch (e) {
+              return (e as Error).message;
+            }
+          }} />
+      )}
       {demo && <p className="muted wish-shop-line">The demo closet never searches shops. Open your own closet to look for this.</p>}
       {answer && !demo && answer.estimate.api && (
         <p className="muted wish-shop-line">
@@ -85,7 +147,7 @@ export function WishShop({ wish, locked, onPrice }: { wish: Wish; locked: boolea
       )}
       {running && (
         <Notice as="p" role="status" className="wish-shop-notice" icon={<span className="spinner" aria-hidden="true" />}>
-          {run!.kind === 'find' ? 'Claude is searching shops. This can take a few minutes…' : 'Claude is checking the prices…'}
+          {runWords(run!)}
         </Notice>
       )}
       {!running && run?.message && (run.state === 'failed'
@@ -109,6 +171,7 @@ function FindCard({ find, locked, onRemove }: { find: Find; locked: boolean; onR
   const link = webLink(find.url);
   const image = webLink(find.image_url);
   const tone = find.verdict ? verdictTone(find.verdict) : 'plain';
+  const sent = linkLine(find);
   return (
     <Card as="article" className="find-card" data-testid="find" aria-label={find.name} data-verdict={find.verdict ?? ''}>
       {image && <img className="find-image" src={image} alt="" loading="lazy" referrerPolicy="no-referrer" />}
@@ -126,6 +189,7 @@ function FindCard({ find, locked, onRemove }: { find: Find; locked: boolean; onR
           </ul>
         )}
         {find.piece_words && <p className="muted find-piece">Claude saw: {find.piece_words}</p>}
+        {sent && <p className="muted find-piece" data-testid="find-link">{sent}</p>}
         <div className="row">
           {link && <a className={buttonClass({ small: true })} href={link} target="_blank" rel="noopener noreferrer">Open in shop</a>}
           <Button variant="ghost" small disabled={locked} onClick={onRemove}>Remove</Button>

@@ -21,7 +21,9 @@ import type { SituationId } from '../life';
 import { wishById } from '../wouldwork';
 import { ItemDetail } from './ItemDetail';
 import { INSIGHTS_OFFLINE, savedInsights, Usage } from './Insights';
-import { LifeAbout, LifeBasis, savedLists, savedWhen, Thinking, WishCard, WorthBuying, type Actions, type Lists } from './Missing';
+import { LifeAbout, LifeBasis, OFFLINE_TITLE, savedLists, savedWhen, Thinking, WishCard, wishPath, WorthBuying, type Actions, type Lists } from './Missing';
+import { sharedLink } from '../shop';
+import { LinkForm } from './Shop';
 import { WouldWork } from './WouldWork';
 import './Missing.css';
 
@@ -30,8 +32,11 @@ const OFFLINE_EMPTY = "You're offline, and nothing was saved on this device yet.
 /** Wish edits that cannot change any wish's finds (a new wish's finds are read when its card shows). */
 const NOT_FINDS = ['finds'] as const;
 
-export function WardrobeScreen({ itemId, check, wishId, wish, wide }: {
-  itemId: string | null; check: boolean; wishId: string | null; wish: string | null; wide: boolean;
+export function WardrobeScreen({ itemId, check, wishId, wish, link = false, wide }: {
+  itemId: string | null; check: boolean; wishId: string | null; wish: string | null;
+  /** The page a shared link opens (`/wardrobe/link?url=…`): the link box, filled in, for the owner to confirm. */
+  link?: boolean;
+  wide: boolean;
 }) {
   const { profile, offline, toast } = useApp();
   const qc = useQueryClient();
@@ -122,6 +127,20 @@ export function WardrobeScreen({ itemId, check, wishId, wish, wide }: {
     }, 'Brought back'),
     confirmHide: (id) => change(id, 'gap', () => api.hideGap(id, 'never_wear'), 'Applied to similar suggestions'),
     addByHand: (name, note) => wishChange('new-wish', () => api.addWish({ name, note }), 'On your wishlist'),
+    addLink: async (url) => {
+      setBusy('new-link');
+      try {
+        const made = await api.addLink(url);
+        await touch(qc, 'wish', NOT_FINDS);
+        // its own page says how the reading goes; from a shared link, Back then leaves rather than offering it again
+        navigate(wishPath(made.id), { replace: link });
+        return null;
+      } catch (e) {
+        return (e as Error).message;
+      } finally {
+        setBusy(null);
+      }
+    },
     saveNote: (w, note) => wishChange(w.id, () => api.changeWish(w.id, { note }), 'Note saved'),
     savePrice: (w, changes) => wishChange(w.id, () => api.changeWish(w.id, changes), 'Price range saved'),
     bought: async (w) => {
@@ -146,6 +165,18 @@ export function WardrobeScreen({ itemId, check, wishId, wish, wide }: {
           onWish={(name, note) => actions.addByHand(name, note)} onNote={(w, note) => actions.saveNote(w, note)}
           onBought={(w) => actions.bought(w)} wide={wide} />
       </div>
+    );
+  }
+
+  if (link) {
+    const shared = sharedLink(window.location.search);
+    return (
+      <section className="wish-page" aria-labelledby="link-title">
+        <PageHeader title="Add a link" titleId="link-title" back={{ to: '/wardrobe', label: 'Wardrobe' }} />
+        {shared.none && <p className="notice">What you shared has no link in it. Paste the address of the product's page here.</p>}
+        <LinkForm key={shared.link} initial={shared.link} submit="Add to the list" busy={busy === 'new-link'} locked={locked}
+          lockedTitle={OFFLINE_TITLE} autoFocus={!shared.link} onSubmit={actions.addLink} onCancel={() => goBack('/wardrobe')} />
+      </section>
     );
   }
 

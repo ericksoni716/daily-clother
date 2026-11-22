@@ -116,6 +116,10 @@ for (const [layout, use] of LAYOUTS) {
         await visit(page, '/wardrobe/check', 'h1');
         await check(page, 'would this work', phone, shot);
 
+        // the page a shared link opens, with the link in its box (nothing is added until the button is pressed)
+        await visit(page, `/wardrobe/link?url=${encodeURIComponent('https://shop.example/linen-shirt')}`, 'h1');
+        await check(page, 'add a link', phone, shot);
+
         // a wish's own page, with a wish of its own so it does not depend on what earlier specs left on the list
         const wish = await (await page.request.post('/api/wishlist', { data: { name: 'A grey flannel overshirt' } })).json();
         try {

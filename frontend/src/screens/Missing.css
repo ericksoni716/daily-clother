@@ -144,9 +144,11 @@
 .wishlist-head h3 { margin: 0; font-size: var(--text-md); }
 .wishlist-head .count { font-weight: var(--weight-body); }
 .wishlist-head .btn svg { width: 18px; height: 18px; }
+.wishlist-adds { gap: var(--space-2); }
 .wishlist-empty { margin: 0; line-height: 1.45; }
 .wish-add { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); margin-bottom: 14px; }
 .wish-add.wish-add textarea { min-height: 60px; }
+.wish-link-hint { margin: 0 0 var(--space-2); }
 .wish-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
 .wish-card { padding: 14px; }
 .wish-card h3 { margin: 0 0 4px; font-size: var(--text-md); }
@@ -171,6 +173,7 @@
 .wish-row-name { font-weight: var(--weight-label); overflow-wrap: anywhere; }
 .wish-row-more { font-size: var(--text-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wish-row-more:empty { display: none; }
+.wish-row-drop { justify-self: start; margin-top: 2px; }
 .wish-page { max-width: var(--content-w); min-width: 0; }
 .more-numbers { margin-top: var(--space-2); }
 .missing-side .wardrobe-section { margin: 0; }
@@ -191,7 +194,9 @@
 .find-body h4 { margin: 0 0 2px; font-size: var(--text-md); overflow-wrap: anywhere; }
 .find-shop { margin: 0 0 4px; font-size: var(--text-sm); }
 .find-sold { color: var(--warn); }
-.find-drop { display: inline-block; margin: 0 0 6px; padding: 2px 8px; border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--accent); font-weight: var(--weight-label); font-size: var(--text-xs); }
+/* a price that went down: on a find, and on its wish's row in the wishlist */
+.find-drop, .wish-row-drop { display: inline-block; padding: 2px 8px; border-radius: var(--radius-pill); background: var(--accent-soft); color: var(--accent); font-weight: var(--weight-label); font-size: var(--text-xs); }
+.find-drop { margin: 0 0 6px; }
 .find-verdict { margin: 0 0 4px; font-weight: var(--weight-label); }
 .find-verdict.is-good { color: var(--accent); }
 .find-verdict.is-caution { color: var(--warn); }

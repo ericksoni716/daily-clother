@@ -49,6 +49,8 @@ const SHEETS = [
   { route: '/settings', button: 'Talk to Claude about your style', sheet: 'style-talk-sheet', name: 'settings-style-talk' },
   { route: '/settings', button: /^(See all lines|Change the lines)$/, sheet: 'style-lines-sheet', name: 'settings-style-lines' },
 ];
+// A made-up shop's page with a long product name, which the backend's stand-in serves (never the web).
+const SHOP_PAGE = 'https://shop.example/long-name';
 // A made-up place: the weather is given with the trip, so its coordinates are never looked up.
 const PLACE = { name: LONG.place, latitude: 50, longitude: 0, timezone: 'Europe/London' };
 
@@ -140,13 +142,27 @@ async function setUp(base) {
     const trip = await call('/api/trips', 'POST', { place: PLACE, first_day: first, last_day: last, weather });
     // A wish by name needs neither the weather nor Claude.
     const wish = await call('/api/wishlist', 'POST', { name: LONG.wish });
+    // A wish from a link: the backend's made-up shop page with a long name (tests/e2e_backend.py, ShopPages, never the
+    // web), read once and then again a little cheaper, so the wishlist's row says the price went down.
+    const linked = await call('/api/wishlist/link', 'POST', { url: SHOP_PAGE });
+    const settled = async () => {
+      for (let i = 0; i < 80; i++) {
+        const { run } = await call(`/api/wishlist/${encodeURIComponent(linked.id)}/finds`);
+        if (run && run.state !== 'running') return;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      throw new Error('The link was not read.');
+    };
+    await settled();
+    await call(`/api/wishlist/${encodeURIComponent(linked.id)}/prices`, 'POST');
+    await settled();
     // Your style: an answer to a question, a long line of your own, and a message to Claude (the stand-in answers it in
     // a second and a half, with a line to keep), so Settings and the conversation show each kind of line
     await call('/api/style/questions/warmth', 'POST', { choice: 'I run warm' });
     await call('/api/style/lines', 'POST', { text: LONG.line });
     await call('/api/style/talk', 'POST', { say: 'I always feel warm on the bus, even in winter' });
     for (let i = 0; i < 40 && (await call('/api/style/talk')).answering; i++) await new Promise((r) => setTimeout(r, 250));
-    return { state: await api.storageState(), itemId: item.id, shoeId: shoe.id, tripId: trip.id, wishId: wish.id };
+    return { state: await api.storageState(), itemId: item.id, shoeId: shoe.id, tripId: trip.id, wishId: wish.id, linkedId: linked.id };
   } finally {
     await api.dispose();
   }
@@ -219,12 +235,13 @@ async function scrollThrough(page) {
   await page.waitForTimeout(600);
 }
 
-async function check(base, { state, itemId, shoeId, tripId, wishId }) {
+async function check(base, { state, itemId, shoeId, tripId, wishId, linkedId }) {
   // the four places and Add, then what each holds one level down
   const pages = ['/today', '/today/worn', '/trips', `/trips/${encodeURIComponent(tripId)}`,
     '/', `/item/${encodeURIComponent(itemId)}`, `/item/${encodeURIComponent(shoeId)}`, '/archived', '/review',
     '/add',
     '/wardrobe', '/wardrobe/check', `/wardrobe/wish/${encodeURIComponent(wishId)}`,
+    `/wardrobe/wish/${encodeURIComponent(linkedId)}`, `/wardrobe/link?url=${encodeURIComponent(SHOP_PAGE)}`,
     '/settings', '/settings/advanced'];
   const executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined;
   const browser = await chromium.launch(executablePath ? { executablePath } : {});

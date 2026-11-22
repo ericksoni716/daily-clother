@@ -3,7 +3,7 @@
  * the wishlist with a wish on its own page. The page itself, which reads the lists, is Wardrobe.tsx.
  */
 import { useId, useState, type FormEvent, type ReactNode } from 'react';
-import { CheckIcon, ChevronIcon, HangerIcon, PlusIcon } from '../components/Icons';
+import { CheckIcon, ChevronIcon, HangerIcon, LinkIcon, PlusIcon } from '../components/Icons';
 import { Pieces } from '../components/ItemPic';
 import {
   colorWords, type Gap, type GapsAnswer, groupReasons, helpOf, HIDE_REASONS, type HideReason, loadSavedGaps, lookForLines,
@@ -15,7 +15,8 @@ import { Link, navigate } from '../router';
 import { timeOf } from '../today';
 import type { ItemSummary } from '../types';
 import { activeSituations, lifeSummary, situationLabel, type SituationId } from '../life';
-import { WishShop } from './Shop';
+import { downWords, linkWords } from '../shop';
+import { LinkForm, WishShop } from './Shop';
 
 export const OFFLINE_TITLE = 'Needs Nines on your computer to be reachable';
 
@@ -111,6 +112,8 @@ export interface Actions {
   undoHolds(g: Gap): Promise<unknown>;
   confirmHide(id: string): Promise<unknown>;
   addByHand(name: string, note: string): Promise<boolean>;
+  /** A new wish made from a product's page, then its page opened; the sentence to show when the link was not taken. */
+  addLink(url: string): Promise<string | null>;
   saveNote(w: Wish, note: string): Promise<boolean>;
   savePrice(w: Wish, changes: { price_min: number | null; price_max: number | null; price_currency: string | null }): Promise<boolean>;
   bought(w: Wish): Promise<unknown>;
@@ -376,6 +379,9 @@ function LookForBox({ look }: { look: LookFor | null }) {
  */
 export function Thinking({ wishes, actions, failed }: { wishes: Wish[] | null; actions: Actions; failed: boolean }) {
   const [adding, setAdding] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const off = actions.locked || wishes === null;
+  const offTitle = actions.locked ? OFFLINE_TITLE : undefined;
   return (
     <section className="wardrobe-section thinking" aria-labelledby="thinking-title">
       <h2 id="thinking-title" className="missing-section-title">Thinking of buying something?</h2>
@@ -388,15 +394,21 @@ export function Thinking({ wishes, actions, failed }: { wishes: Wish[] | null; a
       <div className="wishlist" data-testid="wishlist" role="group" aria-labelledby="wishlist-title">
         <div className="wishlist-head">
           <h3 id="wishlist-title">Your wishlist{wishes && wishes.length > 0 && <span className="count"> · {wishes.length}</span>}</h3>
-          {!adding && (
-            <button className="btn btn-small" disabled={actions.locked || wishes === null} title={actions.locked ? OFFLINE_TITLE : undefined}
-              onClick={() => setAdding(true)}><PlusIcon /> Add by hand</button>
+          {!adding && !linking && (
+            <div className="row wishlist-adds">
+              <button className="btn btn-small" disabled={off} title={offTitle} onClick={() => setLinking(true)}><LinkIcon /> Add a link</button>
+              <button className="btn btn-small" disabled={off} title={offTitle} onClick={() => setAdding(true)}><PlusIcon /> Add by hand</button>
+            </div>
           )}
         </div>
+        {linking && (
+          <LinkForm submit="Add to the list" busy={actions.busy === 'new-link'} locked={actions.locked} lockedTitle={OFFLINE_TITLE}
+            onSubmit={actions.addLink} onCancel={() => setLinking(false)} />
+        )}
         {adding && <AddWish actions={actions} onClose={() => setAdding(false)} />}
         {wishes === null && !failed && <div className="missing-skeleton missing-skeleton-small" aria-hidden="true" />}
-        {wishes !== null && wishes.length === 0 && !adding && (
-          <p className="muted wishlist-empty">Nothing on it yet. Choose “I'll look for this” above, or add something by hand.</p>
+        {wishes !== null && wishes.length === 0 && !adding && !linking && (
+          <p className="muted wishlist-empty">Nothing on it yet. Choose “I'll look for this” above, add a link to a product, or add something by hand.</p>
         )}
         {wishes && wishes.length > 0 && (
           <ul className="wish-list">
@@ -408,14 +420,17 @@ export function Thinking({ wishes, actions, failed }: { wishes: Wish[] | null; a
   );
 }
 
-/** A wish in the list: what it is and its note, opening its page. */
+/** A wish in the list: what it is and its note (or the page it was sent as), and a price that went down, opening its
+ * page. */
 function WishRow({ wish }: { wish: Wish }) {
   const lines = lookForLines(wish.look_for);
+  const more = wish.note || (lines.length ? lines.join(' · ') : wish.link ? linkWords(wish.link) : wish.gap_id ? '' : 'Added by hand');
   return (
     <Link to={wishPath(wish.id)} className="wish-row" data-testid="wish-row">
       <span className="wish-row-text">
         <span className="wish-row-name">{wish.name}</span>
-        <span className="wish-row-more muted">{wish.note || (lines.length ? lines.join(' · ') : wish.gap_id ? '' : 'Added by hand')}</span>
+        <span className="wish-row-more muted">{more}</span>
+        {wish.drop && <span className="wish-row-drop" data-testid="wish-drop">{downWords(wish.drop)}</span>}
       </span>
       <ChevronIcon aria-hidden="true" />
     </Link>
@@ -483,7 +498,7 @@ export function WishCard({ wish, actions, onNote, onRemoved }: {
           </span> {colors}</>}
         </p>
       )}
-      {!wish.gap_id && <p className="wish-look muted">Added by hand</p>}
+      {!wish.gap_id && !wish.link && <p className="wish-look muted">Added by hand</p>}
       <div className="field wish-note">
         <label htmlFor={noteId}>Note</label>
         <textarea id={noteId} value={note} rows={2} maxLength={1000} disabled={actions.locked} placeholder="Size, shop, budget…"

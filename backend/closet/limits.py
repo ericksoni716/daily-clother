@@ -21,7 +21,7 @@ UPLOADS = frozenset({
     ("POST", "/api/add/sort"),          # up to ten small copies of the photos chosen on Add
 })
 # And those with an item in their path: another photo of a shoe, a retaken photo.
-# (They were missing, so a phone's photo was refused there as "more than Closet reads in one request".)
+# (They were missing, so a phone's photo was refused there as "more than Nines reads in one request".)
 UPLOAD_PATHS = (re.compile(r"/api/items/[^/]+/photos?"),)
 
 

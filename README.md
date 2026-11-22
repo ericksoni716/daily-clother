@@ -597,11 +597,11 @@ the phone.
 
 **8. Where your closet is kept.** Everything is in the `Nines` folder in your
 user folder, `C:\Users\you\Nines` (to open it: press Windows+R, type
-`%USERPROFILE%\Nines` and press Enter). Its `logs\closet.log` is what to send if
+`%USERPROFILE%\Nines` and press Enter). Its `logs\nines.log` is what to send if
 something goes wrong. Choose a backup folder in **Settings → Advanced settings →
 Backups** (a OneDrive folder is ideal). An API key, if you save one, is kept in
 **Windows Credential Manager** (Control Panel → Credential Manager → Windows
-Credentials, as `Closet/anthropic-api-key`). While Windows keeps Nines running,
+Credentials, as `Nines/anthropic-api-key`). While Windows keeps Nines running,
 it is also kept in `api-key.sealed` in that folder, locked by Windows to this
 computer, because Nines started before you sign in cannot read Credential
 Manager. Backups never include it, and it is removed when you turn **Keep Nines
@@ -706,7 +706,7 @@ your own.
    **Networks → Tunnels**, and create a tunnel. Cloudflare shows a command that
    installs its connector (`cloudflared`) on this computer; run it here, on the
    computer Nines runs on. On the tunnel's public hostnames (or routes), add
-   one: a name on your domain, such as `closet.example.com`, pointing at
+   one: a name on your domain, such as `nines.example.com`, pointing at
    `http://127.0.0.1:` followed by Nines' port. Read the port from Nines first:
    on Windows, **Settings → Other devices** says **Nines answers on port** and the
    number, under **Keep Nines running**; on a Mac, it is the last number of the
@@ -715,17 +715,17 @@ your own.
    on **Keep Nines running** first on Windows, so the port stays the same.
 2. **A sign-in in front of it.** In Zero Trust, open **Access →
    Applications** and add a self-hosted application for that same name,
-   `closet.example.com`. Give it a policy that allows only your own email
+   `nines.example.com`. Give it a policy that allows only your own email
    address, with the one-time code sign-in. In the application's overview, copy
    its **Application Audience (AUD) tag**, and note your team's domain, which
    looks like `yourteam.cloudflareaccess.com` (in Zero Trust's settings).
 3. **Tell Nines.** On this computer, open Nines' **Settings → Other devices**, open
    **Without Tailscale, through Cloudflare**, fill in your team's domain, the
-   audience tag and the address (`closet.example.com`), and press **Save**. It
-   now says **Also through Cloudflare, at closet.example.com**. Nines answers
+   audience tag and the address (`nines.example.com`), and press **Save**. It
+   now says **Also through Cloudflare, at nines.example.com**. Nines answers
    there only once all three are filled in.
 4. **Try it.** In a browser that is not on Tailscale, open
-   `https://closet.example.com`. Cloudflare asks for your email and sends a
+   `https://nines.example.com`. Cloudflare asks for your email and sends a
    code; after the code, your closet opens. Under **Settings →
    This device** it says it came in through Cloudflare, signed in as your
    email.
@@ -764,8 +764,10 @@ corrections you type, and "Would this work?".
 **API keys**), copy it, and paste it into **Paste your API key** in **Settings →
 Advanced settings → Claude**, then **Save key**. Nines asks Anthropic whether it accepts the key
 (this costs nothing) and keeps it in your computer's own keychain (the Mac's
-keychain, or Windows Credential Manager), never in a file. It is never shown
-again; **Replace key** and **Remove key** are there when you need them. Then turn
+keychain, or Windows Credential Manager), never in a file, under the name
+Nines. (Up to version 0.13.0 it was kept under Closet; the first start after the
+update moves it to Nines by itself.) It is never shown again; **Replace key**
+and **Remove key** are there when you need them. Then turn
 on **Allow the API key** and set a monthly limit (under **Monthly limit and
 spending**, just below the switch). A key saved here is used instead
 of one set as `ANTHROPIC_API_KEY`.
@@ -905,7 +907,11 @@ Nines backs up there once a day while it is running, catches up at the next
 start if the computer was off, and shows the date of the last good backup. It
 keeps the 14 most recent database snapshots, each with the photos and cutouts
 it had; a picture that did not change is stored only once. The settings file
-(with the key of Nines' own window) is not included.
+(with the key of Nines' own window) is not included. The backups go into a
+`Nines backup` folder inside the folder you chose. Up to version 0.13.0 that
+folder was called `Closet backup`; the first backup after the update renames it,
+with everything in it, and if it cannot (another program has a file in it
+open), that backup goes into `Closet backup` and the next one tries again.
 
 ### Restore
 

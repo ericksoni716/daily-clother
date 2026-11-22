@@ -1,12 +1,12 @@
-"""Closet's own window: the app in a window of its own instead of a browser tab, like the owner's other app.
+"""Nines' own window: the app in a window of its own instead of a browser tab, like the owner's other app.
 
 The window is pywebview (https://pywebview.flowrl.com, BSD licence): Edge WebView2 on Windows, WebKit on the Mac, and
 GTK or Qt on Linux when they are installed (a closet run from source on Linux usually has neither, and uses the browser).
 It shows the same page the browser and the phone get, from the same server on 127.0.0.1.
 
-- Closing the window hides it: Closet keeps running in the background, so the phone and the nightly backup keep
-  working. A second launch, (on the Mac) clicking the program again and, with `--tray`, "Open Closet" in the tray
-  bring it back. Only when the launcher says not to keep running does closing the window quit Closet.
+- Closing the window hides it: Nines keeps running in the background, so the phone and the nightly backup keep
+  working. A second launch, (on the Mac) clicking the program again and, with `--tray`, "Open Nines" in the tray
+  bring it back. Only when the launcher says not to keep running does closing the window quit Nines.
 - A copy started at login prepares the window hidden and loads nothing until the owner first opens it.
 - The window keeps its web storage (the window's key cookie, the page's own settings) in `window/` in the closet's data
   folder, not in private mode, so they are remembered like a browser remembers them. (The Mac keeps WebKit's storage
@@ -15,7 +15,7 @@ It shows the same page the browser and the phone get, from the same server on 12
   `OPEN_EXTERNAL_LINKS_IN_BROWSER`, on by default. The page offers no downloads or saves.
 - If the window cannot be used here (no window library, Windows without the Edge WebView2 Runtime, any error while
   starting it, or a page that never loads), `prepare()` or `run()` says so in the log and the launcher opens the
-  browser instead, as Closet always did.
+  browser instead, as Nines always did.
 
 Threads and loops. pywebview's `start()` must be called on the main thread
 (webview/__init__.py: "pywebview must be run on a main thread"), and so must AppKit on the Mac, where the tray icon
@@ -37,12 +37,12 @@ on each system, read in pystray 0.19.5's source:
 So the launcher starts the icon with `tray.run_beside(icon)` (pystray's `run_detached()`) and then calls
 `AppWindow.run()` on the main thread. When the window cannot be
 used at all, nothing changes from before: the tray's own `icon.run()` blocks the main thread. When the window's loop
-ends without Closet quitting, an icon that was riding on that loop (Mac, GTK) gets its own loop with `icon.run()`.
+ends without Nines quitting, an icon that was riding on that loop (Mac, GTK) gets its own loop with `icon.run()`.
 
 Closing on Windows is caught on the window itself (WinForms' FormClosing, which says why the window is closing), not
 with pywebview's `closing` event, so that only the owner closing the window hides it: when Windows is shutting down or
-signing out the window closes and Closet quits, instead of holding up the shutdown. On the Mac the app's delegate does
-the same for Quit (Cmd+Q, the Dock, logging out): Closet quits cleanly at once.
+signing out the window closes and Nines quits, instead of holding up the shutdown. On the Mac the app's delegate does
+the same for Quit (Cmd+Q, the Dock, logging out): Nines quits cleanly at once.
 """
 from __future__ import annotations
 
@@ -68,10 +68,10 @@ LOAD_WITHIN = 30          # seconds the page has to load once the window shows i
 
 
 class AppWindow:
-    """Closet's window: made hidden or shown, hidden again when closed, closed for good only when Closet quits.
+    """Nines' window: made hidden or shown, hidden again when closed, closed for good only when Nines quits.
 
-    `keep_running()` says whether closing the window should leave Closet running (there is a tray icon to come back
-    from); `on_quit()` quits Closet; `on_visible(shown)` is told when the window is shown or hidden; `on_terminate()`
+    `keep_running()` says whether closing the window should leave Nines running (there is a tray icon to come back
+    from); `on_quit()` quits Nines; `on_visible(shown)` is told when the window is shown or hidden; `on_terminate()`
     is the Mac's Quit, which must stop everything before it returns. `toolkit` replaces pywebview in tests."""
 
     def __init__(self, url: str, storage_dir: Path, *, hidden: bool = False,
@@ -93,7 +93,7 @@ class AppWindow:
         self.renderer: str | None = None
         self._toolkit = toolkit
         self._window = None
-        self._quitting = False        # Closet is quitting: let the window close
+        self._quitting = False        # Nines is quitting: let the window close
         self._closed_by_owner = False  # the owner closed it with no tray to come back from, or the session is ending
         self._gave_up = False         # the page never loaded: close it and use the browser
         self._page_requested = not hidden
@@ -115,7 +115,7 @@ class AppWindow:
             if self.renderer not in RENDERERS:
                 hint = (" (the Microsoft Edge WebView2 Runtime is not installed)"
                         if self.renderer == "mshtml" else "")
-                raise RuntimeError(f"its web engine here is {self.renderer!r}{hint}, which cannot show Closet")
+                raise RuntimeError(f"its web engine here is {self.renderer!r}{hint}, which cannot show Nines")
             width, height = _fit(SIZE, toolkit.screen_size())
             window = toolkit.create_window(
                 APP_NAME, url=None if self.hidden_at_start else self.url, width=width, height=height,
@@ -133,21 +133,21 @@ class AppWindow:
             if self.platform == "darwin":
                 toolkit.mac_prepare(on_reopen=self.show, on_terminate=self._terminate, dock=not self.hidden_at_start)
             self.usable = True
-            log.info("Closet opens in its own window (%s)%s", RENDERERS[self.renderer],
+            log.info("Nines opens in its own window (%s)%s", RENDERERS[self.renderer],
                      ", hidden until it is opened" if self.hidden_at_start else "")
             return True
         except Exception as e:
-            log.warning("Closet's own window cannot open here (%s: %s); the browser is used instead",
+            log.warning("Nines' own window cannot open here (%s: %s); the browser is used instead",
                         type(e).__name__, e)
             if self.platform == "darwin" and self._toolkit is not None:
-                self._toolkit.mac_dock(False)   # importing the window library gave Closet a Dock icon
+                self._toolkit.mac_dock(False)   # importing the window library gave Nines a Dock icon
             self.usable = False
             return False
 
     # ------------------------------------------------------------------ the loop
     def run(self) -> bool:
         """Run the window's loop on this thread (the main thread) until the window is closed for good. True when it
-        ended because Closet is quitting; False when the window went for another reason (it could not start, or its
+        ended because Nines is quitting; False when the window went for another reason (it could not start, or its
         page never loaded), and the browser should be used from now on."""
         if not self.usable:
             return False
@@ -158,14 +158,14 @@ class AppWindow:
         try:
             self._toolkit.start(storage_path=str(self.storage_dir), func=self._started)
         except Exception as e:
-            log.warning("Closet's own window stopped (%s: %s); the browser is used from now on", type(e).__name__, e)
+            log.warning("Nines' own window stopped (%s: %s); the browser is used from now on", type(e).__name__, e)
         self.usable = False
         if self._closed_by_owner:
             self.on_quit()
         if self._quitting:
             return True
         if not self._gave_up:
-            log.warning("Closet's own window closed by itself; the browser is used from now on")
+            log.warning("Nines' own window closed by itself; the browser is used from now on")
         return False
 
     def _started(self) -> None:
@@ -175,7 +175,7 @@ class AppWindow:
 
     # ------------------------------------------------------------------ showing and hiding
     def show(self) -> bool:
-        """Bring the window up (the tray's Open Closet, a second launch, the Mac's Dock). Never waits; False when there
+        """Bring the window up (the tray's Open Nines, a second launch, the Mac's Dock). Never waits; False when there
         is no window to show, and the browser should be opened instead."""
         if not self.usable or self._quitting:
             return False
@@ -201,7 +201,7 @@ class AppWindow:
                 window.restore()
             window.show()
         except Exception:
-            log.exception("could not show Closet's window")
+            log.exception("could not show Nines' window")
 
     def hide(self) -> None:
         if self._window is None or self._quitting:
@@ -212,11 +212,11 @@ class AppWindow:
             if self.platform == "darwin":
                 self._toolkit.mac_dock(False)   # back to a menu-bar app: no Dock icon while the window is hidden
         except Exception:
-            log.exception("could not hide Closet's window")
+            log.exception("could not hide Nines' window")
         self.on_visible(False)
 
     def close(self) -> None:
-        """Closet is quitting: close the window for good, which ends its loop and so `run()`."""
+        """Nines is quitting: close the window for good, which ends its loop and so `run()`."""
         with self._lock:
             already = self._quitting
             self._quitting = True
@@ -233,8 +233,8 @@ class AppWindow:
 
     # ------------------------------------------------------------------ closing
     def _keep_open(self, by_owner: bool) -> bool:
-        """Whether a window that is being closed should only be hidden. When it may close, and Closet is not already
-        quitting, Closet quits once the window has gone (see `run`)."""
+        """Whether a window that is being closed should only be hidden. When it may close, and Nines is not already
+        quitting, Nines quits once the window has gone (see `run`)."""
         if self._quitting or self._gave_up:
             return False
         if by_owner and self.keep_running():
@@ -243,7 +243,7 @@ class AppWindow:
         with self._lock:
             self._quitting = True
             self._closed_by_owner = True
-        log.info("Closet's window was closed %s; Closet quits",
+        log.info("Nines' window was closed %s; Nines quits",
                  "with no tray icon to come back from" if by_owner else "by Windows (shutting down, signing out)")
         return False
 
@@ -268,7 +268,7 @@ class AppWindow:
             args.Cancel = True
 
     def _terminate(self) -> None:
-        """The Mac's Quit (Cmd+Q, the Dock's Quit, logging out or shutting down): quit Closet completely, now."""
+        """The Mac's Quit (Cmd+Q, the Dock's Quit, logging out or shutting down): quit Nines completely, now."""
         with self._lock:
             self._quitting = True
         self.on_terminate()
@@ -284,7 +284,7 @@ class AppWindow:
     def _watch_load(self) -> None:
         if self._page_loaded.wait(self.load_within) or self._quitting or not self.usable:
             return
-        log.warning("Closet's page did not load in its window within %g seconds; the browser is used instead",
+        log.warning("Nines' page did not load in its window within %g seconds; the browser is used instead",
                     self.load_within)
         self._gave_up = True
         self._destroy()
@@ -305,7 +305,7 @@ class AppWindow:
 
 # WinForms' CloseReason values that mean Windows itself is closing the window: shutting down or signing out, Task
 # Manager's End task, and Application.Exit (pywebview's answer to Ctrl+C). Anything else, above all UserClosing (the
-# Close button, Alt+F4, the taskbar's Close window, and Closet's own destroy() when it quits), is the owner's doing.
+# Close button, Alt+F4, the taskbar's Close window, and Nines' own destroy() when it quits), is the owner's doing.
 WINDOWS_CLOSING = {"WindowsShutDown": 1, "TaskManagerClosing": 4, "ApplicationExitCall": 6}
 
 
@@ -328,7 +328,7 @@ def _fit(size: tuple[int, int], screen: tuple[int, int] | None) -> tuple[int, in
 
 
 class _Pywebview:
-    """The few parts of pywebview Closet uses, so tests can stand in for them."""
+    """The few parts of pywebview Nines uses, so tests can stand in for them."""
 
     def __init__(self, storage_dir: Path):
         self.storage_dir = storage_dir
@@ -373,7 +373,7 @@ class _Pywebview:
 
 
 def check_bundled(platform: str = sys.platform) -> str:
-    """For `closet selfcheck`: the window's library and this computer's part of it are in the program, checked without
+    """For `Nines selfcheck`: the window's library and this computer's part of it are in the program, checked without
     opening a window (the packaged smoke test runs where no window can be shown)."""
     import webview  # noqa: F401  (the library itself, with bottle and proxy_tools)
     from webview import util

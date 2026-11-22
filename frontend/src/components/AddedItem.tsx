@@ -11,7 +11,7 @@ type RowItem = Pick<ItemSummary, 'id' | 'name' | 'category' | 'color' | 'status'
   Partial<Pick<ItemSummary, 'cutout_state' | 'progress'>>;
 
 /** The picture in a row on Add: the item's cut-out once it is ready, else its photo; `fallback` (the photo as chosen,
- *  in this browser) until Closet knows the item. A picture this browser cannot show gives the photo icon. */
+ *  in this browser) until Nines knows the item. A picture this browser cannot show gives the photo icon. */
 export function AddedPicture({ item, fallback }: { item: RowItem | null; fallback?: string }) {
   const [broken, setBroken] = useState<string | null>(null);
   const src = item?.thumb_url || fallback;

@@ -1,5 +1,5 @@
 /**
- * What a screen shows when it reads through the query cache and keeps a copy on this device for when Closet cannot
+ * What a screen shows when it reads through the query cache and keeps a copy on this device for when Nines cannot
  * be reached (What's missing, Insights). The choices are pure, so they are tested here.
  */
 import { useEffect, useRef } from 'react';
@@ -10,12 +10,12 @@ export type Shown<T> =
   | { kind: 'ready'; data: T; savedAt: string | null }
   | { kind: 'error'; message: string; offline: boolean };
 
-/** A read that failed because Closet could not be reached at all (no answer), not because it said no. */
+/** A read that failed because Nines could not be reached at all (no answer), not because it said no. */
 export const unreachable = (error: unknown): boolean => (error as { status?: number } | null)?.status === 0;
 
 /**
- * What to show from a query's `data` and `error`. Closet cannot be reached: this device's copy (with when it was
- * kept), or `offlineMessage` when there is none. Closet answered with an error: what was read before stays (the
+ * What to show from a query's `data` and `error`. Nines cannot be reached: this device's copy (with when it was
+ * kept), or `offlineMessage` when there is none. Nines answered with an error: what was read before stays (the
  * screen says what went wrong in a toast), or the error, with a way to try again, when nothing was read yet.
  */
 export function shownWithCopy<T>(data: T | undefined, error: unknown, copy: () => { data: T; savedAt: string } | null,
@@ -32,7 +32,7 @@ export function shownWithCopy<T>(data: T | undefined, error: unknown, copy: () =
 }
 
 /**
- * Whether a failed read should be said in a toast: Closet answered with an error (not unreachable), the screen still
+ * Whether a failed read should be said in a toast: Nines answered with an error (not unreachable), the screen still
  * shows what it read before, and this failure is newer than the last one said (`errorAt` against `toldAt`).
  */
 export function tellFailure(error: unknown, hasData: boolean, errorAt: number, toldAt: number): boolean {

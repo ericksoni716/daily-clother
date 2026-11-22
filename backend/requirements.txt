@@ -16,7 +16,7 @@ anthropic==2.8.0         # the API-key route to Claude for tagging (and the sche
 opencv-python-headless==5.0.0.93   # measuring an item's pattern (closet/patterns) and tracing a shoe (closet/drawing/trace.py, traced.py), imported only where a photo is read
 resvg-py==0.5.0          # renders a shoe Claude drew to PNG, so Claude can look at its drawing (closet/drawing/drawn.py); MIT, wheels for Windows and macOS, no other dependencies
 svgelements==1.9.6       # turns a straight-on shoe drawing out with the 3D shoe solid (closet/drawing/turned.py): reads its shapes and transforms as path geometry; MIT, pure Python, no dependencies
-pywebview==6.2.1         # Closet's own window (closet/window.py): Edge WebView2 on Windows, WebKit on the Mac; BSD; falls back to the browser
+pywebview==6.2.1         # Nines' own window (closet/window.py): Edge WebView2 on Windows, WebKit on the Mac; BSD; falls back to the browser
 pyjwt==2.15.1            # checks the sign-in Cloudflare Access signs, for the door through Cloudflare (closet/access.py): RS256 only; MIT
 cryptography==50.0.2     # the RSA that pyjwt checks an RS256 signature with (the standard library has none); Apache-2.0 or BSD
 

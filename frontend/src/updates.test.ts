@@ -51,7 +51,7 @@ describe('update wording', () => {
   });
 });
 
-/** A pretend Closet: each step of the clock answers health and status from a script. */
+/** A pretend Nines: each step of the clock answers health and status from a script. */
 function pretend(script: (t: number) => { health?: string; status?: Partial<UpdateStatus> }): FollowDeps {
   let t = 0;
   return {

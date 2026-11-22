@@ -153,7 +153,7 @@ def suggest(conn, state: State, body: object, stylist: stylejobs.Stylist | None 
     Claude a message about the outfits on the page (the conversation), which it answers in the background, and
     `looking_at` says which of the outfits was in front of the owner as they wrote (0 is the first).
 
-    `ahead`: this is not the owner asking but Closet, ahead of their first look (`closet/styleahead.py`). Claude is
+    `ahead`: this is not the owner asking but Nines, ahead of their first look (`closet/styleahead.py`). Claude is
     then asked only for a day read from today's fresh forecast: outfits for a guessed or an old day would be asked
     again as soon as the owner opened Today. `from_hour` (with `ahead`): the hour the owner usually first looks, by
     the clock; the day is read from then on when that is still to come, as it will be when they look."""

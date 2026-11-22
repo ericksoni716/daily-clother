@@ -72,7 +72,7 @@ test.describe('the day in your words', () => {
     const settings = await (await page.request.get(backend.url + '/api/settings')).json();
     expect(settings.place.name).toContain('New York');
 
-    // Change opens the sentence again with what Closet took from it; a wedding makes the day formal
+    // Change opens the sentence again with what Nines took from it; a wedding makes the day formal
     await change.click();
     await expect(box).toHaveValue('In Lisbon for four days, outside walking the city from noon to six');
     await expect(page.getByTestId('day-note-now')).toContainText('Lisbon, Portugal');

@@ -1,4 +1,4 @@
-"""Closet: a private, single-user wardrobe app."""
+"""Nines: a private, single-user wardrobe app."""
 
 try:  # written by the release build; absent when running from source
     from ._build_version import VERSION as __version__

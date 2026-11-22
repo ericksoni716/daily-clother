@@ -11,12 +11,17 @@ The demo closet never asks Claude: there the owner draws the boxes.
 A photo is in one of three states: `finding` (waiting for Claude), `review` (boxes ready for the owner to check,
 or to draw) and `added` (its items are in the closet). Any change the owner makes to the boxes ends `finding`, so
 an answer from Claude that arrives after it is dropped rather than overwriting what the owner did.
+
+Claude's boxes are kept as it found them (`found_boxes`) beside the ones the owner changes, so the page can undo a
+change and put one box, or all of them, back as Claude found them by sending the whole list (`set_boxes`), never by
+asking Claude again.
 """
 from __future__ import annotations
 
 import json
 import logging
 import math
+import re
 import shutil
 import threading
 import uuid
@@ -116,6 +121,9 @@ def _box_id() -> str:
     return uuid.uuid4().hex[:10]
 
 
+_ID = re.compile(r"[0-9a-f]{10}")   # what `_box_id` makes
+
+
 def _label(raw) -> str | None:
     label = raw.get("label") if isinstance(raw, dict) else None
     return label.strip()[:80] if isinstance(label, str) and label.strip() else None
@@ -169,6 +177,7 @@ def view(conn, row) -> dict:
         "width": row["width"], "height": row["height"],
         "boxes": [{**b, "n": n, "cutout_url": f"/api/sources/{sid}/boxes/{b['id']}/cutout.webp?v={_version(b)}"}
                   for n, b in enumerate(boxes, 1)],
+        "found_boxes": json.loads(row["found_boxes"]) if row["found_boxes"] else [],
         "items": [items.summary(conn, r) for r in
                   conn.execute("SELECT * FROM items WHERE source_photo_id = ? ORDER BY rowid", (sid,))],
         "created_at": row["created_at"], "updated_at": row["updated_at"],
@@ -286,6 +295,23 @@ def remove_box(conn, sid: str, bid: str) -> dict:
         i = _index(boxes, bid)
         return boxes[:i] + boxes[i + 1:]
     return _change(conn, sid, change)
+
+
+def set_boxes(conn, sid: str, raws: list[dict]) -> dict:
+    """Put the boxes as the page sends them, all at once: an undo, or boxes put back as Claude found them. A box keeps
+    its id when it sends one of the shape the ids have (so its cutout is not made again), else gets a new one."""
+    if len(raws) > MAX_BOXES:
+        raise items.ItemError(TOO_MANY)
+    boxes: list[dict] = []
+    for raw in raws:
+        box = clamp(raw)
+        if box is None:
+            raise items.ItemError(BAD_BOX)
+        bid = raw.get("id")
+        if not (isinstance(bid, str) and _ID.fullmatch(bid)) or any(b["id"] == bid for b in boxes):
+            bid = _box_id()
+        boxes.append({"id": bid, **box, "label": _label(raw)})
+    return _change(conn, sid, lambda _: boxes)
 
 
 def merge_boxes(conn, sid: str, ids: list[str]) -> dict:
@@ -419,9 +445,10 @@ def find_one(conn, images_dir: Path, row, routes: tuple[str, ...], find: Finder)
                      (attempts, "review" if given_up else "finding", FAILED if given_up else None, db.now(), row["id"]))
         return "failed"
     boxes = tidy(found)
-    conn.execute("UPDATE source_photos SET boxes = ?, state = 'review', found_by = 'claude', note = ?, updated_at = ? "
-                 "WHERE id = ? AND state = 'finding'",   # the owner has not started on the boxes meanwhile
-                 (json.dumps(boxes), None if boxes else NONE_FOUND, db.now(), row["id"]))
+    conn.execute("UPDATE source_photos SET boxes = ?, found_boxes = ?, state = 'review', found_by = 'claude', note = ?, "
+                 "updated_at = ? WHERE id = ? AND state = 'finding'",   # the owner has not started on the boxes meanwhile
+                 (json.dumps(boxes), json.dumps(boxes) if boxes else None, None if boxes else NONE_FOUND, db.now(),
+                  row["id"]))
     return "done"
 
 
@@ -497,6 +524,16 @@ class MergeBody(BaseModel):
     ids: list[str]
 
 
+class ListedBox(BoxBody):
+    id: str | None = None
+    label: str | None = None
+
+
+class BoxesBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    boxes: list[ListedBox]
+
+
 def router(conn_dep, images_dir: Callable[[], Path], state: State, wake_finder: Callable[[], None],
            wake_cutouts: Callable[[], None], cutter: Callable[[Image.Image], Image.Image],
            cutter_ready: Callable[[], bool]) -> APIRouter:
@@ -530,6 +567,10 @@ def router(conn_dep, images_dir: Callable[[], Path], state: State, wake_finder: 
     @r.post("/api/sources/{source_id}/boxes")
     def new_box(source_id: str, body: BoxBody, conn=Depends(conn_dep)):
         return add_box(conn, source_id, body.model_dump())
+
+    @r.put("/api/sources/{source_id}/boxes")
+    def put_boxes(source_id: str, body: BoxesBody, conn=Depends(conn_dep)):
+        return set_boxes(conn, source_id, [b.model_dump() for b in body.boxes])
 
     @r.post("/api/sources/{source_id}/boxes/merge")
     def merge(source_id: str, body: MergeBody, conn=Depends(conn_dep)):

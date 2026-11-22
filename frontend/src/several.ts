@@ -1,7 +1,8 @@
-/** Boxes around the pieces in a photo of several: moving their corners, and placing them on the screen. Pure, so
- * it is tested without a browser. Every box is fractions of the photo (0 left/top, 1 right/bottom). */
+/** Boxes around the pieces in a photo of several: moving their corners, placing them on the screen, undoing a change
+ * and putting Claude's boxes back. Pure, so it is tested without a browser. Every box is fractions of the photo
+ * (0 left/top, 1 right/bottom). */
 import type { CSSProperties } from 'react';
-import type { BoxEdges, SourcePhoto } from './types';
+import type { BoxEdges, PlainBox, SourcePhoto } from './types';
 
 /** While Claude looks for the pieces in the photo. */
 export const FINDING_POLL_MS = 2000;
@@ -95,4 +96,72 @@ export function sourceLine(state: 'finding' | 'review' | 'added', boxes: number,
   if (state === 'finding') return note ? 'Waiting to look for the pieces' : 'Looking for the pieces…';
   if (!boxes) return 'No pieces marked yet';
   return `${boxes} ${boxes === 1 ? 'piece' : 'pieces'} to check`;
+}
+
+// ------------------------------------------------------------------ undo, and Claude's boxes put back
+
+/** A box as it is sent back whole: its place, its id (so its cutout is kept) and what Claude called it. */
+export function plain(b: PlainBox): PlainBox {
+  return { id: b.id, x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1, label: b.label };
+}
+
+/** One change the owner can undo: the boxes as they were before it, and what it was, in a few words. */
+export interface Undo {
+  before: PlainBox[];
+  words: string;
+}
+
+/** How many changes Undo can go back through. */
+export const UNDO_KEPT = 30;
+
+/** The changes so far with one more, the oldest dropped past UNDO_KEPT. */
+export function remember(stack: readonly Undo[], before: readonly PlainBox[], words: string): Undo[] {
+  return [...stack, { before: before.map(plain), words }].slice(-UNDO_KEPT);
+}
+
+/** The same boxes, in the same order, in the same places. */
+export function sameBoxes(a: readonly PlainBox[], b: readonly PlainBox[]): boolean {
+  return a.length === b.length && a.every((x, i) => x.id === b[i].id && sameBox(x, b[i]) && x.label === b[i].label);
+}
+
+/** Whether the boxes are no longer what Claude found: "Back to what Claude found" is offered then. */
+export function differsFromFound(boxes: readonly PlainBox[], found: readonly PlainBox[]): boolean {
+  return found.length > 0 && !sameBoxes(boxes, found);
+}
+
+/** Claude's box with this id when the owner has moved, reshaped or joined it since; null when it is as Claude found
+ * it, or Claude never found it. */
+export function foundVersion(box: PlainBox, found: readonly PlainBox[]): PlainBox | null {
+  const was = found.find((f) => f.id === box.id);
+  return was && !(sameBox(was, box) && was.label === box.label) ? was : null;
+}
+
+/** Claude's boxes the owner has removed (or joined into another), in Claude's order. */
+export function removedFound(boxes: readonly PlainBox[], found: readonly PlainBox[]): PlainBox[] {
+  return found.filter((f) => !boxes.some((b) => b.id === f.id));
+}
+
+/** The boxes with one of Claude's put back as it found it: in its place when it is there, else back in its turn
+ * (after the nearest of Claude's boxes before it that is still there). */
+export function putBack(boxes: readonly PlainBox[], found: readonly PlainBox[], id: string): PlainBox[] {
+  const was = found.find((f) => f.id === id);
+  const now = boxes.map(plain);
+  if (!was) return now;
+  const at = now.findIndex((b) => b.id === id);
+  if (at >= 0) {
+    now[at] = plain(was);
+    return now;
+  }
+  const order = found.findIndex((f) => f.id === id);
+  let after = -1;
+  for (let i = order - 1; i >= 0 && after < 0; i -= 1) after = now.findIndex((b) => b.id === found[i].id);
+  now.splice(after + 1, 0, plain(was));
+  return now;
+}
+
+/** What a box is called in the words about a change: "box 2 (red shirt)", "box 3", or Claude's name alone when it
+ * has no number on the photo any more. */
+export function pieceName(b: { n?: number; label: string | null }): string {
+  if (!b.n) return b.label ?? 'a piece';
+  return b.label ? `box ${b.n} (${b.label})` : `box ${b.n}`;
 }

@@ -4,11 +4,14 @@ import { api, ApiError } from '../api';
 import { CheckIcon, ImagesIcon } from '../components/Icons';
 import { Button, Card, ItemThumb, Notice, PageHeader } from '../components/ui';
 import { Link, navigate } from '../router';
-import { addLabel, boxStyle, CORNERS, cropStyle, moveBox, moveCorner, newBox, pointAt, sameBox, sourcePoll, type Corner } from '../several';
+import {
+  addLabel, boxStyle, CORNERS, cropStyle, differsFromFound, foundVersion, moveBox, moveCorner, newBox, pieceName, pointAt, putBack,
+  remember, removedFound, sameBox, sourcePoll, type Corner, type Undo,
+} from '../several';
 import { touch } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { useApp } from '../store';
-import type { BoxEdges, SourceBox, SourcePhoto } from '../types';
+import type { BoxEdges, PlainBox, SourceBox, SourcePhoto } from '../types';
 import './Several.css';
 
 const NUDGE = 0.01;   // an arrow key moves the chosen box this much of the photo
@@ -29,6 +32,9 @@ export function SeveralScreen({ id }: { id: string }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ id: string; box: BoxEdges } | null>(null);
   const [busy, setBusy] = useState(false);
+  // the changes made on this page, newest last, each with the boxes as they were before it (kept until the pieces
+  // are added or the page is left)
+  const [undos, setUndos] = useState<Undo[]>([]);
   const stage = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
   const finding = src?.state === 'finding';
@@ -41,14 +47,19 @@ export function SeveralScreen({ id }: { id: string }) {
     void qc.invalidateQueries({ queryKey: queryKeys.sources(), exact: true });
   };
 
-  /** Runs a change to the boxes; the photo as it is afterwards comes back. */
-  async function change(run: () => Promise<SourcePhoto>) {
+  /** Runs a change to the boxes; the photo as it is afterwards comes back. `words` say what it was, for Undo; an undo
+   * itself passes none. */
+  async function change(run: () => Promise<SourcePhoto>, words: string | null): Promise<boolean> {
+    const before = src?.boxes ?? [];
     setBusy(true);
     try {
       boxesSaved(await run());
+      if (words) setUndos((stack) => remember(stack, before, words));
+      return true;
     } catch (e) {
       toast((e as ApiError).message, 'error');
       void query.refetch();
+      return false;
     } finally {
       setBusy(false);
     }
@@ -80,7 +91,9 @@ export function SeveralScreen({ id }: { id: string }) {
       setDraft(null);
       return;
     }
-    void change(() => api.moveBox(id, d.id, box)).finally(() => setDraft(null));
+    const moved = src?.boxes.find((b) => b.id === d.id);
+    const words = `${d.mode === 'move' ? 'Moved' : 'Changed the shape of'} ${moved ? pieceName(moved) : 'the box'}.`;
+    void change(() => api.moveBox(id, d.id, box), words).finally(() => setDraft(null));
   }
 
   function onKey(e: KeyboardEvent<HTMLDivElement>, b: SourceBox) {
@@ -94,7 +107,24 @@ export function SeveralScreen({ id }: { id: string }) {
     e.preventDefault();
     // Shift and an arrow makes the box bigger or smaller from its lower right corner; an arrow alone moves it
     const box = e.shiftKey ? moveCorner(b, 'se', b.x1 + step[0], b.y1 + step[1]) : moveBox(b, step[0], step[1]);
-    if (!sameBox(box, b)) void change(() => api.moveBox(id, b.id, box));
+    if (!sameBox(box, b)) void change(() => api.moveBox(id, b.id, box), `${e.shiftKey ? 'Changed the shape of' : 'Moved'} ${pieceName(b)}.`);
+  }
+
+  /** The last change taken back: the boxes as they were before it are sent whole. */
+  function undo() {
+    const last = undos[undos.length - 1];
+    if (!last) return;
+    void change(() => api.setBoxes(id, last.before), null).then((done) => done && setUndos((stack) => stack.slice(0, -1)));
+  }
+
+  function putBackOne(box: PlainBox & { n?: number }) {
+    if (!src) return;
+    void change(() => api.setBoxes(id, putBack(src.boxes, src.found_boxes, box.id)), `Put ${pieceName(box)} back as Claude found it.`);
+  }
+
+  function backToFound() {
+    if (!src) return;
+    void change(() => api.setBoxes(id, src.found_boxes), 'Went back to the boxes Claude found.');
   }
 
   async function addAll() {
@@ -152,6 +182,8 @@ export function SeveralScreen({ id }: { id: string }) {
   const boxes = src.boxes.map((b) => (draft?.id === b.id ? { ...b, ...draft.box } : b));
   const editable = !added && !(finding && !src.note);
   const count = src.boxes.length;
+  const removed = editable ? removedFound(src.boxes, src.found_boxes) : [];
+  const lastChange = editable ? undos[undos.length - 1] : undefined;
 
   return (
     <section className="several" aria-labelledby="several-title">
@@ -164,7 +196,7 @@ export function SeveralScreen({ id }: { id: string }) {
       )}
       {finding && src.note && (
         <Notice tone="warning" testId="several-note"
-          action={<Button small onClick={() => void change(() => api.addBox(id, newBox()))} disabled={busy}>Draw them myself</Button>}>
+          action={<Button small onClick={() => void change(() => api.addBox(id, newBox()), 'Added a box.')} disabled={busy}>Draw them myself</Button>}>
           {src.note}
         </Notice>
       )}
@@ -227,11 +259,38 @@ export function SeveralScreen({ id }: { id: string }) {
               {boxes.map((b) => (
                 <Piece key={b.id} box={b} src={src} chosen={selected === b.id} editable={editable} busy={busy}
                   others={boxes.filter((o) => o.id !== b.id)}
+                  changed={editable && foundVersion(b, src.found_boxes) !== null}
                   onChoose={() => setSelected(b.id)}
-                  onRemove={() => void change(() => api.removeBox(id, b.id))}
-                  onJoin={(other) => void change(() => api.mergeBoxes(id, [b.id, other]))} />
+                  onRemove={() => void change(() => api.removeBox(id, b.id), `Removed ${pieceName(b)}.`)}
+                  onJoin={(other) => {
+                    const partner = boxes.find((o) => o.id === other);
+                    void change(() => api.mergeBoxes(id, [b.id, other]), `Joined ${pieceName(b)} and ${partner ? pieceName(partner) : 'another box'}.`);
+                  }}
+                  onPutBack={() => putBackOne(b)} />
               ))}
             </ol>
+          )}
+
+          {removed.length > 0 && (
+            <div className="several-removed" data-testid="several-removed">
+              <p className="muted small">Claude also found {removed.length === 1 ? 'this piece, which you removed' : 'these pieces, which you removed'}:</p>
+              <ul>
+                {removed.map((r) => (
+                  <li key={r.id}>
+                    <span>{r.label ?? 'A piece'}</span>{' '}
+                    <Button small variant="link" disabled={busy} onClick={() => putBackOne(r)}
+                      aria-label={`Put back ${r.label ?? 'the piece'} as Claude found it`}>Put back</Button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {lastChange && (
+            <p className="several-undo" role="status" data-testid="several-undo">
+              <span>{lastChange.words}</span>{' '}
+              <Button small onClick={undo} disabled={busy}>Undo</Button>
+            </p>
           )}
 
           {!added && (
@@ -241,7 +300,10 @@ export function SeveralScreen({ id }: { id: string }) {
                   const next = await api.addBox(id, newBox());
                   setSelected(next.boxes[next.boxes.length - 1]?.id ?? null);
                   return next;
-                })} disabled={busy || offline || count >= 20}>Add a box</Button>
+                }, 'Added a box.')} disabled={busy || offline || count >= 20}>Add a box</Button>
+              )}
+              {editable && differsFromFound(src.boxes, src.found_boxes) && (
+                <Button onClick={backToFound} disabled={busy || offline}>Back to what Claude found</Button>
               )}
               <Button variant="primary" onClick={() => void addAll()} disabled={busy || offline || !count || finding}
                 data-testid="several-add">{count ? addLabel(count) : 'Add the items'}</Button>
@@ -254,9 +316,11 @@ export function SeveralScreen({ id }: { id: string }) {
   );
 }
 
-function Piece({ box, src, chosen, editable, busy, others, onChoose, onRemove, onJoin }: {
+function Piece({ box, src, chosen, editable, busy, others, changed, onChoose, onRemove, onJoin, onPutBack }: {
   box: SourceBox; src: SourcePhoto; chosen: boolean; editable: boolean; busy: boolean; others: SourceBox[];
-  onChoose(): void; onRemove(): void; onJoin(other: string): void;
+  /** Claude found this box, and it has been moved, reshaped or joined since. */
+  changed: boolean;
+  onChoose(): void; onRemove(): void; onJoin(other: string): void; onPutBack(): void;
 }) {
   return (
     <Card as="li" className={`several-piece${chosen ? ' is-on' : ''}`} data-testid="several-piece">
@@ -268,6 +332,10 @@ function Piece({ box, src, chosen, editable, busy, others, onChoose, onRemove, o
         {editable && (
           <div className="row several-piece-actions">
             <Button small variant="danger-quiet" onClick={onRemove} disabled={busy} aria-label={`Remove box ${box.n}`}>Remove</Button>
+            {changed && (
+              <Button small variant="link" onClick={onPutBack} disabled={busy}
+                aria-label={`Put box ${box.n} back as Claude found it`}>As Claude found it</Button>
+            )}
             {others.length > 0 && (
               <select className="several-join" aria-label={`Join box ${box.n} with another`} value="" disabled={busy}
                 onChange={(e) => e.target.value && onJoin(e.target.value)}>

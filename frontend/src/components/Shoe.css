@@ -33,7 +33,7 @@
 .shoe-add .row { gap: 8px; flex-wrap: wrap; }
 .shoe-add .row > .btn { flex: 1 1 auto; justify-content: center; }
 
-/* A shoe's photos, each with the view Closet sorted it into, and the question about the outside (components/
+/* A shoe's photos, each with the view Nines sorted it into, and the question about the outside (components/
    ShoePhotos.tsx); the same row of photos on Add's "A shoe", before they are sent. */
 .shoe-photos { display: grid; gap: 8px; margin: 0 0 14px; }
 .shoe-photos p { margin: 0; }

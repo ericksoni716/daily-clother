@@ -16,6 +16,7 @@ const second = (over: Record<string, unknown> = {}) => model({
 const FAILED = second({ state: 'failed', downloaded_bytes: 0, total_bytes: null,
   error: 'Could not reach the download server. Check the internet connection and try again.' });
 const DOWNLOADING = second({ state: 'downloading', downloaded_bytes: 44_000_000, total_bytes: 175_997_641 });
+const READY = second();
 
 /** Settings bring the model's state with them (GET /api/settings), so the stand-in is put there too. */
 async function standInSettings(page: Page, answer: () => Record<string, unknown>) {
@@ -89,4 +90,31 @@ test('a first model that did not download says why on Add, and Try again starts 
   await banner.getByRole('button', { name: 'Try again' }).click();
   await expect(banner).toHaveCount(0);
   expect(asked).toBe(1);
+});
+
+test('Advanced says what each model is for and how it stands, and tries a failed one again', async ({ page }) => {
+  let now = model({ second: FAILED });
+  let asked = 0;
+  await page.route('**/api/model', (route) => route.fulfill({ json: now }));
+  await standInSettings(page, () => now);
+  await page.route('**/api/model/download', (route) => {
+    asked += 1;
+    now = model({ second: DOWNLOADING });
+    return route.fulfill({ status: 202, json: now });
+  });
+  await goToCloset(page);
+  await page.goto('/settings/advanced');
+  const section = page.getByRole('region', { name: 'Background removal' });
+  await expect(section.getByTestId('model-main')).toHaveText('The main model cuts out every photo. It is ready.');
+  const secondLine = section.getByTestId('model-second');
+  await expect(secondLine).toHaveText("The second model is asked as well for stripes and checks. It didn't download. "
+    + 'Could not reach the download server. Check the internet connection and try again. Try again');
+  await expect(section.getByRole('button', { name: 'Download the main model' })).toHaveCount(0);
+  await secondLine.getByRole('button', { name: 'Try downloading the second model again' }).click();
+  await expect(page.getByText('Downloading the background-removal model')).toBeVisible();
+  await expect(secondLine).toHaveText('The second model is asked as well for stripes and checks. It is downloading: 44 MB of 176 MB.');
+  expect(asked).toBe(1);
+
+  now = model({ second: READY });   // polled while it downloads: the line follows by itself
+  await expect(secondLine).toHaveText('The second model is asked as well for stripes and checks. It is ready.');
 });

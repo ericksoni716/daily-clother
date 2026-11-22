@@ -7,11 +7,14 @@ Where it is kept:
   running by Windows (closet/background.py), the key is also kept in a file in the data folder sealed by Windows to
   this computer (`SEALED_FILE`, below), because a copy started before anyone signs in most likely cannot read
   Credential Manager. That file is read only when Credential Manager gives no key.
-- Elsewhere there is no keychain Closet uses; the key can only come from `ANTHROPIC_API_KEY`.
+- Elsewhere there is no keychain Nines uses; the key can only come from `ANTHROPIC_API_KEY`.
 
 A key saved here wins over `ANTHROPIC_API_KEY`. The key is never returned to the page, logged, written to the
-settings file or a backup, and never put into the environment of a program Closet starts (Claude Code must keep
+settings file or a backup, and never put into the environment of a program Nines starts (Claude Code must keep
 using the owner's plan).
+
+The entry is named Nines. Up to 0.13.0 it was named Closet: a key found only there is saved under Nines and the old
+entry removed, once, at start (`carry_over`); until that has worked, the key is read from the old entry.
 """
 from __future__ import annotations
 
@@ -24,7 +27,8 @@ import sys
 from pathlib import Path
 from typing import Protocol
 
-SERVICE = "Closet"
+SERVICE = "Nines"
+OLD_SERVICE = "Closet"   # the entry's name up to 0.13.0; carried over at start (`carry_over`)
 ACCOUNT = "anthropic-api-key"
 ENV = "ANTHROPIC_API_KEY"
 
@@ -50,6 +54,9 @@ class MacKeychain:
     TOOL = "/usr/bin/security"
     NOT_FOUND = 44   # what `security` exits with when there is no such item
 
+    def __init__(self, service: str = SERVICE):
+        self.service = service
+
     def _run(self, args: list[str], stdin: str | None = None) -> subprocess.CompletedProcess:
         try:
             return subprocess.run([self.TOOL, *args], input=stdin, capture_output=True, text=True, timeout=20)
@@ -57,7 +64,7 @@ class MacKeychain:
             raise KeychainError("Nines could not reach this Mac's keychain.") from e
 
     def get(self) -> str | None:
-        proc = self._run(["find-generic-password", "-s", SERVICE, "-a", ACCOUNT, "-w"])
+        proc = self._run(["find-generic-password", "-s", self.service, "-a", ACCOUNT, "-w"])
         if proc.returncode == self.NOT_FOUND:
             return None
         if proc.returncode != 0:
@@ -68,22 +75,26 @@ class MacKeychain:
         if not KEY_RE.fullmatch(key):   # never let anything else reach the tool's command line
             raise ValueError(NOT_A_KEY)
         # interactive mode reads the command from standard input, so the key is not in the process list
-        self._run(["-i"], stdin=f'add-generic-password -U -s {SERVICE} -a {ACCOUNT} -l "{SERVICE} API key" -w "{key}"\n')
+        self._run(["-i"], stdin=f'add-generic-password -U -s {self.service} -a {ACCOUNT} -l "{self.service} API key" '
+                                f'-w "{key}"\n')
         if self.get() != key:
             raise KeychainError("Nines could not save the API key in this Mac's keychain.")
 
     def delete(self) -> None:
-        proc = self._run(["delete-generic-password", "-s", SERVICE, "-a", ACCOUNT])
+        proc = self._run(["delete-generic-password", "-s", self.service, "-a", ACCOUNT])
         if proc.returncode not in (0, self.NOT_FOUND):
             raise KeychainError("Nines could not remove the API key from this Mac's keychain.")
 
 
 class WindowsCredentials:
     where = "Windows Credential Manager"
-    TARGET = f"{SERVICE}/{ACCOUNT}"
     GENERIC = 1              # CRED_TYPE_GENERIC
     LOCAL_MACHINE = 2        # CRED_PERSIST_LOCAL_MACHINE: this user on this computer, kept after sign-out
     NOT_FOUND = 1168         # ERROR_NOT_FOUND
+
+    def __init__(self, service: str = SERVICE):
+        self.service = service
+        self.TARGET = f"{service}/{ACCOUNT}"
 
     def _api(self):
         import ctypes
@@ -132,7 +143,7 @@ class WindowsCredentials:
         ctypes, advapi, CREDENTIAL = self._api()
         data = key.encode("utf-8")
         blob = (ctypes.c_ubyte * len(data)).from_buffer_copy(data)
-        cred = CREDENTIAL(Type=self.GENERIC, TargetName=self.TARGET, Comment=f"{SERVICE} API key",
+        cred = CREDENTIAL(Type=self.GENERIC, TargetName=self.TARGET, Comment=f"{self.service} API key",
                           CredentialBlobSize=len(data), CredentialBlob=ctypes.cast(blob, ctypes.POINTER(ctypes.c_ubyte)),
                           Persist=self.LOCAL_MACHINE, UserName=ACCOUNT)
         if not advapi.CredWriteW(ctypes.byref(cred), 0):
@@ -157,15 +168,16 @@ class NoKeychain:
         return None
 
 
-def _default_store() -> Store:
+def _default_store(service: str = SERVICE) -> Store:
     if sys.platform == "darwin":
-        return MacKeychain()
+        return MacKeychain(service)
     if sys.platform == "win32":
-        return WindowsCredentials()
+        return WindowsCredentials(service)
     return NoKeychain()
 
 
 _store: Store | None = None
+_old_store: Store | None = None
 
 
 def store() -> Store:
@@ -175,15 +187,63 @@ def store() -> Store:
     return _store
 
 
-def use_store(s: Store | None) -> None:
-    """Use `s` instead of the computer's keychain (tests); None goes back to the computer's."""
-    global _store
+def old_store() -> Store:
+    """The entry named Closet, where the key was kept up to 0.13.0."""
+    global _old_store
+    if _old_store is None:
+        _old_store = _default_store(OLD_SERVICE)
+    return _old_store
+
+
+def use_store(s: Store | None, old: Store | None = None) -> None:
+    """Use `s` instead of the computer's keychain, and `old` instead of its old entry, or none (tests); None goes back to
+    the computer's."""
+    global _store, _old_store
     _store = s
+    _old_store = None if s is None else old or NoKeychain()
+
+
+def keychain_key() -> str | None:
+    """The key in the keychain: under Nines, else under Closet, where it stays until `carry_over` has moved it. Raises
+    KeychainError when the keychain cannot be read."""
+    key = store().get()
+    if key is None:
+        try:
+            key = old_store().get()
+        except Exception:   # the old entry is only a fallback
+            key = None
+    return key
+
+
+def carry_over() -> bool:
+    """At start: a key kept under Closet (up to 0.13.0) is saved under Nines, checked, and only then removed from Closet.
+    When saving or checking it fails, the old entry is kept and read as before, and the next start tries again. When
+    both hold a key, the one under Nines is the owner's latest and the old one is removed. Never raises; True when it
+    moved a key. The key is never logged."""
+    try:
+        old = old_store()
+        if isinstance(old, NoKeychain):
+            return False
+        key = old.get()
+        if not key:
+            return False
+        new = store()
+        if new.get() is not None:
+            old.delete()
+            return False
+        new.set(key)
+        if new.get() != key:
+            new.delete()   # what is there is not the key: the old entry stays the one read
+            return False
+        old.delete()
+        return True
+    except Exception:   # a keychain that cannot be reached (a copy started before sign-in): left for the next start
+        return False
 
 
 def _saved() -> str | None:
     try:
-        key = store().get()
+        key = keychain_key()
     except Exception:   # a keychain that cannot be read is treated as holding no key; the environment still counts
         key = None
     if key is None and _sealed_dir is not None:
@@ -372,14 +432,17 @@ def save(key: str, data_dir: Path | None) -> None:
 
 
 def remove(data_dir: Path | None) -> None:
-    """Remove the key: from the keychain, and, with `data_dir`, from the sealed file too (which then says it is gone)."""
+    """Remove the key: from the keychain (under Nines and under Closet, so an old entry does not bring it back), and,
+    with `data_dir`, from the sealed file too (which then says it is gone)."""
     if data_dir is None:
         store().delete()
+        old_store().delete()
         return
-    try:
-        store().delete()
-    except KeychainError:
-        pass
+    for s in (store(), old_store()):
+        try:
+            s.delete()
+        except KeychainError:
+            pass
     write_sealed(data_dir, None)
 
 
@@ -394,6 +457,7 @@ def unseal_back(data_dir: Path) -> None:
                 store().set(sealer().unseal(base64.b64decode(sealed)).decode("utf-8"))
             else:
                 store().delete()
+                old_store().delete()
         except (KeychainError, ValueError, OSError):
             pass   # the keychain keeps what it had; the owner can save the key again in Settings
     remove_sealed(data_dir)

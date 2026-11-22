@@ -10,7 +10,7 @@ import type { Profile, ProgressList } from './types';
 import { uploads } from './uploads';
 import { downloading, DOWNLOAD_MS, movedOn, progressPoll } from './work';
 
-/** The open closet: which one, whether Closet can be reached, and what is done to it as a whole. This changes only
+/** The open closet: which one, whether Nines can be reached, and what is done to it as a whole. This changes only
  * when the closet is switched or the connection comes and goes, so reading it never draws a screen again on its own. */
 interface AppState {
   profile: Profile;

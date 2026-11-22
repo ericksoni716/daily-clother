@@ -21,7 +21,7 @@ export function useUpdateStatus(offline: boolean) {
   }, [offline]);
 }
 
-/** "Closet 0.3.0 is ready · Install", on every screen in "Ask me first" mode. */
+/** "Nines 0.3.0 is ready · Install", on every screen in "Ask me first" mode. */
 export function UpdateBanner({ offline, toast }: { offline: boolean; toast: Toast }) {
   const { status, installing } = useUpdates();
   const [busy, setBusy] = useState(false);
@@ -44,7 +44,7 @@ export function UpdateBanner({ offline, toast }: { offline: boolean; toast: Toas
   );
 }
 
-/** Covers the page while Closet restarts as the new version; the page reloads by itself once it answers. */
+/** Covers the page while Nines restarts as the new version; the page reloads by itself once it answers. */
 export function Restarting() {
   const { installing } = useUpdates();
   if (!installing) return null;
@@ -80,7 +80,7 @@ function useWhileBusy(offline: boolean) {
 }
 
 /**
- * The Updates group on the Settings page: one line ("Closet 0.4.0 · up to date", "Closet 0.4.1 is ready to
+ * The Updates group on the Settings page: one line ("Nines 0.4.0 · up to date", "Nines 0.4.1 is ready to
  * install."), what is new folded under it, and Install. Its status comes with the settings, which put it in the
  * page's one copy; how updates are fetched and Check now are on the Advanced screen (`UpdatesManage`).
  */

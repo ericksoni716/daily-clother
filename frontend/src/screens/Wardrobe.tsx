@@ -40,7 +40,7 @@ export function WardrobeScreen({ itemId, check, wishId, wish, wide }: {
   const [lifeOpen, setLifeOpen] = useState(false);
   const [situation, setSituation] = useState<SituationId | 'all'>('all');
 
-  // The three answers are read through the cache, each kept on this device for when Closet cannot be reached.
+  // The three answers are read through the cache, each kept on this device for when Nines cannot be reached.
   // Coming back shows them at once; coming back online asks again for all of them (ClosetProvider).
   const gapsQ = useQuery({
     queryKey: queryKeys.gaps(),

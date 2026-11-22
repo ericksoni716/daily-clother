@@ -1,10 +1,10 @@
-"""The program's entry point.
+"""The program's entry point (Nines.exe on Windows, Nines.app on the Mac, `python -m closet` from source).
 
-    closet                      start the app (what a double-click does)
-    closet --background         the server alone, with nothing shown (beside it, opening the app opens a window onto it)
-    closet restore <folder>     replace the closet with a backup
-    closet backup               back up now to the chosen folder
-    closet selfcheck            check that the bundled libraries work
+    Nines                       start the app (what a double-click does)
+    Nines --background          the server alone, with nothing shown (beside it, opening the app opens a window onto it)
+    Nines restore <folder>      replace the closet with a backup
+    Nines backup                back up now to the chosen folder
+    Nines selfcheck             check that the bundled libraries work
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ import webbrowser
 from pathlib import Path
 from types import SimpleNamespace
 
-from . import APP_NAME, __version__, autostart, backup, config, datafolder, db, gate, instance
+from . import APP_NAME, __version__, apikey, autostart, backup, config, datafolder, db, gate, instance
 from . import background as kept_running
 from .state import State
 
@@ -38,15 +38,43 @@ AWAIT_BACKGROUND = -1
 MOVE_BACKGROUND = -2
 
 
-def _setup_logging(cfg: config.Config, name: str = "closet.log") -> None:
+LOG_FILE = "nines.log"
+OLD_LOG_FILE = "closet.log"   # the log's name up to 0.13.0, when the program's words still said Closet
+LOG_BACKUPS = 3
+
+
+def _carry_over_log(logs: Path) -> str | None:
+    """closet.log and its older parts become nines.log, once, before the log is opened, so the logs folder holds one
+    name. Only when nines.log is not there yet. A part that cannot be renamed (another copy still has it open) stays as
+    it is: it is only a log. What was done, for the log; None when there was nothing to do."""
+    if (logs / LOG_FILE).exists() or not (logs / OLD_LOG_FILE).exists():
+        return None
+    kept = []
+    for suffix in ("", *(f".{n}" for n in range(1, LOG_BACKUPS + 1))):
+        old = logs / (OLD_LOG_FILE + suffix)
+        if not old.exists():
+            continue
+        try:
+            os.rename(old, logs / (LOG_FILE + suffix))
+        except OSError:
+            kept.append(old.name)
+    if kept:
+        return f"the log is now {LOG_FILE}; {', '.join(kept)} could not be renamed and was left as it is"
+    return f"the log is now {LOG_FILE} (it was {OLD_LOG_FILE})"
+
+
+def _setup_logging(cfg: config.Config, name: str = LOG_FILE) -> None:
     """`name`: a window onto a background copy logs to a file of its own, so two processes never rotate one file."""
     cfg.logs_dir.mkdir(parents=True, exist_ok=True)
-    handlers: list[logging.Handler] = [
-        logging.handlers.RotatingFileHandler(cfg.logs_dir / name, maxBytes=1_000_000, backupCount=3, encoding="utf-8")]
+    carried = _carry_over_log(cfg.logs_dir) if name == LOG_FILE else None
+    handlers: list[logging.Handler] = [logging.handlers.RotatingFileHandler(
+        cfg.logs_dir / name, maxBytes=1_000_000, backupCount=LOG_BACKUPS, encoding="utf-8")]
     if sys.stderr is not None:
         handlers.append(logging.StreamHandler())
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", handlers=handlers)
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    if carried:
+        log.info("%s", carried)
 
 
 # What the launcher says while it holds the startup lock is held back until it lets go of it: a message box waits for the
@@ -159,15 +187,21 @@ def _carry_over_start_at_login() -> None:
         log.warning("could not carry start at login over to this program", exc_info=True)
 
 
+def _carry_over_api_key() -> None:
+    """An API key kept in the keychain under Closet (0.13.0 and before) is saved under Nines (closet/apikey.py)."""
+    if apikey.carry_over():
+        log.info("the API key in the keychain moved from the entry named Closet to the one named Nines")
+
+
 def _open_running(cfg: config.Config, info: dict, url: str) -> None:
     """Opened again while a copy runs: that copy shows its window, or, when it has none (it uses the browser, or it is
-    from before Closet had a window), the browser opens as it always did, at the address with the window's key."""
+    from before Nines had a window), the browser opens as it always did, at the address with the window's key."""
     if not instance.show_running(info):
         webbrowser.open(_keyed(cfg, url))
 
 
 def _keyed(cfg: config.Config, url: str) -> str:
-    """`url` with the key of Closet's own window (closet/gate.py) as the running copy keeps it in the settings; `url`
+    """`url` with the key of Nines' own window (closet/gate.py) as the running copy keeps it in the settings; `url`
     alone when there is none (a copy from before the key) or the settings cannot be read."""
     try:
         key = State(cfg.state_path).get("window_key")
@@ -263,7 +297,7 @@ def _background_did_not_start(args, refused: bool = False) -> str | None:
         return ("Windows would not start the background copy" if refused else
                 f"the background copy did not answer within {seconds} seconds") + "; this copy serves on its own"
     if answer is None:
-        _say(f"{why} Open {APP_NAME} again in a minute. The details are in closet.log in your data folder.")
+        _say(f"{why} Open {APP_NAME} again in a minute. The details are in nines.log in your data folder.")
     return None
 
 
@@ -412,8 +446,8 @@ def _window_only(args, cfg: config.Config, info: dict, release_startup) -> int:
 
 
 def server_config(app, host: str, port: int):
-    """How uvicorn serves Closet. `proxy_headers` is off: uvicorn otherwise believes `X-Forwarded-For` on any
-    connection from this computer (every connection to Closet is one, Tailscale Serve and Cloudflare's connector
+    """How uvicorn serves Nines. `proxy_headers` is off: uvicorn otherwise believes `X-Forwarded-For` on any
+    connection from this computer (every connection to Nines is one, Tailscale Serve and Cloudflare's connector
     included), so whoever sent it would choose the address the Tailscale check asks Windows about (closet/tailnet.py)."""
     import uvicorn
 
@@ -487,6 +521,7 @@ def _serve(args, cfg: config.Config, release_startup, launch=None) -> int:
     if not background:   # a background copy set it up before the startup lock
         _setup_logging(cfg)
     _log_folder_moving()
+    _carry_over_api_key()
     if alone:
         log.warning("%s", alone)
     if not background and not _kept_running(cfg):   # with the background copy on, start at login stays off
@@ -511,7 +546,7 @@ def _serve(args, cfg: config.Config, release_startup, launch=None) -> int:
         say(str(e))
         return 2
 
-    # Closet's own window, the browser it falls back to and the tray open it with the key, which the server swaps for
+    # Nines' own window, the browser it falls back to and the tray open it with the key, which the server swaps for
     # a cookie; by this computer's own name nothing else gets in (closet/gate.py). Made once and kept in the settings.
     key = gate.window_key(services.state)
     app = create_app(services, window_key=key)
@@ -519,7 +554,7 @@ def _serve(args, cfg: config.Config, release_startup, launch=None) -> int:
     server.install_signal_handlers = lambda: None  # we run it off the main thread
     url = f"http://127.0.0.1:{port}/"
     opened = gate.keyed_url(url, key)   # never logged or printed: `url` is
-    ui: dict = {}   # the tray icon and Closet's own window, once they are up
+    ui: dict = {}   # the tray icon and Nines' own window, once they are up
 
     def quit_program() -> None:
         server.should_exit = True
@@ -534,11 +569,11 @@ def _serve(args, cfg: config.Config, release_startup, launch=None) -> int:
                 pass
 
     def show_window() -> bool:
-        """Show Closet's own window; False when there is none and the browser should be opened instead."""
+        """Show Nines' own window; False when there is none and the browser should be opened instead."""
         window = ui.get("window")
         return window is not None and window.show()
 
-    def open_closet() -> None:   # the tray's "Open Closet"
+    def open_closet() -> None:   # the tray's "Open Nines"
         if not show_window():
             webbrowser.open(opened)
 
@@ -596,8 +631,8 @@ def _serve(args, cfg: config.Config, release_startup, launch=None) -> int:
         quit_program()
         shut_down()
 
-    # Closet's own window, unless it was asked for the browser or runs with neither a tray nor a window (the smoke
-    # test, the browser tests). Started at login (--no-browser) it is made hidden, for "Open Closet" to show.
+    # Nines' own window, unless it was asked for the browser or runs with neither a tray nor a window (the smoke
+    # test, the browser tests). Started at login (--no-browser) it is made hidden, for "Open Nines" to show.
     window = None
     if not args.browser and not (args.no_tray and args.no_browser):
         from . import window as app_window
@@ -638,7 +673,7 @@ def _serve(args, cfg: config.Config, release_startup, launch=None) -> int:
                 except Exception:
                     log.info("tray icon unavailable; continuing without it")
                     icon = None
-            if not window.run():   # the window has gone without Closet quitting: use the browser from now on
+            if not window.run():   # the window has gone without Nines quitting: use the browser from now on
                 ui.pop("window", None)
                 if not server.should_exit:
                     if window.visible:
@@ -742,7 +777,7 @@ def selfcheck(with_cutout: bool, cfg: config.Config, with_https: bool = False) -
         from .drawing.item import svg_from_fields
         svg = svg_from_fields("shirt", "#a9c3e0", "solid", {"sleeve": "long", "neck": "collar"})
         if not svg or not svg.startswith("<svg"):
-            raise RuntimeError("no shirt was drawn (the reason is in closet.log)")
+            raise RuntimeError("no shirt was drawn (the reason is in nines.log)")
         return f"drew a shirt from its tags ({len(svg):,} bytes of SVG)"
 
     def model():
@@ -851,11 +886,11 @@ def _from_task(args) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="closet", description=f"{APP_NAME}: a private wardrobe app.")
+    ap = argparse.ArgumentParser(prog="Nines", description=f"{APP_NAME}: a private wardrobe app.")
     ap.add_argument("--version", action="version", version=f"{APP_NAME} {__version__}")
     ap.add_argument("--no-browser", action="store_true",
-                    help="do not open Closet's window (or the browser) on start; opening the program again shows it")
-    ap.add_argument("--browser", action="store_true", help="use the browser instead of Closet's own window")
+                    help="do not open Nines' window (or the browser) on start; opening the program again shows it")
+    ap.add_argument("--browser", action="store_true", help="use the browser instead of Nines' own window")
     ap.add_argument("--tray", action="store_true", help="also show an icon near the clock (Windows) or in the menu bar (Mac)")
     ap.add_argument("--no-tray", action="store_true", help="run with no window to ask questions in (tests); never shows the icon")
     ap.add_argument("--port", type=int, help="listen on this port instead of the default")

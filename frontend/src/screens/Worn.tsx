@@ -176,7 +176,7 @@ export interface WornRead {
 
 /**
  * A page of worn outfits, newest first (`before`: the cursor the page before gave; null for the first page). The
- * first page is the one Today reads too, and it is kept on this device for offline: when Closet on the computer
+ * first page is the one Today reads too, and it is kept on this device for offline: when Nines on the computer
  * cannot be reached, this closet's saved copy is given instead. Made stale by the edits that touch `worn`.
  */
 export const wornQuery = (profile: string, before: string | null = null) => queryOptions({

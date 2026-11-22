@@ -50,7 +50,7 @@ from . import access, limits, tailnet
 
 log = logging.getLogger("closet.gate")
 
-# The names a request may give for Closet in its Host header: this computer's own, Tailscale's (`….ts.net`), and the
+# The names a request may give for Nines in its Host header: this computer's own, Tailscale's (`….ts.net`), and the
 # Cloudflare hostname once it is set (access.py).
 LOCAL_NAMES = frozenset({"127.0.0.1", "localhost", "[::1]"})
 TAILSCALE_SUFFIX = ".ts.net"
@@ -58,7 +58,7 @@ TAILSCALE_SUFFIX = ".ts.net"
 # Called by another copy of the program with the token from the lock file, never by the page (see the top).
 BY_ANOTHER_COPY = frozenset({"/api/instance/quit", "/api/instance/show"})
 
-# The header Closet's own page sends on every call (frontend/src/api.ts); changes without it are refused.
+# The header Nines' own page sends on every call (frontend/src/api.ts); changes without it are refused.
 CLIENT_HEADER = "X-Closet-Client"
 CHANGES = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
@@ -95,8 +95,8 @@ def key_cookie(port: int) -> str:
 
 
 def window_key(state) -> str:
-    """The key of Closet's own window, made the first time and kept in the program-wide settings from then on, so a
-    browser tab opened once from the icon keeps working after Closet restarts."""
+    """The key of Nines' own window, made the first time and kept in the program-wide settings from then on, so a
+    browser tab opened once from the icon keeps working after Nines restarts."""
     def ensure(data: dict) -> str:
         if not data.get("window_key"):
             data["window_key"] = secrets.token_urlsafe(32)
@@ -133,7 +133,7 @@ def came_in(scope) -> dict:
 
 
 class Gate:
-    """ASGI middleware. `key` is the key of Closet's own window, or None when none is in force; `key_cookie` names its cookie.
+    """ASGI middleware. `key` is the key of Nines' own window, or None when none is in force; `key_cookie` names its cookie.
     `cloudflare()` gives the Cloudflare settings as they are now (`access.Config`), and `keys` the team's signing keys
     (None: fetched from Cloudflare; tests hand in their own). `tailscale_check(client host, client port, server port)`
     says whether the other end of a connection is the Tailscale service (True), positively is not (False), or could not

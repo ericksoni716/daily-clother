@@ -1,4 +1,4 @@
-"""Print what is new in a version of Closet, from the changelog, as Markdown.
+"""Print what is new in a version of Nines, from the changelog, as Markdown.
 
     python tools/whats_new.py VERSION [CHANGELOG]
 

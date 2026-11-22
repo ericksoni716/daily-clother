@@ -878,9 +878,9 @@ def main() -> None:
                                                 **lived_in()},
                                                ensure_ascii=False, indent=1), encoding="utf-8")
     add_verdicts()
-    # files for `closet selfcheck`
+    # files for `Nines selfcheck`
     load_photo(PHOTOS_DIR / "photos" / "jeans.jpg", 640).save(OUT / "selfcheck.webp", "WEBP", quality=80)
-    # tiny.heic, the other file `closet selfcheck` reads, stays in demo_data as it is (it came from the packaging spike)
+    # tiny.heic, the other file `Nines selfcheck` reads, stays in demo_data as it is (it came from the packaging spike)
     credits = (PHOTOS_DIR / "ATTRIBUTION.md").read_text()
     (OUT / "CREDITS.md").write_text("Demo closet photos.\n\n" + credits.split("\n", 2)[2])
     total = sum(f.stat().st_size for f in OUT.rglob("*") if f.is_file())

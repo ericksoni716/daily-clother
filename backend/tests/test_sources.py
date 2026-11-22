@@ -232,6 +232,60 @@ def test_remove_merge_adjust_and_add_boxes(c, sv):
     assert added["boxes"][1]["cutout_url"] != added["boxes"][0]["cutout_url"]
 
 
+def test_claudes_boxes_are_kept_as_it_found_them_while_the_owner_changes_them(c, sv, finder):
+    src = found(c, sv)
+    sid, kept = src["id"], [{k: b[k] for k in ("id", *sources.EDGES, "label")} for b in src["boxes"]]
+    assert src["found_boxes"] == kept
+    red, blue, green = (b["id"] for b in kept)
+    c.delete(f"/api/sources/{sid}/boxes/{green}")
+    c.put(f"/api/sources/{sid}/boxes/{red}", json={"x0": 0.1, "y0": 0.1, "x1": 0.3, "y1": 0.5})
+    after = c.post(f"/api/sources/{sid}/boxes/merge", json={"ids": [red, blue]}).json()
+    assert len(after["boxes"]) == 1 and after["found_boxes"] == kept   # still there to go back to
+    assert finder.calls == 1   # and never asked for again
+
+
+def test_the_whole_list_of_boxes_is_put_back_at_once(c, sv, finder):
+    """What Undo and "Back to what Claude found" send: the boxes as they were, with their ids and names."""
+    src = found(c, sv)
+    sid, before = src["id"], src["boxes"]
+    c.delete(f"/api/sources/{sid}/boxes/{before[1]['id']}")
+    c.put(f"/api/sources/{sid}/boxes/{before[0]['id']}", json={"x0": 0.1, "y0": 0.1, "x1": 0.3, "y1": 0.5})
+    back = c.put(f"/api/sources/{sid}/boxes", json={"boxes": src["found_boxes"]}).json()
+    assert [(b["id"], edges(b), b["label"], b["n"]) for b in back["boxes"]] == \
+        [(b["id"], edges(b), b["label"], b["n"]) for b in before]
+    assert [b["cutout_url"] for b in back["boxes"]] == [b["cutout_url"] for b in before]   # the same cutouts
+    assert back["state"] == "review" and finder.calls == 1
+
+
+def test_a_list_of_boxes_is_checked_like_any_box(c, sv):
+    src = found(c, sv)
+    sid, first = src["id"], src["boxes"][0]
+    url = f"/api/sources/{sid}/boxes"
+    assert c.put(url, json={"boxes": [{"x0": 1.2, "y0": 0, "x1": 1.5, "y1": 1}]}).status_code == 422
+    assert c.put(url, json={"boxes": [{"x0": 0, "y0": 0, "x1": 0.5, "y1": 0.5}] * 21}).status_code == 422
+    assert c.put(url, json={"boxes": [{"x0": 0, "y0": 0, "x1": 0.5, "y1": 0.5, "colour": "red"}]}).status_code == 422
+    assert len(c.get(f"/api/sources/{sid}").json()["boxes"]) == 3   # nothing changed by a refused list
+    odd = c.put(url, json={"boxes": [{**{k: first[k] for k in sources.EDGES}, "id": "../x", "label": "  shirt  "},
+                                     {**{k: first[k] for k in sources.EDGES}, "id": first["id"]},
+                                     {**{k: first[k] for k in sources.EDGES}, "id": first["id"]}]}).json()["boxes"]
+    assert odd[0]["id"] != "../x" and odd[0]["label"] == "shirt"
+    assert odd[1]["id"] == first["id"] and odd[2]["id"] not in (first["id"], odd[0]["id"])   # ids stay one each
+    assert c.put(url, json={"boxes": []}).json()["boxes"] == []
+
+
+def test_a_photo_whose_boxes_the_owner_drew_has_nothing_found_to_go_back_to(c, sv, finder):
+    finder.boxes = []
+    src = found(c, sv)
+    assert src["found_boxes"] == [] and src["note"] == sources.NONE_FOUND
+
+
+def test_after_adding_the_boxes_cannot_be_put_back(c, sv):
+    src = found(c, sv)
+    sid = src["id"]
+    c.post(f"/api/sources/{sid}/add")
+    assert c.put(f"/api/sources/{sid}/boxes", json={"boxes": src["found_boxes"]}).status_code == 409
+
+
 def test_wrong_box_changes_are_refused(c, sv):
     src = found(c, sv)
     sid, first = src["id"], src["boxes"][0]["id"]
@@ -437,6 +491,7 @@ def test_an_older_closet_gains_the_photos_table(cfg):
         assert conn.execute("PRAGMA user_version").fetchone()[0] >= 22
         cols = {r["name"] for r in conn.execute("PRAGMA table_info(items)")}
         assert {"source_photo_id", "source_box"} <= cols
+        assert "found_boxes" in {r["name"] for r in conn.execute("PRAGMA table_info(source_photos)")}
         assert conn.execute("SELECT COUNT(*) FROM source_photos").fetchone()[0] == 0
     finally:
         conn.close()

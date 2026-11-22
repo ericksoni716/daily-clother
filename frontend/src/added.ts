@@ -1,6 +1,6 @@
 /** What Add knows about the item a photo became: in the import list, and on the shoe's screen after "Add this shoe".
  *  The items come from the closet's own list, and how far the work on each has got from the work under way that the
- *  closet's provider follows (progress.ts), so Add asks Closet for nothing more. */
+ *  closet's provider follows (progress.ts), so Add asks Nines for nothing more. */
 import { settingsFix } from './progress';
 import type { ItemSummary, Progress } from './types';
 import type { QueueEntry } from './uploadQueue';

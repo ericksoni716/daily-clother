@@ -24,7 +24,7 @@ MODEL = "isnet-general-use"
 # the second background model: asked as well when the first leaves a patterned item see-through (a plaid's dark
 # checks taken for background); downloaded after the first, about the same size
 SECOND_MODEL = "u2net"
-USER_AGENT = "Closet/1 (model download)"
+USER_AGENT = "Nines/1 (model download)"
 # a failed download is tried again by itself: a minute later, ten minutes later, then every hour, until it works
 RETRY_DELAYS = (60.0, 600.0)
 RETRY_EVERY = 3600.0

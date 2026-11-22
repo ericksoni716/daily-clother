@@ -92,7 +92,7 @@ export function lastInstallLine(s: UpdateStatus): string {
 export interface Installing {
   from: string;
   to: string;
-  /** Closet has not come back in time */
+  /** Nines has not come back in time */
   late: boolean;
 }
 
@@ -129,7 +129,7 @@ export const updates = {
       return null;
     }
   },
-  /** Starts installing and follows Closet as it restarts; resolves once the page is about to reload or it stopped. */
+  /** Starts installing and follows Nines as it restarts; resolves once the page is about to reload or it stopped. */
   async install(toast: (m: string, k?: 'ok' | 'error') => void): Promise<void> {
     const before = snapshot.status;
     const status = await api.installUpdate();
@@ -168,14 +168,14 @@ export interface FollowDeps {
 }
 
 export interface FollowResult {
-  /** back: a Closet answers again after restarting (the new one, or the old one put back); stopped: the update
-   * stopped before Closet restarted; timeout: nothing answered in time. */
+  /** back: a Nines answers again after restarting (the new one, or the old one put back); stopped: the update
+   * stopped before Nines restarted; timeout: nothing answered in time. */
   outcome: 'back' | 'stopped' | 'timeout';
   problem?: string | null;
   status?: UpdateStatus;
 }
 
-/** Follows an update: while the old Closet still answers, asks how it is going; once it has gone away and a Closet
+/** Follows an update: while the old Nines still answers, asks how it is going; once it has gone away and a Nines
  * answers again (or a different version answers), the page can reload. */
 export async function followInstall(from: string, deps: FollowDeps, limitMs = 180_000, everyMs = 1000): Promise<FollowResult> {
   const deadline = deps.now() + limitMs;

@@ -39,7 +39,7 @@ export const itemQuery = (id: string) => queryOptions({
   staleTime: 0,
 });
 
-/** The vocabulary changes only with a new version of Closet, so it is read once per open closet. */
+/** The vocabulary changes only with a new version of Nines, so it is read once per open closet. */
 export const vocabQuery = () => queryOptions({ queryKey: queryKeys.vocab(), queryFn: api.vocab, staleTime: Infinity });
 
 export const modelQuery = () => queryOptions({ queryKey: queryKeys.model(), queryFn: api.model });

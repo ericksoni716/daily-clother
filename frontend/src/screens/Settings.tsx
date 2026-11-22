@@ -332,7 +332,7 @@ function RewearSection({ settings, toast, disabled }: { settings: Settings; toas
   );
 }
 
-/** Claude: one line saying how Closet reaches it, the one thing to do when it can't, and Manage. */
+/** Claude: one line saying how Nines reaches it, the one thing to do when it can't, and Manage. */
 function ClaudeSection({ offline, settings }: { offline: boolean; settings: Settings }) {
   const qc = useQueryClient();
   const tagging = useQuery({ ...taggingQuery(), enabled: !offline });
@@ -381,7 +381,7 @@ export function Leave({ offline, device }: { offline: boolean; device: Device })
 
 export function SettingsScreen({ version }: { version: string }) {
   const { offline, profile, toast } = useApp();
-  // connecting the phone is done on the computer; the phone itself is only told how to keep Closet on its Home Screen
+  // connecting the phone is done on the computer; the phone itself is only told how to keep Nines on its Home Screen
   const phoneShows = phoneAccessShows(window.location.hostname, fromHomeScreen(window));
   const device = deviceOf(window.location.hostname);
 

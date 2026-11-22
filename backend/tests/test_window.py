@@ -1,4 +1,4 @@
-"""Closet's own window, with the window library and the tray faked: no real window is ever opened here.
+"""Nines' own window, with the window library and the tray faked: no real window is ever opened here.
 
 The window is pywebview in the program (closet/window.py). These tests stand in for it with `FakeToolkit` and for the
 tray icon with `FakeIcon`, and run the real launcher (`cli.serve`) and the real server around them.
@@ -90,7 +90,7 @@ class FakeWindow:
         self.calls = []
         self.gone = threading.Event()
 
-    # what Closet asks of it
+    # what Nines asks of it
     def show(self):
         self.calls.append("show")
         self.on_screen = True
@@ -178,7 +178,7 @@ class FakeToolkit:
 
 
 class FakeIcon:
-    """Stands in for the pystray icon: its menu's Open Closet and Quit Closet, and its loops."""
+    """Stands in for the pystray icon: its menu's Open Nines and Quit Nines, and its loops."""
 
     def __init__(self, on_open, on_quit, *_):
         self.open, self.quit = on_open, on_quit
@@ -285,11 +285,11 @@ def test_closing_the_window_hides_it_while_closet_keeps_running(window_at):
     assert not win.close_button()           # kept open...
     wait_for(lambda: "hide" in win.calls)   # ...and hidden
     assert not win.on_screen and not w.visible and told.visible[-1] is False
-    assert t.is_alive() and told.quit == 0  # the loop (and Closet) still runs
-    assert w.show()                         # Open Closet
+    assert t.is_alive() and told.quit == 0  # the loop (and Nines) still runs
+    assert w.show()                         # Open Nines
     wait_for(lambda: win.on_screen)
     assert w.visible and told.visible[-1] is True
-    w.close()                               # Quit Closet
+    w.close()                               # Quit Nines
     t.join(5)
     assert "destroy" in win.calls and result == {"ended_by_quitting": True} and told.quit == 0
 
@@ -301,7 +301,7 @@ def test_without_a_tray_icon_closing_the_window_quits(window_at):
     wait_for(toolkit.started.is_set)
     assert toolkit.window.close_button()    # it closes...
     t.join(5)
-    assert result == {"ended_by_quitting": True} and told.quit == 1   # ...and Closet quits
+    assert result == {"ended_by_quitting": True} and told.quit == 1   # ...and Nines quits
 
 
 def test_on_windows_only_the_owner_closing_it_hides_it(window_at):
@@ -315,7 +315,7 @@ def test_on_windows_only_the_owner_closing_it_hides_it(window_at):
     assert not win.close_button("UserClosing")
     wait_for(lambda: "hide" in win.calls)
     assert t.is_alive()
-    # Windows is shutting down: the window closes (it must not hold up the shutdown) and Closet quits
+    # Windows is shutting down: the window closes (it must not hold up the shutdown) and Nines quits
     assert win.close_button("WindowsShutDown")
     t.join(5)
     assert result == {"ended_by_quitting": True} and told.quit == 1
@@ -475,7 +475,7 @@ def health(port):
 
 
 def opened_at(cfg, port):
-    """The address the launcher opens Closet at: its own, with the window's key that it keeps in the settings."""
+    """The address the launcher opens Nines at: its own, with the window's key that it keeps in the settings."""
     key = State(cfg.state_path).get("window_key")
     assert key
     return f"http://127.0.0.1:{port}/?key={key}"
@@ -487,7 +487,7 @@ def quit_from_settings(cfg, info):
     `stop_running` also waits for the copy's process to end, but here the copy runs inside this test process, which
     never ends; so it is not left to wait (timeout 0) and the test waits for what Quit does instead."""
     instance.stop_running(cfg, info, timeout=0)
-    wait_for(lambda: instance.running_instance(cfg) is None, 10, "Closet to quit")
+    wait_for(lambda: instance.running_instance(cfg) is None, 10, "Nines to quit")
 
 
 @pytest.fixture
@@ -511,9 +511,9 @@ def launcher(cfg, monkeypatch):
 
         def driver():
             try:
-                wait_for(lambda: instance.running_info(cfg) is not None, 30, "Closet to start")
+                wait_for(lambda: instance.running_info(cfg) is not None, 30, "Nines to start")
                 drive(env)
-            except BaseException as e:   # noqa: B036 - reported below, after Closet has been made to quit
+            except BaseException as e:   # noqa: B036 - reported below, after Nines has been made to quit
                 failure.append(e)
                 quit_anyway()
 
@@ -547,12 +547,12 @@ def test_launching_shows_the_window_and_quit_stops_everything(cfg, launcher):
         assert not win.close_button()                      # the owner closes the window
         wait_for(lambda: not win.on_screen)
         seen["closed"] = health(a.port)                    # the server (phone, backups) keeps going
-        icon.open()                                        # Open Closet
+        icon.open()                                        # Open Nines
         wait_for(lambda: win.on_screen)
         seen["door"] = door(a.port, opened_at(cfg, a.port))
-        icon.quit()                                        # Quit Closet
+        icon.quit()                                        # Quit Nines
     assert launcher.run(a, drive) == 0
-    url = opened_at(cfg, a.port)                           # the window opens Closet with its key
+    url = opened_at(cfg, a.port)                           # the window opens Nines with its key
     assert seen["first"] == (True, [url], True, False)     # the tray joins the window's loop instead of its own
     assert seen["closed"] is True
     assert seen["door"] == {"plain": 401, "keyed": 200, "after": 200}
@@ -590,7 +590,7 @@ def test_started_at_login_no_window_opens(cfg, launcher):
         wait_for(env.toolkit.started.is_set)
         win = env.toolkit.window
         assert win.options["hidden"] is True and not win.on_screen and win.loaded_urls == []
-        env.icons[0].open()                                # until Open Closet
+        env.icons[0].open()                                # until Open Nines
         wait_for(lambda: win.on_screen)
         env.icons[0].quit()
     assert launcher.run(a, drive) == 0
@@ -660,7 +660,7 @@ def test_when_the_window_cannot_open_the_browser_opens_as_before(cfg, launcher):
     def drive(env):
         wait_for(lambda: env.icons and env.icons[0].ran)   # the tray's own loop, as before
         assert env.opened == [opened_at(cfg, a.port)]
-        env.icons[0].open()                                # Open Closet opens the browser too
+        env.icons[0].open()                                # Open Nines opens the browser too
         assert len(env.opened) == 2
         info = instance.running_info(cfg)
         assert instance.show_running(info) is False

@@ -165,7 +165,7 @@ def encode_image(img: Image.Image, max_edge: int = 1024) -> dict:
 # The plan route's form (`SENT`, passed to `claude -p --json-schema`). It lists every word of the main fields
 # (category, colour, pattern ...: what the closet sorts and builds outfits by) and, in the details and the silhouette,
 # only lists of up to ENUM_IN_GRAMMAR words; a longer list there is plain text, its words named in the field's
-# description, and Closet checks the answer against the full form itself (`fitted`). It was made for the API route,
+# description, and Nines checks the answer against the full form itself (`fitted`). It was made for the API route,
 # whose structured output compiles the form into a grammar and refuses one that is too large ("The compiled grammar
 # is too large", 400): the full form passed that limit at 939 listed words (schema version 5). The API route no
 # longer sends a compiled form at all (`answer_tool`, below). (Tried loosening the main fields too: a boat shoe came
@@ -259,7 +259,7 @@ def fitted(answer) -> ItemTags:
 # a grammar over a size it does not publish: the 939-word form was refused in v0.5.0, #235 cut it to 327 words without
 # a way to try that against the API, and the owner reported a description through the API key failing the same way
 # again (16 November). A tool that is not strict is not compiled, so its form has no size limit: the API route sends
-# the full form (every word of every list) as one and asks for it to be called; Closet checks the answer itself, asks
+# the full form (every word of every list) as one and asks for it to be called; Nines checks the answer itself, asks
 # again in the same conversation when a main field is outside its list, then fits what is left (`fitted`).
 ANSWER_TOOL = "describe_item"
 ASK_FOR_TOOL = "Give your answer by calling the describe_item tool once, with every field filled in."

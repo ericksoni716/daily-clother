@@ -1,9 +1,9 @@
-"""The parts of Closet that only matter on Windows, where the owner's hub runs.
+"""The parts of Nines that only matter on Windows, where the owner's hub runs.
 
 Most run on any computer, with Windows stood in for (`platform="win32"`, a stand-in message box). The ones marked
 `windows` use the real thing (Credential Manager, the registry, the tray, renaming a running program) and only
 run on Windows, in the CI's Windows job. None of them leaves anything behind: the keychain entry and the registry
-key they use are their own, never Closet's.
+key they use are their own, never Nines'.
 """
 import hashlib
 import json
@@ -30,7 +30,7 @@ def _schema(model):
     return transform_schema(model)
 
 
-# Every call Closet makes through `claude -p`: the answer it asks for, its instructions and the tools it allows.
+# Every call Nines makes through `claude -p`: the answer it asks for, its instructions and the tools it allows.
 PLAN_CALLS = {
     "describe an item": (lambda: claude_cli.strict_schema(), claude_cli.SYSTEM, "Read"),
     "a typed correction": (lambda: _schema(correcting.CorrectionAnswer), correcting.SYSTEM, "Read"),
@@ -119,7 +119,7 @@ def test_on_windows_claude_exe_comes_before_an_npm_claude_cmd(tmp_path):
     npm = "C:\\Users\\o\\AppData\\Roaming\\npm\\claude.cmd"
     on_path = "C:\\Users\\o\\.local\\bin\\claude.exe"
     assert claude_cli.find_claude("win32", _which({"claude.exe": on_path, "claude": npm}), tmp_path, {}) == on_path
-    # not on this program's PATH (Closet was started before Claude Code was installed): its usual folders
+    # not on this program's PATH (Nines was started before Claude Code was installed): its usual folders
     local = tmp_path / ".local" / "bin" / "claude.exe"
     local.parent.mkdir(parents=True)
     local.write_bytes(b"")
@@ -224,10 +224,8 @@ def test_the_updater_can_stop_a_program_that_does_not_answer():
 # ------------------------------------------------------------------ the real thing, on Windows only
 @pytest.mark.windows
 def test_the_api_key_is_kept_in_windows_credential_manager():
-    class TestCredentials(apikey.WindowsCredentials):
-        TARGET = f"Closet-tests/{uuid.uuid4().hex}"   # never the owner's own entry
-
-    store, key = TestCredentials(), "sk-ant-api03-" + "w" * 80
+    store = apikey.WindowsCredentials(f"Nines-tests-{uuid.uuid4().hex}")   # never the owner's own entry
+    key = "sk-ant-api03-" + "w" * 80
     try:
         assert store.get() is None
         store.delete()   # nothing there: not a problem
@@ -241,6 +239,22 @@ def test_the_api_key_is_kept_in_windows_credential_manager():
         assert store.get() is None
     finally:
         store.delete()
+
+
+@pytest.mark.windows
+def test_a_key_under_the_old_entry_is_carried_over_in_windows_credential_manager():
+    tag = uuid.uuid4().hex   # entries of the test's own, never the owner's Closet or Nines
+    new, old = apikey.WindowsCredentials(f"Nines-tests-{tag}"), apikey.WindowsCredentials(f"Closet-tests-{tag}")
+    key = "sk-ant-api03-" + "c" * 80
+    try:
+        old.set(key)
+        apikey.use_store(new, old=old)
+        assert apikey.get() == key   # read from the old entry until it has moved
+        assert apikey.carry_over() is True
+        assert new.get() == key and old.get() is None
+    finally:
+        new.delete()
+        old.delete()
 
 
 @pytest.mark.windows

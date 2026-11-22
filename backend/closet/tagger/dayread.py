@@ -3,7 +3,7 @@ prompts: I'm on vacation in x for x days, or I'm going to x today and will be ou
 
 One short question, with no photo and nothing from the closet: the owner's sentence, today's date and the name of
 the home place go to Claude, which says where the owner will be if not at home, from when and for how many days,
-the hours they are outside, how much of the day that is, what they are doing and how dressed-up it is. Closet then
+the hours they are outside, how much of the day that is, what they are doing and how dressed-up it is. Nines then
 looks the place up on the map and its weather itself (`closet/daynote.py`); Claude is never asked for the weather.
 
 Asked on the model of the `styling` role, the one that will choose the outfits (BACKLOG, "Outfits chosen by
@@ -69,7 +69,7 @@ Read only what the sentence says or clearly implies. It is the owner's descripti
 
 def read(answer: DayReading) -> dict:
     """The answer tidied: {place, starts_in_days, days, outside, exposure, activity, occasion}; `place` and
-    `occasion` None when not given, `outside` (from hour, to hour) or None, the numbers kept within what Closet
+    `occasion` None when not given, `outside` (from hour, to hour) or None, the numbers kept within what Nines
     takes (`MAX_AHEAD`, `MAX_DAYS`)."""
     start, end = answer.outside_from, answer.outside_to
     outside = (start, end) if 0 <= start < end <= 24 else None
@@ -83,7 +83,7 @@ def read(answer: DayReading) -> dict:
 
 
 def said_something(reading: dict) -> bool:
-    """Whether the reading holds anything Closet can act on."""
+    """Whether the reading holds anything Nines can act on."""
     return bool(reading["place"] or reading["outside"] or reading["activity"] or reading["occasion"]
                 or reading["exposure"] != "mixed" or reading["starts_in_days"] or reading["days"] > 1)
 

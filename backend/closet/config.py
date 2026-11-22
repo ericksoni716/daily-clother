@@ -55,7 +55,7 @@ class Config:
 
     @property
     def window_dir(self) -> Path:
-        """Closet's own window keeps its web storage here (the window's key cookie, the page's settings), like a browser profile."""
+        """Nines' own window keeps its web storage here (the window's key cookie, the page's settings), like a browser profile."""
         return self.data_dir / "window"
 
 

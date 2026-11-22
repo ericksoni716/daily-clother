@@ -63,7 +63,7 @@ def find_claude(platform: str | None = None, which=None, home: Path | None = Non
                 env: dict | None = None) -> str | None:
     """Where Claude Code is. On Windows `claude.exe` (the PowerShell install, or winget) comes before an npm
     `claude.cmd`, which Windows can only start through cmd.exe, and the usual install folders are looked in too,
-    for a Closet started before Claude Code was installed, or by Windows before the owner signed in."""
+    for a copy of Nines started before Claude Code was installed, or by Windows before the owner signed in."""
     platform, which = platform or sys.platform, which or shutil.which
     home = home or Path.home()
     env = os.environ if env is None else env
@@ -120,7 +120,7 @@ def print_command(exe: str, model: str, effort: str, schema: dict, tools: str, s
 def prompt_file(prompt: str):
     """The prompt, in UTF-8, as a file to hand Claude Code on standard input (deleted when closed). A file and not a
     pipe: on Windows writing to a pipe does not respect the timeout, so a Claude Code that never read its input would
-    hold Closet up for good."""
+    hold Nines up for good."""
     f = tempfile.TemporaryFile()
     f.write(prompt.encode("utf-8"))
     f.seek(0)
@@ -215,7 +215,7 @@ def tag_item_cli(model: str, images: list[Image.Image], exe: str | None = None, 
     last: Exception | None = None
     # ignore_cleanup_errors: on Windows a file still held open for a moment cannot be removed; that must not turn
     # an answer into a failure
-    with tempfile.TemporaryDirectory(prefix="closet-tag-", ignore_cleanup_errors=True) as tmp:
+    with tempfile.TemporaryDirectory(prefix="nines-tag-", ignore_cleanup_errors=True) as tmp:
         names = []
         for i, im in enumerate(images, 1):
             name = f"photo-{i}.jpg"

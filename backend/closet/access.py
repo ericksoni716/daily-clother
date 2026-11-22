@@ -1,12 +1,12 @@
 """The way in from outside without Tailscale: Cloudflare Tunnel with Cloudflare Access in front of it.
 
-The owner can give Closet an address of its own on a domain they own: Cloudflare's connector on this computer opens a
-connection out to Cloudflare and passes on what arrives at that address to Closet on 127.0.0.1, and Cloudflare Access
+The owner can give Nines an address of its own on a domain they own: Cloudflare's connector on this computer opens a
+connection out to Cloudflare and passes on what arrives at that address to Nines on 127.0.0.1, and Cloudflare Access
 asks whoever opens the address to sign in (a code by email) and lets through only the email its policy names. Every
 request it passes on carries a token Access signed. This module checks that token: the signature against the team's
 published keys, that it is meant for the owner's Access application (the audience), that the owner's team issued it,
 and that it has not run out. Who is asking comes from that token only, never from the plain email header Access also
-adds, which anything that reaches Closet could send.
+adds, which anything that reaches Nines could send.
 
 The door is off until all three settings are there (Settings, Other devices): the team's domain, the application's audience
 tag and the public hostname. They are program-wide, in `settings.json` (`state.py`), not in a closet. `gate.py` asks
@@ -38,7 +38,7 @@ REQUIRED_CLAIMS = ["exp", "iat", EMAIL_CLAIM]
 FORWARDED_HEADERS = ("cf-ray", "cf-connecting-ip")
 KEYS_LIFESPAN = 3600     # seconds to keep the team's keys before asking for them again
 KEYS_TIMEOUT = 10        # seconds to wait for them
-USER_AGENT = "Closet (sign-in check)"
+USER_AGENT = "Nines (sign-in check)"
 
 # The three settings, as kept in settings.json (state.DEFAULTS).
 TEAM_KEY, AUD_KEY, HOST_KEY = "cloudflare_team", "cloudflare_aud", "cloudflare_host"
@@ -84,7 +84,7 @@ _clients: dict[str, jwt.PyJWKClient] = {}
 
 def _keys_for(url: str) -> SigningKeys:
     """One key client per team, kept for the life of the program, so the keys are not fetched on every request. It
-    reaches Cloudflare over HTTPS the way the rest of Closet does (`net.ssl_context`): a packaged Python has no
+    reaches Cloudflare over HTTPS the way the rest of Nines does (`net.ssl_context`): a packaged Python has no
     certificates of its own on a Mac."""
     client = _clients.get(url)
     if client is None:
@@ -134,7 +134,7 @@ def forwarded(headers) -> bool:
 
 
 def selfcheck() -> str:
-    """For `closet selfcheck`: sign a token with an RSA key made here and check it as a request's token is checked,
+    """For `Nines selfcheck`: sign a token with an RSA key made here and check it as a request's token is checked,
     keys handed in rather than fetched. Proves the packaged program has PyJWT with RSA (cryptography) in it."""
     from types import SimpleNamespace
 
@@ -151,7 +151,7 @@ def selfcheck() -> str:
             return SimpleNamespace(key=key.public_key())
 
     if verify(token, config, Keys()) is None:
-        raise RuntimeError("a token signed here did not check out (the reason is in closet.log)")
+        raise RuntimeError("a token signed here did not check out (the reason is in nines.log)")
     return f"PyJWT {jwt.__version__} checked an RS256 signature"
 
 
@@ -159,7 +159,7 @@ def selfcheck() -> str:
 _LABEL = re.compile(r"^(?!-)[a-z0-9-]{1,63}(?<!-)$")
 
 TEAM_EXAMPLE = "Type your team's domain like yourteam.cloudflareaccess.com."
-HOST_EXAMPLE = "Type the address Cloudflare gives Nines, like closet.example.com."
+HOST_EXAMPLE = "Type the address Cloudflare gives Nines, like nines.example.com."
 
 
 def _is_hostname(value: str) -> bool:

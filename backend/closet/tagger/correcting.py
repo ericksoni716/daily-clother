@@ -387,7 +387,7 @@ def correct_cli(model: str, text: str, images: list[Image.Image], exe: str | Non
     effort = effort or CONFIG["models"].get(model, {}).get("effort", "low")
     env = {k: v for k, v in os.environ.items() if k not in claude_cli._SCRUB}
     last: Exception | None = None
-    with tempfile.TemporaryDirectory(prefix="closet-correct-", ignore_cleanup_errors=True) as tmp:
+    with tempfile.TemporaryDirectory(prefix="nines-correct-", ignore_cleanup_errors=True) as tmp:
         if names:
             for im, name in zip(images, names, strict=True):
                 _save_named(im, Path(tmp) / name)

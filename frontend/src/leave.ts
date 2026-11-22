@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 /**
  * Saves that are waiting (an edit still being typed, trip ticks in line behind another) are sent
  * at once when the page is closed, reloaded or hidden. The requests themselves are sent with
- * `keepalive` (see api.ts), so they reach Closet even though the page is gone.
+ * `keepalive` (see api.ts), so they reach Nines even though the page is gone.
  */
 type Flush = () => void;
 

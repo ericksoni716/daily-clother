@@ -15,8 +15,8 @@ function AddressCode({ address }: { address: string }) {
   );
 }
 
-/** How to reach Closet from the phone or another computer, on the computer; `phone` is null while it is still being looked up. Once a
- * share reaches Closet it is one line, with the code folded under it; until then, the command to run once. */
+/** How to reach Nines from the phone or another computer, on the computer; `phone` is null while it is still being looked up. Once a
+ * share reaches Nines it is one line, with the code folded under it; until then, the command to run once. */
 export function PhoneAccess({ phone }: { phone: PhoneInfo | null }) {
   if (!phone) return <p className="state-line state-waiting" aria-busy="true"><span className="state-dot" aria-hidden="true" /><span>Looking for Tailscale…</span></p>;
   if (phone.address) {

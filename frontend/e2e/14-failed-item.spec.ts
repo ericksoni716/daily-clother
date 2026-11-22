@@ -1,7 +1,7 @@
 import { expect, PHOTOS, test } from './fixtures';
 import { startBackend, type Backend } from './server';
 
-// Its own backend, whose stand-in for Claude fails the first three descriptions with a reason Closet does not know.
+// Its own backend, whose stand-in for Claude fails the first three descriptions with a reason Nines does not know.
 test.describe('an item whose description failed', () => {
   let backend: Backend;
 

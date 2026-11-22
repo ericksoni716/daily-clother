@@ -1,4 +1,4 @@
-import type { BackgroundState, CheckBody, Item, ItemPatch, ItemSummary, Laundry, ModelInfo, ProgressList, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, QuestionAnswer, StyleProfile, StyleTalk } from './types';
+import type { BackgroundState, CheckBody, Item, ItemPatch, ItemSummary, Laundry, ModelInfo, ProgressList, Session, Settings, Storage, TaggingSpend, TaggingStatus, Vocab, BoxEdges, PlainBox, SourcePhoto, SourceUpload, Profile, BackupRecord, RestoreNotice, Place, WeatherLookup, ReviewField, ReviewQueue, RouteOrder, Rewear, ShoeView, TraceFix, LaundrySetting, QuestionAnswer, StyleProfile, StyleTalk } from './types';
 import { forgetSaved, type DayAnswer, type RememberHow, type RememberThing, type StyleAnswer, type TodayAnswer, type TodayRequest, type WearManyAnswer } from './today';
 import type { CorrectionAnswer, DetailChoices, DetailOptions, HistoryEntry } from './corrections';
 import type { PlannedTrip, Trip, TripPatch, TripRequest, TripSummary, WeatherCheck } from './trips';
@@ -22,7 +22,7 @@ export class ApiError extends Error {
 export const UNREACHABLE = "Can't reach Nines. Check that it is running on your computer.";
 
 /**
- * Header sent on every call, so the server knows the call comes from Closet's own page: it refuses a change without
+ * Header sent on every call, so the server knows the call comes from Nines' own page: it refuses a change without
  * it (backend/closet/gate.py), which another website cannot send.
  */
 export const CLIENT_HEADER = 'X-Closet-Client';
@@ -83,7 +83,7 @@ export interface Options {
   signal?: AbortSignal;
   /** The answer is text (an SVG drawing), not JSON. */
   text?: boolean;
-  /** Give up after this long and treat Closet as out of reach (offline), instead of waiting for the system to. */
+  /** Give up after this long and treat Nines as out of reach (offline), instead of waiting for the system to. */
   timeoutMs?: number;
 }
 
@@ -95,13 +95,13 @@ export const OPEN_TIMEOUT_MS = 12_000;
 
 /**
  * Browsers allow 64 KiB of bodies for all `keepalive` requests still on their way together, and
- * refuse one that would go over. Closet keeps its own count and stays under it, with room to spare.
+ * refuse one that would go over. Nines keeps its own count and stays under it, with room to spare.
  */
 export const KEEPALIVE_BUDGET = 48 * 1024;
 let keepaliveBytes = 0;
 
 /**
- * Saves are sent with `keepalive` so that they reach Closet even if the page is closed or reloaded
+ * Saves are sent with `keepalive` so that they reach Nines even if the page is closed or reloaded
  * a moment later. Not for photos (too large), not for questions the app can call off (they have a
  * signal), and not when earlier saves still on their way use up the browser's allowance.
  * Returns the body's size when it is sent that way, null otherwise.
@@ -237,7 +237,7 @@ export const api = {
     if (sha256) form.append('photo_sha256', sha256);
     return request<Item>(`/api/items/${encodeURIComponent(id)}/photo`, { method: 'POST', form });
   },
-  /** Another photo of a shoe, besides its main one (at most 5): Closet sorts it into its view. */
+  /** Another photo of a shoe, besides its main one (at most 5): Nines sorts it into its view. */
   /** What each photo chosen on Add shows (one piece, several, a shoe and which shoe), up to ten small copies at once. */
   /** The note about today or the days ahead, if one holds. */
   day: () => request<DayAnswer>('/api/day'),
@@ -296,6 +296,9 @@ export const api = {
     request<SourcePhoto>(`/api/sources/${encodeURIComponent(id)}/boxes/${encodeURIComponent(boxId)}`, { method: 'PUT', body: box }),
   removeBox: (id: string, boxId: string) =>
     request<SourcePhoto>(`/api/sources/${encodeURIComponent(id)}/boxes/${encodeURIComponent(boxId)}`, { method: 'DELETE' }),
+  /** All the boxes at once, as they are sent: an undo, or boxes put back as Claude found them. */
+  setBoxes: (id: string, boxes: PlainBox[]) =>
+    request<SourcePhoto>(`/api/sources/${encodeURIComponent(id)}/boxes`, { method: 'PUT', body: { boxes } }),
   mergeBoxes: (id: string, ids: string[]) =>
     request<SourcePhoto>(`/api/sources/${encodeURIComponent(id)}/boxes/merge`, { method: 'POST', body: { ids } }),
   addSourceItems: (id: string) => request<SourcePhoto>(`/api/sources/${encodeURIComponent(id)}/add`, { method: 'POST' }),
@@ -395,7 +398,7 @@ export const api = {
   backup: () => request<BackupRecord>('/api/backup', { method: 'POST' }),
   restoreNotice: () => request<{ notice: RestoreNotice | null }>('/api/restore-notice'),
   dismissRestoreNotice: () => request<void>('/api/restore-notice', { method: 'DELETE' }),
-  // New versions of Closet
+  // New versions of Nines
   updates: () => request<UpdateStatus>('/api/updates'),
   setUpdateMode: (mode: UpdateMode) => request<UpdateStatus>('/api/updates', { method: 'PUT', body: { mode } }),
   checkUpdates: () => request<UpdateStatus>('/api/updates/check', { method: 'POST' }),

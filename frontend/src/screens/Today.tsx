@@ -95,7 +95,7 @@ export function TodayScreen({ itemId, wide }: { itemId: string | null; wide: boo
   const [leaveOut, setLeaveOut] = useState<string[]>(remembered?.leaveOut ?? []);
   const [typedOnDay, setTyped] = useState<TypedDay | null>(() => kept.typed(today));
   const typed = typedOnDay?.day === today ? typedOnDay : null;
-  // The outfits saved on this device earlier today, shown while Closet cannot be reached; nothing is asked meanwhile.
+  // The outfits saved on this device earlier today, shown while Nines cannot be reached; nothing is asked meanwhile.
   const [saved, setSaved] = useState<{ answer: TodayAnswer; savedAt: string } | null>(null);
   const [index, setIndex] = useState(remembered?.index ?? 0);
   const [wornOnDay, setWorn] = useState<WornToday | null>(() => kept.worn(today));
@@ -628,7 +628,7 @@ const DAY_NOTE_MAX = 300;
 
 /**
  * The day in the owner's words, first behind "Change": one sentence ("In Lisbon until Friday", "at a match today,
- * outside from noon to six") that Claude reads for the place, the days and the hours outside. What Closet took from
+ * outside from noon to six") that Claude reads for the place, the days and the hours outside. What Nines took from
  * it is shown back under the weather line; here it can be said another way or cleared.
  */
 function DayNoteForm({ note, locked, onNote }: { note: DayNote | null; locked: boolean; onNote(answer: DayAnswer): void }) {

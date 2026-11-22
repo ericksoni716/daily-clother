@@ -8,13 +8,13 @@ import { useEffect, useId, useState, type FormEvent, type ReactNode } from 'reac
 import { api, ApiError } from '../api';
 import { StatusLine, Toggle } from '../components/Toggle';
 import { UpdatesManage } from '../components/Updates';
-import { Notice, PageHeader } from '../components/ui';
+import { Button, Notice, PageHeader } from '../components/ui';
 import { deviceOf } from '../here';
 import { formatSize, parsePrice } from '../labels';
-import { touch, useModel } from '../queries';
+import { touch, useEdit, useModel } from '../queries';
 import { queryKeys } from '../queryKeys';
 import { routeIds, settingsQuery, settingsSaved, storageQuery, taggingQuery, useSaveSettings, writePart } from '../settings';
-import { backupLine, computerOnly, storageLine, type ComputerOnly } from '../settingsLines';
+import { backupLine, computerOnly, modelLines, storageLine, type ComputerOnly } from '../settingsLines';
 import { apiKeyLine, apiKeySavedLine, dayName, firstRouteLine, formatUsd, monthName, ROUTE_ORDERS, spentLine, suggestionLine, turnedOffLine, waitingLine } from '../spend';
 import { useApp } from '../store';
 import type { ModelInfo, Profile, RouteOrder, Settings, TaggingRoute, TaggingSpend } from '../types';
@@ -109,11 +109,26 @@ export function AdvancedScreen({ version }: { version: string }) {
   );
 }
 
-/** Where the background-removal model is downloaded from, and, on the computer, where to put it by hand. */
+/** The two background-removal models, a line each with how it stands and Download or Try again when it is missing
+ * or failed; where they are downloaded from, and, on the computer, where to put them by hand. */
 function ModelAddress({ model, only, toast, disabled }: { model: ModelInfo; only: ComputerOnly; toast: Toast; disabled: boolean }) {
   const qc = useQueryClient();
+  const edit = useEdit('model');
   const [url, setUrl] = useState(model.url);
+  const [starting, setStarting] = useState(false);
   useEffect(() => setUrl(model.url), [model.url]);
+
+  async function download() {
+    setStarting(true);
+    try {
+      qc.setQueryData(queryKeys.model(), await edit(() => api.downloadModel()));
+      toast('Downloading the background-removal model');
+    } catch (err) {
+      toast((err as Error).message, 'error');
+    } finally {
+      setStarting(false);
+    }
+  }
 
   async function saveUrl(e: FormEvent | null, value: string) {
     e?.preventDefault();
@@ -129,7 +144,20 @@ function ModelAddress({ model, only, toast, disabled }: { model: ModelInfo; only
   }
 
   return (
-    <Section title="Background removal" id="s-model" hint="The files that cut your clothes out of their photos.">
+    <Section title="Background removal" id="s-model">
+      {modelLines(model).map((line) => (
+        <StatusLine key={line.id} line={line} testId={`model-${line.id}`}>
+          {line.action && (
+            <>
+              {' '}
+              <Button variant="link" small disabled={disabled || starting} aria-label={line.actionLabel ?? undefined}
+                onClick={download}>
+                {line.action === 'retry' ? 'Try again' : 'Download'}
+              </Button>
+            </>
+          )}
+        </StatusLine>
+      ))}
       <form className="field-row" onSubmit={(e) => saveUrl(e, url)}>
         <label className="field">
           <span>Download address</span>
@@ -284,7 +312,7 @@ interface TaggingProps {
   toast: Toast;
 }
 
-/** How Closet reaches Claude. Whether Claude Code is signed in is a slow lookup of its own, asked once each time the
+/** How Nines reaches Claude. Whether Claude Code is signed in is a slow lookup of its own, asked once each time the
  * page opens and again when a key or the order changes; what it last said stays on screen meanwhile. */
 function TaggingSection({ offline, settings, toast }: TaggingProps) {
   const qc = useQueryClient();
@@ -400,7 +428,7 @@ function TaggingSection({ offline, settings, toast }: TaggingProps) {
 
 const ANTHROPIC_KEYS = 'https://console.anthropic.com/settings/keys';
 
-/** Paste an API key: Closet checks it with Anthropic and keeps it in the computer's keychain. The page never
+/** Paste an API key: Nines checks it with Anthropic and keeps it in the computer's keychain. The page never
  * receives the key back, so once saved it is only ever described, never shown. */
 function ApiKeyBox({ offline, settings, toast }: { offline: boolean; settings: Settings; toast: Toast }) {
   const qc = useQueryClient();

@@ -18,7 +18,7 @@ function page(over: Partial<Page> = {}, answer: Pick<Response, 'type' | 'status'
 describe("what the health check says when Cloudflare's sign-in ran out", () => {
   it.each([
     [{ type: 'opaqueredirect', status: 0 }, true],    // Cloudflare's redirect to its sign-in, not followed
-    [{ type: 'basic', status: 401 }, true],           // Closet's own: Cloudflare's sign-in missing
+    [{ type: 'basic', status: 401 }, true],           // Nines' own: Cloudflare's sign-in missing
     [{ type: 'basic', status: 200 }, false],          // reachable and signed in: offline was something else
     [{ type: 'basic', status: 502 }, false],          // Cloudflare cannot reach the computer
     [{ type: 'basic', status: 403 }, false],          // not allowed: a full load would not change that

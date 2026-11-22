@@ -33,7 +33,7 @@
 .today-day-change .btn-link { min-height: var(--tap); padding: 0 4px; font-size: var(--text-md); }
 .today-day-old { margin: 0 0 var(--space-2); color: var(--warn); font-size: var(--text-sm); }
 
-/* the day in the owner's words: what Closet took from the note, in one quiet line under the weather */
+/* the day in the owner's words: what Nines took from the note, in one quiet line under the weather */
 .today-note-line {
   margin: -6px 0 var(--space-2); font-size: var(--text-sm); color: var(--ink-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

@@ -25,7 +25,7 @@ export const queryKeys = {
   itemDetails: (id: string, name?: string) => (name === undefined ? ['itemDetails', id] as const : ['itemDetails', id, name] as const),
   /** `GET /api/items/{id}/history`: the changes that can be undone. */
   history: (id: string) => ['history', id] as const,
-  /** `GET /api/vocab`: the small vocabulary and the kinds' groups; it changes only with a new version of Closet. */
+  /** `GET /api/vocab`: the small vocabulary and the kinds' groups; it changes only with a new version of Nines. */
   vocab: () => ['vocab'] as const,
   /** `GET /api/kinds`: every kind in the taxonomy, in its groups. */
   kinds: () => ['kinds'] as const,
@@ -130,7 +130,7 @@ export const TOUCHES = {
   styleTalk: ['styleTalk'],
   /** The background-removal model: a download started, its address changed. */
   model: ['model', 'progress'],
-  /** New versions of Closet: how they are fetched, a check, an install. */
+  /** New versions of Nines: how they are fetched, a check, an install. */
   updates: ['updates'],
   backup: ['storage', 'settings'],
   restoreNotice: ['restoreNotice'],

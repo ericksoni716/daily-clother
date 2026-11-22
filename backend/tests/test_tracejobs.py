@@ -501,7 +501,7 @@ def test_there_is_no_front_view_to_choose_and_a_front_photo_is_not_traced_again(
 # ------------------------------------------------------------------ no instant check on Add any more
 
 def test_add_no_longer_checks_a_shoe_photo_before_it_is_added(make, shoe):
-    """A shoe in one step (16 November): Add sends all of a shoe's photos at once, and Closet sorts them; the check of
+    """A shoe in one step (16 November): Add sends all of a shoe's photos at once, and Nines sorts them; the check of
     one side photo before adding it is gone, with its route."""
     sv, c = make(Tracer(shoe))
     r = c.post("/api/shoes/check", files={"photo": ("s.jpg", jpeg(S.draw(noise=3)[0]), "image/jpeg")})

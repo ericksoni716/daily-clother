@@ -191,11 +191,11 @@ def test_on_a_mac_the_key_goes_to_the_keychain_on_standard_input_only(monkeypatc
     mac.set(KEY)
     assert mac.get() == KEY
     assert all(KEY not in " ".join(args) for args, _ in calls)   # never on a command line
-    assert any(stdin and "add-generic-password -U -s Closet -a anthropic-api-key" in stdin for _, stdin in calls)
+    assert any(stdin and "add-generic-password -U -s Nines -a anthropic-api-key" in stdin for _, stdin in calls)
     with pytest.raises(ValueError):
         mac.set('sk-ant-x" ; delete-keychain')
     mac.delete()
-    assert calls[-1][0][1:] == ["delete-generic-password", "-s", "Closet", "-a", "anthropic-api-key"]
+    assert calls[-1][0][1:] == ["delete-generic-password", "-s", "Nines", "-a", "anthropic-api-key"]
 
 
 def test_on_a_mac_a_save_that_did_not_take_is_reported(monkeypatch):
@@ -203,3 +203,135 @@ def test_on_a_mac_a_save_that_did_not_take_is_reported(monkeypatch):
                         lambda args, **kw: SimpleNamespace(returncode=44 if args[1] != "-i" else 0, stdout="", stderr=""))
     with pytest.raises(apikey.KeychainError):
         apikey.MacKeychain().set(KEY)
+
+
+# ---- the entry's name: Nines from now on; a key kept under Closet (0.13.0 and before) is carried over at start
+
+class Entry:
+    """One keychain entry, standing in for the computer's; `fail` names the calls that fail as a locked keychain's do."""
+    where = "this Mac's keychain"
+
+    def __init__(self, key=None, fail=(), reads_back=None):
+        self.key, self.fail, self.reads_back = key, set(fail), reads_back
+
+    def _check(self, call):
+        if call in self.fail:
+            raise apikey.KeychainError("locked")
+
+    def get(self):
+        self._check("get")
+        return self.key
+
+    def set(self, key):
+        self._check("set")
+        self.key = self.reads_back or key
+
+    def delete(self):
+        self._check("delete")
+        self.key = None
+
+
+def test_a_key_kept_under_closet_is_saved_under_nines_and_the_old_entry_removed(monkeypatch, caplog):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    new, old = Entry(), Entry(KEY)
+    apikey.use_store(new, old=old)
+    assert apikey.get() == KEY and apikey.info()["source"] == "keychain"   # read from the old entry until it has moved
+    with caplog.at_level(logging.DEBUG):
+        assert apikey.carry_over() is True
+        assert apikey.carry_over() is False   # once
+    assert new.key == KEY and old.key is None and apikey.get() == KEY
+    assert KEY not in caplog.text and KEY[-20:] not in caplog.text
+
+
+@pytest.mark.parametrize("failure", ["set", "read back wrong", "new unreadable", "old unreadable"])
+def test_when_the_key_cannot_be_carried_over_the_old_entry_is_kept_and_used(monkeypatch, failure):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    new = {"set": Entry(fail={"set"}), "read back wrong": Entry(reads_back=OTHER),
+           "new unreadable": Entry(fail={"get", "set"}), "old unreadable": Entry()}[failure]
+    old = Entry(KEY, fail={"get", "delete"} if failure == "old unreadable" else ())
+    apikey.use_store(new, old=old)
+    assert apikey.carry_over() is False   # never raises
+    assert old.key == KEY and new.key is None   # nothing lost, nothing half written
+    if failure in ("set", "read back wrong"):
+        assert apikey.get() == KEY   # the old entry is still read
+    old.fail.clear()
+    new.fail.clear()
+    new.reads_back = None
+    assert apikey.carry_over() is True and new.key == KEY and old.key is None   # the next start moves it
+
+
+def test_when_both_entries_hold_a_key_the_one_under_nines_wins_and_the_old_one_goes():
+    new, old = Entry(OTHER), Entry(KEY)
+    apikey.use_store(new, old=old)
+    assert apikey.get() == OTHER
+    assert apikey.carry_over() is False
+    assert new.key == OTHER and old.key is None
+
+
+def test_removing_the_key_removes_it_from_the_old_entry_too(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    new, old = Entry(), Entry(KEY)
+    apikey.use_store(new, old=old)
+    apikey.remove(None)
+    assert old.key is None and apikey.get() is None   # an entry left under Closet does not bring it back
+
+
+def test_a_copy_that_cannot_reach_the_keychain_still_uses_the_sealed_key(monkeypatch, tmp_path):
+    """Windows' background copy started before sign-in: neither entry can be read, so nothing is carried over, and the
+    sealed file in the data folder (whose own names did not change) is what it uses."""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    class Reversed:
+        def seal(self, data):
+            return data[::-1]
+
+        def unseal(self, data):
+            return data[::-1]
+    apikey.use_sealer(Reversed())
+    try:
+        apikey.write_sealed(tmp_path, KEY)
+        apikey.keep_sealed(tmp_path)
+        locked = {"get", "set", "delete"}
+        new, old = Entry(fail=locked), Entry(OTHER, fail=locked)
+        apikey.use_store(new, old=old)
+        assert apikey.carry_over() is False and old.key == OTHER
+        assert apikey.get() == KEY
+        assert apikey.SEALED_FILE == "api-key.sealed" and apikey._ENTROPY == b"closet/api-key/v1"   # unsealable as before
+    finally:
+        apikey.keep_sealed(None)
+        apikey.use_sealer(None)
+
+
+def test_the_entries_are_named_nines_and_closet_on_windows():
+    assert apikey.WindowsCredentials().TARGET == "Nines/anthropic-api-key"
+    assert apikey.WindowsCredentials(apikey.OLD_SERVICE).TARGET == "Closet/anthropic-api-key"
+
+
+def test_on_a_mac_a_key_under_closet_is_moved_to_nines(monkeypatch):
+    items = {"Closet": KEY}
+
+    def run(args, input=None, **kw):
+        if args[1] == "-i":
+            service = input.split(" -s ")[1].split(" ")[0]
+            items[service] = input.split('-w "')[1].split('"')[0]
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        service = args[args.index("-s") + 1]
+        if service not in items:
+            return SimpleNamespace(returncode=44, stdout="", stderr="not found")
+        if args[1] == "delete-generic-password":
+            del items[service]
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        return SimpleNamespace(returncode=0, stdout=items[service] + "\n", stderr="")
+    monkeypatch.setattr(apikey.subprocess, "run", run)
+    apikey.use_store(apikey.MacKeychain(), old=apikey.MacKeychain(apikey.OLD_SERVICE))
+    assert apikey.carry_over() is True
+    assert items == {"Nines": KEY}
+
+
+def test_a_start_moves_the_key_and_says_so_without_the_key(monkeypatch, caplog):
+    from closet import cli
+    new, old = Entry(), Entry(KEY)
+    apikey.use_store(new, old=old)
+    with caplog.at_level(logging.INFO):
+        cli._carry_over_api_key()
+    assert new.key == KEY and "moved from the entry named Closet" in caplog.text and KEY not in caplog.text

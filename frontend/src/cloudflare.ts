@@ -1,5 +1,5 @@
 /**
- * The door through Cloudflare, as Settings shows it on the computer (under Other devices): an address of Closet's own on a
+ * The door through Cloudflare, as Settings shows it on the computer (under Other devices): an address of Nines' own on a
  * domain the owner has on Cloudflare, behind Cloudflare's sign-in, for a browser that cannot use Tailscale. The server
  * checks Cloudflare's signed sign-in on every request there (backend/closet/access.py). Words and decisions only.
  */
@@ -7,7 +7,7 @@ import type { CloudflareDoor } from './types';
 
 export const README_CLOUDFLARE = 'https://github.com/ericksoni716/daily-clother#use-it-without-tailscale-through-cloudflare';
 
-/** The fold's title: what it is while it is off, and where Closet answers once it is on. */
+/** The fold's title: what it is while it is off, and where Nines answers once it is on. */
 export function doorTitle(door: CloudflareDoor): string {
   return door.on && door.host ? `Also through Cloudflare, at ${door.host}` : 'Without Tailscale, through Cloudflare';
 }
@@ -26,7 +26,7 @@ export type DoorField = 'cloudflare_team' | 'cloudflare_aud' | 'cloudflare_host'
 export const DOOR_FIELDS: { key: DoorField; label: string; placeholder: string }[] = [
   { key: 'cloudflare_team', label: 'Your Cloudflare team', placeholder: 'yourteam.cloudflareaccess.com' },
   { key: 'cloudflare_aud', label: "The Access application's audience tag", placeholder: 'A long run of letters and numbers' },
-  { key: 'cloudflare_host', label: "Nines' address on Cloudflare", placeholder: 'closet.example.com' },
+  { key: 'cloudflare_host', label: "Nines' address on Cloudflare", placeholder: 'nines.example.com' },
 ];
 
 /** What the boxes show to begin with: what is saved. */

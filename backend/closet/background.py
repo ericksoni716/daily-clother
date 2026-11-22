@@ -411,7 +411,7 @@ def turn_on(cfg: Config, exe: str | Path, port: int) -> dict:
 def seal_key(cfg: Config) -> None:
     """Copy the key from Credential Manager into the sealed file, so a copy started before sign-in can use it."""
     try:
-        key = apikey.store().get()
+        key = apikey.keychain_key()
     except Exception:
         key = None
     try:

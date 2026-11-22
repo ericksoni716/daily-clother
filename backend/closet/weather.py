@@ -61,7 +61,7 @@ class WeatherError(Exception):
 
 def fetch(url: str) -> bytes:
     """One GET to Open-Meteo through the computer's certificates. Tests replace this."""
-    req = urllib.request.Request(url, headers={"User-Agent": f"Closet/{__version__}", "Accept": "application/json"})
+    req = urllib.request.Request(url, headers={"User-Agent": f"Nines/{__version__}", "Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=TIMEOUT_S, context=net.ssl_context()) as r:
         return r.read(MAX_BYTES + 1)
 
@@ -255,7 +255,7 @@ def lookup(state: State, away: dict | None = None) -> dict:
 
     Returns {place, weather, old, message, is_today, hour}: `weather` is {date, low_c, high_c, rain_chance, rain,
     summary, hours, fetched_at} or None (`hours`: the day hour by hour, see `_hours`; a forecast kept from an older
-    Closet has none); `old` is true when it is a forecast kept from before because Open-Meteo
+    Nines has none); `old` is true when it is a forecast kept from before because Open-Meteo
     could not be reached; `message` says in plain words why there is no weather, or that it is old;
     `is_today` says whether the forecast is for today at the place (an old one may be for an earlier day);
     `hour` is the hour it is now at the place (None without a forecast). Home's forecast and an away day's are

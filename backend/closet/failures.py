@@ -37,7 +37,7 @@ _PATHS = (
 
 
 def data_folder(conn) -> Path | None:
-    """Closet's data folder for the open closet: the folder of its database (the demo closet is one level down)."""
+    """Nines' data folder for the open closet: the folder of its database (the demo closet is one level down)."""
     try:
         file = next((r[2] for r in conn.execute("PRAGMA database_list") if r[1] == "main"), "")
     except Exception:

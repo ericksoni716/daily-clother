@@ -87,7 +87,7 @@ calls Claude with a key.
   `/api/health` (the release passes it).
 
 On failure it prints the reason, the program's output and the tail of
-`closet.log`, and kills the whole process tree (bootloader and app).
+`nines.log`, and kills the whole process tree (bootloader and app).
 
 ## Automatic check (`package-check` workflow)
 
@@ -128,7 +128,7 @@ and runs the default smoke test with `--expect-version`. About 4 minutes.
   Nines" brings it back, "Start when I log in", "Quit Nines".
 - **Edge WebView2 Runtime.** Nines' window needs it; it comes with
   Windows 11 and current Windows 10. Without it Nines opens in the browser
-  (and says why in `closet.log`).
+  (and says why in `nines.log`).
 - **Windows pillow-heif DLLs and the VC++ runtime.** Collected from the
   wheel's file list; a GitHub runner has the VC++ runtime
   installed, so a pass does not prove the exe starts on a clean PC.

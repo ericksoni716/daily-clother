@@ -1,6 +1,6 @@
 # Changelog
 
-What changed for the person using Closet, newest first. Releases are on the
+What changed for the person using Nines, newest first. Releases are on the
 [Releases page](https://github.com/ericksoni716/daily-clother/releases); versions before
 0.9.0 are described there only.
 
@@ -18,6 +18,17 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   with no drawing yet shows its photo. The Photos / Drawings switch over the closet starts from
   it and no longer remembers its choice on the device: to keep drawings, turn the setting on.
 
+- **Settings → Advanced settings → Background removal** now says what it has: a line for each of
+  the two models, the main one that cuts out every photo and the second one asked as well for
+  stripes and checks, each saying whether it is ready, how far its download has got, or why it
+  didn't download, with **Download** or **Try again** beside one that is missing or failed.
+
+- On **Check the pieces** (a photo of several pieces), a slip can be taken back. After each
+  change a line says what it was, with **Undo**. A box Claude found that you moved or reshaped
+  has **As Claude found it**, one you removed is listed with **Put back**, and **Back to what
+  Claude found** puts every box back as Claude found it. Claude is not asked again for this.
+  It works for photos added from this version on.
+
 ### Changed
 
 - An item's page now reads in the order you go through a new piece: the picture and the name,
@@ -25,6 +36,22 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
   wearing and washing and About it; then how it looks (the line about it, Fix the details and a
   shoe's drawings by Claude); a shoe's photos come near the end. Size, material, the date you got
   it and its condition are under **Size, material and more**.
+
+- The last places where the program still called itself Closet now say Nines. You may notice
+  three things after updating:
+  - Your backups go into a **Nines backup** folder inside the backup folder you chose. The
+    first backup after the update renames the **Closet backup** folder there to **Nines
+    backup**, with everything in it, so nothing is copied twice and every earlier backup can
+    still be restored. If you sync that folder (OneDrive, iCloud Drive), the sync app sees one
+    folder renamed. If another program has a file in it open, that backup goes into **Closet
+    backup** as before and the next one tries again. If you have both folders, Nines uses
+    **Nines backup** and leaves **Closet backup** as it is.
+  - An API key you saved is now kept in the keychain (Windows Credential Manager, or the Mac's
+    keychain) under the name **Nines** instead of **Closet**. The first start after the update
+    moves it there by itself and removes the old entry; if it cannot, the key stays under
+    Closet and is still used, and the next start tries again.
+  - The log in the data folder is now `logs\nines.log` (it was `closet.log`; the first start
+    renames it), and its lines and the program's command-line help say Nines.
 
 - Every piece you add now comes to the review once, besides those Claude was unsure of: one at a
   time, with its picture, its name to type over, what Claude thinks it is, and boxes for the brand

@@ -132,7 +132,7 @@ heif_libs = dist_native_libs("pillow_heif")
 if not heif_libs:
     fail("no libheif/libde265/x265 libraries found for pillow_heif")
 
-# Closet's own window (pywebview, closet/window.py). pywebview ships a PyInstaller hook of its own
+# Nines' own window (pywebview, closet/window.py). pywebview ships a PyInstaller hook of its own
 # (webview/__pyinstaller), and pyinstaller-hooks-contrib has one too; what they collect is listed here
 # as well so the build does not depend on which of the two PyInstaller picks: the scripts it puts in
 # the page (webview/js) everywhere, and on Windows the Edge WebView2 libraries (webview/lib), which

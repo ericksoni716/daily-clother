@@ -1,9 +1,9 @@
 """Who is asking through Tailscale, and whether it really was Tailscale that said so.
 
-Closet listens only on 127.0.0.1, and Tailscale Serve passes the phone's requests on to it from the Tailscale service,
+Nines listens only on 127.0.0.1, and Tailscale Serve passes the phone's requests on to it from the Tailscale service,
 adding headers that say which signed-in member of the tailnet is asking (`Tailscale-User-Login`, `Tailscale-User-Name`;
 Serve removes any a browser sent, and adds none for Funnel, its public way in). Any other program on this computer,
-under any account, could connect to the same port and send the same headers. So on Windows, before Closet believes
+under any account, could connect to the same port and send the same headers. So on Windows, before Nines believes
 them, it asks Windows which process owns the other end of the connection, and which process is the Tailscale service.
 Only when they are the same process are the headers Tailscale's own. The service may run Tailscale's engine as a child
 process (it starts it again if it fails), so a `tailscaled.exe` the service started itself counts as the service too.
@@ -50,7 +50,7 @@ def owner(table: bytes, client: tuple[str, int], server_port: int) -> int | None
 
     `table` is what GetExtendedTcpTable returns for IPv4 with owning processes: a count, then a
     row per connection. Seen from the client's side, its local end is `client` and its remote
-    end is Closet's port. Addresses and ports are in network byte order.
+    end is Nines' port. Addresses and ports are in network byte order.
     """
     try:
         address = ipaddress.IPv4Address(client[0]).packed

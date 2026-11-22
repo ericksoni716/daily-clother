@@ -87,6 +87,84 @@ def test_nightly_backup_catches_up_after_the_program_was_off(services, cfg, tmp_
     assert backup.is_due(services.state, now=time.time() + backup.DUE_AFTER_SECONDS + 5)
 
 
+def _as_before_the_rename(folder):
+    """A backup folder as 0.13.0 and before left it: its backups in "Closet backup"."""
+    (folder / backup.SUBFOLDER).rename(folder / backup.OLD_SUBFOLDER)
+    return folder / backup.OLD_SUBFOLDER
+
+
+def _tree(root):
+    return {p.relative_to(root).as_posix(): p.read_bytes() for p in root.rglob("*") if p.is_file()}
+
+
+def test_backups_in_closet_backup_are_found_restored_and_moved_to_nines_backup(services, cfg, tmp_path, client, monkeypatch):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    upload(client, name="Kept from before")
+    stamps = iter(f"202601{d:02d}-010101" for d in range(1, 30))
+    monkeypatch.setattr(backup, "_stamp", lambda: next(stamps))
+    for _ in range(backup.KEEP_SNAPSHOTS):
+        assert backup.run_backup(cfg, services.state, folder=folder)["ok"]
+    old = _as_before_the_rename(folder)
+    before = _tree(old)
+
+    services.stop()
+    restored = backup.restore(cfg, folder)   # found where 0.13.0 left it, and nothing there is moved by a restore
+    assert restored["items"] == 1 and restored["snapshot"] == "closet-20260114-010101.sqlite"
+    assert _tree(old) == before and not (folder / backup.SUBFOLDER).exists()
+
+    result = backup.run_backup(cfg, services.state, folder=folder)   # the next backup renames the folder, once
+    assert result["ok"] and result["images_copied"] == 0   # the images it already had are still shared
+    new = folder / backup.SUBFOLDER
+    assert not old.exists() and new.is_dir()
+    snaps = sorted(p.name for p in (new / "db").glob("*.sqlite"))
+    assert len(snaps) == backup.KEEP_SNAPSHOTS and snaps[0] == "closet-20260102-010101.sqlite"   # pruned as one folder
+    assert snaps[-1] == result["snapshot"]
+    assert backup.restore(cfg, folder)["snapshot"] == result["snapshot"]
+
+
+def test_a_closet_backup_folder_that_cannot_be_renamed_is_used_as_it_is_until_it_can(services, cfg, tmp_path, client,
+                                                                                    monkeypatch, caplog):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    upload(client)
+    stamps = iter(f"202601{d:02d}-010101" for d in range(1, 30))
+    monkeypatch.setattr(backup, "_stamp", lambda: next(stamps))
+    assert backup.run_backup(cfg, services.state, folder=folder)["ok"]
+    old = _as_before_the_rename(folder)
+    rename, held = os.rename, [True]
+
+    def renaming(src, dst):
+        if held[0]:
+            raise PermissionError(13, "another program has a file in it open")
+        rename(src, dst)
+    monkeypatch.setattr(backup.os, "rename", renaming)
+    result = backup.run_backup(cfg, services.state, folder=folder)
+    assert result["ok"] and not (folder / backup.SUBFOLDER).exists()   # nothing half moved, nothing started beside it
+    assert len(list((old / "db").glob("*.sqlite"))) == 2
+    assert "could not rename the backup folder" in caplog.text
+
+    held[0] = False
+    assert backup.run_backup(cfg, services.state, folder=folder)["ok"]
+    assert not old.exists() and len(list((folder / backup.SUBFOLDER / "db").glob("*.sqlite"))) == 3
+
+
+def test_when_both_backup_folders_exist_nines_backup_is_used_and_closet_backup_is_left_alone(services, cfg, tmp_path,
+                                                                                             client):
+    folder = tmp_path / "Synced"
+    folder.mkdir()
+    upload(client)
+    first = backup.run_backup(cfg, services.state, folder=folder)
+    assert first["ok"] and first["images_copied"] > 0
+    old = _as_before_the_rename(folder)
+    before = _tree(old)
+    (folder / backup.SUBFOLDER).mkdir()   # made by hand, say
+    result = backup.run_backup(cfg, services.state, folder=folder)
+    assert result["ok"] and result["images_copied"] == first["images_copied"]   # nothing merged: it has its own images
+    assert _tree(old) == before
+    assert [p.name for p in (folder / backup.SUBFOLDER / "db").glob("*.sqlite")] == [result["snapshot"]]
+
+
 def test_only_the_newest_snapshots_are_kept(services, cfg, tmp_path, client, monkeypatch):
     folder = tmp_path / "Synced"
     folder.mkdir()
@@ -557,16 +635,16 @@ def _phone_info(serve_text, status_text=STATUS, code=0):
 
 
 def test_phone_address_is_only_one_that_reaches_closet():
-    # no shares: the computer's bare name is not Closet's address
+    # no shares: the computer's bare name is not Nines' address
     got = _phone_info(_serve())
     assert got["running"] is True and got["address"] is None and got["stop_command"] is None
     assert got["command"] == "tailscale serve --bg 8765" and got["others_share"] is False
 
-    # Closet on 443
+    # Nines on 443
     got = _phone_info(_serve((443, "/", "http://127.0.0.1:8765")))
     assert got["address"] == f"https://{HOST}" and got["stop_command"] == "tailscale serve --https=443 off"
 
-    # another app on 443, Closet on 8443 (localhost counts too)
+    # another app on 443, Nines on 8443 (localhost counts too)
     got = _phone_info(_serve((443, "/", "http://127.0.0.1:3000"), (8443, "/", "http://localhost:8765")))
     assert got["address"] == f"https://{HOST}:8443" and got["stop_command"] == "tailscale serve --https=8443 off"
     assert got["others_share"] is True
@@ -582,7 +660,7 @@ def test_phone_command_skips_ports_already_taken():
     assert _phone_info(taken)["command"] == "tailscale serve --bg --https=8444 8765"
     assert phone.start_command(8765, [443, 8443, 8444]) == "tailscale serve --bg --https=10000 8765"
     assert phone.start_command(8765, [443, 8443, 8444, 10000]) == "tailscale serve --bg --https=10001 8765"
-    # a share of another port of this computer, or of Closet at a path, is not Closet
+    # a share of another port of this computer, or of Nines at a path, is not Nines
     got = _phone_info(_serve((443, "/", "http://127.0.0.1:87650"), (8443, "/closet", "http://127.0.0.1:8765")))
     assert got["address"] is None
     # a foreground `tailscale serve` still running counts as well

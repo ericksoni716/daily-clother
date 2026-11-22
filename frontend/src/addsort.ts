@@ -1,5 +1,5 @@
 /**
- * One Add for everything (17 November): the photos chosen or taken wait in a tray, Closet asks Claude what each shows
+ * One Add for everything (17 November): the photos chosen or taken wait in a tray, Nines asks Claude what each shows
  * (one piece, several pieces, a shoe, and which photos are the same shoe), the owner checks it, and then each photo
  * goes the way it always has. Pure parts here; the screen is `screens/Add.tsx`.
  */

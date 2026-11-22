@@ -65,7 +65,7 @@ only here); take a line out when it is done.
     tried only with stand-ins for Claude, never with a real call; `tools/correct_shoe_drawing.py
     --side` has no trace to read, so it runs without the measured proportions.
 - The program file and the data folder renamed to Nines (21 November; DECISIONS, "The program file: Nines"): the folder's move and the carrying over of start at login were tried only on Linux and with a stand-in registry; the first run on Windows is the owner's own, from `Closet.exe` 0.11.0. The release notes' first-run steps still say the program opens in the browser and shows a coat-hanger icon.
-- Also left by the rename: comments, docstrings and log lines in the code still say Closet, and older docs (past CHANGELOG entries, DECISIONS entries before it, the assessment) keep the old name.
+- The word sweep (22 November; DECISIONS, "The word sweep: Closet to Nines"): moving the API key in the keychain from the entry named Closet to Nines was tried only with stand-ins and, on Windows, in the CI's own Credential Manager; the first run on the owner's PC and a Mac is the real one. Renaming the backup folder's `Closet backup` was tried only on Linux, never inside a synced OneDrive or iCloud folder. Past CHANGELOG entries, DECISIONS entries before the sweep and the assessment keep the old name on purpose.
 - **The doors decide who comes in** (the three pull requests to the other app's access model,
   20 to 22 November; DECISIONS, "The doors decide who comes in"): the passphrase is gone, and a
   Tailscale request that names no one is refused. Still to try on real devices after the
@@ -143,9 +143,9 @@ only here); take a line out when it is done.
     no phone share (about 2.2 screens), down from about 6,100px and 1,105 words, not the 1.5
     screens the outline hoped for; the Phone group's setup steps take the most room until
     the share works. A Homestead-style `Fold` per group would shorten it further.
-  - Not done, because they change what Closet does on the computer without being asked: start
+  - Not done, because they change what Nines does on the computer without being asked: start
     at login turned on at first run, and a backup folder proposed by itself (iCloud Drive or
-    OneDrive). A folder picker for the backup folder in Closet's own window is not done
+    OneDrive). A folder picker for the backup folder in Nines' own window is not done
     either; the path is still typed.
   - The route order still has its four choices; the assessment suggested two ("plan first,
     key as backup" and "key only"), which changes a setting's meaning and is the owner's call.
@@ -176,7 +176,7 @@ only here); take a line out when it is done.
     browser test adds a wish behind the page's back and expects to see it.
   - The browser test `12-would-work` expects one wish, but the demo closet starts with two; it
     passes only because an earlier spec in the run removes them.
-  - A key put in the keychain by hand, or `ANTHROPIC_API_KEY` set, while Closet runs shows in
+  - A key put in the keychain by hand, or `ANTHROPIC_API_KEY` set, while Nines runs shows in
     Settings only after a restart (the key's line is now read once and kept).
   - Some rows on Advanced settings can still change height when a slow answer lands: a long
     Claude Code detail, a failed check, a disk whose free space cannot be read. (The main
@@ -468,7 +468,7 @@ Original phase 1.
 - [ ] Owner tries it on a real Windows PC and iPhone. Not yet exercised: tray icon, start at login, the Tailscale address, camera capture, home-screen install, HEIC from the phone, the model download progress bar, dropping a folder of photos.
 - [x] Pin the macOS-only tray dependencies: pinned (PyObjC 12.2.2) with Closet's own window, which needs more of them.
 - [x] Closet opens in its own window (pywebview; approved by the owner 16 November): closing it leaves Closet in the tray, Open Closet and opening the program again bring it back, a copy started at login opens none, and the browser is used when the window cannot open. Tested with the window and the tray faked, and on Linux only otherwise.
-- [ ] Try Closet's own window on the owner's Windows PC and on a Mac: closing and reopening it, Open Closet, double-clicking the program while it runs, start at login, the login remembered after a restart, Open in shop opening the browser, choosing photos and a folder on Add, dropping photos and a folder on Add, Use my location, shutting down Windows with Closet running (it must not hold up the shutdown), and on the Mac ⌘Q and the Dock icon. On the Mac, Add's "choose a folder" is expected to offer files only (pywebview's file chooser cannot pick a folder for the page); dropping a folder still works.
+- [ ] Try Nines' own window on the owner's Windows PC and on a Mac: closing and reopening it, Open Nines, double-clicking the program while it runs, start at login, the login remembered after a restart, Open in shop opening the browser, choosing photos and a folder on Add, dropping photos and a folder on Add, Use my location, shutting down Windows with Nines running (it must not hold up the shutdown), and on the Mac ⌘Q and the Dock icon. On the Mac, Add's "choose a folder" is expected to offer files only (pywebview's file chooser cannot pick a folder for the page); dropping a folder still works.
 
 ### Stop B: the owner's real wardrobe in
 Original phase 2 and the single-photo parts of phase 3.

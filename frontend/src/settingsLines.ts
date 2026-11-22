@@ -3,9 +3,9 @@
  * line each, and which groups a phone and a computer are shown. Pure, so each case has a test; the page only lays
  * these out. Everything that changes them is on the Advanced screen (`screens/Advanced.tsx`).
  */
-import { formatDateTime } from './labels';
+import { formatDateTime, formatSize } from './labels';
 import { formatUsd } from './spend';
-import type { Profile, Settings, TaggingSpend, TaggingStatus } from './types';
+import type { ModelInfo, Profile, Settings, TaggingSpend, TaggingStatus } from './types';
 import { availableLine, busyLine, lastInstallLine, type UpdateStatus } from './updates';
 
 /** How a line is drawn: `ok` with a green dot, `problem` in red, `waiting` while a lookup runs, `quiet` plain. */
@@ -16,7 +16,7 @@ export interface Line {
   text: string;
 }
 
-/** Where the page is open: on the computer Closet runs on, or on the phone (anything that is not loopback). */
+/** Where the page is open: on the computer Nines runs on, or on the phone (anything that is not loopback). */
 export type Device = 'computer' | 'phone';
 
 // ------------------------------------------------------------------ Claude
@@ -31,7 +31,7 @@ export interface ClaudeLine extends Line {
 type ClaudeSettings = Pick<Settings, 'tagging_api_enabled' | 'tagging_api_off' | 'api_key'>;
 
 /**
- * How Closet reaches Claude, in one line: which way it uses now, or, when none works, one red sentence and what to
+ * How Nines reaches Claude, in one line: which way it uses now, or, when none works, one red sentence and what to
  * do. The routes are tried in the order the server reports (`tagging.order`); the key counts only once allowed and
  * while the month's limit is not reached.
  */
@@ -84,7 +84,7 @@ export interface UpdatesLine extends Line {
   action: UpdateAction;
 }
 
-/** "Closet 0.4.0 · up to date", "Closet 0.4.1 is ready to install.", a step of an install, or what went wrong. */
+/** "Nines 0.4.0 · up to date", "Nines 0.4.1 is ready to install.", a step of an install, or what went wrong. */
 export function updatesLine(status: UpdateStatus | null, version: string, offline: boolean): UpdatesLine {
   if (!status) {
     return { tone: 'quiet', text: offline ? `Nines ${version}. Updates can't be checked while you're offline.` : `Nines ${version}`, action: null };
@@ -139,8 +139,8 @@ export function backupLine(s: BackupSettings, profile: Profile, device: Device):
 export type Group = 'style' | 'everyday' | 'claude' | 'updates' | 'phone' | 'device' | 'data' | 'leave';
 
 /**
- * Which groups are shown, in order. Other devices is shown on the computer until a share reaches Closet (after that it is
- * one line there too); on the phone, in Safari, to say how to add Closet to the Home Screen, and, as an app, only when
+ * Which groups are shown, in order. Other devices is shown on the computer until a share reaches Nines (after that it is
+ * one line there too); on the phone, in Safari, to say how to add Nines to the Home Screen, and, as an app, only when
  * it has something to say (`phoneLine`: whether the computer keeps Nines running).
  */
 export function mainGroups(phoneShows: 'connect' | 'add-to-home-screen' | 'nothing', phoneLine = false): Group[] {
@@ -151,7 +151,7 @@ export function mainGroups(phoneShows: 'connect' | 'add-to-home-screen' | 'nothi
 }
 
 /**
- * What only makes sense on the computer Closet runs on, and so is not offered on the phone: Quit, start at login,
+ * What only makes sense on the computer Nines runs on, and so is not offered on the phone: Quit, start at login,
  * a typed folder path, the model's files to put in place by hand, the data folder, and the door through Cloudflare
  * (its connector is installed on the computer, so that is where it is set up; the server refuses a change to it from a
  * device that came in through Cloudflare whatever the page shows).
@@ -170,7 +170,52 @@ export function computerOnly(device: Device): ComputerOnly {
   return { quit: on, autostart: on, backupFolder: on, modelFiles: on, dataFolder: on, cloudflare: on };
 }
 
-/** "Closet uses 2.7 MB for 49 items · 62 GB free", from the storage lookup. */
+/** "Nines uses 2.7 MB for 49 items · 62 GB free", from the storage lookup. */
 export function storageLine(total: string, items: number, free: string | null): string {
   return `Nines uses ${total} for ${items === 1 ? '1 item' : `${items.toLocaleString('en-US')} items`}${free ? ` · ${free} free on this disk` : ''}.`;
+}
+
+// ------------------------------------------------------------------ background removal
+
+/** What a model's line offers: start its download, or try it again; one call starts whichever is not ready. */
+export type ModelAction = 'download' | 'retry' | null;
+
+export interface ModelLine extends Line {
+  id: 'main' | 'second';
+  action: ModelAction;
+  /** The button's name for a screen reader, which hears both lines' buttons apart. */
+  actionLabel: string | null;
+}
+
+const MODEL_ROLE = {
+  main: 'The main model cuts out every photo.',
+  second: 'The second model is asked as well for stripes and checks.',
+} as const;
+
+const MODEL_NAME = { main: 'the main model', second: 'the second model' } as const;
+
+/**
+ * The two background-removal models, one line each (Advanced → Background removal): what each is for and how it
+ * stands, worded as the notice on Add words it. The second line is left out when the server has no second model.
+ */
+export function modelLines(model: ModelInfo): ModelLine[] {
+  const lines: ModelLine[] = [modelLine('main', model)];
+  if (model.second) lines.push(modelLine('second', model.second));
+  return lines;
+}
+
+function modelLine(id: 'main' | 'second', m: ModelInfo): ModelLine {
+  const role = MODEL_ROLE[id];
+  const name = MODEL_NAME[id];
+  if (m.state === 'ready') return { id, tone: 'ok', text: `${role} It is ready.`, action: null, actionLabel: null };
+  if (m.state === 'downloading') {
+    const far = m.total_bytes ? `: ${formatSize(m.downloaded_bytes)} of ${formatSize(m.total_bytes)}`
+      : m.downloaded_bytes > 0 ? `: ${formatSize(m.downloaded_bytes)} so far` : '';
+    return { id, tone: 'waiting', text: `${role} It is downloading${far}.`, action: null, actionLabel: null };
+  }
+  if (m.state === 'failed') {
+    return { id, tone: 'problem', text: `${role} It didn't download.${m.error ? ` ${m.error}` : ''}`, action: 'retry',
+      actionLabel: `Try downloading ${name} again` };
+  }
+  return { id, tone: 'quiet', text: `${role} It isn't downloaded yet.`, action: 'download', actionLabel: `Download ${name}` };
 }

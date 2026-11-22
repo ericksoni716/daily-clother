@@ -87,7 +87,7 @@ def test_every_new_description_is_asked_for_its_surface_on_both_routes():
     tool = tagging.answer_tool()["input_schema"]
     assert "surface" in tool["properties"] and "surface" in tool["required"]
     assert surfaceform.GUIDANCE in tagging.PROMPT
-    assert SCHEMA_VERSION == 7
+    assert SCHEMA_VERSION >= 7   # the surface and lettering came with version 7 and are asked for in every one since
     assert "lettering" in sent["required"] and "lettering" in tool["required"]
 
 

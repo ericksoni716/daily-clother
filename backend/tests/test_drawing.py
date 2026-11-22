@@ -224,6 +224,23 @@ def test_an_everyday_trouser_kind_draws_its_own_look(category, kind, want, fabri
     assert item.svg_from_answer(answer(category, garment=kind)) != item.svg_from_answer(answer(category))
 
 
+def test_swim_trunks_are_short_drawstring_shorts_in_swim_fabric():
+    """The taxonomy's swim trunks: 3 to 7 inches in the inseam (drawn at 5 unless told) and its swim fabric (smooth,
+    a slight sheen: drawn as nylon, light, with no texture)."""
+    from closet.tagger.taxonomy import COVERAGE
+    template, params, extras, _ = drawing_for(ItemTags.model_validate(answer("shorts", garment="swim_trunks")))
+    assert template == "pants" and params["length"] == "short" and params.get("fly") is None
+    assert {k: params.get(k) for k in ("waist", "pockets", "hem", "inseam")} == \
+        {"waist": "drawstring", "pockets": "side", "hem": "plain", "inseam": 5}
+    assert extras["sheen"] is True and extras["weight"] == "lightweight" and extras["texture"] is None
+    # what was told wins: the inseam seen, a cotton cloth
+    _, told, cloth, _ = drawing_for(ItemTags.model_validate(answer("shorts", garment="swim_trunks", inseam=7, fiber="cotton")))
+    assert told["inseam"] == 7 and cloth["sheen"] is False
+    svg = item.svg_from_answer(answer("shorts", garment="swim_trunks"))
+    assert svg.startswith("<svg") and svg != item.svg_from_answer(answer("shorts", garment="shorts"))
+    assert COVERAGE["garment"]["swim_trunks"][0] == "drawn"
+
+
 @pytest.mark.parametrize("category, kind, like", [
     ("trousers", "pajama_set_woven", "lounge_pants"), ("shorts", "pajama_set_knit", "sleep_shorts"),
     ("trousers", "lounge_knit_set", "joggers"), ("trousers", "lounge_sweatsuit", "sweatpants"),

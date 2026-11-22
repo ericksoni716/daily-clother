@@ -487,7 +487,7 @@ GARMENTS: dict[str, str] = {
     "quilted_jacket": "outerwear", "fleece_jacket": "outerwear", "leather_jacket": "outerwear", "barn_jacket": "outerwear",
     "blazer": "tailoring", "sport_coat": "tailoring", "suit_jacket": "tailoring",
     "chinos": "bottoms", "dress_trousers": "bottoms", "jeans": "bottoms", "corduroys": "bottoms", "fatigues": "bottoms",
-    "cargo_pants": "bottoms", "work_pants": "bottoms", "sweatpants": "bottoms", "shorts": "bottoms",
+    "cargo_pants": "bottoms", "work_pants": "bottoms", "sweatpants": "bottoms", "shorts": "bottoms", "swim_trunks": "bottoms",
     "performance_tee": "activewear", "running_long_sleeve": "activewear", "running_singlet": "activewear",
     "compression_top": "activewear", "base_layer": "activewear", "athletic_half_zip": "activewear",
     "track_jacket": "activewear", "windbreaker": "activewear", "softshell_jacket": "activewear", "rain_shell": "activewear",
@@ -502,6 +502,9 @@ GARMENTS: dict[str, str] = {
 }
 SPORT_KINDS = frozenset(g for g, c in GARMENTS.items() if c == "activewear")
 LOUNGE_KINDS = frozenset(g for g, c in GARMENTS.items() if c == "loungewear")
+# Clothes for swimming: never in an everyday outfit nor counted by What's missing; packed for a trip with swimming
+# (`trips.py`). The owner's request, 22 November: "mostly used for trips".
+SWIM_KINDS = frozenset({"swim_trunks"})
 # The app's category for each garment: the JSON's `app_category` where it gives one (a test checks), otherwise
 # the usual one for its taxonomy category. None for a set (a pyjama set, a sweatsuit): it is a top or a bottom.
 _APP_BY_TAXONOMY = {"knit_top": "tee", "woven_shirt": "shirt", "sweatshirt": "sweater", "knitwear": "sweater",
@@ -510,7 +513,7 @@ APP_CATEGORY: dict[str, str | None] = {
     **{g: _APP_BY_TAXONOMY.get(c) for g, c in GARMENTS.items()},
     "polo": "polo", "rugby_shirt": "polo", "hoodie": "hoodie", "peacoat": "coat", "overcoat": "coat",
     "trench_coat": "coat", "parka": "coat",
-    "jeans": "jeans", "shorts": "shorts", "chinos": "trousers", "dress_trousers": "trousers", "corduroys": "trousers",
+    "jeans": "jeans", "shorts": "shorts", "swim_trunks": "shorts", "chinos": "trousers", "dress_trousers": "trousers", "corduroys": "trousers",
     "fatigues": "trousers", "cargo_pants": "trousers", "work_pants": "trousers", "sweatpants": "trousers",
     "performance_tee": "tee", "running_long_sleeve": "tee", "running_singlet": "tee", "compression_top": "tee",
     "base_layer": "tee", "athletic_half_zip": "sweater", "track_jacket": "jacket", "windbreaker": "jacket",
@@ -1443,7 +1446,16 @@ BOTTOM_KINDS: dict[str, tuple[dict, str | None, str, str]] = {
                    "canvas", D, "a panel over each knee, a hammer loop and a rule pocket, scoop pockets; patch pockets on "
                    "the back view"),
     "shorts": ({}, None, D, "the shorts drawing, cut to the inseam when it was told"),
+    # the taxonomy's swim trunks are 3 to 7 inches long in the inseam: drawn at the middle unless one was told
+    "swim_trunks": ({"waist": "drawstring", "pockets": "side", "hem": "plain",
+                     "inseam": round(sum(SHORTS_INSEAM_IN["swim_trunks"]) / 2)}, None, D,
+                    "short shorts with a gathered drawstring waist and side pockets, 5 inches long unless the inseam "
+                    "was told, with swim fabric's sheen (the mesh liner is inside, out of view)"),
 }
+# The fibre a kind of bottom is drawn in when none was seen. Swim trunks are made of the taxonomy's swim fabric
+# (`performance_fabrics.swim_fabric`: polyester, nylon and elastane; smooth, quick-dry, a slight sheen), drawn as nylon,
+# the one of its fibres with a sheen, with no texture of its own.
+KIND_BOTTOM_FIBER = {"swim_trunks": "nylon"}
 _KIND_NOTES = {
     "fleece_pullover": "stand collar and a short snap placket; with a trim colour its edges are bound in it, and a "
                        "second colour is cut into the yoke, sleeves and pocket",

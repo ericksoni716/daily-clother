@@ -76,6 +76,12 @@ def test_names_and_search_words():
     assert "activewear" in kinds.search_words("fleece_pullover")
 
 
+def test_swim_trunks_are_shorts_offered_under_trousers_and_shorts():
+    found = {k["id"]: k for k in kinds.catalogue()["kinds"]}["swim_trunks"]
+    assert (found["name"], found["group"], found["category"], found["drawn"]) == ("Swim trunks", "trousers", "shorts", True)
+    assert {"swim", "swimming", "trunks", "beach"} <= set(found["words"].split())
+
+
 def test_a_kind_of_top_has_only_its_own_details():
     tee = details.names_for("tee", "t_shirt")
     assert "neckline" in tee and "cuff" not in tee and "placket" not in tee and "collar" not in tee
@@ -117,6 +123,16 @@ def test_choosing_a_kind_sets_the_category_and_the_drawing_and_survives_describe
     again = client.get(f"/api/items/{item['id']}").json()
     assert again["kind"] == "fleece_pullover" and again["category"] == "sweater"
     assert svg(client, again) == svg(client, chosen)
+
+
+def test_choosing_swim_trunks_makes_the_item_shorts_drawn_as_swim_trunks(client, services, claude, cfg):
+    item = described(client, services, claude)   # Claude said a navy polo
+    chosen = client.put(f"/api/items/{item['id']}/kind", json={"kind": "swim_trunks"}).json()
+    assert (chosen["kind"], chosen["kind_name"], chosen["category"]) == ("swim_trunks", "Swim trunks", "shorts")
+    assert _rows(cfg)[item["id"]]["kind"] == "swim_trunks"   # what Today, trips and What's missing read
+    trunks = svg(client, chosen)
+    plain = client.put(f"/api/items/{item['id']}/kind", json={"kind": "shorts"}).json()
+    assert svg(client, plain) != trunks   # the kind's own look: shorter, a drawstring, swim fabric's sheen
 
 
 def test_undo_gives_back_the_kind_and_category_before(client, services, claude, cfg):

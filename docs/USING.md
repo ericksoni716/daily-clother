@@ -87,7 +87,8 @@ piece opens it (`/today/item/<id>`).
 Temperatures can be typed when the forecast cannot be fetched. The demo closet's outfits are
 the rules' alone; nothing about it is sent to Claude. Swim trunks (and what you wear at home)
 are never in the day's outfits, by the rules or by Claude, unless you build an outfit around
-them; a trip packs them for swimming.
+them; a trip packs them for swimming. Shoes made for one sport (tennis shoes, golf shoes and
+studded boots) are left out in the same way, even on an athletic day.
 
 ## Worn
 
@@ -107,7 +108,9 @@ counts". "Not this one" swaps a piece and "I want to take this" insists on one. 
 the beach turns on by itself when a day of the trip reaches 27°C; you can turn it on or off,
 and your choice is kept when the trip is planned again. While it is on, your swim trunks are
 packed under **For swimming**, one pair for a trip of up to a week and two for a longer one,
-never worn in a day's outfit; with none in your closet the trip says so there. A saved trip is
+never worn in a day's outfit; with none in your closet the trip says so there. Tennis shoes,
+golf shoes and studded boots are packed only when you choose "I want to take this", with the
+shoes, and are worn on no day. A saved trip is
 a packing list to tick off, on the computer or the phone, with its choices under "Change the
 trip".
 
@@ -135,8 +138,8 @@ phone it opens as its own page.
 `/item/<id>`. It reads in the order you go through a new piece. First the picture (photo, cutout
 or drawing, and for some pieces the back), with a small mark on the drawing that lists what it
 leaves out, and the name, which you type over in place. Straight under the name: **What is it?**
-(the kind, with who said it, a sheet of kinds on a phone), the brand and the price, each saved as
-you leave it. Changing any of these counts as having checked the piece, so it leaves the review.
+(the kind, with who said it, a sheet of kinds on a phone; for a shoe, the kind of shoe set in
+Fix the details counts too), the brand and the price, each saved as you leave it. Changing any of these counts as having checked the piece, so it leaves the review.
 
 Then "Wearing and washing": Wore it today, put in the laundry or mark clean, and recent wears.
 About it holds how you feel about it and one box, Notes for you and Claude, which Claude reads
@@ -256,7 +259,9 @@ your pieces it is based on, "I'll look for this" (onto the wishlist) and "Not fo
 it, and optionally similar ones). "Based on…" opens How you live, the same questions as
 Settings; once the closet has enough to suggest from and they are not answered, "Tell it how
 you live" offers them. What holds suggestions back, the days you ruled out and what you hid
-are folded at the end of the section. **Thinking of buying something?**: Would this work?,
+are folded at the end of the section. Swim trunks and shoes made for one sport (tennis, golf,
+studded boots) are not counted there: a pair of tennis shoes never stands in for everyday
+sneakers. **Thinking of buying something?**: Would this work?,
 and your wishlist, a row per wish that opens its page, with "Add a link" (a product's page: a
 new wish made from it, then its page opens) and "Add by hand" (beside the rest on a computer).
 A row shows the note, what to look for, or the page it was sent as ("$68.00 at Example Shop"),

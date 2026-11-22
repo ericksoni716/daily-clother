@@ -22,6 +22,15 @@ only here); take a line out when it is done.
   but choosing another level there makes it one level, and the second is not shown. A gap's "look for"
   is always one level, even for "another like your loafers". Not yet tried with Claude's real answers:
   how often it gives a second level, and for which pieces.
+- **Tennis and golf shoes** (22 November; DECISIONS, "Tennis and golf shoes"). The demo closet has
+  none, so the demo and the phone check show them only once a shoe is said to be one. A trip has
+  no "Tennis" or "Golf" choice to pack them by itself (only "I want to take this"). The rules build
+  an outfit around a pair when asked (`build_around`), but Today's screen offers building around
+  only a piece already in one of its outfits, so a pair it leaves out (like swim trunks or
+  loungewear) cannot be built around from the page; a "Build today's outfit around it" on the
+  item page would open that. Choosing a
+  golf shoe by hand draws its usual nubs even over spikes Claude saw, as every kind's pick draws its
+  usual look; nubs are faint on the dark sole they default to when no sole colour is known.
 
 - **Wishlist links and their prices** (22 November; DECISIONS, "Wishlist links and their prices").
   Built and tested with the web and Claude stood in for; not yet tried on real shops' pages, nor

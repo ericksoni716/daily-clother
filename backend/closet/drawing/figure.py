@@ -1746,12 +1746,14 @@ def _sleeves_over(p: Placed, tid: str, defs: list[str]) -> str:
     only = _sleeve_only(p.shape)
     d, b, _, _ = _draw(replace(p.spec, graphic=None), "line", f"{tid}v", layered=True, dy=0.0,   # a print: on the body
                        shape=only)
-    # its edge is drawn along the sleeve, not along the outline drawn past its armhole (`_past_armhole`)
-    stroke = re.search(rf'<path d="{re.escape(only.outline)}" fill="none"( stroke="[^"]*" stroke-width="[^"]*")[^>]*/>', b)
-    if stroke:
-        b = b.replace(stroke.group(0), "")
-        b += "".join(f'<path d="{q[:q.rfind(" C ")] if " C " in q else q}" fill="none"{stroke.group(1)} '
-                     'stroke-linejoin="round" stroke-linecap="round"/>' for q in paths)
+    # its edge is drawn along the sleeve, not along the outline drawn past its armhole (`_past_armhole`): every line
+    # drawn on that outline, each as it was (a fuzzy cloth has two, its soft fuzz with its filter, then the ink line)
+    outlines = list(re.finditer(rf'<path d="{re.escape(only.outline)}" fill="none"((?: [a-z-]+="[^"]*")*)/>', b))
+    for line in outlines:
+        b = b.replace(line.group(0), "")
+    for line in outlines:
+        looks = line.group(1) + ("" if "stroke-linecap" in line.group(1) else ' stroke-linecap="round"')
+        b += "".join(f'<path d="{q[:q.rfind(" C ")] if " C " in q else q}" fill="none"{looks}/>' for q in paths)
     t, far = _matrix(p.transforms[0]), 4000
     keep = seams = ""
     base = p.spec.fill.color if p.spec.fill is not None and p.spec.fill.color else "#888888"

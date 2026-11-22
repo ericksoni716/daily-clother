@@ -98,6 +98,10 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ### Fixed
 
+- On the outfit figure, a fuzzy top (flannel, fleece, sherpa, mohair) had a thick band in a shade
+  of its cloth down the edges of its sleeves instead of its outline. Its sleeves now have the same
+  dark outline and soft fuzz as its own drawing.
+
 - Ribbed cuffs on trousers can be set and seen. In Fix the details, a pair of trousers' hem is
   under **Hem and cuffs**, and every choice there now changes the drawing: a ribbed cuff on track
   pants, tech pants or lounge pants is drawn, and joggers can be given a turn-up or a split hem

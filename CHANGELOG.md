@@ -10,6 +10,8 @@ nobody using the app would notice (a refactor, a test, a doc) gets none.
 
 ## Unreleased
 
+## 0.15.0
+
 ### Added
 
 - **Swim trunks** are a kind of their own, under Trousers & shorts in **What is it?**, and Claude
